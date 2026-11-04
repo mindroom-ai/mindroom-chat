@@ -38,6 +38,23 @@ export const mirrorPlacement = (
  */
 export const ownDirectionLine = { dir: 'auto', 'data-own-direction': '' } as const;
 
+const LETTER = /\p{L}/u;
+const RIGHT_TO_LEFT_LETTER =
+  /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}]/u;
+
+/**
+ * The direction a text reads in, from its first letter, as `dir="auto"` decides it; undefined
+ * when it has no letter. A message body takes it from its plain text, because on the rendered
+ * body `dir="auto"` would also count the interface's own labels inside it, such as an agent's
+ * tool calls.
+ */
+export const textDirection = (text: string): 'ltr' | 'rtl' | undefined => {
+  for (const char of text) {
+    if (LETTER.test(char)) return RIGHT_TO_LEFT_LETTER.test(char) ? 'rtl' : 'ltr';
+  }
+  return undefined;
+};
+
 /** Whether the document reads right to left; i18n.ts sets `dir` with the language. */
 export const documentIsRightToLeft = (): boolean =>
   // Some tests stand in a partial document, without an element or one without methods.

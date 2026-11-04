@@ -15,6 +15,7 @@ import { MessageTextBody } from './layout';
 import { isJumboEmojiBody } from './jumboEmoji';
 import * as fileCss from './FileRow.css';
 import { useGlassHighlight } from '../glass/liquid/useLiquidGlass';
+import { textDirection } from '../directional';
 import {
   IAudioInfo,
   IEncryptedFile,
@@ -121,12 +122,14 @@ function TextMessage({
 
   return (
     <>
-      {/* The body reads in its own direction, so an English message keeps its punctuation at
-          the end in a right-to-left interface, and an Arabic one in a left-to-right one. */}
+      {/* The body reads in the direction of its plain text, so an English message keeps its
+          punctuation at the end in a right-to-left interface, and an Arabic one in a
+          left-to-right one. The interface's labels inside it, such as an agent's tool calls,
+          keep the interface's direction (index.css). */}
       <MessageTextBody
         priority={notice ? '300' : 'Inherit'}
         jumboEmoji={jumboEmoji}
-        dir="auto"
+        dir={textDirection(trimmedBody) ?? 'auto'}
         style={{ whiteSpace, overflowWrap: 'anywhere', ...style }}
       >
         {prefix}

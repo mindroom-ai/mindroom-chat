@@ -2,7 +2,7 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PopOut, TooltipProvider, documentIsRightToLeft, mirrorPlacement } from '.';
+import { PopOut, TooltipProvider, documentIsRightToLeft, mirrorPlacement, textDirection } from '.';
 
 const received = vi.hoisted(() => ({ popOut: [] as unknown[], tooltip: [] as unknown[] }));
 
@@ -67,6 +67,22 @@ describe('mirrorPlacement', () => {
       align: 'Start',
     });
     expect(mirrorPlacement({}, true)).toEqual({ position: undefined, align: undefined });
+  });
+});
+
+describe('textDirection', () => {
+  it('reads the direction of the first letter, past marks, digits and emoji', () => {
+    expect(textDirection('@Mind draft the launch email.')).toBe('ltr');
+    expect(textDirection('🔧 `web_search` [1]\n\nIt is from the report.')).toBe('ltr');
+    expect(textDirection('12 مرحبا hello')).toBe('rtl');
+    expect(textDirection('«שלום» world')).toBe('rtl');
+    expect(textDirection('Привет')).toBe('ltr');
+    expect(textDirection('日本語')).toBe('ltr');
+  });
+
+  it('has no direction for a text without letters', () => {
+    expect(textDirection('')).toBeUndefined();
+    expect(textDirection('👍 123 !?')).toBeUndefined();
   });
 });
 
