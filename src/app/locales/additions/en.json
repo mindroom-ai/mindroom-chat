@@ -83,6 +83,9 @@
     "a11y": {
       "mainNavigation": "Main",
       "skipToContent": "Skip to content"
+    },
+    "roomCard": {
+      "forget": "Forget Room"
     }
   },
   "featureUi": {
