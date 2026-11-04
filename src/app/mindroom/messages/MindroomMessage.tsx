@@ -4,6 +4,7 @@ import React, {
   useMemo,
   useRef,
   useState,
+  type FocusEvent,
   type MouseEvent,
   type MouseEventHandler,
   type ReactNode,
@@ -56,6 +57,7 @@ import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 import { MindroomModelBadge } from './MindroomModelBadge';
+import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
   getMindroomMessageCopyTextState,
@@ -633,11 +635,21 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // Anchors of the context menu and of the emoji board while they are open.
     const [menuAnchor, setMenuAnchor] = useState<RectCords>();
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
-    // The hover toolbar shows while the pointer or the keyboard focus is inside the row.
+    // The hover toolbar shows while the pointer or the keyboard focus is inside the row. A click
+    // also focuses the row, but that focus does not keep the toolbar once the pointer leaves.
     const [pointerInside, setPointerInside] = useState(false);
     const [focusInside, setFocusInside] = useState(false);
     const { hoverProps } = useHover({ onHoverChange: setPointerInside });
-    const { focusWithinProps } = useFocusWithin({ onFocusWithinChange: setFocusInside });
+    const { focusWithinProps } = useFocusWithin({
+      onFocusWithinChange: (inside: boolean) => {
+        if (!inside) setFocusInside(false);
+      },
+    });
+    const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) =>
+      setFocusInside(isKeyboardFocus(evt.target));
+    const toolbarRef = useRef<HTMLDivElement>(null);
+    // The inline editor has its own buttons, so the toolbar stays away while it is open.
+    const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
     const useAuthentication = useMediaAuthentication();
     const baseRef = useRef<HTMLDivElement | null>(null);
     const setBaseRef = useCallback(
@@ -648,6 +660,8 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       },
       [ref]
     );
+
+    const toolbarClearance = useToolbarClearance(baseRef, toolbarRef, toolbarVisible);
 
     const eventId = mEvent.getId() ?? '';
     const senderId = mEvent.getSender() ?? '';
@@ -870,11 +884,16 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           }
         />
       );
-      // The inline editor has its own buttons, so the toolbar stays away while it is open.
-      const toolbarVisible =
-        !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
       const options = (
-        <div className={css.MessageOptionsBase}>
+        <div
+          ref={toolbarRef}
+          className={css.MessageOptionsBase}
+          style={
+            toolbarClearance === undefined
+              ? undefined
+              : { insetBlockStart: `min(${toolbarClearance}px, calc(100% - 2.5rem))` }
+          }
+        >
           <Menu variant="SurfaceVariant" className={css.MessageOptionsBar}>
             <Box gap="100">
               {canSendReaction && confirmed && onReactionToggle && (
@@ -945,6 +964,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           space={messageSpacing}
           selected={!!menuAnchor || edit}
           onContextMenu={openMenuAtPointer}
+          onFocusCapture={noteRowFocus}
           {...hoverProps}
           {...focusWithinProps}
           {...props}
