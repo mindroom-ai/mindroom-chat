@@ -1,4 +1,12 @@
-import { EventType, RelationType, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
+import {
+  EventType,
+  MatrixEventEvent,
+  RelationType,
+  RoomEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type RoomEventHandlerMap,
+} from 'matrix-js-sdk';
 
 /** A ring this device has not answered yet. */
 export type IncomingRing = {
@@ -67,4 +75,70 @@ export const declinedRingId = (event: MatrixEvent, myUserId: string): string | u
     | undefined;
   if (relation?.rel_type !== RelationType.Reference) return undefined;
   return typeof relation.event_id === 'string' ? relation.event_id : undefined;
+};
+
+/** What a {@link watchRings} caller hears about. */
+export type RingWatcher = {
+  onRing: (ring: IncomingRing) => void;
+  /** This account said no to the ring with this event ID, on this device or another. */
+  onDeclined: (ringEventId: string) => void;
+};
+
+/**
+ * Follows the rings and declines that sync delivers to this account. An encrypted one whose room
+ * key comes late (to-device lag, a forwarded or backed-up key) is read when the SDK decrypts it
+ * again: a failed attempt announces itself as decrypted too, so the wait lasts until an attempt
+ * works or no ring sent then could still be ringing. Returns what stops following.
+ */
+export const watchRings = (mx: MatrixClient, watcher: RingWatcher): (() => void) => {
+  const myUserId = mx.getSafeUserId();
+  let stopped = false;
+  // Each encrypted event still waiting for its key, with what ends the wait.
+  const waiting = new Map<MatrixEvent, () => void>();
+
+  const read = (event: MatrixEvent) => {
+    const declined = declinedRingId(event, myUserId);
+    if (declined) watcher.onDeclined(declined);
+    else {
+      const ring = readRing(event, myUserId);
+      if (ring) watcher.onRing(ring);
+    }
+  };
+
+  const awaitKey = (event: MatrixEvent) => {
+    const left = MAX_RING_LIFETIME_MS - (Date.now() - event.getTs());
+    if (left <= 0 || waiting.has(event)) return;
+    const onAttempt = () => {
+      if (event.isDecryptionFailure()) return;
+      endWait();
+      read(event);
+    };
+    const timer = setTimeout(() => endWait(), left);
+    const endWait = () => {
+      clearTimeout(timer);
+      event.removeListener(MatrixEventEvent.Decrypted, onAttempt);
+      waiting.delete(event);
+    };
+    event.on(MatrixEventEvent.Decrypted, onAttempt);
+    waiting.set(event, endWait);
+  };
+
+  const consider = async (event: MatrixEvent) => {
+    await mx.decryptEventIfNeeded(event).catch(() => undefined);
+    if (stopped) return;
+    if (event.isDecryptionFailure()) awaitKey(event);
+    else read(event);
+  };
+
+  const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, _room, older, gone, at) => {
+    // Back-pagination and removals are history; only what the sync just delivered rings.
+    if (older || gone || at?.liveEvent !== true) return;
+    consider(event).catch(() => undefined);
+  };
+  mx.on(RoomEvent.Timeline, onTimeline);
+  return () => {
+    stopped = true;
+    [...waiting.values()].forEach((endWait) => endWait());
+    mx.off(RoomEvent.Timeline, onTimeline);
+  };
 };

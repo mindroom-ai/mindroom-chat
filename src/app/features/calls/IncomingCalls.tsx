@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
-import { RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
@@ -12,7 +12,7 @@ import { settingsAtom } from '../../state/settings';
 import { Surface } from '../../components/glass/GlassPrimitives';
 import { MINDROOM_FAVICON_SRC } from '../../mindroom/branding/branding';
 import { activeMemberships } from './callMemberships';
-import { declineRing, declinedRingId, readRing, type IncomingRing } from './callRings';
+import { declineRing, watchRings, type IncomingRing } from './callRings';
 import { startRingtone } from './ringtone';
 import { useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
@@ -154,34 +154,16 @@ export function IncomingCalls() {
   const { navigateRoom } = useRoomNavigate();
   const [ring, setRing] = useState<IncomingRing>();
 
-  useEffect(() => {
-    const myUserId = mx.getSafeUserId();
-    const consider = async (event: MatrixEvent) => {
-      await mx.decryptEventIfNeeded(event).catch(() => undefined);
-      // Rejected on another of this account's devices: this one stops ringing too.
-      const declined = declinedRingId(event, myUserId);
-      if (declined) {
-        setRing((current) => (current?.eventId === declined ? undefined : current));
-        return;
-      }
-      const found = readRing(event, myUserId);
-      if (found) setRing(found);
-    };
-    const onTimeline = (
-      event: MatrixEvent,
-      _room: Room | undefined,
-      toStartOfTimeline: boolean | undefined,
-      removed: boolean,
-      data: { liveEvent?: boolean }
-    ) => {
-      if (toStartOfTimeline || removed || data?.liveEvent !== true) return;
-      consider(event);
-    };
-    mx.on(RoomEvent.Timeline, onTimeline);
-    return () => {
-      mx.off(RoomEvent.Timeline, onTimeline);
-    };
-  }, [mx]);
+  useEffect(
+    () =>
+      watchRings(mx, {
+        onRing: setRing,
+        // Rejected on another of this account's devices: this one stops ringing too.
+        onDeclined: (declined) =>
+          setRing((current) => (current?.eventId === declined ? undefined : current)),
+      }),
+    [mx]
+  );
 
   // Stops ringing when the ring expires, the call it rang for has nobody left in it, or this
   // account answered on another device.
