@@ -271,11 +271,9 @@ export class RoomCall {
       .on(RoomEvent.AudioPlaybackStatusChanged, this.refresh)
       .on(RoomEvent.Reconnecting, () => this.update({ phase: 'reconnecting' }))
       .on(RoomEvent.Reconnected, () => this.update({ phase: 'connected' }))
-      .on(RoomEvent.Disconnected, () => {
-        if (this.leaving || this.state.phase === 'ended' || this.state.phase === 'failed') return;
-        // The media server dropped this device for good (LiveKit retries before giving up).
-        this.fail('connection');
-      })
+      // The media server dropped this device for good (LiveKit retries before giving up); after
+      // a leave or another failure this is the teardown's own disconnect.
+      .on(RoomEvent.Disconnected, () => this.fail('connection'))
       .on(RoomEvent.ActiveDeviceChanged, (kind, deviceId) => {
         this.update({ devices: { ...this.state.devices, [kind]: deviceId } });
       });
@@ -292,11 +290,19 @@ export class RoomCall {
     this.keyProvider?.setParticipantKey(key, keyIndex, participantIdentity).catch(() => undefined);
   };
 
-  private onMembershipError = () => {
-    if (!this.leaving) this.fail('connection');
-  };
+  private onMembershipError = () => this.fail('connection');
 
-  private fail(problem: CallProblem) {
+  /** Left, or given up: a join still on its way stops at its next step. */
+  private get stopped(): boolean {
+    return this.leaving !== undefined || this.state.phase === 'failed';
+  }
+
+  /**
+   * Gives the call up with the problem the panel shows, and lets go of everything it holds. The
+   * first problem stays: a connection that dropped while connecting also fails the connect.
+   */
+  fail(problem: CallProblem) {
+    if (this.stopped) return;
     this.update({ phase: 'failed', problem });
     this.teardown().catch(() => undefined);
   }
@@ -345,7 +351,7 @@ export class RoomCall {
     this.session.on(MatrixRTCSessionEvent.MembershipManagerError, this.onMembershipError);
     this.releaseDeviceLock = holdDeviceCallLock(mx);
     await this.withdrawLeftover(deviceId);
-    if (this.leaving) return;
+    if (this.stopped) return;
 
     // Only this deployment's backend: a call on one a room member named is refused (rtcFocus.ts).
     const ownService = await getLivekitServiceUrl(mx);
@@ -354,7 +360,7 @@ export class RoomCall {
       oldest ? firstLivekitServiceUrl(oldest.transports) : undefined,
       ownService
     );
-    if (this.leaving) return;
+    if (this.stopped) return;
     if ('refused' in service) {
       this.fail(service.refused === 'foreign' ? 'untrustedService' : 'homeserver');
       return;
@@ -365,7 +371,7 @@ export class RoomCall {
     try {
       const token = await mx.getOpenIdToken();
       const grant = await requestSfuGrant(serviceUrl, { roomId: room.roomId, deviceId, token });
-      if (this.leaving) return;
+      if (this.stopped) return;
       if (this.encrypted) {
         this.keyProvider = new MatrixRtcKeyProvider();
         this.worker = new E2EEWorker();
@@ -386,24 +392,36 @@ export class RoomCall {
       this.media = media;
       this.watchMedia(media);
       if (this.encrypted) await media.setE2EEEnabled(true);
+      // The teardown of a call left meanwhile disconnected this room already; it stays so.
+      if (this.stopped) return;
       await media.connect(grant.url, grant.jwt);
     } catch {
-      if (!this.leaving) this.fail('service');
+      this.fail('service');
       return;
     }
-    if (this.leaving) return;
+    if (this.stopped) {
+      // Left or dropped while connecting: a connect that still went through is closed again.
+      await media.disconnect(true).catch(() => undefined);
+      return;
+    }
 
-    // Announce the membership; the session shares this device's media key with the others.
-    this.session.joinRTCSession(
-      { userId: mx.getSafeUserId(), deviceId, memberId: this.identity },
-      [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
-      undefined,
-      {
-        manageMediaKeys: this.encrypted,
-        callIntent: this.state.camera ? 'video' : 'audio',
-        notificationType: this.options.notify,
-      }
-    );
+    try {
+      // Announce the membership; the session shares this device's media key with the others.
+      this.session.joinRTCSession(
+        { userId: mx.getSafeUserId(), deviceId, memberId: this.identity },
+        [{ type: 'livekit', livekit_service_url: serviceUrl, livekit_alias: room.roomId }],
+        undefined,
+        {
+          manageMediaKeys: this.encrypted,
+          callIntent: this.state.camera ? 'video' : 'audio',
+          notificationType: this.options.notify,
+        }
+      );
+    } catch {
+      // The SDK refuses a membership it cannot make at once; the panel offers Dismiss.
+      this.fail('service');
+      return;
+    }
     this.update({ phase: 'connected' });
 
     let problem: CallProblem | undefined;
@@ -417,6 +435,7 @@ export class RoomCall {
         this.update({ camera: false });
       });
     }
+    if (this.stopped) return;
     this.update({ problem });
     this.refresh();
   }

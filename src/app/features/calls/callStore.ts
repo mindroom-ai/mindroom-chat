@@ -157,7 +157,8 @@ export const useCallActions = (mx: MatrixClient) => {
       };
       store.set(activeCallAtom, active);
       store.set(callPanelRoomAtom, callHomeRoomId(active));
-      await call.join();
+      // A join that breaks outside its own checks still ends as a failed call with Dismiss.
+      await call.join().catch(() => call.fail('service'));
       return 'started';
     },
     [mx, store]

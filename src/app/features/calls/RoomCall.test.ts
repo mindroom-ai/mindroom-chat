@@ -15,6 +15,8 @@ const fakes = vi.hoisted(() => ({
   browserSupported: true,
   /** The next `connect` of a media room; resolves (connected) unless a test replaces it. */
   connect: undefined as undefined | ((room: unknown) => Promise<void>),
+  /** Turning frame encryption on; resolves unless a test replaces it. */
+  encryption: undefined as undefined | (() => Promise<void>),
   releases: [] as Array<() => void>,
   serviceUrl: 'https://rtc.calls.test',
 }));
@@ -43,7 +45,9 @@ vi.mock('livekit-client', async () => {
       fakes.rooms.push(this);
     }
 
-    setE2EEEnabled = vi.fn(async () => undefined);
+    setE2EEEnabled = vi.fn(async () => {
+      await (fakes.encryption?.() ?? Promise.resolve());
+    });
 
     connect = vi.fn(async () => {
       await (fakes.connect?.(this) ?? Promise.resolve());
@@ -157,7 +161,7 @@ class FakeSession extends EventEmitter {
 
 type FakeMediaRoom = EventEmitter & {
   state: string;
-  options: Record<string, unknown>;
+  options: { encryption?: unknown };
   connect: ReturnType<typeof vi.fn>;
   disconnect: ReturnType<typeof vi.fn>;
   setE2EEEnabled: ReturnType<typeof vi.fn>;
@@ -211,6 +215,7 @@ beforeEach(() => {
   fakes.releases.length = 0;
   fakes.browserSupported = true;
   fakes.connect = undefined;
+  fakes.encryption = undefined;
   vi.mocked(getLivekitServiceUrl).mockClear();
   vi.mocked(requestSfuGrant).mockClear();
   vi.mocked(holdDeviceCallLock).mockClear();
@@ -303,5 +308,232 @@ describe('RoomCall join, call service', () => {
       expect.objectContaining({ roomId: ROOM_ID })
     );
     expect(call.getState().phase).toBe('connected');
+  });
+});
+
+/** The one LiveKit room a join made. */
+const onlyMediaRoom = () => {
+  expect(mediaRooms()).toHaveLength(1);
+  return defined(mediaRooms()[0], 'the LiveKit room');
+};
+
+describe('RoomCall join', () => {
+  it('connects the media first, then announces the membership, then opens the microphone', async () => {
+    const { call, session } = setup();
+
+    await call.join();
+
+    const media = onlyMediaRoom();
+    expect(media.connect).toHaveBeenCalledWith('wss://sfu.calls.test', 'jwt');
+    expect(session.joinRTCSession).toHaveBeenCalledWith(
+      { userId: ME, deviceId: DEVICE, memberId: `${ME}:${DEVICE}` },
+      [{ type: 'livekit', livekit_service_url: fakes.serviceUrl, livekit_alias: ROOM_ID }],
+      undefined,
+      expect.objectContaining({ manageMediaKeys: false, callIntent: 'audio' })
+    );
+    expect(media.localParticipant.setMicrophoneEnabled).toHaveBeenCalledWith(true);
+    expect(media.options.encryption).toBeUndefined();
+    expect(holdDeviceCallLock).toHaveBeenCalledTimes(1);
+    expect(call.getState()).toMatchObject({ phase: 'connected', problem: undefined });
+  });
+
+  it('encrypts the media of an encrypted room and shares its keys over the session', async () => {
+    const { call, session } = setup({ encrypted: true });
+
+    await call.join();
+
+    const media = onlyMediaRoom();
+    expect(fakes.workers).toHaveLength(1);
+    expect(media.options.encryption).toBeDefined();
+    expect(media.setE2EEEnabled).toHaveBeenCalledWith(true);
+    expect(session.joinRTCSession).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      expect.objectContaining({ manageMediaKeys: true })
+    );
+  });
+
+  it('fails for a browser without WebRTC before it takes the device lock', async () => {
+    fakes.browserSupported = false;
+    const { call } = setup();
+
+    await call.join();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'browser' });
+    expect(holdDeviceCallLock).not.toHaveBeenCalled();
+  });
+
+  it('fails when the deployment announces no backend, and lets the lock go', async () => {
+    vi.mocked(getLivekitServiceUrl).mockResolvedValueOnce(undefined);
+    const { call } = setup();
+
+    await call.join();
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'homeserver' });
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails when the backend refuses the grant, and opens no media connection', async () => {
+    vi.mocked(requestSfuGrant).mockRejectedValueOnce(new Error('403'));
+    const { call } = setup();
+
+    await call.join();
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'service' });
+    expect(mediaRooms()).toHaveLength(0);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('goes on without a microphone it cannot open', async () => {
+    fakes.connect = async (room) => {
+      (room as FakeMediaRoom).localParticipant.setMicrophoneEnabled.mockRejectedValueOnce(
+        new Error('NotAllowedError')
+      );
+    };
+    const { call } = setup();
+
+    await call.join();
+
+    expect(call.getState()).toMatchObject({
+      phase: 'connected',
+      problem: 'device',
+      microphone: false,
+    });
+  });
+
+  it('fails with the connection problem when the media drops while connecting', async () => {
+    fakes.connect = async (room) => {
+      (room as FakeMediaRoom).emit('Disconnected');
+      throw new Error('Client initiated disconnect');
+    };
+    const { call, session } = setup();
+
+    await call.join();
+
+    // The connect that fails with it does not turn the problem into a refused service.
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('announces nothing when the media dropped although its connect went through', async () => {
+    fakes.connect = async (room) => {
+      (room as FakeMediaRoom).emit('Disconnected');
+    };
+    const { call, session } = setup();
+
+    await call.join();
+
+    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(onlyMediaRoom().disconnect).toHaveBeenCalled();
+  });
+
+  it('fails with the service problem, and lets everything go, when the membership cannot be made', async () => {
+    const { call, session } = setup();
+    session.joinRTCSession.mockImplementationOnce(() => {
+      throw new Error('no such slot');
+    });
+
+    await expect(call.join()).resolves.toBeUndefined();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'service' });
+    expect(onlyMediaRoom().disconnect).toHaveBeenCalledTimes(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('RoomCall join, left while connecting', () => {
+  it('ends without a membership when left during the connect', async () => {
+    const connected = pending();
+    fakes.connect = () => connected.promise;
+    const { call, session } = setup();
+
+    const joining = call.join();
+    await settle();
+    const leaving = call.leave();
+    connected.reject(new Error('Client initiated disconnect'));
+    await joining;
+    await leaving;
+
+    expect(onlyMediaRoom().disconnect).toHaveBeenCalled();
+    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(call.getState().phase).toBe('ended');
+    expect(call.getState().problem).toBeUndefined();
+  });
+
+  it('does not connect after a leave while frame encryption was being set up', async () => {
+    const encryptionOn = pending();
+    fakes.encryption = () => encryptionOn.promise;
+    const { call } = setup({ encrypted: true });
+
+    const joining = call.join();
+    await settle();
+    await call.leave();
+    encryptionOn.resolve();
+    await joining;
+
+    expect(onlyMediaRoom().connect).not.toHaveBeenCalled();
+    expect(defined(fakes.workers[0], 'the encryption worker').terminate).toHaveBeenCalled();
+    expect(call.getState().phase).toBe('ended');
+  });
+});
+
+describe('RoomCall after joining', () => {
+  it('fails with the connection problem when the media server drops this device', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    onlyMediaRoom().emit('Disconnected');
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(session.leaveRoomSession).toHaveBeenCalledTimes(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails with the connection problem when its membership cannot be kept', async () => {
+    const { call, session } = setup();
+    await call.join();
+
+    session.emit(MatrixRTCSessionEvent.MembershipManagerError, new Error('state event refused'));
+    await settle();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(session.leaveRoomSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a failed call failed when it is left, and lets go of everything once', async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    const media = onlyMediaRoom();
+
+    media.emit('Disconnected');
+    await call.leave();
+
+    expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
+    expect(media.disconnect).toHaveBeenCalledTimes(1);
+    expect(session.leaveRoomSession).toHaveBeenCalledTimes(1);
+    expect(defined(fakes.workers[0], 'the encryption worker').terminate).toHaveBeenCalledTimes(1);
+    expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores its own disconnect after a leave', async () => {
+    const { call } = setup();
+    await call.join();
+    const media = onlyMediaRoom();
+    // LiveKit sends its leave message first and only then reports the room disconnected.
+    media.disconnect.mockImplementationOnce(async () => {
+      await Promise.resolve();
+      media.emit('Disconnected');
+    });
+
+    await call.leave();
+
+    expect(call.getState().phase).toBe('ended');
+    expect(call.getState().problem).toBeUndefined();
   });
 });

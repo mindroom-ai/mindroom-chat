@@ -5,7 +5,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { activeCallAtom, useCallActions, type ActiveCall } from './callStore';
 
 // Until a test lets it load, the call engine's chunk is missing, as after a deploy replaced it.
-const engine = vi.hoisted(() => ({ missing: true }));
+const engine = vi.hoisted(() => ({ missing: true, joinBreaks: false }));
 vi.mock('./RoomCall', () => {
   if (engine.missing) throw new Error('Failed to fetch dynamically imported module');
   return { RoomCall: FakeRoomCall };
@@ -14,7 +14,11 @@ vi.mock('./RoomCall', () => {
 const FakeRoomCall = vi.hoisted(
   () =>
     class {
-      join = vi.fn(async () => undefined);
+      join = vi.fn(async () => {
+        if (engine.joinBreaks) throw new Error('joinRTCSession threw');
+      });
+
+      fail = vi.fn();
 
       room: Room;
 
@@ -122,6 +126,22 @@ describe('useCallActions startCall', () => {
       vi.unstubAllGlobals();
     }
     expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
+  it('fails the call with the service problem when its join breaks, without a rejection', async () => {
+    engine.joinBreaks = true;
+    const store = createStore();
+    const { room, finishLoading } = slowRoom();
+    const starting = actionsIn(store, runningClient()).startCall({ room, kind: 'room' });
+    await finishLoading();
+
+    try {
+      await expect(starting).resolves.toBe('started');
+    } finally {
+      engine.joinBreaks = false;
+    }
+    const call = store.get(activeCallAtom)?.call as unknown as { fail: ReturnType<typeof vi.fn> };
+    expect(call.fail).toHaveBeenCalledWith('service');
   });
 
   it('leaves the store alone when the account signed out or switched while the call started', async () => {
