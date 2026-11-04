@@ -115,9 +115,9 @@ export function RoomItemCard({
             {topic}
           </Text>
         )}
-        <Box alignItems="Center" gap="200">
+        <Box alignItems="Center" gap="200" wrap="Wrap">
           {summary?.num_joined_members !== undefined && (
-            <Text size="T200" priority="300">
+            <Text size="T200" priority="300" style={{ whiteSpace: 'nowrap' }}>
               {t('featureUi.lobby.roomItem.memberCount', {
                 count: summary.num_joined_members,
                 formattedCount: summary.num_joined_members.toLocaleString(),

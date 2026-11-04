@@ -217,13 +217,15 @@ export function LobbyHeader({
                       size="300"
                       radii="300"
                       disabled={action.disabled}
-                      before={<Icon size="100" src={action.icon} />}
+                      after={<Icon size="100" src={action.icon} />}
                       onClick={() => {
                         closeMenu();
                         action.run();
                       }}
                     >
-                      <Text size="T300">{action.label}</Text>
+                      <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
+                        {action.label}
+                      </Text>
                     </MenuItem>
                   ))}
                 </Box>
@@ -234,13 +236,15 @@ export function LobbyHeader({
                     radii="300"
                     variant="Critical"
                     fill="None"
-                    before={<Icon size="100" src={Icons.ArrowGoLeft} />}
+                    after={<Icon size="100" src={Icons.ArrowGoLeft} />}
                     onClick={() => {
                       closeMenu();
                       setLeaving(true);
                     }}
                   >
-                    <Text size="T300">{t('featureUi.lobby.lobbyHeader.leaveSpace')}</Text>
+                    <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
+                      {t('featureUi.lobby.lobbyHeader.leaveSpace')}
+                    </Text>
                   </MenuItem>
                 </Box>
               </Menu>
