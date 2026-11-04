@@ -1,8 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 // The Vite dev server listens here: port 4200 (see server in vite.config.js), or E2E_APP_PORT,
-// which scripts/e2e-slot.sh sets so that several runs can share one machine.
-const appPort = process.env.E2E_APP_PORT ?? '4200';
+// which scripts/e2e-slot.sh sets so that several runs can share one machine. E2E_PORT wins over
+// both: scripts/appstore-screenshots.sh picks a free port there, with its own E2E_SERVER_COMMAND
+// and E2E_REUSE_EXISTING_SERVER=0, so a capture never runs against an older server.
+const appPort = process.env.E2E_PORT ?? process.env.E2E_APP_PORT ?? '4200';
 const baseURL = `http://127.0.0.1:${appPort}`;
 
 /**
@@ -41,9 +43,9 @@ const playwrightConfig = defineConfig({
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
-    command: `npx vite --port ${appPort}`,
+    command: process.env.E2E_SERVER_COMMAND ?? `npx vite --port ${appPort}`,
     url: baseURL,
-    reuseExistingServer: true,
+    reuseExistingServer: process.env.E2E_REUSE_EXISTING_SERVER !== '0',
     timeout: 120_000,
     env: {
       // The dev server answers /config.json with this origin as the provisioning service.
