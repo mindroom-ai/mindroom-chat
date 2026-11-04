@@ -94,6 +94,10 @@ e2e *args:
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 
+# Start (`up`, which prints its state as JSON), stop (`down`) or show (`status`) slot N's MindRoom backend with the stub model for the e2e/lane-c/agent-*.spec.ts specs, which start it themselves. Options: --checkout <MindRoom checkout> (default /home/basnijholt/Work/dev/mindroom, only read), --ref <commit> (default its origin/main). Example: `just agent-stack 16 up`.
+agent-stack slot *args:
+    python3 scripts/agent-stack/stack.py {{slot}} {{args}}
+
 # Run the e2e suite (or the given specs) against one commit, each spec file in its own `e2e-slot --preview` run, spread over slots; writes one TSV row per spec. Example: `just e2e-suite --slots 25-28 --out results.tsv`.
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}

@@ -61,8 +61,13 @@ main() {
 
   compose() { docker compose -f "$repo/e2e/docker-compose.yaml" "$@"; }
 
+  # The slot's MindRoom stack of the agent specs (scripts/agent-stack/stack.py) has its accounts on
+  # the homeserver, so it stops with it.
+  agent_stack_down() { python3 "$repo/scripts/agent-stack/stack.py" "$slot" down >/dev/null 2>&1 || true; }
+
   if [ "$1" = down ]; then
     compose down --volumes --remove-orphans
+    agent_stack_down
     exit
   fi
 
@@ -131,7 +136,7 @@ main() {
   if [ "$fresh" = 0 ]; then
     exec "$@"
   fi
-  trap 'compose down --volumes --remove-orphans >/dev/null 2>&1 || true' EXIT
+  trap 'compose down --volumes --remove-orphans >/dev/null 2>&1 || true; agent_stack_down' EXIT
   "$@"
 }
 
