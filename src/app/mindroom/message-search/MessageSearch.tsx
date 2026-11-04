@@ -1,11 +1,42 @@
-import React, { FormEvent, RefObject, useCallback, useEffect, useMemo, useState } from 'react';
+import React, {
+  FormEvent,
+  MouseEvent,
+  RefObject,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Box, Chip, Icon, Icons, Input, Spinner, Text, color, config } from 'folds';
+import { useAtomValue } from 'jotai';
+import { type MatrixClient, type Room, SearchOrderBy, THREAD_RELATION_TYPE } from 'matrix-js-sdk';
+import {
+  Avatar,
+  Box,
+  Chip,
+  Icon,
+  IconButton,
+  Icons,
+  Input,
+  PopOut,
+  type RectCords,
+  Spinner,
+  Text,
+  color,
+  config,
+} from 'folds';
+import { ChoiceMenu } from '../../components/ChoiceMenu';
+import { RoomAvatar } from '../../components/room-avatar';
+import { ScrollTopContainer } from '../../components/scroll-top-container';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { makeHighlightRegex } from '../../plugins/highlightRegex';
+import { mDirectAtom } from '../../state/mDirectList';
+import { getDirectPartnerId, getDirectRoomAvatarUrl, getRoomAvatarUrl } from '../../utils/room';
 import { flattenMessageSearchRows, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT } from './messageSearchRows';
 import { shouldFetchNextMessageSearchPage } from './messageSearchPagination';
 import { getMessageSearchRenderState } from './messageSearchRenderState';
@@ -16,7 +47,9 @@ import {
 } from './messageSearchScope';
 import type { SearchResultOpenTarget } from './searchResultOpenTarget';
 import { SearchResultItem, type SearchResultBodyRenderer } from './SearchResultGroup';
+import { SearchRoomPicker } from './MessageSearchFilters';
 import { useMessageSearch } from './useMessageSearch';
+import * as css from './MessageSearch.css';
 
 export type MessageSearchProps = {
   /** The rooms searched when the address names none: the rooms of Home or of a space. */
@@ -36,7 +69,7 @@ type MessageSearchRow = ReturnType<typeof flattenMessageSearchRows>[number];
 
 /** First guess before measuring: a room header is one line, a result card a few. */
 const estimateRowHeight = (row: MessageSearchRow | undefined): number =>
-  row?.kind === 'room-header' ? 40 : 120;
+  row?.kind === 'room-header' ? 52 : 120;
 
 const parseRooms = (value: string | null): string[] | undefined =>
   value
@@ -48,10 +81,53 @@ const parseRooms = (value: string | null): string[] | undefined =>
       )
     : undefined;
 
+/** The address names the order only when it is not the default, newest first. */
+const parseOrder = (value: string | null): SearchOrderBy =>
+  value === SearchOrderBy.Rank ? SearchOrderBy.Rank : SearchOrderBy.Recent;
+
 /**
- * Message search: the term and scope live in the address (`term`, `rooms`, `global`), so a
- * search can be linked and the command palette can open one. Results come grouped by room,
- * newest first, and load page by page while scrolling.
+ * The thread a hit belongs to when the hit itself does not say: a search hit on an edit names
+ * only the edited message, whose own relation tells whether it is a thread reply.
+ */
+const findThreadRoot = async (
+  client: MatrixClient,
+  roomId: string,
+  eventId: string
+): Promise<string | undefined> => {
+  const loaded = client.getRoom(roomId)?.findEventById(eventId);
+  const relation = loaded
+    ? loaded.getWireContent()['m.relates_to']
+    : (await client.fetchRoomEvent(roomId, eventId)).content?.['m.relates_to'];
+  return relation?.rel_type === THREAD_RELATION_TYPE.name && typeof relation.event_id === 'string'
+    ? relation.event_id
+    : undefined;
+};
+
+/** A room's picture beside its name over its results; a direct chat shows the other person. */
+function ResultRoomAvatar({ room }: { room: Room }) {
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const direct = useAtomValue(mDirectAtom).has(room.roomId);
+  const src = direct
+    ? getDirectRoomAvatarUrl(client, room, 64, authenticated)
+    : getRoomAvatarUrl(client, room, 64, authenticated);
+  return (
+    <Avatar size="200">
+      <RoomAvatar
+        roomId={room.roomId}
+        fallbackId={direct ? getDirectPartnerId(room) : undefined}
+        src={src}
+        alt={room.name}
+        renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
+      />
+    </Avatar>
+  );
+}
+
+/**
+ * Message search: the term, scope and order live in the address (`term`, `rooms`, `global`,
+ * `order`), so a search can be linked and the command palette can open one. Results come grouped
+ * by room and load page by page while scrolling.
  */
 export function MessageSearch({
   defaultRooms,
@@ -68,8 +144,13 @@ export function MessageSearch({
   const term = searchParams.get('term')?.trim() ?? '';
   const global = allowGlobal && searchParams.get('global') === 'true';
   const explicitRooms = parseRooms(searchParams.get('rooms'));
+  const order = parseOrder(searchParams.get('order'));
   const [draft, setDraft] = useState(term);
   useEffect(() => setDraft(term), [term]);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const [pickerAnchor, setPickerAnchor] = useState<RectCords>();
+  const [orderAnchor, setOrderAnchor] = useState<RectCords>();
 
   const implicitRooms = useMemo(() => normalizeMessageSearchRooms(defaultRooms), [defaultRooms]);
   const [stableRooms, setStableRooms] = useState(implicitRooms);
@@ -83,7 +164,7 @@ export function MessageSearch({
     hasExplicitRooms: !!explicitRooms,
     implicitRoomsReady: defaultRoomsReady,
   });
-  const search = useMessageSearch({ term: deferred ? undefined : term, rooms });
+  const search = useMessageSearch({ term: deferred ? undefined : term, rooms, order });
   const pages = search.data?.pages;
   // Every loaded page contributes its room groups and the terms the server matched.
   const { groups, rows, highlights, highlightRegex } = useMemo(() => {
@@ -103,6 +184,8 @@ export function MessageSearch({
     count: rows.length,
     estimateSize: (index) => estimateRowHeight(rows[index]),
     getScrollElement: () => scrollRef.current,
+    // The list starts below the field and the filters, inside the same scrolling page.
+    scrollMargin: listRef.current?.offsetTop ?? 0,
   });
   const virtualItems = virtualizer.getVirtualItems();
   const renderState = getMessageSearchRenderState({
@@ -135,32 +218,63 @@ export function MessageSearch({
     return () => scroll.removeEventListener('scroll', check);
   }, [fetchNextPage, hasNextPage, isFetchingNextPage, rows.length, scrollRef]);
 
+  /** Rewrites the address with `change` applied; the search follows it. */
+  const updateParams = (change: (next: URLSearchParams) => void) => {
+    const next = new URLSearchParams(searchParams);
+    change(next);
+    setSearchParams(next, { replace: true });
+  };
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const next = new URLSearchParams(searchParams);
-    if (draft.trim()) next.set('term', draft.trim());
-    else next.delete('term');
-    setSearchParams(next, { replace: true });
+    updateParams((next) => {
+      if (draft.trim()) next.set('term', draft.trim());
+      else next.delete('term');
+    });
   };
 
-  const setGlobal = (value: boolean) => {
-    const next = new URLSearchParams(searchParams);
-    if (value) {
+  const clear = () => {
+    setDraft('');
+    updateParams((next) => next.delete('term'));
+    inputRef.current?.focus();
+  };
+
+  // Home (or the space), every room, or rooms picked by hand: one scope at a time.
+  const chooseScope = () =>
+    updateParams((next) => {
+      next.delete('global');
+      next.delete('rooms');
+    });
+  const chooseGlobal = () =>
+    updateParams((next) => {
       next.set('global', 'true');
       next.delete('rooms');
-    } else next.delete('global');
-    setSearchParams(next, { replace: true });
-  };
+    });
+  const chooseRooms = (roomIds: string[]) =>
+    updateParams((next) => {
+      next.delete('global');
+      if (roomIds.length > 0) next.set('rooms', roomIds.join(','));
+      else next.delete('rooms');
+    });
+  const chooseOrder = (value: SearchOrderBy) =>
+    updateParams((next) => {
+      if (value === SearchOrderBy.Rank) next.set('order', value);
+      else next.delete('order');
+    });
 
   const open = useCallback(
-    (roomId: string, target: SearchResultOpenTarget) => {
+    async (roomId: string, target: SearchResultOpenTarget) => {
       if (target.threadRootId) {
         navigateRoomThread(roomId, target.threadRootId, target.mainEventId);
         return;
       }
-      navigateRoom(roomId, target.mainEventId);
+      const threadRootId = await findThreadRoot(client, roomId, target.mainEventId).catch(
+        () => undefined
+      );
+      if (threadRootId) navigateRoomThread(roomId, threadRootId, target.mainEventId);
+      else navigateRoom(roomId, target.mainEventId);
     },
-    [navigateRoom, navigateRoomThread]
+    [client, navigateRoom, navigateRoomThread]
   );
 
   const renderRow = (index: number) => {
@@ -169,8 +283,9 @@ export function MessageSearch({
     const room = client.getRoom(row.roomId);
     if (row.kind === 'room-header') {
       return (
-        <Box style={{ paddingTop: config.space.S400 }}>
-          <Text size="H5" truncate>
+        <Box alignItems="Center" gap="200" className={css.GroupTitle}>
+          {room && <ResultRoomAvatar room={room} />}
+          <Text as="h2" size="H5" truncate>
             {room?.name ?? row.roomId}
           </Text>
         </Box>
@@ -178,7 +293,7 @@ export function MessageSearch({
     }
     if (!room) return null;
     return (
-      <Box style={{ paddingTop: config.space.S200 }}>
+      <Box direction="Column" className={css.Result}>
         <SearchResultItem
           room={room}
           item={row.item}
@@ -191,15 +306,30 @@ export function MessageSearch({
     );
   };
 
-  // Rooms the address names explicitly (the command palette's "in this room") show as a filter.
-  const scopeLabel = explicitRooms
-    ? `${t('mindroomUi.message-search.searchFilters.rooms')} (${explicitRooms.length})`
-    : scopeName;
+  const orders = [
+    { name: t('mindroomUi.message-search.searchFilters.recent'), value: SearchOrderBy.Recent },
+    { name: t('mindroomUi.message-search.searchFilters.relevance'), value: SearchOrderBy.Rank },
+  ];
+  const orderIndex = Math.max(
+    orders.findIndex((choice) => choice.value === order),
+    0
+  );
+  const scopeChosen = !global && !explicitRooms;
+  // The rooms picked by hand, each a chip that removes it, in the order of their names.
+  const pickedRooms = (explicitRooms ?? [])
+    .map((roomId) => ({ roomId, name: client.getRoom(roomId)?.name ?? roomId }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const openPicker = (event: MouseEvent<HTMLButtonElement>) =>
+    setPickerAnchor(event.currentTarget.getBoundingClientRect());
+  const openOrder = (event: MouseEvent<HTMLButtonElement>) =>
+    setOrderAnchor(event.currentTarget.getBoundingClientRect());
 
   return (
     <Box direction="Column" gap="400">
       <Box as="form" direction="Column" gap="200" onSubmit={submit}>
         <Input
+          ref={inputRef}
+          className={css.SearchField}
           size="500"
           variant="SurfaceVariant"
           radii="400"
@@ -207,6 +337,20 @@ export function MessageSearch({
           type="search"
           autoFocus
           before={<Icon size="200" src={Icons.Search} />}
+          after={
+            draft ? (
+              <IconButton
+                type="button"
+                size="300"
+                radii="300"
+                variant="SurfaceVariant"
+                aria-label={t('mindroomUi.message-search.searchInput.clear')}
+                onClick={clear}
+              >
+                <Icon size="100" src={Icons.Cross} />
+              </IconButton>
+            ) : undefined
+          }
           placeholder={t('mindroomUi.message-search.searchInput.searchForKeyword')}
           aria-label={t('mindroomUi.message-search.messageSearch.searchMessages')}
           value={draft}
@@ -214,31 +358,122 @@ export function MessageSearch({
             setDraft(event.currentTarget.value)
           }
         />
-        <Box gap="200" wrap="Wrap" alignItems="Center">
+        <Box wrap="Wrap" alignItems="Center" gap="200">
           <Chip
-            variant={global ? 'SurfaceVariant' : 'Primary'}
+            type="button"
+            variant={scopeChosen ? 'Primary' : 'SurfaceVariant'}
             radii="Pill"
-            aria-pressed={!global}
-            onClick={() => setGlobal(false)}
+            aria-pressed={scopeChosen}
+            onClick={chooseScope}
           >
-            <Text size="T200">{global ? scopeName : scopeLabel}</Text>
+            <Text size="T200">{scopeName}</Text>
           </Chip>
           {allowGlobal && (
             <Chip
+              type="button"
               variant={global ? 'Primary' : 'SurfaceVariant'}
               radii="Pill"
               aria-pressed={global}
-              onClick={() => setGlobal(true)}
+              onClick={chooseGlobal}
             >
               <Text size="T200">{t('mindroomUi.message-search.searchFilters.global')}</Text>
             </Chip>
           )}
-          {term && groups.length > 0 && (
-            <Text size="T200" priority="300" role="status">
-              {t('mindroomUi.message-search.messageSearch.resultsFor', { term })}
-            </Text>
-          )}
+          <PopOut
+            anchor={pickerAnchor}
+            position="Bottom"
+            align="Start"
+            offset={4}
+            content={
+              <SearchRoomPicker
+                scopeRooms={implicitRooms ?? []}
+                everyRoom={allowGlobal}
+                picked={explicitRooms ?? []}
+                onSave={(roomIds) => {
+                  setPickerAnchor(undefined);
+                  chooseRooms(roomIds);
+                }}
+                onDismiss={() => setPickerAnchor(undefined)}
+              />
+            }
+          >
+            <Chip
+              type="button"
+              variant={explicitRooms ? 'Primary' : 'SurfaceVariant'}
+              radii="Pill"
+              aria-haspopup="menu"
+              aria-expanded={!!pickerAnchor}
+              before={<Icon size="50" src={Icons.Filter} />}
+              onClick={openPicker}
+            >
+              <Text size="T200">
+                {explicitRooms
+                  ? `${t('mindroomUi.message-search.searchFilters.rooms')} (${
+                      explicitRooms.length
+                    })`
+                  : t('mindroomUi.message-search.searchFilters.rooms')}
+              </Text>
+            </Chip>
+          </PopOut>
+          {pickedRooms.map(({ roomId, name }) => {
+            return (
+              <Chip
+                key={roomId}
+                type="button"
+                variant="Secondary"
+                radii="Pill"
+                aria-label={t('thread.aria.removeTagFilter', { tag: name })}
+                after={<Icon size="50" src={Icons.Cross} />}
+                onClick={() =>
+                  chooseRooms(pickedRooms.filter((r) => r.roomId !== roomId).map((r) => r.roomId))
+                }
+              >
+                <Text size="T200" truncate className={css.RoomChipName}>
+                  {name}
+                </Text>
+              </Chip>
+            );
+          })}
+          <PopOut
+            anchor={orderAnchor}
+            position="Bottom"
+            align="End"
+            offset={4}
+            content={
+              <ChoiceMenu
+                label={t('mindroomUi.message-search.searchFilters.sortBy')}
+                choices={orders}
+                current={orderIndex}
+                onChoose={(index) => {
+                  setOrderAnchor(undefined);
+                  chooseOrder(orders[index].value);
+                }}
+                onDismiss={() => setOrderAnchor(undefined)}
+              />
+            }
+          >
+            <Chip
+              type="button"
+              className={css.FilterEnd}
+              variant="SurfaceVariant"
+              radii="Pill"
+              aria-haspopup="menu"
+              aria-expanded={!!orderAnchor}
+              aria-label={`${t('mindroomUi.message-search.searchFilters.sortBy')}: ${
+                orders[orderIndex].name
+              }`}
+              after={<Icon size="50" src={Icons.Sort} />}
+              onClick={openOrder}
+            >
+              <Text size="T200">{orders[orderIndex].name}</Text>
+            </Chip>
+          </PopOut>
         </Box>
+        {term && groups.length > 0 && (
+          <Text size="T200" priority="300" role="status">
+            {t('mindroomUi.message-search.messageSearch.resultsFor', { term })}
+          </Text>
+        )}
       </Box>
 
       {!term && (
@@ -262,37 +497,53 @@ export function MessageSearch({
         </Box>
       )}
 
-      {renderState.showVirtualizedResults && (
-        <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
-          {virtualItems.map((virtualItem) => (
-            <div
-              key={rows[virtualItem.index]?.key ?? virtualItem.key}
-              ref={virtualizer.measureElement}
-              data-index={virtualItem.index}
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                transform: `translateY(${virtualItem.start}px)`,
-              }}
-            >
-              {renderRow(virtualItem.index)}
-            </div>
-          ))}
-        </div>
-      )}
-      {/* Without a measured scroll container (first paint, tests) the first rows render plainly. */}
-      {renderState.showVirtualizerFallback &&
-        rows
-          .slice(0, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT)
-          .map((row, index) => <React.Fragment key={row.key}>{renderRow(index)}</React.Fragment>)}
+      <div ref={listRef}>
+        {renderState.showVirtualizedResults && (
+          <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+            {virtualItems.map((virtualItem) => (
+              <div
+                key={rows[virtualItem.index]?.key ?? virtualItem.key}
+                ref={virtualizer.measureElement}
+                data-index={virtualItem.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${
+                    virtualItem.start - virtualizer.options.scrollMargin
+                  }px)`,
+                }}
+              >
+                {renderRow(virtualItem.index)}
+              </div>
+            ))}
+          </div>
+        )}
+        {/* Without a measured scroll container (first paint, tests) the first rows render plainly. */}
+        {renderState.showVirtualizerFallback &&
+          rows
+            .slice(0, MESSAGE_SEARCH_FALLBACK_ROW_LIMIT)
+            .map((row, index) => <React.Fragment key={row.key}>{renderRow(index)}</React.Fragment>)}
+      </div>
 
       {isFetchingNextPage && (
         <Box justifyContent="Center">
           <Spinner size="200" variant="Secondary" />
         </Box>
       )}
+      <ScrollTopContainer scrollRef={scrollRef} className={css.ScrollTop}>
+        <IconButton
+          size="300"
+          radii="Pill"
+          variant="Surface"
+          outlined
+          aria-label={t('mindroomUi.message-search.messageSearch.scrollToTop')}
+          onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+        >
+          <Icon size="200" src={Icons.ChevronTop} />
+        </IconButton>
+      </ScrollTopContainer>
     </Box>
   );
 }
