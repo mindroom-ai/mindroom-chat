@@ -56,15 +56,64 @@ const showNewestEdit = (thread: Thread, target: MatrixEvent): boolean => {
 type EditWatcher = {
   /** Shows the waiting edits of one thread; returns whether a reply changed. */
   showThreadEdits: (thread: Thread) => boolean;
+  /** Removes the listeners the watcher put on edits. */
+  stop: () => void;
 };
 
 const createEditWatcher = (): EditWatcher => {
-  // Edits still being decrypted, and the edits shown on a reply, each listened to once.
+  // Edits waiting for a successful decryption, and the edits shown on a reply, each listened to
+  // once; `listening` holds the removal of every listener still on an edit.
   const decrypting = new WeakSet<MatrixEvent>();
   const shownEdits = new WeakSet<MatrixEvent>();
+  const listening = new Set<() => void>();
 
   const notify = (thread: Thread) => {
     thread.emit(ThreadEvent.Update, thread);
+  };
+
+  /**
+   * A failed attempt also announces itself as decrypted, and the SDK decrypts the edit again
+   * once its key arrives, so listen until an attempt succeeds or the thread opens.
+   */
+  const awaitDecryption = (thread: Thread, edit: MatrixEvent) => {
+    if (decrypting.has(edit)) return;
+    decrypting.add(edit);
+    const stopListening = () => {
+      edit.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
+      listening.delete(stopListening);
+      decrypting.delete(edit);
+    };
+    const onDecrypted = () => {
+      if (thread.initialEventsFetched) {
+        stopListening();
+        return;
+      }
+      if (edit.isDecryptionFailure()) return;
+      stopListening();
+      if (showThreadEdits(thread)) notify(thread);
+    };
+    edit.on(MatrixEventEvent.Decrypted, onDecrypted);
+    listening.add(stopListening);
+  };
+
+  /** The SDK takes a redacted edit out of the waiting ones; show the newest one left. */
+  const followRedaction = (thread: Thread, target: MatrixEvent, edit: MatrixEvent) => {
+    if (shownEdits.has(edit)) return;
+    shownEdits.add(edit);
+    const stopListening = () => {
+      edit.removeListener(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+      listening.delete(stopListening);
+    };
+    const onBeforeRedaction = () => {
+      stopListening();
+      queueMicrotask(() => {
+        if (target.replacingEvent() !== edit || thread.initialEventsFetched) return;
+        showNewestEdit(thread, target);
+        notify(thread);
+      });
+    };
+    edit.on(MatrixEventEvent.BeforeRedaction, onBeforeRedaction);
+    listening.add(stopListening);
   };
 
   const showThreadEdits = (thread: Thread): boolean => {
@@ -76,12 +125,8 @@ const createEditWatcher = (): EditWatcher => {
       const targetId = edit.getAssociatedId();
       const target = targetId ? thread.findEventById(targetId) : undefined;
       if (!target) return;
-      if (edit.shouldAttemptDecryption() || edit.isBeingDecrypted()) {
-        if (decrypting.has(edit)) return;
-        decrypting.add(edit);
-        edit.once(MatrixEventEvent.Decrypted, () => {
-          if (showThreadEdits(thread)) notify(thread);
-        });
+      if (edit.shouldAttemptDecryption() || edit.isBeingDecrypted() || edit.isDecryptionFailure()) {
+        awaitDecryption(thread, edit);
         return;
       }
       targets.add(target);
@@ -90,21 +135,16 @@ const createEditWatcher = (): EditWatcher => {
       if (!showNewestEdit(thread, target)) return;
       changed = true;
       const edit = target.replacingEvent();
-      if (!edit || shownEdits.has(edit)) return;
-      shownEdits.add(edit);
-      // The SDK takes a redacted edit out of the waiting ones; show the newest one left.
-      edit.once(MatrixEventEvent.BeforeRedaction, () => {
-        queueMicrotask(() => {
-          if (target.replacingEvent() !== edit || thread.initialEventsFetched) return;
-          showNewestEdit(thread, target);
-          notify(thread);
-        });
-      });
+      if (edit) followRedaction(thread, target, edit);
     });
     return changed;
   };
 
-  return { showThreadEdits };
+  const stop = () => {
+    [...listening].forEach((stopListening) => stopListening());
+  };
+
+  return { showThreadEdits, stop };
 };
 
 /**
@@ -138,5 +178,6 @@ export const keepUnopenedThreadEditsShown = (mx: MatrixClient): (() => void) => 
     mx.removeListener(ClientEvent.Room, watchRoom);
     stops.forEach((stop) => stop());
     stops.clear();
+    watcher.stop();
   };
 };

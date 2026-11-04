@@ -1,4 +1,6 @@
 import { createClient, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import {
   FeatureSupport,
   FILTER_RELATED_BY_REL_TYPES,
@@ -49,6 +51,24 @@ const edit = (body: string, ts: number, status = 'streaming', sender = agentId):
     },
     sender
   );
+/** An edit as an encrypted room delivers it: only its relation is in the clear. */
+const encryptedEdit = (ts: number): IEvent =>
+  ({
+    event_id: `$edit-${ts}`,
+    room_id: roomId,
+    sender: agentId,
+    type: 'm.room.encrypted',
+    origin_server_ts: ts,
+    unsigned: {},
+    content: {
+      algorithm: 'm.megolm.v1.aes-sha2',
+      ciphertext: 'ciphertext',
+      sender_key: 'sender-key',
+      session_id: 'session',
+      device_id: 'DEVICE',
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+    },
+  } as IEvent);
 const redaction = (eventId: string, ts: number): IEvent => ({
   ...message(`$redaction-${ts}`, ts, {}),
   type: 'm.room.redaction',
@@ -251,6 +271,31 @@ describe('edits of unopened threads', () => {
 
     await f.deliver([redaction('$edit-150', 170)]);
     expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
+  });
+
+  it('shows an encrypted edit once a later attempt decrypts it', async () => {
+    const f = await streamingThread();
+    await f.deliver([encryptedEdit(150)]);
+    const held = f.thread().replayEvents!.find((event) => event.getId() === '$edit-150')!;
+    const { content } = edit('Decrypted once the key came', 150, 'completed');
+    const crypto = {
+      decryptEvent: vi
+        .fn()
+        // The key is not there yet: the SDK announces the failed attempt as decrypted too.
+        .mockRejectedValueOnce(
+          new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'no key')
+        )
+        .mockResolvedValueOnce({ clearEvent: { type: 'm.room.message', content } }),
+    };
+
+    await held.attemptDecryption(crypto as never);
+    await settle();
+    expect(held.isDecryptionFailure()).toBe(true);
+    expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
+
+    await held.attemptDecryption(crypto as never);
+    await settle();
+    expect(f.card()).toEqual({ preview: 'Decrypted once the key came', streaming: false });
   });
 
   it('shows the same edit once the thread opens', async () => {
