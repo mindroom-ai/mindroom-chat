@@ -24,12 +24,11 @@ const toneSample = (tone: SkinTone): string => {
 
 type SkinToneButtonProps = {
   tone: SkinTone;
-  expanded: boolean;
   onPress: () => void;
 };
 
-/** The current tone as a raised hand; pressing it lists the tones. */
-export function SkinToneButton({ tone, expanded, onPress }: SkinToneButtonProps) {
+/** The current tone as a raised hand; pressing it shows the tones in its place. */
+export function SkinToneButton({ tone, onPress }: SkinToneButtonProps) {
   const { t } = useTranslation();
   const label = t('sharedUi.emojiBoard.skinTone');
   return (
@@ -38,7 +37,6 @@ export function SkinToneButton({ tone, expanded, onPress }: SkinToneButtonProps)
       className={css.EmojiItem}
       title={`${label}: ${t(TONE_LABEL_KEYS[tone])}`}
       aria-label={label}
-      aria-expanded={expanded}
       onClick={onPress}
     >
       {toneSample(tone)}
@@ -51,7 +49,7 @@ type SkinToneOptionsProps = {
   onChoose: (tone: SkinTone) => void;
 };
 
-/** The six tones in a row, the current one pressed. */
+/** The six tones in a row, the current one pressed and focused. */
 export function SkinToneOptions({ tone, onChoose }: SkinToneOptionsProps) {
   const { t } = useTranslation();
   return (
@@ -64,6 +62,8 @@ export function SkinToneOptions({ tone, onChoose }: SkinToneOptionsProps) {
           title={t(TONE_LABEL_KEYS[option])}
           aria-label={t(TONE_LABEL_KEYS[option])}
           aria-pressed={option === tone}
+          // The row replaces the button that opened it, so focus moves to the current tone.
+          autoFocus={option === tone}
           style={
             option === tone ? { backgroundColor: color.SurfaceVariant.ContainerActive } : undefined
           }

@@ -489,12 +489,8 @@ export function EmojiBoard(props: EmojiBoardProps) {
               }}
             />
           )}
-          {!stickerTab && (
-            <SkinToneButton
-              tone={tone}
-              expanded={choosingTone}
-              onPress={() => setChoosingTone((open) => !open)}
-            />
+          {!stickerTab && !choosingTone && (
+            <SkinToneButton tone={tone} onPress={() => setChoosingTone(true)} />
           )}
         </Box>
       </>

@@ -4,7 +4,15 @@ import { emojis, type IEmoji, type SkinTone, withSkinTone } from '../../../plugi
 /** A Unicode emoji or a custom emoji from one of the account's packs, offered for `:query`. */
 export type EmoticonSuggestion =
   | { kind: 'unicode'; key: string; shortcode: string; emoji: IEmoji }
-  | { kind: 'custom'; key: string; shortcode: string; image: PackImageReader; packName?: string };
+  | {
+      kind: 'custom';
+      key: string;
+      shortcode: string;
+      image: PackImageReader;
+      packName?: string;
+      /** From the account's own pack, which has no room. */
+      personal: boolean;
+    };
 
 /** The most suggestions the menu lists. */
 export const MAX_EMOTICON_SUGGESTIONS = 20;
@@ -78,6 +86,7 @@ export const getEmoticonSuggestions = (
           shortcode: image.shortcode,
           image,
           packName: pack.meta.name,
+          personal: !pack.address,
         },
         // Custom emoji sort before Unicode ones of the same score.
         score: score * 2,

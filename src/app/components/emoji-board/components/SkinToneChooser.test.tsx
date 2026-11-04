@@ -17,13 +17,12 @@ const buttons = () => renderer!.root.findAllByType('button');
 it('shows the chosen tone on a raised hand', () => {
   const onPress = vi.fn();
   act(() => {
-    renderer = create(<SkinToneButton tone={4} expanded={false} onPress={onPress} />);
+    renderer = create(<SkinToneButton tone={4} onPress={onPress} />);
   });
 
   const [button] = buttons();
   expect(button.props.children).toBe('✋🏾');
   expect(button.props['aria-label']).toBe('Skin tone');
-  expect(button.props['aria-expanded']).toBe(false);
   act(() => button.props.onClick());
   expect(onPress).toHaveBeenCalled();
 });

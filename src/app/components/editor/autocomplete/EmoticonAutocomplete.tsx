@@ -71,6 +71,13 @@ function SuggestionRow({
   suggestion: EmoticonSuggestion;
   onSelect: (suggestion: EmoticonSuggestion) => void;
 }) {
+  const [t] = useTranslation();
+  let packName: string | undefined;
+  if (suggestion.kind === 'custom') {
+    packName =
+      suggestion.packName ??
+      (suggestion.personal ? t('sharedUi.emojiBoard.personalPack') : undefined);
+  }
   return (
     <MenuItem
       as="button"
@@ -78,9 +85,9 @@ function SuggestionRow({
       radii="300"
       before={<SuggestionGlyph suggestion={suggestion} />}
       after={
-        suggestion.kind === 'custom' && suggestion.packName ? (
+        packName ? (
           <Text size="T200" priority="300" truncate>
-            {suggestion.packName}
+            {packName}
           </Text>
         ) : undefined
       }
