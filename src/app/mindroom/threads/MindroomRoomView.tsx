@@ -4,7 +4,6 @@ import React, {
   useCallback,
   useEffect,
   useLayoutEffect,
-  useMemo,
   useReducer,
   useRef,
 } from 'react';
@@ -12,7 +11,6 @@ import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import {
   EventStatus,
-  MatrixEventEvent,
   RoomEvent,
   type Room,
   type RoomEventHandlerMap,
@@ -46,7 +44,6 @@ import { RoomTimeline, type RoomTimelineProps } from './MindroomRoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './MindroomRoomViewHeader';
 import * as overlay from './RoomOverlay.css';
 import { ThreadContextBanner } from './ThreadContextBanner';
-import { resolveThreadRootPreviewText } from './threadPresentation';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 
@@ -55,36 +52,6 @@ const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
 const ignore = () => undefined;
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
-
-/**
- * The title the thread banner shows: the thread's summary, or until an agent writes one, the
- * start of its first message, as the sidebar's thread list shows it. Only a thread whose first
- * message is not loaded or has no text keeps the banner's generic label.
- */
-const useThreadBannerTitle = (
-  room: Room,
-  threadId: string | undefined,
-  summary: MindroomThreadSummaryInfo | undefined
-): MindroomThreadSummaryInfo | undefined => {
-  const rootEvent = threadId
-    ? room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
-    : undefined;
-  // A root whose key arrives late decrypts after the banner rendered; its title follows it, and
-  // until then the banner keeps its generic label instead of the SDK's "Unable to decrypt" body.
-  const [, repaintOnDecrypt] = useReducer((count: number) => count + 1, 0);
-  useEffect(() => {
-    if (!rootEvent) return undefined;
-    rootEvent.on(MatrixEventEvent.Decrypted, repaintOnDecrypt);
-    return () => {
-      rootEvent.off(MatrixEventEvent.Decrypted, repaintOnDecrypt);
-    };
-  }, [rootEvent]);
-  const rootText =
-    threadId && !summary?.summaryText && !rootEvent?.isDecryptionFailure()
-      ? resolveThreadRootPreviewText({ room, threadRootId: threadId, rootEvent })
-      : undefined;
-  return useMemo(() => (rootText ? { summaryText: rootText } : summary), [rootText, summary]);
-};
 
 export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId'> & {
   room: Room;
@@ -268,12 +235,11 @@ export function RoomView({
     footerRef.current?.querySelector<HTMLElement>('[contenteditable="true"]')?.focus();
   }, []);
 
-  const bannerTitle = useThreadBannerTitle(room, effectiveThreadId, threadState.threadSummaryInfo);
   const threadHeader = effectiveThreadId ? (
     <ThreadContextBanner
       room={room}
       threadId={effectiveThreadId}
-      summaryInfo={bannerTitle}
+      summaryInfo={threadState.threadSummaryInfo}
       onExitThread={threadState.handleExitThread ?? ignore}
     />
   ) : undefined;
