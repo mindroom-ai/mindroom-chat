@@ -538,19 +538,22 @@ test.describe('calls', () => {
       )
     );
 
+    // Counted, not read: the busy tab shows no tile at all.
     const connected = async () => {
-      const states = await Promise.all(
-        tabs.map(async (tab) => tileOf(tab, alice.userId).getAttribute('data-connected'))
+      const counts = await Promise.all(
+        tabs.map(async (tab) =>
+          tab.locator(`[data-call-tile="${alice.userId}"][data-connected="true"]`).count()
+        )
       );
-      return states.filter((state) => state === 'true').length;
+      return counts.reduce((sum, count) => sum + count, 0);
     };
     await expect.poll(connected, { timeout: 60_000 }).toBe(1);
-    const busy = await Promise.all(
-      tabs.map(async (tab) =>
-        (await callPanel(tab).textContent())?.includes('Already in another call')
-      )
-    );
-    expect(busy.filter(Boolean)).toHaveLength(1);
+    const busyTabs = async () =>
+      Promise.all(
+        tabs.map(async (tab) => callPanel(tab).getByText('Already in another call').isVisible())
+      );
+    await expect.poll(async () => (await busyTabs()).filter(Boolean).length).toBe(1);
+    const busy = await busyTabs();
     // A while later still one call: the busy tab did not join on top of the other.
     await firstTab.waitForTimeout(3_000);
     expect(await connected()).toBe(1);
