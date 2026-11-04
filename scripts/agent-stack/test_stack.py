@@ -155,7 +155,7 @@ class CallsTests(unittest.TestCase):
                 connection.execute("CREATE TABLE helper_sessions_usage (id INTEGER PRIMARY KEY, usage_data TEXT)")
                 connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", (json.dumps(usage),))
                 connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", ('{"kind": "run"}',))
-                live = {"kind": "live_voice", "model": "gpt-live-1", "voice": {"seconds": 15.94, "finalized": True}}
+                live = {"kind": "live_voice", "model": "gpt-live-1", "voice_seconds": 15.94, "voice_finalized": True}
                 connection.execute("INSERT INTO helper_sessions_usage (usage_data) VALUES (?)", (json.dumps(live),))
                 connection.commit()
             summary = stack.usage_summary({"model": "stub", "calls": self.calls()}, slot_dir)

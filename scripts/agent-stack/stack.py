@@ -636,13 +636,13 @@ def voice_usage(slot_dir: Path) -> list[dict]:
             if not isinstance(usage, dict) or usage.get("kind") not in VOICE_USAGE_KINDS:
                 continue
             metrics = usage.get("metrics") or {}
-            voice = usage.get("voice") or {}
             calls.append(
                 {
                     "kind": usage["kind"],
                     "model": usage.get("model"),
                     "responses": len(usage.get("requests") or []),
-                    "seconds": round(float(voice.get("seconds") or 0), 1),
+                    # MindRoom's usage snapshot (usage/storage.py helper_usage_snapshot) for a live voice session.
+                    "seconds": round(float(usage.get("voice_seconds") or 0), 1),
                     **{
                         field: int(metrics.get(field) or 0)
                         for field in (
