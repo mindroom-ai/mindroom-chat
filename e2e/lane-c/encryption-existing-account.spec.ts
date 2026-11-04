@@ -46,11 +46,20 @@ const masterKey = async (token: string, userId: string) =>
   (await api<KeysQuery>('/keys/query', { token, body: { device_keys: { [userId]: [] } } }))
     .master_keys?.[userId]?.keys;
 
-const accountData = (token: string, userId: string, type: string) =>
-  api<Record<string, unknown>>(
-    `/user/${encodeURIComponent(userId)}/account_data/${encodeURIComponent(type)}`,
-    { token }
-  );
+/** An account data event's content; `null` when the server holds none (Tuwunel drops `{}`). */
+const accountData = async (
+  token: string,
+  userId: string,
+  type: string
+): Promise<Record<string, unknown> | null> => {
+  const path = `/user/${encodeURIComponent(userId)}/account_data/${encodeURIComponent(type)}`;
+  const response = await fetch(`${HOMESERVER}/_matrix/client/v3${path}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 404) return null;
+  expect(response.ok, `${path} answered ${response.status}`).toBe(true);
+  return (await response.json()) as Record<string, unknown>;
+};
 
 const signIn = async (
   browser: Browser,
@@ -161,6 +170,7 @@ test('a second session never replaces an account that already has its encryption
 
   // Secret storage now holds the backup key but no cross-signing master key, as an account set
   // up only for backup does.
+  expect((await accountData(token, userId, 'm.cross_signing.master'))?.encrypted).toBeTruthy();
   await api(`/user/${encodeURIComponent(userId)}/account_data/m.cross_signing.master`, {
     method: 'PUT',
     token,
@@ -180,7 +190,8 @@ test('a second session never replaces an account that already has its encryption
   ).toBeVisible({ timeout: 30_000 });
   await expect(third.getByRole('button', { name: 'Unverified Device' })).toBeVisible();
 
-  expect(await accountData(token, userId, 'm.cross_signing.master')).toEqual({});
+  // A reset would have written a newly encrypted master key there.
+  expect((await accountData(token, userId, 'm.cross_signing.master'))?.encrypted).toBeUndefined();
   expect(await masterKey(token, userId)).toEqual(originalMaster);
   await third.context().close();
 });
