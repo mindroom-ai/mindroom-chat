@@ -72,8 +72,14 @@ const startAgentStack = (args: string[]): AgentStack | string => {
   const message = (result.stderr || String(result.error ?? '')).trim();
   if ([EXIT_NO_CHECKOUT, EXIT_NO_HOMESERVER, EXIT_NO_KEYS].includes(result.status ?? -1))
     return message;
+  // stack.py's last line of its own names the reason; the tail of the backend log follows it.
+  const reason =
+    message
+      .split('\n')
+      .filter((line) => line.startsWith('agent-stack: '))
+      .at(-1) ?? '';
   throw new Error(
-    `The agent stack did not start (exit ${result.status}):\n${message.slice(-4000)}`
+    `The agent stack did not start (exit ${result.status}): ${reason}\n${message.slice(-4000)}`
   );
 };
 
