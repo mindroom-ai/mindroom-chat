@@ -91,8 +91,9 @@ const openRoom = async (page: Page) => {
 const KNOWN_PORTED_FINDINGS = [
   // KeyBackupNudge: its "Set up backup" button reads as "Set up secure key backup".
   /^label-content-name-mismatch: <button [^>]*aria-label="Set up secure key backup"/,
-  // CompactRoomView: a thread card's label summarizes the thread instead of repeating its text.
-  /^label-content-name-mismatch: <button class="CompactRoomView_Card/,
+  // CompactThreadCard: a thread card's label summarizes the thread instead of repeating its text.
+  // Matched by its attributes: production builds shorten the class names the dev server spells out.
+  /^label-content-name-mismatch: <button [^>]*data-thread-root-id="[^"]*"[^>]*aria-label="Open thread: /,
 ];
 const isKnownPortedFinding = (finding: string) =>
   KNOWN_PORTED_FINDINGS.some((pattern) => pattern.test(finding));
@@ -184,7 +185,8 @@ test.describe.serial('keyboard and accessibility', () => {
       .first();
     await roomOptions.focus();
     await page.keyboard.press('Enter');
-    expect(await focused(page)).not.toContain('More Options');
+    // The menu takes focus once it has rendered, a frame or more after the key.
+    await expect.poll(() => focused(page)).not.toContain('More Options');
     await page.keyboard.press('Escape');
     await expect(roomOptions).toBeFocused();
   });
