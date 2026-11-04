@@ -67,6 +67,9 @@ export const rememberCallForResume = (mx: MatrixClient, active: ActiveCall, now 
   setStorageItemSafe(sessionStore(), RECORD_KEY, JSON.stringify(record));
 };
 
+/** Drops the remembered call, such as when the page comes back from the back/forward cache. */
+export const forgetCallResume = () => removeStorageItemSafe(sessionStore(), RECORD_KEY);
+
 const isRecord = (value: unknown): value is CallResumeRecord => {
   if (!value || typeof value !== 'object') return false;
   const record = value as Record<string, unknown>;

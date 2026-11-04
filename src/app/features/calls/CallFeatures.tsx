@@ -5,6 +5,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { startAgentCall } from '../../mindroom/calls/agentCaller';
 import { activeCallAtom, callPanelRoomAtom, useCallActions } from './callStore';
 import {
+  forgetCallResume,
   rememberCallForResume,
   takeCallResume,
   whenServerSynced,
@@ -20,7 +21,7 @@ import * as css from './IncomingCalls.css';
  * Ends the call with the signed-in session: when the account signs out or switches (the shell
  * unmounts), and as far as the browser allows when the page goes away, so the membership others
  * see does not outlive the tab until it expires. A page that goes away remembers the call, so a
- * reload takes it up again.
+ * reload takes it up again; a page kept in the back/forward cache ends it for good.
  */
 function CallLifetime() {
   const mx = useMatrixClient();
@@ -32,14 +33,28 @@ function CallLifetime() {
       active.call.leave().catch(() => undefined);
       active.onEnded?.().catch(() => undefined);
     };
-    const pageHide = () => {
+    const pageHide = (event: PageTransitionEvent) => {
       const active = store.get(activeCallAtom);
-      if (active) rememberCallForResume(mx, active);
+      if (!active) return;
+      if (event.persisted) {
+        // The back/forward cache keeps the page but not the call: Back must find no call (not a
+        // dead one that answers every new call `busy`), and no reload may take it up again.
+        leave();
+        store.set(activeCallAtom, undefined);
+        return;
+      }
+      rememberCallForResume(mx, active);
       leave();
     };
+    // A page back from the cache starts without a call, whatever a page before it remembered.
+    const pageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) forgetCallResume();
+    };
     window.addEventListener('pagehide', pageHide);
+    window.addEventListener('pageshow', pageShow);
     return () => {
       window.removeEventListener('pagehide', pageHide);
+      window.removeEventListener('pageshow', pageShow);
       leave();
       store.set(activeCallAtom, undefined);
       // The next account would otherwise find this account's call panel open in a shared room.
