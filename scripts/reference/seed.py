@@ -3,10 +3,17 @@
 Usage: scripts/e2e-slot.sh <N> python3 scripts/reference/seed.py [suffix]
 Prints the signed-in user, password, room, thread roots (r1..r4) and the direct room as JSON.
 The screenshots in docs/design/reference/ show this data in MindRoom Chat; compare against them.
+
+Avatars come from two folders: $E2E_SEED_AGENT_AVATARS (research.png, code.png, mind.png; default
+/home/basnijholt/Work/dev/assets/avatars/painted/agents, the MindRoom assets repository) and
+$E2E_SEED_PEOPLE_AVATARS (priya.png, maya.png, tom.png; default
+/home/basnijholt/Work/dev/demo/world/avatars/people, the MindRoom demo repository). An account whose
+picture is missing gets none, with a note on stderr.
 """
 
 import functools
 import json
+import os
 import sys
 import time
 import uuid
@@ -19,8 +26,8 @@ from matrix_http import call as matrix_call, homeserver_url, quote as q, registe
 HS = homeserver_url()
 SERVER = "matrix.localhost"
 PW = "reference-pass-1"
-AGENTS = "/home/basnijholt/Work/dev/assets/avatars/painted/agents"
-PEOPLE = "/home/basnijholt/Work/dev/demo/world/avatars/people"
+AGENTS = os.environ.get("E2E_SEED_AGENT_AVATARS") or "/home/basnijholt/Work/dev/assets/avatars/painted/agents"
+PEOPLE = os.environ.get("E2E_SEED_PEOPLE_AVATARS") or "/home/basnijholt/Work/dev/demo/world/avatars/people"
 
 call = functools.partial(matrix_call, HS)
 
@@ -29,6 +36,9 @@ def register(username, display, avatar):
     account = register_account(HS, username, PW)
     tok, uid = account["access_token"], account["user_id"]
     call("PUT", f"/_matrix/client/v3/profile/{q(uid)}/displayname", tok, {"displayname": display})
+    if not os.path.isfile(avatar):
+        print(f"seed: no avatar for {display} ({avatar} is missing; see E2E_SEED_*_AVATARS)", file=sys.stderr)
+        return {"id": uid, "tok": tok, "name": display}
     with open(avatar, "rb") as f:
         mxc = call("POST", "/_matrix/media/v3/upload?filename=a.png", tok, raw=f.read(), content_type="image/png")["content_uri"]
     call("PUT", f"/_matrix/client/v3/profile/{q(uid)}/avatar_url", tok, {"avatar_url": mxc})
@@ -171,4 +181,5 @@ def main():
     print(json.dumps({"user": priya["id"].split(":")[0][1:], "password": PW, "room": room, "threads": [r1, r2, r3, r4], "dm": dm}))
 
 
-main()
+if __name__ == "__main__":
+    main()
