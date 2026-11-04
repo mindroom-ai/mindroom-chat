@@ -87,6 +87,9 @@
     },
     "roomCard": {
       "forget": "Forget Room"
+    },
+    "userRoomProfile": {
+      "editProfile": "Edit Profile"
     }
   },
   "featureUi": {
