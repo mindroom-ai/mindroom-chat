@@ -59,6 +59,9 @@ export const useOwnDeviceTrust = (): OwnDeviceTrust | undefined => {
   const [trust, setTrust] = useState<OwnDeviceTrust>();
 
   useEffect(() => {
+    setTrust(undefined);
+    // Without crypto there is no trust to read and no event will ever change that.
+    if (!client.getCrypto()) return undefined;
     let latest = 0;
     let mounted = true;
     const refresh = () => {
@@ -72,7 +75,6 @@ export const useOwnDeviceTrust = (): OwnDeviceTrust | undefined => {
         () => undefined
       );
     };
-    setTrust(undefined);
     refresh();
     TRUST_EVENTS.forEach((event) => client.on(event, refresh));
     return () => {

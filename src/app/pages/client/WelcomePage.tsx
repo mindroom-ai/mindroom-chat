@@ -19,6 +19,7 @@ import {
 } from '../../mindroom/local-mindroom/mindroom';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../mindroom/local-mindroom/settingsPage';
 import { KeyBackupNudge } from '../../mindroom/onboarding/KeyBackupNudge';
+import { UnverifiedDeviceCard } from '../../components/device-verification/UnverifiedDeviceCard';
 import type { MindroomPoweredByLink } from '../../mindroom/branding/branding';
 import { settingsModalAtom } from '../../state/settingsModal';
 
@@ -214,6 +215,7 @@ export function WelcomePage() {
                   {content.docsLabel}
                 </WelcomeLink>
               )}
+              <UnverifiedDeviceCard />
               <KeyBackupNudge />
               {Array.isArray(content.poweredBy) && <PoweredByLine links={content.poweredBy} />}
             </Box>
