@@ -256,7 +256,8 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
     <PageNavHeader>
       <Box gap="300" grow="Yes" alignItems="Center">
         <Box grow="Yes">
-          <Text as="h2" truncate size="H4">
+          {/* Not a heading: the lobby's hero names the space as its h2 (page-header-glass). */}
+          <Text truncate size="H4">
             {name}
           </Text>
         </Box>

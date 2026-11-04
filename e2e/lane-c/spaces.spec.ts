@@ -84,7 +84,7 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   await createDialog.getByRole('button', { name: 'Create', exact: true }).click();
   await expect(createDialog).toBeHidden();
   await expect(page).toHaveURL(/\/lobby\/?$/, { timeout: 30_000 });
-  const hero = page.getByRole('heading', { name: /Garden club/ });
+  const hero = page.getByRole('heading', { name: /Garden club/ }).last();
   await expect(hero).toBeVisible();
   await expect(page.getByText('No Rooms', { exact: true })).toBeVisible();
   const spaceId = decodeURIComponent(new URL(page.url()).pathname.split('/')[1]);

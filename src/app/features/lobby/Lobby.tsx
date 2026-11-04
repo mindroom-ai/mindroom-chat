@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
-import { Page, PageHero, PageHeroSection, PageScroll } from '../../components/page';
+import { Page, PageHeroSection, PageScroll } from '../../components/page';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
 import { LocalRoomSummaryLoader, RoomSummaryLoader } from '../../components/RoomSummaryLoader';
 import { AsyncStatus } from '../../hooks/useAsyncCallback';
@@ -87,16 +87,30 @@ const useScrolledPast = (
   return past;
 };
 
-/** The space's picture, name and topic at the top of its lobby. */
+/**
+ * The space's picture, name and topic at the top of its lobby. The name is the lobby's section
+ * heading (h2); the topic under it is not part of the heading.
+ */
 function LobbyHero({ heroRef }: { heroRef: RefObject<HTMLDivElement> }) {
-  const space = useSpace();
-  const name = useRoomName(space);
-  const picture = (
-    <SpaceAvatar roomId={space.roomId} name={name} src={useSpaceAvatarSrc(space)} large />
-  );
+  const lobbySpace = useSpace();
+  const spaceTopic = useRoomTopic(lobbySpace);
+  const name = useRoomName(lobbySpace);
+  const pictureSrc = useSpaceAvatarSrc(lobbySpace);
   return (
     <PageHeroSection ref={heroRef} style={{ paddingBlock: config.space.S500 }}>
-      <PageHero icon={picture} title={name} subTitle={useRoomTopic(space)} />
+      <Box direction="Column" alignItems="Center" gap="200">
+        <Box style={{ marginBottom: config.space.S200 }}>
+          <SpaceAvatar roomId={lobbySpace.roomId} name={name} src={pictureSrc} large />
+        </Box>
+        <Text as="h2" size="H2" align="Center" style={{ margin: 0 }}>
+          {name}
+        </Text>
+        {spaceTopic && (
+          <Text priority="400" align="Center">
+            {spaceTopic}
+          </Text>
+        )}
+      </Box>
     </PageHeroSection>
   );
 }
