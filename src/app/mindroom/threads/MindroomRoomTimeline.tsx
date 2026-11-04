@@ -171,6 +171,13 @@ const EMPTY_IDS: ReadonlySet<string> = new Set();
  * prices room rows at one height, and a row the window does not know takes the comfortable one.
  */
 const ROOM_ROW_ESTIMATE_PX = { compact: 96, comfortable: 68 } as const;
+/**
+ * Added to content-based room estimates, which are whole pixels and often exact. virtual-core
+ * records a measured size only when it differs from the estimate, and the automatic fill reveals
+ * the rows only once every mounted row is recorded; a row of zero estimated height would not
+ * even mount to be measured.
+ */
+const ROOM_ROW_UNMEASURED_PX = 0.5;
 const THREAD_ONE_LINE_ESTIMATE_PX = { compact: 26, comfortable: 30 } as const;
 
 /** Gestures and keys that hand the scroll position over to the reader. */
@@ -946,11 +953,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
       const rows = roomRowsRef.current;
       const position = index === undefined ? undefined : activeRangeRef.current.start + index;
       const event = position === undefined ? undefined : rows[position];
-      if (!event || position === undefined) return ROOM_ROW_ESTIMATE_PX.comfortable;
+      if (!event || position === undefined) {
+        return ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
+      }
       // The threaded view shows a badge under each message that has a thread record.
       const threadBadge =
         !showThreadRepliesInRoom && threadRecordMapRef.current.has(event.getId() ?? '');
-      return estimateRoomRowHeight(event, rows[position - 1], { threadBadge });
+      return (
+        estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) + ROOM_ROW_UNMEASURED_PX
+      );
     }
     const event = index === undefined ? undefined : threadEvents[index];
     if (!event) {
