@@ -98,6 +98,9 @@
         "roomPacks": {
           "deletePack": "Delete {{name}}"
         }
+      },
+      "developerTools": {
+        "invalidJson": "Give the event a type and content that is a JSON object."
       }
     },
     "settings": {
