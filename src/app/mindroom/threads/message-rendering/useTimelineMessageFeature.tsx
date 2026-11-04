@@ -138,6 +138,12 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
 /** Text messages; their body is only as wide as their text (`data-message-fold`, layout.css.ts). */
 const TEXT_MSGTYPES: ReadonlySet<string> = new Set(['m.text', 'm.notice', 'm.emote']);
 
+/**
+ * Pictures and videos sit in a box of at most 400 by 300 pixels (MsgTypeRenderers) and open a
+ * viewer on click, so they show whole instead of folding at the text preview height.
+ */
+const UNFOLDED_MEDIA_MSGTYPES: ReadonlySet<string> = new Set(['m.image', 'm.video']);
+
 const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
 
 /** The settings each message row reads; the row list re-renders when one changes. */
@@ -488,13 +494,16 @@ export const useTimelineMessageFeature = ({
       // The footer of an open thread offers the actions for its own failed root.
       const showFailedActions = failedSend && !(threadId && eventId === threadId);
       const editable = kind === 'message';
-      const collapseMode = getCollapsibleMessageMode(
-        eventId,
-        content,
-        liveExpansionIds,
-        isMindroomAgentUserId(event.getSender() ?? undefined)
-      );
       const msgType = typeof content.msgtype === 'string' ? content.msgtype : '';
+      const collapseMode =
+        UNFOLDED_MEDIA_MSGTYPES.has(msgType) || kind === 'sticker'
+          ? 'always-expanded'
+          : getCollapsibleMessageMode(
+              eventId,
+              content,
+              liveExpansionIds,
+              isMindroomAgentUserId(event.getSender() ?? undefined)
+            );
       const isAgentReply =
         !!content['io.mindroom.ai_run'] || !!content['io.mindroom.stream_status'];
       const replyEventId =
