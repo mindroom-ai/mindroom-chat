@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Box, Icon, IconButton, Icons, Line, Text, config, toRem } from 'folds';
+import { Box, Icon, IconButton, Icons, Line, config, toRem } from 'folds';
 import { PopOut } from '../../components/directional';
 import type { IconSrc, RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import type { Options as FocusTrapOptions } from 'focus-trap';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt/LeaveRoomPrompt';
 import { LeaveSpacePrompt } from '../../components/leave-space-prompt';
@@ -29,6 +29,7 @@ import {
   setSpaceChildSuggested,
 } from './spaceChildren';
 import { StateEvent } from '../../../types/matrix/room';
+import { MenuEntry } from '../../components/MenuEntry';
 
 type HierarchyItemMenuProps = {
   item: HierarchyItem;
@@ -155,24 +156,17 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
     setAnchor(undefined);
   };
   const renderAction = (action: MenuAction) => (
-    <MenuItem
+    <MenuEntry
       key={action.key}
-      size="300"
-      radii="300"
-      variant={action.critical ? 'Critical' : undefined}
-      fill={action.critical ? 'None' : undefined}
-      after={
-        <Icon size="100" src={action.icon} data-directional={action.directional || undefined} />
-      }
-      onClick={() => {
+      label={action.label}
+      icon={action.icon}
+      critical={action.critical}
+      directional={action.directional}
+      onSelect={() => {
         close();
         action.run();
       }}
-    >
-      <Text as="span" size="T300" align="Left" truncate style={{ flexGrow: 1 }}>
-        {action.label}
-      </Text>
-    </MenuItem>
+    />
   );
 
   const menu = (

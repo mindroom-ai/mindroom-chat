@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
-import type { IconSrc, RectCords } from 'folds';
+import type { RectCords } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -37,7 +37,6 @@ import { usePowerLevels } from '../../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { InviteUserPrompt } from '../../../components/invite-user-prompt';
-import { MenuItem } from '../../../components/glass/GlassPrimitives';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
@@ -68,8 +67,7 @@ import {
   useTopLevelSpaceIds,
 } from './sidebarSpaces';
 import * as css from './SpaceTabs.css';
-
-const menuLabelStyle = { flexGrow: 1 } as const;
+import { MenuEntry } from '../../../components/MenuEntry';
 
 type DropAt = 'above' | 'below' | 'child';
 const DROP_AT: Record<SidebarInstructionType, DropAt> = {
@@ -103,18 +101,6 @@ const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
 /** Folders open in the rail in this session, by folder ID. */
 const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
 
-type MenuEntryProps = { label: string; icon: IconSrc; onSelect: () => void };
-
-function RailMenuEntry({ label, icon, onSelect }: MenuEntryProps) {
-  return (
-    <MenuItem size="300" radii="300" after={<Icon size="100" src={icon} />} onClick={onSelect}>
-      <Text as="span" size="T300" align="Left" truncate style={menuLabelStyle}>
-        {label}
-      </Text>
-    </MenuItem>
-  );
-}
-
 /** "Invite" in a space's rail menu, for members allowed to invite. */
 function InviteToSpaceItem({ space, onSelect }: { space: Room; onSelect: () => void }) {
   const { t } = useTranslation();
@@ -122,11 +108,7 @@ function InviteToSpaceItem({ space, onSelect }: { space: Room; onSelect: () => v
   const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
   if (!permissions.action('invite', client.getUserId() ?? '')) return null;
   return (
-    <RailMenuEntry
-      label={t('sharedUi.spaceTabs.invite')}
-      icon={Icons.UserPlus}
-      onSelect={onSelect}
-    />
+    <MenuEntry label={t('sharedUi.spaceTabs.invite')} icon={Icons.UserPlus} onSelect={onSelect} />
   );
 }
 
@@ -243,18 +225,18 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
         <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
           <MindroomMarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
           <InviteToSpaceItem space={space} onSelect={closeThen(() => setInviting(true))} />
-          <RailMenuEntry
+          <MenuEntry
             label={t('sharedUi.spaceTabs.copyLink')}
             icon={Icons.Link}
             onSelect={closeThen(() => void copyToClipboard(getSpaceShareLink(client, space)))}
           />
-          <RailMenuEntry
+          <MenuEntry
             label={t('sharedUi.spaceTabs.spaceSettings')}
             icon={Icons.Setting}
             onSelect={closeThen(() => openSpaceSettings(roomId))}
           />
           {pinned && (
-            <RailMenuEntry
+            <MenuEntry
               label={t('sharedUi.spaceTabs.unpin')}
               icon={Icons.Pin}
               onSelect={closeThen(() => void unpinSpaceFromSidebar(client, roomId))}

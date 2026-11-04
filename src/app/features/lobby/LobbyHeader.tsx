@@ -14,7 +14,7 @@ import {
   toRem,
 } from 'folds';
 import { PopOut, TooltipProvider } from '../../components/directional';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
@@ -36,6 +36,7 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useOpenSpaceSettings } from '../../state/hooks/spaceSettings';
 import { mxcUrlToHttp } from '../../utils/matrix';
 import { nameInitials } from '../../utils/common';
+import { MenuEntry } from '../../components/MenuEntry';
 
 type LobbyHeaderProps = {
   powerLevels: IPowerLevels;
@@ -211,40 +212,30 @@ export function LobbyHeader({
               <Menu style={{ minWidth: toRem(180) }}>
                 <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
                   {menuActions.map((action) => (
-                    <MenuItem
+                    <MenuEntry
                       key={action.label}
-                      size="300"
-                      radii="300"
+                      label={action.label}
+                      icon={action.icon}
                       disabled={action.disabled}
-                      after={<Icon size="100" src={action.icon} />}
-                      onClick={() => {
+                      onSelect={() => {
                         closeMenu();
                         action.run();
                       }}
-                    >
-                      <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
-                        {action.label}
-                      </Text>
-                    </MenuItem>
+                    />
                   ))}
                 </Box>
                 <Line size="300" />
                 <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-                  <MenuItem
-                    size="300"
-                    radii="300"
-                    variant="Critical"
-                    fill="None"
-                    after={<Icon size="100" src={Icons.ArrowGoLeft} data-directional />}
-                    onClick={() => {
+                  <MenuEntry
+                    label={t('featureUi.lobby.lobbyHeader.leaveSpace')}
+                    icon={Icons.ArrowGoLeft}
+                    directional
+                    critical
+                    onSelect={() => {
                       closeMenu();
                       setLeaving(true);
                     }}
-                  >
-                    <Text as="span" size="T300" align="Left" style={{ flexGrow: 1 }}>
-                      {t('featureUi.lobby.lobbyHeader.leaveSpace')}
-                    </Text>
-                  </MenuItem>
+                  />
                 </Box>
               </Menu>
             </FocusTrap>
