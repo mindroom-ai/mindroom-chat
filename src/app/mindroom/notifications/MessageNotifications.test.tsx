@@ -55,12 +55,13 @@ const room = {
 };
 
 let actions: Actions = { notify: true, tweaks: { sound: 'default' } };
-const client = Object.assign(new EventEmitter(), {
+const emitter = Object.assign(new EventEmitter(), {
   getUserId: () => ME,
   getRoom: (roomId: string) => (roomId === ROOM ? room : null),
   getRooms: () => [room],
   getPushActionsForEvent: () => actions,
-}) as unknown as MatrixClient;
+});
+const client = emitter as unknown as MatrixClient;
 
 const message = (content: IContent) =>
   new MatrixEvent({
@@ -74,7 +75,7 @@ const message = (content: IContent) =>
 
 const arrive = (event: MatrixEvent, liveEvent = true) =>
   act(() => {
-    client.emit(RoomEvent.Timeline, event, room, false, false, { liveEvent } as never);
+    emitter.emit(RoomEvent.Timeline, event, room, false, false, { liveEvent });
   });
 
 let renderer: ReactTestRenderer | undefined;
