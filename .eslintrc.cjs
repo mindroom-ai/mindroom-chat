@@ -19,6 +19,38 @@ function lanePTypeScriptFiles() {
 const GLASS_SURFACE_MESSAGE =
   'Use the shared surface from src/app/components/glass/GlassPrimitives instead of the raw folds component.';
 const RAW_FOLDS_SURFACES = ['default', 'Menu', 'MenuItem', 'Modal', 'Dialog', 'Header'];
+const GLASS_RESTRICTIONS = {
+  paths: [
+    // Named and default imports of the raw surfaces; `import *` and `export *` count too.
+    { name: 'folds', importNames: RAW_FOLDS_SURFACES, message: GLASS_SURFACE_MESSAGE },
+    { name: 'folds/dist', message: GLASS_SURFACE_MESSAGE },
+  ],
+  patterns: [
+    {
+      // Any deep import of folds, except its stylesheet.
+      group: ['folds/*', '!folds/dist', 'folds/dist/*', '!folds/dist/style.css'],
+      message: GLASS_SURFACE_MESSAGE,
+    },
+  ],
+};
+
+// Lane C code places pop-outs and tooltips in reading order through the directional wrappers,
+// which mirror folds' physical sides in a right-to-left interface; only the wrapper module itself
+// uses folds' own components. ESLint keys `paths` by module name, so this second restriction on
+// `folds` is a pattern.
+const DIRECTIONAL_COMPONENTS = ['PopOut', 'TooltipProvider'];
+const DIRECTIONAL_RESTRICTIONS = {
+  paths: GLASS_RESTRICTIONS.paths,
+  patterns: [
+    ...GLASS_RESTRICTIONS.patterns,
+    {
+      group: ['folds'],
+      importNames: DIRECTIONAL_COMPONENTS,
+      message:
+        'Use PopOut and TooltipProvider from src/app/components/directional, which place them in reading order.',
+    },
+  ],
+};
 
 module.exports = {
   root: true,
@@ -61,23 +93,7 @@ module.exports = {
     ],
     '@typescript-eslint/no-explicit-any': 'warn',
     'prefer-const': 'warn',
-    'no-restricted-imports': [
-      'error',
-      {
-        paths: [
-          // Named and default imports of the raw surfaces; `import *` and `export *` count too.
-          { name: 'folds', importNames: RAW_FOLDS_SURFACES, message: GLASS_SURFACE_MESSAGE },
-          { name: 'folds/dist', message: GLASS_SURFACE_MESSAGE },
-        ],
-        patterns: [
-          {
-            // Any deep import of folds, except its stylesheet.
-            group: ['folds/*', '!folds/dist', 'folds/dist/*', '!folds/dist/style.css'],
-            message: GLASS_SURFACE_MESSAGE,
-          },
-        ],
-      },
-    ],
+    'no-restricted-imports': ['error', GLASS_RESTRICTIONS],
   },
   overrides: [
     {
@@ -85,13 +101,6 @@ module.exports = {
       files: ['**/*.cjs'],
       rules: {
         '@typescript-eslint/no-var-requires': 'off',
-      },
-    },
-    {
-      // The adapter wraps the raw folds surfaces.
-      files: ['src/app/components/glass/GlassPrimitives.tsx'],
-      rules: {
-        'no-restricted-imports': 'off',
       },
     },
     {
@@ -123,6 +132,22 @@ module.exports = {
         '@typescript-eslint/switch-exhaustiveness-check': 'error',
         '@typescript-eslint/no-unnecessary-type-assertion': 'error',
         '@typescript-eslint/no-unsafe-enum-comparison': 'error',
+        'no-restricted-imports': ['error', DIRECTIONAL_RESTRICTIONS],
+      },
+    },
+    // The two wrappers come after the Lane C block, whose import rule they relax.
+    {
+      // The directional wrappers place folds' own pop-outs and tooltips.
+      files: ['src/app/components/directional/index.tsx'],
+      rules: {
+        'no-restricted-imports': ['error', GLASS_RESTRICTIONS],
+      },
+    },
+    {
+      // The adapter wraps the raw folds surfaces.
+      files: ['src/app/components/glass/GlassPrimitives.tsx'],
+      rules: {
+        'no-restricted-imports': 'off',
       },
     },
   ],

@@ -11,8 +11,8 @@ import {
   OverlayCenter,
   Text,
   Tooltip,
-  TooltipProvider,
 } from 'folds';
+import { TooltipProvider } from '../../components/directional';
 import { useScheduledTaskEvents } from '../threads/useScheduledTaskEvents';
 import { getPendingRoomSchedules } from './roomSchedules';
 import { RoomSchedulesDialog } from './RoomSchedulesDialog';

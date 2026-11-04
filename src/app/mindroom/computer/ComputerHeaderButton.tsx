@@ -1,4 +1,5 @@
-import { Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
+import { Icon, IconButton, Icons, Text, Tooltip } from 'folds';
+import { TooltipProvider } from '../../components/directional';
 
 type ComputerHeaderButtonProps = {
   /** What pressing the button does now, e.g. "Show computer"; also its accessible name. */

@@ -1,7 +1,8 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Avatar, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
+import { Avatar, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
+import { TooltipProvider } from '../../components/directional';
 import { UserAvatar } from '../../components/user-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';

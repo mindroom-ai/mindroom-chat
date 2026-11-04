@@ -1,5 +1,6 @@
 import { useEffect, useReducer } from 'react';
-import { Box, Text, Tooltip, TooltipProvider } from 'folds';
+import { Box, Text, Tooltip } from 'folds';
+import { TooltipProvider } from '../../../components/directional';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';

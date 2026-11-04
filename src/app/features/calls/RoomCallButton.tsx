@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Badge, Icon, IconButton, Icons, Text, Tooltip, TooltipProvider } from 'folds';
+import { Badge, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
+import { TooltipProvider } from '../../components/directional';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { isActiveCallShownIn, useActiveCall, useCallPanel, useRoomCallMembers } from './callStore';
 import { callUserIds } from './callMemberships';
