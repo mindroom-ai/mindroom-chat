@@ -6,6 +6,7 @@ import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import { RoomCall } from './RoomCall';
 import { getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
 import { holdDeviceCallLock, withdrawOwnMemberships } from './callResume';
+import { defined } from '../../test-utils/defined';
 
 /** What the fake LiveKit and lock modules record, shared with the hoisted module mocks. */
 const fakes = vi.hoisted(() => ({
@@ -224,12 +225,12 @@ describe('RoomCall leave', () => {
   it('releases the encryption worker and the device lock when LiveKit fails to disconnect', async () => {
     const { call } = setup({ encrypted: true });
     await call.join();
-    const [media] = mediaRooms();
+    const media = defined(mediaRooms()[0], 'the LiveKit room');
     media.disconnect.mockRejectedValueOnce(new Error('leave message not sent'));
 
     await expect(call.leave()).resolves.toBeUndefined();
 
-    expect(fakes.workers[0].terminate).toHaveBeenCalledTimes(1);
+    expect(defined(fakes.workers[0], 'the encryption worker').terminate).toHaveBeenCalledTimes(1);
     expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
     expect(call.getState().phase).toBe('ended');
   });
