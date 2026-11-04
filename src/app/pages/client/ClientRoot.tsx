@@ -25,7 +25,6 @@ import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
 import { Navigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { useStore } from 'jotai';
 import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -43,7 +42,6 @@ import {
   usePrefetchConfigSubscription,
 } from '../../mindroom/settings/useLivePrefetchConfig';
 import type { StoredSession } from '../../state/sessions';
-import { forgetComposerStateOfSession } from '../../state/room/roomInputDrafts';
 import { closeClient } from '../../mindroom/matrix/closeClient';
 import { clearSecretStorageKeys } from '../../../client/secretStorageKeys';
 import {
@@ -374,7 +372,6 @@ function ClientSession({ session, children }: ClientSessionProps) {
   const [engine, setEngine] = useState<MindroomSyncEngine>();
   const [sync, setSync] = useState<SyncProgress>(NO_SYNC_YET);
   const [queryClient] = useState(() => new QueryClient());
-  const store = useStore();
   const getPrefetchConfig = useLivePrefetchConfig();
   const subscribePrefetchConfig = usePrefetchConfigSubscription();
   const { mx } = startup;
@@ -383,15 +380,14 @@ function ClientSession({ session, children }: ClientSessionProps) {
     latestSession.current = session;
   }, [session]);
 
-  // Account teardown: keys unlocked for this account, its cached queries and the reply targets
-  // and staged files of its composers go with it.
+  // Account teardown: keys unlocked for this account and its cached queries go with it. What its
+  // pages kept in the app-wide store goes when they unmount (`ClientBindAtoms`, `accountState.ts`).
   useEffect(
     () => () => {
       clearSecretStorageKeys();
       queryClient.clear();
-      forgetComposerStateOfSession(store);
     },
-    [queryClient, store]
+    [queryClient]
   );
 
   // Opening the stores; a retry opens a fresh client with the latest credentials.
