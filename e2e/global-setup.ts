@@ -24,7 +24,9 @@ import { spawnSync } from 'node:child_process';
  *
  * With no `E2E_USERNAME` and a homeserver on http://127.0.0.1:28008 (`just hs-up`; the port is E2E_MATRIX_PORT when set), this
  * registers one account per role on that disposable server, creates the fixture room, and
- * exports the variables above for them. It never registers anything on another homeserver.
+ * exports the variables above for them. A run that names `minimap-verify` also gets that spec's
+ * Minimap Long Room, and one that names `app-store-screenshots` gets Sam Rivera's room and its
+ * account as the primary one. It never registers anything on another homeserver.
  * Variables that are already set win.
  */
 
@@ -134,6 +136,52 @@ const seedAgentRoom = async (username: string, agentUserId: string): Promise<voi
   }
 };
 
+/**
+ * Whether this run's command line names the spec file, as `e2e-suite.sh` and `e2e-slot.sh` runs
+ * do. Fixtures only one spec reads are seeded for runs that name it, so other runs never get them.
+ */
+const runNamesSpec = (fileStem: string): boolean =>
+  process.argv.some((argument) => argument.includes(fileStem));
+
+/** The Minimap Long Room and its long thread that `e2e/live/minimap-verify.spec.ts` opens. */
+const seedMinimapRoom = (): void => {
+  const result = spawnSync('bash', ['e2e/live/fixtures/minimap-fixture.sh'], {
+    encoding: 'utf8',
+    env: process.env,
+  });
+  if (result.status !== 0 || !/^ROOM=!/m.test(result.stdout)) {
+    console.warn(`Minimap room was not seeded: ${(result.stderr || result.stdout).trim()}`);
+  }
+};
+
+/**
+ * Sam Rivera's room of `e2e/app-store-screenshots.spec.ts`, seeded for an account of its own as
+ * `scripts/appstore-fixture-up.sh` does, so the household's name and avatar never reach the shared
+ * primary account. The spec signs in as the primary account, so this run's primary becomes it.
+ */
+const seedAppStoreRoom = async (): Promise<void> => {
+  const runId = Date.now().toString(36);
+  const username = `appstorescreenshots${runId}`;
+  const alias = `#mindroom-app-store-personal-showcase-${runId}:${LOCAL_SERVER_NAME}`;
+  await register(username);
+  const result = spawnSync(process.execPath, ['scripts/seed-appstore-screenshot-room.mjs'], {
+    encoding: 'utf8',
+    env: {
+      ...process.env,
+      E2E_USERNAME: username,
+      E2E_PASSWORD: LOCAL_PASSWORD,
+      E2E_FIXTURE_ROOM_ALIAS: alias,
+    },
+  });
+  if (result.status !== 0 || !/^Room: !/m.test(result.stdout)) {
+    console.warn(`App Store room was not seeded: ${(result.stderr || result.stdout).trim()}`);
+    return;
+  }
+  process.env.E2E_USERNAME = username;
+  process.env.E2E_FIXTURE_ROOM_ALIAS = alias;
+  delete process.env.E2E_FIXTURE_ROOM_ID;
+};
+
 const globalSetup = async (): Promise<void> => {
   // Credentials from the caller mean a homeserver of the caller's choosing.
   if (process.env.E2E_USERNAME) return;
@@ -172,6 +220,9 @@ const globalSetup = async (): Promise<void> => {
 
   seedFixtureRoom();
   await seedAgentRoom(accounts.primary, process.env.E2E_AGENT_USER_ID);
+  if (runNamesSpec('minimap-verify')) seedMinimapRoom();
+  // Last: it swaps the primary account, which the seeds above must not use.
+  if (runNamesSpec('app-store-screenshots')) await seedAppStoreRoom();
 };
 
 export default globalSetup;
