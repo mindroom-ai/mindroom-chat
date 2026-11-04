@@ -17,14 +17,6 @@ import { isRecord } from '../utils/isRecord';
 export const SESSION_STORE_KEY = MINDROOM_SESSION_STORE_KEY;
 const SESSION_STORE_VERSION = 1;
 
-/** Single-account credentials written by builds before the account registry existed. */
-export const LEGACY_SESSION_STORAGE_KEYS = [
-  'mindroom_client_access_token',
-  'mindroom_client_device_id',
-  'mindroom_client_user_id',
-  'mindroom_client_hs_base_url',
-] as const;
-
 export type StoredSession = {
   sessionId: string;
   baseUrl: string;
@@ -534,16 +526,3 @@ export const markCryptoStoreInitialized = (sessionId: string, storage?: SessionS
 export const hasInitializedCryptoStore = (sessionId: string, storage?: SessionStorage): boolean =>
   getSessionStore(storage).sessions.find((item) => item.sessionId === sessionId)
     ?.cryptoStoreInitialized === true;
-
-/** Removes the single-account keys; each key is removed on its own so one failure skips only it. */
-export const clearLegacySessionStorage = (storage?: Pick<Storage, 'removeItem'>): void => {
-  const target = storage ?? getSafeLocalStorage();
-  if (!target) return;
-  LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-    try {
-      target.removeItem(key);
-    } catch {
-      // A blocked key stays behind; the others are still removed.
-    }
-  });
-};

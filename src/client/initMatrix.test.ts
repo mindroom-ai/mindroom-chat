@@ -22,7 +22,6 @@ import { clearSecretStorageKeys } from './secretStorageKeys';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../app/mindroom/messages/editDebug';
 import { clearMindroomLongTextHydrationCache } from '../app/mindroom/messages/longText';
 import {
-  LEGACY_SESSION_STORAGE_KEYS,
   SESSION_STORE_KEY,
   SessionStoreWriteError,
   createSessionId,
@@ -1161,7 +1160,7 @@ describe('clearAllCacheAndReload', () => {
     localStorageMock.setItem(MINDROOM_EDIT_DEBUG_STORAGE_KEY, '1');
     localStorageMock.setItem('i18nextLng', 'en');
     localStorageMock.setItem('kb-color-mode', 'dark');
-    localStorageMock.setItem('mindroom_client_access_token', 'legacy-token');
+    localStorageMock.setItem('mindroom_client_cached_key', 'cached');
     localStorageMock.setItem(`navToActivePath${session.userId}`, '/room');
     localStorageMock.setItem(`mindroom_ios_push_token::${session.sessionId}`, 'push-token');
     localStorageMock.setItem('mx_pending_events_!room:example.com', 'pending');
@@ -1273,7 +1272,7 @@ describe('clearAllCacheAndReload', () => {
     expect(localStorageState.get(MINDROOM_EDIT_DEBUG_STORAGE_KEY)).toBe('1');
     expect(localStorageState.get('i18nextLng')).toBe('en');
     expect(localStorageState.get('kb-color-mode')).toBe('dark');
-    expect(localStorageState.has('mindroom_client_access_token')).toBe(false);
+    expect(localStorageState.has('mindroom_client_cached_key')).toBe(false);
     expect(localStorageState.get(`navToActivePath${session.userId}`)).toBe('/room');
     expect(localStorageState.get(`mindroom_ios_push_token::${session.sessionId}`)).toBe(
       'push-token'
@@ -1308,7 +1307,6 @@ describe('clearAllCacheAndReload', () => {
       { setActive: false },
       localStorageMock
     );
-    localStorageMock.setItem(LEGACY_SESSION_STORAGE_KEYS[0], 'legacy-token');
 
     const liveSession = {
       sessionId: createSessionId('https://example.com', '@carol:example.com'),
@@ -1375,7 +1373,6 @@ describe('clearAllCacheAndReload', () => {
       getRoomEventCacheDbName(inactiveSession.sessionId),
       getSessionIndexedDbStoreName(liveSession).sync,
       getThreadEventCacheDbName(liveSession.sessionId),
-      'matrix-js-sdk:web-sync-store',
     ]);
     expect(replace).toHaveBeenCalledWith('/?clear_cache=5678');
   });
@@ -1394,7 +1391,6 @@ describe('clearAllCacheAndReload', () => {
       undefined,
       localStorageMock
     );
-    localStorageMock.setItem(LEGACY_SESSION_STORAGE_KEYS[0], 'legacy-token');
 
     const deleteDatabase = createDeleteDatabaseMock();
     const replace = vi.fn();
@@ -1431,7 +1427,6 @@ describe('clearAllCacheAndReload', () => {
       // ISSUE-207 P2.1 (D8): unified `mindroom-cache` singleton +
       // session-scoped name are also listed in the fallback.
       'mindroom-cache',
-      'matrix-js-sdk:web-sync-store',
       getSessionIndexedDbStoreName(session).sync,
       getThreadEventCacheDbName(session.sessionId),
       getRoomEventCacheDbName(session.sessionId),
@@ -1532,7 +1527,6 @@ describe('clearAllCacheAndReload', () => {
     const { storage: sessionStorageMock } = createStorageMock({
       transient: 'value',
     });
-    localStorageMock.setItem(LEGACY_SESSION_STORAGE_KEYS[0], 'legacy-token');
 
     vi.mocked(clearSecretStorageKeys).mockImplementation(() => {
       throw new Error('secret storage failure');
@@ -1640,9 +1634,7 @@ describe('logoutClient', () => {
   });
 
   it('clears the current session-scoped rust crypto store when the stored session is unavailable', async () => {
-    const storageState = new Map<string, string>(
-      LEGACY_SESSION_STORAGE_KEYS.map((key) => [key, `legacy-${key}`])
-    );
+    const storageState = new Map<string, string>();
     const localStorageMock = {
       getItem: vi.fn((key: string) => storageState.get(key) ?? null),
       setItem: vi.fn((key: string, value: string) => {
@@ -1721,10 +1713,6 @@ describe('logoutClient', () => {
     expect(vi.mocked(clearRecentThreadsStore)).toHaveBeenCalledWith(userId);
     expect(vi.mocked(clearRecentThreadViewModelSharedState)).not.toHaveBeenCalled();
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith(sessionId);
-    LEGACY_SESSION_STORAGE_KEYS.forEach((key) => {
-      expect(localStorageMock.removeItem).toHaveBeenCalledWith(key);
-      expect(storageState.has(key)).toBe(false);
-    });
     expect(stopClient).toHaveBeenCalled();
     expect(reload).toHaveBeenCalledTimes(1);
   });

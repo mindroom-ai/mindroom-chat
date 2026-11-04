@@ -11,7 +11,6 @@ import {
 } from '../cache/sessionCleanup';
 import {
   StoredSession,
-  clearLegacySessionStorage,
   createSessionId,
   getActiveSession,
   getSessionIndexedDbStoreName,
@@ -40,7 +39,6 @@ import {
   getAppOwnedIndexedDbNames,
   getCacheBustedAppReloadTarget,
   getStoredSessionCleanupContexts,
-  hasLegacySessionStorage,
   mergeSessionCleanupContexts,
 } from './browserStorageCleanup';
 
@@ -164,15 +162,11 @@ const removeSessionRecordAndLocalData = async (
   mx?: MatrixClient
 ): Promise<void> => {
   const nextStore = removeSession(session.sessionId);
-  try {
-    await deleteSessionLocalData(
-      session,
-      mx,
-      !nextStore.sessions.some((storedSession) => storedSession.userId === session.userId)
-    );
-  } finally {
-    clearLegacySessionStorage();
-  }
+  await deleteSessionLocalData(
+    session,
+    mx,
+    !nextStore.sessions.some((storedSession) => storedSession.userId === session.userId)
+  );
 };
 
 export const removeSessionAndReload = async (
@@ -222,17 +216,13 @@ export const removeCurrentClientSessionAndReload = async (
   const clearUserScopedState = !nextStore.sessions.some(
     (storedSession) => storedSession.userId === identity.userId
   );
-  try {
-    await Promise.all([
-      clearMatrixClientStores(mx),
-      // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
-      deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
-      deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
-    ]);
-    clearSessionScopedUiState(identity, clearUserScopedState);
-  } finally {
-    clearLegacySessionStorage();
-  }
+  await Promise.all([
+    clearMatrixClientStores(mx),
+    // Saved canvas state and the canvas list need only the session ID, so they are deleted here too.
+    deleteNamedDatabase(getCanvasStateDbName(identity.sessionId)).catch(() => undefined),
+    deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
+  ]);
+  clearSessionScopedUiState(identity, clearUserScopedState);
   window.location.reload();
 };
 
@@ -252,7 +242,6 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
     ...getStoredSessionCleanupContexts(),
     ...(liveSession ? [liveSession] : []),
   ]);
-  const legacySessionStoragePresent = hasLegacySessionStorage();
   const appBasePath = getAppBasePath();
 
   try {
@@ -286,7 +275,7 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   }
 
   try {
-    const appOwnedDbNames = await getAppOwnedIndexedDbNames(sessions, legacySessionStoragePresent);
+    const appOwnedDbNames = await getAppOwnedIndexedDbNames(sessions);
     await deleteNamedDatabases(appOwnedDbNames);
   } catch {
     // ignore IndexedDB cleanup errors

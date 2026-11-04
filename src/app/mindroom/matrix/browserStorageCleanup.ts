@@ -4,7 +4,6 @@ import {
   getMindroomSessionIndexedDbNames,
 } from '../cache/sessionCleanup';
 import {
-  LEGACY_SESSION_STORAGE_KEYS,
   StoredSession,
   getLegacySessionRustCryptoStoreNames,
   getSessionIndexedDbStoreName,
@@ -42,7 +41,6 @@ export const getCacheBustedAppReloadTarget = (appBasePath: string): string => {
   return `${reloadUrl.pathname}${reloadUrl.search}${reloadUrl.hash}`;
 };
 
-const LEGACY_APP_SINGLETON_INDEXED_DB_NAMES = ['matrix-js-sdk:web-sync-store'];
 const APP_SINGLETON_INDEXED_DB_NAMES: readonly string[] = [...MINDROOM_SINGLETON_INDEXED_DB_NAMES];
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -73,14 +71,10 @@ const getSessionCacheIndexedDbNames = (session: SessionCleanupContext): string[]
   return [indexedDbStoreNames.sync, ...getMindroomSessionIndexedDbNames(session.sessionId)];
 };
 
-const getFallbackAppOwnedIndexedDbNames = (
-  sessions: SessionCleanupContext[],
-  legacySessionStoragePresent: boolean
-): string[] =>
+const getFallbackAppOwnedIndexedDbNames = (sessions: SessionCleanupContext[]): string[] =>
   Array.from(
     new Set([
       ...APP_SINGLETON_INDEXED_DB_NAMES,
-      ...(legacySessionStoragePresent ? LEGACY_APP_SINGLETON_INDEXED_DB_NAMES : []),
       ...sessions.flatMap((session) => getSessionCacheIndexedDbNames(session)),
     ])
   );
@@ -119,23 +113,8 @@ export const getAllSessionRustCryptoDbNames = async (
   }
 };
 
-export const hasLegacySessionStorage = (): boolean => {
-  try {
-    if (typeof localStorage === 'undefined') return false;
-    return LEGACY_SESSION_STORAGE_KEYS.some((key) => Boolean(localStorage.getItem(key)));
-  } catch {
-    return false;
-  }
-};
-
-const isAppOwnedIndexedDbName = (
-  name: string,
-  sessions: SessionCleanupContext[],
-  legacySessionStoragePresent: boolean
-): boolean => {
+const isAppOwnedIndexedDbName = (name: string, sessions: SessionCleanupContext[]): boolean => {
   if (APP_SINGLETON_INDEXED_DB_NAMES.includes(name)) return true;
-  if (legacySessionStoragePresent && LEGACY_APP_SINGLETON_INDEXED_DB_NAMES.includes(name))
-    return true;
 
   // Clearing caches retains Matrix logins, so their encryption identity must
   // survive too. Account removal separately deletes all session crypto stores.
@@ -143,10 +122,9 @@ const isAppOwnedIndexedDbName = (
 };
 
 export const getAppOwnedIndexedDbNames = async (
-  sessions: SessionCleanupContext[],
-  legacySessionStoragePresent: boolean
+  sessions: SessionCleanupContext[]
 ): Promise<string[]> => {
-  const fallbackNames = getFallbackAppOwnedIndexedDbNames(sessions, legacySessionStoragePresent);
+  const fallbackNames = getFallbackAppOwnedIndexedDbNames(sessions);
   if (typeof indexedDB === 'undefined') return [];
   if (typeof indexedDB.databases !== 'function') return fallbackNames;
 
@@ -156,7 +134,7 @@ export const getAppOwnedIndexedDbNames = async (
     return dbs
       .map((idbInfo) => idbInfo.name)
       .filter((name): name is string => Boolean(name))
-      .filter((name) => isAppOwnedIndexedDbName(name, sessions, legacySessionStoragePresent));
+      .filter((name) => isAppOwnedIndexedDbName(name, sessions));
   } catch {
     return fallbackNames;
   }

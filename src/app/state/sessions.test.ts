@@ -1,8 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  LEGACY_SESSION_STORAGE_KEYS,
   SessionStoreWriteError,
-  clearLegacySessionStorage,
   createSessionId,
   getActiveSession,
   getSessionIndexedDbStoreName,
@@ -399,15 +397,6 @@ describe('sessions', () => {
         storage
       )
     ).toThrow(SessionStoreWriteError);
-
-    const removed: string[] = [];
-    storage.removeItem.mockImplementation((key: string) => {
-      if (key === LEGACY_SESSION_STORAGE_KEYS[0]) throw new Error('blocked remove');
-      removed.push(key);
-    });
-
-    expect(() => clearLegacySessionStorage(storage)).not.toThrow();
-    expect(removed).toEqual(LEGACY_SESSION_STORAGE_KEYS.slice(1));
   });
 
   it('returns session-scoped store names and storage keys', () => {

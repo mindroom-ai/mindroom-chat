@@ -5,13 +5,6 @@ type SessionLike = {
   deviceId?: string;
 };
 
-const LEGACY_SESSION_STORAGE_KEYS = [
-  'mindroom_client_access_token',
-  'mindroom_client_device_id',
-  'mindroom_client_user_id',
-  'mindroom_client_hs_base_url',
-] as const;
-
 export const readIndexedDbNames = async (page: Page): Promise<string[]> =>
   page.evaluate(async () => {
     const databases = await indexedDB.databases();
@@ -178,28 +171,6 @@ export const seedThreadSummaryCache = async ({
     }
   );
 };
-
-export const seedLegacySessionStorage = async (
-  page: Page,
-  values: Partial<Record<typeof LEGACY_SESSION_STORAGE_KEYS[number], string>> = {}
-): Promise<void> => {
-  await page.evaluate(
-    ({ keys, seededValues }) => {
-      keys.forEach((key) => {
-        window.localStorage.setItem(key, seededValues[key] ?? `seeded-${key}`);
-      });
-    },
-    { keys: LEGACY_SESSION_STORAGE_KEYS, seededValues: values }
-  );
-};
-
-export const readLegacySessionStorage = async (
-  page: Page
-): Promise<Record<typeof LEGACY_SESSION_STORAGE_KEYS[number], string | null>> =>
-  page.evaluate((keys) => {
-    const entries = keys.map((key) => [key, window.localStorage.getItem(key)] as const);
-    return Object.fromEntries(entries) as Record<typeof keys[number], string | null>;
-  }, LEGACY_SESSION_STORAGE_KEYS);
 
 export const getExpectedSessionDbNames = (session: SessionLike): string[] => {
   const names = [`matrix-js-sdk:web-sync-store::${session.sessionId}`];
