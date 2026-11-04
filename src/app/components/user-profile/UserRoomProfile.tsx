@@ -180,7 +180,8 @@ export function UserRoomProfile({
             {name}
           </Text>
           <Text size="T200" priority="300" className={css.ProfileUserId}>
-            {userId}
+            {/* A Matrix ID reads left to right, with its @ at the start, in any language. */}
+            <bdi>{userId}</bdi>
           </Text>
         </Box>
       </Box>

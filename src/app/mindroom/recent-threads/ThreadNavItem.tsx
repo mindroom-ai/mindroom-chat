@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
-import { TooltipProvider } from '../../components/directional';
+import { TooltipProvider, ownDirectionLine } from '../../components/directional';
 import { NavButton, NavItem, NavItemContent } from '../../components/nav';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -214,6 +214,7 @@ function ThreadNavItemRow({
                   size="T300"
                   priority={entry.isUnread ? '500' : '300'}
                   truncate
+                  {...ownDirectionLine}
                   className={css.EntrySummary}
                   // The text size sets its own weight; an unread title takes the row's bold weight,
                   // like an unread room's name.

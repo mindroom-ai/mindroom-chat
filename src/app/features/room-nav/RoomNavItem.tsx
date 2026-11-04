@@ -12,7 +12,7 @@ import {
   config,
   toRem,
 } from 'folds';
-import { PopOut } from '../../components/directional';
+import { PopOut, ownDirectionLine } from '../../components/directional';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -383,7 +383,13 @@ function RoomNavLink({
             quiet={!hasUnread}
           />
           <Box as="span" grow="Yes">
-            <Text as="span" size="Inherit" priority={hasUnread ? '500' : '300'} truncate>
+            <Text
+              as="span"
+              size="Inherit"
+              priority={hasUnread ? '500' : '300'}
+              truncate
+              {...ownDirectionLine}
+            >
               {name}
             </Text>
           </Box>

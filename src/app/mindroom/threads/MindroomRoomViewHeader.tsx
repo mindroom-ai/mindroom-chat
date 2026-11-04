@@ -16,7 +16,7 @@ import {
   type IconSrc,
   type RectCords,
 } from 'folds';
-import { PopOut, TooltipProvider } from '../../components/directional';
+import { PopOut, TooltipProvider, ownDirectionLine } from '../../components/directional';
 import { PageHeader } from '../../components/page';
 import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
@@ -304,7 +304,7 @@ export function RoomViewHeader({
           </Avatar>
         )}
         <Box direction="Column" style={{ minWidth: 0 }}>
-          <Text as="h1" size="H5" truncate>
+          <Text as="h1" size="H5" truncate {...ownDirectionLine}>
             {roomName}
           </Text>
           {topic && (
@@ -313,7 +313,7 @@ export function RoomViewHeader({
               className={classNames(HeaderTopic, css.Topic)}
               onClick={() => setTopicOpen(true)}
             >
-              <Text as="span" size="T200" priority="300" truncate>
+              <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
                 {topic}
               </Text>
             </button>

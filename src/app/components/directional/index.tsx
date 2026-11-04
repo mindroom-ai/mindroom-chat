@@ -31,6 +31,13 @@ export const mirrorPlacement = (
   return { position: side, align: !beside && align ? otherEnd[align] ?? align : align };
 };
 
+/**
+ * Props for a line someone wrote, such as a room name or a thread title: it reads in its own
+ * direction but lines up with the interface (index.css), so a long English name in a
+ * right-to-left interface loses its end to the ellipsis instead of its start.
+ */
+export const ownDirectionLine = { dir: 'auto', 'data-own-direction': '' } as const;
+
 /** Whether the document reads right to left; i18n.ts sets `dir` with the language. */
 export const documentIsRightToLeft = (): boolean =>
   // Some tests stand in a partial document, without an element or one without methods.

@@ -204,6 +204,16 @@ html[dir='rtl'] [data-directional] {
   transform: scaleX(-1);
 }
 
+/* A line someone wrote (ownDirectionLine in components/directional) reads in its own direction
+   and lines up with the interface's start, whatever its own direction is. */
+html [data-own-direction] {
+  text-align: left;
+}
+
+html[dir='rtl'] [data-own-direction] {
+  text-align: right;
+}
+
 /* Options of a listbox are buttons, which center their text; their labels read from the start. */
 [role='listbox'] [role='option'] {
   text-align: start;
