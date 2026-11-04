@@ -140,4 +140,5 @@ main() {
   "$@"
 }
 
-main "$@"
+# One line, read whole before main runs, so nothing after it is read from a file edited meanwhile.
+main "$@"; exit

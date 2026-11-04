@@ -155,4 +155,5 @@ main() {
   echo "e2e-suite: results in $run/results.tsv" >&2
 }
 
-main "$@"
+# One line, read whole before main runs, so nothing after it is read from a file edited meanwhile.
+main "$@"; exit
