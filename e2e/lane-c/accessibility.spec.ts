@@ -478,6 +478,7 @@ test.describe.serial('keyboard and accessibility', () => {
     // Settings keep the close button 24 px from the dialog's end edge, as settings.png does at
     // the right in English.
     await accountButton(page, 'ar').click();
+    await page.getByRole('menuitem', { name: label('ar', 'settings.title'), exact: true }).click();
     const settings = page.getByRole('dialog', { name: label('ar', 'settings.title') });
     await expect(settings).toBeVisible();
     const closeLabel = label('ar', 'featureUi.settings.emojisStickers.globalPacks.close');
