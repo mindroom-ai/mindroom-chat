@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Box, Button, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { useAtomValue } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { SettingTile } from '../../../components/setting-tile';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
@@ -13,6 +14,8 @@ import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { useStateEvent } from '../../../hooks/useStateEvent';
 import { StateEvent } from '../../../../types/matrix/room';
 import { ChoiceButton } from '../../settings/ChoiceButton';
+import { roomToParentsAtom } from '../../../state/room/roomToParents';
+import { moveSpaceLinks } from './moveSpaceLinks';
 
 const KEY = 'featureUi.commonSettings.general.roomUpgrade';
 
@@ -39,8 +42,8 @@ type RoomUpgradeProps = {
 
 /**
  * Advanced Options: the room's version and an upgrade to another version the server offers,
- * after a warning that it cannot be undone. A replaced room links to its successor instead, and
- * a room that replaced an older one links back to it.
+ * after a warning that it cannot be undone; the room's spaces then list the new room. A replaced
+ * room links to its successor instead, and a room that replaced an older one links back to it.
  */
 export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
   const { t } = useTranslation();
@@ -52,6 +55,7 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
   const create = useStateEvent(room, StateEvent.RoomCreate);
   const offered = useCapabilities()['m.room_versions'];
+  const parents = useAtomValue(roomToParentsAtom).get(room.roomId);
   const current = room.getVersion();
   const versions = newestFirst(Object.keys(offered?.available ?? {}));
   const [target, setTarget] = useState(offered?.default ?? versions[0] ?? current);
@@ -73,7 +77,10 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
     setFailed(undefined);
     client
       .upgradeRoom(room.roomId, target)
-      .then(({ replacement_room: next }) => alive() && open(next))
+      .then(async ({ replacement_room: next }) => {
+        await moveSpaceLinks(client, room.roomId, next, parents ?? []);
+        if (alive()) open(next);
+      })
       .catch((error: unknown) => {
         if (!alive()) return;
         setFailed(error instanceof Error && error.message ? error.message : String(error));
