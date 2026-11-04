@@ -82,10 +82,21 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   let lastFocused: HTMLElement | undefined;
   let keyOpen: { opener: HTMLElement; at: number } | undefined;
 
+  /** Whether `layer` is `ancestor`, or was opened from it directly or through other layers. */
+  const openedFrom = (layer: Element, ancestor: Element): boolean => {
+    for (let current: Element | undefined = layer; current; current = parents.get(current)) {
+      if (current === ancestor) return true;
+    }
+    return false;
+  };
+
   const remember = (layer: Element, opener: HTMLElement | undefined) => {
     if (!opener || openers.has(layer)) return;
     const openerLayer = layerOf(doc, opener);
-    if (openerLayer === layer) return;
+    // Focus can come back to a dialog from a popover it opened (a picker that closes): that
+    // control is no opener of the dialog, and taking it for one would make the two layers each
+    // other's parent, a loop for the walk back to an opener.
+    if (openerLayer && openedFrom(openerLayer, layer)) return;
     openers.set(layer, opener);
     if (openerLayer) parents.set(layer, openerLayer);
   };

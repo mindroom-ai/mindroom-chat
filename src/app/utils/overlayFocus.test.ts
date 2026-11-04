@@ -156,4 +156,35 @@ describe('overlay focus', () => {
     await flush();
     expect(document.activeElement).toBe(trigger);
   });
+
+  it('never takes a control of a popover for the opener of the dialog it opened from', async () => {
+    // A dialog whose opener is gone, with a "+ tag" button that opens a picker popover.
+    const dialog = document.createElement('div');
+    dialog.tabIndex = -1;
+    const addTag = button('Add tag');
+    dialog.append(addTag);
+    document.body.append(dialog);
+    addTag.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    addTag.focus();
+    const picker = document.createElement('div');
+    const field = document.createElement('input');
+    picker.append(field);
+    document.body.append(picker);
+    await flush();
+    field.focus();
+
+    // Enter adds the tag: the button turns disabled while it saves, and the dialog's focus trap
+    // takes focus back from the closing picker.
+    press(field, 'Enter');
+    addTag.disabled = true;
+    dialog.focus();
+    dialog.blur();
+    picker.remove();
+    await flush();
+
+    expect(document.activeElement).toBe(document.body);
+    dialog.remove();
+    await flush();
+    expect(document.activeElement).toBe(document.body);
+  });
 });
