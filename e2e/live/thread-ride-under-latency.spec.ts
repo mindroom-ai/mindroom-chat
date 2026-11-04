@@ -551,6 +551,18 @@ test.describe('thread rides under production-shaped latency (iPhone-emulated, CP
     await expect(page.locator('[data-thread-count]')).toHaveAttribute('data-thread-count', '151', {
       timeout: 60_000,
     });
+    // The open's last hydration fold settles at rest; the ride is sized from the settled window.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (
+              document.querySelector('[data-message-item]')?.closest('[data-index]')
+                ?.parentElement as HTMLElement | null
+            )?.style.marginTop ?? 'no list'
+        )
+      )
+      .toBe('');
     await throttleCpu(page, 4);
 
     // Continuous ride to the very top of the window: pauses below the
