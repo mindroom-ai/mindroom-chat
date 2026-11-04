@@ -15,7 +15,8 @@ type ThreadTagPickerProps = {
 };
 
 // A dashed outline of the tag pills beside it: the same type size, an empty slot to fill. Text
-// and outline share the muted text colour, so the control reads as a placeholder.
+// and outline share the muted text colour, so the control reads as a placeholder. A pixel taller
+// than the pills (19.7 px), as in the original, which sets the banner's tag row height.
 const addButtonStyle: React.CSSProperties = {
   padding: '0 0.4rem',
   display: 'inline-flex',
@@ -27,7 +28,7 @@ const addButtonStyle: React.CSSProperties = {
   opacity: 0.6,
   font: 'inherit',
   fontSize: '0.65rem',
-  lineHeight: 1.6,
+  lineHeight: 1.7,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
 };
