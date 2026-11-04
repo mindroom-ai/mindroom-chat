@@ -196,3 +196,8 @@ html[dir='rtl'] [role='switch'] > :first-child {
 html[dir='rtl'] [role='switch'][aria-checked='true'] > :first-child {
   transform: translateX(-1.4375rem);
 }
+
+/* Options of a listbox are buttons, which center their text; their labels read from the start. */
+[role='listbox'] [role='option'] {
+  text-align: start;
+}

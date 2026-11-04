@@ -1,9 +1,10 @@
 import React, { FormEventHandler, useEffect, useState } from 'react';
-import { Box, Button, Input, Spinner, Switch, Text, color, config } from 'folds';
+import { Box, Button, Spinner, Switch, Text, color, config } from 'folds';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { EventType, KnownMembership, Preset, Visibility } from 'matrix-js-sdk';
 import { SequenceCard } from '../../../components/sequence-card';
+import { InviteUserAutocomplete } from '../../../components/invite-user-prompt/InviteUserAutocomplete';
 import { SettingTile } from '../../../components/setting-tile';
 import { Page } from '../../../components/page';
 import { PhonePageHeader } from '../../../components/page/PhonePageHeader';
@@ -45,6 +46,7 @@ export function DirectCreate() {
   const { t } = useTranslation();
   const [query] = useSearchParams();
   const { userId: requestedUserId } = getDirectCreateSearchParams(query);
+  const [userIdDraft, setUserIdDraft] = useState(requestedUserId ?? '');
   const [encryption, setEncryption] = useState(true);
   const [creating, setCreating] = useState(false);
   const [invalid, setInvalid] = useState(false);
@@ -59,8 +61,7 @@ export function DirectCreate() {
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
     event.preventDefault();
-    const target = event.target as HTMLFormElement & { userIdInput: HTMLInputElement };
-    const userId = target.userIdInput.value.trim();
+    const userId = userIdDraft.trim();
     setFailed(false);
     const valid = isUserId(userId);
     setInvalid(!valid);
@@ -93,20 +94,22 @@ export function DirectCreate() {
 
   const userIdField = (
     <Box direction="Column" gap="100">
-      <Text as="label" htmlFor="direct-create-user-id" size="L400">
-        {t('featureUi.createChat.userId')}
-      </Text>
-      <Input
-        id="direct-create-user-id"
-        name="userIdInput"
-        onChange={() => setInvalid(false)}
-        placeholder="@user:server"
-        defaultValue={requestedUserId}
+      <Text size="L400">{t('featureUi.createChat.userId')}</Text>
+      <InviteUserAutocomplete
+        inputValue={userIdDraft}
+        onInputChange={(value) => {
+          setInvalid(false);
+          setUserIdDraft(value);
+        }}
+        onSelect={(value) => {
+          setInvalid(false);
+          setUserIdDraft(value);
+        }}
         disabled={creating}
-        required
+        autoFocus={!requestedUserId}
         radii="400"
-        size="500"
         variant={invalid ? 'Critical' : 'SurfaceVariant'}
+        menuLabel={t('featureUi.createChat.userSuggestions')}
       />
       {invalid ? (
         <Text size="T200" style={{ color: color.Critical.Main }}>
