@@ -1,6 +1,6 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtomValue } from 'jotai';
+import { useAtom, useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import classNames from 'classnames';
@@ -12,13 +12,13 @@ import { useCallFailureNotice } from '../../mindroom/calls/useCallFailureNotice'
 import { useCallFailureDismissal } from '../../mindroom/calls/useCallFailureDismissal';
 import type { CallDevices, CallProblem, CallState } from './RoomCall';
 import {
+  callStartProblemAtom,
   isActiveCallShownIn,
   useActiveCall,
   useCallActions,
   useCallState,
   useRoomCallMembers,
   type ActiveCall,
-  type StartCallResult,
 } from './callStore';
 import { callUserIds } from './callMemberships';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
@@ -326,9 +326,15 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const [camera, setCamera] = useState(false);
   const [devices, setDevices] = useState<CallDevices>({});
   const [joining, setJoining] = useState(false);
-  // Why the last Join did not start the call: this session's other tab is in a call (it shares
-  // this device), or the call could not start at all.
-  const [startProblem, setStartProblem] = useState<Exclude<StartCallResult, 'started'>>();
+  // Why the last Join (or Answer on a ring) did not start the call: this session's other tab is
+  // in a call (it shares this device), or the call could not start at all.
+  const [lastStart, setLastStart] = useAtom(callStartProblemAtom);
+  const startProblem = lastStart?.roomId === room.roomId ? lastStart.result : undefined;
+  // It belongs to this opening of the panel: closed and opened again, the panel starts afresh.
+  useEffect(
+    () => () => setLastStart((last) => (last?.roomId === room.roomId ? undefined : last)),
+    [room.roomId, setLastStart]
+  );
 
   let blocker: string | undefined;
   if (!browserSupportsCalls())
@@ -342,7 +348,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
 
   const join = () => {
     setJoining(true);
-    setStartProblem(undefined);
+    setLastStart(undefined);
     void startCall({
       room,
       kind: 'room',
@@ -352,7 +358,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
       // Starting a call rings the other person of a direct chat and notifies a group.
       notify: people.length > 0 ? undefined : direct ? 'ring' : 'notification',
     })
-      .then((result) => setStartProblem(result === 'started' ? undefined : result))
+      .then((result) =>
+        setLastStart(result === 'started' ? undefined : { roomId: room.roomId, result })
+      )
       .finally(() => setJoining(false));
   };
 

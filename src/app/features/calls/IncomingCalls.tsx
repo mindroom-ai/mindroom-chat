@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useStore } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -14,7 +14,12 @@ import { MINDROOM_FAVICON_SRC } from '../../mindroom/branding/branding';
 import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
 import { startRingtone } from './ringtone';
-import { useActiveCall, useCallActions } from './callStore';
+import {
+  callPanelRoomAtom,
+  callStartProblemAtom,
+  useActiveCall,
+  useCallActions,
+} from './callStore';
 import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
 import * as css from './IncomingCalls.css';
 
@@ -149,6 +154,7 @@ function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCar
  */
 export function IncomingCalls() {
   const mx = useMatrixClient();
+  const store = useStore();
   const active = useActiveCall();
   const { startCall } = useCallActions(mx);
   const { navigateRoom } = useRoomNavigate();
@@ -190,7 +196,13 @@ export function IncomingCalls() {
   const answer = () => {
     setRing(undefined);
     navigateRoom(room.roomId);
-    void startCall({ room, kind: 'room', microphone: true, video: ring.video });
+    void startCall({ room, kind: 'room', microphone: true, video: ring.video }).then((result) => {
+      if (result === 'started') return;
+      // Another tab of this session is in a call, or the call could not start: the room's call
+      // panel says which, with Join to try again.
+      store.set(callStartProblemAtom, { roomId: room.roomId, result });
+      store.set(callPanelRoomAtom, room.roomId);
+    });
   };
   const decline = () => {
     setRing(undefined);
