@@ -4,7 +4,7 @@ import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useClientStartupContext } from '../../pages/client/ClientStartupContext';
 import { startAgentCall } from '../../mindroom/calls/agentCaller';
-import { activeCallAtom, useCallActions } from './callStore';
+import { activeCallAtom, callPanelRoomAtom, useCallActions } from './callStore';
 import {
   rememberCallForResume,
   takeCallResume,
@@ -42,6 +42,8 @@ function CallLifetime() {
       window.removeEventListener('pagehide', pageHide);
       leave();
       store.set(activeCallAtom, undefined);
+      // The next account would otherwise find this account's call panel open in a shared room.
+      store.set(callPanelRoomAtom, undefined);
     };
   }, [mx, store]);
   return null;
