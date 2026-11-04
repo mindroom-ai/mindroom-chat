@@ -6,6 +6,7 @@ import {
 } from '../../components/editor/autocomplete/autocompleteQuery';
 import { BlockType } from '../../components/editor/types';
 import type { CommandRefusal, SlashCommand } from '../../hooks/useCommands';
+import { readableReason } from '../../utils/errorReason';
 
 type CommandPrefix = typeof AutocompletePrefix.Command;
 
@@ -79,6 +80,8 @@ export const describeCommandFailure = (
   if (refusal?.code === 'ownServer') {
     return t('featureUi.room.commandAutocomplete.ownServer', { server: refusal.server });
   }
-  const reason = error instanceof Error && error.message ? error.message : String(error);
-  return t('featureUi.room.commandAutocomplete.failed', { command: name, reason });
+  return t('featureUi.room.commandAutocomplete.failed', {
+    command: name,
+    reason: readableReason(error),
+  });
 };

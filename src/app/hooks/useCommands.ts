@@ -11,6 +11,7 @@ import {
   removeRoomIdFromMDirect,
 } from '../utils/matrix';
 import { getDirectCreatePath, getHomePath, withSearchParam } from '../pages/pathUtils';
+import { readableReason } from '../utils/errorReason';
 
 /**
  * The composer's slash commands, by the name typed after the `/`. The first group changes the
@@ -119,9 +120,6 @@ const nonEmpty = <T>(items: T[]): T[] => {
   return items;
 };
 
-const reasonOf = (error: unknown): string =>
-  error instanceof Error && error.message ? error.message : String(error);
-
 /** Acts on each target in turn; every failure, named by its target, ends up in one error. */
 const eachTarget = async (targets: string[], act: (target: string) => Promise<unknown>) => {
   const failures: string[] = [];
@@ -131,7 +129,7 @@ const eachTarget = async (targets: string[], act: (target: string) => Promise<un
         act(target).then(
           () => undefined,
           (error: unknown) => {
-            failures.push(`${target}: ${reasonOf(error)}`);
+            failures.push(`${target}: ${readableReason(error)}`);
           }
         )
       ),

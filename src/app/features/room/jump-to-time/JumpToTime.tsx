@@ -25,6 +25,7 @@ import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
 import { useRoomViewMode } from '../../../mindroom/threads/useRoomViewMode';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { readableReason } from '../../../utils/errorReason';
 import { findEventAtTime } from './findEventAtTime';
 import * as css from './JumpToTime.css';
 
@@ -174,8 +175,7 @@ export function JumpToTime({ room, requestClose }: JumpToTimeProps) {
       requestClose();
       navigateRoom(room.roomId, found.eventId);
     } catch (error) {
-      const reason = error instanceof Error && error.message ? error.message : String(error);
-      if (mounted()) setLookup({ kind: 'failed', reason });
+      if (mounted()) setLookup({ kind: 'failed', reason: readableReason(error) });
     }
   };
 
