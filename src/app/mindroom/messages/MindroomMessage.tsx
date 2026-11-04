@@ -24,11 +24,13 @@ import {
   Line,
   Text,
   color,
+  type IconSrc,
   type RectCords,
 } from 'folds';
 import { PopOut } from '../../components/directional';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu } from '../../components/glass/GlassPrimitives';
 import { ActionDialog } from '../../components/ActionDialog';
+import { MenuEntry } from '../../components/MenuEntry';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { EmojiBoard } from '../../components/emoji-board';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
@@ -88,43 +90,9 @@ export {
   MessageSourceCodeItem,
 };
 
-type MenuItemProps = {
-  label: string;
-  icon: Parameters<typeof Icon>[0]['src'];
-  onClick: () => void;
-  variant?: 'Critical';
-  disabled?: boolean;
-  /** The icon points along the reading direction, so right-to-left languages mirror it. */
-  directional?: boolean;
-};
-
-function MessageMenuAction({
-  label,
-  icon,
-  onClick,
-  variant,
-  disabled,
-  directional,
-}: MenuItemProps) {
-  return (
-    <MenuItem
-      size="300"
-      radii="300"
-      variant={variant}
-      disabled={disabled}
-      after={<Icon size="100" src={icon} data-directional={directional || undefined} />}
-      onClick={onClick}
-    >
-      <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-        {label}
-      </Text>
-    </MenuItem>
-  );
-}
-
 type ToolbarActionProps = {
   label: string;
-  icon: MenuItemProps['icon'];
+  icon: IconSrc;
   onClick: MouseEventHandler<HTMLButtonElement>;
   /** For buttons that open something: whether it is open. */
   pressed?: boolean;
@@ -272,12 +240,12 @@ export function MessageCopyTextItem({
   if (failed) label = t('threadActions.failed');
   else if (loading) label = t('mindroomUi.messages.messageCopyActions.copyTextLoading');
   const copyText = (
-    <MessageMenuAction
+    <MenuEntry
       label={label}
       icon={failed ? Icons.Warning : Icons.Text}
-      variant={failed ? 'Critical' : undefined}
+      critical={failed}
       disabled={loading}
-      onClick={() => void handleCopy(texts?.text)}
+      onSelect={() => void handleCopy(texts?.text)}
     />
   );
   const withToolCalls = texts?.textWithToolCalls;
@@ -288,10 +256,10 @@ export function MessageCopyTextItem({
     return (
       <>
         {copyText}
-        <MessageMenuAction
+        <MenuEntry
           label={withToolCallsLabel}
           icon={Icons.Terminal}
-          onClick={() => void handleCopy(withToolCalls)}
+          onSelect={() => void handleCopy(withToolCalls)}
         />
       </>
     );
@@ -341,13 +309,13 @@ export function MessageCopyLinkItem({
     if (copied) onClose?.();
   };
   return (
-    <MessageMenuAction
+    <MenuEntry
       label={
         failed ? t('threadActions.failed') : t('mindroomUi.messages.messageCopyActions.copyLink')
       }
       icon={failed ? Icons.Warning : Icons.Link}
-      variant={failed ? 'Critical' : undefined}
-      onClick={() => void handleCopy()}
+      critical={failed}
+      onSelect={() => void handleCopy()}
     />
   );
 }
@@ -377,12 +345,12 @@ export function MessagePinItem({
     : t('mindroomUi.messages.messageModerationActions.pinMessage');
   if (failed) label = t('threadActions.failed');
   return (
-    <MessageMenuAction
+    <MenuEntry
       label={label}
       icon={failed ? Icons.Warning : Icons.Pin}
-      variant={failed ? 'Critical' : undefined}
+      critical={failed}
       disabled={updating}
-      onClick={() => void handlePin()}
+      onSelect={() => void handlePin()}
     />
   );
 }
@@ -425,11 +393,11 @@ export function MessageDeleteItem({ room, mEvent, onClose }: EventActionItemProp
   };
   return (
     <>
-      <MessageMenuAction
+      <MenuEntry
         label={t('mindroomUi.messages.messageModerationActions.delete')}
         icon={Icons.Delete}
-        variant="Critical"
-        onClick={() => setOpen(true)}
+        critical
+        onSelect={() => setOpen(true)}
       />
       {open && (
         <MessageActionDialog
@@ -484,11 +452,11 @@ export function MessageReportItem({ room, mEvent, onClose }: EventActionItemProp
   };
   return (
     <>
-      <MessageMenuAction
+      <MenuEntry
         label={t('mindroomUi.messages.messageModerationActions.reportMessage')}
         icon={Icons.Warning}
-        variant="Critical"
-        onClick={() => setOpen(true)}
+        critical
+        onSelect={() => setOpen(true)}
       />
       {open && (
         <MessageActionDialog
@@ -773,41 +741,41 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                 <MessageAllReactionItem room={room} relations={relations} onClose={dismissMenu} />
               )}
               {confirmed && onReplyClick && (
-                <MessageMenuAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.reply')}
                   icon={Icons.ReplyArrow}
                   directional
-                  onClick={() => {
+                  onSelect={() => {
                     onReplyClick(eventId);
                     dismissMenu();
                   }}
                 />
               )}
               {confirmed && onReplyClick && (
-                <MessageMenuAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.replyInThread')}
                   icon={Icons.ThreadPlus}
-                  onClick={() => {
+                  onSelect={() => {
                     onReplyClick(eventId, true);
                     dismissMenu();
                   }}
                 />
               )}
               {canEdit && (
-                <MessageMenuAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.editMessage')}
                   icon={Icons.Pencil}
-                  onClick={() => {
+                  onSelect={() => {
                     startEdit();
                     dismissMenu();
                   }}
                 />
               )}
               {canSendReaction && confirmed && (
-                <MessageMenuAction
+                <MenuEntry
                   label={t('mindroomUi.messages.mindroomMessage.addReaction')}
                   icon={Icons.SmilePlus}
-                  onClick={() => {
+                  onSelect={() => {
                     setEmojiAnchor(menuAnchor);
                     dismissMenu();
                   }}

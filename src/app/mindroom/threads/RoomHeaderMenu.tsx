@@ -1,8 +1,9 @@
 import { forwardRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Icon, Icons, Line, Spinner, Text, config, toRem, type IconSrc } from 'folds';
-import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Box, Icons, Line, Spinner, config, toRem } from 'folds';
+import { Menu } from '../../components/glass/GlassPrimitives';
+import { MenuEntry } from '../../components/MenuEntry';
 import { RoomNotificationModeSwitcher } from '../../components/RoomNotificationSwitcher';
 import {
   getRoomNotificationMode,
@@ -33,34 +34,6 @@ type RoomHeaderMenuProps = RoomHeaderMenuActions & {
   requestClose: () => void;
 };
 
-type EntryProps = {
-  icon: IconSrc;
-  label: string;
-  onSelect: () => void;
-  critical?: boolean;
-  /** The icon points along the reading direction, so right-to-left languages mirror it. */
-  directional?: boolean;
-};
-
-const entryLabelStyle = { flexGrow: 1 } as const;
-
-/** One menu row: the label, its icon at the end, and the menu closes before the action runs. */
-export function HeaderMenuEntry({ icon, label, onSelect, critical, directional }: EntryProps) {
-  return (
-    <MenuItem
-      size="300"
-      radii="300"
-      variant={critical ? 'Critical' : 'Surface'}
-      after={<Icon size="100" src={icon} data-directional={directional || undefined} />}
-      onClick={onSelect}
-    >
-      <Text as="span" size="T300" align="Left" truncate style={entryLabelStyle}>
-        {label}
-      </Text>
-    </MenuItem>
-  );
-}
-
 /** The room's notification mode, with its bell; it opens the mode menu beside the entry. */
 function NotificationModeEntry({ room, onChosen }: { room: Room; onChosen: () => void }) {
   const { t } = useTranslation();
@@ -68,26 +41,15 @@ function NotificationModeEntry({ room, onChosen }: { room: Room; onChosen: () =>
   return (
     <RoomNotificationModeSwitcher roomId={room.roomId} value={mode} onChange={onChosen}>
       {(handleOpen, opened, changing) => (
-        <MenuItem
-          size="300"
-          radii="300"
-          variant="Surface"
+        <MenuEntry
+          label={t('mindroomUi.threads.mindroomRoomViewHeader.notifications')}
+          icon={getRoomNotificationModeIcon(mode)}
+          after={changing ? <Spinner size="100" variant="Secondary" /> : undefined}
           fill={opened ? 'Soft' : 'None'}
           aria-haspopup="menu"
           aria-expanded={opened}
-          after={
-            changing ? (
-              <Spinner size="100" variant="Secondary" />
-            ) : (
-              <Icon size="100" src={getRoomNotificationModeIcon(mode)} />
-            )
-          }
-          onClick={handleOpen}
-        >
-          <Text as="span" size="T300" align="Left" truncate style={entryLabelStyle}>
-            {t('mindroomUi.threads.mindroomRoomViewHeader.notifications')}
-          </Text>
-        </MenuItem>
+          onSelect={handleOpen}
+        />
       )}
     </RoomNotificationModeSwitcher>
   );
@@ -136,38 +98,38 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
           <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
           <NotificationModeEntry room={room} onChosen={requestClose} />
           {onInvite && (
-            <HeaderMenuEntry
+            <MenuEntry
               icon={Icons.UserPlus}
               label={t('mindroomUi.threads.mindroomRoomViewHeader.invite')}
               onSelect={closeThen(onInvite)}
             />
           )}
-          <HeaderMenuEntry
+          <MenuEntry
             icon={Icons.Link}
             label={t('mindroomUi.threads.mindroomRoomViewHeader.copyLink')}
             onSelect={closeThen(onCopyLink)}
           />
-          <HeaderMenuEntry
+          <MenuEntry
             icon={Icons.Setting}
             label={t('mindroomUi.threads.mindroomRoomViewHeader.roomSettings')}
             onSelect={closeThen(onOpenSettings)}
           />
           {onSearchMessages && (
-            <HeaderMenuEntry
+            <MenuEntry
               icon={Icons.Search}
               label={t('nav.messageSearch')}
               onSelect={closeThen(onSearchMessages)}
             />
           )}
           {onJumpToTime && (
-            <HeaderMenuEntry
+            <MenuEntry
               icon={Icons.RecentClock}
               label={t('featureUi.room.jumpToTime.jumpToTime')}
               onSelect={closeThen(onJumpToTime)}
             />
           )}
           {onShowComputer && (
-            <HeaderMenuEntry
+            <MenuEntry
               icon={Icons.Monitor}
               label={t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')}
               onSelect={closeThen(onShowComputer)}
@@ -178,7 +140,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
         <Line variant="Surface" size="300" />
         <MenuGroup>
           <ArchiveRoomMenuItem room={room} onClose={requestClose} />
-          <HeaderMenuEntry
+          <MenuEntry
             critical
             directional
             icon={Icons.ArrowGoLeft}

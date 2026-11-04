@@ -9,7 +9,7 @@ import {
   useCallPanel,
   useRoomCallMembers,
 } from '../../features/calls/callStore';
-import { HeaderMenuEntry } from '../threads/RoomHeaderMenu';
+import { MenuEntry } from '../../components/MenuEntry';
 import { AgentCallHeaderButton, useAgentCallCandidates } from './AgentCallHeaderButton';
 import { useAgentCaller } from './agentCaller';
 
@@ -67,7 +67,7 @@ export function HeaderCallMenuEntries({
     return (
       <>
         {candidates.map((candidate) => (
-          <HeaderMenuEntry
+          <MenuEntry
             key={candidate.userId}
             icon={Icons.Phone}
             label={t('mindroomUi.calls.agentCallHeaderButton.callAgent', {
@@ -89,7 +89,7 @@ export function HeaderCallMenuEntries({
   }
   if (live) return null;
   return (
-    <HeaderMenuEntry
+    <MenuEntry
       icon={Icons.Phone}
       label={t('featureUi.calls.header.startCall')}
       onSelect={() => {

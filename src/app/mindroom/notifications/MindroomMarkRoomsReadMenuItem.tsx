@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { Icon, Icons, Text } from 'folds';
-import { MenuItem } from '../../components/glass/GlassPrimitives';
+import { Icons } from 'folds';
+import { MenuEntry } from '../../components/MenuEntry';
 import { useMarkRoomsRead } from './useMarkRoomsRead';
 
 /**
@@ -19,20 +19,15 @@ export function MindroomMarkRoomsReadMenuItem({
   const empty = roomIds.length === 0;
 
   return (
-    <MenuItem
-      size="300"
-      radii="300"
-      after={<Icon size="100" src={Icons.CheckTwice} />}
+    <MenuEntry
+      label={t('mindroomUi.notifications.mindroomMarkRoomsReadMenuItem.markAsRead')}
+      icon={Icons.CheckTwice}
       aria-disabled={empty || undefined}
-      onClick={() => {
+      onSelect={() => {
         if (empty) return;
         markRead(roomIds);
         onClose();
       }}
-    >
-      <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>
-        {t('mindroomUi.notifications.mindroomMarkRoomsReadMenuItem.markAsRead')}
-      </Text>
-    </MenuItem>
+    />
   );
 }

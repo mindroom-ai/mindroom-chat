@@ -1,7 +1,7 @@
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
-import { Box, Icon, Spinner, Text, color, type IconSrc } from 'folds';
-import { MenuItem } from '../../components/glass/GlassPrimitives';
+import { Box, Spinner, Text, color, type IconSrc } from 'folds';
+import { MenuEntry } from '../../components/MenuEntry';
 import { useRoomArchiveAction } from './useRoomArchiveAction';
 
 /**
@@ -22,8 +22,6 @@ type ArchiveRoomMenuItemProps = {
   onClose: () => void;
 };
 
-const labelStyle = { flexGrow: 1 } as const;
-
 /**
  * "Archive Room" in a room's menu, or "Restore Room" for an archived one. Archiving hides the room
  * from the room lists without leaving it; a write that fails keeps the menu open and says so.
@@ -34,20 +32,16 @@ export function ArchiveRoomMenuItem({ room, onClose }: ArchiveRoomMenuItemProps)
 
   return (
     <Box direction="Column" gap="100">
-      <MenuItem
-        size="300"
-        radii="300"
+      <MenuEntry
+        label={archived ? t('archivedRooms.restore') : t('archivedRooms.archive')}
+        icon={ArchiveBoxIcon}
+        after={busy ? <Spinner size="100" /> : undefined}
         disabled={busy}
         aria-busy={busy}
-        after={busy ? <Spinner size="100" /> : <Icon size="100" src={ArchiveBoxIcon} />}
-        onClick={() => {
+        onSelect={() => {
           void toggle();
         }}
-      >
-        <Text as="span" size="T300" align="Left" truncate style={labelStyle}>
-          {archived ? t('archivedRooms.restore') : t('archivedRooms.archive')}
-        </Text>
-      </MenuItem>
+      />
       {failed && (
         <Text size="T200" role="alert" style={{ color: color.Critical.Main, paddingInline: 8 }}>
           {t('archivedRooms.failed')}

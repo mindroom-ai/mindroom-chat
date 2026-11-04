@@ -11,7 +11,8 @@ import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import { PageScroll } from '../../components/page';
-import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Dialog, Header } from '../../components/glass/GlassPrimitives';
+import { MenuEntry } from '../../components/MenuEntry';
 import { ModalLayer } from '../../components/ModalLayer';
 import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
@@ -179,17 +180,7 @@ export function MindroomAiRunInfoButton(props: { open: boolean; onOpen: () => vo
 export function MindroomAiRunMenuItem(props: { onOpen: () => void }) {
   const label = useReplyDetailsLabel();
   return (
-    <MenuItem
-      aria-haspopup="dialog"
-      onClick={props.onOpen}
-      after={<Icon size="100" src={Icons.Info} />}
-      radii="300"
-      size="300"
-    >
-      <Text as="span" size="T300" truncate className={css.MenuItemText}>
-        {label}
-      </Text>
-    </MenuItem>
+    <MenuEntry label={label} icon={Icons.Info} aria-haspopup="dialog" onSelect={props.onOpen} />
   );
 }
 
@@ -238,25 +229,15 @@ export function MindroomDownloadOriginalMenuItem({
       : t('mindroomUi.messages.mindroomMessageControls.downloadOriginal');
 
   return (
-    <MenuItem
-      size="300"
-      radii="300"
-      variant={state === 'failed' ? 'Critical' : undefined}
-      after={
-        state === 'saving' ? (
-          <Spinner size="100" variant="Secondary" />
-        ) : (
-          <Icon size="100" src={state === 'failed' ? Icons.Warning : Icons.Download} />
-        )
-      }
+    <MenuEntry
+      label={label}
+      icon={state === 'failed' ? Icons.Warning : Icons.Download}
+      critical={state === 'failed'}
+      after={state === 'saving' ? <Spinner size="100" variant="Secondary" /> : undefined}
       aria-busy={state === 'saving'}
-      onClick={() => {
+      onSelect={() => {
         void handleClick();
       }}
-    >
-      <Text className={css.MenuItemText} as="span" size="T300" truncate>
-        {label}
-      </Text>
-    </MenuItem>
+    />
   );
 }

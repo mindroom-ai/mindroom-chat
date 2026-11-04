@@ -38,8 +38,8 @@ vi.mock('./AgentCallHeaderButton', () => ({
   useAgentCallCandidates: () => state.candidates,
 }));
 vi.mock('./agentCaller', () => ({ useAgentCaller: () => ({ call: state.call, pending: false }) }));
-vi.mock('../threads/RoomHeaderMenu', () => ({
-  HeaderMenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) =>
+vi.mock('../../components/MenuEntry', () => ({
+  MenuEntry: ({ label, onSelect }: { label: string; onSelect: () => void }) =>
     React.createElement('button', { 'data-kind': 'menu-entry', onClick: onSelect }, label),
 }));
 

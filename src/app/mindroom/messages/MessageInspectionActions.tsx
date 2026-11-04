@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { Icon, Icons, Text, type IconSrc } from 'folds';
-import { MenuItem, Modal } from '../../components/glass/GlassPrimitives';
+import { Icons, type IconSrc } from 'folds';
+import { Modal } from '../../components/glass/GlassPrimitives';
+import { MenuEntry } from '../../components/MenuEntry';
 import { ModalLayer } from '../../components/ModalLayer';
 import { TextViewer } from '../../components/text-viewer';
 import { EventReaders } from '../../components/event-readers';
-import * as css from '../../features/room/message/styles.css';
 
 type MenuDialogItemProps = {
   icon: IconSrc;
@@ -35,17 +35,7 @@ function MenuDialogItem({ icon, label, onClose, renderDialog }: MenuDialogItemPr
           {open && renderDialog(close)}
         </Modal>
       </ModalLayer>
-      <MenuItem
-        size="300"
-        radii="300"
-        after={<Icon size="100" src={icon} />}
-        aria-haspopup="dialog"
-        onClick={() => setOpen(true)}
-      >
-        <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-          {label}
-        </Text>
-      </MenuItem>
+      <MenuEntry label={label} icon={icon} aria-haspopup="dialog" onSelect={() => setOpen(true)} />
     </>
   );
 }

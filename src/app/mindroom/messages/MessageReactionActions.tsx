@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Relations, Room } from 'matrix-js-sdk';
-import { Box, Icon, IconButton, Icons, Text } from 'folds';
-import { MenuItem, Modal } from '../../components/glass/GlassPrimitives';
+import { Box, IconButton, Icons, Text } from 'folds';
+import { Modal } from '../../components/glass/GlassPrimitives';
+import { MenuEntry } from '../../components/MenuEntry';
 import { ModalLayer } from '../../components/ModalLayer';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelevantImagePacks } from '../../hooks/useImagePacks';
@@ -156,18 +157,13 @@ export function MessageAllReactionItem({
   return (
     <>
       <ReactionsDialog room={room} relations={relations} open={viewing} onDismiss={stopViewing} />
-      <MenuItem
+      <MenuEntry
+        label={t('mindroomUi.messages.messageReactionActions.viewReactions')}
+        icon={Icons.Smile}
         aria-haspopup="dialog"
         aria-pressed={viewing}
-        after={<Icon size="100" src={Icons.Smile} />}
-        onClick={() => setViewing(true)}
-        size="300"
-        radii="300"
-      >
-        <Text className={css.MessageMenuItemText} as="span" size="T300" truncate>
-          {t('mindroomUi.messages.messageReactionActions.viewReactions')}
-        </Text>
-      </MenuItem>
+        onSelect={() => setViewing(true)}
+      />
     </>
   );
 }
