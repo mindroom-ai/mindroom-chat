@@ -176,7 +176,12 @@ export function Room() {
   const clientConfig = useClientConfig();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
-  const { viewMode: chosenViewMode, setViewMode, availableViewModes } = useRoomViewMode(roomId);
+  const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(members), [members]);
+  const {
+    viewMode: chosenViewMode,
+    setViewMode,
+    availableViewModes,
+  } = useRoomViewMode(roomId, hasMindroomAgents);
   // The Full view shows no thread routes, so a link to a thread brings the threads back, as an
   // action from a thread does. A direct chat between people offers no modes and keeps the guard's
   // redirect to the room timeline.
@@ -195,7 +200,6 @@ export function Room() {
   const routeReady = isThreadRouteReady(room, routedThreadId);
   const conversation = `${roomId}\n${routedThreadId ?? ''}`;
 
-  const hasMindroomAgents = useMemo(() => hasActiveMindroomAgent(members), [members]);
   const joinRequestCount = useMemo(
     () => members.filter((member) => member.membership === 'knock').length,
     [members]

@@ -167,11 +167,18 @@ const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): stri
   return isDirect ? getDirectPath() : getHomePath();
 };
 
-/** The Compact and Full switch: Compact shows threads as bars, Full the classic timeline. */
-const useViewSwitch = (room: Room) => {
-  const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(room.roomId);
-  const fullMode: RoomViewMode | undefined = availableViewModes.includes('classic')
-    ? 'classic'
+/**
+ * The Compact and Full switch: Compact shows threads as cards, Full the classic timeline. A room
+ * without agents opens in Threads, so its switch returns there instead.
+ */
+const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
+  const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(
+    room.roomId,
+    hasMindroomAgents
+  );
+  const preferredFull: RoomViewMode = hasMindroomAgents === false ? 'threaded' : 'classic';
+  const fullMode: RoomViewMode | undefined = availableViewModes.includes(preferredFull)
+    ? preferredFull
     : availableViewModes.find((mode) => mode !== 'compact');
   if (!availableViewModes.includes('compact') || fullMode === undefined) return undefined;
   const compact = viewMode === 'compact';
@@ -202,7 +209,7 @@ export function RoomViewHeader({
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const mx = useMatrixClient();
-  const viewSwitch = useViewSwitch(room);
+  const viewSwitch = useViewSwitch(room, hasMindroomAgents);
   const navigate = useNavigate();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const openRoomSettings = useOpenRoomSettings();

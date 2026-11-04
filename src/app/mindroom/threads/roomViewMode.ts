@@ -52,6 +52,23 @@ const getStoredRoomViewMode = (key: string, legacyKey: string): RoomViewMode => 
   return migrated;
 };
 
+/** Whether the reader chose a view for the room; a room without a choice opens in its default. */
+export const hasStoredRoomViewMode = (sessionId: string, roomId: string): boolean => {
+  const storage = getSafeLocalStorage();
+  return [
+    getRoomViewModeStorageKey(sessionId, roomId),
+    getLegacyRoomViewModeStorageKey(roomId),
+  ].some(
+    (key) =>
+      getStorageItemSafe(storage, key) !== null &&
+      ROOM_VIEW_MODES.includes(getLocalStorageItem<unknown>(key, null) as RoomViewMode)
+  );
+};
+
+/** A room with an agent opens as Compact cards, a room of people as Threads in the order sent. */
+export const getDefaultRoomViewMode = (hasMindroomAgent: boolean): RoomViewMode =>
+  hasMindroomAgent ? 'compact' : 'threaded';
+
 const createRoomViewModeAtomFamily = (sessionId: string) =>
   atomFamily((roomId: string) => {
     const storageKey = getRoomViewModeStorageKey(sessionId, roomId);
