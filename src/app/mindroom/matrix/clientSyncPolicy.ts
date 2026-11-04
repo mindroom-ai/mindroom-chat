@@ -2,6 +2,7 @@ import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../../state/cachedSpecVersions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
+import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 
 // How the client syncs. The startup orchestrator (src/client/initMatrix.ts) creates the client
 // and its stores and then calls `startClient` here; this module does not import it.
@@ -60,11 +61,12 @@ export const startClient = async (
   options: Partial<IStartClientOpts> = {}
 ): Promise<void> => {
   await seedCachedServerVersions(mx);
-  // Before the saved sync is replayed, which brings thread roots together with their replies.
-  // Only an SDK client has rooms whose threads count replies.
+  // Before the saved sync is replayed, which brings thread roots together with their replies
+  // and edits. Only an SDK client has rooms whose threads count replies and hold edits.
   if (mx instanceof MatrixClient && !countedClients.has(mx)) {
     countedClients.add(mx);
     keepThreadReplyCounts(mx);
+    keepUnopenedThreadEditsShown(mx);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
