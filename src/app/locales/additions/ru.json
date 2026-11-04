@@ -1,0 +1,232 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "Прокрутка"
+    },
+    "passwordInput": {
+      "show": "Показать пароль",
+      "hide": "Скрыть пароль"
+    },
+    "pdfViewer": {
+      "close": "Закрыть"
+    },
+    "urlPreviewHolder": {
+      "previous": "Предыдущие превью ссылок",
+      "next": "Ещё превью ссылок"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "Название",
+      "cancel": "Отмена",
+      "skinTone": "Тон кожи",
+      "skinTones": {
+        "default": "Тон кожи по умолчанию",
+        "light": "Светлый тон кожи",
+        "mediumLight": "Умеренно светлый тон кожи",
+        "medium": "Средний тон кожи",
+        "mediumDark": "Умеренно тёмный тон кожи",
+        "dark": "Тёмный тон кожи"
+      }
+    },
+    "eventReaders": {
+      "close": "Закрыть"
+    },
+    "imagePackContent": {
+      "uploadFailed": "Не удалось загрузить изображения. Повторите попытку.",
+      "noImages": "Изображений пока нет."
+    },
+    "imagePackView": {
+      "close": "Закрыть",
+      "back": "Назад"
+    },
+    "imageTile": {
+      "remove": "Удалить",
+      "editImage": "Изменить :{{shortcode}}:",
+      "removeImage": "Удалить :{{shortcode}}:",
+      "keepImage": "Оставить :{{shortcode}}:",
+      "removedOnApply": "Будет удалено, когда вы примените изменения",
+      "usage": "Использовать как",
+      "shortcodeTaken": "Этот короткий код уже есть у другого изображения.",
+      "shortcodeInvalid": "Короткий код не может содержать пробелы или двоеточия."
+    },
+    "imageUsageOption": {
+      "pack": "Как у набора"
+    },
+    "imageViewer": {
+      "close": "Закрыть"
+    },
+    "inviteUserPrompt": {
+      "close": "Закрыть"
+    },
+    "joinAddressPrompt": {
+      "close": "Закрыть"
+    },
+    "textViewer": {
+      "close": "Закрыть"
+    },
+    "invites": {
+      "actionFailed": "Что-то пошло не так. Повторите попытку."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "Найдите пользователей или введите идентификатор пользователя"
+    },
+    "leaveRoomPrompt": {
+      "close": "Закрыть",
+      "forget": "Забыть эту комнату",
+      "forgetDescription": "Также удаляет её из вашей учётной записи вместе с историей. Позже вы сможете снова войти, если комната это разрешает."
+    },
+    "memberFilters": {
+      "label": "Показать участников"
+    },
+    "memberSort": {
+      "label": "Сортировать участников"
+    },
+    "a11y": {
+      "mainNavigation": "Основная навигация",
+      "skipToContent": "Перейти к содержимому",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "Забыть комнату"
+    },
+    "userRoomProfile": {
+      "editProfile": "Изменить профиль"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "Удалить {{name}}"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "Укажите тип события и содержимое в виде объекта JSON."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Личный набор",
+          "imageCount_one": "{{count}} изображение, ваше в любой комнате",
+          "imageCount_few": "{{count}} изображения, ваши в любой комнате",
+          "imageCount_many": "{{count}} изображений, ваши в любой комнате",
+          "imageCount_other": "{{count}} изображения, ваши в любой комнате"
+        }
+      },
+      "devices": {
+        "loadFailed": "Не удалось загрузить ваши устройства."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Разблокировать"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Удалить"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "Не удалось начать чат. Повторите попытку."
+    },
+    "homeNav": {
+      "options": "Параметры главной"
+    },
+    "directNav": {
+      "options": "Параметры личных сообщений"
+    },
+    "spaceNav": {
+      "options": "Параметры пространства"
+    },
+    "calls": {
+      "panel": {
+        "title": "Звонок",
+        "close": "Закрыть панель звонка",
+        "participants": "Участники звонка",
+        "connecting": "Подключение…",
+        "reconnecting": "Переподключение…",
+        "ended": "Звонок завершён.",
+        "waitingFor": "Ожидание {{name}}…",
+        "you": "{{name}} (вы)",
+        "microphoneOff": "Микрофон выключен",
+        "inCall_one": "{{count}} участник звонка",
+        "inCall_few": "{{count}} участника звонка",
+        "inCall_many": "{{count}} участников звонка",
+        "inCall_other": "{{count}} участника звонка",
+        "startCall": "Начать звонок",
+        "startVideoCall": "Начать видеозвонок",
+        "dismiss": "Закрыть",
+        "audioBlocked": "Браузер приостановил звук звонка.",
+        "playSound": "Включить звук",
+        "resize": "Изменить размер панели звонка"
+      },
+      "problems": {
+        "service": "Не удалось связаться со службой звонков. Повторите попытку позже.",
+        "connection": "Соединение звонка потеряно.",
+        "device": "Не удалось использовать микрофон или камеру."
+      },
+      "devices": {
+        "title": "Устройства",
+        "microphone": "Микрофон",
+        "camera": "Камера",
+        "speaker": "Динамик",
+        "systemDefault": "Системное по умолчанию",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Начать звонок",
+        "joinCall": "Присоединиться к звонку",
+        "joinCallCount_one": "Присоединиться к звонку, в нём {{count}} участник",
+        "joinCallCount_few": "Присоединиться к звонку, в нём {{count}} участника",
+        "joinCallCount_many": "Присоединиться к звонку, в нём {{count}} участников",
+        "joinCallCount_other": "Присоединиться к звонку, в нём {{count}} участника",
+        "showCall": "Показать звонок",
+        "hideCall": "Скрыть звонок"
+      },
+      "rail": {
+        "returnToCall": "Вернуться к звонку в {{room}}"
+      },
+      "incoming": {
+        "calling": "{{name}} звонит",
+        "callingIn": "{{name}} звонит в {{room}}",
+        "videoCall": "Видеозвонок",
+        "voiceCall": "Голосовой звонок"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "Подумал"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "Поиск не удался. Повторите попытку."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "Приглашение",
+        "body_one": "У вас {{count}} новое приглашение.",
+        "body_few": "У вас {{count}} новых приглашения.",
+        "body_many": "У вас {{count}} новых приглашений.",
+        "body_other": "У вас {{count}} нового приглашения."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Компактный вид"
+      }
+    },
+    "computer": {
+      "resize": "Изменить размер панели компьютера",
+      "close": "Закрыть компьютер"
+    }
+  },
+  "composer": {
+    "emoji": "Эмодзи",
+    "cancelReply": "Отменить ответ"
+  }
+}
