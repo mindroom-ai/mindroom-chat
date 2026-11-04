@@ -6,6 +6,7 @@ import { type TFunction } from 'i18next';
 import {
   IconCalendarEvent,
   IconChevronDown,
+  IconFilter,
   IconInfoCircle,
   IconLock,
   IconLockOpen,
@@ -17,6 +18,8 @@ import {
 import classNames from 'classnames';
 import { Surface } from '../../components/glass/GlassPrimitives';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 import * as css from './RoomThreadOverview.css';
 import * as threadIndicatorCss from './ThreadIndicator.css';
 import { ThreadStreamingDot } from './ThreadStreamingDot';
@@ -698,6 +701,8 @@ export type RoomThreadOverviewProps = {
   onToggle: (key: ThreadFilterKey) => void;
   onSortDirectionChange: () => void;
   onToggleThreadSortFreeze: () => void;
+  /** Simple mode's one filter: hide resolved threads or show them all. */
+  onToggleUnresolvedOnly?: () => void;
   onReset: () => void;
   onCycleTag: (tag: string) => void;
   onAddTag: (tag: string) => void;
@@ -771,6 +776,7 @@ export function RoomThreadOverview({
   onToggle,
   onSortDirectionChange,
   onToggleThreadSortFreeze,
+  onToggleUnresolvedOnly,
   onReset,
   onCycleTag,
   onAddTag,
@@ -781,6 +787,7 @@ export function RoomThreadOverview({
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>();
   const { t } = useTranslation();
+  const [simpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const filtersActive = hasActiveThreadFilters(state);
   const canonicalSearchQuery = serializeThreadFilterQuery(state);
   const [searchQueryDraft, setSearchQueryDraft] = useState(canonicalSearchQuery);
@@ -935,6 +942,92 @@ export function RoomThreadOverview({
     </div>
   );
 
+  // Switches the bar between its simple controls and all of them; the stored filter keeps both.
+  const simpleModeLabel = t('settings.general.interface.simpleMode');
+  const filterModeSwitch = (
+    <TooltipProvider
+      position="Bottom"
+      align="Center"
+      tooltip={
+        <Tooltip style={{ maxWidth: toRem(220) }}>
+          <Text size="T200">{simpleModeLabel}</Text>
+        </Tooltip>
+      }
+    >
+      {(triggerRef) => (
+        <button
+          ref={triggerRef}
+          type="button"
+          className={classNames(css.ToggleButton, simpleMode && css.PauseButtonActive)}
+          aria-label={simpleModeLabel}
+          aria-pressed={simpleMode}
+          onClick={() => setSimpleMode(!simpleMode)}
+          data-thread-filter-mode-switch="true"
+        >
+          <IconFilter size={14} stroke={1.8} aria-hidden="true" />
+        </button>
+      )}
+    </TooltipProvider>
+  );
+
+  // Simple mode keeps the sorting choice plus one agent-room filter: hide
+  // resolved threads or show everything. The upstream filter state is already
+  // projected onto this visible subspace.
+  if (simpleMode) {
+    const unresolvedOnly = state.resolved === 'exclude';
+    return (
+      <Box
+        ref={glassRef}
+        className={css.Overview}
+        direction="Column"
+        gap="200"
+        data-room-thread-overview="true"
+      >
+        {liveRegion}
+        <div
+          className={css.ToolbarHeader}
+          role="toolbar"
+          aria-label={t('mindroomUi.threads.roomThreadOverview.threadFilters')}
+        >
+          {hasMindroomAgents && (
+            <>
+              {countBadge}
+              <TooltipProvider
+                position="Bottom"
+                align="Center"
+                tooltip={
+                  <Tooltip style={{ maxWidth: toRem(220) }}>
+                    <Text size="T200">
+                      {unresolvedOnly
+                        ? t('thread.simpleFilter.showingUnresolved')
+                        : t('thread.simpleFilter.showingAll')}
+                    </Text>
+                  </Tooltip>
+                }
+              >
+                {(triggerRef) => (
+                  <button
+                    ref={triggerRef}
+                    type="button"
+                    className={classNames(css.SortButton, unresolvedOnly && css.SortButtonActive)}
+                    aria-pressed={unresolvedOnly}
+                    onClick={onToggleUnresolvedOnly}
+                    data-simple-unresolved-toggle="true"
+                  >
+                    <Text size="T200">{t('thread.simpleFilter.unresolved')}</Text>
+                  </button>
+                )}
+              </TooltipProvider>
+            </>
+          )}
+          <ThreadSortControl state={state} onChange={handleSortWithPresetClear} />
+          {filterModeSwitch}
+        </div>
+        {hasMindroomAgents && emptyFilteredState}
+      </Box>
+    );
+  }
+
   return (
     <Box
       ref={glassRef}
@@ -1071,6 +1164,7 @@ export function RoomThreadOverview({
             )}
           </TooltipProvider>
         )}
+        {filterModeSwitch}
 
         {/* Tag filters (right-aligned) */}
         {hasMindroomAgents && (activeTagEntries.length > 0 || availableTags.length > 0) && (

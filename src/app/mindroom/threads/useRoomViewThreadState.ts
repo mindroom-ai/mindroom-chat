@@ -12,6 +12,8 @@ import {
 } from 'react';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 import { createSessionId } from '../../state/sessions';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
@@ -33,7 +35,9 @@ import {
   normalizeThreadSearchText,
   removeTagFilter,
   resetThreadFilterState,
+  simplifyAgentlessSimpleThreadFilterState,
   simplifyAgentlessThreadFilterState,
+  simplifyThreadFilterState,
   type ThreadFilterKey,
   type ThreadFilterState,
   type ThreadSortFreezeState,
@@ -67,6 +71,7 @@ export type RoomViewThreadState = {
   handleSortDirectionChange: () => void;
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
+  handleToggleUnresolvedOnly: () => void;
   handleRoomMessageSent: (eventId: string) => boolean;
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
@@ -92,7 +97,7 @@ export const useRoomViewThreadState = ({
   const { navigatePath, navigateRoom, navigateRoomFocusEvent, navigateRoomThread } =
     useRoomNavigate();
 
-  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId);
+  const { setViewMode, viewMode: effectiveViewMode } = useRoomViewMode(roomId, hasMindroomAgents);
   const threadFilterAtom = useMemo(
     () => roomThreadFilterAtomFamily(userId, roomId),
     [roomId, userId]
@@ -102,17 +107,24 @@ export const useRoomViewThreadState = ({
   // Persisted advanced filters must not keep hiding threads with no visible
   // cause, but remain stored so they can be restored when those controls
   // become available again.
+  const [simpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const effectiveThreadFilterState = useMemo(() => {
+    if (simpleMode) {
+      return hasMindroomAgents
+        ? simplifyThreadFilterState(threadFilterState)
+        : simplifyAgentlessSimpleThreadFilterState(threadFilterState);
+    }
     return hasMindroomAgents
       ? threadFilterState
       : simplifyAgentlessThreadFilterState(threadFilterState);
-  }, [hasMindroomAgents, threadFilterState]);
+  }, [hasMindroomAgents, simpleMode, threadFilterState]);
   const lastExitedThread = useAtomValue(lastExitedThreadAtom);
   const setLastExitedThread = useSetAtom(lastExitedThreadAtom);
   const [threadSortFreezeState, setThreadSortFreezeState] = useState<ThreadSortFreezeState | null>(
     null
   );
-  const effectiveThreadSortFreezeState = hasMindroomAgents ? threadSortFreezeState : null;
+  const effectiveThreadSortFreezeState =
+    hasMindroomAgents && !simpleMode ? threadSortFreezeState : null;
   const { summaryMap, storeThreadSummary } = useRoomThreadSummaryState({
     roomId,
     sessionId,
@@ -256,6 +268,18 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
+  // Simple mode's single binary control: unresolved-only on/off. Flips only
+  // the resolved dimension so the hidden advanced dimensions survive in
+  // storage. ('exclude' is the one resolved value the simple-mode projection
+  // keeps, so flipping the raw value matches what the user sees.)
+  const handleToggleUnresolvedOnly = useCallback(() => {
+    const base = flushPendingSearchQuery();
+    setThreadFilterState({
+      ...base,
+      resolved: base.resolved === 'exclude' ? 'any' : 'exclude',
+    });
+  }, [flushPendingSearchQuery, setThreadFilterState]);
+
   const handleSortDirectionChange = useCallback(() => {
     const base = flushPendingSearchQuery();
     setThreadFilterState({
@@ -333,10 +357,10 @@ export const useRoomViewThreadState = ({
   }, [roomId]);
 
   useEffect(() => {
-    if (!hasMindroomAgents) {
+    if (!hasMindroomAgents || simpleMode) {
       setThreadSortFreezeState(null);
     }
-  }, [hasMindroomAgents]);
+  }, [hasMindroomAgents, simpleMode]);
 
   useEffect(() => {
     if (threadId) {
@@ -399,6 +423,7 @@ export const useRoomViewThreadState = ({
     handleSortDirectionChange,
     handleToggle,
     handleToggleThreadSortFreeze,
+    handleToggleUnresolvedOnly,
     handleRoomMessageSent,
     handleViewModeChange,
     setThreadSortFreezeState,

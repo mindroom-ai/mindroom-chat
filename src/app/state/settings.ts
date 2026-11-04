@@ -49,6 +49,7 @@ const BOOLEAN_SETTING_KEYS = [
   'encUrlPreview', // Show link previews in encrypted rooms too; the homeserver then sees the links.
   'hour24Clock', // Times as 13:00 instead of 1:00 PM.
   'threadBannerCollapsed',
+  'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
   // Notifications
   'showNotifications', // Desktop notifications for new messages.
   'isNotificationSounds', // Play a sound with each notification.

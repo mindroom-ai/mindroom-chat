@@ -248,6 +248,7 @@ export function RoomView({
     onToggle: threadState.handleToggle,
     onSortDirectionChange: threadState.handleSortDirectionChange,
     onToggleThreadSortFreeze: threadState.handleToggleThreadSortFreeze,
+    onToggleUnresolvedOnly: threadState.handleToggleUnresolvedOnly,
     onReset: threadState.handleReset,
     onCycleTag: threadState.handleCycleTag,
     onAddTag: threadState.handleAddTag,
