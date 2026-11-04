@@ -99,7 +99,7 @@ e2e *args:
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 
-# Start (`up`, which prints its state as JSON), stop (`down`) or show (`status`) slot N's MindRoom backend with the stub model for the e2e/lane-c/agent-*.spec.ts specs, which start it themselves. Options: --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
+# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's MindRoom backend for the e2e/lane-c/agent-*.spec.ts specs, which start it themselves. Options: --model stub|real (default $E2E_AGENT_MODEL, else stub; real runs Claude Haiku 5.5 and GPT-6 Luna with the provider keys of the environment), --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
 agent-stack slot *args:
     python3 scripts/agent-stack/stack.py {{slot}} {{args}}
 
@@ -107,7 +107,7 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs with Node's test runner, scripts/test_matrix_http.py and scripts/reference/test_seed.py with unittest).
+# Tests of the e2e tooling (scripts/e2e-results-tsv.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py and scripts/agent-stack/test_stack.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py

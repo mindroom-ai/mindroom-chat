@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
-"""Run a real MindRoom backend, driven by a stub model, against one end-to-end slot's homeserver.
+"""Run a real MindRoom backend, driven by a stub model or a real one, against one end-to-end slot's homeserver.
 
-Usage: python3 scripts/agent-stack/stack.py <slot 0-50> up|down|status [--checkout DIR] [--ref REV]
+Usage: python3 scripts/agent-stack/stack.py <slot 0-50> up|down|status|usage [--model stub|real]
+       [--checkout DIR] [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
-  down    stop the slot's stack and delete its storage
+  down    stop the slot's stack and delete its storage (a real-model stack first saves its usage, see below)
   status  print the state of the running stack, or exit 1
+  usage   print the model calls and tokens of the running stack's backend log as JSON
 
 The backend comes from a MindRoom checkout (--checkout, $E2E_MINDROOM_CHECKOUT, default
 /home/basnijholt/Work/dev/mindroom) at a commit (--ref, $E2E_MINDROOM_REF, default the checkout's origin/main
@@ -17,7 +19,16 @@ test account never meet accounts an earlier start left on the homeserver. The mo
 scripts/agent-stack/stub_model.py, an OpenAI-compatible server that never calls a real model.
 
 Ports for slot N: homeserver 28100+N (slot 0: 28008, as scripts/e2e-slot.sh), MindRoom API 29600+N, stub
-model 29700+N. Exit codes: 3 no MindRoom checkout, 4 no homeserver, 1 anything else.
+model 29700+N. Exit codes: 3 no MindRoom checkout, 4 no homeserver, 5 no provider keys for --model real,
+1 anything else.
+
+--model real (or $E2E_AGENT_MODEL=real) runs the helper on Claude Haiku 5.5, with GPT-6 Luna as the thread's other
+model, the router's and the thread summaries' model. The helper's instructions turn the stub's hashtags into a script
+the model follows, so the same specs drive it. The keys come from this script's environment only: the caller sources
+them into the command that runs it (`set -a; . <key file>; set +a; ...`), and they reach the backend's process
+environment and nothing else; no file this script writes holds one. The backend may still put them in its own state,
+so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down` writes the stack's model calls and
+tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
 """
 
 from __future__ import annotations
@@ -27,6 +38,7 @@ import contextlib
 import fcntl
 import json
 import os
+import re
 import secrets
 import shutil
 import signal
@@ -46,10 +58,32 @@ SERVER_NAME = "matrix.localhost"
 TESTER_PASSWORD = "agent-stack-password"
 EXIT_NO_CHECKOUT = 3
 EXIT_NO_HOMESERVER = 4
+EXIT_NO_KEYS = 5
+MODES = ("stub", "real")
+# The agents of each mode. A real model runs only the helper, so the router never needs a model to pick one and the
+# helper gets the person's own message, not the router's handoff.
 AGENTS = {
-    "helper": "Helper",
-    "scout": "Scout",
+    "stub": {"helper": "Helper", "scout": "Scout"},
+    "real": {"helper": "Helper"},
 }
+# The thread's two models in each mode: the room default and the one the model picker switches to.
+MODELS = {
+    "stub": {
+        "first": {"key": "default", "id": "stub-fast", "displayName": "Stub Fast"},
+        "second": {"key": "deep", "id": "stub-deep", "displayName": "Stub Deep"},
+    },
+    "real": {
+        "first": {"key": "default", "id": "claude-haiku-5-5", "displayName": "Claude Haiku 5.5"},
+        "second": {"key": "luna", "id": "gpt-6-luna", "displayName": "GPT-6 Luna"},
+    },
+}
+# USD per million tokens, from the providers' price pages; the backend prices each reply with them.
+REAL_PRICING = {
+    "default": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.2},
+    "luna": {"input": 0.1, "output": 0.5, "cache_read": 0.01, "cache_write": 0.125},
+}
+PROVIDER_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "OPENROUTER_API_KEY")
+REQUIRED_REAL_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY")
 
 
 class StackError(Exception):
@@ -236,17 +270,13 @@ def start_process(command: list[str], *, cwd: Path, env: dict[str, str], log_pat
 # Configuration
 
 
-def config_yaml(tester_id: str, stub_url: str, approval_expiry_days: float) -> str:
-    agent_tools = """      - shell
-      - scheduler
-      - thread_summary
-      - thread_tags
-      - thread_resolution
-      - thread_model
-      - chat_ui:
-          enable_show_canvas: true"""
-    return f"""# Written by scripts/agent-stack/stack.py; the stub model picks a scenario from hashtags in the message.
-models:
+def provider_keys() -> dict[str, str]:
+    """The provider keys of this script's environment, for a real-model backend's process environment only."""
+    return {name: os.environ[name] for name in PROVIDER_KEYS if os.environ.get(name)}
+
+
+def stub_models_yaml(stub_url: str) -> str:
+    return f"""models:
   default:
     provider: openai
     id: stub-fast
@@ -263,9 +293,108 @@ models:
     context_window: 128000
     extra_kwargs:
       base_url: {stub_url}
+"""
 
-agents:
-  helper:
+
+def real_models_yaml() -> str:
+    first, second = MODELS["real"]["first"], MODELS["real"]["second"]
+
+    def pricing(key: str) -> str:
+        return json.dumps(REAL_PRICING[key])
+
+    return f"""models:
+  {first["key"]}:
+    provider: anthropic
+    id: {first["id"]}
+    display_name: {first["displayName"]}
+    context_window: 200000
+    pricing: {pricing(first["key"])}
+  {second["key"]}:
+    provider: openai
+    id: {second["id"]}
+    display_name: {second["displayName"]}
+    context_window: 1050000
+    pricing: {pricing(second["key"])}
+"""
+
+
+# The stub's scenarios (stub_model.py) as a script for a real model; the specs send the same hashtags in both modes.
+# Replies that the stub streams word by word are longer here, so a fast model still streams for a few seconds.
+REAL_INSTRUCTIONS = [
+    "An automated end-to-end test of a chat client drives you. Follow this script exactly and literally. Never add "
+    "greetings, explanations, questions, or tool calls the script does not ask for, and never call a tool twice "
+    "unless the script says so.",
+    "Read the person's latest message. When it contains one of the hashtags below, do what that hashtag says. "
+    "Otherwise reply with one line: 'You said: ' followed by the person's latest message, copied word for word.",
+    "#slow: reply with exactly 30 lines and nothing else. Line N starts with wordN (word1 on the first line, word30 "
+    "on the last) and goes on with one sentence of about twenty words about the weather. Each of word1 to word30 "
+    "appears exactly once, and no other word starts with 'word' followed by a digit.",
+    "#stopme: reply with word1 word2 word3 and so on up to word400, separated by single spaces, and nothing else. "
+    "Never shorten or skip part of the sequence.",
+    "#long: reply in Markdown with the line 'Here is a long reply.', then a numbered list of 80 items where item N "
+    "reads 'Line N of a long reply, long enough to fill the thread.', then a last paragraph 'End of the long reply.'",
+    "#markdown: reply in Markdown with a level-two heading, a table of three rows with the columns Item and Value, "
+    "a fenced Python code block of two lines, a bulleted list of three items, some inline code, and a link to "
+    "https://example.org.",
+    "#think: think the question through first, then reply with the answer to: what is 17 times 23?",
+    "#shell: call run_shell_command once with args 'echo hello from the stub', then reply with its output.",
+    "#multi: call run_shell_command three times, one call at a time, each only after the previous result arrived: "
+    "first with args 'echo step one', then with args 'sleep 10; echo step two', then with args 'echo step three'. "
+    "Then reply 'Finished multi after 3 tool calls. Last result:' followed by the last call's output in a code "
+    "block, and nothing about the other calls.",
+    "#approve: call run_shell_command once with args 'echo needs-approval: deploy the stub'. When it returns, reply "
+    "with its output. When the call was denied, reply 'The call was denied: ' followed by the reason, word for word.",
+    "#title: call set_thread_summary once with summary 'Stub picked this title from a tool call', then reply 'Done.'",
+    "#tag: call tag_thread once with tag 'stub-tag' and note 'tagged by the stub model', then reply 'Done.'",
+    "#expire: call untag_thread once with tag 'stub-tag', then reply with what the tool returned.",
+    "#resolve: call resolve_thread once, then reply with what the tool returned.",
+    "#schedulesoon: call schedule once with request 'in 20 seconds remind me to stretch' and new_thread false, "
+    "then reply 'Scheduled.'",
+    "#schedule (without 'soon'): call schedule once with request 'in 150 seconds remind me to stretch' and "
+    "new_thread false, then reply 'Scheduled.'",
+    "#canvas: call show_canvas once with title 'Stub canvas' and exactly this html: "
+    "<!doctype html><html><body style='font-family:sans-serif;padding:16px'><h1>Pick a color</h1>"
+    "<button id='red'>Red</button> <button id='blue'>Blue</button><script>for (const id of ['red', 'blue']) "
+    "document.getElementById(id).onclick = () => window.mindroom.submit({color: id});</script></body></html> "
+    "Then reply 'Done.' When a later message brings data submitted from that canvas, reply 'You said: ' followed by "
+    "the data as compact JSON without spaces, such as {\"color\":\"red\"}.",
+    "#job: call run_shell_command once with args 'sleep 45; echo background job finished' and background_after 0, "
+    "then reply 'Started.' When you are told that background jobs ended, collect them with the job tool and reply "
+    "with the result.",
+    "When a tool call is denied, quote the reason word for word. Never retry a denied or expired call.",
+]
+
+
+def config_yaml(mode: str, tester_id: str, stub_url: str, approval_expiry_days: float) -> str:
+    agent_tools = """      - shell
+      - scheduler
+      - thread_summary
+      - thread_tags
+      - thread_resolution
+      - thread_model
+      - chat_ui:
+          enable_show_canvas: true"""
+    if mode == "real":
+        # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
+        instructions = "\n".join(f"      - {json.dumps(line)}" for line in REAL_INSTRUCTIONS)
+        models = real_models_yaml()
+        second = MODELS["real"]["second"]["key"]
+        agents = f"""  helper:
+    display_name: Helper
+    role: Test agent that follows the script of an automated end-to-end test
+    model: default
+    rooms: [lobby]
+    instructions:
+{instructions}
+    tools:
+{agent_tools}
+"""
+        router_model = second
+        summary_model = f"  thread_summary_model: {second}\n"
+        header = "# Written by scripts/agent-stack/stack.py --model real; the helper follows a script keyed by hashtags."
+    else:
+        models = stub_models_yaml(stub_url)
+        agents = f"""  helper:
     display_name: Helper
     role: Test agent driven by a stub model
     model: default
@@ -278,9 +407,16 @@ agents:
     model: deep
     rooms: [lobby]
     tools: [shell]
-
+"""
+        router_model = "default"
+        summary_model = ""
+        header = "# Written by scripts/agent-stack/stack.py; the stub model picks a scenario from hashtags in the message."
+    return f"""{header}
+{models}
+agents:
+{agents}
 router:
-  model: default
+  model: {router_model}
 
 tool_approval:
   default: auto_approve
@@ -298,7 +434,7 @@ background_tool_jobs:
 
 defaults:
   markdown: true
-
+{summary_model}
 administrators:
   - "{tester_id}"
 room_defaults:
@@ -335,7 +471,8 @@ def running(state: dict | None, slot_dir: Path) -> bool:
         return False
     marker = str(slot_dir)
     pids = state.get("pids") or {}
-    return alive(pids.get("backend"), marker) and alive(pids.get("stub"), marker)
+    stub_ok = state.get("model") == "real" or alive(pids.get("stub"), marker)
+    return alive(pids.get("backend"), marker) and stub_ok
 
 
 def stop_processes(slot_dir: Path) -> None:
@@ -346,7 +483,95 @@ def stop_processes(slot_dir: Path) -> None:
 
 def stop(slot_dir: Path) -> None:
     stop_processes(slot_dir)
+    save_usage(slot_dir)
     shutil.rmtree(slot_dir, ignore_errors=True)
+
+
+# Model usage, from the `LLM usage` line the backend logs at the end of every provider request
+
+# context_input_tokens is all the input a request held; uncached_input_tokens the part not read from a cache, so
+# with cache_read_tokens and cache_write_tokens it prices the same way for every provider.
+USAGE_FIELDS = (
+    "context_input_tokens",
+    "uncached_input_tokens",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "output_tokens",
+    "reasoning_tokens",
+)
+LOG_PAIR = re.compile(r"(\w+)=('[^']*'|\"[^\"]*\"|\S+)")
+
+
+def usage_records(log_path: Path) -> list[dict]:
+    """The backend's `LLM usage` lines (JSON or key=value console lines) as dictionaries."""
+    try:
+        lines = log_path.read_text(errors="replace").splitlines()
+    except OSError:
+        return []
+    records = []
+    for line in lines:
+        if "LLM usage" not in line:
+            continue
+        start = line.find("{")
+        try:
+            record = json.loads(line[start:]) if start >= 0 else None
+        except json.JSONDecodeError:
+            record = None
+        if not isinstance(record, dict):
+            record = {key: value.strip("'\"") for key, value in LOG_PAIR.findall(line)}
+        records.append(record)
+    return records
+
+
+def usage_summary(state: dict, slot_dir: Path) -> dict:
+    """Calls, tokens and their price per model config of one stack's backend log."""
+    models: dict[str, dict] = {}
+    for record in usage_records(slot_dir / "backend.log"):
+        name = str(record.get("model_name") or "?")
+        entry = models.setdefault(
+            name, {"modelId": record.get("model_id"), "calls": 0, **{field: 0 for field in USAGE_FIELDS}}
+        )
+        entry["calls"] += 1
+        for field in USAGE_FIELDS:
+            with contextlib.suppress(TypeError, ValueError):
+                entry[field] += int(record.get(field) or 0)
+    total_usd = 0.0
+    for name, entry in models.items():
+        price = REAL_PRICING.get(name) if state.get("model") == "real" else None
+        if not price:
+            continue
+        # Cache writes are part of the uncached input and have their own price.
+        plain_input = max(entry["uncached_input_tokens"] - entry["cache_write_tokens"], 0)
+        usd = (
+            plain_input * price["input"]
+            + entry["cache_read_tokens"] * price["cache_read"]
+            + entry["cache_write_tokens"] * price["cache_write"]
+            + entry["output_tokens"] * price["output"]
+        ) / 1_000_000
+        entry["usd"] = round(usd, 4)
+        total_usd += usd
+    return {
+        "slot": state.get("slot"),
+        "namespace": state.get("namespace"),
+        "model": state.get("model", "stub"),
+        "calls": sum(entry["calls"] for entry in models.values()),
+        "usd": round(total_usd, 4),
+        "models": models,
+    }
+
+
+def save_usage(slot_dir: Path) -> None:
+    """Keeps a real-model stack's usage after `down` deletes its directory."""
+    state = read_state(slot_dir)
+    if not state or state.get("model") != "real" or not (slot_dir / "backend.log").exists():
+        return
+    summary = usage_summary(state, slot_dir)
+    folder = stack_root() / "usage"
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    path = folder / f"slot-{state.get('slot')}-{state.get('namespace')}-{stamp}.json"
+    path.write_text(json.dumps(summary, indent=1) + "\n")
+    log(f"{summary['calls']} model calls, about {summary['usd']} USD; saved to {path}")
 
 
 def up(slot: int, args: argparse.Namespace) -> dict:
@@ -362,6 +587,7 @@ def up(slot: int, args: argparse.Namespace) -> dict:
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
+        and state.get("model", "stub") == args.model
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
         and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
@@ -370,12 +596,19 @@ def up(slot: int, args: argparse.Namespace) -> dict:
         return state
     if state:
         log(
-            "the stack is stale (other commit, stopped, a start that failed, or its homeserver was reset); "
+            "the stack is stale (other commit or model, stopped, a start that failed, or its homeserver was reset); "
             "restarting it"
+        )
+    keys = provider_keys() if args.model == "real" else {}
+    missing = [name for name in REQUIRED_REAL_KEYS if name not in keys] if args.model == "real" else []
+    if missing:
+        raise StackError(
+            f"--model real needs {' and '.join(missing)} in the environment; source the key file into the command",
+            EXIT_NO_KEYS,
         )
     stop(slot_dir)
     try:
-        return start(slot, args, checkout, sha, homeserver, port, slot_dir)
+        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys)
     except BaseException:
         # Whatever this start launched stops; its logs stay in the slot directory until the next start.
         stop_processes(slot_dir)
@@ -390,10 +623,16 @@ def start(
     homeserver: str,
     port: dict[str, int],
     slot_dir: Path,
+    keys: dict[str, str],
 ) -> dict:
+    """Starts the stack; `keys` (real model only) go to the backend's process environment and nowhere else."""
     source = prepare_source(checkout, sha)
     venv_bin = source / ".venv" / "bin"
+    real = args.model == "real"
+    agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)
+    if real:
+        slot_dir.chmod(0o700)
     namespace = "t" + secrets.token_hex(4)
     tester = f"tester_{namespace}"
     try:
@@ -410,7 +649,7 @@ def start(
     (slot_dir / "stub").mkdir()
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
-    config_path.write_text(config_yaml(tester_id, stub_url, args.approval_expiry_days))
+    config_path.write_text(config_yaml(args.model, tester_id, stub_url, args.approval_expiry_days))
     api_url = f"http://127.0.0.1:{port['api']}"
     (slot_dir / ".env").write_text(
         "\n".join(
@@ -419,7 +658,7 @@ def start(
                 f"MATRIX_SERVER_NAME={SERVER_NAME}",
                 "MATRIX_SSL_VERIFY=false",
                 f"MINDROOM_NAMESPACE={namespace}",
-                "OPENAI_API_KEY=stub-key-no-model-is-called",
+                *([] if real else ["OPENAI_API_KEY=stub-key-no-model-is-called"]),
                 f"MINDROOM_API_KEY={secrets.token_hex(16)}",
                 "MINDROOM_AUTO_BUILD_FRONTEND=0",
                 "",
@@ -434,8 +673,17 @@ def start(
         "MINDROOM_CONFIG_PATH": str(config_path),
         "PYTHONUNBUFFERED": "1",
     }
+    backend_env = dict(env)
+    if real:
+        backend_env.update(keys)
+        # uv's Python may not find this machine's CA store, and the providers are HTTPS.
+        ca_file = os.environ.get("SSL_CERT_FILE") or "/etc/ssl/certs/ca-certificates.crt"
+        if Path(ca_file).is_file():
+            backend_env["SSL_CERT_FILE"] = ca_file
     state = {
         "slot": slot,
+        "model": args.model,
+        "models": MODELS[args.model],
         "sha": sha,
         "checkout": str(checkout),
         "namespace": namespace,
@@ -449,25 +697,26 @@ def start(
         "pids": {},
     }
 
-    state["pids"]["stub"] = start_process(
-        [
-            str(venv_bin / "python"),
-            str(HERE / "stub_model.py"),
-            "--port",
-            str(port["stub"]),
-            "--log",
-            state["stubRequests"],
-            "--tag",
-            str(slot_dir),
-        ],
-        cwd=slot_dir,
-        env=env,
-        log_path=slot_dir / "stub.log",
-    )
-    (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
-    wait_until("the stub model", lambda: http_json("GET", f"{stub_url}/models")[0] == 200, 60, 0.5)
+    if not real:
+        state["pids"]["stub"] = start_process(
+            [
+                str(venv_bin / "python"),
+                str(HERE / "stub_model.py"),
+                "--port",
+                str(port["stub"]),
+                "--log",
+                state["stubRequests"],
+                "--tag",
+                str(slot_dir),
+            ],
+            cwd=slot_dir,
+            env=env,
+            log_path=slot_dir / "stub.log",
+        )
+        (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
+        wait_until("the stub model", lambda: http_json("GET", f"{stub_url}/models")[0] == 200, 60, 0.5)
 
-    log(f"starting MindRoom {sha[:12]} (namespace {namespace}) on {api_url}")
+    log(f"starting MindRoom {sha[:12]} (namespace {namespace}, {args.model} model) on {api_url}")
     state["pids"]["backend"] = start_process(
         [
             str(venv_bin / "mindroom"),
@@ -483,7 +732,7 @@ def start(
             "--no-service",
         ],
         cwd=slot_dir,
-        env=env,
+        env=backend_env,
         log_path=slot_dir / "backend.log",
     )
     (slot_dir / "state.json").write_text(json.dumps(state, indent=1))
@@ -493,7 +742,11 @@ def start(
             text = (slot_dir / "backend.log").read_text(errors="replace")
         except OSError:
             return ""
-        return "\n--- backend.log ---\n" + text[-4000:]
+        tail = text[-4000:]
+        # A key the backend echoed never reaches the caller's output.
+        for secret in keys.values():
+            tail = tail.replace(secret, "[key]")
+        return "\n--- backend.log ---\n" + tail
 
     def backend_alive() -> None:
         if not alive(state["pids"]["backend"], str(slot_dir)):
@@ -528,7 +781,7 @@ def start(
         accounts = data.get("accounts") or {}
         if not (rooms.get("lobby") or {}).get("room_id") or not data.get("space_room_id"):
             return None
-        if not all((accounts.get(f"agent_{name}") or {}).get("access_token") for name in ["router", *AGENTS]):
+        if not all((accounts.get(f"agent_{name}") or {}).get("access_token") for name in ["router", *agents]):
             return None
         return data
 
@@ -538,7 +791,7 @@ def start(
     accounts = data["accounts"]
     agent_ids = {
         name: f"@{accounts[f'agent_{name}']['username']}:{accounts[f'agent_{name}']['domain']}"
-        for name in ["router", *AGENTS]
+        for name in ["router", *agents]
     }
 
     def joined(room_id: str) -> bool:
@@ -573,7 +826,7 @@ def start(
             },
             "routerToken": accounts["agent_router"]["access_token"],
             "agents": agent_ids,
-            "agentNames": {"router": "MindRoom", **AGENTS},
+            "agentNames": {"router": "MindRoom", **agents},
             "rooms": {"lobby": lobby, "space": space},
             "approvalExpirySeconds": round(args.approval_expiry_days * 86400),
             # Only a start that got here is reused; any other state file is restarted.
@@ -597,7 +850,14 @@ def exit_on_sigterm(_signum, _frame) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("slot", type=int)
-    parser.add_argument("command", choices=["up", "down", "status"])
+    parser.add_argument("command", choices=["up", "down", "status", "usage"])
+    parser.add_argument(
+        "--model",
+        choices=MODES,
+        default=os.environ.get("E2E_AGENT_MODEL") or "stub",
+        help="stub (default, or $E2E_AGENT_MODEL) or real: Claude Haiku 5.5 and GPT-6 Luna, with the keys of the "
+        "environment",
+    )
     parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
     )
@@ -611,6 +871,8 @@ def main() -> int:
         help="expiry of untag_thread approvals, which the expiry spec waits for (default 0.0003, 26 s)",
     )
     args = parser.parse_args()
+    if args.model not in MODES:
+        parser.error(f"--model must be one of {', '.join(MODES)}")
     if not 0 <= args.slot <= 50:
         parser.error("slot must be 0-50")
     slot_dir = stack_root() / f"slot-{args.slot}"
@@ -626,6 +888,13 @@ def main() -> int:
                     log("not running")
                     return 1
                 print(json.dumps(public_state(state), indent=1))
+                return 0
+            if args.command == "usage":
+                state = read_state(slot_dir)
+                if not state:
+                    log("no stack")
+                    return 1
+                print(json.dumps(usage_summary(state, slot_dir), indent=1))
                 return 0
             state = up(args.slot, args)
             print(json.dumps(public_state(state), indent=1))
