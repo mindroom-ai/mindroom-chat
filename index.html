@@ -9,6 +9,11 @@
       http-equiv="Content-Security-Policy"
       content="frame-src 'self' https://www.google.com/recaptcha/ https://recaptcha.google.com/recaptcha/"
     />
+    <!-- A second policy, enforced beside the first: no plugin content, and no <base> element that
+         would move the app's relative URLs (canvases inherit it too, and set base-uri 'none').
+         script-src stays open: canvases run agent scripts inline in srcdoc frames, which inherit
+         this policy. Who may frame the app is a header (scripts/frame-headers.mjs). -->
+    <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"

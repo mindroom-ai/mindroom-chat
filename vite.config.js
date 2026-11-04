@@ -7,6 +7,7 @@ import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
+import { frameHeaders } from './scripts/frame-headers.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 
 /**
@@ -92,6 +93,8 @@ export default defineConfig({
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
+    // `vite preview` says who may frame the app (frame-ancestors works only as a header).
+    frameHeaders(),
     ...sourcePlugins,
     ...(fixturePagesOnly ? [] : [viteStaticCopy(copyFiles), serviceWorkerPlugin]),
   ],
