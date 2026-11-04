@@ -966,21 +966,22 @@ export function RoomTimeline(props: RoomTimelineProps) {
       ) ?? undefined,
     [activeRangeRef]
   );
-  // Each page that moves the room's back token renders again and checks the sentinel once more.
-  // A page that adds no rows (the server only moved its token, or reached the room's start)
-  // leaves the window as it was: nothing else would show the room's start or drop the sentinel,
-  // and the paginator, which follows window changes, would not ask again while it stays in view.
-  const [roomBackPages, countRoomBackPage] = useReducer((count: number) => count + 1, 0);
+  // A page that moves the room's back token but adds no rows (the server only moved its token,
+  // or reached the room's start) leaves the window as it was: nothing else would show the room's
+  // start or drop the sentinel, and the paginator, which follows window changes, would not ask
+  // again while it stays in view. Each such page renders again and checks the sentinel once more.
+  const [roomBackPage, setRoomBackPage] = useState<{ rowsBefore: number }>();
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
       const edge = back ? firstRoomTimelineRef.current : undefined;
       const tokenBefore = edge?.getPaginationToken(Direction.Backward);
+      const rowsBefore = roomRowsRef.current.length;
       void paginateRoom(back).then(() => {
         if (!edge || !alive() || edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
-        countRoomBackPage();
+        setRoomBackPage({ rowsBefore });
       });
     },
-    [alive, firstRoomTimelineRef, paginateRoom]
+    [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
   );
   const shouldSuppressPagination = useCallback(() => suppressFocusPaginationRef.current, []);
   // The opening fill loads a screen of history above the reader. A short room, whose creation
@@ -1078,8 +1079,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // scrolls to the rows of the window it has not mounted.
   const { scrollToItem: paginatorScrollToItem, scrollToElement, retryPagination } = paginator;
   useLayoutEffect(() => {
-    if (roomBackPages > 0) retryPagination();
-  }, [retryPagination, roomBackPages]);
+    // A page that added rows moved the window, and the paginator carries on from there.
+    if (roomBackPage && roomRowsRef.current.length === roomBackPage.rowsBefore) retryPagination();
+  }, [retryPagination, roomBackPage, roomRowsRef]);
   const scrollToItem = useCallback<ScrollToItem>(
     (index, opts) => {
       if (paginatorScrollToItem(index, opts)) return true;
