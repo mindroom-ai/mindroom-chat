@@ -15,6 +15,7 @@ import { useRoomAvatar, useRoomName } from '../../../hooks/useRoomMeta';
 import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { useStateEvent } from '../../../hooks/useStateEvent';
 import { mxcUrlToHttp } from '../../../utils/mediaUrl';
+import { nameInitials } from '../../../utils/common';
 import { StateEvent } from '../../../../types/matrix/room';
 
 const PROFILE = 'featureUi.commonSettings.general.roomProfile';
@@ -70,7 +71,13 @@ export function RoomAvatarTile({ room, space }: { room: Room; space: boolean }) 
   );
 
   const rule = typeof joinRule === 'string' ? joinRule : undefined;
-  const icon = () => <RoomIcon size="300" filled space={space} joinRule={rule} />;
+  // A space reads as its initials, as on its rail button; a room as its kind of room.
+  const icon = () =>
+    space ? (
+      <Text size="H4">{nameInitials(name)}</Text>
+    ) : (
+      <RoomIcon size="300" filled joinRule={rule} />
+    );
   const picture = (
     <Avatar size="500" radii={space ? '400' : '300'}>
       <RoomAvatar alt={name} src={src} renderFallback={icon} roomId={room.roomId} />
