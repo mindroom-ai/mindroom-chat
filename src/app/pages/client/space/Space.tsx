@@ -55,8 +55,9 @@ import { RouteResolving } from '../RoomRoute';
 import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from '../routeVisibility';
 import { useSpaceSearchRooms } from './useSpaceSearchRooms';
 
-const lastActivity = (mx: MatrixClient, roomId: string): number =>
-  mx.getRoom(roomId)?.getLastActiveTimestamp?.() ?? 0;
+// Like Home: by name, A to Z, ignoring case and accents, with numbers in numeric order.
+const byRoomName = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
+const roomName = (mx: MatrixClient, roomId: string): string => mx.getRoom(roomId)?.name ?? roomId;
 
 /** Servers to join through, from `?via=` (app links) or `?viaServers=` (app routes). */
 const readViaServers = (searchParams: URLSearchParams): string[] | undefined => {
@@ -269,7 +270,9 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
 
   const sortedRooms = useMemo(() => {
-    const items = [...spaceRooms].sort((a, b) => lastActivity(client, b) - lastActivity(client, a));
+    const items = [...spaceRooms].sort((a, b) =>
+      byRoomName.compare(roomName(client, a), roomName(client, b))
+    );
     // A collapsed category still shows the selected room.
     return roomsClosed ? items.filter((roomId) => roomId === selectedRoomId) : items;
   }, [client, spaceRooms, roomsClosed, selectedRoomId]);
