@@ -61,7 +61,8 @@ export function HeaderCallMenuEntries({
   const { t } = useTranslation();
   const { room, candidates, offerAgent, live } = useHeaderCalls(threadId);
   const [, setPanelOpen] = useCallPanel(room.roomId);
-  const { call } = useAgentCaller();
+  // The menu closes before the call starts, so the reason one did not start shows account-wide.
+  const { call } = useAgentCaller({ announce: true });
 
   if (offerAgent) {
     return (

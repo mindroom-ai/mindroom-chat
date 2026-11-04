@@ -216,15 +216,13 @@ export function IncomingCalls() {
   };
 
   return (
-    <div className={css.Host}>
-      <RingCard
-        room={room}
-        ring={ring}
-        onAnswer={answer}
-        onDecline={decline}
-        onOpen={() => navigateRoom(room.roomId)}
-        onIgnore={() => setRing(undefined)}
-      />
-    </div>
+    <RingCard
+      room={room}
+      ring={ring}
+      onAnswer={answer}
+      onDecline={decline}
+      onOpen={() => navigateRoom(room.roomId)}
+      onIgnore={() => setRing(undefined)}
+    />
   );
 }

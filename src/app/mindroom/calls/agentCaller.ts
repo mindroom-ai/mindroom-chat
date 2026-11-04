@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react';
-import { useStore } from 'jotai';
+import { atom, useStore } from 'jotai';
 import { ClientEvent, KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import {
@@ -69,6 +69,25 @@ export type AgentCallTarget = {
 
 export type AgentCallError = 'browser' | 'homeserver' | 'busy' | 'failed';
 
+/** What each error tells the person, in their language. */
+export const AGENT_CALL_ERROR_KEYS = {
+  browser: 'mindroomUi.calls.agentCallButton.browserUnsupported',
+  homeserver: 'mindroomUi.calls.agentCallButton.homeserverUnsupported',
+  busy: 'mindroomUi.calls.agentCallButton.endCurrentCall',
+  failed: 'mindroomUi.calls.agentCallButton.failedToStart',
+} as const satisfies Record<AgentCallError, string>;
+
+/**
+ * The newest agent call that did not start, from a place that cannot show why itself (the
+ * header button, the phone room menu, which closes before the call starts). The account-wide
+ * call notices show it.
+ */
+export type AgentCallFailure = { error: AgentCallError; id: number };
+
+export const agentCallFailureAtom = atom<AgentCallFailure | undefined>(undefined);
+
+let failureCount = 0;
+
 type StartCall = ReturnType<typeof useCallActions>['startCall'];
 
 export type AgentCallStart = {
@@ -107,17 +126,35 @@ export const startAgentCall = async (
   });
 };
 
+type AgentCallerOptions = {
+  /**
+   * Also report errors account-wide (`agentCallFailureAtom`), for callers that show no error
+   * themselves or go away before the call starts.
+   */
+  announce?: boolean;
+};
+
 /**
  * Calls a MindRoom agent: in this account's permanent call room with the agent (made on the
  * first call, encrypted when the conversation is), after writing which conversation the call is
  * about. The call panel opens in that conversation.
  */
-export const useAgentCaller = () => {
+export const useAgentCaller = ({ announce = false }: AgentCallerOptions = {}) => {
   const mx = useMatrixClient();
   const store = useStore();
   const { startCall } = useCallActions(mx);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<AgentCallError>();
+  const [error, setOwnError] = useState<AgentCallError>();
+  const setError = useCallback(
+    (next: AgentCallError | undefined) => {
+      setOwnError(next);
+      if (next && announce) {
+        failureCount += 1;
+        store.set(agentCallFailureAtom, { error: next, id: failureCount });
+      }
+    },
+    [announce, store]
+  );
 
   const call = useCallback(
     async ({ agentUserId, displayName, roomId, threadId }: AgentCallTarget): Promise<boolean> => {
@@ -157,8 +194,8 @@ export const useAgentCaller = () => {
         setPending(false);
       }
     },
-    [mx, startCall, store]
+    [mx, setError, startCall, store]
   );
 
-  return { call, pending, error, clearError: () => setError(undefined) };
+  return { call, pending, error, clearError: () => setOwnError(undefined) };
 };

@@ -112,7 +112,8 @@ export function AgentCallHeaderButton({ threadId, candidates: given }: AgentCall
   const room = useRoom();
   const found = useAgentCallCandidates(room, given ? undefined : threadId);
   const candidates = given ?? found;
-  const { call, pending } = useAgentCaller();
+  // The header has no room for the reason a call did not start; the call notices show it.
+  const { call, pending } = useAgentCaller({ announce: true });
   const [anchor, setAnchor] = useState<RectCords>();
 
   if (candidates.length === 0 || room.isCallRoom()) return null;

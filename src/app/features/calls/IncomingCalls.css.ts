@@ -1,8 +1,11 @@
 import { style } from '@vanilla-extract/css';
 import { config, toRem } from 'folds';
 
-// Rings float above every page at the top end corner, clear of the safe areas.
+// Rings and call notices float above every page at the top end corner, clear of the safe areas,
+// one under the other.
 export const Host = style({
+  display: 'grid',
+  rowGap: config.space.S200,
   position: 'fixed',
   top: `calc(env(safe-area-inset-top, 0px) + ${config.space.S400})`,
   insetInlineEnd: `calc(env(safe-area-inset-right, 0px) + ${config.space.S400})`,

@@ -6,7 +6,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import { hasMindroomVoiceCallsPresence } from './agentCall';
 import { usePresenceStatuses } from './agentPresence';
-import { useAgentCaller, type AgentCallError } from './agentCaller';
+import { AGENT_CALL_ERROR_KEYS, useAgentCaller } from './agentCaller';
 
 type AgentCallButtonProps = {
   /** The room the profile was opened from; a call started here remembers it as its origin. */
@@ -18,13 +18,6 @@ type AgentCallButtonProps = {
   /** The call started, so the profile can close. */
   onStarted?: () => void;
 };
-
-const ERROR_KEYS = {
-  browser: 'mindroomUi.calls.agentCallButton.browserUnsupported',
-  homeserver: 'mindroomUi.calls.agentCallButton.homeserverUnsupported',
-  busy: 'mindroomUi.calls.agentCallButton.endCurrentCall',
-  failed: 'mindroomUi.calls.agentCallButton.failedToStart',
-} as const satisfies Record<AgentCallError, string>;
 
 /**
  * The profile's "Call" button for a voice-capable MindRoom agent. The call is about the room the
@@ -78,7 +71,7 @@ export function AgentCallButton({
       </Button>
       {error && (
         <Text size="T200" style={{ color: color.Critical.Main }} role="alert">
-          {t(ERROR_KEYS[error])}
+          {t(AGENT_CALL_ERROR_KEYS[error])}
         </Text>
       )}
     </Box>

@@ -12,7 +12,9 @@ import {
   withdrawOwnMemberships,
   type CallResumeRecord,
 } from './callResume';
+import { AgentCallFailureNotice } from '../../mindroom/calls/AgentCallFailureNotice';
 import { IncomingCalls } from './IncomingCalls';
+import * as css from './IncomingCalls.css';
 
 /**
  * Ends the call with the signed-in session: when the account signs out or switches (the shell
@@ -97,13 +99,19 @@ function CallResume() {
   return null;
 }
 
-/** Account-wide call features: incoming rings, resuming after a reload, and the call's lifetime. */
+/**
+ * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
+ * reload, and the call's lifetime.
+ */
 export function CallFeatures() {
   return (
     <>
       <CallLifetime />
       <CallResume />
-      <IncomingCalls />
+      <div className={css.Host}>
+        <IncomingCalls />
+        <AgentCallFailureNotice />
+      </div>
     </>
   );
 }
