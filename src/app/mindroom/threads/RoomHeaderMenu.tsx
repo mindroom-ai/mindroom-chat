@@ -19,6 +19,8 @@ export type RoomHeaderMenuActions = {
   onOpenSettings: () => void;
   /** Absent in encrypted rooms, whose messages the server cannot search. */
   onSearchMessages?: () => void;
+  /** Opens Jump to Time, which finds the room's event at a chosen date and time. */
+  onJumpToTime?: () => void;
   /** Present only while the header has no Computer button of its own. */
   onShowComputer?: () => void;
   /** Entries for calls, on phones, whose header shows no call button while none is on. */
@@ -100,8 +102,9 @@ function MenuGroup({ children }: { children: ReactNode }) {
 }
 
 /**
- * The room header's options menu: read state, notification mode, sharing, settings, search, the
- * computer and calls when the header does not show them, then archiving and leaving the room.
+ * The room header's options menu: read state, notification mode, sharing, settings, search, Jump
+ * to Time, the computer and calls when the header does not show them, then archiving and leaving
+ * the room.
  * The ref reaches the menu element, which the focus trap around it needs to close on Escape and
  * outside clicks.
  */
@@ -114,6 +117,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
       onCopyLink,
       onOpenSettings,
       onSearchMessages,
+      onJumpToTime,
       onShowComputer,
       calls,
       onLeave,
@@ -153,6 +157,13 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
               icon={Icons.Search}
               label={t('nav.messageSearch')}
               onSelect={closeThen(onSearchMessages)}
+            />
+          )}
+          {onJumpToTime && (
+            <HeaderMenuEntry
+              icon={Icons.RecentClock}
+              label={t('featureUi.room.jumpToTime.jumpToTime')}
+              onSelect={closeThen(onJumpToTime)}
             />
           )}
           {onShowComputer && (

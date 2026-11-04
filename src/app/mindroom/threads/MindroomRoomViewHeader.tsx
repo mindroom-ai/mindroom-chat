@@ -22,6 +22,7 @@ import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { LeaveRoomPrompt } from '../../components/leave-room-prompt';
+import { JumpToTime } from '../../features/room/jump-to-time';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useIsDirectRoom, useRoom } from '../../hooks/useRoom';
 import { useSpaceOptionally } from '../../hooks/useSpace';
@@ -220,7 +221,7 @@ export function RoomViewHeader({
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
-  const [prompt, setPrompt] = useState<'invite' | 'leave'>();
+  const [prompt, setPrompt] = useState<'invite' | 'leave' | 'jumpToTime'>();
 
   // A direct chat shows the other person, by picture or initial.
   const pictureMxc = useRoomAvatar(room, direct);
@@ -459,6 +460,7 @@ export function RoomViewHeader({
               onCopyLink={copyRoomLink}
               onOpenSettings={() => openRoomSettings(room.roomId, space?.roomId)}
               onSearchMessages={encrypted ? undefined : searchMessages}
+              onJumpToTime={() => setPrompt('jumpToTime')}
               onShowComputer={
                 computerInMenu
                   ? () => {
@@ -478,6 +480,9 @@ export function RoomViewHeader({
       />
       {prompt === 'invite' && (
         <InviteUserPrompt room={room} requestClose={() => setPrompt(undefined)} />
+      )}
+      {prompt === 'jumpToTime' && (
+        <JumpToTime room={room} requestClose={() => setPrompt(undefined)} />
       )}
       {prompt === 'leave' && (
         <LeaveRoomPrompt
