@@ -12,7 +12,7 @@ import React, {
   type RefObject,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { Direction, EventType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import type { VirtualItem } from '@tanstack/react-virtual';
 import type { Editor } from 'slate';
 import {
@@ -356,6 +356,18 @@ const footerProbeStyle: React.CSSProperties = {
   visibility: 'hidden',
   pointerEvents: 'none',
 };
+
+/**
+ * The room timeline's rows begin the gap below the floating header that the Compact cards and
+ * the thread banner keep, where the thread filter bar this client leaves out used to sit. The
+ * gap joins the band the header covers, so a row scrolled into it counts as out of sight.
+ */
+const roomViewStyle = {
+  minHeight: 0,
+  position: 'relative',
+  '--room-overview-height': config.space.S200,
+} as React.CSSProperties;
+const threadViewStyle: React.CSSProperties = { minHeight: 0, position: 'relative' };
 
 /** A pill over the timeline that takes the reader somewhere or settles the unread state. */
 function FloatingAction({
@@ -718,6 +730,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const firstRoomTimeline = timeline.linkedTimelines[0];
   const canPaginateRoomBack =
     typeof firstRoomTimeline?.getPaginationToken(Direction.Backward) === 'string';
+  const firstRoomTimelineRef = useLatestRef(firstRoomTimeline);
   const lastRoomTimeline = timeline.linkedTimelines[timeline.linkedTimelines.length - 1];
   const canPaginateRoomFront =
     typeof lastRoomTimeline?.getPaginationToken(Direction.Forward) === 'string';
@@ -960,6 +973,14 @@ export function RoomTimeline(props: RoomTimelineProps) {
     [paginateRoom]
   );
   const shouldSuppressPagination = useCallback(() => suppressFocusPaginationRef.current, []);
+  // The opening fill loads a screen of history above the reader. A short room, whose creation
+  // event came with the sync, has nothing older to load ahead: its start (the room intro) shows
+  // once the reader scrolls up to it.
+  const automaticBackReach = useCallback(() => {
+    const first = firstRoomTimelineRef.current?.getEvents()[0];
+    if (first?.getType() === EventType.RoomCreate) return 0;
+    return scrollRef.current?.clientHeight ?? 0;
+  }, [firstRoomTimelineRef]);
   const paginator = useVirtualPaginator({
     count: roomRows.length,
     range: activeTimelineRange,
@@ -970,6 +991,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     onEnd: handleRoomPaginationEnd,
     shouldSuppressPagination,
     deferAutomaticPagination: automaticFill.defer,
+    automaticBackReach,
     externalBackwardScrollRestore: true,
   });
 
@@ -1621,7 +1643,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
 
   return (
-    <Box grow="Yes" direction="Column" style={{ minHeight: 0, position: 'relative' }}>
+    <Box grow="Yes" direction="Column" style={threadId ? threadViewStyle : roomViewStyle}>
       <div ref={footerProbeRef} aria-hidden style={footerProbeStyle} />
       {showJumpToUnread && (
         <div
