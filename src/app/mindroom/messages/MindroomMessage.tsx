@@ -22,15 +22,13 @@ import {
   IconButton,
   Icons,
   Line,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
   Text,
   color,
   type RectCords,
 } from 'folds';
 import { PopOut } from '../../components/directional';
-import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { ActionDialog } from '../../components/ActionDialog';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { EmojiBoard } from '../../components/emoji-board';
 import { useMemberEventParser } from '../../hooks/useMemberEventParser';
@@ -181,77 +179,51 @@ function MessageActionDialog({
   const { t } = useTranslation();
   const [reason, setReason] = useState('');
   return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter>
-        <FocusTrap
-          focusTrapOptions={{
-            initialFocus: false,
-            escapeDeactivates: () => {
-              if (!busy) onClose();
-              return !busy;
-            },
-            clickOutsideDeactivates: () => {
-              if (!busy) onClose();
-              return !busy;
-            },
-          }}
+    <ActionDialog label={title} onClose={onClose} busy={busy} initialFocus={false}>
+      <Text size="T300">{description}</Text>
+      {reasonLabel && (
+        <input
+          aria-label={reasonLabel}
+          placeholder={reasonLabel}
+          value={reason}
+          disabled={busy}
+          onChange={(evt) => setReason(evt.target.value)}
+        />
+      )}
+      {error && (
+        <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
+          {error}
+        </Text>
+      )}
+      {done && (
+        <Text role="status" size="T200" style={{ color: color.Success.Main }}>
+          {done}
+        </Text>
+      )}
+      <Box justifyContent="End" gap="200">
+        <Button
+          type="button"
+          size="300"
+          variant="Secondary"
+          fill="Soft"
+          disabled={busy}
+          onClick={onClose}
         >
-          <Dialog
-            role="dialog"
-            aria-modal="true"
-            aria-label={title}
-            style={{ padding: '1rem', width: 'min(26rem, calc(100vw - 2rem))' }}
+          <Text size="B300">{t('threadActions.cancel')}</Text>
+        </Button>
+        {!done && (
+          <Button
+            type="button"
+            size="300"
+            variant="Critical"
+            disabled={busy}
+            onClick={() => onConfirm(reason.trim())}
           >
-            <Box direction="Column" gap="300">
-              <Text size="H4">{title}</Text>
-              <Text size="T300">{description}</Text>
-              {reasonLabel && (
-                <input
-                  aria-label={reasonLabel}
-                  placeholder={reasonLabel}
-                  value={reason}
-                  disabled={busy}
-                  onChange={(evt) => setReason(evt.target.value)}
-                />
-              )}
-              {error && (
-                <Text role="alert" size="T200" style={{ color: color.Critical.Main }}>
-                  {error}
-                </Text>
-              )}
-              {done && (
-                <Text role="status" size="T200" style={{ color: color.Success.Main }}>
-                  {done}
-                </Text>
-              )}
-              <Box justifyContent="End" gap="200">
-                <Button
-                  type="button"
-                  size="300"
-                  variant="Secondary"
-                  fill="Soft"
-                  disabled={busy}
-                  onClick={onClose}
-                >
-                  <Text size="B300">{t('threadActions.cancel')}</Text>
-                </Button>
-                {!done && (
-                  <Button
-                    type="button"
-                    size="300"
-                    variant="Critical"
-                    disabled={busy}
-                    onClick={() => onConfirm(reason.trim())}
-                  >
-                    <Text size="B300">{busy ? busyLabel : confirmLabel}</Text>
-                  </Button>
-                )}
-              </Box>
-            </Box>
-          </Dialog>
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
+            <Text size="B300">{busy ? busyLabel : confirmLabel}</Text>
+          </Button>
+        )}
+      </Box>
+    </ActionDialog>
   );
 }
 

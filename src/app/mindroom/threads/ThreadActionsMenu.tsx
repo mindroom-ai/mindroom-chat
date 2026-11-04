@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, type FormEvent } from 'rea
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
-import { Box, Button, Overlay, OverlayBackdrop, OverlayCenter, Text, type RectCords } from 'folds';
+import { Box, Button, Text, type RectCords } from 'folds';
 import { PopOut } from '../../components/directional';
 import {
   getThreadSummaryActionError,
@@ -22,7 +22,8 @@ import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
 import { copyToClipboard } from '../../utils/dom';
 import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
-import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
+import { ActionDialog } from '../../components/ActionDialog';
 
 export type ThreadActionsMenuProps = {
   room: Room;
@@ -37,15 +38,10 @@ export type ThreadActionsMenuProps = {
   onHideDetails?: () => void;
 };
 
-type ActionDialog = 'tags' | 'editSummary' | 'regenerate';
+type OpenDialog = 'tags' | 'editSummary' | 'regenerate';
 
 const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
-
-const dialogStyle: React.CSSProperties = {
-  width: 'min(28rem, calc(100vw - 2rem))',
-  padding: '1rem',
-};
 
 const fieldStyle: React.CSSProperties = {
   width: '100%',
@@ -57,54 +53,6 @@ const fieldStyle: React.CSSProperties = {
   background: 'transparent',
   color: 'inherit',
 };
-
-type ActionDialogFrameProps = {
-  label: string;
-  onClose: () => void;
-  /** While a request runs Escape and outside clicks do nothing. */
-  busy: boolean;
-  children: React.ReactNode;
-};
-
-function ActionDialogFrame({ label, onClose, busy, children }: ActionDialogFrameProps) {
-  const dialogRef = useRef<HTMLDivElement>(null);
-  // focus-trap reads its options once; the callbacks read the latest props through refs.
-  const latest = useRef({ onClose, busy });
-  latest.current = { onClose, busy };
-  const requestClose = () => {
-    if (latest.current.busy) return false;
-    latest.current.onClose();
-    return true;
-  };
-  return (
-    <Overlay open backdrop={<OverlayBackdrop />}>
-      <OverlayCenter>
-        <FocusTrap
-          focusTrapOptions={{
-            clickOutsideDeactivates: requestClose,
-            escapeDeactivates: requestClose,
-            // With every control disabled the dialog itself keeps focus.
-            fallbackFocus: () => dialogRef.current ?? document.body,
-          }}
-        >
-          <Dialog
-            ref={dialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-label={label}
-            tabIndex={-1}
-            style={dialogStyle}
-          >
-            <Box direction="Column" gap="300">
-              <Text size="H4">{label}</Text>
-              {children}
-            </Box>
-          </Dialog>
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
-  );
-}
 
 /** Thread options: open, tags, resolve, pin, edit or regenerate the summary, copy a link. */
 export function ThreadActionsMenu({
@@ -125,7 +73,7 @@ export function ThreadActionsMenu({
 
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
-  const [dialog, setDialog] = useState<ActionDialog>();
+  const [dialog, setDialog] = useState<OpenDialog>();
   const [draft, setDraft] = useState(summaryText ?? '');
   const [busy, setBusy] = useState(false);
   const [requestError, setRequestError] = useState<string>();
@@ -159,7 +107,7 @@ export function ThreadActionsMenu({
   const savingRef = useRef(saving);
   savingRef.current = saving;
 
-  const openDialog = (next: ActionDialog) => {
+  const openDialog = (next: OpenDialog) => {
     setRequestError(undefined);
     setRequested(false);
     if (next === 'editSummary') setDraft(summaryText ?? '');
@@ -215,7 +163,7 @@ export function ThreadActionsMenu({
   if (dialog === 'tags') {
     const label = tagsEditable ? t('threadActions.tags') : t('thread.stats.tags');
     return (
-      <ActionDialogFrame label={label} onClose={closeDialog} busy={false}>
+      <ActionDialog label={label} onClose={closeDialog} busy={false}>
         <Box wrap="Wrap" gap="200" alignItems="Center">
           {tags.displayTags.map((tagName) => (
             <ThreadTagPill
@@ -252,14 +200,14 @@ export function ThreadActionsMenu({
             <Text size="B300">{t('threadActions.done')}</Text>
           </Button>
         </Box>
-      </ActionDialogFrame>
+      </ActionDialog>
     );
   }
 
   if (dialog === 'editSummary') {
     const length = Array.from(draft.trim()).length;
     return (
-      <ActionDialogFrame label={t('threadActions.editSummary')} onClose={closeDialog} busy={busy}>
+      <ActionDialog label={t('threadActions.editSummary')} onClose={closeDialog} busy={busy}>
         <form onSubmit={(evt) => void handleSaveSummary(evt)}>
           <Box direction="Column" gap="300">
             <textarea
@@ -306,13 +254,13 @@ export function ThreadActionsMenu({
             </Box>
           </Box>
         </form>
-      </ActionDialogFrame>
+      </ActionDialog>
     );
   }
 
   if (dialog === 'regenerate' && requested) {
     return (
-      <ActionDialogFrame label={t('threadActions.regenerate')} onClose={closeDialog} busy={false}>
+      <ActionDialog label={t('threadActions.regenerate')} onClose={closeDialog} busy={false}>
         <Text role="status" size="T300">
           {t('threadActions.requested')}
         </Text>
@@ -321,13 +269,13 @@ export function ThreadActionsMenu({
             <Text size="B300">{t('threadActions.done')}</Text>
           </Button>
         </Box>
-      </ActionDialogFrame>
+      </ActionDialog>
     );
   }
 
   if (dialog === 'regenerate') {
     return (
-      <ActionDialogFrame label={t('threadActions.regenerate')} onClose={closeDialog} busy={busy}>
+      <ActionDialog label={t('threadActions.regenerate')} onClose={closeDialog} busy={busy}>
         <form onSubmit={(evt) => void handleRegenerate(evt)}>
           <Box direction="Column" gap="300">
             <Text size="T200" priority="300">
@@ -378,7 +326,7 @@ export function ThreadActionsMenu({
             </Box>
           </Box>
         </form>
-      </ActionDialogFrame>
+      </ActionDialog>
     );
   }
 

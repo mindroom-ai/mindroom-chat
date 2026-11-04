@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Relations, Room } from 'matrix-js-sdk';
-import FocusTrap from 'focus-trap-react';
-import { Box, Icon, IconButton, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
+import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { MenuItem, Modal } from '../../components/glass/GlassPrimitives';
+import { ModalLayer } from '../../components/ModalLayer';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelevantImagePacks } from '../../hooks/useImagePacks';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
@@ -121,23 +121,16 @@ type ReactionsDialogProps = {
 
 /** The modal reaction list. Focus stays where the menu put it when the dialog closes. */
 function ReactionsDialog({ room, relations, open, onDismiss }: ReactionsDialogProps) {
-  const trapOptions = {
-    onDeactivate: onDismiss,
-    initialFocus: false as const,
-    escapeDeactivates: true,
-    clickOutsideDeactivates: true,
-    returnFocusOnDeactivate: false,
-  };
   return (
-    <Overlay backdrop={<OverlayBackdrop />} open={open}>
-      <OverlayCenter>
-        <FocusTrap focusTrapOptions={trapOptions}>
-          <Modal size="300" variant="Surface">
-            <ReactionViewer requestClose={onDismiss} relations={relations} room={room} />
-          </Modal>
-        </FocusTrap>
-      </OverlayCenter>
-    </Overlay>
+    <ModalLayer
+      open={open}
+      onClose={onDismiss}
+      focus={{ initialFocus: false, returnFocusOnDeactivate: false }}
+    >
+      <Modal size="300" variant="Surface">
+        <ReactionViewer requestClose={onDismiss} relations={relations} room={room} />
+      </Modal>
+    </ModalLayer>
   );
 }
 

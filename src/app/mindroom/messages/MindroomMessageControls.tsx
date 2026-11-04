@@ -8,21 +8,11 @@ import {
   type Ref,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import {
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Overlay,
-  OverlayBackdrop,
-  OverlayCenter,
-  Spinner,
-  Text,
-} from 'folds';
+import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
 import { PageScroll } from '../../components/page';
 import { Dialog, Header, MenuItem } from '../../components/glass/GlassPrimitives';
+import { ModalLayer } from '../../components/ModalLayer';
 import { glassDenseOverBackdrop } from '../../styles/Glass.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { saveFile } from '../native/nativeFileSave';
@@ -138,38 +128,31 @@ export function MindroomAiRunControls({
   return (
     <>
       {children(controls)}
-      <Overlay open={open} backdrop={<OverlayBackdrop />}>
-        <OverlayCenter>
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: () => closeRef.current ?? false,
-              clickOutsideDeactivates: true,
-              escapeDeactivates: true,
-              onDeactivate: closeDetails,
-              setReturnFocus: () => getRefElement(forwardedRef) ?? false,
-            }}
+      <ModalLayer
+        open={open}
+        onClose={closeDetails}
+        focus={{
+          initialFocus: () => closeRef.current ?? false,
+          setReturnFocus: () => getRefElement(forwardedRef) ?? false,
+        }}
+      >
+        <Dialog
+          className={glassDenseOverBackdrop}
+          variant="Background"
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          // As wide as the details, which set their own width for desktop and phone.
+          style={{ width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }}
+        >
+          <PageScroll
+            header={<ReplyDetailsHeader title={title} onClose={closeDetails} closeRef={closeRef} />}
+            className={css.ReplyDetailsScroll}
           >
-            <Dialog
-              className={glassDenseOverBackdrop}
-              variant="Background"
-              role="dialog"
-              aria-modal="true"
-              aria-label={title}
-              // As wide as the details, which set their own width for desktop and phone.
-              style={{ width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }}
-            >
-              <PageScroll
-                header={
-                  <ReplyDetailsHeader title={title} onClose={closeDetails} closeRef={closeRef} />
-                }
-                className={css.ReplyDetailsScroll}
-              >
-                <MindroomReplyDetails info={info} eventId={eventId} />
-              </PageScroll>
-            </Dialog>
-          </FocusTrap>
-        </OverlayCenter>
-      </Overlay>
+            <MindroomReplyDetails info={info} eventId={eventId} />
+          </PageScroll>
+        </Dialog>
+      </ModalLayer>
     </>
   );
 }

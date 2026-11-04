@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import FocusTrap from 'focus-trap-react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import { Icon, Icons, Overlay, OverlayBackdrop, OverlayCenter, Text, type IconSrc } from 'folds';
+import { Icon, Icons, Text, type IconSrc } from 'folds';
 import { MenuItem, Modal } from '../../components/glass/GlassPrimitives';
+import { ModalLayer } from '../../components/ModalLayer';
 import { TextViewer } from '../../components/text-viewer';
 import { EventReaders } from '../../components/event-readers';
 import * as css from '../../features/room/message/styles.css';
@@ -23,29 +23,18 @@ function MenuDialogItem({ icon, label, onClose, renderDialog }: MenuDialogItemPr
     onClose?.();
     setOpen(false);
   };
-  const deactivateAndClose = () => {
-    close();
-    return true;
-  };
 
   return (
     <>
-      <Overlay backdrop={<OverlayBackdrop />} open={open}>
-        <OverlayCenter>
-          <FocusTrap
-            focusTrapOptions={{
-              returnFocusOnDeactivate: false,
-              initialFocus: false,
-              escapeDeactivates: deactivateAndClose,
-              clickOutsideDeactivates: deactivateAndClose,
-            }}
-          >
-            <Modal variant="Surface" size="500">
-              {open && renderDialog(close)}
-            </Modal>
-          </FocusTrap>
-        </OverlayCenter>
-      </Overlay>
+      <ModalLayer
+        open={open}
+        onClose={close}
+        focus={{ initialFocus: false, returnFocusOnDeactivate: false }}
+      >
+        <Modal variant="Surface" size="500">
+          {open && renderDialog(close)}
+        </Modal>
+      </ModalLayer>
       <MenuItem
         size="300"
         radii="300"
