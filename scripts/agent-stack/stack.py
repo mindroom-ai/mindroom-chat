@@ -546,7 +546,13 @@ def start(
         status, _ = matrix(homeserver, "POST", f"/join/{urllib.request.quote(room_id)}", {}, tester_token)
         return status == 200
 
-    wait_until("the invites to the lobby and the space", lambda: joined(lobby) and joined(space), 120, 1)
+    wait_until(
+        "the invites to the lobby and the space",
+        lambda: joined(lobby) and joined(space),
+        120,
+        1,
+        backend_log_tail,
+    )
 
     def agents_in_lobby() -> bool:
         backend_alive()
