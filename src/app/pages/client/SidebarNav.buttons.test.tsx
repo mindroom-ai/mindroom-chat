@@ -24,8 +24,13 @@ vi.mock('folds', () => ({
 vi.mock('../../components/sidebar', () => ({
   Sidebar: ({ children }: { children: React.ReactNode }) =>
     React.createElement('nav', null, children),
-  SidebarContent: ({ scrollable, sticky }: { scrollable: React.ReactNode; sticky: React.ReactNode }) =>
-    React.createElement('div', null, scrollable, sticky),
+  SidebarContent: ({
+    scrollable,
+    sticky,
+  }: {
+    scrollable: React.ReactNode;
+    sticky: React.ReactNode;
+  }) => React.createElement('div', null, scrollable, sticky),
   SidebarStackSeparator: () => React.createElement('hr'),
   SidebarStack: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),

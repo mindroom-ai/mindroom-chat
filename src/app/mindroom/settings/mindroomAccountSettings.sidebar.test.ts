@@ -24,7 +24,11 @@ describe('sidebar button switches in io.mindroom.settings', () => {
   it('turns one button off without touching the others or keys it does not know', () => {
     const stored = { showSearchInSidebar: true, futureKey: [1] };
     const next = mergeMindroomAccountSettings(stored, { showThreadsInSidebar: false });
-    expect(next).toEqual({ showSearchInSidebar: true, futureKey: [1], showThreadsInSidebar: false });
+    expect(next).toEqual({
+      showSearchInSidebar: true,
+      futureKey: [1],
+      showThreadsInSidebar: false,
+    });
     expect(sanitizeMindroomAccountSettings(next)).toEqual({
       ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
       showThreadsInSidebar: false,
