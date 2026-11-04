@@ -36,6 +36,7 @@ import { useRelevantImagePacks } from '../../hooks/useImagePacks';
 import { useRecentEmoji } from '../../hooks/useRecentEmoji';
 import { useFilePicker } from '../../hooks/useFilePicker';
 import { addRecentEmoji } from '../../plugins/recent-emoji';
+import { isNamedEmoji } from '../../plugins/recent-emoji-list';
 import { EmojiGroupId, type IEmoji, emojiGroups, withSkinTone } from '../../plugins/emoji';
 import { type ImagePack, ImageUsage, PackImageReader } from '../../plugins/custom-emoji';
 import { emojiSkinToneAtom } from '../../state/emojiSkinTone';
@@ -245,11 +246,11 @@ export function EmojiBoard(props: EmojiBoardProps) {
     });
     if (stickerTab) return packGroups;
 
-    const recentItems = recentEmoji.map((item) =>
-      item instanceof PackImageReader
-        ? toImageItem(item, EmojiType.CustomEmoji)
-        : toUnicodeItem(item)
-    );
+    // The board loads with the emoji data, so its Unicode recent emoji all have names.
+    const recentItems = recentEmoji.flatMap((item) => {
+      if (item instanceof PackImageReader) return [toImageItem(item, EmojiType.CustomEmoji)];
+      return isNamedEmoji(item) ? [toUnicodeItem(item)] : [];
+    });
     const recentGroups: BoardGroup[] =
       recentItems.length > 0
         ? [

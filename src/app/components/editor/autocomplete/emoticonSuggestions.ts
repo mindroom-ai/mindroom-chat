@@ -1,5 +1,6 @@
 import { ImageUsage, type ImagePack, type PackImageReader } from '../../../plugins/custom-emoji';
-import { emojis, type IEmoji, type SkinTone, withSkinTone } from '../../../plugins/emoji';
+import type { IEmoji } from '../../../plugins/emoji';
+import { type SkinTone, withSkinTone } from '../../../plugins/skinTone';
 
 /** A Unicode emoji or a custom emoji from one of the account's packs, offered for `:query`. */
 export type EmoticonSuggestion =
@@ -59,13 +60,14 @@ const shownShortcode = (needle: string, emoji: IEmoji): string =>
 
 /**
  * Emoji for the `:query` the user is typing: custom emoji of `packs` (the account's, its global
- * packs and those of the room and its spaces) and Unicode emoji in the given skin tone. Better
- * matches come first, custom emoji before Unicode ones that match as well. The same image listed
- * in two packs appears once.
+ * packs and those of the room and its spaces) and the Unicode emoji of `unicodeEmojis` in the
+ * given skin tone. Better matches come first, custom emoji before Unicode ones that match as
+ * well. The same image listed in two packs appears once.
  */
 export const getEmoticonSuggestions = (
   needle: string,
   packs: ImagePack[],
+  unicodeEmojis: readonly IEmoji[],
   tone: SkinTone,
   limit = MAX_EMOTICON_SUGGESTIONS
 ): EmoticonSuggestion[] => {
@@ -94,7 +96,7 @@ export const getEmoticonSuggestions = (
     });
   });
 
-  emojis.forEach((emoji) => {
+  unicodeEmojis.forEach((emoji) => {
     const score = rank(needle, emoji.shortcodes, [emoji.label]);
     if (score === undefined) return;
     const toned = withSkinTone(emoji, tone);

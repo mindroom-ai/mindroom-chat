@@ -18,7 +18,8 @@ import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRelevantImagePacks } from '../../../hooks/useImagePacks';
 import { useKeyDown } from '../../../hooks/useKeyDown';
 import { ImageUsage } from '../../../plugins/custom-emoji';
-import { addRecentEmoji } from '../../../plugins/recent-emoji';
+import { useEmojiData } from '../../../plugins/emojiData';
+import { addRecentEmoji } from '../../../plugins/recent-emoji-list';
 import { emojiSkinToneAtom } from '../../../state/emojiSkinTone';
 import { onTabPress } from '../../../utils/keyboard';
 import { mxcUrlToHttp } from '../../../utils/matrix';
@@ -117,11 +118,13 @@ export function EmoticonAutocomplete(props: EmoticonAutocompleteProps) {
   const [t] = useTranslation();
   const packs = useRelevantImagePacks(ImageUsage.Emoticon, packRooms);
   const tone = useAtomValue(emojiSkinToneAtom);
+  // Unicode emoji join the custom ones once the emoji data, asked for by the first query, is in.
+  const emojiData = useEmojiData();
 
   const needle = readEmoticonQuery(query.text);
   const suggestions = useMemo(
-    () => (needle ? getEmoticonSuggestions(needle, packs, tone) : []),
-    [needle, packs, tone]
+    () => (needle ? getEmoticonSuggestions(needle, packs, emojiData?.emojis ?? [], tone) : []),
+    [needle, packs, emojiData, tone]
   );
 
   const hasSuggestions = suggestions.length > 0;

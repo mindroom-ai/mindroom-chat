@@ -3,7 +3,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from './utils/atomWithLocalStorage';
-import { SKIN_TONES, type SkinTone } from '../plugins/emoji';
+import { SKIN_TONES, type SkinTone } from '../plugins/skinTone';
 
 const STORAGE_KEY = 'emojiSkinTone';
 

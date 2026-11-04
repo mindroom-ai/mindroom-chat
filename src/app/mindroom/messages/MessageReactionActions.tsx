@@ -8,8 +8,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useRelevantImagePacks } from '../../hooks/useImagePacks';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { ImageUsage } from '../../plugins/custom-emoji';
-import { getRecentEmojis } from '../../plugins/recent-emoji';
-import { useRecentEmoji } from '../../hooks/useRecentEmoji';
+import { type RecentEmoji, useRecentEmoji } from '../../hooks/useRecentEmoji';
 import { ReactionViewer } from '../../features/room/reaction-viewer';
 import * as css from '../../features/room/message/styles.css';
 
@@ -39,8 +38,6 @@ function QuickReaction({ label, onSelect, children }: QuickReactionProps) {
     </IconButton>
   );
 }
-
-type RecentEmoji = ReturnType<typeof getRecentEmojis>[number];
 
 const isCustomEmoji = (emoji: RecentEmoji): emoji is Extract<RecentEmoji, { url: string }> =>
   typeof (emoji as { url?: unknown }).url === 'string';

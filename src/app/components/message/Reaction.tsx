@@ -5,7 +5,7 @@ import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { Text, as } from 'folds';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMemberDisplayName } from '../../utils/room';
-import { getEmojiByUnicode } from '../../plugins/emoji';
+import { useEmojiData } from '../../plugins/emojiData';
 import * as css from './Reaction.css';
 
 type ReactionProps = {
@@ -67,6 +67,8 @@ const MAX_NAMED_REACTORS = 5;
 /** "Alice, Bob and 3 others reacted with :thumbsup:" for a reaction chip's tooltip. */
 export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMsgProps) {
   const { t, i18n } = useTranslation();
+  // A Unicode reaction shows itself until the emoji data, asked for here, gives its shortcode.
+  const emojiData = useEmojiData();
   const names = events.map((event) => {
     const sender = event.getSender() ?? '';
     return getMemberDisplayName(room, sender) ?? sender;
@@ -79,7 +81,7 @@ export function ReactionTooltipMsg({ room, reaction, events }: ReactionTooltipMs
     .find((value): value is string => typeof value === 'string');
   const shortcode = reaction.startsWith('mxc://')
     ? customShortcode ?? reaction
-    : getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction;
+    : emojiData?.getEmojiByUnicode(reaction)?.shortcode ?? customShortcode ?? reaction;
 
   return (
     <Trans
