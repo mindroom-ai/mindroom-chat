@@ -6,7 +6,6 @@ import type { SecretStorageKeyTuple } from 'matrix-js-sdk/lib/secret-storage';
 import type { VerificationRequest } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useAlive } from '../../../hooks/useAlive';
-import { SettingTile } from '../../../components/setting-tile';
 import { ManualVerificationTile } from '../../../components/ManualVerification';
 import type { SecretStorageKeyContent } from '../../../components/SecretStorage';
 import { ContainerColor } from '../../../styles/ContainerColor.css';
@@ -160,16 +159,31 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
       className={ContainerColor({ variant: 'Warning' })}
       style={PANEL_STYLE}
     >
-      <SettingTile
-        before={<Icon src={Icons.ShieldUser} style={{ color: color.Warning.Main }} />}
-        title={t(`${KEY}.verifyDeviceDescription`)}
-        after={
-          <Box gap="200" alignItems="Center">
-            {openManual && !manual && (
-              <Button size="300" radii="300" variant="Warning" fill="Soft" onClick={openManual}>
-                <Text size="B300">{t(`${KEY}.verifyManually`)}</Text>
-              </Button>
-            )}
+      <Box gap="300" alignItems="Start">
+        <Icon src={Icons.ShieldUser} style={{ color: color.Warning.Main, flexShrink: 0 }} />
+        <Box direction="Column" gap="200" grow="Yes" style={{ minWidth: 0 }}>
+          <Text size="T300">{t(`${KEY}.verifyDeviceDescription`)}</Text>
+          <Text size="T200">
+            <Trans
+              i18nKey={helpKey}
+              components={{
+                ...EMPHASIS,
+                toggle: (
+                  <Text
+                    as="button"
+                    type="button"
+                    size="T200"
+                    aria-expanded={learnMore}
+                    onClick={() => setLearnMore((open) => !open)}
+                    style={INLINE_BUTTON}
+                  />
+                ),
+              }}
+            />
+          </Text>
+          {learnMore && <StepsFromOtherDevice onManual={openManual} />}
+          {/* Under the text rather than beside it, so a phone keeps the sentence readable. */}
+          <Box gap="200" alignItems="Center" wrap="Wrap">
             <Button
               size="300"
               radii="300"
@@ -181,34 +195,19 @@ export function ThisDeviceVerification({ onRequest }: ThisDeviceVerificationProp
             >
               <Text size="B300">{t(`${KEY}.verify`)}</Text>
             </Button>
+            {openManual && !manual && (
+              <Button size="300" radii="300" variant="Warning" fill="Soft" onClick={openManual}>
+                <Text size="B300">{t(`${KEY}.verifyManually`)}</Text>
+              </Button>
+            )}
           </Box>
-        }
-      >
-        <Text size="T200">
-          <Trans
-            i18nKey={helpKey}
-            components={{
-              ...EMPHASIS,
-              toggle: (
-                <Text
-                  as="button"
-                  type="button"
-                  size="T200"
-                  aria-expanded={learnMore}
-                  onClick={() => setLearnMore((open) => !open)}
-                  style={INLINE_BUTTON}
-                />
-              ),
-            }}
-          />
-        </Text>
-        {learnMore && <StepsFromOtherDevice onManual={openManual} />}
-        {error && (
-          <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
-            {error}
-          </Text>
-        )}
-      </SettingTile>
+          {error && (
+            <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+              {error}
+            </Text>
+          )}
+        </Box>
+      </Box>
       {manual && secretStorageKey && (
         <ManualVerificationTile
           secretStorageKeyId={secretStorageKey[0]}
