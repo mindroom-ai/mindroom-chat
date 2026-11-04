@@ -79,11 +79,16 @@ a {
   color: inherit;
 }
 
+/* The monospace stack, for code and for the tool names, arguments and output messages show. */
+:root {
+  --font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+}
+
 code,
 kbd,
 pre,
 samp {
-  font-family: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
 }
 
 /* Code reads left to right in every app language; inline code keeps its own direction without
