@@ -12,7 +12,10 @@ export type Choice<V> = {
 };
 
 type ChoiceButtonProps<V> = {
-  /** Names the button for assistive technology; the visible text is the current choice. */
+  /**
+   * What the button sets, as its accessible description; its name is the current choice it
+   * shows, so it reads as "English, App Language".
+   */
   label: string;
   value: V;
   choices: ReadonlyArray<Choice<V>>;
@@ -83,7 +86,7 @@ export function ChoiceButton<V extends string | number>({
   return (
     <>
       <Button
-        aria-label={label}
+        aria-description={label}
         aria-haspopup="menu"
         aria-expanded={anchor !== undefined}
         disabled={disabled}
