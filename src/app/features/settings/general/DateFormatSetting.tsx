@@ -33,7 +33,7 @@ const PRESET_FORMATS = [
 ];
 const CUSTOM = 'custom';
 
-const HINT_PREFIX = 'settings.general.dateTime.formatHints' as const;
+const HINT_PREFIX = 'settings.general.dateTime.formatHints';
 
 /** dayjs tokens per group, with the key of their explanation. */
 const TOKEN_GROUPS = [

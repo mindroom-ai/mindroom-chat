@@ -3,6 +3,7 @@ import { atom, type WritableAtom, useSetAtom } from 'jotai';
 import { ClientEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../../types/matrix/accountData';
 import { isRecord } from '../utils/isRecord';
+import { matchesEnum } from '../utils/matchesEnum';
 
 export type MDirectAction =
   | { type: 'INITIALIZE'; rooms: Set<string> }
@@ -43,7 +44,7 @@ export const useBindMDirectAtom = (mx: MatrixClient, directAtom: MDirectAtom = m
     });
 
     const handleAccountData = (event: MatrixEvent) => {
-      if (event.getType() !== AccountDataEvent.Direct) return;
+      if (!matchesEnum(event.getType(), AccountDataEvent.Direct)) return;
       setDirects({ type: 'UPDATE', rooms: getMDirects(event) });
     };
 

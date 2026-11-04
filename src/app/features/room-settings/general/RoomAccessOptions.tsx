@@ -12,6 +12,7 @@ import { useRoomPermissions } from '../../../hooks/useRoomPermissions';
 import { useStateEvent } from '../../../hooks/useStateEvent';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { HistoryVisibility, StateEvent } from '../../../../types/matrix/room';
+import { matchesEnum } from '../../../utils/matchesEnum';
 import { type Choice, ChoiceButton } from '../../settings/ChoiceButton';
 import {
   ACCESS_LABEL,
@@ -63,11 +64,11 @@ function AccessTile({ room, space }: OptionProps) {
   const parents = useAtomValue(roomToParentsAtom).get(room.roomId);
   const { busy, refused, write } = useStateWrite(room);
 
-  const content = rulesEvent?.getContent() as Record<string, unknown> | undefined;
+  const content = rulesEvent?.getContent<Record<string, unknown>>();
   const current = typeof content?.join_rule === 'string' ? content.join_rule : 'invite';
   const spaceIds = [...(parents ?? [])];
   const choices = availableAccessChoices(room.getVersion(), spaceIds.length > 0, current);
-  const known = choices.some((choice) => choice === current);
+  const known = choices.some((choice) => matchesEnum(current, choice));
   const options: Choice<string>[] = choices.map((choice) => ({
     value: choice as string,
     label: t(`sharedUi.joinRulesSwitcher.${ACCESS_LABEL[choice]}` as never),

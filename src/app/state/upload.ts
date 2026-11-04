@@ -164,7 +164,7 @@ export const useBindUploadAtom = (
       fileType: file.type || undefined,
       hideFilename,
       onPromise: (promise) => {
-        request = promise as Promise<UploadResponse>;
+        request = promise;
         requestRef.current = request;
         store.set(uploadAtom, { promise: request });
       },

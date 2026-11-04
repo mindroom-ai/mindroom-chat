@@ -26,6 +26,7 @@ import { Dialog, Header } from '../glass/GlassPrimitives';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { JoinRule as RoomJoinRule, Membership } from '../../../types/matrix/room';
 import { isRoomId } from '../../utils/matrix';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /** The join rules access can be decided from. */
 export type RoomAccessJoinRule = JoinRule;
@@ -114,18 +115,18 @@ function RoomAccessSession({
     (next: string) => {
       setLiveMembership(next);
       const current = attemptRef.current;
-      if (next === Membership.Join) {
+      if (matchesEnum(next, Membership.Join)) {
         setAttempt(undefined);
         setDialogOpen(false);
         return;
       }
-      if (next === Membership.Knock) {
+      if (matchesEnum(next, Membership.Knock)) {
         if (current?.kind === 'knock') setAttempt({ ...current, status: 'succeeded' });
         setDialogOpen(false);
         return;
       }
       // A repeated invite leaves an accepted invite pending; anything else ends the attempt.
-      if (current && !(current.kind === 'join' && next === Membership.Invite)) {
+      if (current && !(current.kind === 'join' && matchesEnum(next, Membership.Invite))) {
         setAttempt(undefined);
       }
     },
@@ -145,7 +146,8 @@ function RoomAccessSession({
     // Both our own member state event and the membership event report a change in the target.
     const onMemberState = (event: MatrixEvent) => {
       const ownMemberEvent =
-        event.getType() === EventType.RoomMember && event.getStateKey() === mx.getUserId();
+        matchesEnum(event.getType(), EventType.RoomMember) &&
+        event.getStateKey() === mx.getUserId();
       if (!ownMemberEvent || !isTarget(event.getRoomId())) return;
       const membership: unknown = event.getContent().membership;
       if (typeof membership === 'string') signal(membership);
@@ -205,11 +207,11 @@ function RoomAccessSession({
   };
 
   const join = () => {
-    runAttempt('join', () => mx.joinRoom(joinTarget, { viaServers }));
+    void runAttempt('join', () => mx.joinRoom(joinTarget, { viaServers }));
   };
 
   const knock = (reason: string | undefined) => {
-    runAttempt('knock', () => mx.knockRoom(joinTarget, { reason, viaServers }));
+    void runAttempt('knock', () => mx.knockRoom(joinTarget, { reason, viaServers }));
   };
 
   const loading = attempt?.status === 'loading';

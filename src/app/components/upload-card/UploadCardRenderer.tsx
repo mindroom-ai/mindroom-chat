@@ -141,11 +141,11 @@ export const UploadCardRenderer = ({
   useEffect(() => {
     // A file that could not be prepared already carries its error and must never start.
     if (blockUploadError || upload.status !== UploadStatus.Idle) return;
-    startUpload();
+    void startUpload();
   }, [blockUploadError, upload.status, startUpload]);
 
   const cancelAndRemove = () => {
-    cancelUpload();
+    void cancelUpload();
     onRemove(file);
   };
 
@@ -156,7 +156,7 @@ export const UploadCardRenderer = ({
   );
   // Pictures and videos can be sent as spoilers (MSC4193); other files have no preview to hide.
   const canBeSpoiler = mimeType.startsWith('image/') || mimeType.startsWith('video/');
-  const name = fileNameOf(originalFile as File) || fileNameOf(file as File);
+  const name = fileNameOf(originalFile) || fileNameOf(file);
 
   return (
     <UploadCard
@@ -199,7 +199,7 @@ export const UploadCardRenderer = ({
           upload={upload}
           blockedError={blocked}
           maxUploadSize={maxUploadSize}
-          onRetry={startUpload}
+          onRetry={() => void startUpload()}
           retryLabel={t('sharedUi.uploadCardRenderer.retry')}
         />
       }

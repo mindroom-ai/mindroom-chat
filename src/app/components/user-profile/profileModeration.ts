@@ -1,4 +1,5 @@
 import { Membership } from '../../../types/matrix/room';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /** What one member may do to another in a room, by the Matrix authorization rules. */
 export type ModerationAbilities = {
@@ -41,7 +42,7 @@ export const moderationAbilities = ({
     membership === Membership.Join ||
     membership === Membership.Invite ||
     membership === Membership.Knock;
-  const away = membership === undefined || membership === Membership.Leave;
+  const away = membership === undefined || matchesEnum(membership, Membership.Leave);
   const banned = membership === Membership.Ban;
   return {
     kick: outranks && present && mine >= required.kick,

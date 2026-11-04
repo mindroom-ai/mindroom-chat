@@ -74,7 +74,7 @@ function DiagnosticsExport() {
           radii="300"
           outlined
           disabled={exporting}
-          onClick={handleExport}
+          onClick={() => void handleExport()}
           before={exporting ? <Spinner size="100" /> : undefined}
         >
           <Text size="B300">{t('featureUi.settings.about.exportDiagnostics')}</Text>
@@ -162,11 +162,16 @@ function DeepTraceSetting() {
             radii="300"
             outlined
             disabled={pending}
-            onClick={handleClear}
+            onClick={() => void handleClear()}
           >
             <Text size="B300">{t('featureUi.settings.about.clearTrace')}</Text>
           </Button>
-          <Switch variant="Primary" value={enabled} onChange={handleToggle} disabled={pending} />
+          <Switch
+            variant="Primary"
+            value={enabled}
+            onChange={(next) => void handleToggle(next)}
+            disabled={pending}
+          />
         </Box>
       }
     />
@@ -334,7 +339,7 @@ export function About({ requestClose }: AboutProps) {
       variant="Secondary"
       fill="Soft"
       outlined
-      onClick={() => clearAllCacheAndReload(client)}
+      onClick={() => void clearAllCacheAndReload(client)}
     >
       <Text size="B300">{t('featureUi.settings.about.clearCache')}</Text>
     </Button>

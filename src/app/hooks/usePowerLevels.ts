@@ -3,6 +3,7 @@ import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../types/matrix/room';
 import { useStateEventCallback } from './useStateEventCallback';
 import { useForceUpdate } from './useForceUpdate';
+import { matchesEnum } from '../utils/matchesEnum';
 
 /** Levels keyed by event type, user ID or notification key. */
 type LevelMap = Record<string, number>;
@@ -101,7 +102,10 @@ export const usePowerLevels = (room: Room): IPowerLevels => {
   const [version, refresh] = useForceUpdate();
   const onPowerLevelsChange = useCallback(
     (event: MatrixEvent) => {
-      if (event.getRoomId() === room.roomId && event.getType() === StateEvent.RoomPowerLevels) {
+      if (
+        event.getRoomId() === room.roomId &&
+        matchesEnum(event.getType(), StateEvent.RoomPowerLevels)
+      ) {
         refresh();
       }
     },

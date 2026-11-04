@@ -69,7 +69,7 @@ const useCachedActiveAvatar = (
     if (!httpUrl) return undefined;
     const accessToken = mx.getAccessToken();
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         let response = await fetch(
           httpUrl,
@@ -278,7 +278,7 @@ export function SettingsTab() {
             error={error}
             onOpenSettings={openSettings}
             onSwitchAccount={handleSwitch}
-            onRemoveAccount={handleRemove}
+            onRemoveAccount={(session) => void handleRemove(session)}
             onAddAccount={handleAddAccount}
             onClose={() => setSwitcherOpen(false)}
           />

@@ -34,6 +34,7 @@ import { AccountDataEvent } from '../../../types/matrix/accountData';
 import { StateEvent } from '../../../types/matrix/room';
 import { selectFile } from '../../utils/dom';
 import { getAccountData, getStateEvent } from '../../utils/room';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /** Where a room pack lives: the room and the state key of its `im.ponies.room_emotes` event. */
 export type ImagePackAddress = PackAddress;
@@ -47,9 +48,8 @@ const readPack = (mx: MatrixClient, address: ImagePackAddress | undefined): Pack
   const room = mx.getRoom(address.roomId);
   if (!room) return {};
   return (
-    (getStateEvent(room, StateEvent.PoniesRoomEmotes, address.stateKey)?.getContent() as
-      | PackContent
-      | undefined) ?? {}
+    getStateEvent(room, StateEvent.PoniesRoomEmotes, address.stateKey)?.getContent<PackContent>() ??
+    {}
   );
 };
 
@@ -67,7 +67,7 @@ const watchPack = (
 ): (() => void) | undefined => {
   if (!address) {
     const onAccountData = (event: MatrixEvent) => {
-      if (event.getType() === AccountDataEvent.PoniesUserEmotes) onChange();
+      if (matchesEnum(event.getType(), AccountDataEvent.PoniesUserEmotes)) onChange();
     };
     client.on(ClientEvent.AccountData, onAccountData);
     return () => {
@@ -79,7 +79,8 @@ const watchPack = (
   if (!state) return undefined;
   const onStateEvent = (event: MatrixEvent) => {
     const isThisPack =
-      event.getType() === StateEvent.PoniesRoomEmotes && event.getStateKey() === address.stateKey;
+      matchesEnum(event.getType(), StateEvent.PoniesRoomEmotes) &&
+      event.getStateKey() === address.stateKey;
     if (isThisPack) onChange();
   };
   state.on(RoomStateEvent.Events, onStateEvent);
@@ -309,7 +310,7 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
                       variant="Success"
                       radii="300"
                       disabled={saving}
-                      onClick={handleApply}
+                      onClick={() => void handleApply()}
                       before={
                         saving ? <Spinner size="100" variant="Success" fill="Solid" /> : undefined
                       }
@@ -396,7 +397,7 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
                         fill="Soft"
                         radii="300"
                         disabled={uploading}
-                        onClick={handleUpload}
+                        onClick={() => void handleUpload()}
                         before={uploading ? <Spinner size="100" variant="Secondary" /> : undefined}
                       >
                         <Text as="span" size="B300">

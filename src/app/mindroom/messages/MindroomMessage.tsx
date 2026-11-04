@@ -587,8 +587,7 @@ export type MessageProps = MessageSubject &
   };
 
 const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
-  const target = (evt.currentTarget.parentElement?.parentElement ??
-    evt.currentTarget) as HTMLElement;
+  const target = evt.currentTarget.parentElement?.parentElement ?? evt.currentTarget;
   const rect = target.getBoundingClientRect();
   return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
 };
@@ -687,7 +686,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const senderId = mEvent.getSender() ?? '';
     const confirmed = isConfirmedMatrixEventId(eventId);
     const content = useMemo(
-      () => resolvedMessageContent ?? (mEvent.getContent() as Record<string, unknown>),
+      () => resolvedMessageContent ?? mEvent.getContent<Record<string, unknown>>(),
       [mEvent, resolvedMessageContent]
     );
     const extensionState = useMindroomMessageExtensionState(content, !!menuAnchor, mEvent);

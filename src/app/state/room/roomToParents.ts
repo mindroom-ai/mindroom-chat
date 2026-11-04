@@ -14,6 +14,7 @@ import {
   RoomStateEvent,
 } from 'matrix-js-sdk';
 import { type RoomToParents, StateEvent } from '../../../types/matrix/room';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 export type RoomToParentsAction =
   | { type: 'INITIALIZE'; roomToParents: RoomToParents }
@@ -94,7 +95,10 @@ export const getSpaceChildIds = (space: Room): string[] =>
 const isTrackedSpace = (room: Room): boolean => {
   if (!room.isSpaceRoom()) return false;
   const membership = room.getMyMembership();
-  return membership !== KnownMembership.Invite && membership !== KnownMembership.Ban;
+  return (
+    !matchesEnum(membership, KnownMembership.Invite) &&
+    !matchesEnum(membership, KnownMembership.Ban)
+  );
 };
 
 /** Builds the parents of every room and follows Space changes for the current account. */
@@ -124,11 +128,11 @@ export const useBindRoomToParentsAtom = (
     };
     const handleMembership = (room: Room, membership: string) => {
       if (!room.isSpaceRoom()) return;
-      if (membership === KnownMembership.Join) putSpace(room);
+      if (matchesEnum(membership, KnownMembership.Join)) putSpace(room);
       else setParents({ type: 'DELETE', parent: room.roomId });
     };
     const handleStateEvent = (event: MatrixEvent) => {
-      if (event.getType() !== StateEvent.SpaceChild) return;
+      if (!matchesEnum(event.getType(), StateEvent.SpaceChild)) return;
       const roomId = event.getRoomId();
       const space = roomId ? mx.getRoom(roomId) : null;
       if (space && isTrackedSpace(space)) putSpace(space);

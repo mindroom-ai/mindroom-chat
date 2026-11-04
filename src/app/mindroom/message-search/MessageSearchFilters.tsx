@@ -8,6 +8,7 @@ import { RoomIcon } from '../../components/room-avatar';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { isMindroomEmojiRoom } from '../../utils/room';
 import * as css from './MessageSearch.css';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 const nameOrder = new Intl.Collator(undefined, { sensitivity: 'base', numeric: true });
 
@@ -26,7 +27,7 @@ const pickableRooms = (
         .getRooms()
         .filter(
           (room) =>
-            room.getMyMembership() === KnownMembership.Join &&
+            matchesEnum(room.getMyMembership(), KnownMembership.Join) &&
             !room.isSpaceRoom() &&
             !isMindroomEmojiRoom(room)
         )

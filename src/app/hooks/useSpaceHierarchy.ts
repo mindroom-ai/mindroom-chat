@@ -11,6 +11,7 @@ import {
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { RoomType, StateEvent } from '../../types/matrix/room';
 import { useMatrixClient } from './useMatrixClient';
+import { matchesEnum } from '../utils/matchesEnum';
 
 /** `m.space.child` content. */
 type SpaceChildContent = {
@@ -86,7 +87,7 @@ const isLiveLink = (link: SpaceChildLink): boolean =>
 export const getLocalSpaceChildren = (space: Room): SpaceChildLink[] =>
   space.currentState.getStateEvents(StateEvent.SpaceChild).map((event: MatrixEvent) => ({
     roomId: event.getStateKey() ?? '',
-    content: event.getContent() as Partial<SpaceChildContent>,
+    content: event.getContent<Partial<SpaceChildContent>>(),
     ts: event.getTs(),
   }));
 
@@ -169,7 +170,7 @@ const useSpaceTreeVersion = (client: MatrixClient): number => {
   useEffect(() => {
     const bump = () => setVersion((current) => current + 1);
     const onState = (event: MatrixEvent) => {
-      if (event.getType() === StateEvent.SpaceChild) bump();
+      if (matchesEnum(event.getType(), StateEvent.SpaceChild)) bump();
     };
     client.on(RoomStateEvent.Events, onState);
     client.on(ClientEvent.Room, bump);
@@ -239,7 +240,7 @@ export const useSpaceHierarchy = (space: Room): SpaceHierarchy => {
   }, [client, rootId, summaries, version]);
 
   const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: spaceHierarchyQueryKey(rootId) });
+    void queryClient.invalidateQueries({ queryKey: spaceHierarchyQueryKey(rootId) });
   };
 
   return { items, summaries, loading: query.isLoading, refresh };

@@ -40,6 +40,11 @@ import {
 import { MessageEvent } from '../../types/matrix/room';
 import { MEDIA_SPOILER_PROPERTY } from '../features/room/msgContent';
 
+const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
+
+/** Whether `value`, an event's `msgtype`, is one the SDK names. */
+const isMsgType = (value: string): value is MsgType => MSG_TYPES.has(value);
+
 /** How text bodies are parsed and decorated. */
 type BodyOptions = {
   urlPreview?: boolean;
@@ -244,7 +249,7 @@ export function RenderMessageContent({
     return <MSticker content={content} renderImageContent={renderImageContent} />;
   }
 
-  switch (msgType) {
+  switch (isMsgType(msgType) ? msgType : undefined) {
     case MsgType.Image:
       return withCaption(
         <MImage

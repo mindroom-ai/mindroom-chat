@@ -248,7 +248,7 @@ function ThreadNavItemRow({
                 variant="Background"
                 aria-label={t('thread.resolve')}
                 disabled={updating}
-                onClick={() => setResolved(entry.threadRootId, true)}
+                onClick={() => void setResolved(entry.threadRootId, true)}
               >
                 <Icon size="100" src={Icons.CheckTwice} />
               </IconButton>

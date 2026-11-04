@@ -190,7 +190,7 @@ export function IncomingCalls() {
   const answer = () => {
     setRing(undefined);
     navigateRoom(room.roomId);
-    startCall({ room, kind: 'room', microphone: true, video: ring.video });
+    void startCall({ room, kind: 'room', microphone: true, video: ring.video });
   };
   const decline = () => {
     setRing(undefined);

@@ -27,7 +27,7 @@ export function MatrixId() {
     ? t('featureUi.settings.account.matrixId.copied')
     : t('featureUi.settings.account.matrixId.copy');
   const copyChip = (
-    <Chip radii="Pill" variant="Secondary" onClick={copyUserId}>
+    <Chip radii="Pill" variant="Secondary" onClick={() => void copyUserId()}>
       <Text size="T200">{chipLabel}</Text>
     </Chip>
   );

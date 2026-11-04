@@ -74,6 +74,9 @@ export function MessageBugReportItem(props: {
       radii="300"
       disabled={phase === 'busy' || phase === 'done'}
       after={<Icon size="100" src={Icons.Flag} />}
+      // The click handler keeps the report's promise as its result for the Lane P tests that
+      // await it; a click ignores it.
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
       onClick={delivers ? deliver : download}
     >
       <Text as="span" size="T300" truncate className={MessageMenuItemText}>

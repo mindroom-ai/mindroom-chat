@@ -98,8 +98,7 @@ export const addRoomIdToMDirect = (
   userId: string
 ): Promise<void> =>
   runDirectUpdate(mx, async () => {
-    const current =
-      (mx.getAccountData(EventType.Direct)?.getContent() as MDirectContent | undefined) ?? {};
+    const current = mx.getAccountData(EventType.Direct)?.getContent<MDirectContent>() ?? {};
     const rooms = current[userId] ?? [];
     if (rooms.includes(roomId)) return;
     await mx.setAccountData(EventType.Direct, { ...current, [userId]: [...rooms, roomId] });

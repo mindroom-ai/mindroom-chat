@@ -7,6 +7,7 @@ import {
   type MatrixEvent,
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /** A ring this device has not answered yet. */
 export type IncomingRing = {
@@ -32,7 +33,7 @@ export const readRing = (
   myUserId: string,
   now = Date.now()
 ): IncomingRing | undefined => {
-  if (event.getType() !== EventType.RTCNotification) return undefined;
+  if (!matchesEnum(event.getType(), EventType.RTCNotification)) return undefined;
   const sender = event.getSender();
   const roomId = event.getRoomId();
   const eventId = event.getId();
@@ -69,7 +70,8 @@ export const declineRing = (mx: MatrixClient, ring: IncomingRing) =>
  * any of its devices), so every device stops ringing.
  */
 export const declinedRingId = (event: MatrixEvent, myUserId: string): string | undefined => {
-  if (event.getType() !== EventType.RTCDecline || event.getSender() !== myUserId) return undefined;
+  if (!matchesEnum(event.getType(), EventType.RTCDecline) || event.getSender() !== myUserId)
+    return undefined;
   const relation = event.getContent()['m.relates_to'] as
     | { rel_type?: unknown; event_id?: unknown }
     | undefined;

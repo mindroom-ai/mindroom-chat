@@ -46,7 +46,7 @@ const useServerDiscovery = (server: string): [DiscoveryState, () => void] => {
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });
-    autoDiscovery(createMatrixFetchFn(fetch), server).then(([error, info]) => {
+    void autoDiscovery(createMatrixFetchFn(fetch), server).then(([error, info]) => {
       if (cancelled) return;
       if (info && !error) setState({ status: 'ready', info });
       else

@@ -104,7 +104,9 @@ export function ServerChip({ server }: ServerChipProps) {
       requestClose={close}
       menu={
         <>
-          <ChipMenuItem onClick={copyServer}>{t('sharedUi.userChips.copyServer')}</ChipMenuItem>
+          <ChipMenuItem onClick={() => void copyServer()}>
+            {t('sharedUi.userChips.copyServer')}
+          </ChipMenuItem>
           <ChipMenuItem onClick={openInBrowser}>
             {t('sharedUi.userChips.openInBrowser')}
           </ChipMenuItem>
@@ -145,10 +147,10 @@ export function ShareChip({ userId }: ShareChipProps) {
       requestClose={close}
       menu={
         <>
-          <ChipMenuItem onClick={() => copy(userId)}>
+          <ChipMenuItem onClick={() => void copy(userId)}>
             {t('sharedUi.userChips.copyUserId')}
           </ChipMenuItem>
-          <ChipMenuItem onClick={() => copy(getMatrixToUser(userId))}>
+          <ChipMenuItem onClick={() => void copy(getMatrixToUser(userId))}>
             {t('sharedUi.userChips.copyUserLink')}
           </ChipMenuItem>
         </>

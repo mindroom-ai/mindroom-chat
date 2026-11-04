@@ -82,6 +82,7 @@ import { canPinRoomEvents } from '../threadPinning';
 import { getLinkedTimelines } from '../linkedTimelines';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
 import type { TimelineMessageData, TimelineMessageKind, TimelineMessageRow } from './types';
+import { matchesEnum } from '../../../utils/matchesEnum';
 
 /**
  * The settings below come from the user's preferences; `hideActivity` keeps read receipts
@@ -114,10 +115,10 @@ const RENDERED_STATE_EVENTS = new Set([
 ]);
 
 const getMessageKind = (eventType: string): TimelineMessageKind | undefined => {
-  if (eventType === MessageEvent.RoomMessage) return 'message';
+  if (matchesEnum(eventType, MessageEvent.RoomMessage)) return 'message';
   if (eventType === MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT) return 'approval';
-  if (eventType === MessageEvent.Sticker) return 'sticker';
-  if (eventType === MessageEvent.RoomMessageEncrypted) return 'encrypted';
+  if (matchesEnum(eventType, MessageEvent.Sticker)) return 'sticker';
+  if (matchesEnum(eventType, MessageEvent.RoomMessageEncrypted)) return 'encrypted';
   return undefined;
 };
 

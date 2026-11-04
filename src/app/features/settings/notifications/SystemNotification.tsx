@@ -83,7 +83,7 @@ function EmailNotification() {
           ) : (
             <Switch
               value={result.enabled}
-              onChange={(value: boolean) => setEnabled(result.email as string, value)}
+              onChange={(value: boolean) => void setEnabled(result.email as string, value)}
             />
           )
         ) : undefined

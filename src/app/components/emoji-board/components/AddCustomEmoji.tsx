@@ -1,4 +1,4 @@
-import { ChangeEventHandler, FormEventHandler, useRef, useState } from 'react';
+import { ChangeEventHandler, FormEvent, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Input, Spinner, Text, color } from 'folds';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -95,7 +95,7 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
     setFailed(false);
   };
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (evt) => {
+  const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     evt.stopPropagation();
     if (!canSubmit) return;
@@ -156,7 +156,11 @@ export function AddCustomEmoji({ file, onCancel, onAdd }: AddCustomEmojiProps) {
   }
 
   return (
-    <Box as="form" className={css.AddCustomEmoji} onSubmit={handleSubmit}>
+    <Box
+      as="form"
+      className={css.AddCustomEmoji}
+      onSubmit={(evt: FormEvent<HTMLFormElement>) => void handleSubmit(evt)}
+    >
       <Box alignItems="Center" gap="300">
         {previewUrl && <img className={css.AddCustomEmojiPreview} src={previewUrl} alt="" />}
         <Box direction="Column" gap="100" grow="Yes">

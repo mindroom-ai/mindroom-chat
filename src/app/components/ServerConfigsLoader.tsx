@@ -65,7 +65,7 @@ export function ServerConfigsLoader({ mx, children }: ServerConfigsLoaderProps) 
   useEffect(() => {
     let current = true;
     setConfigs(NOT_LOADED);
-    loadServerConfigs(mx).then((loaded) => {
+    void loadServerConfigs(mx).then((loaded) => {
       if (current) setConfigs(loaded);
     });
     return () => {

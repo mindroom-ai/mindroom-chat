@@ -24,7 +24,7 @@ export function MindroomMarkRoomReadMenuItem(props: MarkRoomReadItemProps) {
   const [privateReceipts] = useSetting(settingsAtom, 'hideActivity');
 
   const markRead = () => {
-    markRoomAndThreadsAsRead(mx, props.room.roomId, privateReceipts);
+    void markRoomAndThreadsAsRead(mx, props.room.roomId, privateReceipts);
     props.onClose();
   };
 

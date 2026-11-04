@@ -22,12 +22,12 @@ export function useFilePicker(
 ): () => void {
   return useCallback(() => {
     if (multiple) {
-      selectFile(accept, true).then((files) => {
+      void selectFile(accept, true).then((files) => {
         if (files.length > 0) (onSelect as (files: File[]) => void)(files);
       });
       return;
     }
-    selectFile(accept).then((file) => {
+    void selectFile(accept).then((file) => {
       if (file) (onSelect as (file: File) => void)(file);
     });
   }, [onSelect, multiple, accept]);

@@ -35,7 +35,7 @@ export function CompactUploadCardRenderer({
 
   useEffect(() => {
     if (tooLargeError || upload.status !== UploadStatus.Idle) return;
-    startUpload();
+    void startUpload();
   }, [tooLargeError, upload.status, startUpload]);
 
   const mxc = upload.status === UploadStatus.Success ? upload.mxc : undefined;
@@ -44,7 +44,7 @@ export function CompactUploadCardRenderer({
   }, [mxc, onComplete]);
 
   const handleRemove = () => {
-    cancelUpload();
+    void cancelUpload();
     onRemove();
   };
 
@@ -72,7 +72,7 @@ export function CompactUploadCardRenderer({
           blockedError={tooLargeError}
           uploadKind={uploadKind}
           maxUploadSize={maxUploadSize}
-          onRetry={startUpload}
+          onRetry={() => void startUpload()}
           retryLabel={t('sharedUi.compactUploadCardRenderer.retry')}
         />
       }

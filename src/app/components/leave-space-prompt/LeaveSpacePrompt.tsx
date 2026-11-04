@@ -106,7 +106,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
                 variant="Critical"
                 size="500"
                 disabled={pending}
-                onClick={leave}
+                onClick={() => void leave()}
                 before={pending ? <Spinner variant="Critical" fill="Solid" size="200" /> : null}
               >
                 <Text size="B500">

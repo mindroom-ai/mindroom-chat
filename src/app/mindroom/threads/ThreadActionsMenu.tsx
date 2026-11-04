@@ -223,7 +223,7 @@ export function ThreadActionsMenu({
               name={tagName}
               onRemove={
                 tagsEditable && !tagsUpdating
-                  ? () => mutations.removeTag(rootId, tagName)
+                  ? () => void mutations.removeTag(rootId, tagName)
                   : undefined
               }
             />
@@ -231,7 +231,7 @@ export function ThreadActionsMenu({
           {tagsEditable && (
             <ThreadTagPicker
               availableTags={tags.availableTags}
-              onAddTag={(tagName) => mutations.addTag(rootId, tagName)}
+              onAddTag={(tagName) => void mutations.addTag(rootId, tagName)}
               disabled={tagsUpdating}
             />
           )}
@@ -260,7 +260,7 @@ export function ThreadActionsMenu({
     const length = Array.from(draft.trim()).length;
     return (
       <ActionDialogFrame label={t('threadActions.editSummary')} onClose={closeDialog} busy={busy}>
-        <form onSubmit={handleSaveSummary}>
+        <form onSubmit={(evt) => void handleSaveSummary(evt)}>
           <Box direction="Column" gap="300">
             <textarea
               aria-label={t('threadActions.summary')}
@@ -328,7 +328,7 @@ export function ThreadActionsMenu({
   if (dialog === 'regenerate') {
     return (
       <ActionDialogFrame label={t('threadActions.regenerate')} onClose={closeDialog} busy={busy}>
-        <form onSubmit={handleRegenerate}>
+        <form onSubmit={(evt) => void handleRegenerate(evt)}>
           <Box direction="Column" gap="300">
             <Text size="T200" priority="300">
               {t('threadActions.regenerateHint')}

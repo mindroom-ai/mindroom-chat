@@ -128,7 +128,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
               type="button"
               before={downloadIcon}
               disabled={saving}
-              onClick={download}
+              onClick={() => void download()}
               variant={downloadState === 'failed' ? 'Critical' : 'Primary'}
               fill="Solid"
               radii="300"

@@ -210,7 +210,7 @@ export function MessageSearch({
         })
       ) {
         // A failed page shows as the query's error state; the promise itself never rejects.
-        fetchNextPage();
+        void fetchNextPage();
       }
     };
     check();
@@ -300,7 +300,7 @@ export function MessageSearch({
           highlights={highlights}
           highlightRegex={highlightRegex}
           renderBody={renderBody}
-          onOpen={open}
+          onOpen={(roomId, target) => void open(roomId, target)}
         />
       </Box>
     );

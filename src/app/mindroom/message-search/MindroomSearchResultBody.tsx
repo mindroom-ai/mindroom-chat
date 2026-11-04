@@ -23,6 +23,7 @@ import {
   shouldUseLightweightSearchResultBody,
 } from './searchResultPreview';
 import * as css from './MindroomSearchResultBody.css';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 const highlightText = (text: string, regex?: RegExp): React.ReactNode => {
   if (!regex) return text;
@@ -75,8 +76,9 @@ const getStateHitText = (
     const text = event.content?.[field];
     return typeof text === 'string' ? text : '';
   };
-  if (event.type === StateEvent.RoomTopic) return `${label('roomTopic')}: ${value('topic')}`;
-  if (event.type === StateEvent.RoomName) return `${label('roomName')}: ${value('name')}`;
+  if (matchesEnum(event.type, StateEvent.RoomTopic))
+    return `${label('roomTopic')}: ${value('topic')}`;
+  if (matchesEnum(event.type, StateEvent.RoomName)) return `${label('roomName')}: ${value('name')}`;
   return undefined;
 };
 
@@ -130,7 +132,7 @@ export function MindroomSearchResultBody({
   const stateText = getStateHitText(event, (key) => t(`featureUi.roomSettings.permissions.${key}`));
   if (stateText !== undefined)
     return <MarkedText text={stateText} highlightRegex={highlightRegex} />;
-  if (event.unsigned?.redacted_because || event.type !== MessageEvent.RoomMessage) {
+  if (event.unsigned?.redacted_because || !matchesEnum(event.type, MessageEvent.RoomMessage)) {
     return <MarkedText text={preview} highlightRegex={highlightRegex} />;
   }
 

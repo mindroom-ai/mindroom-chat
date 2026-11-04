@@ -39,7 +39,7 @@ const isLayerParent = (doc: Document, parent: Element | null): boolean =>
 /** The portaled layer that holds `node`, or undefined for the app itself. */
 export const layerOf = (doc: Document, node: Node | null | undefined): Element | undefined => {
   let element: Element | null =
-    node instanceof doc.defaultView!.Element ? (node as Element) : node?.parentElement ?? null;
+    node instanceof doc.defaultView!.Element ? node : node?.parentElement ?? null;
   while (element && element.parentElement && !isLayerParent(doc, element.parentElement)) {
     element = element.parentElement;
   }

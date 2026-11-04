@@ -41,7 +41,7 @@ export const addEmoticonToPackContent = (
   image: PackImage
 ): PackContent => {
   const existing = content?.images;
-  const images: PackImages = isRecord(existing) ? (existing as PackImages) : {};
+  const images: PackImages = isRecord(existing) ? existing : {};
   if (hasOwn(images, shortcode)) throw new ShortcodeTakenError(shortcode);
 
   const usage = image.usage ?? content?.pack?.usage;
@@ -102,7 +102,7 @@ export const getGlobalImagePacks = (mx: MatrixClient): ImagePack[] => {
     mx,
     AccountDataEvent.PoniesEmoteRooms
   )?.getContent<EmoteRoomsContent>()?.rooms;
-  const rooms = isRecord(listed) ? (listed as NonNullable<EmoteRoomsContent['rooms']>) : {};
+  const rooms = isRecord(listed) ? listed : {};
   return Object.keys(rooms).flatMap((roomId) => {
     const room = mx.getRoom(roomId);
     const stateKeys = rooms[roomId];

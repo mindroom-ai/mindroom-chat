@@ -294,7 +294,7 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
         <Switch
           aria-label={t('featureUi.roomSettings.general.offline.keepOffline')}
           value={snapshot.pinned}
-          onChange={handlePinned}
+          onChange={(pinned) => void handlePinned(pinned)}
         />
       </Box>
       {pinFailed && (
@@ -307,7 +307,7 @@ export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
           clearing={clearPhase === 'clearing'}
           failed={clearPhase === 'failed'}
           onCancel={() => setClearPhase('closed')}
-          onConfirm={handleClear}
+          onConfirm={() => void handleClear()}
         />
       )}
     </Box>

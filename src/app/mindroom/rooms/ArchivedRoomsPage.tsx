@@ -10,7 +10,7 @@ import { joinedArchivedRoomsAtom } from './archivedRooms';
 import { useRoomArchiveAction } from './useRoomArchiveAction';
 
 /** The settings page that lists archived rooms. */
-export const ARCHIVED_ROOMS_SETTINGS_PAGE = 'archived-rooms' as const;
+export const ARCHIVED_ROOMS_SETTINGS_PAGE = 'archived-rooms';
 
 type ArchivedRoomRowProps = {
   roomId: string;

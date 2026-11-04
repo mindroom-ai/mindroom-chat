@@ -306,10 +306,10 @@ export function EmojiBoard(props: EmojiBoardProps) {
     (item: BoardItem, keepOpen: boolean) => {
       if (item.type === EmojiType.Emoji) {
         onEmojiSelect?.(item.data, item.shortcode);
-        addRecentEmoji(client, item.data);
+        void addRecentEmoji(client, item.data);
       } else if (item.type === EmojiType.CustomEmoji) {
         onCustomEmojiSelect?.(item.data, item.shortcode);
-        addRecentEmoji(client, item.data);
+        void addRecentEmoji(client, item.data);
       } else {
         onStickerSelect?.(item.data, item.shortcode, item.label);
       }
@@ -336,7 +336,7 @@ export function EmojiBoard(props: EmojiBoardProps) {
   const handleAdded = (mxc: string, shortcode: string) => {
     setAddFile(undefined);
     onCustomEmojiSelect?.(mxc, shortcode);
-    addRecentEmoji(client, mxc);
+    void addRecentEmoji(client, mxc);
   };
 
   const noStickerPacks = stickerTab && groups.length === 0;

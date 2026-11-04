@@ -1,4 +1,4 @@
-import { FormEventHandler, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Box, Button, Spinner, Switch, Text, color, config } from 'folds';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -24,9 +24,7 @@ const findDirectRoom = (
   client: ReturnType<typeof useMatrixClient>,
   userId: string
 ): string | undefined => {
-  const content = client.getAccountData(EventType.Direct)?.getContent() as
-    | MDirectContent
-    | undefined;
+  const content = client.getAccountData(EventType.Direct)?.getContent<MDirectContent>();
   return content?.[userId]?.find(
     (roomId) => client.getRoom(roomId)?.getMyMembership() === KnownMembership.Join
   );
@@ -63,7 +61,7 @@ export function DirectCreate() {
     if (existingRoomId) navigate(getDirectRoomPath(existingRoomId), { replace: true });
   }, [existingRoomId, navigate]);
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const userId = userIdDraft.trim();
     setFailed(false);
@@ -155,7 +153,12 @@ export function DirectCreate() {
             {t('sharedUi.directCreate.startAPrivateEncryptedChatByEnteringAUserId')}
           </Text>
         </Box>
-        <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+        <Box
+          as="form"
+          direction="Column"
+          gap="400"
+          onSubmit={(event: FormEvent<HTMLFormElement>) => void handleSubmit(event)}
+        >
           {userIdField}
           <Box direction="Column" gap="100">
             <Text size="L400">{t('featureUi.createChat.options')}</Text>

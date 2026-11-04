@@ -69,7 +69,7 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
 
   const { refetch } = summaryQuery;
   const retry = useCallback(() => {
-    refetch();
+    void refetch();
   }, [refetch]);
 
   let state: RoomSummaryState;

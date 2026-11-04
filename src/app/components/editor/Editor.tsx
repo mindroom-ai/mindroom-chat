@@ -146,7 +146,7 @@ const isTaggedBlock = (element: CustomElement): element is TaggedBlock => elemen
 
 function RenderElement(props: RenderElementProps) {
   const { attributes, children } = props;
-  const element = props.element as CustomElement;
+  const element = props.element;
 
   if (isTaggedBlock(element)) {
     const { Tag, className, style } = blockTags[element.type];

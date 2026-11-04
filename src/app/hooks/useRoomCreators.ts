@@ -3,6 +3,7 @@ import { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../types/matrix/room';
 import { useStateEventCallback } from './useStateEventCallback';
 import { useForceUpdate } from './useForceUpdate';
+import { matchesEnum } from '../utils/matchesEnum';
 
 // Room versions from 12 on (and the hydra test version) make the room's creators privileged:
 // they outrank every power level and cannot be demoted.
@@ -46,7 +47,10 @@ export const useRoomCreators = (room: Room): Set<string> => {
   const [version, refresh] = useForceUpdate();
   const refreshOnCreateEvent = useMemo(
     () => (event: MatrixEvent) => {
-      if (event.getRoomId() === room.roomId && event.getType() === StateEvent.RoomCreate) {
+      if (
+        event.getRoomId() === room.roomId &&
+        matchesEnum(event.getType(), StateEvent.RoomCreate)
+      ) {
         refresh();
       }
     },

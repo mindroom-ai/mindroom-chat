@@ -11,6 +11,7 @@ import {
 } from '../plugins/custom-emoji';
 import { useMatrixClient } from './useMatrixClient';
 import { useAccountData } from './useAccountData';
+import { matchesEnum } from '../utils/matchesEnum';
 
 /** Re-renders when image pack state changes in one of `roomIds`. */
 const usePackStateVersion = (mx: MatrixClient, roomIds: Set<string>): number => {
@@ -19,7 +20,11 @@ const usePackStateVersion = (mx: MatrixClient, roomIds: Set<string>): number => 
   const handleStateEvent = useCallback(
     (event: MatrixEvent) => {
       const roomId = event.getRoomId();
-      if (event.getType() === StateEvent.PoniesRoomEmotes && roomId && roomIds.has(roomId)) {
+      if (
+        matchesEnum(event.getType(), StateEvent.PoniesRoomEmotes) &&
+        roomId &&
+        roomIds.has(roomId)
+      ) {
         setVersion((current) => current + 1);
       }
     },

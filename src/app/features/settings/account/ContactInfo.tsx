@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Box, Spinner, Text } from 'folds';
+import { ThreepidMedium } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { SettingTile } from '../../../components/setting-tile';
@@ -23,7 +24,9 @@ export function ContactInfo() {
     client.getThreePids().then(
       ({ threepids }) => {
         if (!current) return;
-        setEmails(threepids.filter((pid) => pid.medium === 'email').map((pid) => pid.address));
+        setEmails(
+          threepids.filter((pid) => pid.medium === ThreepidMedium.Email).map((pid) => pid.address)
+        );
       },
       () => current && setEmails(null)
     );

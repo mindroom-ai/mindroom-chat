@@ -246,7 +246,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
           <RailMenuEntry
             label={t('sharedUi.spaceTabs.copyLink')}
             icon={Icons.Link}
-            onSelect={closeThen(() => copyToClipboard(getSpaceShareLink(client, space)))}
+            onSelect={closeThen(() => void copyToClipboard(getSpaceShareLink(client, space)))}
           />
           <RailMenuEntry
             label={t('sharedUi.spaceTabs.spaceSettings')}
@@ -257,7 +257,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
             <RailMenuEntry
               label={t('sharedUi.spaceTabs.unpin')}
               icon={Icons.Pin}
-              onSelect={closeThen(() => unpinSpaceFromSidebar(client, roomId))}
+              onSelect={closeThen(() => void unpinSpaceFromSidebar(client, roomId))}
             />
           )}
         </SidebarContextMenu>

@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { createStore } from 'jotai';
-import type { IContent, MatrixClient, Room, UploadResponse } from 'matrix-js-sdk';
+import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../../features/room/msgContent';
 import {
   roomIdToUploadItemsAtomFamily,
@@ -77,8 +77,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
           hideFilename: encInfo !== undefined,
           fileType: originalFile.type || undefined,
           name: originalFile.name,
-          onPromise: (request) =>
-            store.set(uploadAtom, { promise: request as Promise<UploadResponse> }),
+          onPromise: (request) => store.set(uploadAtom, { promise: request }),
           onProgress: (progress) => store.set(uploadAtom, { progress }),
           onError: (failure) => settle({ failure }),
           onSuccess: (mxc) => settle({ mxc }),

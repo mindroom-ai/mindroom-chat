@@ -19,7 +19,7 @@ export const useCallSupport = (mx: MatrixClient): CallSupport => {
   const [support, setSupport] = useState<CallSupport>('checking');
   useEffect(() => {
     let active = true;
-    getLivekitServiceUrl(mx).then((url) => {
+    void getLivekitServiceUrl(mx).then((url) => {
       if (active) setSupport(url ? 'supported' : 'unsupported');
     });
     return () => {

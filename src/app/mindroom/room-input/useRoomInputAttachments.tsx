@@ -376,12 +376,12 @@ export const useRoomInputAttachments = ({
   );
 
   const pickFiles = useFilePicker(
-    useCallback((files: File[]) => stageFiles(files).catch(() => undefined), [stageFiles]),
+    useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles]),
     true
   );
   const dropZoneVisible = useFileDropZone(
     fileDropContainerRef,
-    useCallback((files: File[]) => stageFiles(files).catch(() => undefined), [stageFiles])
+    useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles])
   );
 
   // Rendering reads the owner map, so a staged list change re-renders through `roomItems`.

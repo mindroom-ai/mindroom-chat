@@ -1,4 +1,4 @@
-import { EventType, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { EventType, RelationType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { StickerEventContent } from 'matrix-js-sdk/lib/@types/events';
 import {
   getGlobalImagePacks,
@@ -50,7 +50,8 @@ export const composeSticker = (
     info: sticker.info,
   };
   if (relation) Object.assign(content, { 'm.relates_to': relation });
-  const threadRootId = relation?.rel_type === 'm.thread' ? relation.event_id ?? null : null;
+  const threadRootId =
+    relation?.rel_type === RelationType.Thread ? relation.event_id ?? null : null;
   return { threadRootId, content };
 };
 

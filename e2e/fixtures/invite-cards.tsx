@@ -88,7 +88,7 @@ function Fixture() {
   );
 }
 
-i18n.changeLanguage(params.get('lang') ?? 'en').then(async () => {
+void i18n.changeLanguage(params.get('lang') ?? 'en').then(async () => {
   createRoot(document.getElementById('root')!).render(<Fixture />);
   await document.fonts.ready;
   document.body.dataset.fixtureReady = 'true';

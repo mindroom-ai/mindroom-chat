@@ -1,4 +1,4 @@
-import { FormEventHandler, useCallback, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useMemo, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -67,7 +67,7 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
     )
   );
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const fields = new FormData(event.currentTarget);
     const email = String(fields.get('emailInput') ?? '').trim();
@@ -114,7 +114,12 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
   }
 
   return (
-    <Box as="form" direction="Inherit" gap="400" onSubmit={handleSubmit}>
+    <Box
+      as="form"
+      direction="Inherit"
+      gap="400"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => void handleSubmit(event)}
+    >
       <Text size="T300" priority="400">
         <Trans
           i18nKey="sharedUi.passwordResetForm.resetEmailDescription"

@@ -64,7 +64,7 @@ export function AgentCallButton({
         before={
           pending ? <Spinner size="100" variant="Success" /> : <Icon size="100" src={Icons.Phone} />
         }
-        onClick={start}
+        onClick={() => void start()}
       >
         <Text size="B300">{t('mindroomUi.calls.agentCallButton.call')}</Text>
       </Button>

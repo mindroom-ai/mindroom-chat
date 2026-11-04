@@ -63,7 +63,7 @@ export function useAvatarImage(src: string | undefined): AvatarImage {
   useEffect(() => {
     if (!fetching || !src || !mx) return undefined;
     let mounted = true;
-    fetchAvatar(mx, src).then((objectUrl) => {
+    void fetchAvatar(mx, src).then((objectUrl) => {
       if (!mounted) return;
       setState((prev) => {
         if (prev.src !== src) return prev;

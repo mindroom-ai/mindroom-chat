@@ -215,7 +215,7 @@ export function RoomDeveloperToolsPage({
               radii="300"
               variant="Secondary"
               fill="Soft"
-              onClick={() => copyToClipboard(room.roomId).then(setCopied)}
+              onClick={() => void copyToClipboard(room.roomId).then(setCopied)}
             >
               <Text size="B300">
                 {copied ? t('featureUi.settings.account.matrixId.copied') : t(`${TOOLS}.copy`)}

@@ -29,7 +29,7 @@ function AccessTokenTile() {
           radii="300"
           variant="Secondary"
           fill="Soft"
-          onClick={() => copyToClipboard(client.getAccessToken() ?? '').then(setCopied)}
+          onClick={() => void copyToClipboard(client.getAccessToken() ?? '').then(setCopied)}
         >
           <Text size="B300">
             {copied ? t('featureUi.settings.account.matrixId.copied') : t(`${TOOLS}.copy`)}

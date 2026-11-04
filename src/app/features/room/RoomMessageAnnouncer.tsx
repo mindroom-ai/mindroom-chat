@@ -11,6 +11,7 @@ import {
 } from 'matrix-js-sdk';
 import { isMindroomAiRunStreaming } from '../../mindroom/messages/aiRun';
 import { readCanvasNoticeTitle } from '../../mindroom/ui-actions/chatUiProtocol';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /** Announcements kept in the log; screen readers read each one as it is added. */
 const KEPT = 5;
@@ -44,7 +45,7 @@ const replacedId = (event: MatrixEvent): string | undefined => {
 
 /** The text a message shows: its edit's new content, or its own. */
 const shownContent = (event: MatrixEvent): Content => {
-  const content = event.getContent() as Content;
+  const content = event.getContent<Content>();
   const replacement = content['m.new_content'];
   return replacement && typeof replacement === 'object' ? (replacement as Content) : content;
 };
@@ -68,9 +69,9 @@ type Scope = { myUserId: string; threadId: string | undefined; since: number };
  * when one is open. Thread titles, edits and redactions are not new messages.
  */
 export const isAnnounceable = (event: MatrixEvent, { myUserId, threadId, since }: Scope) => {
-  if (event.getType() !== EventType.RoomMessage || event.isRedacted()) return false;
+  if (!matchesEnum(event.getType(), EventType.RoomMessage) || event.isRedacted()) return false;
   if (event.getSender() === myUserId || event.getTs() < since - STALE_MS) return false;
-  if ((event.getContent() as Content)[THREAD_SUMMARY_KEY] !== undefined) return false;
+  if (event.getContent<Content>()[THREAD_SUMMARY_KEY] !== undefined) return false;
   if (!threadId) return true;
   return event.getId() === threadId || event.threadRootId === threadId;
 };
@@ -117,14 +118,14 @@ export function RoomMessageAnnouncer({
       const target = replacedId(event);
       if (target) {
         const original = streaming.get(target);
-        if (!original || isMindroomAiRunStreaming(event.getContent() as Content)) return;
+        if (!original || isMindroomAiRunStreaming(event.getContent<Content>())) return;
         streaming.delete(target);
         announce(original, shownContent(event));
         return;
       }
       if (!isAnnounceable(event, scope)) return;
       const id = event.getId();
-      if (id && isMindroomAiRunStreaming(event.getContent() as Content)) {
+      if (id && isMindroomAiRunStreaming(event.getContent<Content>())) {
         streaming.set(id, event);
         return;
       }

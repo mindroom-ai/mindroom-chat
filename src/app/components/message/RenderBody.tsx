@@ -1,4 +1,5 @@
 import { ReactNode, memo, useMemo } from 'react';
+import { isText } from 'domhandler';
 import parse, { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { color } from 'folds';
@@ -57,7 +58,7 @@ const withHighlight = (
     replace: (domNode: DOMNode) => {
       const replaced = options.replace?.(domNode);
       if (replaced) return replaced;
-      if (domNode.type !== 'text' || !('data' in domNode)) return replaced;
+      if (!isText(domNode)) return replaced;
       const parts = highlightText(regex, domNode.data);
       return parts ? <>{parts}</> : replaced;
     },

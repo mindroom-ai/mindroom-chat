@@ -42,7 +42,7 @@ export function BlockedUsers() {
   const block = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canBlock) return;
-    store([...blocked, candidate]).then((ok) => ok && alive() && setDraft(''));
+    void store([...blocked, candidate]).then((ok) => ok && alive() && setDraft(''));
   };
 
   const unblockLabel = t(`${KEY}.unblock`);
@@ -100,7 +100,7 @@ export function BlockedUsers() {
                   disabled={saving}
                   aria-label={`${unblockLabel} ${userId}`}
                   after={<Icon size="50" src={Icons.Cross} />}
-                  onClick={() => store(blocked.filter((id) => id !== userId))}
+                  onClick={() => void store(blocked.filter((id) => id !== userId))}
                 >
                   <Text size="T200">
                     <bdi>{userId}</bdi>

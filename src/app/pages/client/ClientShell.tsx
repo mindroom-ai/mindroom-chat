@@ -34,7 +34,7 @@ const useSessionDiscoveryInfo = (mx: MatrixClient): AutoDiscoveryInfo => {
     setWellKnown(undefined);
     if (!serverName) return undefined;
     let cancelled = false;
-    autoDiscovery(createMatrixFetchFn(fetch), serverName).then(([, info]) => {
+    void autoDiscovery(createMatrixFetchFn(fetch), serverName).then(([, info]) => {
       if (!cancelled && info) setWellKnown(info);
     });
     return () => {

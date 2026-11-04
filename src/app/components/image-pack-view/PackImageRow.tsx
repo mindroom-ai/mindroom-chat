@@ -67,7 +67,7 @@ function ImageEditForm({ shortcode, image, isTaken, onSave, onCancel }: ImageEdi
     onSave({
       shortcode: trimmed,
       body,
-      usage: usage === 'inherit' ? undefined : (usage as UsageOption),
+      usage: usage === 'inherit' ? undefined : usage,
     });
   };
 

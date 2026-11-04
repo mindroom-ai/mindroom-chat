@@ -13,12 +13,14 @@ import { useAutoDiscoveryInfo } from '../../hooks/useAutoDiscoveryInfo';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../state/room-list/roomList';
 import { getServerEmojiRoomAddress } from './serverEmojiConfig';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 const stateEvent = (room: Room, type: string): MatrixEvent | null | undefined =>
   room.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(type, '');
 
 const isUsable = (room: Room): boolean =>
-  room.getMyMembership() === KnownMembership.Join && !stateEvent(room, EventType.RoomTombstone);
+  matchesEnum(room.getMyMembership(), KnownMembership.Join) &&
+  !stateEvent(room, EventType.RoomTombstone);
 
 // Any server can put any canonical alias on a room it creates; the homeserver's own emoji room
 // is created local-only, so only such a room can be the one an alias names.

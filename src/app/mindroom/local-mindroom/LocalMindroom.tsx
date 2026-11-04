@@ -174,7 +174,7 @@ function LinkedInstallations({ provisioningBaseUrl }: { provisioningBaseUrl: str
   }, [openIdToken, provisioningBaseUrl, t]);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const revoke = async (connectionId: string) => {
@@ -205,7 +205,7 @@ function LinkedInstallations({ provisioningBaseUrl }: { provisioningBaseUrl: str
           radii="300"
           onClick={() => {
             setState({ status: 'loading' });
-            load();
+            void load();
           }}
         >
           <Text size="B300">{t('mindroomUi.local-mindroom.localMindroom.tryAgain')}</Text>

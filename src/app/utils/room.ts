@@ -15,6 +15,7 @@ import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './e
 import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editResolution';
 import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
+import { matchesEnum } from './matchesEnum';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -95,7 +96,7 @@ const relationType = (mEvent: MatrixEvent): string | undefined =>
 
 /** Reactions and edits annotate other events; timelines and unread counts skip them. */
 export const reactionOrEditEvent = (mEvent: MatrixEvent): boolean => {
-  if (mEvent.getType() === EventType.Reaction) return true;
+  if (matchesEnum(mEvent.getType(), EventType.Reaction)) return true;
   const relType = relationType(mEvent);
   return relType === RelationType.Annotation || relType === RelationType.Replace;
 };
@@ -245,7 +246,7 @@ const EDITABLE_MSGTYPES = new Set<string>([MsgType.Text, MsgType.Emote, MsgType.
 /** Whether we may edit the event: our own text message, including one sent as long text. */
 export const canEditEvent = (mx: MatrixClient, mEvent: MatrixEvent): boolean => {
   if (mEvent.getSender() !== mx.getUserId() || mEvent.isRedacted()) return false;
-  if (mEvent.getType() !== MessageEvent.RoomMessage) return false;
+  if (!matchesEnum(mEvent.getType(), MessageEvent.RoomMessage)) return false;
   const relation = mEvent.getRelation();
   if (relation && relation.rel_type !== RelationType.Thread) return false;
   const content = mEvent.getContent();

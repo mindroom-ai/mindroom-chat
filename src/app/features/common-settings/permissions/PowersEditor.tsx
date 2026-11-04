@@ -229,7 +229,7 @@ export function PowersEditor({ requestClose, powerLevels }: PowersEditorProps) {
                 variant="Success"
                 radii="300"
                 disabled={edits.size === 0 || saving}
-                onClick={handleApply}
+                onClick={() => void handleApply()}
                 before={saving ? <Spinner size="100" variant="Success" /> : undefined}
               >
                 <Text size="B300">

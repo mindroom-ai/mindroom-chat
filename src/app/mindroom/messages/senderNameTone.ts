@@ -14,9 +14,10 @@ const readState = (room: Room, type: string): MatrixEvent | undefined =>
 const getPowerLevel = (room: Room, userId: string): number => {
   const memberLevel = room.getMember?.(userId)?.powerLevel;
   if (typeof memberLevel === 'number') return memberLevel;
-  const content = readState(room, 'm.room.power_levels')?.getContent() as
-    | { users?: Record<string, unknown>; users_default?: unknown }
-    | undefined;
+  const content = readState(room, 'm.room.power_levels')?.getContent<{
+    users?: Record<string, unknown>;
+    users_default?: unknown;
+  }>();
   const level = content?.users?.[userId] ?? content?.users_default;
   return typeof level === 'number' ? level : 0;
 };

@@ -72,7 +72,7 @@ const useWelcomeSetupPrompt = (): boolean => {
       writeFirstSeen(storageKey, firstSeen);
     }
     let cancelled = false;
-    (async () => {
+    void (async () => {
       try {
         const { access_token: openIdToken } = await mx.getOpenIdToken();
         const { connections } = await getLocalMindroomConnections(openIdToken, provisioningBaseUrl);

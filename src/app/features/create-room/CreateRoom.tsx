@@ -1,4 +1,4 @@
-import { FormEventHandler, ReactNode, useId, useState } from 'react';
+import { FormEvent, ReactNode, useId, useState } from 'react';
 import {
   Box,
   Button,
@@ -157,7 +157,7 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
     }
   };
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = (event) => {
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     return submitRoom(event.currentTarget as CreateRoomFormElements);
   };
@@ -193,7 +193,13 @@ export function CreateRoomForm({ defaultAccess, space, onCreate }: CreateRoomFor
   const chevron = advanced ? Icons.ChevronTop : Icons.ChevronBottom;
 
   return (
-    <Box as="form" grow="Yes" direction="Column" gap="500" onSubmit={handleSubmit}>
+    <Box
+      as="form"
+      grow="Yes"
+      direction="Column"
+      gap="500"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => void handleSubmit(event)}
+    >
       <LabeledField label={t('featureUi.createRoom.access')}>
         <CreateRoomAccessSelector
           value={access}

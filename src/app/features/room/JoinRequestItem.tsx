@@ -130,7 +130,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             radii="300"
             disabled={busy}
             aria-label={t('featureUi.room.joinRequestItem.approveFromUser', { userId })}
-            onClick={() => run('approve')}
+            onClick={() => void run('approve')}
             before={
               state.status === 'pending' && state.action === 'approve' ? (
                 <Spinner size="50" variant="Success" />
@@ -150,7 +150,7 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
             radii="300"
             disabled={busy}
             aria-label={t('featureUi.room.joinRequestItem.declineFromUser', { userId })}
-            onClick={() => run('decline')}
+            onClick={() => void run('decline')}
             before={
               state.status === 'pending' && state.action === 'decline' ? (
                 <Spinner size="50" variant="Critical" />

@@ -129,7 +129,7 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(functio
         <RoomMenuEntry
           icon={Icons.Link}
           label={t('featureUi.roomNav.roomNavItem.copyLink')}
-          onClick={closeThen(() => copyToClipboard(shareableLink))}
+          onClick={closeThen(() => void copyToClipboard(shareableLink))}
         />
         <RoomMenuEntry
           icon={Icons.Setting}

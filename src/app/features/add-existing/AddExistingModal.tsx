@@ -242,7 +242,7 @@ export function AddExistingModal({ kind, into, requestClose }: AddExistingModalP
           variant="Primary"
           disabled={applying}
           before={applying ? <Spinner variant="Primary" fill="Solid" size="100" /> : undefined}
-          onClick={apply}
+          onClick={() => void apply()}
         >
           <Text size="B300">{t('featureUi.addExisting.applyChanges')}</Text>
         </Button>

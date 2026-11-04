@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ThreepidMedium } from 'matrix-js-sdk';
 import { useMatrixClient } from './useMatrixClient';
 import { useAlive } from './useAlive';
 
@@ -27,7 +28,9 @@ export const useEmailNotifications = (): [
     Promise.all([mx.getThreePids(), mx.getPushers()])
       .then(([{ threepids }, { pushers }]) => {
         if (disposed || !alive()) return;
-        const email = threepids.find((threepid) => threepid.medium === 'email')?.address;
+        const email = threepids.find(
+          (threepid) => threepid.medium === ThreepidMedium.Email
+        )?.address;
         const enabled =
           !!email && pushers.some((pusher) => pusher.kind === 'email' && pusher.pushkey === email);
         setState({ email, enabled });

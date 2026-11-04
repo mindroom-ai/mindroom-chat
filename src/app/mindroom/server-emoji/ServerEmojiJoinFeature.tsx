@@ -23,9 +23,9 @@ const firstTime = (attempts: WeakMap<MatrixClient, Set<string>>, mx: MatrixClien
 };
 
 const hasRoomOverride = (mx: MatrixClient, roomId: string): boolean => {
-  const rules = mx.getAccountData('m.push_rules' as never)?.getContent() as
-    | { global?: { override?: IPushRule[] } }
-    | undefined;
+  const rules = mx
+    .getAccountData('m.push_rules' as never)
+    ?.getContent<{ global?: { override?: IPushRule[] } }>();
   return rules?.global?.override?.some((rule) => rule.rule_id === roomId) ?? false;
 };
 

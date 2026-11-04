@@ -13,6 +13,7 @@ import {
   type RoomMember,
   RoomMemberEvent,
 } from 'matrix-js-sdk';
+import { matchesEnum } from '../utils/matchesEnum';
 
 /** How long a typing notice lasts; also the interval of the stale-member check. */
 export const TYPING_TIMEOUT_MS = 30_000;
@@ -87,7 +88,7 @@ export const roomIdToTypingMembersAtom: TypingMembersAtom = atom<
 
 const isStillTyping = (mx: MatrixClient, roomId: string, userId: string): boolean => {
   const room = mx.getRoom(roomId);
-  if (!room || room.getMyMembership() !== KnownMembership.Join) return false;
+  if (!room || !matchesEnum(room.getMyMembership(), KnownMembership.Join)) return false;
   return room.getMember(userId)?.typing === true;
 };
 

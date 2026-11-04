@@ -31,11 +31,12 @@ import {
 import { useIOSPushEnabled } from '../native/useIOSPushEnabled';
 import { playChime } from '../notifications/playChime';
 import { useBindMindroomAccountSettings } from '../settings/useMindroomAccountSettings';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 const invitedRoomIds = (mx: MatrixClient): string[] =>
   mx
     .getRooms()
-    .filter((room) => room.getMyMembership() === KnownMembership.Invite)
+    .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Invite))
     .map((room) => room.roomId);
 
 /**

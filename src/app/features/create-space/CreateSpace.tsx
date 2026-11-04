@@ -150,7 +150,13 @@ export function CreateSpaceForm({ parent, onCreate }: CreateSpaceFormProps) {
   };
 
   return (
-    <Box as="form" grow="Yes" direction="Column" gap="500" onSubmit={submit}>
+    <Box
+      as="form"
+      grow="Yes"
+      direction="Column"
+      gap="500"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => void submit(event)}
+    >
       <FormSection caption={t('featureUi.createSpace.access')}>
         <CreateRoomAccessSelector
           value={access}

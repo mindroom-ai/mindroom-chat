@@ -1,4 +1,4 @@
-import { FormEventHandler, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -53,7 +53,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
     isAddAccountSearch(searchParams)
   );
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const target = event.target as HTMLFormElement & {
       usernameInput: HTMLInputElement;
@@ -88,7 +88,12 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
   };
 
   return (
-    <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+    <Box
+      as="form"
+      direction="Column"
+      gap="400"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => void handleSubmit(event)}
+    >
       <AuthField caption={t('sharedUi.passwordLoginForm.username2')}>
         <Input
           autoComplete="username"

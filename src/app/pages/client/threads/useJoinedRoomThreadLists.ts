@@ -4,6 +4,7 @@ import { KnownMembership, type Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { loadRoomThreads } from '../../../mindroom/threads/roomThreadList';
+import { matchesEnum } from '../../../utils/matchesEnum';
 
 /** Rooms whose lists load at the same time; the rest wait their turn. */
 const PARALLEL_ROOMS = 3;
@@ -28,7 +29,7 @@ export const useJoinedRoomThreadLists = () => {
       .map((roomId) => mx.getRoom(roomId))
       .filter(
         (room): room is Room =>
-          !!room && room.getMyMembership() === KnownMembership.Join && !room.isSpaceRoom()
+          !!room && matchesEnum(room.getMyMembership(), KnownMembership.Join) && !room.isSpaceRoom()
       );
     if (waiting.length === 0) return undefined;
 
@@ -51,7 +52,7 @@ export const useJoinedRoomThreadLists = () => {
       }
       await listNext();
     };
-    for (let lane = 0; lane < PARALLEL_ROOMS; lane += 1) listNext();
+    for (let lane = 0; lane < PARALLEL_ROOMS; lane += 1) void listNext();
 
     // A room the room list changed under, or the page left, before its first page arrived is
     // listed by the next run; the shared load keeps a room from being requested twice meanwhile.

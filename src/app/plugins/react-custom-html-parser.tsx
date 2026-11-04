@@ -398,7 +398,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
             type="button"
             className={css.CodeBlockAction}
             aria-label={copied ? t('messageCodeBlock.copied') : t('messageCodeBlock.copy')}
-            onClick={copy}
+            onClick={() => void copy()}
           >
             {copied ? <CheckIcon /> : <CopyIcon />}
           </button>
@@ -535,7 +535,7 @@ export const getReactCustomHtmlParser = (
       if (!isTag(domNode)) return undefined;
 
       const { name, attribs } = domNode;
-      const children = domNode.children as ChildNode[];
+      const children = domNode.children;
 
       if (name === 'span' && 'data-mx-spoiler' in attribs) {
         const inner = withoutAttribute(attribs, 'data-mx-spoiler');

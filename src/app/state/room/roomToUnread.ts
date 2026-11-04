@@ -19,6 +19,7 @@ import type { RoomToParents, RoomToUnread, Unread, UnreadInfo } from '../../../t
 import { getUnreadInfo, roomHaveUnread } from '../../utils/room';
 import { isRecord } from '../../utils/isRecord';
 import { roomToParentsAtom } from './roomToParents';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 export type RoomToUnreadAction =
   | { type: 'RESET'; unreadInfos: UnreadInfo[] }
@@ -93,7 +94,7 @@ export const roomToUnreadAtom: RoomToUnreadAtom = atom<RoomToUnread, [RoomToUnre
 );
 
 const isUnreadTracked = (room: Room): boolean =>
-  room.getMyMembership() === KnownMembership.Join && !room.isSpaceRoom();
+  matchesEnum(room.getMyMembership(), KnownMembership.Join) && !room.isSpaceRoom();
 
 const toUnreadAction = (
   mx: MatrixClient,

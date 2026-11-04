@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { EventTimeline, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { StateEvent } from '../../types/matrix/room';
+import { matchesEnum } from '../utils/matchesEnum';
 import { useStateEventCallback } from './useStateEventCallback';
 import { useForceUpdate } from './useForceUpdate';
 import { useStateEvent } from './useStateEvent';
@@ -13,7 +14,7 @@ const useRoomStateVersion = (room: Room, type: StateEvent): number => {
   const [version, refresh] = useForceUpdate();
   const onStateEvent = useCallback(
     (event: MatrixEvent) => {
-      if (event.getRoomId() === room.roomId && event.getType() === type) refresh();
+      if (event.getRoomId() === room.roomId && matchesEnum(event.getType(), type)) refresh();
     },
     [room.roomId, type, refresh]
   );

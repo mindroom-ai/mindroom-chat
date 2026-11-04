@@ -109,7 +109,7 @@ export function PackMetaEditor({ meta, onSave, onCancel }: PackMetaEditorProps) 
               fill="Soft"
               disabled={uploading}
               before={uploading ? <Spinner size="100" variant="Secondary" /> : undefined}
-              onClick={uploadAvatar}
+              onClick={() => void uploadAvatar()}
             >
               <Text as="span" size="B300">
                 {t('sharedUi.packMeta.upload')}

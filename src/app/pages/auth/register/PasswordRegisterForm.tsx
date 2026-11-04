@@ -1,4 +1,4 @@
-import { FormEventHandler, ReactNode, useMemo, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useMemo, useRef, useState } from 'react';
 import { Box, Button, Checkbox, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AuthDict, IAuthData, MatrixClient } from 'matrix-js-sdk';
@@ -233,7 +233,7 @@ export function PasswordRegisterForm(props: {
     else setError({ account: attempt.kind === 'error' ? attempt.error : RegisterError.Unknown });
   };
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (event) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (busy) return;
     const fields = new FormData(event.currentTarget);
@@ -268,7 +268,12 @@ export function PasswordRegisterForm(props: {
   const [firstPolicy, ...otherPolicies] = plan?.terms ?? [];
 
   return (
-    <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
+    <Box
+      as="form"
+      direction="Column"
+      gap="400"
+      onSubmit={(event: FormEvent<HTMLFormElement>) => void handleSubmit(event)}
+    >
       <AuthField caption={t('sharedUi.passwordRegisterForm.username')}>
         <Input
           autoComplete="username"

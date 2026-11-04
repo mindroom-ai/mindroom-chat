@@ -109,7 +109,7 @@ export const makeInviteData = (mx: MatrixClient, room: Room, isSpace: boolean): 
   const senderId = inviteEvent?.getSender();
   const senderMember = senderId ? room.currentState.getMember(senderId) : undefined;
   const rawDisplayName = senderId
-    ? (senderMember?.events.member?.getContent().displayname as string | undefined)
+    ? senderMember?.events.member?.getContent().displayname
     : undefined;
   const topic = room.currentState.getStateEvents('m.room.topic', '')?.getContent().topic;
   const state = (type: string) => room.currentState.getStateEvents(type, '')?.getContent();
@@ -284,7 +284,7 @@ export function InviteCard({
           fill="Soft"
           radii="300"
           disabled={busy}
-          onClick={handleAccept}
+          onClick={() => void handleAccept()}
           before={state === 'joining' ? <Spinner size="100" variant="Success" /> : undefined}
         >
           <Text size="B300">{t('sharedUi.invites.accept')}</Text>
@@ -295,7 +295,7 @@ export function InviteCard({
           fill="None"
           radii="300"
           disabled={busy}
-          onClick={handleDecline}
+          onClick={() => void handleDecline()}
           before={state === 'leaving' ? <Spinner size="100" variant="Critical" /> : undefined}
         >
           <Text size="B300">{t('sharedUi.invites.decline')}</Text>
@@ -379,7 +379,7 @@ export function Invites() {
               variant="Success"
               fill="Soft"
               disabled={acceptingAll}
-              onClick={handleAcceptAll}
+              onClick={() => void handleAcceptAll()}
             >
               <Text size="B300">{t('sharedUi.invites.acceptAll')}</Text>
             </Button>

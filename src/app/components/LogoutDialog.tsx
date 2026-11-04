@@ -126,7 +126,7 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
         <Box direction="Column" gap="200">
           <Button
             variant="Critical"
-            onClick={handleLogout}
+            onClick={() => void handleLogout()}
             disabled={loggingOut}
             before={loggingOut ? <Spinner variant="Critical" fill="Solid" size="200" /> : undefined}
           >

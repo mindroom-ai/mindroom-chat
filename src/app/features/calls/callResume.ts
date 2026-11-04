@@ -14,6 +14,7 @@ import {
 } from '../../utils/safeLocalStorage';
 import type { CallDevices } from './RoomCall';
 import type { ActiveCall, CallOrigin } from './callStore';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /**
  * A call this tab was in when its page went away, kept in the tab's session storage so the page
@@ -174,7 +175,7 @@ export const withdrawLeftoverMemberships = async (
   const rooms = mx
     .getRooms()
     .filter((room) => room.roomId !== keepRoomId)
-    .filter((room) => room.getMyMembership() === KnownMembership.Join);
+    .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Join));
   await withdrawOwnMemberships(mx, rooms);
 };
 

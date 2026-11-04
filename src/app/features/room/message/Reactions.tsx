@@ -31,7 +31,7 @@ type ReactionsProps = {
 const isConfirmedEventId = (eventId: string): boolean => eventId.startsWith('$');
 
 const reactionShortcode = (events: MatrixEvent[]): string | undefined => {
-  const content = events[0]?.getContent?.() as Record<string, unknown> | undefined;
+  const content = events[0]?.getContent?.<Record<string, unknown>>();
   const shortcode = content?.shortcode ?? content?.['com.beeper.reaction.shortcode'];
   return typeof shortcode === 'string' ? shortcode : undefined;
 };

@@ -141,7 +141,7 @@ export const estimateMessageRowHeight = (
   if (textPx === 0) return 0;
   const relation = event.getRelation()?.rel_type;
   if (relation === RelationType.Replace || relation === RelationType.Annotation) return 0;
-  const content = event.getContent() as Record<string, unknown>;
+  const content = event.getContent<Record<string, unknown>>();
   const base = compact ? ROW_BASE_PX.compact : ROW_BASE_PX.comfortable;
   const mediaPx = estimateMediaPx(content, event.getType());
   if (mediaPx !== undefined) return Math.max(textPx, base + mediaPx);

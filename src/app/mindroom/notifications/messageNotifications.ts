@@ -18,6 +18,7 @@ import { isRecord } from '../../utils/isRecord';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../../utils/matrix';
 import { decodeRouteParam } from '../../pages/pathUtils';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_ROOM_PATH } from '../../pages/paths';
+import { matchesEnum } from '../../utils/matchesEnum';
 
 /** Messages older than this when they arrive are a catch-up after time offline, not news. */
 export const MESSAGE_NOTIFY_MAX_AGE_MS = 2 * 60 * 1000;
@@ -117,7 +118,7 @@ export const readMessageNotice = (
   const eventId = event.getId();
   const me = client.getUserId();
   if (!sender || !eventId || !me || sender === me) return undefined;
-  if (room.getMyMembership() !== KnownMembership.Join) return undefined;
+  if (!matchesEnum(room.getMyMembership(), KnownMembership.Join)) return undefined;
   if (event.isRedacted() || event.isDecryptionFailure()) return undefined;
   if (!NOTIFYING_TYPES.has(event.getType())) return undefined;
   if (now - event.getTs() > MESSAGE_NOTIFY_MAX_AGE_MS) return undefined;

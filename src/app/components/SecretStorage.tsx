@@ -151,7 +151,7 @@ export function SecretStorageRecoveryPassphrase(
       inputName="recoveryPassphraseInput"
       loading={state.status === AsyncStatus.Loading}
       errorText={state.status === AsyncStatus.Error ? errorText(state.error) : undefined}
-      onValue={decode}
+      onValue={(value) => void decode(value)}
     />
   );
 }
@@ -187,7 +187,7 @@ export function SecretStorageRecoveryKey(props: RecoveryPromptProps) {
       inputName="recoveryKeyInput"
       loading={state.status === AsyncStatus.Loading}
       errorText={state.status === AsyncStatus.Error ? errorText(state.error) : undefined}
-      onValue={decode}
+      onValue={(value) => void decode(value)}
     />
   );
 }

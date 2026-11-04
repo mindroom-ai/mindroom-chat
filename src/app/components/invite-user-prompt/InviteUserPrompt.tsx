@@ -1,4 +1,4 @@
-import { FormEventHandler, RefObject, useId, useRef, useState } from 'react';
+import { FormEvent, RefObject, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -86,7 +86,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
     setUserId(value);
   };
 
-  const handleSubmit: FormEventHandler<HTMLFormElement> = async (evt) => {
+  const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
     evt.preventDefault();
     if (inviting) return;
     const target = userId.trim();
@@ -128,7 +128,7 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
               <InvitePromptTitle onClose={requestClose} />
               <Box
                 as="form"
-                onSubmit={handleSubmit}
+                onSubmit={(evt: FormEvent<HTMLFormElement>) => void handleSubmit(evt)}
                 direction="Column"
                 gap="400"
                 style={{ padding: config.space.S400, paddingTop: 0 }}

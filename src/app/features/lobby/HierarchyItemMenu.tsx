@@ -109,7 +109,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
         : t('featureUi.lobby.hierarchyItemMenu.setSuggested'),
       icon: Icons.Star,
       run: () => {
-        setSpaceChildSuggested(client, parent, roomId, !suggested);
+        void setSpaceChildSuggested(client, parent, roomId, !suggested);
       },
     });
   }
@@ -121,8 +121,8 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
         : t('featureUi.lobby.hierarchyItemMenu.pinToSidebar'),
       icon: Icons.Pin,
       run: () => {
-        if (pinned) unpinSpaceFromSidebar(client, roomId);
-        else pinSpaceToSidebar(client, roomId, topLevelSpaces);
+        if (pinned) void unpinSpaceFromSidebar(client, roomId);
+        else void pinSpaceToSidebar(client, roomId, topLevelSpaces);
       },
     });
   }
@@ -134,7 +134,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
       icon: Icons.Delete,
       critical: true,
       run: () => {
-        removeSpaceChild(client, parent.roomId, roomId);
+        void removeSpaceChild(client, parent.roomId, roomId);
       },
     });
   }

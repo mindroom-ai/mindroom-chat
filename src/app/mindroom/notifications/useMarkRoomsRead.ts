@@ -15,7 +15,7 @@ export const useMarkRoomsRead = (): ((roomIds: readonly string[]) => void) => {
   return useCallback(
     (roomIds) => {
       roomIds.forEach((roomId) => {
-        markRoomAndThreadsAsRead(client, roomId, privateReceipts);
+        void markRoomAndThreadsAsRead(client, roomId, privateReceipts);
       });
     },
     [client, privateReceipts]

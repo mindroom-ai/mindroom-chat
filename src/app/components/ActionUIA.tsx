@@ -4,6 +4,7 @@ import { AuthDict, AuthType, IAuthData, UIAFlow } from 'matrix-js-sdk';
 import { Box, Button, Icon, IconButton, Icons, Input, Text, color, config } from 'folds';
 import { Dialog, Header } from './glass/GlassPrimitives';
 import { useMatrixClient } from '../hooks/useMatrixClient';
+import { matchesEnum } from '../utils/matchesEnum';
 
 const SUPPORTED_STAGES: ReadonlySet<string> = new Set([
   AuthType.Password,
@@ -12,7 +13,8 @@ const SUPPORTED_STAGES: ReadonlySet<string> = new Set([
   AuthType.Dummy,
 ]);
 
-const isSsoStage = (stage: string) => stage === AuthType.Sso || stage === AuthType.SsoUnstable;
+const isSsoStage = (stage: string) =>
+  matchesEnum(stage, AuthType.Sso) || matchesEnum(stage, AuthType.SsoUnstable);
 
 const isSingleStage = (flow: UIAFlow, test: (stage: string) => boolean) =>
   flow.stages.length === 1 && flow.stages.every(test);
@@ -23,7 +25,7 @@ const isSingleStage = (flow: UIAFlow, test: (stage: string) => boolean) =>
  */
 export const pickUIAFlow = (flows: UIAFlow[]): UIAFlow | undefined =>
   flows.find((flow) => isSingleStage(flow, isSsoStage)) ??
-  flows.find((flow) => isSingleStage(flow, (stage) => stage === AuthType.Password)) ??
+  flows.find((flow) => isSingleStage(flow, (stage) => matchesEnum(stage, AuthType.Password))) ??
   flows[0];
 
 const isFlowSupported = (flow: UIAFlow) =>

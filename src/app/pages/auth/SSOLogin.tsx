@@ -119,8 +119,11 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
     const url = ssoUrl();
     return (
       <Box direction="Column" gap="200">
-        {renderButton('sso', url, t('sharedUi.sSOLogin.continueWithSso'), (event) =>
-          openInNativeBrowser(event, url)
+        {renderButton(
+          'sso',
+          url,
+          t('sharedUi.sSOLogin.continueWithSso'),
+          (event) => void openInNativeBrowser(event, url)
         )}
       </Box>
     );
@@ -144,9 +147,9 @@ export function SSOLogin({ action, providers, redirectUrl, saveScreenSpace }: SS
           url,
           getSSOProviderButtonTitle(provider, t, action),
           (event) =>
-            apple && nativeAppleAvailable
+            void (apple && nativeAppleAvailable
               ? signInWithApple(event, provider, url)
-              : openInNativeBrowser(event, url),
+              : openInNativeBrowser(event, url)),
           icon
         );
       })}

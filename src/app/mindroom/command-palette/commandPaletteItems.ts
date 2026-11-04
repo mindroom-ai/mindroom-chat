@@ -229,7 +229,7 @@ export const useCommandPaletteSource = ({
     const markCurrentThread = (resolved: boolean) =>
       canResolveThread && currentThreadId
         ? () => {
-            setResolved(currentThreadId, resolved);
+            void setResolved(currentThreadId, resolved);
           }
         : undefined;
     const copyRoomLink = (room: Room) => {
@@ -254,9 +254,9 @@ export const useCommandPaletteSource = ({
       'create-room': () => openCreateRoom(selectedSpaceId),
       'open-settings': () => setSettingsModal({}),
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
-      'mark-current-room-read': inCurrentRoom((room) =>
-        markRoomAndThreadsAsRead(client, room.roomId, hideActivity)
-      ),
+      'mark-current-room-read': inCurrentRoom((room) => {
+        void markRoomAndThreadsAsRead(client, room.roomId, hideActivity);
+      }),
       'open-current-room-settings': inCurrentRoom((room) =>
         openRoomSettings(room.roomId, selectedSpaceId)
       ),

@@ -113,7 +113,7 @@ export function AgentCallHeaderButton({ threadId, candidates: given }: AgentCall
 
   const start = (candidate: AgentCallCandidate) => {
     setAnchor(undefined);
-    call({
+    void call({
       agentUserId: candidate.userId,
       displayName: candidate.displayName,
       roomId: room.roomId,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { MatrixEvent, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { StateEvent } from '../../types/matrix/room';
+import { matchesEnum } from '../utils/matchesEnum';
 
 /** Room state by event type, then by state key. */
 export type StateTypeToState = Map<string, Map<string, MatrixEvent>>;
@@ -8,7 +9,7 @@ export type StateTypeToState = Map<string, Map<string, MatrixEvent>>;
 const readRoomState = (room: Room): StateTypeToState => {
   const state: StateTypeToState = new Map();
   room.currentState.events.forEach((byStateKey, type) => {
-    if (type === StateEvent.RoomMember) return;
+    if (matchesEnum(type, StateEvent.RoomMember)) return;
     state.set(type, new Map(byStateKey));
   });
   return state;
@@ -24,7 +25,7 @@ export const useRoomState = (room: Room): StateTypeToState => {
   useEffect(() => {
     const handleEvent = (event: MatrixEvent) => {
       if (event.getRoomId() !== room.roomId) return;
-      if (event.getType() === StateEvent.RoomMember) return;
+      if (matchesEnum(event.getType(), StateEvent.RoomMember)) return;
       setVersion((current) => current + 1);
     };
     room.on(RoomStateEvent.Events, handleEvent);

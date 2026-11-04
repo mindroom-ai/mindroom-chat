@@ -210,7 +210,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
             after={<Icon size="100" src={Icons.Link} />}
             onClick={() => {
               dismiss();
-              copyToClipboard(getSpaceShareLink(client, space));
+              void copyToClipboard(getSpaceShareLink(client, space));
             }}
           >
             <Text style={{ flexGrow: 1 }} as="span" size="T300" align="Left" truncate>

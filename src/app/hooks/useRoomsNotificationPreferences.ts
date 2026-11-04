@@ -129,7 +129,7 @@ export const useRoomsNotificationPreferences = (): RoomToNotificationMode => {
   const pushRulesEvent = useAccountData(AccountDataEvent.PushRules);
 
   return useMemo(() => {
-    const pushRules = (pushRulesEvent?.getContent() as IPushRules | undefined) ?? mx.pushRules;
+    const pushRules = pushRulesEvent?.getContent<IPushRules>() ?? mx.pushRules;
     return getRoomsNotificationPreferences(pushRules);
   }, [mx, pushRulesEvent]);
 };

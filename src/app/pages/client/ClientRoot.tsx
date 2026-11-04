@@ -169,7 +169,7 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
             size="300"
             radii="300"
             disabled={busy}
-            onClick={() => run('logout', () => logoutClient(mx))}
+            onClick={() => void run('logout', () => logoutClient(mx))}
           >
             <Text size="T300">{t('sharedUi.clientRoot.logout')}</Text>
           </MenuItem>
@@ -179,7 +179,7 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
           radii="300"
           disabled={busy}
           after={running === 'clear-cache' ? <Spinner size="100" variant="Secondary" /> : undefined}
-          onClick={() => run('clear-cache', () => clearAllCacheAndReload(mx))}
+          onClick={() => void run('clear-cache', () => clearAllCacheAndReload(mx))}
         >
           <Text size="T300">
             {running === 'clear-cache'
@@ -193,7 +193,7 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
             radii="300"
             variant="Critical"
             disabled={busy}
-            onClick={() => run('remove-account', () => removeSessionAndReload(session, mx))}
+            onClick={() => void run('remove-account', () => removeSessionAndReload(session, mx))}
           >
             <Text size="T300">{t('sharedUi.clientRoot.removeAccount')}</Text>
           </MenuItem>
@@ -291,7 +291,7 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
               fill="Soft"
               disabled={busy}
               before={clearing ? <Spinner size="100" variant="Secondary" /> : undefined}
-              onClick={() => run('clear-cache', () => clearAllCacheAndReload(mx))}
+              onClick={() => void run('clear-cache', () => clearAllCacheAndReload(mx))}
             >
               <Text as="span" size="B400">
                 {clearing
@@ -303,7 +303,7 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
               variant="Critical"
               fill="None"
               disabled={busy}
-              onClick={() => run('remove-account', () => removeSessionAndReload(session, mx))}
+              onClick={() => void run('remove-account', () => removeSessionAndReload(session, mx))}
             >
               <Text as="span" size="B400">
                 {t('sharedUi.clientRoot.removeAccount')}
