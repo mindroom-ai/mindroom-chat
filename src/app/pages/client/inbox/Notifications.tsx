@@ -283,7 +283,7 @@ function NotificationRow({
     <Box
       gap="300"
       alignItems="Start"
-      data-highlight={highlighted || undefined}
+      data-notification-highlight={highlighted || undefined}
       style={{ padding: config.space.S300, ...(highlighted ? highlightedRowStyle : undefined) }}
     >
       <Box direction="Column" grow="Yes" gap="100" style={{ minWidth: 0 }}>
