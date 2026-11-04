@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Box, Button, Spinner, Switch, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
@@ -92,10 +92,11 @@ function EmailNotification() {
   );
 }
 
-const askBrowserPermission = () => {
-  if (typeof window !== 'undefined' && 'Notification' in window) {
-    void window.Notification.requestPermission();
-  }
+/** Asks the browser to allow notifications; resolves with the answer in Permissions API terms. */
+const askBrowserPermission = async (): Promise<PermissionState | undefined> => {
+  if (typeof window === 'undefined' || !('Notification' in window)) return undefined;
+  const answer = await window.Notification.requestPermission();
+  return answer === 'default' ? 'prompt' : answer;
 };
 
 /**
@@ -105,11 +106,24 @@ const askBrowserPermission = () => {
 function DesktopNotificationTile({ permission }: { permission: PermissionState }) {
   const { t } = useTranslation();
   const [enabled, setEnabled] = useSetting(settingsAtom, 'showNotifications');
-  const granted = permission === 'granted';
+  // Browsers without permission change events report the answer only to the request itself.
+  const [answer, setAnswer] = useState<PermissionState>();
+  const shown = permission === 'prompt' && answer ? answer : permission;
+  const granted = shown === 'granted';
+
+  const enable = () => {
+    askBrowserPermission()
+      .then((state) => {
+        setAnswer(state);
+        // Allowing notifications is asking for them, so the switch turns on with the grant.
+        if (state === 'granted') setEnabled(true);
+      })
+      .catch(() => undefined);
+  };
 
   const control =
-    permission === 'prompt' ? (
-      <Button size="300" radii="300" fill="Soft" onClick={askBrowserPermission}>
+    shown === 'prompt' ? (
+      <Button size="300" radii="300" fill="Soft" onClick={enable}>
         <Text size="B300">{t('featureUi.settings.notifications.systemNotification.enable')}</Text>
       </Button>
     ) : (
@@ -117,7 +131,7 @@ function DesktopNotificationTile({ permission }: { permission: PermissionState }
     );
 
   const description =
-    permission === 'denied'
+    shown === 'denied'
       ? t('featureUi.settings.notifications.systemNotification.permissionBlocked')
       : t(
           'featureUi.settings.notifications.systemNotification.showDesktopNotificationsWhenMessageArrive'
