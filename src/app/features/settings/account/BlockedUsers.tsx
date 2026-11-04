@@ -102,7 +102,9 @@ export function BlockedUsers() {
                   after={<Icon size="50" src={Icons.Cross} />}
                   onClick={() => store(blocked.filter((id) => id !== userId))}
                 >
-                  <Text size="T200">{userId}</Text>
+                  <Text size="T200">
+                    <bdi>{userId}</bdi>
+                  </Text>
                 </Chip>
               ))}
             </Box>
