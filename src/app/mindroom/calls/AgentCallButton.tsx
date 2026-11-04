@@ -1,3 +1,13 @@
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
+import { Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
+import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
+import { hasMindroomVoiceCallsPresence } from './agentCall';
+import { usePresenceStatuses } from './agentPresence';
+import { useAgentCaller, type AgentCallError } from './agentCaller';
+
 type AgentCallButtonProps = {
   /** The room the profile was opened from; a call started here remembers it as its origin. */
   roomId: string;
@@ -5,13 +15,72 @@ type AgentCallButtonProps = {
   displayName?: string;
   /** The agent's presence status message, which advertises voice calls. */
   presenceStatus?: string;
+  /** The call started, so the profile can close. */
+  onStarted?: () => void;
 };
 
+const ERROR_KEYS = {
+  browser: 'mindroomUi.calls.agentCallButton.browserUnsupported',
+  homeserver: 'mindroomUi.calls.agentCallButton.homeserverUnsupported',
+  busy: 'mindroomUi.calls.agentCallButton.endCurrentCall',
+  failed: 'mindroomUi.calls.agentCallButton.failedToStart',
+} as const satisfies Record<AgentCallError, string>;
+
 /**
- * The profile's "Call" button for a voice-capable MindRoom agent. Calls ran in the embedded
- * Element Call widget, which this client does not include; they return on LiveKit, and until
- * then the button is not shown.
+ * The profile's "Call" button for a voice-capable MindRoom agent. The call is about the room the
+ * profile was opened from, and about its open thread when the profile was opened inside one.
  */
-export function AgentCallButton(_props: AgentCallButtonProps): null {
-  return null;
+export function AgentCallButton({
+  roomId,
+  userId,
+  displayName,
+  presenceStatus,
+  onStarted,
+}: AgentCallButtonProps) {
+  const { t } = useTranslation();
+  const mx = useMatrixClient();
+  const [search] = useSearchParams();
+  const statuses = usePresenceStatuses(mx, presenceStatus === undefined ? [userId] : []);
+  const status = presenceStatus ?? statuses.get(userId);
+  const { call, pending, error } = useAgentCaller();
+
+  if (
+    !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined) ||
+    !hasMindroomVoiceCallsPresence(status)
+  ) {
+    return null;
+  }
+
+  const start = async () => {
+    const started = await call({
+      agentUserId: userId,
+      displayName,
+      roomId,
+      threadId: search.get('threadId') ?? undefined,
+    });
+    if (started) onStarted?.();
+  };
+
+  return (
+    <Box direction="Column" gap="100">
+      <Button
+        size="300"
+        radii="300"
+        variant="Success"
+        fill="Soft"
+        disabled={pending}
+        before={
+          pending ? <Spinner size="100" variant="Success" /> : <Icon size="100" src={Icons.Phone} />
+        }
+        onClick={start}
+      >
+        <Text size="B300">{t('mindroomUi.calls.agentCallButton.call')}</Text>
+      </Button>
+      {error && (
+        <Text size="T200" style={{ color: color.Critical.Main }} role="alert">
+          {t(ERROR_KEYS[error])}
+        </Text>
+      )}
+    </Box>
+  );
 }
