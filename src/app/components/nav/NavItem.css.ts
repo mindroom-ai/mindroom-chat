@@ -47,7 +47,9 @@ export const NavItem = recipe({
     radii: {
       '0': { borderRadius: 0 },
       '300': { borderRadius: config.radii.R300 },
-      '400': { borderRadius: config.radii.R400 },
+      // Page navigation rows have 12px corners (docs/design/reference/room-dark.png: the open
+      // row fits 12.2px), folds' R500. Callers ask for a row with "400", so that name takes it.
+      '400': { borderRadius: config.radii.R500 },
       '500': { borderRadius: config.radii.R500 },
       Pill: { borderRadius: config.radii.Pill },
     },

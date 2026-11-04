@@ -17,7 +17,8 @@ export const SidebarRowDragSource = style([
     outline: 'none',
     selectors: {
       '&:focus-visible': {
-        borderRadius: config.radii.R400,
+        // The row's own corners, as NavItem draws them.
+        borderRadius: config.radii.R500,
         boxShadow: `inset 0 0 0 ${config.borderWidth.B600} ${color.Primary.Main}`,
       },
     },
