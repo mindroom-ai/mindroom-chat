@@ -132,9 +132,11 @@ function CustomFormatForm({ initial, onSave }: { initial: string; onSave: (f: st
         clickOutsideDeactivates: true,
         escapeDeactivates: stopPropagation,
         onDeactivate: () => setHintsAnchor(undefined),
+        // The scrollbar, the only stop inside, stays hidden while the list fits.
+        fallbackFocus: '[data-format-hints]',
       }}
     >
-      <div>
+      <div data-format-hints tabIndex={-1}>
         <FormatHints />
       </div>
     </FocusTrap>
