@@ -12,6 +12,7 @@ import { useMobileKeyboardViewportFix } from '../hooks/useMobileKeyboardViewport
 import { appJotaiStore, setImperativeJotaiStore } from '../state/jotaiStore';
 import { applyThemeToDom } from '../theme/themeBootstrap';
 import { NoticeLayout } from '../mindroom/notices/NoticeBanners';
+import { installOverlayFocus } from '../utils/overlayFocus';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
 
@@ -53,6 +54,8 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
 function App() {
   // Phones that pan only the visual viewport for the keyboard get #root sized to what is visible.
   useMobileKeyboardViewportFix();
+  // Menus and dialogs opened from the keyboard take focus, and give it back when they close.
+  useEffect(() => installOverlayFocus(document), []);
   return (
     <JotaiProvider store={appJotaiStore}>
       <AppTheme>

@@ -1,0 +1,159 @@
+// @vitest-environment jsdom
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { installOverlayFocus, layerOf } from './overlayFocus';
+
+const flush = async () => {
+  // Mutation observers run as microtasks; the manager then waits one timeout.
+  await Promise.resolve();
+  await vi.advanceTimersByTimeAsync(1);
+};
+
+const button = (label: string): HTMLButtonElement => {
+  const element = document.createElement('button');
+  element.textContent = label;
+  return element;
+};
+
+/** A portaled menu with two items, like a folds PopOut in `<body>`. */
+const menuLayer = (): { layer: HTMLDivElement; first: HTMLButtonElement } => {
+  const layer = document.createElement('div');
+  const first = button('First item');
+  layer.append(first, button('Second item'));
+  return { layer, first };
+};
+
+const press = (target: Element, key: string) =>
+  target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+
+describe('overlay focus', () => {
+  let uninstall: () => void;
+  let trigger: HTMLButtonElement;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // jsdom lays nothing out; every connected element counts as shown.
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockImplementation(function rects(
+      this: HTMLElement
+    ) {
+      return (this.isConnected ? [{}] : []) as unknown as DOMRectList;
+    });
+    document.body.innerHTML = '<div id="root"></div><div id="portalContainer"></div>';
+    trigger = button('Options');
+    document.getElementById('root')!.append(trigger);
+    uninstall = installOverlayFocus(document);
+  });
+
+  afterEach(() => {
+    uninstall();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    document.body.innerHTML = '';
+  });
+
+  it('finds the portaled layer of a node, and none for the app', () => {
+    const { layer, first } = menuLayer();
+    document.getElementById('portalContainer')!.append(layer);
+    expect(layerOf(document, first)).toBe(layer);
+    expect(layerOf(document, trigger)).toBeUndefined();
+  });
+
+  it('moves focus into a menu that Enter opened while focus stayed on its button', async () => {
+    trigger.focus();
+    press(trigger, 'Enter');
+    const { layer, first } = menuLayer();
+    document.body.append(layer);
+    await flush();
+    expect(document.activeElement).toBe(first);
+  });
+
+  it('leaves focus alone when a pointer opened the menu', async () => {
+    trigger.focus();
+    trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const { layer } = menuLayer();
+    document.body.append(layer);
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('does not take focus for a tooltip', async () => {
+    trigger.focus();
+    press(trigger, 'Enter');
+    const layer = document.createElement('div');
+    layer.innerHTML = '<div role="tooltip"><a href="#x">Link</a></div>';
+    document.body.append(layer);
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('gives focus back to the opener when Escape closes the menu', async () => {
+    trigger.focus();
+    press(trigger, 'Enter');
+    const { layer, first } = menuLayer();
+    document.body.append(layer);
+    await flush();
+    expect(document.activeElement).toBe(first);
+
+    press(first, 'Escape');
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('remembers an opener that Tab left for a menu, and returns to it after Enter on an item', async () => {
+    trigger.focus();
+    const { layer, first } = menuLayer();
+    document.body.append(layer);
+    await flush();
+    first.focus();
+    press(first, 'Enter');
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('keeps the focus a click gave elsewhere', async () => {
+    trigger.focus();
+    press(trigger, 'Enter');
+    const { layer } = menuLayer();
+    document.body.append(layer);
+    await flush();
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it('does not move focus that the closing layer already handed on', async () => {
+    const other = button('Other');
+    document.getElementById('root')!.append(other);
+    trigger.focus();
+    press(trigger, 'Enter');
+    const { layer } = menuLayer();
+    document.body.append(layer);
+    await flush();
+    press(document.activeElement!, 'Escape');
+    other.focus();
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(other);
+  });
+
+  it('falls back to the outer menu item opener when a submenu and its menu close together', async () => {
+    trigger.focus();
+    press(trigger, 'Enter');
+    const outer = menuLayer();
+    document.body.append(outer.layer);
+    await flush();
+    press(outer.first, 'Enter');
+    const inner = menuLayer();
+    document.body.append(inner.layer);
+    await flush();
+    expect(document.activeElement).toBe(inner.first);
+
+    press(inner.first, 'Enter');
+    outer.layer.remove();
+    inner.layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
+});
