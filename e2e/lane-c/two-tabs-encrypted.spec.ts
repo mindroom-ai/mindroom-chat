@@ -17,10 +17,22 @@ import { buildLoginPath } from '../env';
 // writes to her in an encrypted room. Messages go every way while both tabs stay open, again
 // after one tab reloads, and again after Bob signs in on a second device (a new Olm session
 // with Alice's device, started from one of her one-time keys). Every message must decrypt in
-// both of Alice's tabs and on Bob's devices. When it does not, the test writes what each page
-// saw (rows it could not decrypt, crypto console lines, the shared store's sizes) to
+// both of Alice's tabs and on Bob's devices, and no Megolm message index may carry two of
+// Alice's messages (read from the ciphertexts on the server). The test writes what each page saw
+// (rows it could not decrypt, crypto console lines, the shared store's sizes) to
 // `crypto-evidence.json` in its output directory. Needs the slot homeserver:
 //   scripts/e2e-slot.sh <slot> --preview npx playwright test e2e/lane-c/two-tabs-encrypted.spec.ts
+//
+// Expected to fail (workstream A1, 2026-11-04; full evidence in the A1 report,
+// .baspowers/sdd/2026-11-03-m2-core-parity/A1-report.md). Over 5 runs:
+// - 5 of 5: the two tabs encrypt with one shared outbound Megolm session, each from its own
+//   copy of the ratchet, so two of Alice's messages go out under the same message index (the
+//   same message key).
+// - 2 of 5: Bob's new device claims a one-time key that neither tab holds any more ("Failed to
+//   create a new Olm session from a pre-key message: InboundCreation(MissingOneTimeKey(..))" in
+//   both tabs), so its room key is lost and its message never decrypts for Alice, not even
+//   after minutes; in 1 more run one tab lacked the key and the other still had it.
+// Remove `test.fail` once tabs of one session no longer run two crypto machines at once.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'two-tabs-spec-password';
 // Long enough for a busy machine; a message that never decrypts fails after it.
@@ -157,6 +169,56 @@ const storeSizes = (page: Page) =>
   });
 
 /** What one reader showed after one step; `joinedLate` readers hold no keys for older rows. */
+/**
+ * The message index of a Megolm ciphertext: a version byte (3), then field 1 (tag 0x08) as a
+ * varint. Undefined when the bytes do not start that way.
+ */
+const megolmIndex = (ciphertext: string): number | undefined => {
+  const bytes = Buffer.from(ciphertext, 'base64');
+  if (bytes[0] !== 3 || bytes[1] !== 0x08) return undefined;
+  let index = 0;
+  for (let at = 2, shift = 0; at < bytes.length; at += 1, shift += 7) {
+    const byte = bytes[at] ?? 0;
+    index += (byte & 0x7f) * 2 ** shift;
+    if ((byte & 0x80) === 0) return index;
+  }
+  return undefined;
+};
+
+type EncryptedEvent = {
+  event_id: string;
+  type: string;
+  sender: string;
+  content: { session_id?: string; ciphertext?: unknown };
+};
+
+/**
+ * Alice's encrypted events, as the server keeps them, grouped by Megolm session and message
+ * index; any group with two events used one message key twice. Read through a session of Bob's
+ * that signs in and out without crypto.
+ */
+const reusedMegolmIndexes = async (roomId: string, bob: string, alice: string) => {
+  const { access_token: token } = await call<{ access_token: string }>('/login', undefined, {
+    type: 'm.login.password',
+    identifier: { type: 'm.id.user', user: bob },
+    password: PASSWORD,
+  });
+  const { chunk } = await call<{ chunk: EncryptedEvent[] }>(
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=200`,
+    token
+  );
+  await call('/logout', token, {});
+  const byIndex = new Map<string, string[]>();
+  for (const event of chunk) {
+    const { session_id: session, ciphertext } = event.content;
+    if (event.type !== 'm.room.encrypted' || event.sender !== alice) continue;
+    if (!session || typeof ciphertext !== 'string') continue;
+    const key = `${session} #${megolmIndex(ciphertext) ?? '?'}`;
+    byIndex.set(key, [...(byIndex.get(key) ?? []), event.event_id]);
+  }
+  return [...byIndex].filter(([, events]) => events.length > 1);
+};
+
 type Phase = {
   phase: string;
   reader: string;
@@ -170,12 +232,15 @@ const failedStep = ({ missing, unreadable, joinedLate }: Phase) =>
 
 test('two tabs of one session read every message of an encrypted room', async ({ browser }) => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  // Known to fail: see the comment at the top of this file.
+  test.fail();
   test.setTimeout(420_000);
 
   const run = `${Date.now().toString(36)}${test.info().repeatEachIndex}`;
   const { roomId, alice, bob } = await encryptedRoomOf(`tabs_a_${run}`, `tabs_b_${run}`);
   const messages: string[] = [];
   const outcomes: Phase[] = [];
+  let reused: [string, string[]][] | undefined;
   const contexts: BrowserContext[] = [];
   const context = async (target: Browser) => {
     const created = await target.newContext();
@@ -255,6 +320,9 @@ test('two tabs of one session read every message of an encrypted room', async ({
     await say(firstTab, 'new device');
     await say(secondTab, 'new device');
     await say(bobPhone, 'new device');
+
+    reused = await reusedMegolmIndexes(roomId, bob.username, alice.userId);
+    expect.soft(reused, 'no Megolm message index carries two of the messages').toEqual([]);
   } finally {
     // Written on every run, so a passing run also shows that the late device's history rows
     // were seen as undecryptable (the check can see a failure); attached when one failed.
@@ -263,6 +331,7 @@ test('two tabs of one session read every message of an encrypted room', async ({
       accounts: { alice: alice.userId, bob: bob.userId },
       messages,
       failures: outcomes.filter(failedStep),
+      reusedMegolmIndexes: reused,
       lateDeviceHistoryRows: outcomes.filter((outcome) => outcome.joinedLate).at(-1)?.unreadable,
       store: await storeSizes(firstTab.page).catch((error: unknown) => String(error)),
       console: Object.fromEntries(readers.map((reader) => [reader.name, reader.log])),
