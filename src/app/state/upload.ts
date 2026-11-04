@@ -166,12 +166,7 @@ export const useBindUploadAtom = (
       onProgress: (progress) => {
         if (isCurrent()) store.set(uploadAtom, { progress });
       },
-      onSuccess: (mxc) => {
-        if (isCurrent()) store.set(uploadAtom, { mxc });
-      },
-      onError: (error) => {
-        if (isCurrent()) store.set(uploadAtom, { error });
-      },
+      // The atom settles itself from the request it was given (success, no URI, or failure).
     });
   }, [client, store, uploadAtom, hideFilename, blockUploadError]);
 

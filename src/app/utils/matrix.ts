@@ -313,8 +313,9 @@ type UploadContentOptions = {
   /** Receives the request, so the caller can cancel it with `mx.cancelUpload`. */
   onPromise?: (request: Promise<UploadResponse>) => void;
   onProgress?: (progress: UploadProgress) => void;
-  onSuccess: (mxcUri: string) => void;
-  onError: (error: MatrixError) => void;
+  /** Left out by a caller that settles from the request `onPromise` gave it. */
+  onSuccess?: (mxcUri: string) => void;
+  onError?: (error: MatrixError) => void;
 };
 
 /**
@@ -337,9 +338,9 @@ export const uploadContent = async (
     onPromise?.(request);
     const { content_uri: mxc } = await request;
     if (!mxc) throw new Error('The upload returned no content URI.');
-    onSuccess(mxc);
+    onSuccess?.(mxc);
   } catch (error) {
-    onError(toMatrixUploadError(error, 'upload'));
+    onError?.(toMatrixUploadError(error, 'upload'));
   }
 };
 
