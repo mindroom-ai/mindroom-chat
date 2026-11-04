@@ -25,7 +25,7 @@ import { settingsModalAtom } from '../../state/settingsModal';
 import { copyToClipboard } from '../../utils/dom';
 import { getCanonicalAliasOrRoomId, getMxIdLocalPart } from '../../utils/matrix';
 import { crossRoomThreadIndexAtom } from '../cross-room-threads/crossRoomThreadIndex';
-import { markRoomAndThreadsAsRead } from '../notifications/readReceipts';
+import { useMarkRoomsRead } from '../notifications/useMarkRoomsRead';
 import { archivedRoomsAtom, isRoomVisible } from '../rooms/archivedRooms';
 import { isThreadPinned } from '../threads/threadPinning';
 import { useThreadResolution, useToggleThreadResolution } from '../threads/useRoomThreadTags';
@@ -107,7 +107,7 @@ export const useCommandPaletteSource = ({
   const openCreateRoom = useOpenCreateRoomModal();
   const openCreateSpace = useOpenCreateSpaceModal();
   const openRoomSettings = useOpenRoomSettings();
-  const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
+  const markRoomsRead = useMarkRoomsRead();
   const [, setUseSystemTheme] = useSetting(settingsAtom, 'useSystemTheme');
   const [, setThemeId] = useSetting(settingsAtom, 'themeId');
   const theme = useTheme();
@@ -254,9 +254,7 @@ export const useCommandPaletteSource = ({
       'create-room': () => openCreateRoom(selectedSpaceId),
       'open-settings': () => setSettingsModal({}),
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
-      'mark-current-room-read': inCurrentRoom((room) => {
-        void markRoomAndThreadsAsRead(client, room.roomId, hideActivity);
-      }),
+      'mark-current-room-read': inCurrentRoom((room) => markRoomsRead([room.roomId])),
       'open-current-room-settings': inCurrentRoom((room) =>
         openRoomSettings(room.roomId, selectedSpaceId)
       ),
@@ -280,8 +278,8 @@ export const useCommandPaletteSource = ({
     currentRoom,
     currentThreadId,
     currentThreadResolved,
-    hideActivity,
     client,
+    markRoomsRead,
     navigate,
     onLogout,
     openCreateRoom,

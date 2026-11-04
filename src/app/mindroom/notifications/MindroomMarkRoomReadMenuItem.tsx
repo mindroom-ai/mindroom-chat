@@ -1,10 +1,7 @@
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { Icons } from 'folds';
-import { markRoomAndThreadsAsRead } from './readReceipts';
-import { settingsAtom } from '../../state/settings';
-import { useSetting } from '../../state/hooks/settings';
-import { useMatrixClient } from '../../hooks/useMatrixClient';
+import { useMarkRoomsRead } from './useMarkRoomsRead';
 import { MenuEntry } from '../../components/MenuEntry';
 
 type MarkRoomReadItemProps = {
@@ -17,12 +14,10 @@ type MarkRoomReadItemProps = {
 /** "Mark as read" in a room's menu: reads the room and every thread in it, then closes the menu. */
 export function MindroomMarkRoomReadMenuItem(props: MarkRoomReadItemProps) {
   const { t } = useTranslation();
-  const mx = useMatrixClient();
-  // A private receipt when the user hides their read activity.
-  const [privateReceipts] = useSetting(settingsAtom, 'hideActivity');
+  const markRoomsRead = useMarkRoomsRead();
 
   const markRead = () => {
-    void markRoomAndThreadsAsRead(mx, props.room.roomId, privateReceipts);
+    markRoomsRead([props.room.roomId]);
     props.onClose();
   };
 
