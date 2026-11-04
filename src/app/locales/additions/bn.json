@@ -1,0 +1,224 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "স্ক্রোল"
+    },
+    "passwordInput": {
+      "show": "পাসওয়ার্ড দেখান",
+      "hide": "পাসওয়ার্ড লুকান"
+    },
+    "pdfViewer": {
+      "close": "বন্ধ করুন"
+    },
+    "urlPreviewHolder": {
+      "previous": "আগের লিঙ্ক প্রিভিউ",
+      "next": "আরও লিঙ্ক প্রিভিউ"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "নাম",
+      "cancel": "বাতিল করুন",
+      "skinTone": "ত্বকের রং",
+      "skinTones": {
+        "default": "ডিফল্ট ত্বকের রং",
+        "light": "হালকা ত্বকের রং",
+        "mediumLight": "মাঝারি-হালকা ত্বকের রং",
+        "medium": "মাঝারি ত্বকের রং",
+        "mediumDark": "মাঝারি-গাঢ় ত্বকের রং",
+        "dark": "গাঢ় ত্বকের রং"
+      }
+    },
+    "eventReaders": {
+      "close": "বন্ধ করুন"
+    },
+    "imagePackContent": {
+      "uploadFailed": "ছবিগুলো আপলোড করা যায়নি। আবার চেষ্টা করুন।",
+      "noImages": "এখনও কোনো ছবি নেই।"
+    },
+    "imagePackView": {
+      "close": "বন্ধ করুন",
+      "back": "পিছনে"
+    },
+    "imageTile": {
+      "remove": "সরান",
+      "editImage": ":{{shortcode}}: সম্পাদনা করুন",
+      "removeImage": ":{{shortcode}}: সরান",
+      "keepImage": ":{{shortcode}}: রাখুন",
+      "removedOnApply": "পরিবর্তনগুলো প্রয়োগ করলে সরানো হবে",
+      "usage": "যেভাবে ব্যবহৃত",
+      "shortcodeTaken": "অন্য একটি ছবির এই শর্টকোড আছে।",
+      "shortcodeInvalid": "শর্টকোডে স্পেস বা কোলন থাকতে পারে না।"
+    },
+    "imageUsageOption": {
+      "pack": "প্যাকের মতো"
+    },
+    "imageViewer": {
+      "close": "বন্ধ করুন"
+    },
+    "inviteUserPrompt": {
+      "close": "বন্ধ করুন"
+    },
+    "joinAddressPrompt": {
+      "close": "বন্ধ করুন"
+    },
+    "textViewer": {
+      "close": "বন্ধ করুন"
+    },
+    "invites": {
+      "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "ব্যবহারকারী খুঁজুন বা একটি ব্যবহারকারী ID লিখুন"
+    },
+    "leaveRoomPrompt": {
+      "close": "বন্ধ করুন",
+      "forget": "এই রুম ভুলে যান",
+      "forgetDescription": "ইতিহাসসহ এটিকে আপনার অ্যাকাউন্ট থেকেও সরিয়ে দেয়। রুম অনুমতি দিলে পরে আবার যোগ দিতে পারবেন।"
+    },
+    "memberFilters": {
+      "label": "সদস্যদের দেখান"
+    },
+    "memberSort": {
+      "label": "সদস্যদের সাজান"
+    },
+    "a11y": {
+      "mainNavigation": "প্রধান নেভিগেশন",
+      "skipToContent": "বিষয়বস্তুতে যান",
+      "newMessage": "{{sender}}: {{body}}"
+    },
+    "roomCard": {
+      "forget": "রুম ভুলে যান"
+    },
+    "userRoomProfile": {
+      "editProfile": "প্রোফাইল সম্পাদনা করুন"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "{{name}} মুছুন"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "ইভেন্টের একটি ধরন দিন এবং বিষয়বস্তু হিসেবে একটি JSON অবজেক্ট দিন।"
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "ব্যক্তিগত প্যাক",
+          "imageCount_one": "{{count}}টি ছবি, প্রতিটি রুমে আপনার",
+          "imageCount_other": "{{count}}টি ছবি, প্রতিটি রুমে আপনার"
+        }
+      },
+      "devices": {
+        "loadFailed": "আপনার ডিভাইসগুলো লোড করা যায়নি।"
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "আনব্লক করুন"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "সরান"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "চ্যাট শুরু করা যায়নি। আবার চেষ্টা করুন।"
+    },
+    "homeNav": {
+      "options": "হোম বিকল্প"
+    },
+    "directNav": {
+      "options": "সরাসরি বার্তার বিকল্প"
+    },
+    "spaceNav": {
+      "options": "স্পেস বিকল্প"
+    },
+    "calls": {
+      "panel": {
+        "title": "কল",
+        "close": "কল প্যানেল বন্ধ করুন",
+        "participants": "কলে থাকা ব্যক্তিরা",
+        "connecting": "সংযোগ করা হচ্ছে…",
+        "reconnecting": "আবার সংযোগ করা হচ্ছে…",
+        "ended": "কল শেষ হয়েছে।",
+        "waitingFor": "{{name}}-এর জন্য অপেক্ষা করা হচ্ছে…",
+        "you": "{{name}} (আপনি)",
+        "microphoneOff": "মাইক্রোফোন বন্ধ",
+        "inCall_one": "কলে {{count}} জন",
+        "inCall_other": "কলে {{count}} জন",
+        "startCall": "কল শুরু করুন",
+        "startVideoCall": "ভিডিও কল শুরু করুন",
+        "dismiss": "বন্ধ করুন",
+        "audioBlocked": "আপনার ব্রাউজার কলের শব্দ বিরতি দিয়েছে।",
+        "playSound": "শব্দ চালান",
+        "resize": "কল প্যানেলের আকার বদলান"
+      },
+      "problems": {
+        "service": "কল পরিষেবায় পৌঁছানো যায়নি। পরে আবার চেষ্টা করুন।",
+        "connection": "কলের সংযোগ বিচ্ছিন্ন হয়েছে।",
+        "device": "আপনার মাইক্রোফোন বা ক্যামেরা ব্যবহার করা যায়নি।"
+      },
+      "devices": {
+        "title": "ডিভাইস",
+        "microphone": "মাইক্রোফোন",
+        "camera": "ক্যামেরা",
+        "speaker": "স্পিকার",
+        "systemDefault": "সিস্টেম ডিফল্ট",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "একটি কল শুরু করুন",
+        "joinCall": "কলে যোগ দিন",
+        "joinCallCount_one": "কলে যোগ দিন, এতে {{count}} জন আছেন",
+        "joinCallCount_other": "কলে যোগ দিন, এতে {{count}} জন আছেন",
+        "showCall": "কল দেখান",
+        "hideCall": "কল লুকান"
+      },
+      "rail": {
+        "returnToCall": "{{room}}-এর কলে ফিরে যান"
+      },
+      "incoming": {
+        "calling": "{{name}} কল করছেন",
+        "callingIn": "{{name}} {{room}}-এ কল করছেন",
+        "videoCall": "ভিডিও কল",
+        "voiceCall": "ভয়েস কল"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "ভেবেছে"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "আমন্ত্রণ",
+        "body_one": "আপনার {{count}}টি নতুন আমন্ত্রণ আছে।",
+        "body_other": "আপনার {{count}}টি নতুন আমন্ত্রণ আছে।"
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "কমপ্যাক্ট ভিউ"
+      }
+    },
+    "computer": {
+      "resize": "কম্পিউটার প্যানেলের আকার বদলান",
+      "close": "কম্পিউটার বন্ধ করুন"
+    }
+  },
+  "composer": {
+    "emoji": "ইমোজি",
+    "cancelReply": "উত্তর বাতিল করুন"
+  }
+}
