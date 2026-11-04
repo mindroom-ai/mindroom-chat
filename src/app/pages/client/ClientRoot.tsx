@@ -13,7 +13,6 @@ import {
   Icon,
   IconButton,
   Icons,
-  PopOut,
   Spinner,
   Text,
   color,
@@ -21,6 +20,7 @@ import {
   toRem,
   type RectCords,
 } from 'folds';
+import { PopOut } from '../../components/directional';
 import { Dialog, Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
 import { Navigate } from 'react-router-dom';
