@@ -91,7 +91,7 @@ export function AuthFooter() {
     );
 
   return (
-    <Box className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
+    <Box as="footer" className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
       {creditLine}
       {policyPages.map((page) => (
         <PolicyLink key={page.url} label={page.label} url={page.url} />

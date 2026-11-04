@@ -1,4 +1,4 @@
-import React, { FormEventHandler, ReactNode, useCallback, useMemo, useState } from 'react';
+import React, { FormEventHandler, useCallback, useMemo, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
@@ -8,18 +8,7 @@ import { useAutoDiscoveryInfo } from '../../../hooks/useAutoDiscoveryInfo';
 import { useAuthServer } from '../../../hooks/useAuthServer';
 import { AsyncStatus, useAsyncCallback } from '../../../hooks/useAsyncCallback';
 import { FieldError } from '../FiledError';
-
-/** One form row: the caption above its input. */
-function LabeledField({ caption, children }: { caption: string; children: ReactNode }) {
-  return (
-    <Box direction="Column" gap="100">
-      <Text as="label" size="L400" priority="300">
-        {caption}
-      </Text>
-      {children}
-    </Box>
-  );
-}
+import { AuthField } from '../AuthField';
 
 type PasswordResetFormProps = {
   defaultEmail?: string;
@@ -133,7 +122,7 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           values={{ server: serverName }}
         />
       </Text>
-      <LabeledField caption={t('sharedUi.passwordResetForm.email')}>
+      <AuthField caption={t('sharedUi.passwordResetForm.email')}>
         <Input
           name="emailInput"
           type="email"
@@ -143,8 +132,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           size="500"
           variant="Background"
         />
-      </LabeledField>
-      <LabeledField caption={t('sharedUi.passwordResetForm.newPassword')}>
+      </AuthField>
+      <AuthField caption={t('sharedUi.passwordResetForm.newPassword')}>
         <Input
           name="passwordInput"
           type="password"
@@ -153,8 +142,8 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           size="500"
           variant="Background"
         />
-      </LabeledField>
-      <LabeledField caption={t('sharedUi.passwordResetForm.confirmPassword')}>
+      </AuthField>
+      <AuthField caption={t('sharedUi.passwordResetForm.confirmPassword')}>
         <Input
           name="confirmPasswordInput"
           type="password"
@@ -164,7 +153,7 @@ export function PasswordResetForm({ defaultEmail, loginLink }: PasswordResetForm
           size="500"
           variant={mismatch ? 'Critical' : 'Background'}
         />
-      </LabeledField>
+      </AuthField>
       {error && (
         <FieldError
           message={`${error.errcode ?? 'M_UNKNOWN'}: ${t(

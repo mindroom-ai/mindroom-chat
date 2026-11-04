@@ -15,7 +15,7 @@ export function ResetPassword() {
   const loginLink = withAddAccountSearchIf(getLoginPath(server), isAddAccountSearch(searchParams));
   return (
     <Box direction="Column" gap="500">
-      <Text size="H2" priority="400">
+      <Text as="h1" size="H2" priority="400">
         {t('sharedUi.resetPassword.resetPassword')}
       </Text>
       <PasswordResetForm

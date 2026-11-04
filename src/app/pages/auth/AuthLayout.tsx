@@ -217,7 +217,7 @@ export function AuthLayout() {
 
   return (
     <AuthFrame>
-      <Box className={css.AuthCard} direction="Column">
+      <Box as="main" className={css.AuthCard} direction="Column">
         <Header className={css.AuthHeader} size="600" variant="Surface">
           <Box grow="Yes" alignItems="Center" gap="300">
             <img

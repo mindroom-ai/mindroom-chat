@@ -1,4 +1,4 @@
-import React, { FormEventHandler, ReactNode, useState } from 'react';
+import React, { FormEventHandler, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -17,6 +17,7 @@ import {
 } from './loginUtil';
 import { isServerChoiceAllowed } from '../authRouteUtils';
 import { useClientConfig } from '../../../hooks/useClientConfig';
+import { AuthField } from '../AuthField';
 
 const LOGIN_ERROR_KEYS = {
   [LoginError.ServerNotAllowed]:
@@ -30,18 +31,6 @@ const LOGIN_ERROR_KEYS = {
     'sharedUi.passwordLoginForm.failedToLoginYourLoginRequestHasBeenRateLimitedByServer',
   [LoginError.Unknown]: 'sharedUi.passwordLoginForm.failedToLoginUnknownReason',
 } as const;
-
-/** One form row: the caption, then the control and anything that belongs under it. */
-function LabeledField({ caption, children }: { caption: string; children: ReactNode }) {
-  return (
-    <Box direction="Column" gap="100">
-      <Text as="label" size="L400" priority="300">
-        {caption}
-      </Text>
-      {children}
-    </Box>
-  );
-}
 
 type PasswordLoginFormProps = {
   /** The homeserver base URL to log in at. */
@@ -100,7 +89,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
 
   return (
     <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
-      <LabeledField caption={t('sharedUi.passwordLoginForm.username2')}>
+      <AuthField caption={t('sharedUi.passwordLoginForm.username2')}>
         <Input
           autoComplete="username"
           name="usernameInput"
@@ -109,8 +98,8 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
           size="500"
           variant="Background"
         />
-      </LabeledField>
-      <LabeledField caption={t('sharedUi.passwordLoginForm.password')}>
+      </AuthField>
+      <AuthField caption={t('sharedUi.passwordLoginForm.password')}>
         <PasswordInput
           autoComplete="current-password"
           name="passwordInput"
@@ -124,7 +113,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
             {t('sharedUi.passwordLoginForm.forgetPassword')}
           </Text>
         </Box>
-      </LabeledField>
+      </AuthField>
       {error && <FieldError message={t(LOGIN_ERROR_KEYS[error])} />}
       {storeFailed && (
         <FieldError

@@ -159,7 +159,7 @@ export function Register() {
 
   return (
     <Box gap="500" direction="Column">
-      <Text size="H2" priority="400">
+      <Text as="h1" size="H2" priority="400">
         {t('sharedUi.register.register')}
       </Text>
       <AuthFlowsLoader>

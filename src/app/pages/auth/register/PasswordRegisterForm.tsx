@@ -19,6 +19,7 @@ import {
   register,
   useRegisterComplete,
 } from './registerUtil';
+import { AuthField } from '../AuthField';
 
 const REGISTER_ERROR_KEYS = {
   [RegisterError.UserTaken]: 'sharedUi.passwordRegisterForm.thisUsernameIsAlreadyTaken',
@@ -49,18 +50,6 @@ type FormError = { account: RegisterError } | { stage: keyof typeof STAGE_ERROR_
 /** Whether this form can complete one of the server's sign-up flows. */
 export const canRegisterWithPassword = (authData: IAuthData): boolean =>
   planSignUp(authData) !== undefined;
-
-/** One form row: the caption above its control. */
-function LabeledField({ caption, children }: { caption: string; children: ReactNode }) {
-  return (
-    <Box direction="Column" gap="100">
-      <Text as="label" size="L400" priority="300">
-        {caption}
-      </Text>
-      {children}
-    </Box>
-  );
-}
 
 /** A policy document, opened beside the form so the typed fields stay. */
 function PolicyLink({ href, children }: { href: string; children?: ReactNode }) {
@@ -280,7 +269,7 @@ export function PasswordRegisterForm(props: {
 
   return (
     <Box as="form" direction="Column" gap="400" onSubmit={handleSubmit}>
-      <LabeledField caption={t('sharedUi.passwordRegisterForm.username')}>
+      <AuthField caption={t('sharedUi.passwordRegisterForm.username')}>
         <Input
           autoComplete="username"
           name="usernameInput"
@@ -289,8 +278,8 @@ export function PasswordRegisterForm(props: {
           size="500"
           variant="Background"
         />
-      </LabeledField>
-      <LabeledField caption={t('sharedUi.passwordRegisterForm.password')}>
+      </AuthField>
+      <AuthField caption={t('sharedUi.passwordRegisterForm.password')}>
         <PasswordInput
           autoComplete="new-password"
           name="passwordInput"
@@ -299,8 +288,8 @@ export function PasswordRegisterForm(props: {
           size="500"
           variant="Background"
         />
-      </LabeledField>
-      <LabeledField caption={t('sharedUi.passwordRegisterForm.confirmPassword')}>
+      </AuthField>
+      <AuthField caption={t('sharedUi.passwordRegisterForm.confirmPassword')}>
         <PasswordInput
           aria-invalid={mismatch || undefined}
           autoComplete="new-password"
@@ -310,9 +299,9 @@ export function PasswordRegisterForm(props: {
           size="500"
           variant={mismatch ? 'Critical' : 'Background'}
         />
-      </LabeledField>
+      </AuthField>
       {plan?.token && (
-        <LabeledField
+        <AuthField
           caption={
             plan.token === 'required'
               ? t('sharedUi.passwordRegisterForm.registrationToken')
@@ -328,10 +317,10 @@ export function PasswordRegisterForm(props: {
             size="500"
             variant="Background"
           />
-        </LabeledField>
+        </AuthField>
       )}
       {plan?.email && (
-        <LabeledField
+        <AuthField
           caption={
             plan.email === 'required'
               ? t('sharedUi.passwordRegisterForm.email')
@@ -347,7 +336,7 @@ export function PasswordRegisterForm(props: {
             size="500"
             variant="Background"
           />
-        </LabeledField>
+        </AuthField>
       )}
       {firstPolicy && (
         <Box direction="Column" gap="100">
