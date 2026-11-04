@@ -45,7 +45,8 @@ export function CreateDialogFrame({
 
   return (
     <Modal500 requestClose={requestClose}>
-      <Page role="dialog" aria-label={title}>
+      {/* Modal500 is the dialog, named by the title's heading. */}
+      <Page>
         <PageScroll header={heading}>
           <PageContent style={FORM_INSET}>{children}</PageContent>
         </PageScroll>
