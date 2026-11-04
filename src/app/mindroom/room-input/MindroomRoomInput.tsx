@@ -516,6 +516,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     return (
       <div ref={ref} style={COMPOSER_STYLE}>
         {autocomplete}
+        {attachments.board}
+        {/* After the staged files anchor, so that panel floats above the drop hint, not over it. */}
         {attachments.dropZoneVisible && (
           <Box
             direction="Column"
@@ -533,7 +535,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </Text>
           </Box>
         )}
-        {attachments.board}
         {voice.renderRecorder(handleSend)}
         <CustomEditor
           editor={editor}
