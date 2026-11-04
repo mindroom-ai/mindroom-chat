@@ -106,6 +106,9 @@ def latest_person_index(messages: list[dict]) -> int:
 MESSAGE_BLOCK = re.compile(r"<msg\b[^>]*?from=\"([^\"]*)\"[^>]*><!\[CDATA\[(.*?)\]\]>", re.S)
 
 
+ROUTER_HANDOFF = re.compile(r"^@mindroom_\S+ could you help with this\?$")
+
+
 def person_said(messages: list[dict]) -> str:
     """The person's latest words. MindRoom wraps each message as <msg from=...><![CDATA[...]]>, older ones with a
     time prefix; the router's handoff to an agent ("@mindroom_helper... could you help with this?") arrives in
@@ -115,7 +118,7 @@ def person_said(messages: list[dict]) -> str:
             continue
         for sender, text in reversed(MESSAGE_BLOCK.findall(text_of(message.get("content")))):
             text = re.sub(r"^\[\d{4}-\d\d-\d\d \d\d:\d\d UTC\] ", "", text.strip())
-            if "mindroom_" not in sender and not text.startswith("@mindroom_"):
+            if "mindroom_" not in sender and not ROUTER_HANDOFF.match(text):
                 return text
     index = latest_person_index(messages)
     return text_of(messages[index].get("content")).strip() if index >= 0 else ""
