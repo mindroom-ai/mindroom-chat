@@ -271,7 +271,12 @@ export const Spoiler = recipe({
 /** The inline wrapper of a custom (`data-mx-emoticon`) image emoji. */
 export const EmoticonBase = style({ display: 'inline-block', whiteSpace: 'nowrap' });
 
-/** A Unicode or custom emoji, scaled a little above the text; alone in a message it grows. */
+/**
+ * A Unicode or custom emoji, scaled a little above the text; alone in a message it grows. The
+ * scaled box is taller than a line of text, so it centers on the text's x-height and gives back
+ * part of its height as negative block margins: the glyph keeps its size while the line it sits
+ * in keeps the height of the lines around it.
+ */
 export const Emoticon = recipe({
   base: {
     display: 'inline-block',
@@ -280,8 +285,9 @@ export const Emoticon = recipe({
     objectFit: 'contain',
     textAlign: 'center',
     fontSize: '1.33em',
-    lineHeight: 1,
-    verticalAlign: '-0.3em',
+    lineHeight: '1.25em',
+    verticalAlign: 'middle',
+    marginBlock: '-0.2em',
   },
   variants: {
     jumbo: {
