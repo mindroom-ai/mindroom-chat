@@ -1,0 +1,240 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "تمرير"
+    },
+    "passwordInput": {
+      "show": "إظهار كلمة المرور",
+      "hide": "إخفاء كلمة المرور"
+    },
+    "pdfViewer": {
+      "close": "إغلاق"
+    },
+    "urlPreviewHolder": {
+      "previous": "معاينات الروابط السابقة",
+      "next": "المزيد من معاينات الروابط"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "الاسم",
+      "cancel": "إلغاء",
+      "skinTone": "لون البشرة",
+      "skinTones": {
+        "default": "لون البشرة الافتراضي",
+        "light": "لون بشرة فاتح",
+        "mediumLight": "لون بشرة فاتح متوسط",
+        "medium": "لون بشرة متوسط",
+        "mediumDark": "لون بشرة داكن متوسط",
+        "dark": "لون بشرة داكن"
+      }
+    },
+    "eventReaders": {
+      "close": "إغلاق"
+    },
+    "imagePackContent": {
+      "uploadFailed": "تعذر رفع الصور. حاول مرة أخرى.",
+      "noImages": "لا توجد صور بعد."
+    },
+    "imagePackView": {
+      "close": "إغلاق",
+      "back": "رجوع"
+    },
+    "imageTile": {
+      "remove": "إزالة",
+      "editImage": "تعديل :⁨{{shortcode}}⁩:",
+      "removeImage": "إزالة :⁨{{shortcode}}⁩:",
+      "keepImage": "الإبقاء على :⁨{{shortcode}}⁩:",
+      "removedOnApply": "ستُزال عند تطبيق التغييرات",
+      "usage": "الاستخدام",
+      "shortcodeTaken": "صورة أخرى تستخدم هذا الاسم المختصر.",
+      "shortcodeInvalid": "لا يمكن أن يحتوي الاسم المختصر على مسافات أو نقطتين رأسيتين."
+    },
+    "imageUsageOption": {
+      "pack": "مثل الحزمة"
+    },
+    "imageViewer": {
+      "close": "إغلاق"
+    },
+    "inviteUserPrompt": {
+      "close": "إغلاق"
+    },
+    "joinAddressPrompt": {
+      "close": "إغلاق"
+    },
+    "textViewer": {
+      "close": "إغلاق"
+    },
+    "invites": {
+      "actionFailed": "حدث خطأ ما. حاول مرة أخرى."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "ابحث عن مستخدمين أو أدخل معرّف مستخدم"
+    },
+    "leaveRoomPrompt": {
+      "close": "إغلاق",
+      "forget": "نسيان هذه الغرفة",
+      "forgetDescription": "يزيلها أيضًا من حسابك مع سجلها. يمكنك الانضمام مجددًا لاحقًا إذا سمحت الغرفة بذلك."
+    },
+    "memberFilters": {
+      "label": "إظهار الأعضاء"
+    },
+    "memberSort": {
+      "label": "ترتيب الأعضاء"
+    },
+    "a11y": {
+      "mainNavigation": "التنقل الرئيسي",
+      "skipToContent": "الانتقال إلى المحتوى",
+      "newMessage": "⁨{{sender}}⁩: ⁨{{body}}⁩"
+    },
+    "roomCard": {
+      "forget": "نسيان الغرفة"
+    },
+    "userRoomProfile": {
+      "editProfile": "تعديل الملف الشخصي"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "حذف ⁨{{name}}⁩"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "حدّد نوعًا للحدث ومحتوى يكون كائن JSON."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "الحزمة الشخصية",
+          "imageCount_zero": "⁨{{count}}⁩ صورة، متاحة لك في كل غرفة",
+          "imageCount_one": "⁨{{count}}⁩ صورة، متاحة لك في كل غرفة",
+          "imageCount_two": "صورتان (⁨{{count}}⁩)، متاحتان لك في كل غرفة",
+          "imageCount_few": "⁨{{count}}⁩ صور، متاحة لك في كل غرفة",
+          "imageCount_many": "⁨{{count}}⁩ صورة، متاحة لك في كل غرفة",
+          "imageCount_other": "⁨{{count}}⁩ صورة، متاحة لك في كل غرفة"
+        }
+      },
+      "devices": {
+        "loadFailed": "تعذر تحميل أجهزتك."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "إلغاء الحظر"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "إزالة"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "تعذر بدء الدردشة. حاول مرة أخرى."
+    },
+    "homeNav": {
+      "options": "خيارات الرئيسية"
+    },
+    "directNav": {
+      "options": "خيارات الرسائل المباشرة"
+    },
+    "spaceNav": {
+      "options": "خيارات المساحة"
+    },
+    "calls": {
+      "panel": {
+        "title": "مكالمة",
+        "close": "إغلاق لوحة المكالمة",
+        "participants": "الأشخاص في المكالمة",
+        "connecting": "جارٍ الاتصال…",
+        "reconnecting": "جارٍ إعادة الاتصال…",
+        "ended": "انتهت المكالمة.",
+        "waitingFor": "في انتظار ⁨{{name}}⁩…",
+        "you": "⁨{{name}}⁩ (أنت)",
+        "microphoneOff": "الميكروفون مكتوم",
+        "inCall_zero": "⁨{{count}}⁩ شخص في المكالمة",
+        "inCall_one": "⁨{{count}}⁩ شخص في المكالمة",
+        "inCall_two": "شخصان (⁨{{count}}⁩) في المكالمة",
+        "inCall_few": "⁨{{count}}⁩ أشخاص في المكالمة",
+        "inCall_many": "⁨{{count}}⁩ شخصًا في المكالمة",
+        "inCall_other": "⁨{{count}}⁩ شخص في المكالمة",
+        "startCall": "بدء المكالمة",
+        "startVideoCall": "بدء مكالمة فيديو",
+        "dismiss": "إغلاق",
+        "audioBlocked": "أوقف متصفحك صوت المكالمة مؤقتًا.",
+        "playSound": "تشغيل الصوت",
+        "resize": "تغيير حجم لوحة المكالمة"
+      },
+      "problems": {
+        "service": "تعذر الوصول إلى خدمة المكالمات. حاول لاحقًا.",
+        "connection": "انقطع اتصال المكالمة.",
+        "device": "تعذر استخدام الميكروفون أو الكاميرا."
+      },
+      "devices": {
+        "title": "الأجهزة",
+        "microphone": "الميكروفون",
+        "camera": "الكاميرا",
+        "speaker": "مكبر الصوت",
+        "systemDefault": "الافتراضي للنظام",
+        "unnamed": "⁨{{kind}}⁩ ⁨{{number}}⁩"
+      },
+      "header": {
+        "startCall": "بدء مكالمة",
+        "joinCall": "الانضمام إلى المكالمة",
+        "joinCallCount_zero": "الانضمام إلى المكالمة، وفيها ⁨{{count}}⁩ شخص",
+        "joinCallCount_one": "الانضمام إلى المكالمة، وفيها ⁨{{count}}⁩ شخص",
+        "joinCallCount_two": "الانضمام إلى المكالمة، وفيها شخصان (⁨{{count}}⁩)",
+        "joinCallCount_few": "الانضمام إلى المكالمة، وفيها ⁨{{count}}⁩ أشخاص",
+        "joinCallCount_many": "الانضمام إلى المكالمة، وفيها ⁨{{count}}⁩ شخصًا",
+        "joinCallCount_other": "الانضمام إلى المكالمة، وفيها ⁨{{count}}⁩ شخص",
+        "showCall": "إظهار المكالمة",
+        "hideCall": "إخفاء المكالمة"
+      },
+      "rail": {
+        "returnToCall": "العودة إلى المكالمة في ⁨{{room}}⁩"
+      },
+      "incoming": {
+        "calling": "يتصل ⁨{{name}}⁩",
+        "callingIn": "يتصل ⁨{{name}}⁩ في ⁨{{room}}⁩",
+        "videoCall": "مكالمة فيديو",
+        "voiceCall": "مكالمة صوتية"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "فكّر"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "فشل البحث. حاول مرة أخرى."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "دعوة",
+        "body_zero": "لديك ⁨{{count}}⁩ دعوة جديدة.",
+        "body_one": "لديك ⁨{{count}}⁩ دعوة جديدة.",
+        "body_two": "لديك دعوتان جديدتان (⁨{{count}}⁩).",
+        "body_few": "لديك ⁨{{count}}⁩ دعوات جديدة.",
+        "body_many": "لديك ⁨{{count}}⁩ دعوة جديدة.",
+        "body_other": "لديك ⁨{{count}}⁩ دعوة جديدة."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "عرض مدمج"
+      }
+    },
+    "computer": {
+      "resize": "تغيير حجم لوحة الكمبيوتر",
+      "close": "إغلاق الكمبيوتر"
+    }
+  },
+  "composer": {
+    "emoji": "رمز تعبيري",
+    "cancelReply": "إلغاء الرد"
+  }
+}
