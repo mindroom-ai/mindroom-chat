@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next';
 import { Box, Chip, Icon, IconButton, IconSrc, Icons, Text, color } from 'folds';
 import type { MatrixError } from 'matrix-js-sdk';
 import { UploadCard, UploadCardCancel, UploadCardError, UploadCardProgress } from './UploadCard';
+import * as css from './UploadCard.css';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
+import { useObjectURL } from '../../hooks/useObjectURL';
 import { type Upload, UploadStatus, useBindUploadAtom } from '../../state/upload';
 import {
   type TUploadItem,
@@ -145,6 +147,10 @@ export const UploadCardRenderer = ({
   };
 
   const mimeType = originalFile.type || file.type;
+  // A staged picture shows itself instead of its type icon; the bytes never leave the browser.
+  const previewUrl = useObjectURL(
+    mimeType.startsWith('image/') && originalFile instanceof Blob ? originalFile : undefined
+  );
   // Pictures and videos can be sent as spoilers (MSC4193); other files have no preview to hide.
   const canBeSpoiler = mimeType.startsWith('image/') || mimeType.startsWith('video/');
   const name = fileNameOf(originalFile as File) || fileNameOf(file as File);
@@ -152,7 +158,13 @@ export const UploadCardRenderer = ({
   return (
     <UploadCard
       outlined
-      before={<Icon src={getFileTypeIcon(mimeType)} />}
+      before={
+        previewUrl ? (
+          <img className={css.UploadCardPreview} src={previewUrl} alt="" />
+        ) : (
+          <Icon src={getFileTypeIcon(mimeType)} />
+        )
+      }
       after={
         <>
           {upload.status === UploadStatus.Success && (
