@@ -1,114 +1,22 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readSessionStore } from '../helpers/accounts';
-import {
-  accountRailButtonSelector,
-  activeAccountButtonNamePattern,
-  waitForLoggedInShell,
-} from '../helpers/auth';
+import { accountRailButtonSelector } from '../helpers/auth';
 import { defined } from '../../src/app/test-utils/defined';
+import {
+  HOMESERVER,
+  PROVIDER,
+  homeserverIsUp,
+  listSlotHomeserver,
+  loginPath,
+  mintLoginToken,
+  postJson,
+  stubIdentityProvider,
+  waitForShell,
+} from './ssoHomeserver';
 
-// Single sign-on against the disposable homeserver of `just hs-up`. The test homeserver has no
-// identity provider, so two requests are answered here: the login flows gain an `m.login.sso`
-// flow, and the SSO redirect stands in for the provider by sending the browser straight back
-// with a login token. That token is a real one, minted by the homeserver for a real account
-// (`POST /login/get_token`), so the client's token exchange and the session it starts are real.
-const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
-const PASSWORD = 'sso-spec-password';
-const PROVIDER = { id: 'oidc-e2e', name: 'E2E Identity' };
-
-const homeserverIsUp = async (): Promise<boolean> => {
-  try {
-    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
-      signal: AbortSignal.timeout(2_000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
-};
-
-const postJson = async (path: string, body: unknown, accessToken?: string) => {
-  const response = await fetch(`${HOMESERVER}/_matrix/client${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
-  return { status: response.status, body: (await response.json()) as Record<string, unknown> };
-};
-
-/** Registers an account and returns a fresh login token for it, as an SSO callback would. */
-const mintLoginToken = async (username: string): Promise<string> => {
-  const registered = await postJson('/v3/register', {
-    username,
-    password: PASSWORD,
-    auth: { type: 'm.login.dummy' },
-  });
-  expect(registered.status, `registering ${username}`).toBe(200);
-  const identifier = { type: 'm.id.user', user: username };
-  // The homeserver asks for the password again before it hands out a login token.
-  const minted = await postJson(
-    '/v1/login/get_token',
-    { auth: { type: 'm.login.password', identifier, password: PASSWORD } },
-    registered.body.access_token as string
-  );
-  expect(minted.status, 'minting a login token').toBe(200);
-  return minted.body.login_token as string;
-};
-
-type SsoStub = { redirectUrls: string[] };
-
-/**
- * Advertises one identity provider and answers its redirect by returning to the client's
- * `redirectUrl` with `loginToken`, the way the homeserver does after the provider signs in.
- * `alterReturn` changes the return address first, as a crafted `redirectUrl` would.
- */
-const stubIdentityProvider = async (
-  page: Page,
-  loginToken: () => string | Promise<string>,
-  alterReturn?: (back: URL) => void
-): Promise<SsoStub> => {
-  const stub: SsoStub = { redirectUrls: [] };
-  await page.route(`${HOMESERVER}/_matrix/client/v3/login`, async (route) => {
-    if (route.request().method() !== 'GET') {
-      await route.continue();
-      return;
-    }
-    await route.fulfill({
-      json: {
-        flows: [
-          { type: 'm.login.sso', identity_providers: [PROVIDER] },
-          { type: 'm.login.token' },
-          { type: 'm.login.password' },
-        ],
-      },
-    });
-  });
-  await page.route(
-    `${HOMESERVER}/_matrix/client/v3/login/sso/redirect/${PROVIDER.id}?*`,
-    async (route) => {
-      const redirectUrl = new URL(route.request().url()).searchParams.get('redirectUrl') ?? '';
-      stub.redirectUrls.push(redirectUrl);
-      const back = new URL(redirectUrl);
-      alterReturn?.(back);
-      back.searchParams.set('loginToken', await loginToken());
-      await route.fulfill({ status: 302, headers: { location: back.href } });
-    }
-  );
-  return stub;
-};
-
-/** The signed-in shell; a first sync on a busy machine can outlast the shared helper's wait. */
-const waitForShell = async (page: Page) => {
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
-    timeout: 90_000,
-  });
-  await waitForLoggedInShell(page);
-};
-
-const loginPath = (search = '') => `/login/${encodeURIComponent(HOMESERVER)}${search}`;
+// Single sign-on on the deployment's own homeserver (helpers in `ssoHomeserver.ts`). Every test
+// lists the slot's server in `config.json`, as a deployment lists its own, so its buttons start
+// at once; `sso-unlisted-server.spec.ts` covers servers the deployment does not offer.
 
 const expectActiveUser = async (page: Page, username: string) => {
   await expect
@@ -160,8 +68,9 @@ const stubOtherServer = async (page: Page): Promise<string[]> => {
   return requests;
 };
 
-test.beforeEach(async () => {
+test.beforeEach(async ({ page }) => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+  await listSlotHomeserver(page);
 });
 
 test('signs in through an identity provider and returns with a login token', async ({ page }) => {
