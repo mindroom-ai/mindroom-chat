@@ -1,69 +1,43 @@
-import React, { useEffect, useState } from 'react';
-import { Icon, Icons } from 'folds';
+import React from 'react';
+import { Icon, Icons, color } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api';
 import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../../components/sidebar';
-import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { countUnverifiedOtherDevices, useOwnDeviceTrust } from '../../../hooks/useOwnDeviceTrust';
 import { settingsModalAtom } from '../../../state/settingsModal';
 import { SettingsPages } from '../../../features/settings/settingsPages';
 
 /**
- * Shown while the account has cross-signing keys that have not verified this device; opens the
- * device settings. An account without cross-signing has nothing to verify against, so the tab
- * stays away and the welcome page offers to set up backup instead.
+ * The shield in the rail. It shows while this session is not verified against the account's
+ * cross-signing keys, and on a verified session while another of the account's sessions is not;
+ * either way it opens the device settings. An account without cross-signing has nothing to
+ * verify against, so the shield stays away and the welcome page offers to set up backup instead.
  */
 export function UnverifiedTab() {
-  const client = useMatrixClient();
   const { t } = useTranslation();
   const setSettingsModal = useSetAtom(settingsModalAtom);
-  const [unverified, setUnverified] = useState(false);
+  const trust = useOwnDeviceTrust();
 
-  useEffect(() => {
-    const userId = client.getUserId();
-    const deviceId = client.getDeviceId();
-    const crypto = client.getCrypto();
-    if (!crypto || !userId || !deviceId) return undefined;
-    let cancelled = false;
-    const isUnverified = async (): Promise<boolean> => {
-      if (!(await crypto.userHasCrossSigningKeys(userId))) return false;
-      const status = await crypto.getDeviceVerificationStatus(userId, deviceId);
-      return !!status && !status.crossSigningVerified;
-    };
-    const check = () => {
-      isUnverified()
-        .then((result) => {
-          if (!cancelled) setUnverified(result);
-        })
-        .catch(() => undefined);
-    };
-    check();
-    const events = [
-      CryptoEvent.UserTrustStatusChanged,
-      CryptoEvent.DevicesUpdated,
-      CryptoEvent.KeysChanged,
-    ] as const;
-    events.forEach((event) => client.on(event, check));
-    return () => {
-      cancelled = true;
-      events.forEach((event) => client.removeListener(event, check));
-    };
-  }, [client]);
-
-  if (!unverified) return null;
+  if (!trust?.crossSigning) return null;
+  const thisDevice = !trust.thisDeviceVerified;
+  if (!thisDevice && countUnverifiedOtherDevices(trust) === 0) return null;
+  const label = thisDevice ? t('nav.unverifiedDevice') : t('nav.unverifiedDevices');
 
   return (
     <SidebarItem>
-      <SidebarItemTooltip tooltip={t('nav.unverifiedDevice')}>
+      <SidebarItemTooltip tooltip={label}>
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
             ref={triggerRef}
             outlined
-            aria-label={t('nav.unverifiedDevice')}
+            aria-label={label}
             onClick={() => setSettingsModal({ initialPage: SettingsPages.DevicesPage })}
           >
-            <Icon src={Icons.ShieldUser} />
+            <Icon
+              src={Icons.ShieldUser}
+              style={{ color: thisDevice ? color.Critical.Main : color.Warning.Main }}
+            />
           </SidebarAvatar>
         )}
       </SidebarItemTooltip>
