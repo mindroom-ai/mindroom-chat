@@ -103,10 +103,23 @@ def latest_person_index(messages: list[dict]) -> int:
     return -1
 
 
-def spoken(text: str) -> str:
-    """What the person wrote: MindRoom wraps each message as <msg ...><![CDATA[text]]></msg>."""
-    parts = re.findall(r"<!\[CDATA\[(.*?)\]\]>", text, re.S)
-    return (parts[-1] if parts else text).strip()
+MESSAGE_BLOCK = re.compile(r"<msg\b[^>]*?from=\"([^\"]*)\"[^>]*><!\[CDATA\[(.*?)\]\]>", re.S)
+
+
+def person_said(messages: list[dict]) -> str:
+    """The latest words of a person, not an agent: MindRoom wraps each message as <msg from=...><![CDATA[...]]>."""
+    for message in reversed(messages):
+        if not is_person_message(message):
+            continue
+        blocks = [
+            text
+            for sender, text in MESSAGE_BLOCK.findall(text_of(message.get("content")))
+            if "mindroom_" not in sender
+        ]
+        if blocks:
+            return blocks[-1].strip()
+    index = latest_person_index(messages)
+    return text_of(messages[index].get("content")).strip() if index >= 0 else ""
 
 
 def current_turn_text(messages: list[dict]) -> str:
@@ -229,8 +242,7 @@ def plan(body: dict) -> tuple:
         )
     if has_tag(text, "#error"):
         return ("error",)
-    said = spoken(text_of(messages[index].get("content"))) if index >= 0 else ""
-    return ("text", f"Hello from **{body.get('model')}**. You said: {said}")
+    return ("text", f"Hello from **{body.get('model')}**. You said: {person_said(messages)}")
 
 
 def chunk(model: str, delta: dict, finish: str | None = None) -> dict:

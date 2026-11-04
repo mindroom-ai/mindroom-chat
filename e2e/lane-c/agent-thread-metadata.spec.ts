@@ -42,10 +42,11 @@ test('a thread gets its summary title, then the title the agent sets', async ({ 
   await expect(page.getByRole('button', { name: /^Ran 1 tool call/ })).toContainText(
     'set_thread_summary'
   );
-  // The sidebar's thread list and the Compact card take the same title.
-  await expect(
-    page.getByRole('button', { name: /^Open thread: Stub picked this title from a tool call/ })
-  ).toBeVisible();
+  // The room's Compact card takes the same title.
+  await page.getByRole('button', { name: 'Back to room' }).click();
+  await expect(page.getByText('Stub picked this title from a tool call').first()).toBeVisible({
+    timeout: 30_000,
+  });
   const summaries = (await lobbyEvents(stack)).filter(
     (event) =>
       event.content['io.mindroom.thread_summary'] &&

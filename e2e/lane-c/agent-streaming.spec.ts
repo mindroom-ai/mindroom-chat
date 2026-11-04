@@ -92,7 +92,7 @@ test('tool calls show a running row, then one row for the run that expands to ea
   for (const step of ['echo step one', 'sleep 10; echo step two', 'echo step three']) {
     await expect(reply.getByText(step, { exact: true })).toBeVisible();
   }
-  await expect(reply.getByText(/\] step two$/)).toBeVisible();
+  await expect(reply.getByText(/workspace\]\s+step two/)).toBeVisible();
   await tools.click();
   await expect(reply.getByText('sleep 10; echo step two', { exact: true })).toHaveCount(0);
 });
