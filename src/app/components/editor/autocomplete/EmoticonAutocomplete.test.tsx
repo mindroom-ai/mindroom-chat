@@ -100,7 +100,9 @@ const rows = () => renderer!.root.findAllByType('button');
 it('replaces the typed shortcode with the picked emoji and a space', () => {
   const { editor, requestClose } = render('hi :wave');
 
-  act(() => defined(rows()[0], 'a suggestion row').props.onClick());
+  act(() => {
+    defined(rows()[0], 'a suggestion row').props.onClick();
+  });
 
   expect(toPlainText(editor.children, false)).toBe('hi 👋 ');
   expect(state.addRecentEmoji).toHaveBeenCalledWith({}, '👋');
@@ -121,7 +123,9 @@ it('inserts a custom emoji as an emoticon that sends as an image', () => {
   const { editor } = render(':parr');
 
   expect(renderer!.root.findByProps({ children: 'Birds' })).toBeTruthy();
-  act(() => defined(rows()[0], 'a suggestion row').props.onClick());
+  act(() => {
+    defined(rows()[0], 'a suggestion row').props.onClick();
+  });
 
   expect(toPlainText(editor.children, false)).toBe(':parrot: ');
   expect(state.addRecentEmoji).toHaveBeenCalledWith({}, 'mxc://x/p');

@@ -96,7 +96,9 @@ describe('avatars that need the access token', () => {
     render(user(LEGACY));
     expect(image()?.getAttribute('src')).toBe(LEGACY);
 
-    act(() => image()?.dispatchEvent(new Event('error')));
+    act(() => {
+      image()?.dispatchEvent(new Event('error'));
+    });
     await settle();
 
     expect(fetchMock).toHaveBeenCalledWith(AUTHED, expect.anything());
@@ -118,7 +120,9 @@ describe('avatars that need the access token', () => {
     render(user(AUTHED));
     await settle();
 
-    act(() => image()?.dispatchEvent(new Event('error')));
+    act(() => {
+      image()?.dispatchEvent(new Event('error'));
+    });
     expect(image()).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -127,12 +131,16 @@ describe('avatars that need the access token', () => {
     setServiceWorker(null);
     const elsewhere = 'https://cdn.test/face.png';
     render(user(elsewhere));
-    act(() => image()?.dispatchEvent(new Event('error')));
+    act(() => {
+      image()?.dispatchEvent(new Event('error'));
+    });
     expect(image()).toBeNull();
 
     render(user(AUTHED), false);
     expect(image()?.getAttribute('src')).toBe(AUTHED);
-    act(() => image()?.dispatchEvent(new Event('error')));
+    act(() => {
+      image()?.dispatchEvent(new Event('error'));
+    });
     expect(image()).toBeNull();
     expect(fetchMock).not.toHaveBeenCalled();
   });

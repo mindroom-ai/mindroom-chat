@@ -40,7 +40,9 @@ describe('message spoilers', () => {
     expect(spoiler().props['aria-pressed']).toBe(true);
 
     const click = clickEvent();
-    act(() => spoiler().props.onClick(click));
+    act(() => {
+      spoiler().props.onClick(click);
+    });
 
     expect(click.preventDefault).toHaveBeenCalled();
     expect(click.stopPropagation).toHaveBeenCalled();
@@ -55,12 +57,16 @@ describe('message spoilers', () => {
     expect(spoiler().props['aria-label']).toBe('plot');
 
     const tab = { key: 'Tab', ...clickEvent() };
-    act(() => spoiler().props.onKeyDown(tab));
+    act(() => {
+      spoiler().props.onKeyDown(tab);
+    });
     expect(tab.preventDefault).not.toHaveBeenCalled();
     expect(spoiler().props['aria-pressed']).toBe(true);
 
     const enter = { key: 'Enter', ...clickEvent() };
-    act(() => spoiler().props.onKeyDown(enter));
+    act(() => {
+      spoiler().props.onKeyDown(enter);
+    });
     expect(enter.preventDefault).toHaveBeenCalled();
     expect(enter.stopPropagation).toHaveBeenCalled();
     expect(spoiler().props['aria-pressed']).toBe(false);

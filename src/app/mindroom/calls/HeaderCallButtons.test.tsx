@@ -108,7 +108,9 @@ describe('HeaderCallMenuEntries', () => {
     const tree = render(<HeaderCallMenuEntries requestClose={requestClose} />);
     expect(labels(tree)).toEqual(['featureUi.calls.header.startCall']);
 
-    act(() => tree.root.findByType('button').props.onClick());
+    act(() => {
+      tree.root.findByType('button').props.onClick();
+    });
     expect(requestClose).toHaveBeenCalledOnce();
     expect(state.setPanelOpen).toHaveBeenCalledWith(true);
   });
@@ -129,7 +131,9 @@ describe('HeaderCallMenuEntries', () => {
       'mindroomUi.calls.agentCallHeaderButton.callAgent:Mind',
     ]);
 
-    act(() => defined(tree.root.findAllByType('button')[1], 'the second entry').props.onClick());
+    act(() => {
+      defined(tree.root.findAllByType('button')[1], 'the second entry').props.onClick();
+    });
     expect(requestClose).toHaveBeenCalledOnce();
     expect(state.call).toHaveBeenCalledWith({
       agentUserId: second.userId,
