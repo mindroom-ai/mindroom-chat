@@ -2,6 +2,7 @@
 # Run the e2e suite against one commit, spread over several slots, and write one TSV row per spec.
 #
 # Usage: scripts/e2e-suite.sh [--rev <rev>] [--slots <list>] [--dev] [--out <file.tsv>] [<spec>...] [-- <playwright options>]
+#        scripts/e2e-suite.sh --resume <run directory> [--slots <list>] [--out <file.tsv>] [-- <playwright options>]
 #   scripts/e2e-suite.sh --slots 25-30 --out e2e-results.tsv
 #   scripts/e2e-suite.sh --slots 2 e2e/live/pinned-threads.spec.ts -- --repeat-each 3
 #
@@ -13,6 +14,8 @@
 # `--retries 1`; a test that passes on its retry counts as flaky. --slots takes `25-30` or `2,25,26`
 # (default 25-30). The run directory ($E2E_SNAPSHOT_ROOT/suite-<commit>-<time>, with logs, JSON
 # reports, traces and results.tsv) is printed at the start; --out copies results.tsv there too.
+# --resume finishes an interrupted run in its directory: the same commit, every spec it has no
+# result for yet (pass the Playwright options again if the run had its own).
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
 # run is in progress (a shared checkout) cannot change what that run executes next.
@@ -24,6 +27,7 @@ main() {
   slot_list=25-30
   dev_all=0
   out=
+  resume=
   specs=()
   playwright_options=(--retries 1)
   while [ $# -gt 0 ]; do
@@ -35,6 +39,8 @@ main() {
       --dev) dev_all=1 ;;
       --out) out="$2"; shift ;;
       --out=*) out="${1#--out=}" ;;
+      --resume) resume="$2"; shift ;;
+      --resume=*) resume="${1#--resume=}" ;;
       --) shift; playwright_options=("$@"); break ;;
       -*)
         echo "e2e-suite: unknown option $1" >&2
@@ -66,6 +72,14 @@ main() {
     done
   done
 
+  if [ -n "$resume" ]; then
+    [ -f "$resume/manifest.tsv" ] || {
+      echo "e2e-suite: $resume is not a suite run directory" >&2
+      exit 2
+    }
+    # Runs record their commit; older ones only carry its first 12 digits in the directory name.
+    rev="$(cat "$resume/commit" 2>/dev/null || basename "$resume" | sed -E 's/^suite-([0-9a-f]+)-.*/\1/')"
+  fi
   sha="$(git rev-parse --verify --quiet "$rev^{commit}")" || {
     echo "e2e-suite: $rev is not a commit" >&2
     exit 2
@@ -75,9 +89,15 @@ main() {
   fi
   mapfile -t dev_specs < <(git grep -l "'/src/" "$sha" -- e2e | sed "s/^$sha://")
   snapshots="${E2E_SNAPSHOT_ROOT:-${TMPDIR:-/tmp}/mindroom-client-e2e}"
-  run="$snapshots/suite-${sha:0:12}-$(date +%Y%m%dT%H%M%S)"
-  mkdir -p "$run/logs" "$run/json" "$run/output"
-  : >"$run/manifest.tsv"
+  if [ -n "$resume" ]; then
+    run="$resume"
+    mapfile -t specs < <(printf '%s\n' "${specs[@]}" | grep -vxF -f <(cut -f 1 "$run/manifest.tsv") || true)
+  else
+    run="$snapshots/suite-${sha:0:12}-$(date +%Y%m%dT%H%M%S)"
+    mkdir -p "$run/logs" "$run/json" "$run/output"
+    : >"$run/manifest.tsv"
+  fi
+  echo "$sha" >"$run/commit"
   echo "e2e-suite: ${#specs[@]} spec files of ${sha:0:12} on slots ${slots[*]}; run directory $run" >&2
 
   # The queue: live specs first (the slowest), one line per spec with the server it needs.
