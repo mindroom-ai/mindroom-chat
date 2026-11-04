@@ -4,7 +4,7 @@ import type { IconSrc, RectCords } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
 import {
   DndContext,
@@ -48,11 +48,10 @@ import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../../utils/room';
 import { copyToClipboard } from '../../../utils/dom';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../../utils/sortableDrag';
-import { getMatrixToRoom } from '../../../plugins/matrix-to';
-import { getViaServers } from '../../../plugins/via-servers';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
 import { useSpaceSearchRooms } from '../space/useSpaceSearchRooms';
+import { getSpaceShareLink } from '../space/spaceLink';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 import {
   type SidebarDragItem,
@@ -102,12 +101,6 @@ const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
 
 /** Folders open in the rail in this session, by folder ID. */
 const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
-
-/** A matrix.to link to the space: by alias when it has one, else by ID and routing servers. */
-const spaceLink = (client: MatrixClient, space: Room): string => {
-  const idOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
-  return getMatrixToRoom(idOrAlias, idOrAlias.startsWith('#') ? undefined : getViaServers(space));
-};
 
 type MenuEntryProps = { label: string; icon: IconSrc; onSelect: () => void };
 
@@ -251,7 +244,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
           <RailMenuEntry
             label={t('sharedUi.spaceTabs.copyLink')}
             icon={Icons.Link}
-            onSelect={closeThen(() => copyToClipboard(spaceLink(client, space)))}
+            onSelect={closeThen(() => copyToClipboard(getSpaceShareLink(client, space)))}
           />
           <RailMenuEntry
             label={t('sharedUi.spaceTabs.spaceSettings')}
