@@ -1,0 +1,228 @@
+{
+  "sharedUi": {
+    "pageScroll": {
+      "scrollbar": "Défilement"
+    },
+    "passwordInput": {
+      "show": "Afficher le mot de passe",
+      "hide": "Masquer le mot de passe"
+    },
+    "pdfViewer": {
+      "close": "Fermer"
+    },
+    "urlPreviewHolder": {
+      "previous": "Aperçus de liens précédents",
+      "next": "Autres aperçus de liens"
+    },
+    "emojiBoard": {
+      "addCustomEmojiName": "Nom",
+      "cancel": "Annuler",
+      "skinTone": "Teint",
+      "skinTones": {
+        "default": "Teint par défaut",
+        "light": "Teint clair",
+        "mediumLight": "Teint moyennement clair",
+        "medium": "Teint moyen",
+        "mediumDark": "Teint moyennement foncé",
+        "dark": "Teint foncé"
+      }
+    },
+    "eventReaders": {
+      "close": "Fermer"
+    },
+    "imagePackContent": {
+      "uploadFailed": "Impossible d’envoyer les images. Réessayez.",
+      "noImages": "Aucune image pour le moment."
+    },
+    "imagePackView": {
+      "close": "Fermer",
+      "back": "Retour"
+    },
+    "imageTile": {
+      "remove": "Supprimer",
+      "editImage": "Modifier :{{shortcode}}:",
+      "removeImage": "Supprimer :{{shortcode}}:",
+      "keepImage": "Conserver :{{shortcode}}:",
+      "removedOnApply": "Supprimée quand vous appliquerez les modifications",
+      "usage": "Utilisée comme",
+      "shortcodeTaken": "Une autre image utilise déjà ce code court.",
+      "shortcodeInvalid": "Un code court ne peut contenir ni espaces ni deux-points."
+    },
+    "imageUsageOption": {
+      "pack": "Comme le pack"
+    },
+    "imageViewer": {
+      "close": "Fermer"
+    },
+    "inviteUserPrompt": {
+      "close": "Fermer"
+    },
+    "joinAddressPrompt": {
+      "close": "Fermer"
+    },
+    "textViewer": {
+      "close": "Fermer"
+    },
+    "invites": {
+      "actionFailed": "Une erreur s’est produite. Réessayez."
+    },
+    "inviteUserAutocomplete": {
+      "placeholder": "Rechercher des utilisateurs ou saisir un identifiant utilisateur"
+    },
+    "leaveRoomPrompt": {
+      "close": "Fermer",
+      "forget": "Oublier cette salle",
+      "forgetDescription": "La retire aussi de votre compte, historique compris. Vous pourrez la rejoindre plus tard si la salle le permet."
+    },
+    "memberFilters": {
+      "label": "Afficher les membres"
+    },
+    "memberSort": {
+      "label": "Trier les membres"
+    },
+    "a11y": {
+      "mainNavigation": "Navigation principale",
+      "skipToContent": "Aller au contenu",
+      "newMessage": "{{sender}} : {{body}}"
+    },
+    "roomCard": {
+      "forget": "Oublier la salle"
+    },
+    "userRoomProfile": {
+      "editProfile": "Modifier le profil"
+    }
+  },
+  "featureUi": {
+    "commonSettings": {
+      "emojisStickers": {
+        "roomPacks": {
+          "deletePack": "Supprimer {{name}}"
+        }
+      },
+      "developerTools": {
+        "invalidJson": "Donnez à l’événement un type et un contenu qui soit un objet JSON."
+      }
+    },
+    "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Pack personnel",
+          "imageCount_one": "{{count}} image, à vous dans toutes les salles",
+          "imageCount_many": "{{count}} images, à vous dans toutes les salles",
+          "imageCount_other": "{{count}} images, à vous dans toutes les salles"
+        }
+      },
+      "devices": {
+        "loadFailed": "Impossible de charger vos appareils."
+      },
+      "account": {
+        "ignoredUserList": {
+          "unblock": "Débloquer"
+        }
+      },
+      "notifications": {
+        "keywordMessages": {
+          "remove": "Supprimer"
+        }
+      }
+    },
+    "createChat": {
+      "failed": "Impossible de démarrer la discussion. Réessayez."
+    },
+    "homeNav": {
+      "options": "Options de l’accueil"
+    },
+    "directNav": {
+      "options": "Options des messages directs"
+    },
+    "spaceNav": {
+      "options": "Options de l’espace"
+    },
+    "calls": {
+      "panel": {
+        "title": "Appel",
+        "close": "Fermer le panneau d’appel",
+        "participants": "Personnes dans l’appel",
+        "connecting": "Connexion…",
+        "reconnecting": "Reconnexion…",
+        "ended": "L’appel est terminé.",
+        "waitingFor": "En attente de {{name}}…",
+        "you": "{{name}} (vous)",
+        "microphoneOff": "Micro coupé",
+        "inCall_one": "{{count}} personne dans l’appel",
+        "inCall_many": "{{count}} personnes dans l’appel",
+        "inCall_other": "{{count}} personnes dans l’appel",
+        "startCall": "Démarrer l’appel",
+        "startVideoCall": "Démarrer l’appel vidéo",
+        "dismiss": "Fermer",
+        "audioBlocked": "Votre navigateur a mis en pause le son de l’appel.",
+        "playSound": "Lire le son",
+        "resize": "Redimensionner le panneau d’appel"
+      },
+      "problems": {
+        "service": "Le service d’appel est injoignable. Réessayez plus tard.",
+        "connection": "La connexion de l’appel a été perdue.",
+        "device": "Impossible d’utiliser votre micro ou votre caméra."
+      },
+      "devices": {
+        "title": "Appareils",
+        "microphone": "Microphone",
+        "camera": "Caméra",
+        "speaker": "Haut-parleur",
+        "systemDefault": "Valeur par défaut du système",
+        "unnamed": "{{kind}} {{number}}"
+      },
+      "header": {
+        "startCall": "Démarrer un appel",
+        "joinCall": "Rejoindre l’appel",
+        "joinCallCount_one": "Rejoindre l’appel, {{count}} personne y participe",
+        "joinCallCount_many": "Rejoindre l’appel, {{count}} personnes y participent",
+        "joinCallCount_other": "Rejoindre l’appel, {{count}} personnes y participent",
+        "showCall": "Afficher l’appel",
+        "hideCall": "Masquer l’appel"
+      },
+      "rail": {
+        "returnToCall": "Revenir à l’appel dans {{room}}"
+      },
+      "incoming": {
+        "calling": "{{name}} vous appelle",
+        "callingIn": "{{name}} appelle dans {{room}}",
+        "videoCall": "Appel vidéo",
+        "voiceCall": "Appel vocal"
+      }
+    }
+  },
+  "mindroomUi": {
+    "messages": {
+      "mindroomReasoning": {
+        "thought": "A réfléchi"
+      }
+    },
+    "message-search": {
+      "messageSearch": {
+        "searchFailed": "La recherche a échoué. Réessayez."
+      }
+    },
+    "notifications": {
+      "invitation": {
+        "title": "Invitation",
+        "body_one": "Vous avez {{count}} nouvelle invitation.",
+        "body_many": "Vous avez {{count}} nouvelles invitations.",
+        "body_other": "Vous avez {{count}} nouvelles invitations."
+      }
+    },
+    "threads": {
+      "mindroomRoomViewHeader": {
+        "compactView": "Vue compacte"
+      }
+    },
+    "computer": {
+      "resize": "Redimensionner le panneau de l’ordinateur",
+      "close": "Fermer l’ordinateur"
+    }
+  },
+  "composer": {
+    "emoji": "Émoji",
+    "cancelReply": "Annuler la réponse"
+  }
+}
