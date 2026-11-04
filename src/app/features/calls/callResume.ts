@@ -123,6 +123,19 @@ const deviceCallLock = (userId: string, deviceId: string) => `mindroom-call:${us
 const lockManager = (): LockManager | undefined =>
   typeof navigator === 'undefined' ? undefined : navigator.locks;
 
+/**
+ * How many requests for each call lock this tab made that the browser has not let go of yet. A
+ * call that just ended can still hold its lock while the next one starts, and that is no other
+ * tab's call.
+ */
+const requestsHere = new Map<string, number>();
+
+const countRequestHere = (name: string, change: 1 | -1) => {
+  const count = (requestsHere.get(name) ?? 0) + change;
+  if (count > 0) requestsHere.set(name, count);
+  else requestsHere.delete(name);
+};
+
 /** Holds this device's call lock until the returned function runs. */
 export const holdDeviceCallLock = (mx: MatrixClient): (() => void) => {
   const locks = lockManager();
@@ -132,16 +145,27 @@ export const holdDeviceCallLock = (mx: MatrixClient): (() => void) => {
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
-  locks.request(deviceCallLock(mx.getSafeUserId(), deviceId), () => held).catch(() => undefined);
+  const name = deviceCallLock(mx.getSafeUserId(), deviceId);
+  countRequestHere(name, 1);
+  locks
+    .request(name, () => held)
+    .catch(() => undefined)
+    .finally(() => countRequestHere(name, -1));
   return release;
 };
 
-const deviceInCallElsewhere = async (userId: string, deviceId: string): Promise<boolean> => {
+/**
+ * Whether another tab of this session, which shares the device and so its call memberships, is
+ * in a call (or waiting for the lock to join one).
+ */
+export const deviceInCallElsewhere = async (mx: MatrixClient): Promise<boolean> => {
   const locks = lockManager();
-  if (!locks) return false;
-  const name = deviceCallLock(userId, deviceId);
+  const deviceId = mx.getDeviceId();
+  if (!locks || !deviceId) return false;
+  const name = deviceCallLock(mx.getSafeUserId(), deviceId);
   const { held = [], pending = [] } = await locks.query().catch(() => ({} as LockManagerSnapshot));
-  return [...held, ...pending].some((lock) => lock.name === name);
+  const requests = [...held, ...pending].filter((lock) => lock.name === name).length;
+  return requests > (requestsHere.get(name) ?? 0);
 };
 
 /** Withdraws this device's call memberships in the given rooms (MSC4143: empty content). */
@@ -170,8 +194,7 @@ export const withdrawLeftoverMemberships = async (
   mx: MatrixClient,
   keepRoomId?: string
 ): Promise<void> => {
-  const deviceId = mx.getDeviceId();
-  if (!deviceId || (await deviceInCallElsewhere(mx.getSafeUserId(), deviceId))) return;
+  if (!mx.getDeviceId() || (await deviceInCallElsewhere(mx))) return;
   const rooms = mx
     .getRooms()
     .filter((room) => room.roomId !== keepRoomId)

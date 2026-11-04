@@ -324,6 +324,8 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const [camera, setCamera] = useState(false);
   const [devices, setDevices] = useState<CallDevices>({});
   const [joining, setJoining] = useState(false);
+  // This session's other tab is in a call: it shares this device, so this one cannot join.
+  const [busyElsewhere, setBusyElsewhere] = useState(false);
 
   // A call running elsewhere is joined through the backend it already uses.
   const supported = people.length > 0 || support === 'supported';
@@ -337,6 +339,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
 
   const join = () => {
     setJoining(true);
+    setBusyElsewhere(false);
     void startCall({
       room,
       kind: 'room',
@@ -345,7 +348,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
       devices,
       // Starting a call rings the other person of a direct chat and notifies a group.
       notify: people.length > 0 ? undefined : direct ? 'ring' : 'notification',
-    }).finally(() => setJoining(false));
+    })
+      .then((result) => setBusyElsewhere(result === 'busy'))
+      .finally(() => setJoining(false));
   };
 
   return (
@@ -384,6 +389,9 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
           <Notice>{blocker}</Notice>
         ) : (
           <>
+            {busyElsewhere && (
+              <Notice>{t('featureUi.call.callView.alreadyInAnotherCallEndTheCurrent')}</Notice>
+            )}
             <Box gap="200" alignItems="Center" justifyContent="Center" wrap="Wrap">
               <CallControl
                 label={

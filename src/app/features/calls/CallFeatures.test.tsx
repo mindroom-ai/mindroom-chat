@@ -18,7 +18,10 @@ const client = vi.hoisted(() => ({
   getSafeUserId: () => '@me:calls.test',
   getUserId: () => '@me:calls.test',
   getDeviceId: () => 'TABDEVICE',
-  getRoom: (): unknown => undefined,
+  rooms: new Map<string, unknown>(),
+  getRoom(roomId: string): unknown {
+    return this.rooms.get(roomId);
+  },
 }));
 // Withdrawing leftover memberships finishes when a test says so.
 const leftovers = vi.hoisted(() => ({ withdrawn: Promise.resolve() }));
@@ -77,7 +80,7 @@ const pageTransition = (type: 'pagehide' | 'pageshow', persisted: boolean) =>
 afterEach(() => {
   sessionStorage.clear();
   client.syncState = null;
-  client.getRoom = () => undefined;
+  client.rooms.clear();
   leftovers.withdrawn = Promise.resolve();
 });
 
@@ -130,7 +133,7 @@ describe('CallFeatures', () => {
       loadMembersIfNeeded: vi.fn(async () => undefined),
       getLiveTimeline: () => ({ getEvents: () => [] }),
     };
-    client.getRoom = (id: unknown) => (id === roomId ? room : undefined);
+    client.rooms.set(roomId, room);
     client.syncState = 'SYNCING';
     sessionStorage.setItem(
       RESUME_KEY,

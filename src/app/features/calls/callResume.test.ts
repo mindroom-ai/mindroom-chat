@@ -5,6 +5,7 @@ import type { CallState, RoomCall } from './RoomCall';
 import type { ActiveCall } from './callStore';
 import {
   RESUME_WINDOW_MS,
+  deviceInCallElsewhere,
   holdDeviceCallLock,
   rememberCallForResume,
   takeCallResume,
@@ -47,7 +48,29 @@ const fakeLocks = () => {
         else held.set(name, count);
       });
     },
-    query: async () => ({ held: [...held.keys()].map((name) => ({ name })), pending: [] }),
+    // One entry per request, as a real lock manager lists the holder and those queued behind it.
+    query: async () => ({
+      held: [...held].flatMap(([name, count]) => Array.from({ length: count }, () => ({ name }))),
+      pending: [],
+    }),
+  };
+};
+
+/** Another tab of the same session in a call: it holds the device's lock from its own page. */
+const otherTabHolds = (locks: ReturnType<typeof fakeLocks>) => {
+  let release: () => void = () => undefined;
+  const done = locks.request(
+    `mindroom-call:${ME}:${DEVICE}`,
+    () =>
+      new Promise<void>((resolve) => {
+        release = resolve;
+      })
+  );
+  return {
+    release: async () => {
+      release();
+      await done;
+    },
   };
 };
 
@@ -191,15 +214,44 @@ describe('withdrawLeftoverMemberships', () => {
   });
 
   it('leaves them while another tab of this device is in a call', async () => {
+    const locks = fakeLocks();
+    vi.stubGlobal('navigator', { locks });
     const { mx, sendStateEvent } = clientWith([roomWithCallState('!a', [mine])]);
-    const release = holdDeviceCallLock(mx);
+    const otherTab = otherTabHolds(locks);
     await withdrawLeftoverMemberships(mx);
     expect(sendStateEvent).not.toHaveBeenCalled();
 
-    release();
-    await Promise.resolve();
+    await otherTab.release();
     await withdrawLeftoverMemberships(mx);
     expect(sendStateEvent).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('deviceInCallElsewhere', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("tells another tab's call from this tab's own", async () => {
+    const locks = fakeLocks();
+    vi.stubGlobal('navigator', { locks });
+    const { mx } = clientWith();
+    expect(await deviceInCallElsewhere(mx)).toBe(false);
+
+    // This tab's call, also while its lock is still on the way out after the call ended.
+    const release = holdDeviceCallLock(mx);
+    expect(await deviceInCallElsewhere(mx)).toBe(false);
+    release();
+    expect(await deviceInCallElsewhere(mx)).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const otherTab = otherTabHolds(locks);
+    expect(await deviceInCallElsewhere(mx)).toBe(true);
+    const again = holdDeviceCallLock(mx);
+    expect(await deviceInCallElsewhere(mx)).toBe(true);
+    again();
+    await otherTab.release();
+    expect(await deviceInCallElsewhere(mx)).toBe(false);
   });
 });
 

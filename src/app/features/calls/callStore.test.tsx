@@ -50,6 +50,14 @@ describe('useCallActions endCall', () => {
   });
 });
 
+/** A signed-in account's running client, alone in its session (no other tab holds its lock). */
+const runningClient = () =>
+  ({
+    clientRunning: true,
+    getSafeUserId: () => '@me:calls.test',
+    getDeviceId: () => 'TABDEVICE',
+  } as unknown as MatrixClient);
+
 describe('useCallActions startCall', () => {
   /** A room whose members load when the test says so. */
   const slowRoom = () => {
@@ -72,19 +80,33 @@ describe('useCallActions startCall', () => {
   it('starts the call on a running client', async () => {
     const store = createStore();
     const { room, finishLoading } = slowRoom();
-    const starting = actionsIn(store, { clientRunning: true } as MatrixClient).startCall({
-      room,
-      kind: 'room',
-    });
+    const starting = actionsIn(store, runningClient()).startCall({ room, kind: 'room' });
     await finishLoading();
 
     await expect(starting).resolves.toBe('started');
     expect(store.get(activeCallAtom)?.call.room).toBe(room);
   });
 
+  it("answers busy while another tab of this session is in a call, and leaves that tab's call alone", async () => {
+    const lockName = 'mindroom-call:@me:calls.test:TABDEVICE';
+    vi.stubGlobal('navigator', {
+      locks: { query: async () => ({ held: [{ name: lockName }], pending: [] }) },
+    });
+    const store = createStore();
+    const mx = runningClient();
+    const { room } = slowRoom();
+
+    try {
+      await expect(actionsIn(store, mx).startCall({ room, kind: 'room' })).resolves.toBe('busy');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(store.get(activeCallAtom)).toBeUndefined();
+  });
+
   it('leaves the store alone when the account signed out or switched while the call started', async () => {
     const store = createStore();
-    const mx = { clientRunning: true } as MatrixClient;
+    const mx = runningClient();
     const { room, finishLoading } = slowRoom();
     const starting = actionsIn(store, mx).startCall({ room, kind: 'room' });
     // The account went away: the shell stopped its client and cleared the store.

@@ -4,6 +4,7 @@ import { RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import type { CallDevices, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
+import { deviceInCallElsewhere } from './callResume';
 
 /** Where an agent call came from: the room and thread the agent is told about and posts back to. */
 export type CallOrigin = { roomId: string; threadId?: string };
@@ -107,8 +108,9 @@ const newestEventTs = (room: Room): number | undefined =>
   room.getLiveTimeline().getEvents().at(-1)?.getTs();
 
 /**
- * Starting and ending the call. Starting while another call is active does nothing and answers
- * `busy`. The call engine and LiveKit load on first use.
+ * Starting and ending the call. Starting while another call is active, in this tab or another
+ * tab of the same session, does nothing and answers `busy`. The call engine and LiveKit load on
+ * first use.
  */
 export const useCallActions = (mx: MatrixClient) => {
   const store = useStore();
@@ -129,7 +131,11 @@ export const useCallActions = (mx: MatrixClient) => {
     async ({ room, video, microphone, devices, notify, ...meta }: StartCallOptions) => {
       if (store.get(activeCallAtom)) return 'busy' as StartCallResult;
       const { RoomCall } = await import('./RoomCall');
-      if (store.get(activeCallAtom)) return 'busy' as StartCallResult;
+      // Another tab of this session shares the device: joining here would withdraw and replace
+      // that tab's membership, and the two would keep replacing each other.
+      if (store.get(activeCallAtom) || (await deviceInCallElsewhere(mx))) {
+        return 'busy' as StartCallResult;
+      }
       await room.loadMembersIfNeeded().catch(() => undefined);
       // The store is app-wide: a call whose account went away while this waited would become
       // the next account's call.
