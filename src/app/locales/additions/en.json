@@ -31,13 +31,25 @@
       "close": "Close"
     },
     "imagePackContent": {
-      "uploadFailed": "Couldn't upload the images. Try again."
+      "uploadFailed": "Couldn't upload the images. Try again.",
+      "noImages": "No images yet."
     },
     "imagePackView": {
-      "close": "Close"
+      "close": "Close",
+      "back": "Back"
     },
     "imageTile": {
-      "remove": "Remove"
+      "remove": "Remove",
+      "editImage": "Edit :{{shortcode}}:",
+      "removeImage": "Remove :{{shortcode}}:",
+      "keepImage": "Keep :{{shortcode}}:",
+      "removedOnApply": "Removed when you apply the changes",
+      "usage": "Used as",
+      "shortcodeTaken": "Another image has this shortcode.",
+      "shortcodeInvalid": "A shortcode can't have spaces or colons."
+    },
+    "imageUsageOption": {
+      "pack": "Same as pack"
     },
     "imageViewer": {
       "close": "Close"
@@ -58,7 +70,9 @@
       "placeholder": "Search users or enter a user ID"
     },
     "leaveRoomPrompt": {
-      "close": "Close"
+      "close": "Close",
+      "forget": "Forget this room",
+      "forgetDescription": "Also remove it from your account, history included. You can join again later if the room lets you."
     },
     "memberFilters": {
       "label": "Show members"
@@ -69,6 +83,13 @@
   },
   "featureUi": {
     "settings": {
+      "emojisStickers": {
+        "userPack": {
+          "title": "Personal Pack",
+          "imageCount_one": "{{count}} image, yours in every room",
+          "imageCount_other": "{{count}} images, yours in every room"
+        }
+      },
       "devices": {
         "loadFailed": "Could not load your devices."
       },

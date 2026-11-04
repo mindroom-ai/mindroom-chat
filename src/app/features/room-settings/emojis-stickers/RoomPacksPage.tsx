@@ -1,5 +1,5 @@
 import React, { type FormEvent, useMemo, useState } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Input, Text, color } from 'folds';
+import { Box, Button, Input, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { ImagePackView } from '../../../components/image-pack-view';
@@ -92,20 +92,7 @@ export function RoomPacksPage({ room, requestClose }: { room: Room; requestClose
   const title = t('featureUi.roomSettings.navigation.emojisStickers');
 
   if (viewing?.address) {
-    return (
-      <Box direction="Column" grow="Yes" style={{ minHeight: 0 }}>
-        <Box alignItems="Center" gap="200" style={{ padding: '0.5rem' }}>
-          <IconButton
-            onClick={() => setViewing(undefined)}
-            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
-          >
-            <Icon src={Icons.ArrowLeft} />
-          </IconButton>
-          <Text size="H4">{title}</Text>
-        </Box>
-        <ImagePackView address={viewing.address} requestClose={() => setViewing(undefined)} />
-      </Box>
-    );
+    return <ImagePackView address={viewing.address} requestClose={() => setViewing(undefined)} />;
   }
 
   return (
