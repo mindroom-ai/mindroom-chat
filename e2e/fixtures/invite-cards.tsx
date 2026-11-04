@@ -61,6 +61,8 @@ const inviteFrom = (index: number, inviterId: string, name: string): Room => {
       content: { membership: 'invite' },
     }),
   ]);
+  // The room's name comes from its state only once it is recalculated.
+  room.recalculate();
   return room;
 };
 
