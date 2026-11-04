@@ -12,12 +12,19 @@ const encryptedEvent = () => {
     content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'secret' },
   });
   let failed = false;
+  let running = false;
   vi.spyOn(event, 'isDecryptionFailure').mockImplementation(() => failed);
+  vi.spyOn(event, 'isBeingDecrypted').mockImplementation(() => running);
+  /** An attempt starts and runs until `attempt` ends it. */
+  const begin = () => {
+    running = true;
+  };
   const attempt = (outcome: 'fails' | 'works') => {
+    running = false;
     failed = outcome === 'fails';
     event.emit(MatrixEventEvent.Decrypted, event);
   };
-  return { event, attempt };
+  return { event, begin, attempt };
 };
 
 describe('createDecryptionWaits', () => {
@@ -54,7 +61,44 @@ describe('createDecryptionWaits', () => {
     expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
   });
 
-  it('waits once per event, and not at all without time left', () => {
+  it('waits for the attempt running when the time runs out, and for no attempt after it', () => {
+    const { event, begin, attempt } = encryptedEvent();
+    const onDecrypted = vi.fn();
+    const waits = createDecryptionWaits();
+    waits.wait(event, 1_000, onDecrypted);
+    begin();
+    vi.advanceTimersByTime(1_000);
+    expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(1);
+
+    attempt('fails');
+    attempt('works');
+    expect(onDecrypted).not.toHaveBeenCalled();
+    expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+
+    // The same with the attempt that works.
+    const late = encryptedEvent();
+    waits.wait(late.event, 1_000, onDecrypted);
+    late.begin();
+    vi.advanceTimersByTime(1_000);
+    late.attempt('works');
+    expect(onDecrypted).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads an event that arrives with no time left once the attempt it arrived with works', () => {
+    // A message older than the wait on arrival, such as after a reconnect.
+    const { event, begin, attempt } = encryptedEvent();
+    const onDecrypted = vi.fn();
+    begin();
+    createDecryptionWaits().wait(event, -30_000, onDecrypted);
+
+    attempt('works');
+
+    expect(onDecrypted).toHaveBeenCalledTimes(1);
+    expect(event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('waits once per event, and not at all without time left and no attempt running', () => {
     const { event, attempt } = encryptedEvent();
     const first = vi.fn();
     const second = vi.fn();

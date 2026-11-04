@@ -132,6 +132,8 @@ describe('watchRings', () => {
       getId: () => clearEvent.getId(),
       getTs: () => clearEvent.getTs(),
       isDecryptionFailure: () => !clear,
+      // Each attempt has ended when the test asks.
+      isBeingDecrypted: () => false,
     });
     return {
       event: event as unknown as MatrixEvent & EventEmitter,

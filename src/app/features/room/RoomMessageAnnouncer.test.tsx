@@ -50,11 +50,12 @@ const createRoom = () => {
  * An encrypted message from the agent whose decryption the test runs: until an attempt works it
  * reads as the SDK shows a failure, a notice that it could not be decrypted.
  */
-const lateKeyMessage = (body: string) => {
-  const event = message(AGENT, { msgtype: 'm.text', body });
+const lateKeyMessage = (body: string, extra?: Record<string, unknown>) => {
+  const event = message(AGENT, { msgtype: 'm.text', body }, extra);
   const clear = event.getContent();
-  let state: 'pending' | 'failed' | 'decrypted' = 'pending';
+  let state: 'pending' | 'running' | 'failed' | 'decrypted' = 'pending';
   vi.spyOn(event, 'shouldAttemptDecryption').mockImplementation(() => state === 'pending');
+  vi.spyOn(event, 'isBeingDecrypted').mockImplementation(() => state === 'running');
   vi.spyOn(event, 'isDecryptionFailure').mockImplementation(() => state === 'failed');
   vi.spyOn(event, 'getContent').mockImplementation(() =>
     state === 'decrypted' ? clear : { msgtype: 'm.bad.encrypted', body: '** Unable to decrypt **' }
@@ -62,12 +63,16 @@ const lateKeyMessage = (body: string) => {
   const fail = () => {
     state = 'failed';
   };
+  /** An attempt starts, as the SDK starts one when the event arrives. */
+  const begin = () => {
+    state = 'running';
+  };
   const attempt = (outcome: 'fails' | 'works') =>
     act(() => {
       state = outcome === 'fails' ? 'failed' : 'decrypted';
       event.emit(MatrixEventEvent.Decrypted, event);
     });
-  return { event, attempt, fail };
+  return { event, attempt, fail, begin };
 };
 
 const logLines = (renderer: ReactTestRenderer): string[] =>
@@ -221,6 +226,31 @@ describe('RoomMessageAnnouncer', () => {
 
       expect(logLines(view)).toEqual([]);
       expect(late.event.listenerCount(MatrixEventEvent.Decrypted)).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reads a message older than the key wait on arrival once the attempt it came with works', () => {
+    vi.useFakeTimers();
+    try {
+      const { room, receive } = createRoom();
+      const view = render(room);
+      act(() => {
+        vi.advanceTimersByTime(5 * 60_000);
+      });
+      // A reconnect after a short drop brings a message sent three minutes ago, while the room
+      // has been open for five.
+      const old = lateKeyMessage('Sent before the drop', {
+        origin_server_ts: Date.now() - 3 * 60_000,
+      });
+      old.begin();
+      receive(old.event);
+      expect(logLines(view)).toEqual([]);
+
+      old.attempt('works');
+
+      expect(logLines(view)).toEqual(['Code: Sent before the drop']);
     } finally {
       vi.useRealTimers();
     }
