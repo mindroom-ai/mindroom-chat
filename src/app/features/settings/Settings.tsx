@@ -193,7 +193,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
             renderFallback={() => <Text size="H6">{displayName.charAt(0)}</Text>}
           />
         </Avatar>
-        <Text size="H4" truncate>
+        <Text as="h2" size="H4" truncate>
           {t('settings.title')}
         </Text>
       </Box>
@@ -209,7 +209,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     </PageNavHeader>
   );
   const nav = (
-    <PageNav size="300">
+    <PageNav size="300" label={t('settings.title')}>
       <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
         <PageNavContent header={title}>
           <SettingsMenuList items={menuItems} activePage={activePage} onSelect={setActivePage} />

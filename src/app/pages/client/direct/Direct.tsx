@@ -93,13 +93,13 @@ export function Direct() {
   useNavToActivePathMapper('direct', true);
 
   return (
-    <PageNav>
+    <PageNav label={t('nav.directMessages')}>
       <PageNavContent
         header={
           <PageNavHeader>
             <Box gap="300" grow="Yes" alignItems="Center">
               <Box grow="Yes">
-                <Text truncate size="H4">
+                <Text as="h2" truncate size="H4">
                   {t('nav.directMessages')}
                 </Text>
               </Box>

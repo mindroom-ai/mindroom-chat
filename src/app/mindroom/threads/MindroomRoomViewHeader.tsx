@@ -283,7 +283,7 @@ export function RoomViewHeader({
           </Avatar>
         )}
         <Box direction="Column" style={{ minWidth: 0 }}>
-          <Text size="H5" truncate>
+          <Text as="h1" size="H5" truncate>
             {roomName}
           </Text>
           {topic && (

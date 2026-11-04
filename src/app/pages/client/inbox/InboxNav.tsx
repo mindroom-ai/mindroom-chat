@@ -15,12 +15,12 @@ export function InboxNav() {
   const onNotifications = useMatch({ path: INBOX_NOTIFICATIONS_PATH, end: false }) !== null;
 
   return (
-    <PageNav>
+    <PageNav label={t('sharedUi.inbox.inbox')}>
       <PageNavContent
         header={
           <PageNavHeader>
             <Box grow="Yes">
-              <Text size="H4" truncate>
+              <Text as="h2" size="H4" truncate>
                 {t('sharedUi.inbox.inbox')}
               </Text>
             </Box>

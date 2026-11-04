@@ -18,6 +18,7 @@ import { CommandPaletteRenderer } from '../../mindroom/command-palette/CommandPa
 import { IncomingVerificationRequests } from '../../components/device-verification/IncomingVerificationRequests';
 import { ClientInitStorageAtom } from './ClientInitStorageAtom';
 import { ClientNonUIFeatures } from './ClientNonUIFeatures';
+import { SkipToContent } from '../../components/skip-link/SkipToContent';
 
 /**
  * The `/.well-known/matrix/client` document of the account's server name, for the MindRoom
@@ -55,6 +56,7 @@ export function ClientShell({ children }: { children: ReactNode }) {
       <ClientInitStorageAtom>
         <RoomsNotificationPreferencesProvider value={notificationPreferences}>
           <ClientNonUIFeatures />
+          <SkipToContent />
           {children}
           <SettingsModalRenderer />
           <RoomSettingsRenderer />

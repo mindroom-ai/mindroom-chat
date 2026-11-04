@@ -14,13 +14,32 @@ const NAV_HEADER_OUTLINE = `${config.borderWidth.B300} solid ${color.Background.
 type PageRootProps = {
   nav: ReactNode;
   children: ReactNode;
+  /** The page is the client's main content, so it becomes the `main` landmark. */
+  main?: boolean;
 };
 
 /** Inside a glass surface (the settings dialog) pages reveal the material behind them. */
 const useInheritSurfaceClass = () => (useSurfaceContext() ? inheritSurface : undefined);
 
+// `display: contents` keeps the landmark out of the flex layout around it.
+const PAGE_MAIN_STYLE = { display: 'contents' } as const;
+/** The `main` landmark's ID, the skip link's target; one page shows at a time. */
+export const PAGE_MAIN_ID = 'main-content';
+
+/**
+ * The `main` landmark around a page of the client, which the skip link and landmark navigation
+ * of assistive technology go to. It takes no box of its own.
+ */
+export function PageMain({ children }: { children: ReactNode }) {
+  return (
+    <main id={PAGE_MAIN_ID} data-page-main style={PAGE_MAIN_STYLE}>
+      {children}
+    </main>
+  );
+}
+
 /** Page layout: optional navigation column, a divider, then the page itself. */
-export function PageRoot({ nav, children }: PageRootProps) {
+export function PageRoot({ nav, children, main }: PageRootProps) {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const surfaceClass = useInheritSurfaceClass();
   // On mobile the navigation and the page take turns on screen, so nothing divides them.
@@ -31,13 +50,20 @@ export function PageRoot({ nav, children }: PageRootProps) {
     <Box className={classNames(ContainerColor({ variant: 'Background' }), surfaceClass)} grow="Yes">
       {nav}
       {divider}
-      {children}
+      {main ? <PageMain>{children}</PageMain> : children}
     </Box>
   );
 }
 
+type PageNavProps = {
+  size?: '400' | '300';
+  /** Names the `nav` landmark, usually the column's title (Home, Inbox, Settings). */
+  label?: string;
+  children: ReactNode;
+};
+
 /** The navigation column; on mobile it takes the whole width instead of a fixed size. */
-export function PageNav({ size, children }: { size?: '400' | '300'; children: ReactNode }) {
+export function PageNav({ size, label, children }: PageNavProps) {
   const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
   const columnClass = classNames(
     css.PageNav(isMobile ? undefined : { size }),
@@ -45,7 +71,13 @@ export function PageNav({ size, children }: { size?: '400' | '300'; children: Re
   );
 
   return (
-    <Box direction="Column" className={columnClass} grow={isMobile ? 'Yes' : undefined}>
+    <Box
+      as="nav"
+      aria-label={label}
+      direction="Column"
+      className={columnClass}
+      grow={isMobile ? 'Yes' : undefined}
+    >
       {children}
     </Box>
   );
@@ -161,8 +193,9 @@ type PageHeroProps = {
 /** Centered icon, title, and subtitle at the top of an empty or welcome page. */
 export function PageHero({ icon, title, subTitle, children }: PageHeroProps) {
   const heading = (
-    <Box as="h2" style={{ margin: 0 }} alignItems="Center" gap="200" direction="Column">
-      <Text size="H2" align="Center">
+    <Box alignItems="Center" gap="200" direction="Column">
+      {/* The page's title; the subtitle under it is not part of the heading. */}
+      <Text as="h1" size="H2" align="Center">
         {title}
       </Text>
       {subTitle ? (

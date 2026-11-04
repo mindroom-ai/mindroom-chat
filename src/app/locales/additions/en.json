@@ -79,6 +79,10 @@
     },
     "memberSort": {
       "label": "Sort members"
+    },
+    "a11y": {
+      "mainNavigation": "Main",
+      "skipToContent": "Skip to content"
     }
   },
   "featureUi": {

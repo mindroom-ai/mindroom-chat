@@ -131,7 +131,7 @@ export function MindroomPageRoot({
 }: MindroomPageRootProps & { navId?: string }) {
   const { collapsed } = useMindroomDesktopPageNav();
   return (
-    <PageRoot nav={collapsed ? undefined : nav}>
+    <PageRoot main nav={collapsed ? undefined : nav}>
       {navId && <RememberSectionPath navId={navId} />}
       {children}
     </PageRoot>

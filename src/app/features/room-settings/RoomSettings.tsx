@@ -163,7 +163,7 @@ export function RoomSettings(props: {
   const title = (
     <PageNavHeader outlined={false}>
       <Box grow="Yes" alignItems="Center">
-        <Text size="H4" truncate>
+        <Text as="h2" size="H4" truncate>
           {roomName}
         </Text>
       </Box>
@@ -179,7 +179,7 @@ export function RoomSettings(props: {
     </PageNavHeader>
   );
   const nav = (
-    <PageNav size="300">
+    <PageNav size="300" label={roomName}>
       <PageNavContent header={title}>
         <div className={SettingsMenu}>{entries}</div>
       </PageNavContent>

@@ -106,7 +106,7 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
     <PageNavHeader>
       <Box gap="300" grow="Yes" alignItems="Center">
         <Box grow="Yes">
-          <Text truncate size="H4">
+          <Text as="h2" truncate size="H4">
             {title}
           </Text>
         </Box>
@@ -227,7 +227,7 @@ export function Home() {
   );
 
   return (
-    <PageNav>
+    <PageNav label={t('nav.home')}>
       {joinOpen && (
         <JoinAddressPrompt onOpen={handleJoinOpen} onCancel={() => setJoinOpen(false)} />
       )}

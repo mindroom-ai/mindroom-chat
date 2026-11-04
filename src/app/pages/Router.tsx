@@ -24,7 +24,7 @@ import { ConnectPage } from '../mindroom/local-mindroom/ConnectPage';
 import { ConnectionsRoute } from './client/connections/ConnectionsRoute';
 import { CreateRoomForm } from '../features/create-room/CreateRoom';
 import { JoinAddressForm } from '../components/join-address-prompt';
-import { Page } from '../components/page';
+import { Page, PageMain } from '../components/page';
 import { PhonePageHeader } from '../components/page/PhonePageHeader';
 import { setAfterLoginRedirectPath } from './afterLoginRedirectPath';
 import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from './routeSessionGuards';
@@ -215,7 +215,14 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
       </Route>
       <Route element={<ProtectedRoutes hashRouter={hashRouter} />}>
         {/* The portal hand-off asks the signed-in client for an OpenID token. */}
-        <Route path={CONNECTIONS_PATH} element={<ConnectionsRoute />} />
+        <Route
+          path={CONNECTIONS_PATH}
+          element={
+            <PageMain>
+              <ConnectionsRoute />
+            </PageMain>
+          }
+        />
         <Route
           path={HOME_PATH}
           element={<SectionPage path={HOME_PATH} navId="home" nav={<Home />} />}
@@ -234,8 +241,22 @@ export const createRouter = (clientConfig: ClientConfig, _screenSize: ScreenSize
           <Route path={DIRECT_CREATE_PATH} element={<DirectCreate />} />
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
-        <Route path={THREADS_PATH} element={<Threads />} />
-        <Route path={CANVASES_PATH} element={<Canvases />} />
+        <Route
+          path={THREADS_PATH}
+          element={
+            <PageMain>
+              <Threads />
+            </PageMain>
+          }
+        />
+        <Route
+          path={CANVASES_PATH}
+          element={
+            <PageMain>
+              <Canvases />
+            </PageMain>
+          }
+        />
         <Route
           path={EXPLORE_PATH}
           element={<SectionPage path={EXPLORE_PATH} nav={<ExploreNav />} />}

@@ -34,12 +34,12 @@ export function ExploreNav() {
   const openServer = encodedServer ? decodeRouteParam(encodedServer) : undefined;
 
   return (
-    <PageNav>
+    <PageNav label={t('sharedUi.explore.exploreCommunity')}>
       <PageNavContent
         header={
           <PageNavHeader>
             <Box grow="Yes">
-              <Text size="H4" truncate>
+              <Text as="h2" size="H4" truncate>
                 {t('sharedUi.explore.exploreCommunity')}
               </Text>
             </Box>

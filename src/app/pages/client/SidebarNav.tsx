@@ -1,5 +1,6 @@
 import React, { ReactNode, useRef } from 'react';
 import { Scroll } from 'folds';
+import { useTranslation } from 'react-i18next';
 import {
   Sidebar,
   SidebarContent,
@@ -41,6 +42,7 @@ type SidebarNavProps = {
  * device and Local MindRoom notices when they apply, the Inbox, the account, and the footer.
  */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const { sidebar, mindroom } = useClientConfig();
   const showCanvasesSetting = useShowCanvasesInSidebar();
@@ -51,7 +53,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const showCommunities = sidebar?.showExploreCommunity ?? true;
 
   return (
-    <Sidebar>
+    <Sidebar aria-label={t('sharedUi.a11y.mainNavigation')}>
       <SidebarContent
         scrollable={
           <Scroll ref={scrollRef} hideTrack size="0" visibility="Hover" variant="Background">

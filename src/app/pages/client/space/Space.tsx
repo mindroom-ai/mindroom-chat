@@ -256,7 +256,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
     <PageNavHeader>
       <Box gap="300" grow="Yes" alignItems="Center">
         <Box grow="Yes">
-          <Text truncate size="H4">
+          <Text as="h2" truncate size="H4">
             {name}
           </Text>
         </Box>
@@ -333,7 +333,7 @@ export function Space() {
   }, [client, spaceRooms, roomsClosed, selectedRoomId]);
 
   return (
-    <PageNav>
+    <PageNav label={title}>
       <PageNavContent
         header={<SpaceHeader spaceId={space.roomId} name={title} roomIds={spaceRooms} />}
       >
