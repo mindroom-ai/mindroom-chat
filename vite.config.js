@@ -36,8 +36,8 @@ export const copyFiles = {
 const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
 // The precache holds what a signed-in start needs before it shows a room: the entry chunk and the
-// chunks of these modules with their static imports, style sheets, fonts and the crypto wasm, plus
-// the shell pages (scripts/precache-plan.mjs). Every room header shows the call buttons, and the
+// chunks of these modules with their static imports, style sheets, fonts, images and the crypto
+// wasm, plus the shell pages (scripts/precache-plan.mjs). Every room header shows the call buttons, and the
 // thread actions menu opens from the first room's cards and banner (lazily, in Lane P code that
 // has no fallback for a missing chunk), so both come with the start. Everything else under assets/
 // is kept by the worker on first use (src/swRuntimeAssets.ts).
@@ -52,6 +52,9 @@ const startup = startupPrecache({
   // The PDF viewer's frame page (public/pdf-frame.html) has no hash in its name, so the worker
   // could not keep it at runtime without serving an old copy after an update.
   shellFiles: ['index.html', 'pdf-frame.html'],
+  // The Lane C string overlays (src/app/localeAdditions.ts), one chunk per language: the worker
+  // fetches the ones for the languages the pages used when a new build installs.
+  localeOverlay: /\/src\/app\/locales\/additions\/([A-Za-z-]+)\.json$/,
 });
 
 // src/sw.ts with the precache list injected, emitted as sw.js. src/index.tsx registers it as a
@@ -63,9 +66,11 @@ const serviceWorkerPlugin = VitePWA({
     injectionPoint: 'self.__WB_MANIFEST',
     // The Rust crypto wasm module is several MiB and belongs in the precache.
     maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
-    globPatterns: ['**/*.{js,css,html,wasm,woff2}'],
+    globPatterns: ['**/*.{js,css,html,wasm,woff2,png,svg,webp,avif,jpg,jpeg,gif,ico}'],
     globIgnores: precacheGlobIgnores,
     manifestTransforms: [startup.manifestTransform],
+    // Writes the build inventory into the worker (scripts/precache-plan.mjs).
+    buildPlugins: { vite: [startup.workerPlugin] },
   },
   srcDir: 'src',
   filename: 'sw.ts',

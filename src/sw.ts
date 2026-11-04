@@ -1,12 +1,15 @@
 // The service worker: precaches the app shell and what a signed-in start needs for offline and
-// installed starts, keeps the build's other files the first time a page loads them, answers app
-// navigations with the shell, and adds the access token to authenticated media requests, which
-// an <img> cannot send itself.
+// installed starts, keeps the build's other files the first time a page loads them, keeps the
+// language catalogs and overlays the pages use, answers app navigations with the shell, and adds
+// the access token to authenticated media requests, which an <img> cannot send itself.
 //
 // Session handshake with the page (src/sw-session.ts): the page posts
 // `{ type: 'setSession', accessToken, baseUrl }` (an empty token signs the tab out). When a media
 // request arrives from a tab with no session, the worker posts `{ type: 'requestSession' }` to
 // that tab and waits up to three seconds for the answer.
+//
+// An upgrade waits until no page of the previous build is left, unless a page posts
+// `{ type: 'takeOver' }` (src/appUpdate.ts, when the person reloads for the new version).
 
 import {
   cleanupOutdatedCaches,
@@ -17,7 +20,12 @@ import {
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
 import { fetchWithDevelopmentCache } from './swDevelopmentCache';
-import { clearBuildAssets, fetchBuildAsset, isBuildAssetRequest } from './swRuntimeAssets';
+import { fetchBuildAsset, isBuildAssetRequest, keepOnlyBuildFiles } from './swRuntimeAssets';
+import {
+  fetchLanguageCatalog,
+  isLanguageCatalogRequest,
+  keepLanguageOverlays,
+} from './swLanguageFiles';
 import { buildAuthenticatedMediaRequestInit } from './swMediaFetch';
 import {
   fetchNavigationWithShellFallback,
@@ -37,8 +45,11 @@ type FetchEventLike = ExtendableEventLike & {
   respondWith: (response: Promise<Response>) => void;
 };
 type MessageEventLike = { data: unknown; source?: { id?: string; url?: string } | null };
+/** What the build wrote into the worker (scripts/precache-plan.mjs); absent in development. */
+type BuildInventory = { files: string[]; localeOverlays: Record<string, string> };
 type ServiceWorkerScope = {
   __WB_MANIFEST: Array<PrecacheEntry | string>;
+  __MINDROOM_BUILD_INVENTORY?: BuildInventory;
   location: { href: string; origin: string };
   registration: { active: unknown; unregister: () => Promise<boolean> };
   clients: {
@@ -57,6 +68,7 @@ type ServiceWorkerScope = {
 declare const self: ServiceWorkerScope;
 
 const precacheManifest = self.__WB_MANIFEST;
+const buildInventory = self.__MINDROOM_BUILD_INVENTORY;
 const precacheController = new PrecacheController();
 precacheController.addToCacheList(precacheManifest);
 cleanupOutdatedCaches();
@@ -81,6 +93,8 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     (async () => {
       await precacheController.install(event as never);
+      // This build's overlay for each language the pages used, for the first offline start.
+      await keepLanguageOverlays(buildInventory?.localeOverlays, self.location.href);
       // A first install takes over at once; an upgrade waits until no page uses the old worker.
       if (!self.registration.active) await self.skipWaiting();
     })()
@@ -91,8 +105,8 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
       await precacheController.activate(event as never);
-      // Files the previous build kept at runtime: this build names other ones.
-      await clearBuildAssets();
+      // Files the previous build kept at runtime stay when this build still has them.
+      await keepOnlyBuildFiles(buildInventory?.files, self.location.href);
       await self.clients.claim();
     })()
   );
@@ -156,6 +170,10 @@ if (precachesAppShell) {
     ({ request }) => isBuildAssetRequest(request, self.location.href),
     ({ event }) => fetchBuildAsset(event as unknown as FetchEventLike)
   );
+  registerRoute(
+    ({ request }) => isLanguageCatalogRequest(request, self.location.href),
+    ({ event }) => fetchLanguageCatalog(event as unknown as FetchEventLike)
+  );
 }
 
 type MediaSession = { accessToken: string; baseUrl: string };
@@ -193,6 +211,11 @@ self.addEventListener('message', (event) => {
   const { data, source } = event;
   if (!data || typeof data !== 'object' || !source?.id || !isSameOriginSource(source)) return;
   const message = data as Record<string, unknown>;
+  // A waiting worker takes over now; its activation then claims every open page.
+  if (message.type === 'takeOver') {
+    void self.skipWaiting();
+    return;
+  }
   if (message.type !== 'setSession') return;
 
   if (isUsableSession(message)) {

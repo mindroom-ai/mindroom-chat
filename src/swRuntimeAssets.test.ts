@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { clearBuildAssets, fetchBuildAsset, isBuildAssetRequest } from './swRuntimeAssets';
+import {
+  clearBuildAssets,
+  fetchBuildAsset,
+  isBuildAssetRequest,
+  keepBuildFile,
+  keepOnlyBuildFiles,
+} from './swRuntimeAssets';
 
 const WORKER = 'https://app.example/sw.js?version=build-1&non-disruptive-update=1';
 
@@ -10,6 +16,8 @@ const fakeCacheStorage = () => {
       entries.set(request.url, response);
     }),
     match: vi.fn(async (request: Request) => entries.get(request.url)?.clone()),
+    keys: vi.fn(async () => [...entries.keys()].map((url) => new Request(url))),
+    delete: vi.fn(async (request: Request) => entries.delete(request.url)),
   };
   const storage = { open: vi.fn(async () => cache), delete: vi.fn(async () => true) };
   vi.stubGlobal('caches', storage);
@@ -138,5 +146,70 @@ describe('clearBuildAssets', () => {
   it('resolves without CacheStorage', async () => {
     vi.stubGlobal('caches', undefined);
     await expect(clearBuildAssets()).resolves.toBeUndefined();
+  });
+});
+
+describe('keepOnlyBuildFiles', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps the files the new build still has and drops the rest', async () => {
+    const { entries, storage } = fakeCacheStorage();
+    ['emoji-1a2b.js', 'katex-3c4d.js', 'EmojiBoard-old1.js', 'de-old2.js'].forEach((file) =>
+      entries.set(`https://app.example/app/assets/${file}`, answer(file))
+    );
+
+    await keepOnlyBuildFiles(
+      ['assets/emoji-1a2b.js', 'assets/katex-3c4d.js', 'assets/EmojiBoard-new1.js'],
+      'https://app.example/app/sw.js?version=build-2'
+    );
+
+    expect([...entries.keys()]).toEqual([
+      'https://app.example/app/assets/emoji-1a2b.js',
+      'https://app.example/app/assets/katex-3c4d.js',
+    ]);
+    expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('empties the cache when the worker has no list of its build files', async () => {
+    const { storage } = fakeCacheStorage();
+    await keepOnlyBuildFiles(undefined, WORKER);
+    expect(storage.delete).toHaveBeenCalledWith('mindroom-build-assets');
+  });
+});
+
+describe('keepBuildFile', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps a file of this build no page loaded yet, once', async () => {
+    const { entries } = fakeCacheStorage();
+    const fetchMock = vi.fn().mockResolvedValue(answer('overlay'));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await keepBuildFile('https://app.example/assets/de-1a2b.js');
+    await keepBuildFile('https://app.example/assets/de-1a2b.js');
+
+    expect([...entries.keys()]).toEqual(['https://app.example/assets/de-1a2b.js']);
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('keeps nothing from an HTML answer or a failed fetch, and never throws', async () => {
+    const { entries } = fakeCacheStorage();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          answer('<!doctype html>', { headers: { 'Content-Type': 'text/html' } })
+        )
+        .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+    );
+
+    await expect(keepBuildFile('https://app.example/assets/de-1a2b.js')).resolves.toBeUndefined();
+    await expect(keepBuildFile('https://app.example/assets/fr-3c4d.js')).resolves.toBeUndefined();
+    expect(entries.size).toBe(0);
   });
 });

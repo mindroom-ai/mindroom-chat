@@ -25,6 +25,8 @@ const buildDevelopmentServiceWorker = () =>
     target: 'es2022',
     define: {
       'self.__WB_MANIFEST': '[]',
+      // No build inventory: the development worker keeps what it serves in its own cache.
+      'self.__MINDROOM_BUILD_INVENTORY': 'undefined',
       'process.env.NODE_ENV': '"production"',
     },
   });

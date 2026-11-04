@@ -1,8 +1,9 @@
 import type { Rollup } from 'vite';
 import { describe, expect, it } from 'vitest';
-import { startupFiles, startupPrecache } from '../scripts/precache-plan.mjs';
+import { buildInventory, startupFiles, startupPrecache } from '../scripts/precache-plan.mjs';
 
 type ChunkShape = {
+  facade?: string;
   moduleIds?: string[];
   isEntry?: boolean;
   imports?: string[];
@@ -18,6 +19,7 @@ const chunk = (fileName: string, shape: ChunkShape): Rollup.OutputChunk =>
     type: 'chunk',
     fileName,
     isEntry: shape.isEntry ?? false,
+    facadeModuleId: shape.facade ?? null,
     moduleIds: shape.moduleIds ?? [],
     imports: shape.imports ?? [],
     dynamicImports: shape.dynamicImports ?? [],
@@ -35,7 +37,9 @@ const bundle = (): OutputBundle => {
   const outputs = [
     chunk('assets/index-e1.js', {
       isEntry: true,
-      moduleIds: ['/repo/src/index.tsx'],
+      facade: '/repo/src/index.tsx',
+      // English's overlay ships in the entry chunk.
+      moduleIds: ['/repo/src/index.tsx', '/repo/src/app/locales/additions/en.json'],
       imports: ['assets/shared-s1.js'],
       dynamicImports: ['assets/clientPages-c1.js', 'assets/crypto-k1.js', 'assets/katex-m1.js'],
       css: ['assets/index-e1.css'],
@@ -64,6 +68,14 @@ const bundle = (): OutputBundle => {
       css: ['assets/katex-m1.css'],
       assets: ['assets/KaTeX_Main-Regular-f1.woff2'],
     }),
+    chunk('assets/de-o1.js', {
+      facade: '/repo/src/app/locales/additions/de.json',
+      moduleIds: ['/repo/src/app/locales/additions/de.json'],
+    }),
+    chunk('assets/zh-TW-o2.js', {
+      facade: 'C:\\repo\\src\\app\\locales\\additions\\zh-TW.json',
+      moduleIds: ['C:\\repo\\src\\app\\locales\\additions\\zh-TW.json'],
+    }),
     asset('assets/index-e1.css'),
     asset('assets/clientPages-c1.css'),
     asset('assets/katex-m1.css'),
@@ -76,8 +88,10 @@ const STARTUP = ['src/app/pages/client/clientPages.tsx', 'matrix-js-sdk/lib/rust
 
 const entry = (url: string) => ({ url, revision: url.startsWith('assets/') ? null : 'r', size: 1 });
 
+const OVERLAY = /\/src\/app\/locales\/additions\/([A-Za-z-]+)\.json$/;
+
 describe('startupFiles', () => {
-  it('takes the entry and the startup modules with their static imports, styles, fonts and wasm', () => {
+  it('takes the entry and the startup modules with their static imports, styles, fonts, images and wasm', () => {
     expect([...startupFiles(bundle(), STARTUP)].sort()).toEqual([
       'assets/calls-t1.js',
       'assets/clientPages-c1.css',
@@ -87,17 +101,17 @@ describe('startupFiles', () => {
       'assets/index-e1.js',
       'assets/inter-latin-i1.woff2',
       'assets/matrix_sdk_crypto_wasm_bg-w1.wasm',
+      'assets/mindroom-logo-l1.png',
       'assets/shared-s1.js',
     ]);
   });
 
-  it('leaves out chunks reached only by a dynamic import, with their styles and fonts', () => {
+  it('leaves out chunks reached only by a dynamic import, with their styles and fonts, and sounds', () => {
     const files = startupFiles(bundle(), STARTUP);
-    ['assets/emoji-j1.js', 'assets/katex-m1.js', 'assets/katex-m1.css'].forEach((file) =>
-      expect(files.has(file)).toBe(false)
+    ['assets/emoji-j1.js', 'assets/katex-m1.js', 'assets/katex-m1.css', 'assets/de-o1.js'].forEach(
+      (file) => expect(files.has(file)).toBe(false)
     );
     expect(files.has('assets/KaTeX_Main-Regular-f1.woff2')).toBe(false);
-    expect(files.has('assets/mindroom-logo-l1.png')).toBe(false);
     expect(files.has('assets/notification-n1.ogg')).toBe(false);
   });
 
@@ -108,18 +122,54 @@ describe('startupFiles', () => {
   });
 });
 
+describe('buildInventory', () => {
+  it('lists every file under the assets directory and the overlay chunk of each language', () => {
+    const output = { ...bundle(), 'index.html': asset('index.html') };
+    const inventory = buildInventory(output, 'assets', OVERLAY);
+    expect(inventory.files).toEqual(Object.keys(bundle()).sort());
+    expect(inventory.files).not.toContain('index.html');
+    expect(inventory.localeOverlays).toEqual({
+      de: 'assets/de-o1.js',
+      'zh-TW': 'assets/zh-TW-o2.js',
+    });
+  });
+});
+
 describe('startupPrecache', () => {
   const plan = () => {
-    const { plugin, manifestTransform } = startupPrecache({
+    const { plugin, manifestTransform, workerPlugin } = startupPrecache({
       startupModules: STARTUP,
       shellFiles: ['index.html', 'pdf-frame.html'],
+      localeOverlay: OVERLAY,
     });
     const generateBundle = plugin.generateBundle as unknown as (
       options: unknown,
       output: OutputBundle
     ) => void;
-    return { generateBundle, manifestTransform };
+    const renderWorker = workerPlugin.renderChunk as unknown as (code: string) => { code: string };
+    return { generateBundle, manifestTransform, renderWorker };
   };
+
+  it('writes the build inventory into the worker in place of its marker', () => {
+    const { generateBundle, renderWorker } = plan();
+    generateBundle({}, bundle());
+    const { code } = renderWorker('const inventory = self.__MINDROOM_BUILD_INVENTORY;');
+    const written = JSON.parse(code.slice('const inventory = '.length, -1)) as {
+      files: string[];
+      localeOverlays: Record<string, string>;
+    };
+    expect(written.files).toContain('assets/emoji-j1.js');
+    expect(written.localeOverlays.de).toBe('assets/de-o1.js');
+  });
+
+  it('fails a worker that does not read the inventory once, or is built before the bundle', () => {
+    expect(() => plan().renderWorker('self.__MINDROOM_BUILD_INVENTORY')).toThrow(
+      'the build never reported its bundle'
+    );
+    const { generateBundle, renderWorker } = plan();
+    generateBundle({}, bundle());
+    expect(() => renderWorker('const inventory = undefined;')).toThrow('0 times, not once');
+  });
 
   it('keeps only the shell and the startup files in the precache list', () => {
     const { generateBundle, manifestTransform } = plan();
@@ -144,6 +194,7 @@ describe('startupPrecache', () => {
       'assets/index-e1.js',
       'assets/inter-latin-i1.woff2',
       'assets/matrix_sdk_crypto_wasm_bg-w1.wasm',
+      'assets/mindroom-logo-l1.png',
       'assets/shared-s1.js',
       'index.html',
       'pdf-frame.html',

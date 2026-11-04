@@ -3,23 +3,33 @@
 // needs before it can show a room, so the first visit no longer downloads every build file.
 //
 // The startup set is the entry chunk and the chunks that hold the listed startup modules, each with
-// every chunk it imports statically, their style sheets, the fonts those style sheets use and the
-// crypto module's wasm. Chunks the app only reaches through a dynamic import (calls, the emoji
-// data, KaTeX, the remote computer, locale overlays), images and sounds stay out: the worker keeps
-// each the first time a page loads it (src/swRuntimeAssets.ts).
+// every chunk it imports statically, their style sheets, the fonts those style sheets use, the
+// images they import (the sidebar logo) and the crypto module's wasm. Chunks the app only reaches
+// through a dynamic import (calls, the emoji data, KaTeX, the remote computer, locale overlays) and
+// sounds stay out: the worker keeps each the first time a page loads it (src/swRuntimeAssets.ts).
+//
+// The worker also gets the build's inventory (`self.__MINDROOM_BUILD_INVENTORY`): every file under
+// assets/, so a new worker keeps the files the previous build kept at runtime that it still has,
+// and the overlay chunk of each language, so it can fetch the overlay for the languages the pages
+// used before it takes over (src/swLanguageFiles.ts).
 //
 // `vite build` hands the plugin the bundle, then the PWA plugin's `closeBundle` builds the worker
-// and runs the manifest transform, which drops every precache entry outside the set. A startup
-// module missing from the bundle, or a startup file the precache globs never matched, fails the
-// build: either would leave an offline start without a file it loads.
+// (with `workerPlugin`, which writes the inventory in) and runs the manifest transform, which drops
+// every precache entry outside the set. A startup module missing from the bundle, a startup file
+// the precache globs never matched, or a worker without the inventory's marker fails the build:
+// each would leave an offline start without a file it loads.
 
-/** Build files other than code a startup chunk brings: fonts from its style sheets, the wasm. */
-const STARTUP_ASSET = /\.(?:woff2|wasm)$/;
+/** Build files other than code a startup chunk brings: fonts from its style sheets, the wasm, images. */
+const STARTUP_ASSET = /\.(?:woff2|wasm|png|svg|webp|avif|jpe?g|gif|ico)$/;
+
+/** Where the worker source reads the inventory; `workerPlugin` replaces it with the JSON. */
+const INVENTORY_MARKER = 'self.__MINDROOM_BUILD_INVENTORY';
 
 /**
  * @typedef {import('vite').Rollup.OutputBundle} OutputBundle
  * @typedef {import('vite').Rollup.OutputChunk} OutputChunk
  * @typedef {{ url: string, revision: string | null, size: number, integrity?: string }} PrecacheEntry
+ * @typedef {{ files: string[], localeOverlays: Record<string, string> }} BuildInventory
  */
 
 /** @param {string} id */
@@ -68,20 +78,68 @@ export const startupFiles = (bundle, startupModules) => {
 };
 
 /**
- * The plugin that reads the bundle and the manifest transform that keeps only the startup files
- * and `shellFiles` (paths in the output directory, such as `index.html`).
- * @param {{ startupModules: readonly string[], shellFiles: readonly string[] }} options
+ * The build files under `assetsDir`, and the chunk of each locale overlay that loads on its own: a
+ * chunk made for a module whose path `localeOverlay` matches, its first group being the language
+ * code (English's overlay is part of the entry chunk).
+ * @param {OutputBundle} bundle
+ * @param {string} assetsDir
+ * @param {RegExp} localeOverlay
+ * @returns {BuildInventory}
  */
-export const startupPrecache = ({ startupModules, shellFiles }) => {
+export const buildInventory = (bundle, assetsDir, localeOverlay) => {
+  const prefix = `${assetsDir.replace(/\/+$/, '')}/`;
+  /** @type {Record<string, string>} */
+  const localeOverlays = {};
+  Object.values(bundle).forEach((output) => {
+    if (output.type !== 'chunk' || !output.facadeModuleId) return;
+    const language = localeOverlay.exec(slashed(output.facadeModuleId))?.[1];
+    if (language) localeOverlays[language] = output.fileName;
+  });
+  const files = Object.keys(bundle)
+    .filter((fileName) => fileName.startsWith(prefix))
+    .sort();
+  return { files, localeOverlays };
+};
+
+/**
+ * The plugin that reads the bundle, the manifest transform that keeps only the startup files and
+ * `shellFiles` (paths in the output directory, such as `index.html`), and the plugin for the
+ * worker's own build that writes the build inventory into it.
+ * @param {{ startupModules: readonly string[], shellFiles: readonly string[], localeOverlay: RegExp }} options
+ */
+export const startupPrecache = ({ startupModules, shellFiles, localeOverlay }) => {
   /** @type {Set<string> | undefined} */
   let planned;
+  /** @type {BuildInventory | undefined} */
+  let inventory;
+  let assetsDir = 'assets';
 
   /** @type {import('vite').Plugin} */
   const plugin = {
     name: 'mindroom-startup-precache',
     apply: 'build',
+    configResolved(config) {
+      assetsDir = config.build.assetsDir;
+    },
     generateBundle(_options, bundle) {
       planned = new Set([...shellFiles, ...startupFiles(bundle, startupModules)]);
+      inventory = buildInventory(bundle, assetsDir, localeOverlay);
+    },
+  };
+
+  /** @type {import('vite').Plugin} */
+  const workerPlugin = {
+    name: 'mindroom-worker-build-inventory',
+    apply: 'build',
+    renderChunk(code) {
+      if (!inventory) throw new Error('precache plan: the build never reported its bundle');
+      const parts = code.split(INVENTORY_MARKER);
+      if (parts.length !== 2) {
+        throw new Error(
+          `precache plan: the worker reads ${INVENTORY_MARKER} ${parts.length - 1} times, not once`
+        );
+      }
+      return { code: parts.join(JSON.stringify(inventory)), map: null };
     },
   };
 
@@ -103,5 +161,5 @@ export const startupPrecache = ({ startupModules, shellFiles }) => {
     return { manifest, warnings: [] };
   };
 
-  return { plugin, manifestTransform };
+  return { plugin, manifestTransform, workerPlugin };
 };
