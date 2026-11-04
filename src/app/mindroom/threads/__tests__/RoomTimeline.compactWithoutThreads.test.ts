@@ -2,6 +2,7 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
 import { CompactRoomWithoutThreads } from '../CompactRoomWithoutThreads';
+import { EmptyState } from '../CompactRoomView.css';
 import {
   compactPlaceholderType,
   create,
@@ -42,6 +43,11 @@ describe('RoomTimeline Compact room without threads', () => {
     expect(nodesOf(renderer, compactPlaceholderType)).toHaveLength(0);
     expect(nodesOf(renderer, CompactRoomWithoutThreads)).toHaveLength(1);
     expect(nodesOf(renderer, roomIntroType)).toHaveLength(0);
+    // The cards' own box, not a copy of its look.
+    expect(EmptyState).toMatch(/\S/);
+    expect(renderer.root.findAll((node) => node.props.className === EmptyState)).not.toHaveLength(
+      0
+    );
     act(() => renderer.unmount());
   });
 
