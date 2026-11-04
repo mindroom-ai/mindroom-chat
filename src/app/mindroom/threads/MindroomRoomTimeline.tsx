@@ -1680,18 +1680,22 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
   const roomStyle = roomViewStyleUnder(filterBar ? filterBarHeight : null);
 
-  // Compact mode: the room's threads as cards, once the room knows which threads it has.
-  if (compactCards) {
-    const overviewReady =
-      threadIndex.showCompactRoomView ||
-      (roomInitialCacheHydratedKey === room.roomId && !clientCatchingUp);
-    if (!overviewReady) {
-      return (
-        <Box grow="Yes" alignItems="Center" justifyContent="Center">
-          <Spinner size="400" variant="Secondary" />
-        </Box>
-      );
-    }
+  // Compact mode: the room's threads as cards. A room without any thread waits until it knows
+  // it has none (its cache read and the client's first catch-up), then shows its timeline under
+  // the bar instead: the room's intro, once its start is loaded. A filter that hides every thread
+  // keeps the cards and their empty state.
+  const noThreadYet =
+    compactCards &&
+    !threadIndex.showCompactRoomView &&
+    (roomInitialCacheHydratedKey !== room.roomId || clientCatchingUp);
+  if (noThreadYet) {
+    return (
+      <Box grow="Yes" alignItems="Center" justifyContent="Center">
+        <Spinner size="400" variant="Secondary" />
+      </Box>
+    );
+  }
+  if (compactCards && threadIndex.showCompactRoomView) {
     const compactRootIds = threadIndex.compactOverviewOrdering.displayOrderedIds;
     return (
       <Box grow="Yes" direction="Column" style={roomStyle}>
