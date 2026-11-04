@@ -27,6 +27,7 @@ import {
   resolveMindroomProvisioningRequest,
 } from './mindroom';
 import { PairCodeForm } from './PairCodeForm';
+import { hostOf } from '../../utils/httpUrl';
 
 const RUN_COMMAND = 'uvx mindroom run';
 
@@ -34,14 +35,6 @@ type Connections =
   | { status: 'loading' }
   | { status: 'ready'; connections: LocalMindroomConnection[] }
   | { status: 'error'; message: string };
-
-const hostOf = (url: string): string => {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
-};
 
 type ConnectionRowProps = {
   connection: LocalMindroomConnection;

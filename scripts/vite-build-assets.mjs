@@ -10,31 +10,24 @@
 // as it does in a build.
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build } from 'esbuild';
-import { buildAuthenticationRecoveryAssets } from './authentication-recovery-assets.mjs';
+import {
+  buildAuthenticationRecoveryAssets,
+  bundleClassicScript,
+} from './authentication-recovery-assets.mjs';
 import { readBuildVersion, readReleaseVersion } from './build-version.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
 /** The development service worker: src/sw.ts as a classic script with nothing to precache. */
-const buildDevelopmentServiceWorker = async () => {
-  const result = await build({
+const buildDevelopmentServiceWorker = () =>
+  bundleClassicScript({
     entryPoints: [path.join(root, 'src/sw.ts')],
-    bundle: true,
-    write: false,
-    format: 'iife',
-    platform: 'browser',
     target: 'es2022',
-    logLevel: 'silent',
     define: {
       'self.__WB_MANIFEST': '[]',
       'process.env.NODE_ENV': '"production"',
     },
   });
-  const [output] = result.outputFiles ?? [];
-  if (!output) throw new Error('esbuild produced no service worker');
-  return output.text;
-};
 
 /**
  * @param {Record<string, string | undefined>} [env]

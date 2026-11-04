@@ -5,6 +5,7 @@ import { ClientEvent, SyncState, type MatrixClient, type SyncStateData } from 'm
 import { ContainerColor } from '../../styles/ContainerColor.css';
 import { useHomeserverUnreachable } from '../../mindroom/matrix/homeserverReachability';
 import { useCloudflareAccessSignInRequired } from '../../mindroom/native/cloudflareAccess';
+import { hostOf } from '../../utils/httpUrl';
 
 type SyncStatusProps = {
   mx: MatrixClient;
@@ -35,14 +36,6 @@ const readInitialSnapshot = (mx: MatrixClient): SyncSnapshot => {
   const data =
     typeof mx.getSyncStateData === 'function' ? mx.getSyncStateData() ?? undefined : undefined;
   return nextSnapshot({ current: null, catchingUp: false }, current, data);
-};
-
-const hostOf = (url: string): string => {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
 };
 
 /**

@@ -20,8 +20,12 @@ const common = {
   logLevel: 'silent',
 };
 
-/** @param {import('esbuild').BuildOptions} options */
-const bundle = async (options) => {
+/**
+ * One classic script from src/ as a self-contained IIFE, returned as text; `options` add to or
+ * override the shared settings.
+ * @param {import('esbuild').BuildOptions} options
+ */
+export const bundleClassicScript = async (options) => {
   const result = await build({ ...common, ...options });
   const [output] = result.outputFiles ?? [];
   if (!output) throw new Error('esbuild produced no output');
@@ -31,8 +35,8 @@ const bundle = async (options) => {
 /** @returns {Promise<Record<'runtime-config.js' | 'authentication-recovery.js', string>>} */
 export const buildAuthenticationRecoveryAssets = async () => {
   const [runtimeConfig, authenticationRecovery] = await Promise.all([
-    bundle({ entryPoints: [path.join(root, 'src/runtimeConfig.ts')] }),
-    bundle({
+    bundleClassicScript({ entryPoints: [path.join(root, 'src/runtimeConfig.ts')] }),
+    bundleClassicScript({
       stdin: {
         contents:
           "import { installAuthenticationRecovery } from './src/authenticationRecovery';\n" +

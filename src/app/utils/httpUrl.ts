@@ -15,3 +15,12 @@ export const parseHttpUrl = (value: unknown): URL | undefined => {
 /** `value` itself when it is an absolute http or https URL. */
 export const toHttpUrl = (value: unknown): string | undefined =>
   typeof value === 'string' && parseHttpUrl(value) ? value : undefined;
+
+/** The host part of a URL, to name a server in a sentence; the text itself when it is no URL. */
+export const hostOf = (url: string): string => {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+};
