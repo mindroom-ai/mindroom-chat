@@ -14,11 +14,11 @@ import { UnreadBadge } from '../../../components/unread-badge';
 import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { useDirectSelected } from '../../../hooks/router/useDirectSelected';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
-import { mDirectAtom } from '../../../state/mDirectList';
 import { useRoomsUnread } from '../../../state/hooks/unread';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getDirectPath, joinPathComponent } from '../../pathUtils';
+import { useDirectRoomIds } from '../direct/useDirectRooms';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 
 type DirectTabProps = {
@@ -32,8 +32,8 @@ export function DirectTab({ onSelect }: DirectTabProps) {
   const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
   const selected = useDirectSelected();
   const navToActivePath = useAtomValue(useNavToActivePathAtom());
-  const directs = useAtomValue(mDirectAtom);
-  const directRoomIds = Array.from(directs);
+  // The conversations Direct Messages lists, so the badge counts none it hides.
+  const directRoomIds = useDirectRoomIds();
   const unread = useRoomsUnread(directRoomIds, roomToUnreadAtom);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 

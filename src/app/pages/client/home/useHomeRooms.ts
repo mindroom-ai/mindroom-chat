@@ -5,6 +5,7 @@ import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { mDirectAtom } from '../../../state/mDirectList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
+import { navigationRoomsAtom } from '../../../mindroom/rooms/archivedRooms';
 import { isMindroomEmojiRoom, isSpace } from '../../../utils/room';
 
 type RoomToParents = Map<string, Set<string>>;
@@ -46,12 +47,16 @@ const useHomeRoomSources = () => {
   return { client, rooms, directRoomIds, roomToParents };
 };
 
-/** Room IDs shown under Rooms on Home. */
+/**
+ * Room IDs shown under Rooms on Home, which the rail's Home button also counts and marks read:
+ * the Home rooms the user has not archived.
+ */
 export const useHomeRooms = (): string[] => {
-  const { client, rooms, directRoomIds, roomToParents } = useHomeRoomSources();
+  const { client, directRoomIds, roomToParents } = useHomeRoomSources();
+  const listed = useAtomValue(navigationRoomsAtom);
   return useMemo(
-    () => getHomeSearchRooms(client, rooms, directRoomIds, roomToParents),
-    [client, rooms, directRoomIds, roomToParents]
+    () => getHomeSearchRooms(client, listed, directRoomIds, roomToParents),
+    [client, listed, directRoomIds, roomToParents]
   );
 };
 

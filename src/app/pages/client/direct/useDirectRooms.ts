@@ -12,23 +12,33 @@ const sameOrder = (a: Room[], b: Room[]): boolean =>
   a.length === b.length && a.every((room, index) => room === b[index]);
 
 /**
+ * The IDs of the joined direct rooms the user has not archived: what Direct Messages lists, and
+ * what the rail's Direct Messages button counts and marks read.
+ */
+export const useDirectRoomIds = (): string[] => {
+  const roomIds = useAtomValue(navigationRoomsAtom);
+  const directIds = useAtomValue(mDirectAtom);
+  return useMemo(() => roomIds.filter((roomId) => directIds.has(roomId)), [roomIds, directIds]);
+};
+
+/**
  * The joined direct rooms the user has not archived, by latest activity. A new message that
  * moves its conversation re-renders the list; messages that keep the order (a streamed reply's
  * edits in the top conversation) do not.
  */
 export function useDirectRooms(): Room[] {
   const client = useMatrixClient();
-  const roomIds = useAtomValue(navigationRoomsAtom);
   const directIds = useAtomValue(mDirectAtom);
+  const roomIds = useDirectRoomIds();
   const [, resort] = useReducer((count: number) => count + 1, 0);
 
   const directs = useMemo(
     () =>
       roomIds.flatMap((roomId) => {
-        const room = directIds.has(roomId) ? client.getRoom(roomId) : null;
+        const room = client.getRoom(roomId);
         return room ? [room] : [];
       }),
-    [client, roomIds, directIds]
+    [client, roomIds]
   );
   const sorted = [...directs].sort(byLatestActivity);
   const shown = useRef(sorted);
