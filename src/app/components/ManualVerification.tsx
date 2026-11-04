@@ -18,6 +18,8 @@ import {
   unlockWithRecoveryKey,
 } from './unlockWithRecoveryKey';
 import { errorMessage } from '../utils/errorMessage';
+import { describeKnownError } from '../utils/describeError';
+import { ErrorDetail } from './ErrorDetail';
 
 const INTERNAL_ERRORS: ReadonlySet<string> = new Set([CRYPTO_NOT_FOUND]);
 
@@ -110,12 +112,15 @@ function ManualVerificationMethodSwitcher({ value, hasPassphrase, onChange }: Me
 type VerificationStatusProps = {
   tone: 'Success' | 'Critical';
   children: ReactNode;
+  /** An error whose own text goes under the status, smaller. */
+  detailOf?: unknown;
 };
 
-function VerificationStatus({ tone, children }: VerificationStatusProps) {
+function VerificationStatus({ tone, children, detailOf }: VerificationStatusProps) {
   return (
     <Text size="T200" style={{ color: color[tone].Main }}>
       <b>{children}</b>
+      <ErrorDetail error={detailOf} />
     </Text>
   );
 }
@@ -144,15 +149,24 @@ export function ManualVerificationTile(props: TileProps) {
     verify(recoveryKey).catch(() => undefined);
   };
 
-  const describeError = (error: unknown) => {
+  /**
+   * The unlock's own failures and the ones `describeKnownError` recognizes in words (the latter
+   * with the error's text beside them); any other error as it was thrown, which the ported
+   * tests expect.
+   */
+  const describeFailure = (error: unknown): { text: string; detailOf?: unknown } => {
     const message = errorMessage(error);
     if (message === NO_CROSS_SIGNING_KEYS_IN_SECRET_STORAGE) {
-      return t('sharedUi.manualVerification.noCrossSigningKeys');
+      return { text: t('sharedUi.manualVerification.noCrossSigningKeys') };
     }
-    return INTERNAL_ERRORS.has(message)
-      ? t('sharedUi.deviceVerificationSetup.unexpectedError')
-      : message;
+    if (INTERNAL_ERRORS.has(message)) {
+      return { text: t('sharedUi.deviceVerificationSetup.unexpectedError') };
+    }
+    const known = describeKnownError(t, error);
+    return known === undefined ? { text: message } : { text: known, detailOf: error };
   };
+  const failure =
+    verifyState.status === AsyncStatus.Error ? describeFailure(verifyState.error) : undefined;
 
   const passphraseChosen = method === VerificationMethod.RecoveryPassphrase && !!passphraseContent;
 
@@ -196,9 +210,9 @@ export function ManualVerificationTile(props: TileProps) {
               <Spinner size="100" variant="Secondary" />
             </Box>
           )}
-          {verifyState.status === AsyncStatus.Error && (
-            <VerificationStatus tone="Critical">
-              {describeError(verifyState.error)}
+          {failure && (
+            <VerificationStatus tone="Critical" detailOf={failure.detailOf}>
+              {failure.text}
             </VerificationStatus>
           )}
         </>

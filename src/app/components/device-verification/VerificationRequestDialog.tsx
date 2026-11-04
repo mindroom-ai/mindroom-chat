@@ -21,7 +21,8 @@ import {
 import { SecurityDialog } from './SecurityDialog';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ContainerColor } from '../../styles/ContainerColor.css';
-import { errorMessage } from '../../utils/errorMessage';
+import { describeError } from '../../utils/describeError';
+import { ErrorDetail } from '../ErrorDetail';
 
 /** Short authentication strings: the seven emoji (spec: "Short Authentication String (SAS) verification"). */
 const SAS_VERIFICATION = 'm.sas.v1';
@@ -176,9 +177,9 @@ type StepProps = {
 /** What the person sees and can do in the request's current phase. */
 function VerificationStep({ request, onClose }: StepProps) {
   const { t } = useTranslation();
-  const [failure, setFailure] = useState<string>();
+  const [failure, setFailure] = useState<{ error: unknown }>();
   const [accepting, setAccepting] = useState(false);
-  const fail = useCallback((error: unknown) => setFailure(errorMessage(error)), []);
+  const fail = useCallback((error: unknown) => setFailure({ error }), []);
   const { phase, verifier } = request;
   const sas = useShortAuthString(phase === VerificationPhase.Started ? verifier : undefined, fail);
 
@@ -194,7 +195,8 @@ function VerificationStep({ request, onClose }: StepProps) {
     return (
       <Box direction="Column" gap="400">
         <Text size="T300" style={{ color: color.Critical.Main }}>
-          <b>{failure}</b>
+          <b>{describeError(t, failure.error)}</b>
+          <ErrorDetail error={failure.error} />
         </Text>
         <Button variant="Secondary" fill="Soft" onClick={onClose}>
           <Text size="B400">{t(`${KEY}.close`)}</Text>

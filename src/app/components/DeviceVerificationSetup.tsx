@@ -16,6 +16,8 @@ import {
   useAuthenticatedAction,
 } from '../features/settings/useAuthenticatedAction';
 import { errorMessage } from '../utils/errorMessage';
+import { describeKnownError } from '../utils/describeError';
+import { ErrorDetail } from './ErrorDetail';
 
 // Thrown in English and translated when shown, so a retained error follows language changes.
 const UIA_WITHOUT_DATA = 'Unexpected Error! UIA action is perform without data.';
@@ -29,14 +31,19 @@ const INTERNAL_ERRORS: ReadonlySet<string> = new Set([
   RECOVERY_KEY_FAILED,
 ]);
 
-/** Shows the setup's own failures as one localized message and any other error as sent. */
+/**
+ * Shows the setup's own failures as one localized message, the ones `describeKnownError`
+ * recognizes in words with the error's text beside them, and any other error as sent.
+ */
 const useDeviceVerificationErrorText = () => {
   const { t } = useTranslation();
-  return (error: unknown): string => {
+  return (error: unknown): { text: string; detailOf?: unknown } => {
     const message = errorMessage(error);
-    return INTERNAL_ERRORS.has(message)
-      ? t('sharedUi.deviceVerificationSetup.unexpectedError')
-      : message;
+    if (INTERNAL_ERRORS.has(message)) {
+      return { text: t('sharedUi.deviceVerificationSetup.unexpectedError') };
+    }
+    const known = describeKnownError(t, error);
+    return known === undefined ? { text: message } : { text: known, detailOf: error };
   };
 };
 
@@ -164,7 +171,8 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
         </Button>
         {failure !== undefined && (
           <Text style={{ color: color.Critical.Main }} size="T200">
-            <b>{failure}</b>
+            <b>{failure.text}</b>
+            <ErrorDetail error={failure.detailOf} />
           </Text>
         )}
       </Box>
