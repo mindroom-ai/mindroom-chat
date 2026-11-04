@@ -63,6 +63,7 @@ import { scheduleReconcile, useMindroomSyncEngine } from '../engine';
 import type { MindroomThreadSummaryInfo } from '../messages/threadSummary';
 import type { ScrollAnchorMemory } from '../scroll/scrollAnchorMemory';
 import { CompactRoomView } from './CompactRoomView';
+import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from './RoomOverlay.css';
 import { ThreadTimelineHeader } from './ThreadTimelineHeader';
 import { TimelineMinimap } from './TimelineMinimap';
@@ -1766,8 +1767,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // Compact mode: the room's threads as cards. A room without any thread waits until it knows
   // it has none (its cache read and the client's first catch-up), then shows its timeline under
-  // the bar instead: the room's intro, once its start is loaded. A filter that hides every thread
-  // keeps the cards and their empty state.
+  // the bar instead, which pages back to the room's start and there says it has no thread (not
+  // the intro: the header already names the room). A filter that hides every thread keeps the
+  // cards and their empty state.
   const noThreadYet =
     compactCards &&
     !threadIndex.showCompactRoomView &&
@@ -1951,7 +1953,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
         <Box
           ref={contentRef}
           direction="Column"
-          justifyContent={threadId ? 'Start' : 'End'}
+          justifyContent={threadId || compactCards ? 'Start' : 'End'}
           style={{
             minHeight: '100%',
             paddingTop: overlay.topInset,
@@ -2010,7 +2012,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
             </>
           ) : (
             <>
-              {showRoomIntro && <RoomIntro room={room} />}
+              {showRoomIntro &&
+                (compactCards ? <CompactRoomWithoutThreads /> : <RoomIntro room={room} />)}
               {showRoomBackSentinel && (
                 <div ref={paginator.observeBackAnchor} style={{ height: 1 }} />
               )}
