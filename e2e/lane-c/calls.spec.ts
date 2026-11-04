@@ -450,6 +450,53 @@ test.describe('calls', () => {
       .toEqual({});
   });
 
+  test("a second tab of the same session answers busy and leaves the first tab's call alone", async ({
+    browser,
+  }) => {
+    const alice = await register(`alicet${RUN}`, 'Alice Tabs');
+    const bob = await register(`bobt${RUN}`, 'Bob Tabs');
+    const roomId = await createDirectChat(alice, bob, false);
+    const firstTab = await signIn(browser, `alicet${RUN}`);
+    await openRoom(firstTab, roomId);
+    await firstTab.locator('[data-room-call-button]').click();
+    await callPanel(firstTab).getByRole('button', { name: 'Join', exact: true }).click();
+    await expect(tileOf(firstTab, alice.userId)).toHaveAttribute('data-connected', 'true', {
+      timeout: 60_000,
+    });
+
+    // The same session in another tab shares the device, and with it the call membership.
+    const secondTab = await firstTab.context().newPage();
+    await openRoom(secondTab, roomId);
+    await secondTab.locator('[data-room-call-button]').click();
+    await expect(callPanel(secondTab)).toContainText('1 person in the call', { timeout: 30_000 });
+    await callPanel(secondTab).getByRole('button', { name: 'Join', exact: true }).click();
+    await expect(callPanel(secondTab)).toContainText('Already in another call', {
+      timeout: 30_000,
+    });
+
+    // The first tab's membership stays: it was not withdrawn to make room for the second tab.
+    const { devices } = await matrix<{ devices: { device_id: string }[] }>('/devices', {
+      token: alice.token,
+    });
+    const { device_id: apiDevice } = await matrix<{ device_id: string }>('/account/whoami', {
+      token: alice.token,
+    });
+    const browserDevice = devices.find((device) => device.device_id !== apiDevice)?.device_id;
+    const membership = () =>
+      matrix<Record<string, unknown>>(
+        `/rooms/${encodeURIComponent(
+          roomId
+        )}/state/org.matrix.msc3401.call.member/${encodeURIComponent(
+          `_${alice.userId}_${defined(browserDevice, "the browser's device")}_m.call`
+        )}`,
+        { token: alice.token }
+      );
+    await secondTab.waitForTimeout(3_000);
+    expect(await membership()).toMatchObject({ device_id: browserDevice });
+    await expect(tileOf(firstTab, alice.userId)).toHaveAttribute('data-connected', 'true');
+    await callPanel(firstTab).getByRole('button', { name: 'End' }).click();
+  });
+
   test('calling an agent uses its call room with the conversation as origin', async ({
     browser,
   }) => {
