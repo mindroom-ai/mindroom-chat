@@ -1,4 +1,6 @@
 import { Method, type IOpenIDToken, type MatrixClient } from 'matrix-js-sdk';
+import { toHttpUrl } from '../../utils/httpUrl';
+import { isRecord } from '../../utils/isRecord';
 
 /** The `.well-known/matrix/client` key that lists a deployment's MatrixRTC backends (MSC4143). */
 export const RTC_FOCI_WELL_KNOWN_KEY = 'org.matrix.msc4143.rtc_foci';
@@ -13,16 +15,6 @@ export type LivekitFocus = {
   livekit_alias?: string;
 };
 
-const isHttpUrl = (value: unknown): value is string => {
-  if (typeof value !== 'string' || value.trim() === '') return false;
-  try {
-    const { protocol } = new URL(value);
-    return protocol === 'https:' || protocol === 'http:';
-  } catch {
-    return false;
-  }
-};
-
 /**
  * The authorization service URL of the first LiveKit entry in a list of MatrixRTC transports,
  * as `.well-known` (`rtc_foci`), `/rtc/transports` and memberships (`foci_preferred`) carry them.
@@ -31,11 +23,7 @@ const isHttpUrl = (value: unknown): value is string => {
 export const firstLivekitServiceUrl = (transports: unknown): string | undefined => {
   if (!Array.isArray(transports)) return undefined;
   const livekit = transports.find(
-    (entry) =>
-      !!entry &&
-      typeof entry === 'object' &&
-      (entry as { type?: unknown }).type === 'livekit' &&
-      isHttpUrl((entry as { livekit_service_url?: unknown }).livekit_service_url)
+    (entry) => isRecord(entry) && entry.type === 'livekit' && !!toHttpUrl(entry.livekit_service_url)
   ) as LivekitFocus | undefined;
   return livekit?.livekit_service_url;
 };
