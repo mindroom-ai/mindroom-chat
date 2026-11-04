@@ -337,10 +337,11 @@ const expandAllToggleStyle: React.CSSProperties = {
   cursor: 'pointer',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSize: toRem(12),
-  lineHeight: toRem(18),
-  padding: `0 ${config.space.S100}`,
-  borderRadius: config.radii.R300,
-  border: `1px solid ${color.Primary.ContainerLine}`,
+  // 16 px of text in a 1 px rim: 18 px tall, as thread-light.png shows it.
+  lineHeight: toRem(16),
+  padding: `0 ${config.space.S200}`,
+  borderRadius: config.radii.Pill,
+  border: `1px solid ${color.SurfaceVariant.ContainerLine}`,
   color: color.Primary.Main,
   // Rows scroll beneath it under the thread banner, so it frosts them like the banner does.
   backgroundColor: `color-mix(in srgb, ${color.Surface.Container} 72%, transparent)`,
@@ -1659,11 +1660,18 @@ export function RoomTimeline(props: RoomTimelineProps) {
       {expandAllButton}
     </div>
   );
+  // It sits in the gap under the banner, 12 px below the banner's edge (the banner's own 8 px
+  // margin plus 4), and ends above the first row, which a reader at the top sees unobstructed.
   const bannerExpandAllToggle = itemCount > 0 && (
     <div
       // Hover toolbars of the rows under it keep clear of it (hoverToolbarPlacement).
       data-timeline-overlay=""
-      style={{ position: 'absolute', top: config.space.S300, right: config.space.S500 }}
+      style={{
+        position: 'absolute',
+        top: config.space.S100,
+        right: config.space.S500,
+        display: 'flex',
+      }}
     >
       {expandAllButton}
     </div>
