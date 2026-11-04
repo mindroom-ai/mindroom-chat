@@ -50,6 +50,7 @@ import {
 import { NavOptionsMenu } from '../NavOptionsMenu';
 import { sortRoomIdsByName } from '../../../utils/nameOrder';
 import { useHomeRooms } from './useHomeRooms';
+import { HiddenRailPages } from './HiddenRailPages';
 
 const ROOM_ROW_HEIGHT = 36;
 
@@ -66,11 +67,14 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
           </Text>
         </Box>
         {/* Its own name, so it is not taken for a room's More Options button. */}
-        <NavOptionsMenu label={t('featureUi.homeNav.options')}>
+        <NavOptionsMenu label={t('featureUi.homeNav.options')} width={200}>
           {(close) => (
-            <MenuGroup>
-              <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
-            </MenuGroup>
+            <>
+              <MenuGroup>
+                <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+              </MenuGroup>
+              <HiddenRailPages onClose={close} />
+            </>
           )}
         </NavOptionsMenu>
       </Box>

@@ -165,6 +165,7 @@ vi.mock('../../../mindroom/recent-threads/RecentlyOpenedNavCategory', () => ({
 vi.mock('../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem', () => ({
   MindroomMarkRoomsReadMenuItem: 'div',
 }));
+vi.mock('./HiddenRailPages', () => ({ HiddenRailPages: () => null }));
 
 const expectRoomActionsWork = (renderer: ReactTestRenderer) => {
   const createButton = renderer.root.find(

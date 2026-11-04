@@ -46,10 +46,12 @@ The configuration this repository ships (`config.mindroom.json`) sets `homeserve
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `sidebar.showThreads` | boolean | `true` | `false` hides the Threads button in the icon rail. |
-| `sidebar.showExploreCommunity` | boolean | `true` | `false` hides the Explore and Create Space buttons in the icon rail. |
-| `sidebar.showMindRoom` | boolean | `true` | `false` turns Local MindRoom off: no icon rail entry, no Settings page, no setup steps on the welcome page, and `/connect` (pairing links included) goes to `/`. |
+| `sidebar.showThreads` | boolean | `true` | `false` hides the Threads button in the icon rail and its switch in Settings. |
+| `sidebar.showExploreCommunity` | boolean | `true` | `false` hides the Explore and Create Space buttons in the icon rail and their switches in Settings. |
+| `sidebar.showMindRoom` | boolean | `true` | `false` turns Local MindRoom off: no icon rail entry or switch for it, no Settings page, no setup steps on the welcome page, and `/connect` (pairing links included) goes to `/`. |
 | `sidebar.mindRoomProvisioningUrl` | string (URL) | the account's homeserver | Origin of the provisioning service that pairs a Local MindRoom (the `/connect` page, Settings, and the setup steps the welcome page shows a day after first use while nothing is paired). An account whose homeserver has another origin cannot sign in to that service, so it gets no Local MindRoom entry. |
+
+On top of these, each person picks which of Threads, Canvases, Explore Community, Create Space, Search (the command palette) and Local MindRoom their own rail shows, in Settings > General > Sidebar. The choice is stored in the account's `io.mindroom.settings` account data, so it follows the account to every device; a button the deployment hides has no switch there. A hidden page stays reachable: Threads and Explore Community from the ⋮ menu of Home, Create Space from the command palette, the command palette from its keyboard shortcut (Ctrl + K, or ⌘ K on Apple devices), and Local MindRoom from its Settings page. The rail's account button opens a menu with Settings, the other accounts on the device, Add Account and Manage Accounts.
 
 ### Explore
 
@@ -97,7 +99,7 @@ A `welcome` text equal to its English default is shown translated into the app l
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `mindroom.canvas.enabled` | boolean | `false` | `true` turns on agent canvases: the canvas panel in rooms, the Canvases button in the icon rail (each user can hide it), and the Interface group in Settings > General. |
+| `mindroom.canvas.enabled` | boolean | `false` | `true` turns on agent canvases: the canvas panel in rooms, and the Canvases button in the icon rail, which each person can hide in Settings > General > Sidebar. |
 | `mindroom.canvas.libraries` | boolean | `false` | `true` lets canvas pages load scripts, styles and fonts from `https://cdn.jsdelivr.net/npm/`. The CDN then sees which files a viewer loads, and a page can put data in those addresses. Off, a canvas page can load nothing from outside. |
 | `mindroom.computers.apiUrl` | string (origin) | `""` | Origin of the MindRoom backend for agent computers and Connections, for example `https://mindroom.example.org`. It must be HTTPS (HTTP only for localhost and private addresses) with no path, query or credentials; any other value counts as unset. Unset, the client uses the origin the room's agents publish as `io.mindroom.server` state. A value a user saves in Settings > General > Computers wins over both, and an empty value there turns computers off on that device. |
 | `mindroom.uiActions.autoOpenFromHomeservers` | string[] (server names) | none | Agents whose user ID is on one of these servers may open panels in the client without a click (`io.mindroom.ui_action` events: show the computer, show a canvas, open the members panel, open a Settings section). Only events that arrive live, within 60 seconds, while the app is in the foreground count. Without the key no agent can. |
