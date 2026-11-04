@@ -124,24 +124,36 @@ const describeStartupError = (error: unknown): string =>
 type RecoveryAction = 'logout' | 'remove-account' | 'clear-cache';
 
 /**
- * Runs at most one recovery action at a time. Each of them ends in a reload,
- * so only a failure hands the controls back.
+ * The ways out of a start that hangs or fails: sign out (with a client), clear the cache, or
+ * remove the account. One runs at a time; each ends in a reload, so only a failure hands the
+ * controls back.
  */
-function useRecoveryAction() {
+function useRecoveryActions(session: StoredSession, mx: MatrixClient | undefined) {
+  const { t } = useTranslation();
   const runningRef = useRef(false);
   const [running, setRunning] = useState<RecoveryAction>();
 
-  const run = useCallback((action: RecoveryAction, perform: () => Promise<void>): Promise<void> => {
-    if (runningRef.current) return Promise.resolve();
+  const run = (action: RecoveryAction, perform: () => Promise<void>) => {
+    if (runningRef.current) return;
     runningRef.current = true;
     setRunning(action);
-    return perform().catch(() => {
+    perform().catch(() => {
       runningRef.current = false;
       setRunning(undefined);
     });
-  }, []);
+  };
 
-  return { running, run };
+  const clearing = running === 'clear-cache';
+  return {
+    busy: running !== undefined,
+    clearing,
+    clearCacheLabel: clearing
+      ? t('sharedUi.clientRoot.clearing')
+      : t('sharedUi.clientRoot.clearCacheAndReload'),
+    logout: mx && (() => run('logout', () => logoutClient(mx))),
+    clearCache: () => run('clear-cache', () => clearAllCacheAndReload(mx)),
+    removeAccount: () => run('remove-account', () => removeSessionAndReload(session, mx)),
+  };
 }
 
 /** The recovery menu closes on an outside click or Escape and leaves focus where it landed. */
@@ -152,25 +164,21 @@ const MENU_FOCUS_TRAP = {
   initialFocus: false,
 } as const;
 
-function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
+type StartupScreenProps = { session: StoredSession; mx?: MatrixClient };
+
+function StartupRecoveryMenu({ session, mx }: StartupScreenProps) {
   const { t } = useTranslation();
-  const session = useActiveSession();
-  const { running, run } = useRecoveryAction();
+  const recovery = useRecoveryActions(session, mx);
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
 
   const hideMenu = () => setMenuAnchor(undefined);
-  const busy = running !== undefined;
+  const { busy } = recovery;
 
   const recoveryItems = (
     <Menu>
       <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-        {mx && (
-          <MenuItem
-            size="300"
-            radii="300"
-            disabled={busy}
-            onClick={() => void run('logout', () => logoutClient(mx))}
-          >
+        {recovery.logout && (
+          <MenuItem size="300" radii="300" disabled={busy} onClick={recovery.logout}>
             <Text size="T300">{t('sharedUi.clientRoot.logout')}</Text>
           </MenuItem>
         )}
@@ -178,26 +186,20 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
           size="300"
           radii="300"
           disabled={busy}
-          after={running === 'clear-cache' ? <Spinner size="100" variant="Secondary" /> : undefined}
-          onClick={() => void run('clear-cache', () => clearAllCacheAndReload(mx))}
+          after={recovery.clearing ? <Spinner size="100" variant="Secondary" /> : undefined}
+          onClick={recovery.clearCache}
         >
-          <Text size="T300">
-            {running === 'clear-cache'
-              ? t('sharedUi.clientRoot.clearing')
-              : t('sharedUi.clientRoot.clearCacheAndReload')}
-          </Text>
+          <Text size="T300">{recovery.clearCacheLabel}</Text>
         </MenuItem>
-        {session && (
-          <MenuItem
-            size="300"
-            radii="300"
-            variant="Critical"
-            disabled={busy}
-            onClick={() => void run('remove-account', () => removeSessionAndReload(session, mx))}
-          >
-            <Text size="T300">{t('sharedUi.clientRoot.removeAccount')}</Text>
-          </MenuItem>
-        )}
+        <MenuItem
+          size="300"
+          radii="300"
+          variant="Critical"
+          disabled={busy}
+          onClick={recovery.removeAccount}
+        >
+          <Text size="T300">{t('sharedUi.clientRoot.removeAccount')}</Text>
+        </MenuItem>
       </Box>
     </Menu>
   );
@@ -237,28 +239,22 @@ function StartupRecoveryMenu({ mx }: { mx?: MatrixClient }) {
 }
 
 /** The particle splash while the client opens its stores and starts syncing. */
-function StartupSplash({ mx }: { mx?: MatrixClient }) {
+function StartupSplash({ session, mx }: StartupScreenProps) {
   const loadingMessages = useClientConfig().splash?.loadingMessages;
   return (
     <MindRoomSplashScreen loadingMessages={loadingMessages}>
-      <StartupRecoveryMenu mx={mx} />
+      <StartupRecoveryMenu session={session} mx={mx} />
     </MindRoomSplashScreen>
   );
 }
 
-type StartupFailureProps = {
-  session: StoredSession;
-  mx?: MatrixClient;
-  error: unknown;
-  onRetry: () => void;
-};
+type StartupFailureProps = StartupScreenProps & { error: unknown; onRetry: () => void };
 
 /** Startup threw: say why, and offer another try or a way out. */
 function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
   const { t } = useTranslation();
-  const { running, run } = useRecoveryAction();
-  const busy = running !== undefined;
-  const clearing = running === 'clear-cache';
+  const recovery = useRecoveryActions(session, mx);
+  const { busy } = recovery;
 
   return (
     <SplashScreen>
@@ -290,21 +286,14 @@ function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
               variant="Secondary"
               fill="Soft"
               disabled={busy}
-              before={clearing ? <Spinner size="100" variant="Secondary" /> : undefined}
-              onClick={() => void run('clear-cache', () => clearAllCacheAndReload(mx))}
+              before={recovery.clearing ? <Spinner size="100" variant="Secondary" /> : undefined}
+              onClick={recovery.clearCache}
             >
               <Text as="span" size="B400">
-                {clearing
-                  ? t('sharedUi.clientRoot.clearing')
-                  : t('sharedUi.clientRoot.clearCacheAndReload')}
+                {recovery.clearCacheLabel}
               </Text>
             </Button>
-            <Button
-              variant="Critical"
-              fill="None"
-              disabled={busy}
-              onClick={() => void run('remove-account', () => removeSessionAndReload(session, mx))}
-            >
+            <Button variant="Critical" fill="None" disabled={busy} onClick={recovery.removeAccount}>
               <Text as="span" size="B400">
                 {t('sharedUi.clientRoot.removeAccount')}
               </Text>
@@ -504,13 +493,13 @@ function ClientSession({ session, children }: ClientSessionProps) {
       <SpecVersions baseUrl={session.baseUrl} allowCachedContent={sync.restoredRooms}>
         {mx && shellEngine && shellReady ? (
           // The signed-in pages load as their own chunk (Router.tsx); the splash stays until then.
-          <Suspense fallback={<StartupSplash mx={mx} />}>
+          <Suspense fallback={<StartupSplash session={session} mx={mx} />}>
             <AccountProviders mx={mx} engine={shellEngine} sync={sync}>
               {children}
             </AccountProviders>
           </Suspense>
         ) : (
-          <StartupSplash mx={mx} />
+          <StartupSplash session={session} mx={mx} />
         )}
       </SpecVersions>
     </QueryClientProvider>
