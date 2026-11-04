@@ -29,13 +29,20 @@ export const avatarSwatchVar = (index: number): string => `var(${avatarSwatchPro
 export const AVATAR_SWATCH_INK = `var(${AVATAR_INK_PROPERTY})`;
 
 /**
- * The swatch of a user or room ID: a 32-bit rolling hash of its UTF-16 code units, so the same
- * ID lands on the same swatch in every component, tab and session.
+ * The swatch of a user or room ID, the same in every component, tab and session. FNV-1a over the
+ * UTF-16 code units, then the MurmurHash3 finalizer, so IDs that differ in one character (two
+ * accounts made together, an agent and its sibling) still spread over the whole palette.
  */
 export const avatarSwatchIndex = (id: string): number => {
-  let hash = 0;
+  let hash = 0x811c9dc5;
   for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+    hash ^= id.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
   }
-  return Math.abs(hash) % AVATAR_SWATCH_COUNT;
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
+  return (hash >>> 0) % AVATAR_SWATCH_COUNT;
 };

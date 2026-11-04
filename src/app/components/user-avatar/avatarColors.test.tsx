@@ -41,6 +41,19 @@ describe('avatar swatches', () => {
     expect(used.size).toBe(AVATAR_SWATCH_COUNT);
   });
 
+  it('tell apart IDs that differ only slightly', () => {
+    // Accounts made together share most of their ID; a weak hash put most such pairs on one hue.
+    const pairs = Array.from({ length: 200 }, (_, n) => [
+      `@colors_viewer_${n.toString(16)}:matrix.localhost`,
+      `@colors_peer_${n.toString(16)}:matrix.localhost`,
+    ]);
+    const same = pairs.filter(([a, b]) => avatarSwatchIndex(a) === avatarSwatchIndex(b)).length;
+    expect(same / pairs.length).toBeLessThan(0.25);
+    const neighbours = Array.from({ length: 200 }, (_, n) => [`!room${n}a:x`, `!room${n}b:x`]);
+    const alike = neighbours.filter(([a, b]) => avatarSwatchIndex(a) === avatarSwatchIndex(b));
+    expect(alike.length / neighbours.length).toBeLessThan(0.25);
+  });
+
   it('keep the reference header tile blue as the first swatch', () => {
     expect(AVATAR_SWATCHES[0]).toEqual({ light: '#3569AF', dark: '#9FC7FE' });
   });
