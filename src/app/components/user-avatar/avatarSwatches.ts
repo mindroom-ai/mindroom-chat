@@ -1,8 +1,9 @@
-// The avatar palette for `solid` fallbacks: eight calm hues, saturated on light themes with white
-// ink, and pale on dark themes with near-black ink. UserAvatar.css.ts publishes them as CSS custom
-// properties per theme; components only refer to the property names, so they need no stylesheet.
+// The avatar palette: eight calm hues, saturated on light themes with white ink, and pale on dark
+// themes with near-black ink. Every avatar without a picture takes the swatch its user or room ID
+// hashes to, so one user or room has one color on every screen. UserAvatar.css.ts publishes the
+// swatches as CSS custom properties per theme; components only refer to the property names.
 
-/** Fill of each swatch on light themes, then on dark ones. */
+/** Fill of each swatch on light themes, then on dark ones. Blue is the reference header tile. */
 export const AVATAR_SWATCHES: ReadonlyArray<{ light: string; dark: string }> = [
   { light: '#3569AF', dark: '#9FC7FE' }, // blue
   { light: '#1F7A7A', dark: '#8ED6D2' }, // teal
@@ -26,3 +27,15 @@ export const AVATAR_INK_PROPERTY = '--mr-avatar-swatch-ink';
 /** The CSS value of swatch `index`, for an inline style. */
 export const avatarSwatchVar = (index: number): string => `var(${avatarSwatchProperty(index)})`;
 export const AVATAR_SWATCH_INK = `var(${AVATAR_INK_PROPERTY})`;
+
+/**
+ * The swatch of a user or room ID: a 32-bit rolling hash of its UTF-16 code units, so the same
+ * ID lands on the same swatch in every component, tab and session.
+ */
+export const avatarSwatchIndex = (id: string): number => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash) % AVATAR_SWATCH_COUNT;
+};

@@ -7,7 +7,7 @@ import {
   avatarSwatchProperty,
 } from './avatarSwatches';
 
-// Fills the folds Avatar it sits in; the fallback color comes from the user ID (inline vars).
+// Fills the folds Avatar it sits in; the fallback color comes from the ID (inline vars).
 export const UserAvatar = style([
   DefaultReset,
   {
@@ -18,7 +18,7 @@ export const UserAvatar = style([
   },
 ]);
 
-// The `solid` fallback palette (avatarSwatches.ts). Light values apply everywhere; the dark
+// The fallback palette (avatarSwatches.ts). Light values apply everywhere; the dark
 // themes (src/app/hooks/useTheme.ts) put theirs on <body>.
 const swatchVars = (kind: 'light' | 'dark'): Record<string, string> => {
   const vars: Record<string, string> = { [AVATAR_INK_PROPERTY]: AVATAR_SWATCH_INKS[kind] };

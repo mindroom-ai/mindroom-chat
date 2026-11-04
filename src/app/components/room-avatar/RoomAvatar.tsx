@@ -12,10 +12,15 @@ type RoomAvatarProps = Pick<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' |
   /** Rendered while there is no image or it failed to load. */
   renderFallback: () => ReactNode;
   /**
-   * How the fallback is filled: tinted by default, `solid` for a header tile, `plain` for an
-   * icon that sits on the surface (room lists).
+   * How the fallback is filled: the room's swatch by default, `plain` for an icon that sits on
+   * the surface (room lists).
    */
   fallbackTone?: AvatarFallbackTone;
+  /**
+   * The ID whose color the fallback takes, the room's own unless given. A direct chat passes
+   * the other person's user ID, so its tile has the color of that person's avatar.
+   */
+  fallbackId?: string;
 };
 
 /** A room's avatar image, or a colored fallback while there is none or it fails to load. */
@@ -26,6 +31,7 @@ export function RoomAvatar({
   className,
   renderFallback,
   fallbackTone,
+  fallbackId,
 }: RoomAvatarProps) {
   const avatarClassName = classNames(css.RoomAvatar, className);
   return (
@@ -34,7 +40,7 @@ export function RoomAvatar({
       alt={alt}
       imageClassName={avatarClassName}
       fallbackClassName={avatarClassName}
-      fallbackId={roomId}
+      fallbackId={fallbackId ?? roomId}
       fallbackTone={fallbackTone}
       renderFallback={renderFallback}
     />
