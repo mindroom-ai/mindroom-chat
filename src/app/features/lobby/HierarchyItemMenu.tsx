@@ -19,6 +19,7 @@ import {
   pinSpaceToSidebar,
   unpinSpaceFromSidebar,
   useSavedSidebarItems,
+  useTopLevelSpaceIds,
 } from '../../pages/client/sidebar/sidebarSpaces';
 import {
   canSendState,
@@ -68,6 +69,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
   const { t } = useTranslation();
   const client = useMatrixClient();
   const pinnedSpaces = useSavedSidebarItems();
+  const topLevelSpaces = useTopLevelSpaceIds();
   const showRoomSettings = useOpenRoomSettings();
   const showSpaceSettings = useOpenSpaceSettings();
   const { roomId } = item;
@@ -117,7 +119,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
       icon: Icons.Pin,
       run: () => {
         if (pinned) unpinSpaceFromSidebar(client, roomId);
-        else pinSpaceToSidebar(client, roomId);
+        else pinSpaceToSidebar(client, roomId, topLevelSpaces);
       },
     });
   }

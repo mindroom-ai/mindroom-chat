@@ -1,10 +1,23 @@
 import React, { useMemo, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
-import type { RectCords } from 'folds';
-import { useAtomValue } from 'jotai';
+import type { IconSrc, RectCords } from 'folds';
+import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
+import classNames from 'classnames';
+import {
+  DndContext,
+  type DragEndEvent,
+  type DragMoveEvent,
+  type DragStartEvent,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import { SortableContext, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   SidebarAvatar,
   SidebarItem,
@@ -27,16 +40,86 @@ import { MenuItem } from '../../../components/glass/GlassPrimitives';
 import { allRoomsAtom } from '../../../state/room-list/roomList';
 import { roomToParentsAtom } from '../../../state/room/roomToParents';
 import { roomToUnreadAtom } from '../../../state/room/roomToUnread';
+import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../../state/sidebarOrder';
 import { useRoomUnread } from '../../../state/hooks/unread';
 import { useNavToActivePathAtom } from '../../../state/hooks/navToActivePath';
+import { useOpenSpaceSettings } from '../../../state/hooks/spaceSettings';
 import { getCanonicalAliasOrRoomId } from '../../../utils/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../../utils/room';
+import { copyToClipboard } from '../../../utils/dom';
+import { suppressNextClickDefaultAfterPointerDrag } from '../../../utils/sortableDrag';
+import { getMatrixToRoom } from '../../../plugins/matrix-to';
+import { getViaServers } from '../../../plugins/via-servers';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
 import { useSpaceSearchRooms } from '../space/useSpaceSearchRooms';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
+import {
+  type SidebarDragItem,
+  type SidebarFolder,
+  type SidebarInstructionType,
+  type SidebarItem as SidebarEntry,
+  commitSidebarReorder,
+} from './sidebarReorder';
+import {
+  getShownSidebarItems,
+  unpinSpaceFromSidebar,
+  useSavedSidebarItems,
+  useTopLevelSpaceIds,
+} from './sidebarSpaces';
+import * as css from './SpaceTabs.css';
 
 const menuLabelStyle = { flexGrow: 1 } as const;
+
+type DropAt = 'above' | 'below' | 'child';
+const DROP_AT: Record<SidebarInstructionType, DropAt> = {
+  'reorder-above': 'above',
+  'reorder-below': 'below',
+  'make-child': 'child',
+};
+
+/** The sortable ID of a rail entry: a space, a folder, or a space inside a folder. */
+const dragId = (drag: SidebarDragItem): string => {
+  if (typeof drag === 'string') return drag;
+  return drag.spaceId ? `folder:${drag.folder.id}/${drag.spaceId}` : `folder:${drag.folder.id}`;
+};
+
+type DragData = { drag: SidebarDragItem };
+
+const readDrag = (data: unknown): SidebarDragItem | undefined =>
+  (data as { current?: DragData } | undefined)?.current?.drag;
+
+// One local order atom per account, made once, so every rail of that account shares it.
+const spaceOrderAtoms = new Map<string, SpaceOrderAtom>();
+const spaceOrderAtomFor = (userId: string): SpaceOrderAtom => {
+  let orderAtom = spaceOrderAtoms.get(userId);
+  if (!orderAtom) {
+    orderAtom = makeSpaceOrderAtom(userId);
+    spaceOrderAtoms.set(userId, orderAtom);
+  }
+  return orderAtom;
+};
+
+/** Folders open in the rail in this session, by folder ID. */
+const openFoldersAtom = atom<ReadonlySet<string>>(new Set<string>());
+
+/** A matrix.to link to the space: by alias when it has one, else by ID and routing servers. */
+const spaceLink = (client: MatrixClient, space: Room): string => {
+  const idOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
+  return getMatrixToRoom(idOrAlias, idOrAlias.startsWith('#') ? undefined : getViaServers(space));
+};
+
+type MenuEntryProps = { label: string; icon: IconSrc; onSelect: () => void };
+
+function RailMenuEntry({ label, icon, onSelect }: MenuEntryProps) {
+  return (
+    <MenuItem size="300" radii="300" after={<Icon size="100" src={icon} />} onClick={onSelect}>
+      <Text as="span" size="T300" align="Left" truncate style={menuLabelStyle}>
+        {label}
+      </Text>
+    </MenuItem>
+  );
+}
 
 /** "Invite" in a space's rail menu, for members allowed to invite. */
 function InviteToSpaceItem({ space, onSelect }: { space: Room; onSelect: () => void }) {
@@ -45,27 +128,57 @@ function InviteToSpaceItem({ space, onSelect }: { space: Room; onSelect: () => v
   const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
   if (!permissions.action('invite', client.getUserId() ?? '')) return null;
   return (
-    <MenuItem
-      size="300"
-      radii="300"
-      after={<Icon size="100" src={Icons.UserPlus} />}
-      onClick={onSelect}
-    >
-      <Text as="span" size="T300" align="Left" truncate style={menuLabelStyle}>
-        {t('sharedUi.spaceTabs.invite')}
-      </Text>
-    </MenuItem>
+    <RailMenuEntry
+      label={t('sharedUi.spaceTabs.invite')}
+      icon={Icons.UserPlus}
+      onSelect={onSelect}
+    />
   );
 }
+
+/** Makes a rail entry draggable and shows where a dragged one would land on it. */
+function useRailSortable(drag: SidebarDragItem, hint: DropAt | undefined) {
+  const { setNodeRef, listeners, transform, isDragging } = useSortable({
+    id: dragId(drag),
+    data: { drag } satisfies DragData,
+  });
+  const className = classNames(
+    css.SpaceDragSource,
+    hint && css.DropHint({ at: hint }),
+    isDragging && css.SpaceDragging
+  );
+  // Only the pointer drags; the buttons inside keep their own keyboard behaviour and focus ring.
+  return {
+    ref: setNodeRef,
+    className,
+    style: { transform: CSS.Translate.toString(transform) },
+    ...listeners,
+  };
+}
+
+/** Moves a rail entry one place up or down; Alt with an arrow key asks for it. */
+type MoveEntry = (direction: -1 | 1) => void;
+
+const moveKeyHandler = (move: MoveEntry) => (event: React.KeyboardEvent<HTMLElement>) => {
+  if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+  event.preventDefault();
+  move(event.key === 'ArrowUp' ? -1 : 1);
+};
 
 type SpaceTabProps = {
   space: Room;
   selected: boolean;
   /** Lets the navigation panel take the click, given whether the space is shown; true when it did. */
   onSelect?: (selected: boolean) => boolean;
+  drag: SidebarDragItem;
+  hint?: DropAt;
+  /** Shown because the saved rail names it although it sits in another space. */
+  pinned: boolean;
+  onMove: MoveEntry;
 };
 
-function SpaceTab({ space, selected, onSelect }: SpaceTabProps) {
+function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: SpaceTabProps) {
+  const { t } = useTranslation();
   const client = useMatrixClient();
   const { roomId, name } = space;
   // Without a picture: its first two letters as written ("Mi" for MindRoom).
@@ -77,13 +190,19 @@ function SpaceTab({ space, selected, onSelect }: SpaceTabProps) {
   const unread = useRoomUnread(roomId, roomToUnreadAtom);
   const avatarUrl = getRoomAvatarUrl(client, space, 96, useAuthentication);
   const spaceRooms = useSpaceSearchRooms(roomId);
+  const openSpaceSettings = useOpenSpaceSettings();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [inviting, setInviting] = useState(false);
+  const sortable = useRailSortable(drag, hint);
 
   const closeMenu = () => setMenuAnchor(undefined);
+  const closeThen = (action: () => void) => () => {
+    closeMenu();
+    action();
+  };
 
   const handleClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    // A click another handler already claimed changes nothing here.
+    // A click another handler already claimed (such as the end of a drag) changes nothing here.
     if (event.defaultPrevented) return;
     if (onSelect?.(selected)) return;
     const spacePath = getSpacePath(getCanonicalAliasOrRoomId(client, roomId));
@@ -103,80 +222,347 @@ function SpaceTab({ space, selected, onSelect }: SpaceTabProps) {
   ) : null;
 
   return (
-    <SidebarItem active={selected}>
-      <SidebarItemTooltip tooltip={name}>
-        {(triggerRef) => (
-          <SidebarAvatar
-            as="button"
-            ref={triggerRef}
-            size="400"
-            data-id={roomId}
-            onClick={handleClick}
-            onContextMenu={toggleContextMenu(setMenuAnchor)}
-          >
-            <RoomAvatar
-              alt={name}
-              roomId={roomId}
-              src={avatarUrl}
-              renderFallback={() => <Text size="H4">{letters}</Text>}
+    <div {...sortable}>
+      <SidebarItem active={selected}>
+        <SidebarItemTooltip tooltip={name}>
+          {(triggerRef) => (
+            <SidebarAvatar
+              as="button"
+              ref={triggerRef}
+              size="400"
+              data-id={roomId}
+              onClick={handleClick}
+              onKeyDown={moveKeyHandler(onMove)}
+              onContextMenu={toggleContextMenu(setMenuAnchor)}
+            >
+              <RoomAvatar
+                alt={name}
+                roomId={roomId}
+                src={avatarUrl}
+                renderFallback={() => <Text size="H4">{letters}</Text>}
+              />
+            </SidebarAvatar>
+          )}
+        </SidebarItemTooltip>
+        {unreadBadge}
+        <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
+          <MindroomMarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
+          <InviteToSpaceItem space={space} onSelect={closeThen(() => setInviting(true))} />
+          <RailMenuEntry
+            label={t('sharedUi.spaceTabs.copyLink')}
+            icon={Icons.Link}
+            onSelect={closeThen(() => copyToClipboard(spaceLink(client, space)))}
+          />
+          <RailMenuEntry
+            label={t('sharedUi.spaceTabs.spaceSettings')}
+            icon={Icons.Setting}
+            onSelect={closeThen(() => openSpaceSettings(roomId))}
+          />
+          {pinned && (
+            <RailMenuEntry
+              label={t('sharedUi.spaceTabs.unpin')}
+              icon={Icons.Pin}
+              onSelect={closeThen(() => unpinSpaceFromSidebar(client, roomId))}
             />
-          </SidebarAvatar>
-        )}
-      </SidebarItemTooltip>
-      {unreadBadge}
-      <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
-        <MindroomMarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
-        <InviteToSpaceItem
-          space={space}
-          onSelect={() => {
-            closeMenu();
-            setInviting(true);
-          }}
-        />
-      </SidebarContextMenu>
-      {inviting && <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />}
-    </SidebarItem>
+          )}
+        </SidebarContextMenu>
+        {inviting && <InviteUserPrompt room={space} requestClose={() => setInviting(false)} />}
+      </SidebarItem>
+    </div>
   );
 }
+
+/** One small picture (or the first letter) of a space on a closed folder's face. */
+function FolderFaceTile({ space }: { space: Room }) {
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  return (
+    <span className={css.FolderFaceTile}>
+      <RoomAvatar
+        alt=""
+        roomId={space.roomId}
+        src={getRoomAvatarUrl(client, space, 32, authenticated)}
+        renderFallback={() => <span>{Array.from(space.name.trim())[0] ?? ''}</span>}
+      />
+    </span>
+  );
+}
+
+type FolderTabProps = {
+  folder: SidebarFolder;
+  spaces: Room[];
+  open: boolean;
+  onToggle: () => void;
+  /** Whether the selected space is one of the folder's. */
+  holdsSelected: boolean;
+  hint?: DropAt;
+  onMove: MoveEntry;
+};
+
+/** A folder's name, or the names of its spaces when it has none. */
+const folderLabel = (folder: SidebarFolder, spaces: Room[]): string =>
+  folder.name || spaces.map((space) => space.name).join(', ');
+
+/** A folder's button: closed, a grid of its spaces; open, a button that closes it again. */
+function FolderTab(props: FolderTabProps) {
+  const { folder, spaces, open, onToggle, holdsSelected, hint, onMove } = props;
+  const label = folderLabel(folder, spaces);
+  const sortable = useRailSortable({ folder }, hint);
+  return (
+    <div {...sortable}>
+      <SidebarItem active={!open && holdsSelected}>
+        <SidebarItemTooltip tooltip={label}>
+          {(triggerRef) => (
+            <SidebarAvatar
+              as="button"
+              ref={triggerRef}
+              size="400"
+              aria-label={label}
+              aria-expanded={open}
+              data-folder-id={folder.id}
+              className={open ? undefined : css.FolderFace}
+              onKeyDown={moveKeyHandler(onMove)}
+              onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+                if (!event.defaultPrevented) onToggle();
+              }}
+            >
+              {open ? (
+                <Icon size="200" src={Icons.ChevronTop} />
+              ) : (
+                spaces
+                  .slice(0, 4)
+                  .map((space) => <FolderFaceTile key={space.roomId} space={space} />)
+              )}
+            </SidebarAvatar>
+          )}
+        </SidebarItemTooltip>
+      </SidebarItem>
+    </div>
+  );
+}
+
+/**
+ * Where the dragged entry lands on `over`: above or below it, or (for a space dropped on the
+ * middle of a space or a folder) grouped with it in a folder.
+ */
+const dropInstruction = (
+  active: SidebarDragItem,
+  over: SidebarDragItem,
+  overTop: number,
+  overHeight: number,
+  pointerY: number
+): SidebarInstructionType => {
+  const share = overHeight > 0 ? (pointerY - overTop) / overHeight : 0.5;
+  const activeIsSpace = typeof active === 'string' || !!active.spaceId;
+  const overTakesChildren = typeof over === 'string' || !over.spaceId;
+  if (activeIsSpace && overTakesChildren && share > 0.3 && share < 0.7) return 'make-child';
+  return share < 0.5 ? 'reorder-above' : 'reorder-below';
+};
+
+// The rail's entries do not slide aside while dragging; a hint marks the landing place instead.
+const keepInPlace = () => null;
+
+// The drag library's own announcements are English only; dragging is a pointer gesture here, and
+// Alt with the arrow keys moves an entry from the keyboard.
+const silent = () => undefined;
+const silentAnnouncements = {
+  onDragStart: silent,
+  onDragMove: silent,
+  onDragOver: silent,
+  onDragEnd: silent,
+  onDragCancel: silent,
+};
 
 type SpaceTabsProps = {
   /** Passed to each space's button; see `SpaceTabProps.onSelect`. */
   onSelect?: (selected: boolean) => boolean;
 };
 
-/** The joined top-level spaces in the icon rail. */
+/**
+ * The spaces in the icon rail, in the saved order with the device's own order on top, folders
+ * included. Dragging a space reorders the rail; dropping it on another space or a folder groups
+ * them in a folder.
+ */
 export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const joinedRoomIds = useAtomValue(allRoomsAtom);
   const parentsByRoom = useAtomValue(roomToParentsAtom);
   const selectedSpaceId = useSelectedSpace();
+  const saved = useSavedSidebarItems();
+  const [localOrder, setLocalOrder] = useAtom(spaceOrderAtomFor(client.getSafeUserId()));
+  const [openFolders, setOpenFolders] = useAtom(openFoldersAtom);
+  const [hint, setHint] = useState<{ id: string; at: DropAt }>();
 
-  const spaces = useMemo(
+  const joinedSpaces = useMemo(
     () =>
-      joinedRoomIds
-        .map((roomId) => client.getRoom(roomId))
-        .filter((room): room is Room => !!room && isSpace(room))
-        .filter((room) => (parentsByRoom.get(room.roomId)?.size ?? 0) === 0),
-    [client, joinedRoomIds, parentsByRoom]
+      new Map(
+        joinedRoomIds
+          .map((roomId) => client.getRoom(roomId))
+          .filter((room): room is Room => !!room && isSpace(room))
+          .map((room) => [room.roomId, room])
+      ),
+    [client, joinedRoomIds]
+  );
+  const topLevelSpaces = useTopLevelSpaceIds();
+  const items = useMemo(
+    () =>
+      getShownSidebarItems({
+        saved,
+        topLevelSpaces,
+        isJoinedSpace: (roomId) => joinedSpaces.has(roomId),
+        localOrder,
+      }),
+    [saved, topLevelSpaces, joinedSpaces, localOrder]
   );
 
-  if (spaces.length === 0) return null;
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+
+  if (items.length === 0) return null;
+
+  const isPinned = (roomId: string) => (parentsByRoom.get(roomId)?.size ?? 0) > 0;
+  const draggedCenterY = (event: DragMoveEvent) => {
+    const rect = event.active.rect.current.translated;
+    return rect ? rect.top + rect.height / 2 : 0;
+  };
+  const instructionFor = (event: DragMoveEvent): SidebarInstructionType | undefined => {
+    const active = readDrag(event.active.data);
+    const over = event.over && readDrag(event.over.data);
+    if (!active || !over || !event.over || event.over.id === event.active.id) return undefined;
+    return dropInstruction(
+      active,
+      over,
+      event.over.rect.top,
+      event.over.rect.height,
+      draggedCenterY(event)
+    );
+  };
+
+  const commit = (
+    item: SidebarDragItem,
+    containerItem: SidebarDragItem,
+    instructionType: SidebarInstructionType
+  ) =>
+    commitSidebarReorder({
+      mx: client,
+      orphanSpaces: topLevelSpaces,
+      sidebarItems: items,
+      accountDataSidebarItems: saved,
+      item,
+      containerItem,
+      instructionType,
+      setSpaceOrder: setLocalOrder,
+    });
+
+  const handleDragStart = (event: DragStartEvent) => {
+    suppressNextClickDefaultAfterPointerDrag(event.activatorEvent);
+  };
+  const handleDragMove = (event: DragMoveEvent) => {
+    const instruction = instructionFor(event);
+    setHint(
+      instruction && event.over ? { id: `${event.over.id}`, at: DROP_AT[instruction] } : undefined
+    );
+  };
+  const handleDragEnd = (event: DragEndEvent) => {
+    setHint(undefined);
+    const instruction = instructionFor(event);
+    const active = readDrag(event.active.data);
+    const over = event.over && readDrag(event.over.data);
+    if (!instruction || !active || !over) return;
+    commit(active, over, instruction);
+  };
+
+  // The entries in the order the rail shows them, open folders' spaces included.
+  const shownDrags: SidebarDragItem[] = items.flatMap((item): SidebarDragItem[] => {
+    if (typeof item === 'string') return [item];
+    const inside = openFolders.has(item.id)
+      ? item.content.map((spaceId) => ({ folder: item, spaceId }))
+      : [];
+    return [{ folder: item }, ...inside];
+  });
+  const moveBy = (drag: SidebarDragItem, direction: -1 | 1) => {
+    const index = shownDrags.findIndex((entry) => dragId(entry) === dragId(drag));
+    const neighbour = shownDrags[index + direction];
+    if (index < 0 || !neighbour) return;
+    commit(drag, neighbour, direction < 0 ? 'reorder-above' : 'reorder-below');
+  };
+
+  const hintFor = (drag: SidebarDragItem) => (hint?.id === dragId(drag) ? hint.at : undefined);
+  const toggleFolder = (folderId: string) => {
+    const next = new Set(openFolders);
+    if (next.has(folderId)) next.delete(folderId);
+    else next.add(folderId);
+    setOpenFolders(next);
+  };
+
+  const renderSpace = (spaceId: string, drag: SidebarDragItem) => {
+    const space = joinedSpaces.get(spaceId);
+    if (!space) return null;
+    return (
+      <SpaceTab
+        key={dragId(drag)}
+        space={space}
+        selected={selectedSpaceId === spaceId}
+        onSelect={onSelect}
+        drag={drag}
+        hint={hintFor(drag)}
+        pinned={isPinned(spaceId)}
+        onMove={(direction) => moveBy(drag, direction)}
+      />
+    );
+  };
+
+  const renderEntry = (item: SidebarEntry) => {
+    if (typeof item === 'string') return renderSpace(item, item);
+    const spaces = item.content
+      .map((spaceId) => joinedSpaces.get(spaceId))
+      .filter((space): space is Room => !!space);
+    const open = openFolders.has(item.id);
+    const folderTab = (
+      <FolderTab
+        key={dragId({ folder: item })}
+        folder={item}
+        spaces={spaces}
+        open={open}
+        onToggle={() => toggleFolder(item.id)}
+        holdsSelected={!!selectedSpaceId && item.content.includes(selectedSpaceId)}
+        hint={hintFor({ folder: item })}
+        onMove={(direction) => moveBy({ folder: item }, direction)}
+      />
+    );
+    if (!open) return folderTab;
+    return (
+      <div
+        key={dragId({ folder: item })}
+        className={css.FolderGroup}
+        role="group"
+        aria-label={folderLabel(item, spaces)}
+      >
+        {folderTab}
+        {item.content.map((spaceId) => renderSpace(spaceId, { folder: item, spaceId }))}
+      </div>
+    );
+  };
 
   // Spaces get their own stack under a rule, apart from the sections above them.
   return (
     <>
       <SidebarStackSeparator />
-      <SidebarStack role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
-        {spaces.map((space) => (
-          <SpaceTab
-            key={space.roomId}
-            space={space}
-            selected={selectedSpaceId === space.roomId}
-            onSelect={onSelect}
-          />
-        ))}
-      </SidebarStack>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDragEnd={handleDragEnd}
+        onDragCancel={() => setHint(undefined)}
+        accessibility={{ announcements: silentAnnouncements }}
+      >
+        <SortableContext items={shownDrags.map(dragId)} strategy={keepInPlace}>
+          <SidebarStack role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
+            {items.map(renderEntry)}
+          </SidebarStack>
+        </SortableContext>
+      </DndContext>
     </>
   );
 }

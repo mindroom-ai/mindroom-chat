@@ -1,7 +1,12 @@
 import { useMemo } from 'react';
+import { useAtomValue } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../../../../types/matrix/accountData';
 import { useAccountData } from '../../../hooks/useAccountData';
+import { useMatrixClient } from '../../../hooks/useMatrixClient';
+import { allRoomsAtom } from '../../../state/room-list/roomList';
+import { roomToParentsAtom } from '../../../state/room/roomToParents';
+import { isSpace } from '../../../utils/room';
 import type { SidebarFolder, SidebarItem } from './sidebarReorder';
 
 /**
@@ -30,6 +35,20 @@ export const parseSidebarItems = (content: SidebarContent | undefined): SidebarI
     if (typeof id !== 'string') return [];
     return [{ id, ...(typeof name === 'string' ? { name } : {}), content: asStrings(spaces) }];
   });
+};
+
+/** Joined spaces that sit in no other space: the rail always shows them. */
+export const useTopLevelSpaceIds = (): string[] => {
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
+  return useMemo(
+    () =>
+      joinedRoomIds.filter(
+        (roomId) => isSpace(client.getRoom(roomId)) && (parentsByRoom.get(roomId)?.size ?? 0) === 0
+      ),
+    [client, joinedRoomIds, parentsByRoom]
+  );
 };
 
 /** The saved sidebar entries, following account data changes. */
@@ -117,11 +136,20 @@ const readSidebar = (client: MatrixClient): SidebarItem[] =>
 export const isSpaceInSidebar = (items: SidebarItem[], spaceId: string): boolean =>
   sidebarSpaceIds(items).has(spaceId);
 
-/** Saves `spaceId` at the end of the rail, so a subspace shows there. */
-export const pinSpaceToSidebar = async (client: MatrixClient, spaceId: string): Promise<void> => {
+/**
+ * Saves `spaceId` at the end of the rail, so a subspace shows there. The top-level spaces the
+ * saved list left out are saved before it, so it lands below them rather than above.
+ */
+export const pinSpaceToSidebar = async (
+  client: MatrixClient,
+  spaceId: string,
+  topLevelSpaces: string[]
+): Promise<void> => {
   const items = readSidebar(client);
   if (isSpaceInSidebar(items, spaceId)) return;
-  await writeSidebar(client, [...items, spaceId]);
+  const known = sidebarSpaceIds(items);
+  const unsaved = topLevelSpaces.filter((id) => !known.has(id) && id !== spaceId);
+  await writeSidebar(client, [...items, ...unsaved, spaceId]);
 };
 
 /** Takes `spaceId` out of the saved entries, folders included; folders it empties go too. */
