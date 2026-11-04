@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Chip, Icon, Icons, Spinner, Text, color } from 'folds';
 import type { MatrixClient } from 'matrix-js-sdk';
@@ -51,49 +51,58 @@ const BACKUP_EVENTS = [
 /**
  * The backup state, read again on backup events and once uploads finish; `remaining` counts keys
  * still to upload. `undefined` while the first read runs, and `failed` when no read has worked yet
- * or a requested one failed; a failed read after a good one keeps the good answer.
+ * or a requested one failed; a failed read after a good one keeps the good answer. The events come
+ * in bursts and their reads can answer out of order, so only the newest read's answer is shown.
  */
 const useBackupState = () => {
   const client = useMatrixClient();
   const [state, setState] = useState<BackupState | typeof CHECK_FAILED>();
   const [remaining, setRemaining] = useState(0);
+  // The newest read; an answer to an older one, or one that comes after unmounting, is dropped.
+  const newest = useRef(0);
 
-  const refresh = useCallback(() => {
-    readBackupState(client).then(
-      (next) => setState(next),
-      () => setState(CHECK_FAILED)
-    );
-  }, [client]);
+  /** `requested`: someone asked (Retry, a finished restore), so a failure shows as one. */
+  const read = useCallback(
+    (requested: boolean) => {
+      newest.current += 1;
+      const request = newest.current;
+      readBackupState(client).then(
+        (next) => {
+          if (request === newest.current) setState(next);
+        },
+        () => {
+          if (request !== newest.current) return;
+          setState((current) => (requested ? CHECK_FAILED : current ?? CHECK_FAILED));
+        }
+      );
+    },
+    [client]
+  );
 
   useEffect(() => {
-    let mounted = true;
-    const read = () => {
-      readBackupState(client).then(
-        (next) => mounted && setState(next),
-        () => mounted && setState((current) => current ?? CHECK_FAILED)
-      );
-    };
+    const onEvent = () => read(false);
     const uploading = (count: number) => {
-      if (!mounted) return;
       setRemaining(count);
       // The key count on the server changed once a round of uploads is through.
-      if (count === 0) read();
+      if (count === 0) read(false);
     };
-    read();
-    BACKUP_EVENTS.forEach((event) => client.on(event, read));
+    read(false);
+    BACKUP_EVENTS.forEach((event) => client.on(event, onEvent));
     client.on(CryptoEvent.KeyBackupSessionsRemaining, uploading);
     return () => {
-      mounted = false;
-      BACKUP_EVENTS.forEach((event) => client.off(event, read));
+      newest.current += 1;
+      BACKUP_EVENTS.forEach((event) => client.off(event, onEvent));
       client.off(CryptoEvent.KeyBackupSessionsRemaining, uploading);
     };
-  }, [client]);
+  }, [client, read]);
+
+  const refresh = useCallback(() => read(true), [read]);
 
   /** Asks again after a failed check, showing the spinner meanwhile. */
   const recheck = useCallback(() => {
     setState(undefined);
-    refresh();
-  }, [refresh]);
+    read(true);
+  }, [read]);
 
   return { state, remaining, refresh, recheck };
 };

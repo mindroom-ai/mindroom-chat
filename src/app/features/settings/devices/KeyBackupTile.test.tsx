@@ -3,6 +3,7 @@ import { EventEmitter } from 'events';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixError } from 'matrix-js-sdk';
+import { CryptoEvent } from 'matrix-js-sdk/lib/crypto-api';
 import { KeyBackupTile } from './KeyBackupTile';
 
 const client = vi.hoisted(() => ({ current: undefined as unknown }));
@@ -42,6 +43,38 @@ describe('KeyBackupTile', () => {
 
     expect(screen.getByText(NO_BACKUP_TEXT)).toBeTruthy();
     expect(screen.queryByText(CHECK_FAILED_TEXT)).toBeNull();
+  });
+
+  it('shows the newest answer when the reads of a burst of backup events answer out of order', async () => {
+    const backup = (version: string) => ({
+      version,
+      count: 12,
+      algorithm: 'm.megolm_backup.v1',
+      auth_data: {},
+    });
+    let answerSlowly: (value: unknown) => void = () => undefined;
+    clientAnswering(
+      () => Promise.resolve(backup('5')),
+      () =>
+        new Promise((resolve) => {
+          answerSlowly = resolve;
+        }),
+      () => Promise.resolve(backup('7'))
+    );
+    render(<KeyBackupTile />);
+    await settle();
+    expect(screen.getByText(/Version: 5/)).toBeTruthy();
+
+    // A reset: the first read after it is slow, the second one answers at once.
+    const emitter = client.current as EventEmitter;
+    await act(async () => {
+      emitter.emit(CryptoEvent.KeyBackupStatus, true);
+      emitter.emit(CryptoEvent.KeyBackupStatus, true);
+    });
+    expect(screen.getByText(/Version: 7/)).toBeTruthy();
+    await act(async () => answerSlowly(backup('5')));
+
+    expect(screen.getByText(/Version: 7/)).toBeTruthy();
   });
 
   it.each([
