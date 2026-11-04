@@ -86,7 +86,7 @@ export const getEditedContent = (
 };
 
 /** True when saving would send the text the message already has. */
-const isUnchanged = (before: Record<string, unknown>, after: IContent): boolean =>
+export const isUnchanged = (before: Record<string, unknown>, after: IContent): boolean =>
   before.body === after.body &&
   (before.format === CUSTOM_HTML ? before.formatted_body : undefined) === after.formatted_body;
 
