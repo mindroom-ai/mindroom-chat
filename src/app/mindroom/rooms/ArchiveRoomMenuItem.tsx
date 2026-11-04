@@ -9,7 +9,7 @@ import { useRoomArchiveAction } from './useRoomArchiveAction';
  * A storage box with its lid: the room goes away into the archive. Drawn on folds' 24-unit grid
  * with its 2-unit stroke.
  */
-export const ArchiveBoxIcon: IconSrc = () => (
+const ArchiveBoxIcon: IconSrc = () => (
   <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="3" y="4" width="18" height="5" rx="1.5" />
     <path d="M5 9v9a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9" />

@@ -23,7 +23,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ContainerColor } from '../../styles/ContainerColor.css';
 
 /** Short authentication strings: the seven emoji (spec: "Short Authentication String (SAS) verification"). */
-export const SAS_VERIFICATION = 'm.sas.v1';
+const SAS_VERIFICATION = 'm.sas.v1';
 
 const KEY = 'sharedUi.deviceVerification';
 

@@ -1,7 +1,7 @@
 import type { AutoDiscoveryInfo } from '../../cs-api';
 
 /** The well-known key a homeserver uses to name its shared emoji room. */
-export const SERVER_EMOJI_WELL_KNOWN_KEY = 'io.mindroom.emoji';
+const SERVER_EMOJI_WELL_KNOWN_KEY = 'io.mindroom.emoji';
 
 const ROOM_ALIAS = /^#[^:]+:.+$/;
 // Room version 12 room IDs carry no server name.
