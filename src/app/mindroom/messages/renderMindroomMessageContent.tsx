@@ -125,7 +125,11 @@ export const renderMindroomMessageContent = ({
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
     if (typeof bodyContent.body !== 'string') return bodyContent;
 
-    const formattedBody = formatMindroomMessageTextBodyAsHtml(bodyContent.body);
+    // MindRoom writes an agent's HTML from its Markdown body; a reply that arrives with the body
+    // alone renders as that HTML would have.
+    const formattedBody =
+      (fromMindroomAgent && formatMindroomMarkdownTextBodyAsHtml(bodyContent.body)) ||
+      formatMindroomMessageTextBodyAsHtml(bodyContent.body);
     if (!formattedBody) return bodyContent;
 
     return {
