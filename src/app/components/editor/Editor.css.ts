@@ -5,9 +5,10 @@ import { glassFloating, glassSurface } from '../../styles/Glass.css';
 // Space above and below a line of text; the placeholder sits on the same line.
 const textPaddingBlock = toRem(13);
 
-// A floating glass card: the material draws its rim, so only focus adds a line inside it.
+// A floating glass card: the material draws its rim, so only focus adds a line inside it. The
+// control level, as in room-light.png: a lighter tint and a soft shadow around the card.
 export const Editor = style([
-  glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
+  glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
   {
     overflow: 'hidden',
