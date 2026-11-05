@@ -7,6 +7,7 @@ import {
   SidebarStack,
   SidebarStackSeparator,
 } from '../../components/sidebar';
+import { SidebarScroll } from '../../components/sidebar/SidebarItem.css';
 import { MindroomTab } from '../../mindroom/sidebar/MindroomTab';
 import {
   CanvasesTab,
@@ -51,7 +52,14 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
     <Sidebar aria-label={t('sharedUi.a11y.mainNavigation')}>
       <SidebarContent
         scrollable={
-          <Scroll ref={scrollRef} hideTrack size="0" visibility="Hover" variant="Background">
+          <Scroll
+            ref={scrollRef}
+            className={SidebarScroll}
+            hideTrack
+            size="0"
+            visibility="Hover"
+            variant="Background"
+          >
             <SidebarStack>
               <HomeTab onSelect={onPageNavSelect} />
               <DirectTab onSelect={onPageNavSelect} />

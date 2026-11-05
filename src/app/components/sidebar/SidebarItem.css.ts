@@ -28,6 +28,15 @@ export const Sidebar = style([
   },
 ]);
 
+/**
+ * The rail's scrolling top part shows no scrollbar; it still scrolls by wheel, touch and
+ * keyboard focus. A scrollbar would take width from one side, moving the centred entries off
+ * the bottom group's centre line and their indicators past the scroller's edge, which clips
+ * them. Folds' `size="0"` hides only the WebKit scrollbar, and Chromium follows the app-wide
+ * `scrollbar-width: thin` instead.
+ */
+export const SidebarScroll = style({ scrollbarWidth: 'none' });
+
 /** A group of rail items, centred, `S300` apart and inset from the group's edges. */
 export const SidebarStack = style([
   DefaultReset,

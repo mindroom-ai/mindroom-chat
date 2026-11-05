@@ -120,6 +120,21 @@ const createRailSpaces = async ({ userId, accessToken }: Account) => {
   return space;
 };
 
+/** `count` spaces, enough to make the rail's top part scroll. Returns their IDs in order. */
+const createManySpaces = async ({ accessToken }: Account, count: number) => {
+  const ids: string[] = [];
+  for (let start = 0; start < count; start += 5) {
+    const batch = Array.from({ length: Math.min(5, count - start) }, (_, offset) =>
+      createPrivateSpace(HOMESERVER, accessToken, {
+        name: `Rail Space ${String(start + offset + 1).padStart(2, '0')}`,
+        topic: '',
+      })
+    );
+    ids.push(...(await Promise.all(batch)));
+  }
+  return ids;
+};
+
 const signIn = async (page: Page, account: Account) => {
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -163,56 +178,52 @@ const indicator = (entry: Locator) =>
   });
 
 /**
- * The indicator as it reaches the screen: whether the pointer finds the entry along it (nothing
- * covers it), and how many pixel rows of the rail's outer edge stand out from the rail next to
- * it. Left to right only.
+ * The indicator as it reaches the screen at the rail's outer edge: whether the pointer finds the
+ * entry there (nothing covers or clips it), and how many pixel rows of the edge's 4 px column
+ * stand out from the rail above and below the indicator. An indicator moved off the edge, or
+ * cut off by a scroller, counts 0 rows. Left to right only.
  */
 const drawnIndicator = async (page: Page, entry: Locator) => {
-  const { left, top, width, uncovered } = await entry.evaluate((element) => {
-    const style = getComputedStyle(element, '::before');
+  const { left, top, uncovered } = await entry.evaluate((element) => {
+    const railEdge = element.closest('nav')?.getBoundingClientRect().left ?? 0;
     const box = element.getBoundingClientRect();
-    const edge = box.left + parseFloat(style.left);
     const middle = box.top + box.height / 2;
-    const pillWidth = parseFloat(style.width);
     return {
-      left: edge,
+      left: railEdge,
       top: middle - 20,
-      width: pillWidth,
       uncovered: [-6, 0, 6].every(
-        (offset) => document.elementFromPoint(edge + pillWidth / 2, middle + offset) === element
+        (offset) => document.elementFromPoint(railEdge + 2, middle + offset) === element
       ),
     };
   });
-  // The indicator's column and the rail beside it, before the button (12 px in).
   const png = await page.screenshot({
-    clip: { x: left, y: top, width: width + 8, height: 40 },
+    clip: { x: left, y: top, width: 4, height: 40 },
     scale: 'css',
   });
-  const rows = await page.evaluate(
-    async ({ data, pillX, railX }) => {
-      const image = new Image();
-      image.src = `data:image/png;base64,${data}`;
-      await image.decode();
-      const canvas = document.createElement('canvas');
-      canvas.width = image.width;
-      canvas.height = image.height;
-      const context = canvas.getContext('2d');
-      if (!context) return 0;
-      context.drawImage(image, 0, 0);
-      const pixels = context.getImageData(0, 0, image.width, image.height).data;
-      const luminance = (x: number, y: number) => {
-        const at = (y * image.width + x) * 4;
-        const [r = 0, g = 0, b = 0] = pixels.subarray(at, at + 3);
-        return 0.299 * r + 0.587 * g + 0.114 * b;
-      };
-      let drawn = 0;
-      for (let y = 0; y < image.height; y += 1) {
-        if (Math.abs(luminance(pillX, y) - luminance(railX, y)) > 40) drawn += 1;
-      }
-      return drawn;
-    },
-    { data: png.toString('base64'), pillX: Math.floor(width / 2), railX: Math.floor(width) + 5 }
-  );
+  const rows = await page.evaluate(async (data) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext('2d');
+    if (!context) return 0;
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, image.width, image.height).data;
+    const luminance = (y: number) => {
+      const at = (y * image.width + 2) * 4;
+      const [r = 0, g = 0, b = 0] = pixels.subarray(at, at + 3);
+      return 0.299 * r + 0.587 * g + 0.114 * b;
+    };
+    // The rail itself, 2 px into the window: a 24 px indicator leaves 8 rows above it.
+    const rail = luminance(2);
+    let drawn = 0;
+    for (let y = 0; y < image.height; y += 1) {
+      if (Math.abs(luminance(y) - rail) > 40) drawn += 1;
+    }
+    return drawn;
+  }, png.toString('base64'));
   return { uncovered, rows };
 };
 
@@ -298,6 +309,17 @@ const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndM
     expect(afterDrawn.rows, `${name} indicator gone`).toBeLessThanOrEqual(1);
   }
 };
+
+// Headless Chromium hides scrollbars (`--hide-scrollbars`); desktop browsers with classic
+// scrollbars show them, and a scrollbar takes width from the rail. The other launch options
+// repeat playwright.config.ts.
+test.use({
+  launchOptions: {
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
 
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
@@ -491,6 +513,70 @@ test('focus, pressing, reduced motion and right to left', async ({ page }) => {
   await settle(page);
   expect((await scaleOf(explore)).scale).toBe(String(PRESS_SCALE));
   await page.keyboard.up('Space');
+});
+
+/** The scrolling part and the bottom group share one centre line, to half a pixel. */
+const expectOnLine = (name: string, x: number, line: number) =>
+  expect.soft(Math.abs(x - line), `${name} at ${x}, the line at ${line}`).toBeLessThanOrEqual(0.5);
+
+test.describe('with more spaces than the rail can show', () => {
+  test("the scrolling part keeps the bottom group's centre line and shows its indicators", async ({
+    page,
+  }) => {
+    test.slow();
+    const account = await register('rail_hover_e');
+    const spaces = await createManySpaces(account, 26);
+    await signIn(page, account);
+
+    const home = rail(page).getByRole('button', { name: 'Home', exact: true });
+    const inbox = rail(page).getByRole('button', { name: 'Inbox' });
+    const deepest = rail(page).locator(`button[data-id="${spaces.at(-1) ?? ''}"]`);
+    await expect(deepest).toBeAttached({ timeout: 30_000 });
+    await expect(entryOf(home)).toHaveAttribute('data-active', 'true');
+
+    // The top part overflows, so it scrolls.
+    const scroller = await home.evaluate((element) => {
+      let box = element.parentElement;
+      while (box && getComputedStyle(box).overflowY === 'visible') box = box.parentElement;
+      return {
+        overflow: box ? box.scrollHeight - box.clientHeight : 0,
+        scrollbar: box ? box.offsetWidth - box.clientWidth : 0,
+      };
+    });
+    expect(scroller.overflow, 'the top part overflows').toBeGreaterThan(200);
+    // Scrollbars take width here (the launch options above); the rail's must not.
+    expect.soft(scroller.scrollbar, 'the top part shows no scrollbar').toBe(0);
+
+    // One centre line for the scrolling part and the bottom group.
+    await pointerAway(page);
+    const inboxCentre = (await centre(inbox)).x;
+    expectOnLine('Home', (await centre(home)).x, inboxCentre);
+
+    // The selected Home's indicator shows at the rail's edge.
+    expectDrawn('selected Home', await drawnIndicator(page, entryOf(home)), SELECTED_HEIGHT);
+
+    // Scrolled to the deepest space: on the centre line, and hovering shows its indicator.
+    await deepest.scrollIntoViewIfNeeded();
+    await pointerAway(page);
+    expectOnLine('the deepest space', (await centre(deepest)).x, inboxCentre);
+    const measured = await hoverAndMeasure(page, deepest);
+    expectHover('the deepest space, scrolled', measured);
+
+    // Right to left: the same, mirrored, with the indicator at the right edge.
+    await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+    await pointerAway(page);
+    const rtlInbox = (await centre(inbox)).x;
+    expectOnLine('right to left, the deepest space', (await centre(deepest)).x, rtlInbox);
+    await deepest.hover();
+    await settle(page);
+    const rtlEdge = await entryOf(deepest).evaluate((element) => {
+      const railBox = element.closest('nav')?.getBoundingClientRect();
+      const box = element.getBoundingClientRect();
+      const x = (railBox?.right ?? 0) - 2;
+      return document.elementFromPoint(x, box.top + box.height / 2) === element;
+    });
+    expect(rtlEdge, 'right to left indicator at the right edge').toBe(true);
+  });
 });
 
 test('saves the rail at rest, hovered and selected, light and dark', async ({ page }) => {
