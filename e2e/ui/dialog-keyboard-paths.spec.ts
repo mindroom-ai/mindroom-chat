@@ -2,12 +2,13 @@ import { expect, test, webkit, type Locator, type Page } from '@playwright/test'
 import { buildLoginPath } from '../env';
 import { matrixFetch } from '../helpers/matrix';
 
-// Dialogs and menus around a room, used from the keyboard, in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
+// Dialogs and menus around a room, used from the keyboard and in a right-to-left language, in
+// Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
 // - a prompt opened from the room header's menu (Invite, Leave Room) gives focus back to the
 //   menu's button when it closes, instead of to the start of the page;
 // - the arrow keys move between the entries of the room header's menu;
-// - the Leave Room confirmation takes focus as it opens, so a screen reader announces it.
+// - the Leave Room confirmation takes focus as it opens, so a screen reader announces it;
+// - a long Latin name in a right-to-left list loses its end to the ellipsis, not its start.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'dialog-keyboard-paths-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -139,10 +140,39 @@ const leavePromptTakesFocus = async (page: Page) => {
   await expect(page.getByRole('button', { name: 'Leave', exact: true })).not.toBeFocused();
 };
 
+const longLatinNameKeepsItsStart = async (page: Page) => {
+  const { viewer, member, roomId } = await seed();
+  await openRoom(page, viewer, roomId, 'ar');
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+  const name = page.locator(`button[data-user-id="${member.userId}"] > span`).last();
+  await expect(name).toHaveText(LONG_NAME, { timeout: 30_000 });
+
+  // Where the name's first letters sit, against the box that clips the name.
+  const { firstLeft, firstRight, boxLeft, boxRight, clipped } = await name.evaluate((element) => {
+    const text = element.firstChild as Text;
+    const range = document.createRange();
+    range.setStart(text, 0);
+    range.setEnd(text, 3);
+    const first = range.getBoundingClientRect();
+    const box = element.getBoundingClientRect();
+    return {
+      firstLeft: first.left,
+      firstRight: first.right,
+      boxLeft: box.left,
+      boxRight: box.right,
+      clipped: element.scrollWidth > element.clientWidth,
+    };
+  });
+  expect(clipped).toBe(true);
+  expect(firstLeft).toBeGreaterThanOrEqual(boxLeft - 1);
+  expect(firstRight).toBeLessThanOrEqual(boxRight + 1);
+};
+
 const CHECKS: Array<[string, (page: Page) => Promise<void>]> = [
   ['prompts from the header menu give focus back to its button', focusReturnsToMenuButton],
   ['the arrow keys move through the header menu', menuArrowKeys],
   ['the Leave Room confirmation takes focus as it opens', leavePromptTakesFocus],
+  ['a long Latin name in a right-to-left members list keeps its start', longLatinNameKeepsItsStart],
 ];
 
 for (const [title, check] of CHECKS) {

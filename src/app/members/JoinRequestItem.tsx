@@ -13,6 +13,7 @@ import { BreakWord } from '../ui/styles/Text.css';
 import * as css from './MembersDrawer.css';
 import { describeError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
+import { ownDirectionLine } from '../ui/directional';
 
 type JoinRequestItemProps = {
   room: Room;
@@ -97,10 +98,10 @@ export function JoinRequestItem({ room, member, canApprove, canDecline }: JoinRe
           />
         </Avatar>
         <Box direction="Column" grow="Yes" style={{ minWidth: 0 }}>
-          <Text size="T300" truncate>
+          <Text size="T300" truncate {...ownDirectionLine}>
             {name}
           </Text>
-          <Text size="T200" priority="300" truncate>
+          <Text size="T200" priority="300" truncate {...ownDirectionLine}>
             {userId}
           </Text>
         </Box>

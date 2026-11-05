@@ -21,7 +21,7 @@ import {
   config,
   toRem,
 } from 'folds';
-import { PopOut } from '../ui/directional';
+import { PopOut, ownDirectionLine } from '../ui/directional';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -192,7 +192,7 @@ export function MemberRow({ room, member }: { room: Room; member: RoomMember }) 
           )}
         />
       </Avatar>
-      <Text as="span" size="T400" truncate className={css.MemberName}>
+      <Text as="span" size="T400" truncate className={css.MemberName} {...ownDirectionLine}>
         {name}
       </Text>
     </button>

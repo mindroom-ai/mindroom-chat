@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Spinner, Text } from 'folds';
 import type { JoinRule } from 'matrix-js-sdk';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
+import { ownDirectionLine } from '../../ui/directional';
 import { RoomAccessControl } from '../RoomAccessControl';
 import { ErrorDetail } from '../../ui/ErrorDetail';
 import { describeKnownError } from '../../lib/describeError';
@@ -100,7 +101,7 @@ export function JoinRoomRow({
           />
         </Avatar>
         <span className={css.RowText}>
-          <Text as="span" size="T300" truncate>
+          <Text as="span" size="T300" truncate {...ownDirectionLine}>
             <b>{name}</b>
           </Text>
           {details && (

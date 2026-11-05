@@ -3,7 +3,7 @@ import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
 import { Avatar, Box, Icons, Line, Text, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { PopOut } from '../../ui/directional';
+import { PopOut, ownDirectionLine } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -115,10 +115,10 @@ export function AccountMenu({
             size="300"
           />
           <Box direction="Column" style={textColumn}>
-            <Text id={nameId} size="H6" truncate>
+            <Text id={nameId} size="H6" truncate {...ownDirectionLine}>
               {active.displayName}
             </Text>
-            <Text id={userIdId} size="T200" priority="300" truncate>
+            <Text id={userIdId} size="T200" priority="300" truncate {...ownDirectionLine}>
               {active.userId}
             </Text>
           </Box>
@@ -161,10 +161,10 @@ export function AccountMenu({
                     onClick={closeThen(() => onSwitchAccount(account.session))}
                   >
                     <Box as="span" direction="Column" style={textColumn}>
-                      <Text as="span" size="T300" truncate>
+                      <Text as="span" size="T300" truncate {...ownDirectionLine}>
                         {account.displayName}
                       </Text>
-                      <Text as="span" size="T200" priority="300" truncate>
+                      <Text as="span" size="T200" priority="300" truncate {...ownDirectionLine}>
                         {account.session.userId}
                       </Text>
                     </Box>
