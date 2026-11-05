@@ -30,3 +30,4 @@ src/app/mindroom/threads/threadOverviewRefreshCounter.ts	1	rewritten in Lane C f
 src/app/mindroom/threads/timelinePaginationController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/hooks/router/useThreadsSelected.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/mindroom/threads/timelineReadReceiptController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
