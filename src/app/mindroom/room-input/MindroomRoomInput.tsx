@@ -47,7 +47,6 @@ import { CommandAutocomplete } from '../../features/room/CommandAutocomplete';
 import { useCommands } from '../../hooks/useCommands';
 import { useComposingCheck } from '../../hooks/useComposingCheck';
 import { useImagePackRooms } from '../../hooks/useImagePackRooms';
-import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useTypingStatusUpdater } from '../../hooks/useTypingStatusUpdater';
 import { useSetting } from '../../state/hooks/settings';
@@ -239,7 +238,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
     const [formattingOpen, setFormattingOpen] = useState(false);
     // Phones reach stickers through the emoji board's tabs instead of a button of their own.
-    const showStickerButton = useScreenSizeContext() !== ScreenSize.Mobile;
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
@@ -615,14 +613,6 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
             <>
-              {showStickerButton && (
-                <ComposerIconButton
-                  label={t('sharedUi.tabs.sticker')}
-                  icon={Icons.Sticker}
-                  pressed={boardOpen && boardTab === 'Sticker'}
-                  onPress={(event) => openBoard('Sticker', event)}
-                />
-              )}
               <ComposerIconButton
                 label={emojiLabel}
                 icon={Icons.Smile}
