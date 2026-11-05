@@ -2836,3 +2836,4 @@ src/app/timeline/roomLiveRenderController.ts		clean-rewrite
 src/app/members/invite/InviteAutocompleteMenu.tsx		clean-rewrite
 src/app/ui/splash/BrandedSplashScreen.tsx		clean-rewrite
 src/app/search/SearchResultGroup.tsx	src/app/search/SearchResultItem.tsx	restructure-followups
+src/app/room/roomViewSwitchIcon.tsx	src/app/room/CompactViewIcon.tsx	restructure-followups

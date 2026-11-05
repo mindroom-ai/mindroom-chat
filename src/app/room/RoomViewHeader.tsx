@@ -68,7 +68,7 @@ import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { hasActiveThreadFilters, type ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomHeaderMenu } from './RoomHeaderMenu';
-import { CompactViewIcon } from './roomViewSwitchIcon';
+import { CompactViewIcon } from './CompactViewIcon';
 import { HeaderTopic } from './RoomViewHeader.css';
 import * as css from './RoomViewHeaderLayout.css';
 
