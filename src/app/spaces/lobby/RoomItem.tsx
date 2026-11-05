@@ -103,7 +103,7 @@ export function RoomItemCard({
           <div className={styleCss.LinePlaceholder} />
         ) : (
           <Box className={css.ErrorNameContainer} alignItems="Center" gap="100">
-            <Text size="T400" truncate {...ownDirectionLine}>
+            <Text className={css.RoomName} size="T400" {...ownDirectionLine}>
               {roomName}
             </Text>
             {error && !summary && (
