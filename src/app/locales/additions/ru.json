@@ -307,6 +307,9 @@
     "accountMenu": {
       "open": "Открыть меню учётной записи {{name}}",
       "manageAccounts": "Управление учётными записями"
+    },
+    "roomOrder": {
+      "sortByName": "Сортировать комнаты от А до Я"
     }
   },
   "mindroomUi": {

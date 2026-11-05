@@ -33,10 +33,11 @@ vi.mock('../../../components/nav', () => ({
 }));
 vi.mock('../../../components/virtualizer', () => ({ VirtualTile: passthrough }));
 vi.mock('../../../components/join-address-prompt', () => ({ JoinAddressPrompt: () => null }));
-vi.mock('../../../features/room-nav', () => ({
-  RoomNavCategoryButton: passthrough,
+vi.mock('../../../features/room-nav', () => ({ RoomNavCategoryButton: passthrough }));
+vi.mock('../../../features/room-nav/SortableRoomList', () => ({
+  SortableRoomList: passthrough,
   // Remembers the room it first showed, as RoomNavItem remembers which prompt is open.
-  RoomNavItem: ({ room }: { room: { roomId: string } }) => {
+  SortableRoomRow: ({ room }: { room: { roomId: string } }) => {
     const [firstRoomId] = useState(room.roomId);
     return <div data-row-room={room.roomId} data-first-room={firstRoomId} />;
   },
@@ -49,6 +50,10 @@ vi.mock('../../../hooks/useMatrixClient', () => ({
       getCanonicalAlias: () => null,
     }),
     getSafeUserId: () => '@alice:example.org',
+    // No room order saved: the list is A to Z.
+    getAccountData: () => undefined,
+    on: () => undefined,
+    off: () => undefined,
   }),
 }));
 vi.mock('../../../hooks/router/useSelectedRoom', () => ({ useSelectedRoom: () => undefined }));

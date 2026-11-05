@@ -12,7 +12,9 @@ import {
   NavItemContent,
   NavLink,
 } from '../../../components/nav';
-import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
+import { RoomNavCategoryButton } from '../../../features/room-nav';
+import { useRoomOrder } from '../../../features/room-nav/roomOrder';
+import { SortableRoomList, SortableRoomRow } from '../../../features/room-nav/SortableRoomList';
 import { JoinBeforeNavigate } from '../../../features/join-before-navigate/JoinBeforeNavigate';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../../hooks/router/useResolvedRoomIdOrAlias';
@@ -151,12 +153,18 @@ const LeaveSpacePrompt = lazy(() =>
   }))
 );
 
-type SpaceHeaderProps = { spaceId: string; name: string; roomIds: string[] };
+type SpaceHeaderProps = {
+  /** The space's rooms, which Mark as Read covers. */
+  roomIds: string[];
+  /** Puts the hand-ordered Rooms back in A to Z order; only while they are ordered by hand. */
+  onSortByName?: () => void;
+};
 
-function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
+function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const space = useSpace();
+  const name = useRoomName(space);
   const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
   const canInvite = permissions.action('invite', client.getUserId() ?? '');
   const openSpaceSettings = useOpenSpaceSettings();
@@ -178,6 +186,16 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
             <>
               <MenuGroup>
                 <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+                {onSortByName && (
+                  <MenuEntry
+                    label={t('featureUi.roomOrder.sortByName')}
+                    icon={Icons.Sort}
+                    onSelect={() => {
+                      close();
+                      onSortByName();
+                    }}
+                  />
+                )}
                 {canInvite && (
                   <MenuEntry
                     label={t('sharedUi.space.invite')}
@@ -201,7 +219,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
                   icon={Icons.Setting}
                   onSelect={() => {
                     close();
-                    openSpaceSettings(spaceId);
+                    openSpaceSettings(space.roomId);
                   }}
                 />
               </MenuGroup>
@@ -230,7 +248,7 @@ function SpaceHeader({ spaceId, name, roomIds }: SpaceHeaderProps) {
       {leaving && (
         <Suspense fallback={null}>
           <LeaveSpacePrompt
-            roomId={spaceId}
+            roomId={space.roomId}
             requestClose={() => setLeaving(false)}
             onLeft={() => {
               setLeaving(false);
@@ -277,17 +295,27 @@ export function Space() {
   const [roomsClosed, setRoomsClosed] = useState(false);
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
 
-  const sortedRooms = useMemo(() => {
-    // Like Home: by name.
-    const items = sortRoomIdsByName(client, spaceRooms);
-    // A collapsed category still shows the selected room.
-    return roomsClosed ? items.filter((roomId) => roomId === selectedRoomId) : items;
-  }, [client, spaceRooms, roomsClosed, selectedRoomId]);
+  const roomsByName = useMemo(() => sortRoomIdsByName(client, spaceRooms), [client, spaceRooms]);
+  // Like Home: A to Z until the person drags a room, then their order.
+  const roomOrder = useRoomOrder(space.roomId, roomsByName);
+  const sortedRooms = useMemo(
+    () =>
+      // A collapsed category still shows the selected room.
+      roomsClosed
+        ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
+        : roomOrder.roomIds,
+    [roomOrder.roomIds, roomsClosed, selectedRoomId]
+  );
 
   return (
     <PageNav label={title}>
       <PageNavContent
-        header={<SpaceHeader spaceId={space.roomId} name={title} roomIds={spaceRooms} />}
+        header={
+          <SpaceHeader
+            roomIds={spaceRooms}
+            onSortByName={roomOrder.manual ? roomOrder.reset : undefined}
+          />
+        }
       >
         <Box direction="Column" gap="300">
           <NavCategory>
@@ -308,21 +336,27 @@ export function Space() {
                 {t('sharedUi.space.rooms')}
               </RoomNavCategoryButton>
             </NavCategoryHeader>
-            {sortedRooms.map((roomId) => {
-              const room = client.getRoom(roomId);
-              return room ? (
-                <RoomNavItem
-                  key={roomId}
-                  room={room}
-                  selected={roomId === selectedRoomId}
-                  linkPath={getSpaceRoomPath(
-                    spaceIdOrAlias,
-                    getCanonicalAliasOrRoomId(client, roomId)
-                  )}
-                  notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
-                />
-              ) : null;
-            })}
+            <SortableRoomList
+              listId={space.roomId}
+              roomIds={sortedRooms}
+              onReorder={roomOrder.save}
+            >
+              {sortedRooms.map((roomId) => {
+                const room = client.getRoom(roomId);
+                return room ? (
+                  <SortableRoomRow
+                    key={roomId}
+                    room={room}
+                    selected={roomId === selectedRoomId}
+                    linkPath={getSpaceRoomPath(
+                      spaceIdOrAlias,
+                      getCanonicalAliasOrRoomId(client, roomId)
+                    )}
+                    notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
+                  />
+                ) : null;
+              })}
+            </SortableRoomList>
           </NavCategory>
           <ThreadNavCategory spaceId={space.roomId} />
         </Box>

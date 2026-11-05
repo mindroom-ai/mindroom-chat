@@ -39,7 +39,6 @@ const sortableStyle = (
 
 export function SortableRoomNavItem({ parentSpaceId, room, ...props }: SortableRoomNavItemProps) {
   const {
-    attributes,
     listeners,
     setActivatorNodeRef,
     setNodeRef,
@@ -72,7 +71,8 @@ export function SortableRoomNavItem({ parentSpaceId, room, ...props }: SortableR
       data-room-id={room.roomId}
       onPointerDownCapture={stopMenuActivation}
       onKeyDownCapture={stopMenuActivation}
-      {...attributes}
+      // No role, focus or ARIA of the drag library: the row's link and menu button stay its only
+      // controls, and Alt with the up or down arrow key moves a room from the keyboard.
       {...listeners}
     >
       <RoomNavItem room={room} {...props} />

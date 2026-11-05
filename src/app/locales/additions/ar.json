@@ -319,6 +319,9 @@
     "accountMenu": {
       "open": "فتح قائمة حساب ⁨{{name}}⁩",
       "manageAccounts": "إدارة الحسابات"
+    },
+    "roomOrder": {
+      "sortByName": "ترتيب الغرف من أ إلى ي"
     }
   },
   "mindroomUi": {

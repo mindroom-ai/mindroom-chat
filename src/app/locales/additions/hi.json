@@ -295,6 +295,9 @@
     "accountMenu": {
       "open": "{{name}} के लिए खाता मेनू खोलें",
       "manageAccounts": "खातों का प्रबंधन"
+    },
+    "roomOrder": {
+      "sortByName": "रूम A से Z क्रम में लगाएँ"
     }
   },
   "mindroomUi": {

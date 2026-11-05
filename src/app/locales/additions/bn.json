@@ -295,6 +295,9 @@
     "accountMenu": {
       "open": "{{name}} এর জন্য অ্যাকাউন্ট মেনু খুলুন",
       "manageAccounts": "অ্যাকাউন্ট পরিচালনা করুন"
+    },
+    "roomOrder": {
+      "sortByName": "রুমগুলো এ থেকে জেড সাজান"
     }
   },
   "mindroomUi": {

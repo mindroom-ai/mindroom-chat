@@ -119,6 +119,20 @@ vi.mock('../../../features/room-nav', () => ({
   RoomNavCategoryButton: 'button',
   RoomNavItem: 'div',
 }));
+vi.mock('../../../features/room-nav/roomOrder', () => ({
+  HOME_ROOM_LIST: 'home',
+  useRoomOrder: (_listId: string, roomIds: string[]) => ({
+    roomIds,
+    manual: false,
+    save: vi.fn(),
+    reset: vi.fn(),
+  }),
+}));
+vi.mock('../../../features/room-nav/SortableRoomList', () => ({
+  SortableRoomList: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement(React.Fragment, null, children),
+  SortableRoomRow: 'div',
+}));
 vi.mock('../../../state/closedNavCategories', () => ({
   makeNavCategoryId: () => 'home-room',
 }));

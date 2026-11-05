@@ -289,6 +289,9 @@
     "accountMenu": {
       "open": "打开 {{name}} 的账户菜单",
       "manageAccounts": "管理账户"
+    },
+    "roomOrder": {
+      "sortByName": "按 A 到 Z 排序房间"
     }
   },
   "mindroomUi": {

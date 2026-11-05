@@ -289,6 +289,9 @@
     "accountMenu": {
       "open": "{{name}} 계정 메뉴 열기",
       "manageAccounts": "계정 관리"
+    },
+    "roomOrder": {
+      "sortByName": "방을 가나다순으로 정렬"
     }
   },
   "mindroomUi": {

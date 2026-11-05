@@ -289,6 +289,9 @@
     "accountMenu": {
       "open": "{{name}} のアカウントメニューを開く",
       "manageAccounts": "アカウントの管理"
+    },
+    "roomOrder": {
+      "sortByName": "ルームを A から Z の順に並べる"
     }
   },
   "mindroomUi": {

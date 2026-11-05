@@ -295,6 +295,9 @@
     "accountMenu": {
       "open": "Kontomenü für {{name}} öffnen",
       "manageAccounts": "Konten verwalten"
+    },
+    "roomOrder": {
+      "sortByName": "Räume von A bis Z sortieren"
     }
   },
   "mindroomUi": {

@@ -301,6 +301,9 @@
     "accountMenu": {
       "open": "Abrir o menu da conta de {{name}}",
       "manageAccounts": "Gerir contas"
+    },
+    "roomOrder": {
+      "sortByName": "Ordenar salas de A a Z"
     }
   },
   "mindroomUi": {

@@ -42,6 +42,10 @@ const client = {
   getRooms: () => Object.values(rooms.ids).map(rooms.of),
   getUserId: () => '@alice:example.org',
   getSafeUserId: () => '@alice:example.org',
+  // No room order saved: the list is A to Z.
+  getAccountData: () => undefined,
+  on: () => undefined,
+  off: () => undefined,
 };
 
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -72,9 +76,10 @@ vi.mock('../../../components/nav', () => ({
   NavItemContent: passthrough,
   NavLink: passthrough,
 }));
-vi.mock('../../../features/room-nav', () => ({
-  RoomNavCategoryButton: passthrough,
-  RoomNavItem: ({ room }: { room: { roomId: string } }) => <div data-row-room={room.roomId} />,
+vi.mock('../../../features/room-nav', () => ({ RoomNavCategoryButton: passthrough }));
+vi.mock('../../../features/room-nav/SortableRoomList', () => ({
+  SortableRoomList: passthrough,
+  SortableRoomRow: ({ room }: { room: { roomId: string } }) => <div data-row-room={room.roomId} />,
 }));
 vi.mock('../../../features/join-before-navigate/JoinBeforeNavigate', () => ({
   JoinBeforeNavigate: () => null,

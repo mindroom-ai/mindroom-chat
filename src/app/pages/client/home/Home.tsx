@@ -16,7 +16,9 @@ import {
 } from '../../../components/nav';
 import { VirtualTile } from '../../../components/virtualizer';
 import { JoinAddressPrompt } from '../../../components/join-address-prompt';
-import { RoomNavCategoryButton, RoomNavItem } from '../../../features/room-nav';
+import { RoomNavCategoryButton } from '../../../features/room-nav';
+import { HOME_ROOM_LIST, useRoomOrder } from '../../../features/room-nav/roomOrder';
+import { SortableRoomList, SortableRoomRow } from '../../../features/room-nav/SortableRoomList';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useSelectedRoom } from '../../../hooks/router/useSelectedRoom';
 import {
@@ -40,7 +42,7 @@ import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
-import { MenuGroup } from '../../../components/MenuEntry';
+import { MenuEntry, MenuGroup } from '../../../components/MenuEntry';
 import {
   getHomeCreatePath,
   getHomeRoomPath,
@@ -54,7 +56,13 @@ import { HiddenRailPages } from './HiddenRailPages';
 
 const ROOM_ROW_HEIGHT = 36;
 
-function HomeHeader({ roomIds }: { roomIds: string[] }) {
+type HomeHeaderProps = {
+  roomIds: string[];
+  /** Puts the hand-ordered Rooms back in A to Z order; only while they are ordered by hand. */
+  onSortByName?: () => void;
+};
+
+function HomeHeader({ roomIds, onSortByName }: HomeHeaderProps) {
   const { t } = useTranslation();
   const title = t('nav.home');
 
@@ -72,6 +80,16 @@ function HomeHeader({ roomIds }: { roomIds: string[] }) {
             <>
               <MenuGroup>
                 <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+                {onSortByName && (
+                  <MenuEntry
+                    label={t('featureUi.roomOrder.sortByName')}
+                    icon={Icons.Sort}
+                    onSelect={() => {
+                      close();
+                      onSortByName();
+                    }}
+                  />
+                )}
               </MenuGroup>
               <HiddenRailPages onClose={close} />
             </>
@@ -141,12 +159,17 @@ export function Home() {
   const isCategoryClosed = (categoryId: string) => closedCategories.has(categoryId);
   const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
-  const listedRoomIds = useMemo(() => {
-    const items = sortRoomIdsByName(client, homeRooms);
-    if (!roomsClosed) return items;
-    // A collapsed category still shows the selected room.
-    return items.filter((roomId) => roomId === selectedRoomId);
-  }, [client, homeRooms, roomsClosed, selectedRoomId]);
+  const roomsByName = useMemo(() => sortRoomIdsByName(client, homeRooms), [client, homeRooms]);
+  // A to Z until the person drags a room; then their order, on every device.
+  const roomOrder = useRoomOrder(HOME_ROOM_LIST, roomsByName);
+  const listedRoomIds = useMemo(
+    () =>
+      // A collapsed category still shows the selected room.
+      roomsClosed
+        ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
+        : roomOrder.roomIds,
+    [roomOrder.roomIds, roomsClosed, selectedRoomId]
+  );
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.
@@ -196,7 +219,15 @@ export function Home() {
       {joinOpen && (
         <JoinAddressPrompt onOpen={handleJoinOpen} onCancel={() => setJoinOpen(false)} />
       )}
-      <PageNavContent scrollRef={listScrollRef} header={<HomeHeader roomIds={homeRooms} />}>
+      <PageNavContent
+        scrollRef={listScrollRef}
+        header={
+          <HomeHeader
+            roomIds={homeRooms}
+            onSortByName={roomOrder.manual ? roomOrder.reset : undefined}
+          />
+        }
+      >
         {homeRooms.length === 0 ? (
           <NavEmptyLayout
             icon={<Icon size="600" src={Icons.Hash} />}
@@ -225,31 +256,37 @@ export function Home() {
                   {t('nav.rooms')}
                 </RoomNavCategoryButton>
               </NavCategoryHeader>
-              <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
-                {virtualizer.getVirtualItems().map((item) => {
-                  const roomId = listedRoomIds[item.index];
-                  const room = client.getRoom(roomId);
-                  if (!room) return null;
-                  return (
-                    <VirtualTile
-                      // By room, so a row's open prompt stays with its room when the list shifts.
-                      key={roomId}
-                      virtualItem={item}
-                      ref={virtualizer.measureElement}
-                    >
-                      <RoomNavItem
-                        room={room}
-                        linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
-                        selected={roomId === selectedRoomId}
-                        notificationMode={getRoomNotificationMode(
-                          notificationPreferences,
-                          room.roomId
-                        )}
-                      />
-                    </VirtualTile>
-                  );
-                })}
-              </div>
+              <SortableRoomList
+                listId={HOME_ROOM_LIST}
+                roomIds={listedRoomIds}
+                onReorder={roomOrder.save}
+              >
+                <div style={{ position: 'relative', height: virtualizer.getTotalSize() }}>
+                  {virtualizer.getVirtualItems().map((item) => {
+                    const roomId = listedRoomIds[item.index];
+                    const room = client.getRoom(roomId);
+                    if (!room) return null;
+                    return (
+                      <VirtualTile
+                        // By room, so a row's open prompt stays with its room when the list shifts.
+                        key={roomId}
+                        virtualItem={item}
+                        ref={virtualizer.measureElement}
+                      >
+                        <SortableRoomRow
+                          room={room}
+                          linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
+                          selected={roomId === selectedRoomId}
+                          notificationMode={getRoomNotificationMode(
+                            notificationPreferences,
+                            room.roomId
+                          )}
+                        />
+                      </VirtualTile>
+                    );
+                  })}
+                </div>
+              </SortableRoomList>
             </NavCategory>
             <ThreadNavCategory />
           </Box>

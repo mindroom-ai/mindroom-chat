@@ -295,6 +295,9 @@
     "accountMenu": {
       "open": "Accountmenu voor {{name}} openen",
       "manageAccounts": "Accounts beheren"
+    },
+    "roomOrder": {
+      "sortByName": "Kamers sorteren van A tot Z"
     }
   },
   "mindroomUi": {

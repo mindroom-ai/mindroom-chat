@@ -295,6 +295,9 @@
     "accountMenu": {
       "open": "{{name}} için hesap menüsünü aç",
       "manageAccounts": "Hesapları yönet"
+    },
+    "roomOrder": {
+      "sortByName": "Odaları A'dan Z'ye sırala"
     }
   },
   "mindroomUi": {

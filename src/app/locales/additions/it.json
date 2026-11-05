@@ -301,6 +301,9 @@
     "accountMenu": {
       "open": "Apri il menu dell'account di {{name}}",
       "manageAccounts": "Gestisci account"
+    },
+    "roomOrder": {
+      "sortByName": "Ordina le stanze dalla A alla Z"
     }
   },
   "mindroomUi": {
