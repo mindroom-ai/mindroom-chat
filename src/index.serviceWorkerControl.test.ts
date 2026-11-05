@@ -51,6 +51,7 @@ vi.mock('./appVersion', () => ({
 vi.mock('./serviceWorkerRegistration', () => ({ createServiceWorkerUrl: vi.fn() }));
 vi.mock('./app/pages/App', () => ({ default: () => null }));
 vi.mock('./app/i18n', () => ({}));
+vi.mock('./app/styles/Typography.css', () => ({}));
 
 /** A first-install worker that is still activating, which the test finishes by hand. */
 const makeActivatingWorker = () => {

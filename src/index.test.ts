@@ -92,6 +92,8 @@ vi.mock('./app/pages/App', () => ({
 
 vi.mock('./app/i18n', () => ({}));
 
+vi.mock('./app/styles/Typography.css', () => ({}));
+
 describe('application bootstrap', () => {
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
 
