@@ -315,6 +315,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "Tampilan ringkas",
         "threadFiltersActive": "Filter utas (aktif)"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "Filter lanjutan"
       }
     },
     "computer": {

@@ -1,10 +1,15 @@
 import React from 'react';
+import { getDefaultStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { getSettings, settingsAtom } from '../../state/settings';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import type { ThreadFilterState } from './RoomThreadOverview';
 import { normalizeThreadSearchText } from './roomThreadOverviewModel';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
+
+// These tests cover the advanced filters; the bar starts with the simple ones.
+getDefaultStore().set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
 
 const { passthrough } = vi.hoisted(() => ({
   passthrough: 'div',

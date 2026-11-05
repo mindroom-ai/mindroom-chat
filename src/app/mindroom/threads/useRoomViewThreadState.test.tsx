@@ -3,6 +3,7 @@ import { createStore, Provider } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getSettings, settingsAtom } from '../../state/settings';
 import { getRoomThreadFilterStorageKey, roomThreadFilterAtomFamily } from './roomThreadFilterState';
 import {
   createDefaultThreadFilterState,
@@ -61,8 +62,12 @@ const storeFilter = (filter: ThreadFilterState) =>
   );
 
 /** Mounts the hook in its own store and hands back a reader for its latest result. */
-const mountThreadState = (options: { hasMindroomAgents?: boolean } = {}) => {
+const mountThreadState = ({
+  advancedFilters = false,
+  ...options
+}: { hasMindroomAgents?: boolean; advancedFilters?: boolean } = {}) => {
   const store = createStore();
+  if (advancedFilters) store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
   let latest: RoomViewThreadState | undefined;
   function Probe() {
     latest = useRoomViewThreadState({ room, ...options });
@@ -110,18 +115,29 @@ describe('useRoomViewThreadState', () => {
     expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID)).resolved).toBe('exclude');
   });
 
-  it('locks and unlocks the sort order, and forgets the lock when the sort turns natural', () => {
-    const { current } = mountThreadState();
+  it('locks and unlocks the sort order in advanced filters, and forgets the lock when the sort turns natural', () => {
+    const { current } = mountThreadState({ advancedFilters: true });
 
     act(() => current().handleToggleThreadSortFreeze());
     expect(current().threadSortFreezeState).toEqual({ controlSignature: null, orderedRootIds: [] });
 
     act(() => current().handleSortDirectionChange());
-    expect(current().threadFilterState).toMatchObject({ sortBy: 'lastReply', sortDirection: 'asc' });
+    expect(current().threadFilterState).toMatchObject({
+      sortBy: 'lastReply',
+      sortDirection: 'asc',
+    });
     expect(current().threadSortFreezeState).not.toBeNull();
 
     act(() => current().handleSortDirectionChange());
     expect(current().threadFilterState.sortBy).toBe('natural');
+    expect(current().threadSortFreezeState).toBeNull();
+  });
+
+  it('starts with the simple filters, which keep no sort lock', () => {
+    const { current } = mountThreadState();
+
+    act(() => current().handleToggleThreadSortFreeze());
+
     expect(current().threadSortFreezeState).toBeNull();
   });
 });

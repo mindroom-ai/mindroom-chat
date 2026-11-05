@@ -944,14 +944,14 @@ export function RoomThreadOverview({
   );
 
   // Switches the bar between its simple controls and all of them; the stored filter keeps both.
-  const simpleModeLabel = t('settings.general.interface.simpleMode');
+  const advancedFiltersLabel = t('mindroomUi.threads.roomThreadOverview.advancedFilters');
   const filterModeSwitch = (
     <TooltipProvider
       position="Bottom"
       align="Center"
       tooltip={
         <Tooltip style={{ maxWidth: toRem(220) }}>
-          <Text size="T200">{simpleModeLabel}</Text>
+          <Text size="T200">{advancedFiltersLabel}</Text>
         </Tooltip>
       }
     >
@@ -959,9 +959,9 @@ export function RoomThreadOverview({
         <button
           ref={triggerRef}
           type="button"
-          className={classNames(css.ToggleButton, simpleMode && css.PauseButtonActive)}
-          aria-label={simpleModeLabel}
-          aria-pressed={simpleMode}
+          className={classNames(css.ToggleButton, !simpleMode && css.PauseButtonActive)}
+          aria-label={advancedFiltersLabel}
+          aria-pressed={!simpleMode}
           onClick={() => setSimpleMode(!simpleMode)}
           data-thread-filter-mode-switch="true"
         >

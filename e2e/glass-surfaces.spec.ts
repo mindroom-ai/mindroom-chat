@@ -682,6 +682,10 @@ test('nested page layouts share the outer material while portal menus own a surf
 test('custom thread popups receive shared material and retain keyboard actions', async ({
   page,
 }) => {
+  // The info, tag and preset popups belong to the advanced filters.
+  await page.addInitScript(() =>
+    localStorage.setItem('settings', JSON.stringify({ simpleThreadFilters: false }))
+  );
   await page.goto('/e2e/fixtures/glass-surfaces.html');
   const overview = page.getByTestId('thread-overview');
   await overview.locator('[data-info-button]').click();

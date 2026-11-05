@@ -350,6 +350,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "عرض مدمج",
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "عوامل تصفية متقدمة"
       }
     },
     "computer": {

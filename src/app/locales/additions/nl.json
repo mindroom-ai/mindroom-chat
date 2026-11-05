@@ -322,6 +322,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "Compacte weergave",
         "threadFiltersActive": "Threadfilters (actief)"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "Geavanceerde filters"
       }
     },
     "computer": {

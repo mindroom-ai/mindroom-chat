@@ -15,7 +15,12 @@ test('narrow toolbar keeps groups in horizontal rows', async ({ page }) => {
   await page.evaluate(() =>
     localStorage.setItem(
       'settings',
-      JSON.stringify({ useSystemTheme: false, themeId: 'dark-theme', messageLayout: 0 })
+      JSON.stringify({
+        useSystemTheme: false,
+        themeId: 'dark-theme',
+        messageLayout: 0,
+        simpleThreadFilters: false,
+      })
     )
   );
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}/`);

@@ -1,5 +1,7 @@
+import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it } from 'vitest';
+import { getSettings, settingsAtom } from '../../state/settings';
 import { RoomThreadOverview } from './RoomThreadOverview';
 import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
 
@@ -13,24 +15,29 @@ afterEach(() => {
 
 describe('the thread filter bar search', () => {
   it('starts collapsed even while a query filters the threads', () => {
+    // The search is one of the advanced filters.
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), simpleThreadFilters: false });
     act(() => {
       renderer = create(
-        <RoomThreadOverview
-          hasMindroomAgents
-          threadCount={1}
-          totalThreadCount={4}
-          state={{ ...createDefaultThreadFilterState(), freeText: 'launch', resolved: 'exclude' }}
-          availableTags={[]}
-          onToggle={noop}
-          onSortDirectionChange={noop}
-          onToggleThreadSortFreeze={noop}
-          onReset={noop}
-          onCycleTag={noop}
-          onAddTag={noop}
-          onRemoveTag={noop}
-          onApplyPreset={noop}
-          onSearchQueryChange={noop}
-        />
+        <Provider store={store}>
+          <RoomThreadOverview
+            hasMindroomAgents
+            threadCount={1}
+            totalThreadCount={4}
+            state={{ ...createDefaultThreadFilterState(), freeText: 'launch', resolved: 'exclude' }}
+            availableTags={[]}
+            onToggle={noop}
+            onSortDirectionChange={noop}
+            onToggleThreadSortFreeze={noop}
+            onReset={noop}
+            onCycleTag={noop}
+            onAddTag={noop}
+            onRemoveTag={noop}
+            onApplyPreset={noop}
+            onSearchQueryChange={noop}
+          />
+        </Provider>
       );
     });
     const find = (name: string) =>

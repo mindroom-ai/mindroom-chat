@@ -322,6 +322,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "सघन दृश्य",
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "उन्नत फ़िल्टर"
       }
     },
     "computer": {

@@ -329,6 +329,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "Vista compacta",
         "threadFiltersActive": "Filtros de tópicos (ativos)"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "Filtros avançados"
       }
     },
     "computer": {

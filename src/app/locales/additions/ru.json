@@ -336,6 +336,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "Компактный вид",
         "threadFiltersActive": "Фильтры веток (активны)"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "Расширенные фильтры"
       }
     },
     "computer": {

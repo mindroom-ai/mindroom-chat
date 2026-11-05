@@ -126,6 +126,9 @@ const seedRoomOverviewStateInStorage = ({
   userIds.forEach((userId) => {
     setStoredValue(`roomThreadFilter:${userId}:${nextRoomId}`, JSON.stringify(nextFilterState));
   });
+  // A seeded filter applies in full only with the advanced filters; the bar starts simple.
+  const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+  setStoredValue('settings', JSON.stringify({ ...settings, simpleThreadFilters: false }));
 };
 
 export const matrixFetch = async <T>(

@@ -84,6 +84,7 @@ const ON_BY_DEFAULT: readonly BooleanSettingKey[] = [
   'urlPreview',
   'showNotifications',
   'isNotificationSounds',
+  'simpleThreadFilters',
 ];
 
 const DEFAULT_BOOLEANS = Object.fromEntries(

@@ -30,7 +30,7 @@ const timelineRowTexts = (page: Page) =>
 test.describe('room view defaults', () => {
   test.skip(!hasPrimaryCredentials(), 'Requires a Matrix test account');
 
-  test('a room of people opens in Threads and a room with an agent as Compact cards', async ({
+  test('a room of people opens in Threads and a room with an agent as Compact cards with simple filters', async ({
     page,
   }, testInfo) => {
     // Two rooms, two room loads and a reload on a loaded machine.
@@ -105,72 +105,126 @@ test.describe('room view defaults', () => {
     await expect(page.locator('[data-room-thread-overview]')).toHaveCount(0);
     const viewSwitch = page.locator('[data-room-view-switch]');
     await expect(viewSwitch).toHaveAttribute('aria-pressed', 'false');
+    // Threads without agents has no filter bar, so the header offers no filter button.
+    const filterButton = page.locator('[data-thread-filter-bar-toggle]');
+    await expect(filterButton).toHaveCount(0);
     if (SCREENSHOT) await page.screenshot({ path: `${SCREENSHOT}/V1-people-room-threads.png` });
     await testInfo.attach('people room', {
       body: await page.screenshot(),
       contentType: 'image/png',
     });
 
-    // The switch goes to Compact and back to Threads.
+    // The switch goes to Compact (with its filter bar and button) and back to Threads.
     await viewSwitch.click();
     await expect(page.locator('[data-compact-room-view]')).toBeVisible();
     await expect(viewSwitch).toHaveAttribute('aria-pressed', 'true');
+    await expect(filterButton).toHaveAttribute('aria-pressed', 'true');
     await viewSwitch.click();
     await expect(page.locator('[data-compact-room-view]')).toHaveCount(0);
     await expect(viewSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(filterButton).toHaveCount(0);
     await expect(rows.filter({ hasText: laterRoot })).toHaveCount(1);
     await expect(rows.filter({ hasText: threadReply })).toHaveCount(0);
 
-    // The room with an agent opens as Compact cards with the full filter bar.
+    // The room with an agent opens as Compact cards with the simple filter bar.
     await openRoom(page, agentRoomId);
-    await expect(page.locator('[data-compact-room-view]')).toBeVisible({ timeout: 60_000 });
+    const compactView = page.locator('[data-compact-room-view]');
+    await expect(compactView).toBeVisible({ timeout: 60_000 });
     await expect(viewSwitch).toHaveAttribute('aria-pressed', 'true');
     const overview = page.locator('[data-room-thread-overview]');
     const filterToggles = overview.locator('[data-filter-state]');
-    await expect(filterToggles.first()).toBeVisible();
-    const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
-    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'false');
-    await expect(overview.locator('[data-simple-unresolved-toggle]')).toHaveCount(0);
-    if (SCREENSHOT) {
-      await page.screenshot({ path: `${SCREENSHOT}/V2-agent-room-full-filters.png` });
-    }
-    await testInfo.attach('full filters', {
-      body: await page.screenshot(),
-      contentType: 'image/png',
-    });
-
-    // The filter-mode switch shows the simple bar, which a reload keeps.
-    await modeSwitch.click();
     const unresolved = overview.locator('[data-simple-unresolved-toggle]');
-    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'true');
-    await expect(filterToggles).toHaveCount(0);
-    await expect(overview.locator('[data-thread-count]')).toBeVisible();
+    const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
     await expect(unresolved).toBeVisible();
-    // A loaded machine can take a while to show the room again after a reload.
-    await page.reload();
-    await expect(page.locator('[data-compact-room-view]')).toBeVisible({ timeout: 120_000 });
-    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'true');
-    await expect(filterToggles).toHaveCount(0);
     await expect(overview.locator('[data-thread-count]')).toBeVisible();
-    await expect(unresolved).toHaveAttribute('aria-pressed', 'false');
+    await expect(filterToggles).toHaveCount(0);
+    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(modeSwitch).toHaveAccessibleName('Advanced filters');
+    const simpleSwitchColor = await modeSwitch.evaluate(
+      (element) => getComputedStyle(element).backgroundColor
+    );
     if (SCREENSHOT) {
       await page.screenshot({ path: `${SCREENSHOT}/V3-agent-room-simple-filters.png` });
+      await page.screenshot({ path: `${SCREENSHOT}/V5-advanced-switch-off.png` });
     }
     await testInfo.attach('simple filters', {
       body: await page.screenshot(),
       contentType: 'image/png',
     });
 
-    // Unresolved toggles.
+    // The header's filter button hides and shows the bar; a reload keeps it hidden.
+    await expect(filterButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(filterButton).toHaveAccessibleName('Thread filters');
+    const hiddenFiltersDot = page.locator('[data-hidden-filters-dot]');
+    await expect(hiddenFiltersDot).toHaveCount(0);
+    const screenshotBothThemes = async (name: string) => {
+      if (!SCREENSHOT) return;
+      for (const colorScheme of ['light', 'dark'] as const) {
+        // eslint-disable-next-line no-await-in-loop
+        await page.emulateMedia({ colorScheme });
+        // eslint-disable-next-line no-await-in-loop
+        await page.screenshot({ path: `${SCREENSHOT}/${name}-${colorScheme}.png` });
+      }
+      await page.emulateMedia({ colorScheme: 'light' });
+    };
+    await page.mouse.move(1, 1);
+    await screenshotBothThemes('V4-header-filter-shown');
+    await filterButton.click();
+    await expect(overview).toHaveCount(0);
+    await expect(filterButton).toHaveAttribute('aria-pressed', 'false');
+    await expect(hiddenFiltersDot).toHaveCount(0);
+    await expect(compactView).toBeVisible();
+    await page.mouse.move(1, 1);
+    await screenshotBothThemes('V4-header-filter-hidden');
+    await page.reload();
+    await expect(compactView).toBeVisible({ timeout: 120_000 });
+    await expect(filterButton).toHaveAttribute('aria-pressed', 'false');
+    await expect(overview).toHaveCount(0);
+    await filterButton.click();
+    await expect(filterButton).toHaveAttribute('aria-pressed', 'true');
+    await expect(unresolved).toHaveAttribute('aria-pressed', 'false');
+
+    // A filter keeps applying while the bar is hidden, and the button marks it.
     await unresolved.click();
     await expect(unresolved).toHaveAttribute('aria-pressed', 'true');
+    await filterButton.click();
+    await expect(overview).toHaveCount(0);
+    await expect(hiddenFiltersDot).toBeVisible();
+    await expect(filterButton).toHaveAccessibleName('Thread filters (active)');
+    await filterButton.click();
+    await expect(hiddenFiltersDot).toHaveCount(0);
+    await expect(filterButton).toHaveAccessibleName('Thread filters');
     await unresolved.click();
     await expect(unresolved).toHaveAttribute('aria-pressed', 'false');
 
-    // Switching back restores the full bar.
+    // The Advanced filters switch shows every filter, pressed and tinted, and a reload keeps it.
     await modeSwitch.click();
-    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'true');
     await expect(filterToggles.first()).toBeVisible();
     await expect(unresolved).toHaveCount(0);
+    await page.mouse.move(1, 1);
+    await expect
+      .poll(() => modeSwitch.evaluate((element) => getComputedStyle(element).backgroundColor))
+      .not.toBe(simpleSwitchColor);
+    if (SCREENSHOT) {
+      await page.screenshot({ path: `${SCREENSHOT}/V2-agent-room-full-filters.png` });
+      await page.screenshot({ path: `${SCREENSHOT}/V5-advanced-switch-on.png` });
+    }
+    await testInfo.attach('advanced filters', {
+      body: await page.screenshot(),
+      contentType: 'image/png',
+    });
+    // A loaded machine can take a while to show the room again after a reload.
+    await page.reload();
+    await expect(compactView).toBeVisible({ timeout: 120_000 });
+    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'true');
+    await expect(filterToggles.first()).toBeVisible();
+    await expect(unresolved).toHaveCount(0);
+
+    // Switching back restores the simple bar.
+    await modeSwitch.click();
+    await expect(modeSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(filterToggles).toHaveCount(0);
+    await expect(unresolved).toBeVisible();
   });
 });

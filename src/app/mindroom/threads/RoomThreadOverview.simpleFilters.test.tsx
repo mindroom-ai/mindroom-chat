@@ -3,6 +3,7 @@ import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../../state/settings';
 import { RoomThreadOverview, type RoomThreadOverviewProps } from './RoomThreadOverview';
+import * as css from './RoomThreadOverview.css';
 import { createDefaultThreadFilterState } from './roomThreadOverviewModel';
 
 const noop = () => undefined;
@@ -55,18 +56,15 @@ const unresolvedToggles = () => byData('data-simple-unresolved-toggle');
 const statusToggles = () => byData('data-filter-state');
 
 describe('thread filter bar modes', () => {
-  it('switches between all filters and the simple ones, and stores the choice', () => {
-    const store = renderBar(false);
+  it('starts with the simple filters', () => {
+    expect(getSettings().simpleThreadFilters).toBe(true);
+  });
+
+  it('switches between the simple filters and the advanced ones, and stores the choice', () => {
+    const store = renderBar(true);
     expect(modeSwitch().props['aria-pressed']).toBe(false);
-    expect(statusToggles().length).toBeGreaterThan(0);
-    expect(unresolvedToggles()).toHaveLength(0);
-
-    act(() => {
-      modeSwitch().props.onClick();
-    });
-
-    expect(store.get(settingsAtom).simpleThreadFilters).toBe(true);
-    expect(modeSwitch().props['aria-pressed']).toBe(true);
+    expect(modeSwitch().props.className).not.toContain(css.PauseButtonActive);
+    expect(modeSwitch().props['aria-label']).toBe('Advanced filters');
     expect(statusToggles()).toHaveLength(0);
     expect(unresolvedToggles()).toHaveLength(1);
     expect(byData('data-thread-count')).toHaveLength(1);
@@ -77,7 +75,17 @@ describe('thread filter bar modes', () => {
     });
 
     expect(store.get(settingsAtom).simpleThreadFilters).toBe(false);
+    expect(modeSwitch().props['aria-pressed']).toBe(true);
+    expect(modeSwitch().props.className).toContain(css.PauseButtonActive);
     expect(statusToggles().length).toBeGreaterThan(0);
+    expect(unresolvedToggles()).toHaveLength(0);
+
+    act(() => {
+      modeSwitch().props.onClick();
+    });
+
+    expect(store.get(settingsAtom).simpleThreadFilters).toBe(true);
+    expect(statusToggles()).toHaveLength(0);
   });
 
   it('shows Unresolved pressed while resolved threads are hidden, and flips it on click', () => {

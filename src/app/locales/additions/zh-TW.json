@@ -315,6 +315,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "緊湊檢視",
         "threadFiltersActive": "討論串篩選器（已啟用）"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "進階篩選器"
       }
     },
     "computer": {

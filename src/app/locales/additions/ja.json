@@ -315,6 +315,9 @@
       "mindroomRoomViewHeader": {
         "compactView": "コンパクト表示",
         "threadFiltersActive": "スレッドフィルター（有効）"
+      },
+      "roomThreadOverview": {
+        "advancedFilters": "詳細フィルター"
       }
     },
     "computer": {
