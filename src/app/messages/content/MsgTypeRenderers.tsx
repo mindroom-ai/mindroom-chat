@@ -2,7 +2,6 @@ import { CSSProperties, ReactNode } from 'react';
 import classNames from 'classnames';
 import { useTranslation } from 'react-i18next';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import { find as findLinks } from 'linkifyjs';
 import { Box, Icon, Icons, Text, color, config, toRem } from 'folds';
 import {
   MessageBadEncryptedContent,
@@ -13,6 +12,7 @@ import { BrokenContent } from './BrokenContent';
 import { VoiceAudioContent } from './VoiceAudioContent';
 import { MessageTextBody } from '../layout/layout';
 import { isJumboEmojiBody } from './jumboEmoji';
+import { getBodyUrls } from './bodyUrls';
 import * as fileCss from './FileRow.css';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import { textDirection } from '../../ui/directional';
@@ -73,16 +73,6 @@ const readMimeType = (info: { mimetype?: unknown }): string =>
 /** Since Matrix 1.10 a `filename` beside a different `body` makes the body a caption. */
 const readFileName = (content: MessageContent): string | undefined =>
   readString(content.filename) ?? readString(content.body);
-
-/** URLs in a message body for link previews. */
-const getBodyUrls = (body: string): string[] =>
-  Array.from(
-    new Set(
-      findLinks(body)
-        .filter((link) => link.isLink && link.type === 'url' && /^https?:/i.test(link.href))
-        .map((link) => link.href)
-    )
-  );
 
 type TextMessageProps = {
   edited?: boolean;
