@@ -43,7 +43,6 @@
       "butter": "Mentega"
     },
     "prefetchScope": {
-      "myHomeserver": "Homeserver saya",
       "allRooms": "Semua ruang",
       "currentRoomOnly": "Hanya ruang saat ini"
     }
@@ -52,20 +51,13 @@
     "title": "Pengaturan",
     "logout": "Keluar",
     "nav": {
-      "general": "Umum",
       "account": "Akun",
       "notifications": "Notifikasi",
-      "devices": "Perangkat",
-      "emojisStickers": "Emoji & Stiker",
       "developerTools": "Alat pengembang",
       "about": "Tentang"
     },
     "general": {
-      "title": "Umum",
       "interface": {
-        "sectionTitle": "Antarmuka",
-        "simpleMode": "Mode sederhana",
-        "simpleModeDescription": "Sembunyikan fitur lanjutan seperti palet perintah dan filter utas. Disinkronkan di semua perangkat Anda.",
         "showCanvasesInSidebar": "Tampilkan panel interaktif di bilah sisi",
         "showCanvasesInSidebarDescription": "Tampilkan tombol untuk panel interaktif buatan agen Anda setelah ada satu. Disinkronkan di semua perangkat Anda.",
         "saveFailed": "Perubahan tidak dapat disimpan. Periksa koneksi Anda dan coba lagi."
@@ -83,8 +75,6 @@
         "darkTheme": "Tema gelap:",
         "theme": "Tema",
         "themeDescription": "Tema yang digunakan saat tema sistem tidak diaktifkan.",
-        "monochromeMode": "Mode monokrom",
-        "twitterEmoji": "Emoji Twitter",
         "pageZoom": "Zoom halaman"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Jarak pesan",
         "prefetchScope": "Cakupan pramuat",
         "prefetchScopeDescription": "Ruang yang disiapkan di latar belakang",
-        "historyDepth": "Kedalaman riwayat ruang saat ini",
-        "historyDepthDescription": "Target jumlah peristiwa yang dimuat sebelumnya untuk ruang yang Anda lihat. Minimum {{min}}, maksimum {{max}}.",
-        "legacyUsernameColor": "Warna nama pengguna lama",
         "hideMembershipChange": "Sembunyikan perubahan keanggotaan",
         "hideProfileChange": "Sembunyikan perubahan profil",
         "disableMediaAutoLoad": "Nonaktifkan pemuatan media otomatis",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "Atur preferensi notifikasi untuk pesan yang mengandung kata kunci tertentu."
         },
         "notifications": "Notifikasi",
-        "blockMessages": "Blokir pesan",
-        "thisOptionHasBeenMovedToAccount": "Opsi ini telah dipindahkan ke bagian \"Akun > Blokir pengguna\".",
         "specialMessages": {
           "specialMessages": "Pesan khusus",
           "badge": "Lencana:",

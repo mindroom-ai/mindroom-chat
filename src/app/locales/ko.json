@@ -43,7 +43,6 @@
       "butter": "버터"
     },
     "prefetchScope": {
-      "myHomeserver": "내 홈서버",
       "allRooms": "모든 방",
       "currentRoomOnly": "현재 방만"
     }
@@ -52,20 +51,13 @@
     "title": "설정",
     "logout": "로그아웃",
     "nav": {
-      "general": "일반",
       "account": "계정",
       "notifications": "알림",
-      "devices": "기기",
-      "emojisStickers": "이모지 및 스티커",
       "developerTools": "개발자 도구",
       "about": "정보"
     },
     "general": {
-      "title": "일반",
       "interface": {
-        "sectionTitle": "인터페이스",
-        "simpleMode": "간단 모드",
-        "simpleModeDescription": "명령 팔레트와 스레드 필터 같은 고급 기능을 숨깁니다. 모든 기기에 동기화됩니다.",
         "showCanvasesInSidebar": "사이드바에 대화형 패널 표시",
         "showCanvasesInSidebarDescription": "에이전트가 만든 대화형 패널이 하나라도 있으면 버튼을 표시합니다. 모든 기기에 동기화됩니다.",
         "saveFailed": "변경 사항을 저장하지 못했습니다. 연결을 확인한 후 다시 시도하세요."
@@ -83,8 +75,6 @@
         "darkTheme": "어두운 테마:",
         "theme": "테마",
         "themeDescription": "시스템 테마를 사용하지 않을 때 적용할 테마입니다.",
-        "monochromeMode": "단색 모드",
-        "twitterEmoji": "Twitter 이모지",
         "pageZoom": "페이지 확대/축소"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "메시지 간격",
         "prefetchScope": "미리 불러올 범위",
         "prefetchScopeDescription": "백그라운드에서 준비해 둘 방",
-        "historyDepth": "현재 방의 기록 로드 범위",
-        "historyDepthDescription": "현재 보고 있는 방에서 미리 불러올 이벤트 수입니다. 최솟값 {{min}}, 최댓값 {{max}}.",
-        "legacyUsernameColor": "기존 사용자 이름 색상",
         "hideMembershipChange": "멤버 변경 숨기기",
         "hideProfileChange": "프로필 변경 숨기기",
         "disableMediaAutoLoad": "미디어 자동 로드 끄기",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "지정한 키워드가 포함된 메시지의 알림 설정을 지정합니다."
         },
         "notifications": "알림",
-        "blockMessages": "메시지 차단",
-        "thisOptionHasBeenMovedToAccount": "이 옵션은 \"계정 > 사용자 차단\"으로 이동했습니다.",
         "specialMessages": {
           "specialMessages": "특수 메시지",
           "badge": "배지:",

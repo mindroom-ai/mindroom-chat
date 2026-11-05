@@ -43,7 +43,6 @@
       "butter": "バター"
     },
     "prefetchScope": {
-      "myHomeserver": "私のホームサーバー",
       "allRooms": "すべてのルーム",
       "currentRoomOnly": "現在のルームのみ"
     }
@@ -52,20 +51,13 @@
     "title": "設定",
     "logout": "ログアウト",
     "nav": {
-      "general": "一般",
       "account": "アカウント",
       "notifications": "通知",
-      "devices": "デバイス",
-      "emojisStickers": "絵文字とステッカー",
       "developerTools": "開発者ツール",
       "about": "について"
     },
     "general": {
-      "title": "一般",
       "interface": {
-        "sectionTitle": "インターフェース",
-        "simpleMode": "シンプルモード",
-        "simpleModeDescription": "コマンド パレットやスレッド フィルターなどの高度な機能を非表示にします。デバイス間で同期されます。",
         "showCanvasesInSidebar": "サイドバーにインタラクティブパネルを表示する",
         "showCanvasesInSidebarDescription": "エージェントが作成したインタラクティブパネルが1つ以上あると、そのボタンを表示します。デバイス間で同期されます。",
         "saveFailed": "変更を保存できませんでした。接続を確認して、もう一度試してください。"
@@ -83,8 +75,6 @@
         "darkTheme": "ダークテーマ:",
         "theme": "テーマ",
         "themeDescription": "システムテーマが有効になっていない場合に使用するテーマ。",
-        "monochromeMode": "モノクロモード",
-        "twitterEmoji": "Twitter 絵文字",
         "pageZoom": "ページズーム"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "メッセージの間隔",
         "prefetchScope": "プリフェッチ範囲",
         "prefetchScopeDescription": "バックグラウンドで準備しておくルームを選択します。",
-        "historyDepth": "現在のルーム履歴の深さ",
-        "historyDepthDescription": "表示しているルームにプリロードされているイベントの目標数。最小値は {{min}}、最大値は {{max}} です。",
-        "legacyUsernameColor": "従来のユーザー名の色",
         "hideMembershipChange": "メンバー変更を隠す",
         "hideProfileChange": "プロフィールの変更を非表示",
         "disableMediaAutoLoad": "メディアの自動ロードを無効にする",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "指定されたキーワードを含むメッセージの通知設定を設定します。"
         },
         "notifications": "通知",
-        "blockMessages": "メッセージをブロックする",
-        "thisOptionHasBeenMovedToAccount": "このオプションは「アカウント > ユーザーのブロック」セクションに移動されました。",
         "specialMessages": {
           "specialMessages": "特別なメッセージ",
           "badge": "バッジ：",

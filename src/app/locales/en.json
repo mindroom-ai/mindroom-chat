@@ -43,7 +43,6 @@
       "butter": "Butter"
     },
     "prefetchScope": {
-      "myHomeserver": "My homeserver",
       "allRooms": "All rooms",
       "currentRoomOnly": "Current room only"
     }
@@ -52,16 +51,12 @@
     "title": "Settings",
     "logout": "Logout",
     "nav": {
-      "general": "General",
       "account": "Account",
       "notifications": "Notifications",
-      "devices": "Devices",
-      "emojisStickers": "Emojis & Stickers",
       "developerTools": "Developer Tools",
       "about": "About"
     },
     "general": {
-      "title": "General",
       "computers": {
         "sectionTitle": "Computers",
         "apiUrl": "Computer service URL",
@@ -82,9 +77,6 @@
         "blocked": "Your browser blocked the Connections window. Allow pop-ups for this site and try again."
       },
       "interface": {
-        "sectionTitle": "Interface",
-        "simpleMode": "Simple Mode",
-        "simpleModeDescription": "Hide advanced features like the command palette and thread filters. Synced across your devices.",
         "showCanvasesInSidebar": "Show Canvases in the sidebar",
         "showCanvasesInSidebarDescription": "Show a Canvases button for the pages your agents made, once you have one. Synced across your devices.",
         "saveFailed": "Could not save the change. Check your connection and try again."
@@ -102,8 +94,6 @@
         "darkTheme": "Dark Theme:",
         "theme": "Theme",
         "themeDescription": "Theme to use when system theme is not enabled.",
-        "monochromeMode": "Monochrome Mode",
-        "twitterEmoji": "Twitter Emoji",
         "pageZoom": "Page Zoom"
       },
       "dateTime": {
@@ -145,9 +135,6 @@
         "messageSpacing": "Message Spacing",
         "prefetchScope": "Prefetch scope",
         "prefetchScopeDescription": "Which rooms are kept ready in the background",
-        "historyDepth": "Current room history depth",
-        "historyDepthDescription": "Target number of events preloaded for the room you are viewing. Minimum {{min}}, maximum {{max}}.",
-        "legacyUsernameColor": "Legacy Username Color",
         "hideMembershipChange": "Hide Membership Change",
         "hideProfileChange": "Hide Profile Change",
         "disableMediaAutoLoad": "Disable Media Auto Load",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "Set a notification preference for message containing given keyword."
         },
         "notifications": "Notifications",
-        "blockMessages": "Block Messages",
-        "thisOptionHasBeenMovedToAccount": "This option has been moved to \"Account > Block Users\" section.",
         "specialMessages": {
           "specialMessages": "Special Messages",
           "badge": "Badge:",

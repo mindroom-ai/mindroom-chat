@@ -32,7 +32,6 @@ export const PAGE_ZOOM_DEFAULT = 100;
 const BOOLEAN_SETTING_KEYS = [
   // Appearance
   'useSystemTheme', // Follow the operating system's light or dark preference.
-  'twitterEmoji', // Draw emoji with the Twemoji font instead of the system font.
   // Composer
   'isMarkdown', // Parse Markdown in sent messages.
   'enterForNewline', // Enter inserts a line break and Ctrl+Enter sends, instead of the reverse.
@@ -51,6 +50,8 @@ const BOOLEAN_SETTING_KEYS = [
   'threadBannerCollapsed',
   'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
   'hideThreadFilterBar', // The room header's filter button hid the thread filter bar.
+  // Keyboard
+  'shortcutHints', // Holding Command or Ctrl for a second shows the shortcut keys on the buttons.
   // Notifications
   'showNotifications', // Desktop notifications for new messages.
   'isNotificationSounds', // Play a sound with each notification.
@@ -85,6 +86,7 @@ const ON_BY_DEFAULT: readonly BooleanSettingKey[] = [
   'showNotifications',
   'isNotificationSounds',
   'simpleThreadFilters',
+  'shortcutHints',
 ];
 
 const DEFAULT_BOOLEANS = Object.fromEntries(

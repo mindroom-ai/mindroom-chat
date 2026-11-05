@@ -43,7 +43,6 @@
       "butter": "Boter"
     },
     "prefetchScope": {
-      "myHomeserver": "Mijn homeserver",
       "allRooms": "Alle kamers",
       "currentRoomOnly": "Alleen huidige kamer"
     }
@@ -52,20 +51,13 @@
     "title": "Instellingen",
     "logout": "Uitloggen",
     "nav": {
-      "general": "Algemeen",
       "account": "Account",
       "notifications": "Meldingen",
-      "devices": "Apparaten",
-      "emojisStickers": "Emoji's & stickers",
       "developerTools": "Ontwikkelaarstools",
       "about": "Over"
     },
     "general": {
-      "title": "Algemeen",
       "interface": {
-        "sectionTitle": "Interface",
-        "simpleMode": "Eenvoudige modus",
-        "simpleModeDescription": "Verbergt geavanceerde functies zoals het commandopalet en threadfilters. Gesynchroniseerd tussen je apparaten.",
         "showCanvasesInSidebar": "Interactieve panelen in de zijbalk tonen",
         "showCanvasesInSidebarDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Gesynchroniseerd tussen je apparaten.",
         "saveFailed": "De wijziging kon niet worden opgeslagen. Controleer je verbinding en probeer het opnieuw."
@@ -83,8 +75,6 @@
         "darkTheme": "Donker thema:",
         "theme": "Thema",
         "themeDescription": "Thema dat wordt gebruikt wanneer het systeemthema is uitgeschakeld.",
-        "monochromeMode": "Monochrome modus",
-        "twitterEmoji": "Twitter-emoji",
         "pageZoom": "Paginazoom"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Berichtenafstand",
         "prefetchScope": "Bereik van vooraf laden",
         "prefetchScopeDescription": "Welke kamers op de achtergrond gereed worden gehouden",
-        "historyDepth": "Geschiedenisdiepte van de huidige kamer",
-        "historyDepthDescription": "Beoogd aantal vooraf geladen gebeurtenissen voor de kamer die je bekijkt. Minimaal {{min}}, maximaal {{max}}.",
-        "legacyUsernameColor": "Klassieke gebruikersnaamkleuren",
         "hideMembershipChange": "Lidmaatschapswijzigingen verbergen",
         "hideProfileChange": "Profielwijzigingen verbergen",
         "disableMediaAutoLoad": "Automatisch laden van media uitschakelen",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "Stel een meldingsvoorkeur in voor berichten met het opgegeven trefwoord."
         },
         "notifications": "Meldingen",
-        "blockMessages": "Berichten blokkeren",
-        "thisOptionHasBeenMovedToAccount": "Deze optie is verplaatst naar het gedeelte ‘Account > Gebruikers blokkeren’.",
         "specialMessages": {
           "specialMessages": "Speciale berichten",
           "badge": "Badge:",

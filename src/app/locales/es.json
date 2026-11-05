@@ -43,7 +43,6 @@
       "butter": "Mantequilla"
     },
     "prefetchScope": {
-      "myHomeserver": "Mi servidor doméstico",
       "allRooms": "Todas las salas",
       "currentRoomOnly": "Solo la sala actual"
     }
@@ -52,20 +51,13 @@
     "title": "Ajustes",
     "logout": "Cerrar sesión",
     "nav": {
-      "general": "General",
       "account": "Cuenta",
       "notifications": "Notificaciones",
-      "devices": "Dispositivos",
-      "emojisStickers": "Emojis y stickers",
       "developerTools": "Herramientas para desarrolladores",
       "about": "Acerca de"
     },
     "general": {
-      "title": "General",
       "interface": {
-        "sectionTitle": "Interfaz",
-        "simpleMode": "Modo sencillo",
-        "simpleModeDescription": "Oculta funciones avanzadas como la paleta de comandos y los filtros de hilos. Se sincroniza entre tus dispositivos.",
         "showCanvasesInSidebar": "Mostrar paneles interactivos en la barra lateral",
         "showCanvasesInSidebarDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Se sincroniza entre tus dispositivos.",
         "saveFailed": "No se pudo guardar el cambio. Comprueba tu conexión e inténtalo de nuevo."
@@ -83,8 +75,6 @@
         "darkTheme": "Tema oscuro:",
         "theme": "Tema",
         "themeDescription": "Tema que se usará cuando el tema del sistema no esté activado.",
-        "monochromeMode": "Modo monocromo",
-        "twitterEmoji": "Emojis de Twitter",
         "pageZoom": "Zoom de la página"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Espaciado de los mensajes",
         "prefetchScope": "Ámbito de precarga",
         "prefetchScopeDescription": "Qué salas se mantienen preparadas en segundo plano",
-        "historyDepth": "Profundidad del historial de la sala actual",
-        "historyDepthDescription": "Número objetivo de eventos precargados para la sala que estás viendo. Mínimo: {{min}}; máximo: {{max}}.",
-        "legacyUsernameColor": "Color de nombre de usuario antiguo",
         "hideMembershipChange": "Ocultar cambios de membresía",
         "hideProfileChange": "Ocultar cambios de perfil",
         "disableMediaAutoLoad": "Desactivar la carga automática de contenido multimedia",
@@ -2168,8 +2155,6 @@
           "setANotificationPreferenceForMessageContaining": "Define una preferencia de notificación para los mensajes que contengan la palabra clave indicada."
         },
         "notifications": "Notificaciones",
-        "blockMessages": "Bloquear mensajes",
-        "thisOptionHasBeenMovedToAccount": "Esta opción se ha movido a la sección «Cuenta > Bloquear usuarios».",
         "specialMessages": {
           "specialMessages": "Mensajes especiales",
           "badge": "Insignia:",

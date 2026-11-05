@@ -43,7 +43,6 @@
       "butter": "Tereyağı"
     },
     "prefetchScope": {
-      "myHomeserver": "Ana sunucum",
       "allRooms": "Tüm odalar",
       "currentRoomOnly": "Yalnızca geçerli oda"
     }
@@ -52,20 +51,13 @@
     "title": "Ayarlar",
     "logout": "Çıkış yap",
     "nav": {
-      "general": "Genel",
       "account": "Hesap",
       "notifications": "Bildirimler",
-      "devices": "Cihazlar",
-      "emojisStickers": "Emojiler ve çıkartmalar",
       "developerTools": "Geliştirici araçları",
       "about": "Hakkında"
     },
     "general": {
-      "title": "Genel",
       "interface": {
-        "sectionTitle": "Arayüz",
-        "simpleMode": "Basit mod",
-        "simpleModeDescription": "Komut paleti ve konu filtreleri gibi gelişmiş özellikleri gizler. Cihazlarınız arasında eşitlenir.",
         "showCanvasesInSidebar": "Etkileşimli panelleri kenar çubuğunda göster",
         "showCanvasesInSidebarDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Cihazlarınız arasında eşitlenir.",
         "saveFailed": "Değişiklik kaydedilemedi. Bağlantınızı kontrol edip tekrar deneyin."
@@ -83,8 +75,6 @@
         "darkTheme": "Koyu tema:",
         "theme": "Tema",
         "themeDescription": "Sistem teması etkin değilken kullanılacak tema.",
-        "monochromeMode": "Tek renkli mod",
-        "twitterEmoji": "Twitter emojileri",
         "pageZoom": "Sayfa yakınlaştırması"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Mesaj aralığı",
         "prefetchScope": "Ön yükleme kapsamı",
         "prefetchScopeDescription": "Arka planda hazır tutulan odalar",
-        "historyDepth": "Geçerli oda geçmişinin derinliği",
-        "historyDepthDescription": "Görüntülediğiniz oda için önceden yüklenecek hedef olay sayısı. En az {{min}}, en fazla {{max}}.",
-        "legacyUsernameColor": "Eski kullanıcı adı renkleri",
         "hideMembershipChange": "Üyelik değişikliklerini gizle",
         "hideProfileChange": "Profil değişikliklerini gizle",
         "disableMediaAutoLoad": "Otomatik medya yüklemeyi kapat",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "Belirtilen anahtar kelimeyi içeren mesajlar için bildirim tercihi belirleyin."
         },
         "notifications": "Bildirimler",
-        "blockMessages": "Mesajları engelle",
-        "thisOptionHasBeenMovedToAccount": "Bu seçenek \"Hesap > Kullanıcıları engelle\" bölümüne taşındı.",
         "specialMessages": {
           "specialMessages": "Özel mesajlar",
           "badge": "Rozet:",

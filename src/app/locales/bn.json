@@ -879,7 +879,6 @@
           "rooms": "রুম",
           "roomsEncrypted": "রুম (এনক্রিপ্ট করা)"
         },
-        "blockMessages": "বার্তা ব্লক করুন",
         "keywordMessages": {
           "badge": "ব্যাজ:",
           "keywordMessages": "মূলশব্দ বার্তা",
@@ -917,8 +916,7 @@
           "system": "সিস্টেম",
           "unexpectedError": "অপ্রত্যাশিত ত্রুটি!",
           "yourAccountDoesNotHaveAnyEmail": "আপনার অ্যাকাউন্টে কোনো ইমেল সংযুক্ত নেই।"
-        },
-        "thisOptionHasBeenMovedToAccount": "এই বিকল্পটি \"অ্যাকাউন্ট > ব্লক ব্যবহারকারী\" বিভাগে সরানো হয়েছে।"
+        }
       }
     },
     "spaceSettings": {
@@ -1882,8 +1880,7 @@
     },
     "prefetchScope": {
       "allRooms": "সব রুম",
-      "currentRoomOnly": "শুধুমাত্র বর্তমান রুম",
-      "myHomeserver": "আমার হোমসার্ভার"
+      "currentRoomOnly": "শুধুমাত্র বর্তমান রুম"
     },
     "themeName": {
       "butter": "মাখন",
@@ -1909,14 +1906,12 @@
       "appearance": {
         "darkTheme": "গাঢ় থিম:",
         "lightTheme": "হালকা থিম:",
-        "monochromeMode": "একরঙা মোড",
         "pageZoom": "পৃষ্ঠা জুম",
         "sectionTitle": "চেহারা",
         "systemTheme": "সিস্টেম থিম",
         "systemThemeDescription": "সিস্টেম পছন্দের উপর ভিত্তি করে হালকা এবং অন্ধকার থিমের মধ্যে বেছে নিন।",
         "theme": "থিম",
-        "themeDescription": "সিস্টেম থিম সক্ষম না থাকলে থিম ব্যবহার করতে হবে৷",
-        "twitterEmoji": "Twitter ইমোজি"
+        "themeDescription": "সিস্টেম থিম সক্ষম না থাকলে থিম ব্যবহার করতে হবে৷"
       },
       "dateTime": {
         "dateFormat": "তারিখের বিন্যাস",
@@ -1954,10 +1949,7 @@
       "interface": {
         "showCanvasesInSidebar": "সাইডবারে ইন্টারঅ্যাকটিভ প্যানেল দেখান",
         "showCanvasesInSidebarDescription": "আপনার এজেন্টদের বানানো ইন্টারঅ্যাকটিভ প্যানেলের জন্য একটি বোতাম দেখান, অন্তত একটি থাকলে। এই সেটিং আপনার ডিভাইসগুলিতে সিঙ্ক হয়।",
-        "saveFailed": "পরিবর্তন সংরক্ষণ করা যায়নি. আপনার সংযোগ পরীক্ষা করুন এবং আবার চেষ্টা করুন.",
-        "sectionTitle": "ইন্টারফেস",
-        "simpleMode": "সহজ মোড",
-        "simpleModeDescription": "কমান্ড প্যালেট ও থ্রেড ফিল্টারের মতো উন্নত সুবিধাগুলি লুকান। এই সেটিং আপনার ডিভাইসগুলিতে সিঙ্ক হয়।"
+        "saveFailed": "পরিবর্তন সংরক্ষণ করা যায়নি. আপনার সংযোগ পরীক্ষা করুন এবং আবার চেষ্টা করুন."
       },
       "language": {
         "appLanguage": "অ্যাপের ভাষা",
@@ -1968,9 +1960,6 @@
         "disableMediaAutoLoad": "মিডিয়া অটো লোড অক্ষম করুন",
         "hideMembershipChange": "সদস্যপদ পরিবর্তন লুকান",
         "hideProfileChange": "প্রোফাইল পরিবর্তন লুকান",
-        "historyDepth": "বর্তমান রুমের ইতিহাসের গভীরতা",
-        "historyDepthDescription": "আপনি যে রুমটি দেখছেন তার জন্য আগে থেকে লোড করা ইভেন্টের লক্ষ্য সংখ্যা। সর্বনিম্ন {{min}}, সর্বোচ্চ {{max}}।",
-        "legacyUsernameColor": "লিগ্যাসি ইউজারনেম কালার",
         "messageLayout": "বার্তা লেআউট",
         "messageSpacing": "বার্তা ব্যবধান",
         "prefetchScope": "প্রিফেচ স্কোপ",
@@ -1980,7 +1969,6 @@
         "urlPreview": "ইউআরএল প্রিভিউ",
         "urlPreviewEncrypted": "এনক্রিপ্ট করা রুমে URL পূর্বরূপ"
       },
-      "title": "সাধারণ",
       "computers": {
         "sectionTitle": "কম্পিউটার",
         "apiUrl": "কম্পিউটার পরিষেবার URL",
@@ -2006,9 +1994,6 @@
       "about": "অ্যাপ সম্পর্কে",
       "account": "অ্যাকাউন্ট",
       "developerTools": "বিকাশকারী সরঞ্জাম",
-      "devices": "ডিভাইস",
-      "emojisStickers": "ইমোজি এবং স্টিকার",
-      "general": "সাধারণ",
       "notifications": "বিজ্ঞপ্তি"
     },
     "title": "সেটিংস"

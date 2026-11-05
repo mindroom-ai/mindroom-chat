@@ -43,7 +43,6 @@
       "butter": "زبدة"
     },
     "prefetchScope": {
-      "myHomeserver": "خادمي المنزلي",
       "allRooms": "كل الغرف",
       "currentRoomOnly": "الغرفة الحالية فقط"
     }
@@ -52,20 +51,13 @@
     "title": "الإعدادات",
     "logout": "تسجيل الخروج",
     "nav": {
-      "general": "عام",
       "account": "الحساب",
       "notifications": "الإشعارات",
-      "devices": "الأجهزة",
-      "emojisStickers": "الرموز التعبيرية والملصقات",
       "developerTools": "أدوات المطورين",
       "about": "حول التطبيق"
     },
     "general": {
-      "title": "عام",
       "interface": {
-        "sectionTitle": "الواجهة",
-        "simpleMode": "الوضع المبسط",
-        "simpleModeDescription": "إخفاء الميزات المتقدمة مثل لوحة الأوامر وعوامل تصفية سلاسل المحادثات. تتم مزامنة هذا الإعداد بين أجهزتك.",
         "showCanvasesInSidebar": "إظهار اللوحات التفاعلية في الشريط الجانبي",
         "showCanvasesInSidebarDescription": "إظهار زر للوحات التفاعلية التي أنشأها وكلاؤك، بمجرد وجود واحدة. تتم مزامنة هذا الإعداد بين أجهزتك.",
         "saveFailed": "تعذر حفظ التغيير. تحقق من اتصالك وحاول مرة أخرى."
@@ -83,8 +75,6 @@
         "darkTheme": "السمة الداكنة:",
         "theme": "السمة",
         "themeDescription": "السمة المستخدمة عند تعطيل سمة النظام.",
-        "monochromeMode": "الوضع أحادي اللون",
-        "twitterEmoji": "رموز Twitter التعبيرية",
         "pageZoom": "تكبير الصفحة"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "المسافة بين الرسائل",
         "prefetchScope": "نطاق الجلب المسبق",
         "prefetchScopeDescription": "الغرف التي تظل جاهزة في الخلفية",
-        "historyDepth": "عمق سجل الغرفة الحالية",
-        "historyDepthDescription": "العدد المستهدف للأحداث المحمّلة مسبقًا للغرفة التي تعرضها. الحد الأدنى ⁨{{min}}⁩ والحد الأقصى ⁨{{max}}⁩.",
-        "legacyUsernameColor": "لون اسم المستخدم القديم",
         "hideMembershipChange": "إخفاء تغييرات العضوية",
         "hideProfileChange": "إخفاء تغييرات الملف الشخصي",
         "disableMediaAutoLoad": "تعطيل التحميل التلقائي للوسائط",
@@ -2252,8 +2239,6 @@
           "setANotificationPreferenceForMessageContaining": "عيّن تفضيل الإشعارات للرسائل التي تحتوي على كلمة مفتاحية معينة."
         },
         "notifications": "الإشعارات",
-        "blockMessages": "حظر الرسائل",
-        "thisOptionHasBeenMovedToAccount": "نُقل هذا الخيار إلى قسم «الحساب > المستخدمون المحظورون».",
         "specialMessages": {
           "specialMessages": "رسائل خاصة",
           "badge": "الشارة:",

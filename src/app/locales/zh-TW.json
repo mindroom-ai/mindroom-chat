@@ -43,7 +43,6 @@
       "butter": "奶油色"
     },
     "prefetchScope": {
-      "myHomeserver": "我的主伺服器",
       "allRooms": "所有房間",
       "currentRoomOnly": "僅限目前房間"
     }
@@ -52,20 +51,13 @@
     "title": "設定",
     "logout": "登出",
     "nav": {
-      "general": "一般",
       "account": "帳戶",
       "notifications": "通知",
-      "devices": "裝置",
-      "emojisStickers": "表情符號和貼紙",
       "developerTools": "開發者工具",
       "about": "關於"
     },
     "general": {
-      "title": "一般",
       "interface": {
-        "sectionTitle": "介面",
-        "simpleMode": "簡單模式",
-        "simpleModeDescription": "隱藏命令選項板和討論串篩選條件等高階功能。在您的裝置之間同步。",
         "showCanvasesInSidebar": "在側邊欄顯示互動式面板",
         "showCanvasesInSidebarDescription": "有互動式面板後，顯示一個按鈕來查看代理程式為您建立的面板。此設定會在您的裝置之間同步。",
         "saveFailed": "無法儲存變更。檢查您的連線並重試。"
@@ -83,8 +75,6 @@
         "darkTheme": "深色主題：",
         "theme": "主題",
         "themeDescription": "未啟用系統主題時使用的主題。",
-        "monochromeMode": "單色模式",
-        "twitterEmoji": "Twitter 表情符號",
         "pageZoom": "頁面縮放"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "訊息間距",
         "prefetchScope": "預取範圍",
         "prefetchScopeDescription": "哪些房間在背景準備就緒",
-        "historyDepth": "目前房間歷史深度",
-        "historyDepthDescription": "為您正在檢視的房間預先載入的目標事件數。最小值 {{min}}，最大值 {{max}}。",
-        "legacyUsernameColor": "舊使用者名稱顏色",
         "hideMembershipChange": "隱藏會員變更",
         "hideProfileChange": "隱藏個人資料變更",
         "disableMediaAutoLoad": "停用媒體自動載入",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "為包含給定關鍵字的訊息設定通知首選項。"
         },
         "notifications": "通知",
-        "blockMessages": "封鎖訊息",
-        "thisOptionHasBeenMovedToAccount": "此選項已移至「帳戶 > 封鎖使用者」部分。",
         "specialMessages": {
           "specialMessages": "特別訊息",
           "badge": "徽章：",

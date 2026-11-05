@@ -18,7 +18,6 @@ const getMessage = (locale: LocaleTree, path: string): string | undefined => {
 };
 
 const LITERAL_TOKENS: Readonly<Record<string, readonly string[]>> = {
-  'settings.general.appearance.twitterEmoji': ['Twitter'],
   'sharedUi.backupRestore.nil': ['NIL'],
   'sharedUi.callEmbedProvider.yourBrowserDoesNotSupportWebrtcWhichIsRequiredForCalling': ['WebRTC'],
   'sharedUi.sSOStage.ssoLogin': ['SSO'],

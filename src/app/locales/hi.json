@@ -879,7 +879,6 @@
           "rooms": "रूम",
           "roomsEncrypted": "रूम (एन्क्रिप्टेड)"
         },
-        "blockMessages": "संदेशों को ब्लॉक करें",
         "keywordMessages": {
           "badge": "बैज:",
           "keywordMessages": "कीवर्ड संदेश",
@@ -917,8 +916,7 @@
           "system": "प्रणाली",
           "unexpectedError": "अनपेक्षित त्रुटि!",
           "yourAccountDoesNotHaveAnyEmail": "आपके खाते में कोई ईमेल संलग्न नहीं है."
-        },
-        "thisOptionHasBeenMovedToAccount": "इस विकल्प को \"खाता > उपयोगकर्ताओं को ब्लॉक करें\" अनुभाग में ले जाया गया है।"
+        }
       }
     },
     "spaceSettings": {
@@ -1882,8 +1880,7 @@
     },
     "prefetchScope": {
       "allRooms": "सभी रूम",
-      "currentRoomOnly": "केवल वर्तमान रूम",
-      "myHomeserver": "मेरा होमसर्वर"
+      "currentRoomOnly": "केवल वर्तमान रूम"
     },
     "themeName": {
       "butter": "मक्खन",
@@ -1909,14 +1906,12 @@
       "appearance": {
         "darkTheme": "डार्क थीम:",
         "lightTheme": "लाइट थीम:",
-        "monochromeMode": "मोनोक्रोम मोड",
         "pageZoom": "पेज ज़ूम",
         "sectionTitle": "रूप-रंग",
         "systemTheme": "सिस्टम थीम",
         "systemThemeDescription": "सिस्टम प्राथमिकता के आधार पर प्रकाश और गहरे रंग की थीम में से चुनें।",
         "theme": "थीम",
-        "themeDescription": "सिस्टम थीम सक्षम न होने पर थीम का उपयोग करें।",
-        "twitterEmoji": "Twitter इमोजी"
+        "themeDescription": "सिस्टम थीम सक्षम न होने पर थीम का उपयोग करें।"
       },
       "dateTime": {
         "dateFormat": "तारीख का प्रारूप",
@@ -1954,10 +1949,7 @@
       "interface": {
         "showCanvasesInSidebar": "साइडबार में इंटरैक्टिव पैनल दिखाएँ",
         "showCanvasesInSidebarDescription": "आपके एजेंटों के बनाए इंटरैक्टिव पैनल के लिए एक बटन दिखाएँ, जैसे ही कोई पैनल हो। यह सेटिंग आपके डिवाइसों में सिंक होती है।",
-        "saveFailed": "परिवर्तन सहेजा नहीं जा सका. अपना कनेक्शन जांचें और पुनः प्रयास करें।",
-        "sectionTitle": "इंटरफ़ेस",
-        "simpleMode": "सरल मोड",
-        "simpleModeDescription": "कमांड पैलेट और थ्रेड फ़िल्टर जैसी उन्नत सुविधाएँ छिपाएँ। यह सेटिंग आपके डिवाइसों में सिंक होती है।"
+        "saveFailed": "परिवर्तन सहेजा नहीं जा सका. अपना कनेक्शन जांचें और पुनः प्रयास करें।"
       },
       "language": {
         "appLanguage": "ऐप भाषा",
@@ -1968,9 +1960,6 @@
         "disableMediaAutoLoad": "मीडिया ऑटो लोड अक्षम करें",
         "hideMembershipChange": "सदस्यता परिवर्तन छिपाएँ",
         "hideProfileChange": "प्रोफ़ाइल परिवर्तन छिपाएँ",
-        "historyDepth": "वर्तमान रूम इतिहास की गहराई",
-        "historyDepthDescription": "आप जिस रूम को देख रहे हैं, उसके लिए पहले से लोड किए गए ईवेंट की लक्षित संख्या। न्यूनतम {{min}}, अधिकतम {{max}}।",
-        "legacyUsernameColor": "लीगेसी उपयोक्तानाम रंग",
         "messageLayout": "संदेश लेआउट",
         "messageSpacing": "संदेश रिक्ति",
         "prefetchScope": "प्रीफेच स्कोप",
@@ -1980,7 +1969,6 @@
         "urlPreview": "यूआरएल पूर्वावलोकन",
         "urlPreviewEncrypted": "एन्क्रिप्टेड रूम में URL पूर्वावलोकन"
       },
-      "title": "सामान्य",
       "computers": {
         "sectionTitle": "कंप्यूटर",
         "apiUrl": "कंप्यूटर सेवा URL",
@@ -2006,9 +1994,6 @@
       "about": "ऐप के बारे में",
       "account": "खाता",
       "developerTools": "डेवलपर उपकरण",
-      "devices": "डिवाइस",
-      "emojisStickers": "इमोजी और स्टिकर",
-      "general": "सामान्य",
       "notifications": "सूचनाएं"
     },
     "title": "सेटिंग्स"

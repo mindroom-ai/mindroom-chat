@@ -43,7 +43,6 @@
       "butter": "Burro"
     },
     "prefetchScope": {
-      "myHomeserver": "Il mio homeserver",
       "allRooms": "Tutte le stanze",
       "currentRoomOnly": "Solo la stanza attuale"
     }
@@ -52,20 +51,13 @@
     "title": "Impostazioni",
     "logout": "Disconnetti",
     "nav": {
-      "general": "Generali",
       "account": "Account",
       "notifications": "Notifiche",
-      "devices": "Dispositivi",
-      "emojisStickers": "Emoji e sticker",
       "developerTools": "Strumenti per sviluppatori",
       "about": "Informazioni"
     },
     "general": {
-      "title": "Generali",
       "interface": {
-        "sectionTitle": "Interfaccia",
-        "simpleMode": "Modalità semplice",
-        "simpleModeDescription": "Nasconde le funzioni avanzate come la tavolozza dei comandi e i filtri dei thread. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
         "showCanvasesInSidebar": "Mostra i pannelli interattivi nella barra laterale",
         "showCanvasesInSidebarDescription": "Mostra un pulsante per i pannelli interattivi dei tuoi agenti non appena ne hai uno. L'impostazione viene sincronizzata tra i tuoi dispositivi.",
         "saveFailed": "Impossibile salvare la modifica. Controlla la connessione e riprova."
@@ -83,8 +75,6 @@
         "darkTheme": "Tema scuro:",
         "theme": "Tema",
         "themeDescription": "Tema da usare quando il tema di sistema non è attivo.",
-        "monochromeMode": "Modalità monocromatica",
-        "twitterEmoji": "Emoji di Twitter",
         "pageZoom": "Zoom della pagina"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Spaziatura dei messaggi",
         "prefetchScope": "Ambito di precaricamento",
         "prefetchScopeDescription": "Stanze mantenute pronte in background",
-        "historyDepth": "Profondità della cronologia della stanza attuale",
-        "historyDepthDescription": "Numero desiderato di eventi precaricati per la stanza che stai visualizzando. Minimo {{min}}, massimo {{max}}.",
-        "legacyUsernameColor": "Colore precedente del nome utente",
         "hideMembershipChange": "Nascondi modifiche all'appartenenza",
         "hideProfileChange": "Nascondi modifiche al profilo",
         "disableMediaAutoLoad": "Disattiva il caricamento automatico dei contenuti multimediali",
@@ -2168,8 +2155,6 @@
           "setANotificationPreferenceForMessageContaining": "Imposta una preferenza di notifica per i messaggi che contengono la parola chiave indicata."
         },
         "notifications": "Notifiche",
-        "blockMessages": "Blocca messaggi",
-        "thisOptionHasBeenMovedToAccount": "Questa opzione è stata spostata nella sezione “Account > Blocca utenti”.",
         "specialMessages": {
           "specialMessages": "Messaggi speciali",
           "badge": "Badge:",

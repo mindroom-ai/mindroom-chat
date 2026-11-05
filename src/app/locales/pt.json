@@ -43,7 +43,6 @@
       "butter": "Manteiga"
     },
     "prefetchScope": {
-      "myHomeserver": "Meu servidor doméstico",
       "allRooms": "Todas as salas",
       "currentRoomOnly": "Apenas a sala atual"
     }
@@ -52,20 +51,13 @@
     "title": "Definições",
     "logout": "Terminar sessão",
     "nav": {
-      "general": "Geral",
       "account": "Conta",
       "notifications": "Notificações",
-      "devices": "Dispositivos",
-      "emojisStickers": "Emojis e stickers",
       "developerTools": "Ferramentas de programador",
       "about": "Sobre"
     },
     "general": {
-      "title": "Geral",
       "interface": {
-        "sectionTitle": "Interface",
-        "simpleMode": "Modo simples",
-        "simpleModeDescription": "Oculta funcionalidades avançadas, como a paleta de comandos e os filtros de tópicos. É sincronizado entre os seus dispositivos.",
         "showCanvasesInSidebar": "Mostrar painéis interativos na barra lateral",
         "showCanvasesInSidebarDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. É sincronizado entre os seus dispositivos.",
         "saveFailed": "Não foi possível guardar a alteração. Verifique a sua ligação e tente novamente."
@@ -83,8 +75,6 @@
         "darkTheme": "Tema escuro:",
         "theme": "Tema",
         "themeDescription": "Tema a utilizar quando o tema do sistema não está ativado.",
-        "monochromeMode": "Modo monocromático",
-        "twitterEmoji": "Emojis do Twitter",
         "pageZoom": "Zoom da página"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Espaçamento das mensagens",
         "prefetchScope": "Âmbito do pré-carregamento",
         "prefetchScopeDescription": "Salas mantidas prontas em segundo plano",
-        "historyDepth": "Profundidade do histórico da sala atual",
-        "historyDepthDescription": "Número pretendido de eventos pré-carregados para a sala que está a ver. Mínimo {{min}}, máximo {{max}}.",
-        "legacyUsernameColor": "Cor antiga do nome de utilizador",
         "hideMembershipChange": "Ocultar alterações de adesão",
         "hideProfileChange": "Ocultar alterações de perfil",
         "disableMediaAutoLoad": "Desativar o carregamento automático de multimédia",
@@ -2168,8 +2155,6 @@
           "setANotificationPreferenceForMessageContaining": "Defina uma preferência de notificação para mensagens que contenham a palavra-chave indicada."
         },
         "notifications": "Notificações",
-        "blockMessages": "Bloquear mensagens",
-        "thisOptionHasBeenMovedToAccount": "Esta opção foi movida para a secção «Conta > Bloquear utilizadores».",
         "specialMessages": {
           "specialMessages": "Mensagens especiais",
           "badge": "Emblema:",

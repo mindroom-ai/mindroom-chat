@@ -43,7 +43,6 @@
       "butter": "Butter"
     },
     "prefetchScope": {
-      "myHomeserver": "Mein Heimserver",
       "allRooms": "Alle Räume",
       "currentRoomOnly": "Nur aktueller Raum"
     }
@@ -52,20 +51,13 @@
     "title": "Einstellungen",
     "logout": "Abmelden",
     "nav": {
-      "general": "Allgemein",
       "account": "Konto",
       "notifications": "Benachrichtigungen",
-      "devices": "Geräte",
-      "emojisStickers": "Emojis & Sticker",
       "developerTools": "Entwicklertools",
       "about": "Über"
     },
     "general": {
-      "title": "Allgemein",
       "interface": {
-        "sectionTitle": "Oberfläche",
-        "simpleMode": "Einfacher Modus",
-        "simpleModeDescription": "Blendet erweiterte Funktionen wie die Befehlspalette und Thread-Filter aus. Wird zwischen deinen Geräten synchronisiert.",
         "showCanvasesInSidebar": "Interaktive Panels in der Seitenleiste anzeigen",
         "showCanvasesInSidebarDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Wird zwischen deinen Geräten synchronisiert.",
         "saveFailed": "Änderung konnte nicht gespeichert werden. Prüfe deine Verbindung und versuche es erneut."
@@ -83,8 +75,6 @@
         "darkTheme": "Dunkles Design:",
         "theme": "Design",
         "themeDescription": "Design, das verwendet wird, wenn das Systemdesign deaktiviert ist.",
-        "monochromeMode": "Monochrom-Modus",
-        "twitterEmoji": "Twitter-Emoji",
         "pageZoom": "Seitenzoom"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "Nachrichtenabstand",
         "prefetchScope": "Vorabruf-Umfang",
         "prefetchScopeDescription": "Welche Räume im Hintergrund bereitgehalten werden",
-        "historyDepth": "Verlaufstiefe des aktuellen Raums",
-        "historyDepthDescription": "Zielanzahl vorab geladener Ereignisse für den Raum, den du gerade ansiehst. Minimum {{min}}, Maximum {{max}}.",
-        "legacyUsernameColor": "Klassische Benutzernamen-Farben",
         "hideMembershipChange": "Mitgliedschaftsänderungen ausblenden",
         "hideProfileChange": "Profiländerungen ausblenden",
         "disableMediaAutoLoad": "Automatisches Laden von Medien deaktivieren",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "Lege eine Benachrichtigungseinstellung für Nachrichten fest, die das angegebene Schlüsselwort enthalten."
         },
         "notifications": "Benachrichtigungen",
-        "blockMessages": "Nachrichten blockieren",
-        "thisOptionHasBeenMovedToAccount": "Diese Option wurde in den Abschnitt „Konto > Benutzer blockieren“ verschoben.",
         "specialMessages": {
           "specialMessages": "Besondere Nachrichten",
           "badge": "Abzeichen:",

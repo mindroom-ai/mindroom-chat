@@ -43,7 +43,6 @@
       "butter": "奶油色"
     },
     "prefetchScope": {
-      "myHomeserver": "我的主服务器",
       "allRooms": "所有房间",
       "currentRoomOnly": "仅限当前房间"
     }
@@ -52,20 +51,13 @@
     "title": "设置",
     "logout": "退出登录",
     "nav": {
-      "general": "常规",
       "account": "账户",
       "notifications": "通知",
-      "devices": "设备",
-      "emojisStickers": "表情符号和贴纸",
       "developerTools": "开发者工具",
       "about": "关于"
     },
     "general": {
-      "title": "常规",
       "interface": {
-        "sectionTitle": "界面",
-        "simpleMode": "简单模式",
-        "simpleModeDescription": "隐藏命令选项板和讨论串过滤器等高级功能。在您的设备之间同步。",
         "showCanvasesInSidebar": "在侧边栏显示交互式面板",
         "showCanvasesInSidebarDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。此设置会在您的设备之间同步。",
         "saveFailed": "无法保存更改。检查您的连接并重试。"
@@ -83,8 +75,6 @@
         "darkTheme": "深色主题：",
         "theme": "主题",
         "themeDescription": "未启用系统主题时使用的主题。",
-        "monochromeMode": "单色模式",
-        "twitterEmoji": "Twitter 表情符号",
         "pageZoom": "页面缩放"
       },
       "dateTime": {
@@ -126,9 +116,6 @@
         "messageSpacing": "消息间距",
         "prefetchScope": "预取范围",
         "prefetchScopeDescription": "哪些房间在后台准备就绪",
-        "historyDepth": "当前房间历史深度",
-        "historyDepthDescription": "为您正在查看的房间预加载的目标事件数。最小值 {{min}}，最大值 {{max}}。",
-        "legacyUsernameColor": "旧用户名颜色",
         "hideMembershipChange": "隐藏会员变更",
         "hideProfileChange": "隐藏个人资料更改",
         "disableMediaAutoLoad": "禁用媒体自动加载",
@@ -2140,8 +2127,6 @@
           "setANotificationPreferenceForMessageContaining": "为包含给定关键字的消息设置通知首选项。"
         },
         "notifications": "通知",
-        "blockMessages": "屏蔽消息",
-        "thisOptionHasBeenMovedToAccount": "此选项已移至“账户 > 阻止用户”部分。",
         "specialMessages": {
           "specialMessages": "特别讯息",
           "badge": "徽章：",

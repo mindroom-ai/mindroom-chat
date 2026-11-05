@@ -11,10 +11,12 @@ import { SettingTile } from '../../components/setting-tile';
 import { SequenceCard } from '../../components/sequence-card';
 import { Menu, MenuItem } from '../../components/glass/GlassPrimitives';
 
-/** Menu order runs from the narrowest reach to the widest. */
+/**
+ * Menu order runs from the narrowest reach to the widest. The store turns `my-server` into
+ * `current-room-only` on every write, so it is not offered.
+ */
 const SCOPE_CHOICES = [
   { value: 'current-room-only', labelKey: 'options.prefetchScope.currentRoomOnly' },
-  { value: 'my-server', labelKey: 'options.prefetchScope.myHomeserver' },
   { value: 'all-rooms', labelKey: 'options.prefetchScope.allRooms' },
 ] as const satisfies ReadonlyArray<{ value: PrefetchScope; labelKey: string }>;
 
