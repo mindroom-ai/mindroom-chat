@@ -1,4 +1,4 @@
-import { getSessionScopedStorageKey, listSessions } from '../../../matrix/session/sessions';
+import { getSessionScopedStorageKey } from '../../../matrix/session/sessions';
 import {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   ATTACHMENT_REFERENCES_BY_ROOM_INDEX,
@@ -283,7 +283,3 @@ export const resetCacheStoreForTesting = (): void => {
   writeGenerationBySession.clear();
   writeGenerationByRoom.clear();
 };
-
-// Re-exported so the wipe hook (P2.1 commit 3) can iterate stored
-// sessions to gate the singleton-DB wipe.
-export { listSessions };

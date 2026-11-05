@@ -31,7 +31,6 @@ import {
 } from '../cacheStoreSchema';
 
 vi.mock('../cacheStoreLegacyWipe', () => ({
-  LEGACY_WIPE_MARKER_META_KEY: '__cacheStore|migration',
   performLegacyDbWipe: vi.fn(async () => undefined),
   shouldAttemptLegacySingletonWipe: () => false,
 }));

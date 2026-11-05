@@ -1,8 +1,3 @@
-// ISSUE-207 P2.1: barrel for the unified CacheStore module. The legacy
-// per-domain files (`roomEventCache.ts`, `threadEventCache.ts`,
-// `threadSummaryCache.ts`) become pure re-export shims over this module
-// in commit 4 of the P2.1 stack.
-
 export {
   ATTACHMENTS_STORE,
   ATTACHMENT_REFERENCES_STORE,
@@ -10,7 +5,6 @@ export {
   ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX,
   MINDROOM_CACHE_DB_BASE_NAME,
   CACHE_STORE_DB_VERSION,
-  MAX_CACHE_BEFORE_TOKENS,
   __setCacheStoreByteBudgetForTests,
   buildEventCacheKey,
   buildMetaKey,

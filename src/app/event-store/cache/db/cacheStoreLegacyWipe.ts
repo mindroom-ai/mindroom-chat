@@ -1,5 +1,10 @@
 import { listSessions } from '../../../matrix/session/sessions';
-import { META_STORE, type CachedMetaRecord } from './cacheStoreSchema';
+import {
+  INTERNAL_META_ROOM_ID,
+  LEGACY_WIPE_MARKER_META_KEY,
+  META_STORE,
+  type CachedMetaRecord,
+} from './cacheStoreSchema';
 import {
   LEGACY_MINDROOM_SINGLETON_DB_NAMES,
   getLegacySessionScopedCacheDbNames,
@@ -22,10 +27,6 @@ import {
 // open success, so this module has no consumers other than the DB
 // opener bootstrap.
 
-// Reserved metaKey (see cacheStoreSchema); duplicated here to keep the
-// wipe module independent of the schema import for constant tree-shake.
-export const LEGACY_WIPE_MARKER_META_KEY = '__cacheStore|migration';
-const INTERNAL_META_ROOM_ID = '__cacheStore';
 const INTERNAL_META_SCOPE = 'migration';
 
 const readWipeMarker = (db: IDBDatabase): Promise<CachedMetaRecord | undefined> =>

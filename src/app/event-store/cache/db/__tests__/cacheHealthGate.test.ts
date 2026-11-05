@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Bypass the D8 legacy wipe so the fresh IDB starts clean per test.
 vi.mock('../cacheStoreLegacyWipe', () => ({
-  LEGACY_WIPE_MARKER_META_KEY: '__cacheStore|migration',
   performLegacyDbWipe: vi.fn(async () => undefined),
 }));
 
