@@ -26,7 +26,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 ## Licenses and product
 
 - Licenses: dependencies must be MIT, Apache-2.0, BSD, ISC, 0BSD, Zlib, Unicode, CC0, BlueOak, OFL (fonts), or MPL-2.0 used unmodified. `scripts/license-check.mjs` also accepts Python-2.0 (argparse) and Unlicense, and three packages by name (`require-like`, `caniuse-lite`, `jsonify`); `NOTICE` lists them with the reasons. Never add `@element-hq/element-call-embedded`.
-- Product: no Simple Mode; the thread filter bar has no view buttons, and the Compact and Full switch is an icon button in the room header.
+- Product: no app-wide Simple Mode. The thread filter bar has its own simple and advanced filters (simple by default, `simpleThreadFilters`) and no view buttons; the room header's filter button shows or hides it. The header's view switch toggles Compact and Threads; Classic is reached only through Jump to Time or a stored choice.
 
 ## Commands
 
