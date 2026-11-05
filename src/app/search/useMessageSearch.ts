@@ -1,5 +1,6 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import {
+  EventType,
   type IEventWithRoomId,
   type IResultContext,
   type ISearchRequestBody,
@@ -113,9 +114,12 @@ export const useMessageSearch = ({
         search_categories: {
           room_events: {
             search_term: searchTerm,
+            // Servers also match room names and topics; Tuwunel ignores `keys`, so the filter
+            // keeps the hits to messages.
+            keys: ['content.body'],
             order_by: order,
             event_context: { before_limit: 0, after_limit: 0, include_profile: false },
-            filter: { limit: PAGE_LIMIT, rooms, senders },
+            filter: { limit: PAGE_LIMIT, rooms, senders, types: [EventType.RoomMessage] },
           },
         },
       };
