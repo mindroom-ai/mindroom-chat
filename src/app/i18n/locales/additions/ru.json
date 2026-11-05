@@ -412,6 +412,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "Не удалось изменить вашу реакцию. Повторите попытку."
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "Перейти к сообщению от {{name}}"
       }
     },
     "message-search": {

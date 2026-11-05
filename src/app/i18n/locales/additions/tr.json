@@ -400,6 +400,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "Tepkiniz değiştirilemedi. Tekrar deneyin."
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "{{name}} kişisinin mesajına git"
       }
     },
     "message-search": {

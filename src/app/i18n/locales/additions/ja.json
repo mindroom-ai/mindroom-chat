@@ -394,6 +394,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "反応を変更できませんでした。もう一度試してください。"
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "{{name}} さんのメッセージへ移動"
       }
     },
     "message-search": {

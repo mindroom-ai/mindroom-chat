@@ -394,6 +394,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "Reaksi Anda tidak dapat diubah. Coba lagi."
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "Lompat ke pesan dari {{name}}"
       }
     },
     "message-search": {

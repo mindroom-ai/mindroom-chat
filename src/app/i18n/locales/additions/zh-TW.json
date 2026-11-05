@@ -394,6 +394,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "無法變更你的反應，請再試一次。"
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "跳至 {{name}} 的訊息"
       }
     },
     "message-search": {

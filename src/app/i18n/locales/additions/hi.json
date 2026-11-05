@@ -400,6 +400,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "आपकी प्रतिक्रिया बदली नहीं जा सकी। फिर से कोशिश करें।"
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "{{name}} के संदेश पर जाएँ"
       }
     },
     "message-search": {

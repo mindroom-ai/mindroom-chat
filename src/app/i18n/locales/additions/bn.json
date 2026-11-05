@@ -400,6 +400,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "আপনার প্রতিক্রিয়া পরিবর্তন করা যায়নি। আবার চেষ্টা করুন।"
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "{{name}}-এর বার্তায় যান"
       }
     },
     "message-search": {

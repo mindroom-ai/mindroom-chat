@@ -309,7 +309,12 @@ vi.mock('../../members/useMemberPowerTag', () => ({
 }));
 
 vi.mock('../../event-store/threads/useThreadPinning', () => ({
-  usePinnedEventIds: () => new Set(['$approval']),
+  useThreadPinning: () => ({
+    pinnedEventIds: ['$approval'],
+    canPin: false,
+    setPinned: vi.fn(),
+    updating: false,
+  }),
 }));
 
 vi.mock('../../event-store/cache/useRoomEvent', () => ({

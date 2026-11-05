@@ -400,6 +400,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "Deine Reaktion konnte nicht geändert werden. Versuche es erneut."
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "Zur Nachricht von {{name}} springen"
       }
     },
     "message-search": {

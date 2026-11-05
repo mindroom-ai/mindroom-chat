@@ -400,6 +400,9 @@
       },
       "messageReactionActions": {
         "reactionFailed": "Je reactie kon niet worden gewijzigd. Probeer het opnieuw."
+      },
+      "mindroomRoomPinMenu": {
+        "jumpToMessageFrom": "Naar bericht van {{name}} springen"
       }
     },
     "message-search": {
