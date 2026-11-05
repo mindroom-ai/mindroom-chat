@@ -223,7 +223,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const userId = mx.getUserId() ?? '';
     const draftKey = threadId ? getRoomInputDraftKey(userId, roomId, threadId) : undefined;
     const replyDraft = useAtomValue(roomIdToReplyDraftAtomFamily(roomId));
-    const sendTypingStatus = useTypingStatusUpdater(mx, roomId);
+    const [hideActivity] = useSetting(settingsAtom, 'hideActivity');
+    const sendTypingStatus = useTypingStatusUpdater(mx, roomId, hideActivity);
     const isComposing = useComposingCheck();
     const [autocompleteQuery, setAutocompleteQuery] = useState<AutocompleteQuery<string>>();
     // Set when the open menu reports that its query matches nothing (an `@` query no member has,

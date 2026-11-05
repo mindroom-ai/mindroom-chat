@@ -5,11 +5,14 @@ import { TYPING_TIMEOUT_MS } from '../state/typingMembers';
 /**
  * A function the composer calls with `true` while the user types and `false` when they stop.
  * Sends a typing notice when typing starts, a stop notice when it ends, and a stop notice when
- * the started one would expire, so other clients never show a stale indicator.
+ * the started one would expire, so other clients never show a stale indicator. With `hidden`
+ * (the Hide Typing & Read Receipts setting) no typing notice goes out; one sent before the
+ * setting was turned on still gets its stop.
  */
 export const useTypingStatusUpdater = (
   mx: MatrixClient,
-  roomId: string
+  roomId: string,
+  hidden = false
 ): ((typing: boolean) => void) => {
   const typingRef = useRef(false);
   const expiryRef = useRef<ReturnType<typeof setTimeout>>();
@@ -41,7 +44,7 @@ export const useTypingStatusUpdater = (
 
   return useCallback(
     (typing: boolean) => {
-      if (typing) {
+      if (typing && !hidden) {
         if (typingRef.current) return;
         typingRef.current = true;
         send(true);
@@ -59,6 +62,6 @@ export const useTypingStatusUpdater = (
       clearExpiry();
       send(false);
     },
-    [send, clearExpiry]
+    [hidden, send, clearExpiry]
   );
 };
