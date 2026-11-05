@@ -240,19 +240,6 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     }
 
     const atLiveEnd = atLiveEndRef.current;
-    // Measured at this moment, so that a streamed edit cannot hold a reader at the bottom who
-    // has just scrolled away.
-    const followsLiveEnd = shouldAutoScrollRoomOnLiveEvent({
-      scrollElement: scrollRef.current,
-      isTimelineAtLiveEnd: atLiveEnd,
-    });
-    if (followsLiveEnd && atBottomRef.current && documentHasFocus()) {
-      void markMainTimelineAsRead(mx, room.roomId, hideActivity);
-    } else if (!unreadInfo) {
-      // The "New messages" line goes above the first message the reader has not seen.
-      setUnreadInfo(getRoomUnreadInfo(room));
-    }
-
     const isRoomRow = isRenderableEvent(
       event,
       room,
@@ -262,6 +249,21 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
       hideMembershipEvents,
       hideNickAvatarEvents
     );
+    // Measured at this moment, so that a streamed edit cannot hold a reader at the bottom who
+    // has just scrolled away.
+    const followsLiveEnd = shouldAutoScrollRoomOnLiveEvent({
+      scrollElement: scrollRef.current,
+      isTimelineAtLiveEnd: atLiveEnd,
+    });
+    if (followsLiveEnd && atBottomRef.current && documentHasFocus()) {
+      void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+    } else if (!unreadInfo && isRoomRow) {
+      // The "New messages" line goes above the first message the reader has not seen. Only a
+      // new row sets where it goes: a reaction, an edit or a hidden event the reader did not
+      // see would put the line above the next message, though they may watch that one arrive.
+      setUnreadInfo(getRoomUnreadInfo(room));
+    }
+
     if (!atLiveEnd || !isRoomRow) {
       repaint();
       return;

@@ -390,6 +390,43 @@ describe('useRoomLiveRenderController, room view', () => {
     expect(view.pin()).toEqual(NO_PIN);
   });
 
+  it('records no unread start for a reaction, an edit or a hidden event the reader does not see', () => {
+    // Far above the bottom, the reader sees nothing that arrives.
+    const view = renderController({ fromBottom: 1_000 });
+
+    view.arrive(reactionTo('$reaction', READ_UP_TO), true);
+    view.arrive(editOf('$edit', '$older-message'), true);
+    view.arrive(
+      makeEvent('$status', { type: 'org.example.status', content: { status: 'docked' } }),
+      true
+    );
+
+    expect(view.setUnreadInfo).not.toHaveBeenCalled();
+    expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    expect(view.ranges()).toEqual([UNCHANGED, UNCHANGED, UNCHANGED]);
+
+    // A message the reader does not see still marks where the unread part starts.
+    view.arrive(makeEvent('$news'), true);
+
+    expect(view.setUnreadInfo).toHaveBeenCalledTimes(1);
+    expect(view.setUnreadInfo).toHaveBeenCalledWith({
+      readUptoEventId: READ_UP_TO,
+      inLiveTimeline: true,
+      scrollTo: false,
+    });
+  });
+
+  it('sends a read receipt for a reaction and an edit the reader sees', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const view = renderController();
+
+    view.arrive(reactionTo('$reaction', READ_UP_TO), true);
+    view.arrive(editOf('$edit', '$older-message'), true);
+
+    expect(markMainTimelineAsRead).toHaveBeenCalledTimes(2);
+    expect(view.setUnreadInfo).not.toHaveBeenCalled();
+  });
+
   it('repaints for a local echo and its status changes, and never pins', () => {
     const view = renderController();
     const echo = pending(threadReply('~txn-1'));

@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Request } from '@playwright/test';
+import { expect, test, webkit, type Page, type Request } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -13,17 +13,21 @@ import {
 
 // The "New Messages" line, the Jump to Unread pill and read receipts when another account reacts to
 // an older message or edits one, in a room the reader has read. While the reader is scrolled up,
-// neither puts up a line or a pill or sends a receipt; at the bottom, each is read at once. A new
-// message that arrives while the reader is scrolled up does get the line and the pill. Runs against
-// the disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh, and registers its
-// own accounts.
+// neither puts up a line or a pill or sends a receipt, and neither moves the line above a message
+// the reader later watches arrive; at the bottom, each is read at once. A new message that arrives
+// while the reader is scrolled up does get the line and the pill. Each case runs in Chromium and,
+// when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Runs against the
+// disposable homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh, and registers its own
+// accounts.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'unread-line-spec-password';
 const RUN = Date.now().toString(36);
 const HISTORY = 60;
+const VIEWPORT = { width: 1400, height: 900 };
+const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 
 test.use({
-  viewport: { width: 1400, height: 900 },
+  viewport: VIEWPORT,
   launchOptions: {
     // The other launch options repeat playwright.config.ts.
     executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -297,11 +301,9 @@ const scrollUp = async (page: Page) => {
   await page.waitForTimeout(1_000);
 };
 
-test('a reaction and an edit the reader does not see put up no line or pill and send no receipt', async ({
-  page,
-}) => {
-  test.setTimeout(300_000);
-  const room = await openReadRoom(page, 'away');
+/** A reaction and an edit the reader does not see: no line, pill or receipt until they come back. */
+const unseenReactionAndEdit = async (page: Page, name: string) => {
+  const room = await openReadRoom(page, name);
   try {
     await scrollUp(page);
     await room.observe('scrolled up');
@@ -330,16 +332,38 @@ test('a reaction and an edit the reader does not see put up no line or pill and 
     const atBottom = await room.observe('back at the bottom');
     expect(atBottom.unreadLineAbove).toEqual([]);
     expect(atBottom.receipts).toEqual([{ type: 'm.read', event: 'edit', thread: 'main' }]);
+
+    // A message the reader watches arrive gets no line, though the reaction and the edit came
+    // while they were away.
+    const watched = await room.send('watched', 'Log entry: the pilot boat is back at the pier.');
+    await expect(page.locator(`[data-message-id="${watched}"]`)).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(2_000);
+    const afterWatched = await room.observe('message arrives at the bottom');
+    expect(afterWatched.unreadLineAbove).toEqual([]);
+    expect(afterWatched.receipts).toEqual([{ type: 'm.read', event: 'watched', thread: 'main' }]);
+
+    // A message missed while scrolled up gets the line above it, not above the watched one.
+    await scrollUp(page);
+    const missed = await room.send('missed', 'Log entry: the harbor master closed the north gate.');
+    await expect(page.getByRole('button', { name: 'Jump to Unread' })).toBeVisible({
+      timeout: 30_000,
+    });
+    await backToBottom(page);
+    await expect(page.locator(`[data-message-id="${missed}"]`)).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(1_500);
+    const back = await room.observe('back at the bottom after a missed message');
+    expect(back.unreadLineAbove).toEqual(['missed']);
   } finally {
     await room.attachObservations();
   }
-});
+};
 
-test('a reaction and an edit the reader sees at the bottom are read at once, and a message missed above gets the line', async ({
-  page,
-}) => {
-  test.setTimeout(300_000);
-  const room = await openReadRoom(page, 'here');
+/**
+ * A reaction and an edit the reader sees at the bottom are read at once, and a message that
+ * arrives while they are scrolled up gets the pill, the sidebar highlight and the line.
+ */
+const seenReactionAndEdit = async (page: Page, name: string) => {
+  const room = await openReadRoom(page, name);
   try {
     const visible = (await rowsInView(page)).filter((eventId) => room.labels.has(eventId));
     expect(visible.length, 'rows in view').toBeGreaterThanOrEqual(3);
@@ -383,31 +407,37 @@ test('a reaction and an edit the reader sees at the bottom are read at once, and
   } finally {
     await room.attachObservations();
   }
-});
+};
 
-// Known bug, in the clean-room rewrite and in the code before it (both checked on 2026-11-05): a
-// reaction or an edit the reader does not see records the room's read position for the "New
-// Messages" line, which then stands above the next message the reader watches arrive at the
-// bottom, and stays there when a later message arrives while they are scrolled up.
-test.fixme(
-  'after a reaction the reader did not see, a message they watch arrive gets no line',
-  async ({ page }) => {
+const CASES = [
+  {
+    key: 'away',
+    title: 'a reaction and an edit the reader does not see put up no line, pill or receipt',
+    run: unseenReactionAndEdit,
+  },
+  {
+    key: 'here',
+    title: 'a reaction and an edit seen at the bottom are read, and a missed message gets the line',
+    run: seenReactionAndEdit,
+  },
+];
+
+for (const { key, title, run } of CASES) {
+  test(`${title} (Chromium)`, async ({ page }) => {
     test.setTimeout(300_000);
-    const room = await openReadRoom(page, 'stale');
-    try {
-      await scrollUp(page);
-      const visible = (await rowsInView(page)).filter((eventId) => room.labels.has(eventId));
-      await room.react(visible[0] ?? '');
-      await page.waitForTimeout(1_500);
-      await backToBottom(page);
-      await page.waitForTimeout(2_000);
+    await run(page, `${key}c`);
+  });
 
-      const watched = await room.send('watched', 'Log entry: the pilot boat is back at the pier.');
-      await expect(page.locator(`[data-message-id="${watched}"]`)).toBeVisible({ timeout: 30_000 });
-      await page.waitForTimeout(2_000);
-      expect((await room.observe('message arrives at the bottom')).unreadLineAbove).toEqual([]);
+  test(`${title} (WebKit)`, async ({ baseURL }) => {
+    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(300_000);
+    // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
+    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    try {
+      const context = await browser.newContext({ viewport: VIEWPORT, baseURL });
+      await run(await context.newPage(), `${key}w`);
     } finally {
-      await room.attachObservations();
+      await browser.close();
     }
-  }
-);
+  });
+}
