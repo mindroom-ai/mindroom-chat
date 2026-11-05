@@ -45,6 +45,11 @@ const headerGeometry = async (reply: Locator) =>
     };
   });
 
+// The chevron's transform once it has turned. Under reduced motion, index.css still gives every
+// change a 0.01 ms transition, and a read in the frame of the change gets its starting transform.
+const turnedChevron = (reply: Locator) =>
+  expect.poll(async () => (await headerGeometry(reply)).chevronTransform);
+
 // A private room with the test account and an agent named Helper, and a thread the test account
 // starts with `rootBody`. `reply` sends a message of the agent into the thread; `open` signs in and
 // shows the thread.
@@ -230,13 +235,13 @@ test.describe('agent reasoning header', () => {
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(reply).toContainText('Save it, then answer by voice.');
-    expect((await headerGeometry(reply)).chevronTransform).toBe('matrix(0, 1, -1, 0, 0, 0)');
+    await turnedChevron(reply).toBe('matrix(0, 1, -1, 0, 0, 0)');
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
     // Right to left: the collapsed chevron points left, the open one still points down.
     await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
-    expect((await headerGeometry(reply)).chevronTransform).toBe('matrix(-1, 0, 0, -1, 0, 0)');
+    await turnedChevron(reply).toBe('matrix(-1, 0, 0, -1, 0, 0)');
     expect((await headerGeometry(thinking)).chevronTransform).toBe('matrix(0, 1, -1, 0, 0, 0)');
     await page.evaluate(() => document.documentElement.setAttribute('dir', 'ltr'));
 
