@@ -8,8 +8,8 @@ import {
   setIOSPushEnabled,
   unregisterIOSPush,
   upsertIOSPushPusher,
-} from '../notifications/push/iosPush';
-import { MindroomNativeIOSPushFeature } from './ClientFeatures';
+} from './iosPush';
+import { MindroomNativeIOSPushFeature } from './IOSPushFeature';
 
 const state = vi.hoisted(() => ({
   signInRequired: true,
@@ -28,7 +28,7 @@ vi.mock('@capacitor/push-notifications', () => ({
   },
 }));
 
-vi.mock('../notifications/push/iosPush', () => ({
+vi.mock('./iosPush', () => ({
   checkIOSPushPermission: vi.fn(async () => 'granted'),
   disableIOSPushPusher: vi.fn(async () => undefined),
   isNativeIOSPlatform: () => true,
@@ -39,15 +39,15 @@ vi.mock('../notifications/push/iosPush', () => ({
   upsertIOSPushPusher: vi.fn(async () => undefined),
 }));
 
-vi.mock('../notifications/push/useIOSPushEnabled', () => ({ useIOSPushEnabled: () => true }));
-vi.mock('../native/cloudflareAccess', () => ({
+vi.mock('./useIOSPushEnabled', () => ({ useIOSPushEnabled: () => true }));
+vi.mock('../../native/cloudflareAccess', () => ({
   cloudflareAccessAllowsPush: () => state.pushAllowed,
   useCloudflareAccessSignInRequired: () => state.signInRequired,
 }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => state.mx }));
-vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => state.clientConfig }));
-vi.mock('../matrix/session/useSessionStore', () => ({ useActiveSession: () => ({ sessionId: 's1' }) }));
-vi.mock('../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => state.mx }));
+vi.mock('../../config/useClientConfig', () => ({ useClientConfig: () => state.clientConfig }));
+vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () => ({ sessionId: 's1' }) }));
+vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
 const rerender = (renderer: ReturnType<typeof create>) =>
   act(async () => renderer.update(React.createElement(MindroomNativeIOSPushFeature)));

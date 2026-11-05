@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MindroomNativeIOSPushOpenFeature } from './ClientFeatures';
+import { MindroomNativeIOSPushOpenFeature } from './IOSPushFeature';
 
 type ActionListener = (action: { notification: { data: unknown } }) => void;
 
@@ -28,12 +28,12 @@ vi.mock('@capacitor/push-notifications', () => ({
   },
 }));
 
-vi.mock('../notifications/push/iosPush', () => ({ isNativeIOSPlatform: () => true }));
-vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => state.mx }));
-vi.mock('../navigation/useRoomNavigate', () => ({
+vi.mock('./iosPush', () => ({ isNativeIOSPlatform: () => true }));
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => state.mx }));
+vi.mock('../../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: state.navigateRoom }),
 }));
-vi.mock('../matrix/ClientStartupContext', () => ({
+vi.mock('../../matrix/ClientStartupContext', () => ({
   useClientStartupContext: () => ({ hasCompletedInitialSync: state.hasCompletedInitialSync }),
 }));
 

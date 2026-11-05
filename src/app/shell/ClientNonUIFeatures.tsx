@@ -1,10 +1,10 @@
+import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
+import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
+import { MindroomInviteNotifications } from '../notifications/InviteNotifications';
 import {
-  CanvasIndexFeature,
-  CrossRoomThreadIndexFeature,
-  MindroomInviteNotifications,
   MindroomNativeIOSPushFeature,
   MindroomNativeIOSPushOpenFeature,
-} from './ClientFeatures';
+} from '../notifications/push/IOSPushFeature';
 import { ServerEmojiJoinFeature } from '../emoji/server/ServerEmojiJoinFeature';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
 import { AgentConnectLinkFeature } from '../connections/AgentConnectLinks';

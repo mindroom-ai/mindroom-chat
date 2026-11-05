@@ -16,7 +16,8 @@ import { allInvitesAtom } from '../matrix/state/inviteList';
 import { Membership } from '../matrix/types/room';
 import { isComputerShown, listCanvases } from '../canvas/canvasIndexStore';
 import { playChime } from '../notifications/playChime';
-import { CanvasIndexFeature, MindroomInviteNotifications } from './ClientFeatures';
+import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
+import { MindroomInviteNotifications } from '../notifications/InviteNotifications';
 
 vi.mock('../notifications/playChime', () => ({ playChime: vi.fn(() => Promise.resolve()) }));
 

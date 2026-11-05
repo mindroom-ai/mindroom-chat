@@ -1,26 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useAtomValue, useSetAtom } from 'jotai';
-import { useTranslation } from 'react-i18next';
-import { KnownMembership, type MatrixClient } from 'matrix-js-sdk';
+import { useEffect, useMemo, useState } from 'react';
+import { KnownMembership } from 'matrix-js-sdk';
 import { PushNotifications } from '@capacitor/push-notifications';
-import InviteSound from '../../../public/sound/invite.ogg';
-import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
-import { useClientConfig } from '../config/useClientConfig';
-import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useActiveSession } from '../matrix/session/useSessionStore';
-import { useClientStartupContext } from '../matrix/ClientStartupContext';
-import { useSetting } from '../preferences/useSetting';
-import { allInvitesAtom } from '../matrix/state/inviteList';
-import { settingsAtom } from '../preferences/settings';
-import { useCanvasIndexRecorder } from '../canvas/canvasIndex';
-import { useComputerApiUrls } from '../computer/useComputerApiUrl';
-import { useCrossRoomThreadIndex } from '../threads/cross-room/useCrossRoomThreadIndex';
+import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
+import { useClientConfig } from '../../config/useClientConfig';
+import { useLatestRef } from '../../lib/hooks/useLatestRef';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useRoomNavigate } from '../../navigation/useRoomNavigate';
+import { useActiveSession } from '../../matrix/session/useSessionStore';
+import { useClientStartupContext } from '../../matrix/ClientStartupContext';
 import {
   cloudflareAccessAllowsPush,
   useCloudflareAccessSignInRequired,
-} from '../native/cloudflareAccess';
+} from '../../native/cloudflareAccess';
 import {
   checkIOSPushPermission,
   disableIOSPushPusher,
@@ -28,91 +19,8 @@ import {
   registerIOSPush,
   resolveIOSPushConfig,
   upsertIOSPushPusher,
-} from '../notifications/push/iosPush';
-import { useIOSPushEnabled } from '../notifications/push/useIOSPushEnabled';
-import { playChime } from '../notifications/playChime';
-import { matchesEnum } from '../lib/matchesEnum';
-
-const invitedRoomIds = (mx: MatrixClient): string[] =>
-  mx
-    .getRooms()
-    .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Invite))
-    .map((room) => room.roomId);
-
-/**
- * Chimes and shows a system notification for each new invite. Invites the client already had
- * when it started, or when the account switched, are not new: the list is reset to the current
- * client's invites first, since it may still hold the previous account's.
- */
-export function MindroomInviteNotifications() {
-  const client = useMatrixClient();
-  const { t } = useTranslation();
-  const invites = useAtomValue(allInvitesAtom);
-  const setInvites = useSetAtom(allInvitesAtom);
-  const [showNotifications] = useSetting(settingsAtom, 'showNotifications');
-  const [notificationSounds] = useSetting(settingsAtom, 'isNotificationSounds');
-  const seen = useRef<Set<string>>(new Set());
-  const previous = useRef<readonly string[]>([]);
-  // The list as rendered before the baseline; its stale entries are never treated as new.
-  const stale = useRef<readonly string[]>();
-
-  useLayoutEffect(() => {
-    const baseline = invitedRoomIds(client);
-    seen.current = new Set(baseline);
-    previous.current = baseline;
-    stale.current = invites;
-    setInvites({ type: 'INITIALIZE', rooms: baseline });
-    // Only a client change resets the baseline; `invites` is read for the stale marker alone.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, setInvites]);
-
-  useEffect(() => {
-    if (invites === stale.current) return;
-    const before = new Set(previous.current);
-    previous.current = invites;
-    const current = new Set(invites);
-    // A room that left the list can invite again later, and then it is new again.
-    seen.current.forEach((roomId) => {
-      if (!current.has(roomId)) seen.current.delete(roomId);
-    });
-    const added = invites.filter((roomId) => !before.has(roomId) && !seen.current.has(roomId));
-    added.forEach((roomId) => seen.current.add(roomId));
-    if (added.length === 0) return;
-
-    if (notificationSounds) playChime(InviteSound).catch(() => undefined);
-    const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
-    if (showNotifications && SystemNotification?.permission === 'granted') {
-      // eslint-disable-next-line no-new
-      new SystemNotification(t('mindroomUi.notifications.invitation.title'), {
-        body: t('mindroomUi.notifications.invitation.body', { count: added.length }),
-        silent: true,
-      });
-    }
-  }, [invites, notificationSounds, showNotifications, t]);
-
-  return null;
-}
-
-/**
- * Keeps the Canvases list and the "agent showed its computer" record current on every route,
- * while this deployment has canvases or a computer service.
- */
-export function CanvasIndexFeature() {
-  const mx = useMatrixClient();
-  const canvasesEnabled = useClientConfig().mindroom?.canvas?.enabled === true;
-  const computersAvailable = useComputerApiUrls().urls.length > 0;
-  useCanvasIndexRecorder(mx, canvasesEnabled || computersAvailable);
-  return null;
-}
-
-/**
- * Keeps the cross-room thread index (Threads page, recent threads, command palette) current for
- * the whole session. Mount it once, at client scope.
- */
-export function CrossRoomThreadIndexFeature() {
-  useCrossRoomThreadIndex();
-  return null;
-}
+} from './iosPush';
+import { useIOSPushEnabled } from './useIOSPushEnabled';
 
 /**
  * On the iOS app, registers for APNs while push is on and sends the device token to the

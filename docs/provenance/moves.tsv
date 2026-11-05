@@ -2704,3 +2704,7 @@ src/app/messages/pins/pinnedMessageExtensions.ts		restructure-p3-c4
 src/app/messages/reply/replyExtensions.test.ts		restructure-p3-c4
 src/app/messages/reply/replyExtensions.tsx		restructure-p3-c4
 src/app/messages/messageExtensions.tsx		restructure-p3-c4
+src/app/shell/ClientFeatures.iosPush.test.ts	src/app/notifications/push/IOSPushFeature.test.ts	restructure-p3-c7
+src/app/shell/ClientFeatures.iosPushOpen.test.ts	src/app/notifications/push/IOSPushFeature.open.test.ts	restructure-p3-c7
+src/app/shell/ClientFeatures.test.ts	src/app/shell/ClientNonUIFeatures.test.ts	restructure-p3-c7
+src/app/shell/ClientFeatures.tsx		restructure-p3-c7
