@@ -3,6 +3,9 @@ import type { ComputerClipboardFixture } from '../fixtures/computer-clipboard';
 
 const CONTROL_L_KEYSYM = 0xffe3;
 const V_KEYSYM = 0x76;
+// Playwright's ControlOrMeta is Cmd on a Mac, which the bridge sends as the left Ctrl it holds
+// while Cmd is down; noVNC never sees Cmd.
+const APPLE = process.platform === 'darwin';
 
 // Playwright maps both clipboard permissions for Chromium, only clipboard-read for WebKit,
 // and none for Firefox ("Unknown permission").
@@ -61,15 +64,25 @@ test('pastes the local clipboard into the computer while in control', async ({
 
   await expect
     .poll(async () => (await recorded(page)).calls)
-    .toEqual([
-      ['paste', 'local text'],
-      // The left Ctrl noVNC holds, pressed again so it cannot arrive after the v.
-      ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
-      ['key', V_KEYSYM, 'KeyV', true],
-      ['key', V_KEYSYM, 'KeyV', false],
-    ]);
+    .toEqual(
+      APPLE
+        ? [
+            ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+            ['paste', 'local text'],
+            ['key', V_KEYSYM, 'KeyV', true],
+            ['key', V_KEYSYM, 'KeyV', false],
+            ['key', CONTROL_L_KEYSYM, 'ControlLeft', false],
+          ]
+        : [
+            ['paste', 'local text'],
+            // The left Ctrl noVNC holds, pressed again so it cannot arrive after the v.
+            ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
+            ['key', V_KEYSYM, 'KeyV', true],
+            ['key', V_KEYSYM, 'KeyV', false],
+          ]
+    );
   const { noVncKeys, pastes } = await recorded(page);
-  expect(noVncKeys).toEqual(['down ControlLeft', 'up ControlLeft']);
+  expect(noVncKeys).toEqual(APPLE ? [] : ['down ControlLeft', 'up ControlLeft']);
   expect(pastes).toEqual(['sent']);
   await expect(localText(page)).toHaveValue('local text');
 });
@@ -81,12 +94,11 @@ test('copies the computer clipboard after the copy shortcut while in control', a
   await page.locator('canvas').click();
   await page.keyboard.press('ControlOrMeta+c');
   // The shortcut still reaches the computer, whose app then copies.
-  expect((await recorded(page)).noVncKeys).toEqual([
-    'down ControlLeft',
-    'down KeyC',
-    'up KeyC',
-    'up ControlLeft',
-  ]);
+  expect((await recorded(page)).noVncKeys).toEqual(
+    APPLE
+      ? ['down KeyC', 'up KeyC']
+      : ['down ControlLeft', 'down KeyC', 'up KeyC', 'up ControlLeft']
+  );
   await sendRemoteClipboard(page, 'remote text');
 
   await expect.poll(() => readLocalClipboard(page)).toBe('remote text');
@@ -106,11 +118,14 @@ test('pastes only the keys for the text a computer copy wrote', async ({ page, b
 
   // The computer already holds this text, and may have copied newer text since.
   await expect.poll(async () => (await recorded(page)).pastes).toEqual(['sent']);
-  expect((await recorded(page)).calls).toEqual([
+  const keys = [
     ['key', CONTROL_L_KEYSYM, 'ControlLeft', true],
     ['key', V_KEYSYM, 'KeyV', true],
     ['key', V_KEYSYM, 'KeyV', false],
-  ]);
+  ];
+  const cmdUp = ['key', CONTROL_L_KEYSYM, 'ControlLeft', false];
+  // On a Mac the copy's Cmd came and went as Ctrl too.
+  expect((await recorded(page)).calls).toEqual(APPLE ? [keys[0], cmdUp, ...keys, cmdUp] : keys);
 });
 
 test('keeps the local clipboard from a computer push without a copy shortcut', async ({ page }) => {
@@ -129,6 +144,10 @@ test('sends nothing for a middle-click paste on the screen while in control', as
   browserName,
 }) => {
   test.skip(browserName === 'webkit', 'WebKit fires no paste on a middle click');
+  test.skip(
+    process.platform !== 'linux',
+    'Only Linux pastes its primary selection on a middle click'
+  );
   await openScreen(page, 'control');
   // Text highlighted locally, which Linux would paste as its primary selection.
   await copyLocally(page, 'local text');
