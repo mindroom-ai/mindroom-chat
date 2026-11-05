@@ -43,7 +43,7 @@ import {
   normalizeMessageSearchRooms,
   shouldDeferImplicitMessageSearch,
 } from './messageSearchScope';
-import { SearchResultItem } from './SearchResultGroup';
+import { SearchResultItem } from './SearchResultItem';
 import { SearchRoomPicker } from './MessageSearchFilters';
 import { useMessageSearch } from './useMessageSearch';
 import { useOpenSearchResult } from './useOpenSearchResult';

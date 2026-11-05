@@ -6,7 +6,6 @@ import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getSearchResultOpenTarget, type SearchResultOpenTarget } from './searchResultOpenTarget';
 import { SearchResultBody, type SearchResultBodyProps } from './SearchResultBody';
-import type { ResultItem } from './useMessageSearch';
 
 function SearchResultTime({ ts }: { ts: number }) {
   const relative = useRelativeTime(ts);
@@ -57,25 +56,5 @@ export function SearchResultItem({ onOpen, ...props }: SearchResultItemProps) {
         <SearchResultBody {...props} />
       </Box>
     </SequenceCard>
-  );
-}
-
-type SearchResultGroupProps = Omit<SearchResultBodyProps, 'item'> & {
-  /** The room's hits, in the order the server ranked them. */
-  items: ResultItem[];
-  onOpen: (roomId: string, target: SearchResultOpenTarget) => void;
-};
-
-/** A room's hits under its name. */
-export function SearchResultGroup({ room, items, ...rest }: SearchResultGroupProps) {
-  return (
-    <Box direction="Column" gap="200">
-      <Text size="H5" truncate>
-        {room.name}
-      </Text>
-      {items.map((item) => (
-        <SearchResultItem key={item.event.event_id} room={room} item={item} {...rest} />
-      ))}
-    </Box>
   );
 }
