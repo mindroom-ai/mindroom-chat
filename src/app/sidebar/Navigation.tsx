@@ -10,8 +10,8 @@ import { useSpace } from '../matrix/hooks/useSpace';
 import { MobileFriendlyClientNav } from './MobileFriendly';
 import { SidebarNav } from './SidebarNav';
 import {
-  MindroomDesktopPageNav,
-  MindroomDesktopPageNavContext,
+  DesktopPageNav,
+  DesktopPageNavContext,
   readDesktopPageNavCollapsed,
   useMindroomDesktopPageNav,
   writeDesktopPageNavCollapsed,
@@ -43,16 +43,12 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     [userId]
   );
 
-  const value = useMemo<MindroomDesktopPageNav>(
+  const value = useMemo<DesktopPageNav>(
     () => ({ collapsed: canCollapse && savedCollapsed, canCollapse, setCollapsed }),
     [canCollapse, savedCollapsed, setCollapsed]
   );
 
-  return (
-    <MindroomDesktopPageNavContext.Provider value={value}>
-      {children}
-    </MindroomDesktopPageNavContext.Provider>
-  );
+  return <DesktopPageNavContext.Provider value={value}>{children}</DesktopPageNavContext.Provider>;
 }
 
 function PageNavToggle() {

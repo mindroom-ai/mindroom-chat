@@ -221,7 +221,7 @@ const buildOptions = ({
   policy,
   additionalAllowedUriSchemes,
 }: SanitizeCustomHtmlOptions): IOptions => {
-  const withMindroom = mergeAttributes(
+  const withCustomAttributes = mergeAttributes(
     BASE_ATTRIBUTES,
     mindroomCustomHtmlSanitizerPolicy.allowedAttributes
   );
@@ -232,7 +232,7 @@ const buildOptions = ({
       policy?.allowedTags || undefined
     ),
     allowedAttributes: mergeAttributes(
-      withMindroom as Record<string, string[]>,
+      withCustomAttributes as Record<string, string[]>,
       policy?.allowedAttributes
     ),
     allowedStyles: mergeStyles(BASE_STYLES, policy?.allowedStyles),

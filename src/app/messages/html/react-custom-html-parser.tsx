@@ -560,8 +560,8 @@ export const getReactCustomHtmlParser = (
         );
       }
 
-      const mindroomElement = renderCustomElement(name, attribs, children, parserOptions);
-      if (mindroomElement) return mindroomElement;
+      const customElement = renderCustomElement(name, attribs, children, parserOptions);
+      if (customElement) return customElement;
 
       const props = attributesToProps(attribs);
       if (isHeading(name)) {

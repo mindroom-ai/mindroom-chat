@@ -3,7 +3,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
-import { renderMindroomPinnedToolApprovalEvent } from './pinnedToolApproval';
+import { renderPinnedToolApprovalEvent } from './pinnedToolApproval';
 
 vi.mock('../content/RenderMessageContent', () => ({
   RenderMessageContent: (props: Record<string, unknown>) =>
@@ -28,7 +28,7 @@ const options = {
 
 const renderPinned = (event: MatrixEvent, eventId?: string) => {
   act(() => {
-    renderer = create(<>{renderMindroomPinnedToolApprovalEvent(event, { ...options, eventId })}</>);
+    renderer = create(<>{renderPinnedToolApprovalEvent(event, { ...options, eventId })}</>);
   });
   return renderer!.root.findByType('message-content' as never).props;
 };

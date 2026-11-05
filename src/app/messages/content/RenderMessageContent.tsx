@@ -135,7 +135,7 @@ export function RenderMessageContent({
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
     : undefined;
 
-  const mindroomContent = renderAgentMessageContent({
+  const agentContent = renderAgentMessageContent({
     mEvent,
     fromMindroomAgent,
     displayName,
@@ -155,7 +155,7 @@ export function RenderMessageContent({
     showMessageExtras,
     hydrateLongText,
   });
-  if (mindroomContent !== undefined) return <>{mindroomContent}</>;
+  if (agentContent !== undefined) return <>{agentContent}</>;
 
   const owner = getEventAttachmentOwner(mEvent);
   const renderStateSuffix = getMessageStateSuffixRenderer({

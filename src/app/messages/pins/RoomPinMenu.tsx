@@ -12,10 +12,7 @@ import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../html/react-custom-htm
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomEvent } from '../../event-store/cache/useRoomEvent';
-import {
-  isMindroomPinnedToolApprovalEvent,
-  renderMindroomPinnedToolApprovalEvent,
-} from './pinnedToolApproval';
+import { isPinnedToolApprovalEvent, renderPinnedToolApprovalEvent } from './pinnedToolApproval';
 
 export type RoomPinMenuProps = {
   room: Room;
@@ -77,10 +74,10 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
     const loaded = getLoadedDecryptedEvent(room, event);
     if (loaded) {
       const edited = getEditedEvent(eventId, loaded.event, loaded.timelineSet);
-      if (isMindroomPinnedToolApprovalEvent(loaded.event.getType())) {
+      if (isPinnedToolApprovalEvent(loaded.event.getType())) {
         return (
           <>
-            {renderMindroomPinnedToolApprovalEvent(loaded.event, {
+            {renderPinnedToolApprovalEvent(loaded.event, {
               ...options,
               displayName,
               eventId,
@@ -105,8 +102,8 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
     }
   }
 
-  if (isMindroomPinnedToolApprovalEvent(event.getType())) {
-    return <>{renderMindroomPinnedToolApprovalEvent(event, { ...options, displayName })}</>;
+  if (isPinnedToolApprovalEvent(event.getType())) {
+    return <>{renderPinnedToolApprovalEvent(event, { ...options, displayName })}</>;
   }
 
   return (

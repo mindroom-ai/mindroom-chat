@@ -5,7 +5,7 @@ import type { IReplyDraft } from '../composer/roomInputDrafts';
 import { readCanvasNoticeTitle } from '../matrix/protocol/chatUiProtocol';
 
 /** The composer's reply draft for a timeline message, and the thread that reply belongs to. */
-export type MindroomRoomTimelineReplyDraft = {
+export type RoomTimelineReplyDraft = {
   draft: IReplyDraft;
   threadRootId: string;
 };
@@ -36,7 +36,7 @@ export const buildMindroomRoomTimelineReplyDraft = (
   room: Room,
   eventId: string,
   startThread: boolean
-): MindroomRoomTimelineReplyDraft | undefined => {
+): RoomTimelineReplyDraft | undefined => {
   const message = room.findEventById(eventId);
   const userId = message?.getSender();
   if (!message || !userId) return undefined;

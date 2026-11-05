@@ -6,13 +6,13 @@ import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval
 /** Pinned tool approvals keep their own event type, unlike `m.room.message` pins. */
 export const MINDROOM_PINNED_TOOL_APPROVAL_EVENT = MINDROOM_TOOL_APPROVAL_EVENT;
 
-export const isMindroomPinnedToolApprovalEvent = (eventType: string): boolean =>
+export const isPinnedToolApprovalEvent = (eventType: string): boolean =>
   eventType === MINDROOM_PINNED_TOOL_APPROVAL_EVENT;
 
 type ContentProps = ComponentProps<typeof RenderMessageContent>;
 
 /** Parsing and media settings come straight from the message renderer; the pin menu owns the rest. */
-type MindroomPinnedToolApprovalRenderOptions = Pick<
+type PinnedToolApprovalRenderOptions = Pick<
   ContentProps,
   'htmlReactParserOptions' | 'linkifyOpts' | 'mediaAutoLoad' | 'outlineAttachment' | 'urlPreview'
 > & {
@@ -34,9 +34,9 @@ const asRecord = (value: unknown): Record<string, unknown> | undefined =>
  * encrypted pin whose edit was found by relation) carries the decided status in `m.new_content`,
  * which is merged onto the original request.
  */
-export const renderMindroomPinnedToolApprovalEvent = (
+export const renderPinnedToolApprovalEvent = (
   event: MatrixEvent,
-  { displayName, editedEvent, eventId, ...options }: MindroomPinnedToolApprovalRenderOptions
+  { displayName, editedEvent, eventId, ...options }: PinnedToolApprovalRenderOptions
 ): ReactNode => {
   const newContent = asRecord(editedEvent?.getContent()?.['m.new_content']);
   const getContent = (() =>

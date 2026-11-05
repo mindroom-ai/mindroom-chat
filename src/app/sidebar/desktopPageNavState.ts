@@ -22,7 +22,7 @@ export const writeDesktopPageNavCollapsed = (userId: string, collapsed: boolean)
   );
 };
 
-export type MindroomDesktopPageNav = {
+export type DesktopPageNav = {
   /** Whether the page navigation is hidden now. Never on phones, where it is the page itself. */
   collapsed: boolean;
   /** Whether the layout has a page navigation beside the content that can be collapsed. */
@@ -30,14 +30,13 @@ export type MindroomDesktopPageNav = {
   setCollapsed: (collapsed: boolean) => void;
 };
 
-const noPageNav: MindroomDesktopPageNav = {
+const noPageNav: DesktopPageNav = {
   collapsed: false,
   canCollapse: false,
   setCollapsed: () => undefined,
 };
 
-export const MindroomDesktopPageNavContext = createContext<MindroomDesktopPageNav>(noPageNav);
+export const DesktopPageNavContext = createContext<DesktopPageNav>(noPageNav);
 
 /** The page navigation's collapse state, from the nearest `NavigationProvider`. */
-export const useMindroomDesktopPageNav = (): MindroomDesktopPageNav =>
-  useContext(MindroomDesktopPageNavContext);
+export const useMindroomDesktopPageNav = (): DesktopPageNav => useContext(DesktopPageNavContext);
