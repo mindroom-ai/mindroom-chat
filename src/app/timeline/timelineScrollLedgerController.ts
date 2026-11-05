@@ -51,6 +51,11 @@ export type TimelineScrollLedgerControllerOptions = {
   pendingRoomFoldPxRef: MutableRefObject<number>;
   roomFoldPriceRef: MutableRefObject<(key: VirtualItemKey, index: number) => number>;
   roomId: string;
+  /**
+   * Changes when the room's rows are replaced rather than added to: the ledger starts over, as
+   * for another room, since its folds and its settle watch belong to rows that are gone.
+   */
+  rowsKey?: number;
   threadEventIndexMap: ReadonlyMap<string, number>;
   threadEvents: readonly ThreadLedgerEvent[];
   threadId?: string;
@@ -156,6 +161,7 @@ export const useTimelineScrollLedgerController = ({
   pendingRoomFoldPxRef,
   roomFoldPriceRef,
   roomId,
+  rowsKey,
   threadEventIndexMap,
   threadEvents,
   threadId,
@@ -169,7 +175,7 @@ export const useTimelineScrollLedgerController = ({
   // Bumped by the room/thread commit-time reset: an armed quiescence wait
   // from a disconnected view must never settle the next view's ledger.
   const ledgerGenerationRef = useRef(0);
-  const ledgerViewKey = `${roomId}|${threadId ?? ''}`;
+  const ledgerViewKey = `${roomId}|${threadId ?? ''}|${rowsKey ?? ''}`;
   const compensationResetKeyRef = useRef(ledgerViewKey);
   const resettingLedgerView = compensationResetKeyRef.current !== ledgerViewKey;
   const [, setLedgerCommitTick] = useState(0);

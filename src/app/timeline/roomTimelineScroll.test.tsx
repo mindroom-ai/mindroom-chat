@@ -7,7 +7,13 @@ import {
 } from './roomFocusScrollController';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import { useGestureBottomPins, useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
+import type { EventTimeline } from 'matrix-js-sdk';
+import {
+  useGestureBottomPins,
+  useLatestRowPin,
+  useRowsGeneration,
+  useTimelineRowJumps,
+} from './roomTimelineScroll';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
@@ -416,5 +422,32 @@ describe('useTimelineRowJumps', () => {
       'ledger',
       'virtual list row 3',
     ]);
+  });
+});
+
+describe('useRowsGeneration', () => {
+  it('counts the times the rows on screen are replaced, not the times the chain grows', () => {
+    const part = (name: string) => ({ name } as unknown as EventTimeline);
+    const [live, older, context] = [part('live'), part('older'), part('context')];
+    const counts: number[] = [];
+    function Rows({ chain }: { chain: EventTimeline[] }) {
+      counts.push(useRowsGeneration(chain));
+      return null;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    const show = (chain: EventTimeline[]) =>
+      act(() => {
+        if (renderer) renderer.update(createElement(Rows, { chain }));
+        else renderer = create(createElement(Rows, { chain }));
+      });
+
+    show([live]);
+    show([older, live]);
+    // An event the room has not loaded: the rows empty, then the history around it arrives,
+    // and its newer history joins the live chain.
+    show([]);
+    show([context]);
+    show([context, live]);
+    expect(counts).toEqual([0, 0, 1, 2, 2]);
   });
 });

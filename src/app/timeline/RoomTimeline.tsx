@@ -123,6 +123,7 @@ import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
   useGestureBottomPins,
   useLatestRowPin,
+  useRowsGeneration,
   useTimelineRowJumps,
   useTimelineScrollElement,
   useViewportAtBottomNow,
@@ -734,6 +735,8 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const threadLoadError = !!threadId && session.snapshot.open.loadError;
   const threadLoading =
     !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
+  // Replaced room rows (not added ones) start the ledger over, as another room does.
+  const rowsGeneration = useRowsGeneration(timeline.linkedTimelines);
   const ledger = useTimelineScrollLedgerController({
     alive,
     estimateSize,
@@ -743,6 +746,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     pendingRoomFoldPxRef,
     roomFoldPriceRef,
     roomId: room.roomId,
+    rowsKey: threadId ? undefined : rowsGeneration,
     threadEventIndexMap,
     threadEvents,
     threadId,

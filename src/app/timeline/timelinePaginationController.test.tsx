@@ -397,15 +397,24 @@ const mountLoader = ({
   room,
   onLoad,
   onError,
+  filterOpts,
 }: {
   client: MatrixClient;
   room: Room;
   onLoad: LoadHandler;
   onError: () => void;
+  filterOpts?: RecalibrateFilterOpts;
 }) => {
   const view: { load: (eventId: string) => Promise<void> } = { load: () => Promise.resolve() };
+  const filterOptsRef = { current: filterOpts };
   const Host = (handlers: { onLoad: typeof onLoad; onError: typeof onError }) => {
-    view.load = useEventTimelineLoader(client, room, handlers.onLoad, handlers.onError);
+    view.load = useEventTimelineLoader(
+      client,
+      room,
+      handlers.onLoad,
+      handlers.onError,
+      filterOptsRef
+    );
     return null;
   };
   let renderer: ReactTestRenderer | undefined;
@@ -429,6 +438,28 @@ const makeRoom = (encrypted: boolean) => {
   } as unknown as Room;
   return { room, timelineSet };
 };
+
+/** The Full view's filters: thread replies show in the room, nothing hidden is shown. */
+const fullViewFilters = (room: Room): RecalibrateFilterOpts => ({
+  room,
+  threadId: undefined,
+  ignoredUsersSet: new Set(),
+  showHiddenEvents: false,
+  hideMembershipEvents: false,
+  hideNickAvatarEvents: false,
+  showThreadRepliesInRoom: true,
+});
+
+const roomCreation = () =>
+  new MatrixEvent({
+    event_id: '$create',
+    type: 'm.room.create',
+    state_key: '',
+    sender: '@alice:example.org',
+    room_id: '!room:example.org',
+    origin_server_ts: 1,
+    content: { room_version: '11' },
+  });
 
 const loadedChain = () => {
   const older = makeTimeline('older', messages('$o', 2));
@@ -538,5 +569,70 @@ describe('useEventTimelineLoader', () => {
     });
     expect(firstOnLoad).not.toHaveBeenCalled();
     expect(newestOnLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('brings a page on each side of an event without a row before it reports the load', async () => {
+    // The server sends the room's creation alone, and it makes no row.
+    const holder = makeTimeline('holder', [roomCreation()], { back: 'before', forward: 'after' });
+    const { client, getEventTimeline, paginateEventTimeline } = makeClient();
+    getEventTimeline.mockResolvedValue(sdk(holder));
+    paginateEventTimeline.mockImplementation(async (_timeline, { backwards }) => {
+      if (backwards) holder.backToken = null;
+      else {
+        holder.events.push(...messages('$later', 3));
+        holder.forwardToken = null;
+      }
+      return true;
+    });
+    const { room } = makeRoom(false);
+    const onLoad = vi.fn<LoadHandler>();
+    const { view } = mountLoader({
+      client,
+      room,
+      onLoad,
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(room),
+    });
+
+    await act(() => view.load('$create'));
+
+    expect(paginateEventTimeline).toHaveBeenCalledWith(sdk(holder), {
+      backwards: true,
+      limit: 200,
+    });
+    expect(paginateEventTimeline).toHaveBeenCalledWith(sdk(holder), {
+      backwards: false,
+      limit: 200,
+    });
+    expect(onLoad).toHaveBeenCalledTimes(1);
+    const [eventId, chain, absoluteIndex] = onLoad.mock.calls[0] ?? [];
+    expect(eventId).toBe('$create');
+    expect(
+      chain?.flatMap((timeline) => timeline.getEvents().map((event) => event.getId()))
+    ).toEqual(['$create', '$later0', '$later1', '$later2']);
+    expect(absoluteIndex).toBe(0);
+  });
+
+  it('loads an event with a row of its own alone', async () => {
+    const holder = makeTimeline('holder', [message('$target')], {
+      back: 'before',
+      forward: 'after',
+    });
+    const { client, getEventTimeline, paginateEventTimeline } = makeClient();
+    getEventTimeline.mockResolvedValue(sdk(holder));
+    const { room } = makeRoom(false);
+    const onLoad = vi.fn<LoadHandler>();
+    const { view } = mountLoader({
+      client,
+      room,
+      onLoad,
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(room),
+    });
+
+    await act(() => view.load('$target'));
+
+    expect(paginateEventTimeline).not.toHaveBeenCalled();
+    expect(onLoad).toHaveBeenCalledTimes(1);
   });
 });

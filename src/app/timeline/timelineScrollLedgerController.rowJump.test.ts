@@ -42,8 +42,10 @@ type Correction = (
  * A room's scroll area, 704 px tall over 1663 px of rows, read 129 px down: the newest rows of a
  * window that just mounted older rows above them, as the Full view does when Jump to Time opens it.
  */
-const mountRoomLedger = () => {
+const mountRoomLedger = ({ settle = true } = {}) => {
   let scrollTop = 129;
+  // Changes when the room's rows are replaced rather than added to.
+  let rowsKey = 0;
   const writes: number[] = [];
   let onScroll: (() => void) | undefined;
   const scrollArea = {
@@ -78,6 +80,7 @@ const mountRoomLedger = () => {
       pendingRoomFoldPxRef: useRef(0),
       roomFoldPriceRef: useRef(() => 35),
       roomId: '!logbook:example.org',
+      rowsKey,
       threadEventIndexMap: new Map(),
       threadEvents: [],
       threadInitialRenderMode: 'live',
@@ -100,10 +103,12 @@ const mountRoomLedger = () => {
     ).toBe(false);
   });
   expect(rows.style.marginTop).toBe('-830px');
-  // The next scroll event settles that fold at once: the rows keep their place on screen.
-  act(() => onScroll?.());
-  expect(writes).toEqual([959]);
-  expect(rows.style.marginTop).toBe('');
+  if (settle) {
+    // The next scroll event settles that fold at once: the rows keep their place on screen.
+    act(() => onScroll?.());
+    expect(writes).toEqual([959]);
+    expect(rows.style.marginTop).toBe('');
+  }
   /** The view lands at `top` in one scroll event, as a jump does and a discarded write would. */
   const scrollTo = (top: number) =>
     act(() => {
@@ -115,6 +120,12 @@ const mountRoomLedger = () => {
     writes,
     scrollTo,
     endSettleDiscardWatch: () => controller?.endSettleDiscardWatch(),
+    /** The room shows other rows: emptied for an event it has not loaded, say. */
+    replaceRows: () =>
+      act(() => {
+        rowsKey += 1;
+        renderer?.update(React.createElement(Ledger));
+      }),
     unmount: () => act(() => renderer?.unmount()),
   };
 };
@@ -139,6 +150,25 @@ describe('the offset ledger after a settle', () => {
     ledger.scrollTo(0);
     expect(ledger.rows.style.marginTop).toBe('');
     expect(ledger.writes).toEqual([959]);
+    ledger.unmount();
+  });
+
+  it('leaves the view alone once the rows it settled for are replaced', () => {
+    const ledger = mountRoomLedger();
+    // The rows empty for an event the room has not loaded, and the list clamps the view to the top.
+    ledger.replaceRows();
+    ledger.scrollTo(0);
+    expect(ledger.rows.style.marginTop).toBe('');
+    expect(ledger.writes).toEqual([959]);
+    ledger.unmount();
+  });
+
+  it('drops a fold that the replaced rows were still waiting to settle', () => {
+    const ledger = mountRoomLedger({ settle: false });
+    ledger.replaceRows();
+    expect(ledger.rows.style.marginTop).toBe('');
+    ledger.scrollTo(0);
+    expect(ledger.writes).toEqual([]);
     ledger.unmount();
   });
 });

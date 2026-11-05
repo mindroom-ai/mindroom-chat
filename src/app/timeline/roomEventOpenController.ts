@@ -326,7 +326,8 @@ export const useRoomEventOpenController = ({
       setTimeline,
       showHiddenEvents,
       threadId,
-    ])
+    ]),
+    recalibrateFilterOptsRef
   );
 
   const handleOpenEvent = useCallback<OpenRoomEventHandler>(

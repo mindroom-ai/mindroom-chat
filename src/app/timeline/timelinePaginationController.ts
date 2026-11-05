@@ -13,6 +13,7 @@ import {
   type Timeline,
 } from '../event-store/timeline/timelinePagination';
 import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
+import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 
 // How the room view (not a thread) brings in history it does not hold yet: the timeline around
 // one event, for a jump to a row that is not loaded, and one page at the older or newer end of the
@@ -45,6 +46,8 @@ const fetchEventContext = async (
  * A loader for the room's history around one event. Each load ends in one call: `onLoad` with the
  * chain linked to the returned timeline (oldest first) and the event's index across that chain,
  * or `onError` when the request fails, returns nothing, or returns a timeline without the event.
+ * An event without a row under the filters in `filterOptsRef` comes with a page of history on
+ * each side, so the jump lands on the row nearest to it.
  * The handlers of the newest render answer. Loads are neither merged nor cancelled, and the loader
  * does not check that its component is still mounted: the handlers do.
  */
@@ -52,7 +55,8 @@ export const useEventTimelineLoader = (
   mx: MatrixClient,
   room: Room,
   onLoad: (eventId: string, linkedTimelines: EventTimeline[], absoluteIndex: number) => void,
-  onError: () => void
+  onError: () => void,
+  filterOptsRef: RefObject<RecalibrateFilterOpts | undefined>
 ): ((eventId: string) => Promise<void>) => {
   const handlersRef = useLatestRef({ onLoad, onError });
 
@@ -65,6 +69,8 @@ export const useEventTimelineLoader = (
       }
       // The caller counts rows in what it gets, so the returned timeline is decrypted first.
       if (room.hasEncryptionStateEvent()) await decryptQuietly(mx, holder);
+      const filterOpts = filterOptsRef.current;
+      if (filterOpts) await loadRowsAround(mx, room, holder, filterOpts);
       const chain = getLinkedTimelines(holder);
       const absoluteIndex = getEventIdAbsoluteIndex(chain, holder, eventId);
       if (absoluteIndex === undefined) {
@@ -73,7 +79,7 @@ export const useEventTimelineLoader = (
       }
       handlersRef.current.onLoad(eventId, chain, absoluteIndex);
     },
-    [handlersRef, mx, room]
+    [filterOptsRef, handlersRef, mx, room]
   );
 };
 
@@ -138,6 +144,35 @@ const requestPage = async (
   } catch {
     return false;
   }
+};
+
+/**
+ * The server sends the event alone (the SDK asks `/context` for no neighbours), and an event that
+ * makes no row of its own (the room's creation, a reaction, a hidden membership change) leaves a
+ * jump nothing to land on. So when no timeline of the chain around `holder` has a row under
+ * `opts`, one page of history loads on each side of it, decrypted in an encrypted room.
+ */
+const loadRowsAround = async (
+  mx: MatrixClient,
+  room: Room,
+  holder: EventTimeline,
+  opts: RecalibrateFilterOpts
+): Promise<void> => {
+  const chain = getLinkedTimelines(holder);
+  if (chain.some((timeline) => countTimelineRows(timeline, opts) > 0)) return;
+  const ends = [
+    { edge: chain[0], backwards: true },
+    { edge: chain[chain.length - 1], backwards: false },
+  ];
+  await Promise.all(
+    ends.map(({ edge, backwards }) =>
+      edge?.getPaginationToken(backwards ? Direction.Backward : Direction.Forward)
+        ? requestPage(mx, edge, backwards, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE)
+        : false
+    )
+  );
+  if (!room.hasEncryptionStateEvent()) return;
+  await Promise.all(getLinkedTimelines(holder).map((timeline) => decryptQuietly(mx, timeline)));
 };
 
 /**

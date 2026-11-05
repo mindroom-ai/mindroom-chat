@@ -7,6 +7,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
+import type { EventTimeline } from 'matrix-js-sdk';
 import type { ItemRange, ScrollToElement, ScrollToItem } from './useVirtualPaginator';
 import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
@@ -294,4 +295,21 @@ export const useTimelineRowJumps = ({
     [onJump, threadEventIndexMapRef, virtualizerRef]
   );
   return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
+};
+
+/**
+ * Counts the times the room's rows were replaced rather than added to: emptied for an event the
+ * room has not loaded, then the history around it, or the newest rows again. A page of history or
+ * a live row joins the chain on screen and replaces nothing. Counted during render, so the render
+ * that shows new rows has the new count and the offset ledger starts over in it, before a fold or
+ * a settle watch of the old rows can move the new ones.
+ */
+export const useRowsGeneration = (linkedTimelines: EventTimeline[]): number => {
+  const seenRef = useRef({ chain: linkedTimelines, generation: 0 });
+  const seen = seenRef.current;
+  if (seen.chain !== linkedTimelines) {
+    const replaced = !linkedTimelines.some((part) => seen.chain.includes(part));
+    seenRef.current = { chain: linkedTimelines, generation: seen.generation + (replaced ? 1 : 0) };
+  }
+  return seenRef.current.generation;
 };
