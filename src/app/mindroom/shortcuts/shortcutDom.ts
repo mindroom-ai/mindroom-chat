@@ -15,16 +15,18 @@ export const openOverlay = (): ShortcutContext['overlay'] => {
     : 'other';
 };
 
-/** Selected text in a field or on the page, which ⌘C or Ctrl+C is likely about to copy. */
+/** Selected text in the focused text field, which ⌘C or Ctrl+C is likely about to copy. */
 export const hasTextSelection = (): boolean => {
   const focused = document.activeElement;
   if (focused instanceof HTMLInputElement || focused instanceof HTMLTextAreaElement) {
     try {
-      if (focused.selectionStart !== focused.selectionEnd) return true;
+      return focused.selectionStart !== focused.selectionEnd;
     } catch {
       // Inputs without a text selection (number, email) throw on reading it.
+      return false;
     }
   }
+  if (!(focused instanceof HTMLElement) || !focused.isContentEditable) return false;
   const selection = window.getSelection();
-  return !!selection && !selection.isCollapsed && selection.toString() !== '';
+  return !!selection && !selection.isCollapsed && focused.contains(selection.anchorNode);
 };

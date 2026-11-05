@@ -69,7 +69,8 @@ export const HintBadge = style({
 
 export const HintChip = style({
   position: 'absolute',
-  insetBlockEnd: config.space.S400,
+  // At the top: the composer card fills the bottom of the window.
+  insetBlockStart: config.space.S200,
   insetInline: 0,
   marginInline: 'auto',
   width: 'fit-content',
