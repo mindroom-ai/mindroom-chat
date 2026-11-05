@@ -105,11 +105,17 @@ describe('SystemNotification email pusher', () => {
         },
       },
     });
-    const renderer = create(
-      <I18nextProvider i18n={language}>
-        <SystemNotification />
-      </I18nextProvider>
-    );
+    // Inside act, the first render's effects (the language subscription among them) run before
+    // the test goes on. After a bare create() React's scheduler ran them in a later task, and on a
+    // busy machine that came after the language change below.
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <SystemNotification />
+        </I18nextProvider>
+      );
+    });
 
     await act(async () => {
       renderer.root

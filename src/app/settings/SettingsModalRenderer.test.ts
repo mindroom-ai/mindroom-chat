@@ -38,13 +38,19 @@ describe('SettingsModalRenderer', () => {
       initialPage: SettingsPages.PrivacyPage,
     });
 
-    const renderer = create(
-      React.createElement(
-        Provider,
-        { store },
-        React.createElement(SettingsModalRenderer)
-      )
-    );
+    // Inside act, the first render's effects (the store subscription among them) run before the
+    // test goes on. After a bare create() React's scheduler ran them in a later task, and on a busy
+    // machine that came after the close below.
+    let renderer!: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(SettingsModalRenderer)
+        )
+      );
+    });
 
     const settingsView = renderer.root.findByProps({ 'data-testid': 'settings-view' });
     expect(settingsView.props['data-initial-page']).toBe(SettingsPages.PrivacyPage);
