@@ -6,3 +6,4 @@ src/app/mindroom/threads/timelinePaginationController.ts		clean-rewrite
 src/app/hooks/router/useThreadsSelected.ts		clean-rewrite
 src/app/mindroom/threads/timelineReadReceiptController.ts		clean-rewrite
 src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts		clean-rewrite
+src/app/mindroom/sidebar/MindroomTab.tsx		clean-rewrite
