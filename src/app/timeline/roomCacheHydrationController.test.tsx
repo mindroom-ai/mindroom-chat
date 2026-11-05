@@ -6,7 +6,8 @@ import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { deleteCacheStoreDb, saveRoomEventsToCache } from '../event-store/cache/db';
 import { useRoomCacheHydrationController } from './roomCacheHydrationController';
-import { getInitialTimeline, getLinkedTimelines, type Timeline } from '../event-store/timeline/timelinePagination';
+import { getInitialTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
+import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import * as eventRepository from '../event-store/cache/eventRepository';
 
 const SESSION_ID = 'room-hydration-session';

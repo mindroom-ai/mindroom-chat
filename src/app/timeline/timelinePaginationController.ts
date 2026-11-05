@@ -6,13 +6,13 @@ import { decryptAllTimelineEvent } from '../matrix/room';
 import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
 import {
   getEventIdAbsoluteIndex,
-  getLinkedTimelines,
   getTimelinesEventsCount,
   recalibrateTimelinePagination,
   timelineToEventsCount,
   type RecalibrateFilterOpts,
   type Timeline,
 } from '../event-store/timeline/timelinePagination';
+import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 
 // How the room view (not a thread) brings in history it does not hold yet: the timeline around
 // one event, for a jump to a row that is not loaded, and one page at the older or newer end of the

@@ -4,7 +4,8 @@ import { insertCachedRoomTimeline, prependCachedRoomTimeline } from '../event-st
 import { markCacheHydrateEnd, markCacheHydrateStart } from '../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../diagnostics/timelineDebug';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
-import { getLinkedTimelines, getLiveTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
+import { getLiveTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
+import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import {
   createPreferLiveEventMapper,
   findEarliestLoadedRoomEventByCacheOrder,

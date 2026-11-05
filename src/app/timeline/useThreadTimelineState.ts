@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useReducer } from 'react';
 import { Direction, MatrixEvent, Room } from 'matrix-js-sdk';
 import { observeActiveThreadSyncGaps } from '../threads/open/activeThreadSyncGaps';
-import { getLinkedTimelines } from '../event-store/timeline/timelinePagination';
+import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import { useThreadRenderState } from './useThreadRenderState';
 
 export type UseThreadTimelineStateOptions = {

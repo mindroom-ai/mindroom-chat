@@ -34,6 +34,8 @@ vi.mock('../ui/splash', () => ({
 
 vi.mock('../account/lifecycle/initMatrix', () => ({
   clearAllCacheAndReload: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   removeSessionAndReload: vi.fn(() => Promise.resolve()),
 }));
 

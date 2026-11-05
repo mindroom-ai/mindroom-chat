@@ -1,9 +1,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import type { EventTimeline, MatrixEvent, Room } from 'matrix-js-sdk';
-import { getFirstLinkedTimeline, getLinkedTimelines } from './linkedTimelines';
+import { getLinkedTimelines } from './linkedTimelines';
 import { getRenderableEvents } from './roomTimelineEvents';
-
-export { getFirstLinkedTimeline, getLinkedTimelines };
 
 /** Half-open window `[start, end)` of rendered rows. */
 export type TimelineRange = {

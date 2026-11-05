@@ -12,7 +12,7 @@ import {
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { writeCachedSpecVersions } from '../cachedSpecVersions';
-import { startClient } from '../../account/lifecycle/initMatrix';
+import { startClient } from './clientSyncPolicy';
 
 const BASE_URL = 'https://matrix.example';
 const USER_ID = '@alice:example';

@@ -163,7 +163,7 @@ describe('RoomTimeline', () => {
 
     it('shows zero visible replies when a loaded thread only contains hidden threaded metadata relations', async () => {
       const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-        '../../threads/threadBadgeViewModel'
+        '../../event-store/threads/threadRecord'
       );
       const rootEvent = makeEvent('$thread-root', {
         isThreadRoot: true,
@@ -216,7 +216,7 @@ describe('RoomTimeline', () => {
 
     it('preserves bundled thread counts when a thread root is visible before replies are loaded', async () => {
       const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-        '../../threads/threadBadgeViewModel'
+        '../../event-store/threads/threadRecord'
       );
       const rootEvent = makeEvent('$thread-root', {
         isThreadRoot: true,
@@ -2247,7 +2247,7 @@ describe('RoomTimeline', () => {
 
     it('preserves zero replies for recent standalone roots in the regular timeline thread badge logic', async () => {
       const { getThreadReplyCount, shouldRenderZeroReplyThreadBadge } = await import(
-        '../../threads/threadBadgeViewModel'
+        '../../event-store/threads/threadRecord'
       );
       const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
       const standaloneRoot = makeEvent('$thread-root', {

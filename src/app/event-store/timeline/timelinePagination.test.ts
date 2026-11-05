@@ -3,14 +3,13 @@ import { describe, expect, it } from 'vitest';
 import {
   getActiveTimelineRange,
   getEmptyTimeline,
-  getFirstLinkedTimeline,
   getFocusedRoomEventIndex,
   getLatestTimelineRange,
-  getLinkedTimelines,
   getVisibleTimelineRange,
   recalibrateTimelinePagination,
   type Timeline,
 } from './timelinePagination';
+import { getFirstLinkedTimeline, getLinkedTimelines } from './linkedTimelines';
 
 const makeEvent = (eventId: string) =>
   ({

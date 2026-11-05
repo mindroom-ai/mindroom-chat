@@ -126,14 +126,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
       if (source.includes('export async function fetchAllThreadRelations')) {
         definers.push(rel);
       }
-      // `re-export` from `threadBootstrap.ts` is allowed for tests
-      // that still import from that facade; it's the ONE non-engine
-      // file allowed to reference the symbol.
-      const isReExport =
-        rel === 'threads/open/threadBootstrap.ts' &&
-        source.includes("from '../../event-store/engine/threadRelationsFetcher'");
       if (rel.startsWith('event-store/engine/')) continue;
-      if (isReExport) continue;
       // Only match import statements, not comments.
       if (/from\s+['"][^'"]*['"];?\s*$/m.test(source)) {
         const importsFromEngine =
@@ -143,7 +136,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
         if (importsFromEngine) {
           nonEngineImporters.push(rel);
         }
-        // Non-engine, non-re-export files that import the symbol from
+        // Non-engine files that import the symbol from
         // anywhere else trip the guard too.
         const importsFromNonEngine =
           /import\s+\{[^}]*fetchAllThreadRelations[^}]*\}\s+from\s+['"](?!.*engine)/.test(source);

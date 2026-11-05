@@ -9,7 +9,7 @@ import {
 import to from 'await-to-js';
 import { getLatestEdit } from '../../matrix/room';
 import { logMindroomEditDebug as logEditDebug } from '../../matrix/protocol/editDebug';
-import { getLinkedTimelines } from '../../event-store/timeline/timelinePagination';
+import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { isScrollNearBottom } from '../../event-store/timeline/timelineScrollUtils';
 import {
   markThreadEditBackfillAttempted,

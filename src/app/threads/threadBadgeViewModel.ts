@@ -1,12 +1,5 @@
 import { isThreadReplyEvent } from '../event-store/threads/threadUtils';
-import {
-  getKnownThreadReplyCount,
-  getThreadReplyCount,
-  shouldRenderZeroReplyThreadBadge,
-} from '../event-store/threads/threadRecord';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
-
-export { getKnownThreadReplyCount, getThreadReplyCount, shouldRenderZeroReplyThreadBadge };
 
 type BuildThreadBadgeViewModelFromRecordOptions = {
   record: ThreadRecord;

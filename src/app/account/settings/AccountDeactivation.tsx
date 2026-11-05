@@ -8,7 +8,7 @@ import { useAlive } from '../../lib/hooks/useAlive';
 import { getAccountManagementUrl } from '../useAccountManagement';
 import { useServerConfigs } from '../../matrix/ServerConfigsLoader';
 import { getActiveSession } from '../../matrix/session/sessions';
-import { removeCurrentClientSessionAndReload } from '../lifecycle/initMatrix';
+import { removeCurrentClientSessionAndReload } from '../lifecycle/sessionLifecycle';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../uia/useAuthenticatedAction';
 import { SettingsOverlay } from '../../ui/settings/SettingsOverlay';

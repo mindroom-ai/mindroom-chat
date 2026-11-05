@@ -6,16 +6,20 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import {
   clearAllCacheAndReload,
-  DeviceIdentityVerificationError,
   initClient,
-  LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   logoutClient,
-  MissingCryptoStoreError,
-  removeCurrentClientSessionAndReload,
   removeStoredSession,
+} from './initMatrix';
+import { removeCurrentClientSessionAndReload } from './sessionLifecycle';
+import {
+  DeviceIdentityVerificationError,
+  MissingCryptoStoreError,
+} from '../../matrix/client/cryptoStoreContinuity';
+import {
+  LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
   STARTUP_SYNC_TIMELINE_LIMIT,
   startClient,
-} from './initMatrix';
+} from '../../matrix/client/clientSyncPolicy';
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 import { TOKEN_REFRESH_TIMEOUT_MS } from '../../matrix/client/sessionTokenRefresh';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';

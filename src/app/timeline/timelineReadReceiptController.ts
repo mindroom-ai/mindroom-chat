@@ -19,7 +19,8 @@ import {
   markThreadAsRead,
 } from '../notifications/readReceipts';
 import type { ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
-import { getEventTimeline, getFirstLinkedTimeline } from '../event-store/timeline/timelinePagination';
+import { getEventTimeline } from '../event-store/timeline/timelinePagination';
+import { getFirstLinkedTimeline } from '../event-store/timeline/linkedTimelines';
 import { TIMELINE_BOTTOM_THRESHOLD_PX } from '../event-store/timeline/timelineScrollUtils';
 
 /**

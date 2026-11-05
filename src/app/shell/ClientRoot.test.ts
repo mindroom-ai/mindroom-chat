@@ -9,12 +9,9 @@ import { SpecVersions } from './SpecVersions';
 import { useActiveSession } from '../matrix/session/useSessionStore';
 import { useClientConfig } from '../config/useClientConfig';
 import { StoredSession } from '../matrix/session/sessions';
-import {
-  clearAllCacheAndReload,
-  initClient,
-  removeCurrentClientSessionAndReload,
-  startClient,
-} from '../account/lifecycle/initMatrix';
+import { clearAllCacheAndReload, initClient } from '../account/lifecycle/initMatrix';
+import { removeCurrentClientSessionAndReload } from '../account/lifecycle/sessionLifecycle';
+import { startClient } from '../matrix/client/clientSyncPolicy';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
 
 const { passthrough } = vi.hoisted(() => ({
@@ -64,8 +61,12 @@ vi.mock('../account/lifecycle/initMatrix', () => ({
   clearAllCacheAndReload: vi.fn().mockResolvedValue(undefined),
   initClient: vi.fn(),
   logoutClient: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   removeCurrentClientSessionAndReload: vi.fn().mockResolvedValue(undefined),
   removeSessionAndReload: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../matrix/client/clientSyncPolicy', () => ({
   startClient: vi.fn(),
 }));
 

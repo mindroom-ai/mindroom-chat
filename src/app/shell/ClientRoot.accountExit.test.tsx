@@ -14,11 +14,9 @@ import {
 } from '../composer/roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { agentCallFailureAtom } from '../calls/agent/agentCaller';
-import {
-  initClient,
-  removeCurrentClientSessionAndReload,
-  startClient,
-} from '../account/lifecycle/initMatrix';
+import { initClient } from '../account/lifecycle/initMatrix';
+import { removeCurrentClientSessionAndReload } from '../account/lifecycle/sessionLifecycle';
+import { startClient } from '../matrix/client/clientSyncPolicy';
 
 // What ClientRoot leaves behind when an account's session ends: a switch to another account
 // must not carry composer state over, and a server logout removes the account once.
@@ -49,8 +47,12 @@ vi.mock('../account/lifecycle/initMatrix', () => ({
   clearAllCacheAndReload: vi.fn(),
   initClient: vi.fn(),
   logoutClient: vi.fn(),
+}));
+vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   removeCurrentClientSessionAndReload: vi.fn(),
   removeSessionAndReload: vi.fn(),
+}));
+vi.mock('../matrix/client/clientSyncPolicy', () => ({
   startClient: vi.fn(),
 }));
 vi.mock('../matrix/client/secretStorageKeys', () => ({ clearSecretStorageKeys: vi.fn() }));

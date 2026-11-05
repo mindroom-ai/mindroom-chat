@@ -6,11 +6,9 @@ import ts from 'typescript';
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 
 export const APP_ROOT = resolve(TEST_DIR, '../app');
-export const MINDROOM_ROOT = APP_ROOT;
 export const REPO_ROOT = resolve(APP_ROOT, '../..');
 
 export const appFile = (relativePath: string): string => resolve(APP_ROOT, relativePath);
-export const mindroomFile = (relativePath: string): string => resolve(MINDROOM_ROOT, relativePath);
 export const repoFile = (relativePath: string): string => resolve(REPO_ROOT, relativePath);
 
 export const pathExists = (path: string): boolean => existsSync(path);

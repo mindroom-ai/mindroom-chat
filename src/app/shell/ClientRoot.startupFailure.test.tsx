@@ -41,8 +41,12 @@ vi.mock('../account/lifecycle/initMatrix', () => ({
   clearAllCacheAndReload: vi.fn(),
   initClient: vi.fn(),
   logoutClient: vi.fn(),
+}));
+vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   removeCurrentClientSessionAndReload: vi.fn(),
   removeSessionAndReload: vi.fn(),
+}));
+vi.mock('../matrix/client/clientSyncPolicy', () => ({
   startClient: vi.fn(),
 }));
 vi.mock('../matrix/client/secretStorageKeys', () => ({ clearSecretStorageKeys: vi.fn() }));

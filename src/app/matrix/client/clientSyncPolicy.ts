@@ -5,8 +5,9 @@ import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 
-// How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates the client
-// and its stores and then calls `startClient` here; this module does not import it.
+// How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates
+// the client and its stores; the app shell (src/app/shell/ClientRoot.tsx) then calls `startClient`
+// here. This module imports neither.
 
 /** Timeline events per room in a /sync response: enough for previews and the first screen. */
 export const STARTUP_SYNC_TIMELINE_LIMIT = 20;

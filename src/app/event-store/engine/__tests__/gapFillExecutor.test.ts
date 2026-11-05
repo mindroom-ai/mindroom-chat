@@ -3,7 +3,7 @@ import 'fake-indexeddb/auto';
 import { IDBFactory, IDBDatabase } from 'fake-indexeddb';
 import { Direction, MatrixEvent } from 'matrix-js-sdk';
 import type { IEvent, MatrixClient, Room } from 'matrix-js-sdk';
-import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../account/lifecycle/initMatrix';
+import { STARTUP_SYNC_TIMELINE_LIMIT } from '../../../matrix/client/clientSyncPolicy';
 import { createBackfillScheduler } from '../backfillScheduler';
 import { createGapFillExecutor as createExecutor } from '../gapFillExecutor';
 import { createInMemoryGapFillScheduler, GAP_FILL_OVERLAP_TAIL_LIMIT } from '../engineGapTracker';

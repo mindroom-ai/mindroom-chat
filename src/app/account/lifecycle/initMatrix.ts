@@ -24,13 +24,9 @@ import {
 import { createStoredSessionTokenRefresh } from '../../matrix/client/sessionTokenRefresh';
 import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
 
-// Account removal, logout and cache clearing live in the MindRoom session lifecycle module;
-// this module is the startup orchestrator and hands them to the app shell. The ones that end an
-// account's session also drop the avatars that account fetched (avatarMedia keeps them per account).
-export {
-  removeCurrentClientSessionAndReload,
-  removeSessionAndReload,
-} from './sessionLifecycle';
+// Account removal, logout and cache clearing live in sessionLifecycle.ts. The three below end an
+// account's session and also drop the avatars that account fetched (avatarMedia keeps them per
+// account), so callers take them from here.
 
 // The account a client signed in as, or undefined when it has none (then every avatar goes).
 const accountOf = (mx: MatrixClient): string | undefined => {
@@ -62,13 +58,6 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   clearFetchedAvatars();
   await sessionLifecycle.clearAllCacheAndReload(mx);
 };
-export { DeviceIdentityVerificationError, MissingCryptoStoreError };
-// How the client syncs is the MindRoom sync policy's; the app shell starts the client from here.
-export {
-  LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT,
-  STARTUP_SYNC_TIMELINE_LIMIT,
-  startClient,
-} from '../../matrix/client/clientSyncPolicy';
 
 const MAX_CLIENT_LISTENERS = 50;
 

@@ -44,14 +44,12 @@ import {
 import type { StoredSession } from '../matrix/session/sessions';
 import { closeClient } from '../matrix/client/closeClient';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
+import { clearAllCacheAndReload, initClient, logoutClient } from '../account/lifecycle/initMatrix';
 import {
-  clearAllCacheAndReload,
-  initClient,
-  logoutClient,
   removeCurrentClientSessionAndReload,
   removeSessionAndReload,
-  startClient,
-} from '../account/lifecycle/initMatrix';
+} from '../account/lifecycle/sessionLifecycle';
+import { startClient } from '../matrix/client/clientSyncPolicy';
 import { getLoginPath } from '../routes/pathUtils';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { SpecVersions } from './SpecVersions';

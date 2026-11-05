@@ -7,11 +7,12 @@ import {
   hasLikelyIncompleteStreamingBody,
   shouldFetchThreadEditBackfill,
 } from '../../event-store/threads/threadEditBackfill';
-import { getLinkedTimelines, getLiveTimeline } from '../../event-store/timeline/timelinePagination';
+import { getLiveTimeline } from '../../event-store/timeline/timelinePagination';
+import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
 import { eventBelongsToThread, findThreadRootEvent, isThreadReplyEvent } from '../../event-store/threads/threadUtils';
 import { reactionOrEditEvent } from '../../matrix/room';
 import { getThreadCacheTargetId } from '../../event-store/cache/eventRepository';
-import { getKnownThreadReplyCount } from '../threadBadgeViewModel';
+import { getKnownThreadReplyCount } from '../../event-store/threads/threadRecord';
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 
