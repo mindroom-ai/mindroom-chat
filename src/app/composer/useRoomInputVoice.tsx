@@ -8,6 +8,7 @@ import { IconButton } from '../ui/glass/GlassPrimitives';
 import { IconTooltip } from '../ui/IconTooltip';
 import { useMediaConfig } from '../matrix/hooks/useMediaConfig';
 import {
+  type PendingVoiceSendContext,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
@@ -21,12 +22,13 @@ import {
 } from '../matrix/matrix';
 import { Membership } from '../matrix/types/room';
 import {
-  MindroomVoiceRecorderComposer,
   getMindroomRoomInputVoiceSendContext,
   refreshMindroomRoomInputVoiceSendContext,
-  type MindroomVoiceRecorderComposerHandle,
-  type MindroomVoiceSendContext,
 } from './RoomInputExtensions';
+import {
+  VoiceRecorderComposer,
+  type VoiceRecorderComposerHandle,
+} from './voice/VoiceRecorderDialog';
 import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController';
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
@@ -34,13 +36,13 @@ import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport'
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
-    MindroomVoiceSendContext,
+    PendingVoiceSendContext,
     'roomId' | 'room' | 'threadId' | 'replyDraft' | 'threadingEnabled'
   >;
   snapshotText: () => Descendant[];
   resetText: () => void;
   restoreText: (roomId: string, fragment: Descendant[], threadId?: string) => void;
-  clearConsumedReply: (context: Pick<MindroomVoiceSendContext, 'roomId' | 'replyDraft'>) => void;
+  clearConsumedReply: (context: Pick<PendingVoiceSendContext, 'roomId' | 'replyDraft'>) => void;
 };
 
 type UseRoomInputVoiceOptions = {
@@ -69,7 +71,7 @@ type VoiceFeature = {
 type PendingVoiceComposerBundle = {
   roomId: string;
   composerThreadId?: string;
-  relationContext?: Pick<MindroomVoiceSendContext, 'threadId' | 'replyDraft' | 'threadingEnabled'>;
+  relationContext?: Pick<PendingVoiceSendContext, 'threadId' | 'replyDraft' | 'threadingEnabled'>;
   textContent?: IContent;
   composerFallback?: Descendant[];
   companionItems: TUploadItem[];
@@ -111,7 +113,7 @@ export const useRoomInputVoice = ({
       : undefined;
   const voiceAutoSendClaimedRef = useRef(false);
   const voiceAutoSendInFlightRef = useRef(false);
-  const voiceRecorderRef = useRef<MindroomVoiceRecorderComposerHandle>(null);
+  const voiceRecorderRef = useRef<VoiceRecorderComposerHandle>(null);
   const pendingVoiceComposerBundleRef = useRef<PendingVoiceComposerBundle>();
 
   // When this room owns a pending failed-send draft (e.g. survived a
@@ -176,7 +178,7 @@ export const useRoomInputVoice = ({
   // and persists that effective send context so failure retries keep the attempted destination.
   // The session id prevents a parked draft from leaking audio across account switches.
   const getVoiceSendContext = useCallback(
-    (): MindroomVoiceSendContext =>
+    (): PendingVoiceSendContext =>
       getMindroomRoomInputVoiceSendContext({
         ownerSessionId: mx.getUserId() ?? '',
         ...getContext(),
@@ -225,7 +227,7 @@ export const useRoomInputVoice = ({
       file: File,
       duration: number,
       waveform: number[] | undefined,
-      context: MindroomVoiceSendContext
+      context: PendingVoiceSendContext
     ) => {
       // Wrap the ENTIRE body in try/finally. The voice auto-send slot is
       // claimed by claimVoiceAutoSend() in onSendStopRequest BEFORE this
@@ -236,7 +238,7 @@ export const useRoomInputVoice = ({
       // releaseVoiceAutoSend() short-circuits when no claim is held, so
       // calling it unconditionally is safe even on the un-claimed path.
       let fileItems: TUploadItem[] = [];
-      let liveContext: MindroomVoiceSendContext | null = null;
+      let liveContext: PendingVoiceSendContext | null = null;
       let sentEventIdToNotify: string | undefined;
       let voiceSent = false;
       const logAndThrowUploadError = (err: unknown, stage: MatrixUploadErrorStage): never => {
@@ -488,7 +490,7 @@ export const useRoomInputVoice = ({
 
   const renderRecorder = (onRetryRequest: () => void): React.ReactNode =>
     voiceRecorderOpen || ownsPendingVoiceDraft ? (
-      <MindroomVoiceRecorderComposer
+      <VoiceRecorderComposer
         ref={voiceRecorderRef}
         active={voiceRecorderOpen}
         sendDisabled={voiceAutoSendPending}

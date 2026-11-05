@@ -3,15 +3,13 @@ import type { createStore } from 'jotai';
 import type { IContent, MatrixClient, Room } from 'matrix-js-sdk';
 import { getAudioMsgContent } from '../matrix/send/msgContent';
 import {
+  type PendingVoiceSendContext,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
 import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
-import {
-  getMindroomRoomInputVoiceUploadRelation,
-  type MindroomVoiceSendContext,
-} from './RoomInputExtensions';
+import { getMindroomRoomInputVoiceUploadRelation } from './RoomInputExtensions';
 import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 
 type Store = ReturnType<typeof createStore>;
@@ -119,7 +117,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
   );
 
   const sendVoiceItem = useCallback(
-    async (context: MindroomVoiceSendContext, item: TUploadItem, mxc: string): Promise<string> => {
+    async (context: PendingVoiceSendContext, item: TUploadItem, mxc: string): Promise<string> => {
       const content: IContent = getAudioMsgContent(
         item,
         mxc,

@@ -80,12 +80,12 @@ import {
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
-  useRoomInputSendSessionController,
 } from './RoomInputExtensions';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
+import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import {
   getVoiceMessageContentOptions,
   useRoomInputUploadTransport,

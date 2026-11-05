@@ -11,8 +11,6 @@ import { AgentCommandAutocomplete } from './commands/CommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './commands/agentCommandQuery';
 import { PendingSendIndicator } from '../ui/pendingSendIndicator';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
-import { VoiceRecorderComposer } from './voice/VoiceRecorderDialog';
-import type { VoiceRecorderComposerHandle } from './voice/VoiceRecorderDialog';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
   createRoomInputSendSessionState,
@@ -20,8 +18,6 @@ import {
 } from './roomInputSendSession';
 import type { TUploadContent } from '../matrix/matrix';
 import type { MindroomPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
-
-export { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 
 export type MindroomRoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
 export type MindroomRoomInputAutocompleteQuery =
@@ -37,14 +33,6 @@ type MindroomRoomInputThreadIndicatorProps = {
   room: Room;
   relation: IReplyDraft['relation'] | undefined;
 };
-/**
- * Voice send context is the stricter PendingVoiceSendContext (with
- * ownerSessionId) so the parked failed-send atom can be account-scoped.
- * The broader RoomInputSendContext used for synchronous send sessions does
- * not need account stamping because it never outlives the active send.
- */
-export type MindroomVoiceSendContext = PendingVoiceSendContext;
-export type MindroomVoiceRecorderComposerHandle = VoiceRecorderComposerHandle;
 
 type MindroomRoomInputReplyContextProps = {
   children?: React.ReactNode;
@@ -77,7 +65,7 @@ export const getMindroomRoomInputVoiceSendContext = ({
   threadId: string | undefined;
   replyDraft: IReplyDraft | undefined;
   threadingEnabled?: boolean;
-}): MindroomVoiceSendContext => ({
+}): PendingVoiceSendContext => ({
   ownerSessionId,
   roomId,
   room,
@@ -98,8 +86,8 @@ export const getMindroomRoomInputVoiceSendContext = ({
  */
 export const refreshMindroomRoomInputVoiceSendContext = (
   mx: MatrixClient,
-  context: MindroomVoiceSendContext
-): MindroomVoiceSendContext | null => {
+  context: PendingVoiceSendContext
+): PendingVoiceSendContext | null => {
   const liveRoom = mx.getRoom(context.roomId);
   if (!liveRoom || liveRoom.getMyMembership() !== Membership.Join) return null;
   return {
@@ -110,7 +98,7 @@ export const refreshMindroomRoomInputVoiceSendContext = (
 };
 
 export const getMindroomRoomInputVoiceUploadRelation = (
-  context: MindroomVoiceSendContext,
+  context: PendingVoiceSendContext,
   file: TUploadContent
 ) => {
   const session = {
@@ -214,5 +202,3 @@ export function MindroomRoomInputReplyContext({
     </Box>
   );
 }
-
-export { VoiceRecorderComposer as MindroomVoiceRecorderComposer };

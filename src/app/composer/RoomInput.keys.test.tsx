@@ -101,6 +101,8 @@ vi.mock('./RoomInputExtensions', () => ({
   isMindroomRoomInputAutocompleteQuery: () => false,
   MindroomRoomInputAutocomplete: () => null,
   MindroomRoomInputReplyContext: () => null,
+}));
+vi.mock('./useRoomInputSendSessionController', () => ({
   useRoomInputSendSessionController: () => ({ startSendSession: state.startSendSession }),
 }));
 vi.mock('./RoomInputReplyPreview', () => ({ RoomInputReplyPreview: () => null }));

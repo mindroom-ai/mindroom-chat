@@ -434,9 +434,6 @@ vi.mock('../commands/useCommands', () => ({
 }));
 
 vi.mock('../RoomInputExtensions', async () => {
-  const { useRoomInputSendSessionController } = await vi.importActual<
-    typeof import('../useRoomInputSendSessionController')
-  >('../useRoomInputSendSessionController');
   const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
     await vi.importActual<typeof import('../roomInputSendSession')>(
       '../roomInputSendSession'
@@ -574,7 +571,12 @@ vi.mock('../RoomInputExtensions', async () => {
           : null
       );
     },
-    MindroomVoiceRecorderComposer: React.forwardRef(
+  };
+});
+
+vi.mock('../voice/VoiceRecorderDialog', () => {
+  return {
+    VoiceRecorderComposer: React.forwardRef(
       (
         {
           onSendRecording,
@@ -614,7 +616,6 @@ vi.mock('../RoomInputExtensions', async () => {
         return React.createElement('div');
       }
     ),
-    useRoomInputSendSessionController,
   };
 });
 
