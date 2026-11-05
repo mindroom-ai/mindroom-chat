@@ -161,5 +161,6 @@ The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5
 |---|---|---|---|
 | before rewrite | 52 (694 lines) | 129 (1842 lines) | `docs/provenance/audit/2026-11-03-before-rewrite/` |
 | after rewrite | 0 | 16 (182 lines) | `docs/provenance/audit/2026-11-03/` |
+| after the restructure and the clean-room rewrites (main `9d9848bc`) | 0 | 48 (597 lines), all against MindRoom Chat's own code, mostly test boilerplate; the MindRoom Chat checkout included its `.worktrees/` | `docs/provenance/audit/2026-11-05/` |
 
 None of the 135 flagged spans before the rewrite was explained by a Lane P file in this repository, so all were rewritten from their file and line ranges alone. After the rewrite, 15 of the 16 MindRoom Chat clones are new Lane C tests that mirror the setup of ported Lane P tests present in this repository (the matched MindRoom Chat files are Lane P here), and the last one is the dependency list in `package.json` (package names and versions).
