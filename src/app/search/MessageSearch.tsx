@@ -43,7 +43,7 @@ import {
   normalizeMessageSearchRooms,
   shouldDeferImplicitMessageSearch,
 } from './messageSearchScope';
-import { SearchResultItem, type SearchResultBodyRenderer } from './SearchResultGroup';
+import { SearchResultItem } from './SearchResultGroup';
 import { SearchRoomPicker } from './MessageSearchFilters';
 import { useMessageSearch } from './useMessageSearch';
 import { useOpenSearchResult } from './useOpenSearchResult';
@@ -60,7 +60,6 @@ export type MessageSearchProps = {
   allowGlobal?: boolean;
   /** The page's scroll container; results load more as it nears the end. */
   scrollRef: RefObject<HTMLDivElement>;
-  renderBody: SearchResultBodyRenderer;
 };
 
 type MessageSearchRow = ReturnType<typeof flattenMessageSearchRows>[number];
@@ -115,7 +114,6 @@ export function MessageSearch({
   scopeName,
   allowGlobal = true,
   scrollRef,
-  renderBody,
 }: MessageSearchProps) {
   const client = useMatrixClient();
   const { t } = useTranslation();
@@ -265,7 +263,6 @@ export function MessageSearch({
           item={row.item}
           highlights={highlights}
           highlightRegex={highlightRegex}
-          renderBody={renderBody}
           onOpen={(roomId, target) => void open(roomId, target)}
         />
       </Box>

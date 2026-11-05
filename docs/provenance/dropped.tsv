@@ -88,3 +88,5 @@ src/app/mindroom/messages/replyExtensions.tsx	1	merged into src/app/messages/rep
 src/app/mindroom/messages/messageExtensions.tsx	1	merged into src/app/messages/Message.tsx (restructure-p3-c4)
 src/app/mindroom/threads/roomTimelineMessageExtensions.test.ts	1	merged into src/app/timeline/ThreadBadge.test.ts (restructure-p3-c3)
 src/app/mindroom/threads/roomTimelineMessageExtensions.tsx	1	merged into src/app/timeline/ThreadBadge.tsx; its approval content call inlined into src/app/timeline/message-rendering/useTimelineMessageFeature.tsx (restructure-p3-c3)
+src/app/mindroom/message-search/MindroomMessageSearch.tsx	1	restructure: adapter, MessageSearchPage renders MessageSearch directly (restructure-p3-c6)
+src/app/mindroom/message-search/searchResultBodyRenderer.tsx	1	merged into src/app/search/SearchResultGroup.tsx (restructure-p3-c6)

@@ -1,24 +1,12 @@
-import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
 import { Box, Chip, Text, config } from 'folds';
 import { SequenceCard } from '../ui/sequence-card';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getSearchResultOpenTarget, type SearchResultOpenTarget } from './searchResultOpenTarget';
+import { MindroomSearchResultBody, type SearchResultBodyProps } from './SearchResultBody';
 import type { ResultItem } from './useMessageSearch';
-
-/** What a body renderer gets for one search hit. */
-export type SearchResultBodyProps = {
-  room: Room;
-  item: ResultItem;
-  highlights: string[];
-  highlightRegex?: RegExp;
-};
-
-/** Renders the message body of a search hit; MindRoom supplies its own. */
-export type SearchResultBodyRenderer = (props: SearchResultBodyProps) => ReactNode;
 
 function SearchResultTime({ ts }: { ts: number }) {
   const relative = useRelativeTime(ts);
@@ -30,12 +18,11 @@ function SearchResultTime({ ts }: { ts: number }) {
 }
 
 type SearchResultItemProps = SearchResultBodyProps & {
-  renderBody: SearchResultBodyRenderer;
   onOpen: (roomId: string, target: SearchResultOpenTarget) => void;
 };
 
 /** One hit: who sent it, when, its body, and a way to jump to it. */
-export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultItemProps) {
+export function SearchResultItem({ onOpen, ...props }: SearchResultItemProps) {
   const { t } = useTranslation();
   const { room, item } = props;
   const { event } = item;
@@ -67,7 +54,7 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
         </Chip>
       </Box>
       <Box direction="Column" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-        {renderBody(props)}
+        <MindroomSearchResultBody {...props} />
       </Box>
     </SequenceCard>
   );
@@ -76,7 +63,6 @@ export function SearchResultItem({ renderBody, onOpen, ...props }: SearchResultI
 type SearchResultGroupProps = Omit<SearchResultBodyProps, 'item'> & {
   /** The room's hits, in the order the server ranked them. */
   items: ResultItem[];
-  renderBody: SearchResultBodyRenderer;
   onOpen: (roomId: string, target: SearchResultOpenTarget) => void;
 };
 

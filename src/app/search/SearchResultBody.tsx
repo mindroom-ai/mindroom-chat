@@ -1,6 +1,6 @@
 import React, { Fragment, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MatrixEvent, type IEventWithRoomId } from 'matrix-js-sdk';
+import { MatrixEvent, type IEventWithRoomId, type Room } from 'matrix-js-sdk';
 import { Box, Text } from 'folds';
 import { RenderMessageContent } from '../messages/content/RenderMessageContent';
 import { RenderBody } from '../messages/content/RenderBody';
@@ -13,7 +13,6 @@ import { settingsAtom } from '../preferences/settings';
 import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { MessageEvent, StateEvent } from '../matrix/types/room';
-import type { SearchResultBodyProps } from './SearchResultGroup';
 import { getSearchResultOpenTarget } from './searchResultOpenTarget';
 import {
   getSearchResultEffectiveContent,
@@ -22,8 +21,17 @@ import {
   isSearchResultEdited,
   shouldUseLightweightSearchResultBody,
 } from './searchResultPreview';
+import type { ResultItem } from './useMessageSearch';
 import * as css from './SearchResultBody.css';
 import { matchesEnum } from '../lib/matchesEnum';
+
+/** One search hit and the terms the server matched in it. */
+export type SearchResultBodyProps = {
+  room: Room;
+  item: ResultItem;
+  highlights: string[];
+  highlightRegex?: RegExp;
+};
 
 const highlightText = (text: string, regex?: RegExp): React.ReactNode => {
   if (!regex) return text;

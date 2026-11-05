@@ -1,13 +1,7 @@
 import { useRef } from 'react';
 import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import {
-  Page,
-  PageContent,
-  PageContentCenter,
-  PageHeader,
-  PageScroll,
-} from '../ui/page';
+import { Page, PageContent, PageContentCenter, PageHeader, PageScroll } from '../ui/page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { useSpace } from '../matrix/hooks/useSpace';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
@@ -15,9 +9,9 @@ import { useHomeSearchRooms } from '../matrix/state/useHomeRooms';
 import { useSpaceSearchRooms } from '../matrix/state/useSpaceSearchRooms';
 import { HOME_PATH } from '../routes/paths';
 import { getSpacePath } from '../routes/pathUtils';
-import { MindroomMessageSearch, type MindroomMessageSearchProps } from './AgentMessageSearch';
+import { MessageSearch, type MessageSearchProps } from './MessageSearch';
 
-type SearchPageProps = Omit<MindroomMessageSearchProps, 'scrollRef'> & {
+type SearchPageProps = Omit<MessageSearchProps, 'scrollRef'> & {
   /** The section list a phone's back arrow returns to. */
   backTo: string;
 };
@@ -42,7 +36,7 @@ function SearchPage({ backTo, ...searchProps }: SearchPageProps) {
       <PageScroll scrollRef={scrollRef}>
         <PageContent>
           <PageContentCenter>
-            <MindroomMessageSearch {...searchProps} scrollRef={scrollRef} />
+            <MessageSearch {...searchProps} scrollRef={scrollRef} />
           </PageContentCenter>
         </PageContent>
       </PageScroll>
