@@ -367,6 +367,10 @@ test('typing shows rooms, people and actions at once while delayed message hits 
   const before = await optionIds(page);
   const chosen = await highlighted(page).getAttribute('data-item-id');
   expect(chosen).toBe(before[2]);
+  // The palette slides 5 px up as it opens (200 ms); measure where it comes to rest.
+  await palette(page).evaluate((dialog) =>
+    Promise.all(dialog.parentElement!.getAnimations().map((animation) => animation.finished))
+  );
   const chosenBox = await highlighted(page).boundingBox();
 
   await expect(options(page, 'message').first()).toBeVisible({ timeout: 15_000 });
