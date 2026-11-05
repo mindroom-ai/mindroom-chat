@@ -1,7 +1,8 @@
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
+import isHotkey from 'is-hotkey';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import {
@@ -100,6 +101,9 @@ export type RoomViewHeaderProps = {
 export type HeaderCallPlacement =
   | { at: 'header'; phone: boolean }
   | { at: 'menu'; requestClose: () => void };
+
+const menuForward = (event: KeyboardEvent) => isHotkey(['arrowdown', 'tab'], event);
+const menuBackward = (event: KeyboardEvent) => isHotkey(['arrowup', 'shift+tab'], event);
 
 type HeaderActionProps = {
   label: string;
@@ -265,6 +269,17 @@ export function RoomViewHeader({
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
   const [prompt, setPrompt] = useState<'invite' | 'leave' | 'jumpToTime'>();
+  // The prompts open from an entry of the menu, which is gone once they close; focus then goes
+  // back to the menu's button instead of the start of the page.
+  const menuButton = useRef<HTMLElement>();
+  const closePrompt = () => {
+    setPrompt(undefined);
+    requestAnimationFrame(() => {
+      const focused = document.activeElement;
+      if (focused && focused !== document.body && focused.isConnected) return;
+      if (menuButton.current?.isConnected) menuButton.current.focus();
+    });
+  };
 
   // A direct chat shows the other person, by picture or initial.
   const pictureMxc = useRoomAvatar(room, direct);
@@ -475,7 +490,10 @@ export function RoomViewHeader({
         <HeaderAction
           label={t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions')}
           icon={Icons.VerticalDots}
-          onClick={(event) => setMenuAnchor(rectOf(event))}
+          onClick={(event) => {
+            menuButton.current = event.currentTarget;
+            setMenuAnchor(rectOf(event));
+          }}
           buttonProps={{ 'aria-haspopup': 'menu', 'aria-expanded': !!menuAnchor }}
         />
       </Box>
@@ -521,6 +539,9 @@ export function RoomViewHeader({
                 setMenuAnchor(undefined);
                 return true;
               },
+              // The arrow keys move between the entries, as in the other menus.
+              isKeyForward: menuForward,
+              isKeyBackward: menuBackward,
             }}
           >
             <RoomHeaderMenu
@@ -551,15 +572,15 @@ export function RoomViewHeader({
         }
       />
       {prompt === 'invite' && (
-        <InviteUserPrompt room={room} requestClose={() => setPrompt(undefined)} />
+        <InviteUserPrompt room={room} requestClose={closePrompt} />
       )}
       {prompt === 'jumpToTime' && (
-        <JumpToTime room={room} requestClose={() => setPrompt(undefined)} />
+        <JumpToTime room={room} requestClose={closePrompt} />
       )}
       {prompt === 'leave' && (
         <LeaveRoomPrompt
           roomId={room.roomId}
-          requestClose={() => setPrompt(undefined)}
+          requestClose={closePrompt}
           onLeft={() => {
             setPrompt(undefined);
             navigate(sectionPath);
