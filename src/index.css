@@ -76,6 +76,28 @@ select {
   color: inherit;
 }
 
+/* iOS Safari zooms the page into a text field that writes smaller than 16 px when the field takes
+   the focus, and leaves the page zoomed; the app's fields write at 15 px. On a touch screen they
+   write at 16 px; a desktop keeps their own size. */
+@media (hover: none) and (pointer: coarse) {
+  input:not(
+      [type='button'],
+      [type='checkbox'],
+      [type='color'],
+      [type='file'],
+      [type='hidden'],
+      [type='image'],
+      [type='radio'],
+      [type='range'],
+      [type='reset'],
+      [type='submit']
+    ),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* A button paints only the fill its own styles give it, not the browser's grey. */
 button {
   background-color: transparent;
