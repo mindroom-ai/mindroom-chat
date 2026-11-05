@@ -23,6 +23,8 @@ const update = vi.hoisted(() => {
   };
 });
 vi.mock('../../../appUpdate', () => update);
+const reports = vi.hoisted(() => ({ reportBoundaryError: vi.fn() }));
+vi.mock('../../features/error-reporting/errorReporting', () => reports);
 vi.mock('../glass/GlassPrimitives', () => ({
   Dialog: ({ children, role }: { children?: ReactNode; role?: string }) => (
     <div role={role}>{children}</div>
@@ -63,6 +65,7 @@ describe('AppErrorBoundary', () => {
     update.state.version = undefined;
     update.checkForNewVersion.mockClear();
     update.reloadForNewVersion.mockClear();
+    reports.reportBoundaryError.mockClear();
   });
 
   it('shows what happened, the error text and Reload in place of a screen that failed', () => {
@@ -76,6 +79,14 @@ describe('AppErrorBoundary', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
     expect(update.reloadForNewVersion).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Reload' }).hasAttribute('disabled')).toBe(true);
+  });
+
+  it('hands the error and its component stack to the error reports', () => {
+    renderBroken();
+    expect(reports.reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'TypeError' }),
+      expect.stringContaining('Broken')
+    );
   });
 
   it('asks the server for its version, and says when a new one is the cause', () => {
