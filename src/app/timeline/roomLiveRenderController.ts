@@ -1,5 +1,11 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
-import { RelationType, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import {
+  EventStatus,
+  RelationType,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 import { isZeroReplyStandaloneThreadRootEvent } from '../event-store/threads/compactThreadRootData';
 import type { ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { isThreadOnlyRoomActivity } from '../event-store/threads/threadRenderUtils';
@@ -276,6 +282,14 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
 
   useRoomLocalEchoRefresh(room, (event, { initial }) => {
     repaint();
+    // A message the reader sends reads the room up to it. Its server echo replaces the pending
+    // row instead of arriving live, so the arrival above never sends that receipt, and a message
+    // that came while the reader then scrolled away would get the New Messages line above their
+    // own.
+    const sent = event.status === null || event.status === EventStatus.SENT;
+    if (!initial && sent && !threadId && atBottomRef.current && documentHasFocus()) {
+      void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+    }
     // Only the first report of a pending thread reply pins, before its row renders, so the pin
     // follows the growth. Status changes (sent, failed, cancelled) only repaint.
     if (!initial || !threadId || !event.isSending() || !isThreadActivity(event, threadId)) return;

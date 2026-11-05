@@ -438,6 +438,35 @@ describe('useRoomLiveRenderController, room view', () => {
     expect(view.pin()).toEqual(NO_PIN);
   });
 
+  it('reads the room up to a message the reader sends at the bottom once it is sent', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const view = renderController({ hideActivity: true });
+    const echo = pending(makeEvent('~txn-own', { sender: ME }));
+
+    view.echoAdded(echo);
+    expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+
+    // The server's echo replaces it: the room has a row the reader wrote, and nothing above it
+    // is unread any more.
+    echo.setStatus(null);
+    view.echoStatusChanged(echo);
+    expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+    expect(markMainTimelineAsRead).toHaveBeenCalledWith(view.mx, ROOM_ID, true);
+  });
+
+  it('leaves the read marker for a message sent while away from the bottom or unfocused', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const away = renderController({ atBottom: false });
+    const sentAway = makeEvent('$own-away', { sender: ME });
+    away.echoStatusChanged(sentAway);
+
+    vi.stubGlobal('document', { hasFocus: () => false });
+    const unfocused = renderController();
+    unfocused.echoStatusChanged(makeEvent('$own-unfocused', { sender: ME }));
+
+    expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+  });
+
   it('leaves a page of history alone', () => {
     const view = renderController();
 
