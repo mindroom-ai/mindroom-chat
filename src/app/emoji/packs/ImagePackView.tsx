@@ -16,7 +16,6 @@ import { SettingTile } from '../../ui/SettingTile';
 import { scrollHeaderHeight } from '../../ui/page/scrollHeaderInset';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { SettingsBreadcrumb } from '../../ui/settings/SettingsPageFrame';
-import { TitleBarLine } from '../../ui/settings/titleBar.css';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { readImagePackUpload } from './imagePackUpload';
 import {
@@ -276,12 +275,7 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
     </IconButton>
   );
   const header = (
-    <PageHeader
-      outlined={false}
-      balance={phone}
-      className={TitleBarLine}
-      style={phone ? undefined : HEADER_INSET}
-    >
+    <PageHeader outlined={false} balance={phone} style={phone ? undefined : HEADER_INSET}>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
         {back}
         <SettingsBreadcrumb title={t('sharedUi.imagePackView.emojisStickers')} />

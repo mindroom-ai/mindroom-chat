@@ -52,7 +52,12 @@ import { PrivacySecurity } from './pages/PrivacySecurity';
 import { Sidebar } from './pages/InterfaceSettings';
 import { StorageOffline } from './pages/StorageOffline';
 import { SettingsBreadcrumbRoot } from '../ui/settings/SettingsPageFrame';
-import { SettingsMenu, SettingsMenuFooter, SettingsMenuGroupLabel } from '../ui/settings/frame.css';
+import {
+  SettingsMenu,
+  SettingsMenuFooter,
+  SettingsMenuGroupLabel,
+  SettingsMenuRow,
+} from '../ui/settings/frame.css';
 
 type SettingsProps = {
   /** A page id, or an earlier one; settingsRegistry.ts resolves it. */
@@ -128,7 +133,7 @@ type SettingsMenuListProps = {
 
 /**
  * The pages under their quiet group headings (You, This app, Agents & connections, ...), each a
- * 32 px row with its line icon; the open page's row is filled.
+ * 32 px row with its line icon, 4 px apart; the open page's row is filled.
  */
 function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps) {
   const { t } = useTranslation();
@@ -162,6 +167,7 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
                 size="300"
                 radii="400"
                 variant="Background"
+                className={SettingsMenuRow}
                 before={<Icon size="100" src={icon} />}
                 aria-pressed={current}
                 onClick={() => onSelect(page)}
@@ -206,6 +212,7 @@ function LogoutButton() {
         size="300"
         radii="400"
         variant="Critical"
+        className={SettingsMenuRow}
         before={<Icon size="100" src={Icons.Power} />}
         onClick={() => setConfirming(true)}
       >

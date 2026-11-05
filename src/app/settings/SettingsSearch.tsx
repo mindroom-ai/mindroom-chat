@@ -23,6 +23,7 @@ import {
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { SettingsSearchResult } from './settingsSearchIndex';
 import {
+  SettingsMenuRow,
   SettingsSearchHeader,
   SettingsSearchKey,
   SettingsSearchLocation,
@@ -143,6 +144,7 @@ export function SettingsSearch({
             aria-selected={index === shownActive}
             radii="400"
             variant="Background"
+            className={SettingsMenuRow}
             onMouseMove={() => setActive(index)}
             onClick={() => onChoose(result)}
           >

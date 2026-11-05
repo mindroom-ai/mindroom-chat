@@ -49,11 +49,15 @@ const signIn = async (page: Page, prefix: string) => {
     accessToken,
     body: JSON.stringify({ displayname: 'Alice' }),
   });
+  const roomIds: string[] = [];
   for (const name of ROOMS) {
-    // eslint-disable-next-line no-await-in-loop -- the rooms list in creation order.
-    await createPrivateRoom(HOMESERVER, accessToken, { name, topic: `${name} for the team` });
+    roomIds.push(
+      // eslint-disable-next-line no-await-in-loop -- the rooms list in creation order.
+      await createPrivateRoom(HOMESERVER, accessToken, { name, topic: `${name} for the team` })
+    );
   }
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+  return roomIds;
 };
 
 const dialogOf = (page: Page) => page.getByRole('dialog', { name: 'Settings' });
@@ -153,12 +157,110 @@ const shootScope = async (page: Page, themeId: string, file: string) => {
   await page.screenshot({ path: `${SHOTS}/${file}`, clip });
 };
 
+/** The menu up close with the keyboard's focus on Chats, then a room's settings. */
+const shootFocusAndRoom = async (page: Page, theme: 'dark' | 'light', roomId: string) => {
+  const dialog = await openThemed(page, `${theme}-theme`, DESKTOP);
+  await menuButton(dialog, 'Appearance').click();
+  await page.keyboard.press('Tab');
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(400);
+  const clip = (await dialog.getByRole('navigation', { name: 'Settings' }).boundingBox())!;
+  await page.screenshot({ path: `${SHOTS}/menu-focus-${theme}.png`, clip });
+  await page.keyboard.press('Escape');
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+  await page.locator('header').filter({ hasText: ROOMS[0] }).getByRole('button').last().click();
+  await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
+  await page.mouse.move(0, 0);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: `${SHOTS}/room-settings-${theme}.png` });
+};
+
 const appearance = async (dialog: Locator) => {
   await expect(setting(dialog, 'systemTheme')).toBeVisible();
 };
 const chats = async (dialog: Locator) => {
   await menuButton(dialog, 'Chats').click();
   await expect(setting(dialog, 'enterForNewline')).toBeVisible();
+};
+
+type RowMetrics = {
+  label: string;
+  height: number;
+  /** From the row's start edge to its icon, and from the icon to the name. */
+  edge: number;
+  iconGap: number;
+  /** Space to the next row of the same group, if any. */
+  gapAfter: number | null;
+  labelOpacity: number;
+};
+
+/** Each menu row's size and spacing, in CSS pixels, as laid out in `menu`. */
+const measureMenuRows = (menu: Locator) =>
+  menu.evaluate((element): RowMetrics[] =>
+    [...element.querySelectorAll<HTMLElement>('button')].map((row) => {
+      const box = row.getBoundingClientRect();
+      const icon = row.querySelector('svg')!.getBoundingClientRect();
+      const name = row.lastElementChild!;
+      const next = row.nextElementSibling;
+      return {
+        label: name.textContent ?? '',
+        height: box.height,
+        edge: icon.left - box.left,
+        iconGap: name.getBoundingClientRect().left - icon.right,
+        gapAfter:
+          next instanceof HTMLButtonElement ? next.getBoundingClientRect().top - box.bottom : null,
+        labelOpacity: Number(getComputedStyle(name).opacity),
+      };
+    })
+  );
+
+/** The keyboard focus ring of `row`: its style, and how far it reaches past the row's edge. */
+const focusRing = (row: Locator) =>
+  row.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      style: style.outlineStyle,
+      reach: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth),
+    };
+  });
+
+/**
+ * The lines a settings page draws: under its title bar (a border or a 1 px pseudo-element) and
+ * between the rows of its cards.
+ */
+const pageLines = (dialog: Locator) =>
+  dialog.evaluate((element) => {
+    // The page's title bar: the header outside the menu.
+    const headers = [...element.querySelectorAll('header')].filter((h) => !h.closest('nav'));
+    const drawn = (style: CSSStyleDeclaration) =>
+      style.content !== 'none' && style.content !== 'normal' && parseFloat(style.height) <= 1;
+    const lined = (header: Element) =>
+      parseFloat(getComputedStyle(header).borderBottomWidth) > 0 ||
+      drawn(getComputedStyle(header, '::after')) ||
+      drawn(getComputedStyle(header, '::before'));
+    const rows = [...element.querySelectorAll('[data-settings-page] [data-sequence-card] > *')];
+    return {
+      titleBar: headers.length > 0 ? headers.some(lined) : null,
+      rows: rows.length,
+      rowLines: rows.filter((row) => {
+        const style = getComputedStyle(row);
+        return parseFloat(style.borderTopWidth) > 0 || parseFloat(style.borderBottomWidth) > 0;
+      }).length,
+    };
+  });
+
+/** Checks the rows of a settings menu: 32 px tall, 4 px apart, 10 px to the icon, 8 px to the name. */
+const expectMenuRows = (rows: RowMetrics[], open: string) => {
+  expect(rows.length).toBeGreaterThan(3);
+  for (const row of rows) {
+    expect(row.height, row.label).toBeCloseTo(32, 0);
+    expect(row.edge, row.label).toBeCloseTo(10, 0);
+    expect(row.iconGap, row.label).toBeCloseTo(8, 0);
+    if (row.gapAfter !== null) expect(row.gapAfter, row.label).toBeCloseTo(4, 0);
+    // Only the open page reads in full color while the pointer is away.
+    expect(row.labelOpacity, row.label).toBe(row.label === open ? 1 : 0.7);
+  }
 };
 
 test.beforeEach(async () => {
@@ -220,11 +322,84 @@ test('the search field shows the / key, and the shortcut help lists it under Set
   await expect(row.locator('kbd')).toHaveText('/');
 });
 
+/**
+ * Measures both settings menus and their pages, checks them and returns what it measured. The
+ * keyboard's focus ring is checked where Tab reaches buttons (`keyboard`; WebKit on a Mac skips
+ * them).
+ */
+const checkSpacing = async (page: Page, prefix: string, keyboard: boolean) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const [roomId] = await signIn(page, prefix);
+  const dialog = await openSettings(page);
+  await page.mouse.move(0, 0);
+  const nav = dialog.getByRole('navigation', { name: 'Settings' });
+  const settingsRows = await measureMenuRows(nav.locator('[role="group"]').first().locator('..'));
+  expectMenuRows(settingsRows, 'Appearance');
+
+  // A click shows no ring; the keyboard's ring is drawn inside the row it marks.
+  const appearance = menuButton(dialog, 'Appearance');
+  await appearance.click();
+  await page.mouse.move(0, 0);
+  expect((await focusRing(appearance)).style).toBe('none');
+  let ring: Awaited<ReturnType<typeof focusRing>> | undefined;
+  if (keyboard) {
+    await page.keyboard.press('Tab');
+    const chats = menuButton(dialog, 'Chats');
+    await expect(chats).toBeFocused();
+    ring = await focusRing(chats);
+    expect(ring.style).toBe('solid');
+    expect(ring.reach).toBeLessThanOrEqual(0);
+    const name = chats.locator('> :last-child');
+    expect(await name.evaluate((element) => getComputedStyle(element).opacity)).toBe('1');
+  }
+
+  const lines = await pageLines(dialog);
+  expect(lines).toEqual({ titleBar: false, rows: lines.rows, rowLines: 0 });
+  expect(lines.rows).toBeGreaterThan(1);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+
+  // Room settings share the menu rows and the page frame.
+  await page.goto(`/home/${encodeURIComponent(roomId!)}`);
+  await page.locator('header').filter({ hasText: ROOMS[0] }).getByRole('button').last().click();
+  await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+  const general = page.getByRole('button', { name: 'General', exact: true });
+  await expect(general).toBeVisible();
+  await page.mouse.move(0, 0);
+  const roomRows = await measureMenuRows(general.locator('..'));
+  expectMenuRows(roomRows, 'General');
+  const roomLines = await pageLines(page.getByRole('dialog'));
+  expect(roomLines).toEqual({ titleBar: false, rows: roomLines.rows, rowLines: 0 });
+  return { settingsRows, ring, lines, roomRows, roomLines };
+};
+
+test('menu rows are spaced apart, focus stays inside a row, and no lines divide the page', async ({
+  page,
+}, testInfo) => {
+  const measured = await checkSpacing(page, 'settings_spacing', true);
+  await testInfo.attach('spacing.json', { body: JSON.stringify(measured) });
+});
+
+test('menu rows are spaced apart and no lines divide the page (WebKit)', async ({
+  baseURL,
+}, testInfo) => {
+  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.slow();
+  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  try {
+    const context = await browser.newContext({ viewport: DESKTOP, baseURL });
+    const measured = await checkSpacing(await context.newPage(), 'settings_spacing_webkit', false);
+    await testInfo.attach('spacing-webkit.json', { body: JSON.stringify(measured) });
+  } finally {
+    await browser.close();
+  }
+});
+
 test('screenshots of the Settings dialog', async ({ page }) => {
   test.skip(!SHOTS, 'Set SETTINGS_POLISH_SHOTS=<directory> to save the screenshots');
   // Every picture reloads the app and opens Settings again.
-  test.setTimeout(420_000);
-  await signIn(page, 'settings_polish');
+  test.setTimeout(480_000);
+  const [roomId] = await signIn(page, 'settings_polish');
 
   await shoot(page, 'dark-theme', DESKTOP, 'desktop-dark.png', appearance);
   await shoot(page, 'light-theme', DESKTOP, 'desktop-light.png', appearance);
@@ -262,6 +437,9 @@ test('screenshots of the Settings dialog', async ({ page }) => {
   await shoot(page, 'light-theme', PHONE, 'phone-page-light.png', chats);
   await shootScope(page, 'dark-theme', 'scope-dark.png');
   await shootScope(page, 'light-theme', 'scope-light.png');
+
+  await shootFocusAndRoom(page, 'dark', roomId!);
+  await shootFocusAndRoom(page, 'light', roomId!);
 
   // Right to left: Arabic mirrors the menu, the title bar and the rows. ⌘, or Ctrl+, opens
   // Settings in any language.

@@ -5,7 +5,6 @@ import { Page, PageContent, PageHeader } from '../page/Page';
 import { PageScroll } from '../page/PageScroll';
 import { PhoneBackButton } from '../page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { TitleBarLine } from './titleBar.css';
 
 type DialogTitle = {
   label: string;
@@ -91,7 +90,7 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
 
   if (phone) {
     return (
-      <PageHeader balance className={TitleBarLine}>
+      <PageHeader balance>
         <PhoneBackButton onBack={requestClose} />
         <SettingsBreadcrumb title={title} />
       </PageHeader>
@@ -99,7 +98,7 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
   }
 
   return (
-    <PageHeader className={TitleBarLine} style={HEADER_STYLE}>
+    <PageHeader style={HEADER_STYLE}>
       <SettingsBreadcrumb title={title} />
       <IconButton
         size="300"

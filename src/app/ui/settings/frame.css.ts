@@ -3,7 +3,7 @@ import { color, config, toRem } from 'folds';
 
 // The settings dialogs take the look of a compact desktop preferences window: a wide dialog, a
 // menu of 32 px rows under a search field, a thin title bar with the page's place in the dialog,
-// and a centered column of sections whose settings are rows of one card, divided by hairlines.
+// and a centered column of sections whose settings are rows of one card, apart by their padding.
 // Right-to-left languages mirror all of it.
 
 /** About 1000 by 700 px, and a margin smaller than that where the window is. */
@@ -22,9 +22,38 @@ export const SettingsMenu = style({
   paddingInlineEnd: config.space.S300,
 });
 
-/** A group heading of the menu (You, This app, ...), quiet and in the rows' icon column. */
+// The pages the menu does not show read quieter; the one under the pointer or the keyboard's
+// focus and the open one are in full color. At 0.7 the names keep 4.5:1 on the light glass.
+globalStyle(`${SettingsMenu} button:not(:hover, :focus-visible, [aria-pressed="true"]) > *`, {
+  opacity: 0.7,
+});
+
+/**
+ * A row of a settings menu (and of the search results and Logout): 32 px tall and 4 px from the
+ * next, 10 px from its edge to the icon and 8 px from the icon to the name. The keyboard's focus
+ * ring is drawn inside the row, so it never covers the rows beside it.
+ */
+export const SettingsMenuRow = style({
+  selectors: {
+    '&&': {
+      paddingInline: toRem(10),
+      gap: config.space.S200,
+    },
+    '& + &': {
+      marginBlockStart: config.space.S100,
+    },
+    '&&:focus-visible': {
+      outlineOffset: `calc(-1 * ${config.borderWidth.B600})`,
+    },
+  },
+});
+
+/**
+ * A group heading of the menu (You, This app, ...), quiet, starting where the rows' icons do: its
+ * row's own 4 px and these 6 px make the rows' 10 px.
+ */
 export const SettingsMenuGroupLabel = style({
-  paddingInline: config.space.S200,
+  paddingInline: toRem(6),
 });
 
 /**
@@ -85,10 +114,9 @@ globalStyle(`${SettingsMenuFooter} > button`, { color: color.Critical.Main });
 /** Set on the content of every settings page by SettingsPageFrame. */
 const SETTINGS_PAGE = '[data-settings-page]';
 const SETTINGS_CARD = `${SETTINGS_PAGE} [data-sequence-card]`;
-const HAIRLINE = `${config.borderWidth.B300} solid var(--mr-container-line)`;
 
-// A section's settings are the rows of one card: the rows hold the padding, so the hairlines
-// between them run from rim to rim, and the card shows its rim.
+// A section's settings are the rows of one card: the rows hold the padding, so space alone
+// (24 px between two rows) sets them apart, with no line between them.
 globalStyle(SETTINGS_CARD, {
   padding: 0,
   gap: 0,
@@ -96,9 +124,6 @@ globalStyle(SETTINGS_CARD, {
 globalStyle(`${SETTINGS_CARD} > *`, {
   paddingBlock: config.space.S300,
   paddingInline: config.space.S400,
-});
-globalStyle(`${SETTINGS_CARD} > * + *`, {
-  borderBlockStart: HAIRLINE,
 });
 
 // A section's heading is whatever stands right before its card, the card's own title included;

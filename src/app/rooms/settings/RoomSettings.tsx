@@ -8,7 +8,7 @@ import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../ui/page/
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
-import { SettingsMenu } from '../../ui/settings/frame.css';
+import { SettingsMenu, SettingsMenuRow } from '../../ui/settings/frame.css';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { SettingsPageFrame } from '../../ui/settings/SettingsPageFrame';
 import { OfflineRoomSettings } from './general/OfflineRoomSettings';
@@ -142,8 +142,10 @@ export function RoomSettings(props: {
     return (
       <MenuItem
         key={entry.page}
-        radii="500"
+        size="300"
+        radii="400"
         variant="Background"
+        className={SettingsMenuRow}
         before={<Icon size="100" src={entry.icon} filled={current} />}
         aria-pressed={current}
         onClick={() => setPage(entry.page)}
