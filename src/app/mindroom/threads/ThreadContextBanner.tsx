@@ -35,6 +35,8 @@ import { useThreadPinning } from './useThreadPinning';
 import { useLiquidGlass } from '../../components/glass/liquid/useLiquidGlass';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
+import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import { useShortcut } from '../shortcuts/useShortcut';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -243,6 +245,12 @@ export function ThreadContextBanner({
     if (!mutableThreadRootId || isPinned) return;
     setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
+  const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
+  useShortcut('resolveThread', () => {
+    if (resolveDisabled || !mutableThreadRootId || isPinned) return false;
+    handleToggleResolve();
+    return true;
+  });
 
   const hasTags = headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
@@ -513,6 +521,7 @@ export function ThreadContextBanner({
                       ? t('threadActions.reopen')
                       : undefined
                   }
+                  shortcut={resolveDisabled ? undefined : 'resolveThread'}
                 >
                   {(triggerRef) => (
                     <IconButton
@@ -523,9 +532,8 @@ export function ThreadContextBanner({
                       aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
                       aria-describedby={showResolver ? resolverBylineId : undefined}
                       onClick={handleToggleResolve}
-                      disabled={
-                        !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating
-                      }
+                      disabled={resolveDisabled}
+                      {...shortcutAttributes(resolveDisabled ? undefined : 'resolveThread')}
                     >
                       <Icon src={Icons.Check} size="100" />
                     </IconButton>

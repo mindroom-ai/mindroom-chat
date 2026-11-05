@@ -3,6 +3,8 @@ import classNames from 'classnames';
 import { Text, Tooltip, as } from 'folds';
 import { TooltipProvider } from '../directional';
 import { glassSurface } from '../../styles/Glass.css';
+import { ShortcutLabel } from '../../mindroom/shortcuts/ShortcutKeys';
+import type { ShortcutId } from '../../mindroom/shortcuts/shortcuts';
 import * as css from './SidebarItem.css';
 
 /** The icon rail at the left edge of the client. */
@@ -44,11 +46,13 @@ export const SidebarItem = as<'div', { active?: boolean }>((props, ref) => {
 
 type SidebarItemTooltipProps = {
   tooltip?: ReactNode;
+  /** The keyboard shortcut for the button's action, shown after a text tooltip. */
+  shortcut?: ShortcutId;
   children: (triggerRef: RefCallback<HTMLElement>) => ReactNode;
 };
 
 /** Names a rail button in a tooltip to its right. */
-export function SidebarItemTooltip({ tooltip, children }: SidebarItemTooltipProps) {
+export function SidebarItemTooltip({ tooltip, shortcut, children }: SidebarItemTooltipProps) {
   if (!tooltip) return <>{children(() => undefined)}</>;
 
   return (
@@ -57,7 +61,11 @@ export function SidebarItemTooltip({ tooltip, children }: SidebarItemTooltipProp
       delay={400}
       tooltip={
         <Tooltip>
-          <Text size="T300">{tooltip}</Text>
+          {typeof tooltip === 'string' ? (
+            <ShortcutLabel label={tooltip} id={shortcut} />
+          ) : (
+            <Text size="T300">{tooltip}</Text>
+          )}
         </Tooltip>
       }
     >

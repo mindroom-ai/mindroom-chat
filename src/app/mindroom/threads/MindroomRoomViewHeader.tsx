@@ -60,6 +60,9 @@ import { CanvasHeaderButton } from '../canvas/CanvasHeaderButton';
 import { useCallPanel } from '../../features/calls/callStore';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
+import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import type { ShortcutId } from '../shortcuts/shortcuts';
+import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from './useRoomViewMode';
 import type { RoomViewMode } from './roomViewMode';
 import { hasActiveThreadFilters, type ThreadFilterState } from './roomThreadOverviewModel';
@@ -110,6 +113,8 @@ type HeaderActionProps = {
   /** The icon points along the reading direction, so right-to-left languages mirror it. */
   directional?: boolean;
   buttonProps?: Record<`data-${string}` | `aria-${string}`, string | boolean | undefined>;
+  /** The keyboard shortcut for the same action, shown in the tooltip. */
+  shortcut?: ShortcutId;
 };
 
 /** An icon-only header button that names itself in a tooltip, as screen readers hear it. */
@@ -122,6 +127,7 @@ function HeaderAction({
   badge,
   directional,
   buttonProps,
+  shortcut,
 }: HeaderActionProps) {
   return (
     <TooltipProvider
@@ -129,7 +135,7 @@ function HeaderAction({
       offset={4}
       tooltip={
         <Tooltip>
-          <Text size="T200">{label}</Text>
+          <ShortcutLabel label={label} id={shortcut} size="T200" />
         </Tooltip>
       }
     >
@@ -144,6 +150,7 @@ function HeaderAction({
           aria-pressed={pressed}
           onClick={onClick}
           style={badge ? { position: 'relative' } : undefined}
+          {...shortcutAttributes(shortcut)}
           {...buttonProps}
         >
           <Icon size="400" src={icon} data-directional={directional || undefined} />
@@ -286,6 +293,10 @@ export function RoomViewHeader({
     if (callOpen) setCallOpen(false);
     setMembersOpen(true);
   };
+  useShortcut('members', () => {
+    toggleMembers();
+    return true;
+  });
   const membersLabel = membersVisible
     ? t('mindroomUi.threads.mindroomRoomViewHeader.hideMembers')
     : t('mindroomUi.threads.mindroomRoomViewHeader.showMembers');
@@ -451,6 +462,7 @@ export function RoomViewHeader({
           }
           icon={Icons.User}
           onClick={() => toggleMembers()}
+          shortcut="members"
           badge={
             pendingRequests > 0 && (
               <Badge

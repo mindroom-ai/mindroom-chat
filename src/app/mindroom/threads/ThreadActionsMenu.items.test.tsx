@@ -90,12 +90,20 @@ const renderMenu = (props: Partial<ThreadActionsMenuProps> = {}) => {
 };
 
 const glyph = (src: IconSrc) => renderToStaticMarkup(<>{src()}</>);
+// The row's name: its text without the key caps, which assistive technology skips.
+const spokenText = (item: HTMLElement) => {
+  const copy = item.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
+  return copy.textContent;
+};
 const rows = (items: HTMLElement[]) =>
   items.map((item) => ({
     action: item.dataset.threadAction,
-    label: item.textContent,
+    label: spokenText(item),
     icon: item.querySelector('svg')?.innerHTML,
   }));
+const resolveRow = (items: HTMLElement[]) =>
+  items.find((item) => item.dataset.threadAction === 'resolve');
 
 describe('ThreadActionsMenu rows', () => {
   it('lists the banner menu as tags, summary, resolve, pin, link, hide, each with its icon after the label', () => {
@@ -110,6 +118,9 @@ describe('ThreadActionsMenu rows', () => {
       { action: 'copy', label: 'Copy thread link', icon: glyph(Icons.Link) },
       { action: 'hideDetails', label: 'Hide thread details', icon: glyph(Icons.ChevronTop) },
     ]);
+    // Resolve acts on the open thread here, so it shows the shortcut that does the same.
+    expect(resolveRow(items)?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+Enter');
+    expect(resolveRow(items)?.textContent).toContain('Ctrl+Shift+Enter');
     // The icon follows the label, so the label starts the row and names it.
     items.forEach((item) => {
       const label = item.querySelector('span');
@@ -122,7 +133,10 @@ describe('ThreadActionsMenu rows', () => {
 
   it('starts a card menu with Open thread, and gives Reopen its own icon', () => {
     state.resolved = true;
-    const items = rows(renderMenu({ onOpenThread: () => undefined }));
+    const menuItems = renderMenu({ onOpenThread: () => undefined });
+    const items = rows(menuItems);
+    // The shortcut resolves the open thread, not the card's.
+    expect(resolveRow(menuItems)?.hasAttribute('aria-keyshortcuts')).toBe(false);
 
     expect(items.map((item) => item.action)).toEqual([
       'open',

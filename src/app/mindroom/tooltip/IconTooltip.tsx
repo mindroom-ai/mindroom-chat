@@ -1,10 +1,14 @@
 import React, { type ReactNode, type RefCallback } from 'react';
 import { Box, Text, Tooltip, TooltipProvider, type Align, type Position } from 'folds';
+import { ShortcutLabel } from '../shortcuts/ShortcutKeys';
+import type { ShortcutId } from '../shortcuts/shortcuts';
 
 export type IconTooltipProps = {
   label: string;
   /** A second, quieter line, e.g. what pressing the button does. */
   hint?: string;
+  /** The keyboard shortcut for the button's action, shown after the label. */
+  shortcut?: ShortcutId;
   position?: Position;
   align?: Align;
   children: (triggerRef: RefCallback<HTMLElement | SVGElement>) => ReactNode;
@@ -16,6 +20,7 @@ export type IconTooltipProps = {
 export function IconTooltip({
   label,
   hint,
+  shortcut,
   position = 'Bottom',
   align,
   children,
@@ -28,7 +33,7 @@ export function IconTooltip({
       tooltip={
         <Tooltip>
           <Box direction="Column">
-            <Text size="T300">{label}</Text>
+            <ShortcutLabel label={label} id={shortcut} />
             {hint && (
               <Text size="T200" priority="300">
                 {hint}

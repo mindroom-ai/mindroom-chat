@@ -24,6 +24,7 @@ import { useRoomMembers } from '../../hooks/useRoomMembers';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { Menu } from '../../components/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../../components/MenuEntry';
+import type { ShortcutId } from '../shortcuts/shortcuts';
 import { ActionDialog } from '../../components/ActionDialog';
 import { describeError } from '../../utils/describeError';
 import { ErrorDetail } from '../../components/ErrorDetail';
@@ -353,6 +354,7 @@ export function ThreadActionsMenu({
     onSelect: () => void;
     /** Resolve and pin wait for the previous save. */
     mutates?: boolean;
+    shortcut?: ShortcutId;
   }> = [];
   if (onOpenThread) {
     items.push({
@@ -392,6 +394,8 @@ export function ThreadActionsMenu({
       mutates: true,
       label: tags.isResolved ? t('threadActions.reopen') : t('thread.resolve'),
       icon: tags.isResolved ? Icons.Reload : Icons.CheckTwice,
+      // The shortcut resolves the open thread, whose menu has no Open.
+      shortcut: onOpenThread ? undefined : 'resolveThread',
       onSelect: () => {
         void mutations.setResolved(rootId, !tags.isResolved);
       },
@@ -450,6 +454,7 @@ export function ThreadActionsMenu({
                   role="menuitem"
                   label={item.label}
                   icon={item.icon}
+                  shortcut={item.shortcut}
                   data-thread-action={item.action}
                   disabled={item.mutates && saving}
                   aria-busy={item.mutates && saving ? true : undefined}

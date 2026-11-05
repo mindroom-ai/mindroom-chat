@@ -1090,7 +1090,13 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolve.findByType('i').props.src).toBe('check');
     expect(resolve.props.className).toBe('CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
-    expect(tips).toEqual(['Back to room', 'Thread options', 'Pin thread', 'Resolve']);
+    expect(tips).toEqual([
+      'Back to room',
+      'Thread options',
+      'Pin thread',
+      'Resolve Ctrl+Shift+Enter',
+    ]);
+    expect(resolve.props['aria-keyshortcuts']).toBe('Control+Shift+Enter');
     // The tooltips replace the native ones.
     expect(renderer.root.findAll((node) => node.type === 'button' && !!node.props.title)).toEqual(
       []
@@ -1145,7 +1151,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(chip.findByType('i').props.src).toBe('check');
     // Who resolved it, and what pressing it does.
     expect(renderer.root.findAllByProps({ role: 'tooltip' }).map(text)).toContain(
-      'Resolved by Alice Reopen thread'
+      'Resolved by Alice Ctrl+Shift+Enter Reopen thread'
     );
     const byline = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' });
     expect(byline.props['aria-label']).toBe('Resolved by Alice');

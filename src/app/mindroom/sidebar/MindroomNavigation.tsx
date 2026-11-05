@@ -17,6 +17,8 @@ import {
   writeDesktopPageNavCollapsed,
 } from './desktopPageNavState';
 import { usePanelSlot } from './panelPresence';
+import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
+import { useShortcut } from '../shortcuts/useShortcut';
 
 /**
  * Owns whether the page navigation (the room list beside the content) is collapsed. The choice
@@ -61,7 +63,7 @@ function PageNavToggle() {
     : t('sharedUi.mindroomNavigation.collapseNavigationPanel');
   return (
     <SidebarItem>
-      <SidebarItemTooltip tooltip={label}>
+      <SidebarItemTooltip tooltip={label} shortcut="roomList">
         {(triggerRef) => (
           <SidebarAvatar
             as="button"
@@ -69,6 +71,7 @@ function PageNavToggle() {
             outlined
             aria-label={label}
             aria-expanded={!collapsed}
+            {...shortcutAttributes('roomList')}
             onClick={() => setCollapsed(!collapsed)}
           >
             <Icon src={collapsed ? Icons.ChevronRight : Icons.ChevronLeft} data-directional />
@@ -86,6 +89,11 @@ function PageNavToggle() {
  */
 export function MindroomSidebarNav() {
   const { collapsed, canCollapse, setCollapsed } = useMindroomDesktopPageNav();
+  useShortcut('roomList', () => {
+    if (!canCollapse) return false;
+    setCollapsed(!collapsed);
+    return true;
+  });
 
   const handlePageNavSelect = useCallback(
     (selected: boolean): boolean => {

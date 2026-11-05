@@ -38,6 +38,7 @@ import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCat
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
+import { useRoomListShortcuts } from '../../../mindroom/shortcuts/useRoomListShortcuts';
 import { MenuEntry, MenuGroup } from '../../../components/MenuEntry';
 import { NavOptionsMenu } from '../NavOptionsMenu';
 import { mDirectAtom } from '../../../state/mDirectList';
@@ -318,6 +319,9 @@ export function Space() {
         ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
         : roomOrder.roomIds,
     [roomOrder.roomIds, roomsClosed, selectedRoomId]
+  );
+  useRoomListShortcuts(sortedRooms, selectedRoomId, (roomId) =>
+    getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId))
   );
 
   return (

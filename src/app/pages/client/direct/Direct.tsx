@@ -18,6 +18,7 @@ import { MenuGroup } from '../../../components/MenuEntry';
 import { getDirectCreatePath, getDirectRoomPath } from '../../pathUtils';
 import { NavOptionsMenu } from '../NavOptionsMenu';
 import { useDirectRooms } from './useDirectRooms';
+import { useRoomListShortcuts } from '../../../mindroom/shortcuts/useRoomListShortcuts';
 
 /** The Direct Messages navigation: joined direct rooms by latest activity. */
 export function Direct() {
@@ -29,6 +30,11 @@ export function Direct() {
   const activeRoomId = useSelectedRoom();
   // On a phone, opening the list keeps the remembered conversation for the next visit.
   useNavToActivePathMapper('direct', true);
+  useRoomListShortcuts(
+    dmRooms.map((room) => room.roomId),
+    activeRoomId,
+    (roomId) => getDirectRoomPath(getCanonicalAliasOrRoomId(client, roomId))
+  );
 
   return (
     <PageNav label={t('nav.directMessages')}>

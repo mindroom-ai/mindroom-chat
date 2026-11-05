@@ -43,6 +43,7 @@ import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCat
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
 import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
+import { useRoomListShortcuts } from '../../../mindroom/shortcuts/useRoomListShortcuts';
 import { MenuEntry, MenuGroup } from '../../../components/MenuEntry';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../pathUtils';
 import { NavOptionsMenu } from '../NavOptionsMenu';
@@ -166,6 +167,9 @@ export function Home() {
         ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
         : roomOrder.roomIds,
     [roomOrder.roomIds, roomsClosed, selectedRoomId]
+  );
+  useRoomListShortcuts(listedRoomIds, selectedRoomId, (roomId) =>
+    getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId))
   );
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's

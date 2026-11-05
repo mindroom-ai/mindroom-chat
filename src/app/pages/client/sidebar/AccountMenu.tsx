@@ -130,6 +130,7 @@ export function AccountMenu({
               role="menuitem"
               icon={Icons.Setting}
               label={t('settings.title')}
+              shortcut="settings"
               onSelect={closeThen(onOpenSettings)}
             />
           </MenuGroup>

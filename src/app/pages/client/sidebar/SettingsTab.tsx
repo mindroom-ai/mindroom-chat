@@ -25,6 +25,7 @@ import { resolveSessionRestorePath } from '../sessionRouteRestore';
 import { AccountMenu } from './AccountMenu';
 import { AccountSwitcher } from './AccountSwitcher';
 import { useAccountRemoval } from './useAccountRemoval';
+import { useShortcut } from '../../../mindroom/shortcuts/useShortcut';
 
 const AVATAR_SIZE = 96;
 
@@ -195,6 +196,10 @@ export function SettingsTab() {
     setSwitcherOpen(false);
     setSettingsModal({});
   };
+  useShortcut('settings', () => {
+    openSettings();
+    return true;
+  });
 
   // Pressing the avatar while its menu is open closes the menu.
   const toggleAccountMenu = (event: MouseEvent<HTMLElement>) => {

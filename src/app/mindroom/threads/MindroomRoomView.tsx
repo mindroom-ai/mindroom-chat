@@ -41,6 +41,7 @@ import * as overlay from './RoomOverlay.css';
 import { ThreadContextBanner } from './ThreadContextBanner';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
 import { useRoomViewThreadState } from './useRoomViewThreadState';
+import { useShortcut } from '../shortcuts/useShortcut';
 
 const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
 /** Stand-in for handlers the thread state mock or a minimal state leaves out. */
@@ -125,7 +126,10 @@ const OWNS_TYPING_SELECTOR = '[role="dialog"], [role="menu"], [role="listbox"]';
 const focusOwnsTyping = (): boolean =>
   typeof document !== 'undefined' && !!document.activeElement?.closest?.(OWNS_TYPING_SELECTOR);
 
-/** Typing a letter or digit with nothing focused starts a message in the composer. */
+/**
+ * Typing a letter or digit with nothing focused starts a message in the composer, and Escape
+ * outside a field or menu goes back to it (the room's Escape handler marks it read as well).
+ */
 const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean) => {
   const handleKey = useCallback(
     (evt: KeyboardEvent) => {
@@ -138,6 +142,11 @@ const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean
     [editor, enabled]
   );
   useKeyDown(window, handleKey);
+  useShortcut('focusComposer', () => {
+    if (!enabled || focusOwnsTyping()) return false;
+    ReactEditor.focus(editor as ReactEditor);
+    return true;
+  });
 };
 
 /**
