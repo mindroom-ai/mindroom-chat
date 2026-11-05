@@ -36,6 +36,7 @@ vi.mock('../../components/sidebar', () => ({
     React.createElement('div', null, children),
 }));
 
+vi.mock('../../components/sidebar/SidebarItem.css', () => ({ SidebarScroll: 'sidebar-scroll' }));
 vi.mock('./sidebar', () => ({
   CanvasesTab: tab('canvases'),
   DirectTab: tab('direct'),
