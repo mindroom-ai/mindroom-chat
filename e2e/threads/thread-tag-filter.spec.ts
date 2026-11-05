@@ -1,4 +1,4 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -16,14 +16,15 @@ import {
 // most used first, with their thread counts; its search narrows them; two tags chosen with the
 // keyboard keep the threads that carry both (tag filters combine with AND, as they did before
 // the dropdown); the button names a lone tag; the choice survives a reload; Clear brings every
-// thread back; a tag the search excludes shows checked and marked; and on a phone the People and
-// Tags panels open inside the screen. Classic scrollbars are shown, in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// thread back; a tag the search excludes shows checked and marked; and on a phone with touch the
+// People and Tags panels open inside the screen and close on a second tap of their button.
+// Classic scrollbars are shown, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, in WebKit.
 // Set L28_SHOTS=<directory> to save the L28 screenshots (Chromium only).
 const SHOTS = process.env.L28_SHOTS;
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1280, height: 800 };
-const PHONE = { width: 390, height: 844 };
+const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true };
 
 test.use({
   viewport: DESKTOP,
@@ -161,26 +162,39 @@ const expectCards = async (cards: Locator, topics: string[]) => {
   }
 };
 
+/** The seeded room's thread cards and the filter bar's Tags dropdown on `page`. */
+const tagFilterOf = (page: Page) => {
+  const overview = page.locator('[data-room-thread-overview]');
+  const panel = overview.locator('[data-tag-filter-panel]');
+  const option = (tag: string) => panel.locator(`[data-tag-option="${tag}"]`);
+  return {
+    cards: page.locator('[data-compact-room-view] [data-thread-root-id]'),
+    overview,
+    button: overview.locator('[data-tag-filter-button]'),
+    panel,
+    search: panel.locator('[data-tag-filter-search]'),
+    options: panel.locator('[data-tag-option]'),
+    option,
+    box: (tag: string) => option(tag).locator('input[type="checkbox"]'),
+  };
+};
+
 /** Everything the dropdown does, on a signed-in page that shows the seeded room. */
 const checkTagFilter = async (page: Page, engine: string) => {
-  const cards = page.locator('[data-compact-room-view] [data-thread-root-id]');
+  const { cards, overview, button, panel, search, options, option, box } = tagFilterOf(page);
   await expect(cards).toHaveCount(TOPICS.length, { timeout: 120_000 });
 
   // The Tags dropdown is one of the advanced filters, beside People.
-  const overview = page.locator('[data-room-thread-overview]');
   await overview.locator('[data-thread-filter-mode-switch]').click();
-  const button = overview.locator('[data-tag-filter-button]');
   await expect(button).toHaveAttribute('data-tag-filter-count', '0');
   await expect(button).toHaveText('Tags');
   await expect(overview.locator('[data-add-tag-button]')).toHaveCount(0);
-  if (engine === 'chromium') await shot(page, 'L28-thread-tags-closed');
+  if (engine === 'chromium') {
+    await page.mouse.move(1, 1);
+    await shot(page, 'L28-thread-tags-closed');
+  }
 
   await button.click();
-  const panel = overview.locator('[data-tag-filter-panel]');
-  const search = panel.locator('[data-tag-filter-search]');
-  const option = (tag: string) => panel.locator(`[data-tag-option="${tag}"]`);
-  const box = (tag: string) => option(tag).locator('input[type="checkbox"]');
-  const options = panel.locator('[data-tag-option]');
   await expect(search).toBeFocused();
   await expect(options).toHaveCount(TAG_COUNTS.length);
   expect(
@@ -251,7 +265,8 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await expect(cards).toHaveCount(TOPICS.length);
   await expect(panel.locator('[data-tag-filter-clear]')).toHaveCount(0);
   await expect(search).toBeFocused();
-  await page.keyboard.press('Escape');
+  // A second press on the button closes the dropdown.
+  await button.click();
   await expect(panel).toHaveCount(0);
 
   // A tag excluded in the thread search shows checked and marked; unchecking it drops that filter.
@@ -268,35 +283,64 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
 
-  // On a phone, both dropdowns open inside the screen and still filter.
-  await page.setViewportSize(PHONE);
-  for (const name of ['people', 'tag']) {
-    // eslint-disable-next-line no-await-in-loop
-    await overview.locator(`[data-${name}-filter-button]`).click();
-    const opened = overview.locator(`[data-${name}-filter-panel]`);
-    // eslint-disable-next-line no-await-in-loop
-    await expect(opened).toBeVisible();
-    // eslint-disable-next-line no-await-in-loop
-    const bounds = await opened.boundingBox();
-    expect(bounds, `${engine} ${name} panel`).not.toBeNull();
-    expect(bounds!.x, `${engine} ${name} panel start`).toBeGreaterThanOrEqual(0);
-    expect(bounds!.x + bounds!.width, `${engine} ${name} panel end`).toBeLessThanOrEqual(
-      PHONE.width
-    );
-    if (name === 'people') {
-      // eslint-disable-next-line no-await-in-loop
-      await page.keyboard.press('Escape');
-      // eslint-disable-next-line no-await-in-loop
-      await expect(opened).toHaveCount(0);
-    }
-  }
-  await option('bug').click();
-  await option('urgent').click();
-  await expect(button).toHaveAttribute('data-tag-filter-count', '2');
-  await expectCards(cards, both);
-  if (engine === 'chromium') await shot(page, 'L28-thread-tags-phone');
   await page.keyboard.press('Escape');
   await expect(panel).toHaveCount(0);
+};
+
+/**
+ * On a phone with touch, a new page of `browser`: the People and Tags panels open inside the
+ * screen and close on a second tap of their button, and tapping two tags filters the threads.
+ */
+const checkPhone = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  homeserver: string,
+  credentials: { username: string; password: string },
+  roomId: string,
+  engine: string
+) => {
+  const context = await browser.newContext({ ...PHONE, baseURL });
+  try {
+    const page = await context.newPage();
+    await loginWithPassword(page, { homeserver, ...credentials });
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
+    const { cards, overview, button, panel, option } = tagFilterOf(page);
+    await expect(cards).toHaveCount(TOPICS.length, { timeout: 120_000 });
+    await overview.locator('[data-thread-filter-mode-switch]').tap();
+    for (const name of ['people', 'tag']) {
+      const trigger = overview.locator(`[data-${name}-filter-button]`);
+      // eslint-disable-next-line no-await-in-loop
+      await trigger.tap();
+      const opened = overview.locator(`[data-${name}-filter-panel]`);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(opened).toBeVisible();
+      // eslint-disable-next-line no-await-in-loop
+      const bounds = await opened.boundingBox();
+      expect(bounds, `${engine} ${name} panel`).not.toBeNull();
+      expect(bounds!.x, `${engine} ${name} panel start`).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width, `${engine} ${name} panel end`).toBeLessThanOrEqual(
+        PHONE.viewport.width
+      );
+      if (name === 'people') {
+        // eslint-disable-next-line no-await-in-loop
+        await trigger.tap();
+        // eslint-disable-next-line no-await-in-loop
+        await expect(opened).toHaveCount(0);
+      }
+    }
+    await option('bug').tap();
+    await option('urgent').tap();
+    await expect(button).toHaveAttribute('data-tag-filter-count', '2');
+    await expectCards(
+      cards,
+      topicsWhere((index) => index % 6 === 0)
+    );
+    if (engine === 'chromium') await shot(page, 'L28-thread-tags-phone');
+    await button.tap();
+    await expect(panel).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 };
 
 test.describe('thread Tags filter', () => {
@@ -304,8 +348,10 @@ test.describe('thread Tags filter', () => {
 
   test('searches, keeps the threads with every chosen tag, clears, and fits a phone (Chromium)', async ({
     page,
+    browser,
+    baseURL,
   }) => {
-    // 32 threads with 62 tags, two reloads and a loaded machine.
+    // 32 threads with 62 tags, two sign-ins, a reload and a loaded machine.
     test.setTimeout(360_000);
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();
@@ -314,6 +360,7 @@ test.describe('thread Tags filter', () => {
     await loginWithPassword(page, { homeserver, ...credentials });
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     await checkTagFilter(page, 'chromium');
+    await checkPhone(browser, baseURL, homeserver, credentials, roomId, 'chromium');
   });
 
   test('searches, keeps the threads with every chosen tag, clears, and fits a phone (WebKit)', async ({
@@ -333,6 +380,7 @@ test.describe('thread Tags filter', () => {
       await loginWithPassword(page, { homeserver, ...credentials });
       await page.goto(`/home/${encodeURIComponent(roomId)}`);
       await checkTagFilter(page, 'webkit');
+      await checkPhone(browser, baseURL, homeserver, credentials, roomId, 'webkit');
     } finally {
       await browser.close();
     }
