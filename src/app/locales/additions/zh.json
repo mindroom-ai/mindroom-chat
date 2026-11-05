@@ -318,6 +318,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "高级过滤器"
+      },
+      "threadPeopleFilter": {
+        "label": "参与者",
+        "ariaLabel": "按参与者过滤讨论串",
+        "ariaLabelActive": "按参与者过滤讨论串（已选 {{number}} 位）",
+        "search": "搜索参与者",
+        "noMatch": "没有匹配的参与者"
       }
     },
     "computer": {

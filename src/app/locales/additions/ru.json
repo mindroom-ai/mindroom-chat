@@ -339,6 +339,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "Расширенные фильтры"
+      },
+      "threadPeopleFilter": {
+        "label": "Участники",
+        "ariaLabel": "Фильтровать ветки по участникам",
+        "ariaLabelActive": "Фильтровать ветки по участникам (выбрано: {{number}})",
+        "search": "Поиск участников",
+        "noMatch": "Никого не найдено"
       }
     },
     "computer": {

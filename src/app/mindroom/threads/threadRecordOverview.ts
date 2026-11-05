@@ -8,6 +8,7 @@ import {
   type ThreadFilterState,
   type ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
+import { matchesThreadPeopleFilter } from './threadPeopleFilter';
 import type { ThreadRecord } from './types';
 
 const getThreadRecordDimension = (record: ThreadRecord, key: ThreadFilterKey): boolean => {
@@ -32,12 +33,15 @@ const getThreadRecordDimension = (record: ThreadRecord, key: ThreadFilterKey): b
 };
 
 const hasStatusOrTagFilters = (state: ThreadFilterState): boolean =>
-  THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') || state.tags.size > 0;
+  THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
+  state.tags.size > 0 ||
+  (state.people?.length ?? 0) > 0;
 
 export const matchesThreadRecordFilterState = (
   record: ThreadRecord,
   state: ThreadFilterState
 ): boolean => {
+  if (!matchesThreadPeopleFilter(record, state.people)) return false;
   if (state.statusMode === 'or') {
     for (const key of THREAD_FILTER_KEYS) {
       if (state[key] === 'exclude' && getThreadRecordDimension(record, key)) return false;

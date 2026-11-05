@@ -318,6 +318,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "進階篩選器"
+      },
+      "threadPeopleFilter": {
+        "label": "參與者",
+        "ariaLabel": "依參與者篩選討論串",
+        "ariaLabelActive": "依參與者篩選討論串（已選 {{number}} 位）",
+        "search": "搜尋參與者",
+        "noMatch": "沒有符合的參與者"
       }
     },
     "computer": {

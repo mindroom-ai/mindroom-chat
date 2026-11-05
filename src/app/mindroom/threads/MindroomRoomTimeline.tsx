@@ -48,6 +48,7 @@ import type {
   ThreadSortFreezeState,
 } from './roomThreadOverviewModel';
 import { RoomThreadOverview } from './RoomThreadOverview';
+import { ThreadPeopleFilter } from './ThreadPeopleFilter';
 import { useThreadSortFreezeController } from './threadSortFreezeController';
 import {
   DIRECT_ROOM_TIMELINE_FILTER_STATE,
@@ -173,6 +174,7 @@ export type RoomTimelineProps = {
   onSortDirectionChange?: () => void;
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
+  onTogglePerson?: (userId: string) => void;
   onReset?: () => void;
   onCycleTag?: (tag: string) => void;
   onAddTag?: (tag: string) => void;
@@ -1192,6 +1194,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
         onApplyPreset={props.onApplyPreset ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
+        peopleFilter={
+          props.onTogglePerson && (
+            <ThreadPeopleFilter
+              room={room}
+              records={
+                compactCards
+                  ? threadIndex.compactThreadRecordMap
+                  : threadIndex.normalThreadRecordMap
+              }
+              selected={threadFilterState.people}
+              onToggle={props.onTogglePerson}
+            />
+          )
+        }
       />
     </FilterBarSlot>
   );

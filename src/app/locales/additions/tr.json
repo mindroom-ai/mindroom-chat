@@ -325,6 +325,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "Gelişmiş filtreler"
+      },
+      "threadPeopleFilter": {
+        "label": "Kişiler",
+        "ariaLabel": "Konuları kişilere göre filtrele",
+        "ariaLabelActive": "Konuları kişilere göre filtrele ({{number}} seçili)",
+        "search": "Kişi ara",
+        "noMatch": "Eşleşen kimse yok"
       }
     },
     "computer": {

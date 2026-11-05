@@ -24,6 +24,7 @@ import {
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../messages/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
+import { collectThreadPeopleIds } from './threadPeopleFilter';
 import { RESOLVED_TAG } from './threadTags';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -321,6 +322,11 @@ export const buildThreadRecord = ({
           ? participantIds
           : fallbackParticipantIds?.slice(0, THREAD_PARTICIPANT_LIMIT) ?? [],
       replyParticipantIds,
+      peopleIds: collectThreadPeopleIds(resolvedThreadRootEvent?.getSender(), [
+        ...visibleReplyEvents.map((event) => event.getSender()),
+        ...(fallbackParticipantIds ?? []),
+        presentation.lastSenderId,
+      ]),
     },
     status: {
       isKnownThreadRoot,

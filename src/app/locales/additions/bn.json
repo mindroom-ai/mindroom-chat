@@ -325,6 +325,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "উন্নত ফিল্টার"
+      },
+      "threadPeopleFilter": {
+        "label": "লোকজন",
+        "ariaLabel": "লোকজন অনুযায়ী থ্রেড ফিল্টার করুন",
+        "ariaLabelActive": "লোকজন অনুযায়ী থ্রেড ফিল্টার করুন (নির্বাচিত: {{number}})",
+        "search": "লোকজন খুঁজুন",
+        "noMatch": "কেউ মেলেনি"
       }
     },
     "computer": {

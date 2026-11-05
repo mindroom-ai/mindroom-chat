@@ -353,6 +353,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "عوامل تصفية متقدمة"
+      },
+      "threadPeopleFilter": {
+        "label": "الأشخاص",
+        "ariaLabel": "تصفية سلاسل المحادثات حسب الأشخاص",
+        "ariaLabelActive": "تصفية سلاسل المحادثات حسب الأشخاص (المحدد: ⁨{{number}}⁩)",
+        "search": "البحث عن الأشخاص",
+        "noMatch": "لا يوجد أحد مطابق"
       }
     },
     "computer": {

@@ -710,6 +710,8 @@ export type RoomThreadOverviewProps = {
   onRemoveTag: (tag: string) => void;
   onApplyPreset: (preset: FilterPreset) => void;
   onSearchQueryChange: (query: string) => void;
+  /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
+  peopleFilter?: React.ReactNode;
 };
 
 function ThreadSortControl({
@@ -784,6 +786,7 @@ export function RoomThreadOverview({
   onRemoveTag,
   onApplyPreset,
   onSearchQueryChange,
+  peopleFilter,
 }: RoomThreadOverviewProps) {
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>();
@@ -1113,6 +1116,7 @@ export function RoomThreadOverview({
             activePresetLabel={lastAppliedPreset}
           />
         )}
+        {peopleFilter}
 
         {/* Info + Search */}
         {hasMindroomAgents && (

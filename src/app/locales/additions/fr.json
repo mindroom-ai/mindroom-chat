@@ -332,6 +332,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtres avancés"
+      },
+      "threadPeopleFilter": {
+        "label": "Personnes",
+        "ariaLabel": "Filtrer les fils par personne",
+        "ariaLabelActive": "Filtrer les fils par personne (sélection : {{number}})",
+        "search": "Rechercher des personnes",
+        "noMatch": "Personne ne correspond"
       }
     },
     "computer": {

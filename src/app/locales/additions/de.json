@@ -325,6 +325,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "Erweiterte Filter"
+      },
+      "threadPeopleFilter": {
+        "label": "Personen",
+        "ariaLabel": "Threads nach Personen filtern",
+        "ariaLabelActive": "Threads nach Personen filtern ({{number}} ausgewählt)",
+        "search": "Personen suchen",
+        "noMatch": "Niemand passt"
       }
     },
     "computer": {

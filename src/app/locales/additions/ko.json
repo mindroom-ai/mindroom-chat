@@ -318,6 +318,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "고급 필터"
+      },
+      "threadPeopleFilter": {
+        "label": "참여자",
+        "ariaLabel": "참여자로 스레드 필터링",
+        "ariaLabelActive": "참여자로 스레드 필터링 ({{number}}명 선택됨)",
+        "search": "참여자 검색",
+        "noMatch": "일치하는 참여자가 없습니다"
       }
     },
     "computer": {

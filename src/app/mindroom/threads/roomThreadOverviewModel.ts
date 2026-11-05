@@ -31,6 +31,8 @@ export interface ThreadFilterState {
   unsupportedQuery: string;
   // OR/AND mode for status include filters (presets can set 'or')
   statusMode: 'and' | 'or';
+  // People filter (user IDs): a thread matches when any of them took part. Absent or empty: all.
+  people?: string[];
 }
 
 export type ThreadSortFreezeState = {
@@ -65,6 +67,7 @@ export interface SerializedThreadFilterState {
   freeText?: string;
   unsupportedQuery?: string;
   statusMode?: ThreadFilterState['statusMode'];
+  people?: string[];
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -98,6 +101,7 @@ export const serializeThreadFilterState = (
   const freeText = typeof state.freeText === 'string' ? state.freeText : '';
   const unsupportedQuery = typeof state.unsupportedQuery === 'string' ? state.unsupportedQuery : '';
   const statusMode = isStatusMode(state.statusMode) ? state.statusMode : 'and';
+  const people = [...new Set(state.people ?? [])].sort();
 
   const tags = Object.fromEntries(
     [...state.tags.entries()]
@@ -118,6 +122,7 @@ export const serializeThreadFilterState = (
     freeText,
     unsupportedQuery,
     statusMode,
+    ...(people.length > 0 ? { people } : {}),
   };
 };
 
@@ -143,6 +148,9 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
       ? value.unsupportedQuery
       : defaultState.unsupportedQuery;
   const statusMode = isStatusMode(value.statusMode) ? value.statusMode : defaultState.statusMode;
+  const people = Array.isArray(value.people)
+    ? value.people.filter((userId): userId is string => typeof userId === 'string')
+    : [];
 
   const tags = new Map<string, TriState>();
   if (isRecord(value.tags)) {
@@ -167,6 +175,7 @@ export const deserializeThreadFilterState = (value: unknown): ThreadFilterState 
     freeText,
     unsupportedQuery,
     statusMode,
+    ...(people.length > 0 ? { people } : {}),
   };
 
   // v1 stored both structured fields and a DSL string. Runtime behavior made
@@ -214,7 +223,8 @@ export const hasActiveThreadFilters = (state: ThreadFilterState): boolean =>
   THREAD_FILTER_KEYS.some((key) => state[key] !== 'any') ||
   state.tags.size > 0 ||
   (state.freeText ?? '').length > 0 ||
-  (state.unsupportedQuery ?? '').length > 0;
+  (state.unsupportedQuery ?? '').length > 0 ||
+  (state.people?.length ?? 0) > 0;
 
 export const isDefaultThreadFilterState = (state: ThreadFilterState): boolean =>
   JSON.stringify(serializeThreadFilterState(state)) === DEFAULT_SERIALIZED_THREAD_FILTER_STATE;
@@ -262,6 +272,7 @@ export const createThreadSortControlSignature = ({
     tags: [...state.tags.entries()].sort(([tagA], [tagB]) => tagA.localeCompare(tagB)),
     searchQuery: searchQuery ?? state.freeText ?? '',
     viewMode: viewMode ?? 'threaded',
+    ...(state.people?.length ? { people: state.people } : {}),
   });
 
 export const applyFrozenThreadOrder = (
@@ -335,6 +346,7 @@ export const simplifyAgentlessThreadFilterState = (
   sortDirection: state.sortDirection,
   freeText: state.freeText,
   unsupportedQuery: state.unsupportedQuery,
+  people: state.people,
 });
 
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
@@ -443,6 +455,7 @@ export const applyPreset = (state: ThreadFilterState, preset: FilterPreset): Thr
       tags: new Map(),
       freeText: '',
       unsupportedQuery: '',
+      people: [],
     };
   }
   return nextState;

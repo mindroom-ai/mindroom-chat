@@ -47,6 +47,7 @@ import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
 import type { RoomViewMode } from './roomViewMode';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
 import { useRoomThreadSummaryState } from './threadSummaryStore';
+import { toggleThreadPerson } from './threadPeopleFilter';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';
 import { useRoomViewMode } from './useRoomViewMode';
@@ -72,6 +73,7 @@ export type RoomViewThreadState = {
   handleToggle: (key: ThreadFilterKey) => void;
   handleToggleThreadSortFreeze: () => void;
   handleToggleUnresolvedOnly: () => void;
+  handleTogglePerson: (userId: string) => void;
   handleRoomMessageSent: (eventId: string) => boolean;
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
@@ -280,6 +282,15 @@ export const useRoomViewThreadState = ({
     });
   }, [flushPendingSearchQuery, setThreadFilterState]);
 
+  // The People filter: checks or unchecks one person.
+  const handleTogglePerson = useCallback(
+    (userId: string) => {
+      const base = flushPendingSearchQuery();
+      setThreadFilterState({ ...base, people: toggleThreadPerson(base.people, userId) });
+    },
+    [flushPendingSearchQuery, setThreadFilterState]
+  );
+
   const handleSortDirectionChange = useCallback(() => {
     const base = flushPendingSearchQuery();
     setThreadFilterState({
@@ -424,6 +435,7 @@ export const useRoomViewThreadState = ({
     handleToggle,
     handleToggleThreadSortFreeze,
     handleToggleUnresolvedOnly,
+    handleTogglePerson,
     handleRoomMessageSent,
     handleViewModeChange,
     setThreadSortFreezeState,

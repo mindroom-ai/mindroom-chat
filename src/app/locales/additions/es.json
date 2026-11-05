@@ -332,6 +332,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "Filtros avanzados"
+      },
+      "threadPeopleFilter": {
+        "label": "Personas",
+        "ariaLabel": "Filtrar hilos por personas",
+        "ariaLabelActive": "Filtrar hilos por personas (seleccionadas: {{number}})",
+        "search": "Buscar personas",
+        "noMatch": "Nadie coincide"
       }
     },
     "computer": {

@@ -325,6 +325,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "उन्नत फ़िल्टर"
+      },
+      "threadPeopleFilter": {
+        "label": "लोग",
+        "ariaLabel": "लोगों के अनुसार थ्रेड फ़िल्टर करें",
+        "ariaLabelActive": "लोगों के अनुसार थ्रेड फ़िल्टर करें (चुने गए: {{number}})",
+        "search": "लोग खोजें",
+        "noMatch": "कोई मेल नहीं खाता"
       }
     },
     "computer": {

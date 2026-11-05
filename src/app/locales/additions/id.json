@@ -318,6 +318,13 @@
       },
       "roomThreadOverview": {
         "advancedFilters": "Filter lanjutan"
+      },
+      "threadPeopleFilter": {
+        "label": "Orang",
+        "ariaLabel": "Filter utas menurut orang",
+        "ariaLabelActive": "Filter utas menurut orang ({{number}} dipilih)",
+        "search": "Cari orang",
+        "noMatch": "Tidak ada yang cocok"
       }
     },
     "computer": {

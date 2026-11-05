@@ -19,6 +19,8 @@ export type ThreadPresentationSnapshot = {
   messageCount: number;
   participantIds: string[];
   replyParticipantIds: string[];
+  /** Everyone the client saw take part, for the People filter (`threadPeopleFilter.ts`). */
+  peopleIds?: string[];
   primarySummaryText: string | undefined;
   recentThreadSummaryText: string | undefined;
 };
