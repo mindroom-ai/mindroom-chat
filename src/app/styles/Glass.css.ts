@@ -232,14 +232,17 @@ export const glassSurface = recipe({
   defaultVariants: { level: 'panel', variant: 'Surface' },
 });
 
-// Keep a scrolling header's blur outside the panel's backdrop-filter tree.
-// Nested backdrop filters otherwise repaint the panel tint beneath the header.
+// Keep a scrolling header's blur, and any frame, outside the panel's backdrop-filter tree.
+// Nested backdrop filters otherwise repaint the panel tint beneath the header. A frame drawn by
+// another process (the browser's PDF viewer, a cross-origin page) makes Chromium run the panel's
+// whole content through its backdrop filter, so the frame and the panel's text come out blurred.
 // The sibling paint layer preserves refraction without filtering foreground text.
+const layeredContent = ':has([data-glass-flat="true"], iframe)';
 export const glassScrollPanel = style({
   '@supports': {
     '(backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))': {
       selectors: {
-        '&&&:has([data-glass-flat="true"])': {
+        [`&&&${layeredContent}`]: {
           position: 'relative',
           isolation: 'isolate',
           backdropFilter: 'none',
@@ -247,8 +250,8 @@ export const glassScrollPanel = style({
         },
         // PageScroll's sticky title (z-index 1) would otherwise paint over the rim,
         // and Chromium's title blur smears the 1px rim into a band along the edge.
-        '&:has([data-glass-flat="true"])::before': { zIndex: 2 },
-        '&:has([data-glass-flat="true"])::after': {
+        [`&${layeredContent}::before`]: { zIndex: 2 },
+        [`&${layeredContent}::after`]: {
           content: '""',
           position: 'absolute',
           inset: 0,
@@ -258,7 +261,7 @@ export const glassScrollPanel = style({
           backdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
           WebkitBackdropFilter: `blur(${surfaceBlur}) saturate(160%)`,
         },
-        '&[data-liquid-glass="active"]:has([data-glass-flat="true"])::after': {
+        [`&[data-liquid-glass="active"]${layeredContent}::after`]: {
           backdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
           WebkitBackdropFilter: 'var(--liquid-glass-filter) saturate(145%)',
         },
