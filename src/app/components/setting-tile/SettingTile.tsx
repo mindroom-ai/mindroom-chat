@@ -1,5 +1,6 @@
 import { ReactNode, forwardRef, useId, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
+import { SettingScopeLabel } from '../../features/settings/SettingScopeLabel';
 
 type SettingTileProps = {
   title?: ReactNode;
@@ -10,7 +11,10 @@ type SettingTileProps = {
   after?: ReactNode;
   /** Extra content under the description. */
   children?: ReactNode;
-  /** The tile's setting in the settings registry, which search scrolls to. */
+  /**
+   * The tile's setting in the settings registry: search scrolls to it, and the tile says where it
+   * applies (this device, the account, the room).
+   */
   focusId?: string;
 };
 
@@ -73,6 +77,7 @@ export function SettingTile(props: SettingTileProps) {
         ) : null}
         {descriptionText}
         {children}
+        {focusId && <SettingScopeLabel id={focusId} />}
       </Box>
       <FixedSlot ref={afterRef}>{after}</FixedSlot>
     </Box>
