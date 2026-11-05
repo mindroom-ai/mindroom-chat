@@ -235,6 +235,8 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
     // From the empty composer it resolves, and again reopens.
     await page.keyboard.press('ControlOrMeta+Shift+Enter');
     await expect(resolved).toBeVisible();
+    // Like the button, the shortcut waits for the save: it acts again once the button does.
+    await expect(resolved).toBeEnabled();
     await page.keyboard.press('ControlOrMeta+Shift+Enter');
     await expect(resolve).toBeVisible();
   });
