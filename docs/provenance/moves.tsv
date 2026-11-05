@@ -8,3 +8,4 @@ src/app/mindroom/threads/timelineReadReceiptController.ts		clean-rewrite
 src/app/components/invite-user-prompt/InviteAutocompleteMenu.css.ts		clean-rewrite
 src/app/mindroom/sidebar/MindroomTab.tsx		clean-rewrite
 src/app/mindroom/threads/useThreadAwareTimelineRefresh.ts		clean-rewrite
+src/app/mindroom/threads/roomFocusScrollController.ts		clean-rewrite
