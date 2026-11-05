@@ -75,10 +75,6 @@ globalStyle('[data-message-fold="text"]:not(:has(> * > [data-message-disclosure]
   alignItems: 'flex-start',
 });
 
-// The hover options of the row below float over this row's bottom edge, where the fold button
-// sits; the button stays on top, so it can still be clicked while that row is hovered.
-globalStyle('[data-message-fold] > * > [data-message-disclosure]', { zIndex: 2 });
-
 const bubbleColors = color.SurfaceVariant;
 
 // A bubble only as wide as its content, up to the content column.

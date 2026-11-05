@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   TIMELINE_OVERLAY_ATTRIBUTE,
   isKeyboardFocus,
+  toolbarOffset,
   useToolbarClearance,
 } from './hoverToolbarPlacement';
 
@@ -114,5 +115,28 @@ describe('useToolbarClearance', () => {
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
     // No overlay over the toolbar; the visible rows start at 100.
     expect(renderRow(90, 100)).toBe(10);
+  });
+});
+
+describe('toolbarOffset', () => {
+  // A 42 px toolbar that usually sits 36 px above a 60 px row.
+  const place = (covered: number, folds: Parameters<typeof toolbarOffset>[4] = []) =>
+    toolbarOffset(-36, covered, 60, 42, folds);
+
+  it('keeps the usual place when nothing is in the way', () => {
+    expect(place(-200)).toBeUndefined();
+    // A fold button far above the toolbar is no reason to move.
+    expect(place(-200, [{ top: -120, bottom: -88, ownRow: false }])).toBeUndefined();
+  });
+
+  it('moves below the Show less button of the long message above, 8 px clear of it', () => {
+    expect(place(-200, [{ top: -46, bottom: -14, ownRow: false }])).toBe(-6);
+  });
+
+  it('moves above the fold button of its own row when that row is scrolled under the header', () => {
+    // The header ends 40 px into the row, which pins the toolbar 4 px above the row's bottom,
+    // onto the row's own button; it goes up, 8 px clear of that button, instead.
+    expect(place(40)).toBe(14);
+    expect(place(40, [{ top: 20, bottom: 52, ownRow: true }])).toBe(-30);
   });
 });

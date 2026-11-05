@@ -319,4 +319,150 @@ test.describe('message hover toolbar', () => {
       });
     }
   });
+
+  // A long message folds behind a Show full message button at the end of its bottom edge, and
+  // shows Show less there once unfolded. That corner is where the toolbar of the row below
+  // floats, and where a long row's own toolbar ends up when the row is scrolled up under the
+  // header. In both places the toolbar keeps 8 px clear of the button.
+  test('keeps clear of the fold button of a long message', async ({ page }) => {
+    test.setTimeout(480_000);
+    const homeserver = getHomeserver();
+    const credentials = getPrimaryCredentials();
+    const { accessToken } = await loginToMatrix(
+      homeserver,
+      credentials.username,
+      credentials.password
+    );
+    const roomId = await createPrivateRoom(homeserver, accessToken, {
+      name: `Fold ${Date.now()}`,
+      topic: 'Long messages and the hover toolbar',
+    });
+    const longBody = (title: string) =>
+      [title, ...Array.from({ length: 24 }, (_, i) => `Step ${i + 1} of the plan.`)].join('\n');
+    const send = (body: string, relation?: object) =>
+      sendRoomMessage(homeserver, accessToken, roomId, {
+        msgtype: 'm.text',
+        body,
+        ...(relation ? { 'm.relates_to': relation } : {}),
+      });
+    const rootId = await send('Plans for the week');
+    const thread = {
+      rel_type: 'm.thread',
+      event_id: rootId,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: rootId },
+    };
+    await send(longBody('The thread plan'), thread);
+    await send('A short answer in the thread.', thread);
+    await send(longBody('The room plan'));
+    await send('A short note in the room.');
+
+    await signIn(page, homeserver, credentials.username, credentials.password);
+    const rows = page.locator('[data-message-item]');
+
+    /** The toolbar of `row` and the fold button of `long`, in page coordinates. */
+    const boxes = async (row: Locator, long: Locator) => {
+      const reply = row.getByRole('button', { name: 'Reply', exact: true });
+      await expect(reply).toBeVisible();
+      const pill = (await reply.locator('../..').boundingBox())!;
+      const fold = (await long.getByRole('button', { name: 'Show less' }).boundingBox())!;
+      return { pill, fold };
+    };
+    const expectApart = ({ pill, fold }: Awaited<ReturnType<typeof boxes>>, where: string) => {
+      const gap = Math.max(
+        fold.y - (pill.y + pill.height),
+        pill.y - (fold.y + fold.height),
+        fold.x - (pill.x + pill.width),
+        pill.x - (fold.x + fold.width)
+      );
+      expect(gap, `${where}: the toolbar and Show less stay apart`).toBeGreaterThanOrEqual(7.5);
+    };
+
+    for (const [view, path, longTitle, short] of [
+      [
+        'thread',
+        `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`,
+        'The thread plan',
+        'A short answer in the thread.',
+      ],
+      ['room', `/home/${encodeURIComponent(roomId)}`, 'The room plan', 'A short note in the room.'],
+    ] as const) {
+      for (const viewport of [
+        { width: 1280, height: 800 },
+        { width: 390, height: 844 },
+      ]) {
+        const where = `${view} at ${viewport.width} px`;
+        // eslint-disable-next-line no-await-in-loop
+        await page.setViewportSize(viewport);
+        // eslint-disable-next-line no-await-in-loop
+        await page.goto(path);
+        const long = rows.filter({ hasText: longTitle });
+        const next = rows.filter({ hasText: short });
+        // eslint-disable-next-line no-await-in-loop
+        await expect(next).toBeVisible({ timeout: 60_000 });
+        const fold = long.getByRole('button', { name: /^(Show full message|Show less)$/ });
+        // eslint-disable-next-line no-await-in-loop
+        await expect(fold).toBeVisible();
+        // eslint-disable-next-line no-await-in-loop
+        if ((await fold.getAttribute('aria-expanded')) === 'false') await fold.click();
+        // eslint-disable-next-line no-await-in-loop
+        await expect(long.getByRole('button', { name: 'Show less' })).toBeVisible();
+
+        // The row below the long message: its toolbar moves down, under Show less.
+        // eslint-disable-next-line no-await-in-loop
+        await next.scrollIntoViewIfNeeded();
+        // eslint-disable-next-line no-await-in-loop
+        await pointAt(page, next.getByText(short, { exact: true }));
+        // eslint-disable-next-line no-await-in-loop
+        const below = await boxes(next, long);
+        expectApart(below, `${where}, the row below`);
+        if (SHOTS) {
+          const top = Math.min(below.pill.y, below.fold.y) - 24;
+          const left = Math.max(0, below.pill.x - 120);
+          // eslint-disable-next-line no-await-in-loop
+          await page.screenshot({
+            path: `${SHOTS}/L15-message-toolbar-fold-${view}-${viewport.width}.png`,
+            clip: {
+              x: left,
+              y: top,
+              width: Math.min(viewport.width, below.pill.x + below.pill.width + 24) - left,
+              height: below.pill.y + below.pill.height + 40 - top,
+            },
+          });
+        }
+
+        // The long message scrolled up until only its end shows under the header: its toolbar
+        // moves up, above Show less.
+        // eslint-disable-next-line no-await-in-loop
+        await long.evaluate((row) => {
+          let scroller = row.parentElement;
+          while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) {
+            scroller = scroller.parentElement;
+          }
+          if (!scroller) return;
+          const top =
+            scroller.getBoundingClientRect().top +
+            Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop || '0');
+          scroller.scrollTop += row.getBoundingClientRect().bottom - (top + 90);
+        });
+        const lastStep = long.getByText('Step 24 of the plan.');
+        // eslint-disable-next-line no-await-in-loop
+        await expect(lastStep).toBeInViewport();
+        // eslint-disable-next-line no-await-in-loop
+        await pointAt(page, lastStep);
+        // eslint-disable-next-line no-await-in-loop
+        expectApart(await boxes(long, long), `${where}, the long row scrolled under the header`);
+
+        // And with the long message in full view.
+        // eslint-disable-next-line no-await-in-loop
+        await long.evaluate((row) => row.scrollIntoView({ block: 'start' }));
+        // eslint-disable-next-line no-await-in-loop
+        await pointAt(page, long.getByText(longTitle));
+        // eslint-disable-next-line no-await-in-loop
+        expectApart(await boxes(long, long), `${where}, the long row`);
+        // eslint-disable-next-line no-await-in-loop
+        await page.mouse.move(0, 0);
+      }
+    }
+  });
 });

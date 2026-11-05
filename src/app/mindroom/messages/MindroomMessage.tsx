@@ -866,8 +866,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           style={
             toolbarClearance === undefined
               ? undefined
-              : // At most down to 4 px above the row's bottom: the 42 px pill plus 4 px.
-                { insetBlockStart: `min(${toolbarClearance}px, calc(100% - 2.875rem))` }
+              : { insetBlockStart: `${toolbarClearance}px` }
           }
         >
           <Menu variant="SurfaceVariant" className={css.MessageOptionsBar}>

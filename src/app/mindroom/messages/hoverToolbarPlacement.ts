@@ -29,9 +29,16 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
 
 /** Marks a control that floats over the top rows of a timeline, such as the `[+all]` toggle. */
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
-// Space kept between such a control and a toolbar moved below it: twice the toolbar's own 4 px
-// padding, so the control does not read as part of the toolbar.
-const OVERLAY_GAP_PX = 8;
+/**
+ * The Show full message / Show less button of a long message (CollapsibleMessage). It sits at the
+ * end of the message's bottom edge, the corner the toolbar of the row below floats over.
+ */
+const FOLD_BUTTON = '[data-message-fold] > * > [data-message-disclosure] > button';
+// Space kept between the toolbar and such controls: twice the toolbar's own 4 px padding, so a
+// control does not read as part of the toolbar.
+const CONTROL_GAP_PX = 8;
+// The lowest a toolbar moved into its row goes: this far above the row's bottom.
+const ROW_END_GAP_PX = 4;
 
 /**
  * The lowest point of what floats over the top of a scroller where a toolbar spanning `left` to
@@ -45,18 +52,48 @@ const coveredUntilY = (scroller: HTMLElement, left: number, right: number): numb
   scroller.querySelectorAll(`[${TIMELINE_OVERLAY_ATTRIBUTE}]`).forEach((overlay) => {
     const rect = overlay.getBoundingClientRect();
     if (rect.width > 0 && rect.left < right && rect.right > left) {
-      bottom = Math.max(bottom, rect.bottom + OVERLAY_GAP_PX);
+      bottom = Math.max(bottom, rect.bottom + CONTROL_GAP_PX);
     }
   });
   return bottom;
 };
 
+/** A fold button beside the toolbar, relative to the top of the toolbar's row. */
+export type FoldSpan = { top: number; bottom: number; ownRow: boolean };
+
 /**
- * How far below the top of its row the hover toolbar has to sit to stay clear of what floats
- * over the top of the timeline, in pixels, or `undefined` when its usual place above the row is
- * clear. The first row of a thread starts right under the banner and its `[+all]` toggle, so
- * its toolbar moves down into the row instead of covering them. Measured while the toolbar
- * shows, and again as the timeline scrolls under it.
+ * Where the toolbar's top goes, relative to the top of its row, or `undefined` for its usual
+ * place. `usual` is that place, `covered` where what floats over the top of the timeline ends,
+ * `height` the toolbar's own height, and `folds` the fold buttons under its span.
+ */
+export const toolbarOffset = (
+  usual: number,
+  covered: number,
+  rowHeight: number,
+  height: number,
+  folds: FoldSpan[]
+): number | undefined => {
+  // Below the header and the controls under it, but no lower than 4 px above the row's bottom.
+  let top = covered > usual + 0.5 ? Math.min(covered, rowHeight - ROW_END_GAP_PX - height) : usual;
+  [...folds]
+    .sort((a, b) => a.top - b.top)
+    .forEach((fold) => {
+      if (top < fold.bottom + CONTROL_GAP_PX && top + height > fold.top - CONTROL_GAP_PX) {
+        // The fold button of the long message above pushes the toolbar down into its row; the
+        // row's own, at its bottom, pushes it up.
+        top = fold.ownRow ? fold.top - CONTROL_GAP_PX - height : fold.bottom + CONTROL_GAP_PX;
+      }
+    });
+  return Math.abs(top - usual) > 0.5 ? Math.round(top) : undefined;
+};
+
+/**
+ * How far below the top of its row the hover toolbar sits, in pixels, or `undefined` in its usual
+ * place above the row. It moves to stay clear of what floats over the top of the timeline (the
+ * first row of a thread starts right under the banner and its `[+all]` toggle, so its toolbar
+ * moves down into the row instead of covering them) and of the fold buttons of long messages, so
+ * it never draws over a Show less button. Measured while the toolbar shows, and again as the
+ * timeline scrolls under it or the row changes size.
  */
 export const useToolbarClearance = (
   rowRef: RefObject<HTMLElement>,
@@ -82,20 +119,35 @@ export const useToolbarClearance = (
       frame = 0;
       const toolbar = toolbarRef.current;
       if (!toolbar) return;
-      const rowTop = row.getBoundingClientRect().top;
+      const rowRect = row.getBoundingClientRect();
       const bar = toolbar.getBoundingClientRect();
-      if (clearanceRef.current === undefined) usualOffset.current = bar.top - rowTop;
-      const needed = coveredUntilY(scroller, bar.left, bar.right) - rowTop;
-      const next = needed > (usualOffset.current ?? 0) + 0.5 ? Math.round(needed) : undefined;
+      if (clearanceRef.current === undefined) usualOffset.current = bar.top - rowRect.top;
+      const folds = Array.from(scroller.querySelectorAll(FOLD_BUTTON)).flatMap((button) => {
+        const rect = button.getBoundingClientRect();
+        if (!(rect.width > 0 && rect.left < bar.right && rect.right > bar.left)) return [];
+        const top = rect.top - rowRect.top;
+        return [{ top, bottom: top + rect.height, ownRow: row.contains(button) }];
+      });
+      const next = toolbarOffset(
+        usualOffset.current ?? 0,
+        coveredUntilY(scroller, bar.left, bar.right) - rowRect.top,
+        rowRect.height,
+        bar.height,
+        folds
+      );
       if (next !== clearanceRef.current) setClearance(next);
     };
     place();
-    const onScroll = () => {
+    const schedule = () => {
       if (!frame) frame = requestAnimationFrame(place);
     };
-    scroller.addEventListener('scroll', onScroll, { passive: true });
+    scroller.addEventListener('scroll', schedule, { passive: true });
+    // Folding or unfolding the row moves its own fold button.
+    const resize = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(schedule);
+    resize?.observe(row);
     return () => {
-      scroller.removeEventListener('scroll', onScroll);
+      scroller.removeEventListener('scroll', schedule);
+      resize?.disconnect();
       cancelAnimationFrame(frame);
     };
   }, [rowRef, toolbarRef, shown]);
