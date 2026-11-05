@@ -39,7 +39,12 @@ export function ApprovalReceipt({
           {approval.status === 'approved' ? '✓' : '–'} {getToolApprovalOperationLabel(approval)}
         </span>
         <span className={css.ReceiptMeta}>{statusLabel}</span>
-        <Icon src={Icons.ChevronBottom} size="50" className={css.ReceiptChevron} aria-hidden />
+        <Icon
+          src={nested ? Icons.ChevronRight : Icons.ChevronBottom}
+          size="50"
+          className={nested ? css.NestedReceiptChevron : css.ReceiptChevron}
+          aria-hidden
+        />
       </summary>
       <div className={css.ReceiptBody}>
         <p>

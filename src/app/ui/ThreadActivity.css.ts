@@ -87,13 +87,16 @@ export const Detail = style({
   opacity: 0.9,
 });
 
-/** Points along the text while collapsed (right, or left in right-to-left), down while open. */
+/**
+ * Points along the text while collapsed (right, or left in right-to-left), down while open. An
+ * approval receipt inside the panel uses it too, open with its details element.
+ */
 export const Chevron = style({
   flexShrink: 0,
   opacity: config.opacity.P400,
   selectors: {
     '[dir=rtl] &': { transform: 'rotate(180deg)' },
-    [`${Line}[aria-expanded="true"] &`]: { transform: 'rotate(90deg)' },
+    [`${Line}[aria-expanded="true"] &, details[open] > summary &`]: { transform: 'rotate(90deg)' },
   },
   '@media': {
     '(prefers-reduced-motion: no-preference)': { transition: 'transform 150ms ease' },

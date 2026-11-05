@@ -117,6 +117,9 @@ globalStyle(`${HistoryBody} > ${Receipt}${Receipt}`, {
   WebkitBackdropFilter: 'none',
 });
 globalStyle(`${HistoryBody} > ${Receipt}::before`, { display: 'none' });
+// Each receipt there is a line like the panel's own, with its arrow right after the text.
+globalStyle(`${HistoryBody} > ${Receipt} > summary`, { justifyContent: 'flex-start' });
+globalStyle(`${HistoryBody} > ${Receipt} > summary > ${ReceiptTool}`, { flex: '0 1 auto' });
 globalStyle(`${HistoryBody} > ${Receipt}:not(:last-child)`, {
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
@@ -160,6 +163,7 @@ export {
   Meta as ReceiptMeta,
   Chevron as ReceiptChevron,
 } from '../ui/styles/MessageDisclosure.css';
+export { Chevron as NestedReceiptChevron } from '../ui/ThreadActivity.css';
 
 // A group inside the glass review dialog: the dialog owns the glass, sections are divided.
 export const Section = style({

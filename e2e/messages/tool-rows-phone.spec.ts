@@ -28,6 +28,8 @@ import {
 // - In Arabic, a tool's output, its arguments and the tool names after the title read in their
 //   own direction: `8 results` and `2026 SaaS churn benchmarks`, not `results 8`, and a list of
 //   tool names cut short keeps its start. English reads the same as before.
+// - An approval's receipt inside an opened approval line has the tool line's arrow: after the
+//   text, pointing along the text while closed and down while open.
 // Set TOOL_ROWS_SHOTS=<directory> to save each check's rows.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-rows-phone-spec-password';
@@ -377,6 +379,49 @@ const checkOutputDirection = async (
     .toBeLessThanOrEqual(2);
 };
 
+/** The approval line's receipt has the tool line's arrow, closed and open. */
+const checkReceiptArrow = async (
+  page: Page,
+  world: World,
+  engine: string,
+  language: 'en' | 'ar'
+) => {
+  const where = `${engine}, ${language}`;
+  const toolArrow = await measureArrow(await openToolLine(page, world, language));
+  const approvals = disclosures(page).filter({
+    hasText: language === 'ar' ? 'وافقت' : 'You approved',
+  });
+  await expect(approvals).toHaveCount(1);
+  await tap(page, approvals);
+  const receipt = approvals.locator('xpath=..').locator('details > summary');
+  await expect(receipt).toBeVisible();
+  const closed = await measureArrow(receipt);
+  await tap(page, receipt);
+  await expect(receipt.locator('xpath=..')).toHaveAttribute('open', '');
+  await page.waitForTimeout(300);
+  const open = await measureArrow(receipt);
+  console.log(`${where} receipt: ${JSON.stringify({ toolArrow, closed, open })}`);
+  await shot(page, approvals.locator('xpath=..'), `approval-row-open-${language}-${engine}-phone`);
+  expect
+    .soft(closed.glyph, `the receipt has the tool line's arrow (${where})`)
+    .toBe(toolArrow.glyph);
+  expect
+    .soft(Math.abs(closed.angle), `the closed receipt's arrow points along the text (${where})`)
+    .toBe(language === 'ar' ? 180 : 0);
+  expect.soft(open.angle, `the open receipt's arrow points down (${where})`).toBe(90);
+  for (const [state, arrow] of [
+    ['closed', closed],
+    ['open', open],
+  ] as const) {
+    expect
+      .soft(arrow.gapToText, `the ${state} receipt's arrow follows its text (${where})`)
+      .toBeGreaterThanOrEqual(0);
+    expect
+      .soft(arrow.gapToText, `the ${state} receipt's arrow follows its text (${where})`)
+      .toBeLessThanOrEqual(14);
+  }
+};
+
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
   const world = await seed(engine);
   const context = await browser.newContext({ ...PHONE, baseURL });
@@ -390,6 +435,8 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     await checkRussianInbox(page, engine);
     await checkOutputDirection(page, world, engine, 'en');
     await checkOutputDirection(page, world, engine, 'ar');
+    await checkReceiptArrow(page, world, engine, 'en');
+    await checkReceiptArrow(page, world, engine, 'ar');
   } finally {
     await context.close();
   }
