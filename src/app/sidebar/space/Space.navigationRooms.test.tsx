@@ -51,6 +51,7 @@ const client = {
 vi.mock('react-router-dom', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-router-dom')>()),
   useNavigate: () => vi.fn(),
+  useMatch: () => null,
 }));
 vi.mock('focus-trap-react', () => ({ default: passthrough }));
 vi.mock('../../ui/page/Page', () => ({
