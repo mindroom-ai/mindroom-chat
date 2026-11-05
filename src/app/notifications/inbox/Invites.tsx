@@ -352,7 +352,8 @@ export function InviteCard({
 // button comes and goes.
 const SECTION_HEADER_STYLE = { minHeight: toRem(32) } as const;
 
-// The way on to Notifications sits under the empty list's hint, as wide as its label.
+// The Inbox opens on Invites also with no invite waiting, so the empty page leads on to
+// Notifications: a button as wide as its label, under the hint.
 const EMPTY_LINK_STYLE = { alignSelf: 'flex-start', marginBlockStart: config.space.S200 } as const;
 
 /** What an empty list holds once invites arrive. */
@@ -474,7 +475,6 @@ export function Invites() {
                     <Text size="T300" priority="300">
                       {t(EMPTY_HINT_KEYS[category])}
                     </Text>
-                    {/* The Inbox opens here even with no invite waiting; Notifications is one step on. */}
                     {invites.length === 0 && (
                       <Button
                         as={Link}

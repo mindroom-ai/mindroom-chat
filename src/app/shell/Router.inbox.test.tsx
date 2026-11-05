@@ -87,7 +87,7 @@ describe('the Inbox routes', () => {
     }
   );
 
-  it('keep phones on the Inbox list there, where Back from Invites and Notifications leads', async () => {
+  it('keep phones on the Inbox list there, where the Back of its pages leads', async () => {
     expect(await open('/inbox/', ScreenSize.Mobile, 'Inbox list')).toBe('/inbox/');
     expect(screen.queryByText('Invites page')).toBeNull();
   });

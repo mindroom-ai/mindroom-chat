@@ -149,7 +149,10 @@ const top = async (locator: Locator): Promise<number> => {
   return box?.y ?? 0;
 };
 
-/** The Inbox navigation lists Invites first, with `count` pending (none: no number), then Notifications. */
+/**
+ * The Inbox navigation lists Invites first, with `count` pending (none: no number), then
+ * Notifications.
+ */
 const expectInvitesFirst = async (page: Page, count: number) => {
   const links = inboxNav(page).getByRole('link');
   await expect(links).toHaveCount(2);
@@ -292,7 +295,8 @@ test('the Inbox opens on Invites, with Notifications one entry below', async ({ 
   await palette.locator('[role="option"][data-item-id="go-inbox"]').click();
   await expectInvitesPage(page, 2);
 
-  // Addresses: the bare Inbox opens Invites, with and without the slash; Notifications keeps its own.
+  // Addresses: the bare Inbox opens Invites, with and without the slash; Notifications keeps
+  // its own.
   await page.goto('/inbox/notifications/');
   await expectNotificationsPage(page);
   await page.goto('/inbox/');
