@@ -121,6 +121,8 @@ test('sessions verify each other by emoji or recovery key and then read the hist
     await composer.click();
     await first.keyboard.type(secret);
     await first.keyboard.press('Enter');
+    // Sent: the composer is empty again, so the text found is the message, not the draft.
+    await expect(composer).not.toContainText(secret);
     await expect(first.getByText(secret)).toBeVisible();
   }
   // A uploads new keys to the backup after a random delay of up to 10 s, and B looks for a
