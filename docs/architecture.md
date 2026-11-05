@@ -27,6 +27,7 @@ src/
                          language files, framing
   types/                 ambient .d.ts files only
   test/                  Vitest setup, architecture.ts (import graph helpers for architecture tests), layering.test.ts,
+                         mockPaths.test.ts (every relative vi.mock, vi.doMock and vi.importActual path names a file),
                          utils/ (shared test helpers)
   build/                 tests of build tooling and repository files (precache plan, icons, index.html, npm scripts)
   app/
