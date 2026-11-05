@@ -26,6 +26,7 @@ import { useMediaLoading, useMediaPlay, useMediaPlayTimeCallback } from '../../.
 import { useThrottle } from '../../../hooks/useThrottle';
 import { bytesToSize, secondsToMinutesAndSeconds } from '../../../utils/common';
 import { VoiceWaveform } from '../../voice/VoiceWaveform';
+import { useMeasuredWaveform } from '../../voice/measuredWaveform';
 import { VoicePlaybackRateButton } from '../../voice/VoicePlaybackRateButton';
 import { VoiceVolumeButton } from '../../voice/VoiceVolumeButton';
 import { FileDownloadButton } from '../FileHeader';
@@ -167,6 +168,7 @@ export function VoiceAudioContent({
   const mediaIdentity = getAudioContentSourceIdentity({ mimeType, url, encInfo, owner });
   const [srcState, loadSrc] = useAudioContentSource({ mimeType, url, encInfo, owner });
   const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
+  const shownWaveform = useMeasuredWaveform(mediaIdentity, src, waveform);
 
   const rate = useAtomValue(voiceMessagePlaybackRateAtom);
   const volume = useAtomValue(voiceMessageVolumeAtom);
@@ -351,7 +353,7 @@ export function VoiceAudioContent({
           </div>
           <div className={css.WaveformCell}>
             <VoiceWaveform
-              waveform={waveform}
+              waveform={shownWaveform}
               progress={progress}
               dimmed={!started}
               label={t('sharedUi.voiceAudioContent.seekValue1', { value1: subject })}
