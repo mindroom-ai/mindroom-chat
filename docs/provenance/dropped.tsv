@@ -22,3 +22,5 @@ src/app/plugins/call/CallEmbed.startedAfterTs.test.ts	1	Element Call
 src/app/plugins/call/CallWidgetDriver.test.ts	1	Element Call
 src/app/plugins/call/elementCallBackgroundBuild.test.ts	1	Element Call
 src/app/plugins/call/elementCallBackground.test.ts	1	Element Call
+android/app/src/main/res/drawable/ic_launcher_background.xml	2	Unused Android Studio template icon
+android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml	2	Unused Android Studio template icon
