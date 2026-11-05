@@ -31,18 +31,28 @@ const PHONE: BrowserContextOptions = {
   isMobile: true,
 };
 const ROOM_NAME = 'Harbor operations';
-const MESSAGES = [
-  'Morning all, the crane inspection moved to Thursday at nine.',
-  'Reminder: berth four is closed for dredging until the end of the month, so the two container ' +
-    'ships due on Tuesday go to berth six instead. The pilots have the new schedule, and the ' +
-    'tug crews got it this morning. If anything in the plan clashes with your shifts, reply in ' +
-    'this room before Friday so we can sort it out with the night team as well.',
-  'Who has the keys to the east gate this week?',
-  'Safety briefing slides are in the shared folder under "Quarter three".',
-  'The fuel delivery is confirmed for Wednesday afternoon.',
+const UNPINNED = 'Morning all, the crane inspection moved to Thursday at nine.';
+const MESSAGES: { body: string; pinned: boolean }[] = [
+  { body: UNPINNED, pinned: false },
+  {
+    body:
+      'Reminder: berth four is closed for dredging until the end of the month, so the two container ' +
+      'ships due on Tuesday go to berth six instead. The pilots have the new schedule, and the ' +
+      'tug crews got it this morning. If anything in the plan clashes with your shifts, reply in ' +
+      'this room before Friday so we can sort it out with the night team as well.',
+    pinned: true,
+  },
+  { body: 'Who has the keys to the east gate this week?', pinned: false },
+  {
+    body: 'Safety briefing slides are in the shared folder under "Quarter three".',
+    pinned: true,
+  },
+  { body: 'The fuel delivery is confirmed for Wednesday afternoon.', pinned: true },
 ];
-/** Indexes into MESSAGES, in the order they were pinned. */
-const PINNED = [1, 3, 4];
+/** The pinned messages as the menu lists them: the newest pin first. */
+const PINNED_NEWEST_FIRST = MESSAGES.filter((message) => message.pinned)
+  .map((message) => message.body)
+  .reverse();
 
 test.use({
   launchOptions: {
@@ -85,15 +95,18 @@ const seed = async (name: string) => {
     )
   );
   const roomId = await createRoom(HOMESERVER, session.accessToken, { name: ROOM_NAME });
-  const eventIds: string[] = [];
-  for (const body of MESSAGES) {
+  const pinned: string[] = [];
+  for (const { body, pinned: pin } of MESSAGES) {
     // eslint-disable-next-line no-await-in-loop
-    eventIds.push(
-      await sendRoomMessage(HOMESERVER, session.accessToken, roomId, { msgtype: 'm.text', body })
-    );
+    const eventId = await sendRoomMessage(HOMESERVER, session.accessToken, roomId, {
+      msgtype: 'm.text',
+      body,
+    });
+    if (pin) pinned.push(eventId);
   }
+  // Pinned in the order the messages were sent, so the last one is the newest pin.
   await sendStateEvent(HOMESERVER, session.accessToken, roomId, 'm.room.pinned_events', '', {
-    pinned: PINNED.map((index) => eventIds[index]),
+    pinned,
   });
   return { username, roomId };
 };
@@ -129,7 +142,7 @@ const checkPinMenu = async (page: Page, engine: string, form: string, testInfo: 
     const menu = pinMenu(page);
     // eslint-disable-next-line no-await-in-loop
     await expect(menu.getByText('Pinned Messages', { exact: true })).toBeVisible();
-    const expected = [...PINNED].reverse().map((index) => MESSAGES[index]);
+    const expected = PINNED_NEWEST_FIRST;
     for (const body of expected) {
       // eslint-disable-next-line no-await-in-loop
       await expect(menu.getByText(body, { exact: true })).toBeVisible();
@@ -141,7 +154,7 @@ const checkPinMenu = async (page: Page, engine: string, form: string, testInfo: 
     );
     expect(order, 'newest pin first').toEqual([...order].sort((a, b) => a - b));
     expect(order.every((position) => position >= 0)).toBe(true);
-    await expect(menu.getByText(MESSAGES[0], { exact: true })).toHaveCount(0);
+    await expect(menu.getByText(UNPINNED, { exact: true })).toHaveCount(0);
     await expect(pinButton).toHaveAttribute('aria-expanded', 'true');
 
     // eslint-disable-next-line no-await-in-loop
