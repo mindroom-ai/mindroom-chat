@@ -433,5 +433,39 @@
       "seeAllDescription": "Apri la ricerca dei messaggi con i filtri",
       "thread": "Thread"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Scorciatoie da tastiera",
+      "close": "Chiudi",
+      "hintsSwitch": "Mostra i suggerimenti delle scorciatoie tenendo premuto {{key}}"
+    },
+    "groups": {
+      "general": "Generale",
+      "rooms": "Stanze e thread",
+      "composer": "Campo di scrittura"
+    },
+    "hints": {
+      "chip": "{{keys}} per tutte le scorciatoie"
+    },
+    "actions": {
+      "palette": "Ricerca e comandi",
+      "settings": "Apri le impostazioni",
+      "help": "Mostra le scorciatoie da tastiera",
+      "messageSearch": "Cerca messaggi",
+      "roomList": "Mostra o nascondi l'elenco delle stanze",
+      "previousRoom": "Stanza precedente",
+      "nextRoom": "Stanza successiva",
+      "previousUnread": "Stanza non letta precedente",
+      "nextUnread": "Stanza non letta successiva",
+      "moveRoomUp": "Sposta in alto la stanza o lo spazio selezionato",
+      "moveRoomDown": "Sposta in basso la stanza o lo spazio selezionato",
+      "members": "Mostra o nascondi i membri",
+      "focusComposer": "Segna come letto e vai al campo di scrittura",
+      "resolveThread": "Risolvi o riapri il thread aperto",
+      "newLine": "Nuova riga",
+      "editLast": "Modifica il tuo ultimo messaggio (campo di scrittura vuoto)",
+      "inlineCode": "Codice in linea"
+    }
   }
 }

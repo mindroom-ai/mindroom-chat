@@ -426,5 +426,39 @@
       "seeAllDescription": "Open Message Search with filters",
       "thread": "Thread"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Keyboard shortcuts",
+      "close": "Close",
+      "hintsSwitch": "Show shortcut hints while holding {{key}}"
+    },
+    "groups": {
+      "general": "General",
+      "rooms": "Rooms and threads",
+      "composer": "Composer"
+    },
+    "hints": {
+      "chip": "{{keys}} for all shortcuts"
+    },
+    "actions": {
+      "palette": "Search and commands",
+      "settings": "Open settings",
+      "help": "Show keyboard shortcuts",
+      "messageSearch": "Search messages",
+      "roomList": "Show or hide the room list",
+      "previousRoom": "Previous room",
+      "nextRoom": "Next room",
+      "previousUnread": "Previous unread room",
+      "nextUnread": "Next unread room",
+      "moveRoomUp": "Move the focused room or space up",
+      "moveRoomDown": "Move the focused room or space down",
+      "members": "Show or hide members",
+      "focusComposer": "Mark as read and go to the composer",
+      "resolveThread": "Resolve or reopen the open thread",
+      "newLine": "New line",
+      "editLast": "Edit your last message (in an empty composer)",
+      "inlineCode": "Inline code"
+    }
   }
 }

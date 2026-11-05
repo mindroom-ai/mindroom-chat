@@ -2,6 +2,7 @@ import type { PrimitiveAtom, useStore } from 'jotai';
 import { forgetCallState } from '../../features/calls/callStore';
 import { agentCallFailureAtom } from '../../mindroom/calls/agentCaller';
 import { commandPaletteOpenAtom } from '../../mindroom/command-palette/commandPaletteState';
+import { shortcutHelpOpenAtom } from '../../mindroom/shortcuts/shortcutHelpState';
 import {
   crossRoomThreadIndexAtom,
   emptyCrossRoomThreadIndexSnapshot,
@@ -72,6 +73,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(createSpaceModalAtom),
   toInitial(userRoomProfileAtom),
   toInitial(commandPaletteOpenAtom),
+  toInitial(shortcutHelpOpenAtom),
   toInitial(imageViewerOpenAtom),
 ];
 

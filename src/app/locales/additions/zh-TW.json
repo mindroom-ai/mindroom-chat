@@ -419,5 +419,39 @@
       "seeAllDescription": "開啟含篩選條件的訊息搜尋",
       "thread": "討論串"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "鍵盤快速鍵",
+      "close": "關閉",
+      "hintsSwitch": "按住 {{key}} 時顯示快速鍵提示"
+    },
+    "groups": {
+      "general": "一般",
+      "rooms": "房間和討論串",
+      "composer": "輸入框"
+    },
+    "hints": {
+      "chip": "{{keys}} 查看所有快速鍵"
+    },
+    "actions": {
+      "palette": "搜尋和指令",
+      "settings": "開啟設定",
+      "help": "顯示鍵盤快速鍵",
+      "messageSearch": "搜尋訊息",
+      "roomList": "顯示或隱藏房間列表",
+      "previousRoom": "上一個房間",
+      "nextRoom": "下一個房間",
+      "previousUnread": "上一個未讀房間",
+      "nextUnread": "下一個未讀房間",
+      "moveRoomUp": "將選取的房間或空間上移",
+      "moveRoomDown": "將選取的房間或空間下移",
+      "members": "顯示或隱藏成員",
+      "focusComposer": "標示為已讀並前往輸入框",
+      "resolveThread": "解決或重新開啟目前的討論串",
+      "newLine": "換行",
+      "editLast": "編輯你的最後一則訊息（輸入框為空時）",
+      "inlineCode": "行內程式碼"
+    }
   }
 }

@@ -419,5 +419,39 @@
       "seeAllDescription": "打开带筛选条件的消息搜索",
       "thread": "讨论串"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "键盘快捷键",
+      "close": "关闭",
+      "hintsSwitch": "按住 {{key}} 时显示快捷键提示"
+    },
+    "groups": {
+      "general": "常规",
+      "rooms": "房间和讨论串",
+      "composer": "输入框"
+    },
+    "hints": {
+      "chip": "{{keys}} 查看所有快捷键"
+    },
+    "actions": {
+      "palette": "搜索和命令",
+      "settings": "打开设置",
+      "help": "显示键盘快捷键",
+      "messageSearch": "搜索消息",
+      "roomList": "显示或隐藏房间列表",
+      "previousRoom": "上一个房间",
+      "nextRoom": "下一个房间",
+      "previousUnread": "上一个未读房间",
+      "nextUnread": "下一个未读房间",
+      "moveRoomUp": "将选中的房间或空间上移",
+      "moveRoomDown": "将选中的房间或空间下移",
+      "members": "显示或隐藏成员",
+      "focusComposer": "标记为已读并转到输入框",
+      "resolveThread": "解决或重新打开当前讨论串",
+      "newLine": "换行",
+      "editLast": "编辑你的最后一条消息（输入框为空时）",
+      "inlineCode": "行内代码"
+    }
   }
 }

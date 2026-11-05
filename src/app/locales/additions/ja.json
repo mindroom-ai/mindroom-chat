@@ -419,5 +419,39 @@
       "seeAllDescription": "フィルター付きのメッセージ検索を開く",
       "thread": "スレッド"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "キーボード ショートカット",
+      "close": "閉じる",
+      "hintsSwitch": "{{key}} を押し続けたときにショートカットのヒントを表示"
+    },
+    "groups": {
+      "general": "全般",
+      "rooms": "ルームとスレッド",
+      "composer": "入力欄"
+    },
+    "hints": {
+      "chip": "{{keys}} ですべてのショートカット"
+    },
+    "actions": {
+      "palette": "検索とコマンド",
+      "settings": "設定を開く",
+      "help": "キーボード ショートカットを表示",
+      "messageSearch": "メッセージを検索",
+      "roomList": "ルーム一覧の表示/非表示",
+      "previousRoom": "前のルーム",
+      "nextRoom": "次のルーム",
+      "previousUnread": "前の未読ルーム",
+      "nextUnread": "次の未読ルーム",
+      "moveRoomUp": "フォーカス中のルームまたはスペースを上へ移動",
+      "moveRoomDown": "フォーカス中のルームまたはスペースを下へ移動",
+      "members": "メンバーの表示/非表示",
+      "focusComposer": "既読にして入力欄へ移動",
+      "resolveThread": "開いているスレッドを解決または再開",
+      "newLine": "改行",
+      "editLast": "最後の自分のメッセージを編集（入力欄が空のとき）",
+      "inlineCode": "インライン コード"
+    }
   }
 }

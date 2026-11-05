@@ -433,5 +433,39 @@
       "seeAllDescription": "Abrir a pesquisa de mensagens com filtros",
       "thread": "Tópico"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Atalhos de teclado",
+      "close": "Fechar",
+      "hintsSwitch": "Mostrar dicas de atalhos ao manter {{key}} premido"
+    },
+    "groups": {
+      "general": "Geral",
+      "rooms": "Salas e tópicos",
+      "composer": "Caixa de mensagem"
+    },
+    "hints": {
+      "chip": "{{keys}} para todos os atalhos"
+    },
+    "actions": {
+      "palette": "Pesquisa e comandos",
+      "settings": "Abrir definições",
+      "help": "Mostrar atalhos de teclado",
+      "messageSearch": "Pesquisar mensagens",
+      "roomList": "Mostrar ou ocultar a lista de salas",
+      "previousRoom": "Sala anterior",
+      "nextRoom": "Sala seguinte",
+      "previousUnread": "Sala não lida anterior",
+      "nextUnread": "Sala não lida seguinte",
+      "moveRoomUp": "Mover para cima a sala ou o espaço em foco",
+      "moveRoomDown": "Mover para baixo a sala ou o espaço em foco",
+      "members": "Mostrar ou ocultar membros",
+      "focusComposer": "Marcar como lido e ir para a caixa de mensagem",
+      "resolveThread": "Resolver ou reabrir o tópico aberto",
+      "newLine": "Nova linha",
+      "editLast": "Editar a sua última mensagem (com a caixa vazia)",
+      "inlineCode": "Código em linha"
+    }
   }
 }

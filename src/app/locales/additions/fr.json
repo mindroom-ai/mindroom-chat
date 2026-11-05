@@ -433,5 +433,39 @@
       "seeAllDescription": "Ouvrir la recherche de messages avec ses filtres",
       "thread": "Fil"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Raccourcis clavier",
+      "close": "Fermer",
+      "hintsSwitch": "Afficher les indications de raccourcis en maintenant {{key}}"
+    },
+    "groups": {
+      "general": "Général",
+      "rooms": "Salles et fils",
+      "composer": "Zone de saisie"
+    },
+    "hints": {
+      "chip": "{{keys}} pour tous les raccourcis"
+    },
+    "actions": {
+      "palette": "Recherche et commandes",
+      "settings": "Ouvrir les paramètres",
+      "help": "Afficher les raccourcis clavier",
+      "messageSearch": "Rechercher des messages",
+      "roomList": "Afficher ou masquer la liste des salles",
+      "previousRoom": "Salle précédente",
+      "nextRoom": "Salle suivante",
+      "previousUnread": "Salle non lue précédente",
+      "nextUnread": "Salle non lue suivante",
+      "moveRoomUp": "Monter la salle ou l'espace sélectionné",
+      "moveRoomDown": "Descendre la salle ou l'espace sélectionné",
+      "members": "Afficher ou masquer les membres",
+      "focusComposer": "Marquer comme lu et aller à la zone de saisie",
+      "resolveThread": "Résoudre ou rouvrir le fil ouvert",
+      "newLine": "Nouvelle ligne",
+      "editLast": "Modifier votre dernier message (zone de saisie vide)",
+      "inlineCode": "Code en ligne"
+    }
   }
 }

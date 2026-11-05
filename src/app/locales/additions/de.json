@@ -426,5 +426,39 @@
       "seeAllDescription": "Nachrichtensuche mit Filtern öffnen",
       "thread": "Thread"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Tastenkürzel",
+      "close": "Schließen",
+      "hintsSwitch": "Tastenkürzel-Hinweise beim Halten von {{key}} anzeigen"
+    },
+    "groups": {
+      "general": "Allgemein",
+      "rooms": "Räume und Threads",
+      "composer": "Eingabefeld"
+    },
+    "hints": {
+      "chip": "{{keys}} für alle Tastenkürzel"
+    },
+    "actions": {
+      "palette": "Suche und Befehle",
+      "settings": "Einstellungen öffnen",
+      "help": "Tastenkürzel anzeigen",
+      "messageSearch": "Nachrichten durchsuchen",
+      "roomList": "Raumliste ein- oder ausblenden",
+      "previousRoom": "Vorheriger Raum",
+      "nextRoom": "Nächster Raum",
+      "previousUnread": "Vorheriger ungelesener Raum",
+      "nextUnread": "Nächster ungelesener Raum",
+      "moveRoomUp": "Fokussierten Raum oder Space nach oben verschieben",
+      "moveRoomDown": "Fokussierten Raum oder Space nach unten verschieben",
+      "members": "Mitglieder ein- oder ausblenden",
+      "focusComposer": "Als gelesen markieren und zum Eingabefeld wechseln",
+      "resolveThread": "Geöffneten Thread auflösen oder wieder öffnen",
+      "newLine": "Neue Zeile",
+      "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
+      "inlineCode": "Inline-Code"
+    }
   }
 }

@@ -426,5 +426,39 @@
       "seeAllDescription": "Mesaj aramayı filtrelerle aç",
       "thread": "Konu"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Klavye kısayolları",
+      "close": "Kapat",
+      "hintsSwitch": "{{key}} basılı tutulurken kısayol ipuçlarını göster"
+    },
+    "groups": {
+      "general": "Genel",
+      "rooms": "Odalar ve konular",
+      "composer": "Mesaj kutusu"
+    },
+    "hints": {
+      "chip": "Tüm kısayollar için {{keys}}"
+    },
+    "actions": {
+      "palette": "Arama ve komutlar",
+      "settings": "Ayarları aç",
+      "help": "Klavye kısayollarını göster",
+      "messageSearch": "Mesajlarda ara",
+      "roomList": "Oda listesini göster veya gizle",
+      "previousRoom": "Önceki oda",
+      "nextRoom": "Sonraki oda",
+      "previousUnread": "Önceki okunmamış oda",
+      "nextUnread": "Sonraki okunmamış oda",
+      "moveRoomUp": "Seçili odayı veya alanı yukarı taşı",
+      "moveRoomDown": "Seçili odayı veya alanı aşağı taşı",
+      "members": "Üyeleri göster veya gizle",
+      "focusComposer": "Okundu olarak işaretle ve mesaj kutusuna git",
+      "resolveThread": "Açık konuyu çözüldü işaretle veya yeniden aç",
+      "newLine": "Yeni satır",
+      "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
+      "inlineCode": "Satır içi kod"
+    }
   }
 }

@@ -419,5 +419,39 @@
       "seeAllDescription": "Buka pencarian pesan dengan filter",
       "thread": "Utas"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Pintasan keyboard",
+      "close": "Tutup",
+      "hintsSwitch": "Tampilkan petunjuk pintasan saat menahan {{key}}"
+    },
+    "groups": {
+      "general": "Umum",
+      "rooms": "Ruang dan utas",
+      "composer": "Kotak pesan"
+    },
+    "hints": {
+      "chip": "{{keys}} untuk semua pintasan"
+    },
+    "actions": {
+      "palette": "Pencarian dan perintah",
+      "settings": "Buka pengaturan",
+      "help": "Tampilkan pintasan keyboard",
+      "messageSearch": "Cari pesan",
+      "roomList": "Tampilkan atau sembunyikan daftar ruang",
+      "previousRoom": "Ruang sebelumnya",
+      "nextRoom": "Ruang berikutnya",
+      "previousUnread": "Ruang belum dibaca sebelumnya",
+      "nextUnread": "Ruang belum dibaca berikutnya",
+      "moveRoomUp": "Pindahkan ruang atau space yang difokuskan ke atas",
+      "moveRoomDown": "Pindahkan ruang atau space yang difokuskan ke bawah",
+      "members": "Tampilkan atau sembunyikan anggota",
+      "focusComposer": "Tandai sudah dibaca dan buka kotak pesan",
+      "resolveThread": "Selesaikan atau buka kembali utas yang terbuka",
+      "newLine": "Baris baru",
+      "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
+      "inlineCode": "Kode sebaris"
+    }
   }
 }

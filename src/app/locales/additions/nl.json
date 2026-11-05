@@ -426,5 +426,39 @@
       "seeAllDescription": "Berichten zoeken met filters openen",
       "thread": "Thread"
     }
+  },
+  "shortcuts": {
+    "help": {
+      "title": "Sneltoetsen",
+      "close": "Sluiten",
+      "hintsSwitch": "Sneltoetshints tonen bij ingedrukt houden van {{key}}"
+    },
+    "groups": {
+      "general": "Algemeen",
+      "rooms": "Kamers en threads",
+      "composer": "Invoerveld"
+    },
+    "hints": {
+      "chip": "{{keys}} voor alle sneltoetsen"
+    },
+    "actions": {
+      "palette": "Zoeken en commando's",
+      "settings": "Instellingen openen",
+      "help": "Sneltoetsen weergeven",
+      "messageSearch": "Berichten zoeken",
+      "roomList": "Kamerlijst tonen of verbergen",
+      "previousRoom": "Vorige kamer",
+      "nextRoom": "Volgende kamer",
+      "previousUnread": "Vorige ongelezen kamer",
+      "nextUnread": "Volgende ongelezen kamer",
+      "moveRoomUp": "Geselecteerde kamer of space omhoog verplaatsen",
+      "moveRoomDown": "Geselecteerde kamer of space omlaag verplaatsen",
+      "members": "Leden tonen of verbergen",
+      "focusComposer": "Als gelezen markeren en naar het invoerveld gaan",
+      "resolveThread": "Open thread oplossen of heropenen",
+      "newLine": "Nieuwe regel",
+      "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
+      "inlineCode": "Inline code"
+    }
   }
 }
