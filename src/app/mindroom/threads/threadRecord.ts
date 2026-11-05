@@ -9,6 +9,7 @@ import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from '../recent-threads/recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
 import { getThreadUnread } from './roomThreadList';
+import { isMainTimelineMessageUnread } from '../../utils/mainTimelineRead';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
   getThreadPrimarySummaryText,
@@ -295,7 +296,12 @@ export const buildThreadRecord = ({
       fallbackLastActivityTs ?? 0,
       getEffectiveThreadRootActivityTs(resolvedThreadRootEvent)
     ) || undefined;
-  const isUnread = thread && currentUserId ? getThreadUnread(thread, currentUserId) : false;
+  // An unread root counts toward the room's unread badge, so its thread is unread too.
+  const isUnread =
+    !!currentUserId &&
+    ((!!thread && getThreadUnread(thread, currentUserId)) ||
+      (!!resolvedThreadRootEvent &&
+        isMainTimelineMessageUnread(room, resolvedThreadRootEvent, currentUserId)));
   const isResolved = threadResolution?.isResolved ?? false;
   const isStreaming = getThreadStreamingState(room, threadRootId);
   const hasPendingSend = getThreadPendingSend(resolvedThreadRootEvent, visibleReplyEvents);
