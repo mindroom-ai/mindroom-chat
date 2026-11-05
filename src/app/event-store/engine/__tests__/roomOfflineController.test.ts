@@ -169,6 +169,10 @@ it('clear rejects pending event and cursor writes', async () => {
   expect(engine.offline.getSnapshot(roomId).status).toBe('idle');
 });
 
+// Saving a 200-event page through fake-indexeddb takes 70 to 300 ms of CPU time alone; on a busy
+// machine the waits for it passed vi.waitFor's 1 s default, so they get 20 s and their tests 30 s.
+const pageSaveWait = { timeout: 20_000 };
+
 it('unknown connections stop after 200 events; explicit download continues', async () => {
   const f = fixture(
     vi
@@ -183,12 +187,18 @@ it('unknown connections stop after 200 events; explicit download continues', asy
   const engine = f.make();
   expect(engine.offline).toBeDefined();
   engine.noteRoomFocused(roomId);
-  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('limited'));
+  await vi.waitFor(
+    () => expect(engine.offline.getSnapshot(roomId).status).toBe('limited'),
+    pageSaveWait
+  );
   expect(f.request).toHaveBeenCalledOnce();
   engine.offline.download(roomId);
-  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true));
+  await vi.waitFor(
+    () => expect(engine.offline.getSnapshot(roomId).historyExhausted).toBe(true),
+    pageSaveWait
+  );
   expect(f.request.mock.calls.map((call) => call[1])).toEqual([null, 'older']);
-});
+}, 30_000);
 
 it('offline pauses and reconnect resumes focused intent', async () => {
   const f = fixture();
@@ -505,7 +515,16 @@ it.each(['recovered', 'failed'] as const)(
       pending[0].resolve({ chunk: [], end: 'older' });
       await vi.waitFor(() => expect(pending).toHaveLength(2));
       expect(f.request.mock.calls[1][1]).toBe('older');
-      await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('saving'));
+      // The empty page's checkpoint starts a second pass. Settle the successor only once that pass
+      // holds the status for it too: on a busy machine the test got here while the pass was still
+      // starting, and the pass then saved history of its own after the successor had failed.
+      await vi.waitFor(() => {
+        expect(enqueue.mock.calls.filter(([job]) => job.kind === 'room-deep-history')).toHaveLength(
+          2
+        );
+        expect(engine.scheduler.pendingJobs().map((job) => job.kind)).toEqual(['gap-fill']);
+      });
+      expect(engine.offline.getSnapshot(roomId).status).toBe('saving');
       if (outcome === 'recovered') pending[1].resolve({ chunk: [] });
       else pending[1].reject(new Error('successor unavailable'));
       await vi.waitFor(() => expect(engine.scheduler.pendingJobs()).toHaveLength(0));
@@ -910,7 +929,10 @@ it('bounded automatic body retries advance past a failed prefix and survive rest
     );
   vi.stubGlobal('fetch', fetch);
   first.noteRoomFocused(roomId);
-  await vi.waitFor(() => expect(first.offline.getSnapshot(roomId).status).toBe('ready'));
+  await vi.waitFor(
+    () => expect(first.offline.getSnapshot(roomId).status).toBe('ready'),
+    pageSaveWait
+  );
   expect(fetch).not.toHaveBeenCalled();
   first.stop();
   resetCacheStoreForTesting();
@@ -922,7 +944,10 @@ it('bounded automatic body retries advance past a failed prefix and survive rest
   expect(fetch).toHaveBeenCalledOnce();
   next.clearRoomFocus(roomId);
   next.noteRoomFocused(roomId);
-  await vi.waitFor(() => expect(next.offline.getSnapshot(roomId).status).toBe('ready'));
+  await vi.waitFor(
+    () => expect(next.offline.getSnapshot(roomId).status).toBe('ready'),
+    pageSaveWait
+  );
   next.clearRoomFocus(roomId);
   next.noteRoomFocused(roomId);
   await vi.waitFor(() =>
@@ -933,7 +958,7 @@ it('bounded automatic body retries advance past a failed prefix and survive rest
     })
   );
   expect(fetch).toHaveBeenCalledTimes(2);
-});
+}, 30_000);
 
 it('concurrent coverage repairs remove only processed IDs and retain newer additions', async () => {
   const f = fixture();
