@@ -35,6 +35,7 @@ import { IconTooltip } from '../ui/IconTooltip';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
 import { Time } from './Time';
+import { useLongPress } from './useLongPress';
 import {
   AvatarBase,
   BubbleLayout,
@@ -544,8 +545,8 @@ const getAnchor = (evt: MouseEvent<HTMLElement>): RectCords => {
 };
 
 // Links, fields and selected text keep the browser's own menu, to open a link or copy a selection.
-const wantsBrowserMenu = (evt: MouseEvent<HTMLElement>): boolean =>
-  !!(evt.target as Element).closest('a, input, textarea, [contenteditable="true"]') ||
+const wantsBrowserMenu = (target: EventTarget): boolean =>
+  !!(target as Element).closest('a, input, textarea, [contenteditable="true"]') ||
   (document.getSelection()?.toString() ?? '') !== '';
 
 /**
@@ -660,10 +661,18 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const dismissMenu = () => setMenuAnchor(undefined);
     // A right click opens the message's menu where the pointer is.
     const openMenuAtPointer = (evt: MouseEvent<HTMLDivElement>) => {
-      if (edit || wantsBrowserMenu(evt)) return;
+      if (edit || wantsBrowserMenu(evt.target)) return;
       evt.preventDefault();
       setMenuAnchor(pointRect(evt.clientX, evt.clientY));
     };
+    // A long press opens it where the finger rests, on touch screens whose browser fires no
+    // contextmenu for one (iOS Safari). Touches inside the row's own pop-outs, which React passes
+    // up through their portals, are not the row's.
+    const longPress = useLongPress(
+      (x, y) => setMenuAnchor(pointRect(x, y)),
+      (evt) =>
+        !edit && evt.currentTarget.contains(evt.target as Node) && !wantsBrowserMenu(evt.target)
+    );
 
     const senderDisplayName =
       getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
@@ -951,6 +960,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           space={messageSpacing}
           selected={!!menuAnchor || edit}
           onContextMenu={openMenuAtPointer}
+          {...longPress}
           onPointerDownCapture={noteRowPointer}
           onFocusCapture={noteRowFocus}
           {...hoverProps}
