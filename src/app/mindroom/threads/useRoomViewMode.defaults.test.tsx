@@ -38,7 +38,7 @@ function Probe({ agents }: { agents?: boolean }) {
 let renderer: ReactTestRenderer | undefined;
 const render = (agents?: boolean) => {
   const store = createStore();
-  store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set() });
+  store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() });
   act(() => {
     renderer = create(
       <Provider store={store}>

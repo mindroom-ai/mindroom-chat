@@ -35,13 +35,18 @@ describe('the thread filter bar search', () => {
     });
     const find = (name: string) =>
       renderer?.root.findAll((node) => typeof node.type === 'string' && name in node.props) ?? [];
+    const one = (name: string) => {
+      const [node] = find(name);
+      if (!node) throw new Error(`no ${name}`);
+      return node;
+    };
     expect(find('data-search-input')).toHaveLength(0);
-    expect(find('data-search-toggle')[0].props['aria-expanded']).toBe(false);
+    expect(one('data-search-toggle').props['aria-expanded']).toBe(false);
 
     act(() => {
-      find('data-search-toggle')[0].props.onClick();
+      one('data-search-toggle').props.onClick();
     });
 
-    expect(find('data-search-input')[0].props.value).toContain('launch');
+    expect(one('data-search-input').props.value).toContain('launch');
   });
 });

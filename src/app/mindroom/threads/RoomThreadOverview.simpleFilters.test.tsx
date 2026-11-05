@@ -46,7 +46,11 @@ const renderBar = (simple: boolean, overrides: Partial<RoomThreadOverviewProps> 
 
 const byData = (name: string): ReactTestInstance[] =>
   renderer?.root.findAll((node) => typeof node.type === 'string' && name in node.props) ?? [];
-const modeSwitch = () => byData('data-thread-filter-mode-switch')[0];
+const modeSwitch = (): ReactTestInstance => {
+  const [node] = byData('data-thread-filter-mode-switch');
+  if (!node) throw new Error('no filter mode switch');
+  return node;
+};
 const unresolvedToggles = () => byData('data-simple-unresolved-toggle');
 const statusToggles = () => byData('data-filter-state');
 
@@ -83,6 +87,7 @@ describe('thread filter bar modes', () => {
       onToggleUnresolvedOnly,
     });
     const [toggle] = unresolvedToggles();
+    if (!toggle) throw new Error('no Unresolved toggle');
     expect(toggle.props['aria-pressed']).toBe(true);
 
     act(() => {
@@ -97,6 +102,6 @@ describe('thread filter bar modes', () => {
     expect(unresolvedToggles()).toHaveLength(0);
     expect(byData('data-thread-count')).toHaveLength(0);
     expect(byData('data-sort-by')).toHaveLength(1);
-    expect(modeSwitch()).toBeDefined();
+    expect(byData('data-thread-filter-mode-switch')).toHaveLength(1);
   });
 });
