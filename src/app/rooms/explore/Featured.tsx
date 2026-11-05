@@ -11,7 +11,7 @@ import {
   PageHeroSection,
 } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
-import { RoomCard, RoomCardGrid } from '../room-card/RoomCard';
+import { RoomCard, RoomCardGrid } from '../RoomCard';
 import { RoomSummaryLoader } from '../RoomSummaryLoader';
 import { useClientConfig } from '../../config/useClientConfig';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';

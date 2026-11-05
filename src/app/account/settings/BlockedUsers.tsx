@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useIgnoredUsers } from '../../matrix/hooks/useIgnoredUsers';
 import { useAlive } from '../../lib/hooks/useAlive';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { isUserId } from '../../matrix/matrix';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 

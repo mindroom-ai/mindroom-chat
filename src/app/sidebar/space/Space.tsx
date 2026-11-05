@@ -144,7 +144,7 @@ const InviteUserPrompt = lazy(() =>
 
 // Like the invite dialog, the leave prompt loads when first opened.
 const LeaveSpacePrompt = lazy(() =>
-  import('../../spaces/leave-space-prompt/LeaveSpacePrompt').then((module) => ({
+  import('../../spaces/LeaveSpacePrompt').then((module) => ({
     default: module.LeaveSpacePrompt,
   }))
 );

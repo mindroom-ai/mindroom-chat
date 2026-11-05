@@ -16,7 +16,7 @@ vi.mock('../ThreadsView.css', () => ({
   Empty: 'empty',
 }));
 
-vi.mock('../../../ui/virtualizer/VirtualTile', () => ({
+vi.mock('../../../ui/VirtualTile', () => ({
   VirtualTile: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));

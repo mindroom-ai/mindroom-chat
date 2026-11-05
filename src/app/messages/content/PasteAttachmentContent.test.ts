@@ -23,7 +23,7 @@ vi.mock('./FileContent', () => ({
     React.createElement('button', null, buttonText),
 }));
 
-vi.mock('../viewers/text-viewer/TextViewer', () => ({
+vi.mock('../viewers/TextViewer', () => ({
   TextViewer: () => React.createElement('div'),
 }));
 

@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { Box, Button, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { SequenceCard } from '../ui/sequence-card/SequenceCard';
-import { SettingTile } from '../ui/setting-tile/SettingTile';
+import { SequenceCard } from '../ui/SequenceCard';
+import { SettingTile } from '../ui/SettingTile';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useOpenConnectionsPortal } from './useOpenConnectionsPortal';
 

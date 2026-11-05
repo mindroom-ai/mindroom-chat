@@ -64,7 +64,7 @@ vi.mock('../../ui/sidebar/SidebarItem', () => ({
   ),
 }));
 
-vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: ({ userId, src }: { userId: string; src?: string }) =>
     React.createElement('div', { 'data-user-id': userId, 'data-src': src }, userId),
 }));

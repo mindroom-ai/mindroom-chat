@@ -2,7 +2,7 @@ import { FormEvent, useState } from 'react';
 import { Box, Button, Input, Spinner, Text } from 'folds';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PasswordInput } from '../../../ui/password-input/PasswordInput';
+import { PasswordInput } from '../../../ui/PasswordInput';
 import { MINDROOM_AUTH_BRANDING } from '../authUi';
 import { getResetPasswordPath } from '../../../routes/pathUtils';
 import { isAddAccountSearch, withAddAccountSearchIf } from '../../../navigation/addAccount';

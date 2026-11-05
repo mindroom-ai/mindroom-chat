@@ -14,7 +14,7 @@ import {
   NavLink,
 } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
-import { VirtualTile } from '../../ui/virtualizer/VirtualTile';
+import { VirtualTile } from '../../ui/VirtualTile';
 import { JoinAddressPrompt } from '../../rooms/join/JoinAddressPrompt';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { HOME_ROOM_LIST, useRoomOrder } from '../room-nav/roomOrder';

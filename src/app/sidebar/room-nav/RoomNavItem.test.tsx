@@ -89,7 +89,7 @@ vi.mock('../../ui/nav/NavItem', async () => {
   };
 });
 
-vi.mock('../../ui/unread-badge/UnreadBadge', async () => {
+vi.mock('../../ui/UnreadBadge', async () => {
   const reactModule = await import('react');
   return {
     UnreadBadge: () => reactModule.createElement('span'),
@@ -105,7 +105,7 @@ vi.mock('../../members/invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => null,
 }));
 
-vi.mock('../../rooms/leave-room-prompt/LeaveRoomPrompt', () => ({
+vi.mock('../../rooms/LeaveRoomPrompt', () => ({
   LeaveRoomPrompt: () => null,
 }));
 
@@ -113,7 +113,7 @@ vi.mock('../../notifications/MarkRoomReadMenuItem', () => ({
   MindroomMarkRoomReadMenuItem: () => null,
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', async () => {
+vi.mock('../../avatars/RoomAvatar', async () => {
   const reactModule = await import('react');
 
   const RoomAvatar = ({

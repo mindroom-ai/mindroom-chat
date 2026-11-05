@@ -7,7 +7,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { getAccountManagementUrl } from '../useAccountManagement';
 import { useServerConfigs } from '../../matrix/ServerConfigsLoader';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../uia/useAuthenticatedAction';
 import { countUnverifiedOtherDevices, type OwnDeviceTrust } from '../verification/useOwnDeviceTrust';

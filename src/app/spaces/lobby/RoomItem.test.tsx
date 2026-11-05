@@ -34,17 +34,17 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children),
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
   RoomIcon: () => React.createElement('i'),
 }));
 
-vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({
+vi.mock('../../room/RoomTopicViewer', () => ({
   RoomTopicViewer: () => null,
 }));
 

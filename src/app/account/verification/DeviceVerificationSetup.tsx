@@ -4,7 +4,7 @@ import FileSaver from 'file-saver';
 import type { MatrixError, UIAuthCallback } from 'matrix-js-sdk';
 import { Box, Button, Chip, Icon, IconButton, Icons, Spinner, Text, color, config } from 'folds';
 import { Dialog, Header } from '../../ui/glass/GlassPrimitives';
-import { PasswordInput } from '../../ui/password-input/PasswordInput';
+import { PasswordInput } from '../../ui/PasswordInput';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';

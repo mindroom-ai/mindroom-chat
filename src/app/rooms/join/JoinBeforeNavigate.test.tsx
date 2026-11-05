@@ -46,11 +46,11 @@ vi.mock('../../ui/page/Page', () => ({
   PageHeader: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
 }));
 
-vi.mock('../room-card/style.css', () => ({
+vi.mock('../RoomCard.css', () => ({
   ActionButton: 'ActionButton',
   CardGrid: 'CardGrid',
   RoomCardBase: 'RoomCardBase',
@@ -75,7 +75,7 @@ vi.mock('../RoomSummaryLoader', () => ({
   },
 }));
 
-vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({
+vi.mock('../../room/RoomTopicViewer', () => ({
   RoomTopicViewer: () => null,
 }));
 

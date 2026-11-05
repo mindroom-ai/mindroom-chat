@@ -126,16 +126,16 @@ vi.mock('../../ui/styles/ContainerColor.css', () => ({
   ContainerColor: () => 'ContainerColor',
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: () => React.createElement('div'),
   RoomIcon: () => React.createElement('div'),
 }));
 
-vi.mock('../room-topic-viewer/RoomTopicViewer', () => ({
+vi.mock('../RoomTopicViewer', () => ({
   RoomTopicViewer: () => React.createElement('div'),
 }));
 
-vi.mock('../../rooms/leave-room-prompt/LeaveRoomPrompt', () => ({
+vi.mock('../../rooms/LeaveRoomPrompt', () => ({
   LeaveRoomPrompt: () => React.createElement('div'),
 }));
 

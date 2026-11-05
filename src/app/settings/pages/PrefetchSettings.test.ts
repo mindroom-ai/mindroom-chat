@@ -57,12 +57,12 @@ vi.mock('focus-trap-react', () => ({
     React.createElement('div', null, children),
 }));
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children, className }: { children?: React.ReactNode; className?: string }) =>
     React.createElement('section', { className }, children),
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
     title,
     description,

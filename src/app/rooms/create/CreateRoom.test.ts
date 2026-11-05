@@ -10,12 +10,12 @@ import { CreateRoomForm } from './CreateRoom';
 
 const createRoomMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children, as, ...props }: any) =>
     React.createElement(as ?? 'div', props, children),
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ title, description, children, after }: any) =>
     React.createElement('div', null, title, description, children, after),
 }));

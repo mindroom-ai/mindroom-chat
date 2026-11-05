@@ -36,7 +36,7 @@ vi.mock('../app/ui/ThreadActivity.css', () => ({
   RowText: 'activity-row-text',
   Result: 'activity-result',
 }));
-vi.mock('../app/avatars/user-avatar/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
+vi.mock('../app/avatars/UserAvatar.css', () => ({ UserAvatar: 'user-avatar' }));
 vi.mock('../app/messages/reply/ReplyDetails.css', () => {
   const parts = {
     cacheRead: 'part-cache-read',

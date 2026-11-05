@@ -10,10 +10,10 @@ import {
   type RoomSummary,
 } from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../ui/page/Page';
-import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
+import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { RoomSummaryLoader } from '../RoomSummaryLoader';
-import { RoomAccessControl } from '../room-access/RoomAccessControl';
-import * as roomCardCss from '../room-card/style.css';
+import { RoomAccessControl } from '../RoomAccessControl';
+import * as roomCardCss from '../RoomCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';

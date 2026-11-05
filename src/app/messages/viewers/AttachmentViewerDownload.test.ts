@@ -58,14 +58,14 @@ vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
-vi.mock('./image-viewer/ImageViewer.css', () => ({
+vi.mock('./ImageViewer.css', () => ({
   ImageViewer: 'ImageViewer',
   ImageViewerContent: 'ImageViewerContent',
   ImageViewerHeader: 'ImageViewerHeader',
   ImageViewerImg: 'ImageViewerImg',
 }));
 
-vi.mock('./pdf-viewer/PdfViewer.css', () => ({
+vi.mock('./PdfViewer.css', () => ({
   PdfViewer: 'PdfViewer',
   PdfViewerContent: 'PdfViewerContent',
   PdfViewerFooter: 'PdfViewerFooter',
@@ -145,8 +145,8 @@ const flushAsyncState = async () => {
 
 // One after the other: modules of an import cycle loaded side by side can read a binding too early.
 importBeforeTests(async () => {
-  await import('./image-viewer/ImageViewer');
-  await import('./pdf-viewer/PdfViewer');
+  await import('./ImageViewer');
+  await import('./PdfViewer');
   await import('../content/FileContent');
   await import('../content/FileHeader');
   await import('../MessageControls');
@@ -162,7 +162,7 @@ describe('attachment viewer downloads', () => {
 
   it('shows a retry action when saving from the image viewer fails', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
-    const { ImageViewer } = await import('./image-viewer/ImageViewer');
+    const { ImageViewer } = await import('./ImageViewer');
     const renderer = create(
       React.createElement(ImageViewer, {
         alt: 'photo.png',
@@ -192,7 +192,7 @@ describe('attachment viewer downloads', () => {
 
   it('shows a retry action when saving from the PDF viewer fails', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
-    const { PdfViewer } = await import('./pdf-viewer/PdfViewer');
+    const { PdfViewer } = await import('./PdfViewer');
     const renderer = create(
       React.createElement(PdfViewer, {
         name: 'report.pdf',

@@ -2,7 +2,7 @@ import { FormEvent, ReactNode, useMemo, useRef, useState } from 'react';
 import { Box, Button, Checkbox, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AuthDict, IAuthData, MatrixClient } from 'matrix-js-sdk';
-import { PasswordInput } from '../../../ui/password-input/PasswordInput';
+import { PasswordInput } from '../../../ui/PasswordInput';
 import { MINDROOM_AUTH_BRANDING } from '../authUi';
 import { createMatrixClient } from '../../../matrix/client/matrixClientFactory';
 import { FieldError } from '../FiledError';

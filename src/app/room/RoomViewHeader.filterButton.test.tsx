@@ -18,7 +18,7 @@ vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('../ui/page/Page', () => ({
   PageHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../avatars/room-avatar/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
+vi.mock('../avatars/RoomAvatar', () => ({ RoomAvatar: () => null, RoomIcon: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
 }));

@@ -5,8 +5,8 @@ import { Icons, type IconSrc } from 'folds';
 import { Modal } from '../ui/glass/GlassPrimitives';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ModalLayer } from '../ui/ModalLayer';
-import { TextViewer } from './viewers/text-viewer/TextViewer';
-import { EventReaders } from './event-readers/EventReaders';
+import { TextViewer } from './viewers/TextViewer';
+import { EventReaders } from './EventReaders';
 
 type MenuDialogItemProps = {
   icon: IconSrc;

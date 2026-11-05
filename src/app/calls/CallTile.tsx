@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../ui/directional';
-import { UserAvatar } from '../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';

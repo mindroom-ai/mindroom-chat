@@ -29,7 +29,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { AddCustomEmoji } from './components/AddCustomEmoji';
 import { SkinToneButton, SkinToneOptions } from './components/SkinToneChooser';
 import * as css from './components/styles.css';
-import { VirtualTile } from '../../ui/virtualizer/VirtualTile';
+import { VirtualTile } from '../../ui/VirtualTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRelevantImagePacks } from '../useImagePacks';

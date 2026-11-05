@@ -27,8 +27,8 @@ import {
   SidebarStack,
   SidebarStackSeparator,
 } from '../../ui/sidebar/SidebarItem';
-import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
-import { UnreadBadge } from '../../ui/unread-badge/UnreadBadge';
+import { RoomAvatar } from '../../avatars/RoomAvatar';
+import { UnreadBadge } from '../../ui/UnreadBadge';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useSelectedSpace } from '../../navigation/useSelectedSpace';

@@ -24,7 +24,7 @@ import type { ServerUserDirectoryUser } from '../userDirectoryCache';
 import { getMxIdLocalPart, isUserId, mxcUrlToHttp } from '../../matrix/matrix';
 import { sanitizeInviteAutocompleteOptionId } from '../userDirectorySearch';
 import { onTabPress } from '../../lib/keyboard';
-import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../../avatars/UserAvatar';
 import { InviteAutocompleteMenu } from './InviteAutocompleteMenu';
 import * as css from './InviteAutocompleteMenu.css';
 

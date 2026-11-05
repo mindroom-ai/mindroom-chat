@@ -7,7 +7,7 @@ import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { Page, PageHeroSection } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
-import { ScrollTopContainer } from '../../ui/scroll-top-container/ScrollTopContainer';
+import { ScrollTopContainer } from '../../ui/ScrollTopContainer';
 import { LocalRoomSummaryLoader, RoomSummaryLoader } from '../../rooms/RoomSummaryLoader';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import type { LocalRoomSummary } from '../../rooms/useLocalRoomSummary';

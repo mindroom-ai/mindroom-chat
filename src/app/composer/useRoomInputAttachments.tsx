@@ -17,7 +17,7 @@ import {
   UploadBoard,
   UploadBoardContent,
   UploadBoardHeader,
-} from './upload/upload-board/UploadBoard';
+} from './upload/UploadBoard';
 import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { useFileDropZone } from '../lib/hooks/useFileDrop';
 import { useFilePicker } from '../lib/hooks/useFilePicker';

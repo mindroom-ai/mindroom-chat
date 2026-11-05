@@ -1,0 +1,147 @@
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import FocusTrap from 'focus-trap-react';
+import type { Options as FocusTrapOptions } from 'focus-trap';
+import {
+  Box,
+  Button,
+  Icon,
+  Icons,
+  Overlay,
+  OverlayBackdrop,
+  OverlayCenter,
+  Spinner,
+  Switch,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
+import { Dialog, Header, IconButton } from '../ui/glass/GlassPrimitives';
+import { SettingTile } from '../ui/SettingTile';
+import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useAlive } from '../lib/hooks/useAlive';
+import { stopPropagation } from '../lib/keyboard';
+import { describeKnownError } from '../lib/describeError';
+import { ErrorDetail } from '../ui/ErrorDetail';
+
+type LeaveRoomPromptProps = {
+  roomId: string;
+  /** Runs once the server confirmed the leave, so the caller can move away from the room. */
+  onLeft: () => void;
+  requestClose: () => void;
+};
+
+type LeaveState = { kind: 'idle' } | { kind: 'leaving' } | { kind: 'failed'; reason: unknown };
+
+const HEADING_ID = 'leave-room-prompt-heading';
+const promptWidth = `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(400)})`;
+const bodyPadding = `${config.space.S200} ${config.space.S400} ${config.space.S400}`;
+
+// Escape and a click outside dismiss the prompt; Escape does not reach the room behind it.
+const promptTrap = (dismiss: () => void): FocusTrapOptions => ({
+  initialFocus: false,
+  escapeDeactivates: stopPropagation,
+  onDeactivate: dismiss,
+  clickOutsideDeactivates: true,
+});
+
+/**
+ * Asks before leaving a room; a failed leave stays in the dialog with the server's reason. The
+ * room can be forgotten too (Matrix spec, `/forget`): it then leaves the account's room list and
+ * history for good, though the person may join again later where the room allows it.
+ */
+export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromptProps) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const isMounted = useAlive();
+  const [leaveState, setLeaveState] = useState<LeaveState>({ kind: 'idle' });
+  const [forget, setForget] = useState(false);
+  const leaving = leaveState.kind === 'leaving';
+
+  const confirmLeave = () => {
+    if (leaving) return;
+    setLeaveState({ kind: 'leaving' });
+    const done = client.leave(roomId);
+    (forget ? done.then(() => client.forget(roomId)) : done).then(
+      () => {
+        if (isMounted()) onLeft();
+      },
+      (failure: unknown) => {
+        if (isMounted()) setLeaveState({ kind: 'failed', reason: failure });
+      }
+    );
+  };
+
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter>
+        <FocusTrap focusTrapOptions={promptTrap(requestClose)}>
+          <Dialog
+            role="alertdialog"
+            aria-labelledby={HEADING_ID}
+            style={{ width: '100%', maxWidth: promptWidth }}
+          >
+            <Header
+              size="500"
+              style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}
+            >
+              <Text id={HEADING_ID} size="H4" style={{ flexGrow: 1 }}>
+                {t('sharedUi.leaveRoomPrompt.leaveRoom')}
+              </Text>
+              <IconButton
+                aria-label={t('sharedUi.leaveRoomPrompt.close')}
+                size="300"
+                radii="300"
+                onClick={() => requestClose()}
+              >
+                <Icon src={Icons.Cross} size="200" />
+              </IconButton>
+            </Header>
+            <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
+              <Text size="T300" priority="400">
+                {t('sharedUi.leaveRoomPrompt.areYouSureYouWantToLeaveThisRoom')}
+              </Text>
+              <SettingTile
+                title={t('sharedUi.leaveRoomPrompt.forget')}
+                description={t('sharedUi.leaveRoomPrompt.forgetDescription')}
+                after={
+                  <Switch
+                    variant="Critical"
+                    aria-label={t('sharedUi.leaveRoomPrompt.forget')}
+                    value={forget}
+                    disabled={leaving}
+                    onChange={setForget}
+                  />
+                }
+              />
+              {leaveState.kind === 'failed' && (
+                <Text size="T300" role="alert" style={{ color: color.Critical.Main }}>
+                  {t('sharedUi.leaveRoomPrompt.leaveFailed', {
+                    error: describeKnownError(t, leaveState.reason) ?? '',
+                  })}
+                  <ErrorDetail error={leaveState.reason} />
+                </Text>
+              )}
+              <Button
+                variant="Critical"
+                size="500"
+                disabled={leaving}
+                onClick={confirmLeave}
+                before={
+                  leaving ? <Spinner variant="Critical" fill="Solid" size="200" /> : undefined
+                }
+              >
+                <Text size="B500">
+                  {t(
+                    leaving ? 'sharedUi.leaveRoomPrompt.leaving' : 'sharedUi.leaveRoomPrompt.leave'
+                  )}
+                </Text>
+              </Button>
+            </Box>
+          </Dialog>
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+}

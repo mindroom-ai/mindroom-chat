@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Box, Button, Spinner, Text, color } from 'folds';
 import type { SecretStorageKeyDescriptionAesV1 } from 'matrix-js-sdk/lib/secret-storage';
 import { decodeRecoveryKey, deriveRecoveryKeyFromPassphrase } from 'matrix-js-sdk/lib/crypto-api';
-import { PasswordInput } from '../../ui/password-input/PasswordInput';
+import { PasswordInput } from '../../ui/PasswordInput';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';

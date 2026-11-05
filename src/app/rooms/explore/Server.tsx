@@ -7,7 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { JoinRule, type IPublicRoomsChunkRoom } from 'matrix-js-sdk';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
-import { RoomCard, RoomCardGrid } from '../room-card/RoomCard';
+import { RoomCard, RoomCardGrid } from '../RoomCard';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';

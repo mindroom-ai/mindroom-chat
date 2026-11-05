@@ -10,11 +10,11 @@ import { hasBadWords, InviteCard, makeInviteData } from './Invites';
 
 vi.mock('../../ui/page/Page', () => ({}));
 vi.mock('../../ui/page/PageScroll', () => ({}));
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({ RoomAvatar: () => null }));
-vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({ RoomTopicViewer: () => null }));
+vi.mock('../../avatars/RoomAvatar', () => ({ RoomAvatar: () => null }));
+vi.mock('../../room/RoomTopicViewer', () => ({ RoomTopicViewer: () => null }));
 vi.mock('../../messages/Time', () => ({ Time: () => null }));
 
 // Bidi isolates: the card isolates the name (FSI...PDI) and keeps the ID left-to-right (LRI...PDI).

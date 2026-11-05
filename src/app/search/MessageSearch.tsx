@@ -28,8 +28,8 @@ import {
 } from 'folds';
 import { PopOut } from '../ui/directional';
 import { ChoiceMenu } from '../ui/ChoiceMenu';
-import { RoomAvatar } from '../avatars/room-avatar/RoomAvatar';
-import { ScrollTopContainer } from '../ui/scroll-top-container/ScrollTopContainer';
+import { RoomAvatar } from '../avatars/RoomAvatar';
+import { ScrollTopContainer } from '../ui/ScrollTopContainer';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { makeHighlightRegex } from './highlightRegex';

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { PackAvatar } from '../packs/PackMetaEditor';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { ImageUsage } from '../custom/types';

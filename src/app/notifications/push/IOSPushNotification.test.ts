@@ -12,12 +12,12 @@ const nativeState = vi.hoisted(() => ({
   toggle: vi.fn<(enabled: boolean) => Promise<void>>(),
 }));
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('section', null, children),
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ description, after }: { description: React.ReactNode; after: React.ReactNode }) =>
     React.createElement('div', { 'data-renderer': 'setting-tile' }, description, after),
 }));

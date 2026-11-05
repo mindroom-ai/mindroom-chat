@@ -275,11 +275,11 @@ vi.mock('../../emoji/useImagePacks', () => ({
   useRelevantImagePacks: () => [],
 }));
 
-vi.mock('../event-readers/EventReaders', () => ({
+vi.mock('../EventReaders', () => ({
   EventReaders: () => React.createElement('div', null, 'readers'),
 }));
 
-vi.mock('../viewers/text-viewer/TextViewer', () => ({
+vi.mock('../viewers/TextViewer', () => ({
   TextViewer: () => React.createElement('div', null, 'viewer'),
 }));
 
@@ -296,7 +296,7 @@ vi.mock('../../emoji/board/LazyEmojiBoard', () => ({
   EmojiBoard: () => React.createElement('div', null, 'emoji-board'),
 }));
 
-vi.mock('../reactions/reaction-viewer/ReactionViewer', () => ({
+vi.mock('../reactions/ReactionViewer', () => ({
   ReactionViewer: () => React.createElement('div', null, 'reactions'),
 }));
 
@@ -304,7 +304,7 @@ vi.mock('../edit/MessageEditor', () => ({
   MessageEditor: () => React.createElement('div', null, 'editor'),
 }));
 
-vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div', null, 'avatar'),
 }));
 

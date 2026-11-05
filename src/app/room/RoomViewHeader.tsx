@@ -20,10 +20,10 @@ import {
 import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
-import { RoomTopicViewer } from './room-topic-viewer/RoomTopicViewer';
-import { RoomAvatar, RoomIcon } from '../avatars/room-avatar/RoomAvatar';
+import { RoomTopicViewer } from './RoomTopicViewer';
+import { RoomAvatar, RoomIcon } from '../avatars/RoomAvatar';
 import { InviteUserPrompt } from '../members/invite/InviteUserPrompt';
-import { LeaveRoomPrompt } from '../rooms/leave-room-prompt/LeaveRoomPrompt';
+import { LeaveRoomPrompt } from '../rooms/LeaveRoomPrompt';
 import { JumpToTime } from '../timeline/jump-to-time/JumpToTime';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useIsDirectRoom, useRoom } from '../matrix/hooks/useRoom';

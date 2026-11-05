@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Header, Modal } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';

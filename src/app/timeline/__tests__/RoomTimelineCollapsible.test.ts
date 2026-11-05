@@ -232,7 +232,7 @@ vi.mock('../useVirtualPaginator', () => ({
   }),
 }));
 
-vi.mock('../../ui/virtualizer/VirtualTile', () => ({
+vi.mock('../../ui/VirtualTile', () => ({
   VirtualTile: React.forwardRef<
     HTMLDivElement,
     {
@@ -468,7 +468,7 @@ vi.mock('../../messages/Message', async () => {
   };
 });
 
-vi.mock('../room-intro/RoomIntro', () => ({
+vi.mock('../RoomIntro', () => ({
   RoomIntro: passthrough,
 }));
 
@@ -543,7 +543,7 @@ vi.mock('../../ui/media/Media', () => ({
   Image: passthrough,
 }));
 
-vi.mock('../../messages/viewers/image-viewer/ImageViewer', () => ({
+vi.mock('../../messages/viewers/ImageViewer', () => ({
   ImageViewer: passthrough,
 }));
 

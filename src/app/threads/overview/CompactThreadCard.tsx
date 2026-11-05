@@ -3,7 +3,7 @@ import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import * as threadIndicatorCss from '../../messages/ThreadIndicator.css';
-import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../../avatars/UserAvatar';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import * as css from './CompactRoomView.css';

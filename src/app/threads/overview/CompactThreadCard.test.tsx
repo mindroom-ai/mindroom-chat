@@ -50,7 +50,7 @@ vi.mock('../tags/ThreadTagPill', () => ({
     React.createElement('span', { 'data-tag-pill': name }, name),
 }));
 
-vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: ({ renderFallback }: { renderFallback?: () => React.ReactNode }) =>
     renderFallback?.() ?? null,
 }));

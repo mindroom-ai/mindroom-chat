@@ -13,7 +13,7 @@ const lifecycle = vi.hoisted(() => ({
 const clearFetchedAvatars = vi.hoisted(() => vi.fn());
 
 vi.mock('../../account/lifecycle/sessionLifecycle', () => lifecycle);
-vi.mock('../../avatars/user-avatar/avatarMedia', () => ({ clearFetchedAvatars }));
+vi.mock('../../avatars/avatarMedia', () => ({ clearFetchedAvatars }));
 
 const client = { getSafeUserId: () => '@alice:hs.test' } as unknown as MatrixClient;
 const session = { sessionId: 'bob-session', userId: '@bob:hs.test' } as StoredSession;

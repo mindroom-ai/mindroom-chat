@@ -24,7 +24,7 @@ vi.mock('../styles.css', () => ({
   MessageQuickReaction: 'quick-reaction',
   MessageMenuItemText: 'menu-item-text',
 }));
-vi.mock('./reaction-viewer/ReactionViewer', () => ({ ReactionViewer: () => null }));
+vi.mock('./ReactionViewer', () => ({ ReactionViewer: () => null }));
 
 let renderer: ReactTestRenderer | undefined;
 

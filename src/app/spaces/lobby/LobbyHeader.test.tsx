@@ -94,7 +94,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   }),
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: () => React.createElement('div'),
 }));
 
@@ -102,7 +102,7 @@ vi.mock('../../lib/common', () => ({
   nameInitials: () => 'ES',
 }));
 
-vi.mock('../leave-space-prompt/LeaveSpacePrompt', () => ({
+vi.mock('../LeaveSpacePrompt', () => ({
   LeaveSpacePrompt: () => React.createElement('div'),
 }));
 

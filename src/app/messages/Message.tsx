@@ -44,7 +44,7 @@ import {
   Username,
   UsernameBold,
 } from './layout/layout';
-import { UserAvatar } from '../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { MessageLayout, type MessageSpacing } from '../preferences/settings';

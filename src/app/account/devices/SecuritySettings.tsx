@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Spinner, Text, color } from 'folds';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { DeviceVerificationSetup } from '../verification/DeviceVerificationSetup';
 import { ResetVerificationDialog } from '../verification/ResetVerificationDialog';
 import { SecurityOverlay } from '../verification/SecurityOverlay';

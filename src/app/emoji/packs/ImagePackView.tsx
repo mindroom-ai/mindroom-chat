@@ -11,8 +11,8 @@ import {
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { Page, PageContent, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
-import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SequenceCard } from '../../ui/SequenceCard';
+import { SettingTile } from '../../ui/SettingTile';
 import { scrollHeaderHeight } from '../../ui/page/scrollHeaderInset';
 import { readImagePackUpload } from './imagePackUpload';
 import {

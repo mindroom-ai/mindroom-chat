@@ -62,7 +62,7 @@ vi.mock('../i18n/useRelativeTime', () => ({
   useRelativeTime: () => '5m ago',
 }));
 
-vi.mock('../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../avatars/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div', { 'data-testid': 'avatar' }),
 }));
 

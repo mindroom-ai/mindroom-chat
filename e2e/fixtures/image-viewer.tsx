@@ -7,7 +7,7 @@ import '../../src/app/i18n/i18n';
 import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
-import { ImageViewer } from '../../src/app/messages/viewers/image-viewer/ImageViewer';
+import { ImageViewer } from '../../src/app/messages/viewers/ImageViewer';
 
 applyThemeToDom(LightTheme);
 

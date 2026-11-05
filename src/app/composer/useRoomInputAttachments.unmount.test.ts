@@ -20,7 +20,7 @@ vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));
 vi.mock('./voice/VoiceRecorderDialog', () => ({ VoiceRecorderComposer: () => null }));
 vi.mock('folds', () => ({ config: { space: {} }, Icons: {}, toRem: String }));
 vi.mock('./upload/UploadCardRenderer', () => ({ UploadCardRenderer: () => null }));
-vi.mock('./upload/upload-board/UploadBoard', () => ({
+vi.mock('./upload/UploadBoard', () => ({
   UploadBoard: () => null,
   UploadBoardContent: () => null,
   UploadBoardHeader: () => null,

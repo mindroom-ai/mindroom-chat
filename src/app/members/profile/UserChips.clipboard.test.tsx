@@ -56,12 +56,12 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: () => React.createElement('span'),
   RoomIcon: () => React.createElement('span'),
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));

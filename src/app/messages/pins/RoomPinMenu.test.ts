@@ -123,7 +123,7 @@ vi.mock('folds', () => {
   };
 });
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children),
 }));
@@ -155,7 +155,7 @@ vi.mock('../content/ImageContent', () => ({
   ImageContent: () => null,
 }));
 
-vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div', { 'data-renderer': 'user-avatar' }),
 }));
 
@@ -242,7 +242,7 @@ vi.mock('../../ui/media/Media', () => ({
   Image: () => null,
 }));
 
-vi.mock('../viewers/image-viewer/ImageViewer', () => ({
+vi.mock('../viewers/ImageViewer', () => ({
   ImageViewer: () => null,
 }));
 
@@ -252,7 +252,7 @@ vi.mock('../../navigation/useRoomNavigate', () => ({
   }),
 }));
 
-vi.mock('../../ui/virtualizer/VirtualTile', () => ({
+vi.mock('../../ui/VirtualTile', () => ({
   VirtualTile: React.forwardRef<
     HTMLDivElement,
     { children?: React.ReactNode; [key: string]: unknown }

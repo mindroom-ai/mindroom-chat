@@ -27,7 +27,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => mocks.client,
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ title, children }: { title: string; children?: React.ReactNode }) =>
     React.createElement('section', { title }, children),
 }));

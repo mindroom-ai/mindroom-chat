@@ -33,7 +33,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
     <button type="button">{children}</button>
   ),
 }));
-vi.mock('../../avatars/user-avatar/UserAvatar', () => ({ UserAvatar: () => null }));
+vi.mock('../../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
 
 const originalWindow = globalThis.window;
 let renderer: ReactTestRenderer | undefined;

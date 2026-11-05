@@ -5,7 +5,7 @@ import { Box, Text } from 'folds';
 import classNames from 'classnames';
 import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { DownloadFile, ReadTextFile } from './FileContent';
-import { TextViewer } from '../viewers/text-viewer/TextViewer';
+import { TextViewer } from '../viewers/TextViewer';
 import { bytesToSize } from '../../lib/common';
 import { FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
 import * as css from './PasteAttachmentContent.css';

@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { SequenceCard } from '../sequence-card/SequenceCard';
+import { SequenceCard } from '../SequenceCard';
 import { SequenceCardStyle } from './styles.css';
 
 /** The padded card that holds the tiles of one group on a settings page. */

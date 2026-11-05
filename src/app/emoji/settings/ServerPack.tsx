@@ -10,8 +10,8 @@ import { readPowerLevel, usePowerLevels } from '../../matrix/hooks/usePowerLevel
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
-import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SequenceCard } from '../../ui/SequenceCard';
+import { SettingTile } from '../../ui/SettingTile';
 import { getMxIdServer } from '../../matrix/matrix';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 

@@ -83,7 +83,7 @@ vi.mock('../content/ImageOverlay', () => ({
   ImageOverlay: () => null,
 }));
 
-vi.mock('../viewers/image-viewer/ImageViewer', () => ({
+vi.mock('../viewers/ImageViewer', () => ({
   ImageViewer: () => null,
 }));
 

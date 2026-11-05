@@ -82,10 +82,10 @@ vi.mock('../../ui/page/PageScroll', () => {
   };
 });
 
-vi.mock('../room-card/RoomCard', async () => {
+vi.mock('../RoomCard', async () => {
   const { RoomAccessControl } = await vi.importActual<
-    typeof import('../room-access/RoomAccessControl')
-  >('../room-access/RoomAccessControl');
+    typeof import('../RoomAccessControl')
+  >('../RoomAccessControl');
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     RoomCardGrid: Wrapper,
@@ -111,7 +111,7 @@ vi.mock('../room-card/RoomCard', async () => {
   };
 });
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
 }));
 
@@ -153,7 +153,7 @@ vi.mock('../RoomSummaryLoader', () => ({
     ),
 }));
 
-vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({
+vi.mock('../../room/RoomTopicViewer', () => ({
   RoomTopicViewer: () => null,
 }));
 

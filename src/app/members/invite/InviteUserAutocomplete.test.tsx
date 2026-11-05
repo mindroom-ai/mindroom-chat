@@ -85,7 +85,7 @@ vi.mock('../../matrix/hooks/useDirectUsers', () => ({
   useDirectUsers: () => directUsersMock.users,
 }));
 
-vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../../avatars/UserAvatar', () => ({
   UserAvatar: ({ userId, src, alt }: { userId: string; src?: string; alt?: string }) =>
     React.createElement('span', { 'data-user-id': userId, 'data-src': src, 'data-alt': alt }),
 }));

@@ -1,6 +1,6 @@
 import { Switch } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { useSetting } from '../../preferences/useSetting';
 import {
   MessageLayout,

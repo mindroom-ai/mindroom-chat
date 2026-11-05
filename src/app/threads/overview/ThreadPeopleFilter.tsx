@@ -5,7 +5,7 @@ import classNames from 'classnames';
 import { IconChevronDown } from '@tabler/icons-react';
 import { Avatar, Checkbox, Icon, Icons, Text } from 'folds';
 import { Surface } from '../../ui/glass/GlassPrimitives';
-import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';

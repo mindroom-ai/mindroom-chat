@@ -11,7 +11,7 @@ import {
 } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { fetchKeyBackupVersion } from '../encryption/keyBackupVersion';
 import { describeError } from '../../lib/describeError';
 import { ErrorDetail } from '../../ui/ErrorDetail';

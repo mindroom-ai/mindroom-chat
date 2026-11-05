@@ -5,7 +5,7 @@ import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
 
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 import * as sessionLifecycle from './sessionLifecycle';
-import { clearFetchedAvatars } from '../../avatars/user-avatar/avatarMedia';
+import { clearFetchedAvatars } from '../../avatars/avatarMedia';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
 import {
   type ClientBootstrapSession,

@@ -10,7 +10,7 @@ import { useRelevantImagePacks } from '../../emoji/useImagePacks';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { ImageUsage } from '../../emoji/custom/types';
 import { type RecentEmoji, useRecentEmoji } from '../../emoji/useRecentEmoji';
-import { ReactionViewer } from './reaction-viewer/ReactionViewer';
+import { ReactionViewer } from './ReactionViewer';
 import * as css from '../styles.css';
 
 const QUICK_REACTION_COUNT = 4;

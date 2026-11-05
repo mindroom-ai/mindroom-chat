@@ -8,7 +8,7 @@ import type { AutocompleteQuery } from './autocompleteQuery';
 import { pickOnTab, useAutocompletePick } from './useAutocompletePick';
 import { createMentionElement, moveCursor, replaceWithElement } from '../utils';
 import { MenuItem } from '../../ui/glass/GlassPrimitives';
-import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';

@@ -305,7 +305,7 @@ vi.mock('../upload/UploadCardRenderer', () => ({
     }),
 }));
 
-vi.mock('../upload/upload-board/UploadBoard', async () => {
+vi.mock('../upload/UploadBoard', async () => {
   const reactModule = await import('react');
   const { useAtomValue } = await import('jotai');
 

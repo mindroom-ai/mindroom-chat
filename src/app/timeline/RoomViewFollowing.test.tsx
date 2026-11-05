@@ -21,7 +21,7 @@ vi.mock('../preferences/useSetting', () => ({
 vi.mock('../ui/Modal500', () => ({
   Modal500: ({ children }: { children: React.ReactNode }) => <div role="dialog">{children}</div>,
 }));
-vi.mock('../messages/event-readers/EventReaders', () => ({
+vi.mock('../messages/EventReaders', () => ({
   EventReaders: ({ eventId, readers }: { eventId: string; readers?: string[] }) => (
     <p data-readers-of={eventId}>{readers?.join(',')}</p>
   ),

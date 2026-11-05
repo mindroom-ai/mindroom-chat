@@ -142,7 +142,7 @@ vi.mock('../../routes/useHomeSelected', () => ({
   useHomeSelected: () => state.selected,
 }));
 
-vi.mock('../../ui/unread-badge/UnreadBadge', () => ({
+vi.mock('../../ui/UnreadBadge', () => ({
   UnreadBadge: () => React.createElement('div'),
 }));
 

@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
 import { NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { NavPageLink } from '../../ui/nav/NavPageLink';
-import { UnreadBadge, UnreadBadgeCenter } from '../../ui/unread-badge/UnreadBadge';
+import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { allInvitesAtom } from '../../matrix/state/inviteList';
 import { INBOX_INVITES_PATH, INBOX_NOTIFICATIONS_PATH } from '../../routes/paths';
 import { getInboxInvitesPath, getInboxNotificationsPath } from '../../routes/pathUtils';

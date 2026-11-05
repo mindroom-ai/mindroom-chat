@@ -3,7 +3,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import {
   AVATAR_SWATCHES,
   avatarSwatchIndex,
-} from '../../src/app/avatars/user-avatar/avatarSwatches';
+} from '../../src/app/avatars/avatarSwatches';
 import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,

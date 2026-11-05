@@ -1,6 +1,6 @@
 import { Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { clearAllCacheAndReload } from '../../account/lifecycle/initMatrix';
 import { MindroomPrefetchSettings } from './PrefetchSettings';

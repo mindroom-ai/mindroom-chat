@@ -18,11 +18,11 @@ vi.mock('../../ui/page/Page', () => ({
   PageHeader: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: () => null,
 }));
 
-vi.mock('../room-card/style.css', () => ({
+vi.mock('../RoomCard.css', () => ({
   ActionButton: 'ActionButton',
   RoomCardBase: 'RoomCardBase',
   RoomCardTopic: 'RoomCardTopic',
@@ -37,7 +37,7 @@ vi.mock('../RoomSummaryLoader', () => ({
 }));
 
 // The join itself succeeded; what is left is where the app goes next.
-vi.mock('../room-access/RoomAccessControl', () => ({
+vi.mock('../RoomAccessControl', () => ({
   RoomAccessControl: ({
     children,
   }: {

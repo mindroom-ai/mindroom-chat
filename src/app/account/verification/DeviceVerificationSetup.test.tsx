@@ -43,7 +43,7 @@ vi.mock('folds', () => ({
   },
 }));
 vi.mock('file-saver', () => ({ default: { saveAs: vi.fn() } }));
-vi.mock('../../ui/password-input/PasswordInput', () => ({
+vi.mock('../../ui/PasswordInput', () => ({
   PasswordInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('../uia/ActionUIA', () => ({

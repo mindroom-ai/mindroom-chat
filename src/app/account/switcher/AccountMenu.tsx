@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { PopOut } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
-import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../../avatars/UserAvatar';
 import type { StoredSession } from '../../matrix/session/sessions';
 import { nameInitials } from '../../lib/common';
 import { stopPropagation } from '../../lib/keyboard';

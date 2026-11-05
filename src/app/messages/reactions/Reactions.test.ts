@@ -69,7 +69,7 @@ vi.mock('./Reaction', () => ({
   },
 }));
 
-vi.mock('./reaction-viewer/ReactionViewer', () => ({
+vi.mock('./ReactionViewer', () => ({
   ReactionViewer: () => null,
 }));
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Box, Button, Chip, Icon, Icons, Text, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { EventTimeline, type MatrixEvent, type Room, RoomEvent } from 'matrix-js-sdk';
-import { SettingTile } from '../../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../../ui/SettingTile';
 import { useStateEventCallback } from '../../../matrix/hooks/useStateEventCallback';
 import { useForceUpdate } from '../../../lib/hooks/useForceUpdate';
 import { copyToClipboard } from '../../../lib/dom';

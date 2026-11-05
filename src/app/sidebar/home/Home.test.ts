@@ -118,7 +118,7 @@ vi.mock('../../matrix/state/useHomeRooms', () => ({ useHomeRooms: () => homeRoom
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getRoom: () => null, getSafeUserId: () => '@alice:example.org' }),
 }));
-vi.mock('../../ui/virtualizer/VirtualTile', () => ({ VirtualTile: 'div' }));
+vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: 'div' }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({
   RoomNavCategoryButton: 'button',
 }));

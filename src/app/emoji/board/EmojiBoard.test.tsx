@@ -24,7 +24,7 @@ vi.mock('./components/styles.css', () =>
       .map((name) => [name, name])
   )
 );
-vi.mock('../../ui/virtualizer/style.css', () => ({ VirtualTile: 'VirtualTile' }));
+vi.mock('../../ui/VirtualTile.css', () => ({ VirtualTile: 'VirtualTile' }));
 vi.mock('./components/AddCustomEmoji', () => ({
   AddCustomEmoji: ({ onAdd }: { onAdd: (mxc: string, shortcode: string) => void }) => {
     addForm.onAdd = onAdd;

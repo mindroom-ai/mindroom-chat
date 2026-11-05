@@ -25,7 +25,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({ Menu: () => null, MenuItem: (
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ title, after }: Record<string, React.ReactNode>) => (
     <div>
       {title}

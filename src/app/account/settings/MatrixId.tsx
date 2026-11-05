@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { Box, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SequenceCard } from '../../ui/SequenceCard';
+import { SettingTile } from '../../ui/SettingTile';
 import { copyToClipboard } from '../../lib/dom';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 

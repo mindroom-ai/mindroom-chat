@@ -37,7 +37,7 @@ vi.mock('../../../ui/page/Page', () => ({
 
 vi.mock('../../../ui/page/PageScroll', () => ({}));
 
-vi.mock('../../../ui/virtualizer/VirtualTile', () => ({
+vi.mock('../../../ui/VirtualTile', () => ({
   VirtualTile: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(
     ({ children }, ref) => React.createElement('div', { ref }, children)
   ),

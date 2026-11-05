@@ -36,8 +36,8 @@ import {
 } from 'matrix-js-sdk';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
-import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
-import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
+import { SequenceCard } from '../../ui/SequenceCard';
+import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { INBOX_PATH } from '../../routes/paths';

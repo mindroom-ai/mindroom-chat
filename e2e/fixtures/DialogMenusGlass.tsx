@@ -7,7 +7,7 @@ import { InviteAutocompleteMenu } from '../../src/app/members/invite/InviteAutoc
 import { InviteAutocompleteOption } from '../../src/app/members/invite/InviteAutocompleteMenu.css';
 import { AutocompleteMenu } from '../../src/app/editor/autocomplete/AutocompleteMenu';
 import { ImagePackView } from '../../src/app/emoji/packs/ImagePackView';
-import { TextViewer } from '../../src/app/messages/viewers/text-viewer/TextViewer';
+import { TextViewer } from '../../src/app/messages/viewers/TextViewer';
 import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
 
 /** Real menu components with deterministic data; no backend or external model calls. */

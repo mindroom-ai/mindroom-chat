@@ -8,7 +8,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
-import { useAvatarImage } from '../../avatars/user-avatar/useAvatarImage';
+import { useAvatarImage } from '../../avatars/useAvatarImage';
 import { ImageOverlay } from '../content/ImageOverlay';
 
 const linkStyles = { color: color.Success.Main };

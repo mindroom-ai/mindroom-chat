@@ -13,7 +13,7 @@ import {
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError } from '../matrix/matrix';
-import { UploadBoardHeader } from './upload/upload-board/UploadBoard';
+import { UploadBoardHeader } from './upload/UploadBoard';
 import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { createMindroomRoomInputPasteMarkerElement } from './RoomInputExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
@@ -27,7 +27,7 @@ vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));
 vi.mock('./voice/VoiceRecorderDialog', () => ({ VoiceRecorderComposer: () => null }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('./upload/UploadCardRenderer', () => ({ UploadCardRenderer: () => null }));
-vi.mock('./upload/upload-board/UploadBoard', () => ({
+vi.mock('./upload/UploadBoard', () => ({
   UploadBoard: ({ children, header }: { children: React.ReactNode; header: React.ReactNode }) =>
     React.createElement(React.Fragment, null, header, children),
   UploadBoardContent: ({ children }: { children: React.ReactNode }) => children,

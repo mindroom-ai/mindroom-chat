@@ -218,12 +218,12 @@ vi.mock('../matrix/hooks/useSpace', () => ({
   useSpaceOptionally: () => undefined,
 }));
 
-vi.mock('../ui/scroll-top-container/ScrollTopContainer', () => ({
+vi.mock('../ui/ScrollTopContainer', () => ({
   ScrollTopContainer: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../avatars/user-avatar/UserAvatar', () => ({
+vi.mock('../avatars/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div'),
 }));
 

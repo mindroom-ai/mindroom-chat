@@ -86,15 +86,15 @@ vi.mock('../../../ui/media/Media', () => ({
   Video: () => null,
 }));
 
-vi.mock('../../viewers/image-viewer/ImageViewer', () => ({
+vi.mock('../../viewers/ImageViewer', () => ({
   ImageViewer: () => null,
 }));
 
-vi.mock('../../viewers/pdf-viewer/PdfViewer', () => ({
+vi.mock('../../viewers/PdfViewer', () => ({
   PdfViewer: () => null,
 }));
 
-vi.mock('../../viewers/text-viewer/TextViewer', () => ({
+vi.mock('../../viewers/TextViewer', () => ({
   TextViewer: () => null,
 }));
 

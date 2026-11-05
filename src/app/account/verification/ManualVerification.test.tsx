@@ -35,7 +35,7 @@ vi.mock('folds', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ title, description, after }: Record<string, React.ReactNode>) => (
     <div>
       {title}

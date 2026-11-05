@@ -53,7 +53,7 @@ vi.mock('../i18n/useRelativeTime', () => ({
   useRelativeTime: (ts: number, format: string) => `${format}:${ts}`,
 }));
 
-vi.mock('../ui/unread-badge/UnreadBadge', async () => {
+vi.mock('../ui/UnreadBadge', async () => {
   const reactModule = await import('react');
   return {
     UnreadBadge: (props: { highlight: boolean; count: number; selected?: boolean }) =>

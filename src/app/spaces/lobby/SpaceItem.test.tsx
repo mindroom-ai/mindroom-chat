@@ -36,7 +36,7 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
+vi.mock('../../avatars/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
 }));
 
@@ -78,7 +78,7 @@ vi.mock('./DnD', () => ({
   useDraggableItem: () => undefined,
 }));
 
-vi.mock('../add-existing/AddExistingModal', () => ({
+vi.mock('../AddExistingModal', () => ({
   AddExistingModal: () => null,
 }));
 

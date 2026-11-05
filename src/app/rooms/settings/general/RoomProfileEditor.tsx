@@ -2,7 +2,7 @@ import { type FormEvent, useState } from 'react';
 import { Box, Button, Input, Text, TextArea, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { SettingTile } from '../../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../../ui/SettingTile';
 import { useMatrixClient } from '../../../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../../matrix/hooks/useRoomCreators';

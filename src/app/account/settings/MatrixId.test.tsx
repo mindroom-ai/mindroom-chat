@@ -21,12 +21,12 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@alice:example.org' }),
 }));
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ title, after }: { title: string; after?: React.ReactNode }) =>
     React.createElement('div', null, title, after),
 }));

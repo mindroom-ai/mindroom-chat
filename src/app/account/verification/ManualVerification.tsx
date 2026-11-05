@@ -4,7 +4,7 @@ import FocusTrap from 'focus-trap-react';
 import { Box, Chip, Icon, Icons, RectCords, Spinner, Text, color, config } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import {
   SecretStorageKeyContent,
   SecretStorageRecoveryKey,

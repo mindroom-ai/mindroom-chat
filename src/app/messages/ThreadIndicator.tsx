@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import type { EventTimelineSet, Room } from 'matrix-js-sdk';
 import { Avatar, Icon, Icons, Text } from 'folds';
-import { UserAvatar } from '../avatars/user-avatar/UserAvatar';
+import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';

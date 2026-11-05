@@ -8,7 +8,7 @@ import {
   SidebarItemBadge,
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
-import { UnreadBadge } from '../../ui/unread-badge/UnreadBadge';
+import { UnreadBadge } from '../../ui/UnreadBadge';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
 import { useRoomsUnread } from '../../matrix/state/useUnread';

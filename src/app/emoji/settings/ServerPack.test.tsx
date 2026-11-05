@@ -30,10 +30,10 @@ vi.mock('../../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => hooks.openRoomSettings,
 }));
 vi.mock('../../ui/settings/styles.css', () => ({ SequenceCardStyle: 'card' }));
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({ title, description, before, after }: Record<string, React.ReactNode>) => (
     <div>
       {before}

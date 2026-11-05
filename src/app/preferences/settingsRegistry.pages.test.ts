@@ -54,8 +54,8 @@ const PAGE_FILES: Record<Exclude<SettingsPageId, 'sidebar'>, string[]> = {
     'settings/pages/StorageOffline.tsx',
     'settings/pages/PrefetchSettings.tsx',
   ],
-  'developer-tools': ['settings/pages/developer-tools/DeveloperTools.tsx'],
-  about: ['settings/pages/about/About.tsx'],
+  'developer-tools': ['settings/pages/DeveloperTools.tsx'],
+  about: ['settings/pages/About.tsx'],
 };
 
 /** The files `path` imports from this repository, resolved as the bundler does. */

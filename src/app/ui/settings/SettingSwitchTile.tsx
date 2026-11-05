@@ -1,5 +1,5 @@
 import { Switch } from 'folds';
-import { SettingTile } from '../setting-tile/SettingTile';
+import { SettingTile } from '../SettingTile';
 import { useSetting } from '../../preferences/useSetting';
 import { type Settings, settingsAtom } from '../../preferences/settings';
 

@@ -33,7 +33,7 @@ vi.mock('../../ui/nav/NavItem', () => ({
 vi.mock('../../ui/nav/NavCategoryHeader', () => ({
   NavCategoryHeader: passthrough,
 }));
-vi.mock('../../ui/virtualizer/VirtualTile', () => ({ VirtualTile: passthrough }));
+vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: passthrough }));
 vi.mock('../../rooms/join/JoinAddressPrompt', () => ({ JoinAddressPrompt: () => null }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
 vi.mock('../room-nav/SortableRoomList', () => ({

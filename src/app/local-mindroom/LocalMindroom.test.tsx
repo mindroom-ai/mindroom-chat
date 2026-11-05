@@ -60,7 +60,7 @@ vi.mock('../ui/page/PageScroll', async () => {
   };
 });
 
-vi.mock('../ui/sequence-card/SequenceCard', async () => {
+vi.mock('../ui/SequenceCard', async () => {
   const reactModule = await import('react');
   return {
     SequenceCard: ({ children }: { children?: React.ReactNode }) =>
@@ -68,7 +68,7 @@ vi.mock('../ui/sequence-card/SequenceCard', async () => {
   };
 });
 
-vi.mock('../ui/setting-tile/SettingTile', async () => {
+vi.mock('../ui/SettingTile', async () => {
   const reactModule = await import('react');
   return {
     SettingTile: ({ title, description }: { title?: string; description?: React.ReactNode }) =>

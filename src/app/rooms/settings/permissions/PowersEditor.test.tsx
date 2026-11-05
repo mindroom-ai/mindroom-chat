@@ -58,11 +58,11 @@ vi.mock('../../../ui/page/PageScroll', () => ({
   PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
     React.createElement('div', null, header, children),
 }));
-vi.mock('../../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: React.PropsWithChildren) =>
     React.createElement('div', null, children),
 }));
-vi.mock('../../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../../ui/SettingTile', () => ({
   SettingTile: ({
     before,
     title,

@@ -5,7 +5,7 @@ import type { Room } from 'matrix-js-sdk';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { ImagePackView } from '../../emoji/packs/ImagePackView';
 import { PackAvatar } from '../../emoji/packs/PackMetaEditor';
-import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SettingTile } from '../../ui/SettingTile';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomImagePacks } from '../../emoji/useImagePacks';

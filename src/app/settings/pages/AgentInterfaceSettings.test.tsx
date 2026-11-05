@@ -30,12 +30,12 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../../ui/sequence-card/SequenceCard', () => ({
+vi.mock('../../ui/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('section', null, children),
 }));
 
-vi.mock('../../ui/setting-tile/SettingTile', () => ({
+vi.mock('../../ui/SettingTile', () => ({
   SettingTile: ({
     title,
     description,
