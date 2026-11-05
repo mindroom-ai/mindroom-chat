@@ -169,7 +169,7 @@ it('clear rejects pending event and cursor writes', async () => {
   expect(engine.offline.getSnapshot(roomId).status).toBe('idle');
 });
 
-// Saving a 200-event page through fake-indexeddb takes 70 to 300 ms of CPU time alone; on a busy
+// Saving a 200-event page through fake-indexeddb takes 40 to 300 ms of CPU time alone; on a busy
 // machine the waits for it passed vi.waitFor's 1 s default, so they get 20 s and their tests 30 s.
 const pageSaveWait = { timeout: 20_000 };
 
@@ -430,14 +430,17 @@ it('shares the 200-event allowance with a concurrent limited-sync gap', async ()
     expect(engine.scheduler.pendingJobs().filter((job) => job.kind === 'gap-fill')).toHaveLength(0)
   );
   resolve({ chunk: Array.from({ length: 200 }, (_, i) => raw('$budget' + i)), end: 'older' });
-  await vi.waitFor(() => expect(engine.offline.getSnapshot(roomId).status).toBe('limited'));
+  await vi.waitFor(
+    () => expect(engine.offline.getSnapshot(roomId).status).toBe('limited'),
+    pageSaveWait
+  );
   expect(f.request).toHaveBeenCalledOnce();
   engine.clearRoomFocus(roomId);
   engine.noteRoomFocused(roomId);
   await vi.waitFor(() => expect(f.request).toHaveBeenCalledTimes(2));
   engine.offline.cancel(roomId);
   resolve({ chunk: [] });
-});
+}, 30_000);
 
 it.each(['failed', 'recovered', 'empty', 'offline', 'canceled', 'cleared'] as const)(
   'settles saving after a shared gap is %s without replacing its active status',
