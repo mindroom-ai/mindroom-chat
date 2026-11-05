@@ -60,9 +60,10 @@ test('a streamed reply grows word by word through live frames and ends without i
   const intermediate = samples.filter((count) => count > 0 && count < 30);
   // The backend edits the message only every few seconds; without live frames a 7 s stream shows a
   // couple of steps. Live frames add a word every quarter second.
-  expect(intermediate.length, `word counts seen while streaming: ${samples.join(' ')}`).toBeGreaterThan(
-    8
-  );
+  expect(
+    intermediate.length,
+    `word counts seen while streaming: ${samples.join(' ')}`
+  ).toBeGreaterThan(8);
 });
 
 test('tool calls show a running row, then one row for the run that expands to each call', async ({
@@ -81,9 +82,18 @@ test('tool calls show a running row, then one row for the run that expands to ea
   const reply = messageRow(page, done.event_id);
   const tools = reply.getByRole('button', { name: /^Ran 3 tool calls/ });
   await expect(tools).toBeVisible({ timeout: 30_000 });
+  // The answer sits a paragraph's spacing (8 px) below the row: the blank line MindRoom writes
+  // after each tool marker leaves no empty line, in the live frames and in the final edit.
+  const answer = reply.locator('p').filter({ hasText: /^Finished/ });
+  const gapBelowRow = async () => {
+    const [row, text] = await Promise.all([tools.boundingBox(), answer.boundingBox()]);
+    return (text?.y ?? 0) - ((row?.y ?? 0) + (row?.height ?? 0));
+  };
+  expect(Math.abs((await gapBelowRow()) - 8)).toBeLessThanOrEqual(2);
   // Past the live frames' freshness the row shows the final edit, not an earlier one.
   await page.waitForTimeout(13_000);
   await expect(tools).toBeVisible();
+  expect(Math.abs((await gapBelowRow()) - 8)).toBeLessThanOrEqual(2);
   await expect(tools).toContainText('run_shell_command ×3');
   await expect(reply.getByText('step two', { exact: false })).toHaveCount(0);
 

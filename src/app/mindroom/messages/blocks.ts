@@ -262,24 +262,58 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
   return hasMindroomMarker ? htmlParts.join('') : undefined;
 };
 
+// The block elements the Markdown parser writes; the rest of its output is inline text.
+const PARSED_BLOCK_TAG_REG = /<\/?(?:h[1-6]|blockquote|ul|ol|pre|div)\b[^>]*>/g;
+
+// Text that starts with the tool icon here is a marker kept literal (indented, or with more text on
+// its line); in a paragraph the renderer would show it as a tool call.
+const STARTS_WITH_TOOL_ICON_REG = new RegExp(`^(?:\\s|<br/>)*${MINDROOM_TOOL_REF_ICON}`, 'u');
+
+// Wraps the inline text that starts the parsed Markdown (after a marker) and the inline text that
+// ends it (before a marker) in paragraphs, as MindRoom's formatted body has them, so that text keeps
+// a paragraph's spacing from the marker's block.
+const wrapTextBesideMarkers = (html: string, afterMarker: boolean, beforeMarker: boolean) => {
+  const tags = Array.from(html.matchAll(PARSED_BLOCK_TAG_REG));
+  const paragraph = (text: string, wanted: boolean) =>
+    wanted && text && !STARTS_WITH_TOOL_ICON_REG.test(text) ? `<p>${text}</p>` : text;
+  if (tags.length === 0) return paragraph(html, afterMarker || beforeMarker);
+  const firstTag = tags[0];
+  const lastTag = tags[tags.length - 1];
+  const start = firstTag.index ?? 0;
+  const end = (lastTag.index ?? 0) + lastTag[0].length;
+  return (
+    paragraph(html.slice(0, start), afterMarker) +
+    html.slice(start, end) +
+    paragraph(html.slice(end), beforeMarker)
+  );
+};
+
+const isBlankLine = (line: string | undefined): boolean => line !== undefined && !line.trim();
+
 const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): string => {
   const lines = body.split('\n');
   const htmlParts: string[] = [];
   let markdownLines: string[] = [];
 
-  const flushMarkdown = () => {
-    if (markdownLines.length === 0) return;
-    const markdown = markdownLines.join('\n');
-    if (!markdown.trim()) {
-      markdownLines = [];
-      return;
-    }
+  // `beforeMarker`: a marker or separator follows the text. The blank lines between the text and a
+  // marker only set the marker apart, as they do in MindRoom's formatted body; given to the parser
+  // they would each become an empty line.
+  const flushMarkdown = (beforeMarker: boolean) => {
+    const afterMarker = htmlParts.length > 0;
+    let first = 0;
+    let end = markdownLines.length;
+    if (afterMarker) while (isBlankLine(markdownLines[first])) first += 1;
+    if (beforeMarker) while (end > first && isBlankLine(markdownLines[end - 1])) end -= 1;
+    const markdown = markdownLines.slice(first, end).join('\n');
+    markdownLines = [];
+    if (!markdown.trim()) return;
 
     const normalizedMarkdown = normalizeMarkdownDashLists(markdown);
     const literalMarkerMarkdown = preserveListContainedToolMarkers(normalizedMarkdown);
     const parsedHtml = parseBlockMD(sanitizeMarkdownText(literalMarkerMarkdown), parseInlineMD);
-    htmlParts.push(normalizeParsedMathEntities(parsedHtml));
-    markdownLines = [];
+    htmlParts.push(
+      wrapTextBesideMarkers(normalizeParsedMathEntities(parsedHtml), afterMarker, beforeMarker)
+    );
   };
 
   lines.forEach((line, index) => {
@@ -294,7 +328,7 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
       ? '<hr/>'
       : formatStandaloneMindroomMarkerAsHtml(line, allowRichMarkers);
     if (markerHtml) {
-      flushMarkdown();
+      flushMarkdown(true);
       htmlParts.push(markerHtml);
       return;
     }
@@ -302,7 +336,7 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
     markdownLines.push(line);
   });
 
-  flushMarkdown();
+  flushMarkdown(false);
   return htmlParts.join('');
 };
 

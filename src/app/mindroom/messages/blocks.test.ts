@@ -152,7 +152,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     ).toBe(
       [
         '<h1 data-md="#">Preview &lt;unsafe&gt;</h1>',
-        '<br/>Ready <strong data-md="**">now</strong>.<br/>',
+        '<p><br/>Ready <strong data-md="**">now</strong>.</p>',
         '<p>🔧 <code>run_shell_command</code> [1]</p>',
       ].join('')
     );
@@ -277,6 +277,73 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
         '<p>🔧 <code>run_shell_command</code> [1]</p>',
         '<p>🔧 <code>run_shell_command</code> [2]</p>',
         '<p>🔧 <code>run_shell_command</code> [3]</p>',
+      ].join('')
+    );
+  });
+
+  // MindRoom writes each marker with a blank line on both sides; the formatted body makes those
+  // lines paragraph boundaries, so the text beside a marker is a paragraph and no line is empty.
+  it('turns the blank lines around tool markers into paragraph boundaries', () => {
+    const marker = (name: string, index: number) => `<p>🔧 <code>${name}</code> [${index}]</p>`;
+
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['🔧 `add_memory` [1]', '', '🔧 `send_voice_message` [2]', '', 'Done.'].join('\n')
+      )
+    ).toBe(`${marker('add_memory', 1)}${marker('send_voice_message', 2)}<p>Done.</p>`);
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        [
+          'Let me **check**.',
+          '',
+          '🔧 `read_file` [1]',
+          '',
+          '',
+          'Found it.',
+          '',
+          'Second paragraph.',
+          '',
+          '🔧 `edit_file` [2] ⏳',
+          '',
+        ].join('\n')
+      )
+    ).toBe(
+      [
+        '<p>Let me <strong data-md="**">check</strong>.</p>',
+        marker('read_file', 1),
+        // A blank line inside the reply text stays.
+        '<p>Found it.<br/><br/>Second paragraph.</p>',
+        '<p>🔧 <code>edit_file</code> [2] ⏳</p>',
+      ].join('')
+    );
+  });
+
+  it('makes paragraphs only of the text beside a marker when blocks follow it', () => {
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['🔧 `search` [1]', '', 'Found:', '- one', '', 'Thanks.', '', '🔧 `save` [2]'].join('\n')
+      )
+    ).toBe(
+      [
+        '<p>🔧 <code>search</code> [1]</p>',
+        '<p>Found:<br/></p><ul data-md="*"><li>one</li></ul><p><br/>Thanks.</p>',
+        '<p>🔧 <code>save</code> [2]</p>',
+      ].join('')
+    );
+    // Text without markers keeps the parser's lines.
+    expect(formatMindroomMarkdownTextBodyAsHtml('One\n\nTwo')).toBe('One<br/><br/>Two');
+  });
+
+  it('keeps a literal marker beside a real one out of a paragraph', () => {
+    expect(
+      formatMindroomMarkdownTextBodyAsHtml(
+        ['🔧 `read_file` [1]', '', '  🔧 `quoted_tool` [2]', '', '🔧 `edit_file` [3]'].join('\n')
+      )
+    ).toBe(
+      [
+        '<p>🔧 <code>read_file</code> [1]</p>',
+        '  🔧 <code data-md="`">quoted_tool</code> [2]',
+        '<p>🔧 <code>edit_file</code> [3]</p>',
       ].join('')
     );
   });

@@ -45,6 +45,123 @@ const headerGeometry = async (reply: Locator) =>
     };
   });
 
+// A private room with the test account and an agent named Helper, and a thread the test account
+// starts with `rootBody`. `reply` sends a message of the agent into the thread; `open` signs in and
+// shows the thread.
+const startAgentThread = async (page: Page, rootBody: string) => {
+  const homeserver = getHomeserver();
+  const credentials = getPrimaryCredentials();
+  const { accessToken } = await loginToMatrix(
+    homeserver,
+    credentials.username,
+    credentials.password
+  );
+  const roomId = await createPrivateRoom(homeserver, accessToken, {
+    name: `Agent reasoning ${Date.now()}`,
+    topic: 'Agent replies with reasoning',
+  });
+  const agent = await registerAgentAccount(homeserver, 'helper');
+  await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
+    method: 'POST',
+    accessToken,
+    body: JSON.stringify({ user_id: agent.userId }),
+  });
+  await joinRoom(homeserver, agent.accessToken, roomId);
+  await matrixFetch(homeserver, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
+    method: 'PUT',
+    accessToken: agent.accessToken,
+    body: JSON.stringify({ displayname: 'Helper' }),
+  });
+  const rootId = await sendRoomMessage(homeserver, accessToken, roomId, {
+    msgtype: 'm.text',
+    body: rootBody,
+  });
+  const thread = {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: false,
+    'm.in_reply_to': { event_id: rootId },
+  };
+  return {
+    reply: (content: Record<string, unknown>) =>
+      sendRoomMessage(homeserver, agent.accessToken, roomId, {
+        msgtype: 'm.text',
+        'm.relates_to': thread,
+        ...content,
+      }),
+    open: async () => {
+      await loginWithPassword(page, { homeserver, ...credentials });
+      await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    },
+  };
+};
+
+// MindRoom's formatted body for a reply of tool markers and one-line paragraphs, as the runtime's
+// Markdown renderer writes it, with the tool trace of its markers.
+const formattedReply = (body: string) => {
+  const paragraphs = body.split('\n\n').filter((paragraph) => paragraph.trim());
+  const tools = paragraphs.flatMap((paragraph) => /^🔧 `([^`]+)`/.exec(paragraph)?.[1] ?? []);
+  return {
+    body,
+    format: 'org.matrix.custom.html',
+    formatted_body: `${paragraphs
+      .map((paragraph) => `<p>${paragraph.replace(/`([^`]+)`/g, '<code>$1</code>')}</p>`)
+      .join('\n')}\n`,
+    'io.mindroom.tool_trace': {
+      version: 2,
+      events: tools.map((name) => ({
+        type: 'tool_call_completed',
+        tool_name: name,
+        args_preview: 'text=first day',
+        result_preview: 'ok',
+      })),
+    },
+  };
+};
+
+// The space between a reply's tool row and what sits around it: the reasoning header and the line
+// of text above it, the line of text below it, and the end of the message body. Text is measured by
+// its line box, as a paragraph's edge would be.
+const toolRowGaps = (reply: Locator, textAbove?: string, textBelow?: string) =>
+  reply.evaluate(
+    (element, [above, below]) => {
+      const row = element.querySelector('button[aria-controls]')?.getBoundingClientRect();
+      const line = (text: string | undefined) => {
+        if (!text) return undefined;
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        while (walker.nextNode()) {
+          const node = walker.currentNode as Text;
+          const start = node.data.indexOf(text);
+          if (start >= 0 && node.parentElement) {
+            const range = document.createRange();
+            range.setStart(node, start);
+            range.setEnd(node, start + text.length);
+            const rect = range.getBoundingClientRect();
+            const leading =
+              (parseFloat(getComputedStyle(node.parentElement).lineHeight) - rect.height) / 2;
+            return { top: rect.top - leading, bottom: rect.bottom + leading };
+          }
+        }
+        return undefined;
+      };
+      const header = element
+        .querySelector('button[aria-expanded]:not([aria-controls])')
+        ?.getBoundingClientRect();
+      const body = element
+        .querySelector('button[aria-controls]')
+        ?.parentElement?.parentElement?.getBoundingClientRect();
+      const lineAbove = line(above);
+      const lineBelow = line(below);
+      return {
+        header: header && row ? row.top - header.bottom : undefined,
+        above: lineAbove && row ? row.top - lineAbove.bottom : undefined,
+        below: lineBelow && row ? lineBelow.top - row.bottom : undefined,
+        end: body && row ? body.bottom - row.bottom : undefined,
+      };
+    },
+    [textAbove, textBelow]
+  );
+
 const setTheme = async (page: Page, themeId: string) => {
   await page.evaluate((id) => {
     const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
@@ -65,60 +182,25 @@ test.describe('agent reasoning header', () => {
     page,
   }) => {
     test.slow();
-    const homeserver = getHomeserver();
-    const credentials = getPrimaryCredentials();
-    const { accessToken } = await loginToMatrix(
-      homeserver,
-      credentials.username,
-      credentials.password
+    const { reply: sendReply, open } = await startAgentThread(
+      page,
+      'Remember that today is my first day'
     );
-    const roomId = await createPrivateRoom(homeserver, accessToken, {
-      name: `Agent reasoning ${Date.now()}`,
-      topic: 'Agent replies with reasoning',
-    });
-    const agent = await registerAgentAccount(homeserver, 'helper');
-    await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
-      method: 'POST',
-      accessToken,
-      body: JSON.stringify({ user_id: agent.userId }),
-    });
-    await joinRoom(homeserver, agent.accessToken, roomId);
-    await matrixFetch(homeserver, `/profile/${encodeURIComponent(agent.userId)}/displayname`, {
-      method: 'PUT',
-      accessToken: agent.accessToken,
-      body: JSON.stringify({ displayname: 'Helper' }),
-    });
-
-    const rootId = await sendRoomMessage(homeserver, accessToken, roomId, {
-      msgtype: 'm.text',
-      body: 'Remember that today is my first day',
-    });
-    const thread = {
-      rel_type: 'm.thread',
-      event_id: rootId,
-      is_falling_back: false,
-      'm.in_reply_to': { event_id: rootId },
-    };
-    await sendRoomMessage(homeserver, agent.accessToken, roomId, {
-      msgtype: 'm.text',
+    await sendReply({
       body: FINAL_BODY,
       'io.mindroom.stream_status': 'completed',
       'io.mindroom.reasoning': {
         text: 'The user starts a new job today.\n\nSave it, then answer by voice.',
         duration_ms: 7600,
       },
-      'm.relates_to': thread,
     });
-    await sendRoomMessage(homeserver, agent.accessToken, roomId, {
-      msgtype: 'm.text',
+    await sendReply({
       body: 'Thinking...',
       'io.mindroom.stream_status': 'streaming',
       'io.mindroom.live_reasoning': 'Looking for a good first question.',
-      'm.relates_to': thread,
     });
 
-    await loginWithPassword(page, { homeserver, ...credentials });
-    await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+    await open();
     const reply = page.locator('[data-message-item]').filter({ hasText: 'Thought for 8 s' });
     await expect(reply).toHaveCount(1, { timeout: 60_000 });
     const toggle = reply.getByRole('button', { name: 'Thought for 8 s' });
@@ -177,6 +259,138 @@ test.describe('agent reasoning header', () => {
       await thinking.screenshot({
         path: `${SCREENSHOT}/L11-reasoning-header-thinking-${scheme}.png`,
       });
+    }
+  });
+
+  // MindRoom writes a blank line around each tool marker. Those lines leave no empty line under the
+  // folded tool row: it sits the app's paragraph spacing (8 px) from the reply's text, in the
+  // formatted body MindRoom sends and in the body alone, which the app renders the same way.
+  test('keeps paragraph spacing between the tool row and the reply text', async ({ page }) => {
+    test.slow();
+    await page.setViewportSize({ width: 1280, height: 1600 });
+    const { reply: sendReply, open } = await startAgentThread(page, 'Save that I start today');
+    const shapes = {
+      plain: (body: string) => ({ body }),
+      formatted: formattedReply,
+    };
+    const cases = Object.entries(shapes).map(([shape, content]) => ({
+      shape,
+      toolsThenText: content(
+        [`🔧 \`add_memory\` [1]`, '', `🔧 \`send_voice_message\` [2]`, '', `Done ${shape}.`].join(
+          '\n'
+        )
+      ),
+      textToolsText: content(
+        [`Saving it ${shape}.`, '', `🔧 \`add_memory\` [1]`, '', `Saved ${shape}.`].join('\n')
+      ),
+      toolsOnly: content(`🔧 \`list_${shape}\` [1]`),
+    }));
+    for (const shape of cases) {
+      await sendReply({
+        ...shape.toolsThenText,
+        'io.mindroom.stream_status': 'completed',
+        'io.mindroom.reasoning': { text: 'Save it, then answer by voice.', duration_ms: 7600 },
+      });
+      await sendReply({ ...shape.textToolsText, 'io.mindroom.stream_status': 'completed' });
+      await sendReply({ ...shape.toolsOnly, 'io.mindroom.stream_status': 'completed' });
+    }
+    // A reply still running its tool, as MindRoom sends it before the text arrives.
+    const runningBody = '🔧 `add_memory` [1] ⏳';
+    const streamingId = await sendReply({
+      ...formattedReply(runningBody),
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [{ type: 'tool_call_started', tool_name: 'add_memory', args_preview: 'text=x' }],
+      },
+      'io.mindroom.stream_status': 'streaming',
+    });
+
+    await open();
+    const replyWith = (text: string) =>
+      page.locator('[data-message-item]').filter({ hasText: text });
+    await expect(replyWith('Done plain.')).toHaveCount(1, { timeout: 60_000 });
+    const streaming = replyWith('Running 1 tool call');
+    await expect(streaming).toHaveCount(1);
+    await page.mouse.move(0, 0);
+
+    if (SCREENSHOT) {
+      const boxes = await Promise.all(
+        ['Done plain.', 'Saved plain.', 'list_plain'].map((text) => replyWith(text).boundingBox())
+      );
+      const top = Math.min(...boxes.map((box) => box?.y ?? 0));
+      const bottom = Math.max(...boxes.map((box) => (box?.y ?? 0) + (box?.height ?? 0)));
+      const box = boxes[0];
+      await page.screenshot({
+        path: `${SCREENSHOT}/L16-tool-row-gap.png`,
+        clip: { x: box?.x ?? 0, y: top, width: box?.width ?? 0, height: bottom - top },
+      });
+    }
+
+    const GAP = 8;
+    for (const { shape } of cases) {
+      const toolsThenText = await toolRowGaps(
+        replyWith(`Done ${shape}.`),
+        undefined,
+        `Done ${shape}.`
+      );
+      expect.soft(toolsThenText.header, `${shape}: reasoning header to tool row`).toBeCloseTo(4, 0);
+      expect
+        .soft(Math.abs((toolsThenText.below ?? 99) - GAP), `${shape}: tool row to text`)
+        .toBeLessThanOrEqual(2);
+      const textToolsText = await toolRowGaps(
+        replyWith(`Saved ${shape}.`),
+        `Saving it ${shape}.`,
+        `Saved ${shape}.`
+      );
+      expect
+        .soft(Math.abs((textToolsText.above ?? 99) - GAP), `${shape}: text to tool row`)
+        .toBeLessThanOrEqual(2);
+      expect
+        .soft(Math.abs((textToolsText.below ?? 99) - GAP), `${shape}: tool row to text`)
+        .toBeLessThanOrEqual(2);
+      const toolsOnly = await toolRowGaps(replyWith(`list_${shape}`));
+      expect
+        .soft(Math.abs(toolsOnly.end ?? 99), `${shape}: tool row to the end of the body`)
+        .toBeLessThanOrEqual(2);
+    }
+
+    // While the tool runs, only the responding indicator follows its row: no empty line or
+    // paragraph. Text that arrives sits the paragraph spacing below the row, while the reply still
+    // streams and once it completes.
+    const afterRow = await streaming.evaluate((element) => {
+      const activity = element.querySelector('button[aria-controls]')?.parentElement;
+      const nodes: string[] = [];
+      for (let node = activity?.nextSibling; node; node = node.nextSibling) {
+        if (node instanceof Element) nodes.push(node.getAttribute('role') ?? node.tagName);
+        else if (node.textContent?.trim()) nodes.push('text');
+      }
+      return nodes;
+    });
+    expect.soft(afterRow).toEqual(['status']);
+    const edit = async (body: string, status: string) => {
+      const content = {
+        msgtype: 'm.text',
+        ...formattedReply(body),
+        'io.mindroom.stream_status': status,
+      };
+      await sendReply({
+        ...content,
+        body: `* ${body}`,
+        'm.new_content': content,
+        'm.relates_to': { rel_type: 'm.replace', event_id: streamingId },
+      });
+    };
+    for (const [text, status] of [
+      ['Stored', 'streaming'],
+      ['Stored it for you.', 'completed'],
+    ] as const) {
+      await edit(['🔧 `add_memory` [1]', '', text].join('\n'), status);
+      const arrived = replyWith(text);
+      await expect(arrived).toHaveCount(1, { timeout: 30_000 });
+      const gaps = await toolRowGaps(arrived, undefined, text);
+      expect
+        .soft(Math.abs((gaps.below ?? 99) - GAP), `${status}: tool row to text`)
+        .toBeLessThanOrEqual(2);
     }
   });
 });
