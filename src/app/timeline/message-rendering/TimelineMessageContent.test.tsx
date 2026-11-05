@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { create, makeEvent, makeRoom } from '../test-utils/RoomTimeline.test.shared';
 import { MessageLayout, type MessageSpacing } from '../../preferences/settings';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
-import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { MessageEvent } from '../../matrix/types/room';
 import { defined } from '../../../test/utils/defined';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
@@ -84,7 +84,7 @@ importBeforeTests(() => import('./useTimelineMessageFeature'));
 describe('timeline approval cards', () => {
   it('get the room and the thread of a reply shown in the room timeline', async () => {
     const event = makeEvent('$approval', {
-      type: MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
       threadRootId: '$thread',
     }) as unknown as MatrixEvent;
 
@@ -97,12 +97,29 @@ describe('timeline approval cards', () => {
 
   it('get the open thread inside a thread', async () => {
     const event = makeEvent('$approval', {
-      type: MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
     }) as unknown as MatrixEvent;
 
     expect(await renderApproval(event, '$root')).toMatchObject({
       roomId: '!room:example.org',
       threadId: '$root',
+    });
+  });
+
+  it('get the original approval content with its latest edit as the new content', async () => {
+    const event = makeEvent('$approval', {
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
+      content: { approval_id: 'approval-1', status: 'pending' },
+    }) as unknown as MatrixEvent & { __editedEvent?: unknown };
+    event.__editedEvent = makeEvent('$edit', {
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
+      content: { 'm.new_content': { approval_id: 'approval-1', status: 'approved' } },
+    });
+
+    expect((await renderApproval(event)).getContent()).toEqual({
+      approval_id: 'approval-1',
+      status: 'pending',
+      'm.new_content': { approval_id: 'approval-1', status: 'approved' },
     });
   });
 });

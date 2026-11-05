@@ -86,3 +86,5 @@ src/app/mindroom/messages/pinnedMessageExtensions.ts	1	merged into src/app/messa
 src/app/mindroom/messages/replyExtensions.test.ts	1	its subject merged into src/app/messages/reply/Reply.tsx; the case is covered by the Lane C test src/app/messages/reply/Reply.threadIndicator.test.tsx (restructure-p3-c4)
 src/app/mindroom/messages/replyExtensions.tsx	1	merged into src/app/messages/reply/Reply.tsx (restructure-p3-c4)
 src/app/mindroom/messages/messageExtensions.tsx	1	merged into src/app/messages/Message.tsx (restructure-p3-c4)
+src/app/mindroom/threads/roomTimelineMessageExtensions.test.ts	1	merged into src/app/timeline/ThreadBadge.test.ts (restructure-p3-c3)
+src/app/mindroom/threads/roomTimelineMessageExtensions.tsx	1	merged into src/app/timeline/ThreadBadge.tsx; its approval content call inlined into src/app/timeline/message-rendering/useTimelineMessageFeature.tsx (restructure-p3-c3)

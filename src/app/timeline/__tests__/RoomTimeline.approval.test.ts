@@ -92,7 +92,7 @@ describe('RoomTimeline approval rendering', () => {
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
     const reactions = approvalMessage?.props.reactions;
-    const { ThreadBadgeRenderer } = await import('../../threads/ThreadBadgeRenderer');
+    const { ThreadBadgeRenderer } = await import('../ThreadBadge');
     const threadBadge = findElementInNode(
       reactions,
       (element) => element.type === ThreadBadgeRenderer
@@ -153,7 +153,7 @@ describe('RoomTimeline approval rendering', () => {
     });
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
-    const { ThreadBadgeRenderer } = await import('../../threads/ThreadBadgeRenderer');
+    const { ThreadBadgeRenderer } = await import('../ThreadBadge');
     const threadBadge = findElementInNode(
       approvalMessage?.props.reactions,
       (element) => element.type === ThreadBadgeRenderer
@@ -237,7 +237,7 @@ describe('RoomTimeline approval rendering', () => {
       tool_name: 'web_search',
       status: 'pending',
     });
-    const { ThreadBadgeRenderer } = await import('../../threads/ThreadBadgeRenderer');
+    const { ThreadBadgeRenderer } = await import('../ThreadBadge');
     const threadBadge = findElementInNode(
       approvalMessage?.props.reactions,
       (element) => element.type === ThreadBadgeRenderer

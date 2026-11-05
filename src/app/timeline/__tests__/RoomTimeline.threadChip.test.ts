@@ -30,7 +30,7 @@ const findElement = (
 
 /** The thread chip under a room row, or undefined when the row shows none. */
 const chipOf = async (renderer: Renderer, eventId: string) => {
-  const { ThreadBadgeRenderer } = await import('../../threads/ThreadBadgeRenderer');
+  const { ThreadBadgeRenderer } = await import('../ThreadBadge');
   const message = renderer.root.findByProps({ 'data-message-id': eventId });
   const reactions = (message.props as { reactions?: ReactNode }).reactions;
   return findElement(reactions, (element) => element.type === ThreadBadgeRenderer)?.props as

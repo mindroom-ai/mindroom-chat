@@ -20,7 +20,7 @@ import {
 import { MessageLayout, MessageSpacing } from '../../preferences/settings';
 import { MessageEvent } from '../../matrix/types/room';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
-import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
+import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import type { ThreadRecord } from '../../event-store/threads/types';
 import type { TimelineMessageRow } from './types';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
@@ -120,7 +120,7 @@ describe('timeline message feature', () => {
   it('shares framing while retaining message, approval and sticker edit/reply policy', async () => {
     const events = [
       MessageEvent.RoomMessage,
-      MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+      MINDROOM_TOOL_APPROVAL_EVENT,
       MessageEvent.Sticker,
     ].map((type, index) => {
       const event = makeEvent(`$${index}`, { type }) as unknown as MatrixEvent;
@@ -254,7 +254,7 @@ describe('timeline message feature', () => {
     const { ApprovalHistory } = await import('../../approvals/ThreadApprovalControls');
     const message = makeEvent('$message') as unknown as MatrixEvent;
     const approval = makeEvent('$approval', {
-      type: MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+      type: MINDROOM_TOOL_APPROVAL_EVENT,
     }) as unknown as MatrixEvent;
     const encrypted = new MatrixEvent({
       event_id: '$encrypted-approval',
@@ -277,7 +277,7 @@ describe('timeline message feature', () => {
       await encrypted.attemptDecryption({
         decryptEvent: async () => ({
           clearEvent: {
-            type: MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT,
+            type: MINDROOM_TOOL_APPROVAL_EVENT,
             content: { approval_id: 'approval-1' },
           },
         }),

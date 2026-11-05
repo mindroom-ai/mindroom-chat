@@ -69,11 +69,9 @@ import { toggleReaction as sendReactionToggle } from '../../messages/reactions/r
 import { ApprovalHistory } from '../../approvals/ThreadApprovalControls';
 import { MindroomThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
 import { getMindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
-import {
-  getMindroomRoomTimelineApprovalContent,
-  renderMindroomRoomTimelineThreadBadge,
-} from '../roomTimelineMessageExtensions';
+import { renderMindroomRoomTimelineThreadBadge } from '../ThreadBadge';
 import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
@@ -478,7 +476,7 @@ export const useTimelineMessageFeature = ({
       const editedEvent = getEditedEvent(eventId, event, row.timelineSet);
       const content = (
         kind === 'approval'
-          ? getMindroomRoomTimelineApprovalContent(event, editedEvent)
+          ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
           : getLatestMessageContent(event, editedEvent)
       ) as Record<string, unknown>;
       const summaryInfo =
