@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { TooltipProvider } from '../directional';
+import { previousHistoryPathname } from '../../routes/historyStack';
 
 export type PhoneBackButtonProps = (
   | {
@@ -68,9 +69,30 @@ function BackChevron({ label, onBack }: { label: string; onBack: () => void }) {
   );
 }
 
+/** A pathname as one form, so an encoded and a decoded spelling of a path compare equal. */
+const samePath = (left: string, right: string): boolean => {
+  const normal = (path: string) => {
+    const withSlash = path.endsWith('/') ? path : `${path}/`;
+    try {
+      return decodeURIComponent(withSlash);
+    } catch {
+      return withSlash;
+    }
+  };
+  return normal(left) === normal(right);
+};
+
 function NavigateBack({ to, label }: { to: string; label: string }) {
   const navigate = useNavigate();
-  return <BackChevron label={label} onBack={() => navigate(to)} />;
+  // Back to the list the page was opened from steps back in history, so the browser's own back
+  // then leaves the list instead of reopening the page. Opened from elsewhere, the list takes
+  // the page's place in history.
+  const onBack = () => {
+    const previous = previousHistoryPathname();
+    if (previous !== undefined && samePath(previous, to)) navigate(-1);
+    else navigate(to, { replace: true });
+  };
+  return <BackChevron label={label} onBack={onBack} />;
 }
 
 /**

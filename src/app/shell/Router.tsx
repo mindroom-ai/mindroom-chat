@@ -10,6 +10,7 @@ import {
 import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
+import { useHistoryStackRecorder } from '../routes/historyStack';
 import {
   resolveProtectedRouteRedirect,
   resolveRootRouteRedirect,
@@ -165,10 +166,19 @@ function ProtectedRoutes({ hashRouter }: { hashRouter: ClientConfig['hashRouter'
   }
   preloadSignedInPages();
   return (
-    <ClientRoot>
-      <SignedInChrome />
-    </ClientRoot>
+    <>
+      <HistoryStackRecorder />
+      <ClientRoot>
+        <SignedInChrome />
+      </ClientRoot>
+    </>
   );
+}
+
+/** Follows the history entries the signed-in pages show, for their back buttons. */
+function HistoryStackRecorder() {
+  useHistoryStackRecorder();
+  return null;
 }
 
 export const createRouter = (clientConfig: ClientConfig) => {
