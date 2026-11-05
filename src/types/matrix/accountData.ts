@@ -7,7 +7,7 @@ export enum AccountDataEvent {
   SecretStorageDefaultKey = 'm.secret_storage.default_key',
   CrossSigningMaster = 'm.cross_signing.master',
   MegolmBackupV1 = 'm.megolm_backup.v1',
-  // The sidebar's space order and folders, kept under the key existing accounts already use.
+  // The sidebar's space order and folders.
   MindroomSpaces = 'io.mindroom.spaces',
   ElementRecentEmoji = 'io.element.recent_emoji',
   PoniesUserEmotes = 'im.ponies.user_emotes',
