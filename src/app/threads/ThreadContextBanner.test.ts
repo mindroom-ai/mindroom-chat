@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import React from 'react';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
@@ -356,6 +356,15 @@ const text = (node: ReactTestInstance): string =>
 
 describe('ThreadContextBanner rendering', () => {
   let store: ReturnType<typeof createStore>;
+  // The shortcut labels below are the ones of platforms without a Command key: pin the platform
+  // the shortcut formatter reads, so the test host's own does not decide.
+  let platform: MockInstance<() => string>;
+  beforeEach(() => {
+    platform = vi.spyOn(navigator, 'platform', 'get').mockReturnValue('Linux x86_64');
+  });
+  afterEach(() => {
+    platform.mockRestore();
+  });
   beforeEach(() => {
     store = createStore();
     menuProps.mockClear();
