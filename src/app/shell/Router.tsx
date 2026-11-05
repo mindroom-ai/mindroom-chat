@@ -10,7 +10,10 @@ import {
 import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
-import { resolveProtectedRouteRedirect, resolveRootRouteRedirect } from '../navigation/routeSessionGuards';
+import {
+  resolveProtectedRouteRedirect,
+  resolveRootRouteRedirect,
+} from '../navigation/routeSessionGuards';
 import {
   CANVASES_PATH,
   CONNECTIONS_PATH,
@@ -239,7 +242,11 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route path={EXPLORE_SERVER_PATH} element={<PublicRooms />} />
         </Route>
         <Route path={INBOX_PATH} element={<SectionPage path={INBOX_PATH} nav={<InboxNav />} />}>
-          <Route index element={<SectionIndex page={<Invites />} />} />
+          {/* The Inbox opens on Invites; phones show its list here, where its pages lead back. */}
+          <Route
+            index
+            element={<SectionIndex page={<Navigate to={INBOX_INVITES_PATH} replace />} />}
+          />
           <Route path={INBOX_NOTIFICATIONS_PATH} element={<Notifications />} />
           <Route path={INBOX_INVITES_PATH} element={<Invites />} />
         </Route>

@@ -103,7 +103,8 @@
       "close": "閉じる"
     },
     "invites": {
-      "actionFailed": "問題が発生しました。もう一度試してください。"
+      "actionFailed": "問題が発生しました。もう一度試してください。",
+      "openNotifications": "通知を開く"
     },
     "inviteUserAutocomplete": {
       "placeholder": "ユーザーを検索するか、ユーザー ID を入力"

@@ -10,22 +10,20 @@ import {
   SidebarItemTooltip,
 } from '../../ui/sidebar/SidebarItem';
 import { UnreadBadge } from '../../ui/UnreadBadge';
-import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useInboxSelected } from '../../routes/useInbox';
 import { allInvitesAtom } from '../../matrix/state/inviteList';
-import { getInboxNotificationsPath, getInboxPath } from '../../routes/pathUtils';
+import { getInboxInvitesPath } from '../../routes/pathUtils';
 
 /** The Inbox button of the icon rail, with the number of pending invites. */
 export function InboxTab() {
   const navigate = useNavigate();
-  const onPhone = useScreenSizeContext() === ScreenSize.Mobile;
   const active = useInboxSelected();
   const pendingInvites = useAtomValue(allInvitesAtom).length;
   const { t } = useTranslation();
   const label = t('nav.inbox');
 
-  // Phones open the Inbox section list; wider screens go straight to the notifications.
-  const openInbox = () => navigate(onPhone ? getInboxPath() : getInboxNotificationsPath());
+  // The Inbox opens on Invites, also on phones, whose Back there leads to the Inbox list.
+  const openInbox = () => navigate(getInboxInvitesPath());
 
   const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (
     <SidebarAvatar ref={tooltipAnchor} as="button" aria-label={label} outlined onClick={openInbox}>

@@ -109,7 +109,8 @@
       "close": "Fechar"
     },
     "invites": {
-      "actionFailed": "Ocorreu um erro. Tente novamente."
+      "actionFailed": "Ocorreu um erro. Tente novamente.",
+      "openNotifications": "Abrir notificações"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Pesquise utilizadores ou introduza um ID de utilizador"

@@ -103,7 +103,8 @@
       "close": "关闭"
     },
     "invites": {
-      "actionFailed": "出了点问题，请重试。"
+      "actionFailed": "出了点问题，请重试。",
+      "openNotifications": "打开通知"
     },
     "inviteUserAutocomplete": {
       "placeholder": "搜索用户或输入用户 ID"

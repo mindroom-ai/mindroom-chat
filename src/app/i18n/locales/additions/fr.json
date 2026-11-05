@@ -109,7 +109,8 @@
       "close": "Fermer"
     },
     "invites": {
-      "actionFailed": "Une erreur s’est produite. Réessayez."
+      "actionFailed": "Une erreur s’est produite. Réessayez.",
+      "openNotifications": "Ouvrir les notifications"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Rechercher des utilisateurs ou saisir un identifiant utilisateur"

@@ -106,7 +106,8 @@
       "close": "Schließen"
     },
     "invites": {
-      "actionFailed": "Etwas ist schiefgelaufen. Versuche es erneut."
+      "actionFailed": "Etwas ist schiefgelaufen. Versuche es erneut.",
+      "openNotifications": "Benachrichtigungen öffnen"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Benutzer suchen oder Benutzer-ID eingeben"

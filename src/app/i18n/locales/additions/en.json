@@ -106,7 +106,8 @@
       "close": "Close"
     },
     "invites": {
-      "actionFailed": "Something went wrong. Try again."
+      "actionFailed": "Something went wrong. Try again.",
+      "openNotifications": "Open Notifications"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Search users or enter a user ID"

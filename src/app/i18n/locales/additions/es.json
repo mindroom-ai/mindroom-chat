@@ -109,7 +109,8 @@
       "close": "Cerrar"
     },
     "invites": {
-      "actionFailed": "Algo salió mal. Inténtalo de nuevo."
+      "actionFailed": "Algo salió mal. Inténtalo de nuevo.",
+      "openNotifications": "Abrir notificaciones"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Busca usuarios o introduce un ID de usuario"

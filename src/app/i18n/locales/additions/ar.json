@@ -118,7 +118,8 @@
       "close": "إغلاق"
     },
     "invites": {
-      "actionFailed": "حدث خطأ ما. حاول مرة أخرى."
+      "actionFailed": "حدث خطأ ما. حاول مرة أخرى.",
+      "openNotifications": "فتح الإشعارات"
     },
     "inviteUserAutocomplete": {
       "placeholder": "ابحث عن مستخدمين أو أدخل معرّف مستخدم"

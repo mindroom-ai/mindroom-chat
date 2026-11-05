@@ -14,7 +14,7 @@ import {
 } from 'folds';
 import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
@@ -44,7 +44,7 @@ import {
   type InviteCategory,
 } from './inviteFilter';
 import { INBOX_PATH } from '../../routes/paths';
-import { getDirectRoomPath } from '../../routes/pathUtils';
+import { getDirectRoomPath, getInboxNotificationsPath } from '../../routes/pathUtils';
 
 const FSI = '\u2068';
 const LRI = '\u2066';
@@ -352,6 +352,9 @@ export function InviteCard({
 // button comes and goes.
 const SECTION_HEADER_STYLE = { minHeight: toRem(32) } as const;
 
+// The way on to Notifications sits under the empty list's hint, as wide as its label.
+const EMPTY_LINK_STYLE = { alignSelf: 'flex-start', marginBlockStart: config.space.S200 } as const;
+
 /** What an empty list holds once invites arrive. */
 const EMPTY_HINT_KEYS = {
   primary: 'sharedUi.invites.whenSomeoneYouShareARoomWithSendsYouAnInviteIt',
@@ -471,6 +474,22 @@ export function Invites() {
                     <Text size="T300" priority="300">
                       {t(EMPTY_HINT_KEYS[category])}
                     </Text>
+                    {/* The Inbox opens here even with no invite waiting; Notifications is one step on. */}
+                    {invites.length === 0 && (
+                      <Button
+                        as={Link}
+                        to={getInboxNotificationsPath()}
+                        size="300"
+                        radii="300"
+                        variant="Secondary"
+                        fill="Soft"
+                        className={QUIET_BUTTON}
+                        before={<Icon size="100" src={Icons.MessageUnread} />}
+                        style={EMPTY_LINK_STYLE}
+                      >
+                        <Text size="B300">{t('sharedUi.invites.openNotifications')}</Text>
+                      </Button>
+                    )}
                   </Box>
                 ) : (
                   <Box direction="Column">

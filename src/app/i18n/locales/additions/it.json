@@ -109,7 +109,8 @@
       "close": "Chiudi"
     },
     "invites": {
-      "actionFailed": "Qualcosa è andato storto. Riprova."
+      "actionFailed": "Qualcosa è andato storto. Riprova.",
+      "openNotifications": "Apri le notifiche"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Cerca utenti o inserisci un ID utente"

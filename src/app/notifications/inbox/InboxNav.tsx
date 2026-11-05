@@ -37,7 +37,10 @@ function InvitesNavLink({ selected }: { selected: boolean }) {
   );
 }
 
-/** The Inbox navigation: the notifications, then the invites waiting for an answer. */
+/**
+ * The Inbox navigation: the invites waiting for an answer first, where the Inbox opens, then the
+ * notifications.
+ */
 export function InboxNav() {
   const { t } = useTranslation();
   const onInvites = useMatch({ path: INBOX_INVITES_PATH, end: false }) !== null;
@@ -57,13 +60,13 @@ export function InboxNav() {
         }
       >
         <NavCategory>
+          <InvitesNavLink selected={onInvites} />
           <NavPageLink
             to={getInboxNotificationsPath()}
             icon={Icons.MessageUnread}
             label={t('sharedUi.inbox.notifications')}
             selected={onNotifications}
           />
-          <InvitesNavLink selected={onInvites} />
         </NavCategory>
       </PageNavContent>
     </PageNav>

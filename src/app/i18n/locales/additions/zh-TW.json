@@ -103,7 +103,8 @@
       "close": "關閉"
     },
     "invites": {
-      "actionFailed": "發生錯誤，請再試一次。"
+      "actionFailed": "發生錯誤，請再試一次。",
+      "openNotifications": "開啟通知"
     },
     "inviteUserAutocomplete": {
       "placeholder": "搜尋使用者或輸入使用者 ID"

@@ -106,7 +106,8 @@
       "close": "Sluiten"
     },
     "invites": {
-      "actionFailed": "Er ging iets mis. Probeer het opnieuw."
+      "actionFailed": "Er ging iets mis. Probeer het opnieuw.",
+      "openNotifications": "Meldingen openen"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Zoek gebruikers of voer een gebruikers-ID in"

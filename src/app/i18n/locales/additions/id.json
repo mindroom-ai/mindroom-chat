@@ -103,7 +103,8 @@
       "close": "Tutup"
     },
     "invites": {
-      "actionFailed": "Terjadi kesalahan. Coba lagi."
+      "actionFailed": "Terjadi kesalahan. Coba lagi.",
+      "openNotifications": "Buka notifikasi"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Cari pengguna atau masukkan ID pengguna"

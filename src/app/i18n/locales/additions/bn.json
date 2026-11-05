@@ -106,7 +106,8 @@
       "close": "বন্ধ করুন"
     },
     "invites": {
-      "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।"
+      "actionFailed": "কিছু একটা সমস্যা হয়েছে। আবার চেষ্টা করুন।",
+      "openNotifications": "বিজ্ঞপ্তি খুলুন"
     },
     "inviteUserAutocomplete": {
       "placeholder": "ব্যবহারকারী খুঁজুন বা একটি ব্যবহারকারী ID লিখুন"

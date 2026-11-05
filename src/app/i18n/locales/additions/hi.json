@@ -106,7 +106,8 @@
       "close": "बंद करें"
     },
     "invites": {
-      "actionFailed": "कुछ गलत हो गया। फिर से कोशिश करें।"
+      "actionFailed": "कुछ गलत हो गया। फिर से कोशिश करें।",
+      "openNotifications": "सूचनाएं खोलें"
     },
     "inviteUserAutocomplete": {
       "placeholder": "उपयोगकर्ता खोजें या उपयोगकर्ता ID दर्ज करें"

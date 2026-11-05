@@ -106,7 +106,8 @@
       "close": "Kapat"
     },
     "invites": {
-      "actionFailed": "Bir şeyler ters gitti. Tekrar deneyin."
+      "actionFailed": "Bir şeyler ters gitti. Tekrar deneyin.",
+      "openNotifications": "Bildirimleri aç"
     },
     "inviteUserAutocomplete": {
       "placeholder": "Kullanıcı arayın veya bir kullanıcı kimliği girin"

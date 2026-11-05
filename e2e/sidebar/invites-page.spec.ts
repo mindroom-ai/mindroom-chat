@@ -5,9 +5,9 @@ import { joinRoom, matrixFetch } from '../helpers/matrix';
 // The Invites page: a centered title, a Filter label over the list chips, a heading with Accept
 // All for the list shown, and one card per invite with its picture or a colored letter, small
 // chips over the name of a direct chat, Decline and Accept side by side at the card's end, and
-// the inviter on a quiet line under it. The Inbox navigation lists Notifications first, then
-// Invites with the number of pending invites. Set INVITES_SHOTS=<directory> to also save the
-// page in dark and light themes and at a phone's width.
+// the inviter on a quiet line under it. The Inbox navigation lists Invites first, with the number
+// of pending invites, then Notifications. Set INVITES_SHOTS=<directory> to also save the page in
+// dark and light themes and at a phone's width.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'invites-page-spec-password';
 const SHOTS = process.env.INVITES_SHOTS;
@@ -156,12 +156,12 @@ test('every invite card keeps Decline and Accept in one row at its end', async (
   const viewer = await seedInvites();
   await openInvites(page, viewer);
 
-  // The navigation lists Notifications first, then Invites with the number of pending invites.
+  // The navigation lists Invites first, with the number of pending invites, then Notifications.
   const nav = page.getByRole('navigation', { name: 'Inbox' });
   const notificationsLink = nav.getByRole('link', { name: /^Notifications/ });
   const invitesLink = nav.getByRole('link', { name: /^Invites/ });
   await expect(invitesLink).toHaveText(/Invites\s*3/);
-  expect((await box(notificationsLink)).y).toBeLessThan((await box(invitesLink)).y);
+  expect((await box(invitesLink)).y).toBeLessThan((await box(notificationsLink)).y);
 
   // The Primary chip is pressed and counts its invites; the empty lists show no number.
   const filter = page.getByRole('group', { name: 'Filter' });
