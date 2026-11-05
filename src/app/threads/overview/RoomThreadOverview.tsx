@@ -230,9 +230,13 @@ function ThreadPresetDropdown({
           break;
         }
         case 'Escape':
+          // Escape closes the list only: the room's own Escape (focus the composer, which
+          // reads the room and every thread in it) must not run as well.
           e.preventDefault();
+          e.stopPropagation();
           setOpen(false);
           setFocusedIndex(-1);
+          containerRef.current?.querySelector<HTMLElement>('[data-preset-button]')?.focus();
           break;
         default:
           break;
@@ -364,7 +368,19 @@ function ThreadInfoPopover({
   const isFiltered = threadCount !== totalThreadCount;
 
   return (
-    <div ref={containerRef} className={css.InfoContainer} onBlur={handleBlur}>
+    <div
+      ref={containerRef}
+      className={css.InfoContainer}
+      onBlur={handleBlur}
+      onKeyDown={(event) => {
+        // Escape closes the statistics, as it does the other panels of the bar, and nothing else.
+        if (!open || event.key !== 'Escape') return;
+        event.preventDefault();
+        event.stopPropagation();
+        setOpen(false);
+        containerRef.current?.querySelector<HTMLElement>('[data-info-button]')?.focus();
+      }}
+    >
       <TooltipProvider
         position="Bottom"
         align="Center"
