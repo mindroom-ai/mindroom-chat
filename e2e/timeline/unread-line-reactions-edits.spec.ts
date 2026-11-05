@@ -1,4 +1,4 @@
-import { expect, test, webkit, type Page, type Request } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -10,6 +10,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The "New Messages" line, the Jump to Unread pill and read receipts when another account reacts to
 // an older message or edits one, in a room the reader has read. While the reader is scrolled up,
@@ -441,7 +442,7 @@ for (const { key, title, run } of CASES) {
     test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(300_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    const browser = await launchWebKit();
     try {
       const context = await browser.newContext({ viewport: VIEWPORT, baseURL });
       await run(await context.newPage(), `${key}w`);

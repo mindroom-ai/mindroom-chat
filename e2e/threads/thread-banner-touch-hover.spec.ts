@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -12,6 +11,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The thread banner's buttons and a message's hover toolbar have no tile at rest and show a
 // surface while a pointer hovers them. A touch screen keeps :hover on the element tapped last, so
@@ -381,7 +381,7 @@ test('a tap leaves no hover surface on the thread banner (WebKit)', async ({ bas
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {

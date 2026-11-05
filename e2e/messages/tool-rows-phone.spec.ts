@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -19,6 +18,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // An agent's tool calls show as one line each in its reply: icon, title, detail and an arrow
 // right after the text. On a phone (390 by 844, touch), in Chromium and, when
@@ -455,7 +455,7 @@ test('an agent’s tool lines on a phone (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {

@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The composer's text box with classic scrollbars, as Linux and Windows show them: no scrollbar
 // while the text fits, and a thin one without arrow buttons once it overflows, in dark and light,
@@ -202,7 +203,7 @@ test('the composer shows no scrollbar while its text fits, and a thin one after 
   test.setTimeout(180_000);
   const { homeserver, credentials, roomId } = await seedRoom();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ ...DESKTOP, baseURL });
     const page = await context.newPage();

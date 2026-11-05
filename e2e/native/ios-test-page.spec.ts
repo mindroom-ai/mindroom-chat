@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { expect, test, webkit, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { sampleScreenshot } from '../helpers/glassVisual';
+import { launchWebKit } from '../helpers/webkit';
 
 // The page that the native iOS tests load in place of the web bundle (ios/Tests/public/; see
 // ios/Tests/RoomRouteReloadTests.swift and ios/Tests/UI/NativeDiagnosticsTests.swift), served as
@@ -181,7 +182,7 @@ test('the native test page reports a missing or failing diagnostics plugin', asy
 test('the native test page works the same in WebKit', async () => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await checkWithBridge(await browser.newContext(PHONE));
     await checkWithoutBridge(await browser.newContext(PHONE));

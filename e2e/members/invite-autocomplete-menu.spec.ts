@@ -1,6 +1,7 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, joinRoom, matrixFetch } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The people suggestions under the invite dialog's search field: the floating layer lets the
 // pointer through to the dialog, a row is 56 px until its text wraps and keeps its avatar beside
@@ -433,7 +434,7 @@ test('the invite suggestions float over the dialog and keep long identities whol
 }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: PHONE, baseURL });
     await exercise(await context.newPage(), 'webkit');

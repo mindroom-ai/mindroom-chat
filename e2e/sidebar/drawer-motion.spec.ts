@@ -1,4 +1,4 @@
-import { expect, test, webkit, type BrowserContextOptions, type Page } from '@playwright/test';
+import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,
@@ -8,6 +8,7 @@ import {
   setAccountData,
   setDirectAccountData,
 } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The page navigation (the room list beside the content) moves in the same way however it opens:
 // with its toggle, the keyboard shortcut, the button of the section already shown, or a click on
@@ -459,7 +460,7 @@ test('the page navigation opens in the same motion in WebKit', async ({ baseURL 
   test.setTimeout(300_000);
   const seededAccount = await account();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ ...DESKTOP, baseURL });
     await checkDesktop(await context.newPage(), seededAccount);
@@ -516,7 +517,7 @@ for (const [name, options, check] of [
       test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(180_000);
       const seededAccount = await account();
-      const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+      const browser = await launchWebKit();
       try {
         const context = await browser.newContext({ ...options, baseURL });
         await check(await context.newPage(), seededAccount);

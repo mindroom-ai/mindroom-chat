@@ -1,7 +1,8 @@
 import { crc32, deflateSync } from 'node:zlib';
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // Cmd+K's People against a real homeserver and its real `POST /user_directory/search`: people the
 // account shares no room with come from the server below the ones it knows, Enter asks before it
@@ -581,7 +582,7 @@ test('People rows and the question lay out the same in WebKit', async ({ baseURL
   test.skip(!WEBKIT, "Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright's WebKit");
   const { okafor, lindqvist } = seeded!;
   // The file's launch options carry a Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const page = await (await browser.newContext({ baseURL })).newPage();
     await login(page);

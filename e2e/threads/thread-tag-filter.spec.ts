@@ -1,4 +1,4 @@
-import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -11,6 +11,7 @@ import {
   sendStateEvent,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The thread filter bar's Tags dropdown in a room with 32 threads and 8 tags: it lists the tags,
 // most used first, with their thread counts; its search narrows them; two tags chosen with the
@@ -443,7 +444,7 @@ test.describe('thread Tags filter', () => {
     const me = await loginToMatrix(homeserver, credentials.username, credentials.password);
     const roomId = await seedRoom(homeserver, me);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    const browser = await launchWebKit();
     try {
       const context = await browser.newContext({ viewport: DESKTOP, baseURL });
       const page = await context.newPage();

@@ -1,6 +1,7 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The Settings dialog's `/` key: it moves focus to the search field over the menu while nothing
 // that takes text has the focus, and types a slash like any other character while a text field
@@ -279,7 +280,7 @@ test('/ moves focus to the search field unless a text field has it (WebKit)', as
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.slow();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: DESKTOP, baseURL });
     const page = await context.newPage();

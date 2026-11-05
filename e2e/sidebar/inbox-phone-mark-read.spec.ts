@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test, webkit, type BrowserContextOptions, type Page } from '@playwright/test';
+import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import { launchWebKit } from '../helpers/webkit';
 
 // On a phone, Inbox > Notifications heads each room's group with the room's avatar, its name and,
 // while the room has unread notifications, a Mark as Read chip. The chip keeps its label whole on
@@ -217,7 +218,7 @@ test('a phone keeps each room group’s Mark as Read chip on one line (WebKit)',
   test.setTimeout(300_000);
   const reader = await seed('webkit');
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ ...PHONE, baseURL });
     const page = await context.newPage();

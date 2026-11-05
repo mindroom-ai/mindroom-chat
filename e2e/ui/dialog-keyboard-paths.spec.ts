@@ -1,6 +1,7 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { matrixFetch } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // Dialogs and menus around a room, used from the keyboard and in a right-to-left language, in
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
@@ -12,9 +13,6 @@ import { matrixFetch } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'dialog-keyboard-paths-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
-// The project's Chrome user agent would reach WebKit pages too; Safari's keeps them Safari.
-const SAFARI_USER_AGENT =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Safari/605.1.15';
 const LONG_NAME = 'Sam Taylor with a considerably longer display name than usual';
 
 type Account = { username: string; userId: string; accessToken: string };
@@ -185,13 +183,9 @@ for (const [title, check] of CHECKS) {
   test(`${title} (WebKit)`, async ({ baseURL }) => {
     test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to run WebKit');
     test.slow();
-    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    const browser = await launchWebKit();
     try {
-      const page = await browser.newPage({
-        viewport: DESKTOP,
-        baseURL,
-        userAgent: SAFARI_USER_AGENT,
-      });
+      const page = await browser.newPage({ viewport: DESKTOP, baseURL });
       await check(page);
     } finally {
       await browser.close();

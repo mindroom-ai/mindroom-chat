@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type BrowserContextOptions,
   type Locator,
   type Page,
@@ -9,6 +8,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import { launchWebKit } from '../helpers/webkit';
 
 // The Inbox opens on Invites, its first entry, also with no invite waiting: from the rail, from
 // the command palette's Go Inbox and at the bare /inbox address. Notifications follows it in the
@@ -340,7 +340,7 @@ test('the Inbox opens on Invites on a phone (WebKit)', async ({ baseURL }) => {
   test.setTimeout(240_000);
   const seeded = await seed();
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ ...PHONE, baseURL });
     await checkPhone(await context.newPage(), seeded, 'webkit');
