@@ -2,9 +2,11 @@
 
 Captured on 2026-11-02 from MindRoom Chat `dev` at `fc3a5905`, running locally against a disposable Tuwunel seeded with MindRoom-style content (`scripts/reference/seed.py` reproduces the data; `E2E_SEED_AGENT_AVATARS` and `E2E_SEED_PEOPLE_AVATARS` name its avatar folders, see the script). 1440x900 unless noted. These show the target look and behavior; the ported files implement most of what is MindRoom-specific here.
 
+`home.png` is the exception: the MindRoom Chat capture credited the upstream client on its welcome page, so on 2026-11-04 it was retaken from this client at `ec95e01` with the same seed data and size. The MindRoom Chat capture stays in this file's history (`git log -- docs/design/reference/home.png`); `docs/design/m2-screenshots/V1-contact-sheet.png` and `V1-differences.png` still show it, with that one credit masked.
+
 | File | Shows |
 |---|---|
-| `home.png` | Signed-in home: icon rail (home, direct messages, inbox, account, collapse), sidebar with Home header, Create Room, Join with Address, Message Search, ROOMS and THREADS sections, RECENTLY OPENED at the bottom, welcome page |
+| `home.png` | Signed-in home of this client (see above): icon rail, sidebar with Home header, Create Room, Join a Room, Message Search, ROOMS and THREADS sections, RECENTLY OPENED at the bottom, welcome page |
 | `room-light.png` | Room in Compact mode: room header (avatar, name, topic, scheduled tasks, members, options), threads as equal-height bars (title with emoji and age, `Sender: 🔧 N tool · preview`, participants, tags, status, reply count), resolved thread tinted green with "Resolved by", members panel |
 | `room-dark.png` | The same in dark mode |
 | `room-mobile.png` | The same at 390x844, with a back button, bars with an options menu |
