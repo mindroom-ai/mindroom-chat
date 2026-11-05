@@ -42,7 +42,7 @@ export function ThreadActivity({
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   return (
-    // Lets the message content take the full column, so every row has the same width.
+    // Keeps the interface's direction in a message that reads the other way (index.css).
     <div className={css.Activity} data-message-disclosure="">
       <button
         type="button"

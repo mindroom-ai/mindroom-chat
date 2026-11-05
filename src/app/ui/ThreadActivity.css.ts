@@ -10,15 +10,17 @@ export const Activity = style([
   },
 ]);
 
-// One full-width row per activity: no border at rest and a tint on hover, so every row has the
-// same geometry. The chevron follows the text.
+// One row per activity: no border at rest and a tint on hover. The chevron follows the text, so
+// the row is only as wide as its text and chevron, up to the column: its tint and focus ring end
+// just past the chevron in full-width bodies (agent replies, the approval history) too.
 export const Line = style([
   DefaultReset,
   {
     display: 'flex',
     alignItems: 'center',
     gap: config.space.S200,
-    width: `calc(100% + ${config.space.S200})`,
+    width: 'fit-content',
+    maxWidth: `calc(100% + ${config.space.S200})`,
     marginInline: `calc(${config.space.S100} * -1)`,
     padding: `${toRem(3)} ${config.space.S100}`,
     border: 'none',

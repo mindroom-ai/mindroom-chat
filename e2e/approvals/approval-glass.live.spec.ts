@@ -78,7 +78,8 @@ for (const viewport of [
         is_falling_back: true,
         'm.in_reply_to': { event_id: rootId },
       };
-      const responseId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+      // The agent posts the reply, so its tool row sits where MindRoom's do: in a full-width body.
+      const responseId = await sendRoomMessage(homeserver, router.accessToken, roomId, {
         msgtype: 'm.text',
         body: 'The first note is saved.\n🔧 save_note [1]',
         format: 'org.matrix.custom.html',
