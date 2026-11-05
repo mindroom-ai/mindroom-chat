@@ -28,6 +28,7 @@ vi.mock('./style.css', () => ({
   PageNavContent: '',
   PageNavHeader: '',
   PageNavHeaderScroll: '',
+  PageNavTrack: '',
 }));
 
 vi.mock('../../hooks/useScreenSize', () => ({
