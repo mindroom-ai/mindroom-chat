@@ -2837,3 +2837,6 @@ src/app/members/invite/InviteAutocompleteMenu.tsx		clean-rewrite
 src/app/ui/splash/BrandedSplashScreen.tsx		clean-rewrite
 src/app/search/SearchResultGroup.tsx	src/app/search/SearchResultItem.tsx	restructure-followups
 src/app/room/roomViewSwitchIcon.tsx	src/app/room/CompactViewIcon.tsx	restructure-followups
+src/app/background-jobs/backgroundJobsBar.css.ts	src/app/background-jobs/BackgroundJobsBar.css.ts	restructure-followups
+src/app/rich-text/MatrixMath.css.ts	src/app/rich-text/matrixMath.css.ts	restructure-followups
+src/app/ui/media/media.css.ts	src/app/ui/media/Media.css.ts	restructure-followups

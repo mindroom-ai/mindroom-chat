@@ -13,7 +13,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
   Spoiler: () => 'Spoiler',
   Emoticon: () => 'Emoticon',
 }));
-vi.mock('../../rich-text/MatrixMath.css', () => ({
+vi.mock('../../rich-text/matrixMath.css', () => ({
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
 }));

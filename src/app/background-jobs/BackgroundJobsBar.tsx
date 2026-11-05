@@ -13,7 +13,7 @@ import React, {
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
-import * as css from './backgroundJobsBar.css';
+import * as css from './BackgroundJobsBar.css';
 import { jobsInView } from '../matrix/protocol/backgroundJobsContract';
 import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJobsPresentation';
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';

@@ -9,7 +9,7 @@ import {
   tokenizeTextWithLatex,
   unescapeLatexDelimiters,
 } from './math';
-import * as css from './MatrixMath.css';
+import * as css from './matrixMath.css';
 
 type StyledTextRenderer = (text: string, highlightRegex?: RegExp) => (string | JSX.Element)[];
 

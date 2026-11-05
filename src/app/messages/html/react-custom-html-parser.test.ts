@@ -117,7 +117,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
   highlightText: 'highlightText',
 }));
 
-vi.mock('../../rich-text/MatrixMath.css', () => ({
+vi.mock('../../rich-text/matrixMath.css', () => ({
   MathInline: 'MathInline',
   MathBlock: 'MathBlock',
 }));

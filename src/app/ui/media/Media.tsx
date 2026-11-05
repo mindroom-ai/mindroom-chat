@@ -1,6 +1,6 @@
 import { ImgHTMLAttributes, VideoHTMLAttributes, forwardRef } from 'react';
 import classNames from 'classnames';
-import * as css from './media.css';
+import * as css from './Media.css';
 
 /** An attachment image that fills its message box. */
 export const Image = forwardRef<HTMLImageElement, ImgHTMLAttributes<HTMLImageElement>>(

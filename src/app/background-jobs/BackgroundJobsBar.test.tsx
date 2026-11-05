@@ -13,7 +13,7 @@ vi.mock('./useRoomBackgroundJobs', () => ({ useRoomBackgroundJobs: () => state.j
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ sendEvent: state.send, makeTxnId: () => 'txn' }),
 }));
-vi.mock('./backgroundJobsBar.css', () => ({
+vi.mock('./BackgroundJobsBar.css', () => ({
   Anchor: 'Anchor',
   Bar: 'Bar',
   Toggle: 'Toggle',
