@@ -352,5 +352,19 @@
   "composer": {
     "emoji": "इमोजी",
     "cancelReply": "जवाब रद्द करें"
+  },
+  "commandPalette": {
+    "people": "लोग",
+    "tabsLabel": "परिणाम के प्रकार",
+    "switchTabs": "टैब बदलें",
+    "space": "स्पेस",
+    "messageSearch": {
+      "searching": "संदेश खोजे जा रहे हैं…",
+      "hint": "अपने सभी रूम के संदेश खोजने के लिए टाइप करें।",
+      "encrypted": "सर्वर एन्क्रिप्टेड रूम में खोज नहीं कर सकता।",
+      "seeAll": "सभी परिणाम देखें",
+      "seeAllDescription": "फ़िल्टर के साथ संदेश खोज खोलें",
+      "thread": "थ्रेड"
+    }
   }
 }

@@ -1,18 +1,9 @@
-export const COMMAND_PALETTE_PREFIX_HINTS = ['#', 't:', '@', '>', '*'] as const;
+/** The palette's tabs, in the order of the tab row. */
+export const COMMAND_PALETTE_TABS = ['all', 'rooms', 'threads', 'users', 'messages', 'actions'] as const;
 
-export type CommandPalettePrefix = typeof COMMAND_PALETTE_PREFIX_HINTS[number];
-
-export type CommandPaletteMode = 'all' | 'actions' | 'rooms' | 'spaces' | 'users' | 'threads';
+export type CommandPaletteTab = typeof COMMAND_PALETTE_TABS[number];
 
 export type CommandPaletteSectionId = 'actions' | 'threads' | 'rooms' | 'users' | 'messages';
-
-export type CommandPaletteParsedQuery = {
-  raw: string;
-  prefix?: CommandPalettePrefix;
-  mode: CommandPaletteMode;
-  searchText: string;
-  showMessages: boolean;
-};
 
 type CommandPaletteBaseItem = {
   id: string;
@@ -59,11 +50,24 @@ export type CommandPaletteThreadItem = CommandPaletteBaseItem & {
   messageCount?: number;
 };
 
+/** One message the server found for the typed text. */
 export type CommandPaletteMessageItem = CommandPaletteBaseItem & {
   kind: 'message';
-  title: string;
-  description?: string;
-  scope: 'room' | 'space' | 'all';
+  senderName: string;
+  roomName: string;
+  /** Set for a message in a thread: the thread's title, or empty when it is not known. */
+  threadName?: string;
+  /** One line of the message around its first match. */
+  snippet: string;
+  /** The words the server matched, to mark in the snippet. */
+  highlights: string[];
+  timestamp: number;
+};
+
+/** The last row of the messages: opens the full message search page for the typed text. */
+export type CommandPaletteSearchPageItem = CommandPaletteBaseItem & {
+  kind: 'search-page';
+  term: string;
 };
 
 export type CommandPaletteItem =
@@ -71,4 +75,5 @@ export type CommandPaletteItem =
   | CommandPaletteRoomItem
   | CommandPaletteUserItem
   | CommandPaletteThreadItem
-  | CommandPaletteMessageItem;
+  | CommandPaletteMessageItem
+  | CommandPaletteSearchPageItem;

@@ -32,7 +32,6 @@ import { useThreadResolution, useToggleThreadResolution } from '../threads/useRo
 import {
   type CommandPaletteQuickActionId,
   commandPaletteStaticActionPaths,
-  getCommandPaletteMessageTargets,
   getCommandPaletteQuickActions,
   resolveCommandPaletteUserTarget,
 } from './commandPaletteActions';
@@ -40,7 +39,6 @@ import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import type {
   CommandPaletteActionItem,
   CommandPaletteItem,
-  CommandPaletteMessageItem,
   CommandPaletteRoomItem,
   CommandPaletteThreadItem,
   CommandPaletteUserItem,
@@ -59,13 +57,15 @@ export type ExecutableCommandPaletteItem = Executable<CommandPaletteItem>;
 /** How far the Users section looks: past its caps for a typed query, into other rooms when asked. */
 type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boolean };
 
-/** Everything the palette can show; users and message searches are built on demand. */
+/**
+ * What the palette finds in state the client already holds, so it shows at the first keystroke;
+ * users are built on demand. Messages come from the server (`useCommandPaletteMessages`).
+ */
 export type CommandPaletteSource = {
   actions: Executable<CommandPaletteActionItem>[];
   threads: Executable<CommandPaletteThreadItem>[];
   rooms: readonly Executable<CommandPaletteRoomItem>[];
   getUsers: (query: CommandPaletteUserQuery) => Executable<CommandPaletteUserItem>[];
-  getMessages: (query: string) => Executable<CommandPaletteMessageItem>[];
 };
 
 type CommandPaletteSourceOptions = {
@@ -82,8 +82,8 @@ const roomTopic = (room: Room): string | undefined => {
 
 /**
  * The command palette's items for the signed-in account: quick actions for where the user is,
- * recent threads, rooms and spaces ranked by activity and unread state, people, and message
- * searches. Lists keep their identity while their inputs do, so search indexes are reused.
+ * recent threads, rooms and spaces ranked by activity and unread state, and people. Lists keep
+ * their identity while their inputs do, so search indexes are reused.
  */
 export const useCommandPaletteSource = ({
   onLogout,
@@ -115,7 +115,6 @@ export const useCommandPaletteSource = ({
 
   const getRoom = useCallback((roomId: string) => client.getRoom(roomId) ?? undefined, [client]);
   const currentRoom = selectedRoomId ? getRoom(selectedRoomId) : undefined;
-  const currentSpace = selectedSpaceId ? getRoom(selectedSpaceId) : undefined;
 
   // Joined rooms by latest activity, newest first; DMs are offered through the people they are with.
   const orderedRoomIds = useMemo(
@@ -365,23 +364,8 @@ export const useCommandPaletteSource = ({
     ]
   );
 
-  const getMessages = useCallback(
-    (query: string) =>
-      getCommandPaletteMessageTargets(
-        {
-          query,
-          currentRoomId: currentRoom?.roomId,
-          currentRoomName: currentRoom?.name,
-          currentSpaceId: currentSpace?.roomId,
-          currentSpaceName: currentSpace?.name,
-        },
-        t
-      ).map(({ path, ...item }) => ({ ...item, onSelect: () => navigate(path) })),
-    [currentRoom, currentSpace, navigate, t]
-  );
-
   return useMemo(
-    () => ({ actions, threads, rooms, getUsers, getMessages }),
-    [actions, getMessages, getUsers, rooms, threads]
+    () => ({ actions, threads, rooms, getUsers }),
+    [actions, getUsers, rooms, threads]
   );
 };

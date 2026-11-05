@@ -345,5 +345,19 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan"
+  },
+  "commandPalette": {
+    "people": "Orang",
+    "tabsLabel": "Jenis hasil",
+    "switchTabs": "Ganti tab",
+    "space": "Space",
+    "messageSearch": {
+      "searching": "Mencari pesan…",
+      "hint": "Ketik untuk mencari pesan di semua ruang Anda.",
+      "encrypted": "Server tidak dapat mencari di ruang terenkripsi.",
+      "seeAll": "Lihat semua hasil",
+      "seeAllDescription": "Buka pencarian pesan dengan filter",
+      "thread": "Utas"
+    }
   }
 }

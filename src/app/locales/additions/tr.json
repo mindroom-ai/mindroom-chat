@@ -352,5 +352,19 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et"
+  },
+  "commandPalette": {
+    "people": "Kişiler",
+    "tabsLabel": "Sonuç türleri",
+    "switchTabs": "Sekme değiştir",
+    "space": "Alan",
+    "messageSearch": {
+      "searching": "Mesajlar aranıyor…",
+      "hint": "Tüm odalarınızdaki mesajlarda aramak için yazın.",
+      "encrypted": "Sunucu şifreli odalarda arama yapamaz.",
+      "seeAll": "Tüm sonuçları gör",
+      "seeAllDescription": "Mesaj aramayı filtrelerle aç",
+      "thread": "Konu"
+    }
   }
 }

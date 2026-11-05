@@ -359,5 +359,19 @@
   "composer": {
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse"
+  },
+  "commandPalette": {
+    "people": "Personnes",
+    "tabsLabel": "Types de résultats",
+    "switchTabs": "Changer d'onglet",
+    "space": "Espace",
+    "messageSearch": {
+      "searching": "Recherche des messages…",
+      "hint": "Saisissez du texte pour rechercher les messages de toutes vos salles.",
+      "encrypted": "Le serveur ne peut pas rechercher dans les salles chiffrées.",
+      "seeAll": "Voir tous les résultats",
+      "seeAllDescription": "Ouvrir la recherche de messages avec ses filtres",
+      "thread": "Fil"
+    }
   }
 }

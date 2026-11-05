@@ -4,6 +4,7 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CommandPaletteRenderer } from './CommandPaletteRenderer';
 import { commandPaletteOpenAtom } from './commandPaletteState';
+import type { CommandPaletteTab } from './commandPaletteTypes';
 
 const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted(() => {
   const state = {
@@ -36,7 +37,6 @@ const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted
       threads: [],
       rooms: [],
       getUsers: () => [],
-      getMessages: () => [],
     })),
   };
 });
@@ -54,6 +54,15 @@ vi.mock('../../utils/user-agent', () => ({
 
 vi.mock('./commandPaletteItems', () => ({
   useCommandPaletteSource: useCommandPaletteSourceMock,
+}));
+
+vi.mock('./useCommandPaletteMessages', () => ({
+  useCommandPaletteMessages: () => ({
+    status: 'idle',
+    items: [],
+    encryptedRooms: false,
+    openSearchPage: () => undefined,
+  }),
 }));
 
 vi.mock('./useCommandPaletteHotkey', () => ({
@@ -121,6 +130,7 @@ vi.mock('folds', async () => {
       reactModule.createElement('button', props, children),
     Icon: ({ src, ...props }: React.HTMLAttributes<HTMLSpanElement> & { src?: string }) =>
       reactModule.createElement('span', { ...props, 'data-icon-src': src }),
+    Spinner: () => null,
     Icons: {
       Cross: 'cross',
       Terminal: 'terminal',
@@ -180,9 +190,9 @@ vi.mock('./CommandPalette.css', () => ({
   Search: 'Search',
   Input: 'Input',
   Close: 'Close',
-  Filters: 'Filters',
-  Filter: 'Filter',
-  Prefix: 'Prefix',
+  Tabs: 'Tabs',
+  Tab: 'Tab',
+  ClearSearch: 'ClearSearch',
   Results: 'Results',
   Group: 'Group',
   GroupTitle: 'GroupTitle',
@@ -190,7 +200,13 @@ vi.mock('./CommandPalette.css', () => ({
   Row: 'Row',
   RowIcon: 'RowIcon',
   RowText: 'RowText',
+  RowHeading: 'RowHeading',
   RowTitle: 'RowTitle',
+  RowPlace: 'RowPlace',
+  RowTime: 'RowTime',
+  Tag: 'Tag',
+  Match: 'Match',
+  Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
   Key: 'Key',
@@ -202,7 +218,7 @@ vi.mock('./CommandPalette.css', () => ({
   EmptyDescription: 'EmptyDescription',
 }));
 
-const renderRenderer = (open = true) => {
+const renderRenderer = (open: CommandPaletteTab | undefined) => {
   const store = createStore();
   store.set(commandPaletteOpenAtom, open);
   const renderer = create(
@@ -218,15 +234,15 @@ const findCloseButtons = (renderer: ReturnType<typeof create>) =>
   );
 
 describe('CommandPaletteRenderer', () => {
-  it('renders nothing while the shared open atom is false', () => {
-    const { renderer } = renderRenderer(false);
+  it('renders nothing while the shared open atom is unset', () => {
+    const { renderer } = renderRenderer(undefined);
 
     expect(useCommandPaletteSourceMock).not.toHaveBeenCalled();
     expect(renderer.root.findAllByProps({ 'data-testid': 'overlay' })).toHaveLength(0);
   });
 
-  it('renders the dialog shell while the shared open atom is true', () => {
-    const { renderer } = renderRenderer(true);
+  it('renders the dialog shell while the shared open atom names a tab', () => {
+    const { renderer } = renderRenderer('all');
     const modal = renderer.root.findByProps({ 'data-testid': 'modal' });
 
     expect(useCommandPaletteSourceMock).toHaveBeenCalledTimes(1);
@@ -239,7 +255,7 @@ describe('CommandPaletteRenderer', () => {
 
   it('uses a rounded mobile bottom-sheet layout with dynamic viewport units', () => {
     screenSizeState.value = 'Mobile';
-    const { renderer } = renderRenderer(true);
+    const { renderer } = renderRenderer('all');
     const modal = renderer.root.findByProps({ 'data-testid': 'modal' });
     const sheetContainer = renderer.root.find(
       (node) =>
@@ -265,17 +281,17 @@ describe('CommandPaletteRenderer', () => {
 
   it('closes from the mobile header close button', async () => {
     screenSizeState.value = 'Mobile';
-    const { renderer, store } = renderRenderer(true);
+    const { renderer, store } = renderRenderer('all');
 
     await act(async () => {
       findCloseButtons(renderer)[0].props.onClick();
     });
 
-    expect(store.get(commandPaletteOpenAtom)).toBe(false);
+    expect(store.get(commandPaletteOpenAtom)).toBeUndefined();
   });
 
   it('resets local query state after close and reopen', async () => {
-    const { renderer, store } = renderRenderer(true);
+    const { renderer, store } = renderRenderer('all');
     const getInput = () => renderer.root.findByType('input');
     const getDialog = () => renderer.root.findByProps({ 'data-testid': 'command-palette-dialog' });
 
@@ -295,10 +311,10 @@ describe('CommandPaletteRenderer', () => {
       });
     });
 
-    expect(store.get(commandPaletteOpenAtom)).toBe(false);
+    expect(store.get(commandPaletteOpenAtom)).toBeUndefined();
 
     await act(async () => {
-      store.set(commandPaletteOpenAtom, true);
+      store.set(commandPaletteOpenAtom, 'all');
     });
 
     expect(getInput().props.value).toBe('');
@@ -306,7 +322,7 @@ describe('CommandPaletteRenderer', () => {
 
   it('opens the logout confirmation after selecting the logout action', async () => {
     sourceState.logoutAction = true;
-    const { renderer, store } = renderRenderer(true);
+    const { renderer, store } = renderRenderer('all');
     const input = renderer.root.findByType('input');
 
     await act(async () => {
@@ -316,7 +332,15 @@ describe('CommandPaletteRenderer', () => {
       });
     });
 
-    expect(store.get(commandPaletteOpenAtom)).toBe(false);
+    expect(store.get(commandPaletteOpenAtom)).toBeUndefined();
     expect(renderer.root.findAllByProps({ 'data-testid': 'logout-dialog' })).toHaveLength(1);
+  });
+
+  it('opens on the tab the atom names, such as Messages from the sidebar', () => {
+    const { renderer } = renderRenderer('messages');
+    const selected = renderer.root.findAll(
+      (node) => node.props.role === 'tab' && node.props['aria-selected'] === true
+    );
+    expect(selected.map((tab) => tab.props['data-tab'])).toEqual(['messages']);
   });
 });

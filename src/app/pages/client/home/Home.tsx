@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
-import { useAtom } from 'jotai';
+import { useAtom, useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
@@ -42,13 +42,9 @@ import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
 import { MenuEntry, MenuGroup } from '../../../components/MenuEntry';
-import {
-  getHomeCreatePath,
-  getHomeRoomPath,
-  getHomeSearchPath,
-  withSearchParam,
-} from '../../pathUtils';
+import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../pathUtils';
 import { NavOptionsMenu } from '../NavOptionsMenu';
 import { sortRoomIdsByName } from '../../../utils/nameOrder';
 import { useHomeRooms } from './useHomeRooms';
@@ -150,6 +146,7 @@ export function Home() {
   const selectedRoomId = useSelectedRoom();
   const createSelected = useHomeCreateSelected();
   const searchSelected = useHomeSearchSelected();
+  const openCommandPalette = useSetAtom(commandPaletteOpenAtom);
   const [joinOpen, setJoinOpen] = useState(false);
 
   const roomsCategoryId = makeNavCategoryId('home', 'room');
@@ -209,7 +206,8 @@ export function Home() {
         icon={Icons.Search}
         label={t('nav.messageSearch')}
         selected={searchSelected}
-        to={getHomeSearchPath()}
+        // Message search is the command palette's Messages tab; See all results opens the page.
+        onSelect={() => openCommandPalette('messages')}
       />
     </NavCategory>
   );

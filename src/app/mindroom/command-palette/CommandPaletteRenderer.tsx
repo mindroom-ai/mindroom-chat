@@ -11,7 +11,9 @@ import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { CommandPalette } from './CommandPalette';
 import { useCommandPaletteSource } from './commandPaletteItems';
 import { commandPaletteOpenAtom } from './commandPaletteState';
+import type { CommandPaletteTab } from './commandPaletteTypes';
 import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
+import { useCommandPaletteMessages } from './useCommandPaletteMessages';
 
 const matchesPaletteShortcut = isKeyHotkey('mod+k');
 
@@ -48,11 +50,12 @@ const dialogStyle = {
 
 type PaletteDialogProps = {
   mobile: boolean;
+  initialTab: CommandPaletteTab;
   requestClose: () => void;
   onLogout: () => void;
 };
 
-function PaletteDialog({ mobile, requestClose, onLogout }: PaletteDialogProps) {
+function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDialogProps) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const source = useCommandPaletteSource({ onLogout });
@@ -67,7 +70,13 @@ function PaletteDialog({ mobile, requestClose, onLogout }: PaletteDialogProps) {
   const shell = (
     <Modal size="500" flexHeight variant="Surface" style={mobile ? mobileSheetStyle : undefined}>
       <div ref={ref} style={dialogStyle} {...mergeProps(overlayProps, dialogProps)}>
-        <CommandPalette requestClose={requestClose} source={source} mobileSheet={mobile} />
+        <CommandPalette
+          requestClose={requestClose}
+          source={source}
+          useMessages={useCommandPaletteMessages}
+          initialTab={initialTab}
+          mobileSheet={mobile}
+        />
       </div>
     </Modal>
   );
@@ -86,22 +95,32 @@ function PaletteDialog({ mobile, requestClose, onLogout }: PaletteDialogProps) {
 }
 
 /**
- * The command palette, opened from anywhere with Mod+K or the sidebar's search button. Its
- * query lives only while it is open. Logging out from it asks for confirmation first.
+ * The command palette, opened from anywhere with Mod+K or the sidebar's search button on All,
+ * and from the sidebar's Message Search on Messages. Its query and tab live only while it is
+ * open. Logging out from it asks for confirmation first.
  */
 export function CommandPaletteRenderer() {
-  const [open, setOpen] = useAtom(commandPaletteOpenAtom);
+  const [openTab, setOpenTab] = useAtom(commandPaletteOpenAtom);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  const close = useCallback(() => setOpen(false), [setOpen]);
+  const close = useCallback(() => setOpenTab(undefined), [setOpenTab]);
+  const setOpen = useCallback(
+    (nextOpen: boolean) => setOpenTab(nextOpen ? 'all' : undefined),
+    [setOpenTab]
+  );
   const closeLogout = useCallback(() => setLogoutOpen(false), []);
 
-  useCommandPaletteHotkey(open, setOpen, matchesPaletteShortcut);
+  useCommandPaletteHotkey(openTab !== undefined, setOpen, matchesPaletteShortcut);
 
   return (
     <>
-      {open && (
-        <PaletteDialog mobile={mobile} requestClose={close} onLogout={() => setLogoutOpen(true)} />
+      {openTab !== undefined && (
+        <PaletteDialog
+          mobile={mobile}
+          initialTab={openTab}
+          requestClose={close}
+          onLogout={() => setLogoutOpen(true)}
+        />
       )}
       {logoutOpen && (
         <Overlay open backdrop={<OverlayBackdrop />}>

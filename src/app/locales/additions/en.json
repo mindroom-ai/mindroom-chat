@@ -352,5 +352,19 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Cancel reply"
+  },
+  "commandPalette": {
+    "people": "People",
+    "tabsLabel": "Result types",
+    "switchTabs": "Switch tabs",
+    "space": "Space",
+    "messageSearch": {
+      "searching": "Searching messages…",
+      "hint": "Type to search messages in all your rooms.",
+      "encrypted": "The server can't search encrypted rooms.",
+      "seeAll": "See all results",
+      "seeAllDescription": "Open Message Search with filters",
+      "thread": "Thread"
+    }
   }
 }

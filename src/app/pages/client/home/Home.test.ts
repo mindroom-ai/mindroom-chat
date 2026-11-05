@@ -61,8 +61,10 @@ vi.mock('../../../mindroom/rooms/archivedRooms', () => ({
 }));
 
 vi.mock('jotai', () => ({
+  atom: (init: unknown) => ({ init }),
   useAtom: () => [new Set<string>(), vi.fn()],
   useAtomValue: () => new Map<string, unknown>(),
+  useSetAtom: () => vi.fn(),
 }));
 
 vi.mock('focus-trap-react', () => ({

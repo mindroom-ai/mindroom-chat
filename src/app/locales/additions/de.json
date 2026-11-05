@@ -352,5 +352,19 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen"
+  },
+  "commandPalette": {
+    "people": "Personen",
+    "tabsLabel": "Ergebnisarten",
+    "switchTabs": "Tab wechseln",
+    "space": "Space",
+    "messageSearch": {
+      "searching": "Nachrichten werden gesucht…",
+      "hint": "Tippe, um die Nachrichten in all deinen Räumen zu durchsuchen.",
+      "encrypted": "Der Server kann verschlüsselte Räume nicht durchsuchen.",
+      "seeAll": "Alle Ergebnisse anzeigen",
+      "seeAllDescription": "Nachrichtensuche mit Filtern öffnen",
+      "thread": "Thread"
+    }
   }
 }

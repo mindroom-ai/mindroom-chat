@@ -11,7 +11,8 @@ import {
 /** The sidebar's search button: opens the command palette and teaches its shortcut. */
 export function MindroomCommandPaletteSidebarTab() {
   const { t } = useTranslation();
-  const [open, setOpen] = useAtom(commandPaletteOpenAtom);
+  const [openTab, setOpenTab] = useAtom(commandPaletteOpenAtom);
+  const open = openTab !== undefined;
   const label = t('commandPalette.open');
 
   return (
@@ -35,7 +36,7 @@ export function MindroomCommandPaletteSidebarTab() {
             aria-keyshortcuts={getCommandPaletteAriaKeyShortcuts()}
             aria-haspopup="dialog"
             aria-expanded={open}
-            onClick={() => setOpen(true)}
+            onClick={() => setOpenTab('all')}
           >
             <Icon src={Icons.Search} />
           </SidebarAvatar>

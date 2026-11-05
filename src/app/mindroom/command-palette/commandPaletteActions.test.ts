@@ -3,7 +3,7 @@ import { type TFunction } from 'i18next';
 import { translateFromEn } from '../../test-utils/i18n';
 import {
   commandPaletteStaticActionPaths,
-  getCommandPaletteMessageTargets,
+  getCommandPaletteSearchPagePath,
   getCommandPaletteQuickActions,
   resolveCommandPaletteUserTarget,
 } from './commandPaletteActions';
@@ -87,36 +87,11 @@ describe('getCommandPaletteQuickActions', () => {
   });
 });
 
-describe('getCommandPaletteMessageTargets', () => {
-  it('builds current-room, current-space, and global search rows', () => {
-    expect(
-      getCommandPaletteMessageTargets(
-        {
-          query: 'deploy checklist',
-          currentRoomId: '!room:example.org',
-          currentRoomName: 'General',
-          currentSpaceId: '!space:example.org',
-          currentSpaceName: 'MindRoom',
-        },
-        t
-      ).map((item) => item.path)
-    ).toEqual([
-      '/!space%3Aexample.org/search?term=deploy+checklist&rooms=%21room%3Aexample.org',
-      '/!space%3Aexample.org/search?term=deploy+checklist',
-      '/home/search/?term=deploy+checklist&global=true',
-    ]);
-  });
-
-  it('omits message rows for an empty query', () => {
-    expect(
-      getCommandPaletteMessageTargets(
-        {
-          query: '   ',
-          currentRoomId: '!room:example.org',
-        },
-        t
-      )
-    ).toEqual([]);
+describe('getCommandPaletteSearchPagePath', () => {
+  it('opens the message search page for the trimmed text across every room', () => {
+    expect(getCommandPaletteSearchPagePath('  deploy checklist ')).toBe(
+      '/home/search/?term=deploy+checklist&global=true'
+    );
   });
 });
 

@@ -8,9 +8,9 @@ vi.mock('./CommandPalette.css', () => ({
   Search: 'Search',
   Input: 'Input',
   Close: 'Close',
-  Filters: 'Filters',
-  Filter: 'Filter',
-  Prefix: 'Prefix',
+  Tabs: 'Tabs',
+  Tab: 'Tab',
+  ClearSearch: 'ClearSearch',
   Results: 'Results',
   Group: 'Group',
   GroupTitle: 'GroupTitle',
@@ -18,7 +18,13 @@ vi.mock('./CommandPalette.css', () => ({
   Row: 'Row',
   RowIcon: 'RowIcon',
   RowText: 'RowText',
+  RowHeading: 'RowHeading',
   RowTitle: 'RowTitle',
+  RowPlace: 'RowPlace',
+  RowTime: 'RowTime',
+  Tag: 'Tag',
+  Match: 'Match',
+  Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
   Key: 'Key',
@@ -30,7 +36,22 @@ vi.mock('./CommandPalette.css', () => ({
   EmptyDescription: 'EmptyDescription',
 }));
 
-vi.mock('folds', () => ({ Icon: () => null, Icons: { Hash: 'hash', Terminal: 'terminal' } }));
+vi.mock('folds', () => ({
+  Icon: () => null,
+  Spinner: () => null,
+  Icons: {
+    Hash: 'hash',
+    Terminal: 'terminal',
+    Space: 'space',
+    Message: 'message',
+    Search: 'search',
+    User: 'user',
+  },
+}));
+
+vi.mock('../../hooks/useRelativeTime', () => ({
+  useRelativeTime: (ts: number, format: string) => `${format}:${ts}`,
+}));
 
 vi.mock('../../components/unread-badge', async () => {
   const reactModule = await import('react');
@@ -114,5 +135,89 @@ describe('CommandPaletteList', () => {
     const renderer = renderList({ onHighlight });
     renderer.root.findByProps({ role: 'option' }).props.onPointerMove({ pointerType: 'touch' });
     expect(onHighlight).not.toHaveBeenCalled();
+  });
+
+  it('marks spaces among the rooms', () => {
+    const renderer = renderList({
+      sections: [
+        {
+          id: 'rooms',
+          title: 'Rooms',
+          items: [
+            ROOM_SECTION.items[0],
+            { id: '!garden:example.org', kind: 'space', name: 'Garden' },
+          ],
+        },
+      ],
+    });
+    const tags = renderer.root.findAllByProps({ className: 'Tag' });
+    expect(tags).toHaveLength(1);
+    expect(tags[0]?.children).toEqual(['Space']);
+    const space = renderer.root.findByProps({ 'data-kind': 'space' });
+    expect(space.findByProps({ className: 'Tag' })).toBe(tags[0]);
+  });
+
+  it('shows a message hit with its sender, room, thread, marked match and time', () => {
+    const renderer = renderList({
+      sections: [
+        {
+          id: 'messages',
+          title: 'Messages',
+          notes: [{ id: 'encrypted', text: "The server can't search encrypted rooms." }],
+          items: [
+            {
+              id: 'message:!ops:example.org:$hit',
+              kind: 'message',
+              senderName: 'Alice',
+              roomName: 'Ops',
+              threadName: 'Deploy plan',
+              snippet: 'the walrus rollout starts at noon',
+              highlights: ['walrus'],
+              timestamp: 1_700_000_000_000,
+            },
+            { id: 'search-page', kind: 'search-page', term: 'walrus' },
+          ],
+        },
+      ],
+    });
+    const hit = renderer.root.findByProps({ 'data-kind': 'message' });
+    expect(hit.findByProps({ className: 'RowTitle' }).children).toEqual(['Alice']);
+    expect(hit.findByProps({ className: 'RowPlace' }).children).toEqual(['Ops › Deploy plan']);
+    expect(hit.findByType('mark').children).toEqual(['walrus']);
+    expect(hit.findByType('time').children).toEqual(['compact:1700000000000']);
+    // The note sits under the title; the count leaves out See all results.
+    expect(renderer.root.findByProps({ 'data-note': 'encrypted' }).children).toContain(
+      "The server can't search encrypted rooms."
+    );
+    expect(renderer.root.findByProps({ className: 'GroupCount' }).children).toEqual(['1']);
+    const seeAll = renderer.root.findByProps({ 'data-kind': 'search-page' });
+    expect(seeAll.findByProps({ className: 'RowTitle' }).children).toEqual(['See all results']);
+  });
+
+  it('names an untitled thread of a message hit', () => {
+    const renderer = renderList({
+      sections: [
+        {
+          id: 'messages',
+          title: 'Messages',
+          items: [
+            {
+              id: 'message:!ops:example.org:$reply',
+              kind: 'message',
+              senderName: 'Bob',
+              roomName: 'Ops',
+              threadName: '',
+              snippet: 'no match marked here',
+              highlights: [],
+              timestamp: Date.now(),
+            },
+          ],
+        },
+      ],
+    });
+    expect(renderer.root.findByProps({ className: 'RowPlace' }).children).toEqual([
+      'Ops › Thread',
+    ]);
+    expect(renderer.root.findAllByType('mark')).toHaveLength(0);
   });
 });

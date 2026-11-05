@@ -5,9 +5,8 @@ import {
   getHomePath,
   getHomeSearchPath,
   getInboxPath,
-  getSpaceSearchPath,
 } from '../../pages/pathUtils';
-import type { CommandPaletteActionItem, CommandPaletteMessageItem } from './commandPaletteTypes';
+import type { CommandPaletteActionItem } from './commandPaletteTypes';
 
 export type CommandPaletteQuickActionId =
   | 'open-settings'
@@ -41,10 +40,6 @@ export type CommandPaletteUserTarget =
       path: string;
     };
 
-export type CommandPaletteMessageTarget = CommandPaletteMessageItem & {
-  path: string;
-};
-
 const buildPathWithSearch = (
   path: string,
   searchParams: Record<string, string | undefined>
@@ -60,8 +55,6 @@ const buildPathWithSearch = (
   const search = params.toString();
   return search.length > 0 ? `${path}?${search}` : path;
 };
-
-const quoteQuery = (query: string): string => `"${query}"`;
 
 const actionItem = (
   id: CommandPaletteQuickActionId,
@@ -180,80 +173,9 @@ export const getCommandPaletteQuickActions = (
   return actions;
 };
 
-export type CommandPaletteMessageContext = {
-  query: string;
-  currentRoomId?: string;
-  currentRoomName?: string;
-  currentSpaceId?: string;
-  currentSpaceName?: string;
-};
-
-export const getCommandPaletteMessageTargets = (
-  {
-    query,
-    currentRoomId,
-    currentRoomName,
-    currentSpaceId,
-    currentSpaceName,
-  }: CommandPaletteMessageContext,
-  t: TFunction
-): CommandPaletteMessageTarget[] => {
-  const trimmedQuery = query.trim();
-  if (trimmedQuery.length === 0) return [];
-
-  const items: CommandPaletteMessageTarget[] = [];
-  const quotedQuery = quoteQuery(trimmedQuery);
-
-  if (currentRoomId) {
-    items.push({
-      id: `message-room-${currentRoomId}-${trimmedQuery}`,
-      kind: 'message',
-      title: t('commandPalette.messages.searchIn', {
-        query: quotedQuery,
-        scope: currentRoomName ?? t('commandPalette.messages.currentRoomFallback'),
-      }),
-      description: currentRoomName ?? t('commandPalette.messages.currentRoomDescription'),
-      scope: 'room',
-      path: buildPathWithSearch(
-        currentSpaceId ? getSpaceSearchPath(currentSpaceId) : getHomeSearchPath(),
-        {
-          term: trimmedQuery,
-          rooms: currentRoomId,
-        }
-      ),
-    });
-  }
-
-  if (currentSpaceId) {
-    items.push({
-      id: `message-space-${currentSpaceId}-${trimmedQuery}`,
-      kind: 'message',
-      title: t('commandPalette.messages.searchIn', {
-        query: quotedQuery,
-        scope: currentSpaceName ?? t('commandPalette.messages.currentSpaceFallback'),
-      }),
-      description: currentSpaceName ?? t('commandPalette.messages.currentSpaceDescription'),
-      scope: 'space',
-      path: buildPathWithSearch(getSpaceSearchPath(currentSpaceId), {
-        term: trimmedQuery,
-      }),
-    });
-  }
-
-  items.push({
-    id: `message-all-${trimmedQuery}`,
-    kind: 'message',
-    title: t('commandPalette.messages.searchAll', { query: quotedQuery }),
-    description: t('commandPalette.messages.globalSearchDescription'),
-    scope: 'all',
-    path: buildPathWithSearch(getHomeSearchPath(), {
-      term: trimmedQuery,
-      global: 'true',
-    }),
-  });
-
-  return items;
-};
+/** The message search page for `term` across every room, with its filters and every result. */
+export const getCommandPaletteSearchPagePath = (term: string): string =>
+  buildPathWithSearch(getHomeSearchPath(), { term: term.trim(), global: 'true' });
 
 export const resolveCommandPaletteUserTarget = (
   userId: string,

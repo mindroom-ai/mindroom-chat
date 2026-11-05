@@ -345,5 +345,19 @@
   "composer": {
     "emoji": "絵文字",
     "cancelReply": "返信をキャンセル"
+  },
+  "commandPalette": {
+    "people": "人物",
+    "tabsLabel": "結果の種類",
+    "switchTabs": "タブを切り替え",
+    "space": "スペース",
+    "messageSearch": {
+      "searching": "メッセージを検索中…",
+      "hint": "入力すると、すべてのルームのメッセージを検索します。",
+      "encrypted": "暗号化されたルームはサーバーで検索できません。",
+      "seeAll": "すべての結果を表示",
+      "seeAllDescription": "フィルター付きのメッセージ検索を開く",
+      "thread": "スレッド"
+    }
   }
 }

@@ -2,10 +2,11 @@ import { ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { useAtomValue } from 'jotai';
+import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../../components/page';
 import {
+  NavButton,
   NavCategory,
   NavCategoryHeader,
   NavItem,
@@ -36,6 +37,7 @@ import { useVisibleRooms } from '../../../mindroom/rooms/archivedRooms';
 import { ThreadNavCategory } from '../../../mindroom/recent-threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../../../mindroom/recent-threads/RecentlyOpenedNavCategory';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { commandPaletteOpenAtom } from '../../../mindroom/command-palette/commandPaletteState';
 import { MenuEntry, MenuGroup } from '../../../components/MenuEntry';
 import { NavOptionsMenu } from '../NavOptionsMenu';
 import { mDirectAtom } from '../../../state/mDirectList';
@@ -49,7 +51,6 @@ import {
   getRootPath,
   getSpaceLobbyPath,
   getSpaceRoomPath,
-  getSpaceSearchPath,
   withSearchParam,
 } from '../../pathUtils';
 import { useClientStartupContext } from '../ClientStartupContext';
@@ -262,21 +263,32 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
 }
 
 /** A shortcut row at the top of the space navigation, linking to one of the space's pages. */
-function SpacePageLink({ icon, label, to }: { icon: IconSrc; label: string; to: string }) {
+type SpacePageLinkProps = { icon: IconSrc; label: string } & (
+  | { to: string; onSelect?: undefined }
+  | { onSelect: () => void; to?: undefined }
+);
+
+/** One of the shortcuts above the space's rooms: a link when it opens a page, else a button. */
+function SpacePageLink({ icon, label, to, onSelect }: SpacePageLinkProps) {
+  const content = (
+    <NavItemContent>
+      <Box as="span" alignItems="Center" gap="200" grow="Yes">
+        <Avatar radii="400" size="200">
+          <Icon size="100" src={icon} />
+        </Avatar>
+        <Text as="span" size="Inherit" truncate>
+          {label}
+        </Text>
+      </Box>
+    </NavItemContent>
+  );
   return (
     <NavItem radii="400" variant="Background">
-      <NavLink to={to}>
-        <NavItemContent>
-          <Box as="span" alignItems="Center" gap="200" grow="Yes">
-            <Avatar radii="400" size="200">
-              <Icon size="100" src={icon} />
-            </Avatar>
-            <Text as="span" size="Inherit" truncate>
-              {label}
-            </Text>
-          </Box>
-        </NavItemContent>
-      </NavLink>
+      {to === undefined ? (
+        <NavButton onClick={onSelect}>{content}</NavButton>
+      ) : (
+        <NavLink to={to}>{content}</NavLink>
+      )}
     </NavItem>
   );
 }
@@ -293,6 +305,7 @@ export function Space() {
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);
+  const openCommandPalette = useSetAtom(commandPaletteOpenAtom);
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
 
   const roomsByName = useMemo(() => sortRoomIdsByName(client, spaceRooms), [client, spaceRooms]);
@@ -324,10 +337,11 @@ export function Space() {
               label={t('sharedUi.space.lobby')}
               to={getSpaceLobbyPath(spaceIdOrAlias)}
             />
+            {/* Message search is the command palette's Messages tab, as on Home. */}
             <SpacePageLink
               icon={Icons.Search}
               label={t('sharedUi.space.messageSearch')}
-              to={getSpaceSearchPath(spaceIdOrAlias)}
+              onSelect={() => openCommandPalette('messages')}
             />
           </NavCategory>
           <NavCategory>

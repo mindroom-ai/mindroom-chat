@@ -352,5 +352,19 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren"
+  },
+  "commandPalette": {
+    "people": "Personen",
+    "tabsLabel": "Soorten resultaten",
+    "switchTabs": "Tabblad wisselen",
+    "space": "Space",
+    "messageSearch": {
+      "searching": "Berichten zoeken…",
+      "hint": "Typ om berichten in al je kamers te zoeken.",
+      "encrypted": "De server kan versleutelde kamers niet doorzoeken.",
+      "seeAll": "Alle resultaten bekijken",
+      "seeAllDescription": "Berichten zoeken met filters openen",
+      "thread": "Thread"
+    }
   }
 }

@@ -345,5 +345,19 @@
   "composer": {
     "emoji": "表情符號",
     "cancelReply": "取消回覆"
+  },
+  "commandPalette": {
+    "people": "人員",
+    "tabsLabel": "結果類型",
+    "switchTabs": "切換分頁",
+    "space": "空間",
+    "messageSearch": {
+      "searching": "正在搜尋訊息…",
+      "hint": "輸入內容即可搜尋你所有房間中的訊息。",
+      "encrypted": "伺服器無法搜尋加密房間。",
+      "seeAll": "查看所有結果",
+      "seeAllDescription": "開啟含篩選條件的訊息搜尋",
+      "thread": "討論串"
+    }
   }
 }

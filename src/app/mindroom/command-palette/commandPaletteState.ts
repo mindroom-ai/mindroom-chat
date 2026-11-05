@@ -1,3 +1,5 @@
 import { atom } from 'jotai';
+import type { CommandPaletteTab } from './commandPaletteTypes';
 
-export const commandPaletteOpenAtom = atom<boolean>(false);
+/** The tab the open palette starts on; undefined while it is closed. */
+export const commandPaletteOpenAtom = atom<CommandPaletteTab | undefined>(undefined);

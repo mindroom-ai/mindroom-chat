@@ -359,5 +359,19 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Cancelar resposta"
+  },
+  "commandPalette": {
+    "people": "Pessoas",
+    "tabsLabel": "Tipos de resultado",
+    "switchTabs": "Mudar de separador",
+    "space": "Espaço",
+    "messageSearch": {
+      "searching": "A pesquisar mensagens…",
+      "hint": "Escreva para pesquisar mensagens em todas as suas salas.",
+      "encrypted": "O servidor não consegue pesquisar salas encriptadas.",
+      "seeAll": "Ver todos os resultados",
+      "seeAllDescription": "Abrir a pesquisa de mensagens com filtros",
+      "thread": "Tópico"
+    }
   }
 }

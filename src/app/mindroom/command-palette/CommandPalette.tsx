@@ -10,210 +10,236 @@ import React, {
   useMemo,
   useState,
 } from 'react';
-import { getCommandPaletteSectionOrder, parseCommandPaletteQuery } from './commandPaletteQuery';
+import { getCommandPaletteSectionLimit, getCommandPaletteSectionOrder } from './commandPaletteQuery';
 import type { CommandPaletteSource, ExecutableCommandPaletteItem } from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
 import {
   CommandPaletteList,
   getCommandPaletteOptionId,
+  type CommandPaletteListNote,
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
+import {
+  getCommandPaletteHighlightIndex,
+  getCommandPaletteTabStep,
+  getNextCommandPaletteTab,
+} from './commandPaletteNavigation';
 import { getCommandPaletteShortcutLabel } from './commandPaletteShortcut';
-import { COMMAND_PALETTE_PREFIX_HINTS, type CommandPalettePrefix } from './commandPaletteTypes';
-import type { CommandPaletteParsedQuery, CommandPaletteRoomItem } from './commandPaletteTypes';
+import {
+  COMMAND_PALETTE_TABS,
+  type CommandPaletteRoomItem,
+  type CommandPaletteSectionId,
+  type CommandPaletteTab,
+} from './commandPaletteTypes';
+import type {
+  CommandPaletteMessages,
+  UseCommandPaletteMessages,
+} from './useCommandPaletteMessages';
 
 type CommandPaletteProps = {
   requestClose: () => void;
   source: CommandPaletteSource;
+  /** Server message search: a hook, called on every render with the typed text. */
+  useMessages: UseCommandPaletteMessages;
+  /** The tab it opens on; it remembers no tab between openings. */
+  initialTab?: CommandPaletteTab;
   mobileSheet?: boolean;
 };
 
-const SECTION_TITLE_KEYS = {
-  actions: 'commandPalette.sections.actions',
-  threads: 'commandPalette.sections.threads',
+const TAB_LABEL_KEYS = {
+  all: 'commandPalette.all',
   rooms: 'commandPalette.sections.rooms',
-  users: 'commandPalette.sections.users',
+  threads: 'commandPalette.sections.threads',
+  users: 'commandPalette.people',
   messages: 'commandPalette.sections.messages',
-} as const satisfies Record<CommandPaletteListSection['id'], string>;
+  actions: 'commandPalette.sections.actions',
+} as const satisfies Record<CommandPaletteTab, string>;
 
-const getSectionTitle = (
-  sectionId: CommandPaletteListSection['id'],
-  parsedQuery: CommandPaletteParsedQuery,
-  t: TFunction
-): string => {
-  if (sectionId === 'rooms' && parsedQuery.mode === 'spaces') {
-    return t('commandPalette.sections.spaces');
-  }
+type RoomItems = readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
 
-  return t(SECTION_TITLE_KEYS[sectionId]);
-};
-
-const getSectionItems = ({
+const getLocalSectionItems = ({
   sectionId,
-  parsedQuery,
+  tab,
+  searchText,
   source,
-  spaceItems,
+  starterRooms,
 }: {
-  sectionId: CommandPaletteListSection['id'];
-  parsedQuery: CommandPaletteParsedQuery;
+  sectionId: Exclude<CommandPaletteSectionId, 'messages'>;
+  tab: CommandPaletteTab;
+  searchText: string;
   source: CommandPaletteSource;
-  spaceItems: readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
+  starterRooms: RoomItems;
 }): ExecutableCommandPaletteItem[] => {
+  const limit = getCommandPaletteSectionLimit(sectionId, tab);
   switch (sectionId) {
     case 'actions':
       return searchCommandPaletteSection({
         items: source.actions,
-        query:
-          parsedQuery.mode === 'actions' || parsedQuery.mode === 'all'
-            ? parsedQuery.searchText
-            : '',
-        config: commandPaletteSearchConfig.actions,
+        query: searchText,
+        config: { ...commandPaletteSearchConfig.actions, limit },
       });
     case 'threads':
       return searchCommandPaletteSection({
         items: source.threads,
-        query:
-          parsedQuery.mode === 'threads' || parsedQuery.mode === 'all'
-            ? parsedQuery.searchText
-            : '',
-        config: commandPaletteSearchConfig.threads,
+        query: searchText,
+        config: { ...commandPaletteSearchConfig.threads, limit },
       });
-    case 'rooms': {
-      let items = source.rooms;
-      if (parsedQuery.mode === 'spaces') items = spaceItems;
-      // The starter list is for switching rooms; spaces still match by name or with `*`.
-      else if (!parsedQuery.searchText) items = source.rooms.filter((item) => item.kind === 'room');
+    case 'rooms':
       return searchCommandPaletteSection({
-        items,
-        query:
-          parsedQuery.mode === 'rooms' ||
-          parsedQuery.mode === 'spaces' ||
-          parsedQuery.mode === 'all'
-            ? parsedQuery.searchText
-            : '',
-        config: commandPaletteSearchConfig.rooms,
+        // All's starter list is for switching rooms; spaces match by name, and Rooms lists them.
+        items: tab === 'all' && !searchText ? starterRooms : source.rooms,
+        query: searchText,
+        config: { ...commandPaletteSearchConfig.rooms, limit },
       });
-    }
-    case 'users': {
-      const hasSearchText = parsedQuery.searchText.length > 0;
+    default: {
+      const hasSearchText = searchText.length > 0;
       return searchCommandPaletteSection({
         items: source.getUsers({
           exhaustive: hasSearchText,
-          includeRelatedRooms: parsedQuery.mode === 'users' || hasSearchText,
+          includeRelatedRooms: tab === 'users' || hasSearchText,
         }),
-        query:
-          parsedQuery.mode === 'users' || parsedQuery.mode === 'all' ? parsedQuery.searchText : '',
-        config: commandPaletteSearchConfig.users,
+        query: searchText,
+        config: { ...commandPaletteSearchConfig.users, limit },
       });
     }
-    default:
-      return source.getMessages(parsedQuery.showMessages ? parsedQuery.searchText : '');
   }
 };
 
-const buildVisibleSections = ({
-  parsedQuery,
-  sectionOrder,
-  source,
-  spaceItems,
-  t,
-}: {
-  parsedQuery: CommandPaletteParsedQuery;
-  sectionOrder: readonly CommandPaletteListSection['id'][];
-  source: CommandPaletteSource;
-  spaceItems: readonly (CommandPaletteRoomItem & { onSelect?: () => void })[];
-  t: TFunction;
-}): CommandPaletteListSection[] =>
-  sectionOrder
-    .map((sectionId) => {
-      const items = getSectionItems({
-        sectionId,
-        parsedQuery,
-        source,
-        spaceItems,
-      });
-      if (items.length === 0) return undefined;
-
-      return {
-        id: sectionId,
-        title: getSectionTitle(sectionId, parsedQuery, t),
-        items,
-      } satisfies CommandPaletteListSection;
-    })
-    .filter((section): section is CommandPaletteListSection => section !== undefined);
-
-const getResultCountLabel = (
-  sections: readonly CommandPaletteListSection[],
+/**
+ * The server's hits for the text, then See all results. Until they arrive the section holds only
+ * a quiet line, so nothing in it can be highlighted and moved; once they do, they sit below
+ * every other section.
+ */
+const buildMessageSection = (
+  messages: CommandPaletteMessages,
+  searchText: string,
+  tab: CommandPaletteTab,
   t: TFunction
-): string => {
-  const count = sections.reduce((total, section) => total + section.items.length, 0);
+): CommandPaletteListSection => {
+  const notes: CommandPaletteListNote[] = [];
+  const settled = messages.status === 'done' || messages.status === 'error';
+  if (!searchText) {
+    notes.push({ id: 'hint', text: t('commandPalette.messageSearch.hint') });
+  } else if (messages.status === 'loading') {
+    notes.push({ id: 'loading', text: t('commandPalette.messageSearch.searching'), busy: true });
+  } else if (messages.status === 'error') {
+    notes.push({ id: 'error', text: t('mindroomUi.message-search.messageSearch.searchFailed') });
+  } else if (messages.items.length === 0) {
+    notes.push({
+      id: 'none',
+      text: t('mindroomUi.message-search.messageSearch.noResultsFor', { term: searchText }),
+    });
+  }
+  if (messages.encryptedRooms) {
+    notes.push({ id: 'encrypted', text: t('commandPalette.messageSearch.encrypted') });
+  }
+
+  const items: ExecutableCommandPaletteItem[] =
+    searchText && messages.status === 'done'
+      ? messages.items.slice(0, getCommandPaletteSectionLimit('messages', tab))
+      : [];
+  if (searchText && settled) {
+    items.push({
+      id: 'search-page',
+      kind: 'search-page',
+      term: searchText,
+      onSelect: () => messages.openSearchPage(searchText),
+    });
+  }
+  return { id: 'messages', title: t(TAB_LABEL_KEYS.messages), items, notes };
+};
+
+const getResultCountLabel = (items: readonly ExecutableCommandPaletteItem[], t: TFunction) => {
+  const count = items.filter((item) => item.kind !== 'search-page').length;
   if (count === 0) return t('commandPalette.noResults');
   return t('commandPalette.resultCount', { count });
 };
 
-const PREFIX_LABEL_KEYS = {
-  '>': 'commandPalette.sections.actions',
-  '#': 'commandPalette.sections.rooms',
-  '@': 'commandPalette.sections.users',
-  't:': 'commandPalette.sections.threads',
-  '*': 'commandPalette.sections.spaces',
-} as const satisfies Record<CommandPalettePrefix, string>;
+const directionOf = (element: unknown): 'ltr' | 'rtl' =>
+  typeof Element !== 'undefined' &&
+  element instanceof Element &&
+  getComputedStyle(element).direction === 'rtl'
+    ? 'rtl'
+    : 'ltr';
 
-export function CommandPalette({ requestClose, source, mobileSheet = false }: CommandPaletteProps) {
+const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta']);
+
+export function CommandPalette({
+  requestClose,
+  source,
+  useMessages,
+  initialTab = 'all',
+  mobileSheet = false,
+}: CommandPaletteProps) {
   const { t } = useTranslation();
   const [query, setQuery] = useState('');
-  const [literalSearch, setLiteralSearch] = useState(false);
+  const [tab, setTab] = useState<CommandPaletteTab>(initialTab);
+  // The highlighted row by ID, so rows that arrive later never move it; the index is where it
+  // was, for when that row leaves.
+  const [highlight, setHighlight] = useState<{ id?: string; index: number }>({ index: 0 });
+  // True after the up or down arrow, until the person edits or moves the caret.
+  const navigatingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const tabListRef = useRef<HTMLDivElement>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const parsedQuery = useMemo<CommandPaletteParsedQuery>(() => {
-    if (!literalSearch) return parseCommandPaletteQuery(query);
-    const searchText = query.trim();
-    return { raw: query, mode: 'all', searchText, showMessages: searchText.length > 0 };
-  }, [query, literalSearch]);
-  const sectionOrder = useMemo(() => getCommandPaletteSectionOrder(parsedQuery), [parsedQuery]);
-  const spaceItems = useMemo(
-    () => source.rooms.filter((item) => item.kind === 'space'),
+  const panelId = `${listId}-panel`;
+  const tabId = (id: CommandPaletteTab) => `${listId}-tab-${id}`;
+  const searchText = query.trim();
+  const messages = useMessages(query, tab === 'all' || tab === 'messages');
+  const starterRooms = useMemo(
+    () => source.rooms.filter((item) => item.kind === 'room'),
     [source.rooms]
   );
 
   const visibleSections = useMemo(
     () =>
-      buildVisibleSections({
-        parsedQuery,
-        sectionOrder,
-        source,
-        spaceItems,
-        t,
-      }),
-    [parsedQuery, sectionOrder, source, spaceItems, t]
+      getCommandPaletteSectionOrder(tab, searchText.length > 0)
+        .map((sectionId): CommandPaletteListSection | undefined => {
+          if (sectionId === 'messages') return buildMessageSection(messages, searchText, tab, t);
+          const items = getLocalSectionItems({ sectionId, tab, searchText, source, starterRooms });
+          if (items.length === 0) return undefined;
+          return { id: sectionId, title: t(TAB_LABEL_KEYS[sectionId]), items };
+        })
+        .filter((section): section is CommandPaletteListSection => section !== undefined),
+    [messages, searchText, source, starterRooms, t, tab]
   );
   const visibleItems = useMemo(
     () => visibleSections.flatMap((section) => section.items),
     [visibleSections]
   );
-
-  useEffect(() => {
-    setSelectedIndex(0);
-    if (resultsRef.current) resultsRef.current.scrollTop = 0;
-  }, [query, literalSearch]);
-
-  useEffect(() => {
-    if (selectedIndex < visibleItems.length) return;
-    setSelectedIndex(Math.max(visibleItems.length - 1, 0));
-  }, [selectedIndex, visibleItems.length]);
-
+  const selectedIndex = getCommandPaletteHighlightIndex(
+    visibleItems.map((item) => item.id),
+    highlight.id,
+    highlight.index
+  );
   const selectedItem = visibleItems[selectedIndex];
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  useEffect(() => {
+    tabListRef.current
+      ?.querySelector('[aria-selected="true"]')
+      ?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [tab]);
+
+  const startOver = () => {
+    setHighlight({ index: 0 });
+    if (resultsRef.current) resultsRef.current.scrollTop = 0;
+  };
+
+  const chooseTab = (nextTab: CommandPaletteTab) => {
+    setTab(nextTab);
+    startOver();
+  };
+
   const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
     setQuery(event.currentTarget.value);
-    if (!event.currentTarget.value.trim()) setLiteralSearch(false);
+    navigatingRef.current = false;
+    startOver();
   };
 
   const handleSelect = (item: ExecutableCommandPaletteItem) => {
@@ -224,21 +250,19 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
 
   const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
     if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
-    if (event.key === 'ArrowDown') {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
-      if (visibleItems.length === 0) return;
-      setSelectedIndex((index) => (index + 1) % visibleItems.length);
+      navigatingRef.current = true;
+      const count = visibleItems.length;
+      if (count === 0) return;
+      const step = event.key === 'ArrowDown' ? 1 : -1;
+      const next = (Math.max(selectedIndex, 0) + step + count) % count;
+      setHighlight({ id: visibleItems[next]?.id, index: next });
       return;
     }
 
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (visibleItems.length === 0) return;
-      setSelectedIndex((index) => (index - 1 + visibleItems.length) % visibleItems.length);
-      return;
-    }
-
-    if (event.key === 'Enter' && selectedItem) {
+    if (event.key === 'Enter') {
+      if (!selectedItem) return;
       event.preventDefault();
       handleSelect(selectedItem);
       return;
@@ -249,18 +273,36 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
       event.stopPropagation?.();
       setQuery('');
       requestClose();
+      return;
     }
+
+    const input = event.currentTarget;
+    const tabStep = getCommandPaletteTabStep({
+      key: event.key,
+      shiftKey: event.shiftKey,
+      altKey: event.altKey,
+      ctrlKey: event.ctrlKey,
+      metaKey: event.metaKey,
+      query: input.value ?? query,
+      selectionStart: input.selectionStart ?? null,
+      selectionEnd: input.selectionEnd ?? null,
+      navigating: navigatingRef.current,
+      textDirection: directionOf(input),
+      tabDirection: directionOf(tabListRef.current),
+    });
+    if (tabStep !== 0) {
+      event.preventDefault();
+      // The dialog's focus containment moves focus on Tab from a listener on the document.
+      event.stopPropagation?.();
+      chooseTab(getNextCommandPaletteTab(COMMAND_PALETTE_TABS, tab, tabStep));
+      return;
+    }
+
+    // Any other key edits the text or moves the caret.
+    if (!MODIFIER_KEYS.has(event.key)) navigatingRef.current = false;
   };
 
   const shortcutLabel = getCommandPaletteShortcutLabel();
-
-  const changeFilter = (prefix?: CommandPalettePrefix) => {
-    // Keep a pasted Matrix ID literal when removing an explicit category prefix.
-    setLiteralSearch(!prefix && !!parseCommandPaletteQuery(parsedQuery.searchText).prefix);
-    setQuery(prefix ? prefix + ' ' + parsedQuery.searchText : parsedQuery.searchText);
-    inputRef.current?.focus();
-  };
-  const filters = [undefined, ...COMMAND_PALETTE_PREFIX_HINTS] as const;
 
   return (
     <div
@@ -287,6 +329,9 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
           value={query}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
+          onPointerDown={() => {
+            navigatingRef.current = false;
+          }}
         />
         <button
           type="button"
@@ -297,33 +342,48 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
           {mobileSheet ? <Icon src={Icons.Cross} size="200" /> : <kbd className={css.Key}>esc</kbd>}
         </button>
       </div>
-      <div className={css.Filters} role="group" aria-label={t('commandPalette.filterLabel')}>
-        {filters.map((prefix) => (
+      <div
+        ref={tabListRef}
+        className={css.Tabs}
+        role="tablist"
+        aria-label={t('commandPalette.tabsLabel')}
+      >
+        {COMMAND_PALETTE_TABS.map((id) => (
           <button
             type="button"
-            key={prefix ?? 'all'}
-            className={css.Filter}
-            aria-label={prefix ? t(PREFIX_LABEL_KEYS[prefix]) : t('commandPalette.all')}
-            aria-pressed={parsedQuery.prefix === prefix}
-            onClick={() => changeFilter(prefix)}
+            key={id}
+            id={tabId(id)}
+            role="tab"
+            className={css.Tab}
+            aria-selected={tab === id}
+            aria-controls={panelId}
+            // The field keeps focus and moves between tabs with Tab and the arrows.
+            tabIndex={-1}
+            data-tab={id}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              chooseTab(id);
+              inputRef.current?.focus();
+            }}
           >
-            {prefix ? t(PREFIX_LABEL_KEYS[prefix]) : t('commandPalette.all')}
-            {prefix && (
-              <span className={css.Prefix} aria-hidden="true">
-                {prefix}
-              </span>
-            )}
+            {t(TAB_LABEL_KEYS[id])}
           </button>
         ))}
       </div>
-      <div ref={resultsRef} className={css.Results}>
+      <div
+        ref={resultsRef}
+        id={panelId}
+        className={css.Results}
+        role="tabpanel"
+        aria-labelledby={tabId(tab)}
+      >
         <CommandPaletteList
           id={listId}
           label={t('commandPalette.resultsLabel')}
           sections={visibleSections}
           selectedItemId={selectedItem?.id}
           onHighlight={(itemId) =>
-            setSelectedIndex(visibleItems.findIndex((item) => item.id === itemId))
+            setHighlight({ id: itemId, index: visibleItems.findIndex((item) => item.id === itemId) })
           }
           onSelect={handleSelect}
         />
@@ -332,18 +392,20 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
             <Icon src={Icons.Search} size="400" />
             <span className={css.EmptyTitle}>{t('commandPalette.noResults')}</span>
             <span className={css.EmptyDescription}>{t('commandPalette.emptyDescription')}</span>
-            <button
-              type="button"
-              className={css.Filter}
-              aria-label={t('commandPalette.clearSearch')}
-              onClick={() => {
-                setQuery('');
-                setLiteralSearch(false);
-                inputRef.current?.focus();
-              }}
-            >
-              {t('commandPalette.clearSearch')}
-            </button>
+            {query && (
+              <button
+                type="button"
+                className={css.ClearSearch}
+                aria-label={t('commandPalette.clearSearch')}
+                onClick={() => {
+                  setQuery('');
+                  startOver();
+                  inputRef.current?.focus();
+                }}
+              >
+                {t('commandPalette.clearSearch')}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -357,11 +419,14 @@ export function CommandPalette({ requestClose, source, mobileSheet = false }: Co
             <kbd className={css.Key}>↵</kbd> {t('commandPalette.select')}
           </span>
           <span className={css.Hint}>
+            <kbd className={css.Key}>Tab</kbd> {t('commandPalette.switchTabs')}
+          </span>
+          <span className={css.Hint}>
             <kbd className={css.Key}>{shortcutLabel}</kbd>
           </span>
         </div>
         <span role="status" aria-live="polite">
-          {getResultCountLabel(visibleSections, t)}
+          {getResultCountLabel(visibleItems, t)}
         </span>
       </div>
     </div>

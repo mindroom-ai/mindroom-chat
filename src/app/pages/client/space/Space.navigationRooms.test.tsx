@@ -70,6 +70,7 @@ vi.mock('../../../components/page', () => ({
   PageNavHeader: passthrough,
 }));
 vi.mock('../../../components/nav', () => ({
+  NavButton: passthrough,
   NavCategory: passthrough,
   NavCategoryHeader: passthrough,
   NavItem: passthrough,

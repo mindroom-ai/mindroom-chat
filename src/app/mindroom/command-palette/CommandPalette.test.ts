@@ -1,8 +1,9 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandPaletteSource } from './commandPaletteItems';
 import { CommandPalette } from './CommandPalette';
+import type { CommandPaletteMessages } from './useCommandPaletteMessages';
 
 const { searchCommandPaletteSectionCalls } = vi.hoisted(() => ({
   searchCommandPaletteSectionCalls: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock('folds', async () => {
     Text: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
     Line: () => reactModule.createElement('hr'),
+    Spinner: () => reactModule.createElement('span', { 'data-spinner': true }),
     Icons: {
       Cross: 'cross',
       Terminal: 'terminal',
@@ -76,14 +78,18 @@ vi.mock('folds', async () => {
   };
 });
 
+vi.mock('../../hooks/useRelativeTime', () => ({
+  useRelativeTime: () => '2h',
+}));
+
 vi.mock('./CommandPalette.css', () => ({
   Palette: 'Palette',
   Search: 'Search',
   Input: 'Input',
   Close: 'Close',
-  Filters: 'Filters',
-  Filter: 'Filter',
-  Prefix: 'Prefix',
+  Tabs: 'Tabs',
+  Tab: 'Tab',
+  ClearSearch: 'ClearSearch',
   Results: 'Results',
   Group: 'Group',
   GroupTitle: 'GroupTitle',
@@ -91,7 +97,13 @@ vi.mock('./CommandPalette.css', () => ({
   Row: 'Row',
   RowIcon: 'RowIcon',
   RowText: 'RowText',
+  RowHeading: 'RowHeading',
   RowTitle: 'RowTitle',
+  RowPlace: 'RowPlace',
+  RowTime: 'RowTime',
+  Tag: 'Tag',
+  Match: 'Match',
+  Note: 'Note',
   RowDescription: 'RowDescription',
   RowEnter: 'RowEnter',
   Key: 'Key',
@@ -209,116 +221,387 @@ const FIXTURE_SOURCE: CommandPaletteSource = {
       boost: 20,
     },
   ],
-  getMessages: (query: string) => {
-    if (query.length === 0) return [];
-
-    return [
-      {
-        id: `message-room-${query}`,
-        kind: 'message',
-        title: `Search "${query}" in current room`,
-        description: 'Fixture message search row',
-        scope: 'room',
-      },
-      {
-        id: `message-all-${query}`,
-        kind: 'message',
-        title: `Search "${query}" across all rooms`,
-        description: 'Fixture global search row',
-        scope: 'all',
-      },
-    ];
-  },
 };
 
-const renderPalette = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) =>
-  create(
-    React.createElement(CommandPalette, {
-      requestClose: vi.fn(),
-      source: FIXTURE_SOURCE,
-      ...props,
-    })
-  );
+// What the server search reports; tests change it and render again to deliver results.
+const messageState: { current: CommandPaletteMessages } = {
+  current: {
+    status: 'idle',
+    items: [],
+    encryptedRooms: false,
+    openSearchPage: vi.fn(),
+  },
+};
+const useMessages = vi.fn((text: string, enabled: boolean): CommandPaletteMessages => {
+  void text;
+  void enabled;
+  return messageState.current;
+});
 
-describe('CommandPalette', () => {
-  it('keeps a prefix-leading search literal when switching to All', async () => {
-    const renderer = renderPalette();
-    await act(async () => {
-      getInput(renderer).props.onChange({ currentTarget: { value: '@ @alice:example.org' } });
-    });
-    const allFilter = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'All'
-    );
-    await act(async () => allFilter.props.onClick());
-    expect(getInput(renderer).props.value).toBe('@alice:example.org');
-    expect(allFilter.props['aria-pressed']).toBe(true);
-    expect(JSON.stringify(renderer.toJSON())).toContain(
-      'Search \\"@alice:example.org\\" across all rooms'
-    );
-    const usersFilter = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Users'
-    );
-    await act(async () => usersFilter.props.onClick());
-    expect(getInput(renderer).props.value).toBe('@ @alice:example.org');
-    expect(usersFilter.props['aria-pressed']).toBe(true);
-    expect(allFilter.props['aria-pressed']).toBe(false);
-    expect(
-      new Set(renderer.root.findAllByProps({ role: 'option' }).map((row) => row.props['data-kind']))
-    ).toEqual(new Set(['user']));
-    await act(async () => allFilter.props.onClick());
-    await act(async () => {
-      getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
-    });
-    expect(allFilter.props['aria-pressed']).toBe(true);
-    await act(async () => {
-      getInput(renderer).props.onChange({ currentTarget: { value: '' } });
-    });
-    await act(async () => {
-      getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
-    });
-    expect(allFilter.props['aria-pressed']).toBe(false);
+const setMessages = (change: Partial<CommandPaletteMessages>) => {
+  messageState.current = { ...messageState.current, ...change };
+};
+
+const messageHit = (n: number) => ({
+  id: `message:!general:example.org:$hit${n}`,
+  kind: 'message' as const,
+  senderName: 'Alice',
+  roomName: 'General',
+  snippet: `walrus sighting number ${n}`,
+  highlights: ['walrus'],
+  timestamp: 1_700_000_000_000 + n,
+  onSelect: vi.fn(),
+});
+
+beforeEach(() => {
+  messageState.current = {
+    status: 'idle',
+    items: [],
+    encryptedRooms: false,
+    openSearchPage: vi.fn(),
+  };
+  useMessages.mockClear();
+});
+
+const paletteElement = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) =>
+  React.createElement(CommandPalette, {
+    requestClose: vi.fn(),
+    source: FIXTURE_SOURCE,
+    useMessages,
+    ...props,
   });
 
-  it('switches category filters without losing the search text', async () => {
-    const renderer = renderPalette();
-    await act(async () => {
-      getInput(renderer).props.onChange({ currentTarget: { value: 'General' } });
-    });
-    const roomsFilter = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Rooms'
-    );
-    await act(async () => roomsFilter.props.onClick());
-    expect(getInput(renderer).props.value).toBe('# General');
-    expect(roomsFilter.props['aria-pressed']).toBe(true);
-    expect(
-      renderer.root.findAll(
-        (node) => node.props['data-item-id'] && node.props['data-kind'] !== 'room'
-      )
-    ).toHaveLength(0);
+const renderPalette = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) =>
+  create(paletteElement(props));
 
-    const allFilter = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'All'
-    );
-    await act(async () => allFilter.props.onClick());
+const type = async (renderer: ReturnType<typeof create>, value: string) =>
+  act(async () => getInput(renderer).props.onChange({ currentTarget: { value } }));
+
+// A key in the field, with the caret at `caret` (default: the end of the text).
+const press = async (
+  renderer: ReturnType<typeof create>,
+  key: string,
+  { caret, shiftKey = false }: { caret?: number; shiftKey?: boolean } = {}
+) => {
+  const value: string = getInput(renderer).props.value;
+  const at = caret ?? value.length;
+  const event = {
+    key,
+    shiftKey,
+    altKey: false,
+    ctrlKey: false,
+    metaKey: false,
+    currentTarget: { value, selectionStart: at, selectionEnd: at },
+    preventDefault: vi.fn(),
+    stopPropagation: vi.fn(),
+  };
+  await act(async () => getInput(renderer).props.onKeyDown(event));
+  return event;
+};
+
+const getTabs = (renderer: ReturnType<typeof create>) =>
+  renderer.root.findAll((node) => node.type === 'button' && node.props.role === 'tab');
+const selectedTab = (renderer: ReturnType<typeof create>) =>
+  getTabs(renderer).find((tab) => tab.props['aria-selected'])?.props['data-tab'];
+const selectedId = (renderer: ReturnType<typeof create>) =>
+  getOptions(renderer).find((option) => option.props['aria-selected'])?.props['data-item-id'];
+const optionIds = (renderer: ReturnType<typeof create>) =>
+  getOptions(renderer).map((option) => option.props['data-item-id']);
+
+describe('CommandPalette', () => {
+  it('shows a tab row with All, Rooms, Threads, People, Messages and Actions', () => {
+    const renderer = renderPalette();
+    const tablist = renderer.root.findByProps({ role: 'tablist' });
+    expect(tablist.props['aria-label']).toBe('Result types');
+    expect(getTabs(renderer).map((tab) => tab.children.join(''))).toEqual([
+      'All',
+      'Rooms',
+      'Threads',
+      'People',
+      'Messages',
+      'Actions',
+    ]);
+    expect(selectedTab(renderer)).toBe('all');
+    const panel = renderer.root.findByProps({ role: 'tabpanel' });
+    const allTab = getTabs(renderer)[0];
+    expect(panel.props['aria-labelledby']).toBe(allTab?.props.id);
+    expect(allTab?.props['aria-controls']).toBe(panel.props.id);
+  });
+
+  it('opens on the tab it is given, such as Messages from the sidebar', () => {
+    const renderer = renderPalette({ initialTab: 'messages' });
+    expect(selectedTab(renderer)).toBe('messages');
+    expect(useMessages).toHaveBeenLastCalledWith('', true);
+    expect(JSON.stringify(renderer.toJSON())).toContain('Type to search messages in all your rooms.');
+  });
+
+  it('switches tabs with Tab and Shift+Tab and keeps focus in the field', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'gen');
+    const tab = await press(renderer, 'Tab', { caret: 1 });
+    expect(selectedTab(renderer)).toBe('rooms');
+    expect(tab.preventDefault).toHaveBeenCalled();
+    // The dialog's focus containment must not see the key.
+    expect(tab.stopPropagation).toHaveBeenCalled();
+    await press(renderer, 'Tab', { shiftKey: true });
+    await press(renderer, 'Tab', { shiftKey: true });
+    expect(selectedTab(renderer)).toBe('actions');
+    expect(getInput(renderer).props.value).toBe('gen');
+  });
+
+  it('switches tabs with the arrows while the query is empty', async () => {
+    const renderer = renderPalette();
+    await press(renderer, 'ArrowRight');
+    await press(renderer, 'ArrowRight');
+    expect(selectedTab(renderer)).toBe('threads');
+    await press(renderer, 'ArrowLeft');
+    expect(selectedTab(renderer)).toBe('rooms');
+  });
+
+  it('moves the caret with left in the middle of typed text instead of switching', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'General');
+    const left = await press(renderer, 'ArrowLeft', { caret: 3 });
+    expect(selectedTab(renderer)).toBe('all');
+    expect(left.preventDefault).not.toHaveBeenCalled();
+    await press(renderer, 'ArrowRight', { caret: 0 });
+    expect(selectedTab(renderer)).toBe('all');
+    // At the edges of the text the arrows switch.
+    await press(renderer, 'ArrowRight', { caret: 7 });
+    expect(selectedTab(renderer)).toBe('rooms');
+    await press(renderer, 'ArrowLeft', { caret: 0 });
+    expect(selectedTab(renderer)).toBe('all');
+  });
+
+  it('switches with the arrows after the up or down arrow, until the text is edited', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'e');
+    await press(renderer, 'ArrowDown');
+    await press(renderer, 'ArrowLeft', { caret: 0 });
+    await press(renderer, 'ArrowLeft', { caret: 1 });
+    expect(selectedTab(renderer)).toBe('messages');
+    await press(renderer, 'ArrowRight', { caret: 0 });
+    expect(selectedTab(renderer)).toBe('actions');
+    await press(renderer, 'x');
+    await press(renderer, 'ArrowLeft', { caret: 1 });
+    expect(selectedTab(renderer)).toBe('actions');
+  });
+
+  it('switches tabs by click without losing the search text', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'General');
+    const roomsTab = getTabs(renderer).find((tab) => tab.props['data-tab'] === 'rooms');
+    await act(async () => roomsTab?.props.onClick());
     expect(getInput(renderer).props.value).toBe('General');
-    expect(allFilter.props['aria-pressed']).toBe(true);
+    expect(selectedTab(renderer)).toBe('rooms');
+    expect(getOptions(renderer).every((option) => option.props['data-kind'] === 'room')).toBe(
+      true
+    );
+  });
+
+  it('lists spaces, marked as spaces, on the Rooms tab', async () => {
+    const renderer = renderPalette({ initialTab: 'rooms' });
+    const kinds = getOptions(renderer).map((option) => option.props['data-kind']);
+    expect(kinds).toEqual(['room', 'room', 'space']);
+  });
+
+  it('keeps spaces out of the starter rooms on All so Enter switches to a room', async () => {
+    const renderer = renderPalette({
+      source: {
+        ...FIXTURE_SOURCE,
+        rooms: FIXTURE_SOURCE.rooms.map((room) =>
+          room.kind === 'space' ? { ...room, sortRank: 99 } : room
+        ),
+      },
+    });
+    expect(getOptions(renderer)[0]?.props['data-item-id']).toBe('!general:example.org');
+    expect(getOptions(renderer).some((option) => option.props['data-kind'] === 'space')).toBe(
+      false
+    );
+    await type(renderer, 'Engineering');
+    expect(getOptions(renderer)[0]?.props['data-kind']).toBe('space');
+  });
+
+  it('renders the starter sections for an empty query, rooms first and no messages', () => {
+    vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
+    const renderer = renderPalette();
+    const groups = renderer.root.findAll(
+      (node) => node.props.role === 'group' && node.props['data-section']
+    );
+    expect(groups.map((group) => group.props['data-section'])).toEqual([
+      'rooms',
+      'threads',
+      'actions',
+      'users',
+    ]);
+    expect(getOptions(renderer)[0]?.props['data-selected']).toBe(true);
+    expect(FIXTURE_SOURCE.getUsers).toHaveBeenCalledWith({
+      exhaustive: false,
+      includeRelatedRooms: false,
+    });
+  });
+
+  it('shows the top few of each section on All and the rest on its own tab', async () => {
+    const actions = Array.from({ length: 6 }, (_, n) => ({
+      id: `action-${n}`,
+      kind: 'action' as const,
+      title: `Action ${n}`,
+      sortRank: 10 - n,
+    }));
+    const renderer = renderPalette({ source: { ...FIXTURE_SOURCE, actions } });
+    expect(optionIds(renderer).filter((id) => id.startsWith('action-'))).toHaveLength(3);
+    await press(renderer, 'Tab', { shiftKey: true });
+    expect(selectedTab(renderer)).toBe('actions');
+    expect(optionIds(renderer)).toHaveLength(6);
+  });
+
+  it('asks People for related-room users on its tab and for any typed search', async () => {
+    vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
+    const renderer = renderPalette({ initialTab: 'users' });
+    expect(FIXTURE_SOURCE.getUsers).toHaveBeenLastCalledWith({
+      exhaustive: false,
+      includeRelatedRooms: true,
+    });
+    await type(renderer, 'ali');
+    expect(FIXTURE_SOURCE.getUsers).toHaveBeenLastCalledWith({
+      exhaustive: true,
+      includeRelatedRooms: true,
+    });
+    expect(getOptions(renderer).map((option) => option.props['data-kind'])).toEqual(['user']);
+  });
+
+  it('only searches the active section on a single-section tab', async () => {
+    const renderer = renderPalette({ initialTab: 'users' });
+    searchCommandPaletteSectionCalls.mockClear();
+    await type(renderer, 'alice');
+    expect(searchCommandPaletteSectionCalls).toHaveBeenCalledTimes(1);
+    expect(
+      searchCommandPaletteSectionCalls.mock.calls[0]?.[0]?.items.every(
+        (item: { kind: string }) => item.kind === 'user'
+      )
+    ).toBe(true);
+  });
+
+  it('asks the server only while messages are on screen', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'walrus');
+    expect(useMessages).toHaveBeenLastCalledWith('walrus', true);
+    await press(renderer, 'Tab');
+    expect(useMessages).toHaveBeenLastCalledWith('walrus', false);
+    await press(renderer, 'Tab', { shiftKey: true });
+    await press(renderer, 'Tab', { shiftKey: true });
+    await press(renderer, 'Tab', { shiftKey: true });
+    expect(selectedTab(renderer)).toBe('messages');
+    expect(useMessages).toHaveBeenLastCalledWith('walrus', true);
+  });
+
+  it('shows local results at once, with only a quiet loading line for messages', async () => {
+    const renderer = renderPalette();
+    setMessages({ status: 'loading' });
+    await type(renderer, 'e');
+    const sections = renderer.root
+      .findAll((node) => node.props.role === 'group' && node.props['data-section'])
+      .map((group) => group.props['data-section']);
+    expect(sections.at(-1)).toBe('messages');
+    expect(sections.length).toBeGreaterThan(1);
+    const loading = renderer.root.findByProps({ 'data-note': 'loading' });
+    expect(loading.findAllByProps({ 'data-spinner': true })).toHaveLength(1);
+    expect(
+      getOptions(renderer).filter((option) => option.props['data-kind'] === 'message')
+    ).toHaveLength(0);
+  });
+
+  it('keeps the highlighted row and the rows above it when message results arrive', async () => {
+    const renderer = renderPalette();
+    setMessages({ status: 'loading' });
+    await type(renderer, 'e');
+    await press(renderer, 'ArrowDown');
+    const highlighted = selectedId(renderer);
+    const before = optionIds(renderer);
+    expect(highlighted).toBe(before[1]);
+
+    setMessages({ status: 'done', items: [messageHit(1), messageHit(2)] });
+    await act(async () => renderer.update(paletteElement()));
+
+    expect(selectedId(renderer)).toBe(highlighted);
+    expect(optionIds(renderer).slice(0, before.length)).toEqual(before);
+    expect(optionIds(renderer).slice(before.length)).toEqual([
+      'message:!general:example.org:$hit1',
+      'message:!general:example.org:$hit2',
+      'search-page',
+    ]);
+  });
+
+  it('highlights the first hit when results arrive on an empty Messages tab', async () => {
+    const renderer = renderPalette({ initialTab: 'messages' });
+    setMessages({ status: 'loading' });
+    await type(renderer, 'walrus');
+    expect(getOptions(renderer)).toHaveLength(0);
+    expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
+
+    setMessages({ status: 'done', items: [messageHit(1), messageHit(2)] });
+    await act(async () => renderer.update(paletteElement({ initialTab: 'messages' })));
+    expect(selectedId(renderer)).toBe('message:!general:example.org:$hit1');
+    await press(renderer, 'Enter');
+    expect(messageState.current.items[0]?.onSelect).toHaveBeenCalledOnce();
+  });
+
+  it('ends the messages with See all results, which opens the search page', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ initialTab: 'messages', requestClose });
+    setMessages({ status: 'done', items: [messageHit(1)] });
+    await type(renderer, ' walrus ');
+    expect(optionIds(renderer).at(-1)).toBe('search-page');
+    // The count in the footer leaves out See all results.
+    expect(renderer.root.findByProps({ role: 'status' }).children).toEqual(['1 result']);
+    await press(renderer, 'ArrowUp');
+    await press(renderer, 'Enter');
+    expect(messageState.current.openSearchPage).toHaveBeenCalledWith('walrus');
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('shows a search error as one quiet line and keeps the other results', async () => {
+    const renderer = renderPalette();
+    setMessages({ status: 'error' });
+    await type(renderer, 'General');
+    expect(renderer.root.findByProps({ 'data-note': 'error' }).children).toContain(
+      'Search failed. Try again.'
+    );
+    expect(optionIds(renderer)[0]).toBe('!general:example.org');
+  });
+
+  it('says that encrypted rooms are not searched only when the user is in some', async () => {
+    const renderer = renderPalette({ initialTab: 'messages' });
+    expect(renderer.root.findAllByProps({ 'data-note': 'encrypted' })).toHaveLength(0);
+    setMessages({ encryptedRooms: true });
+    await act(async () => renderer.update(paletteElement({ initialTab: 'messages' })));
+    expect(renderer.root.findByProps({ 'data-note': 'encrypted' }).children).toContain(
+      "The server can't search encrypted rooms."
+    );
   });
 
   it('exposes the keyboard selection to assistive technology', async () => {
     const renderer = renderPalette();
-    await act(async () => {
-      await Promise.resolve();
-    });
     const input = getInput(renderer);
     expect(input.props.role).toBe('combobox');
     const list = renderer.root.findByProps({ role: 'listbox' });
     expect(input.props['aria-controls']).toBe(list.props.id);
     const selected = () => renderer.root.findByProps({ role: 'option', 'aria-selected': true });
-    expect(input.props['aria-activedescendant']).toBe(selected().props.id);
+    expect(getInput(renderer).props['aria-activedescendant']).toBe(selected().props.id);
     const firstId = selected().props.id;
-    await act(async () => input.props.onKeyDown({ key: 'ArrowDown', preventDefault: vi.fn() }));
+    await press(renderer, 'ArrowDown');
     expect(selected().props.id).not.toBe(firstId);
-    expect(input.props['aria-activedescendant']).toBe(selected().props.id);
+    expect(getInput(renderer).props['aria-activedescendant']).toBe(selected().props.id);
+  });
+
+  it('moves the selected row with the arrows and wraps around', async () => {
+    const renderer = renderPalette({ initialTab: 'rooms' });
+    expect(selectedId(renderer)).toBe(optionIds(renderer)[0]);
+    await press(renderer, 'ArrowDown');
+    expect(selectedId(renderer)).toBe(optionIds(renderer)[1]);
+    await press(renderer, 'ArrowUp');
+    await press(renderer, 'ArrowUp');
+    expect(selectedId(renderer)).toBe(optionIds(renderer).at(-1));
   });
 
   it('executes the hovered result when Enter is pressed', async () => {
@@ -329,14 +612,9 @@ describe('CommandPalette', () => {
         actions: [{ id: 'hover-action', kind: 'action', title: 'Hover me', onSelect }],
       },
     });
-    await act(async () => {
-      await Promise.resolve();
-    });
     const row = renderer.root.findByProps({ 'data-item-id': 'hover-action' });
     await act(async () => row.props.onPointerMove({ pointerType: 'mouse' }));
-    await act(async () =>
-      getInput(renderer).props.onKeyDown({ key: 'Enter', preventDefault: vi.fn() })
-    );
+    await press(renderer, 'Enter');
     expect(onSelect).toHaveBeenCalledOnce();
   });
 
@@ -353,202 +631,25 @@ describe('CommandPalette', () => {
     expect(requestClose).not.toHaveBeenCalled();
   });
 
-  it('clears an empty search back to the starter results', async () => {
-    const renderer = renderPalette();
-    await act(async () =>
-      getInput(renderer).props.onChange({ currentTarget: { value: '> zxqnotfound' } })
-    );
-    expect(renderer.root.findAllByProps({ role: 'option' })).toHaveLength(0);
+  it('closes the shell when the selected item is chosen with Enter, and on Escape', async () => {
+    const requestClose = vi.fn();
+    const renderer = renderPalette({ requestClose });
+    await press(renderer, 'Enter');
+    expect(requestClose).toHaveBeenCalledTimes(1);
+    await press(renderer, 'Escape');
+    expect(requestClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears a search without results back to the starter results', async () => {
+    const renderer = renderPalette({ initialTab: 'actions' });
+    await type(renderer, 'zxqnotfound');
+    expect(getOptions(renderer)).toHaveLength(0);
     expect(getInput(renderer).props['aria-activedescendant']).toBeUndefined();
     const clear = renderer.root.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Clear search'
     );
     await act(async () => clear.props.onClick());
     expect(getInput(renderer).props.value).toBe('');
-    expect(renderer.root.findAllByProps({ role: 'option' }).length).toBeGreaterThan(0);
-  });
-
-  it('renders the starter sections for an empty query', () => {
-    vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
-    const renderer = renderPalette();
-    const text = JSON.stringify(renderer.toJSON());
-
-    expect(text).toContain('Open Settings');
-    expect(text).toContain('Investigate login incident');
-    expect(text).toContain('General');
-    expect(text).toContain('Alice');
-    expect(text).not.toContain('Search "" in current room');
-    expect(FIXTURE_SOURCE.getUsers).toHaveBeenCalledWith({
-      exhaustive: false,
-      includeRelatedRooms: false,
-    });
-  });
-
-  it('lists rooms before every other section for empty and typed searches', async () => {
-    const renderer = renderPalette();
-    const firstSectionKinds = () => {
-      const options = getOptions(renderer);
-      return options.slice(0, 2).map((option) => option.props['data-kind']);
-    };
-    expect(firstSectionKinds()).toEqual(['room', 'room']);
-    expect(getOptions(renderer)[0].props['data-selected']).toBe(true);
-
-    await act(async () =>
-      getInput(renderer).props.onChange({ currentTarget: { value: 'General' } })
-    );
-    expect(getOptions(renderer)[0].props['data-kind']).toBe('room');
-    expect(getOptions(renderer)[0].props['data-item-id']).toBe('!general:example.org');
-  });
-
-  it('keeps spaces out of the starter rooms so Enter switches to a room', async () => {
-    const renderer = renderPalette({
-      source: {
-        ...FIXTURE_SOURCE,
-        rooms: FIXTURE_SOURCE.rooms.map((room) =>
-          room.kind === 'space' ? { ...room, sortRank: 99 } : room
-        ),
-      },
-    });
-    expect(getOptions(renderer)[0].props['data-item-id']).toBe('!general:example.org');
-    expect(getOptions(renderer).some((option) => option.props['data-kind'] === 'space')).toBe(
-      false
-    );
-
-    await act(async () =>
-      getInput(renderer).props.onChange({ currentTarget: { value: 'Engineering' } })
-    );
-    expect(getOptions(renderer)[0].props['data-kind']).toBe('space');
-  });
-
-  it('orders the category filters with rooms first', () => {
-    const renderer = renderPalette();
-    const filterGroup = renderer.root.findByProps({
-      role: 'group',
-      'aria-label': 'Filter results',
-    });
-    expect(filterGroup.findAllByType('button').map((button) => button.props['aria-label'])).toEqual(
-      ['All', 'Rooms', 'Threads', 'Users', 'Actions', 'Spaces']
-    );
-  });
-
-  it('only requests related-room users for an explicit user search', async () => {
-    vi.mocked(FIXTURE_SOURCE.getUsers).mockClear();
-    const renderer = renderPalette();
-
-    await act(async () => {
-      getInput(renderer).props.onChange({ currentTarget: { value: '@alice' } });
-    });
-
-    expect(FIXTURE_SOURCE.getUsers).toHaveBeenLastCalledWith({
-      exhaustive: true,
-      includeRelatedRooms: true,
-    });
-  });
-
-  it('scopes sections based on the parsed prefix', async () => {
-    const renderer = renderPalette();
-
-    await act(async () => {
-      getInput(renderer).props.onChange({
-        currentTarget: {
-          value: '@alice',
-        },
-      });
-    });
-
-    const text = JSON.stringify(renderer.toJSON());
-    expect(text).toContain('Alice');
-    expect(text).toContain('@alice:example.org');
-    expect(text).not.toContain('Open Settings');
-    expect(text).not.toContain('Investigate login incident');
-  });
-
-  it('only evaluates the active section after a single-prefix query narrows the mode', async () => {
-    const renderer = renderPalette();
-
-    searchCommandPaletteSectionCalls.mockClear();
-
-    await act(async () => {
-      getInput(renderer).props.onChange({
-        currentTarget: {
-          value: '@alice',
-        },
-      });
-    });
-
-    expect(searchCommandPaletteSectionCalls).toHaveBeenCalledTimes(1);
-    expect(
-      searchCommandPaletteSectionCalls.mock.calls[0]?.[0]?.items.every(
-        (item: { kind: string }) => item.kind === 'user'
-      )
-    ).toBe(true);
-  });
-
-  it('keeps the star alias scoped to spaces', async () => {
-    const renderer = renderPalette();
-
-    await act(async () => {
-      getInput(renderer).props.onChange({
-        currentTarget: {
-          value: '*',
-        },
-      });
-    });
-
-    const text = JSON.stringify(renderer.toJSON());
-    expect(text).toContain('Engineering Space');
-    expect(text).toContain('Nested engineering rooms');
-    expect(text).not.toContain('General');
-    expect(text).not.toContain('Product');
-  });
-
-  it('closes the shell when the selected fixture item is chosen with enter', async () => {
-    const requestClose = vi.fn();
-    const renderer = renderPalette({ requestClose });
-
-    await act(async () => {
-      getInput(renderer).props.onKeyDown({
-        key: 'Enter',
-        preventDefault: vi.fn(),
-      });
-    });
-
-    expect(requestClose).toHaveBeenCalledTimes(1);
-  });
-
-  it('moves the selected row with arrow keys', async () => {
-    const renderer = renderPalette();
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getOptions(renderer)[0].props['data-selected']).toBe(true);
-
-    await act(async () => {
-      getInput(renderer).props.onKeyDown({
-        key: 'ArrowDown',
-        preventDefault: vi.fn(),
-      });
-    });
-
-    const selectedButtons = getOptions(renderer).filter((button) => button.props['data-selected']);
-
-    expect(selectedButtons).toHaveLength(1);
-    expect(selectedButtons[0].props['data-item-id']).toBe(
-      getOptions(renderer)[1].props['data-item-id']
-    );
-  });
-
-  it('keeps typed prefixes in sync with the category buttons', async () => {
-    const renderer = renderPalette();
-    await act(async () =>
-      getInput(renderer).props.onChange({ currentTarget: { value: 't: release' } })
-    );
-    const activeFilter = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-pressed'] === true
-    );
-    expect(activeFilter.props['aria-label']).toBe('Threads');
-    expect(JSON.stringify(renderer.toJSON())).toContain('Ship release checklist');
+    expect(getOptions(renderer).length).toBeGreaterThan(0);
   });
 });

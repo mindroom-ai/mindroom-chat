@@ -345,5 +345,19 @@
   "composer": {
     "emoji": "이모지",
     "cancelReply": "답장 취소"
+  },
+  "commandPalette": {
+    "people": "사람",
+    "tabsLabel": "결과 유형",
+    "switchTabs": "탭 전환",
+    "space": "스페이스",
+    "messageSearch": {
+      "searching": "메시지 검색 중…",
+      "hint": "입력하면 모든 방의 메시지를 검색합니다.",
+      "encrypted": "서버는 암호화된 방을 검색할 수 없습니다.",
+      "seeAll": "모든 결과 보기",
+      "seeAllDescription": "필터가 있는 메시지 검색 열기",
+      "thread": "스레드"
+    }
   }
 }

@@ -1,65 +1,42 @@
-import {
-  COMMAND_PALETTE_PREFIX_HINTS,
-  type CommandPaletteParsedQuery,
-  type CommandPalettePrefix,
-  type CommandPaletteSectionId,
-} from './commandPaletteTypes';
+import type { CommandPaletteSectionId, CommandPaletteTab } from './commandPaletteTypes';
 
-// Switching rooms is the most common reason to open the palette, so rooms lead
-// both orders.
-const EMPTY_UNIFIED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
+// Switching rooms is the most common reason to open the palette, so rooms lead All. Messages
+// come from the server after everything else, so they go last and arrive below what is shown.
+const ALL_EMPTY_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
   'rooms',
   'threads',
   'actions',
   'users',
 ];
 
-const TYPED_UNIFIED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
+const ALL_TYPED_SECTION_ORDER: readonly CommandPaletteSectionId[] = [
   'rooms',
   'threads',
   'users',
+  'actions',
   'messages',
-  'actions',
 ];
 
-const resolveQueryMode = (
-  prefix: CommandPalettePrefix | undefined
-): CommandPaletteParsedQuery['mode'] => {
-  if (prefix === '>') return 'actions';
-  if (prefix === '#') return 'rooms';
-  if (prefix === '@') return 'users';
-  if (prefix === '*') return 'spaces';
-  if (prefix === 't:') return 'threads';
-  return 'all';
+// All shows the top few of each section; a section's own tab shows many more.
+const ALL_TAB_SECTION_LIMITS: Readonly<Record<CommandPaletteSectionId, number>> = {
+  rooms: 5,
+  threads: 3,
+  users: 3,
+  actions: 3,
+  messages: 3,
 };
 
-const getPrefix = (value: string): CommandPalettePrefix | undefined =>
-  COMMAND_PALETTE_PREFIX_HINTS.find((prefix) => value.startsWith(prefix));
-
-export const parseCommandPaletteQuery = (value: string): CommandPaletteParsedQuery => {
-  const leadingTrimmedValue = value.trimStart();
-  const prefix = getPrefix(leadingTrimmedValue);
-  const searchText = prefix
-    ? leadingTrimmedValue.slice(prefix.length).trim()
-    : leadingTrimmedValue.trim();
-  const mode = resolveQueryMode(prefix);
-
-  return {
-    raw: value,
-    prefix,
-    mode,
-    searchText,
-    showMessages: mode === 'all' && searchText.length > 0,
-  };
-};
+const OWN_TAB_SECTION_LIMIT = 50;
 
 export const getCommandPaletteSectionOrder = (
-  query: CommandPaletteParsedQuery
+  tab: CommandPaletteTab,
+  hasSearchText: boolean
 ): readonly CommandPaletteSectionId[] => {
-  if (query.mode === 'actions') return ['actions'];
-  if (query.mode === 'rooms' || query.mode === 'spaces') return ['rooms'];
-  if (query.mode === 'users') return ['users'];
-  if (query.mode === 'threads') return ['threads'];
-  if (query.searchText.length === 0) return EMPTY_UNIFIED_SECTION_ORDER;
-  return TYPED_UNIFIED_SECTION_ORDER;
+  if (tab !== 'all') return [tab];
+  return hasSearchText ? ALL_TYPED_SECTION_ORDER : ALL_EMPTY_SECTION_ORDER;
 };
+
+export const getCommandPaletteSectionLimit = (
+  sectionId: CommandPaletteSectionId,
+  tab: CommandPaletteTab
+): number => (tab === 'all' ? ALL_TAB_SECTION_LIMITS[sectionId] : OWN_TAB_SECTION_LIMIT);

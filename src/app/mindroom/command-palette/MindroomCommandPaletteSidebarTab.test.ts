@@ -67,7 +67,7 @@ vi.mock('../../components/sidebar', () => ({
 
 const renderSearchTab = (open = false) => {
   const store = createStore();
-  store.set(commandPaletteOpenAtom, open);
+  store.set(commandPaletteOpenAtom, open ? 'all' : undefined);
 
   const renderer = create(
     React.createElement(Provider, { store }, React.createElement(MindroomCommandPaletteSidebarTab))
@@ -77,7 +77,7 @@ const renderSearchTab = (open = false) => {
 };
 
 describe('MindroomCommandPaletteSidebarTab', () => {
-  it('opens the shared command palette atom from the sidebar trigger', async () => {
+  it('opens the shared command palette atom on All from the sidebar trigger', async () => {
     const { renderer, store } = renderSearchTab(false);
     const button = renderer.root.findByType('button');
 
@@ -85,7 +85,7 @@ describe('MindroomCommandPaletteSidebarTab', () => {
       button.props.onClick();
     });
 
-    expect(store.get(commandPaletteOpenAtom)).toBe(true);
+    expect(store.get(commandPaletteOpenAtom)).toBe('all');
   });
 
   it('uses a search icon, the active state, and a tooltip that teaches the shortcut', () => {
