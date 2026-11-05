@@ -85,6 +85,7 @@ function Sidebar() {
 }
 
 const storage = new Map<string, string>();
+let storageListeners = new Set<(event: StorageEvent) => void>();
 let client = createClient();
 let renderer: ReactTestRenderer | undefined;
 
@@ -100,7 +101,15 @@ beforeEach(() => {
     removeItem: (key: string) => storage.delete(key),
     setItem: (key: string, value: string) => storage.set(key, value),
   } as unknown as Storage);
-  vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+  storageListeners = new Set();
+  vi.stubGlobal('window', {
+    addEventListener: (type: string, listener: (event: StorageEvent) => void) => {
+      if (type === 'storage') storageListeners.add(listener);
+    },
+    removeEventListener: (type: string, listener: (event: StorageEvent) => void) => {
+      if (type === 'storage') storageListeners.delete(listener);
+    },
+  });
   // The first half of the rooms has a chosen view; the rest open in their default.
   roomIds.slice(0, ROOMS / 2).forEach((roomId) => {
     storage.set(getRoomViewModeStorageKey(SESSION, roomId), JSON.stringify('compact'));
@@ -169,5 +178,18 @@ describe('a sidebar of many thread entries', () => {
 
     expect([...entryRenders.keys()]).toEqual([roomOf(1)]);
     expect(entryRenders.get(roomOf(1))).toBe(ENTRIES / ROOMS);
+  });
+
+  it("follows another tab's choice of the view a room already shows by default", () => {
+    // Room 5 has no agent and no choice: it shows Threads while its stored value is the default.
+    const key = getRoomViewModeStorageKey(SESSION, roomOf(5));
+    expect(modes[5]).toBe('threaded');
+
+    storage.set(key, JSON.stringify('compact'));
+    act(() => {
+      storageListeners.forEach((listener) => listener({ key } as StorageEvent));
+    });
+
+    expect(modes[5]).toBe('compact');
   });
 });

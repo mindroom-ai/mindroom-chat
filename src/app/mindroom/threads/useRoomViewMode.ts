@@ -110,10 +110,30 @@ const useRoomHasMindroomAgent = (roomId: string, watch: boolean): boolean => {
 };
 
 /**
- * Counts the reader's view choices per room, so every hook of the room re-reads whether it has
- * one: choosing the view a room already shows by default leaves the stored value as it was.
+ * Counts the reader's view choices per room, here and (through `storage` events) in other tabs, so
+ * every hook of the room re-reads whether it has one: choosing the view a room already shows by
+ * default leaves the stored value as it was.
  */
-const roomViewChoicesAtom = atomFamily((_roomId: string) => atom(0));
+const roomViewChoicesAtom = atomFamily((roomId: string) => {
+  const choices = atom(0);
+  choices.onMount = (setChoices) => {
+    if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') {
+      return undefined;
+    }
+    const handleStorage = (event: StorageEvent) => {
+      const { key } = event;
+      if (key !== null && !(key.startsWith('roomViewMode:') && key.endsWith(`:${roomId}`))) return;
+      setChoices((count) => count + 1);
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      if (typeof window.removeEventListener === 'function') {
+        window.removeEventListener('storage', handleStorage);
+      }
+    };
+  };
+  return choices;
+});
 
 /**
  * One account-scoped source for persisted and effective room view modes. A room without a chosen
@@ -128,7 +148,7 @@ export const useRoomViewMode = (roomId: string, hasMindroomAgents?: boolean) => 
     [roomId, sessionId]
   );
   const [storedViewMode, setStoredViewMode] = useAtom(viewModeAtom);
-  useAtomValue(roomViewChoicesAtom(roomId));
+  const choices = useAtomValue(roomViewChoicesAtom(roomId));
   const countChoice = useSetAtom(roomViewChoicesAtom(roomId));
   const setViewMode = useCallback(
     (mode: RoomViewMode) => {
@@ -137,7 +157,12 @@ export const useRoomViewMode = (roomId: string, hasMindroomAgents?: boolean) => 
     },
     [countChoice, setStoredViewMode]
   );
-  const chosen = hasStoredRoomViewMode(sessionId, roomId);
+  // Read again only when the stored value or the room's choices change.
+  const chosen = useMemo(
+    () => hasStoredRoomViewMode(sessionId, roomId),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [choices, roomId, sessionId, storedViewMode]
+  );
   const detected = useRoomHasMindroomAgent(
     roomId,
     direct || (!chosen && hasMindroomAgents === undefined)
