@@ -163,6 +163,9 @@
     "appError": {
       "title": "Er is iets misgegaan.",
       "description": "MindRoom liep tegen een probleem aan en kon dit scherm niet tonen. Laad opnieuw om verder te gaan."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Wachtwoord vergeten?"
     }
   },
   "featureUi": {

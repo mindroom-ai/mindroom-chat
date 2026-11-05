@@ -166,6 +166,9 @@
     "appError": {
       "title": "Algo correu mal.",
       "description": "O MindRoom encontrou um problema e não conseguiu mostrar este ecrã. Recarregue para continuar."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Esqueceu-se da palavra-passe?"
     }
   },
   "featureUi": {

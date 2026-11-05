@@ -163,6 +163,9 @@
     "appError": {
       "title": "Bir şeyler ters gitti.",
       "description": "MindRoom bir sorunla karşılaştı ve bu ekranı gösteremedi. Devam etmek için yeniden yükleyin."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Parolanızı mı unuttunuz?"
     }
   },
   "featureUi": {

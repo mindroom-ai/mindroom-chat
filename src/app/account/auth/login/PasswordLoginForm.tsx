@@ -115,7 +115,7 @@ export function PasswordLoginForm({ baseUrl, server }: PasswordLoginFormProps) {
         />
         <Box justifyContent="End">
           <Text as={Link} size="T200" to={resetLink}>
-            {t('sharedUi.passwordLoginForm.forgetPassword')}
+            {t('sharedUi.passwordLoginForm.forgotPassword')}
           </Text>
         </Box>
       </AuthField>

@@ -163,6 +163,9 @@
     "appError": {
       "title": "कुछ गलत हो गया।",
       "description": "MindRoom को एक समस्या आई और वह यह स्क्रीन नहीं दिखा सका। जारी रखने के लिए फिर से लोड करें।"
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "पासवर्ड भूल गए?"
     }
   },
   "featureUi": {

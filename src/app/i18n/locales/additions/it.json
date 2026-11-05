@@ -166,6 +166,9 @@
     "appError": {
       "title": "Si è verificato un problema.",
       "description": "MindRoom ha riscontrato un problema e non è riuscito a mostrare questa schermata. Ricarica per continuare."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Password dimenticata?"
     }
   },
   "featureUi": {

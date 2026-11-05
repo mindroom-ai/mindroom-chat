@@ -160,6 +160,9 @@
     "appError": {
       "title": "發生了一些問題。",
       "description": "MindRoom 發生問題，無法顯示此畫面。請重新載入以繼續。"
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "忘記密碼？"
     }
   },
   "featureUi": {

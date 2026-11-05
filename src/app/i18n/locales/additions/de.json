@@ -163,6 +163,9 @@
     "appError": {
       "title": "Etwas ist schiefgelaufen.",
       "description": "MindRoom ist auf ein Problem gestoßen und konnte diese Ansicht nicht anzeigen. Lade neu, um fortzufahren."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Passwort vergessen?"
     }
   },
   "featureUi": {

@@ -175,6 +175,9 @@
     "appError": {
       "title": "حدث خطأ ما.",
       "description": "واجه MindRoom مشكلة ولم يتمكن من عرض هذه الشاشة. أعد التحميل للمتابعة."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "هل نسيت كلمة المرور؟"
     }
   },
   "featureUi": {

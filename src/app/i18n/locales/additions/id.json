@@ -160,6 +160,9 @@
     "appError": {
       "title": "Terjadi kesalahan.",
       "description": "MindRoom mengalami masalah dan tidak dapat menampilkan layar ini. Muat ulang untuk melanjutkan."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Lupa kata sandi?"
     }
   },
   "featureUi": {

@@ -169,6 +169,9 @@
     "appError": {
       "title": "Что-то пошло не так.",
       "description": "В MindRoom возникла проблема, и этот экран не удалось показать. Перезагрузите страницу, чтобы продолжить."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Забыли пароль?"
     }
   },
   "featureUi": {

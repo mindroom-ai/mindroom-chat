@@ -163,6 +163,9 @@
     "appError": {
       "title": "Something went wrong.",
       "description": "MindRoom ran into a problem and couldn't show this screen. Reload to continue."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Forgot Password?"
     }
   },
   "featureUi": {

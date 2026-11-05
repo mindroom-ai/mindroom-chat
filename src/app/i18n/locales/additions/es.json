@@ -166,6 +166,9 @@
     "appError": {
       "title": "Algo salió mal.",
       "description": "MindRoom tuvo un problema y no pudo mostrar esta pantalla. Recarga para continuar."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "¿Has olvidado la contraseña?"
     }
   },
   "featureUi": {

@@ -166,6 +166,9 @@
     "appError": {
       "title": "Un problème est survenu.",
       "description": "MindRoom a rencontré un problème et n’a pas pu afficher cet écran. Rechargez pour continuer."
+    },
+    "passwordLoginForm": {
+      "forgotPassword": "Mot de passe oublié ?"
     }
   },
   "featureUi": {
