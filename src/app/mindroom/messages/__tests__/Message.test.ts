@@ -2,6 +2,7 @@ import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MESSAGE_AVATAR_SIZE } from '../../../components/message/layout/config';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 type HostNodeMock = {
   focus: ReturnType<typeof vi.fn>;
@@ -572,6 +573,8 @@ const mindroomAiRunContent = {
     },
   },
 } as const;
+
+importBeforeTests(() => import('../../../features/room/message/Message'));
 
 describe('Message local-echo actions', () => {
   it('hides every action that needs a confirmed server event id', async () => {

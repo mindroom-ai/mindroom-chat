@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
   () => ({
@@ -373,6 +374,8 @@ afterEach(() => {
   permissionState.canInvite = true;
   permissionState.canKick = true;
 });
+
+importBeforeTests(() => import('../../../features/room/RoomViewHeader'));
 
 describe('RoomViewHeader', () => {
   it('hides schedules without agents', async () => {

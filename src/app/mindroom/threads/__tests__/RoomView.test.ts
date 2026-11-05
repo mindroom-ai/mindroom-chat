@@ -493,7 +493,9 @@ const createCompactScrollElement = () => ({
 
 importBeforeTests(() => import('../../../features/room/RoomView'));
 
-describe('RoomView', () => {
+// Every test resets the module registry and imports RoomView again, which evaluates its whole
+// module graph: well under a second, but over 5 s on a loaded machine, so each test gets 30 s.
+describe('RoomView', { timeout: 30_000 }, () => {
   const originalResizeObserver = globalThis.ResizeObserver;
   beforeEach(() => {
     vi.stubGlobal(

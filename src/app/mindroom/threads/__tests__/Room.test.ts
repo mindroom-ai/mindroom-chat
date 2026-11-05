@@ -8,6 +8,7 @@ import type { ClientConfig } from '../../../hooks/useClientConfig';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
 import { useKeyDown } from '../../../hooks/useKeyDown';
 import { markRoomAndThreadsAsRead, markThreadAsRead } from '../../notifications/readReceipts';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 type MockRoomViewProps = {
   computerAvailable?: boolean;
@@ -305,7 +306,11 @@ vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn(
 const computerWrapper = (renderer: ReturnType<typeof create>) =>
   renderer.root.findByProps({ 'data-testid': 'resizable-computer-panel' });
 
-describe('Room', () => {
+importBeforeTests(() => import('../../../features/room/Room'));
+
+// Every test resets the module registry and imports Room again, which evaluates its whole
+// module graph: well under a second, but over 5 s on a loaded machine, so each test gets 30 s.
+describe('Room', { timeout: 30_000 }, () => {
   beforeEach(() => {
     vi.resetModules();
   });

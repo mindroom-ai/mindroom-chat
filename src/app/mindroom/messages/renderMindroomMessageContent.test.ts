@@ -4,6 +4,7 @@ import { create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { persistAttachmentEvents } from '../threads/__tests__/attachmentFixtures';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
+import { importBeforeTests } from '../../test-utils/importBeforeTests';
 
 const toolApprovalCardMock = vi.hoisted(() => vi.fn());
 const longTextTextMock = vi.hoisted(() => vi.fn());
@@ -165,6 +166,8 @@ const renderNode = async (
     )
   );
 };
+
+importBeforeTests(() => import('./renderMindroomMessageContent'));
 
 describe('renderMindroomMessageContent', () => {
   it('renders only the marked router transcription placeholder as an animated status', async () => {

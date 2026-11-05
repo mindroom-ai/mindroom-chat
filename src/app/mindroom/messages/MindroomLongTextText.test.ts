@@ -7,6 +7,7 @@ import { ClientConfigProvider } from '../../hooks/useClientConfig';
 import { trimReplyFromBody } from '../../utils/room';
 import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from './messageExtrasData';
 import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from './longText';
+import { importBeforeTests } from '../../test-utils/importBeforeTests';
 
 const matrixMocks = vi.hoisted(() => ({
   decryptFile: vi.fn(),
@@ -378,6 +379,10 @@ const toolCountLabel = (count: number, flags = '') => {
 
 const reportVersions = (versions: string[]) =>
   Object.assign(hookMocks.mx, { getVersions: async () => ({ versions, unstable_features: {} }) });
+
+importBeforeTests(() =>
+  Promise.all([import('../threads/CollapsibleMessage'), import('./renderMindroomMessageContent')])
+);
 
 describe('downloadMindroomLongTextSidecarText', () => {
   beforeEach(() => {
