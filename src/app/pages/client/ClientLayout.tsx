@@ -13,6 +13,8 @@ import { RUNTIME_NAVIGATION_PATHS } from '../../../serviceWorkerNavigation';
 
 type ClientLayoutProps = {
   nav: ReactNode;
+  /** Classes for the row of the rail and the page (the floating cards' shell). */
+  className?: string;
   // Optional so `createElement(ClientLayout, { nav }, page)` can pass the page positionally.
   children?: ReactNode;
 };
@@ -26,7 +28,7 @@ const isRuntimeHandOffPath = (pathname: string): boolean =>
  * remembers the route each session last showed, and replaces room alias
  * routes with room ID routes before the page renders.
  */
-export function ClientLayout({ nav, children }: ClientLayoutProps) {
+export function ClientLayout({ nav, className, children }: ClientLayoutProps) {
   const mx = useMatrixClient();
   const activeSession = useActiveSession();
   const { hash, pathname, search } = useLocation();
@@ -61,7 +63,7 @@ export function ClientLayout({ nav, children }: ClientLayoutProps) {
   }, [mx, sessionId, hasAlias, pathname, search, hash, navigate]);
 
   return (
-    <Box grow="Yes" style={{ height: '100%', minHeight: 0 }}>
+    <Box grow="Yes" className={className} style={{ height: '100%', minHeight: 0 }}>
       {nav}
       {waitingForAlias && sessionId ? null : children}
     </Box>

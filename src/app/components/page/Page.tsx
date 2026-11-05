@@ -8,6 +8,7 @@ import { ContainerColor } from '../../styles/ContainerColor.css';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { PageScroll } from './PageScroll';
 import * as css from './style.css';
+import { PageDivider, PageSurface } from './floatingCards.css';
 
 const NAV_HEADER_OUTLINE = `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`;
 
@@ -44,7 +45,9 @@ export function PageRoot({ nav, children, main }: PageRootProps) {
   const surfaceClass = useInheritSurfaceClass();
   // On mobile the navigation and the page take turns on screen, so nothing divides them.
   const divider =
-    nav && !mobile ? <Line direction="Vertical" size="300" variant="Background" /> : null;
+    nav && !mobile ? (
+      <Line className={PageDivider} direction="Vertical" size="300" variant="Background" />
+    ) : null;
 
   return (
     <Box className={classNames(ContainerColor({ variant: 'Background' }), surfaceClass)} grow="Yes">
@@ -134,6 +137,7 @@ const PAGE_MIN_SIZE = { minHeight: 0, minWidth: 0 };
 export const Page = as<'div'>(({ className, ...props }, ref) => {
   const pageClass = classNames(
     ContainerColor({ variant: 'Surface' }),
+    PageSurface,
     useInheritSurfaceClass(),
     className
   );

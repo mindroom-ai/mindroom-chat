@@ -1,5 +1,11 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { config } from 'folds';
+import { FloatingShell } from '../../../components/page/floatingCards.css';
+import { Bar } from './FilterBar.css';
+
+// In a floating card the filter bar spans the card, whose border already frames it: its glass rim
+// would draw a second edge beside the card's.
+globalStyle(`${FloatingShell} ${Bar}${Bar}::before`, { display: 'none' });
 
 export const View = style({
   display: 'flex',

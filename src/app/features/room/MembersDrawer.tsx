@@ -56,6 +56,7 @@ import { MemberSortMenu } from '../../components/MemberSortMenu';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { UserAvatar } from '../../components/user-avatar';
 import { ContainerColor } from '../../styles/ContainerColor.css';
+import { useFloatingCards } from '../../components/page/floatingCards';
 import { nameInitials } from '../../utils/common';
 import { getMxIdLocalPart } from '../../utils/matrix';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
@@ -206,6 +207,8 @@ export function MemberRow({ room, member }: { room: Room; member: RoomMember }) 
  */
 export function MembersDrawer({ room, members }: MembersDrawerProps) {
   const { t } = useTranslation();
+  // As a floating card the panel takes the conversation card's surface.
+  const variant = useFloatingCards() ? 'Surface' : 'Background';
   const myUserId = useMatrixClient().getSafeUserId();
   const [, setDrawerOpen] = useMembersDrawer();
   const levels = usePowerLevelsContext();
@@ -318,7 +321,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
 
   return (
     <Box
-      className={`${css.MembersDrawer} ${ContainerColor({ variant: 'Background' })}`}
+      className={`${css.MembersDrawer} ${ContainerColor({ variant })}`}
       direction="Column"
       shrink="No"
     >
@@ -333,7 +336,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
           data-y-scrollbar-width={0}
         >
           <ScrollHeaderProvider value>
-            <Header className={css.MembersHeaderControl} size="600" variant="Background">
+            <Header className={css.MembersHeaderControl} size="600" variant={variant}>
               <Box grow="Yes" alignItems="Center" gap="100" style={{ minWidth: 0 }}>
                 <Text
                   role="heading"
@@ -365,7 +368,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                 <IconButton
                   size="300"
                   radii="300"
-                  variant="Background"
+                  variant={variant}
                   aria-label={t('featureUi.room.membersDrawer.invitePeople')}
                   disabled={!canInvite}
                   onClick={() => setInviteOpen(true)}
@@ -375,7 +378,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                 <IconButton
                   size="300"
                   radii="300"
-                  variant="Background"
+                  variant={variant}
                   aria-label={t('featureUi.room.membersDrawer.close')}
                   onClick={() => setDrawerOpen(false)}
                 >
@@ -404,7 +407,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                 }
               >
                 <Chip
-                  variant="Background"
+                  variant={variant}
                   radii="300"
                   style={TOOLBAR_BUTTON_STYLE}
                   aria-haspopup="menu"
@@ -434,7 +437,7 @@ export function MembersDrawer({ room, members }: MembersDrawerProps) {
                   }
                 >
                   <Chip
-                    variant="Background"
+                    variant={variant}
                     radii="300"
                     style={TOOLBAR_BUTTON_STYLE}
                     aria-haspopup="menu"
