@@ -47,7 +47,7 @@ SMOKE_SPECS=(
   e2e/lane-c/slash-commands.spec.ts           # composer commands
   e2e/live/threads.spec.ts                    # thread overview, opening threads, a new root
   e2e/lane-c/room-view-defaults.spec.ts       # Threads for people, Compact for agent rooms
-  e2e/live/compact-thread-menu.spec.ts        # Compact card actions
+  e2e/live/compact-scroll-memory.spec.ts      # Compact view keeps its scroll position
   e2e/live/compact-card-display-names.spec.ts # Compact cards' names
   e2e/live/command-palette.spec.ts            # the palette, desktop and phone widths
   e2e/lane-c/settings-search.spec.ts          # Settings pages and search, phone included
