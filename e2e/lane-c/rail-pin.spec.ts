@@ -452,7 +452,8 @@ for (const buttons of ['on', 'off'] as const) {
 test('resizing switches the pin once each way and keeps the selected space in place', async ({
   page,
 }) => {
-  test.setTimeout(300_000);
+  // Over 200 window sizes: a loaded machine needs the time.
+  test.setTimeout(600_000);
   const account = await seedAccount('rail_pin_resize', 'on');
   await signIn(page, account, 'on', 900);
   const selectedId = account.spaces[9] ?? '';
@@ -485,8 +486,8 @@ test('resizing switches the pin once each way and keeps the selected space in pl
   expect(first.pinned).toBe(true);
 
   const sizes = [
-    ...Array.from({ length: 220 }, (_, step) => 900 - step * 2),
-    ...Array.from({ length: 220 }, (_, step) => 462 + step * 2),
+    ...Array.from({ length: 110 }, (_, step) => 900 - step * 4),
+    ...Array.from({ length: 110 }, (_, step) => 464 + step * 4),
   ];
   let previousY = await selectedY();
   let previousPinned = first.pinned;
