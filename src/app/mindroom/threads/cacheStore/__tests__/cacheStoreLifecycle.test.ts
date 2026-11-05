@@ -1,6 +1,10 @@
 import { IDBFactory, IDBKeyRange, IDBObjectStore as FakeIDBObjectStore } from 'fake-indexeddb';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
+// fake-indexeddb runs every request in tasks of its own, so these tests take thousands of tasks;
+// on a loaded machine one of them took over 5 s, so each test gets 30 s.
+vi.setConfig({ testTimeout: 30_000 });
+
 const sessionId = 'cache-lifecycle';
 const roomId = '!clear:example.org';
 const rawEvent = {

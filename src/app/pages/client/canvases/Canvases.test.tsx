@@ -126,11 +126,15 @@ const render = async () => {
   document.body.append(container);
   root = createRoot(container);
   await act(async () => root!.render(<Canvases />));
-  // The list is read from IndexedDB.
+  // The list is read from IndexedDB, a request per task. Wait for tasks, not time: on a loaded
+  // machine a 20 ms timer fired before the list was read.
   await act(async () => {
-    await new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
+    for (let task = 0; task < 50; task += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
   });
 };
 

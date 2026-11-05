@@ -118,6 +118,10 @@ const readMeta = async (db: IDBDatabase, roomId: string, scope: string) =>
     txn.onabort = () => reject(txn.error);
   });
 
+// fake-indexeddb runs every request in tasks of its own, so these tests take thousands of tasks;
+// on a loaded machine one of them took over 5 s, so each test gets 30 s.
+vi.setConfig({ testTimeout: 30_000 });
+
 describe('ISSUE-207 P2.2 commit 1: cacheStore ledger', () => {
   beforeEach(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
