@@ -17,7 +17,7 @@ import { Membership } from '../matrix/types/room';
 import { isComputerShown, listCanvases } from '../canvas/canvasIndexStore';
 import { playChime } from '../notifications/playChime';
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
-import { MindroomInviteNotifications } from '../notifications/InviteNotifications';
+import { InviteNotifications } from '../notifications/InviteNotifications';
 
 vi.mock('../notifications/playChime', () => ({ playChime: vi.fn(() => Promise.resolve()) }));
 
@@ -65,13 +65,13 @@ const renderInviteNotifications = (store: Store, mx: MatrixClient): ReactTestRen
               v7_startTransition: true,
             },
           },
-          React.createElement(MindroomInviteNotifications)
+          React.createElement(InviteNotifications)
         )
       )
     )
   );
 
-describe('MindroomInviteNotifications', () => {
+describe('InviteNotifications', () => {
   let renderer: ReactTestRenderer | undefined;
   const play = vi.mocked(playChime);
   let notificationMock: ReturnType<typeof vi.fn>;
@@ -205,7 +205,7 @@ describe('MindroomInviteNotifications', () => {
                   v7_startTransition: true,
                 },
               },
-              React.createElement(MindroomInviteNotifications)
+              React.createElement(InviteNotifications)
             )
           )
         )
@@ -245,7 +245,7 @@ describe('MindroomInviteNotifications', () => {
                   v7_startTransition: true,
                 },
               },
-              React.createElement(MindroomInviteNotifications)
+              React.createElement(InviteNotifications)
             )
           )
         )
@@ -288,7 +288,7 @@ describe('MindroomInviteNotifications', () => {
                   v7_startTransition: true,
                 },
               },
-              React.createElement(MindroomInviteNotifications)
+              React.createElement(InviteNotifications)
             )
           )
         )

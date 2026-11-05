@@ -41,7 +41,7 @@ export const isSpace = (room: Room | null | undefined): boolean =>
   !!room && getRoomType(room) === RoomType.Space;
 
 /** The room that holds the homeserver's shared emoji pack; it is never listed as a room. */
-export const isMindroomEmojiRoom = (room: Room | null | undefined): boolean =>
+export const isEmojiRoom = (room: Room | null | undefined): boolean =>
   !!room && getRoomType(room) === RoomType.MindroomEmoji;
 
 /** A room people chat in: not a space and not the server emoji room. Call rooms count. */

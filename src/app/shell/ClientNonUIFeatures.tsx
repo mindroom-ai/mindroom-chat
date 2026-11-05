@@ -1,9 +1,9 @@
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
-import { MindroomInviteNotifications } from '../notifications/InviteNotifications';
+import { InviteNotifications } from '../notifications/InviteNotifications';
 import {
-  MindroomNativeIOSPushFeature,
-  MindroomNativeIOSPushOpenFeature,
+  NativeIOSPushFeature,
+  NativeIOSPushOpenFeature,
 } from '../notifications/push/IOSPushFeature';
 import { ServerEmojiJoinFeature } from '../emoji/server/ServerEmojiJoinFeature';
 import { BugReportAutoJoinFeature } from '../bug-reports/BugReportAutoJoinFeature';
@@ -26,12 +26,12 @@ export function ClientNonUIFeatures() {
     <>
       <CrossRoomThreadIndexFeature />
       <JoinedRoomThreadListsFeature />
-      <MindroomInviteNotifications />
+      <InviteNotifications />
       <MessageNotificationsFeature />
       <UnreadTitleFeature />
       <CanvasIndexFeature />
-      <MindroomNativeIOSPushFeature />
-      <MindroomNativeIOSPushOpenFeature />
+      <NativeIOSPushFeature />
+      <NativeIOSPushOpenFeature />
       <ServerEmojiJoinFeature />
       <BugReportAutoJoinFeature />
       <AgentConnectLinkFeature />

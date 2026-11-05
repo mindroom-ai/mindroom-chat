@@ -6,7 +6,7 @@ import { Box, Button, Icon, Icons, Input, Text, config } from 'folds';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import { RoomIcon } from '../avatars/RoomAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { isMindroomEmojiRoom } from '../matrix/room';
+import { isEmojiRoom } from '../matrix/room';
 import { compareNames } from '../lib/nameOrder';
 import * as css from './MessageSearch.css';
 import { matchesEnum } from '../lib/matchesEnum';
@@ -28,7 +28,7 @@ const pickableRooms = (
           (room) =>
             matchesEnum(room.getMyMembership(), KnownMembership.Join) &&
             !room.isSpaceRoom() &&
-            !isMindroomEmojiRoom(room)
+            !isEmojiRoom(room)
         )
         .map((room) => room.roomId)
     : scopeRooms;

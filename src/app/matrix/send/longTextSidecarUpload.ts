@@ -1,7 +1,7 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { getFileMsgContent } from './msgContent';
 import { uploadContent } from '../matrix';
-import { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
+import { createRoomUploadItems } from './roomInputUploadPreparation';
 import { withLongTextSidecarMetadata } from '../protocol/longText';
 
 const SIDECAR_FILENAME = 'message-content.json';
@@ -20,7 +20,7 @@ export const uploadLongTextSidecar = async (
 ): Promise<Record<string, unknown>> => {
   const json = JSON.stringify(content);
   const file = new File([json], SIDECAR_FILENAME, { type: SIDECAR_MIMETYPE });
-  const [item] = await createMindroomRoomUploadItems([file], room);
+  const [item] = await createRoomUploadItems([file], room);
   if (!item) throw new Error('The long message could not be prepared for upload.');
   if (item.prepError) throw item.prepError;
   const mxc = await new Promise<string>((resolve, reject) => {

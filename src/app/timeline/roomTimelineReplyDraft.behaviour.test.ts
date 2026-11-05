@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { getEditedEvent } from '../matrix/room';
-import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
+import { buildRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 
 vi.mock('../matrix/room', () => ({
   getEditedEvent: vi.fn(),
@@ -40,7 +40,7 @@ const canvasNotice = (title?: string) => ({
   },
 });
 
-describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
+describe('buildRoomTimelineReplyDraft behaviour', () => {
   beforeEach(() => {
     vi.mocked(getEditedEvent).mockReset();
     vi.mocked(getEditedEvent).mockReturnValue(undefined);
@@ -62,11 +62,11 @@ describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
       })
     );
 
-    const startingThread = buildMindroomRoomTimelineReplyDraft(room, '$message', true);
+    const startingThread = buildRoomTimelineReplyDraft(room, '$message', true);
     expect(startingThread?.threadRootId).toBe('$root');
     expect(startingThread?.draft.relation).toEqual({ rel_type: 'm.thread', event_id: '$root' });
 
-    const plainReply = buildMindroomRoomTimelineReplyDraft(room, '$message', false);
+    const plainReply = buildRoomTimelineReplyDraft(room, '$message', false);
     expect(plainReply?.threadRootId).toBe('$root');
     expect(plainReply?.draft.relation).toBe(wireRelation);
   });
@@ -74,7 +74,7 @@ describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
   it('builds no draft for a message without a sender', () => {
     const room = fakeRoom(fakeMessage({ content: { body: 'Who sent this?' } }));
 
-    expect(buildMindroomRoomTimelineReplyDraft(room, '$message', false)).toBeUndefined();
+    expect(buildRoomTimelineReplyDraft(room, '$message', false)).toBeUndefined();
   });
 
   it('quotes the original content when the edit carries no replacement content', () => {
@@ -86,7 +86,7 @@ describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
       fakeMessage({ content: { body: '* Edited text' }, sender: '@alice:example.org' })
     );
 
-    const reply = buildMindroomRoomTimelineReplyDraft(fakeRoom(message), '$message', false);
+    const reply = buildRoomTimelineReplyDraft(fakeRoom(message), '$message', false);
 
     expect(getEditedEvent).toHaveBeenCalledWith('$message', message, timelineSet);
     expect(reply?.draft).toMatchObject({
@@ -110,7 +110,7 @@ describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
       })
     );
 
-    expect(buildMindroomRoomTimelineReplyDraft(room, '$message', false)).toEqual({
+    expect(buildRoomTimelineReplyDraft(room, '$message', false)).toEqual({
       draft: {
         userId: '@alice:example.org',
         eventId: '$message',
@@ -128,7 +128,7 @@ describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
         fakeMessage({ content: canvasNotice(title), sender: '@helper:example.org' })
       );
 
-      const reply = buildMindroomRoomTimelineReplyDraft(room, '$message', false);
+      const reply = buildRoomTimelineReplyDraft(room, '$message', false);
 
       expect(reply?.draft.body).toBe('Interactive panel. Open it in MindRoom Chat to respond.');
       expect(reply?.draft).not.toHaveProperty('previewText');
@@ -146,7 +146,7 @@ describe('buildMindroomRoomTimelineReplyDraft behaviour', () => {
       })
     );
 
-    expect(buildMindroomRoomTimelineReplyDraft(room, '$message', false)?.draft).toMatchObject({
+    expect(buildRoomTimelineReplyDraft(room, '$message', false)?.draft).toMatchObject({
       body: 'Interactive panel. Open it in MindRoom Chat to respond.',
       previewText: 'Second title',
     });

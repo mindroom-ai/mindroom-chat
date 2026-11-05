@@ -9,7 +9,7 @@ import {
   unregisterIOSPush,
   upsertIOSPushPusher,
 } from './iosPush';
-import { MindroomNativeIOSPushFeature } from './IOSPushFeature';
+import { NativeIOSPushFeature } from './IOSPushFeature';
 
 const state = vi.hoisted(() => ({
   signInRequired: true,
@@ -50,9 +50,9 @@ vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () =>
 vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
 const rerender = (renderer: ReturnType<typeof create>) =>
-  act(async () => renderer.update(React.createElement(MindroomNativeIOSPushFeature)));
+  act(async () => renderer.update(React.createElement(NativeIOSPushFeature)));
 
-describe('MindroomNativeIOSPushFeature', () => {
+describe('NativeIOSPushFeature', () => {
   afterEach(() => {
     state.signInRequired = true;
     state.pushAllowed = true;
@@ -62,7 +62,7 @@ describe('MindroomNativeIOSPushFeature', () => {
 
   it('waits for the Cloudflare Access sign-in instead of turning push off', async () => {
     const renderer = await act(async () =>
-      create(React.createElement(MindroomNativeIOSPushFeature))
+      create(React.createElement(NativeIOSPushFeature))
     );
     expect(registerIOSPush).not.toHaveBeenCalled();
 
@@ -89,7 +89,7 @@ describe('MindroomNativeIOSPushFeature', () => {
       })
     );
     const renderer = await act(async () =>
-      create(React.createElement(MindroomNativeIOSPushFeature))
+      create(React.createElement(NativeIOSPushFeature))
     );
     await act(async () => state.onRegistration?.({ value: 'apns-token' }));
 
@@ -106,7 +106,7 @@ describe('MindroomNativeIOSPushFeature', () => {
     state.pushAllowed = false;
     vi.mocked(disableIOSPushPusher).mockRejectedValueOnce(new TypeError('Load failed'));
     const renderer = await act(async () =>
-      create(React.createElement(MindroomNativeIOSPushFeature))
+      create(React.createElement(NativeIOSPushFeature))
     );
     // A token from a registration started earlier, for instance by another account.
     await act(async () => state.onRegistration?.({ value: 'apns-token' }));

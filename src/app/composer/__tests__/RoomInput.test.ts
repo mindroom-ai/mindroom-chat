@@ -3,7 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RelationType, Room } from 'matrix-js-sdk';
-import { createMindroomRoomUploadItems, RoomInput } from '../RoomInput';
+import { createRoomUploadItems, RoomInput } from '../RoomInput';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../matrix/types/common';
 import {
   IReplyDraft,
@@ -1161,7 +1161,7 @@ describe('RoomInput', () => {
       };
     });
 
-    const uploadItems = await createMindroomRoomUploadItems(
+    const uploadItems = await createRoomUploadItems(
       [firstFile, secondFile, thirdFile],
       createRoom(ROOM_ID, true),
       (file, index) => ({
@@ -2082,7 +2082,7 @@ describe('RoomInput', () => {
 
     await act(async () => {
       store.set(roomIdToUploadItemsAtomFamily(ROOM_ID), { type: 'DELETE', item: removedItem });
-      const [addedItem] = await createMindroomRoomUploadItems([added], createRoom(ROOM_ID, true));
+      const [addedItem] = await createRoomUploadItems([added], createRoom(ROOM_ID, true));
       if (!addedItem) throw new Error('Expected encrypted attachment item');
       stageUploadItems(store, [addedItem], [addedItem.file]);
     });

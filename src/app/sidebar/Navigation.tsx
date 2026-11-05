@@ -13,7 +13,7 @@ import {
   DesktopPageNav,
   DesktopPageNavContext,
   readDesktopPageNavCollapsed,
-  useMindroomDesktopPageNav,
+  useDesktopPageNav,
   writeDesktopPageNavCollapsed,
 } from './desktopPageNavState';
 import { usePanelSlot } from '../ui/panels/panelPresence';
@@ -53,7 +53,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
 function PageNavToggle() {
   const { t } = useTranslation();
-  const { collapsed, setCollapsed } = useMindroomDesktopPageNav();
+  const { collapsed, setCollapsed } = useDesktopPageNav();
   const label = collapsed
     ? t('sharedUi.mindroomNavigation.expandNavigationPanel')
     : t('sharedUi.mindroomNavigation.collapseNavigationPanel');
@@ -84,7 +84,7 @@ function PageNavToggle() {
  * choosing another opens it.
  */
 export function CollapsibleSidebarNav() {
-  const { collapsed, canCollapse, setCollapsed } = useMindroomDesktopPageNav();
+  const { collapsed, canCollapse, setCollapsed } = useDesktopPageNav();
   useShortcut('roomList', () => {
     if (!canCollapse) return false;
     setCollapsed(!collapsed);
@@ -135,7 +135,7 @@ export function SectionPageRoot({
   navId,
   children,
 }: SectionPageRootProps & { navId?: string }) {
-  const { collapsed } = useMindroomDesktopPageNav();
+  const { collapsed } = useDesktopPageNav();
   const shownNav = usePanelSlot(collapsed ? undefined : nav);
   return (
     <PageRoot main nav={shownNav}>

@@ -32,7 +32,7 @@ const contentToQuote = (room: Room, eventId: string, message: MatrixEvent): ICon
  * the wire content so that an encrypted message's cleartext relation counts too: a reply to a
  * message inside a thread stays in that thread.
  */
-export const buildMindroomRoomTimelineReplyDraft = (
+export const buildRoomTimelineReplyDraft = (
   room: Room,
   eventId: string,
   startThread: boolean

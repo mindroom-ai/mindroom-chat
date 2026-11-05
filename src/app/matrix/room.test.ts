@@ -5,7 +5,7 @@ import {
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
-  isMindroomEmojiRoom,
+  isEmojiRoom,
   isRoom,
   roomHaveUnread,
   trimReplyFromBody,
@@ -668,19 +668,19 @@ describe('isRoom', () => {
   });
 });
 
-describe('isMindroomEmojiRoom', () => {
+describe('isEmojiRoom', () => {
   it('matches the server emoji room', () => {
-    expect(isMindroomEmojiRoom(roomOfType('io.mindroom.emoji') as never)).toBe(true);
+    expect(isEmojiRoom(roomOfType('io.mindroom.emoji') as never)).toBe(true);
   });
 
   it('does not match an ordinary room, a voice room or a space', () => {
-    expect(isMindroomEmojiRoom(roomOfType() as never)).toBe(false);
-    expect(isMindroomEmojiRoom(roomOfType('org.matrix.msc3417.call') as never)).toBe(false);
-    expect(isMindroomEmojiRoom(roomOfType('m.space') as never)).toBe(false);
+    expect(isEmojiRoom(roomOfType() as never)).toBe(false);
+    expect(isEmojiRoom(roomOfType('org.matrix.msc3417.call') as never)).toBe(false);
+    expect(isEmojiRoom(roomOfType('m.space') as never)).toBe(false);
   });
 
   // Pickers list joined room IDs, and `mx.getRoom` may have no room for one; `isRoom` would drop it.
   it('does not match a room the client does not have', () => {
-    expect(isMindroomEmojiRoom(null)).toBe(false);
+    expect(isEmojiRoom(null)).toBe(false);
   });
 });

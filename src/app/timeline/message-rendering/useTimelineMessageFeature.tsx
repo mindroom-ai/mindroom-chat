@@ -72,7 +72,7 @@ import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
 import { renderThreadBadge } from '../ThreadBadge';
-import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
+import { buildRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
 import { getLinkedTimelines } from '../../event-store/timeline/linkedTimelines';
@@ -432,7 +432,7 @@ export const useTimelineMessageFeature = ({
   const { navigateRoomThread } = useRoomNavigate();
   const handleReplyClick = useCallback(
     (replyEventId: string, startThread = false) => {
-      const reply = buildMindroomRoomTimelineReplyDraft(room, replyEventId, startThread);
+      const reply = buildRoomTimelineReplyDraft(room, replyEventId, startThread);
       if (!reply) return;
       setReplyDraft(reply.draft);
       if (startThread && threadIdRef.current !== reply.threadRootId) {

@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { MobileFriendlyPageNav } from './MobileFriendly';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { useMindroomDesktopPageNav } from './desktopPageNavState';
+import { useDesktopPageNav } from './desktopPageNavState';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 
 export function ResizablePageNav({
@@ -31,7 +31,7 @@ export function ResizablePageNav({
 }
 
 export function CollapsiblePageNav({ path, children }: { path: string; children: ReactNode }) {
-  const { canCollapse, setCollapsed } = useMindroomDesktopPageNav();
+  const { canCollapse, setCollapsed } = useDesktopPageNav();
   return (
     <MobileFriendlyPageNav path={path}>
       <ResizablePageNav onCollapse={canCollapse ? () => setCollapsed(true) : undefined}>

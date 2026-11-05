@@ -6,7 +6,7 @@ import { allRoomsAtom } from './roomList';
 import { mDirectAtom } from './mDirectList';
 import { roomToParentsAtom } from './roomToParents';
 import { navigationRoomsAtom } from './archivedRooms';
-import { isMindroomEmojiRoom, isSpace } from '../room';
+import { isEmojiRoom, isSpace } from '../room';
 import type { RoomToParents } from '../types/room';
 import { mergeSearchRoomSources } from './useSpaceSearchRooms';
 
@@ -22,7 +22,7 @@ const isHomeRoom = (
   if (directRoomIds.has(roomId)) return false;
   if ((roomToParents.get(roomId)?.size ?? 0) > 0) return false;
   const room = client.getRoom(roomId);
-  return !isSpace(room) && !isMindroomEmojiRoom(room);
+  return !isSpace(room) && !isEmojiRoom(room);
 };
 
 /**

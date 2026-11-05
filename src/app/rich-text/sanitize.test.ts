@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeCustomHtml, mindroomCustomHtmlSanitizerPolicy } from './sanitize';
+import { sanitizeCustomHtml, customHtmlSanitizerPolicy } from './sanitize';
 
-describe('mindroomCustomHtmlSanitizerPolicy', () => {
+describe('customHtmlSanitizerPolicy', () => {
   it('keeps paste markers and Matrix math attributes needed by MindRoom rendering', () => {
-    expect(mindroomCustomHtmlSanitizerPolicy.allowedAttributes?.span).toEqual(
+    expect(customHtmlSanitizerPolicy.allowedAttributes?.span).toEqual(
       expect.arrayContaining([
         'data-mx-maths',
         'data-mindroom-paste-marker',
@@ -12,7 +12,7 @@ describe('mindroomCustomHtmlSanitizerPolicy', () => {
         'data-mindroom-paste-file',
       ])
     );
-    expect(mindroomCustomHtmlSanitizerPolicy.allowedAttributes?.div).toContain('data-mx-maths');
+    expect(customHtmlSanitizerPolicy.allowedAttributes?.div).toContain('data-mx-maths');
 
     const sanitized = sanitizeCustomHtml(
       [

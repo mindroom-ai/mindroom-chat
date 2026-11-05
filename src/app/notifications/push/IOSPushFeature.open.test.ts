@@ -2,7 +2,7 @@ import 'fake-indexeddb/auto';
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MindroomNativeIOSPushOpenFeature } from './IOSPushFeature';
+import { NativeIOSPushOpenFeature } from './IOSPushFeature';
 
 type ActionListener = (action: { notification: { data: unknown } }) => void;
 
@@ -39,7 +39,7 @@ vi.mock('../../matrix/ClientStartupContext', () => ({
 
 const tap = (data: unknown) => act(async () => state.onAction?.({ notification: { data } }));
 
-describe('MindroomNativeIOSPushOpenFeature', () => {
+describe('NativeIOSPushOpenFeature', () => {
   afterEach(() => {
     state.hasCompletedInitialSync = true;
     state.onAction = undefined;
@@ -49,13 +49,13 @@ describe('MindroomNativeIOSPushOpenFeature', () => {
   it('opens the event of a tapped push, once the first sync is done', async () => {
     state.hasCompletedInitialSync = false;
     const renderer = await act(async () =>
-      create(React.createElement(MindroomNativeIOSPushOpenFeature))
+      create(React.createElement(NativeIOSPushOpenFeature))
     );
     await tap({ aps: {}, room_id: '!joined:example', event_id: '$reply' });
     expect(state.navigateRoom).not.toHaveBeenCalled();
 
     state.hasCompletedInitialSync = true;
-    await act(async () => renderer.update(React.createElement(MindroomNativeIOSPushOpenFeature)));
+    await act(async () => renderer.update(React.createElement(NativeIOSPushOpenFeature)));
 
     expect(state.navigateRoom).toHaveBeenCalledTimes(1);
     expect(state.navigateRoom).toHaveBeenCalledWith('!joined:example', '$reply');
@@ -64,7 +64,7 @@ describe('MindroomNativeIOSPushOpenFeature', () => {
 
   it("leaves another account's push, a left room and a push without a room alone", async () => {
     const renderer = await act(async () =>
-      create(React.createElement(MindroomNativeIOSPushOpenFeature))
+      create(React.createElement(NativeIOSPushOpenFeature))
     );
     await tap({ aps: {}, room_id: '!elsewhere:example', event_id: '$event' });
     await tap({ aps: {}, room_id: '!left:example', event_id: '$event' });

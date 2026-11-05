@@ -118,7 +118,7 @@ vi.mock('./useRoomInputSendSessionController', () => ({
 }));
 vi.mock('./RoomInputReplyPreview', () => ({ RoomInputReplyPreview: () => null }));
 vi.mock('../matrix/send/roomInputUploadPreparation', () => ({
-  createMindroomRoomUploadItems: vi.fn(),
+  createRoomUploadItems: vi.fn(),
 }));
 vi.mock('./useRoomInputAttachments', () => ({
   useRoomInputAttachments: () => ({

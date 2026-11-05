@@ -24,7 +24,7 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { getSpaceChildIds, roomToParentsAtom } from '../matrix/state/roomToParents';
 import { getAncestorSpaceIds } from '../matrix/state/spaceAncestors';
-import { getRoomAvatarUrl, isMindroomEmojiRoom } from '../matrix/room';
+import { getRoomAvatarUrl, isEmojiRoom } from '../matrix/room';
 import { nameInitials } from '../lib/common';
 import { compareNames } from '../lib/nameOrder';
 import { CreateDialogFrame } from '../ui/CreateDialogFrame';
@@ -56,7 +56,7 @@ const useCandidates = (client: MatrixClient, parent: Room | null, spaces: boolea
         if (!room || room.roomId === parent.roomId || taken.has(room.roomId)) return false;
         if (room.isSpaceRoom() !== spaces) return false;
         if (spaces) return !above.has(room.roomId);
-        return !directs.has(room.roomId) && !isMindroomEmojiRoom(room);
+        return !directs.has(room.roomId) && !isEmojiRoom(room);
       })
       .sort((a, b) => compareNames(a.name, b.name));
   }, [client, parent, spaces, joined, directs, roomToParents]);

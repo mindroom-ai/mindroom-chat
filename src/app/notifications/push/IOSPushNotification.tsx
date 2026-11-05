@@ -71,7 +71,7 @@ function IOSPushNotificationTile() {
           let current = await checkIOSPushPermission();
           if (current === 'prompt') current = await requestIOSPushPermission();
           if (current !== 'granted') throw new Error('Notification permission was not granted.');
-          // MindroomNativeIOSPushFeature registers with APNs and the homeserver once this is on.
+          // NativeIOSPushFeature registers with APNs and the homeserver once this is on.
           setIOSPushEnabled(true, sessionId);
           return;
         }

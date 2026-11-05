@@ -10,7 +10,7 @@ import {
 import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
 import { getRoomInputVoiceUploadRelation } from './RoomInputExtensions';
-import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 
 type Store = ReturnType<typeof createStore>;
 
@@ -35,7 +35,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
       waveform: number[] | undefined,
       targetRoom: Room = room
     ): Promise<TUploadItem[]> => {
-      const items = await createMindroomRoomUploadItems([file], targetRoom, () => ({
+      const items = await createRoomUploadItems([file], targetRoom, () => ({
         markedAsSpoiler: false,
         voiceMessage: { duration, waveform },
       }));

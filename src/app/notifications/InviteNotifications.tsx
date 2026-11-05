@@ -21,7 +21,7 @@ const invitedRoomIds = (mx: MatrixClient): string[] =>
  * when it started, or when the account switched, are not new: the list is reset to the current
  * client's invites first, since it may still hold the previous account's.
  */
-export function MindroomInviteNotifications() {
+export function InviteNotifications() {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const invites = useAtomValue(allInvitesAtom);

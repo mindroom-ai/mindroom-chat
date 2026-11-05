@@ -26,11 +26,7 @@ import {
 } from '../editor/autocomplete/autocompleteQuery';
 import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
 import { EmoticonAutocomplete } from '../editor/autocomplete/EmoticonAutocomplete';
-import {
-  createEmoticonElement,
-  moveCursor,
-  restoreEditorContent,
-} from '../editor/utils';
+import { createEmoticonElement, moveCursor, restoreEditorContent } from '../editor/utils';
 import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
@@ -80,7 +76,7 @@ import {
 } from './RoomInputExtensions';
 import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
-import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
@@ -90,7 +86,7 @@ import {
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
 
-export { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
+export { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 
 export type RoomInputProps = {
   editor: Editor;
@@ -188,10 +184,7 @@ const buildUploadMessageContent = async (
   else if (type.startsWith('audio/') || item.metadata.voiceMessage) {
     content = getAudioMsgContent(item, mxc, getVoiceMessageContentOptions(signalBridgedRoom));
   } else content = getFileMsgContent(item, mxc);
-  return withPasteAttachmentMetadata(
-    content,
-    item.metadata.mindroomPasteAttachment
-  ) as IContent;
+  return withPasteAttachmentMetadata(content, item.metadata.mindroomPasteAttachment) as IContent;
 };
 
 /**
@@ -252,8 +245,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     }, []);
 
     const createUploadItems = useCallback(
-      (files: File[], getMetadata?: Parameters<typeof createMindroomRoomUploadItems>[2]) =>
-        createMindroomRoomUploadItems(files, room, getMetadata),
+      (files: File[], getMetadata?: Parameters<typeof createRoomUploadItems>[2]) =>
+        createRoomUploadItems(files, room, getMetadata),
       [room]
     );
     const attachments = useRoomInputAttachments({

@@ -84,7 +84,7 @@ const PASTE_MARKER_ATTRIBUTES = [
  * the paste attachment markers the composer writes. Styles, URL schemes and the link
  * transformers stay the base rules'.
  */
-export const mindroomCustomHtmlSanitizerPolicy: {
+export const customHtmlSanitizerPolicy: {
   allowedTags: string[];
   allowedAttributes: Record<string, string[]>;
 } = {
@@ -223,12 +223,12 @@ const buildOptions = ({
 }: SanitizeCustomHtmlOptions): IOptions => {
   const withCustomAttributes = mergeAttributes(
     BASE_ATTRIBUTES,
-    mindroomCustomHtmlSanitizerPolicy.allowedAttributes
+    customHtmlSanitizerPolicy.allowedAttributes
   );
   return {
     allowedTags: union(
       FORMATTING_TAGS,
-      mindroomCustomHtmlSanitizerPolicy.allowedTags,
+      customHtmlSanitizerPolicy.allowedTags,
       policy?.allowedTags || undefined
     ),
     allowedAttributes: mergeAttributes(

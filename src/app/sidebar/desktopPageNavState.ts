@@ -39,4 +39,4 @@ const noPageNav: DesktopPageNav = {
 export const DesktopPageNavContext = createContext<DesktopPageNav>(noPageNav);
 
 /** The page navigation's collapse state, from the nearest `NavigationProvider`. */
-export const useMindroomDesktopPageNav = (): DesktopPageNav => useContext(DesktopPageNavContext);
+export const useDesktopPageNav = (): DesktopPageNav => useContext(DesktopPageNavContext);

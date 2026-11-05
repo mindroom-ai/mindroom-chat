@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { getEditedEvent } from '../matrix/room';
-import { buildMindroomRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
+import { buildRoomTimelineReplyDraft } from './roomTimelineReplyDraft';
 
 vi.mock('../matrix/room', () => ({
   getEditedEvent: vi.fn(),
@@ -31,7 +31,7 @@ const roomWithEvent = (replyEvent: MatrixEvent | undefined) =>
     getUnfilteredTimelineSet: vi.fn(() => ({})),
   } as unknown as Room);
 
-describe('buildMindroomRoomTimelineReplyDraft', () => {
+describe('buildRoomTimelineReplyDraft', () => {
   beforeEach(() => {
     vi.mocked(getEditedEvent).mockReset();
     vi.mocked(getEditedEvent).mockReturnValue(undefined);
@@ -44,7 +44,7 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
       wireContent: { 'm.relates_to': relation },
     });
 
-    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual(
+    expect(buildRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)).toEqual(
       {
         draft: {
           userId: '@sender:server',
@@ -72,7 +72,7 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
     );
 
     expect(
-      buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)?.draft
+      buildRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$reply', false)?.draft
     ).toMatchObject({
       body: 'edited',
       formattedBody: '<strong>edited</strong>',
@@ -93,7 +93,7 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
     });
 
     expect(
-      buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$canvas', false)?.draft
+      buildRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$canvas', false)?.draft
     ).toMatchObject({
       body: 'Interactive panel: Pick a time. Open it in MindRoom Chat to respond.',
       previewText: 'Pick a time',
@@ -103,7 +103,7 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
   it('builds the thread relation when starting a thread from a normal message', () => {
     const replyEvent = event({ content: { body: 'root' } });
 
-    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$root', true)).toEqual({
+    expect(buildRoomTimelineReplyDraft(roomWithEvent(replyEvent), '$root', true)).toEqual({
       draft: {
         userId: '@sender:server',
         eventId: '$root',
@@ -119,11 +119,11 @@ describe('buildMindroomRoomTimelineReplyDraft', () => {
   });
 
   it('does not create a draft for missing events or non-text bodies', () => {
-    expect(buildMindroomRoomTimelineReplyDraft(roomWithEvent(undefined), '$missing', false)).toBe(
+    expect(buildRoomTimelineReplyDraft(roomWithEvent(undefined), '$missing', false)).toBe(
       undefined
     );
     expect(
-      buildMindroomRoomTimelineReplyDraft(
+      buildRoomTimelineReplyDraft(
         roomWithEvent(event({ content: { body: { object: true } } })),
         '$reply',
         false

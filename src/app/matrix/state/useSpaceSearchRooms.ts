@@ -7,7 +7,7 @@ import { mDirectAtom } from './mDirectList';
 import { getSpaceChildIds, roomToParentsAtom } from './roomToParents';
 import { isInSpace } from './spaceAncestors';
 import type { RoomToParents } from '../types/room';
-import { isMindroomEmojiRoom, isSpace } from '../room';
+import { isEmojiRoom, isSpace } from '../room';
 
 /** Joins room ID lists in order, keeping the first occurrence of each ID. */
 export const mergeSearchRoomSources = (...sources: string[][]): string[] =>
@@ -38,7 +38,7 @@ export const getSpaceSearchRooms = (
     if (roomId === spaceId || directs.has(roomId)) return false;
     if (!isInSpace(roomToParents, roomId, spaceId)) return false;
     const room = mx.getRoom(roomId);
-    return !isSpace(room) && !isMindroomEmojiRoom(room);
+    return !isSpace(room) && !isEmojiRoom(room);
   });
 
 /** Parents the SDK knows from each space's `m.space.child` state. */

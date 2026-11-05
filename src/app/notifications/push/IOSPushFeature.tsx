@@ -28,7 +28,7 @@ import { useIOSPushEnabled } from './useIOSPushEnabled';
  * server whose Access policy keeps pushes off has the pusher removed. A failed registration is
  * logged, and never turns the user's push setting off.
  */
-export function MindroomNativeIOSPushFeature() {
+export function NativeIOSPushFeature() {
   const mx = useMatrixClient();
   const clientConfig = useClientConfig();
   const sessionId = useActiveSession()?.sessionId;
@@ -106,7 +106,7 @@ const readPushTarget = (data: unknown): PushTarget | undefined => {
  * On the iOS app, opens the message of a tapped push notification once the first sync is done.
  * A push for a room this account is not in (another account's, or a room left) is ignored.
  */
-export function MindroomNativeIOSPushOpenFeature() {
+export function NativeIOSPushOpenFeature() {
   const mx = useMatrixClient();
   const { navigateRoom } = useRoomNavigate();
   const { hasCompletedInitialSync } = useClientStartupContext();
