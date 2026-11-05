@@ -48,6 +48,11 @@ const screenshotBothThemes = async (page: Page, name: string) => {
   for (const colorScheme of ['light', 'dark'] as const) {
     // eslint-disable-next-line no-await-in-loop
     await page.emulateMedia({ colorScheme });
+    // The theme change animates its colors; the screenshot waits for them to settle.
+    // eslint-disable-next-line no-await-in-loop
+    await page.evaluate(() =>
+      Promise.all(document.getAnimations().map((animation) => animation.finished))
+    );
     // eslint-disable-next-line no-await-in-loop
     await page.screenshot({ path: `${SCREENSHOT}/${name}-${colorScheme}.png` });
   }
@@ -157,6 +162,7 @@ test.describe('thread People filter', () => {
     await page.keyboard.press('Escape');
     await expect(panel).toHaveCount(0);
     await expect(peopleButton).toBeFocused();
+    await peopleButton.blur();
     await page.mouse.move(1, 1);
     await screenshotBothThemes(page, 'V6-people-filter-applied');
 

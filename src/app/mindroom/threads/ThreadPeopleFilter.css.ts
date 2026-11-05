@@ -20,7 +20,7 @@ export const Count = style({
 });
 
 export const Panel = style({
-  selectors: { '&&&': { minWidth: toRem(240) } },
+  selectors: { '&&&': { minWidth: toRem(240), maxWidth: toRem(300) } },
   display: 'flex',
   flexDirection: 'column',
   rowGap: config.space.S100,

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import classNames from 'classnames';
@@ -37,6 +37,10 @@ function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterPr
   const mx = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
+  // The panel opens to search; the trigger takes focus back when it closes. Without scrolling:
+  // a panel wider than the room's free space would shift the room sideways.
+  useEffect(() => searchRef.current?.focus({ preventScroll: true }), []);
 
   // One pass over the room's threads while the panel is open, again only when they change.
   const activity = useMemo(() => buildThreadPeopleActivity(records.values()), [records]);
@@ -76,6 +80,7 @@ function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterPr
       data-people-filter-panel="true"
     >
       <input
+        ref={searchRef}
         className={css.Search}
         type="search"
         value={query}
@@ -89,9 +94,6 @@ function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterPr
         }}
         placeholder={t('mindroomUi.threads.threadPeopleFilter.search')}
         aria-label={t('mindroomUi.threads.threadPeopleFilter.search')}
-        // The panel opens to search; the trigger takes focus back when it closes.
-        // eslint-disable-next-line jsx-a11y/no-autofocus
-        autoFocus
         data-people-filter-search="true"
       />
       <div
