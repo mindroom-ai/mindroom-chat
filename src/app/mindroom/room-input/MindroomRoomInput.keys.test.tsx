@@ -4,6 +4,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import type { SlashCommand } from '../../hooks/useCommands';
+import { importBeforeTests } from '../../test-utils/importBeforeTests';
 
 type EditorProps = {
   editableName?: string;
@@ -162,6 +163,8 @@ const pressEnterAfterMention = async (document: unknown[] = []): Promise<boolean
   });
   return state.startSendSession.mock.calls.length > 0;
 };
+
+importBeforeTests(() => import('./MindroomRoomInput'));
 
 describe('composer', () => {
   it('names its text box RoomInput for the timeline shortcuts', async () => {
