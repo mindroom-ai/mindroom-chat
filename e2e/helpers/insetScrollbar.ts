@@ -1,5 +1,20 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
+// A dialog slides up 5 px as it opens (folds' Modal, 200 ms), so geometry read before then is up
+// to 5 px low; wait until the animations of the scroll area and its ancestors have ended.
+const settle = (scroll: Locator) =>
+  scroll.evaluate(async (element) => {
+    const moving: Promise<unknown>[] = [];
+    for (let node: Element | null = element; node; node = node.parentElement) {
+      node.getAnimations().forEach((animation) => {
+        if (animation.effect?.getComputedTiming().endTime !== Infinity) {
+          moving.push(animation.finished.catch(() => undefined));
+        }
+      });
+    }
+    await Promise.all(moving);
+  });
+
 export async function expectScrollbarBounds(
   scroll: Locator,
   topControl: Locator,
@@ -7,6 +22,7 @@ export async function expectScrollbarBounds(
 ) {
   const bar = scroll.getByRole('scrollbar');
   await expect(bar).toBeVisible();
+  await settle(scroll);
   const track = (await bar.boundingBox())!;
   const top = (await topControl.boundingBox())!;
   const viewport = (await scroll.boundingBox())!;
