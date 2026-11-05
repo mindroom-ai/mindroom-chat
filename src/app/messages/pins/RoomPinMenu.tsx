@@ -126,12 +126,20 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     const { t } = useTranslation();
     const eventIds = useMemo(() => [...pinnedEvents].reverse(), [pinnedEvents]);
 
+    const title = t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages');
+
     return (
-      <Menu ref={ref} style={{ width: 'min(24rem, calc(100vw - 2rem))' }}>
+      // The header's Pinned Messages button announces a dialog (aria-haspopup), so this is one.
+      <Menu
+        ref={ref}
+        role="dialog"
+        aria-label={title}
+        style={{ width: 'min(24rem, calc(100vw - 2rem))' }}
+      >
         <Box direction="Column">
           <Box alignItems="Center" gap="200" style={{ padding: config.space.S300 }}>
             <Box grow="Yes">
-              <Text size="H5">{t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages')}</Text>
+              <Text size="H5">{title}</Text>
             </Box>
             <IconButton
               size="300"
