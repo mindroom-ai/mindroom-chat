@@ -294,10 +294,19 @@ const openReadRoom = async (page: Page, name: string) => {
   return { labels, observe, react, edit, send, attachObservations };
 };
 
-/** The reader scrolls up a few screens. */
+/** The reader turns the wheel up until they are a few screens above the bottom. */
 const scrollUp = async (page: Page) => {
-  await wheelOverTimeline(page, -500, 6);
-  await expect.poll(() => scrollGap(page)).toBeGreaterThan(1_500);
+  // A wheel step is the browser's own: WebKit moves less per turn than Chromium.
+  await expect
+    .poll(
+      async () => {
+        const gap = await scrollGap(page);
+        if (gap <= 1_500) await wheelOverTimeline(page, -500, 2);
+        return gap;
+      },
+      { timeout: 30_000 }
+    )
+    .toBeGreaterThan(1_500);
   await page.waitForTimeout(1_000);
 };
 
