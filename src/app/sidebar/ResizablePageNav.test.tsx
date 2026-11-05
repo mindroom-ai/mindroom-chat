@@ -6,7 +6,7 @@ import { ResizablePageNav } from './ResizablePageNav';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 
 vi.mock('../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
-vi.mock('../ui/page', () => ({
+vi.mock('../ui/page/Page', () => ({
   PageNav: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({

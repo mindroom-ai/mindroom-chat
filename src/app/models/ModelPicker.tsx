@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { usePreventScroll } from 'react-aria';
 
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { PageScroll } from '../ui/page';
+import { PageScroll } from '../ui/page/PageScroll';
 import { Header, Modal, Surface } from '../ui/glass/GlassPrimitives';
 import type { ModelCatalogEntry } from './modelProtocol';
 import { ModelIcon } from './ModelIcon';

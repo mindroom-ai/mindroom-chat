@@ -232,7 +232,7 @@ vi.mock('../useVirtualPaginator', () => ({
   }),
 }));
 
-vi.mock('../../ui/virtualizer', () => ({
+vi.mock('../../ui/virtualizer/VirtualTile', () => ({
   VirtualTile: React.forwardRef<
     HTMLDivElement,
     {
@@ -385,20 +385,24 @@ vi.mock('../../matrix/room', () => ({
   trimReplyFromBody: (body: string) => body,
 }));
 
-vi.mock('../../messages', () => ({
-  DefaultPlaceholder: passthrough,
-  CompactPlaceholder: passthrough,
-  Reply: passthrough,
-  ThreadIndicator: passthrough,
-  MessageBase: passthrough,
-  MessageUnsupportedContent: passthrough,
-  Time: passthrough,
-  MessageNotDecryptedContent: passthrough,
-  RedactedContent: passthrough,
+vi.mock('../../messages/content/MsgTypeRenderers', () => ({
   MSticker: passthrough,
+}));
+vi.mock('../../messages/reply/Reply', () => ({
+  Reply: passthrough,
+}));
+vi.mock('../../messages/Time', () => ({
+  Time: passthrough,
+}));
+vi.mock('../../messages/layout/layout', () => ({
+  MessageBase: passthrough,
+}));
+vi.mock('../../messages/content/FallbackContent', () => ({
+  MessageUnsupportedContent: passthrough,
+  MessageNotDecryptedContent: passthrough,
+}));
+vi.mock('../../messages/content/ImageContent', () => ({
   ImageContent: passthrough,
-  EventContent: passthrough,
-  MindroomThreadSummaryCard: passthrough,
 }));
 
 vi.mock('../../messages/ThreadIndicator', () => ({
@@ -464,7 +468,7 @@ vi.mock('../../messages/Message', async () => {
   };
 });
 
-vi.mock('../room-intro', () => ({
+vi.mock('../room-intro/RoomIntro', () => ({
   RoomIntro: passthrough,
 }));
 
@@ -535,11 +539,11 @@ vi.mock('../CollapsibleMessage', async () => {
   };
 });
 
-vi.mock('../../ui/media', () => ({
+vi.mock('../../ui/media/Media', () => ({
   Image: passthrough,
 }));
 
-vi.mock('../../messages/viewers/image-viewer', () => ({
+vi.mock('../../messages/viewers/image-viewer/ImageViewer', () => ({
   ImageViewer: passthrough,
 }));
 
@@ -563,7 +567,7 @@ vi.mock('../../lib/time', () => ({
   yesterday: () => false,
 }));
 
-vi.mock('../../editor', () => ({
+vi.mock('../../editor/utils', () => ({
   createMentionElement: () => ({}),
   isEmptyEditor: () => true,
   moveCursor: vi.fn(),

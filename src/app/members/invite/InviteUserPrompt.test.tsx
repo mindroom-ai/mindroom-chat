@@ -19,7 +19,7 @@ const directUsersMock = vi.hoisted(() => ({
 type WindowKeyHandler = (event: KeyboardEvent) => void;
 const windowListeners = new Map<string, Set<WindowKeyHandler>>();
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/PageScroll', () => ({
   PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, header, children),
 }));
@@ -71,7 +71,7 @@ vi.mock('../../matrix/hooks/useDirectUsers', () => ({
   useDirectUsers: () => directUsersMock.users,
 }));
 
-vi.mock('../../avatars/user-avatar', () => ({
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: ({ userId, src, alt }: { userId: string; src?: string; alt?: string }) =>
     React.createElement('span', { 'data-user-id': userId, 'data-src': src, 'data-alt': alt }),
 }));

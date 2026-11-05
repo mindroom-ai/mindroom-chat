@@ -5,13 +5,13 @@ import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { find as findLinks } from 'linkifyjs';
 import { Box, Icon, Icons, Text, color, config, toRem } from 'folds';
 import {
-  BrokenContent,
   MessageBadEncryptedContent,
   MessageEditedContent,
   MessageUnsupportedContent,
-} from '.';
+} from './FallbackContent';
+import { BrokenContent } from './BrokenContent';
 import { VoiceAudioContent } from './VoiceAudioContent';
-import { MessageTextBody } from '../layout';
+import { MessageTextBody } from '../layout/layout';
 import { isJumboEmojiBody } from './jumboEmoji';
 import * as fileCss from './FileRow.css';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';

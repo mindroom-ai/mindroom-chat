@@ -42,7 +42,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../ui/page', async () => {
+vi.mock('../ui/page/Page', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('section', null, children);
@@ -50,12 +50,17 @@ vi.mock('../ui/page', async () => {
     Page: passthrough,
     PageContent: passthrough,
     PageHeader: passthrough,
+  };
+});
+vi.mock('../ui/page/PageScroll', async () => {
+  const reactModule = await import('react');
+  return {
     PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
       reactModule.createElement('section', null, header, children),
   };
 });
 
-vi.mock('../ui/sequence-card', async () => {
+vi.mock('../ui/sequence-card/SequenceCard', async () => {
   const reactModule = await import('react');
   return {
     SequenceCard: ({ children }: { children?: React.ReactNode }) =>
@@ -63,7 +68,7 @@ vi.mock('../ui/sequence-card', async () => {
   };
 });
 
-vi.mock('../ui/setting-tile', async () => {
+vi.mock('../ui/setting-tile/SettingTile', async () => {
   const reactModule = await import('react');
   return {
     SettingTile: ({ title, description }: { title?: string; description?: React.ReactNode }) =>

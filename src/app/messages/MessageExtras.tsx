@@ -1,7 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import React, { useCallback, useMemo, useRef } from 'react';
 import parse, { type HTMLReactParserOptions } from 'html-react-parser';
-import { parseBlockMD, parseInlineMD } from '../rich-text/markdown';
+import { parseInlineMD } from '../rich-text/markdown/inline/parser';
+import { parseBlockMD } from '../rich-text/markdown/block/parser';
 import { sanitizeCustomHtml, sanitizeText } from '../rich-text/sanitize';
 import {
   type HtmlReactParserOptionsSource,

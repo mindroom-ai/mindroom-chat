@@ -5,7 +5,7 @@ import { ClientEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk'
 import { useSetting } from '../../../preferences/useSetting';
 import { settingsAtom } from '../../../preferences/settings';
 import { useMatrixClient } from '../../../matrix/hooks/useMatrixClient';
-import { SettingTile } from '../../../ui/setting-tile';
+import { SettingTile } from '../../../ui/setting-tile/SettingTile';
 import { copyToClipboard } from '../../../lib/dom';
 import { SettingsPageFrame, type SettingsPageProps } from '../../../ui/settings/SettingsPageFrame';
 import { SettingsCard } from '../../../ui/settings/SettingsCard';

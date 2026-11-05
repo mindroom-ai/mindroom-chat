@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
-import { SettingTile } from '../../ui/setting-tile';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { getAccountManagementUrl } from '../useAccountManagement';

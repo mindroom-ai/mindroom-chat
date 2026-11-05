@@ -2,7 +2,7 @@ import React, { memo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Text } from 'folds';
 import type { Room } from 'matrix-js-sdk';
-import { NavButton, NavItem, NavItemContent } from '../../ui/nav';
+import { NavButton, NavItem, NavItemContent } from '../../ui/nav/NavItem';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { bumpRecentThread, rekeyRecentThread } from '../../event-store/threads/recentThreads';

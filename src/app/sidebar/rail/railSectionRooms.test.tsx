@@ -30,7 +30,7 @@ vi.mock('../../matrix/state/useUnread', () => ({
     return undefined;
   },
 }));
-vi.mock('../../ui/sidebar', () => {
+vi.mock('../../ui/sidebar/SidebarItem', () => {
   const passthrough = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
   return {
     SidebarAvatar: passthrough,

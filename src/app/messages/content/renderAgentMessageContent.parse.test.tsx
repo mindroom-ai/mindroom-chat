@@ -19,10 +19,8 @@ vi.mock('../../rich-text/sanitize', async (importOriginal) => ({
 
 // The real RenderBody and its memo, under an MText that passes the formatted body and renders
 // the extras after it, as MText does.
-vi.mock('..', async () => {
-  const { RenderBody } = await import('./RenderBody');
+vi.mock('./MsgTypeRenderers', async () => {
   return {
-    BrokenContent: () => null,
     MEmote: () => null,
     MNotice: () => null,
     MText: ({ content, renderBody, renderAfterBody }: any) =>
@@ -32,11 +30,21 @@ vi.mock('..', async () => {
         renderBody({ body: content.body, customBody: content.formatted_body }),
         renderAfterBody
       ),
+  };
+});
+vi.mock('./RenderBody', async () => {
+  const { RenderBody } = await import('./RenderBody');
+  return {
     RenderBody,
   };
 });
+vi.mock('./BrokenContent', async () => {
+  return {
+    BrokenContent: () => null,
+  };
+});
 
-vi.mock('.', () => ({ MessageEmptyContent: () => null }));
+vi.mock('./FallbackContent', () => ({ MessageEmptyContent: () => null }));
 
 vi.mock('../html/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => text,

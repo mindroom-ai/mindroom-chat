@@ -11,8 +11,8 @@ import {
 } from '../sidebar/Navigation';
 import { MindroomPageNav } from '../sidebar/ResizablePageNav';
 import { CreateRoomForm } from '../rooms/create/CreateRoom';
-import { JoinRoomPanel } from '../rooms/join';
-import { Page } from '../ui/page';
+import { JoinRoomPanel } from '../rooms/join/JoinAddressPrompt';
+import { Page } from '../ui/page/Page';
 import { PhonePageHeader } from '../ui/page/PhonePageHeader';
 import { HOME_PATH } from '../routes/paths';
 import { getHomeRoomPath, withSearchParam } from '../routes/pathUtils';
@@ -29,7 +29,7 @@ import { Space } from '../sidebar/space/Space';
 // the module loads.
 
 export { HomeSearchPage, SpaceSearchPage } from '../search/MessageSearchPage';
-export { PageMain } from '../ui/page';
+export { PageMain } from '../ui/page/Page';
 export { ConnectionsRoute } from '../connections/ConnectionsRoute';
 export { WelcomePage } from './WelcomePage';
 export { RoomRoute } from '../room/RoomRoute';
@@ -38,8 +38,8 @@ export { Direct } from '../sidebar/direct/Direct';
 export { DirectCreate } from '../sidebar/direct/DirectCreate';
 export { SpaceRouteProvider } from '../sidebar/space/Space';
 export { Lobby } from '../spaces/lobby/Lobby';
-export { Threads } from '../threads/page';
-export { Canvases } from '../canvas/page';
+export { Threads } from '../threads/page/Threads';
+export { Canvases } from '../canvas/page/Canvases';
 export { FeaturedRooms } from '../rooms/explore/Featured';
 export { PublicRooms } from '../rooms/explore/Server';
 export { Invites } from '../notifications/inbox/Invites';

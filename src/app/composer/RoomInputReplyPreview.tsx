@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Text } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
-import { ReplyLayout } from '../messages';
+import { ReplyLayout } from '../messages/layout/layout';
 import type { IReplyDraft } from './roomInputDrafts';
 import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';

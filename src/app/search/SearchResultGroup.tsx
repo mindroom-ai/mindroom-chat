@@ -1,6 +1,6 @@
 import { useTranslation } from 'react-i18next';
 import { Box, Chip, Text, config } from 'folds';
-import { SequenceCard } from '../ui/sequence-card';
+import { SequenceCard } from '../ui/sequence-card/SequenceCard';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';

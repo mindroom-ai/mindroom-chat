@@ -5,7 +5,7 @@ import { expect, it, vi } from 'vitest';
 import { Reply } from './Reply';
 
 vi.mock('./Reply.css', () => ({ Reply: '', ReplyContent: '' }));
-vi.mock('../content', () => ({
+vi.mock('../content/FallbackContent', () => ({
   MessageBadEncryptedContent: () => null,
   MessageDeletedContent: () => null,
   MessageFailedContent: () => null,

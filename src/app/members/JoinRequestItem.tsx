@@ -5,7 +5,7 @@ import type { Room, RoomMember } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { useRelativeTime } from '../i18n/useRelativeTime';
-import { UserAvatar } from '../avatars/user-avatar';
+import { UserAvatar } from '../avatars/user-avatar/UserAvatar';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { getMemberDisplayName } from '../matrix/room';

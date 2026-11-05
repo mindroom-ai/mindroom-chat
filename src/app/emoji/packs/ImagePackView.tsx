@@ -9,9 +9,10 @@ import {
   RoomStateEvent,
 } from 'matrix-js-sdk';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
-import { Page, PageContent, PageHeader, PageScroll } from '../../ui/page';
-import { SequenceCard } from '../../ui/sequence-card';
-import { SettingTile } from '../../ui/setting-tile';
+import { Page, PageContent, PageHeader } from '../../ui/page/Page';
+import { PageScroll } from '../../ui/page/PageScroll';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { scrollHeaderHeight } from '../../ui/page/scrollHeaderInset';
 import { readImagePackUpload } from './imagePackUpload';
 import {
@@ -28,7 +29,7 @@ import { PackImageRow } from './PackImageRow';
 import { PACK_USAGE_OPTIONS, UsageSelector } from './UsageSelector';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
-import type { PackAddress, PackContent } from '../custom';
+import type { PackAddress, PackContent } from '../custom/types';
 import { UploadStatus } from '../../matrix/state/upload';
 import { AccountDataEvent } from '../../matrix/types/accountData';
 import { StateEvent } from '../../matrix/types/room';

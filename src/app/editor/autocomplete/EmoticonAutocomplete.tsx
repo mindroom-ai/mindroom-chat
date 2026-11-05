@@ -17,7 +17,7 @@ import { MenuItem } from '../../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRelevantImagePacks } from '../../emoji/useImagePacks';
-import { ImageUsage } from '../../emoji/custom';
+import { ImageUsage } from '../../emoji/custom/types';
 import { useEmojiData } from '../../emoji/emojiData';
 import { addRecentEmoji } from '../../emoji/recent-emoji-list';
 import { emojiSkinToneAtom } from '../../emoji/emojiSkinTone';

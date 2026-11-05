@@ -23,7 +23,7 @@ vi.mock('folds', () => ({
     React.createElement(as, props, children),
   color: { Critical: { Main: 'red' } },
 }));
-vi.mock('../../ui/password-input', () => ({
+vi.mock('../../ui/password-input/PasswordInput', () => ({
   PasswordInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({

@@ -28,14 +28,16 @@ vi.mock('../../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: () => undefined,
 }));
 
-vi.mock('../../../ui/page', () => ({
+vi.mock('../../../ui/page/Page', () => ({
   Page: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
     React.createElement('div', props, children),
   PageHeader: ({ children, ...props }: React.HTMLAttributes<HTMLElement>) =>
     React.createElement('header', props, children),
 }));
 
-vi.mock('../../../ui/virtualizer', () => ({
+vi.mock('../../../ui/page/PageScroll', () => ({}));
+
+vi.mock('../../../ui/virtualizer/VirtualTile', () => ({
   VirtualTile: React.forwardRef<HTMLDivElement, { children: React.ReactNode }>(
     ({ children }, ref) => React.createElement('div', { ref }, children)
   ),

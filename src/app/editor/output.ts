@@ -1,10 +1,8 @@
 import { Descendant, Element, Text } from 'slate';
 import { sanitizeText } from '../rich-text/sanitize';
-import {
-  parseBlockMD,
-  parseInlineMD,
-  unescapeMarkdownInlineSequences,
-} from '../rich-text/markdown';
+import { parseInlineMD } from '../rich-text/markdown/inline/parser';
+import { parseBlockMD } from '../rich-text/markdown/block/parser';
+import { unescapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import { getMatrixToRoom, getMatrixToRoomEvent, getMatrixToUser } from '../matrix/matrix-to';
 import {
   mindroomEditorPasteMarkerElementToCustomHtml,

@@ -1,12 +1,12 @@
 import { type IContent, MsgType } from 'matrix-js-sdk';
 import { type Descendant, type Editor, Text } from 'slate';
+import { getMentions } from '../editor/utils';
 import {
   customHtmlEqualsPlainText,
-  getMentions,
   toMatrixCustomHTML,
   toPlainText,
   trimCustomHtml,
-} from '../editor';
+} from '../editor/output';
 import type { ParagraphElement } from '../editor/slate';
 import { BlockType } from '../editor/types';
 import { type Command, SHRUG, TABLEFLIP, UNFLIP } from './commands/useCommands';

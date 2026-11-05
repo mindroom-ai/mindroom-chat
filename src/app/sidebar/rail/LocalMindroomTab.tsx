@@ -6,9 +6,9 @@ import {
   SidebarItem,
   SidebarItemBadge,
   SidebarItemTooltip,
-} from '../../ui/sidebar';
+} from '../../ui/sidebar/SidebarItem';
 import { Modal500 } from '../../ui/Modal500';
-import { Settings } from '../../settings';
+import { Settings } from '../../settings/Settings';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../../local-mindroom/settingsPage';
 import mindroomLogo from '../../../../public/res/branding/mindroom-logo.png';
 import { LinkIndicator } from './LocalMindroomTab.css';

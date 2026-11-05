@@ -9,9 +9,9 @@ import {
   PageHeader,
   PageHero,
   PageHeroSection,
-  PageScroll,
-} from '../../ui/page';
-import { RoomCard, RoomCardGrid } from '../room-card';
+} from '../../ui/page/Page';
+import { PageScroll } from '../../ui/page/PageScroll';
+import { RoomCard, RoomCardGrid } from '../room-card/RoomCard';
 import { RoomSummaryLoader } from '../RoomSummaryLoader';
 import { useClientConfig } from '../../config/useClientConfig';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';

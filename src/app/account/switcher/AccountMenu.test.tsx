@@ -14,7 +14,7 @@ vi.mock('folds', async (original) => ({
   ...(await original<typeof import('folds')>()),
   PopOut: ({ content }: { content: React.ReactNode }) => content,
 }));
-vi.mock('../../avatars/user-avatar', () => ({
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: ({ alt }: { alt: string }) => <span data-avatar={alt} />,
 }));
 // jsdom lays nothing out, so every element counts as shown for the trap.

@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { Header, IconButton, MenuItem } from '../../../ui/glass/GlassPrimitives';
-import { UserAvatar } from '../../../avatars/user-avatar';
+import { UserAvatar } from '../../../avatars/user-avatar/UserAvatar';
 import { useMatrixClient } from '../../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../matrix/hooks/useMediaAuthentication';
 import { useRelations } from '../../../matrix/hooks/useRelations';

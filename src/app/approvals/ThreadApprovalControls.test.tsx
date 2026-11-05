@@ -13,7 +13,7 @@ import { ThreadApprovals } from './ThreadApprovalProvider';
 import { parseToolApprovalContent } from '../matrix/protocol/toolApproval';
 
 let current: ThreadApprovals;
-vi.mock('../ui/page', () => ({
+vi.mock('../ui/page/PageScroll', () => ({
   PageScroll: ({
     header,
     children,

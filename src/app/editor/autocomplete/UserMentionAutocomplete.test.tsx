@@ -38,7 +38,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
     <button type="button">{children}</button>
   ),
 }));
-vi.mock('../../avatars/user-avatar', () => ({ UserAvatar: () => null }));
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({ UserAvatar: () => null }));
 
 const keydownListeners = new Set<(evt: KeyboardEvent) => void>();
 const originalWindow = globalThis.window;

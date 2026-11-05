@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { Membership } from '../../matrix/types/room';
-import type { RoomAccessJoinRule } from '../room-access';
+import type { RoomAccessJoinRule } from '../room-access/RoomAccessControl';
 import { RoomCard } from './RoomCard';
 
 vi.mock('folds', async () => {
@@ -35,7 +35,7 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../avatars/room-avatar', () => ({
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
 }));
 

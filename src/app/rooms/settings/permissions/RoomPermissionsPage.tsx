@@ -7,7 +7,7 @@ import type { RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { EventTimeline, type Room } from 'matrix-js-sdk';
 import { Menu, MenuItem } from '../../../ui/glass/GlassPrimitives';
-import { SettingTile } from '../../../ui/setting-tile';
+import { SettingTile } from '../../../ui/setting-tile/SettingTile';
 import { useMatrixClient } from '../../../matrix/hooks/useMatrixClient';
 import { RoomProvider } from '../../../matrix/hooks/useRoom';
 import { readPowerLevel, usePowerLevels } from '../../../matrix/hooks/usePowerLevels';

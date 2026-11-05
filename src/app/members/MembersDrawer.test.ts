@@ -120,7 +120,7 @@ vi.mock('./MembersDrawer.css', () => ({
   MembersGroupLabel: 'MembersGroupLabel',
 }));
 
-vi.mock('./invite', () => ({
+vi.mock('./invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => React.createElement('div', { 'data-testid': 'invite-user-prompt' }),
 }));
 
@@ -218,12 +218,12 @@ vi.mock('../matrix/hooks/useSpace', () => ({
   useSpaceOptionally: () => undefined,
 }));
 
-vi.mock('../ui/scroll-top-container', () => ({
+vi.mock('../ui/scroll-top-container/ScrollTopContainer', () => ({
   ScrollTopContainer: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../avatars/user-avatar', () => ({
+vi.mock('../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div'),
 }));
 

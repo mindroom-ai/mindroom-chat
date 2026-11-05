@@ -30,10 +30,10 @@ vi.mock('folds', () => ({
   Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
 }));
 
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../../ui/setting-tile', () => ({
+vi.mock('../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({
     after,
     description,

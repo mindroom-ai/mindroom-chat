@@ -14,9 +14,10 @@ import {
 } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { ViewerOverlay } from '../../../messages/content/FileContent';
-import { Page, PageContent, PageHeader, PageScroll } from '../../../ui/page';
-import { SequenceCard } from '../../../ui/sequence-card';
-import { SettingTile } from '../../../ui/setting-tile';
+import { Page, PageContent, PageHeader } from '../../../ui/page/Page';
+import { PageScroll } from '../../../ui/page/PageScroll';
+import { SequenceCard } from '../../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../../ui/setting-tile/SettingTile';
 import { TextViewer } from '../../../messages/viewers/text-viewer/TextViewer';
 import { useClientConfig } from '../../../config/useClientConfig';
 import { appUrl } from '../../../lib/basePath';

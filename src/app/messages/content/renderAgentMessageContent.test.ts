@@ -12,8 +12,7 @@ const resolvedLongText = vi.hoisted(() => new Map<string, Record<string, unknown
 const pasteAttachmentContentMock = vi.hoisted(() => vi.fn());
 const toolTraceParserOptionsMock = vi.hoisted(() => vi.fn((options: unknown) => options));
 
-vi.mock('..', () => ({
-  BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
+vi.mock('./MsgTypeRenderers', () => ({
   MEmote: ({ content, displayName, renderAfterBody, renderBody }: any) =>
     React.createElement(
       'div',
@@ -38,7 +37,12 @@ vi.mock('..', () => ({
       renderStateSuffix?.(),
       renderAfterBody
     ),
+}));
+vi.mock('./RenderBody', () => ({
   RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
+}));
+vi.mock('./BrokenContent', () => ({
+  BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
 }));
 
 vi.mock('../agent-run/Reasoning.css', () => ({}));

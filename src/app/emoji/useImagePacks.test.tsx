@@ -3,7 +3,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { ImagePack } from './custom';
+import type { ImagePack } from './custom/ImagePack';
 import { useRoomsImagePacks } from './useImagePacks';
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({

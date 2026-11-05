@@ -13,12 +13,12 @@ const mocks = vi.hoisted(() => ({
   navigateSpace: vi.fn(),
 }));
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/Page', () => ({
   Page: ({ children }: { children?: React.ReactNode }) => children,
   PageHeader: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
-vi.mock('../../avatars/room-avatar', () => ({
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
   RoomAvatar: () => null,
 }));
 
@@ -37,7 +37,7 @@ vi.mock('../RoomSummaryLoader', () => ({
 }));
 
 // The join itself succeeded; what is left is where the app goes next.
-vi.mock('../room-access', () => ({
+vi.mock('../room-access/RoomAccessControl', () => ({
   RoomAccessControl: ({
     children,
   }: {

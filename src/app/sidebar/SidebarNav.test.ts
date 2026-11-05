@@ -15,9 +15,14 @@ vi.mock('folds', () => ({
   ),
 }));
 
-vi.mock('../ui/sidebar', () => ({
+vi.mock('../ui/sidebar/SidebarItem', () => ({
   Sidebar: ({ children }: { children: React.ReactNode }) =>
     React.createElement('nav', null, children),
+  SidebarStackSeparator: () => React.createElement('hr'),
+  SidebarStack: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
+}));
+vi.mock('../ui/sidebar/SidebarContent', () => ({
   SidebarContent: ({
     scrollable,
     sticky,
@@ -25,23 +30,38 @@ vi.mock('../ui/sidebar', () => ({
     scrollable: React.ReactNode;
     sticky: React.ReactNode;
   }) => React.createElement('div', null, scrollable, sticky),
-  SidebarStackSeparator: () => React.createElement('hr'),
-  SidebarStack: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', null, children),
 }));
 
 vi.mock('../ui/sidebar/SidebarItem.css', () => ({ SidebarScroll: 'sidebar-scroll' }));
-vi.mock('./rail', () => ({
-  DirectTab: () => React.createElement('div', { 'data-tab': 'direct' }),
-  HomeTab: () => React.createElement('div', { 'data-tab': 'home' }),
-  SpaceTabs: () => React.createElement('div', { 'data-tab': 'spaces' }),
-  InboxTab: () => React.createElement('div', { 'data-tab': 'inbox' }),
-  ExploreTab: () => React.createElement('div', { 'data-tab': 'explore' }),
-  SettingsTab: () => React.createElement('div', { 'data-tab': 'settings' }),
-  UnverifiedTab: () => React.createElement('div', { 'data-tab': 'unverified' }),
-  SearchTab: () => React.createElement('div', { 'data-tab': 'search' }),
-  ThreadsTab: () => React.createElement('div', { 'data-tab': 'threads' }),
+vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: () => React.createElement('div', { 'data-tab': 'canvases' }),
+}));
+vi.mock('./rail/DirectTab', () => ({
+  DirectTab: () => React.createElement('div', { 'data-tab': 'direct' }),
+}));
+vi.mock('./rail/ExploreTab', () => ({
+  ExploreTab: () => React.createElement('div', { 'data-tab': 'explore' }),
+}));
+vi.mock('./rail/HomeTab', () => ({
+  HomeTab: () => React.createElement('div', { 'data-tab': 'home' }),
+}));
+vi.mock('./rail/InboxTab', () => ({
+  InboxTab: () => React.createElement('div', { 'data-tab': 'inbox' }),
+}));
+vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
+  SearchTab: () => React.createElement('div', { 'data-tab': 'search' }),
+}));
+vi.mock('./rail/SettingsTab', () => ({
+  SettingsTab: () => React.createElement('div', { 'data-tab': 'settings' }),
+}));
+vi.mock('./rail/SpaceTabs', () => ({
+  SpaceTabs: () => React.createElement('div', { 'data-tab': 'spaces' }),
+}));
+vi.mock('./rail/ThreadsTab', () => ({
+  ThreadsTab: () => React.createElement('div', { 'data-tab': 'threads' }),
+}));
+vi.mock('../account/switcher/UnverifiedTab', () => ({
+  UnverifiedTab: () => React.createElement('div', { 'data-tab': 'unverified' }),
 }));
 
 vi.mock('./rail/CreateTab', () => ({

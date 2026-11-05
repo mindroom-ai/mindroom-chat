@@ -16,26 +16,24 @@ import type { Descendant, Editor } from 'slate';
 import { Box, Icon, Icons, IconSrc, RectCords, Text, color, config } from 'folds';
 import { PopOut } from '../ui/directional';
 import { Editor as SlateEditor } from 'slate';
+import { getPrevWorldRange, isEmptyEditor, resetEditor, resetEditorHistory } from '../editor/utils';
+import { CustomEditor } from '../editor/Editor';
 import {
   AUTOCOMPLETE_PREFIXES,
   AutocompletePrefix,
   type AutocompleteQuery,
-  CustomEditor,
-  EmoticonAutocomplete,
   getAutocompleteQuery,
-  getPrevWorldRange,
-  isEmptyEditor,
-  resetEditor,
-  resetEditorHistory,
-  UserMentionAutocomplete,
-} from '../editor';
+} from '../editor/autocomplete/autocompleteQuery';
+import { UserMentionAutocomplete } from '../editor/autocomplete/UserMentionAutocomplete';
+import { EmoticonAutocomplete } from '../editor/autocomplete/EmoticonAutocomplete';
 import {
   createEmoticonElement,
   moveCursor,
   restoreEditorContent,
 } from '../editor/utils';
 import { toggleKeyboardShortcut } from '../editor/keyboard';
-import { EmojiBoard, type EmojiBoardTab } from '../emoji/board';
+import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
+import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
 import { IconButton } from '../ui/glass/GlassPrimitives';
 import {
   getAudioMsgContent,

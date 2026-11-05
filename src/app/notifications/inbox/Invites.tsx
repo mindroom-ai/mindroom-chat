@@ -18,15 +18,10 @@ import { useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { SequenceCard } from '../../ui/sequence-card';
-import { RoomAvatar } from '../../avatars/room-avatar';
-import {
-  Page,
-  PageContent,
-  PageContentCenter,
-  PageHeader,
-  PageScroll,
-} from '../../ui/page';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
+import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
+import { PageScroll } from '../../ui/page/PageScroll';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';

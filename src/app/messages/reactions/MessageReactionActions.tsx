@@ -8,9 +8,9 @@ import { ModalLayer } from '../../ui/ModalLayer';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRelevantImagePacks } from '../../emoji/useImagePacks';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
-import { ImageUsage } from '../../emoji/custom';
+import { ImageUsage } from '../../emoji/custom/types';
 import { type RecentEmoji, useRecentEmoji } from '../../emoji/useRecentEmoji';
-import { ReactionViewer } from './reaction-viewer';
+import { ReactionViewer } from './reaction-viewer/ReactionViewer';
 import * as css from '../styles.css';
 
 const QUICK_REACTION_COUNT = 4;

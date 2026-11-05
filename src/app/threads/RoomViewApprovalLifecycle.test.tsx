@@ -61,13 +61,13 @@ vi.mock('../matrix/hooks/useRoomPermissions', () => ({
 }));
 vi.mock('../lib/hooks/useKeyDown', () => ({ useKeyDown: () => undefined }));
 vi.mock('../preferences/useSetting', () => ({ useSetting: () => [false] }));
-vi.mock('../editor', () => ({ useEditor: () => editor }));
+vi.mock('../editor/Editor', () => ({ useEditor: () => editor }));
 vi.mock('../editor/utils', () => ({
   resetEditor: vi.fn(),
   resetEditorHistory: vi.fn(),
   restoreEditorContent: vi.fn(),
 }));
-vi.mock('../ui/page', () => ({ Page: 'div' }));
+vi.mock('../ui/page/Page', () => ({ Page: 'div' }));
 vi.mock('../timeline/typing/RoomViewTyping', () => ({ RoomViewTyping: () => null }));
 vi.mock('../timeline/RoomViewFollowing', () => ({
   RoomViewFollowing: () => null,

@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Chip, Icon, Icons, Text } from 'folds';
-import { MessageEditedContent } from '../content';
-import { MessageTextBody } from '../layout';
+import { MessageEditedContent } from '../content/FallbackContent';
+import { MessageTextBody } from '../layout/layout';
 import { Time } from '../Time';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';

@@ -18,7 +18,7 @@ const mocks = vi.hoisted(() => ({
   mxcUrlToHttp: vi.fn(() => 'https://matrix.example/media/icon'),
 }));
 
-vi.mock('../ui/page', () => ({
+vi.mock('../ui/page/PageScroll', () => ({
   PageScroll: ({
     header,
     children,

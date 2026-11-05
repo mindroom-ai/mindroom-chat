@@ -166,9 +166,13 @@ vi.mock('./FileHeader', () => ({
     }),
 }));
 
-vi.mock('../../lib/hooks/media', () => ({
+vi.mock('../../lib/hooks/media/useMediaLoading', () => ({
   useMediaLoading: () => ({ loading: false }),
+}));
+vi.mock('../../lib/hooks/media/useMediaPlay', () => ({
   useMediaPlay: () => ({ playing: mocks.playing, setPlaying: mocks.setPlaying }),
+}));
+vi.mock('../../lib/hooks/media/useMediaPlayTimeCallback', () => ({
   useMediaPlayTimeCallback: (
     _getAudio: unknown,
     callback: (duration: number, currentTime: number) => void

@@ -2,7 +2,7 @@ import { RefCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar/SidebarItem';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useCanvasesSelected } from '../../routes/useCanvasesSelected';

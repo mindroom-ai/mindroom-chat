@@ -12,13 +12,13 @@ import {
   EmojiImageTooLargeError,
   prepareEmojiImage,
 } from '../../custom/prepareEmojiImage';
+import { type PackContent } from '../../custom/types';
 import {
-  type PackContent,
   ShortcodeTakenError,
   getRoomImagePacks,
   getUserImagePack,
   packsHaveShortcode,
-} from '../../custom';
+} from '../../custom/utils';
 import { AccountDataEvent } from '../../../matrix/types/accountData';
 import { loadImageElement } from '../../../lib/dom';
 import { getFileNameWithoutExt } from '../../../lib/mimeTypes';

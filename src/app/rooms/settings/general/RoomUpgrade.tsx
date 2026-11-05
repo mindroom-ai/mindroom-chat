@@ -3,7 +3,7 @@ import { Box, Button, Spinner, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
-import { SettingTile } from '../../../ui/setting-tile';
+import { SettingTile } from '../../../ui/setting-tile/SettingTile';
 import { useMatrixClient } from '../../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../../lib/hooks/useAlive';
 import { useCapabilities } from '../../../matrix/hooks/useCapabilities';

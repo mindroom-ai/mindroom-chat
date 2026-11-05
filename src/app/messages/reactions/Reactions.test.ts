@@ -43,7 +43,7 @@ vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => true,
 }));
 
-vi.mock('..', () => ({
+vi.mock('./Reaction', () => ({
   ReactionTooltipMsg: () => null,
   Reaction: ({
     reaction,
@@ -69,7 +69,7 @@ vi.mock('..', () => ({
   },
 }));
 
-vi.mock('./reaction-viewer', () => ({
+vi.mock('./reaction-viewer/ReactionViewer', () => ({
   ReactionViewer: () => null,
 }));
 

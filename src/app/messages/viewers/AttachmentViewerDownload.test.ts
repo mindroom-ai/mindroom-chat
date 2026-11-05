@@ -72,7 +72,7 @@ vi.mock('./pdf-viewer/PdfViewer.css', () => ({
   PdfViewerHeader: 'PdfViewerHeader',
 }));
 
-vi.mock('../../ui/page', async () => {
+vi.mock('../../ui/page/PageScroll', async () => {
   const { createElement } = await import('react');
   return {
     PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>

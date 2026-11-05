@@ -117,7 +117,7 @@ vi.mock('react-router-dom', () => ({
   useNavigate: () => navigateSpy,
 }));
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/Page', () => ({
   PageHeader: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
@@ -126,20 +126,20 @@ vi.mock('../../ui/styles/ContainerColor.css', () => ({
   ContainerColor: () => 'ContainerColor',
 }));
 
-vi.mock('../../avatars/room-avatar', () => ({
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
   RoomAvatar: () => React.createElement('div'),
   RoomIcon: () => React.createElement('div'),
 }));
 
-vi.mock('../room-topic-viewer', () => ({
+vi.mock('../room-topic-viewer/RoomTopicViewer', () => ({
   RoomTopicViewer: () => React.createElement('div'),
 }));
 
-vi.mock('../../rooms/leave-room-prompt', () => ({
+vi.mock('../../rooms/leave-room-prompt/LeaveRoomPrompt', () => ({
   LeaveRoomPrompt: () => React.createElement('div'),
 }));
 
-vi.mock('../../members/invite', () => ({
+vi.mock('../../members/invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => React.createElement('div'),
 }));
 
@@ -294,7 +294,7 @@ vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
 
-vi.mock('../../timeline/jump-to-time', () => ({
+vi.mock('../../timeline/jump-to-time/JumpToTime', () => ({
   JumpToTime: () => React.createElement('div'),
 }));
 

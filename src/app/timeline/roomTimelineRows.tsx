@@ -12,7 +12,7 @@ import type { VirtualItem } from '@tanstack/react-virtual';
 import { Text, color, config } from 'folds';
 import { reactionOrEditEvent } from '../matrix/room';
 import { today, timeDayMonthYear, yesterday } from '../lib/time';
-import { VirtualTile } from '../ui/virtualizer';
+import { VirtualTile } from '../ui/virtualizer/VirtualTile';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { hasThreadReplies } from './message-rendering/useTimelineMessageFeature';
 import type { ThreadRecord } from '../event-store/threads/types';

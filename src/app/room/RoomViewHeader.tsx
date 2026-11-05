@@ -18,13 +18,13 @@ import {
   type RectCords,
 } from 'folds';
 import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
-import { PageHeader } from '../ui/page';
+import { PageHeader } from '../ui/page/Page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
-import { RoomTopicViewer } from './room-topic-viewer';
-import { RoomAvatar, RoomIcon } from '../avatars/room-avatar';
-import { InviteUserPrompt } from '../members/invite';
-import { LeaveRoomPrompt } from '../rooms/leave-room-prompt';
-import { JumpToTime } from '../timeline/jump-to-time';
+import { RoomTopicViewer } from './room-topic-viewer/RoomTopicViewer';
+import { RoomAvatar, RoomIcon } from '../avatars/room-avatar/RoomAvatar';
+import { InviteUserPrompt } from '../members/invite/InviteUserPrompt';
+import { LeaveRoomPrompt } from '../rooms/leave-room-prompt/LeaveRoomPrompt';
+import { JumpToTime } from '../timeline/jump-to-time/JumpToTime';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useIsDirectRoom, useRoom } from '../matrix/hooks/useRoom';
 import { useSpaceOptionally } from '../matrix/hooks/useSpace';

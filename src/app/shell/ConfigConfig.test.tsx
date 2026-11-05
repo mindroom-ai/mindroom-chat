@@ -29,10 +29,12 @@ vi.mock('folds', () => ({
   },
 }));
 
-vi.mock('../ui/splash', () => ({
-  MindRoomSplashScreen: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
+vi.mock('../ui/splash/SplashScreen', () => ({
   SplashScreen: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement('div', null, children),
+}));
+vi.mock('../ui/splash/BrandedSplashScreen', () => ({
+  MindRoomSplashScreen: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
 

@@ -75,7 +75,7 @@ vi.mock('jotai', async (importOriginal) => {
   };
 });
 
-vi.mock('../../ui/nav', async () => {
+vi.mock('../../ui/nav/NavItem', async () => {
   const reactModule = await import('react');
   const Container = ({ children, ...props }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', props, children);
@@ -89,7 +89,7 @@ vi.mock('../../ui/nav', async () => {
   };
 });
 
-vi.mock('../../ui/unread-badge', async () => {
+vi.mock('../../ui/unread-badge/UnreadBadge', async () => {
   const reactModule = await import('react');
   return {
     UnreadBadge: () => reactModule.createElement('span'),
@@ -101,11 +101,11 @@ vi.mock('../../notifications/RoomNotificationSwitcher', () => ({
   RoomNotificationModeSwitcher: () => null,
 }));
 
-vi.mock('../../members/invite', () => ({
+vi.mock('../../members/invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => null,
 }));
 
-vi.mock('../../rooms/leave-room-prompt', () => ({
+vi.mock('../../rooms/leave-room-prompt/LeaveRoomPrompt', () => ({
   LeaveRoomPrompt: () => null,
 }));
 
@@ -113,7 +113,7 @@ vi.mock('../../notifications/MarkRoomReadMenuItem', () => ({
   MindroomMarkRoomReadMenuItem: () => null,
 }));
 
-vi.mock('../../avatars/room-avatar', async () => {
+vi.mock('../../avatars/room-avatar/RoomAvatar', async () => {
   const reactModule = await import('react');
 
   const RoomAvatar = ({

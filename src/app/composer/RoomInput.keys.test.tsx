@@ -35,23 +35,39 @@ vi.mock('folds', () => {
     config: { space: {}, radii: {}, borderWidth: {} },
   };
 });
-vi.mock('../editor', () => ({
-  AUTOCOMPLETE_PREFIXES: ['@'],
-  AutocompletePrefix: { UserMention: '@' },
-  CustomEditor: (props: EditorProps) => {
-    state.editorProps = props;
-    return null;
-  },
-  customHtmlEqualsPlainText: () => true,
-  getAutocompleteQuery: () => ({ prefix: '@', range: {}, text: 'zz' }),
+vi.mock('../editor/utils', () => ({
   getMentions: () => ({ users: new Set<string>(), room: false }),
   getPrevWorldRange: () => ({}),
   isEmptyEditor: () => false,
   resetEditor: state.resetEditor,
   resetEditorHistory: vi.fn(),
+  createEmoticonElement: vi.fn(),
+  moveCursor: vi.fn(),
+  restoreEditorContent: state.restoreEditorContent,
+}));
+vi.mock('../editor/output', () => ({
+  customHtmlEqualsPlainText: () => true,
   toMatrixCustomHTML: () => '@zz',
   toPlainText: () => '@zz',
   trimCustomHtml: (value: string) => value,
+}));
+vi.mock('../editor/Editor', () => ({
+  CustomEditor: (props: EditorProps) => {
+    state.editorProps = props;
+    return null;
+  },
+}));
+vi.mock('../editor/autocomplete/autocompleteQuery', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../editor/autocomplete/autocompleteQuery')>();
+  return {
+    ...actual,
+    AUTOCOMPLETE_PREFIXES: ['@'],
+    AutocompletePrefix: { ...actual.AutocompletePrefix, UserMention: '@' },
+    getAutocompleteQuery: () => ({ prefix: '@', range: {}, text: 'zz' }),
+  };
+});
+vi.mock('../editor/autocomplete/EmoticonAutocomplete', () => ({}));
+vi.mock('../editor/autocomplete/UserMentionAutocomplete', () => ({
   // Reports its suggestions the way the real mention menu does.
   UserMentionAutocomplete: ({
     onSuggestionsChange,
@@ -62,12 +78,7 @@ vi.mock('../editor', () => ({
     return null;
   },
 }));
-vi.mock('../editor/utils', () => ({
-  createEmoticonElement: vi.fn(),
-  moveCursor: vi.fn(),
-  restoreEditorContent: state.restoreEditorContent,
-}));
-vi.mock('../emoji/board', () => ({ EmojiBoard: () => null }));
+vi.mock('../emoji/board/LazyEmojiBoard', () => ({ EmojiBoard: () => null }));
 vi.mock('../matrix/send/msgContent', () => ({
   getAudioMsgContent: vi.fn(),
   getFileMsgContent: vi.fn(),
@@ -106,7 +117,9 @@ vi.mock('./useRoomInputSendSessionController', () => ({
   useRoomInputSendSessionController: () => ({ startSendSession: state.startSendSession }),
 }));
 vi.mock('./RoomInputReplyPreview', () => ({ RoomInputReplyPreview: () => null }));
-vi.mock('../matrix/send/roomInputUploadPreparation', () => ({ createMindroomRoomUploadItems: vi.fn() }));
+vi.mock('../matrix/send/roomInputUploadPreparation', () => ({
+  createMindroomRoomUploadItems: vi.fn(),
+}));
 vi.mock('./useRoomInputAttachments', () => ({
   useRoomInputAttachments: () => ({
     access: {},

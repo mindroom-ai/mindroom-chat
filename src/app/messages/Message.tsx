@@ -32,19 +32,19 @@ import { Menu } from '../ui/glass/GlassPrimitives';
 import { ActionDialog } from '../ui/ActionDialog';
 import { MenuEntry } from '../ui/MenuEntry';
 import { IconTooltip } from '../ui/IconTooltip';
-import { EmojiBoard } from '../emoji/board';
+import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
+import { Time } from './Time';
 import {
   AvatarBase,
   BubbleLayout,
   CompactLayout,
   MessageBase,
   ModernLayout,
-  Time,
   Username,
   UsernameBold,
-} from '.';
-import { UserAvatar } from '../avatars/user-avatar';
+} from './layout/layout';
+import { UserAvatar } from '../avatars/user-avatar/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { MessageLayout, type MessageSpacing } from '../preferences/settings';

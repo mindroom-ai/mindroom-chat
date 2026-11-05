@@ -4,8 +4,8 @@ import FocusTrap from 'focus-trap-react';
 import { Box, Button, Chip, config, Icon, Icons, type RectCords, Text, toRem } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
-import { SettingTile } from '../../ui/setting-tile';
-import { SequenceCard } from '../../ui/sequence-card';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
 
 type RoomVersionSelectorProps = {
   versions: string[];

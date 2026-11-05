@@ -19,18 +19,15 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Header, Modal } from '../../ui/glass/GlassPrimitives';
-import { PageScroll } from '../../ui/page';
-import { SettingTile } from '../../ui/setting-tile';
+import { PageScroll } from '../../ui/page/PageScroll';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
-import {
-  type EmoteRoomsContent,
-  type ImagePack,
-  ImageUsage,
-  getRoomImagePacks,
-} from '../custom';
-import { PackAvatar } from '../packs';
+import { type EmoteRoomsContent, ImageUsage } from '../custom/types';
+import { type ImagePack } from '../custom/ImagePack';
+import { getRoomImagePacks } from '../custom/utils';
+import { PackAvatar } from '../packs/PackMetaEditor';
 import { stopPropagation } from '../../lib/keyboard';
 import { AccountDataEvent } from '../../matrix/types/accountData';
 import { SettingsCard } from '../../ui/settings/SettingsCard';

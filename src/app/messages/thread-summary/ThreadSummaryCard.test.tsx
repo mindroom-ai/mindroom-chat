@@ -33,11 +33,11 @@ vi.mock('folds', () => ({
     React.createElement(Tag, props, children),
 }));
 
-vi.mock('../content', () => ({
+vi.mock('../content/FallbackContent', () => ({
   MessageEditedContent: () => React.createElement('span', null, 'edited'),
 }));
 
-vi.mock('../layout', () => ({
+vi.mock('../layout/layout', () => ({
   MessageTextBody: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('p', props, children),
 }));

@@ -18,10 +18,8 @@ vi.mock('../live/liveMarkdown', async (importOriginal) => {
 });
 
 // The real RenderBody under an MText that renders the body, then what comes after it.
-vi.mock('..', async () => {
-  const { RenderBody } = await import('../content/RenderBody');
+vi.mock('../content/MsgTypeRenderers', async () => {
   return {
-    BrokenContent: () => null,
     MEmote: () => null,
     MNotice: ({ content, renderBody, renderAfterBody }: any) =>
       React.createElement(
@@ -37,10 +35,20 @@ vi.mock('..', async () => {
         renderBody({ body: content.body, customBody: content.formatted_body }),
         renderAfterBody
       ),
+  };
+});
+vi.mock('../content/RenderBody', async () => {
+  const { RenderBody } = await import('../content/RenderBody');
+  return {
     RenderBody,
   };
 });
-vi.mock('../content', () => ({ MessageEmptyContent: () => null }));
+vi.mock('../content/BrokenContent', async () => {
+  return {
+    BrokenContent: () => null,
+  };
+});
+vi.mock('../content/FallbackContent', () => ({ MessageEmptyContent: () => null }));
 vi.mock('../html/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => text,
 }));

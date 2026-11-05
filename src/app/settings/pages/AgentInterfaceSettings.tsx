@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { Box, color, Switch, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { SequenceCard } from '../../ui/sequence-card';
-import { SettingTile } from '../../ui/setting-tile';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import {
   RAIL_BUTTON_SETTING,
   type RailButton,

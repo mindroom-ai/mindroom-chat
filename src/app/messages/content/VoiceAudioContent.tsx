@@ -22,7 +22,9 @@ import {
   voiceMessageVolumeAtom,
 } from '../../preferences/voiceMessageSettings';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
-import { useMediaLoading, useMediaPlay, useMediaPlayTimeCallback } from '../../lib/hooks/media';
+import { useMediaLoading } from '../../lib/hooks/media/useMediaLoading';
+import { useMediaPlay } from '../../lib/hooks/media/useMediaPlay';
+import { useMediaPlayTimeCallback } from '../../lib/hooks/media/useMediaPlayTimeCallback';
 import { useThrottle } from '../../lib/hooks/useThrottle';
 import { bytesToSize, secondsToMinutesAndSeconds } from '../../lib/common';
 import { VoiceWaveform } from './voice/VoiceWaveform';

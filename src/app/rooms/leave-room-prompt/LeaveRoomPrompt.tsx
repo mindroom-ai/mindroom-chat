@@ -18,7 +18,7 @@ import {
   toRem,
 } from 'folds';
 import { Dialog, Header, IconButton } from '../../ui/glass/GlassPrimitives';
-import { SettingTile } from '../../ui/setting-tile';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { stopPropagation } from '../../lib/keyboard';

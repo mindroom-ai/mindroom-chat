@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar, Box, Icon, Icons, Text, config } from 'folds';
 import { type Room, RoomEvent } from 'matrix-js-sdk';
 import { Header, IconButton, MenuItem } from '../../ui/glass/GlassPrimitives';
-import { PageScroll } from '../../ui/page';
+import { PageScroll } from '../../ui/page/PageScroll';
 import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';

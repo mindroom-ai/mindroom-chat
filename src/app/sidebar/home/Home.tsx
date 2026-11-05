@@ -4,19 +4,19 @@ import type { IconSrc } from 'folds';
 import { useAtom, useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page';
+import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
 import {
   NavButton,
   NavCategory,
-  NavCategoryHeader,
   NavEmptyLayout,
   NavItem,
   NavItemContent,
   NavLink,
-} from '../../ui/nav';
-import { VirtualTile } from '../../ui/virtualizer';
-import { JoinAddressPrompt } from '../../rooms/join';
-import { RoomNavCategoryButton } from '../room-nav';
+} from '../../ui/nav/NavItem';
+import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
+import { VirtualTile } from '../../ui/virtualizer/VirtualTile';
+import { JoinAddressPrompt } from '../../rooms/join/JoinAddressPrompt';
+import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { HOME_ROOM_LIST, useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';

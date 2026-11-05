@@ -72,7 +72,7 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../ui/nav', async () => {
+vi.mock('../../ui/nav/NavItem', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
@@ -80,13 +80,20 @@ vi.mock('../../ui/nav', async () => {
     NavButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
       reactModule.createElement('button', props, children),
     NavCategory: passthrough,
-    NavCategoryHeader: passthrough,
     NavEmptyCenter: passthrough,
     NavEmptyLayout: ({ options }: { options?: React.ReactNode }) =>
       reactModule.createElement('div', null, options),
     NavItem: passthrough,
     NavItemContent: passthrough,
     NavLink: passthrough,
+  };
+});
+vi.mock('../../ui/nav/NavCategoryHeader', async () => {
+  const reactModule = await import('react');
+  const passthrough = ({ children }: { children?: React.ReactNode }) =>
+    reactModule.createElement('div', null, children);
+  return {
+    NavCategoryHeader: passthrough,
   };
 });
 
@@ -111,9 +118,11 @@ vi.mock('../../matrix/state/useHomeRooms', () => ({ useHomeRooms: () => homeRoom
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getRoom: () => null, getSafeUserId: () => '@alice:example.org' }),
 }));
-vi.mock('../../ui/virtualizer', () => ({ VirtualTile: 'div' }));
-vi.mock('../room-nav', () => ({
+vi.mock('../../ui/virtualizer/VirtualTile', () => ({ VirtualTile: 'div' }));
+vi.mock('../room-nav/RoomNavCategoryButton', () => ({
   RoomNavCategoryButton: 'button',
+}));
+vi.mock('../room-nav/RoomNavItem', () => ({
   RoomNavItem: 'div',
 }));
 vi.mock('../room-nav/roomOrder', () => ({
@@ -137,7 +146,7 @@ vi.mock('../../ui/nav/useCategoryHandler', () => ({ useCategoryHandler: () => vi
 vi.mock('../../routes/useNavToActivePathMapper', () => ({
   useNavToActivePathMapper: vi.fn(),
 }));
-vi.mock('../../ui/page', async () => {
+vi.mock('../../ui/page/Page', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>
     reactModule.createElement('div', null, children);
@@ -153,7 +162,7 @@ vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
   getRoomNotificationMode: vi.fn(),
   useRoomsNotificationPreferencesContext: () => new Map(),
 }));
-vi.mock('../../rooms/join', async () => {
+vi.mock('../../rooms/join/JoinAddressPrompt', async () => {
   const reactModule = await import('react');
   return {
     JoinAddressPrompt: ({

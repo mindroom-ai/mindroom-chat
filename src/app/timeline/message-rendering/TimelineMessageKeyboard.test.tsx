@@ -12,8 +12,8 @@ import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 // Keep timeline presentation fixtures, but exercise real message selection and editor guards.
 vi.doUnmock('../../matrix/room');
 vi.doUnmock('../../lib/dom');
-vi.doMock('../../editor', async () => ({
-  ...(await vi.importActual('../../editor/utils')),
+vi.doMock('../../editor/utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../editor/utils')>()),
 }));
 
 const message = (id: string, sender = '@alice:example.org', content = {}) =>

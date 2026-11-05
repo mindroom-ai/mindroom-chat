@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';
 import { Box, Icon, Icons, Text, as } from 'folds';
 import { Chip, Header, IconButton } from '../../../ui/glass/GlassPrimitives';
-import { PageScroll } from '../../../ui/page';
+import { PageScroll } from '../../../ui/page/PageScroll';
 import { copyToClipboard } from '../../../lib/dom';
 import * as css from './TextViewer.css';
 

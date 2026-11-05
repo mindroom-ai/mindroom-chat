@@ -20,7 +20,7 @@ vi.mock('./useOpenConnectionsPortal', () => ({ useConnectionsHandoff: () => mock
 vi.mock('./ConnectionsSettings', () => ({
   MindroomConnectionsSettings: () => <section>settings card</section>,
 }));
-vi.mock('../ui/page', () => ({
+vi.mock('../ui/page/Page', () => ({
   Page: ({ children }: { children?: React.ReactNode }) => <main>{children}</main>,
   PageContent: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));

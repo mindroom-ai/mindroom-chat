@@ -55,7 +55,7 @@ vi.mock('../MessageControls.css', () => ({
   MenuItemText: 'MenuItemText',
 }));
 
-vi.mock('../../ui/page', async () => {
+vi.mock('../../ui/page/PageScroll', async () => {
   const { createElement } = await import('react');
   return {
     PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
@@ -180,7 +180,10 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('..', () => ({
+vi.mock('../Time', () => ({
+  Time: () => React.createElement('span', null, 'time'),
+}));
+vi.mock('../layout/layout', () => ({
   AvatarBase: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children),
   BubbleLayout: ({
@@ -232,7 +235,6 @@ vi.mock('..', () => ({
   ),
   ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, before, children),
-  Time: () => React.createElement('span', null, 'time'),
   Username: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
     React.createElement('button', { ...props, type: 'button' }, children),
   UsernameBold: ({ children }: { children?: React.ReactNode }) =>
@@ -273,11 +275,11 @@ vi.mock('../../emoji/useImagePacks', () => ({
   useRelevantImagePacks: () => [],
 }));
 
-vi.mock('../event-readers', () => ({
+vi.mock('../event-readers/EventReaders', () => ({
   EventReaders: () => React.createElement('div', null, 'readers'),
 }));
 
-vi.mock('../viewers/text-viewer', () => ({
+vi.mock('../viewers/text-viewer/TextViewer', () => ({
   TextViewer: () => React.createElement('div', null, 'viewer'),
 }));
 
@@ -290,11 +292,11 @@ vi.mock('../../lib/hooks/useAsyncCallback', () => ({
   useAsyncCallback: () => [{ status: 'Idle' }, vi.fn()],
 }));
 
-vi.mock('../../emoji/board', () => ({
+vi.mock('../../emoji/board/LazyEmojiBoard', () => ({
   EmojiBoard: () => React.createElement('div', null, 'emoji-board'),
 }));
 
-vi.mock('../reactions/reaction-viewer', () => ({
+vi.mock('../reactions/reaction-viewer/ReactionViewer', () => ({
   ReactionViewer: () => React.createElement('div', null, 'reactions'),
 }));
 
@@ -302,7 +304,7 @@ vi.mock('../edit/MessageEditor', () => ({
   MessageEditor: () => React.createElement('div', null, 'editor'),
 }));
 
-vi.mock('../../avatars/user-avatar', () => ({
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div', null, 'avatar'),
 }));
 

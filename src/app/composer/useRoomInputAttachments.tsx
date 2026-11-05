@@ -11,9 +11,14 @@ import {
 import { useAtomValue, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
-import { moveCursor, toMatrixCustomHTML, toPlainText } from '../editor';
-import { UploadBoard, UploadBoardContent, UploadBoardHeader } from './upload/upload-board';
-import { UploadCardRenderer } from './upload';
+import { moveCursor } from '../editor/utils';
+import { toMatrixCustomHTML, toPlainText } from '../editor/output';
+import {
+  UploadBoard,
+  UploadBoardContent,
+  UploadBoardHeader,
+} from './upload/upload-board/UploadBoard';
+import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { useFileDropZone } from '../lib/hooks/useFileDrop';
 import { useFilePicker } from '../lib/hooks/useFilePicker';
 import {

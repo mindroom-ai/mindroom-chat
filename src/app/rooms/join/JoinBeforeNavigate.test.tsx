@@ -41,12 +41,12 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/Page', () => ({
   Page: ({ children }: { children?: React.ReactNode }) => children,
   PageHeader: ({ children }: { children?: React.ReactNode }) => children,
 }));
 
-vi.mock('../../avatars/room-avatar', () => ({
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
 }));
 
@@ -75,7 +75,7 @@ vi.mock('../RoomSummaryLoader', () => ({
   },
 }));
 
-vi.mock('../../room/room-topic-viewer', () => ({
+vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({
   RoomTopicViewer: () => null,
 }));
 

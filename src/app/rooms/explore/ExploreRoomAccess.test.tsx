@@ -54,10 +54,19 @@ vi.mock('jotai', async () => {
   return { ...actual, useAtomValue: () => [] };
 });
 
-vi.mock('../../ui/page', () => {
+vi.mock('../../ui/page/Page', () => {
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     Page: Wrapper,
+    PageContent: Wrapper,
+    PageContentCenter: Wrapper,
+    PageHeader: Wrapper,
+    PageHeroSection: Wrapper,
+    PageHero: () => null,
+  };
+});
+vi.mock('../../ui/page/PageScroll', () => {
+  return {
     PageScroll: ({
       header,
       children,
@@ -70,18 +79,13 @@ vi.mock('../../ui/page', () => {
         {children}
       </>
     ),
-    PageContent: Wrapper,
-    PageContentCenter: Wrapper,
-    PageHeader: Wrapper,
-    PageHeroSection: Wrapper,
-    PageHero: () => null,
   };
 });
 
-vi.mock('../room-card', async () => {
+vi.mock('../room-card/RoomCard', async () => {
   const { RoomAccessControl } = await vi.importActual<
-    typeof import('../room-access')
-  >('../room-access');
+    typeof import('../room-access/RoomAccessControl')
+  >('../room-access/RoomAccessControl');
   const Wrapper = ({ children }: { children?: React.ReactNode }) => children;
   return {
     RoomCardGrid: Wrapper,
@@ -107,7 +111,7 @@ vi.mock('../room-card', async () => {
   };
 });
 
-vi.mock('../../avatars/room-avatar', () => ({
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
   RoomAvatar: ({ renderFallback }: { renderFallback: () => React.ReactNode }) => renderFallback(),
 }));
 
@@ -149,7 +153,7 @@ vi.mock('../RoomSummaryLoader', () => ({
     ),
 }));
 
-vi.mock('../../room/room-topic-viewer', () => ({
+vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({
   RoomTopicViewer: () => null,
 }));
 

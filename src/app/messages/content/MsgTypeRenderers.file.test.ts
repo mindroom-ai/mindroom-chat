@@ -6,13 +6,15 @@ import { MAudio, MFile, MImage, MVideo } from './MsgTypeRenderers';
 import { FileContent, ReadTextFile } from './FileContent';
 import { FileDownloadButton } from './FileHeader';
 
-vi.mock('.', () => ({
-  BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
+vi.mock('./FallbackContent', () => ({
   MessageBadEncryptedContent: () => null,
   MessageBrokenContent: () => null,
   MessageDeletedContent: () => null,
   MessageEditedContent: () => null,
   MessageUnsupportedContent: () => null,
+}));
+vi.mock('./BrokenContent', () => ({
+  BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
 }));
 
 // Renders the file name as text, as the real player does.
@@ -29,7 +31,7 @@ vi.mock('./FileRow.css', () => ({
 }));
 
 vi.mock('../../ui/glass/GlassPrimitives', () => ({ Modal: () => null }));
-vi.mock('../layout', () => ({ MessageTextBody: () => null }));
+vi.mock('../layout/layout', () => ({ MessageTextBody: () => null }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 

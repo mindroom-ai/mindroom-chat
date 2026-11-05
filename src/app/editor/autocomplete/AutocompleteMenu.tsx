@@ -2,7 +2,7 @@ import React, { PropsWithChildren, ReactNode, useCallback } from 'react';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
 import { Header, Menu } from '../../ui/glass/GlassPrimitives';
-import { PageScroll } from '../../ui/page';
+import { PageScroll } from '../../ui/page/PageScroll';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { preventScrollWithArrowKey, stopPropagation } from '../../lib/keyboard';
 import * as css from './AutocompleteMenu.css';

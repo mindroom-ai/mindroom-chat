@@ -9,10 +9,10 @@ import {
   RoomType,
   type RoomSummary,
 } from 'matrix-js-sdk';
-import { Page, PageHeader } from '../../ui/page';
-import { RoomAvatar } from '../../avatars/room-avatar';
+import { Page, PageHeader } from '../../ui/page/Page';
+import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
 import { RoomSummaryLoader } from '../RoomSummaryLoader';
-import { RoomAccessControl } from '../room-access';
+import { RoomAccessControl } from '../room-access/RoomAccessControl';
 import * as roomCardCss from '../room-card/style.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';

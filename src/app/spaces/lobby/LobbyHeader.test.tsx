@@ -70,7 +70,7 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/Page', () => ({
   PageHeader: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
@@ -94,7 +94,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   }),
 }));
 
-vi.mock('../../avatars/room-avatar', () => ({
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({
   RoomAvatar: () => React.createElement('div'),
 }));
 
@@ -102,7 +102,7 @@ vi.mock('../../lib/common', () => ({
   nameInitials: () => 'ES',
 }));
 
-vi.mock('../leave-space-prompt', () => ({
+vi.mock('../leave-space-prompt/LeaveSpacePrompt', () => ({
   LeaveSpacePrompt: () => React.createElement('div'),
 }));
 
@@ -142,7 +142,7 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
   }),
 }));
 
-vi.mock('../../members/invite', () => ({
+vi.mock('../../members/invite/InviteUserPrompt', () => ({
   InviteUserPrompt: () => React.createElement('div'),
 }));
 

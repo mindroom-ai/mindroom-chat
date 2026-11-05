@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { KnownMembership, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { Box, Button, Icon, Icons, Input, Text, config } from 'folds';
 import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
-import { RoomIcon } from '../avatars/room-avatar';
+import { RoomIcon } from '../avatars/room-avatar/RoomAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { isMindroomEmojiRoom } from '../matrix/room';
 import { compareNames } from '../lib/nameOrder';

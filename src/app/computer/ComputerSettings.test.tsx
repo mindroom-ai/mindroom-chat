@@ -31,10 +31,10 @@ vi.mock('folds', () => ({
   ),
   color: { Critical: { Main: 'red' } },
 }));
-vi.mock('../ui/sequence-card', () => ({
+vi.mock('../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) => <section>{children}</section>,
 }));
-vi.mock('../ui/setting-tile', () => ({
+vi.mock('../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('react-i18next', async () => {

@@ -3,7 +3,7 @@ import { Box, Button, Icon, Icons, Text, config, toRem } from 'folds';
 import type { IconSrc } from 'folds';
 import { useSetAtom } from 'jotai';
 import { Trans, useTranslation } from 'react-i18next';
-import { Page, PageHero, PageHeroSection } from '../ui/page';
+import { Page, PageHero, PageHeroSection } from '../ui/page/Page';
 import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import {

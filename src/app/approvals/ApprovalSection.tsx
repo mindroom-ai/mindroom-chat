@@ -11,7 +11,7 @@ import {
   ApprovalMemberRoom,
   userDisplayName,
 } from './approvalPeople';
-import { UserAvatar } from '../avatars/user-avatar';
+import { UserAvatar } from '../avatars/user-avatar/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';

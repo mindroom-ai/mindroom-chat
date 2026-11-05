@@ -4,17 +4,19 @@ import { describe, expect, it, vi } from 'vitest';
 import { MsgType } from 'matrix-js-sdk';
 import { MEmote, MText } from './MsgTypeRenderers';
 
-vi.mock('.', () => ({
-  BrokenContent: () => null,
+vi.mock('./FallbackContent', () => ({
   MessageBadEncryptedContent: () => null,
   MessageEditedContent: () => null,
   MessageUnsupportedContent: () => null,
+}));
+vi.mock('./BrokenContent', () => ({
+  BrokenContent: () => null,
 }));
 vi.mock('./VoiceAudioContent', () => ({ VoiceAudioContent: () => null }));
 vi.mock('../../ui/glass/liquid/useLiquidGlass', () => ({ useGlassHighlight: () => undefined }));
 vi.mock('./FileRow.css', () => ({}));
 // The body box, with the size variant it was given readable from the test renderer.
-vi.mock('../layout', () => ({
+vi.mock('../layout/layout', () => ({
   MessageTextBody: ({ jumboEmoji, ...props }: { jumboEmoji?: boolean }) =>
     React.createElement('div', { ...props, 'data-jumbo-emoji': jumboEmoji === true }),
 }));

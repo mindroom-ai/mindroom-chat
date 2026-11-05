@@ -5,7 +5,7 @@ import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider, ownDirectionLine } from '../../ui/directional';
-import { NavButton, NavItem, NavItemContent } from '../../ui/nav';
+import { NavButton, NavItem, NavItemContent } from '../../ui/nav/NavItem';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRelativeTime } from '../../i18n/useRelativeTime';

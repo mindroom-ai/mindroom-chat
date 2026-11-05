@@ -1,7 +1,7 @@
 import React from 'react';
 import { Button, Text, color } from 'folds';
 import parse from 'html-react-parser';
-import { CustomEditor, useEditor } from '../../src/app/editor';
+import { CustomEditor, useEditor } from '../../src/app/editor/Editor';
 import { MindroomThreadSummaryCard } from '../../src/app/messages/thread-summary/ThreadSummaryCard';
 import { MindroomToolApprovalCard } from '../../src/app/approvals/ToolApprovalCard';
 import {

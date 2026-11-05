@@ -34,11 +34,7 @@ vi.mock('folds', () => ({
   },
 }));
 
-vi.mock('../..', () => ({
-  DownloadFile: () => null,
-  FileDownloadButton: () => null,
-  FileContent: () => null,
-  ImageContent: () => null,
+vi.mock('../MsgTypeRenderers', () => ({
   MAudio: () => null,
   MBadEncrypted: () => React.createElement('div', { 'data-renderer': 'bad-encrypted' }),
   MEmote: () => React.createElement('div', { 'data-renderer': 'emote' }),
@@ -47,8 +43,6 @@ vi.mock('../..', () => ({
     content.info?.mimetype === 'image/svg+xml' ? renderAsFile() : null,
   MLocation: () => React.createElement('div', { 'data-renderer': 'location' }),
   MNotice: () => React.createElement('div', { 'data-renderer': 'notice' }),
-  MindroomThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
-    React.createElement('div', { 'data-renderer': 'summary-card' }, summaryInfo.summaryText),
   MText: ({ content, renderStateSuffix }: any) =>
     React.createElement(
       'div',
@@ -57,34 +51,50 @@ vi.mock('../..', () => ({
       renderStateSuffix?.()
     ),
   MVideo: () => null,
+  UnsupportedContent: () => React.createElement('div', { 'data-renderer': 'unsupported' }),
+}));
+vi.mock('../RenderBody', () => ({
+  RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
+}));
+vi.mock('../FileHeader', () => ({
+  FileDownloadButton: () => null,
+}));
+vi.mock('../FileContent', () => ({
+  DownloadFile: () => null,
+  FileContent: () => null,
   ReadPdfFile: () => null,
   ReadTextFile: () => null,
-  RenderBody: ({ body }: { body: string }) => React.createElement('span', null, body),
+}));
+vi.mock('../ImageContent', () => ({
+  ImageContent: () => null,
+}));
+vi.mock('../ThumbnailContent', () => ({
   ThumbnailContent: () => null,
-  UnsupportedContent: () => React.createElement('div', { 'data-renderer': 'unsupported' }),
+}));
+vi.mock('../VideoContent', () => ({
   VideoContent: () => null,
 }));
 
-vi.mock('../../url-preview', () => ({
+vi.mock('../../url-preview/UrlPreviewCard', () => ({
   UrlPreviewCard: () => null,
   UrlPreviewHolder: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../../ui/media', () => ({
+vi.mock('../../../ui/media/Media', () => ({
   Image: () => null,
   Video: () => null,
 }));
 
-vi.mock('../../viewers/image-viewer', () => ({
+vi.mock('../../viewers/image-viewer/ImageViewer', () => ({
   ImageViewer: () => null,
 }));
 
-vi.mock('../../viewers/pdf-viewer', () => ({
+vi.mock('../../viewers/pdf-viewer/PdfViewer', () => ({
   PdfViewer: () => null,
 }));
 
-vi.mock('../../viewers/text-viewer', () => ({
+vi.mock('../../viewers/text-viewer/TextViewer', () => ({
   TextViewer: () => null,
 }));
 

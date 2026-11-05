@@ -33,13 +33,15 @@ vi.mock('folds', () => ({
     children?: React.ReactNode;
   }) => React.createElement(asElement, props, children),
 }));
-vi.mock('../../ui/nav', () => ({
+vi.mock('../../ui/nav/NavItem', () => ({
   NavCategory: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
     React.createElement('section', props, children),
+}));
+vi.mock('../../ui/nav/NavCategoryHeader', () => ({
   NavCategoryHeader: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('header', null, children),
 }));
-vi.mock('../room-nav', () => ({
+vi.mock('../room-nav/RoomNavCategoryButton', () => ({
   RoomNavCategoryButton: ({
     children,
     closed,

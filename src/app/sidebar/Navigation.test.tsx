@@ -42,7 +42,7 @@ vi.mock('../config/useClientConfig', () => ({
   useClientConfig: () => ({ featuredCommunities: { openAsDefault: true } }),
 }));
 
-vi.mock('../ui/sidebar', () => ({
+vi.mock('../ui/sidebar/SidebarItem', () => ({
   SidebarAvatar: React.forwardRef<
     HTMLButtonElement,
     React.ButtonHTMLAttributes<HTMLButtonElement> & { outlined?: boolean }
@@ -65,7 +65,7 @@ vi.mock('../ui/sidebar', () => ({
     ),
 }));
 
-vi.mock('../ui/page', () => ({
+vi.mock('../ui/page/Page', () => ({
   PageRoot: ({ nav, children }: { nav: React.ReactNode; children: React.ReactNode }) =>
     React.createElement('section', { 'data-testid': 'page-root' }, nav, children),
 }));

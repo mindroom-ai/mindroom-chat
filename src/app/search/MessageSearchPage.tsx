@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import { Box, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Page, PageContent, PageContentCenter, PageHeader, PageScroll } from '../ui/page';
+import { Page, PageContent, PageContentCenter, PageHeader } from '../ui/page/Page';
+import { PageScroll } from '../ui/page/PageScroll';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { useSpace } from '../matrix/hooks/useSpace';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';

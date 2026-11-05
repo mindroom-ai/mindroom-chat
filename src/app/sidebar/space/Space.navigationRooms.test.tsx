@@ -53,7 +53,7 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => vi.fn(),
 }));
 vi.mock('focus-trap-react', () => ({ default: passthrough }));
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/Page', () => ({
   PageNav: passthrough,
   PageNavContent: ({
     header,
@@ -69,15 +69,17 @@ vi.mock('../../ui/page', () => ({
   ),
   PageNavHeader: passthrough,
 }));
-vi.mock('../../ui/nav', () => ({
+vi.mock('../../ui/nav/NavItem', () => ({
   NavButton: passthrough,
   NavCategory: passthrough,
-  NavCategoryHeader: passthrough,
   NavItem: passthrough,
   NavItemContent: passthrough,
   NavLink: passthrough,
 }));
-vi.mock('../room-nav', () => ({ RoomNavCategoryButton: passthrough }));
+vi.mock('../../ui/nav/NavCategoryHeader', () => ({
+  NavCategoryHeader: passthrough,
+}));
+vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
   SortableRoomRow: ({ room }: { room: { roomId: string } }) => <div data-row-room={room.roomId} />,

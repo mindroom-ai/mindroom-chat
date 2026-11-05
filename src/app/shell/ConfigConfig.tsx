@@ -3,7 +3,8 @@ import { Box, Button, Text, color, config } from 'folds';
 import { Dialog } from '../ui/glass/GlassPrimitives';
 import { useTranslation } from 'react-i18next';
 import { ClientConfigAuthenticationError } from '../config/ClientConfigLoader';
-import { MindRoomSplashScreen, SplashScreen } from '../ui/splash';
+import { SplashScreen } from '../ui/splash/SplashScreen';
+import { MindRoomSplashScreen } from '../ui/splash/BrandedSplashScreen';
 import { describeKnownError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
 

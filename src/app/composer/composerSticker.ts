@@ -1,12 +1,8 @@
 import { EventType, RelationType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { StickerEventContent } from 'matrix-js-sdk/lib/@types/events';
-import {
-  getGlobalImagePacks,
-  getRoomImagePacks,
-  getUserImagePack,
-  ImagePack,
-  ImageUsage,
-} from '../emoji/custom';
+import { ImageUsage } from '../emoji/custom/types';
+import { ImagePack } from '../emoji/custom/ImagePack';
+import { getGlobalImagePacks, getRoomImagePacks, getUserImagePack } from '../emoji/custom/utils';
 import type { IReplyDraft } from './roomInputDrafts';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 

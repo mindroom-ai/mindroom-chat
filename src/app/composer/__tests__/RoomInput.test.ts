@@ -221,10 +221,13 @@ vi.mock('folds', () => {
   };
 });
 
-vi.mock('../../editor', () => ({
-  AUTOCOMPLETE_PREFIXES: ['user'],
-  AutocompletePrefix: { UserMention: 'user' },
-  AutocompleteQuery: {},
+vi.mock('../../editor/output', () => ({
+  customHtmlEqualsPlainText: () => editorOutputState.htmlEqualsPlainText,
+  toMatrixCustomHTML: () => editorOutputState.customHtml,
+  toPlainText: () => editorOutputState.plainText,
+  trimCustomHtml: (value: string) => value,
+}));
+vi.mock('../../editor/Editor', () => ({
   CustomEditor: ({
     style,
     top,
@@ -253,42 +256,42 @@ vi.mock('../../editor', () => ({
       after
     );
   },
-  EmoticonAutocomplete: () => null,
-  RoomMentionAutocomplete: () => null,
-  Toolbar: () => null,
+}));
+vi.mock('../../editor/autocomplete/autocompleteQuery', async (importOriginal) => {
+  const actual = await importOriginal<
+    typeof import('../../editor/autocomplete/autocompleteQuery')
+  >();
+  return {
+    ...actual,
+    AUTOCOMPLETE_PREFIXES: ['user'],
+    AutocompletePrefix: { ...actual.AutocompletePrefix, UserMention: 'user' },
+    getAutocompleteQuery: () => customEditorState.autocompleteQuery,
+  };
+});
+vi.mock('../../editor/autocomplete/UserMentionAutocomplete', () => ({
   UserMentionAutocomplete: () => null,
-  createEmoticonElement: vi.fn(),
-  customHtmlEqualsPlainText: () => editorOutputState.htmlEqualsPlainText,
-  getAutocompleteQuery: () => customEditorState.autocompleteQuery,
-  getBeginCommand: () => undefined,
-  getMentions: () => ({ users: new Set<string>(), room: false }),
-  getPrevWorldRange: () => (customEditorState.autocompleteQuery ? {} : undefined),
-  isEmptyEditor: () => true,
-  moveCursor: editorMocks.moveCursor,
-  resetEditor: editorMocks.resetEditor,
-  resetEditorHistory: editorMocks.resetEditorHistory,
-  toMatrixCustomHTML: () => editorOutputState.customHtml,
-  toPlainText: () => editorOutputState.plainText,
-  trimCommand: (_command: string, value: string) => value,
-  trimCustomHtml: (value: string) => value,
+}));
+vi.mock('../../editor/autocomplete/EmoticonAutocomplete', () => ({
+  EmoticonAutocomplete: () => null,
 }));
 
-// The send-session controller imports these helpers from the utils module directly, so the
-// editor barrel mock above does not cover its calls.
 vi.mock('../../editor/utils', async (importOriginal) => ({
   ...(await importOriginal<object>()),
+  createEmoticonElement: vi.fn(),
+  getMentions: () => ({ users: new Set<string>(), room: false }),
+  getPrevWorldRange: () => (customEditorState.autocompleteQuery ? {} : undefined),
+  moveCursor: editorMocks.moveCursor,
   isEmptyEditor: () => true,
   resetEditor: editorMocks.resetEditor,
   resetEditorHistory: editorMocks.resetEditorHistory,
   restoreEditorContent: editorMocks.restoreEditorContent,
 }));
 
-vi.mock('../../emoji/board', () => ({
+vi.mock('../../emoji/board/LazyEmojiBoard', () => ({
   EmojiBoard: () => null,
-  EmojiBoardTab: {},
 }));
 
-vi.mock('../upload', () => ({
+vi.mock('../upload/UploadCardRenderer', () => ({
   UploadCardRenderer: ({
     fileItem,
     onRemove,
@@ -302,7 +305,7 @@ vi.mock('../upload', () => ({
     }),
 }));
 
-vi.mock('../upload/upload-board', async () => {
+vi.mock('../upload/upload-board/UploadBoard', async () => {
   const reactModule = await import('react');
   const { useAtomValue } = await import('jotai');
 
@@ -619,7 +622,7 @@ vi.mock('../voice/VoiceRecorderDialog', () => {
   };
 });
 
-vi.mock('../../messages', () => ({
+vi.mock('../../messages/layout/layout', () => ({
   ReplyLayout: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));

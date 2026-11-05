@@ -1,8 +1,8 @@
 import { MatrixError, MatrixEvent } from 'matrix-js-sdk';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { ShortcodeTakenError } from '../custom';
-import type { PackContent, PackImage } from '../custom';
+import { ShortcodeTakenError } from '../custom/utils';
+import type { PackContent, PackImage } from '../custom/types';
 import { addToServerPack, canAddServerEmoji } from './addToServerPack';
 
 const EMOTES = 'im.ponies.room_emotes';

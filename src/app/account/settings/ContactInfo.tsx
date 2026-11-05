@@ -3,7 +3,7 @@ import { Box, Spinner, Text } from 'folds';
 import { ThreepidMedium } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { SettingTile } from '../../ui/setting-tile';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 
 const KEY = 'featureUi.settings.account.contactInfo';

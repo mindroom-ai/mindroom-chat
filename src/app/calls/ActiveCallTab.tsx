@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
 import { Icon, Icons } from 'folds';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar/SidebarItem';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { callHomeRoomId, callPanelRoomAtom, useCallState, type ActiveCall } from './callStore';

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import { type MatrixEvent, type Room, RoomEvent, RoomStateEvent, ThreadEvent } from 'matrix-js-sdk';
-import { EventReaders } from '../messages/event-readers';
+import { EventReaders } from '../messages/event-readers/EventReaders';
 import { Modal500 } from '../ui/Modal500';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useSetting } from '../preferences/useSetting';

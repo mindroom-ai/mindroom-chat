@@ -1,8 +1,8 @@
 import { ReactElement, ReactNode, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
-import { PageRoot } from '../ui/page';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar';
+import { PageRoot } from '../ui/page/Page';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar/SidebarItem';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useNavToActivePathMapper } from '../routes/useNavToActivePathMapper';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';

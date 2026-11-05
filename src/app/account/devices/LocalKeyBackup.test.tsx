@@ -38,7 +38,7 @@ vi.mock('folds', () => {
     color: { Critical: { Main: 'red' }, Success: { Main: 'green' } },
   };
 });
-vi.mock('../../ui/setting-tile', () => ({
+vi.mock('../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({ title, after }: Record<string, React.ReactNode>) => (
     <div>
       {title}
@@ -46,7 +46,7 @@ vi.mock('../../ui/setting-tile', () => ({
     </div>
   ),
 }));
-vi.mock('../../ui/password-input', () => ({
+vi.mock('../../ui/password-input/PasswordInput', () => ({
   PasswordInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('../../ui/settings/SettingsCard', () => ({

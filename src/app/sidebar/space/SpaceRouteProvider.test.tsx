@@ -15,9 +15,12 @@ vi.mock('../../rooms/join/JoinBeforeNavigate', () => ({
     <div data-join-before-navigate={roomIdOrAlias} />
   ),
 }));
-vi.mock('../../ui/page', () => ({}));
-vi.mock('../../ui/nav', () => ({}));
-vi.mock('../room-nav', () => ({}));
+vi.mock('../../ui/page/Page', () => ({}));
+vi.mock('../../ui/page/PageScroll', () => ({}));
+vi.mock('../../ui/nav/NavItem', () => ({}));
+vi.mock('../../ui/nav/NavCategoryHeader', () => ({}));
+vi.mock('../room-nav/RoomNavCategoryButton', () => ({}));
+vi.mock('../room-nav/RoomNavItem', () => ({}));
 vi.mock('../threads/ThreadNavCategory', () => ({}));
 vi.mock('../threads/RecentlyOpenedNavCategory', () => ({}));
 vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({}));

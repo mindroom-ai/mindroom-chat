@@ -1,7 +1,7 @@
 import parse from 'html-dom-parser';
 import { ChildNode, Element as DomElement, isTag, isText } from 'domhandler';
 import { Descendant } from 'slate';
-import { escapeMarkdownInlineSequences } from '../rich-text/markdown';
+import { escapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import {
   getMindroomEditorMathText,
   getMindroomEditorPasteMarkerElement,

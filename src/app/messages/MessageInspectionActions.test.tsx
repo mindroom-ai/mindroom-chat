@@ -28,10 +28,10 @@ vi.mock('folds', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('./viewers/text-viewer', () => ({
+vi.mock('./viewers/text-viewer/TextViewer', () => ({
   TextViewer: ({ name }: { name: string }) => <div data-viewer-name={name} />,
 }));
-vi.mock('./event-readers', () => ({ EventReaders: () => null }));
+vi.mock('./event-readers/EventReaders', () => ({ EventReaders: () => null }));
 vi.mock('./styles.css', () => ({ MessageMenuItemText: 'text' }));
 
 describe('MessageSourceCodeItem', () => {

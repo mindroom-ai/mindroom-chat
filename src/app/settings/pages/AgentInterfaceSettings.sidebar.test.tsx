@@ -41,11 +41,11 @@ vi.mock('folds', () => ({
     React.createElement('span', null, children),
   color: { Critical: { Main: 'red' } },
 }));
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('section', null, children),
 }));
-vi.mock('../../ui/setting-tile', () => ({
+vi.mock('../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({
     title,
     description,

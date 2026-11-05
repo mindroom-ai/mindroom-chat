@@ -1,14 +1,7 @@
 import { createEditor, type Descendant } from 'slate';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createMentionElement, withInlineElements } from '../../editor/utils';
 import { getEditedContent, getEditorDocument, isUnchanged } from './MessageEditor';
-
-// The editor's index brings its style sheets, which unit tests do not compile.
-vi.mock('../../editor', async () => ({
-  ...(await import('../../editor/utils')),
-  ...(await import('../../editor/output')),
-  ...(await import('../../editor/input')),
-}));
 
 const ME = '@me:example.org';
 

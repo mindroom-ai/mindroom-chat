@@ -89,9 +89,13 @@ vi.mock('../useCanvasOpenRequest', () => ({
   requestCanvasOpen: mocks.requestOpen,
   cancelCanvasOpen: mocks.cancelOpen,
 }));
-vi.mock('../../ui/page', () => {
+vi.mock('../../ui/page/Page', () => {
   const Wrapper = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
-  return { Page: Wrapper, PageHeader: Wrapper, PageScroll: Wrapper, PageContent: Wrapper };
+  return { Page: Wrapper, PageHeader: Wrapper, PageContent: Wrapper };
+});
+vi.mock('../../ui/page/PageScroll', () => {
+  const Wrapper = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
+  return { PageScroll: Wrapper };
 });
 vi.mock('./Canvases.css', () => ({
   Note: 'Note',

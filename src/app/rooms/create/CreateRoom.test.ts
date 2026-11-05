@@ -5,25 +5,28 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { CapabilitiesProvider } from '../../matrix/hooks/useCapabilities';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfig, ClientConfigProvider } from '../../config/useClientConfig';
-import { CreateRoomAccess, CreateRoomType } from '../../matrix/createRoomTypes';
+import { CreateRoomAccess } from '../../matrix/createRoomTypes';
 import { CreateRoomForm } from './CreateRoom';
 
 const createRoomMock = vi.hoisted(() => vi.fn());
 
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children, as, ...props }: any) =>
     React.createElement(as ?? 'div', props, children),
 }));
 
-vi.mock('../../ui/setting-tile', () => ({
+vi.mock('../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({ title, description, children, after }: any) =>
     React.createElement('div', null, title, description, children, after),
 }));
 
-vi.mock('.', () => {
+vi.mock('../../matrix/createRoom', () => {
   return {
-    AdditionalCreatorInput: () => React.createElement('div', null),
-    CreateRoomAccess,
+    createRoom: createRoomMock,
+  };
+});
+vi.mock('./CreateRoomAccessSelector', () => {
+  return {
     CreateRoomAccessSelector: ({ onSelect }: { onSelect: (value: CreateRoomAccess) => void }) =>
       React.createElement(
         'div',
@@ -39,15 +42,16 @@ vi.mock('.', () => {
           onClick: () => onSelect(CreateRoomAccess.Public),
         })
       ),
+  };
+});
+vi.mock('./CreateRoomAliasInput', () => {
+  return {
     CreateRoomAliasInput: () => React.createElement('input', { name: 'aliasInput' }),
-    CreateRoomType,
+  };
+});
+vi.mock('./RoomVersionSelector', () => {
+  return {
     RoomVersionSelector: () => React.createElement('div', null),
-    createRoom: createRoomMock,
-    useAdditionalCreators: () => ({
-      additionalCreators: [],
-      addAdditionalCreator: vi.fn(),
-      removeAdditionalCreator: vi.fn(),
-    }),
   };
 });
 

@@ -4,9 +4,6 @@ import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Box } from 'folds';
 import {
-  FileContent,
-  FileDownloadButton,
-  ImageContent,
   MAudio,
   MBadEncrypted,
   MFile,
@@ -15,19 +12,20 @@ import {
   MSticker,
   MText,
   MVideo,
-  ReadPdfFile,
-  ReadTextFile,
-  RenderBody,
-  ThumbnailContent,
   UnsupportedContent,
-  VideoContent,
-} from '..';
-import type { RenderImageContentArgs } from '..';
-import { UrlPreviewCard, UrlPreviewHolder } from '../url-preview';
-import { Image, Video } from '../../ui/media';
-import { ImageViewer } from '../viewers/image-viewer';
-import { PdfViewer } from '../viewers/pdf-viewer';
-import { TextViewer } from '../viewers/text-viewer';
+} from './MsgTypeRenderers';
+import { RenderBody } from './RenderBody';
+import { FileDownloadButton } from './FileHeader';
+import { FileContent, ReadPdfFile, ReadTextFile } from './FileContent';
+import { ImageContent } from './ImageContent';
+import { ThumbnailContent } from './ThumbnailContent';
+import { VideoContent } from './VideoContent';
+import type { RenderImageContentArgs } from './MsgTypeRenderers';
+import { UrlPreviewCard, UrlPreviewHolder } from '../url-preview/UrlPreviewCard';
+import { Image, Video } from '../../ui/media/Media';
+import { ImageViewer } from '../viewers/image-viewer/ImageViewer';
+import { PdfViewer } from '../viewers/pdf-viewer/PdfViewer';
+import { TextViewer } from '../viewers/text-viewer/TextViewer';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { renderMindroomMessageContent } from './renderAgentMessageContent';
 import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';

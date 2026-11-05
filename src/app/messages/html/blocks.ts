@@ -1,11 +1,11 @@
 import { Element, Text as DOMText, htmlToDOM } from 'html-react-parser';
 import type { DOMNode } from 'html-react-parser';
+import { parseInlineMD } from '../../rich-text/markdown/inline/parser';
+import { parseBlockMD } from '../../rich-text/markdown/block/parser';
 import {
   escapeMarkdownInlineSequences,
-  parseBlockMD,
-  parseInlineMD,
   unescapeMarkdownInlineSequences,
-} from '../../rich-text/markdown';
+} from '../../rich-text/markdown/utils';
 import { findDisplayLatexBlockMatch } from '../../rich-text/math';
 import { CodeBlockRule } from '../../rich-text/markdown/block/rules';
 import { sanitizeText } from '../../rich-text/sanitize';

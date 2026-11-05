@@ -10,7 +10,7 @@ import {
   type CrossRoomThreadFiltersUpdate,
 } from '../../cross-room/crossRoomThreadFilters';
 
-vi.mock('../../../ui/page', () => ({
+vi.mock('../../../ui/page/PageScroll', () => ({
   PageScroll: ({ header, children }: { header?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, header, children),
 }));

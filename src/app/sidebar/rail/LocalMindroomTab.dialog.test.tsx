@@ -7,7 +7,7 @@ vi.mock('./LocalMindroomTab.css', () => ({ LinkIndicator: 'link-indicator' }));
 
 // Stand-ins that show what the tab hands the rail components: the tooltip text, and the
 // button's element and outline.
-vi.mock('../../ui/sidebar', () => ({
+vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItem: ({ children }: { children: ReactNode }) =>
     React.createElement('div', { 'data-rail-entry': true }, children),
   SidebarItemBadge: ({ children }: { children: ReactNode }) =>
@@ -37,7 +37,7 @@ vi.mock('../../ui/Modal500', () => ({
     React.createElement('div', { 'data-modal': true, onClick: requestClose }, children),
 }));
 
-vi.mock('../../settings', () => ({
+vi.mock('../../settings/Settings', () => ({
   Settings: ({ initialPage, requestClose }: { initialPage?: string; requestClose: () => void }) =>
     React.createElement('button', {
       type: 'button',

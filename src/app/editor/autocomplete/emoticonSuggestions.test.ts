@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ImagePack } from '../../emoji/custom';
+import { ImagePack } from '../../emoji/custom/ImagePack';
 import { emojis } from '../../emoji/emoji';
 import { getEmoticonSuggestions, readEmoticonQuery } from './emoticonSuggestions';
 

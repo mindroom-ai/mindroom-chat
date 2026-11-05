@@ -5,7 +5,7 @@ import { glassOverBackdrop } from '../../ui/styles/Glass.css';
 import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
-} from '../../ui/particle-background';
+} from '../../ui/particle-background/PersistentParticleBackground';
 import { Link, Outlet, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import classNames from 'classnames';

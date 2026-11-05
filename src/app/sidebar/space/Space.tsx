@@ -4,16 +4,10 @@ import type { IconSrc } from 'folds';
 import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page';
-import {
-  NavButton,
-  NavCategory,
-  NavCategoryHeader,
-  NavItem,
-  NavItemContent,
-  NavLink,
-} from '../../ui/nav';
-import { RoomNavCategoryButton } from '../room-nav';
+import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
+import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
+import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
+import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { JoinBeforeNavigate } from '../../rooms/join/JoinBeforeNavigate';
@@ -143,14 +137,14 @@ export function SpaceRouteProvider({ children }: { children: ReactNode }) {
 /** The space's title bar: its name, and a menu for its rooms and its settings. */
 // The invite dialog loads the first time someone opens it.
 const InviteUserPrompt = lazy(() =>
-  import('../../members/invite').then((module) => ({
+  import('../../members/invite/InviteUserPrompt').then((module) => ({
     default: module.InviteUserPrompt,
   }))
 );
 
 // Like the invite dialog, the leave prompt loads when first opened.
 const LeaveSpacePrompt = lazy(() =>
-  import('../../spaces/leave-space-prompt').then((module) => ({
+  import('../../spaces/leave-space-prompt/LeaveSpacePrompt').then((module) => ({
     default: module.LeaveSpacePrompt,
   }))
 );

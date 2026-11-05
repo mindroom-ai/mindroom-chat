@@ -2,7 +2,7 @@ import React, { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { Badge, Box, Button, Input, Spinner, Text, color } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { MatrixError, type Room } from 'matrix-js-sdk';
-import { SettingTile } from '../../../ui/setting-tile';
+import { SettingTile } from '../../../ui/setting-tile/SettingTile';
 import { useMatrixClient } from '../../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../../lib/hooks/useAlive';
 import { usePowerLevels } from '../../../matrix/hooks/usePowerLevels';

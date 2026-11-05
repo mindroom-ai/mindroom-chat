@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Box, Button, Text, config } from 'folds';
 import { Dialog } from '../ui/glass/GlassPrimitives';
-import { SplashScreen } from '../ui/splash';
+import { SplashScreen } from '../ui/splash/SplashScreen';
 import { ErrorDetail } from '../ui/ErrorDetail';
 import { useNewVersion } from './NewVersionNotice';
 import { checkForNewVersion, reloadForNewVersion } from '../config/appUpdate';

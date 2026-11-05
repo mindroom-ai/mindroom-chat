@@ -29,7 +29,7 @@ vi.mock('../../matrix/hooks/useAccountData', () => ({
   useAccountData: () =>
     state.pins ? ({ getContent: () => state.pins } as unknown as MatrixEvent) : undefined,
 }));
-vi.mock('../../ui/sidebar', () => ({
+vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItem: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
   SidebarItemTooltip: ({ children }: { children: (ref: () => void) => React.ReactNode }) => (
     <>{children(() => undefined)}</>

@@ -1,6 +1,6 @@
 import { Button, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { RoomAccessControl } from '../../rooms/room-access';
+import { RoomAccessControl } from '../../rooms/room-access/RoomAccessControl';
 import { Membership } from '../../matrix/types/room';
 import type { LobbyItemAccess } from './access';
 

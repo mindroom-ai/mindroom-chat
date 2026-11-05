@@ -57,9 +57,7 @@ vi.mock('folds', () => ({
   toRem: (value: number) => `${value / 16}rem`,
 }));
 
-vi.mock('../../../ui/page', () => ({
-  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
-    React.createElement('section', null, header, children),
+vi.mock('../../../ui/page/Page', () => ({
   Page: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('main', null, children),
   PageContent: ({ children }: { children?: React.ReactNode }) =>
@@ -67,13 +65,17 @@ vi.mock('../../../ui/page', () => ({
   PageHeader: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('header', null, children),
 }));
+vi.mock('../../../ui/page/PageScroll', () => ({
+  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
+    React.createElement('section', null, header, children),
+}));
 
-vi.mock('../../../ui/sequence-card', () => ({
+vi.mock('../../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));
 
-vi.mock('../../../ui/setting-tile', () => ({
+vi.mock('../../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({
     title,
     description,

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Capacitor } from '@capacitor/core';
 import { useHref } from 'react-router-dom';
-import { Page, PageContent } from '../ui/page';
+import { Page, PageContent } from '../ui/page/Page';
 import { ROOT_PATH } from '../routes/paths';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { MindroomConnectionsSettings } from './ConnectionsSettings';

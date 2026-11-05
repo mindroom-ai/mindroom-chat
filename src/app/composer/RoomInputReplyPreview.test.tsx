@@ -9,7 +9,7 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
-vi.mock('../messages', () => ({
+vi.mock('../messages/layout/layout', () => ({
   ReplyLayout: ({
     username,
     children,

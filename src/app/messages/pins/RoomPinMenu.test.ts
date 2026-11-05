@@ -2,7 +2,7 @@ import React from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/PageScroll', () => ({
   PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
     React.createElement('div', null, header, children),
 }));
@@ -123,31 +123,39 @@ vi.mock('folds', () => {
   };
 });
 
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('div', props, children),
 }));
 
-vi.mock('..', () => ({
+vi.mock('../content/MsgTypeRenderers', () => ({
+  MSticker: () => React.createElement('div', { 'data-renderer': 'sticker' }),
+}));
+vi.mock('../reply/Reply', () => ({
+  Reply: () => null,
+}));
+vi.mock('../Time', () => ({
+  Time: () => React.createElement('span', null, 'time'),
+}));
+vi.mock('../layout/layout', () => ({
   AvatarBase: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
-  DefaultPlaceholder: () => React.createElement('div', { 'data-renderer': 'placeholder' }),
-  ImageContent: () => null,
-  MessageNotDecryptedContent: () => React.createElement('span', null, 'not-decrypted'),
-  MessageUnsupportedContent: () => React.createElement('span', null, 'unsupported'),
   ModernLayout: ({ before, children }: { before?: React.ReactNode; children?: React.ReactNode }) =>
     React.createElement('div', null, before, children),
-  MSticker: () => React.createElement('div', { 'data-renderer': 'sticker' }),
-  RedactedContent: () => React.createElement('div', { 'data-renderer': 'redacted' }),
-  Reply: () => null,
-  Time: () => React.createElement('span', null, 'time'),
   Username: ({ children, ...props }: { children?: React.ReactNode }) =>
     React.createElement('span', props, children),
   UsernameBold: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('strong', null, children),
 }));
+vi.mock('../content/FallbackContent', () => ({
+  MessageNotDecryptedContent: () => React.createElement('span', null, 'not-decrypted'),
+  MessageUnsupportedContent: () => React.createElement('span', null, 'unsupported'),
+}));
+vi.mock('../content/ImageContent', () => ({
+  ImageContent: () => null,
+}));
 
-vi.mock('../../avatars/user-avatar', () => ({
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: () => React.createElement('div', { 'data-renderer': 'user-avatar' }),
 }));
 
@@ -230,11 +238,11 @@ vi.mock('../content/EncryptedContent', () => ({
     React.createElement(React.Fragment, null, children()),
 }));
 
-vi.mock('../../ui/media', () => ({
+vi.mock('../../ui/media/Media', () => ({
   Image: () => null,
 }));
 
-vi.mock('../viewers/image-viewer', () => ({
+vi.mock('../viewers/image-viewer/ImageViewer', () => ({
   ImageViewer: () => null,
 }));
 
@@ -244,7 +252,7 @@ vi.mock('../../navigation/useRoomNavigate', () => ({
   }),
 }));
 
-vi.mock('../../ui/virtualizer', () => ({
+vi.mock('../../ui/virtualizer/VirtualTile', () => ({
   VirtualTile: React.forwardRef<
     HTMLDivElement,
     { children?: React.ReactNode; [key: string]: unknown }

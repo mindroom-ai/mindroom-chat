@@ -16,7 +16,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../particle-background', () => ({
+vi.mock('../particle-background/PersistentParticleBackground', () => ({
   ParticleBackgroundSurface: ({ position }: { position?: string }) =>
     particleBackgroundMock.persistent
       ? null

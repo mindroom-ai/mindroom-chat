@@ -22,13 +22,15 @@ vi.mock('folds', () => {
   };
 });
 
-vi.mock('.', () => ({
-  BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
+vi.mock('./FallbackContent', () => ({
   MessageBadEncryptedContent: () => null,
   MessageBrokenContent: () => null,
   MessageDeletedContent: () => null,
   MessageEditedContent: () => null,
   MessageUnsupportedContent: () => null,
+}));
+vi.mock('./BrokenContent', () => ({
+  BrokenContent: () => React.createElement('div', { 'data-renderer': 'broken' }),
 }));
 
 vi.mock('./VoiceAudioContent', () => ({
@@ -53,7 +55,7 @@ vi.mock('../Time', () => ({
   Time: () => null,
 }));
 
-vi.mock('../layout', () => ({
+vi.mock('../layout/layout', () => ({
   MessageTextBody: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),
 }));

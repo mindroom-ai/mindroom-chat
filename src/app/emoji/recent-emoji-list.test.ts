@@ -1,6 +1,6 @@
 import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { ImagePack } from './custom';
+import { ImagePack } from './custom/ImagePack';
 import { emojis, getEmojiByUnicode } from './emoji';
 import { resolveRecentEmoji } from './recent-emoji-list';
 

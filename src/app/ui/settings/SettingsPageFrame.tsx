@@ -1,7 +1,8 @@
 import { ReactNode, RefObject } from 'react';
 import { Box, Icon, IconButton, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { Page, PageContent, PageHeader, PageScroll } from '../page';
+import { Page, PageContent, PageHeader } from '../page/Page';
+import { PageScroll } from '../page/PageScroll';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 
 type SettingsPageFrameProps = {

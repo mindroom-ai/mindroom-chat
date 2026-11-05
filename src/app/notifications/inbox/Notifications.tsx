@@ -34,15 +34,10 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
-import {
-  Page,
-  PageContent,
-  PageContentCenter,
-  PageHeader,
-  PageScroll,
-} from '../../ui/page';
-import { SequenceCard } from '../../ui/sequence-card';
-import { RoomAvatar } from '../../avatars/room-avatar';
+import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
+import { PageScroll } from '../../ui/page/PageScroll';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { INBOX_PATH } from '../../routes/paths';

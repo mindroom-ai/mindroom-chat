@@ -2,7 +2,8 @@ import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { MessageEvent } from '../matrix/types/room';
 import { shouldUseMindroomLightweightSearchResultBody } from '../messages/content/searchResultPolicy';
-import { parseBlockMD, parseInlineMD } from '../rich-text/markdown';
+import { parseInlineMD } from '../rich-text/markdown/inline/parser';
+import { parseBlockMD } from '../rich-text/markdown/block/parser';
 
 const collapseWhitespace = (value: string): string => value.replace(/\s+/g, ' ').trim();
 export const SEARCH_RESULT_BODY_CHAR_LIMIT = 1600;

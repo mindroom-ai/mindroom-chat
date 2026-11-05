@@ -11,11 +11,6 @@ import {
 import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 
-// The editor's index brings its style sheets, which unit tests do not compile.
-vi.mock('../editor', async () => ({
-  ...(await import('../editor/utils')),
-  ...(await import('../editor/output')),
-}));
 // The paste marker module brings the composer's menus and indicators along.
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
@@ -24,8 +19,8 @@ vi.mock('../ui/PendingSendIndicator', () => ({ PendingSendIndicator: () => null 
 vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));
 vi.mock('./voice/VoiceRecorderDialog', () => ({ VoiceRecorderComposer: () => null }));
 vi.mock('folds', () => ({ config: { space: {} }, Icons: {}, toRem: String }));
-vi.mock('./upload', () => ({ UploadCardRenderer: () => null }));
-vi.mock('./upload/upload-board', () => ({
+vi.mock('./upload/UploadCardRenderer', () => ({ UploadCardRenderer: () => null }));
+vi.mock('./upload/upload-board/UploadBoard', () => ({
   UploadBoard: () => null,
   UploadBoardContent: () => null,
   UploadBoardHeader: () => null,

@@ -8,13 +8,14 @@ import { expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { hasBadWords, InviteCard, makeInviteData } from './Invites';
 
-vi.mock('../../ui/page', () => ({}));
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/page/Page', () => ({}));
+vi.mock('../../ui/page/PageScroll', () => ({}));
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../../avatars/room-avatar', () => ({ RoomAvatar: () => null }));
-vi.mock('../../room/room-topic-viewer', () => ({ RoomTopicViewer: () => null }));
-vi.mock('../../messages', () => ({ Time: () => null }));
+vi.mock('../../avatars/room-avatar/RoomAvatar', () => ({ RoomAvatar: () => null }));
+vi.mock('../../room/room-topic-viewer/RoomTopicViewer', () => ({ RoomTopicViewer: () => null }));
+vi.mock('../../messages/Time', () => ({ Time: () => null }));
 
 // Bidi isolates: the card isolates the name (FSI...PDI) and keeps the ID left-to-right (LRI...PDI).
 const FSI = '\u2068';

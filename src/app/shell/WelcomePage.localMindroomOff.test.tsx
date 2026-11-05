@@ -13,7 +13,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: vi.fn() }))
 vi.mock('../local-mindroom/api', () => ({ getLocalMindroomConnections: vi.fn() }));
 // The page frame's styles need the build's CSS plugin, and the cards beside the setup steps read
 // crypto state this test has no part in.
-vi.mock('../ui/page', () => {
+vi.mock('../ui/page/Page', () => {
   const Frame = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   return { Page: Frame, PageHero: Frame, PageHeroSection: Frame };
 });

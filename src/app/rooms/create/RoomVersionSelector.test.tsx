@@ -23,12 +23,12 @@ vi.mock('folds', () => ({
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../../ui/setting-tile', () => ({
+vi.mock('../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({ title, after }: { title: string; after?: React.ReactNode }) => (
     <section data-title={title}>{after}</section>
   ),
 }));
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 

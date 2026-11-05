@@ -13,16 +13,12 @@ import {
 } from './roomInputDrafts';
 import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError } from '../matrix/matrix';
-import { UploadBoardHeader } from './upload/upload-board';
-import { UploadCardRenderer } from './upload';
+import { UploadBoardHeader } from './upload/upload-board/UploadBoard';
+import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { createMindroomRoomInputPasteMarkerElement } from './RoomInputExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
-vi.mock('../editor', async () => ({
-  ...(await import('../editor/utils')),
-  ...(await import('../editor/output')),
-}));
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
 }));
@@ -30,8 +26,8 @@ vi.mock('../ui/PendingSendIndicator', () => ({ PendingSendIndicator: () => null 
 vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));
 vi.mock('./voice/VoiceRecorderDialog', () => ({ VoiceRecorderComposer: () => null }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
-vi.mock('./upload', () => ({ UploadCardRenderer: () => null }));
-vi.mock('./upload/upload-board', () => ({
+vi.mock('./upload/UploadCardRenderer', () => ({ UploadCardRenderer: () => null }));
+vi.mock('./upload/upload-board/UploadBoard', () => ({
   UploadBoard: ({ children, header }: { children: React.ReactNode; header: React.ReactNode }) =>
     React.createElement(React.Fragment, null, header, children),
   UploadBoardContent: ({ children }: { children: React.ReactNode }) => children,

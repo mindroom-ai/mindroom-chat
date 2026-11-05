@@ -4,7 +4,7 @@ import type { IconSrc } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useTranslation } from 'react-i18next';
 import { MenuItem } from '../../ui/glass/GlassPrimitives';
-import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../ui/page';
+import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../ui/page/Page';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';

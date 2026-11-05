@@ -56,8 +56,10 @@ vi.mock('../matrix/client/clientSyncPolicy', () => ({
   startClient: vi.fn(),
 }));
 vi.mock('../matrix/client/secretStorageKeys', () => ({ clearSecretStorageKeys: vi.fn() }));
-vi.mock('../ui/splash', () => ({
+vi.mock('../ui/splash/SplashScreen', () => ({
   SplashScreen: ({ children }: { children?: React.ReactNode }) => children ?? null,
+}));
+vi.mock('../ui/splash/BrandedSplashScreen', () => ({
   MindRoomSplashScreen: ({ children }: { children?: React.ReactNode }) => children ?? null,
 }));
 vi.mock('../matrix/ServerConfigsLoader', () => ({

@@ -21,9 +21,14 @@ vi.mock('folds', () => ({
   ),
 }));
 
-vi.mock('../ui/sidebar', () => ({
+vi.mock('../ui/sidebar/SidebarItem', () => ({
   Sidebar: ({ children }: { children: React.ReactNode }) =>
     React.createElement('nav', null, children),
+  SidebarStackSeparator: () => React.createElement('hr'),
+  SidebarStack: ({ children }: { children: React.ReactNode }) =>
+    React.createElement('div', null, children),
+}));
+vi.mock('../ui/sidebar/SidebarContent', () => ({
   SidebarContent: ({
     scrollable,
     sticky,
@@ -31,22 +36,37 @@ vi.mock('../ui/sidebar', () => ({
     scrollable: React.ReactNode;
     sticky: React.ReactNode;
   }) => React.createElement('div', null, scrollable, sticky),
-  SidebarStackSeparator: () => React.createElement('hr'),
-  SidebarStack: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', null, children),
 }));
 
 vi.mock('../ui/sidebar/SidebarItem.css', () => ({ SidebarScroll: 'sidebar-scroll' }));
-vi.mock('./rail', () => ({
+vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: tab('canvases'),
+}));
+vi.mock('./rail/DirectTab', () => ({
   DirectTab: tab('direct'),
+}));
+vi.mock('./rail/ExploreTab', () => ({
   ExploreTab: tab('explore'),
+}));
+vi.mock('./rail/HomeTab', () => ({
   HomeTab: tab('home'),
+}));
+vi.mock('./rail/InboxTab', () => ({
   InboxTab: tab('inbox'),
+}));
+vi.mock('../command-palette/CommandPaletteSidebarTab', () => ({
   SearchTab: tab('search'),
+}));
+vi.mock('./rail/SettingsTab', () => ({
   SettingsTab: tab('settings'),
+}));
+vi.mock('./rail/SpaceTabs', () => ({
   SpaceTabs: tab('spaces'),
+}));
+vi.mock('./rail/ThreadsTab', () => ({
   ThreadsTab: tab('threads'),
+}));
+vi.mock('../account/switcher/UnverifiedTab', () => ({
   UnverifiedTab: tab('unverified'),
 }));
 vi.mock('./rail/CreateTab', () => ({ CreateTab: tab('createSpace') }));

@@ -4,7 +4,7 @@ import {
   type PackImage,
   type PackImages,
   type PackMeta,
-} from '../custom';
+} from '../custom/types';
 
 // Edits to an image pack before they are applied. Every function returns new content and keeps
 // the fields it does not touch, including ones this client does not know.

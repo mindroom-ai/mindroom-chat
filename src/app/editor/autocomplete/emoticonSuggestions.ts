@@ -1,4 +1,5 @@
-import { ImageUsage, type ImagePack, type PackImageReader } from '../../emoji/custom';
+import { ImageUsage } from '../../emoji/custom/types';
+import { type ImagePack, type PackImageReader } from '../../emoji/custom/ImagePack';
 import type { IEmoji } from '../../emoji/emoji';
 import { type SkinTone, withSkinTone } from '../../emoji/skinTone';
 

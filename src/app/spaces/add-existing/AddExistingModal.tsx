@@ -15,8 +15,8 @@ import {
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { RoomAvatar, RoomIcon } from '../../avatars/room-avatar';
-import { SequenceCard } from '../../ui/sequence-card';
+import { RoomAvatar, RoomIcon } from '../../avatars/room-avatar/RoomAvatar';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useAlive } from '../../lib/hooks/useAlive';

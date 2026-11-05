@@ -26,7 +26,7 @@ import { useRoomUnread } from '../matrix/state/useUnread';
 import { roomToUnreadAtom } from '../matrix/state/roomToUnread';
 import { MessageLayout, settingsAtom } from '../preferences/settings';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
-import { RoomIntro } from './room-intro';
+import { RoomIntro } from './room-intro/RoomIntro';
 import { InsetScrollbar } from '../ui/InsetScrollbar';
 import { mindroomSettingsAtom } from '../event-store/engine/prefetchSettings';
 import { sanitizePrefetchDepth } from '../event-store/engine/prefetchPolicy';

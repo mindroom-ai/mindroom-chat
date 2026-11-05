@@ -1,7 +1,10 @@
 import { ReactNode } from 'react';
 import classNames from 'classnames';
 import { Box, Text } from 'folds';
-import { ParticleBackgroundSurface, usePersistentParticleBackground } from '../particle-background';
+import {
+  ParticleBackgroundSurface,
+  usePersistentParticleBackground,
+} from '../particle-background/PersistentParticleBackground';
 import { MINDROOM_CLIENT_BRANDING } from '../branding/clientBranding';
 import * as css from './SplashScreen.css';
 

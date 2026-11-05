@@ -103,7 +103,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   }),
 }));
 
-vi.mock('../../editor', () => ({
+vi.mock('../../editor/Editor', () => ({
   useEditor: () => ({}),
 }));
 
@@ -132,7 +132,7 @@ vi.mock('../../timeline/RoomViewFollowing', () => ({
   RoomViewFollowingPlaceholder: passthrough,
 }));
 
-vi.mock('../../ui/page', () => ({
+vi.mock('../../ui/page/Page', () => ({
   Page: passthrough,
 }));
 

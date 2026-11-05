@@ -1,8 +1,8 @@
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, color } from 'folds';
-import { SequenceCard } from '../../ui/sequence-card';
-import { SettingTile } from '../../ui/setting-tile';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { SettingsPageFrame } from '../../ui/settings/SettingsPageFrame';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';

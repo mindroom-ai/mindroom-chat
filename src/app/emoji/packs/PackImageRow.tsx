@@ -4,7 +4,7 @@ import { Box, Button, Icon, Icons, Input, Text, color, config, toRem } from 'fol
 import { IconButton } from '../../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
-import type { PackImage } from '../custom';
+import type { PackImage } from '../custom/types';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import {
   isValidShortcode,

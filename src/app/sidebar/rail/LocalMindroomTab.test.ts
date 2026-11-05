@@ -8,7 +8,7 @@ vi.mock('./LocalMindroomTab.css', () => ({
   LinkIndicator: 'link-indicator',
 }));
 
-vi.mock('../../ui/sidebar', () => ({
+vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItem: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
   SidebarItemBadge: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-testid': 'mindroom-link-badge' }, children),
@@ -29,7 +29,7 @@ vi.mock('../../ui/Modal500', () => ({
   Modal500: ({ children }: { children: React.ReactNode }) => React.createElement('div', null, children),
 }));
 
-vi.mock('../../settings', () => ({
+vi.mock('../../settings/Settings', () => ({
   Settings: () => React.createElement('div'),
 }));
 

@@ -6,7 +6,7 @@ import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { RelationsEvent, type Relations } from 'matrix-js-sdk/lib/models/relations';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
-import { Reaction, ReactionTooltipMsg } from '..';
+import { Reaction, ReactionTooltipMsg } from './Reaction';
 import {
   getRenderableAnnotationsByKey,
   isAgentStopButton,

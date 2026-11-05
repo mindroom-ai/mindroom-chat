@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Switch, Text, color } from 'folds';
-import { SettingTile } from '../../ui/setting-tile';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { MINDROOM_APP_NAME } from '../../ui/branding/branding';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';

@@ -2,13 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MatrixClient, MatrixEvent, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../matrix/types/accountData';
 import { StateEvent } from '../matrix/types/room';
-import {
-  getGlobalImagePacks,
-  getRoomImagePacks,
-  getUserImagePack,
-  ImagePack,
-  ImageUsage,
-} from './custom';
+import { ImageUsage } from './custom/types';
+import { ImagePack } from './custom/ImagePack';
+import { getGlobalImagePacks, getRoomImagePacks, getUserImagePack } from './custom/utils';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAccountData } from '../matrix/hooks/useAccountData';
 import { matchesEnum } from '../lib/matchesEnum';

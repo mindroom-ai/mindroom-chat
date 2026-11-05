@@ -14,7 +14,7 @@ import {
   OverlayCenter,
   Text,
 } from 'folds';
-import { PageScroll } from '../ui/page';
+import { PageScroll } from '../ui/page/PageScroll';
 import { Dialog, Header } from '../ui/glass/GlassPrimitives';
 import { useGlassHighlight } from '../ui/glass/liquid/useLiquidGlass';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';

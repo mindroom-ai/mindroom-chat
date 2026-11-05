@@ -39,7 +39,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../ui/sidebar', () => ({
+vi.mock('../ui/sidebar/SidebarItem', () => ({
   SidebarItem: ({ active, children }: { active?: boolean; children: React.ReactNode }) =>
     React.createElement('div', { 'data-active': active }, children),
   SidebarItemTooltip: ({

@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest';
 import { createEditor, type Descendant, Editor, Transforms } from 'slate';
 import type { Room } from 'matrix-js-sdk';
-import { ImagePack } from '../../emoji/custom';
+import { ImagePack } from '../../emoji/custom/ImagePack';
 import { loadEmojiData } from '../../emoji/emojiData';
 import { toPlainText } from '../output';
 import { getPrevWorldRange, withInlineElements } from '../utils';

@@ -24,7 +24,7 @@ import { nameInitials } from '../../lib/common';
 import { getMxIdLocalPart, getMxIdServer } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { StateEvent } from '../../matrix/types/room';
-import { UserAvatar } from '../../avatars/user-avatar';
+import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
 import { MutualRoomsChip } from './MutualRoomsChip';
 import { PowerChip } from './PowerChip';
 import { moderationAbilities } from './profileModeration';

@@ -44,7 +44,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../ui/splash', () => ({
+vi.mock('../ui/splash/SplashScreen', () => ({
   SplashScreen: ({
     children,
     background,
@@ -52,6 +52,8 @@ vi.mock('../ui/splash', () => ({
     children: React.ReactNode;
     background?: React.ReactNode;
   }) => React.createElement('div', { 'data-has-background': Boolean(background) }, children),
+}));
+vi.mock('../ui/splash/BrandedSplashScreen', () => ({
   MindRoomSplashScreen: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', { 'data-mindroom-splash': true }, children),
 }));

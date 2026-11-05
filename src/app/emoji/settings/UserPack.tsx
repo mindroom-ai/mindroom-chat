@@ -1,11 +1,13 @@
 import { useMemo } from 'react';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { PackAvatar } from '../packs';
-import { SettingTile } from '../../ui/setting-tile';
+import { PackAvatar } from '../packs/PackMetaEditor';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { getUserImagePack, ImagePack, ImageUsage } from '../custom';
+import { ImageUsage } from '../custom/types';
+import { ImagePack } from '../custom/ImagePack';
+import { getUserImagePack } from '../custom/utils';
 import { AccountDataEvent } from '../../matrix/types/accountData';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 

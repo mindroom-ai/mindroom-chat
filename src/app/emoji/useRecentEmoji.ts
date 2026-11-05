@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ClientEvent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../matrix/types/accountData';
 import { matchesEnum } from '../lib/matchesEnum';
-import type { ImagePack } from './custom';
+import type { ImagePack } from './custom/ImagePack';
 import type { IEmoji } from './emoji';
 import { useEmojiData } from './emojiData';
 import {

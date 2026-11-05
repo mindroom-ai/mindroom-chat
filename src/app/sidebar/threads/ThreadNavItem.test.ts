@@ -59,7 +59,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../../ui/nav', async () => {
+vi.mock('../../ui/nav/NavItem', async () => {
   const reactModule = await import('react');
   return {
     NavButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>

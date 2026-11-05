@@ -45,7 +45,7 @@ vi.mock('react-router-dom', async (importOriginal) => {
   };
 });
 
-vi.mock('../../ui/sidebar', () => ({
+vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItem: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
   SidebarItemTooltip: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
@@ -64,7 +64,7 @@ vi.mock('../../ui/sidebar', () => ({
   ),
 }));
 
-vi.mock('../../avatars/user-avatar', () => ({
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: ({ userId, src }: { userId: string; src?: string }) =>
     React.createElement('div', { 'data-user-id': userId, 'data-src': src }, userId),
 }));

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Box, Button, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { ImagePack } from '../custom';
+import { ImagePack } from '../custom/ImagePack';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useServerEmojiRoom } from '../server/useServerEmojiRoom';
 import { useRoomImagePacks } from '../useImagePacks';
@@ -10,8 +10,8 @@ import { readPowerLevel, usePowerLevels } from '../../matrix/hooks/usePowerLevel
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
-import { SequenceCard } from '../../ui/sequence-card';
-import { SettingTile } from '../../ui/setting-tile';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { getMxIdServer } from '../../matrix/matrix';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 

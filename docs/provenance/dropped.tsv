@@ -92,3 +92,7 @@ src/app/mindroom/message-search/MindroomMessageSearch.tsx	1	restructure: adapter
 src/app/mindroom/message-search/searchResultBodyRenderer.tsx	1	merged into src/app/search/SearchResultGroup.tsx (restructure-p3-c6)
 src/app/mindroom/notifications/SystemNotificationMindroomExtensions.test.ts	1	restructure: test of the merged adapter; src/app/notifications/settings/SystemNotification.render.test.tsx checks the same two behaviours (restructure-p3-c6)
 src/app/mindroom/notifications/SystemNotificationMindroomExtensions.tsx	1	merged into src/app/notifications/settings/SystemNotification.tsx (restructure-p3-c6)
+src/app/pages/client/canvases/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
+src/app/components/room-access/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
+src/app/pages/client/threads/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
+src/app/components/particle-background/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)

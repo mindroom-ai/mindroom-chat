@@ -6,22 +6,21 @@ import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix
 import { type Descendant, Editor, Transforms } from 'slate';
 import { ReactEditor } from 'slate-react';
 import { Box, Button, Spinner, Text, color, config } from 'folds';
+import { createParagraphElement, getMentions, getPrevWorldRange } from '../../editor/utils';
 import {
-  AutocompletePrefix,
-  type AutocompleteQuery,
-  createParagraphElement,
-  CustomEditor,
   customHtmlEqualsPlainText,
-  EmoticonAutocomplete,
-  getAutocompleteQuery,
-  getMentions,
-  getPrevWorldRange,
-  htmlToEditorInput,
   toMatrixCustomHTML,
   toPlainText,
   trimCustomHtml,
-  useEditor,
-} from '../../editor';
+} from '../../editor/output';
+import { htmlToEditorInput } from '../../editor/input';
+import { CustomEditor, useEditor } from '../../editor/Editor';
+import {
+  AutocompletePrefix,
+  type AutocompleteQuery,
+  getAutocompleteQuery,
+} from '../../editor/autocomplete/autocompleteQuery';
+import { EmoticonAutocomplete } from '../../editor/autocomplete/EmoticonAutocomplete';
 import { useComposingCheck } from '../../lib/hooks/useComposingCheck';
 import { useImagePackRooms } from '../../emoji/useImagePackRooms';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';

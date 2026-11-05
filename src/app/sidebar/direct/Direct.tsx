@@ -1,9 +1,9 @@
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page';
-import { NavCategory, NavEmptyLayout } from '../../ui/nav';
-import { RoomNavItem } from '../room-nav';
+import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
+import { NavCategory, NavEmptyLayout } from '../../ui/nav/NavItem';
+import { RoomNavItem } from '../room-nav/RoomNavItem';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';

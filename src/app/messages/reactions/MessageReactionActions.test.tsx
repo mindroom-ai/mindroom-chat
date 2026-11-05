@@ -2,7 +2,8 @@ import React from 'react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ImagePack, ImageUsage } from '../../emoji/custom';
+import { ImageUsage } from '../../emoji/custom/types';
+import { ImagePack } from '../../emoji/custom/ImagePack';
 import { MessageQuickReactions } from './MessageReactionActions';
 
 const imagePacks = vi.hoisted(() => ({ useRelevantImagePacks: vi.fn() }));
@@ -23,7 +24,7 @@ vi.mock('../styles.css', () => ({
   MessageQuickReaction: 'quick-reaction',
   MessageMenuItemText: 'menu-item-text',
 }));
-vi.mock('./reaction-viewer', () => ({ ReactionViewer: () => null }));
+vi.mock('./reaction-viewer/ReactionViewer', () => ({ ReactionViewer: () => null }));
 
 let renderer: ReactTestRenderer | undefined;
 

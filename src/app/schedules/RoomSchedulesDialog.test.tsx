@@ -16,7 +16,7 @@ vi.mock('./roomSchedules.css', () => ({
   Metadata: 'metadata',
   Awaiting: 'awaiting',
 }));
-vi.mock('../ui/page', () => ({
+vi.mock('../ui/page/PageScroll', () => ({
   PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
     React.createElement('div', null, header, children),
 }));

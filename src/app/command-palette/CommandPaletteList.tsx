@@ -1,7 +1,7 @@
 import { Icon, Icons, Spinner, type IconSrc } from 'folds';
 import React, { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { UnreadBadge } from '../ui/unread-badge';
+import { UnreadBadge } from '../ui/unread-badge/UnreadBadge';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { makeHighlightRegex } from '../search/highlightRegex';
 import type {

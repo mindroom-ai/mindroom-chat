@@ -4,18 +4,16 @@ import { ErrorCode } from '../../matrix/cs-errorcode';
 import { getPowersLevelFromMatrixEvent } from '../../matrix/hooks/usePowerLevels';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
+import { PackContent, PackImage, PackMeta } from '../custom/types';
 import {
   addEmoticonToPackContent,
   getRoomImagePacks,
   MAX_PACK_CONTENT_BYTES,
   nextPackStateKey,
   packContentBytes,
-  PackContent,
-  PackImage,
-  PackMeta,
   packsHaveShortcode,
   ShortcodeTakenError,
-} from '../custom';
+} from '../custom/utils';
 import { getStateEvent } from '../../matrix/room';
 
 /** Whether the user's power level allows adding to the room's emoji packs. */

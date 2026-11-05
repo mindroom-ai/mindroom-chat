@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ImagePack } from '../../emoji/custom';
-import { ImagePackView } from '../../emoji/packs';
+import type { ImagePack } from '../../emoji/custom/ImagePack';
+import { ImagePackView } from '../../emoji/packs/ImagePackView';
 import { isMacOS } from '../../lib/user-agent';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';

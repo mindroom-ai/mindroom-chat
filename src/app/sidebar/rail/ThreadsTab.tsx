@@ -2,7 +2,7 @@ import { RefCallback } from 'react';
 import { Icon, Icons } from 'folds';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar/SidebarItem';
 import { useThreadsSelected } from '../../routes/useThreadsSelected';
 import { getThreadsPath } from '../../routes/pathUtils';
 

@@ -1,7 +1,7 @@
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Icon, Icons, Text } from 'folds';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../ui/sidebar/SidebarItem';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import {
   getCommandPaletteAriaKeyShortcuts,

@@ -1,24 +1,18 @@
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarStack,
-  SidebarStackSeparator,
-} from '../ui/sidebar';
+import { Sidebar, SidebarStack, SidebarStackSeparator } from '../ui/sidebar/SidebarItem';
+import { SidebarContent } from '../ui/sidebar/SidebarContent';
 import { MindroomTab } from './rail/LocalMindroomTab';
-import {
-  CanvasesTab,
-  DirectTab,
-  ExploreTab,
-  HomeTab,
-  InboxTab,
-  SearchTab,
-  SettingsTab,
-  SpaceTabs,
-  ThreadsTab,
-  UnverifiedTab,
-} from './rail';
+import { CanvasesTab } from './rail/CanvasesTab';
+import { DirectTab } from './rail/DirectTab';
+import { ExploreTab } from './rail/ExploreTab';
+import { HomeTab } from './rail/HomeTab';
+import { InboxTab } from './rail/InboxTab';
+import { SearchTab } from '../command-palette/CommandPaletteSidebarTab';
+import { SettingsTab } from './rail/SettingsTab';
+import { SpaceTabs } from './rail/SpaceTabs';
+import { ThreadsTab } from './rail/ThreadsTab';
+import { UnverifiedTab } from '../account/switcher/UnverifiedTab';
 import { CreateTab } from './rail/CreateTab';
 import { RailScrollArea } from './rail/RailScrollArea';
 import { useRailButtons } from '../settings/railButtons';

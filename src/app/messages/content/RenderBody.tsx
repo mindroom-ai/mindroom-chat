@@ -3,7 +3,7 @@ import { isText } from 'domhandler';
 import parse, { DOMNode, HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { color } from 'folds';
-import { MessageEmptyContent } from '.';
+import { MessageEmptyContent } from './FallbackContent';
 import { useClientConfig } from '../../config/useClientConfig';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';

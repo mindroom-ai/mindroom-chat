@@ -48,7 +48,7 @@ vi.mock('../../../lib/hooks/useAsyncCallback', async () => {
     ],
   };
 });
-vi.mock('../../../ui/password-input', () => ({
+vi.mock('../../../ui/password-input/PasswordInput', () => ({
   PasswordInput: React.forwardRef((props, ref) => <input ref={ref} {...props} />),
 }));
 vi.mock('../FiledError', () => ({

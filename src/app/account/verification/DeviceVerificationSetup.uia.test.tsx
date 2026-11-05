@@ -82,7 +82,7 @@ vi.mock('../../ui/glass/GlassPrimitives', () => ({
   Dialog: ({ children }: { children?: React.ReactNode }) => <div role="dialog">{children}</div>,
   Header: ({ children }: { children?: React.ReactNode }) => <header>{children}</header>,
 }));
-vi.mock('../../ui/password-input', () => ({
+vi.mock('../../ui/password-input/PasswordInput', () => ({
   PasswordInput: (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} />,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({

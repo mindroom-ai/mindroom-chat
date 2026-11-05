@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ImagePack } from '../emoji/custom';
+import { ImagePack } from '../emoji/custom/ImagePack';
 import { composeSticker, findStickerInfo } from './composerSticker';
 
 const sticker = { mxc: 'mxc://example.org/wave', label: 'Wave', info: { w: 128, h: 128 } };

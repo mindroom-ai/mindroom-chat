@@ -8,9 +8,9 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { useFilePicker } from '../../lib/hooks/useFilePicker';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useCapabilities } from '../../matrix/hooks/useCapabilities';
-import { SequenceCard } from '../../ui/sequence-card';
-import { SettingTile } from '../../ui/setting-tile';
-import { UserAvatar } from '../../avatars/user-avatar';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';

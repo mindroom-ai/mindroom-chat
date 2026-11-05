@@ -1,6 +1,6 @@
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Box, Text, config } from 'folds';
-import { RoomAvatar, RoomIcon } from '../../avatars/room-avatar';
+import { RoomAvatar, RoomIcon } from '../../avatars/room-avatar/RoomAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useIsDirectRoom } from '../../matrix/hooks/useRoom';

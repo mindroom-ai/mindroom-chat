@@ -16,8 +16,8 @@ import {
 import { PopOut } from '../../ui/directional';
 import { useTranslation } from 'react-i18next';
 import { Header, Menu } from '../../ui/glass/GlassPrimitives';
-import { PageScroll } from '../../ui/page';
-import { SettingTile } from '../../ui/setting-tile';
+import { PageScroll } from '../../ui/page/PageScroll';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
 import { stopPropagation } from '../../lib/keyboard';

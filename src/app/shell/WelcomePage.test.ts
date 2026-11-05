@@ -44,7 +44,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../ui/page', async () => {
+vi.mock('../ui/page/Page', async () => {
   const reactModule = await import('react');
   const passthrough = ({
     children,

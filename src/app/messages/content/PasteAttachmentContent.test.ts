@@ -9,15 +9,7 @@ vi.mock('folds', () => ({
     React.createElement('span', null, children),
 }));
 
-vi.mock('..', () => ({
-  Attachment: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
-  AttachmentBox: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
-  AttachmentContent: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
-  AttachmentHeader: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
+vi.mock('./FileContent', () => ({
   DownloadFile: ({ buttonText = 'Download (1.2 MB)' }: { buttonText?: string }) =>
     React.createElement('button', null, buttonText),
   FileContent: ({
@@ -27,20 +19,11 @@ vi.mock('..', () => ({
     children?: React.ReactNode;
     renderAsTextFile: () => React.ReactNode;
   }) => React.createElement('div', null, renderAsTextFile(), children),
-  FileHeader: ({
-    after,
-    body,
-    mimeType,
-  }: {
-    after?: React.ReactNode;
-    body: string;
-    mimeType: string;
-  }) => React.createElement('div', null, mimeType, body, after),
   ReadTextFile: ({ buttonText = 'Open File' }: { buttonText?: string }) =>
     React.createElement('button', null, buttonText),
 }));
 
-vi.mock('../viewers/text-viewer', () => ({
+vi.mock('../viewers/text-viewer/TextViewer', () => ({
   TextViewer: () => React.createElement('div'),
 }));
 

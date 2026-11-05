@@ -5,7 +5,7 @@ import { type IPushRule, type IPushRules, PushRuleKind } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAccountData } from '../../matrix/hooks/useAccountData';
 import { useAlive } from '../../lib/hooks/useAlive';
-import { SettingTile } from '../../ui/setting-tile';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { AccountDataEvent } from '../../matrix/types/accountData';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { ChoiceButton } from '../../ui/settings/ChoiceButton';

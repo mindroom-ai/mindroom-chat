@@ -14,15 +14,13 @@ import {
 } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { SequenceCard } from '../../ui/sequence-card';
-import { SettingTile } from '../../ui/setting-tile';
-import {
-  CreateRoomAccess,
-  CreateRoomAccessSelector,
-  CreateRoomAliasInput,
-  RoomVersionSelector,
-  createRoom,
-} from '.';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { CreateRoomAccess } from '../../matrix/createRoomTypes';
+import { createRoom } from '../../matrix/createRoom';
+import { CreateRoomAccessSelector } from './CreateRoomAccessSelector';
+import { CreateRoomAliasInput } from './CreateRoomAliasInput';
+import { RoomVersionSelector } from './RoomVersionSelector';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useCapabilities } from '../../matrix/hooks/useCapabilities';
 import { useClientConfig } from '../../config/useClientConfig';

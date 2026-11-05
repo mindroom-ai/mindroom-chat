@@ -3,7 +3,7 @@ import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { config, type RectCords } from 'folds';
 import { PopOut } from '../../ui/directional';
-import { PageScroll } from '../../ui/page';
+import { PageScroll } from '../../ui/page/PageScroll';
 import { Menu, Header } from '../../ui/glass/GlassPrimitives';
 import { glassDenseOverBackdrop } from '../../ui/styles/Glass.css';
 

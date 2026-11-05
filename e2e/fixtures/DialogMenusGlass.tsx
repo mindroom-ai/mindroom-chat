@@ -6,7 +6,7 @@ import { FilterBarMobileSheet } from '../../src/app/threads/page/FilterBarMobile
 import { InviteAutocompleteMenu } from '../../src/app/members/invite/InviteAutocompleteMenu';
 import { InviteAutocompleteOption } from '../../src/app/members/invite/InviteAutocompleteMenu.css';
 import { AutocompleteMenu } from '../../src/app/editor/autocomplete/AutocompleteMenu';
-import { ImagePackView } from '../../src/app/emoji/packs';
+import { ImagePackView } from '../../src/app/emoji/packs/ImagePackView';
 import { TextViewer } from '../../src/app/messages/viewers/text-viewer/TextViewer';
 import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
 

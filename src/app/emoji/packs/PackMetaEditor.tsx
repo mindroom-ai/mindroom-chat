@@ -16,7 +16,7 @@ import {
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useAlive } from '../../lib/hooks/useAlive';
-import type { PackMeta } from '../custom';
+import type { PackMeta } from '../custom/types';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { selectFile } from '../../lib/dom';
 import type { PackMetaChanges } from './packDraft';

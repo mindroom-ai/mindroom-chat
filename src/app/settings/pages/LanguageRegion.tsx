@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { SettingTile } from '../../ui/setting-tile';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { APP_LANGUAGES } from '../../i18n/i18nLanguages';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';

@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { Box, Icon, Icons, Text } from 'folds';
 import { useAtom, useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { Page, PageHeader } from '../../ui/page';
+import { Page, PageHeader } from '../../ui/page/Page';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { useNavToActivePathMapper } from '../../routes/useNavToActivePathMapper';

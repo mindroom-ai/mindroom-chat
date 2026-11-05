@@ -26,9 +26,9 @@ import {
   SidebarItemTooltip,
   SidebarStack,
   SidebarStackSeparator,
-} from '../../ui/sidebar';
-import { RoomAvatar } from '../../avatars/room-avatar';
-import { UnreadBadge } from '../../ui/unread-badge';
+} from '../../ui/sidebar/SidebarItem';
+import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
+import { UnreadBadge } from '../../ui/unread-badge/UnreadBadge';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useSelectedSpace } from '../../navigation/useSelectedSpace';
@@ -36,7 +36,7 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
-import { InviteUserPrompt } from '../../members/invite';
+import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { type SpaceOrderAtom, makeSpaceOrderAtom } from '../../spaces/sidebarOrder';

@@ -39,20 +39,18 @@ vi.mock('../../matrix/protocol/longText', async () => {
     hydrateMindroomLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
   };
 });
-vi.mock('.', () => ({
+vi.mock('./FallbackContent', () => ({
   MessageEmptyContent: () => React.createElement('span', { 'data-testid': 'empty-content' }),
 }));
-vi.mock('..', async () => {
-  const { RenderBody } = await vi.importActual<
-    typeof import('./RenderBody')
-  >('./RenderBody');
-
+vi.mock('./RenderBody', async () => {
+  const { RenderBody } = await vi.importActual<typeof import('./RenderBody')>('./RenderBody');
+  return {
+    RenderBody,
+  };
+});
+vi.mock('./BrokenContent', async () => {
   return {
     BrokenContent: () => React.createElement('span', { 'data-testid': 'broken-content' }),
-    MEmote: () => null,
-    MNotice: () => null,
-    MText: () => null,
-    RenderBody,
   };
 });
 vi.mock('./MsgTypeRenderers', () => ({

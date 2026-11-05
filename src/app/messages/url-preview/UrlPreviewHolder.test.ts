@@ -48,7 +48,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../matrix/matrix', () => ({ mxcUrlToHttp: () => undefined }));
 vi.mock('../content/ImageOverlay', () => ({ ImageOverlay: () => null }));
-vi.mock('../viewers/image-viewer', () => ({ ImageViewer: () => null }));
+vi.mock('../viewers/image-viewer/ImageViewer', () => ({ ImageViewer: () => null }));
 
 let viewportWidth = 600;
 let container: HTMLDivElement;

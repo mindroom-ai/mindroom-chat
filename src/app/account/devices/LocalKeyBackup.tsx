@@ -5,8 +5,8 @@ import FileSaver from 'file-saver';
 import { ImportRoomKeyStage, type ImportRoomKeyProgressData } from 'matrix-js-sdk/lib/crypto-api';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useAlive } from '../../lib/hooks/useAlive';
-import { SettingTile } from '../../ui/setting-tile';
-import { PasswordInput } from '../../ui/password-input';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { PasswordInput } from '../../ui/password-input/PasswordInput';
 import {
   RoomKeyExportError,
   decryptRoomKeyExport,

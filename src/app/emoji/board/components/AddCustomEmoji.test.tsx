@@ -2,7 +2,8 @@ import React from 'react';
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ShortcodeTakenError, type PackImages } from '../../custom';
+import { type PackImages } from '../../custom/types';
+import { ShortcodeTakenError } from '../../custom/utils';
 import { AddCustomEmoji } from './AddCustomEmoji';
 
 const mx = vi.hoisted(() => ({

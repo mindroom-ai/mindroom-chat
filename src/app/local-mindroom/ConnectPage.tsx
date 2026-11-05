@@ -9,7 +9,7 @@ import * as css from '../account/auth/styles.css';
 import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
-} from '../ui/particle-background';
+} from '../ui/particle-background/PersistentParticleBackground';
 import { useClientConfig } from '../config/useClientConfig';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useActiveSession, useStoredSessions } from '../matrix/session/useSessionStore';

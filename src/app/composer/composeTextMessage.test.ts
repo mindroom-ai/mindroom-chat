@@ -1,14 +1,8 @@
 import { MsgType } from 'matrix-js-sdk';
 import { createEditor, type Descendant } from 'slate';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { createMentionElement, withInlineElements } from '../editor/utils';
 import { composeTextMessage } from './composeTextMessage';
-
-// The editor's index brings its style sheets, which unit tests do not compile.
-vi.mock('../editor', async () => ({
-  ...(await import('../editor/utils')),
-  ...(await import('../editor/output')),
-}));
 
 const ME = '@me:example.org';
 

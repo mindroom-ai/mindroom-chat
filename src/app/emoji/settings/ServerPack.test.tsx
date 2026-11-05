@@ -1,7 +1,7 @@
 import React from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ImagePack } from '../custom';
+import { ImagePack } from '../custom/ImagePack';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
 import { ServerPack } from './ServerPack';
 
@@ -30,10 +30,10 @@ vi.mock('../../navigation/useRoomSettingsState', () => ({
   useOpenRoomSettings: () => hooks.openRoomSettings,
 }));
 vi.mock('../../ui/settings/styles.css', () => ({ SequenceCardStyle: 'card' }));
-vi.mock('../../ui/sequence-card', () => ({
+vi.mock('../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../../ui/setting-tile', () => ({
+vi.mock('../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({ title, description, before, after }: Record<string, React.ReactNode>) => (
     <div>
       {before}

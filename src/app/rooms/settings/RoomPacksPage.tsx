@@ -3,20 +3,18 @@ import { Box, Button, Icon, Icons, Input, Spinner, Text, color, config } from 'f
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { IconButton } from '../../ui/glass/GlassPrimitives';
-import { ImagePackView, PackAvatar } from '../../emoji/packs';
-import { SettingTile } from '../../ui/setting-tile';
+import { ImagePackView } from '../../emoji/packs/ImagePackView';
+import { PackAvatar } from '../../emoji/packs/PackMetaEditor';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomImagePacks } from '../../emoji/useImagePacks';
 import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
-import {
-  type ImagePack,
-  ImageUsage,
-  type PackAddress,
-  nextPackStateKey,
-} from '../../emoji/custom';
+import { ImageUsage, type PackAddress } from '../../emoji/custom/types';
+import { type ImagePack } from '../../emoji/custom/ImagePack';
+import { nextPackStateKey } from '../../emoji/custom/utils';
 import { StateEvent } from '../../matrix/types/room';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { SettingsPageFrame } from '../../ui/settings/SettingsPageFrame';

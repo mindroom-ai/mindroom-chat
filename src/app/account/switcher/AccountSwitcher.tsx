@@ -1,7 +1,7 @@
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { StoredSession } from '../../matrix/session/sessions';
-import { UserAvatar } from '../../avatars/user-avatar';
+import { UserAvatar } from '../../avatars/user-avatar/UserAvatar';
 import { nameInitials } from '../../lib/common';
 
 type AccountSwitcherAccount = {

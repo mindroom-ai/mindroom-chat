@@ -10,7 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Spinner, Text } from 'folds';
-import { PageScroll } from '../ui/page';
+import { PageScroll } from '../ui/page/PageScroll';
 import { Dialog, Header } from '../ui/glass/GlassPrimitives';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ModalLayer } from '../ui/ModalLayer';

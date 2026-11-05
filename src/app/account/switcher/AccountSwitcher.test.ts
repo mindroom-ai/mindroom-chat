@@ -46,7 +46,7 @@ vi.mock('folds', async () => {
   };
 });
 
-vi.mock('../../avatars/user-avatar', () => ({
+vi.mock('../../avatars/user-avatar/UserAvatar', () => ({
   UserAvatar: ({ userId }: { userId: string }) => React.createElement('div', null, userId),
 }));
 

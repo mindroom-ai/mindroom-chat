@@ -12,7 +12,7 @@ import {
   type CrossRoomThreadFilters,
   type CrossRoomThreadFiltersUpdate,
 } from '../cross-room/crossRoomThreadFilters';
-import { VirtualTile } from '../../ui/virtualizer';
+import { VirtualTile } from '../../ui/virtualizer/VirtualTile';
 import { ThreadsViewRow } from './ThreadsViewRow';
 import * as css from './ThreadsView.css';
 

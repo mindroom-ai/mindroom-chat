@@ -14,7 +14,7 @@ import {
   toRem,
 } from 'folds';
 import { Header, IconButton, Modal } from '../../ui/glass/GlassPrimitives';
-import { PageScroll } from '../../ui/page';
+import { PageScroll } from '../../ui/page/PageScroll';
 import { stopPropagation } from '../../lib/keyboard';
 
 type RoomTopicViewerProps = {

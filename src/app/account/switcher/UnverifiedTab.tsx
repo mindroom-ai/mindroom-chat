@@ -1,7 +1,7 @@
 import { Icon, Icons, color } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
-import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar/SidebarItem';
 import { countUnverifiedOtherDevices, useOwnDeviceTrust } from '../verification/useOwnDeviceTrust';
 import { settingsModalAtom } from '../../navigation/settingsModal';
 import { SettingsPages } from '../../navigation/settingsPages';

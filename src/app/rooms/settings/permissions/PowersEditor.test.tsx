@@ -47,20 +47,22 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('jotai', () => ({ useAtomValue: () => new Map() }));
-vi.mock('../../../ui/page', () => ({
-  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
-    React.createElement('div', null, header, children),
+vi.mock('../../../ui/page/Page', () => ({
   Page: ({ children }: React.PropsWithChildren) => React.createElement('main', null, children),
   PageContent: ({ children }: React.PropsWithChildren) =>
     React.createElement('div', null, children),
   PageHeader: ({ children }: React.PropsWithChildren) =>
     React.createElement('header', null, children),
 }));
-vi.mock('../../../ui/sequence-card', () => ({
+vi.mock('../../../ui/page/PageScroll', () => ({
+  PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
+    React.createElement('div', null, header, children),
+}));
+vi.mock('../../../ui/sequence-card/SequenceCard', () => ({
   SequenceCard: ({ children }: React.PropsWithChildren) =>
     React.createElement('div', null, children),
 }));
-vi.mock('../../../ui/setting-tile', () => ({
+vi.mock('../../../ui/setting-tile/SettingTile', () => ({
   SettingTile: ({
     before,
     title,
@@ -73,7 +75,7 @@ vi.mock('../../../ui/setting-tile', () => ({
     after?: React.ReactNode;
   }) => React.createElement('section', null, before, title, description, after),
 }));
-vi.mock('../../../emoji/board', () => ({ EmojiBoard: () => null }));
+vi.mock('../../../emoji/board/LazyEmojiBoard', () => ({ EmojiBoard: () => null }));
 vi.mock('../../../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
 vi.mock('../../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../../lib/hooks/useFilePicker', () => ({ useFilePicker: () => vi.fn() }));

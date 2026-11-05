@@ -19,8 +19,8 @@ import {
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
 import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
-import { CustomEditor, useEditor } from '../../src/app/editor';
-import { SidebarAvatar } from '../../src/app/ui/sidebar';
+import { CustomEditor, useEditor } from '../../src/app/editor/Editor';
+import { SidebarAvatar } from '../../src/app/ui/sidebar/SidebarItem';
 import { MAudio } from '../../src/app/messages/content/MsgTypeRenderers';
 import { glassShadow } from '../../src/app/ui/styles/Glass.css';
 import { Page, PageHeader, PageNavHeader, PageRoot } from '../../src/app/ui/page/Page';

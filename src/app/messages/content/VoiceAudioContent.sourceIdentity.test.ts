@@ -83,9 +83,13 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({}),
 }));
 
-vi.mock('../../lib/hooks/media', () => ({
+vi.mock('../../lib/hooks/media/useMediaLoading', () => ({
   useMediaLoading: () => ({ loading: false }),
+}));
+vi.mock('../../lib/hooks/media/useMediaPlay', () => ({
   useMediaPlay: () => ({ playing: mocks.playing, setPlaying: mocks.setPlaying }),
+}));
+vi.mock('../../lib/hooks/media/useMediaPlayTimeCallback', () => ({
   useMediaPlayTimeCallback: () => undefined,
 }));
 

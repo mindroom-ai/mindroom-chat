@@ -117,7 +117,7 @@ vi.mock('../../matrix/state/useUnread', () => ({
   useRoomsUnread: () => undefined,
 }));
 
-vi.mock('../../ui/sidebar', () => ({
+vi.mock('../../ui/sidebar/SidebarItem', () => ({
   SidebarItem: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
   SidebarItemTooltip: ({ children }: { children: (triggerRef: () => void) => React.ReactNode }) =>
@@ -142,7 +142,7 @@ vi.mock('../../routes/useHomeSelected', () => ({
   useHomeSelected: () => state.selected,
 }));
 
-vi.mock('../../ui/unread-badge', () => ({
+vi.mock('../../ui/unread-badge/UnreadBadge', () => ({
   UnreadBadge: () => React.createElement('div'),
 }));
 

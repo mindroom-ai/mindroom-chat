@@ -29,7 +29,6 @@ const {
   scrollType,
   roomThreadOverviewType,
   roomIntroType,
-  defaultPlaceholderType,
   compactPlaceholderType,
   directRoomState,
   aliveFn,
@@ -66,7 +65,6 @@ const {
   scrollType: 'room-timeline-scroll',
   roomThreadOverviewType: 'room-thread-overview',
   roomIntroType: 'room-intro',
-  defaultPlaceholderType: 'default-placeholder',
   compactPlaceholderType: 'compact-placeholder',
   directRoomState: { value: false },
   aliveFn: () => true,
@@ -358,7 +356,7 @@ vi.mock('../useVirtualPaginator', () => ({
   },
 }));
 
-vi.mock('../../ui/virtualizer', () => ({
+vi.mock('../../ui/virtualizer/VirtualTile', () => ({
   VirtualTile: React.forwardRef<
     HTMLDivElement,
     {
@@ -588,20 +586,24 @@ vi.mock('../../matrix/room', () => ({
   trimReplyFromBody: (body: string) => body,
 }));
 
-vi.mock('../../messages', () => ({
-  DefaultPlaceholder: defaultPlaceholderType,
-  CompactPlaceholder: compactPlaceholderType,
-  Reply: passthrough,
-  ThreadIndicator: passthrough,
-  MessageBase: passthrough,
-  MessageUnsupportedContent: passthrough,
-  Time: passthrough,
-  MessageNotDecryptedContent: passthrough,
-  RedactedContent: passthrough,
+vi.mock('../../messages/content/MsgTypeRenderers', () => ({
   MSticker: passthrough,
-  MindroomThreadSummaryCard: passthrough,
+}));
+vi.mock('../../messages/reply/Reply', () => ({
+  Reply: passthrough,
+}));
+vi.mock('../../messages/Time', () => ({
+  Time: passthrough,
+}));
+vi.mock('../../messages/layout/layout', () => ({
+  MessageBase: passthrough,
+}));
+vi.mock('../../messages/content/FallbackContent', () => ({
+  MessageUnsupportedContent: passthrough,
+  MessageNotDecryptedContent: passthrough,
+}));
+vi.mock('../../messages/content/ImageContent', () => ({
   ImageContent: passthrough,
-  EventContent: passthrough,
 }));
 
 vi.mock('../../messages/ThreadIndicator', () => ({
@@ -663,7 +665,7 @@ vi.mock('../../messages/Message', () => ({
   Event: passthrough,
 }));
 
-vi.mock('../room-intro', () => ({
+vi.mock('../room-intro/RoomIntro', () => ({
   RoomIntro: roomIntroType,
 }));
 
@@ -696,11 +698,11 @@ vi.mock('../CollapsibleMessage', async () => {
   };
 });
 
-vi.mock('../../ui/media', () => ({
+vi.mock('../../ui/media/Media', () => ({
   Image: passthrough,
 }));
 
-vi.mock('../../messages/viewers/image-viewer', () => ({
+vi.mock('../../messages/viewers/image-viewer/ImageViewer', () => ({
   ImageViewer: passthrough,
 }));
 
@@ -723,7 +725,7 @@ vi.mock('../../lib/time', () => ({
   yesterday: () => false,
 }));
 
-vi.mock('../../editor', () => ({
+vi.mock('../../editor/utils', () => ({
   createMentionElement: () => ({}),
   isEmptyEditor: () => true,
   moveCursor: vi.fn(),

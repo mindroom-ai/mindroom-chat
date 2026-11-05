@@ -7,8 +7,8 @@ import type { PrefetchScope } from '../../event-store/engine/prefetchPolicy';
 import { mindroomSettingsAtom } from '../../event-store/engine/prefetchSettings';
 import { useSetting } from '../../preferences/useSetting';
 import { stopPropagation } from '../../lib/keyboard';
-import { SettingTile } from '../../ui/setting-tile';
-import { SequenceCard } from '../../ui/sequence-card';
+import { SettingTile } from '../../ui/setting-tile/SettingTile';
+import { SequenceCard } from '../../ui/sequence-card/SequenceCard';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 
 /**

@@ -1,7 +1,7 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { AccountDataEvent } from '../matrix/types/accountData';
 import { getAccountData } from '../matrix/room';
-import type { ImagePack, PackImageReader } from './custom';
+import type { ImagePack, PackImageReader } from './custom/ImagePack';
 import type { IEmoji } from './emoji';
 
 // Recently used emoji live in `io.element.recent_emoji` account data, which Element and other

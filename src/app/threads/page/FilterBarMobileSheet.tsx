@@ -2,7 +2,7 @@ import React, { ReactNode, useRef } from 'react';
 import { Box, config, Icon, IconButton, Icons, Overlay, OverlayBackdrop, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
-import { PageScroll } from '../../ui/page';
+import { PageScroll } from '../../ui/page/PageScroll';
 import { Modal, Header } from '../../ui/glass/GlassPrimitives';
 import * as css from './FilterBarMobileSheet.css';
 

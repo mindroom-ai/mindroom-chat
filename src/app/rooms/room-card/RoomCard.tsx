@@ -16,9 +16,9 @@ import {
   as,
 } from 'folds';
 import { JoinRule } from 'matrix-js-sdk';
-import { RoomAvatar } from '../../avatars/room-avatar';
+import { RoomAvatar } from '../../avatars/room-avatar/RoomAvatar';
 import { getRoomIconSrc } from '../../avatars/room-avatar/roomIconSrc';
-import { RoomAccessControl, type RoomAccessJoinRule } from '../room-access';
+import { RoomAccessControl, type RoomAccessJoinRule } from '../room-access/RoomAccessControl';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { isRoomId } from '../../matrix/matrix';
 import { stopPropagation } from '../../lib/keyboard';

@@ -1,7 +1,7 @@
 import React, { forwardRef, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Badge, Box, Button, Icon, IconButton, Icons, Text } from 'folds';
-import { PageScroll } from '../ui/page';
+import { PageScroll } from '../ui/page/PageScroll';
 import { Header, Modal } from '../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMentionClickHandler } from '../messages/useMentionClickHandler';

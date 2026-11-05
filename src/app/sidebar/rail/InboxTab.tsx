@@ -8,8 +8,8 @@ import {
   SidebarItem,
   SidebarItemBadge,
   SidebarItemTooltip,
-} from '../../ui/sidebar';
-import { UnreadBadge } from '../../ui/unread-badge';
+} from '../../ui/sidebar/SidebarItem';
+import { UnreadBadge } from '../../ui/unread-badge/UnreadBadge';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { useInboxSelected } from '../../routes/useInbox';
 import { allInvitesAtom } from '../../matrix/state/inviteList';

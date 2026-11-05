@@ -30,7 +30,7 @@ vi.mock('../ui/glass/GlassPrimitives', () => ({
     <div role={role}>{children}</div>
   ),
 }));
-vi.mock('../ui/splash', () => ({
+vi.mock('../ui/splash/SplashScreen', () => ({
   SplashScreen: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../notifications/notices/NoticeBanners.css', () => ({}));

@@ -72,7 +72,7 @@ vi.mock('folds', () => ({
     ),
 }));
 
-vi.mock('../../ui/nav', () => ({
+vi.mock('../../ui/nav/NavItem', () => ({
   NavButton: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) =>
     React.createElement('button', props, children),
   NavItem: ({

@@ -21,9 +21,11 @@ vi.mock('folds', () => ({
 vi.mock('../ui/glass/GlassPrimitives', () => ({
   Dialog: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
-vi.mock('../ui/splash', () => ({
-  MindRoomSplashScreen: () => null,
+vi.mock('../ui/splash/SplashScreen', () => ({
   SplashScreen: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
+}));
+vi.mock('../ui/splash/BrandedSplashScreen', () => ({
+  MindRoomSplashScreen: () => null,
 }));
 
 const originalFetch = globalThis.fetch;

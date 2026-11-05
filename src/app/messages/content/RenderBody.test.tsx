@@ -15,7 +15,7 @@ vi.mock('../../rich-text/sanitize', async (importOriginal) => {
   };
 });
 
-vi.mock('.', () => ({
+vi.mock('./FallbackContent', () => ({
   MessageEmptyContent: () => React.createElement('span', { 'data-testid': 'empty-content' }),
 }));
 
