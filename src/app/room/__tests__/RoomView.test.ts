@@ -127,11 +127,6 @@ vi.stubGlobal('window', {
 });
 
 vi.mock('../../threads/useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
-vi.mock('../../computer/useAgentServers', () => ({
-  useRoomMindroomServers: () => [],
-  useBindsOpenIdTokens: () => false,
-  useMindroomServerUrls: () => [],
-}));
 vi.mock('../../event-store/engine/engineContext', () => ({ useMindroomSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {

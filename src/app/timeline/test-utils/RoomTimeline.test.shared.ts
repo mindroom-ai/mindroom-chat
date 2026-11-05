@@ -294,19 +294,6 @@ vi.mock('../../matrix/hooks/useRoomCreators', () => ({
   useRoomCreators: () => new Set(),
 }));
 
-vi.mock('../../members/usePowerLevelTags', () => ({
-  usePowerLevelTags: () => [],
-}));
-
-vi.mock('../../members/useMemberPowerTag', () => ({
-  useAccessiblePowerTagColors: () => ({}),
-  useGetMemberPowerTag: () => () => undefined,
-}));
-
-vi.mock('../../theme/useTheme', () => ({
-  useTheme: () => ({ kind: 'light' }),
-}));
-
 vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     action: () => true,
@@ -512,25 +499,6 @@ vi.mock('@tanstack/react-virtual', () => {
   };
 });
 
-vi.mock('../../messages/useMatrixEventRenderer', () => ({
-  useMatrixEventRenderer:
-    (
-      typeToRenderer: Record<string, (...args: unknown[]) => React.ReactNode>,
-      renderStateEvent?: (...args: unknown[]) => React.ReactNode,
-      renderEvent?: (...args: unknown[]) => React.ReactNode
-    ) =>
-    (eventType: string, isStateEvent: boolean, ...args: unknown[]) => {
-      const renderer = typeToRenderer[eventType];
-      if (renderer) return renderer(...args);
-      if (isStateEvent && renderStateEvent) return renderStateEvent(...args);
-      if (!isStateEvent && renderEvent) return renderEvent(...args);
-      return React.createElement('mock-event', {
-        eventId: args[0],
-        key: String(args[0]),
-      });
-    },
-}));
-
 vi.mock('../../lib/hooks/useIntersectionObserver', () => ({
   getIntersectionObserverEntry: () => undefined,
   useIntersectionObserver: vi.fn(),
@@ -538,11 +506,6 @@ vi.mock('../../lib/hooks/useIntersectionObserver', () => ({
 
 vi.mock('../../lib/hooks/useDebounce', () => ({
   useDebounce: (fn: (...args: unknown[]) => unknown) => fn,
-}));
-
-vi.mock('../../lib/hooks/useResizeObserver', () => ({
-  getResizeObserverEntry: () => undefined,
-  useResizeObserver: vi.fn(),
 }));
 
 vi.mock('../../lib/hooks/useDocumentFocusChange', () => ({

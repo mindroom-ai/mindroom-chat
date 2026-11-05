@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { mindroomFile, pathExists, resolvedDependencies } from '../../../test/architecture';
+import { appFile, pathExists, resolvedDependencies } from '../../../test/architecture';
 
-const TIMELINE_FILE = mindroomFile('timeline/RoomTimeline.tsx');
+const TIMELINE_FILE = appFile('timeline/RoomTimeline.tsx');
 
 const FORBIDDEN_LOW_LEVEL_DEPENDENCIES = [
   'event-store/cache/db/index.ts',
@@ -21,10 +21,10 @@ const FORBIDDEN_LOW_LEVEL_DEPENDENCIES = [
   'event-store/sdk/threadBootstrapSdk.ts',
 ] as const;
 
-describe('MindroomRoomTimeline dependency boundary', () => {
+describe('RoomTimeline dependency boundary', () => {
   it('composes pagination ownership without coupling its data owner to DOM or parent', () => {
-    const pagination = mindroomFile('threads/open/useThreadPagination.ts');
-    const viewport = mindroomFile('timeline/useThreadPrependViewport.ts');
+    const pagination = appFile('threads/open/useThreadPagination.ts');
+    const viewport = appFile('timeline/useThreadPrependViewport.ts');
     expect(pathExists(pagination)).toBe(true);
     expect(pathExists(viewport)).toBe(true);
     expect(resolvedDependencies(TIMELINE_FILE)).toContain(pagination);
@@ -33,9 +33,9 @@ describe('MindroomRoomTimeline dependency boundary', () => {
     for (const forbidden of [
       TIMELINE_FILE,
       viewport,
-      mindroomFile('timeline/threadBackPaginationController.ts'),
-      mindroomFile('event-store/timeline/timelineScrollUtils.ts'),
-      mindroomFile('timeline/scrollQuiescence.ts'),
+      appFile('timeline/threadBackPaginationController.ts'),
+      appFile('event-store/timeline/timelineScrollUtils.ts'),
+      appFile('timeline/scrollQuiescence.ts'),
     ]) {
       expect(dependencies).not.toContain(forbidden);
     }
@@ -44,11 +44,11 @@ describe('MindroomRoomTimeline dependency boundary', () => {
     const dependencies = resolvedDependencies(TIMELINE_FILE, { includeTypeOnly: false });
 
     for (const dependency of FORBIDDEN_LOW_LEVEL_DEPENDENCIES) {
-      expect(pathExists(mindroomFile(dependency)), `missing guarded owner ${dependency}`).toBe(
+      expect(pathExists(appFile(dependency)), `missing guarded owner ${dependency}`).toBe(
         true
       );
       expect(dependencies, `timeline bypasses its adapter via ${dependency}`).not.toContain(
-        mindroomFile(dependency)
+        appFile(dependency)
       );
     }
   });
