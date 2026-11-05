@@ -76,7 +76,7 @@ describe('shared surface import boundary', () => {
     'src/app/ui/glass/GlassPrimitives.test.tsx',
     'src/app/ui/glass/SurfaceConsumer.test.ts',
     'src/app/ui/glass/nested/GlassPrimitives.tsx',
-    'src/app/components/other/GlassPrimitives.tsx',
+    'src/app/ui/other/GlassPrimitives.tsx',
     'src/app/ui/nav/NavCategoryHeader.tsx',
     'src/app/SurfaceConsumer.js',
     'src/app/SurfaceConsumer.jsx',

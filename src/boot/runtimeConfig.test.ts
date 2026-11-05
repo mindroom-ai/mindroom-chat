@@ -35,7 +35,7 @@ describe('runtime configuration bootstrap', () => {
          const assets = await buildAuthenticationRecoveryAssets();
          process.stdout.write(assets['runtime-config.js']);`,
       ],
-      { cwd: new URL('./../', import.meta.url), encoding: 'utf8' }
+      { cwd: new URL('../', import.meta.url), encoding: 'utf8' }
     );
     const { scripts } = load({}, '/chat', script);
     expect(scripts[0].src).toBe('https://chat.example/chat/authentication-recovery.js');

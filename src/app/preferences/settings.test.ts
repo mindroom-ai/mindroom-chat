@@ -21,8 +21,8 @@ describe('settings ownership', () => {
     expect(source).not.toContain('DEFAULT_PAGINATION_LIMIT');
     expect(source).not.toContain('sanitizePaginationLimit');
     expect(source).not.toContain('paginationLimit:');
-    expect(source).not.toContain('../mindroom/threads/preloadSettings');
-    expect(source).not.toContain('../mindroom/settings');
+    expect(source).not.toContain('../event-store/cache/preloadSettings');
+    expect(source).not.toContain('../event-store/engine/prefetchSettings');
   });
 });
 
