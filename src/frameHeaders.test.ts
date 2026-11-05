@@ -113,6 +113,8 @@ describe('scripts/frame_headers.py (serve.py)', () => {
     );
   });
 
+  // Starts Python and serve.py and waits for it to listen: well under a second, but over 5 s on a
+  // loaded machine, so this test gets 30 s.
   it('is what serve.py sends, on the app shell and on files alike', async () => {
     const root = mkdtempSync(join(tmpdir(), 'serve-py-'));
     writeFileSync(join(root, 'index.html'), '<!doctype html><title>app</title>');
@@ -154,7 +156,7 @@ describe('scripts/frame_headers.py (serve.py)', () => {
       server.kill();
       rmSync(root, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });
 
 describe('docker-entrypoint.d/40-frame-headers.sh (nginx)', () => {
