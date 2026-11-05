@@ -105,7 +105,7 @@ test('searching "24-hour" lands on Language & region with the setting highlighte
   await expect(menuButton(dialog, 'Account')).toHaveCount(0);
 
   await field.press('Enter');
-  await expect(menuButton(dialog, 'Language & region')).toHaveAttribute('aria-pressed', 'true');
+  await expect(dialog.locator('header').filter({ hasText: 'Language & region' })).toBeVisible();
   const clock = setting(dialog, 'hour24Clock');
   await expect(clock).toHaveAttribute('data-settings-highlight', '');
   await expect(clock).toBeInViewport();
@@ -175,7 +175,9 @@ test('on a phone the menu comes first, a page covers it, and Back returns to it'
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await signIn(page, 'settings_phone');
-  const dialog = await openSettings(page);
+  await openSettings(page);
+  // The dialog takes the name of the first heading in it, which a page covers on a phone.
+  const dialog = page.getByRole('dialog');
   await expect(menuButton(dialog, 'Chats')).toBeVisible();
   await expect(setting(dialog, 'systemTheme')).toHaveCount(0);
 

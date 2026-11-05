@@ -3,7 +3,7 @@ import { Box, Icon, Icons, Input, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { MenuItem } from '../../components/glass/GlassPrimitives';
 import type { SettingsSearchResult } from './settingsSearch';
-import { SettingsSearchField, SettingsSearchLocation } from './frame.css';
+import { SettingsSearchField, SettingsSearchLocation, SettingsSearchResults } from './frame.css';
 
 /** How far ↑ and ↓ move through the results. */
 const STEPS: Readonly<Record<string, number>> = { ArrowDown: 1, ArrowUp: -1 };
@@ -70,7 +70,12 @@ export function SettingsSearch({
     );
   } else if (searching) {
     list = (
-      <div id={listId} role="listbox" aria-label={t('commandPalette.resultsLabel')}>
+      <div
+        id={listId}
+        role="listbox"
+        className={SettingsSearchResults}
+        aria-label={t('commandPalette.resultsLabel')}
+      >
         {results.map((result, index) => (
           <MenuItem
             key={result.setting.id}
@@ -79,7 +84,7 @@ export function SettingsSearch({
             tabIndex={-1}
             aria-selected={index === shownActive}
             radii="500"
-            variant={index === shownActive ? 'SurfaceVariant' : 'Background'}
+            variant="Background"
             onMouseMove={() => setActive(index)}
             onClick={() => onChoose(result)}
           >
