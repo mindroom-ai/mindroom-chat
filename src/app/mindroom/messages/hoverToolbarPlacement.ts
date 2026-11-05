@@ -29,8 +29,9 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
 
 /** Marks a control that floats over the top rows of a timeline, such as the `[+all]` toggle. */
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
-// Space kept between such a control and a toolbar moved below it.
-const OVERLAY_GAP_PX = 4;
+// Space kept between such a control and a toolbar moved below it: twice the toolbar's own 4 px
+// padding, so the control does not read as part of the toolbar.
+const OVERLAY_GAP_PX = 8;
 
 /**
  * The lowest point of what floats over the top of a scroller where a toolbar spanning `left` to

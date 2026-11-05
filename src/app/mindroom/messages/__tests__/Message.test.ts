@@ -33,6 +33,9 @@ vi.mock('../../../features/room/message/styles.css', () => ({
   MessageMenuItemText: 'MessageMenuItemText',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
+  MessageOptionsButton: 'MessageOptionsButton',
+  MessageOptionsReplyIcon: 'MessageOptionsReplyIcon',
+  MessageOptionsRow: 'MessageOptionsRow',
 }));
 
 vi.mock('../MindroomModelBadge.css', () => ({

@@ -98,22 +98,37 @@ type ToolbarActionProps = {
   pressed?: boolean;
   /** The icon points along the reading direction, so right-to-left languages mirror it. */
   directional?: boolean;
+  /** Moves a glyph that is drawn off-centre in its box back to the middle of the button. */
+  iconClassName?: string;
 };
 
 /** An icon button of the hover toolbar, which shows its name in a tooltip above it. */
-function ToolbarAction({ label, icon, onClick, pressed, directional }: ToolbarActionProps) {
+function ToolbarAction({
+  label,
+  icon,
+  onClick,
+  pressed,
+  directional,
+  iconClassName,
+}: ToolbarActionProps) {
   return (
     <IconTooltip label={label} position="Top">
       {(tooltipRef) => (
         <IconButton
           ref={tooltipRef}
-          size="300"
-          radii="300"
+          className={css.MessageOptionsButton}
+          variant="SurfaceVariant"
+          fill="None"
           aria-label={label}
           aria-pressed={pressed}
           onClick={onClick}
         >
-          <Icon src={icon} size="100" data-directional={directional || undefined} />
+          <Icon
+            src={icon}
+            size="100"
+            className={iconClassName}
+            data-directional={directional || undefined}
+          />
         </IconButton>
       )}
     </IconTooltip>
@@ -851,11 +866,12 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
           style={
             toolbarClearance === undefined
               ? undefined
-              : { insetBlockStart: `min(${toolbarClearance}px, calc(100% - 2.5rem))` }
+              : // At most down to 4 px above the row's bottom: the 42 px pill plus 4 px.
+                { insetBlockStart: `min(${toolbarClearance}px, calc(100% - 2.875rem))` }
           }
         >
           <Menu variant="SurfaceVariant" className={css.MessageOptionsBar}>
-            <Box gap="100">
+            <Box className={css.MessageOptionsRow}>
               {canSendReaction && confirmed && onReactionToggle && (
                 <ToolbarAction
                   label={t('mindroomUi.messages.mindroomMessage.addReaction')}
@@ -869,6 +885,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   label={t('mindroomUi.messages.mindroomMessage.reply')}
                   icon={Icons.ReplyArrow}
                   directional
+                  iconClassName={css.MessageOptionsReplyIcon}
                   onClick={() => onReplyClick(eventId)}
                 />
               )}

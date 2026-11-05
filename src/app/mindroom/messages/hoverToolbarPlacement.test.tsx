@@ -107,8 +107,8 @@ describe('useToolbarClearance', () => {
   });
 
   it('moves the toolbar of the row right under the [+all] toggle below the toggle', () => {
-    // The toggle ends at 130, plus a 4 px gap; the row starts at 140.
-    expect(renderRow(140)).toBe(-6);
+    // The toggle ends at 130, plus an 8 px gap; the row starts at 140.
+    expect(renderRow(140)).toBe(-2);
   });
 
   it('moves the toolbar of a row under the sticky header into the visible part of the row', () => {
