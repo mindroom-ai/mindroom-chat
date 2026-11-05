@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { IHierarchyRoom } from 'matrix-js-sdk/lib/@types/spaces';
 import { SequenceCard } from '../../ui/SequenceCard';
+import { ownDirectionLine } from '../../ui/directional';
 import { RoomAvatar, RoomIcon } from '../../avatars/RoomAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
@@ -102,7 +103,7 @@ export function RoomItemCard({
           <div className={styleCss.LinePlaceholder} />
         ) : (
           <Box className={css.ErrorNameContainer} alignItems="Center" gap="100">
-            <Text size="T400" truncate>
+            <Text size="T400" truncate {...ownDirectionLine}>
               {roomName}
             </Text>
             {error && !summary && (
@@ -111,7 +112,13 @@ export function RoomItemCard({
           </Box>
         )}
         {topic && (
-          <Text className={css.RoomProfileTopic} size="T200" priority="300" truncate>
+          <Text
+            className={css.RoomProfileTopic}
+            size="T200"
+            priority="300"
+            truncate
+            {...ownDirectionLine}
+          >
             {topic}
           </Text>
         )}

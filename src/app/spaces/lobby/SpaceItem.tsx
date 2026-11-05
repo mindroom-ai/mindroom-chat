@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Avatar, Box, Chip, Icon, Icons, Text, config, toRem } from 'folds';
-import { PopOut } from '../../ui/directional';
+import { PopOut, ownDirectionLine } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -218,7 +218,7 @@ export function SpaceItemCard({
                 />
               }
             >
-              <Text size="H4" truncate>
+              <Text size="H4" truncate {...ownDirectionLine}>
                 {localSummary.name}
               </Text>
             </Chip>
@@ -259,7 +259,7 @@ export function SpaceItemCard({
                 renderFallback={() => <Text size="H6">{nameInitials(spaceName)}</Text>}
               />
             </Avatar>
-            <Text size="H4" truncate>
+            <Text size="H4" truncate {...ownDirectionLine}>
               {spaceName}
             </Text>
           </Box>

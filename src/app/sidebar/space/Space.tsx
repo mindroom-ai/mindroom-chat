@@ -5,6 +5,7 @@ import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
+import { ownDirectionLine } from '../../ui/directional';
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
@@ -172,7 +173,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
       <Box gap="300" grow="Yes" alignItems="Center">
         <Box grow="Yes">
           {/* Not a heading: the lobby's hero names the space as its h2 (page-header-glass). */}
-          <Text truncate size="H4">
+          <Text truncate size="H4" {...ownDirectionLine}>
             {name}
           </Text>
         </Box>

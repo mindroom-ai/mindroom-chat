@@ -37,6 +37,7 @@ import {
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { SequenceCard } from '../../ui/SequenceCard';
+import { ownDirectionLine } from '../../ui/directional';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
@@ -307,7 +308,7 @@ function NotificationRow({
               style={unreadDotStyle}
             />
           )}
-          <Text size="T300" truncate>
+          <Text size="T300" truncate {...ownDirectionLine}>
             <b>{senderName}</b>
           </Text>
           <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
@@ -429,7 +430,7 @@ export function Notifications() {
                 >
                   <Box alignItems="Center" gap="200">
                     <NotificationGroupAvatar room={room} />
-                    <Text size="H5" truncate style={{ flexGrow: 1 }}>
+                    <Text size="H5" truncate style={{ flexGrow: 1 }} {...ownDirectionLine}>
                       {room.name}
                     </Text>
                     {roomNotifications.some((notification) => !notification.read) && (

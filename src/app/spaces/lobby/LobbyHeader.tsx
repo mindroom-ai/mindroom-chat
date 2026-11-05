@@ -13,7 +13,7 @@ import {
   config,
   toRem,
 } from 'folds';
-import { PopOut, TooltipProvider } from '../../ui/directional';
+import { PopOut, TooltipProvider, ownDirectionLine } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -152,7 +152,7 @@ export function LobbyHeader({
           {showProfile && (
             <>
               <SpaceAvatar roomId={space.roomId} name={spaceName} src={avatarSrc} />
-              <Text size="H4" truncate>
+              <Text size="H4" truncate {...ownDirectionLine}>
                 {spaceName}
               </Text>
             </>

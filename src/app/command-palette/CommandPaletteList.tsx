@@ -3,6 +3,7 @@ import React, { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';
+import { ownDirectionLine } from '../ui/directional';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
@@ -180,11 +181,11 @@ function MessageRowText({ item }: { item: CommandPaletteMessageItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle}>{item.senderName}</span>
-        <span className={css.RowPlace}>{place}</span>
+        <span className={css.RowTitle} {...ownDirectionLine}>{item.senderName}</span>
+        <span className={css.RowPlace} {...ownDirectionLine}>{place}</span>
         <MessageTime timestamp={item.timestamp} />
       </span>
-      <span className={css.RowDescription}>{markMatches(item.snippet, item.highlights)}</span>
+      <span className={css.RowDescription} {...ownDirectionLine}>{markMatches(item.snippet, item.highlights)}</span>
     </span>
   );
 }
@@ -206,13 +207,13 @@ function ItemText({ item }: { item: CommandPaletteItem }) {
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle}>{getItemTitle(item, t)}</span>
+        <span className={css.RowTitle} {...ownDirectionLine}>{getItemTitle(item, t)}</span>
         {item.kind === 'space' && <span className={css.Tag}>{t('commandPalette.space')}</span>}
         {isPerson(item) && isMindroomAgentUserId(item.userId) && (
           <span className={css.Tag}>{t('threadActions.agent')}</span>
         )}
       </span>
-      {description && <span className={css.RowDescription}>{description}</span>}
+      {description && <span className={css.RowDescription} {...ownDirectionLine}>{description}</span>}
     </span>
   );
 }

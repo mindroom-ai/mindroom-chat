@@ -19,6 +19,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { SequenceCard } from '../../ui/SequenceCard';
+import { ownDirectionLine } from '../../ui/directional';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
@@ -281,11 +282,18 @@ export function InviteCard({
           <Box grow="Yes" direction="Column" gap="100" style={{ minWidth: 0 }}>
             <InviteBadges invite={invite} />
             <Box direction="Column">
-              <Text as="h3" id={nameId} size="T400" truncate style={NAME_STYLE}>
+              <Text
+                as="h3"
+                id={nameId}
+                size="T400"
+                truncate
+                style={NAME_STYLE}
+                {...ownDirectionLine}
+              >
                 {roomName}
               </Text>
               {roomTopic ? (
-                <Text size="T200" priority="300" truncate>
+                <Text size="T200" priority="300" truncate {...ownDirectionLine}>
                   {roomTopic}
                 </Text>
               ) : null}
