@@ -445,6 +445,9 @@
     "startChat": {
       "title": "Mulai obrolan dengan {{name}}?",
       "description": "Mengirim undangan ke {{userId}}."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Buka undangan dan notifikasi kotak masuk"
     }
   },
   "shortcuts": {

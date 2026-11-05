@@ -445,6 +445,9 @@
     "startChat": {
       "title": "{{name}} とのチャットを開始しますか？",
       "description": "{{userId}} に招待が送信されます。"
+    },
+    "actions": {
+      "goInboxInvitesDescription": "受信トレイの招待と通知を開く"
     }
   },
   "shortcuts": {

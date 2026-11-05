@@ -84,6 +84,12 @@ describe('getCommandPaletteQuickActions', () => {
     expect(ids).not.toContain('resolve-current-thread');
     expect(ids).not.toContain('unresolve-current-thread');
   });
+
+  it('describes Go Inbox as the Inbox that opens on Invites, found by invites too', () => {
+    const goInbox = getCommandPaletteQuickActions({}, t).find((item) => item.id === 'go-inbox');
+    expect(goInbox?.description).toBe('Open Inbox invites and notifications');
+    expect(goInbox?.keywords).toEqual(['invites', 'notifications']);
+  });
 });
 
 describe('getCommandPaletteSearchPagePath', () => {

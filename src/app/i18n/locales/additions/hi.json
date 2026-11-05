@@ -452,6 +452,9 @@
     "startChat": {
       "title": "{{name}} के साथ चैट शुरू करें?",
       "description": "{{userId}} को आमंत्रण भेजता है।"
+    },
+    "actions": {
+      "goInboxInvitesDescription": "इनबॉक्स के आमंत्रण और सूचनाएं खोलें"
     }
   },
   "shortcuts": {

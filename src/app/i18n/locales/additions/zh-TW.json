@@ -445,6 +445,9 @@
     "startChat": {
       "title": "要與 {{name}} 開始聊天嗎？",
       "description": "將向 {{userId}} 傳送邀請。"
+    },
+    "actions": {
+      "goInboxInvitesDescription": "開啟收件匣邀請與通知"
     }
   },
   "shortcuts": {

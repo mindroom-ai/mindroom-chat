@@ -452,6 +452,9 @@
     "startChat": {
       "title": "Start a chat with {{name}}?",
       "description": "Sends an invite to {{userId}}."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Open Inbox invites and notifications"
     }
   },
   "shortcuts": {

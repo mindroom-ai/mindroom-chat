@@ -452,6 +452,9 @@
     "startChat": {
       "title": "Chat mit {{name}} starten?",
       "description": "Sendet {{userId}} eine Einladung."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Einladungen und Benachrichtigungen im Posteingang öffnen"
     }
   },
   "shortcuts": {

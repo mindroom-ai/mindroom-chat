@@ -82,8 +82,8 @@ export const getCommandPaletteQuickActions = (
       keywords: ['dm', 'messages'],
     }),
     actionItem('go-inbox', t('commandPalette.actions.goInbox'), 100, {
-      description: t('commandPalette.actions.goInboxDescription'),
-      keywords: ['notifications'],
+      description: t('commandPalette.actions.goInboxInvitesDescription'),
+      keywords: ['invites', 'notifications'],
     }),
     actionItem('create-room', t('commandPalette.actions.createRoom'), 90, {
       description: t('commandPalette.actions.createRoomDescription'),

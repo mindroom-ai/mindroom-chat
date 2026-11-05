@@ -466,6 +466,9 @@
     "startChat": {
       "title": "Начать чат с {{name}}?",
       "description": "{{userId}} получит приглашение."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Открыть приглашения и уведомления во входящих"
     }
   },
   "shortcuts": {

@@ -480,6 +480,9 @@
     "startChat": {
       "title": "هل تريد بدء دردشة مع ⁨{{name}}⁩؟",
       "description": "يرسل دعوة إلى ⁨{{userId}}⁩."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "فتح دعوات صندوق الوارد وإشعاراته"
     }
   },
   "shortcuts": {

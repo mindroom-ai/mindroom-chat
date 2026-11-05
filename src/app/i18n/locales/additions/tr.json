@@ -452,6 +452,9 @@
     "startChat": {
       "title": "{{name}} ile sohbet başlatılsın mı?",
       "description": "{{userId}} kullanıcısına davet gönderir."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Gelen kutusu davetlerini ve bildirimlerini aç"
     }
   },
   "shortcuts": {

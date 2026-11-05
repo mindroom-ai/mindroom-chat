@@ -452,6 +452,9 @@
     "startChat": {
       "title": "Chat met {{name}} starten?",
       "description": "Stuurt {{userId}} een uitnodiging."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Open Inbox-uitnodigingen en -meldingen"
     }
   },
   "shortcuts": {

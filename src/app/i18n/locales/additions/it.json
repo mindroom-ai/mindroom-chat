@@ -459,6 +459,9 @@
     "startChat": {
       "title": "Avviare una chat con {{name}}?",
       "description": "Invia un invito a {{userId}}."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "Apri gli inviti e le notifiche della posta in arrivo"
     }
   },
   "shortcuts": {

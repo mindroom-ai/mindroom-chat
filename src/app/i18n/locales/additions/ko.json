@@ -445,6 +445,9 @@
     "startChat": {
       "title": "{{name}} 님과 채팅을 시작할까요?",
       "description": "{{userId}}에게 초대를 보냅니다."
+    },
+    "actions": {
+      "goInboxInvitesDescription": "받은편지함 초대 및 알림 열기"
     }
   },
   "shortcuts": {
