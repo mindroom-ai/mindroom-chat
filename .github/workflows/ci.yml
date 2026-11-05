@@ -49,6 +49,9 @@ jobs:
         run: npx tsc --noEmit -p tsconfig.app.json
       - name: Strict check
         if: ${{ !cancelled() }}
+        # tsconfig.strict.json covers the tests too; tsc needs more than Node's default heap on a runner.
+        env:
+          NODE_OPTIONS: --max-old-space-size=6144
         run: node scripts/strict-check.mjs
       - name: Lint
         if: ${{ !cancelled() }}

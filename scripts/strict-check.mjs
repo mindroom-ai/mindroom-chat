@@ -54,6 +54,14 @@ function runTsc() {
     { cwd: repoRoot, encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 }
   );
   if (result.error) throw result.error;
+  // tsc exits 0 without errors and 1 or 2 with them; anything else (out of memory, a signal) means
+  // it never finished, and its output must not pass for a list of diagnostics.
+  if (result.signal || ![0, 1, 2].includes(result.status ?? -1)) {
+    process.stderr.write(result.stderr);
+    throw new Error(
+      `tsc did not finish (exit ${result.status ?? 'none'}, signal ${result.signal ?? 'none'})`
+    );
+  }
   return `${result.stdout}${result.stderr}`;
 }
 
