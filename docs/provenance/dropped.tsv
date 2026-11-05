@@ -25,3 +25,4 @@ src/app/plugins/call/elementCallBackground.test.ts	1	Element Call
 android/app/src/main/res/drawable/ic_launcher_background.xml	2	Unused Android Studio template icon
 android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml	2	Unused Android Studio template icon
 src/app/pages/client/inbox/acceptInvite.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/mindroom/threads/roomTimelineReplyDraft.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
