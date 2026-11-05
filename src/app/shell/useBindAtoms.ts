@@ -3,6 +3,7 @@ import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
+import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
 import { mDirectAtom, useBindMDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom, useBindAllInvitesAtom } from '../matrix/state/inviteList';
 import { allRoomsAtom, useBindAllRoomsAtom } from '../matrix/state/roomList';
@@ -22,6 +23,9 @@ export function useBindAtoms(client: MatrixClient): void {
   useBindArchivedRoomsAtom(client);
   // The account's `io.mindroom.settings`, which the first render of the pages already reads.
   useBindAccountSettings(client);
+  // The app settings that follow the account (`io.mindroom.client.settings`), and the edits of
+  // this device that the homeserver does not have yet; the first render reads them too.
+  useBindRoamingSettings(client);
   // Live per-room state.
   useBindRoomIdToTypingMembersAtom(client, roomIdToTypingMembersAtom);
   useBindRoomToUnreadAtom(client, roomToUnreadAtom);

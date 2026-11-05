@@ -110,7 +110,7 @@ test('searching "24-hour" lands on Language & region with the setting highlighte
   await expect(clock).toHaveAttribute('data-settings-highlight', '');
   await expect(clock).toBeInViewport();
   await expect(clock.getByRole('switch')).toBeFocused();
-  await expect(clock).toContainText('This device');
+  await expect(clock).toContainText('Your account (all devices)');
   await expect(clock).not.toHaveAttribute('data-settings-highlight', '', { timeout: 5_000 });
 
   // Escape empties the field and brings the menu back; a second one closes the dialog.

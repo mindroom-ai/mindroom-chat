@@ -11,6 +11,7 @@ import {
   resolveSettingsPageId,
   type SettingsContext,
 } from './settingsRegistry';
+import { ROAMING_SETTINGS } from './roamingSettings';
 
 const WEB: SettingsContext = {
   native: false,
@@ -100,6 +101,41 @@ describe('settings registry', () => {
     expect(webSettings).not.toContain('errorReports');
     expect(getShownSettings({ ...WEB, errorReporting: true }).map((s) => s.id)).toContain(
       'errorReports'
+    );
+  });
+
+  it('labels the roaming settings with the account and keeps every other app setting on the device', () => {
+    const scopeOf = (id: string) => SETTINGS.find((setting) => setting.id === id)?.scope;
+    Object.keys(ROAMING_SETTINGS).forEach((id) => expect(scopeOf(id), id).toBe('account'));
+    // 🔒 Never roamed: per screen, per hardware or permission, read before sign-in, debugging
+    // aids, opt-ins that send more to a server, and endpoints.
+    const deviceOnly = [
+      'systemTheme',
+      'theme',
+      'lightTheme',
+      'darkTheme',
+      'pageZoom',
+      'messageLayout',
+      'messageSpacing',
+      'mediaAutoLoad',
+      'encUrlPreview',
+      'desktopNotifications',
+      'notificationSound',
+      'pushNotifications',
+      'language',
+      'computerServer',
+      'prefetchScope',
+      'developerTools',
+      'showHiddenEvents',
+      'errorReports',
+    ];
+    deviceOnly.forEach((id) => {
+      expect(scopeOf(id), id).toBe('device');
+      expect(Object.keys(ROAMING_SETTINGS), id).not.toContain(id);
+    });
+    const storedKeys: string[] = Object.values(ROAMING_SETTINGS);
+    ['useSystemTheme', 'themeId', 'pageZoom', 'encUrlPreview', 'sendErrorReports'].forEach((key) =>
+      expect(storedKeys, key).not.toContain(key)
     );
   });
 });

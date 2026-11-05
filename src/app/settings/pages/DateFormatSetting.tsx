@@ -19,6 +19,7 @@ import { Header, Menu } from '../../ui/glass/GlassPrimitives';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { SettingTile } from '../../ui/SettingTile';
 import { useSetting } from '../../preferences/useSetting';
+import { DATE_FORMAT_MAX_LENGTH } from '../../preferences/roamingSettings';
 import { settingsAtom } from '../../preferences/settings';
 import { stopPropagation } from '../../lib/keyboard';
 import { ChoiceButton } from '../../ui/settings/ChoiceButton';
@@ -150,6 +151,7 @@ function CustomFormatForm({ initial, onSave }: { initial: string; onSave: (f: st
             name="customDateFormatInput"
             aria-label={t('settings.general.dateTime.dateFormat')}
             value={draft}
+            maxLength={DATE_FORMAT_MAX_LENGTH}
             onChange={(event) => setDraft(event.currentTarget.value)}
             variant="Background"
             size="300"

@@ -7,6 +7,7 @@ import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
 import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
+import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
 
 vi.mock('../matrix/state/mDirectList', () => ({ mDirectAtom: {}, useBindMDirectAtom: vi.fn() }));
 vi.mock('../matrix/state/inviteList', () => ({ allInvitesAtom: {}, useBindAllInvitesAtom: vi.fn() }));
@@ -26,6 +27,7 @@ vi.mock('../matrix/state/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.f
 vi.mock('../matrix/hooks/useAccountSettings', () => ({
   useBindAccountSettings: vi.fn(),
 }));
+vi.mock('../matrix/hooks/useBindRoamingSettings', () => ({ useBindRoamingSettings: vi.fn() }));
 
 describe('useBindAtoms', () => {
   it("feeds the account's live reply frames to its store, so streamed replies update live", () => {
@@ -73,6 +75,22 @@ describe('useBindAtoms', () => {
     });
 
     expect(useBindAccountSettings).toHaveBeenCalledWith(client);
+    act(() => renderer?.unmount());
+  });
+
+  it("seeds the account's roaming app settings behind the gate, so the first page render shows them", () => {
+    const client = { id: 'account' } as unknown as MatrixClient;
+    function Probe() {
+      useBindAtoms(client);
+      return null;
+    }
+
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(React.createElement(Probe));
+    });
+
+    expect(useBindRoamingSettings).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 

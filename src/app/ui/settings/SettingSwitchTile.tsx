@@ -17,7 +17,7 @@ type SettingSwitchTileProps = {
   inverted?: boolean;
 };
 
-/** A tile whose switch turns one of this device's on/off settings on or off. */
+/** A tile whose switch turns one of the app's on/off settings on or off. */
 export function SettingSwitchTile({
   focusId,
   setting,

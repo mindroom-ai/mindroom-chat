@@ -34,9 +34,11 @@ afterEach(() => {
 describe('SettingScopeLabel', () => {
   it.each([
     // Stored in this browser's `settings` entry.
-    ['hour24Clock', 'device', 'This device'],
+    ['pageZoom', 'device', 'This device'],
     // Stored in the `io.mindroom.settings` account data.
     ['sidebarThreads', 'account', 'Your account (all devices)'],
+    // Stored in the `io.mindroom.client.settings` account data.
+    ['hour24Clock', 'account', 'Your account (all devices)'],
     // Stored in each room's own account data.
     ['archivedRooms', 'room-personal', 'This room, for you'],
     // Image packs in the server emoji room's state.

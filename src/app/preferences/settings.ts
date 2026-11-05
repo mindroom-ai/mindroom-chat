@@ -1,6 +1,8 @@
 /**
- * Device-wide client preferences, stored as one JSON object under the `settings` key.
+ * Client preferences, stored on this device as one JSON object under the `settings` key.
  * Only the fields below belong here; MindRoom-specific preferences have their own store.
+ * A few of them follow the account to every device (`roamingSettings.ts`): `settingsAtom` shows
+ * the account's value for those, and `getSettings()` this device's own.
  */
 import { atom } from 'jotai';
 import {
@@ -9,6 +11,14 @@ import {
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
 import { isRecord } from '../lib/isRecord';
+import {
+  keepDeviceRoamingSettings,
+  overlayRoamingSettings,
+  pendingRoamingSettingsAtom,
+  roamingAccountContentAtom,
+  roamingEdits,
+  savePendingRoamingSettings,
+} from './roamingSettings';
 
 const SETTINGS_STORAGE_KEY = 'settings';
 
@@ -96,7 +106,7 @@ const DEFAULT_BOOLEANS = Object.fromEntries(
   BOOLEAN_SETTING_KEYS.map((key) => [key, ON_BY_DEFAULT.includes(key)])
 ) as Record<BooleanSettingKey, boolean>;
 
-const DEFAULT_SETTINGS: Settings = {
+export const DEFAULT_SETTINGS: Settings = {
   ...DEFAULT_BOOLEANS,
   pageZoom: PAGE_ZOOM_DEFAULT,
   messageLayout: MessageLayout.Modern,
@@ -190,14 +200,36 @@ storedSettingsAtom.onMount = (setValue) => {
   };
 };
 
+/**
+ * The settings the app applies: this device's, with the account's values and this device's unsent
+ * edits over the roaming ones (`roamingSettings.ts`).
+ */
 export const settingsAtom = atom<Settings, [Settings], void>(
   (get) => {
-    const settings = get(storedSettingsAtom);
-    return settings === NOT_LOADED ? getSettings() : settings;
+    const stored = get(storedSettingsAtom);
+    return overlayRoamingSettings(
+      stored === NOT_LOADED ? getSettings() : stored,
+      get(roamingAccountContentAtom),
+      get(pendingRoamingSettingsAtom).values
+    );
   },
-  (_get, set, settings) => {
+  (get, set, settings) => {
     const next = sanitizeSettings(settings);
-    set(storedSettingsAtom, next);
-    setSettings(next);
+    const pending = get(pendingRoamingSettingsAtom);
+    let device = next;
+    // Signed in, a changed roaming setting becomes a pending edit of the account, and the device
+    // keeps the value it had; signed out, every setting is this device's.
+    if (pending.storageKey !== undefined) {
+      const stored = get(storedSettingsAtom);
+      device = keepDeviceRoamingSettings(next, stored === NOT_LOADED ? getSettings() : stored);
+      const edits = roamingEdits(get(settingsAtom), next);
+      if (Object.keys(edits).length > 0) {
+        const values = { ...pending.values, ...edits };
+        set(pendingRoamingSettingsAtom, { storageKey: pending.storageKey, values });
+        savePendingRoamingSettings(pending.storageKey, values);
+      }
+    }
+    set(storedSettingsAtom, device);
+    setSettings(device);
   }
 );

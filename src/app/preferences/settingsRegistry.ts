@@ -326,7 +326,7 @@ export const SETTINGS = [
     labelKey: 'settings.general.editor.hideActivity',
     descriptionKey: 'settings.general.editor.hideActivityDescription',
     keywordsKey: `${KEYWORDS}.receipts`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'encUrlPreview',
@@ -469,7 +469,7 @@ export const SETTINGS = [
     labelKey: 'settings.general.editor.enterForNewline',
     descriptionKey: 'settings.general.editor.enterForNewlineDescription',
     keywordsKey: `${KEYWORDS}.composer`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'markdown',
@@ -477,7 +477,7 @@ export const SETTINGS = [
     group: 'settings.general.editor.sectionTitle',
     labelKey: 'settings.general.editor.markdownFormatting',
     keywordsKey: `${KEYWORDS}.composer`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'hideMembershipEvents',
@@ -485,7 +485,7 @@ export const SETTINGS = [
     group: 'settings.general.messages.sectionTitle',
     labelKey: 'settings.general.messages.hideMembershipChange',
     keywordsKey: `${KEYWORDS}.timeline`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'hideNickAvatarEvents',
@@ -493,7 +493,7 @@ export const SETTINGS = [
     group: 'settings.general.messages.sectionTitle',
     labelKey: 'settings.general.messages.hideProfileChange',
     keywordsKey: `${KEYWORDS}.timeline`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'mediaAutoLoad',
@@ -509,7 +509,7 @@ export const SETTINGS = [
     group: 'settings.general.messages.sectionTitle',
     labelKey: 'settings.general.messages.urlPreview',
     keywordsKey: `${KEYWORDS}.links`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'personalPack',
@@ -563,7 +563,7 @@ export const SETTINGS = [
     group: 'settings.general.dateTime.sectionTitle',
     labelKey: 'settings.general.dateTime.hour24Clock',
     keywordsKey: `${KEYWORDS}.time`,
-    scope: 'device',
+    scope: 'account',
   },
   {
     id: 'dateFormat',
@@ -571,7 +571,7 @@ export const SETTINGS = [
     group: 'settings.general.dateTime.sectionTitle',
     labelKey: 'settings.general.dateTime.dateFormat',
     keywordsKey: `${KEYWORDS}.time`,
-    scope: 'device',
+    scope: 'account',
   },
   // Agents & connections
   {
