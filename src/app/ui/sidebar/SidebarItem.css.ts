@@ -6,7 +6,7 @@ import { motion } from '../styles/Motion.css';
 // Measured from docs/design/reference/home.png (1440x900 at 1x): the rail is 66 px wide and
 // holds 42 px avatars (folds Avatar size 400 is 2.625rem) at 12 px from the edge (S300), 12 px
 // apart (S300), starting 12 px from the top (S300), with 12 px corners (folds R500). Task 8's
-// sidebar/Sidebar.css.ts keeps only the drag source styles; the rail and stack are defined here
+// ui/sidebar/Sidebar.css.ts keeps only the drag source styles; the rail and stack are defined here
 // once.
 
 /** A flex column, which the rail and its stacks both are. */

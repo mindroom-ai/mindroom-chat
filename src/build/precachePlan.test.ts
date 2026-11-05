@@ -83,7 +83,7 @@ const bundle = (): OutputBundle => {
     asset('assets/index-e1.css'),
     asset('assets/clientPages-c1.css'),
     asset('assets/katex-m1.css'),
-    asset('assets/mindroom-logo-l1.png', 'src/app/branding/mindroom-logo.png'),
+    asset('assets/mindroom-logo-l1.png', 'public/res/branding/mindroom-logo.png'),
     asset('assets/thinking-mark-t1.svg', 'src/app/messages/agent-run/thinking-mark.svg'),
   ];
   return Object.fromEntries(outputs.map((output) => [output.fileName, output]));
@@ -119,9 +119,9 @@ describe('startupFiles', () => {
     expect(files.has('assets/thinking-mark-t1.svg')).toBe(false);
     expect(files.has('assets/mindroom-logo-l1.png')).toBe(true);
     expect(() =>
-      startupFiles(bundle(), STARTUP, ['src/app/mindroom/messages/thinking-marks.svg'])
+      startupFiles(bundle(), STARTUP, ['src/app/messages/agent-run/thinking-marks.svg'])
     ).toThrow(
-      'no build file comes from the on-demand asset src/app/mindroom/messages/thinking-marks.svg'
+      'no build file comes from the on-demand asset src/app/messages/agent-run/thinking-marks.svg'
     );
   });
 
@@ -135,8 +135,8 @@ describe('startupFiles', () => {
   });
 
   it('fails when a startup module is in no chunk, so a rename cannot drop it silently', () => {
-    expect(() => startupFiles(bundle(), ['src/app/pages/client/ClientPages.tsx'])).toThrow(
-      'no chunk holds the startup module src/app/pages/client/ClientPages.tsx'
+    expect(() => startupFiles(bundle(), ['src/app/shell/ClientPages.tsx'])).toThrow(
+      'no chunk holds the startup module src/app/shell/ClientPages.tsx'
     );
   });
 });

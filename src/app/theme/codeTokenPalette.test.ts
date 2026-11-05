@@ -8,7 +8,7 @@ import {
   type CodeTokenColors,
 } from './codeTokenPalette';
 
-const colorsSource = readFileSync(new URL('colors.css.ts', import.meta.url), 'utf8');
+const colorsSource = readFileSync(new URL('./colors.css.ts', import.meta.url), 'utf8');
 
 /** Each palette's code block background (SurfaceVariant.Container), by palette name. */
 const codeBackgrounds = (): Map<string, string> => {

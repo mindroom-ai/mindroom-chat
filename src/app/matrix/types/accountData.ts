@@ -9,7 +9,7 @@ export enum AccountDataEvent {
   MegolmBackupV1 = 'm.megolm_backup.v1',
   // The sidebar's space order and folders.
   MindroomSpaces = 'io.mindroom.spaces',
-  // Room lists ordered by hand: `features/room-nav/roomOrder.ts`.
+  // Room lists ordered by hand: `sidebar/room-nav/roomOrder.ts`.
   MindroomRoomOrder = 'io.mindroom.room_order',
   ElementRecentEmoji = 'io.element.recent_emoji',
   PoniesUserEmotes = 'im.ponies.user_emotes',

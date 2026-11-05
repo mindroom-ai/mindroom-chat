@@ -46,7 +46,7 @@ function CallLifetime() {
     window.addEventListener('pagehide', pageHide);
     window.addEventListener('pageshow', pageShow);
     // The call itself, with the rest of the account's call state, goes with the account's screens
-    // (`pages/client/accountState.ts`), whose list runs before this cleanup.
+    // (`shell/accountState.ts`), whose list runs before this cleanup.
     return () => {
       window.removeEventListener('pagehide', pageHide);
       window.removeEventListener('pageshow', pageShow);

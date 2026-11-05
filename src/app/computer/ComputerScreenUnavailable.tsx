@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect } from 'react';
 
-/** Closes the computer panel; the room (MindroomRoom.tsx) provides it around the panel. */
+/** Closes the computer panel; the room (room/Room.tsx) provides it around the panel. */
 export const CloseComputerPanelContext = createContext<(() => void) | undefined>(undefined);
 
 /**

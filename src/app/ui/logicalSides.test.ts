@@ -5,8 +5,8 @@ import { describe, expect, it } from 'vitest';
 // The ESLint rule of .eslintrc.cjs that keeps physical sides (left, right) out of Lane C styles,
 // so the interface mirrors in right-to-left languages. Made-up paths get the rule by pattern.
 const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../../', import.meta.url)) });
-const STYLE_FILE = 'src/app/components/directional/Example.css.ts';
-const COMPONENT = 'src/app/components/directional/Example.tsx';
+const STYLE_FILE = 'src/app/ui/Example.css.ts';
+const COMPONENT = 'src/app/ui/Example.tsx';
 
 const physicalSides = async (source: string, filePath: string) => {
   const [result] = await eslint.lintText(source, { filePath });
@@ -122,8 +122,8 @@ describe('logical sides in Lane C styles', () => {
   it.each([
     // Lane P keeps its ported styles.
     'src/app/ui/glass/Surface.css.ts',
-    'src/app/components/directional/Example.test.ts',
-    'src/app/components/directional/__tests__/Example.css.ts',
+    'src/app/ui/Example.test.ts',
+    'src/app/ui/__tests__/Example.css.ts',
   ])('leaves ported styles and tests alone: %s', async (filePath) => {
     expect(
       await physicalSides(styleFile('export const x = style({ left: 0 });'), filePath)

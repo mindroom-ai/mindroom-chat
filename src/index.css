@@ -211,7 +211,7 @@ html[dir='rtl'] [data-directional] {
   transform: scaleX(-1);
 }
 
-/* A line someone wrote (ownDirectionLine in components/directional) reads in its own direction
+/* A line someone wrote (ownDirectionLine in ui/directional.tsx) reads in its own direction
    and lines up with the interface's start, whatever its own direction is. */
 html [data-own-direction] {
   text-align: left;

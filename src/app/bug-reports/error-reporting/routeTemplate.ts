@@ -1,7 +1,7 @@
 import { matchRoutes } from 'react-router-dom';
 import * as paths from '../../routes/paths';
 
-// Every route pattern of the app (pages/paths.ts), for React Router to rank as it does itself.
+// Every route pattern of the app (routes/paths.ts), for React Router to rank as it does itself.
 const ROUTES = Object.values(paths)
   .filter((path): path is string => typeof path === 'string' && path.startsWith('/'))
   .map((path) => ({ path }));
