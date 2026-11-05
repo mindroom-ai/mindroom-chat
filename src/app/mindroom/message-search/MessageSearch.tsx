@@ -2,7 +2,6 @@ import React, {
   FormEvent,
   MouseEvent,
   RefObject,
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -12,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useAtomValue } from 'jotai';
-import { type MatrixClient, type Room, SearchOrderBy, THREAD_RELATION_TYPE } from 'matrix-js-sdk';
+import { type Room, SearchOrderBy } from 'matrix-js-sdk';
 import {
   Avatar,
   Box,
@@ -33,7 +32,6 @@ import { RoomAvatar } from '../../components/room-avatar';
 import { ScrollTopContainer } from '../../components/scroll-top-container';
 import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
-import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { makeHighlightRegex } from '../../plugins/highlightRegex';
 import { mDirectAtom } from '../../state/mDirectList';
 import { getDirectPartnerId, getDirectRoomAvatarUrl, getRoomAvatarUrl } from '../../utils/room';
@@ -45,10 +43,10 @@ import {
   normalizeMessageSearchRooms,
   shouldDeferImplicitMessageSearch,
 } from './messageSearchScope';
-import type { SearchResultOpenTarget } from './searchResultOpenTarget';
 import { SearchResultItem, type SearchResultBodyRenderer } from './SearchResultGroup';
 import { SearchRoomPicker } from './MessageSearchFilters';
 import { useMessageSearch } from './useMessageSearch';
+import { useOpenSearchResult } from './useOpenSearchResult';
 import * as css from './MessageSearch.css';
 
 export type MessageSearchProps = {
@@ -84,24 +82,6 @@ const parseRooms = (value: string | null): string[] | undefined =>
 /** The address names the order only when it is not the default, newest first. */
 const parseOrder = (value: string | null): SearchOrderBy =>
   value === SearchOrderBy.Rank ? SearchOrderBy.Rank : SearchOrderBy.Recent;
-
-/**
- * The thread a hit belongs to when the hit itself does not say: a search hit on an edit names
- * only the edited message, whose own relation tells whether it is a thread reply.
- */
-const findThreadRoot = async (
-  client: MatrixClient,
-  roomId: string,
-  eventId: string
-): Promise<string | undefined> => {
-  const loaded = client.getRoom(roomId)?.findEventById(eventId);
-  const relation = loaded
-    ? loaded.getWireContent()['m.relates_to']
-    : (await client.fetchRoomEvent(roomId, eventId)).content?.['m.relates_to'];
-  return relation?.rel_type === THREAD_RELATION_TYPE.name && typeof relation.event_id === 'string'
-    ? relation.event_id
-    : undefined;
-};
 
 /** A room's picture beside its name over its results; a direct chat shows the other person. */
 function ResultRoomAvatar({ room }: { room: Room }) {
@@ -139,7 +119,6 @@ export function MessageSearch({
 }: MessageSearchProps) {
   const client = useMatrixClient();
   const { t } = useTranslation();
-  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const term = searchParams.get('term')?.trim() ?? '';
   const global = allowGlobal && searchParams.get('global') === 'true';
@@ -262,20 +241,7 @@ export function MessageSearch({
       else next.delete('order');
     });
 
-  const open = useCallback(
-    async (roomId: string, target: SearchResultOpenTarget) => {
-      if (target.threadRootId) {
-        navigateRoomThread(roomId, target.threadRootId, target.mainEventId);
-        return;
-      }
-      const threadRootId = await findThreadRoot(client, roomId, target.mainEventId).catch(
-        () => undefined
-      );
-      if (threadRootId) navigateRoomThread(roomId, threadRootId, target.mainEventId);
-      else navigateRoom(roomId, target.mainEventId);
-    },
-    [client, navigateRoom, navigateRoomThread]
-  );
+  const open = useOpenSearchResult();
 
   const renderRow = (index: number) => {
     const row = rows[index];

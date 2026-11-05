@@ -107,7 +107,8 @@ export const useMessageSearch = ({
     enabled: searchTerm.length > 0,
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (lastPage: MessageSearchPage) => lastPage.nextToken,
-    queryFn: async ({ pageParam }): Promise<MessageSearchPage> => {
+    // A newer term replaces this query, which then has no observer and aborts its request.
+    queryFn: async ({ pageParam, signal }): Promise<MessageSearchPage> => {
       const body: ISearchRequestBody = {
         search_categories: {
           room_events: {
@@ -118,7 +119,7 @@ export const useMessageSearch = ({
           },
         },
       };
-      const response = await mx.search({ body, next_batch: pageParam });
+      const response = await mx.search({ body, next_batch: pageParam }, signal);
       const roomEvents = response.search_categories.room_events;
       return {
         highlights: roomEvents.highlights ?? [],
