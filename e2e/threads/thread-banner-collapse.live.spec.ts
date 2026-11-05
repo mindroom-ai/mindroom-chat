@@ -16,7 +16,10 @@ const SUMMARY =
 // Playwright's click scrolls the target into view first, and for a button in
 // the sticky banner that scrolls the thread toward the banner's place in the
 // flow. Press where the button is instead, as a finger or pointer would.
+// A new session opens with the "Catching up..." bar above the banner; when it
+// goes the banner moves up by its height, so measure after it has gone.
 const press = async (page: Page, touch: boolean, button: Locator) => {
+  await expect(page.getByText(/^Catching up/)).toHaveCount(0);
   const box = (await button.boundingBox())!;
   const x = box.x + box.width / 2;
   const y = box.y + box.height / 2;
