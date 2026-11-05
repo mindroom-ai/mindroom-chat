@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_INLINE_MD_NESTING, parseInlineMD } from './parser';
+import { cpuNow } from '../../../test-utils/cpuNow';
 
 describe('LinkRule', () => {
   it.each([
@@ -53,8 +54,8 @@ describe('nested inline Markdown', () => {
     ['strikethrough pairs', `${'~~'.repeat(8_000)}a${'~~'.repeat(8_000)}`],
     ['spoiler pairs', `${'||'.repeat(8_000)}a${'||'.repeat(8_000)}`],
   ])('renders 16k delimiters of %s without deep recursion, in under a second', (_name, text) => {
-    const start = performance.now();
+    const start = cpuNow();
     expect(() => parseInlineMD(text)).not.toThrow();
-    expect(performance.now() - start).toBeLessThan(1000);
+    expect(cpuNow() - start).toBeLessThan(1000);
   });
 });

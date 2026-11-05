@@ -1,15 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { parseInlineMD } from './parser';
 import { escapeMarkdownInlineSequences, unescapeMarkdownInlineSequences } from '../utils';
+import { cpuNow } from '../../../test-utils/cpuNow';
 
 describe('inline Markdown containing code', () => {
   it('handles long control-character input without repeated delimiter searches', () => {
     const prefix = '\u0000'.repeat(262144);
-    const start = performance.now();
+    const start = cpuNow();
     expect(parseInlineMD(`${prefix}**a \`x\` b**`)).toBe(
       `${prefix}<strong data-md="**">a <code data-md="\`">x</code> b</strong>`
     );
-    expect(performance.now() - start).toBeLessThan(2000);
+    expect(cpuNow() - start).toBeLessThan(2000);
   });
 
   it('cannot confuse literal token-shaped text with protected code', () => {

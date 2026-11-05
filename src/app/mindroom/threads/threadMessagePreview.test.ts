@@ -5,6 +5,7 @@ import {
   stripPreviewMarkdown,
   VOICE_MESSAGE_PREVIEW_TEXT,
 } from './threadMessagePreview';
+import { cpuNow } from '../../test-utils/cpuNow';
 
 const textContent = (body: string): Record<string, unknown> => ({
   msgtype: 'm.text',
@@ -282,9 +283,9 @@ describe('getThreadMessagePreviewText', () => {
   });
 
   it('stays fast on pathological markdown floods', () => {
-    const start = performance.now();
+    const start = cpuNow();
     expect(getThreadMessagePreviewText(textContent('['.repeat(60_000)))).toBeDefined();
     expect(getThreadMessagePreviewText(textContent(' **a'.repeat(15_000)))).toBeDefined();
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(cpuNow() - start).toBeLessThan(500);
   });
 });

@@ -1,6 +1,7 @@
 import { Element, htmlToDOM } from 'html-react-parser';
 import { describe, expect, it } from 'vitest';
 import { getRenderedMindroomToolRefs, getToolRefPrefixFromElement } from './toolRefDom';
+import { cpuNow } from '../../test-utils/cpuNow';
 
 const indexesOf = (html: string) =>
   getRenderedMindroomToolRefs(html).toolBlocks.map(({ index, toolName }) => [index, toolName]);
@@ -71,9 +72,9 @@ describe('getToolRefPrefixFromElement', () => {
     // Parsing each prefix scanned it again, so one long paragraph froze every viewer.
     const longText = elementOf(`<p>🔧 ${'&lt;code&gt;x🔧 '.repeat(5_000)}</p>`);
     const manyChildren = elementOf(`<p>🔧 ${'<code>x</code>'.repeat(5_000)}</p>`);
-    const start = performance.now();
+    const start = cpuNow();
     expect(getToolRefPrefixFromElement(longText)).toBeUndefined();
     expect(getToolRefPrefixFromElement(manyChildren)).toBeUndefined();
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(cpuNow() - start).toBeLessThan(100);
   });
 });

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { renderNoticeText } from './noticeText';
 import { MAX_NOTICE_TEXT_LENGTH } from './notices';
+import { cpuNow } from '../../test-utils/cpuNow';
 
 vi.mock('../../styles/CustomHtml.css', () => ({ Code: 'code' }));
 
@@ -137,9 +138,9 @@ describe('renderNoticeText', () => {
     ['**'.repeat(500), '<strong>'],
   ])('parses worst-case text at the length cap quickly (%#)', (text, tag) => {
     expect(text.length).toBeLessThanOrEqual(MAX_NOTICE_TEXT_LENGTH);
-    const started = performance.now();
+    const started = cpuNow();
     expect(html(text)).toContain(tag);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(cpuNow() - started).toBeLessThan(1000);
   });
 
   it.each([
@@ -148,9 +149,9 @@ describe('renderNoticeText', () => {
     ['\\*'.repeat(500), '*'.repeat(500)],
   ])('renders worst-case text without tags at the length cap quickly (%#)', (text, expected) => {
     expect(text.length).toBeLessThanOrEqual(MAX_NOTICE_TEXT_LENGTH);
-    const started = performance.now();
+    const started = cpuNow();
     expect(html(text)).toBe(expected);
-    expect(performance.now() - started).toBeLessThan(1000);
+    expect(cpuNow() - started).toBeLessThan(1000);
   });
 
   it('never throws for text far over the cap: formatted, or plain if the parser gives up', () => {

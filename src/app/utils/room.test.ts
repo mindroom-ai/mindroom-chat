@@ -10,6 +10,7 @@ import {
   roomHaveUnread,
   trimReplyFromBody,
 } from './room';
+import { cpuNow } from '../test-utils/cpuNow';
 
 const makeMessageEvent = (
   eventId: string,
@@ -632,10 +633,10 @@ describe('trimReplyFromBody', () => {
     // rescanned the rest, so these bodies froze every viewer.
     const unclosedLine = `> <${'> '.repeat(20_000)}`;
     const unclosedLines = '> <a> b\n'.repeat(8_000);
-    const start = performance.now();
+    const start = cpuNow();
     expect(trimReplyFromBody(unclosedLine)).toBe(unclosedLine);
     expect(trimReplyFromBody(unclosedLines)).toBe(unclosedLines);
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(cpuNow() - start).toBeLessThan(100);
   });
 });
 

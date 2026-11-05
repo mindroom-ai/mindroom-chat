@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BLOCK_MD_RULES, CodeBlockRule } from './rules';
 import { parseBlockMD, parseBlockMDWithRules } from './parser';
+import { cpuNow } from '../../../test-utils/cpuNow';
 
 const codeBlock = (text: string) => {
   const match = CodeBlockRule.match(text);
@@ -8,9 +9,9 @@ const codeBlock = (text: string) => {
 };
 
 const timed = <T>(run: () => T): { result: T; ms: number } => {
-  const start = performance.now();
+  const start = cpuNow();
   const result = run();
-  return { result, ms: performance.now() - start };
+  return { result, ms: cpuNow() - start };
 };
 
 describe('fenced code blocks', () => {

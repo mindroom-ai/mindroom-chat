@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createInsideUrlTest, execOutsideUrl, JUMBO_EMOJI_REG, URL_REG } from './regex';
+import { cpuNow } from '../test-utils/cpuNow';
 
 // The lookbehind these helpers replace; V8 evaluates it in linear time, so it is the oracle.
 const FORMER_URL_LOOKBEHIND = /(?<!(https?|ftp|mailto|magnet):\/\/\S*)/y;
@@ -89,9 +90,9 @@ describe('execOutsideUrl', () => {
   it('does not retry every position of a URL', () => {
     // Retrying each position of the run rescans the rest of it for the closing marker.
     const text = `https://x.y/${'_'.repeat(40_000)} _a_`;
-    const start = performance.now();
+    const start = cpuNow();
     expect(execOutsideUrl(/_(.+?)_(?!_)/g, text)?.index).toBe(text.length - 3);
-    expect(performance.now() - start).toBeLessThan(1_000);
+    expect(cpuNow() - start).toBeLessThan(1_000);
   });
 });
 
@@ -113,11 +114,11 @@ describe('JUMBO_EMOJI_REG', () => {
   it('rejects many shortcodes followed by text without backtracking', () => {
     // A shortcode could span other shortcodes, so the ten allowed could be split among thirty
     // in millions of ways: this took seconds in V8 and JavaScriptCore.
-    const start = performance.now();
+    const start = cpuNow();
     expect(JUMBO_EMOJI_REG.test(`${':rocket: :white_check_mark: :tada: '.repeat(10)}ok`)).toBe(
       false
     );
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(cpuNow() - start).toBeLessThan(100);
   });
 });
 
@@ -134,9 +135,9 @@ describe('URL_REG', () => {
 
     // A lookbehind that repeated the punctuation class read the whole run back from every
     // position the URL could end at, so a link followed by many dots froze the timeline.
-    const start = performance.now();
+    const start = cpuNow();
     expect(`http://${'.'.repeat(100_000)}`.match(URL_REG)).toBeNull();
-    expect(performance.now() - start).toBeLessThan(100);
+    expect(cpuNow() - start).toBeLessThan(100);
   });
 });
 

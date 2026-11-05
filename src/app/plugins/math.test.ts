@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { findDisplayLatexBlockMatch, tokenizeTextWithLatex } from './math';
+import { cpuNow } from '../test-utils/cpuNow';
 
 describe('display math', () => {
   it('rejects unclosed $$ openers without rescanning the rest of the text', () => {
@@ -17,9 +18,9 @@ describe('display math', () => {
 
     // Each opener scanned to the end of the text for its closing `$$`.
     const unclosed = '$$x\n'.repeat(16_000);
-    const start = performance.now();
+    const start = cpuNow();
     expect(tokenizeTextWithLatex(unclosed)).toEqual([{ type: 'text', content: unclosed }]);
     expect(findDisplayLatexBlockMatch(unclosed)).toBeUndefined();
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(cpuNow() - start).toBeLessThan(500);
   });
 });

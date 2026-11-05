@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import parity from './__fixtures__/live-markdown-parity-v1.json';
 import { loadLiveMarkdown, renderLiveMarkdown } from './liveMarkdown';
+import { cpuNow } from '../../test-utils/cpuNow';
 
 describe('live reply Markdown', () => {
   beforeAll(async () => {
@@ -48,12 +49,12 @@ describe('live reply Markdown', () => {
   });
 
   it('stays fast on a long whitespace run and on many unclosed math openers', () => {
-    const start = performance.now();
+    const start = cpuNow();
     expect(renderLiveMarkdown(`${' '.repeat(64_000)}x\ny`)).toBe(
       `<pre><code>${' '.repeat(63_996)}x\n</code></pre>\n<p>y</p>\n`
     );
     expect(renderLiveMarkdown('$$a\n\n'.repeat(20_000))).toBe('<p>$$a</p>\n'.repeat(20_000));
-    expect(performance.now() - start).toBeLessThan(1000);
+    expect(cpuNow() - start).toBeLessThan(1000);
   });
 
   it('reads dollars next to digits and spaces as text, like currency', () => {
