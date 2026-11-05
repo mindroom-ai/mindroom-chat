@@ -16,6 +16,9 @@ overlap the upstream client) count as holes too.
 lines blanked at the tip by the 2026-11-03 history rewrite, and docs/provenance/overlap.txt names
 that commit; each listed file must differ from it only in those lines.
 
+Files moved after the import are found where docs/provenance/moves.tsv (as of the checked revision)
+says they are; the hole files keep the import paths.
+
 A line that is empty in the checked revision and listed for that file's blob in
 docs/provenance/history-blanked.tsv (blanked there by the history rewrite) is also accepted.
 
@@ -60,6 +63,24 @@ def read_dropped() -> set[str]:
     if not file.is_file():
         return set()
     return {row.split("\t")[0] for row in file.read_text().splitlines() if row}
+
+
+def read_moves(rev: str | None) -> list[tuple[str, str]]:
+    """Rows of docs/provenance/moves.tsv (old, new) as of <rev>, or of the working tree."""
+    text = git_show(rev, "docs/provenance/moves.tsv") if rev else (
+        (PROV / "moves.tsv").read_text() if (PROV / "moves.tsv").is_file() else None)
+    rows = [row.split("\t") for row in (text or "").splitlines()[1:] if row]
+    return [(row[0], row[1]) for row in rows]
+
+
+def moved_path(path: str, moves: list[tuple[str, str]]) -> str | None:
+    """Where an imported path is after the moves (None when a move deleted it)."""
+    for old, new in moves:
+        if old == path:
+            if not new:
+                return None
+            path = new
+    return path
 
 
 def git_show(rev: str, path: str) -> str | None:
@@ -144,10 +165,14 @@ def main() -> int:
     paths = [p for p in paths if p not in dropped_paths]
 
     blanked = history_blanked()
+    moves = read_moves(args.rev)
     found = []
     for path in paths:
+        # The import commit has the imported path; the checked revision may have moved the file.
+        now = moved_path(path, moves)
+        after = current_text(args.rev, now) if now else None
         found += violations(
-            path, holes[path], git_show(commit, path), current_text(args.rev, path), blanked.get(blob_id(args.rev, path), set())
+            path, holes[path], git_show(commit, path), after, blanked.get(blob_id(args.rev, now), set()) if now else set()
         )
     for line in found:
         print(line)

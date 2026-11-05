@@ -25,7 +25,7 @@ typecheck-all:
 
 # Type-check everything with the stricter flags of tsconfig.strict.json (unused names, implicit returns, unchecked index access, ...). Fails on errors in Lane C files only and prints how many Lane P errors it ignored.
 strict:
-    node --test scripts/strict-check.test.mjs
+    node --test scripts/strict-check.test.mjs scripts/provenance-paths.test.mjs
     node scripts/strict-check.mjs
 
 # Run the unit tests. On NixOS, scripts/with-fhs-bin.sh adds the /bin/bash and /usr/bin tools that tests of the iOS CI scripts expect.

@@ -2,16 +2,12 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Lane P: the first column of every docs/provenance/portable*.tsv list, whose code keeps its
-// ported logic.
+// Lane P: the files of every docs/provenance/portable*.tsv list, at the paths
+// docs/provenance/moves.tsv gives them now, whose code keeps its ported logic.
+const provenancePaths = require('./scripts/provenance-paths.cjs');
+
 function lanePPaths() {
-  const provenance = path.join(__dirname, 'docs', 'provenance');
-  return fs
-    .readdirSync(provenance)
-    .filter((name) => /^portable.*\.tsv$/.test(name))
-    .flatMap((name) => fs.readFileSync(path.join(provenance, name), 'utf8').split('\n'))
-    .map((row) => row.split('\t')[0])
-    .filter(Boolean);
+  return [...provenancePaths.lanePPaths(__dirname).keys()];
 }
 
 // Lane C TypeScript on disk: the files tsconfig.json compiles (`src`, `e2e` and two configs)

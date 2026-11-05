@@ -1,28 +1,22 @@
 // Type-check with the stricter flags of tsconfig.strict.json and fail only on errors in Lane C
-// files. Lane P files (the docs/provenance/portable*.tsv lists) keep their ported logic, so their
-// errors are counted and ignored.
+// files. Lane P files (the docs/provenance/portable*.tsv lists, at the paths
+// docs/provenance/moves.tsv gives them now) keep their ported logic, so their errors are counted
+// and ignored.
 //
 // Usage: node scripts/strict-check.mjs [--from <file with tsc output>]
 import { spawnSync } from 'node:child_process';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { lanePPaths } = createRequire(import.meta.url)('./provenance-paths.cjs');
 
-/** Paths (relative to the repository root) named in the first column of every portable list. */
+/** Current paths (relative to the repository root) of the files in every portable list. */
 export function readLanePPaths(root = repoRoot) {
-  const provenance = path.join(root, 'docs', 'provenance');
-  const lists = readdirSync(provenance).filter((name) => /^portable.*\.tsv$/.test(name));
-  const paths = new Set();
-  for (const list of lists) {
-    for (const row of readFileSync(path.join(provenance, list), 'utf8').split('\n')) {
-      const [file] = row.split('\t');
-      if (file) paths.add(file);
-    }
-  }
-  return paths;
+  return new Set(lanePPaths(root).keys());
 }
 
 // `src/a.ts(12,3): error TS6133: ...` starts a diagnostic; indented lines continue it.

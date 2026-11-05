@@ -47,8 +47,7 @@ Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) re
 To see which lane a file is in:
 
 ```bash
-cut -f1 docs/provenance/portable*.tsv | grep -qxF src/app/mindroom/messages/toolTrace.ts && echo "Lane P" || echo "Lane C"
-cut -f1 docs/provenance/seams.tsv | grep -qxF src/app/hooks/useClientConfig.ts && echo "seam"
+node scripts/provenance-paths.cjs lane src/app/mindroom/messages/toolTrace.ts src/app/hooks/useClientConfig.ts
 ```
 
 `just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout, and the overlap check described in `docs/provenance.md` runs over new code.

@@ -2,8 +2,8 @@
 # Usage: scripts/similarity-audit.sh <corpus dir>...
 #
 # Compares Lane C code against each corpus directory with `jscpd --min-tokens 50`.
-# Lane P is every path in docs/provenance/portable.tsv and portable-wave2.tsv minus the paths in
-# docs/provenance/dropped.tsv. Lane C is every other file under src/, scripts/ and e2e/, plus the
+# Lane P is every path in docs/provenance/portable.tsv and portable-wave2.tsv, where
+# docs/provenance/moves.tsv says it is now, minus the paths in docs/provenance/dropped.tsv. Lane C is every other file under src/, scripts/ and e2e/, plus the
 # root config files, tracked or untracked but not ignored by Git, that exists in the working tree.
 # Only clones that pair a Lane C file with a corpus file count; clones inside either side are
 # dropped. Writes, per corpus, `clones.tsv` (file and line range on each side, clone length) under
@@ -32,8 +32,9 @@ out="$prov/audit/$(date +%F)"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# Lane P: both import waves, without the files deleted with a dropped feature.
-cut -f1 "$prov/portable.tsv" "$prov/portable-wave2.tsv" | sed '/^$/d' | sort -u > "$work/imported.txt"
+# Lane P: both import waves at their current paths (docs/provenance/moves.tsv), without the files
+# deleted with a dropped feature.
+node scripts/provenance-paths.cjs lane-p portable.tsv portable-wave2.tsv | sort -u > "$work/imported.txt"
 cut -f1 "$prov/dropped.tsv" | sed '/^$/d' | sort -u > "$work/dropped.txt"
 comm -23 "$work/imported.txt" "$work/dropped.txt" > "$work/lane-p.txt"
 

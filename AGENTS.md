@@ -9,6 +9,8 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 - **No upstream code, in any commit:** `scripts/upstream-overlap/check.py` (`just upstream-overlap <upstream clone>`) must report 0 findings for every new commit before it is pushed (`--history` checks all of them). Only the orchestrator holds the upstream clone; other sessions may run the check on their own files when told the corpus path, and may never open the corpus.
 - **Lane C (clean):** everything else, including the seams (modules that Lane P files import but that are not ported; `docs/provenance/seams.tsv`) and the app shell.
 
+A file keeps its lane when it moves: the lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch; written by the move tool) maps each moved file to its current path. `node scripts/provenance-paths.cjs lane <path>` prints a file's lane.
+
 `docs/provenance.md` describes both lanes, and every session that works in this repository logs itself there.
 
 ### Lane C rules
@@ -21,7 +23,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 
 - **Lane P files** (listed in `docs/provenance/portable.tsv`, `portable-wave2.tsv` and `portable-wave3.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, or delete code for dropped features (Simple Mode, Element Call, the filter bar's view buttons). Never rewrite their logic.
 - Do not run Prettier or any other formatter over a Lane P file.
-- **Seams:** a seam keeps its path and exports every name listed for it in `seams.tsv` with types that satisfy all Lane P call sites. Its implementation is new code. A seam may export more than listed when Lane C needs it.
+- **Seams:** a seam keeps its path (or the one `moves.tsv` gives it) and exports every name listed for it in `seams.tsv` with types that satisfy all Lane P call sites. Its implementation is new code. A seam may export more than listed when Lane C needs it.
 
 ## Licenses and product
 
