@@ -1,0 +1,202 @@
+import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import {
+  joinRoom,
+  loginToMatrix,
+  registerAgentAccount,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
+
+// A thread's title, its preview and the banner's summary are text people and agents wrote, so in
+// a right-to-left interface an English line keeps its own direction: it is cut at its end, not
+// at its start, and a closing question mark stays at its end. Checked on a phone and a desktop,
+// in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'thread-own-direction-spec-password';
+const RUN = Date.now().toString(36);
+const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+const TITLE =
+  'Why does the nightly export job time out on large workspaces since the storage migration?';
+const REPLY =
+  'Checking the export worker logs first, then the object listing calls against the new bucket layout and its pagination.';
+const SUMMARY =
+  'Do nightly exports time out on workspaces over 40k files because of unbatched object listing?';
+
+test.use({
+  launchOptions: {
+    // The other launch options repeat playwright.config.ts.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
+test.describe.configure({ timeout: 180_000 });
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
+  const username = `tod_${name}_${RUN}`;
+  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: PASSWORD,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(response.ok, `registering ${username}`).toBe(true);
+  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+};
+
+/** A room with an agent, so it opens as Compact cards, and one thread with a summary. */
+const seed = async (engine: string) => {
+  const reader = await registerAndLogin(`reader_${engine}`);
+  const agent = await registerAgentAccount(HOMESERVER, `export_${engine}`);
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: 'Data platform',
+    invite: [agent.userId],
+  });
+  await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: TITLE,
+  });
+  const relation = {
+    rel_type: 'm.thread',
+    event_id: rootId,
+    is_falling_back: true,
+    'm.in_reply_to': { event_id: rootId },
+  };
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: REPLY,
+    'io.mindroom.stream_status': 'completed',
+    'm.relates_to': relation,
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.notice',
+    body: SUMMARY,
+    'io.mindroom.thread_summary': {
+      version: 1,
+      summary: SUMMARY,
+      message_count: 2,
+      generated_at: new Date().toISOString(),
+      model: 'test',
+    },
+    'm.relates_to': relation,
+  });
+  return { reader, roomId, rootId };
+};
+
+type Placement = {
+  direction: string;
+  firstCharInside: boolean;
+  lastCharAtEnd: boolean;
+};
+
+/**
+ * Where a line's text sits: its direction, whether its first character shows inside the box
+ * (a line cut at its start hides it), and whether its last character is its rightmost one.
+ */
+const placement = (line: Locator): Promise<Placement> =>
+  line.evaluate((element) => {
+    const text = element.firstChild?.nodeType === Node.TEXT_NODE ? element.firstChild : null;
+    if (!text?.textContent) throw new Error('The line has no text of its own');
+    const box = element.getBoundingClientRect();
+    const range = document.createRange();
+    const charRect = (offset: number) => {
+      range.setStart(text, offset);
+      range.setEnd(text, offset + 1);
+      return range.getClientRects()[0] ?? range.getBoundingClientRect();
+    };
+    const first = charRect(0);
+    const length = text.textContent.length;
+    const last = charRect(length - 1);
+    const others = Array.from({ length: length - 1 }, (_, index) => charRect(index));
+    const lastLine = others.filter((rect) => Math.abs(rect.top - last.top) < 2);
+    return {
+      direction: getComputedStyle(element).direction,
+      firstCharInside: first.left >= box.left - 1 && first.right <= box.right + 1,
+      lastCharAtEnd: lastLine.every((rect) => rect.left < last.left),
+    };
+  });
+
+const check = async (browser: Browser, engine: string, phone: boolean, baseURL?: string) => {
+  const world = await seed(`${engine}_${phone ? 'p' : 'd'}`);
+  const context = await browser.newContext({
+    ...(phone
+      ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true }
+      : { viewport: { width: 1280, height: 800 } }),
+    baseURL,
+  });
+  await context.route('**/v1/local-mindroom/connections', (route) =>
+    route.fulfill({ json: { connections: [] } })
+  );
+  const page: Page = await context.newPage();
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: world.reader.username,
+    password: PASSWORD,
+  });
+  await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
+  await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
+  await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+
+  const card = page.locator(`[data-thread-root-id="${world.rootId}"]`);
+  const title = card.getByText(SUMMARY, { exact: true });
+  const preview = card.getByText(/Checking the export worker logs/);
+  await expect(title).toBeVisible({ timeout: 30_000 });
+  await expect(preview).toBeVisible();
+  // The summary is longer than a phone's two title lines and the reply than its preview line.
+  expect(await placement(title)).toEqual({
+    direction: 'ltr',
+    firstCharInside: true,
+    lastCharAtEnd: true,
+  });
+  expect((await placement(preview)).direction).toBe('ltr');
+  expect((await placement(preview)).firstCharInside).toBe(true);
+
+  await page.goto(
+    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`
+  );
+  const summary = page.locator('[data-thread-context-summary]');
+  await expect(summary).toHaveText(SUMMARY, { timeout: 30_000 });
+  expect(await placement(summary)).toMatchObject({ direction: 'ltr', firstCharInside: true });
+  await context.close();
+};
+
+for (const phone of [true, false]) {
+  const device = phone ? 'phone' : 'desktop';
+  test(`an English thread reads left to right in Arabic, Chromium ${device}`, async ({
+    browser,
+    baseURL,
+  }) => {
+    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    await check(browser, 'chromium', phone, baseURL);
+  });
+
+  test(`an English thread reads left to right in Arabic, WebKit ${device}`, async ({ baseURL }) => {
+    test.skip(!WEBKIT, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
+    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+    // The file's launch options carry a Chromium flag that WebKit refuses.
+    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    try {
+      await check(browser, 'webkit', phone, baseURL);
+    } finally {
+      await browser.close();
+    }
+  });
+}

@@ -10,6 +10,7 @@ import * as css from './CompactRoomView.css';
 import { FailedSendIndicator, PendingSendIndicator } from '../../ui/PendingSendIndicator';
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagPill } from '../tags/ThreadTagPill';
+import { ownDirectionLine } from '../../ui/directional';
 
 export type CompactThreadCardProps = {
   viewModel: CompactThreadCardViewModel;
@@ -86,7 +87,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
       aria-label={ariaLabel}
     >
       <Box className={css.TitleRow}>
-        <Text className={css.TitleText} size="B300" title={titleText}>
+        <Text className={css.TitleText} size="B300" title={titleText} {...ownDirectionLine}>
           {displayTitleText}
         </Text>
         {relativeTime && (
@@ -103,7 +104,13 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
       </Box>
 
       <Box className={css.MessagePreview} alignItems="Center">
-        <Text className={css.MessageText} size="T200" priority="300" truncate>
+        <Text
+          className={css.MessageText}
+          size="T200"
+          priority="300"
+          truncate
+          {...ownDirectionLine}
+        >
           {previewText}
         </Text>
         {hasFailedSend ? <FailedSendIndicator /> : hasPendingSend && <PendingSendIndicator />}

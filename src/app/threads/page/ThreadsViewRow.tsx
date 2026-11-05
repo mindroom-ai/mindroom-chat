@@ -9,6 +9,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import * as css from './ThreadsView.css';
+import { ownDirectionLine } from '../../ui/directional';
 
 type ThreadsViewRowProps = {
   entry: CrossRoomThreadIndexEntry;
@@ -49,14 +50,14 @@ export function ThreadsViewRow({ entry }: ThreadsViewRowProps) {
       <Box className={css.RowChrome}>
         <span className={css.Chip}>
           <Icon size="50" src={Icons.Hash} />
-          <Text size="T200" priority="300" truncate>
+          <Text size="T200" priority="300" truncate {...ownDirectionLine}>
             {room?.name ?? entry.roomName}
           </Text>
         </span>
         {spaceName && (
           <span className={css.Chip}>
             <Icon size="50" src={Icons.Space} />
-            <Text size="T200" priority="300" truncate>
+            <Text size="T200" priority="300" truncate {...ownDirectionLine}>
               {spaceName}
             </Text>
           </span>

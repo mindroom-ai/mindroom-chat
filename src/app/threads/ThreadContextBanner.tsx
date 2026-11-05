@@ -40,6 +40,7 @@ import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
+import { ownDirectionLine } from '../ui/directional';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -389,6 +390,7 @@ export function ThreadContextBanner({
                       size="T300"
                       truncate
                       title={headerModel.summaryText}
+                      {...ownDirectionLine}
                     >
                       {headerModel.summaryText}
                     </Text>
