@@ -124,6 +124,9 @@ test('sessions verify each other by emoji or recovery key and then read the hist
     // Sent: the composer is empty again, so the text found is the message, not the draft.
     await expect(composer).not.toContainText(secret);
     await expect(first.getByText(secret)).toBeVisible();
+    // The composer ignores Enter while the previous message is still going out (its draft stays),
+    // so the next secret waits until this one has left.
+    await expect(first.locator('[data-pending-send-icon]')).toHaveCount(0, { timeout: 30_000 });
   }
   // A uploads new keys to the backup after a random delay of up to 10 s, and B looks for a
   // missing key there only once, right after verification; so the history is in the backup first.
