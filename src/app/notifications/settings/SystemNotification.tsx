@@ -10,10 +10,8 @@ import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
 import { SequenceCard } from '../../ui/sequence-card';
 import { SettingTile } from '../../ui/setting-tile';
-import {
-  MindroomNativeNotificationSettings,
-  getMindroomEmailNotificationPusherData,
-} from '../systemNotificationExtensions';
+import { MINDROOM_NOTIFICATION_BRAND } from '../../ui/branding/branding';
+import { IOSPushNotification } from '../push/IOSPushNotification';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 
 const EMAIL_PUSHER_APP_ID = 'm.email';
@@ -40,7 +38,7 @@ function EmailNotification() {
               ),
               device_display_name: email,
               lang,
-              data: getMindroomEmailNotificationPusherData(),
+              data: { brand: MINDROOM_NOTIFICATION_BRAND },
               append: true,
             }
           : ({ kind: null, app_id: EMAIL_PUSHER_APP_ID, pushkey: email } as never)
@@ -179,7 +177,7 @@ export function SystemNotification() {
       >
         <DesktopNotificationTile permission={permission} />
         <NotificationSoundTile />
-        <MindroomNativeNotificationSettings />
+        <IOSPushNotification />
         <EmailNotification />
       </SequenceCard>
     </Box>

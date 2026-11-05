@@ -72,9 +72,8 @@ vi.mock('../../lib/hooks/useAsyncCallback', async () => {
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ setPusher: mocks.setPusher }),
 }));
-vi.mock('../systemNotificationExtensions', () => ({
-  getMindroomEmailNotificationPusherData: () => ({ brand: 'MindRoom Chat' }),
-  MindroomNativeNotificationSettings: () => null,
+vi.mock('../push/IOSPushNotification', () => ({
+  IOSPushNotification: () => null,
 }));
 vi.mock('../../ui/settings/styles.css', () => ({ SequenceCardStyle: 'card' }));
 
