@@ -9,17 +9,21 @@ export const Reasoning = style({
   marginBottom: config.space.S100,
 });
 
+/**
+ * A bulb, the label and a chevron, in the tone of the tool row's detail text below it. The bulb
+ * starts at the text edge, where the tool row's icon tile starts, and the row is 24 px tall.
+ */
 export const Toggle = style({
   display: 'inline-flex',
   alignItems: 'center',
   columnGap: '0.25rem',
   alignSelf: 'flex-start',
-  padding: `${toRem(2)} 0`,
+  padding: `${toRem(1)} 0`,
   color: 'inherit',
   background: 'none',
   border: 'none',
   font: 'inherit',
-  opacity: 0.7,
+  opacity: 0.9,
   cursor: 'pointer',
   selectors: {
     '&:hover, &:focus-visible, &[aria-expanded="true"]': {
@@ -29,8 +33,19 @@ export const Toggle = style({
 });
 
 export const Label = style({
-  fontSize: toRem(13),
-  fontWeight: 500,
+  fontSize: toRem(12),
+});
+
+/** Points along the text while collapsed (right, or left in right-to-left), down while open. */
+export const Chevron = style({
+  flexShrink: 0,
+  selectors: {
+    '[dir=rtl] &': { transform: 'rotate(180deg)' },
+    [`${Toggle}[aria-expanded="true"] &`]: { transform: 'rotate(90deg)' },
+  },
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': { transition: 'transform 150ms ease' },
+  },
 });
 
 export const Body = style({

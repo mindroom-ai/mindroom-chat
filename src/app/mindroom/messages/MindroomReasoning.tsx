@@ -71,8 +71,9 @@ function ReasoningBlock({
         aria-expanded={expanded}
         onClick={() => setExpanded((value) => !value)}
       >
+        <Icon size="50" src={Icons.Bulb} aria-hidden />
         <span className={css.Label}>{label}</span>
-        <Icon size="50" src={expanded ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
+        <Icon size="50" src={Icons.ChevronRight} className={css.Chevron} aria-hidden />
       </button>
       {expanded && (
         <div className={css.Body}>

@@ -69,6 +69,7 @@ vi.mock('./MindroomReasoning.css', () => ({
   Reasoning: 'Reasoning',
   Toggle: 'ReasoningToggle',
   Label: 'ReasoningLabel',
+  Chevron: 'ReasoningChevron',
   Body: 'ReasoningBody',
   ActivityCode: 'Code',
 }));
