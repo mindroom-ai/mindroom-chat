@@ -19,6 +19,8 @@ export type CommandPaletteSearchConfig<T> = {
   keys: FuseOptionKey<T>[];
   threshold: number;
   limit: number;
+  // A match on one of these keys ranks above items that match only on the other keys.
+  primaryKeys?: string[];
 };
 
 type SearchCommandPaletteSectionOptions<T extends SearchableCommandPaletteItem> = {
@@ -57,11 +59,12 @@ const getSectionFuse = <T extends SearchableCommandPaletteItem>(
     return cachedFuse as unknown as Fuse<T>;
   }
 
-  const { limit, ...fuseConfig } = config;
+  const { limit, primaryKeys, ...fuseConfig } = config;
   const fuse = new Fuse([...items], {
     ...fuseConfig,
     ignoreLocation: true,
     includeScore: true,
+    includeMatches: primaryKeys !== undefined,
   });
   sectionFuseCache.set(
     items as SearchableCommandPaletteItems,
@@ -81,6 +84,7 @@ export const commandPaletteSearchConfig = {
     keys: ['name', 'canonicalAlias', 'topic', 'parentNames'],
     threshold: 0.3,
     limit: 8,
+    primaryKeys: ['name', 'canonicalAlias'],
   } satisfies CommandPaletteSearchConfig<CommandPaletteRoomItem>,
   users: {
     keys: ['displayName', 'userId', 'localpart', 'dmRoomName'],
@@ -131,10 +135,14 @@ export const searchCommandPaletteSection = <T extends SearchableCommandPaletteIt
       return {
         item: result.item,
         score: (result.score ?? 1) - normalizedBoost * BOOST_WEIGHT,
+        primary: result.matches?.some((match) => config.primaryKeys?.includes(match.key ?? ''))
+          ? 1
+          : 0,
       };
     })
     .sort(
       (left, right) =>
+        right.primary - left.primary ||
         (left.score - right.score) ||
         compareNumber(
           getItemSortRank(left.item, getSortRank),

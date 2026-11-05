@@ -18,6 +18,7 @@ describe('commandPaletteSearchConfig', () => {
       keys: ['name', 'canonicalAlias', 'topic', 'parentNames'],
       threshold: 0.3,
       limit: 8,
+      primaryKeys: ['name', 'canonicalAlias'],
     });
     expect(commandPaletteSearchConfig.users).toEqual({
       keys: ['displayName', 'userId', 'localpart', 'dmRoomName'],
