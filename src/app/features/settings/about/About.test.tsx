@@ -94,6 +94,9 @@ vi.mock('../styles.css', () => ({
   SequenceCardStyle: 'SequenceCardStyle',
 }));
 
+vi.mock('../../../components/text-viewer/TextViewer', () => ({ TextViewer: () => null }));
+vi.mock('../../../components/message/content/FileContent', () => ({ ViewerOverlay: () => null }));
+
 vi.mock('../../../../client/initMatrix', () => ({
   clearAllCacheAndReload: vi.fn(),
 }));

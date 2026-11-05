@@ -276,6 +276,9 @@
         "title": "傳送錯誤報告",
         "description": "將當機、同步失敗、解密失敗、傳送失敗以及緩慢的畫面傳送到為此部署設定的錯誤追蹤服務。報告絕不包含訊息內容、姓名、ID 或檔案名稱。",
         "collector": "報告會傳送至 {{host}}。"
+      },
+      "about": {
+        "thirdPartyNotices": "第三方聲明"
       }
     },
     "createChat": {

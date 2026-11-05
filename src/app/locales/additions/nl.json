@@ -280,6 +280,9 @@
         "title": "Foutrapporten versturen",
         "description": "Verstuurt crashes, mislukte synchronisatie, ontsleuteling en verzending, en trage schermen naar de foutregistratie die deze installatie heeft ingesteld. Rapporten bevatten nooit berichttekst, namen, ID's of bestandsnamen.",
         "collector": "Rapporten gaan naar {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Kennisgevingen van derden"
       }
     },
     "createChat": {

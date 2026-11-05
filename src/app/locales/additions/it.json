@@ -284,6 +284,9 @@
         "title": "Invia segnalazioni di errore",
         "description": "Invia arresti anomali, errori di sincronizzazione, decrittazione e invio e schermate lente al sistema di tracciamento degli errori configurato per questa installazione. Le segnalazioni non includono mai il testo dei messaggi, nomi, ID o nomi di file.",
         "collector": "Le segnalazioni vengono inviate a {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Avvisi di terze parti"
       }
     },
     "createChat": {

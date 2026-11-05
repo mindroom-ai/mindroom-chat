@@ -1,10 +1,25 @@
 import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
-import { Box, Button, Icon, IconButton, Icons, Spinner, Switch, Text, config, toRem } from 'folds';
+import {
+  Box,
+  Button,
+  Icon,
+  IconButton,
+  Icons,
+  Spinner,
+  Switch,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
+import { ViewerOverlay } from '../../../components/message/content/FileContent';
 import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
+import { TextViewer } from '../../../components/text-viewer/TextViewer';
 import { useClientConfig } from '../../../hooks/useClientConfig';
+import { appUrl } from '../../../utils/basePath';
 import {
   MINDROOM_CLIENT_BRANDING,
   getMindroomWelcomePageContent,
@@ -268,6 +283,62 @@ function CreditsList() {
   );
 }
 
+/** The npm dependencies' licenses and notices, written into the build by scripts/third-party-notices.mjs. */
+const THIRD_PARTY_NOTICES = 'public/licenses/THIRD_PARTY_NOTICES.txt';
+
+/**
+ * Opens the bundled third-party notices in the text viewer. A link would not do: the iOS app's web
+ * view hands new-window links to the system, which cannot open the app's own files.
+ */
+function ThirdPartyNotices() {
+  const { t } = useTranslation();
+  const [text, setText] = useState<string>();
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const close = useCallback(() => setText(undefined), []);
+  const title = t('featureUi.settings.about.thirdPartyNotices');
+
+  const open = async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const response = await fetch(appUrl(THIRD_PARTY_NOTICES));
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      setText(await response.text());
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box direction="Column" alignItems="Start" gap="200">
+      {text !== undefined && (
+        <ViewerOverlay onClose={close}>
+          <TextViewer name={title} langName="text" text={text} requestClose={close} />
+        </ViewerOverlay>
+      )}
+      <Button
+        size="300"
+        radii="300"
+        variant="Secondary"
+        fill="Soft"
+        disabled={loading}
+        onClick={() => void open()}
+        before={loading ? <Spinner size="100" /> : <Icon size="100" src={Icons.File} />}
+      >
+        <Text size="B300">{title}</Text>
+      </Button>
+      {failed && (
+        <Text size="T200" style={{ color: color.Critical.Main }}>
+          {t('errors.noConnection')}
+        </Text>
+      )}
+    </Box>
+  );
+}
+
 /** A titled group of setting tiles. */
 function AboutSection({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -364,6 +435,7 @@ export function About({ requestClose }: AboutProps) {
             )}
             <AboutSection title={t('featureUi.settings.about.credits')}>
               <CreditsList />
+              <ThirdPartyNotices />
             </AboutSection>
           </Box>
         </PageContent>

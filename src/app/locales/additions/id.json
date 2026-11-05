@@ -276,6 +276,9 @@
         "title": "Kirim laporan kesalahan",
         "description": "Mengirim crash, kegagalan sinkronisasi, dekripsi, dan pengiriman, serta layar yang lambat ke pelacak kesalahan yang disiapkan untuk penerapan ini. Laporan tidak pernah berisi teks pesan, nama, ID, atau nama file.",
         "collector": "Laporan dikirim ke {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Pemberitahuan pihak ketiga"
       }
     },
     "createChat": {

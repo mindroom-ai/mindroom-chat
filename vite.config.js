@@ -9,6 +9,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
+import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
 
 /**
@@ -24,7 +25,8 @@ export const copyFiles = {
     // English ships in the bundle, with its overlay in src/app/locales/additions/en.json; the other
     // languages' overlays in that directory load as chunks (src/app/localeAdditions.ts).
     { src: 'src/app/locales/*.json', dest: 'public/locales' },
-    // License texts and notices for the bundled code (NOTICE: noVNC source, Inter font license).
+    // License texts and notices for the bundled code (NOTICE: noVNC source, fonts, native templates,
+    // ported code); thirdPartyNoticesPlugin adds the npm dependencies' THIRD_PARTY_NOTICES.txt.
     // Under public/, so the service worker never answers them with the app shell.
     { src: ['LICENSE', 'NOTICE', 'licenses/*'], dest: 'public/licenses' },
   ],
@@ -128,7 +130,14 @@ export default defineConfig({
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),
     ...sourcePlugins,
-    ...(fixturePagesOnly ? [] : [viteStaticCopy(copyFiles), startup.plugin, serviceWorkerPlugin]),
+    ...(fixturePagesOnly
+      ? []
+      : [
+          viteStaticCopy(copyFiles),
+          thirdPartyNoticesPlugin(),
+          startup.plugin,
+          serviceWorkerPlugin,
+        ]),
   ],
   server: {
     // 127.0.0.1 rather than localhost: Node can resolve localhost to ::1 only,

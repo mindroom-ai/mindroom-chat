@@ -25,8 +25,9 @@ project.
 Third-party notices
 -------------------
 mindroom-client installs its dependencies from npm under their own licenses;
-package-lock.json pins the exact versions, and the notices each package ships
-stay with that package. scripts/license-check.mjs accepts these licenses:
+package-lock.json pins the exact versions, and the build gathers the license
+and notice files of the production dependencies into THIRD_PARTY_NOTICES.txt
+(see below). scripts/license-check.mjs accepts these licenses:
 MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD, Zlib,
 Unicode-DFS-2016, Unicode-3.0, CC0-1.0, BlueOak-1.0.0, OFL-1.1 (fonts),
 MPL-2.0 (used unmodified), Python-2.0 (argparse), and Unlicense (big-integer
@@ -122,7 +123,10 @@ Sign-in marks
     Google: https://developers.google.com/identity/branding-guidelines
 
 The build output carries LICENSE, this NOTICE and licenses/ in
-public/licenses/ (vite.config.js), beside the bundled code they describe.
+public/licenses/ (vite.config.js), beside the bundled code they describe,
+with THIRD_PARTY_NOTICES.txt: the declared license and the license and notice
+files of every production dependency in package-lock.json, written at build
+time by scripts/third-party-notices.mjs. Settings > About opens it.
 
 Code block icons
   src/app/mindroom/html/CODE_BLOCK_ICONS_LICENSES.md: language icons from

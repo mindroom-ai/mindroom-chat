@@ -276,6 +276,9 @@
         "title": "发送错误报告",
         "description": "将崩溃、同步失败、解密失败、发送失败以及缓慢的界面发送到为此部署设置的错误跟踪服务。报告绝不包含消息内容、姓名、ID 或文件名。",
         "collector": "报告发送至 {{host}}。"
+      },
+      "about": {
+        "thirdPartyNotices": "第三方声明"
       }
     },
     "createChat": {

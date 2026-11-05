@@ -280,6 +280,9 @@
         "title": "Fehlerberichte senden",
         "description": "Sendet Abstürze, Fehler bei Synchronisierung, Entschlüsselung und Senden sowie langsame Ansichten an die Fehlererfassung dieser Installation. Berichte enthalten nie Nachrichtentext, Namen, IDs oder Dateinamen.",
         "collector": "Berichte gehen an {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Hinweise zu Drittanbietern"
       }
     },
     "createChat": {

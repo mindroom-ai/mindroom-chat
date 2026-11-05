@@ -284,6 +284,9 @@
         "title": "Enviar informes de errores",
         "description": "Envía cierres inesperados, fallos de sincronización, descifrado y envío, y pantallas lentas al registro de errores que configuró esta instalación. Los informes nunca incluyen el texto de los mensajes, nombres, ID ni nombres de archivo.",
         "collector": "Los informes se envían a {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Avisos de terceros"
       }
     },
     "createChat": {

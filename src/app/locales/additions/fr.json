@@ -284,6 +284,9 @@
         "title": "Envoyer des rapports d’erreur",
         "description": "Envoie les plantages, les échecs de synchronisation, de déchiffrement et d’envoi, ainsi que les écrans lents, au suivi des erreurs mis en place pour ce déploiement. Les rapports n’incluent jamais le texte des messages, les noms, les identifiants ni les noms de fichiers.",
         "collector": "Les rapports sont envoyés à {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Avis de tiers"
       }
     },
     "createChat": {

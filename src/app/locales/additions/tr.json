@@ -280,6 +280,9 @@
         "title": "Hata raporları gönder",
         "description": "Çökmeleri, eşitleme, şifre çözme ve gönderme hatalarını ve yavaş ekranları bu kurulum için ayarlanan hata izleyicisine gönderir. Raporlar hiçbir zaman mesaj metni, ad, kimlik veya dosya adı içermez.",
         "collector": "Raporlar {{host}} adresine gider."
+      },
+      "about": {
+        "thirdPartyNotices": "Üçüncü taraf bildirimleri"
       }
     },
     "createChat": {

@@ -113,7 +113,7 @@ type ViewerOverlayProps = {
 };
 
 /** A viewer in a modal over the page, closed by Escape or a click outside. */
-function ViewerOverlay({ onClose, children }: ViewerOverlayProps) {
+export function ViewerOverlay({ onClose, children }: ViewerOverlayProps) {
   const trapOptions: TrapOptions = { ...DISMISSIBLE, initialFocus: false, onDeactivate: onClose };
   const { centerStyle, modalStyle } = useViewerFrame();
   return (

@@ -280,6 +280,9 @@
         "title": "Send error reports",
         "description": "Sends crashes, sync, decryption and send failures, and slow screens to the error tracker this deployment set up. Reports never include message text, names, IDs or file names.",
         "collector": "Reports go to {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Third-party notices"
       }
     },
     "createChat": {

@@ -284,6 +284,9 @@
         "title": "Enviar relatórios de erros",
         "description": "Envia falhas, erros de sincronização, descriptografia e envio, e telas lentas para o rastreador de erros configurado por esta instalação. Os relatórios nunca incluem texto de mensagens, nomes, IDs ou nomes de arquivos.",
         "collector": "Os relatórios vão para {{host}}."
+      },
+      "about": {
+        "thirdPartyNotices": "Avisos de terceiros"
       }
     },
     "createChat": {
