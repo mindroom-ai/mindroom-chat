@@ -353,8 +353,13 @@ export function InviteCard({
 const SECTION_HEADER_STYLE = { minHeight: toRem(32) } as const;
 
 // The Inbox opens on Invites also with no invite waiting, so the empty page leads on to
-// Notifications: a button as wide as its label, under the hint.
-const EMPTY_LINK_STYLE = { alignSelf: 'flex-start', marginBlockStart: config.space.S200 } as const;
+// Notifications: a button as wide as its label, under the hint. It is a link, drawn without the
+// underline links get.
+const EMPTY_LINK_STYLE = {
+  alignSelf: 'flex-start',
+  marginBlockStart: config.space.S200,
+  textDecoration: 'none',
+} as const;
 
 /** What an empty list holds once invites arrive. */
 const EMPTY_HINT_KEYS = {

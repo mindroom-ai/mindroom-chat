@@ -143,6 +143,13 @@ const inviteCards = (page: Page) => page.locator('[data-invite-room-id]');
 const openNotificationsLink = (page: Page) =>
   page.getByRole('link', { name: 'Open Notifications', exact: true });
 
+/** The empty Invites page's way on to Notifications shows whole, as a button, not underlined. */
+const expectOpenNotificationsButton = async (page: Page) => {
+  const link = openNotificationsLink(page);
+  await expect(link).toBeInViewport({ ratio: 1 });
+  await expect(link).toHaveCSS('text-decoration-line', 'none');
+};
+
 const top = async (locator: Locator): Promise<number> => {
   const box = await locator.boundingBox();
   expect(box, 'a visible element').not.toBeNull();
@@ -252,10 +259,9 @@ const checkPhone = async (page: Page, seeded: Seeded, engine: string) => {
   await railInbox(page).tap();
   await expectInvitesPage(page, 0);
   await expect(page.getByText('No Invites', { exact: true })).toBeVisible();
-  const link = openNotificationsLink(page);
-  await expect(link).toBeInViewport({ ratio: 1 });
+  await expectOpenNotificationsButton(page);
   await expectNoSidewaysScroll(page);
-  await link.tap();
+  await openNotificationsLink(page).tap();
   await expectNotificationsPage(page);
 };
 
@@ -313,7 +319,7 @@ test('the Inbox opens on Invites, with Notifications one entry below', async ({ 
   await expectInvitesPage(page, 0);
   await expectInvitesFirst(page, 0);
   await expect(page.getByText('No Invites', { exact: true })).toBeVisible();
-  await expect(openNotificationsLink(page)).toBeInViewport({ ratio: 1 });
+  await expectOpenNotificationsButton(page);
   await openNotificationsLink(page).click();
   await expectNotificationsPage(page);
 });
