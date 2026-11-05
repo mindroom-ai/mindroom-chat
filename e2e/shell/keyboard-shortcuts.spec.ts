@@ -6,8 +6,9 @@ import { createRoom } from '../helpers/createRoom';
 // The first batch of keyboard shortcuts against the disposable homeserver of `just hs-up` (or a
 // slot of scripts/e2e-slot.sh): each chord does its action, a composer with text keeps its own
 // keys, a focused room row moves with Mod+Shift and the arrows, tooltips name the keys, and
-// holding Mod alone shows the hints. Mod is Ctrl here (Linux Chromium). Set SHORTCUT_SHOTS=<dir>
-// to also save the L23 screenshots.
+// holding Mod alone shows the hints. Mod is ⌘ on a Mac host, where the page says macOS
+// (playwright.config.ts) and Playwright's ControlOrMeta presses ⌘, and Ctrl elsewhere. Set
+// SHORTCUT_SHOTS=<dir> to also save the L23 screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'keyboard-shortcuts-spec-password';
 const RUN = Date.now().toString(36);
@@ -15,6 +16,8 @@ const SHOTS = process.env.SHORTCUT_SHOTS;
 const ROOM_COUNT = 26;
 const UNREAD = [5, 17];
 const THREAD_ROOM = 3;
+const MAC = process.platform === 'darwin';
+const MOD = MAC ? 'Meta' : 'Control';
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -275,19 +278,19 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
     await openAccountMenu(page);
     const settingsItem = page.getByRole('menuitem', { name: 'Settings', exact: true });
     await expect(settingsItem).toHaveText('Settings');
-    await expect(settingsItem).toHaveAttribute('aria-keyshortcuts', 'Control+,');
+    await expect(settingsItem).toHaveAttribute('aria-keyshortcuts', `${MOD}+,`);
     expect(
       await settingsItem
         .locator('[data-keys]')
         .evaluate((hint) => getComputedStyle(hint, '::after').content)
-    ).toBe('"Ctrl+,"');
+    ).toBe(MAC ? '"⌘,"' : '"Ctrl+,"');
     await page.keyboard.press('Escape');
     await expect(settingsItem).toHaveCount(0);
 
     await page.keyboard.press('ControlOrMeta+/');
     const help = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
     await expect(help).toBeVisible();
-    await expect(help.locator('[data-shortcut-row="members"]')).toContainText('Ctrl');
+    await expect(help.locator('[data-shortcut-row="members"]')).toContainText(MAC ? '⌘' : 'Ctrl');
     await page.keyboard.press('ControlOrMeta+/');
     await expect(help).toHaveCount(0);
   });
@@ -321,10 +324,10 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
   });
 
   await test.step("the members button's tooltip names its keys", async () => {
-    await expect(membersButton(page)).toHaveAttribute('aria-keyshortcuts', 'Control+Shift+M');
+    await expect(membersButton(page)).toHaveAttribute('aria-keyshortcuts', `${MOD}+Shift+M`);
     await membersButton(page).hover();
     const tooltip = page.getByRole('tooltip').filter({ hasText: 'Members' });
-    await expect(tooltip).toContainText('Ctrl+Shift+M');
+    await expect(tooltip).toContainText(MAC ? '⌘⇧M' : 'Ctrl+Shift+M');
     if (SHOTS) {
       const button = (await membersButton(page).boundingBox())!;
       const tip = (await tooltip.boundingBox())!;
@@ -346,23 +349,23 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
 
   await test.step('holding Mod alone for a second shows the hints', async () => {
     await blur(page);
-    await page.keyboard.down('Control');
+    await page.keyboard.down(MOD);
     await page.waitForTimeout(1_200);
     await expect(page.locator('[data-shortcut-hint="members"]')).toBeVisible();
-    await expect(page.locator('[data-shortcut-hint-chip]')).toContainText('Ctrl+/');
+    await expect(page.locator('[data-shortcut-hint-chip]')).toContainText(MAC ? '⌘/' : 'Ctrl+/');
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/L23-shortcuts-hints.png` });
-    await page.keyboard.up('Control');
+    await page.keyboard.up(MOD);
     await expect(hints(page)).toHaveCount(0);
   });
 
   await test.step('Mod and C within the second never shows them', async () => {
     await blur(page);
-    await page.keyboard.down('Control');
+    await page.keyboard.down(MOD);
     await page.waitForTimeout(300);
     await page.keyboard.press('KeyC');
     await page.waitForTimeout(1_200);
     await expect(hints(page)).toHaveCount(0);
-    await page.keyboard.up('Control');
+    await page.keyboard.up(MOD);
     await expect(hints(page)).toHaveCount(0);
   });
 
@@ -380,9 +383,9 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
     await expect(help).toHaveCount(0);
 
     await blur(page);
-    await page.keyboard.down('Control');
+    await page.keyboard.down(MOD);
     await page.waitForTimeout(1_500);
     await expect(hints(page)).toHaveCount(0);
-    await page.keyboard.up('Control');
+    await page.keyboard.up(MOD);
   });
 });

@@ -7,6 +7,22 @@ import { defineConfig, devices } from '@playwright/test';
 const appPort = process.env.E2E_PORT ?? process.env.E2E_APP_PORT ?? '4200';
 const baseURL = `http://127.0.0.1:${appPort}`;
 
+// Desktop Chrome's user agent says Windows, and so do the client hints Playwright derives from
+// it. On a Mac host, though, Playwright's `ControlOrMeta` presses ⌘ and Chromium edits text with
+// ⌘. So there the page says macOS, as Chrome on a Mac does, and the app (which reads the client
+// hints first, src/app/lib/user-agent.ts) and Slate (the user agent) act as they do for Mac users.
+const desktopChrome = devices['Desktop Chrome'];
+const chromeOnHost =
+  process.platform === 'darwin'
+    ? {
+        ...desktopChrome,
+        userAgent: desktopChrome.userAgent.replace(
+          /\([^)]*\)/,
+          '(Macintosh; Intel Mac OS X 10_15_7)'
+        ),
+      }
+    : desktopChrome;
+
 /**
  * Playwright runs the specs in e2e/ in the Chromium from `CHROMIUM_PATH` (exported by
  * `nix develop`) against the dev server, which Playwright starts when nothing listens yet.
@@ -41,7 +57,7 @@ const playwrightConfig = defineConfig({
       args: ['--disable-features=IsolateSandboxedIframes'],
     },
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [{ name: 'chromium', use: { ...chromeOnHost } }],
   webServer: {
     command: process.env.E2E_SERVER_COMMAND ?? `npx vite --port ${appPort}`,
     url: baseURL,
