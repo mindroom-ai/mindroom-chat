@@ -108,6 +108,10 @@ const readAllMetaKeys = (db: IDBDatabase): Promise<string[]> =>
     txn.onerror = () => reject(txn.error);
   });
 
+// fake-indexeddb runs every request in tasks of its own, so these tests take thousands of tasks;
+// on a loaded machine one of them took over 5 s, so each test gets 30 s.
+vi.setConfig({ testTimeout: 30_000 });
+
 describe('ISSUE-207 P2 review: open-failure health gate', () => {
   beforeEach(async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
