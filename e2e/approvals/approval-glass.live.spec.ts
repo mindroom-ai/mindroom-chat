@@ -1,4 +1,4 @@
-import { expect, Locator, test } from '@playwright/test';
+import { expect, Locator, Page, test } from '@playwright/test';
 import {
   buildLoginPath,
   getHomeserver,
@@ -21,15 +21,47 @@ const headerGeometry = (header: Locator) =>
     const style = getComputedStyle(element);
     const rect = element.getBoundingClientRect();
     const trailing = element.lastElementChild;
-    const trailingRect = trailing?.getBoundingClientRect();
     return {
       padding: [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft],
       height: rect.height,
       radius: style.borderTopLeftRadius,
       trailingIcon: trailing?.tagName.toLowerCase() === 'svg',
-      trailingGap: trailingRect ? rect.right - trailingRect.right : null,
     };
   });
+
+// The space from the end of the label before a header's chevron to the chevron, in the header's
+// reading direction; the header's own flex gap; and whether the header, which takes the hover
+// tint, spans its whole row.
+const chevronGeometry = (header: Locator) =>
+  header.evaluate((element) => {
+    const chevron = element.lastElementChild!.getBoundingClientRect();
+    const label = element.lastElementChild!.previousElementSibling!.getBoundingClientRect();
+    const rect = element.getBoundingClientRect();
+    const row = element.parentElement!.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      gap: style.direction === 'rtl' ? label.left - chevron.right : chevron.left - label.right,
+      ownGap: parseFloat(style.columnGap),
+      spansRow: rect.left <= row.left + 0.5 && rect.right >= row.right - 0.5,
+    };
+  });
+
+// Each chevron sits right after its label, by its header's gap and by the same gap in every row,
+// while each header still spans its row.
+const expectChevronsAfterLabels = async (
+  page: Page,
+  headers: [string, Locator][],
+  dir: 'ltr' | 'rtl'
+) => {
+  await page.evaluate((value) => document.documentElement.setAttribute('dir', value), dir);
+  const rows = await Promise.all(headers.map(([, header]) => chevronGeometry(header)));
+  rows.forEach(({ gap, ownGap, spansRow }, index) => {
+    const name = `${headers[index][0]} (${dir})`;
+    expect.soft(gap, `${name}: chevron right after its label`).toBeCloseTo(ownGap, 0);
+    expect.soft(gap, `${name}: the same gap as the first row`).toBeCloseTo(rows[0].gap, 0);
+    expect.soft(spansRow, `${name}: hover surface spans the row`).toBe(true);
+  });
+};
 
 for (const viewport of [
   { width: 390, height: 844 },
@@ -169,9 +201,6 @@ for (const viewport of [
         .toBeCloseTo(toolGeometry.height, 0);
       expect.soft(toolGeometry.trailingIcon, 'tool chevron trails its label').toBe(true);
       expect.soft(approvalGeometry.trailingIcon, 'approval chevron trails its label').toBe(true);
-      expect
-        .soft(approvalGeometry.trailingGap, 'trailing icons share the same inset')
-        .toBeCloseTo(toolGeometry.trailingGap!, 0);
       await page.screenshot({ path: testInfo.outputPath('collapsed-expanders.png') });
 
       await tool.focus();
@@ -188,6 +217,19 @@ for (const viewport of [
       await expect(approval).toHaveAttribute('aria-expanded', 'true');
       const receipt = history.locator('details[aria-label="Resolved tool approval request"]');
       await expect(receipt).toBeVisible();
+      // Tool rows, approval rows and the receipt inside: left to right, then right to left.
+      const disclosures: [string, Locator][] = [
+        ['tool row', tool],
+        ['approval row', approval],
+        ['receipt', receipt.locator('summary').first()],
+      ];
+      const dir = await page.evaluate(() => document.documentElement.getAttribute('dir'));
+      await expectChevronsAfterLabels(page, disclosures, 'ltr');
+      await expectChevronsAfterLabels(page, disclosures, 'rtl');
+      await page.evaluate(
+        (value) => document.documentElement.setAttribute('dir', value),
+        dir ?? 'ltr'
+      );
       await receipt.locator('summary').first().click();
       await expect(receipt).toHaveAttribute('open', '');
       await page.mouse.move(0, viewport.height - 1);
