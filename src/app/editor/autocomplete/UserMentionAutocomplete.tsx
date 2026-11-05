@@ -89,14 +89,16 @@ function MentionRow({
       radii="300"
       before={avatar}
       after={
-        <Text size="T200" priority="300" truncate>
+        // The ID takes only the room the name leaves: on a phone a long ID would otherwise cut
+        // the name short.
+        <Text size="T200" priority="300" truncate style={{ flex: '1 1 0', textAlign: 'end' }}>
           {member.userId}
         </Text>
       }
       onClick={() => onSelect(member)}
       onKeyDown={pickOnTab(() => onSelect(member))}
     >
-      <Text size="B400" align="Left" truncate style={{ flexGrow: 1 }}>
+      <Text size="B400" align="Left" truncate style={{ flex: '0 1 auto' }}>
         {displayName}
       </Text>
     </MenuItem>
