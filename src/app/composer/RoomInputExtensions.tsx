@@ -9,7 +9,7 @@ import { BlockType } from '../editor/types';
 import type { IReplyDraft, PendingVoiceSendContext } from './roomInputDrafts';
 import { AgentCommandAutocomplete } from './commands/CommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './commands/agentCommandQuery';
-import { PendingSendIndicator } from '../ui/pendingSendIndicator';
+import { PendingSendIndicator } from '../ui/PendingSendIndicator';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {

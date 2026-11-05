@@ -2,7 +2,7 @@ import React from 'react';
 import { create } from 'react-test-renderer';
 import { EventStatus } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { FailedSendIndicator, PendingSendIndicator } from './pendingSendIndicator';
+import { FailedSendIndicator, PendingSendIndicator } from './PendingSendIndicator';
 import {
   isFailedLocalEchoEvent,
   isFailedLocalEchoStatus,

@@ -7,7 +7,7 @@ import { UserAvatar } from '../../avatars/user-avatar';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import type { CompactThreadCardViewModel } from '../../event-store/threads/types';
 import * as css from './CompactRoomView.css';
-import { FailedSendIndicator, PendingSendIndicator } from '../../ui/pendingSendIndicator';
+import { FailedSendIndicator, PendingSendIndicator } from '../../ui/PendingSendIndicator';
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagPill } from '../tags/ThreadTagPill';
 

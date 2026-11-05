@@ -1,13 +1,13 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { makeEvent, makeRoom, matrixClientMock } from '../../timeline/test-utils/RoomTimeline.test.shared';
 
-let fetchAllThreadRelations: typeof import('../../event-store/engine/threadRelationsFetcher').fetchAllThreadRelations;
-let shouldRefreshOverviewForTimelineEvent: typeof import('./threadBootstrap').shouldRefreshOverviewForTimelineEvent;
+let fetchAllThreadRelations: typeof import('./threadRelationsFetcher').fetchAllThreadRelations;
+let shouldRefreshOverviewForTimelineEvent: typeof import('../../threads/open/threadBootstrap').shouldRefreshOverviewForTimelineEvent;
 let MAX_THREAD_FETCH_EVENTS = 0;
 
 beforeAll(async () => {
-  const threadBootstrap = await import('./threadBootstrap');
-  const threadRelationsFetcher = await import('../../event-store/engine/threadRelationsFetcher');
+  const threadBootstrap = await import('../../threads/open/threadBootstrap');
+  const threadRelationsFetcher = await import('./threadRelationsFetcher');
   fetchAllThreadRelations = threadRelationsFetcher.fetchAllThreadRelations;
   shouldRefreshOverviewForTimelineEvent = threadBootstrap.shouldRefreshOverviewForTimelineEvent;
   MAX_THREAD_FETCH_EVENTS = threadRelationsFetcher.MAX_THREAD_FETCH_EVENTS;

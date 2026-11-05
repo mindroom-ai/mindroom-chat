@@ -1,6 +1,6 @@
 import React, { type ReactNode } from 'react';
 import { MessageEditedContent } from './FallbackContent';
-import { renderFailedSendIndicator, renderPendingSendIndicator } from '../../ui/pendingSendIndicator';
+import { renderFailedSendIndicator, renderPendingSendIndicator } from '../../ui/PendingSendIndicator';
 
 export type MindroomMessageStateSuffixOptions = {
   edited?: boolean;

@@ -2723,3 +2723,7 @@ src/app/composer/commands/agentCommandSuggestions.ts		restructure-p3-c5
 src/app/emoji/recent-emoji.ts		restructure-p3-c5
 src/app/emoji/recent-emoji.test.ts	src/app/emoji/recent-emoji-list.test.ts	restructure-p3-c5
 src/app/composer/upload/CompactUploadCardRenderer.tsx		restructure-p3-c5
+src/test/movedFrom.ts		restructure-p4a
+src/app/threads/open/threadBootstrap.test.ts	src/app/event-store/engine/threadRelationsFetcher.test.ts	restructure-p4a
+src/app/ui/pendingSendIndicator.test.ts	src/app/ui/PendingSendIndicator.test.ts	restructure-p4a
+src/app/ui/pendingSendIndicator.tsx	src/app/ui/PendingSendIndicator.tsx	restructure-p4a

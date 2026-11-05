@@ -20,7 +20,7 @@ vi.mock('../editor', async () => ({
 vi.mock('./commands/CommandAutocomplete', () => ({
   AgentCommandAutocomplete: () => null,
 }));
-vi.mock('../ui/pendingSendIndicator', () => ({ PendingSendIndicator: () => null }));
+vi.mock('../ui/PendingSendIndicator', () => ({ PendingSendIndicator: () => null }));
 vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));
 vi.mock('./voice/VoiceRecorderDialog', () => ({ VoiceRecorderComposer: () => null }));
 vi.mock('folds', () => ({ config: { space: {} }, Icons: {}, toRem: String }));
