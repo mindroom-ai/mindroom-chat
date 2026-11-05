@@ -9,7 +9,7 @@ mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sd
 - **No upstream code, in any commit:** `scripts/upstream-overlap/check.py` (`just upstream-overlap <upstream clone>`) must report 0 findings for every new commit before it is pushed (`--history` checks all of them). Only the orchestrator holds the upstream clone; other sessions may run the check on their own files when told the corpus path, and may never open the corpus.
 - **Lane C (clean):** everything else, including the seams (modules that Lane P files import but that were not ported; `docs/provenance/seams.tsv`, by import-time path) and the app shell.
 
-A file keeps its lane when it moves: the lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch; written by the move tool) maps each moved file to its current path. `node scripts/provenance-paths.cjs lane <path>` prints a file's lane.
+A file keeps its lane when it moves: the lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch) maps each moved file to its current path; a later move appends its rows the same way (`docs/provenance.md` "Moves"). `node scripts/provenance-paths.cjs lane <path>` prints a file's lane.
 
 `docs/provenance.md` describes both lanes, and every session that works in this repository logs itself there.
 
