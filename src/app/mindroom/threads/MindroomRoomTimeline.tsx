@@ -1128,9 +1128,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
     paginateBack: threadPagination.paginateBack,
   });
 
-  // The newest room row, while a request for it holds.
+  // The newest row of the room or the open thread, while a request for it holds.
+  const threadRowsPinned = threadUserScrolled ? 'thread' : undefined;
+  const roomRowsPinned = roomSurfaceShown ? 'room' : undefined;
   useLatestRowPin({
-    shown: roomSurfaceShown,
+    surface: threadId ? threadRowsPinned : roomRowsPinned,
     itemCount,
     virtualizer,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController).

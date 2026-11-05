@@ -45,10 +45,14 @@ type ThreadProps = {
   pins: { current: ScrollToBottomState };
   rows: number;
   openPending: boolean;
+  /** Whether the request that keeps the newest row in view takes over once the reader scrolls. */
+  followsLatest?: boolean;
 };
 
+const ignoreRowIndex = () => undefined;
+
 /** The pieces of an open thread that decide its bottom pins, wired as the room timeline does. */
-function OpenThread({ scroller, pins, rows, openPending }: ThreadProps) {
+function OpenThread({ scroller, pins, rows, openPending, followsLatest = false }: ThreadProps) {
   const scrollRef = useRef(scroller as unknown as HTMLDivElement);
   const backController = useThreadBackPaginationController();
   const readerScrolledRef = useViewScopedFlag('!room|$thread');
@@ -90,39 +94,47 @@ function OpenThread({ scroller, pins, rows, openPending }: ThreadProps) {
     threadTimelineTick: 0,
     timelineAtLiveEnd: true,
   });
+  useLatestRowPin({
+    surface: followsLatest && readerScrolledRef.current.value ? 'thread' : undefined,
+    itemCount: rows,
+    virtualizer: { scrollToIndex: ignoreRowIndex },
+    opensAtLatest: true,
+    roomId: '!room',
+    scrollElement: scroller as unknown as HTMLElement,
+    scrollToBottomRef: pins,
+    committedView: '!room|$thread|threaded',
+    focusItem: undefined,
+    onReaderGesture: gesturePins.onRoomGesture,
+  });
   return null;
 }
 
 /** A thread opened at its newest row, the opening done, the reader still at the bottom. */
-const openAtLatest = () => {
+const openAtLatest = (followsLatest = false) => {
   const { element, fire } = fakeThreadScroller();
   const pins = { current: { count: 0, smooth: false } };
+  const render = (rows: number, openPending: boolean) =>
+    createElement(OpenThread, { scroller: element, pins, rows, openPending, followsLatest });
   let renderer: ReactTestRenderer | undefined;
   act(() => {
-    renderer = create(
-      createElement(OpenThread, { scroller: element, pins, rows: 20, openPending: true })
-    );
+    renderer = create(render(20, true));
   });
   if (!renderer) throw new Error('Expected a renderer');
   const shown = renderer;
   act(() => {
-    shown.update(
-      createElement(OpenThread, { scroller: element, pins, rows: 20, openPending: false })
-    );
+    shown.update(render(20, false));
   });
   expect(element.scrollTo).toHaveBeenCalled();
   element.scrollTo.mockClear();
   const showRows = (rows: number) =>
     act(() => {
-      shown.update(
-        createElement(OpenThread, { scroller: element, pins, rows, openPending: false })
-      );
+      shown.update(render(rows, false));
     });
   // What the live row handling does for a row that arrives while the reader is at the bottom.
   const followNewRow = () => {
     pins.current.count += 1;
   };
-  return { element, fire, showRows, followNewRow };
+  return { element, fire, pins, showRows, followNewRow };
 };
 
 describe('useGestureBottomPins in an open thread', () => {
@@ -235,7 +247,7 @@ function RoomRows({ scroller, pins, rows, scrollToIndex }: RoomProps) {
     timelineAtLiveEnd: true,
   });
   useLatestRowPin({
-    shown: true,
+    surface: 'room',
     itemCount: rows,
     virtualizer: { scrollToIndex },
     opensAtLatest: true,
@@ -317,5 +329,49 @@ describe('useGestureBottomPins in the room rows', () => {
 
     expect(room.scrollToIndex).toHaveBeenCalledWith(20, { align: 'end' });
     expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 2400, behavior: 'smooth' });
+  });
+});
+
+describe('useLatestRowPin in an open thread the reader has scrolled', () => {
+  /** The reader scrolled the thread and is back at its bottom. */
+  const scrolledThread = () => {
+    const thread = openAtLatest(true);
+    act(() => thread.fire('wheel'));
+    thread.showRows(20);
+    return thread;
+  };
+
+  it('leaves the pins the thread opened with behind', () => {
+    const thread = scrolledThread();
+
+    thread.element.scrollHeight = 3200;
+    thread.showRows(21);
+
+    expect(thread.element.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('keeps the bottom after a send while the rows below grow, until the reader scrolls', () => {
+    const thread = scrolledThread();
+
+    // The reader sends at the bottom: the local echo asks once, with a smooth scroll.
+    thread.pins.current.count += 1;
+    thread.pins.current.smooth = true;
+    thread.showRows(21);
+    expect(thread.element.scrollTo).toHaveBeenLastCalledWith({ top: 2400, behavior: 'instant' });
+
+    // The timeline's next scroll write cut the smooth scroll short, and a reply streams in below
+    // without asking again.
+    thread.element.scrollTop = 2340;
+    thread.element.scrollHeight = 3200;
+    thread.element.scrollTo.mockClear();
+    thread.showRows(22);
+    expect(thread.element.scrollTo).toHaveBeenCalledWith({ top: 2600, behavior: 'instant' });
+
+    // The reader's own gesture hands the position back.
+    act(() => thread.fire('wheel'));
+    thread.element.scrollTo.mockClear();
+    thread.element.scrollHeight = 3400;
+    thread.showRows(23);
+    expect(thread.element.scrollTo).not.toHaveBeenCalled();
   });
 });

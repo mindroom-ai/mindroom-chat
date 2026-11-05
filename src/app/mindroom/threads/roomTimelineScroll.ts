@@ -13,6 +13,7 @@ import type { ThreadBackPaginationController } from './threadBackPaginationContr
 import type { ViewScopedFlag } from './roomTimelineViewScope';
 import { isScrollNearBottom } from './timelineScrollUtils';
 import { useLatestRef } from '../../hooks/useLatestRef';
+import { scrollToBottom } from '../../utils/dom';
 
 /**
  * The room timeline's scroll area: the element it publishes to the controllers, the request that
@@ -82,9 +83,10 @@ type LatestRowRequestOptions = {
 };
 
 /**
- * A request to show the newest room row. Opening the room, Jump to Latest, a live row the reader
- * follows, and switching the view make one; it holds until the reader scrolls, so rows measured
- * later still end at the bottom. A view switch that React renders but never shows makes none.
+ * A request to show the newest row. Opening the room, Jump to Latest, a message the reader sends,
+ * a live row they follow, and switching the view make one; it holds until the reader scrolls, so
+ * rows measured or grown later still end at the bottom. A view switch that React renders but never
+ * shows makes none.
  * The reader's gesture also ends the pins asked for before it that no commit has seen yet: a row
  * that arrived while they were at the bottom must not bring them back once they scroll away.
  */
@@ -155,30 +157,46 @@ const useLatestRowRequest = ({
 };
 
 /**
- * Keeps the newest room row at the bottom while a request for it holds: after every commit of a
- * shown room surface, the virtual list scrolls to its last row.
+ * Keeps the newest row at the bottom while a request for it holds: after every commit, the room's
+ * virtual list scrolls to its last row, and an open thread to the end of its scroll area. A pin
+ * applied once can be cut short (a smooth scroll stops at the next scroll the timeline writes, as
+ * when the composer grows) or land before the rows below it measure, and then every later row
+ * would find the reader above the bottom and leave them there.
  */
 export const useLatestRowPin = ({
-  shown,
+  surface,
   itemCount,
   virtualizer,
   onReaderGesture,
   ...request
 }: LatestRowRequestOptions & {
-  /** The room's own rows are on screen (not a thread, not the Compact cards). */
-  shown: boolean;
+  /**
+   * The rows it keeps: the room's own, an open thread's once the reader has scrolled it (until
+   * then the pin the thread opened with holds), or none (the Compact cards).
+   */
+  surface: 'room' | 'thread' | undefined;
   itemCount: number;
   virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>;
 }) => {
-  const shownRef = useLatestRef(shown);
+  const surfaceRef = useLatestRef(surface);
   // A thread's gestures have their own rule (useGestureBottomPins' onThreadGesture).
   const onRoomGesture = useCallback(() => {
-    if (shownRef.current) onReaderGesture();
-  }, [onReaderGesture, shownRef]);
+    if (surfaceRef.current === 'room') onReaderGesture();
+  }, [onReaderGesture, surfaceRef]);
   const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onRoomGesture });
+  // A thread's request starts with the reader's own scrolling: what was asked before belongs to
+  // the pin the thread opened with.
+  const surfaceAtLastCommitRef = useRef(surface);
   useLayoutEffect(() => {
-    if (!shown || !latestRowRequestRef.current || itemCount === 0) return;
-    virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
+    if (surfaceAtLastCommitRef.current === surface) return;
+    surfaceAtLastCommitRef.current = surface;
+    if (surface === 'thread') latestRowRequestRef.current = false;
+  });
+  const { scrollElement } = request;
+  useLayoutEffect(() => {
+    if (!surface || !latestRowRequestRef.current || itemCount === 0) return;
+    if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
+    else if (scrollElement) scrollToBottom(scrollElement, 'instant');
   });
 };
 
