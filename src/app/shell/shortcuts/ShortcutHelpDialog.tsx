@@ -17,7 +17,7 @@ import {
 } from '../../shortcuts/shortcuts';
 import * as css from './Shortcuts.css';
 
-const GROUPS: readonly ShortcutGroup[] = ['general', 'rooms', 'composer'];
+const GROUPS: readonly ShortcutGroup[] = ['general', 'rooms', 'composer', 'settings'];
 
 function KeyCaps({ caps }: { caps: readonly string[] }) {
   return (

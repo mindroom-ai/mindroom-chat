@@ -9,7 +9,7 @@ import { isIOS, isMacOS } from '../lib/user-agent';
  */
 export type FieldPolicy = 'always' | 'empty' | 'never';
 
-export type ShortcutGroup = 'general' | 'rooms' | 'composer';
+export type ShortcutGroup = 'general' | 'rooms' | 'composer' | 'settings';
 
 type ShortcutDefinition = {
   /** `mod+shift+m`, `alt+up`, `escape`: `mod` is ⌘ on Apple platforms and Ctrl elsewhere. */
@@ -178,6 +178,14 @@ const DEFINITIONS = {
     keys: 'mod+shift+h',
     labelKey: 'sharedUi.toolbar.spoiler',
     group: 'composer',
+    field: 'never',
+    local: true,
+  },
+  // The Settings dialog's own listener (SettingsSearch) moves focus to its search field.
+  settingsSearch: {
+    keys: '/',
+    labelKey: 'featureUi.settings.search.placeholder',
+    group: 'settings',
     field: 'never',
     local: true,
   },

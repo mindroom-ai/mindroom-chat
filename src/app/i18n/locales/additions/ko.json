@@ -459,7 +459,8 @@
     "groups": {
       "general": "일반",
       "rooms": "방과 스레드",
-      "composer": "입력창"
+      "composer": "입력창",
+      "settings": "설정"
     },
     "hints": {
       "chip": "모든 단축키: {{keys}}"

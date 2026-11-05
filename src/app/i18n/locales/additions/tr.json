@@ -466,7 +466,8 @@
     "groups": {
       "general": "Genel",
       "rooms": "Odalar ve konular",
-      "composer": "Mesaj kutusu"
+      "composer": "Mesaj kutusu",
+      "settings": "Ayarlar"
     },
     "hints": {
       "chip": "Tüm kısayollar için {{keys}}"

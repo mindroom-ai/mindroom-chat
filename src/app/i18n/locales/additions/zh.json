@@ -459,7 +459,8 @@
     "groups": {
       "general": "常规",
       "rooms": "房间和讨论串",
-      "composer": "输入框"
+      "composer": "输入框",
+      "settings": "设置"
     },
     "hints": {
       "chip": "{{keys}} 查看所有快捷键"

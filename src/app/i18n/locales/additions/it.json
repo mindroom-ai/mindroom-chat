@@ -473,7 +473,8 @@
     "groups": {
       "general": "Generale",
       "rooms": "Stanze e thread",
-      "composer": "Campo di scrittura"
+      "composer": "Campo di scrittura",
+      "settings": "Impostazioni"
     },
     "hints": {
       "chip": "{{keys}} per tutte le scorciatoie"

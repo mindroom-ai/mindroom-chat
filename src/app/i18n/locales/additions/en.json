@@ -466,7 +466,8 @@
     "groups": {
       "general": "General",
       "rooms": "Rooms and threads",
-      "composer": "Composer"
+      "composer": "Composer",
+      "settings": "Settings"
     },
     "hints": {
       "chip": "{{keys}} for all shortcuts"

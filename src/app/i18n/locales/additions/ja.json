@@ -459,7 +459,8 @@
     "groups": {
       "general": "全般",
       "rooms": "ルームとスレッド",
-      "composer": "入力欄"
+      "composer": "入力欄",
+      "settings": "設定"
     },
     "hints": {
       "chip": "{{keys}} ですべてのショートカット"

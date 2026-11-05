@@ -459,7 +459,8 @@
     "groups": {
       "general": "一般",
       "rooms": "房間和討論串",
-      "composer": "輸入框"
+      "composer": "輸入框",
+      "settings": "設定"
     },
     "hints": {
       "chip": "{{keys}} 查看所有快速鍵"

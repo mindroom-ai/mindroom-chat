@@ -466,7 +466,8 @@
     "groups": {
       "general": "Algemeen",
       "rooms": "Kamers en threads",
-      "composer": "Invoerveld"
+      "composer": "Invoerveld",
+      "settings": "Instellingen"
     },
     "hints": {
       "chip": "{{keys}} voor alle sneltoetsen"

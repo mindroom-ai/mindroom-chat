@@ -473,7 +473,8 @@
     "groups": {
       "general": "Général",
       "rooms": "Salles et fils",
-      "composer": "Zone de saisie"
+      "composer": "Zone de saisie",
+      "settings": "Paramètres"
     },
     "hints": {
       "chip": "{{keys}} pour tous les raccourcis"

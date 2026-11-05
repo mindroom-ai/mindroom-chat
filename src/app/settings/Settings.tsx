@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
-  Avatar,
   Box,
-  Button,
   Icon,
   IconButton,
   Icons,
@@ -11,32 +9,30 @@ import {
   OverlayCenter,
   Text,
   config,
+  toRem,
 } from 'folds';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
-import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../ui/page/Page';
+import { PageNav, PageNavHeader, PageRoot } from '../ui/page/Page';
 import { NavCategoryHeader } from '../ui/nav/NavCategoryHeader';
-import { UserAvatar } from '../avatars/UserAvatar';
 import { LogoutDialog } from '../account/LogoutDialog';
-import { useUserProfile } from '../members/useUserProfile';
-import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
-import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { ArchivedRooms } from '../rooms/archive/ArchivedRoomsPage';
 import { LocalMindroom } from '../local-mindroom/LocalMindroom';
-import {
-  ComputersSettingsPage,
-  ConnectionsSettingsPage,
-} from './pages/AgentSettingsPages';
+import { ComputersSettingsPage, ConnectionsSettingsPage } from './pages/AgentSettingsPages';
 import {
   getSettingsMenuItems,
   resolveSettingsInitialPage,
   type SettingsMenuItem,
 } from './settingsMenu';
-import { SETTINGS_GROUPS, getShownSettings, type SettingsPageId } from '../preferences/settingsRegistry';
+import {
+  SETTINGS_GROUPS,
+  getShownSettings,
+  type SettingsPageId,
+} from '../preferences/settingsRegistry';
 import { searchSettings, type SettingsSearchResult } from './settingsSearchIndex';
 import { SettingsTargetContext, type SettingsTarget } from '../preferences/settingsTarget';
 import { revealSetting } from './revealSetting';
@@ -56,7 +52,7 @@ import { PrivacySecurity } from './pages/PrivacySecurity';
 import { Sidebar } from './pages/InterfaceSettings';
 import { StorageOffline } from './pages/StorageOffline';
 import { SettingsBreadcrumbRoot } from '../ui/settings/SettingsPageFrame';
-import { SettingsMenu, SettingsMenuGroupLabel } from '../ui/settings/frame.css';
+import { SettingsMenu, SettingsMenuFooter, SettingsMenuGroupLabel } from '../ui/settings/frame.css';
 
 type SettingsProps = {
   /** A page id, or an earlier one; settingsRegistry.ts resolves it. */
@@ -104,6 +100,8 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
   }
 }
 
+const MENU_TITLE_STYLE = { flexGrow: 1 };
+
 /** The values some labels and descriptions fill in, so search reads them as the page does. */
 const useSearchValues = () => {
   const userId = useMatrixClient().getUserId() ?? '';
@@ -118,22 +116,9 @@ const useSearchValues = () => {
   );
 };
 
-const AVATAR_PX = 96;
-
-/** The signed-in user's ID, display name (localpart as fallback) and avatar URL. */
-function useOwnProfile() {
-  const mx = useMatrixClient();
-  const authenticated = useMediaAuthentication();
-  const userId = mx.getUserId() ?? '';
-  const { displayName, avatarUrl: avatarMxc } = useUserProfile(userId);
-  const thumbnail = (mxc: string) =>
-    mxcUrlToHttp(mx, mxc, authenticated, AVATAR_PX, AVATAR_PX, 'crop') ?? undefined;
-  return {
-    userId,
-    displayName: displayName ?? getMxIdLocalPart(userId) ?? userId,
-    avatarUrl: avatarMxc ? thumbnail(avatarMxc) : undefined,
-  };
-}
+// A group heading sits at the foot of its short row, close to its own rows and clear of the
+// group above, so the whole menu fits a 700 px dialog.
+const GROUP_HEADING_STYLE = { minHeight: toRem(28), alignItems: 'flex-end', paddingBottom: 2 };
 
 type SettingsMenuListProps = {
   items: SettingsMenuItem[];
@@ -141,7 +126,10 @@ type SettingsMenuListProps = {
   onSelect: (page: SettingsPageId) => void;
 };
 
-/** The pages under their group headings (You, This app, Agents & connections, ...). */
+/**
+ * The pages under their quiet group headings (You, This app, Agents & connections, ...), each a
+ * 32 px row with its line icon; the open page's row is filled.
+ */
 function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps) {
   const { t } = useTranslation();
   const groups = SETTINGS_GROUPS.map((group) => ({
@@ -153,11 +141,11 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
     <div className={SettingsMenu}>
       {groups.map((group) => (
         <div key={group.id} role="group" aria-labelledby={`settings-group-${group.id}`}>
-          <NavCategoryHeader>
+          <NavCategoryHeader style={GROUP_HEADING_STYLE}>
             <Text
               id={`settings-group-${group.id}`}
               as="span"
-              size="O400"
+              size="T200"
               priority="300"
               className={SettingsMenuGroupLabel}
               truncate
@@ -167,13 +155,14 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
           </NavCategoryHeader>
           {group.items.map(({ page, name, icon }) => {
             const current = page === activePage;
-            const labelStyle = current ? { fontWeight: config.fontWeight.W600 } : undefined;
+            const labelStyle = current ? { fontWeight: config.fontWeight.W500 } : undefined;
             return (
               <MenuItem
                 key={page}
-                radii="500"
+                size="300"
+                radii="400"
                 variant="Background"
-                before={<Icon size="100" src={icon} filled={current} />}
+                before={<Icon size="100" src={icon} />}
                 aria-pressed={current}
                 onClick={() => onSelect(page)}
               >
@@ -210,32 +199,34 @@ function LogoutButton() {
     </Overlay>
   );
 
+  // A row like the menu's, in the danger color, under the menu.
   return (
-    <Box direction="Column" shrink="No" style={{ padding: config.space.S200 }}>
-      <Button
-        variant="Critical"
-        fill="None"
+    <div className={SettingsMenuFooter}>
+      <MenuItem
         size="300"
-        radii="300"
+        radii="400"
+        variant="Critical"
         before={<Icon size="100" src={Icons.Power} />}
         onClick={() => setConfirming(true)}
       >
-        <Text size="B400">{t('settings.logout')}</Text>
-      </Button>
+        <Text size="T300" truncate>
+          {t('settings.logout')}
+        </Text>
+      </MenuItem>
       {confirming ? confirmation : null}
-    </Box>
+    </div>
   );
 }
 
 /**
- * The settings dialog: the page menu under the account header, grouped as settingsRegistry.ts
- * says, beside the selected page; on phones the menu and a page take turns.
+ * The settings dialog: the page menu under its search field, grouped as settingsRegistry.ts says,
+ * beside the selected page, whose title bar reads "Settings / <page>"; on phones the menu and a
+ * page take turns, and the menu carries the dialog's title.
  */
 export function Settings({ initialPage, requestClose }: SettingsProps) {
   const { t } = useTranslation();
   const viewport = useScreenSizeContext();
   const context = useSettingsContext();
-  const { userId, displayName, avatarUrl } = useOwnProfile();
   const [activePage, setActivePage] = useState<SettingsPageId | undefined>(() =>
     resolveSettingsInitialPage(initialPage, viewport, context.localMindroom, context.native)
   );
@@ -266,10 +257,6 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     [context.localMindroom, context.native, t]
   );
   const isMobile = viewport === ScreenSize.Mobile;
-  // Each page's title bar names the dialog; pages come and go, so the title keeps one ID for the
-  // dialog's label to point at.
-  const titleId = useId();
-  const dialogTitle = useMemo(() => ({ label: t('settings.title'), id: titleId }), [t, titleId]);
 
   // On mobile a page closes back to the menu; on desktop it closes the dialog.
   const handlePageRequestClose = useCallback(
@@ -277,46 +264,36 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     [isMobile, requestClose]
   );
 
-  // The title rides on top of the menu, which scrolls beneath it; Logout stays below the list.
-  const title = (
+  // The dialog is named by its title: in each page's title bar on wider screens, and on a phone
+  // in the menu's own title bar, which also holds the close button over the search field. Pages
+  // come and go, so the title keeps one ID for the dialog's label to point at.
+  const titleId = useId();
+  const dialogTitle = useMemo(() => ({ label: t('settings.title'), id: titleId }), [t, titleId]);
+  const closeLabel = t('featureUi.settings.emojisStickers.globalPacks.close');
+  const menuTitle = isMobile && (
     <PageNavHeader outlined={false}>
-      <Box grow="Yes" gap="200" alignItems="Center">
-        <Avatar size="200" radii="300">
-          <UserAvatar
-            alt={displayName}
-            src={avatarUrl}
-            userId={userId}
-            renderFallback={() => <Text size="H6">{displayName.charAt(0)}</Text>}
-          />
-        </Avatar>
-        <Text as="h2" size="H4" truncate>
-          {t('settings.title')}
-        </Text>
-      </Box>
-      {isMobile && (
-        <IconButton
-          variant="Background"
-          aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-          onClick={requestClose}
-        >
-          <Icon src={Icons.Cross} />
-        </IconButton>
-      )}
+      <Text as="h2" id={titleId} size="H4" truncate style={MENU_TITLE_STYLE}>
+        {dialogTitle.label}
+      </Text>
+      <IconButton variant="Background" aria-label={closeLabel} onClick={requestClose}>
+        <Icon src={Icons.Cross} />
+      </IconButton>
     </PageNavHeader>
   );
+  // The menu scrolls beneath the search field; Logout stays below the list.
   const nav = (
     <PageNav size="300" label={t('settings.title')}>
       <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
-        <PageNavContent header={title}>
-          <SettingsSearch
-            query={query}
-            onQueryChange={setQuery}
-            results={results}
-            onChoose={openResult}
-          >
-            <SettingsMenuList items={menuItems} activePage={activePage} onSelect={selectPage} />
-          </SettingsSearch>
-        </PageNavContent>
+        <SettingsSearch
+          query={query}
+          onQueryChange={setQuery}
+          results={results}
+          onChoose={openResult}
+          title={menuTitle}
+          keyHint={!isMobile}
+        >
+          <SettingsMenuList items={menuItems} activePage={activePage} onSelect={selectPage} />
+        </SettingsSearch>
         <LogoutButton />
       </Box>
     </PageNav>

@@ -1,10 +1,9 @@
 import { globalStyle, keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 
-// Measured from docs/design/reference/settings.png (1440x900 at 1x), dialog from x = 320 to
-// 1120 with the divider at 542: menu rows end 20 px before the divider, the close button sits
-// 24 px from the dialog's right edge and the cards end 28 px from it. Right-to-left languages
-// mirror all three.
+// The settings dialogs take the look of a compact desktop preferences window: a wide dialog, a
+// menu of 32 px rows under a search field, and a thin title bar with the page's place in the
+// dialog. Right-to-left languages mirror all of it.
 
 /** About 1000 by 700 px, and a margin smaller than that where the window is. */
 export const SettingsDialog = style({
@@ -22,37 +21,40 @@ export const SettingsMenu = style({
   paddingInlineEnd: config.space.S300,
 });
 
-/** Set on the content of every settings page by SettingsPageFrame. */
-const SETTINGS_CARD = '[data-settings-page] [data-sequence-card]';
-
-// The cards of settings.png have the card padding and no rim, also where a page leaves out the
-// padding class (the archived rooms list); the padding is the class's value, so both agree.
-globalStyle(SETTINGS_CARD, {
-  padding: config.space.S300,
-  borderColor: 'transparent',
-});
-
-// settings.png draws every button in a card with its outline ("Save computer service",
-// "Use app default", "Open Connections"), whether or not the button asks for one.
-globalStyle(`${SETTINGS_CARD} button:not([role="switch"])`, {
-  borderWidth: config.borderWidth.B400,
-});
-
-/** A group heading of the menu (You, This app, ...) lines up with the rows' icons. */
+/** A group heading of the menu (You, This app, ...), quiet and in the rows' icon column. */
 export const SettingsMenuGroupLabel = style({
   paddingInline: config.space.S200,
 });
 
-// Each group after the first keeps a gap from the one above.
-globalStyle(`${SettingsMenu} > [role="group"] + [role="group"]`, {
-  marginBlockStart: config.space.S300,
+/**
+ * The search field on top of the menu, aligned with its rows (8 px in, 20 px from the divider)
+ * and as tall as the page's title bar beside it.
+ */
+export const SettingsSearchHeader = style({
+  selectors: {
+    '&&': {
+      height: toRem(48),
+      paddingInlineStart: config.space.S200,
+      paddingInlineEnd: config.space.S500,
+    },
+  },
 });
 
-/** The search field over the menu, aligned with its rows. */
-export const SettingsSearchField = style({
-  display: 'flex',
-  paddingBlockEnd: config.space.S200,
-  paddingInlineEnd: config.space.S300,
+/** The `/` key cap at the end of the empty search field. */
+export const SettingsSearchKey = style({
+  direction: 'ltr',
+  display: 'inline-grid',
+  placeItems: 'center',
+  minInlineSize: toRem(20),
+  blockSize: toRem(20),
+  paddingInline: toRem(4),
+  borderRadius: config.radii.R300,
+  boxShadow: `inset 0 0 0 ${config.borderWidth.B300} ${color.Background.ContainerLine}`,
+  color: color.Background.OnContainer,
+  font: 'inherit',
+  fontSize: toRem(12),
+  lineHeight: 1,
+  opacity: 0.8,
 });
 
 /** The list of search results that takes the menu's place, ending where the menu's rows do. */
@@ -68,6 +70,31 @@ globalStyle(`${SettingsSearchResults} > [aria-selected="true"]`, {
 /** The page (and group) a search result lives on, under its label. */
 export const SettingsSearchLocation = style({
   display: 'block',
+});
+
+/** Sign out, under the menu and in line with its rows, in the danger color. */
+export const SettingsMenuFooter = style({
+  flexShrink: 0,
+  paddingBlock: config.space.S200,
+  paddingInlineStart: config.space.S200,
+  paddingInlineEnd: config.space.S500,
+});
+globalStyle(`${SettingsMenuFooter} > button`, { color: color.Critical.Main });
+
+/** Set on the content of every settings page by SettingsPageFrame. */
+const SETTINGS_CARD = '[data-settings-page] [data-sequence-card]';
+
+// The cards of settings.png have the card padding and no rim, also where a page leaves out the
+// padding class (the archived rooms list); the padding is the class's value, so both agree.
+globalStyle(SETTINGS_CARD, {
+  padding: config.space.S300,
+  borderColor: 'transparent',
+});
+
+// settings.png draws every button in a card with its outline ("Save computer service",
+// "Use app default", "Open Connections"), whether or not the button asks for one.
+globalStyle(`${SETTINGS_CARD} button:not([role="switch"])`, {
+  borderWidth: config.borderWidth.B400,
 });
 
 // A search result's setting glows once in the primary color when its page brings it into view.

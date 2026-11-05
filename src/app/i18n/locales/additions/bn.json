@@ -466,7 +466,8 @@
     "groups": {
       "general": "সাধারণ",
       "rooms": "রুম ও থ্রেড",
-      "composer": "লেখার বাক্স"
+      "composer": "লেখার বাক্স",
+      "settings": "সেটিংস"
     },
     "hints": {
       "chip": "সব শর্টকাটের জন্য {{keys}}"

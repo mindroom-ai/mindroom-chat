@@ -473,7 +473,8 @@
     "groups": {
       "general": "General",
       "rooms": "Salas e hilos",
-      "composer": "Editor de mensajes"
+      "composer": "Editor de mensajes",
+      "settings": "Ajustes"
     },
     "hints": {
       "chip": "{{keys}} para ver todos los atajos"

@@ -466,7 +466,8 @@
     "groups": {
       "general": "Allgemein",
       "rooms": "Räume und Threads",
-      "composer": "Eingabefeld"
+      "composer": "Eingabefeld",
+      "settings": "Einstellungen"
     },
     "hints": {
       "chip": "{{keys}} für alle Tastenkürzel"

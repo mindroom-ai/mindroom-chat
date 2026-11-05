@@ -459,7 +459,8 @@
     "groups": {
       "general": "Umum",
       "rooms": "Ruang dan utas",
-      "composer": "Kotak pesan"
+      "composer": "Kotak pesan",
+      "settings": "Pengaturan"
     },
     "hints": {
       "chip": "{{keys}} untuk semua pintasan"

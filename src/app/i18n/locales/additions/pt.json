@@ -473,7 +473,8 @@
     "groups": {
       "general": "Geral",
       "rooms": "Salas e tópicos",
-      "composer": "Caixa de mensagem"
+      "composer": "Caixa de mensagem",
+      "settings": "Definições"
     },
     "hints": {
       "chip": "{{keys}} para todos os atalhos"
