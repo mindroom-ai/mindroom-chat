@@ -13,7 +13,9 @@
 # Every check reads the commit, never the working tree: the code checks run in an archive copy of it
 # that links the checkout's node_modules and has the commit's index, and the smoke specs in e2e-slot
 # snapshots of it.
-#   build     the production build (`e2e-slot.sh <slot> --preview --snapshot=<rev>`, kept per commit)
+#   build     the production build (`e2e-slot.sh <slot> --preview --snapshot=<rev>`, kept per commit),
+#             and what a first visit downloads before the app runs, against the commit's
+#             scripts/perf/bundle-budget.json (scripts/perf/bundle-report.mjs)
 #   tsc       tsc --noEmit -p tsconfig.app.json
 #   strict    node scripts/strict-check.mjs
 #   lint      ESLint on the files base...rev changes (on every file when .eslintrc.cjs changes)
@@ -195,7 +197,20 @@ check_build() {
   # nothing else. The first slot of a list does it.
   bash "$checkout/scripts/e2e-slot.sh" "${slot%%[,-]*}" --preview --snapshot="$sha" true \
     >"$logs/build.log" 2>&1 || rc=$?
-  if [ "$rc" = 0 ]; then echo 'vite build and the spec fixture pages'; else echo "exit $rc"; fi
+  if [ "$rc" != 0 ]; then
+    echo "exit $rc"
+    return "$rc"
+  fi
+  # What a first visit downloads before the app runs must stay within the commit's own budget.
+  local build="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}/builds/$sha" sizes
+  node "$tree/scripts/perf/bundle-report.mjs" "$build" --budget "$tree/scripts/perf/bundle-budget.json" \
+    >"$logs/bundle.log" 2>&1 || rc=$?
+  sizes="$(grep -E '^(ok  |FAIL) initial JS' "$logs/bundle.log" | sed -E 's/^(ok  |FAIL) //')"
+  if [ "$rc" = 0 ]; then
+    echo "vite build and the spec fixture pages; $sizes"
+  else
+    echo "over the bundle budget (scripts/perf/bundle-budget.json): $sizes; see $logs/bundle.log"
+  fi
   return "$rc"
 }
 

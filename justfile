@@ -54,6 +54,10 @@ release *args:
     git fetch --quiet https://github.com/mindroom-ai/mindroom-client.git main
     node scripts/calver.mjs release --main FETCH_HEAD {{args}}
 
+# What a first visit downloads before the app runs, the largest chunks, and the size budget (scripts/perf/bundle-budget.json) of a build (default dist/). `--sources` attributes the initial bytes to packages; build with `npx vite build --sourcemap` for it.
+bundle-report dist="dist" *args:
+    node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
+
 # The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint and test; scripts/push-gate.sh runs the overlap history check before each push.
 check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames upstream-overlap
 
@@ -122,7 +126,7 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling, the notices generator and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs and scripts/ios-canvas-test-fixtures.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py and scripts/upstream-overlap/test_check.py with unittest).
+# Tests of the e2e tooling, the notices generator, the bundle report and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs, scripts/ios-canvas-test-fixtures.test.mjs and scripts/perf/bundle-report.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py and scripts/upstream-overlap/test_check.py with unittest).
 script-tests:
-    node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs
+    node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs scripts/perf/bundle-report.test.mjs
     python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py
