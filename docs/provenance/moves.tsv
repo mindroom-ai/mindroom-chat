@@ -2701,3 +2701,5 @@ src/vitest.katex.setup.ts	src/test/vitest.katex.setup.ts	restructure-p2
 src/vitest.setup.ts	src/test/vitest.setup.ts	restructure-p2
 src/vitest.styles.setup.ts	src/test/vitest.styles.setup.ts	restructure-p2
 src/app/messages/pins/pinnedMessageExtensions.ts		restructure-p3-c4
+src/app/messages/reply/replyExtensions.test.ts		restructure-p3-c4
+src/app/messages/reply/replyExtensions.tsx		restructure-p3-c4

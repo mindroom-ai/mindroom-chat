@@ -13,10 +13,12 @@ vi.mock('../content', () => ({
 vi.mock('../html/react-custom-html-parser', () => ({
   scaleSystemEmoji: (text: string) => text,
 }));
-vi.mock('./replyExtensions', () => ({
+vi.mock('../../event-store/cache/useRoomEvent', () => ({
   // Keep the real Matrix event and preview formatting; avoid fetching a room.
-  useMindroomReplyEvent: (_room: Room, _id: string, getLocal: () => MatrixEvent) => getLocal(),
-  MindroomReplyThreadIndicator: () => null,
+  useRoomEvent: (_room: Room, _id: string, getLocal: () => MatrixEvent) => getLocal(),
+}));
+vi.mock('../ThreadIndicator', () => ({
+  ThreadIndicator: () => null,
 }));
 
 it('shows compact readable tool summaries in replies and updates after an edit', () => {

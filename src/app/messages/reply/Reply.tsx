@@ -9,10 +9,8 @@ import {
   MessageDeletedContent,
   MessageFailedContent,
 } from '../content/FallbackContent';
-import {
-  MindroomReplyThreadIndicator,
-  useMindroomReplyEvent,
-} from './replyExtensions';
+import { ThreadIndicator } from '../ThreadIndicator';
+import { useRoomEvent } from '../../event-store/cache/useRoomEvent';
 import { getReplyPreviewText } from '../../event-store/threads/threadMessagePreview';
 import { getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
@@ -107,12 +105,10 @@ export const Reply = as<'div', ReplyProps>(
         (timelineSet?.findEventById(replyEventId) ?? room.findEventById(replyEventId)) || undefined,
       [room, timelineSet, replyEventId]
     );
-    const replyEvent = useMindroomReplyEvent(
-      room,
-      replyEventId,
-      getFromLocalTimeline,
-      threadRootId
-    );
+    // A reply inside a thread looks the event up in that thread's cache first.
+    const replyEvent = useRoomEvent(room, replyEventId, getFromLocalTimeline, {
+      threadId: threadRootId,
+    });
 
     // The quote itself carries the replied-to event's ID; the wrapper around it and the thread
     // indicator is wider than the quote, so a click on its middle would miss the quote.
@@ -121,13 +117,17 @@ export const Reply = as<'div', ReplyProps>(
 
     return (
       <Box direction="Column" alignItems="Start" {...wrapperProps} ref={ref}>
-        <MindroomReplyThreadIndicator
-          room={room}
-          threadRootId={threadRootId}
-          timelineSet={timelineSet}
-          hide={hideThreadIndicator}
-          onClick={onThreadClick}
-        />
+        {threadRootId && !hideThreadIndicator ? (
+          <ThreadIndicator
+            as="button"
+            data-thread-root-id={threadRootId}
+            data-event-id={threadRootId}
+            room={room}
+            threadRootId={threadRootId}
+            timelineSet={timelineSet}
+            onClick={onThreadClick}
+          />
+        ) : null}
         {onClick ? (
           <Box
             as="button"
