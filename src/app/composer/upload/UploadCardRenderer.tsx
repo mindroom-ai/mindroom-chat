@@ -45,7 +45,6 @@ export const getTooLargeError = (
 type UploadStatusLineProps = {
   upload: Upload;
   blockedError?: MatrixError;
-  uploadKind?: 'file' | 'avatar';
   maxUploadSize?: number;
   onRetry?: () => void;
   /** Text of the retry action. */
@@ -56,7 +55,6 @@ type UploadStatusLineProps = {
 export function UploadStatusLine({
   upload,
   blockedError,
-  uploadKind,
   maxUploadSize,
   onRetry,
   retryLabel,
@@ -65,7 +63,6 @@ export function UploadStatusLine({
 
   if (error) {
     const message = getMatrixUploadErrorMessage(error, undefined, {
-      uploadKind,
       fileSize: upload.file.size,
       maxUploadSize,
     });

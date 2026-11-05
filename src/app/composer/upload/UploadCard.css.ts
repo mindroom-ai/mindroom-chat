@@ -27,15 +27,6 @@ export const UploadCard = recipe({
     outlined: {
       true: glassOutline,
     },
-    // Settings forms place a single upload in a narrow column, so it sits tighter there.
-    compact: {
-      true: {
-        rowGap: config.space.S100,
-        paddingBlock: config.space.S200,
-        paddingInline: config.space.S200,
-        borderRadius: config.radii.R300,
-      },
-    },
   },
 });
 

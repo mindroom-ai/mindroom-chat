@@ -2722,3 +2722,4 @@ src/app/composer/commands/AgentCommandAutocomplete.tsx		restructure-p3-c5
 src/app/composer/commands/agentCommandSuggestions.ts		restructure-p3-c5
 src/app/emoji/recent-emoji.ts		restructure-p3-c5
 src/app/emoji/recent-emoji.test.ts	src/app/emoji/recent-emoji-list.test.ts	restructure-p3-c5
+src/app/composer/upload/CompactUploadCardRenderer.tsx		restructure-p3-c5

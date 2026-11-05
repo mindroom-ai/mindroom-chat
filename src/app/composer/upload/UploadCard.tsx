@@ -10,7 +10,6 @@ type UploadCardProps = HTMLAttributes<HTMLDivElement> & {
   /** Progress, error or other detail below the file row. */
   bottom?: ReactNode;
   outlined?: boolean;
-  compact?: boolean;
 };
 
 type UploadCardRowProps = Pick<UploadCardProps, 'before' | 'after' | 'children'>;
@@ -30,10 +29,10 @@ function UploadCardRow({ before, after, children }: UploadCardRowProps) {
 
 /** A card for one file being uploaded. */
 export const UploadCard = forwardRef<HTMLDivElement, UploadCardProps>(
-  ({ before, after, bottom, outlined, compact, children, className, ...props }, ref) => (
+  ({ before, after, bottom, outlined, children, className, ...props }, ref) => (
     <Box
       direction="Column"
-      className={classNames(css.UploadCard({ outlined, compact }), className)}
+      className={classNames(css.UploadCard({ outlined }), className)}
       {...props}
       ref={ref}
     >

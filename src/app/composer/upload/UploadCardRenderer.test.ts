@@ -3,7 +3,6 @@ import { MatrixError } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UploadCardRenderer } from './UploadCardRenderer';
-import { CompactUploadCardRenderer } from './CompactUploadCardRenderer';
 import { TUploadContent, toMatrixUploadError } from '../../matrix/matrix';
 
 const uploadMock = vi.hoisted(() => ({
@@ -217,85 +216,5 @@ describe('upload card renderers', () => {
         blockUploadError: prepError,
       })
     );
-  });
-
-  it('renders friendly transient MatrixError text in the compact upload card', () => {
-    const file = createFile();
-    setUploadError(file);
-
-    const output = renderText(
-      React.createElement(CompactUploadCardRenderer, {
-        uploadAtom: 'upload-atom',
-        onRemove: vi.fn(),
-      })
-    );
-
-    expect(output).toContain(friendlyTransientMessage);
-    expect(output).not.toContain('M_UNKNOWN: Unknown message');
-  });
-
-  it('prevents compact avatar uploads that exceed media config with precise size copy', () => {
-    const file = createFile({
-      name: 'avatar.png',
-      size: 2_500_000,
-    });
-    uploadMock.mediaConfig = {
-      'm.upload.size': 1_000_000,
-    };
-    uploadMock.upload = {
-      file,
-      status: 'idle',
-    };
-
-    const output = renderText(
-      React.createElement(CompactUploadCardRenderer, {
-        uploadAtom: 'upload-atom',
-        uploadKind: 'avatar',
-        onRemove: vi.fn(),
-      })
-    );
-
-    expect(output).toContain(
-      'Avatar image is too large. Maximum upload size is 1.0 MB; selected file is 2.5 MB.'
-    );
-    expect(uploadMock.startUpload).not.toHaveBeenCalled();
-  });
-
-  it('preserves create-stage prep error text in the compact upload card', () => {
-    const file = createFile();
-    uploadMock.upload = {
-      file,
-      status: 'error',
-      error: toMatrixUploadError(new Error('encryption failed'), 'create'),
-    };
-
-    const output = renderText(
-      React.createElement(CompactUploadCardRenderer, {
-        uploadAtom: 'upload-atom',
-        onRemove: vi.fn(),
-      })
-    );
-
-    expect(output).toContain(prepareUploadMessage);
-    expect(output).not.toContain(friendlyTransientMessage);
-  });
-
-  it('renders compact avatar HTTP 413 errors as too-large instead of connection dropped', () => {
-    const file = createFile({
-      name: 'avatar.png',
-      size: 2_500_000,
-    });
-    setUploadError(file, new MatrixError({ errcode: 'M_UNKNOWN', error: '' }, 413));
-
-    const output = renderText(
-      React.createElement(CompactUploadCardRenderer, {
-        uploadAtom: 'upload-atom',
-        uploadKind: 'avatar',
-        onRemove: vi.fn(),
-      })
-    );
-
-    expect(output).toContain('Avatar image is too large for this server. Choose a smaller image.');
-    expect(output).not.toContain(friendlyTransientMessage);
   });
 });
