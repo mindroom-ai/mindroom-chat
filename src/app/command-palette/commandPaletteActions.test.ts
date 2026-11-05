@@ -5,7 +5,6 @@ import {
   commandPaletteStaticActionPaths,
   getCommandPaletteSearchPagePath,
   getCommandPaletteQuickActions,
-  resolveCommandPaletteUserTarget,
 } from './commandPaletteActions';
 
 const t = translateFromEn as unknown as TFunction;
@@ -92,22 +91,6 @@ describe('getCommandPaletteSearchPagePath', () => {
     expect(getCommandPaletteSearchPagePath('  deploy checklist ')).toBe(
       '/home/search/?term=deploy+checklist&global=true'
     );
-  });
-});
-
-describe('resolveCommandPaletteUserTarget', () => {
-  it('reuses an existing DM room when one is known', () => {
-    expect(resolveCommandPaletteUserTarget('@alice:example.org', '!dm:example.org')).toEqual({
-      kind: 'room',
-      roomId: '!dm:example.org',
-    });
-  });
-
-  it('falls back to direct-create when no DM exists yet', () => {
-    expect(resolveCommandPaletteUserTarget('@alice:example.org')).toEqual({
-      kind: 'path',
-      path: '/direct/create/?userId=%40alice%3Aexample.org',
-    });
   });
 });
 

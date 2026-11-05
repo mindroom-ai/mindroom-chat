@@ -14,6 +14,7 @@ import { commandPaletteOpenAtom } from './commandPaletteState';
 import type { CommandPaletteTab } from './commandPaletteTypes';
 import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
 import { useCommandPaletteMessages } from './useCommandPaletteMessages';
+import { useCommandPalettePeople } from './useCommandPalettePeople';
 
 const matchesPaletteShortcut = isKeyHotkey('mod+k');
 
@@ -87,6 +88,7 @@ function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDi
           requestClose={requestClose}
           source={source}
           useMessages={useCommandPaletteMessages}
+          usePeople={useCommandPalettePeople}
           initialTab={initialTab}
           mobileSheet={mobile}
         />

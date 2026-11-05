@@ -6,6 +6,7 @@ import { EventTimeline, Room } from 'matrix-js-sdk';
 import { StateEvent } from '../matrix/types/room';
 import { useDirectUsers } from '../matrix/hooks/useDirectUsers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSelectedRoom } from '../navigation/useSelectedRoom';
 import { useSelectedSpace } from '../navigation/useSelectedSpace';
@@ -24,6 +25,7 @@ import { settingsAtom } from '../preferences/settings';
 import { settingsModalAtom } from '../navigation/settingsModal';
 import { copyToClipboard } from '../lib/dom';
 import { getCanonicalAliasOrRoomId, getMxIdLocalPart } from '../matrix/matrix';
+import { getMemberAvatarMxc } from '../matrix/room';
 import { crossRoomThreadIndexAtom } from '../threads/cross-room/crossRoomThreadIndex';
 import { useMarkRoomsRead } from '../notifications/useMarkRoomsRead';
 import { archivedRoomsAtom, isRoomVisible } from '../matrix/state/archivedRooms';
@@ -33,7 +35,6 @@ import {
   type CommandPaletteQuickActionId,
   commandPaletteStaticActionPaths,
   getCommandPaletteQuickActions,
-  resolveCommandPaletteUserTarget,
 } from './commandPaletteActions';
 import { getCommandPaletteRoomRanking } from './commandPaletteRoomRanking';
 import type {
@@ -48,11 +49,22 @@ import {
   collectCommandPaletteUserCandidates,
   getCommandPaletteDmUserDetails,
 } from './commandPaletteUserCandidates';
+import { getCommandPaletteAvatarUrl, useStartDirectChat } from './useCommandPalettePeople';
 
 type Executable<T> = T & { onSelect?: () => void };
 
+/**
+ * A person: choosing them opens the direct chat with them (`onSelect`). Without one there is
+ * `startChat` instead, which the palette asks about first; it resolves once the new chat is open.
+ */
+export type ExecutableCommandPaletteUserItem = Executable<CommandPaletteUserItem> & {
+  startChat?: () => Promise<void>;
+};
+
 /** A palette row together with what choosing it does. */
-export type ExecutableCommandPaletteItem = Executable<CommandPaletteItem>;
+export type ExecutableCommandPaletteItem =
+  | Executable<Exclude<CommandPaletteItem, CommandPaletteUserItem>>
+  | ExecutableCommandPaletteUserItem;
 
 /** How far the Users section looks: past its caps for a typed query, into other rooms when asked. */
 type CommandPaletteUserQuery = { exhaustive: boolean; includeRelatedRooms: boolean };
@@ -65,7 +77,7 @@ export type CommandPaletteSource = {
   actions: Executable<CommandPaletteActionItem>[];
   threads: Executable<CommandPaletteThreadItem>[];
   rooms: readonly Executable<CommandPaletteRoomItem>[];
-  getUsers: (query: CommandPaletteUserQuery) => Executable<CommandPaletteUserItem>[];
+  getUsers: (query: CommandPaletteUserQuery) => ExecutableCommandPaletteUserItem[];
 };
 
 type CommandPaletteSourceOptions = {
@@ -103,6 +115,8 @@ export const useCommandPaletteSource = ({
   const archivedRooms = useAtomValue(archivedRoomsAtom);
   const threadIndex = useAtomValue(crossRoomThreadIndexAtom);
   const directUsers = useDirectUsers();
+  const useAuthentication = useMediaAuthentication();
+  const startChat = useStartDirectChat();
   const setSettingsModal = useSetAtom(settingsModalAtom);
   const openCreateRoom = useOpenCreateRoomModal();
   const openCreateSpace = useOpenCreateSpaceModal();
@@ -308,8 +322,16 @@ export const useCommandPaletteSource = ({
 
   // One list per query shape, so repeated renders reuse the search index built for it.
   const userLists = useMemo(
-    () => new Map<string, Executable<CommandPaletteUserItem>[]>(),
-    [allRoomIds, directUsers, dmRoomByUserId, orderedRoomIds, selectedRoomId]
+    () => new Map<string, ExecutableCommandPaletteUserItem[]>(),
+    [
+      allRoomIds,
+      directUsers,
+      dmRoomByUserId,
+      orderedRoomIds,
+      selectedRoomId,
+      startChat,
+      useAuthentication,
+    ]
   );
   const getUsers = useCallback(
     ({ exhaustive, includeRelatedRooms }: CommandPaletteUserQuery) => {
@@ -325,41 +347,47 @@ export const useCommandPaletteSource = ({
         orderedRoomIds,
         selectedRoomId,
       });
-      const items = candidates.map((candidate): Executable<CommandPaletteUserItem> => {
-        const dmRoomId = dmRoomByUserId.get(candidate.userId);
-        const dm = getCommandPaletteDmUserDetails(
-          dmRoomId ? getRoom(dmRoomId) : undefined,
-          candidate.userId
-        );
-        const localpart = getMxIdLocalPart(candidate.userId) ?? candidate.userId;
+      const items = candidates.map((candidate): ExecutableCommandPaletteUserItem => {
+        const { userId, sourceRoomId } = candidate;
+        const dmRoomId = dmRoomByUserId.get(userId);
+        const dmRoom = dmRoomId ? getRoom(dmRoomId) : undefined;
+        const dm = getCommandPaletteDmUserDetails(dmRoom, userId);
+        const localpart = getMxIdLocalPart(userId) ?? userId;
+        // The room they were found in shows their avatar; people from m.direct alone, the DM.
+        const memberRoom = (sourceRoomId ? getRoom(sourceRoomId) : undefined) ?? dmRoom;
         return {
-          id: `user:${candidate.userId}`,
+          id: `user:${userId}`,
           kind: 'user',
-          userId: candidate.userId,
+          userId,
           displayName: candidate.displayName ?? dm.displayName ?? localpart,
           localpart,
           dmRoomName: dm.roomName,
           existingDmRoomId: dmRoomId,
-          boost: (dmRoomId ? 10 : 0) + (currentRoomMemberIds.has(candidate.userId) ? 5 : 0),
-          onSelect: () => {
-            const target = resolveCommandPaletteUserTarget(candidate.userId, dmRoomId);
-            if (target.kind === 'room') navigateRoom(target.roomId);
-            else navigate(target.path);
-          },
+          avatarUrl: getCommandPaletteAvatarUrl(
+            client,
+            memberRoom && getMemberAvatarMxc(memberRoom, userId),
+            useAuthentication
+          ),
+          boost: (dmRoomId ? 10 : 0) + (currentRoomMemberIds.has(userId) ? 5 : 0),
+          ...(dmRoomId
+            ? { onSelect: () => navigateRoom(dmRoomId) }
+            : { startChat: () => startChat(userId) }),
         };
       });
       userLists.set(key, items);
       return items;
     },
     [
+      client,
       directUsers,
       dmRoomByUserId,
       getRoom,
       myUserId,
-      navigate,
       navigateRoom,
       orderedRoomIds,
       selectedRoomId,
+      startChat,
+      useAuthentication,
       userLists,
     ]
   );

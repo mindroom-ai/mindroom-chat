@@ -428,6 +428,14 @@
       "seeAll": "すべての結果を表示",
       "seeAllDescription": "フィルター付きのメッセージ検索を開く",
       "thread": "スレッド"
+    },
+    "peopleSearch": {
+      "failed": "サーバーで人物を検索できませんでした。",
+      "messageUserId": "{{userId}} にメッセージを送る"
+    },
+    "startChat": {
+      "title": "{{name}} とのチャットを開始しますか？",
+      "description": "{{userId}} に招待が送信されます。"
     }
   },
   "shortcuts": {

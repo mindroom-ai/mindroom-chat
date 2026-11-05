@@ -17,6 +17,7 @@ vi.mock('./CommandPalette.css', () => ({
   GroupCount: 'GroupCount',
   Row: 'Row',
   RowIcon: 'RowIcon',
+  RowAvatar: 'RowAvatar',
   RowText: 'RowText',
   RowHeading: 'RowHeading',
   RowTitle: 'RowTitle',
@@ -39,6 +40,10 @@ vi.mock('./CommandPalette.css', () => ({
 vi.mock('folds', () => ({
   Icon: () => null,
   Spinner: () => null,
+  Avatar: ({ children }: { children: React.ReactNode }) => children,
+  AvatarImage: () => null,
+  AvatarFallback: ({ children }: { children: React.ReactNode }) => children,
+  Text: ({ children }: { children: React.ReactNode }) => children,
   Icons: {
     Hash: 'hash',
     Terminal: 'terminal',

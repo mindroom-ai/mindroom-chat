@@ -435,6 +435,14 @@
       "seeAll": "Tüm sonuçları gör",
       "seeAllDescription": "Mesaj aramayı filtrelerle aç",
       "thread": "Konu"
+    },
+    "peopleSearch": {
+      "failed": "Sunucuda kişi aranamadı.",
+      "messageUserId": "{{userId}} kullanıcısına mesaj gönder"
+    },
+    "startChat": {
+      "title": "{{name}} ile sohbet başlatılsın mı?",
+      "description": "{{userId}} kullanıcısına davet gönderir."
     }
   },
   "shortcuts": {

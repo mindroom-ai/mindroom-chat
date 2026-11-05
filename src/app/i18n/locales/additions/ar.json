@@ -463,6 +463,14 @@
       "seeAll": "عرض كل النتائج",
       "seeAllDescription": "فتح البحث في الرسائل مع عوامل التصفية",
       "thread": "سلسلة محادثة"
+    },
+    "peopleSearch": {
+      "failed": "تعذر البحث عن أشخاص على الخادم.",
+      "messageUserId": "مراسلة {{userId}}"
+    },
+    "startChat": {
+      "title": "هل تريد بدء دردشة مع {{name}}؟",
+      "description": "يرسل دعوة إلى {{userId}}."
     }
   },
   "shortcuts": {

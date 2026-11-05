@@ -11,7 +11,11 @@ import React, {
   useState,
 } from 'react';
 import { getCommandPaletteSectionLimit, getCommandPaletteSectionOrder } from './commandPaletteQuery';
-import type { CommandPaletteSource, ExecutableCommandPaletteItem } from './commandPaletteItems';
+import type {
+  CommandPaletteSource,
+  ExecutableCommandPaletteItem,
+  ExecutableCommandPaletteUserItem,
+} from './commandPaletteItems';
 import { commandPaletteSearchConfig, searchCommandPaletteSection } from './commandPaletteSearch';
 import {
   CommandPaletteList,
@@ -36,12 +40,15 @@ import type {
   CommandPaletteMessages,
   UseCommandPaletteMessages,
 } from './useCommandPaletteMessages';
+import type { CommandPalettePeople, UseCommandPalettePeople } from './useCommandPalettePeople';
 
 type CommandPaletteProps = {
   requestClose: () => void;
   source: CommandPaletteSource;
   /** Server message search: a hook, called on every render with the typed text. */
   useMessages: UseCommandPaletteMessages;
+  /** The server's user directory: a hook, called on every render with the typed text. */
+  usePeople: UseCommandPalettePeople;
   /** The tab it opens on; it remembers no tab between openings. */
   initialTab?: CommandPaletteTab;
   mobileSheet?: boolean;
@@ -150,6 +157,70 @@ const buildMessageSection = (
   return { id: 'messages', title: t(TAB_LABEL_KEYS.messages), items, notes };
 };
 
+/**
+ * The people found locally, then the server's people the palette does not list already. Those
+ * arrive below the local ones, so the rows above them stay put; All takes only as many as fit its
+ * limit, plus a Matrix ID typed in full. A spinner beside the title shows while the server is
+ * asked, and a failed search adds one quiet line after the rows.
+ */
+const buildPeopleSection = (
+  local: ExecutableCommandPaletteItem[],
+  people: CommandPalettePeople,
+  source: CommandPaletteSource,
+  tab: CommandPaletteTab,
+  t: TFunction
+): CommandPaletteListSection | undefined => {
+  let items = local;
+  if (people.items.length > 0) {
+    const listed = new Set(
+      source.getUsers({ exhaustive: true, includeRelatedRooms: true }).map((user) => user.userId)
+    );
+    const found = people.items.filter((item) => !listed.has(item.userId));
+    const free = Math.max(getCommandPaletteSectionLimit('users', tab) - local.length, 0);
+    items = [
+      ...local,
+      ...found.filter((item) => !item.typedId).slice(0, free),
+      ...found.filter((item) => item.typedId),
+    ];
+  }
+  const busy = people.status === 'loading';
+  const trailingNotes =
+    people.status === 'error'
+      ? [{ id: 'people-error', text: t('commandPalette.peopleSearch.failed') }]
+      : undefined;
+  if (items.length === 0 && !busy && !trailingNotes) return undefined;
+  return { id: 'users', title: t(TAB_LABEL_KEYS.users), items, busy, trailingNotes };
+};
+
+/** Asking before a direct chat starts, then starting it; a failure can be retried. */
+type ChatStart = {
+  person: ExecutableCommandPaletteUserItem;
+  state: 'asking' | 'starting' | 'failed';
+};
+
+/** The one row that asks whether to start the chat, which sends the person an invite. */
+const buildStartChatSection = (
+  { person, state }: ChatStart,
+  t: TFunction
+): CommandPaletteListSection => ({
+  id: 'users',
+  title: t(TAB_LABEL_KEYS.users),
+  items: [
+    {
+      id: `start-chat:${person.userId}`,
+      kind: 'start-chat',
+      userId: person.userId,
+      displayName: person.displayName,
+      avatarUrl: person.avatarUrl,
+    },
+  ],
+  busy: state === 'starting',
+  trailingNotes:
+    state === 'failed'
+      ? [{ id: 'start-chat-error', text: t('featureUi.createChat.failed') }]
+      : undefined,
+});
+
 const getResultCountLabel = (items: readonly ExecutableCommandPaletteItem[], t: TFunction) => {
   const count = items.filter((item) => item.kind !== 'search-page').length;
   if (count === 0) return t('commandPalette.noResults');
@@ -169,6 +240,7 @@ export function CommandPalette({
   requestClose,
   source,
   useMessages,
+  usePeople,
   initialTab = 'all',
   mobileSheet = false,
 }: CommandPaletteProps) {
@@ -178,6 +250,9 @@ export function CommandPalette({
   // The highlighted row by ID, so rows that arrive later never move it; the index is where it
   // was, for when that row leaves.
   const [highlight, setHighlight] = useState<{ id?: string; index: number }>({ index: 0 });
+  const [chatStart, setChatStart] = useState<ChatStart>();
+  // Set while a chat is being started, so a second Enter cannot start another.
+  const startingRef = useRef(false);
   // True after the up or down arrow, until the person edits or moves the caret.
   const navigatingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -188,22 +263,28 @@ export function CommandPalette({
   const tabId = (id: CommandPaletteTab) => `${listId}-tab-${id}`;
   const searchText = query.trim();
   const messages = useMessages(query, tab === 'all' || tab === 'messages');
+  const people = usePeople(query, tab === 'all' || tab === 'users');
   const starterRooms = useMemo(
     () => source.rooms.filter((item) => item.kind === 'room'),
     [source.rooms]
   );
 
-  const visibleSections = useMemo(
+  const resultSections = useMemo(
     () =>
       getCommandPaletteSectionOrder(tab, searchText.length > 0)
         .map((sectionId): CommandPaletteListSection | undefined => {
           if (sectionId === 'messages') return buildMessageSection(messages, searchText, tab, t);
           const items = getLocalSectionItems({ sectionId, tab, searchText, source, starterRooms });
+          if (sectionId === 'users') return buildPeopleSection(items, people, source, tab, t);
           if (items.length === 0) return undefined;
           return { id: sectionId, title: t(TAB_LABEL_KEYS[sectionId]), items };
         })
         .filter((section): section is CommandPaletteListSection => section !== undefined),
-    [messages, searchText, source, starterRooms, t, tab]
+    [messages, people, searchText, source, starterRooms, t, tab]
+  );
+  const visibleSections = useMemo(
+    () => (chatStart ? [buildStartChatSection(chatStart, t)] : resultSections),
+    [chatStart, resultSections, t]
   );
   const visibleItems = useMemo(
     () => visibleSections.flatMap((section) => section.items),
@@ -232,17 +313,47 @@ export function CommandPalette({
   };
 
   const chooseTab = (nextTab: CommandPaletteTab) => {
+    if (startingRef.current) return;
+    setChatStart(undefined);
     setTab(nextTab);
     startOver();
   };
 
   const handleChange: ChangeEventHandler<HTMLInputElement> = (event) => {
+    setChatStart(undefined);
     setQuery(event.currentTarget.value);
     navigatingRef.current = false;
     startOver();
   };
 
+  const confirmChat = async () => {
+    if (!chatStart || startingRef.current) return;
+    const { person } = chatStart;
+    startingRef.current = true;
+    setChatStart({ person, state: 'starting' });
+    try {
+      await person.startChat?.();
+      setQuery('');
+      requestClose();
+    } catch {
+      setChatStart({ person, state: 'failed' });
+    } finally {
+      startingRef.current = false;
+    }
+  };
+
   const handleSelect = (item: ExecutableCommandPaletteItem) => {
+    if (item.kind === 'start-chat') {
+      void confirmChat();
+      return;
+    }
+    if (item.kind === 'user' && item.startChat) {
+      // The person gets an invite, so the palette asks first. Their row keeps the highlight for
+      // when the person goes back.
+      setHighlight({ id: item.id, index: visibleItems.indexOf(item) });
+      setChatStart({ person: item, state: 'asking' });
+      return;
+    }
     item.onSelect?.();
     setQuery('');
     requestClose();
@@ -250,8 +361,17 @@ export function CommandPalette({
 
   const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
     if (event.nativeEvent?.isComposing || event.keyCode === 229) return;
+    if (chatStart && event.key === 'Escape') {
+      // Back to the results; the dialog must not close on the same key.
+      event.preventDefault();
+      event.stopPropagation?.();
+      if (!startingRef.current) setChatStart(undefined);
+      return;
+    }
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
+      // The question is the only row.
+      if (chatStart) return;
       navigatingRef.current = true;
       const count = visibleItems.length;
       if (count === 0) return;
@@ -327,6 +447,7 @@ export function CommandPalette({
           aria-label={t('commandPalette.inputAria')}
           placeholder={t('commandPalette.placeholder')}
           value={query}
+          readOnly={chatStart?.state === 'starting'}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
           onPointerDown={() => {
@@ -382,9 +503,11 @@ export function CommandPalette({
           label={t('commandPalette.resultsLabel')}
           sections={visibleSections}
           selectedItemId={selectedItem?.id}
-          onHighlight={(itemId) =>
-            setHighlight({ id: itemId, index: visibleItems.findIndex((item) => item.id === itemId) })
-          }
+          onHighlight={(itemId) => {
+            // The question's row must not take the person's highlight away.
+            if (chatStart) return;
+            setHighlight({ id: itemId, index: visibleItems.findIndex((item) => item.id === itemId) });
+          }}
           onSelect={handleSelect}
         />
         {visibleSections.length === 0 && (

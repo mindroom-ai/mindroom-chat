@@ -442,6 +442,14 @@
       "seeAll": "Vedi tutti i risultati",
       "seeAllDescription": "Apri la ricerca dei messaggi con i filtri",
       "thread": "Thread"
+    },
+    "peopleSearch": {
+      "failed": "Impossibile cercare persone sul server.",
+      "messageUserId": "Scrivi a {{userId}}"
+    },
+    "startChat": {
+      "title": "Avviare una chat con {{name}}?",
+      "description": "Invia un invito a {{userId}}."
     }
   },
   "shortcuts": {

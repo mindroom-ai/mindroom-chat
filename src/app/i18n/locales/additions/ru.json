@@ -449,6 +449,14 @@
       "seeAll": "Все результаты",
       "seeAllDescription": "Открыть поиск сообщений с фильтрами",
       "thread": "Ветка"
+    },
+    "peopleSearch": {
+      "failed": "Не удалось выполнить поиск людей на сервере.",
+      "messageUserId": "Написать {{userId}}"
+    },
+    "startChat": {
+      "title": "Начать чат с {{name}}?",
+      "description": "{{userId}} получит приглашение."
     }
   },
   "shortcuts": {

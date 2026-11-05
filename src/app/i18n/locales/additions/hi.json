@@ -435,6 +435,14 @@
       "seeAll": "सभी परिणाम देखें",
       "seeAllDescription": "फ़िल्टर के साथ संदेश खोज खोलें",
       "thread": "थ्रेड"
+    },
+    "peopleSearch": {
+      "failed": "सर्वर पर लोगों को खोजा नहीं जा सका।",
+      "messageUserId": "{{userId}} को संदेश भेजें"
+    },
+    "startChat": {
+      "title": "{{name}} के साथ चैट शुरू करें?",
+      "description": "{{userId}} को आमंत्रण भेजता है।"
     }
   },
   "shortcuts": {

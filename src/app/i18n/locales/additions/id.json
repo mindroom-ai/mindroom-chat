@@ -428,6 +428,14 @@
       "seeAll": "Lihat semua hasil",
       "seeAllDescription": "Buka pencarian pesan dengan filter",
       "thread": "Utas"
+    },
+    "peopleSearch": {
+      "failed": "Tidak dapat mencari orang di server.",
+      "messageUserId": "Kirim pesan ke {{userId}}"
+    },
+    "startChat": {
+      "title": "Mulai obrolan dengan {{name}}?",
+      "description": "Mengirim undangan ke {{userId}}."
     }
   },
   "shortcuts": {

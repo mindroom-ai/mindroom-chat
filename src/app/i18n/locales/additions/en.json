@@ -435,6 +435,14 @@
       "seeAll": "See all results",
       "seeAllDescription": "Open Message Search with filters",
       "thread": "Thread"
+    },
+    "peopleSearch": {
+      "failed": "Couldn't search the server for people.",
+      "messageUserId": "Message {{userId}}"
+    },
+    "startChat": {
+      "title": "Start a chat with {{name}}?",
+      "description": "Sends an invite to {{userId}}."
     }
   },
   "shortcuts": {

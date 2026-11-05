@@ -435,6 +435,14 @@
       "seeAll": "সব ফলাফল দেখুন",
       "seeAllDescription": "ফিল্টারসহ বার্তা অনুসন্ধান খুলুন",
       "thread": "থ্রেড"
+    },
+    "peopleSearch": {
+      "failed": "সার্ভারে মানুষ খোঁজা যায়নি।",
+      "messageUserId": "{{userId}}-কে বার্তা পাঠান"
+    },
+    "startChat": {
+      "title": "{{name}}-এর সঙ্গে চ্যাট শুরু করবেন?",
+      "description": "{{userId}}-কে একটি আমন্ত্রণ পাঠায়।"
     }
   },
   "shortcuts": {

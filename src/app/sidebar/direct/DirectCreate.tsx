@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Box, Button, Spinner, Switch, Text, color, config } from 'folds';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { EventType, KnownMembership, Preset, Visibility } from 'matrix-js-sdk';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { InviteUserAutocomplete } from '../../members/invite/InviteUserAutocomplete';
 import { SettingTile } from '../../ui/SettingTile';
@@ -10,31 +9,12 @@ import { Page } from '../../ui/page/Page';
 import { PhonePageHeader } from '../../ui/page/PhonePageHeader';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useCapabilities } from '../../matrix/hooks/useCapabilities';
-import { createVoiceRoomPowerLevelsOverride } from '../../matrix/createRoom';
+import { createDirectRoom, findDirectRoom } from '../../matrix/createRoom';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
-import { addRoomIdToMDirect, isUserId } from '../../matrix/matrix';
+import { isUserId } from '../../matrix/matrix';
 import { getDirectCreateSearchParams } from '../../routes/pathSearchParam';
 import { getDirectRoomPath } from '../../routes/pathUtils';
 import { DIRECT_PATH } from '../../routes/paths';
-
-type MDirectContent = Record<string, string[] | undefined>;
-
-/** A joined direct room with `userId` the account already has, if any. */
-const findDirectRoom = (
-  client: ReturnType<typeof useMatrixClient>,
-  userId: string
-): string | undefined => {
-  const content = client.getAccountData(EventType.Direct)?.getContent<MDirectContent>();
-  return content?.[userId]?.find(
-    (roomId) => client.getRoom(roomId)?.getMyMembership() === KnownMembership.Join
-  );
-};
-
-const ENABLE_ENCRYPTION = {
-  type: EventType.RoomEncryption,
-  state_key: '',
-  content: { algorithm: 'm.megolm.v1.aes-sha2' },
-};
 
 /**
  * `/direct/create/?userId=`: opens the direct room with that person, or
@@ -75,17 +55,7 @@ export function DirectCreate() {
     }
     setCreating(true);
     try {
-      const { room_id: roomId } = await client.createRoom({
-        invite: [userId],
-        is_direct: true,
-        initial_state: encryption ? [ENABLE_ENCRYPTION] : [],
-        // Spec "Creation" presets: trusted_private_chat gives the invitee the creator's power.
-        preset: Preset.TrustedPrivateChat,
-        visibility: Visibility.Private,
-        // Someone invited later joins its calls too, not only the two who started it.
-        power_level_content_override: createVoiceRoomPowerLevelsOverride(roomVersion),
-      });
-      await addRoomIdToMDirect(client, roomId, userId);
+      const roomId = await createDirectRoom(client, userId, { encryption, version: roomVersion });
       navigate(getDirectRoomPath(roomId));
     } catch {
       setFailed(true);

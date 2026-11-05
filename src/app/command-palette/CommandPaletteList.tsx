@@ -1,13 +1,19 @@
-import { Icon, Icons, Spinner, type IconSrc } from 'folds';
+import { Avatar, Icon, Icons, Spinner, Text, type IconSrc } from 'folds';
 import React, { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';
+import { UserAvatar } from '../avatars/UserAvatar';
+import { nameInitials } from '../lib/common';
+import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useRelativeTime } from '../i18n/useRelativeTime';
 import { makeHighlightRegex } from '../search/highlightRegex';
 import type {
   CommandPaletteItem,
   CommandPaletteMessageItem,
   CommandPaletteSectionId,
+  CommandPaletteStartChatItem,
+  CommandPaletteUserItem,
 } from './commandPaletteTypes';
 import * as css from './CommandPalette.css';
 
@@ -24,6 +30,10 @@ export type CommandPaletteListSection = {
   items: CommandPaletteItem[];
   /** Lines between the title and the rows. */
   notes?: CommandPaletteListNote[];
+  /** Lines after the rows, so rows already shown stay where they are when one appears. */
+  trailingNotes?: CommandPaletteListNote[];
+  /** More rows may still arrive: a spinner beside the title. */
+  busy?: boolean;
 };
 
 type CommandPaletteListProps = {
@@ -38,7 +48,7 @@ type CommandPaletteListProps = {
 export const getCommandPaletteOptionId = (listId: string, itemId: string): string =>
   listId + '-' + encodeURIComponent(itemId);
 
-const getItemTitle = (item: CommandPaletteItem): string => {
+const getItemTitle = (item: CommandPaletteItem, t: TFunction): string => {
   switch (item.kind) {
     case 'action':
       return item.title;
@@ -46,7 +56,11 @@ const getItemTitle = (item: CommandPaletteItem): string => {
     case 'space':
       return item.name;
     case 'user':
-      return item.displayName;
+      return item.typedId
+        ? t('commandPalette.peopleSearch.messageUserId', { userId: item.userId })
+        : item.displayName;
+    case 'start-chat':
+      return t('commandPalette.startChat.title', { name: item.displayName });
     case 'thread':
       return item.summaryText;
     case 'message':
@@ -56,7 +70,7 @@ const getItemTitle = (item: CommandPaletteItem): string => {
   }
 };
 
-const getItemDescription = (item: CommandPaletteItem): string | undefined => {
+const getItemDescription = (item: CommandPaletteItem, t: TFunction): string | undefined => {
   switch (item.kind) {
     case 'action':
       return item.description;
@@ -64,7 +78,11 @@ const getItemDescription = (item: CommandPaletteItem): string | undefined => {
     case 'space':
       return item.topic ?? item.canonicalAlias;
     case 'user':
+      // A typed ID is the title already; under it goes the name its profile has, if any.
+      if (item.typedId) return item.displayName === item.localpart ? undefined : item.displayName;
       return item.userId;
+    case 'start-chat':
+      return t('commandPalette.startChat.description', { userId: item.userId });
     case 'thread':
       return item.roomName;
     case 'message':
@@ -84,8 +102,6 @@ const getItemIcon = (item: CommandPaletteItem): IconSrc => {
       return Icons.Hash;
     case 'space':
       return Icons.Space;
-    case 'user':
-      return Icons.User;
     case 'message':
       return Icons.Message;
     default:
@@ -113,6 +129,38 @@ const markMatches = (text: string, highlights: readonly string[]): ReactNode => 
   if (last < text.length) parts.push(text.slice(last));
   return parts;
 };
+
+type PersonItem = CommandPaletteUserItem | CommandPaletteStartChatItem;
+
+const isPerson = (item: CommandPaletteItem): item is PersonItem =>
+  item.kind === 'user' || item.kind === 'start-chat';
+
+/** A person's picture, or the first letter of their name in their color. */
+function PersonAvatar({ item }: { item: PersonItem }) {
+  return (
+    <Avatar size="300" radii="Pill">
+      <UserAvatar
+        userId={item.userId}
+        src={item.avatarUrl}
+        alt=""
+        renderFallback={() => (
+          <Text as="span" size="L400">
+            {nameInitials(item.displayName)}
+          </Text>
+        )}
+      />
+    </Avatar>
+  );
+}
+
+function SectionNote({ note }: { note: CommandPaletteListNote }) {
+  return (
+    <div className={css.Note} role="presentation" data-note={note.id}>
+      {note.busy && <Spinner size="50" variant="Secondary" />}
+      {note.text}
+    </div>
+  );
+}
 
 function MessageTime({ timestamp }: { timestamp: number }) {
   const label = useRelativeTime(timestamp, 'compact');
@@ -154,12 +202,15 @@ function ItemText({ item }: { item: CommandPaletteItem }) {
       </span>
     );
   }
-  const description = getItemDescription(item);
+  const description = getItemDescription(item, t);
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
-        <span className={css.RowTitle}>{getItemTitle(item)}</span>
+        <span className={css.RowTitle}>{getItemTitle(item, t)}</span>
         {item.kind === 'space' && <span className={css.Tag}>{t('commandPalette.space')}</span>}
+        {isPerson(item) && isMindroomAgentUserId(item.userId) && (
+          <span className={css.Tag}>{t('threadActions.agent')}</span>
+        )}
       </span>
       {description && <span className={css.RowDescription}>{description}</span>}
     </span>
@@ -189,6 +240,7 @@ export function CommandPaletteList({
             className={css.Group}
             role="group"
             aria-labelledby={id + '-' + section.id}
+            aria-busy={section.busy || undefined}
             data-section={section.id}
           >
             <div id={id + '-' + section.id} className={css.GroupTitle} role="presentation">
@@ -198,17 +250,10 @@ export function CommandPaletteList({
                   {count}
                 </span>
               )}
+              {section.busy && <Spinner size="50" variant="Secondary" />}
             </div>
             {section.notes?.map((note) => (
-              <div
-                key={note.id}
-                className={css.Note}
-                role="presentation"
-                data-note={note.id}
-              >
-                {note.busy && <Spinner size="50" variant="Secondary" />}
-                {note.text}
-              </div>
+              <SectionNote key={note.id} note={note} />
             ))}
             {section.items.map((item) => {
               const isSelected = selectedItemId === item.id;
@@ -232,9 +277,15 @@ export function CommandPaletteList({
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => onSelect(item)}
                 >
-                  <span className={css.RowIcon} aria-hidden="true">
-                    <Icon size="200" src={getItemIcon(item)} />
-                  </span>
+                  {isPerson(item) ? (
+                    <span className={css.RowAvatar} aria-hidden="true">
+                      <PersonAvatar item={item} />
+                    </span>
+                  ) : (
+                    <span className={css.RowIcon} aria-hidden="true">
+                      <Icon size="200" src={getItemIcon(item)} />
+                    </span>
+                  )}
                   <ItemText item={item} />
                   {(item.kind === 'room' || item.kind === 'space') &&
                     item.unreadCount !== undefined && (
@@ -246,6 +297,9 @@ export function CommandPaletteList({
                 </div>
               );
             })}
+            {section.trailingNotes?.map((note) => (
+              <SectionNote key={note.id} note={note} />
+            ))}
           </div>
         );
       })}

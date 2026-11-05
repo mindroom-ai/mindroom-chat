@@ -442,6 +442,14 @@
       "seeAll": "Ver todos os resultados",
       "seeAllDescription": "Abrir a pesquisa de mensagens com filtros",
       "thread": "Tópico"
+    },
+    "peopleSearch": {
+      "failed": "Não foi possível pesquisar pessoas no servidor.",
+      "messageUserId": "Enviar mensagem para {{userId}}"
+    },
+    "startChat": {
+      "title": "Iniciar uma conversa com {{name}}?",
+      "description": "Envia um convite para {{userId}}."
     }
   },
   "shortcuts": {

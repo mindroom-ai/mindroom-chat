@@ -35,7 +35,17 @@ export type CommandPaletteUserItem = CommandPaletteBaseItem & {
   localpart: string;
   dmRoomName?: string;
   existingDmRoomId?: string;
+  /** The avatar's HTTP URL; without one the row shows the name's first letter. */
+  avatarUrl?: string;
+  /** A Matrix ID typed in full that the server's user directory did not return. */
+  typedId?: boolean;
 };
+
+/** Asks before a direct chat with a person starts, since that sends them an invite. */
+export type CommandPaletteStartChatItem = CommandPaletteBaseItem &
+  Pick<CommandPaletteUserItem, 'userId' | 'displayName' | 'avatarUrl'> & {
+    kind: 'start-chat';
+  };
 
 export type CommandPaletteThreadItem = CommandPaletteBaseItem & {
   kind: 'thread';
@@ -74,6 +84,7 @@ export type CommandPaletteItem =
   | CommandPaletteActionItem
   | CommandPaletteRoomItem
   | CommandPaletteUserItem
+  | CommandPaletteStartChatItem
   | CommandPaletteThreadItem
   | CommandPaletteMessageItem
   | CommandPaletteSearchPageItem;

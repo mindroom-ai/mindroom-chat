@@ -435,6 +435,14 @@
       "seeAll": "Alle Ergebnisse anzeigen",
       "seeAllDescription": "Nachrichtensuche mit Filtern öffnen",
       "thread": "Thread"
+    },
+    "peopleSearch": {
+      "failed": "Die Personensuche auf dem Server ist fehlgeschlagen.",
+      "messageUserId": "Nachricht an {{userId}}"
+    },
+    "startChat": {
+      "title": "Chat mit {{name}} starten?",
+      "description": "Sendet {{userId}} eine Einladung."
     }
   },
   "shortcuts": {

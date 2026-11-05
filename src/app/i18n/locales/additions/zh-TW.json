@@ -428,6 +428,14 @@
       "seeAll": "查看所有結果",
       "seeAllDescription": "開啟含篩選條件的訊息搜尋",
       "thread": "討論串"
+    },
+    "peopleSearch": {
+      "failed": "無法在伺服器上搜尋人員。",
+      "messageUserId": "傳訊息給 {{userId}}"
+    },
+    "startChat": {
+      "title": "要與 {{name}} 開始聊天嗎？",
+      "description": "將向 {{userId}} 傳送邀請。"
     }
   },
   "shortcuts": {

@@ -43,7 +43,7 @@ export type CommandPaletteMessages = {
 export type UseCommandPaletteMessages = (text: string, enabled: boolean) => CommandPaletteMessages;
 
 /** `text` once it has stayed the same for `delayMs`; emptied text settles at once. */
-const useSettledText = (text: string, delayMs: number): string => {
+export const useSettledText = (text: string, delayMs: number): string => {
   const [settled, setSettled] = useState('');
   useEffect(() => {
     if (text === '') {

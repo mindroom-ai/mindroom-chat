@@ -442,6 +442,14 @@
       "seeAll": "Ver todos los resultados",
       "seeAllDescription": "Abrir la búsqueda de mensajes con filtros",
       "thread": "Hilo"
+    },
+    "peopleSearch": {
+      "failed": "No se pudo buscar personas en el servidor.",
+      "messageUserId": "Enviar un mensaje a {{userId}}"
+    },
+    "startChat": {
+      "title": "¿Iniciar un chat con {{name}}?",
+      "description": "Envía una invitación a {{userId}}."
     }
   },
   "shortcuts": {

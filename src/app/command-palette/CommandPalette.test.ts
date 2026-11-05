@@ -1,9 +1,10 @@
 import React from 'react';
-import { act, create } from 'react-test-renderer';
+import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommandPaletteSource } from './commandPaletteItems';
 import { CommandPalette } from './CommandPalette';
 import type { CommandPaletteMessages } from './useCommandPaletteMessages';
+import type { CommandPalettePeople } from './useCommandPalettePeople';
 
 const { searchCommandPaletteSectionCalls } = vi.hoisted(() => ({
   searchCommandPaletteSectionCalls: vi.fn(),
@@ -48,6 +49,12 @@ vi.mock('folds', async () => {
     Scroll: ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) =>
       reactModule.createElement('div', { 'data-testid': 'scroll', ...props }, children),
     Text: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('span', null, children),
+    Avatar: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('span', { 'data-avatar': true }, children),
+    AvatarImage: (props: React.ImgHTMLAttributes<HTMLImageElement>) =>
+      reactModule.createElement('img', props),
+    AvatarFallback: ({ children }: { children: React.ReactNode }) =>
       reactModule.createElement('span', null, children),
     Line: () => reactModule.createElement('hr'),
     Spinner: () => reactModule.createElement('span', { 'data-spinner': true }),
@@ -96,6 +103,7 @@ vi.mock('./CommandPalette.css', () => ({
   GroupCount: 'GroupCount',
   Row: 'Row',
   RowIcon: 'RowIcon',
+  RowAvatar: 'RowAvatar',
   RowText: 'RowText',
   RowHeading: 'RowHeading',
   RowTitle: 'RowTitle',
@@ -253,6 +261,32 @@ const messageHit = (n: number) => ({
   onSelect: vi.fn(),
 });
 
+// What the user directory reports, changed the same way.
+const peopleState: { current: CommandPalettePeople } = { current: { status: 'idle', items: [] } };
+const usePeople = vi.fn((text: string, enabled: boolean): CommandPalettePeople => {
+  void text;
+  void enabled;
+  return peopleState.current;
+});
+
+const setPeople = (change: Partial<CommandPalettePeople>) => {
+  peopleState.current = { ...peopleState.current, ...change };
+};
+
+/** Someone only the server knows, who has no direct chat with the account yet. */
+const serverPerson = (name: string, change: Partial<CommandPalettePeople['items'][number]> = {}) => {
+  const localpart = name.toLowerCase();
+  return {
+    id: `user:@${localpart}:example.org`,
+    kind: 'user' as const,
+    displayName: name,
+    userId: `@${localpart}:example.org`,
+    localpart,
+    startChat: vi.fn(async () => undefined),
+    ...change,
+  };
+};
+
 beforeEach(() => {
   messageState.current = {
     status: 'idle',
@@ -261,6 +295,8 @@ beforeEach(() => {
     openSearchPage: vi.fn(),
   };
   useMessages.mockClear();
+  peopleState.current = { status: 'idle', items: [] };
+  usePeople.mockClear();
 });
 
 const paletteElement = (props: Partial<React.ComponentProps<typeof CommandPalette>> = {}) =>
@@ -268,6 +304,7 @@ const paletteElement = (props: Partial<React.ComponentProps<typeof CommandPalett
     requestClose: vi.fn(),
     source: FIXTURE_SOURCE,
     useMessages,
+    usePeople,
     ...props,
   });
 
@@ -651,5 +688,279 @@ describe('CommandPalette', () => {
     await act(async () => clear.props.onClick());
     expect(getInput(renderer).props.value).toBe('');
     expect(getOptions(renderer).length).toBeGreaterThan(0);
+  });
+});
+
+// Every text inside a row, joined with spaces.
+const textOf = (node: ReactTestInstance): string =>
+  node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join(' ');
+
+const peopleSection = (renderer: ReturnType<typeof create>) =>
+  renderer.root.find((node) => node.type === 'div' && node.props['data-section'] === 'users');
+
+// The rows and quiet lines of People, in the order they are on screen.
+const peopleLines = (renderer: ReturnType<typeof create>) =>
+  peopleSection(renderer)
+    .findAll(
+      (node) =>
+        typeof node.type === 'string' && (node.props.role === 'option' || !!node.props['data-note'])
+    )
+    .map((node) => node.props['data-item-id'] ?? `note:${node.props['data-note']}`);
+
+describe('CommandPalette people from the server', () => {
+  it('asks the directory only while People is on screen', async () => {
+    const renderer = renderPalette();
+    await type(renderer, 'quentin');
+    expect(usePeople).toHaveBeenLastCalledWith('quentin', true);
+    await press(renderer, 'Tab');
+    expect(usePeople).toHaveBeenLastCalledWith('quentin', false);
+    await press(renderer, 'Tab');
+    await press(renderer, 'Tab');
+    expect(selectedTab(renderer)).toBe('users');
+    expect(usePeople).toHaveBeenLastCalledWith('quentin', true);
+  });
+
+  it('shows local people at once and adds the server ones below without moving the highlight', async () => {
+    const renderer = renderPalette({ initialTab: 'users' });
+    setPeople({ status: 'loading' });
+    await type(renderer, 'example');
+    expect(optionIds(renderer)).toEqual(['@alice:example.org', '@bob:example.org']);
+    // Only People waits, with a spinner beside its title.
+    expect(peopleSection(renderer).props['aria-busy']).toBe(true);
+    expect(peopleSection(renderer).findAllByProps({ 'data-spinner': true })).toHaveLength(1);
+    await press(renderer, 'ArrowDown');
+    expect(selectedId(renderer)).toBe('@bob:example.org');
+
+    setPeople({ status: 'done', items: [serverPerson('Quentin'), serverPerson('Rosa')] });
+    await act(async () => renderer.update(paletteElement({ initialTab: 'users' })));
+    expect(optionIds(renderer)).toEqual([
+      '@alice:example.org',
+      '@bob:example.org',
+      'user:@quentin:example.org',
+      'user:@rosa:example.org',
+    ]);
+    expect(selectedId(renderer)).toBe('@bob:example.org');
+    expect(peopleSection(renderer).props['aria-busy']).toBeUndefined();
+    expect(peopleSection(renderer).findAllByProps({ 'data-spinner': true })).toHaveLength(0);
+  });
+
+  it('lists nobody twice: the server leaves out the people the palette knows', async () => {
+    const renderer = renderPalette({ initialTab: 'users' });
+    setPeople({ status: 'done', items: [serverPerson('Alice'), serverPerson('Quentin')] });
+    await type(renderer, 'example');
+    expect(optionIds(renderer)).toEqual([
+      '@alice:example.org',
+      '@bob:example.org',
+      'user:@quentin:example.org',
+    ]);
+  });
+
+  it('adds on All only as many as fit, and then a Matrix ID typed in full', async () => {
+    const renderer = renderPalette();
+    setPeople({
+      status: 'done',
+      items: [serverPerson('Quentin'), serverPerson('Rosa'), serverPerson('Zed', { typedId: true })],
+    });
+    await type(renderer, 'example');
+    expect(
+      getOptions(renderer)
+        .filter((option) => option.props['data-kind'] === 'user')
+        .map((option) => option.props['data-item-id'])
+    ).toEqual([
+      '@alice:example.org',
+      '@bob:example.org',
+      'user:@quentin:example.org',
+      'user:@zed:example.org',
+    ]);
+  });
+
+  it('offers to message a typed Matrix ID, with the name its profile has', async () => {
+    const renderer = renderPalette({ initialTab: 'users' });
+    setPeople({
+      status: 'done',
+      items: [serverPerson('Zed', { typedId: true, displayName: 'Zed Zimmer' })],
+    });
+    await type(renderer, '@zed:example.org');
+    const row = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@zed:example.org' });
+    expect(textOf(row)).toContain('Message @zed:example.org');
+    expect(textOf(row)).toContain('Zed Zimmer');
+    // Without a profile name the row shows the ID alone.
+    setPeople({ status: 'done', items: [serverPerson('Zed', { typedId: true, displayName: 'zed' })] });
+    await act(async () => renderer.update(paletteElement({ initialTab: 'users' })));
+    const bare = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@zed:example.org' });
+    expect(textOf(bare)).toContain('Message @zed:example.org');
+    expect(bare.findAllByProps({ className: 'RowDescription' })).toHaveLength(0);
+  });
+
+  it('shows each person with a picture or their first letter, and marks agents', async () => {
+    const renderer = renderPalette({ initialTab: 'users' });
+    setPeople({
+      status: 'done',
+      items: [
+        serverPerson('Quentin', { avatarUrl: 'https://example.org/quentin.png' }),
+        serverPerson('mindroom_helper', { displayName: 'Helper agent' }),
+      ],
+    });
+    await type(renderer, 'example');
+    const quentin = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@quentin:example.org' });
+    expect(quentin.findByType('img').props.src).toBe('https://example.org/quentin.png');
+    expect(textOf(quentin)).not.toContain('Agent');
+    const helper = renderer.root.findByProps({
+      role: 'option',
+      'data-item-id': 'user:@mindroom_helper:example.org',
+    });
+    expect(helper.findAllByType('img')).toHaveLength(0);
+    expect(textOf(helper.findByProps({ 'data-avatar': true }))).toBe('H');
+    expect(textOf(helper)).toContain('Agent');
+  });
+
+  it('shows a failed directory search as one quiet line after the people', async () => {
+    const renderer = renderPalette({ initialTab: 'users' });
+    setPeople({ status: 'error', items: [] });
+    await type(renderer, 'example');
+    expect(peopleLines(renderer)).toEqual([
+      '@alice:example.org',
+      '@bob:example.org',
+      'note:people-error',
+    ]);
+    expect(renderer.root.findByProps({ 'data-note': 'people-error' }).children).toContain(
+      "Couldn't search the server for people."
+    );
+  });
+
+  it('asks before starting a chat, starts it on Enter, and goes back on Escape', async () => {
+    const requestClose = vi.fn();
+    const quentin = serverPerson('Quentin');
+    const renderer = renderPalette({ initialTab: 'users', requestClose });
+    setPeople({ status: 'done', items: [quentin] });
+    await type(renderer, 'quentin');
+    expect(selectedId(renderer)).toBe('user:@quentin:example.org');
+
+    await press(renderer, 'Enter');
+    expect(optionIds(renderer)).toEqual(['start-chat:@quentin:example.org']);
+    const question = getOptions(renderer)[0]!;
+    expect(question.props['aria-selected']).toBe(true);
+    expect(textOf(question)).toContain('Start a chat with Quentin?');
+    expect(textOf(question)).toContain('Sends an invite to @quentin:example.org.');
+    expect(quentin.startChat).not.toHaveBeenCalled();
+    expect(requestClose).not.toHaveBeenCalled();
+    // The arrows have nothing else to move to.
+    await press(renderer, 'ArrowDown');
+    expect(optionIds(renderer)).toEqual(['start-chat:@quentin:example.org']);
+
+    const escape = await press(renderer, 'Escape');
+    expect(escape.stopPropagation).toHaveBeenCalled();
+    expect(requestClose).not.toHaveBeenCalled();
+    expect(selectedId(renderer)).toBe('user:@quentin:example.org');
+    expect(getInput(renderer).props.value).toBe('quentin');
+    expect(quentin.startChat).not.toHaveBeenCalled();
+
+    await press(renderer, 'Enter');
+    await press(renderer, 'Enter');
+    expect(quentin.startChat).toHaveBeenCalledOnce();
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('starts the chat when the question is clicked, and goes back when the text changes', async () => {
+    const requestClose = vi.fn();
+    const quentin = serverPerson('Quentin');
+    const renderer = renderPalette({ initialTab: 'users', requestClose });
+    setPeople({ status: 'done', items: [quentin] });
+    await type(renderer, 'quentin');
+    const row = renderer.root.findByProps({ role: 'option', 'data-item-id': 'user:@quentin:example.org' });
+    await act(async () => row.props.onClick());
+    expect(optionIds(renderer)).toEqual(['start-chat:@quentin:example.org']);
+    await type(renderer, 'quent');
+    expect(optionIds(renderer)).toContain('user:@quentin:example.org');
+    await act(async () =>
+      renderer.root
+        .findByProps({ role: 'option', 'data-item-id': 'user:@quentin:example.org' })
+        .props.onClick()
+    );
+    await act(async () => getOptions(renderer)[0]!.props.onClick());
+    expect(quentin.startChat).toHaveBeenCalledOnce();
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('opens an existing direct chat at once instead of starting another', async () => {
+    const requestClose = vi.fn();
+    const onSelect = vi.fn();
+    const startChat = vi.fn(async () => undefined);
+    const source: CommandPaletteSource = {
+      ...FIXTURE_SOURCE,
+      getUsers: vi.fn(() => [
+        {
+          id: 'user:@alice:example.org',
+          kind: 'user' as const,
+          displayName: 'Alice',
+          userId: '@alice:example.org',
+          localpart: 'alice',
+          existingDmRoomId: '!dm:example.org',
+          onSelect,
+        },
+      ]),
+    };
+    const renderer = renderPalette({ initialTab: 'users', requestClose, source });
+    // The directory lists her too, as someone to start a chat with.
+    setPeople({ status: 'done', items: [serverPerson('Alice', { startChat })] });
+    await type(renderer, 'alice');
+    expect(optionIds(renderer)).toEqual(['user:@alice:example.org']);
+    await press(renderer, 'Enter');
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(startChat).not.toHaveBeenCalled();
+    expect(requestClose).toHaveBeenCalledOnce();
+    expect(renderer.root.findAllByProps({ 'data-kind': 'start-chat' })).toHaveLength(0);
+  });
+
+  it('keeps the question with one quiet line when starting fails, and Enter tries again', async () => {
+    const requestClose = vi.fn();
+    const quentin = serverPerson('Quentin', {
+      startChat: vi
+        .fn<() => Promise<void>>()
+        .mockRejectedValueOnce(new Error('M_FORBIDDEN'))
+        .mockResolvedValueOnce(undefined),
+    });
+    const renderer = renderPalette({ initialTab: 'users', requestClose });
+    setPeople({ status: 'done', items: [quentin] });
+    await type(renderer, 'quentin');
+    await press(renderer, 'Enter');
+    await press(renderer, 'Enter');
+    expect(peopleLines(renderer)).toEqual([
+      'start-chat:@quentin:example.org',
+      'note:start-chat-error',
+    ]);
+    expect(renderer.root.findByProps({ 'data-note': 'start-chat-error' }).children).toContain(
+      'Could not start the chat. Try again.'
+    );
+    expect(requestClose).not.toHaveBeenCalled();
+    await press(renderer, 'Enter');
+    expect(quentin.startChat).toHaveBeenCalledTimes(2);
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('starts one chat even when Enter is pressed again while it starts', async () => {
+    const requestClose = vi.fn();
+    let finish = () => {};
+    const quentin = serverPerson('Quentin', {
+      startChat: vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          })
+      ),
+    });
+    const renderer = renderPalette({ initialTab: 'users', requestClose });
+    setPeople({ status: 'done', items: [quentin] });
+    await type(renderer, 'quentin');
+    await press(renderer, 'Enter');
+    await press(renderer, 'Enter');
+    await press(renderer, 'Enter');
+    await press(renderer, 'Escape');
+    expect(quentin.startChat).toHaveBeenCalledOnce();
+    expect(optionIds(renderer)).toEqual(['start-chat:@quentin:example.org']);
+    expect(getInput(renderer).props.readOnly).toBe(true);
+    expect(peopleSection(renderer).props['aria-busy']).toBe(true);
+    await act(async () => finish());
+    expect(requestClose).toHaveBeenCalledOnce();
   });
 });

@@ -428,6 +428,14 @@
       "seeAll": "모든 결과 보기",
       "seeAllDescription": "필터가 있는 메시지 검색 열기",
       "thread": "스레드"
+    },
+    "peopleSearch": {
+      "failed": "서버에서 사람을 검색하지 못했습니다.",
+      "messageUserId": "{{userId}}에게 메시지 보내기"
+    },
+    "startChat": {
+      "title": "{{name}} 님과 채팅을 시작할까요?",
+      "description": "{{userId}}에게 초대를 보냅니다."
     }
   },
   "shortcuts": {

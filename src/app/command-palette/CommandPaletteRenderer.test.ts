@@ -65,6 +65,10 @@ vi.mock('./useCommandPaletteMessages', () => ({
   }),
 }));
 
+vi.mock('./useCommandPalettePeople', () => ({
+  useCommandPalettePeople: () => ({ status: 'idle', items: [] }),
+}));
+
 vi.mock('./useCommandPaletteHotkey', () => ({
   useCommandPaletteHotkey: () => undefined,
 }));

@@ -435,6 +435,14 @@
       "seeAll": "Alle resultaten bekijken",
       "seeAllDescription": "Berichten zoeken met filters openen",
       "thread": "Thread"
+    },
+    "peopleSearch": {
+      "failed": "Personen zoeken op de server is mislukt.",
+      "messageUserId": "Bericht aan {{userId}}"
+    },
+    "startChat": {
+      "title": "Chat met {{name}} starten?",
+      "description": "Stuurt {{userId}} een uitnodiging."
     }
   },
   "shortcuts": {

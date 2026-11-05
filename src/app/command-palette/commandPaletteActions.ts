@@ -1,6 +1,5 @@
 import { type TFunction } from 'i18next';
 import {
-  getDirectCreatePath,
   getDirectPath,
   getHomePath,
   getHomeSearchPath,
@@ -29,16 +28,6 @@ export type CommandPaletteQuickActionContext = {
   isCurrentThreadResolved?: boolean;
   isCurrentThreadPinned?: boolean;
 };
-
-export type CommandPaletteUserTarget =
-  | {
-      kind: 'room';
-      roomId: string;
-    }
-  | {
-      kind: 'path';
-      path: string;
-    };
 
 const buildPathWithSearch = (
   path: string,
@@ -176,25 +165,6 @@ export const getCommandPaletteQuickActions = (
 /** The message search page for `term` across every room, with its filters and every result. */
 export const getCommandPaletteSearchPagePath = (term: string): string =>
   buildPathWithSearch(getHomeSearchPath(), { term: term.trim(), global: 'true' });
-
-export const resolveCommandPaletteUserTarget = (
-  userId: string,
-  existingDmRoomId?: string
-): CommandPaletteUserTarget => {
-  if (existingDmRoomId) {
-    return {
-      kind: 'room',
-      roomId: existingDmRoomId,
-    };
-  }
-
-  return {
-    kind: 'path',
-    path: buildPathWithSearch(getDirectCreatePath(), {
-      userId,
-    }),
-  };
-};
 
 export const commandPaletteStaticActionPaths = {
   goHome: getHomePath(),

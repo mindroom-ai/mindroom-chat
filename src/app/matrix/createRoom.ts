@@ -1,14 +1,17 @@
 import {
+  EventType,
   ICreateRoomOpts,
   ICreateRoomStateEvent,
+  KnownMembership,
   MatrixClient,
   Preset,
   Room,
   Visibility,
 } from 'matrix-js-sdk';
 import { JoinRule, RoomType, StateEvent } from './types/room';
+import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
-import { creatorsSupported } from './matrix';
+import { addRoomIdToMDirect, creatorsSupported } from './matrix';
 import { CreateRoomAccess } from './createRoomTypes';
 
 const MEGOLM_ALGORITHM = 'm.megolm.v1.aes-sha2';
@@ -165,5 +168,37 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
       roomId
     );
   }
+  return roomId;
+};
+
+/** A joined room the account's `m.direct` lists as its direct chat with `userId`, if any. */
+export const findDirectRoom = (client: MatrixClient, userId: string): string | undefined => {
+  const listed = client.getAccountData(EventType.Direct)?.getContent<MDirectContent>()[userId];
+  return listed?.find(
+    (roomId) => client.getRoom(roomId)?.getMyMembership() === KnownMembership.Join
+  );
+};
+
+/**
+ * Starts a direct chat with `userId` and returns its room ID: a private room that invites them
+ * with the invite marked `is_direct`, encrypted unless `encryption` is false, then listed under
+ * them in the account's `m.direct`. `version` is the room version the server will use.
+ */
+export const createDirectRoom = async (
+  client: MatrixClient,
+  userId: string,
+  { encryption = true, version }: { encryption?: boolean; version?: string } = {}
+): Promise<string> => {
+  const { room_id: roomId } = await client.createRoom({
+    invite: [userId],
+    is_direct: true,
+    initial_state: encryption ? [createRoomEncryptionState()] : [],
+    // Spec "Creation" presets: trusted_private_chat gives the invitee the creator's power.
+    preset: Preset.TrustedPrivateChat,
+    visibility: Visibility.Private,
+    // Someone invited later joins its calls too, not only the two who started it.
+    power_level_content_override: createVoiceRoomPowerLevelsOverride(version),
+  });
+  await addRoomIdToMDirect(client, roomId, userId);
   return roomId;
 };

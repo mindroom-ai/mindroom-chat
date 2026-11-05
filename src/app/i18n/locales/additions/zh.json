@@ -428,6 +428,14 @@
       "seeAll": "查看全部结果",
       "seeAllDescription": "打开带筛选条件的消息搜索",
       "thread": "讨论串"
+    },
+    "peopleSearch": {
+      "failed": "无法在服务器上搜索人员。",
+      "messageUserId": "给 {{userId}} 发消息"
+    },
+    "startChat": {
+      "title": "要与 {{name}} 开始聊天吗？",
+      "description": "将向 {{userId}} 发送邀请。"
     }
   },
   "shortcuts": {

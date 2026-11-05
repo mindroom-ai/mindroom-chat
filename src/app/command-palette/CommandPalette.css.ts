@@ -187,6 +187,16 @@ export const RowIcon = style({
   },
 });
 
+// A person's picture takes the icon's place, as round as everywhere else.
+export const RowAvatar = style({
+  display: 'flex',
+  alignItems: 'center',
+  placeContent: 'center',
+  flex: 'none',
+  width: 34,
+  height: 34,
+});
+
 export const RowText = style({
   display: 'flex',
   flexDirection: 'column',
