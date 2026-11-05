@@ -88,6 +88,7 @@ const seed = async (): Promise<Seed> => {
   }
   await createPrivateRoom(HOMESERVER, peer.accessToken, {
     name: INVITE_NAME,
+    topic: '',
     invite: [owner.userId],
   });
   await setAccountData(HOMESERVER, owner.accessToken, owner.userId, 'io.mindroom.spaces', {
