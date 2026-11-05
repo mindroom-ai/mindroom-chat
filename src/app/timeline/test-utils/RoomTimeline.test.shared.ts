@@ -559,8 +559,6 @@ vi.mock('../TimelineMinimap.css', () => ({
 }));
 
 vi.mock('../../matrix/matrix', () => ({
-  eventWithShortcode: (_packs: unknown, body: string) => body,
-  factoryEventSentBy: () => false,
   getMxIdLocalPart: (userId: string) => userId,
 }));
 
@@ -576,12 +574,9 @@ vi.mock('../../matrix/room', () => ({
   ) => editedEvent?.getContent?.() ?? event?.getContent?.(),
   getLatestEdit: (_target: unknown, edits: Array<{ getTs: () => number }>) =>
     edits.reduce((latest, edit) => (edit.getTs() >= latest.getTs() ? edit : latest), edits[0]),
-  getLatestEditableEvt: () => undefined,
   getMemberDisplayName: () => 'Alice',
-  getReactionContent: () => undefined,
   isHiddenReferenceEvent: () => false,
   isMembershipChanged: isMembershipChangedMock,
-  logEditDebug: vi.fn(),
   reactionOrEditEvent: reactionOrEditEventMock,
   trimReplyFromBody: (body: string) => body,
 }));

@@ -140,7 +140,6 @@ vi.mock('./tags/useMutateThreadTags', () => ({
 }));
 
 vi.mock('./useThreadHeaderInfo', () => ({
-  getNextThreadScheduledTs: () => undefined,
   useThreadHeaderInfo: bannerMocks.useThreadHeaderInfo,
 }));
 

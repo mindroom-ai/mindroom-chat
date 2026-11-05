@@ -32,7 +32,7 @@ vi.mock('./viewers/TextViewer', () => ({
   TextViewer: ({ name }: { name: string }) => <div data-viewer-name={name} />,
 }));
 vi.mock('./EventReaders', () => ({ EventReaders: () => null }));
-vi.mock('./styles.css', () => ({ MessageMenuItemText: 'text' }));
+vi.mock('./styles.css', () => ({}));
 
 describe('MessageSourceCodeItem', () => {
   it('updates the open viewer title after a language change', async () => {

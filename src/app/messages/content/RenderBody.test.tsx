@@ -41,16 +41,8 @@ vi.mock('../html/HtmlBlocks.css', () => ({
   BlockChevron: 'BlockChevron',
   BlockHeader: 'BlockHeader',
   BlockHeaderMeta: 'BlockHeaderMeta',
-  BlockLabel: 'BlockLabel',
-  BlockInlineResult: 'BlockInlineResult',
-  BlockResult: 'BlockResult',
   PasteMarkerBadge: 'PasteMarkerBadge',
   PasteMarkerBadgeMeta: 'PasteMarkerBadgeMeta',
-  ToolGroupItem: 'ToolGroupItem',
-  ToolGroupList: 'ToolGroupList',
-  ToolRowHeader: 'ToolRowHeader',
-  ToolRowIndex: 'ToolRowIndex',
-  ToolRowName: 'ToolRowName',
 }));
 
 // eslint-disable-next-line import/first

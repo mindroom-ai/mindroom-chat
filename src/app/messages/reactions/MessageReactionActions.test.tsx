@@ -22,7 +22,6 @@ vi.mock('../../emoji/useImagePacks', () => imagePacks);
 vi.mock('../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => true }));
 vi.mock('../styles.css', () => ({
   MessageQuickReaction: 'quick-reaction',
-  MessageMenuItemText: 'menu-item-text',
 }));
 vi.mock('./ReactionViewer', () => ({ ReactionViewer: () => null }));
 

@@ -108,15 +108,8 @@ vi.mock('./ApprovalArgumentFields.css', () => ({
 
 vi.mock('./ToolApprovalCard.css.ts', () => ({
   Card: 'Card',
-  Header: 'Header',
-  ToolName: 'ToolName',
-  StatusLabel: 'StatusLabel',
-  Meta: 'Meta',
   MetaDot: 'MetaDot',
-  Details: 'Details',
-  JsonBlock: 'JsonBlock',
   Scope: 'Scope',
-  GrantPanel: 'GrantPanel',
 }));
 
 vi.mock('../i18n/useRelativeTime', () => ({

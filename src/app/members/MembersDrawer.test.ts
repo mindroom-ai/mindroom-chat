@@ -103,11 +103,9 @@ vi.mock('@tanstack/react-virtual', () => ({
 
 vi.mock('../ui/page/style.css', () => ({
   PageNavHeader: 'nav-header',
-  PageNavHeaderMaterial: 'flat-header',
   PageNavHeaderScroll: 'nav-scroll',
   PageNavContent: 'nav-content',
   PageNavScrollbar: 'nav-scrollbar',
-  PageScrollToTop: 'scroll-to-top',
 }));
 
 vi.mock('./MembersDrawer.css', () => ({
@@ -153,10 +151,6 @@ vi.mock('./useMemberFilter', () => {
       filterInvited,
       filterKnocked: (member: { membership: string }) => member.membership === 'knock',
     },
-    useMembershipFilter: (
-      index: number,
-      items: Array<{ name: string; filterFn: (member: { membership: string }) => boolean }>
-    ) => items[index] ?? items[0],
     useMembershipFilterMenu: () => [
       {
         name: 'Joined',
@@ -171,7 +165,6 @@ vi.mock('./useMemberSort', () => ({
   MemberSort: {
     NewestFirst: () => 0,
   },
-  useMemberPowerSort: () => () => 0,
   useMemberSort: () => ({ name: 'A-Z', sortFn: () => 0 }),
   useMemberSortMenu: () => [],
 }));
@@ -182,7 +175,6 @@ vi.mock('./useMemberPowerTag', () => ({
 }));
 
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
-  useGetMemberPowerLevel: () => () => 0,
   usePowerLevelsContext: () => ({}),
 }));
 
@@ -269,7 +261,6 @@ vi.mock('../ui/styles/Text.css', () => ({
 
 vi.mock('../matrix/room', () => ({
   getMemberDisplayName: () => undefined,
-  getMemberSearchStr: () => '',
 }));
 
 vi.mock('../matrix/matrix', () => ({

@@ -72,7 +72,6 @@ vi.mock('./ThreadApprovals.css', () => ({
   Group: 'Group',
   Actions: 'Actions',
   Call: 'Call',
-  CallHeader: 'CallHeader',
   Section: 'Section',
   SectionHeader: 'SectionHeader',
   SectionIcon: 'SectionIcon',

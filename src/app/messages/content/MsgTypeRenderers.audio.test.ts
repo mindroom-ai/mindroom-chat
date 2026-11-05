@@ -47,8 +47,6 @@ vi.mock('./FileRow.css', () => ({
 
 vi.mock('./FileHeader', () => ({
   FileDownloadButton: () => React.createElement('button', { 'aria-label': 'Download file' }),
-  FileHeader: ({ after, body }: { after?: React.ReactNode; body: string }) =>
-    React.createElement('div', { 'data-file-header': body }, after),
 }));
 
 vi.mock('../Time', () => ({

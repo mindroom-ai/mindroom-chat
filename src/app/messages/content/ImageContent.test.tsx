@@ -199,7 +199,6 @@ vi.mock('folds', async (importOriginal) => {
 
 vi.mock('./style.css', () => ({
   AbsoluteContainer: 'AbsoluteContainer',
-  AbsoluteFooter: 'AbsoluteFooter',
   Blur: 'Blur',
   RelativeBase: 'RelativeBase',
 }));
@@ -238,7 +237,6 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
 
 vi.mock('../../matrix/matrix', () => ({
   decryptFile: vi.fn(),
-  downloadEncryptedMedia: vi.fn(),
   mxcUrlToHttp: () => 'https://example.test/image',
 }));
 

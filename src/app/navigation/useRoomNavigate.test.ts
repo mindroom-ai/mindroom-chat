@@ -84,7 +84,6 @@ vi.mock('../matrix/matrix', () => ({
 
 vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
-  guessPerfectParent: () => undefined,
 }));
 
 vi.mock('../native/nativeSso', () => ({

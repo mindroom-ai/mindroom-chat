@@ -98,7 +98,6 @@ vi.mock('../../ui/nav/NavCategoryHeader', async () => {
 });
 
 vi.mock('../../routes/pathUtils', () => ({
-  encodeSearchParamValueArray: vi.fn(),
   getExplorePath: () => '/explore',
   getHomeCreatePath: () => '/home/create',
   getHomeRoomPath: (roomId: string) => `/home/${roomId}`,

@@ -356,8 +356,6 @@ vi.mock('../TimelineMinimap.css', () => ({
 }));
 
 vi.mock('../../matrix/matrix', () => ({
-  eventWithShortcode: (_packs: unknown, body: string) => body,
-  factoryEventSentBy: () => false,
   getMxIdLocalPart: (userId: string) => /^@([^:]+):/.exec(userId)?.[1] ?? userId,
 }));
 
@@ -368,16 +366,13 @@ vi.mock('../../matrix/room', () => ({
   getEditedEvent: (_eventId: string, mEvent: { __editedEvent?: unknown }) => mEvent.__editedEvent,
   getEventReactions: () => undefined,
   getLatestEdit: () => undefined,
-  getLatestEditableEvt: () => undefined,
   getLatestMessageContent: (
     mEvent: { getContent: () => Record<string, unknown> },
     editedEvent?: { getContent: () => Record<string, unknown> }
   ) => editedEvent?.getContent() ?? mEvent.getContent(),
   getMemberDisplayName: () => 'Alice',
-  getReactionContent: () => undefined,
   isHiddenReferenceEvent: () => false,
   isMembershipChanged: () => false,
-  logEditDebug: vi.fn(),
   reactionOrEditEvent: (mEvent: { getRelation: () => { rel_type?: string } | undefined }) => {
     const relationType = mEvent.getRelation()?.rel_type;
     return relationType === RELATION_ANNOTATION || relationType === RELATION_REPLACE;
@@ -548,7 +543,6 @@ vi.mock('../../messages/viewers/ImageViewer', () => ({
 }));
 
 vi.mock('../../notifications/readReceipts', () => ({
-  markAsRead: vi.fn(),
   markMainTimelineAsRead: vi.fn(),
   markRoomAndThreadsAsRead: vi.fn(),
   markThreadAsRead: vi.fn(),

@@ -17,21 +17,15 @@ const domMocks = vi.hoisted(() => ({
   copyToClipboard: vi.fn(),
 }));
 const longTextMocks = vi.hoisted(() => ({
-  downloadMindroomLongTextSidecarBlob: vi.fn(),
   getMindroomLongTextSource: vi.fn(() => undefined),
   useMindroomLongTextResolvedContent: vi.fn(() => undefined),
 }));
 
 // These renderer/UI mocks should move into shared Vitest setup once the repo adds one.
 vi.mock('../styles.css', () => ({
-  BubbleAvatarBase: 'BubbleAvatarBase',
-  MessageAvatar: 'MessageAvatar',
   MessageAvatarWithModel: 'MessageAvatarWithModel',
   MessageBase: 'MessageBase',
-  MessageBaseBubbleCollapsed: 'MessageBaseBubbleCollapsed',
-  MessageContentWithDisclosure: 'MessageContentWithDisclosure',
   MessageMenuGroup: 'MessageMenuGroup',
-  MessageMenuItemText: 'MessageMenuItemText',
   MessageOptionsBar: 'MessageOptionsBar',
   MessageOptionsBase: 'MessageOptionsBase',
   MessageOptionsButton: 'MessageOptionsButton',
@@ -243,7 +237,6 @@ vi.mock('../layout/layout', () => ({
 
 vi.mock('../../matrix/room', () => ({
   canEditEvent: () => false,
-  getEventEdits: () => undefined,
   getEditedEvent: () => undefined,
   getLatestMessageContent: (mEvent: { getContent: () => Record<string, unknown> }) =>
     mEvent.getContent(),
@@ -363,7 +356,6 @@ vi.mock('../../matrix/protocol/longText', () => ({
 }));
 
 vi.mock('../content/LongTextText', () => ({
-  downloadMindroomLongTextSidecarBlob: longTextMocks.downloadMindroomLongTextSidecarBlob,
   useLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
 }));
 

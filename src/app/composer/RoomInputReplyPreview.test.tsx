@@ -27,7 +27,6 @@ vi.mock('./RoomInputExtensions', () => ({
   RoomInputReplyContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('../members/useMemberPowerTag', () => ({
-  useAccessiblePowerTagColors: () => new Map(),
   useGetMemberPowerTag: () => () => undefined,
 }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));

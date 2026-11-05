@@ -110,7 +110,6 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
 
 vi.mock('../../matrix/matrix', () => ({
   decryptFile: vi.fn(),
-  downloadEncryptedMedia: vi.fn(),
   downloadMedia: downloadMediaMock,
   mxcUrlToHttp: () => 'https://example.test/file',
 }));

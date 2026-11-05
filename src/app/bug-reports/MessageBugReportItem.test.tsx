@@ -35,7 +35,7 @@ vi.mock('folds', () => ({
   ),
   Text: ({ children }: { children?: React.ReactNode }) => <span>{children}</span>,
 }));
-vi.mock('../messages/styles.css', () => ({ MessageMenuItemText: 'text' }));
+vi.mock('../messages/styles.css', () => ({}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
 vi.mock('../matrix/hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => mocks.discovery,

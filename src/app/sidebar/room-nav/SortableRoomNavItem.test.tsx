@@ -28,7 +28,6 @@ import {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 vi.mock('../../ui/sidebar/Sidebar.css', () => ({
-  SidebarDragSource: 'SidebarDragSource',
   SidebarRowDragSource: 'SidebarRowDragSource',
 }));
 

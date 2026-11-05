@@ -64,7 +64,6 @@ vi.mock('./VoiceAudioContent.css', () => ({
 }));
 
 vi.mock('./voice/VoiceVolumeButton.css', () => ({
-  Button: 'Button',
   Menu: 'Menu',
   Thumb: 'Thumb',
   Track: 'Track',

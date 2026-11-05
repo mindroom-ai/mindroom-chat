@@ -135,14 +135,6 @@ vi.mock('./HtmlBlocks.css', () => ({
   BlockChevron: 'MindroomBlockChevron',
   BlockHeader: 'MindroomBlockHeader',
   BlockHeaderMeta: 'MindroomBlockHeaderMeta',
-  BlockLabel: 'MindroomBlockLabel',
-  BlockInlineResult: 'MindroomBlockInlineResult',
-  BlockResult: 'MindroomBlockResult',
-  ToolGroupItem: 'MindroomToolGroupItem',
-  ToolGroupList: 'MindroomToolGroupList',
-  ToolRowHeader: 'MindroomToolRowHeader',
-  ToolRowIndex: 'MindroomToolRowIndex',
-  ToolRowName: 'MindroomToolRowName',
 }));
 
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({

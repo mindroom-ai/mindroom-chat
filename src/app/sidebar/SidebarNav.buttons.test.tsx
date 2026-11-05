@@ -38,7 +38,7 @@ vi.mock('../ui/sidebar/SidebarContent', () => ({
   }) => React.createElement('div', null, scrollable, sticky),
 }));
 
-vi.mock('../ui/sidebar/SidebarItem.css', () => ({ SidebarScroll: 'sidebar-scroll' }));
+vi.mock('../ui/sidebar/SidebarItem.css', () => ({}));
 vi.mock('./rail/CanvasesTab', () => ({
   CanvasesTab: tab('canvases'),
 }));

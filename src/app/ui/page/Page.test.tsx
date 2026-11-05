@@ -22,7 +22,6 @@ vi.mock('./style.css', () => ({
   PageContent: '',
   PageContentCenter: '',
   PageHeader: () => '',
-  PageHeroEmpty: '',
   PageHeroSection: '',
   PageNav: () => '',
   PageNavContent: '',

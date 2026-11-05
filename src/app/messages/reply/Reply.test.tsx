@@ -10,9 +10,7 @@ vi.mock('../content/FallbackContent', () => ({
   MessageDeletedContent: () => null,
   MessageFailedContent: () => null,
 }));
-vi.mock('../html/react-custom-html-parser', () => ({
-  scaleSystemEmoji: (text: string) => text,
-}));
+vi.mock('../html/react-custom-html-parser', () => ({}));
 vi.mock('../../event-store/cache/useRoomEvent', () => ({
   // Keep the real Matrix event and preview formatting; avoid fetching a room.
   useRoomEvent: (_room: Room, _id: string, getLocal: () => MatrixEvent) => getLocal(),

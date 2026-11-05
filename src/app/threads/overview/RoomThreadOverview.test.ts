@@ -37,7 +37,6 @@ vi.mock('./RoomThreadOverview.css', () => ({
   ToggleInclude: 'ToggleInclude',
   ToggleIncludeOr: 'ToggleIncludeOr',
   ToggleExclude: 'ToggleExclude',
-  SectionSeparator: 'SectionSeparator',
   CompactCount: 'CompactCount',
   SortButton: 'SortButton',
   SortButtonActive: 'SortButtonActive',

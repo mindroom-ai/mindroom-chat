@@ -305,7 +305,6 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
 
 vi.mock('../../members/useMemberPowerTag', () => ({
   getPowerTagIconSrc: () => undefined,
-  useAccessiblePowerTagColors: () => new Map(),
   useGetMemberPowerTag: () => () => undefined,
 }));
 

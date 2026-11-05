@@ -372,7 +372,6 @@ vi.mock('../../lib/dom', () => ({
     const files = Array.from(dataTransfer.files ?? []);
     return files.length > 0 ? files : undefined;
   },
-  getImageUrlBlob: vi.fn(),
   loadImageElement: vi.fn(),
   pauseAllMediaElements: vi.fn(),
 }));
@@ -398,7 +397,6 @@ vi.mock('../../matrix/hooks/useRoom', () => ({
 }));
 
 vi.mock('../../members/useMemberPowerTag', () => ({
-  useAccessiblePowerTagColors: () => new Map(),
   useGetMemberPowerTag: () => () => undefined,
 }));
 
