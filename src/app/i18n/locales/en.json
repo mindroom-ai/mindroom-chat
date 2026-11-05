@@ -213,7 +213,6 @@
       "goDirect": "Go Direct Messages",
       "goDirectDescription": "Jump to Direct Messages",
       "goInbox": "Go Inbox",
-      "goInboxDescription": "Open Inbox notifications",
       "createRoom": "Create Room",
       "createRoomDescription": "Open the room creation modal",
       "createSpace": "Create Space",

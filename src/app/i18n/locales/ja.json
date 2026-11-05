@@ -213,7 +213,6 @@
       "goDirect": "ダイレクトメッセージに移動",
       "goDirectDescription": "ダイレクトメッセージへジャンプ",
       "goInbox": "受信トレイに移動",
-      "goInboxDescription": "受信トレイ通知を開く",
       "createRoom": "ルームを作成",
       "createRoomDescription": "ルーム作成モーダルを開きます",
       "createSpace": "スペースを作成",

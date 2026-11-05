@@ -213,7 +213,6 @@
       "goDirect": "다이렉트 메시지로 이동",
       "goDirectDescription": "다이렉트 메시지로 이동",
       "goInbox": "받은편지함으로 이동",
-      "goInboxDescription": "받은편지함 알림 열기",
       "createRoom": "방 만들기",
       "createRoomDescription": "방 만들기 창 열기",
       "createSpace": "스페이스 만들기",
