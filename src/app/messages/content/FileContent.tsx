@@ -107,13 +107,15 @@ type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
 const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
 
 type ViewerOverlayProps = {
+  /** The dialog's accessible name: the file's name. */
+  label: string;
   /** Escape, a click outside, or the viewer closing itself. */
   onClose: () => void;
   children: ReactNode;
 };
 
 /** A viewer in a modal over the page, closed by Escape or a click outside. */
-export function ViewerOverlay({ onClose, children }: ViewerOverlayProps) {
+export function ViewerOverlay({ label, onClose, children }: ViewerOverlayProps) {
   const trapOptions: TrapOptions = { ...DISMISSIBLE, initialFocus: false, onDeactivate: onClose };
   const { centerStyle, modalStyle } = useViewerFrame();
   return (
@@ -121,6 +123,9 @@ export function ViewerOverlay({ onClose, children }: ViewerOverlayProps) {
       <OverlayCenter style={centerStyle}>
         <FocusTrap focusTrapOptions={trapOptions}>
           <Modal
+            role="dialog"
+            aria-modal="true"
+            aria-label={label}
             size="500"
             style={modalStyle}
             // The message under the viewer has its own context menu; keep right-clicks here.
@@ -240,7 +245,7 @@ export function ReadTextFile({
   return (
     <>
       {text !== undefined && (
-        <ViewerOverlay onClose={close}>
+        <ViewerOverlay label={body} onClose={close}>
           {renderViewer({
             name: body,
             text,
@@ -303,7 +308,7 @@ export function ReadPdfFile({
   return (
     <>
       {src && (
-        <ViewerOverlay onClose={close}>
+        <ViewerOverlay label={body} onClose={close}>
           {renderViewer({ name: body, src, requestClose: close })}
         </ViewerOverlay>
       )}

@@ -31,6 +31,7 @@ type LeaveSpacePromptProps = {
 };
 
 const TITLE_ID = 'leave-space-prompt-title';
+const QUESTION_ID = 'leave-space-prompt-question';
 const DIALOG_WIDTH = `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(400)})`;
 
 /** Escape (kept from the page behind) and a click outside both dismiss the prompt. */
@@ -73,6 +74,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
           <Dialog
             role="alertdialog"
             aria-labelledby={TITLE_ID}
+            aria-describedby={QUESTION_ID}
             style={{ width: '100%', maxWidth: DIALOG_WIDTH }}
           >
             <Header
@@ -96,7 +98,7 @@ export function LeaveSpacePrompt({ roomId, onLeft, requestClose }: LeaveSpacePro
               gap="400"
               style={{ padding: `0 ${config.space.S400} ${config.space.S400}` }}
             >
-              <Text size="T300" priority="400">
+              <Text id={QUESTION_ID} size="T300" priority="400">
                 {t('sharedUi.leaveSpacePrompt.areYouSureYouWantToLeaveThisSpace')}
               </Text>
               {refusal !== undefined && (

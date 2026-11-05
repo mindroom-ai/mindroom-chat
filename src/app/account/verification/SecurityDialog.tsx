@@ -15,6 +15,7 @@ type SecurityDialogProps = {
 export function SecurityDialog({ title, onClose, role = 'dialog', children }: SecurityDialogProps) {
   const { t } = useTranslation();
   const titleId = useId();
+  const bodyId = useId();
   const closeButton = (
     <IconButton
       onClick={onClose}
@@ -27,14 +28,21 @@ export function SecurityDialog({ title, onClose, role = 'dialog', children }: Se
   );
 
   return (
-    <Dialog role={role} aria-labelledby={titleId} aria-modal="true" variant="Surface">
+    <Dialog
+      role={role}
+      aria-labelledby={titleId}
+      // An alert dialog's warning is read with its title as it takes focus.
+      aria-describedby={role === 'alertdialog' ? bodyId : undefined}
+      aria-modal="true"
+      variant="Surface"
+    >
       <Header size="500" style={{ paddingInline: `${config.space.S400} ${config.space.S200}` }}>
         <Text as="h2" id={titleId} size="H4" style={{ flexGrow: 1, margin: 0 }}>
           {title}
         </Text>
         {closeButton}
       </Header>
-      <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
+      <Box id={bodyId} direction="Column" gap="400" style={{ padding: config.space.S400 }}>
         {children}
       </Box>
     </Dialog>

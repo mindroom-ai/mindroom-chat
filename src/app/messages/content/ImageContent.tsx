@@ -303,6 +303,9 @@ export const ImageContent = as<'div', ImageContentProps>(
                 }}
               >
                 <Modal
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={body}
                   style={viewerFrame.modalStyle}
                   size="500"
                   onContextMenu={(evt: React.MouseEvent) => evt.stopPropagation()}

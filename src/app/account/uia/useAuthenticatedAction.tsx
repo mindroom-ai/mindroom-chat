@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Text, config } from 'folds';
 import type { AuthDict, IAuthData, MatrixError } from 'matrix-js-sdk';
@@ -39,10 +39,18 @@ type AuthenticatedAction = {
 /** Shown when every flow the server offers has a stage this client cannot do. */
 function UnsupportedStages({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation();
+  const messageId = useId();
+  // The message is all the dialog says, so it names the dialog too.
   return (
-    <Dialog variant="Surface" role="alertdialog" aria-modal="true">
+    <Dialog
+      variant="Surface"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby={messageId}
+      aria-describedby={messageId}
+    >
       <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-        <Text size="T300">
+        <Text id={messageId} size="T300">
           {t('featureUi.settings.devices.otherDevices.authenticationStepsToPerformThisActionAre')}
         </Text>
         <Button variant="Secondary" fill="Soft" onClick={onClose}>

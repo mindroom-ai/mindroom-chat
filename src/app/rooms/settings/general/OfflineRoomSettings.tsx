@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react';
+import { useId, useMemo, useState, useSyncExternalStore } from 'react';
 import {
   Box,
   Button,
@@ -77,6 +77,8 @@ const DIALOG_HEADER_STYLE = {
 
 function ClearContentDialog({ onCancel, onConfirm, clearing, failed }: ClearContentDialogProps) {
   const { t } = useTranslation();
+  const titleId = useId();
+  const descriptionId = useId();
   const cancelLabel = t(`${OFFLINE_KEY}.cancel`);
   const trapOptions = {
     initialFocus: false as const,
@@ -87,7 +89,9 @@ function ClearContentDialog({ onCancel, onConfirm, clearing, failed }: ClearCont
   const header = (
     <Header variant="Surface" size="500" style={DIALOG_HEADER_STYLE}>
       <Box grow="Yes">
-        <Text size="H4">{t(`${OFFLINE_KEY}.clearTitle`)}</Text>
+        <Text id={titleId} size="H4">
+          {t(`${OFFLINE_KEY}.clearTitle`)}
+        </Text>
       </Box>
       <IconButton aria-label={cancelLabel} size="300" radii="300" onClick={onCancel}>
         <Icon src={Icons.Cross} />
@@ -115,10 +119,18 @@ function ClearContentDialog({ onCancel, onConfirm, clearing, failed }: ClearCont
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
         <FocusTrap focusTrapOptions={trapOptions}>
-          <Dialog variant="Surface">
+          <Dialog
+            variant="Surface"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-describedby={descriptionId}
+          >
             {header}
             <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-              <Text priority="400">{t(`${OFFLINE_KEY}.clearDescription`)}</Text>
+              <Text id={descriptionId} priority="400">
+                {t(`${OFFLINE_KEY}.clearDescription`)}
+              </Text>
               {failed ? (
                 <Text style={{ color: color.Critical.Main }}>
                   {t(`${OFFLINE_KEY}.clearFailed`)}

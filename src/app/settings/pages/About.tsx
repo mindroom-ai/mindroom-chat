@@ -286,7 +286,7 @@ function ThirdPartyNotices() {
   return (
     <Box direction="Column" alignItems="Start" gap="200">
       {text !== undefined && (
-        <ViewerOverlay onClose={close}>
+        <ViewerOverlay label={title} onClose={close}>
           <TextViewer name={title} langName="text" text={text} requestClose={close} />
         </ViewerOverlay>
       )}

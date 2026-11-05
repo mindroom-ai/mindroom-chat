@@ -25,7 +25,14 @@ export function ImageOverlay({ src, alt, requestClose }: ImageOverlayProps) {
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter style={centerStyle}>
         <FocusTrap focusTrapOptions={viewerTrapOptions(requestClose)}>
-          <Modal size="500" style={modalStyle} onContextMenu={keepContextMenu}>
+          <Modal
+            role="dialog"
+            aria-modal="true"
+            aria-label={alt}
+            size="500"
+            style={modalStyle}
+            onContextMenu={keepContextMenu}
+          >
             <ImageViewer src={src} alt={alt} requestClose={requestClose} />
           </Modal>
         </FocusTrap>
