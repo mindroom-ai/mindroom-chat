@@ -102,3 +102,4 @@ src/app/hooks/useInitialClientCatchup.ts	1	rewritten in Lane C from a behaviour 
 ios/Tests/public/index.html	2	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/mindroom/threads/roomLiveRenderController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/components/invite-user-prompt/InviteAutocompleteMenu.tsx	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/components/splash-screen/MindRoomSplashScreen.tsx	1	rewritten in Lane C from a behaviour spec (ancestry audit)
