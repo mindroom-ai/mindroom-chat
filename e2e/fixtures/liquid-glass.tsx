@@ -1,8 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { Menu, MenuItem } from '../../src/app/components/glass/GlassPrimitives';
-import { useLiquidGlass } from '../../src/app/components/glass/liquid/useLiquidGlass';
-import { LightTheme, DarkTheme } from '../../src/app/hooks/useTheme';
+import { Menu, MenuItem } from '../../src/app/ui/glass/GlassPrimitives';
+import { useLiquidGlass } from '../../src/app/ui/glass/liquid/useLiquidGlass';
+import { LightTheme, DarkTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';

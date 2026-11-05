@@ -1,6 +1,6 @@
 #!/usr/bin/env sh
 # Who may frame the app, for the nginx image: the headers of scripts/frame-headers.json, which
-# src/frameHeaders.test.ts checks this file against. Only this origin may frame the app, and
+# src/build/frameHeaders.test.ts checks this file against. Only this origin may frame the app, and
 # nothing may frame the pairing page in any spelling the router renders it under: any letter case,
 # escaped letters, repeated slashes, a base path.
 #

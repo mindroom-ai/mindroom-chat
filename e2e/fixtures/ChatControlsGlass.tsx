@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
 import { Button, Icon, Icons, Text, color } from 'folds';
-import { Chip } from '../../src/app/components/glass/GlassPrimitives';
-import { VoiceRecordingCapsule } from '../../src/app/mindroom/voice/VoiceRecordingCapsule';
-import { CollapsibleMessage } from '../../src/app/mindroom/threads/CollapsibleMessage';
-import { MFile } from '../../src/app/components/message/MsgTypeRenderers';
+import { Chip } from '../../src/app/ui/glass/GlassPrimitives';
+import { VoiceRecordingCapsule } from '../../src/app/composer/voice/VoiceRecordingCapsule';
+import { CollapsibleMessage } from '../../src/app/timeline/CollapsibleMessage';
+import { MFile } from '../../src/app/messages/content/MsgTypeRenderers';
 import {
   UrlPreview,
   UrlPreviewContent,
   UrlPreviewDescription,
-} from '../../src/app/components/url-preview/UrlPreview';
+} from '../../src/app/messages/url-preview/UrlPreview';
 import {
   UploadCard,
   UploadCardError,
   UploadCardProgress,
-} from '../../src/app/components/upload-card/UploadCard';
-import { MindroomPasteAttachmentContent } from '../../src/app/mindroom/messages/MindroomPasteAttachmentContent';
-import { MindroomMessageExtras } from '../../src/app/mindroom/messages/MindroomMessageExtras';
+} from '../../src/app/composer/upload/UploadCard';
+import { MindroomPasteAttachmentContent } from '../../src/app/messages/content/PasteAttachmentContent';
+import { MindroomMessageExtras } from '../../src/app/messages/MessageExtras';
 import { MsgType } from 'matrix-js-sdk';
 
 export function ChatControlsGlass() {

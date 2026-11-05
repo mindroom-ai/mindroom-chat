@@ -10,7 +10,7 @@
 # Run the specs with the printed variables, after restarting the slot's homeserver so it
 # announces the service (`org.matrix.msc4143.rtc_foci`):
 #   eval "$(scripts/e2e-rtc.sh 21 env)"; scripts/e2e-slot.sh 21 down; scripts/e2e-rtc.sh 21 up
-#   scripts/e2e-slot.sh 21 npx playwright test e2e/lane-c/calls.spec.ts
+#   scripts/e2e-slot.sh 21 npx playwright test e2e/calls/calls.spec.ts
 #
 # Ports for slot N: LiveKit signalling 29200+N, its WebRTC TCP 29300+N and UDP 29400+N, the
 # authorization service 29500+N. Media stays on 127.0.0.1.

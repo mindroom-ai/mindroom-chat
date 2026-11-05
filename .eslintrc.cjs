@@ -29,7 +29,7 @@ function laneCTypeScriptFiles() {
 // Menus, dialogs, modals and headers come from the glass primitives, which give every surface
 // the same material; only the adapter itself may use the raw folds components.
 const GLASS_SURFACE_MESSAGE =
-  'Use the shared surface from src/app/components/glass/GlassPrimitives instead of the raw folds component.';
+  'Use the shared surface from src/app/ui/glass/GlassPrimitives instead of the raw folds component.';
 const RAW_FOLDS_SURFACES = ['default', 'Menu', 'MenuItem', 'Modal', 'Dialog', 'Header'];
 const GLASS_RESTRICTIONS = {
   paths: [
@@ -55,7 +55,7 @@ const DIRECTIONAL_COMPONENTS = ['PopOut', 'TooltipProvider'];
 // follows to find account state an account would leave behind (pages/client/accountState.test.ts);
 // these entry points and factories make atoms past it.
 const FOLLOWED_ATOM_MESSAGE =
-  "Make the atom with `atom` from 'jotai', which the account state test follows (src/app/pages/client/accountState.test.ts).";
+  "Make the atom with `atom` from 'jotai', which the account state test follows (src/app/shell/accountState.test.ts).";
 const ATOM_FACTORIES = [
   'atomWithDefault',
   'atomWithLazy',
@@ -78,7 +78,7 @@ const DIRECTIONAL_RESTRICTIONS = {
       group: ['folds'],
       importNames: DIRECTIONAL_COMPONENTS,
       message:
-        'Use PopOut and TooltipProvider from src/app/components/directional, which place them in reading order.',
+        'Use PopOut and TooltipProvider from src/app/ui/directional, which place them in reading order.',
     },
   ],
 };
@@ -304,14 +304,14 @@ module.exports = {
     // The two wrappers come after the Lane C block, whose import rule they relax.
     {
       // The directional wrappers place folds' own pop-outs and tooltips.
-      files: ['src/app/components/directional/index.tsx'],
+      files: ['src/app/ui/directional.tsx'],
       rules: {
         'no-restricted-imports': ['error', GLASS_RESTRICTIONS],
       },
     },
     {
       // The adapter wraps the raw folds surfaces.
-      files: ['src/app/components/glass/GlassPrimitives.tsx'],
+      files: ['src/app/ui/glass/GlassPrimitives.tsx'],
       rules: {
         'no-restricted-imports': 'off',
       },

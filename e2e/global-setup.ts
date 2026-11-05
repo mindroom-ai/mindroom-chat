@@ -14,7 +14,7 @@ import { spawnSync } from 'node:child_process';
  * | `E2E_DEACTIVATE_USERNAME`, `E2E_DEACTIVATE_PASSWORD` | Account that the deactivation spec destroys |
  * | `E2E_AGENT_USERNAME`, `E2E_AGENT_PASSWORD`, `E2E_AGENT_USER_ID` | An agent account (a `mindroom_` user) |
  * | `E2E_UI_ACTIONS_HOMESERVER` | Disposable homeserver with open registration; those specs register their own users |
- * | `E2E_FIXTURE_ROOM_ALIAS`, `E2E_FIXTURE_ROOM_ID` | Fixture room made by `e2e/live/seed-fixture-room.mjs` |
+ * | `E2E_FIXTURE_ROOM_ALIAS`, `E2E_FIXTURE_ROOM_ID` | Fixture room made by `e2e/fixtures/live/seed-fixture-room.mjs` |
  * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `live/` specs; locally a room shared with the agent account |
  * | `E2E_DEPLOYED_BASE_URL`, `E2E_DEPLOYED_HOMESERVER`, `E2E_DEPLOYED_USERNAME`, `E2E_DEPLOYED_PASSWORD` | Specs against a deployed client |
  * | `E2E_COMPUTER_FIXTURE` | Path of the gateway fixture JSON for the worker-computer spec |
@@ -66,7 +66,7 @@ const register = async (username: string): Promise<void> => {
 };
 
 const seedFixtureRoom = (): void => {
-  const result = spawnSync(process.execPath, ['e2e/live/seed-fixture-room.mjs'], {
+  const result = spawnSync(process.execPath, ['e2e/fixtures/live/seed-fixture-room.mjs'], {
     encoding: 'utf8',
     env: { ...process.env, E2E_FIXTURE_ROOM_ALIAS: FIXTURE_ROOM_ALIAS },
   });
@@ -143,9 +143,9 @@ const seedAgentRoom = async (username: string, agentUserId: string): Promise<voi
 const runNamesSpec = (fileStem: string): boolean =>
   process.argv.some((argument) => argument.includes(fileStem));
 
-/** The Minimap Long Room and its long thread that `e2e/live/minimap-verify.spec.ts` opens. */
+/** The Minimap Long Room and its long thread that `e2e/timeline/minimap-verify.live.spec.ts` opens. */
 const seedMinimapRoom = (): void => {
-  const result = spawnSync('bash', ['e2e/live/fixtures/minimap-fixture.sh'], {
+  const result = spawnSync('bash', ['e2e/fixtures/live/minimap-fixture.sh'], {
     encoding: 'utf8',
     env: process.env,
   });
@@ -155,7 +155,7 @@ const seedMinimapRoom = (): void => {
 };
 
 /**
- * Sam Rivera's room of `e2e/app-store-screenshots.spec.ts`, seeded for an account of its own as
+ * Sam Rivera's room of `e2e/diagnostics/app-store-screenshots.spec.ts`, seeded for an account of its own as
  * `scripts/appstore-fixture-up.sh` does, so the household's name and avatar never reach the shared
  * primary account. The spec signs in as the primary account, so this run's primary becomes it.
  */

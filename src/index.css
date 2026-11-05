@@ -107,7 +107,7 @@ pre {
 
 /*
  * Links in running text, such as the welcome page credits: each theme's Primary.Main from
- * src/colors.css.ts, for markup that cannot import the folds colour contract.
+ * src/app/theme/colors.css.ts, for markup that cannot import the folds colour contract.
  */
 :root,
 .light-theme,
@@ -163,7 +163,7 @@ pre {
   background: transparent;
 }
 
-/* Motion tokens (src/app/styles/Motion.css.ts) leave reduced motion to this rule: every
+/* Motion tokens (src/app/ui/styles/Motion.css.ts) leave reduced motion to this rule: every
    transition collapses to an instant change. Keyframe animations opt out one by one. */
 @media (prefers-reduced-motion: reduce) {
   *,

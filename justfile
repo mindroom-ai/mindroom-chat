@@ -95,7 +95,7 @@ e2e *args:
     fi
     exec npx playwright test {{args}}
 
-# Run a command on e2e slot N (homeserver port 28100+N, app port 4300+N; `just e2e-slot N down` stops it). Options before the command: --snapshot[=<rev>] runs it in a clean copy of a commit (default HEAD) with an empty homeserver; --preview serves that commit's production build; --rtc starts the slot's call service (scripts/e2e-rtc.sh) for the call specs. Example: `just e2e-slot 3 --preview npx playwright test e2e/live/pinned-threads.spec.ts`.
+# Run a command on e2e slot N (homeserver port 28100+N, app port 4300+N; `just e2e-slot N down` stops it). Options before the command: --snapshot[=<rev>] runs it in a clean copy of a commit (default HEAD) with an empty homeserver; --preview serves that commit's production build; --rtc starts the slot's call service (scripts/e2e-rtc.sh) for the call specs. Example: `just e2e-slot 3 --preview npx playwright test e2e/threads/pinned-threads.live.spec.ts`.
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 

@@ -4,11 +4,11 @@ import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import i18n from '../../src/app/i18n';
-import { LightTheme } from '../../src/app/hooks/useTheme';
+import i18n from '../../src/app/i18n/i18n';
+import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { MatrixClientProvider } from '../../src/app/hooks/useMatrixClient';
-import { InviteCard, makeInviteData } from '../../src/app/pages/client/inbox/Invites';
+import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
+import { InviteCard, makeInviteData } from '../../src/app/notifications/inbox/Invites';
 
 // Inbox invite cards whose inviters pick display names that try to pass for
 // someone else: each card must still show the inviter's real ID, left to

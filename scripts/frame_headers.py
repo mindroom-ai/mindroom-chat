@@ -5,7 +5,7 @@ and nothing may frame the pairing page, in any spelling the router renders it un
 case, escaped letters, repeated slashes, a base path.
 
     python3 scripts/frame_headers.py /connect /CONNECT/ /home/
-prints each path's headers as JSON, one line each, which src/frameHeaders.test.ts compares with
+prints each path's headers as JSON, one line each, which src/build/frameHeaders.test.ts compares with
 the JavaScript rule.
 """
 

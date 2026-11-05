@@ -1,0 +1,10 @@
+export * from './CanvasesTab';
+export * from './DirectTab';
+export * from './ExploreTab';
+export * from './HomeTab';
+export * from './InboxTab';
+export { SearchTab } from '../../command-palette/CommandPaletteSidebarTab';
+export * from './SettingsTab';
+export * from './SpaceTabs';
+export * from './ThreadsTab';
+export * from '../../account/switcher/UnverifiedTab';

@@ -10,7 +10,7 @@ The homeserver adds a few settings of its own through `/.well-known/matrix/clien
 
 ## config.json
 
-The app fetches `/config.json` from the root of its origin before it shows anything (`src/app/components/ClientConfigLoader.tsx`). The file must hold a JSON object. Every key is optional, and a missing key means the default in the tables below, so `{}` is a valid configuration. The TypeScript type is `ClientConfig` in `src/app/hooks/useClientConfig.ts`.
+The app fetches `/config.json` from the root of its origin before it shows anything (`src/app/config/ClientConfigLoader.tsx`). The file must hold a JSON object. Every key is optional, and a missing key means the default in the tables below, so `{}` is a valid configuration. The TypeScript type is `ClientConfig` in `src/app/config/useClientConfig.ts`.
 
 - **Where it comes from.** `vite build` copies `config.mindroom.json` to `dist/config.json`, and the dev server answers `/config.json` with the same file. A deployment replaces `dist/config.json` with its own; no new build is needed.
 - **When a change applies.** On the web the app starts with the copy it stored in `localStorage` at the previous start and fetches a fresh one in the background, so a changed file takes effect on the second load after the change. The native apps fetch it at every start.
@@ -108,7 +108,7 @@ A `welcome` text equal to its English default is shown translated into the app l
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `errorReporting.dsn` | string (DSN) | none | DSN of a Sentry-compatible collector such as GlitchTip, `https://<public key>@<host>/<project id>`. HTTPS only; any other value counts as unset. Set, the client reports uncaught errors, unhandled rejections, crashes its root error boundary catches, entering the sync error state (with the `errcode`), messages still undecryptable after a minute (counted by failure code), failed sends (with the `errcode` and event type), main-thread blocks of 2 seconds or more, and rooms that take 3 seconds or more to show their messages. Each report carries the build (`version.json`'s `version` as the release), the browser, the viewport and the route template, such as `/home/:roomIdOrAlias/:eventId?/`. Reports never contain message text, room or display names, Matrix IDs, tokens, URL queries or file names (`src/app/features/error-reporting/scrub.ts`). The reporter is a chunk of its own, loaded only when this key is set, and each device can switch reports off in Settings > About (on by default). Unset, nothing is loaded or sent. |
+| `errorReporting.dsn` | string (DSN) | none | DSN of a Sentry-compatible collector such as GlitchTip, `https://<public key>@<host>/<project id>`. HTTPS only; any other value counts as unset. Set, the client reports uncaught errors, unhandled rejections, crashes its root error boundary catches, entering the sync error state (with the `errcode`), messages still undecryptable after a minute (counted by failure code), failed sends (with the `errcode` and event type), main-thread blocks of 2 seconds or more, and rooms that take 3 seconds or more to show their messages. Each report carries the build (`version.json`'s `version` as the release), the browser, the viewport and the route template, such as `/home/:roomIdOrAlias/:eventId?/`. Reports never contain message text, room or display names, Matrix IDs, tokens, URL queries or file names (`src/app/bug-reports/error-reporting/scrub.ts`). The reporter is a chunk of its own, loaded only when this key is set, and each device can switch reports off in Settings > About (on by default). Unset, nothing is loaded or sent. |
 
 ### Push notifications (iOS app)
 
@@ -132,7 +132,7 @@ Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is 
 
 ## runtime-config.js
 
-`index.html` loads `/runtime-config.js` and then `/authentication-recovery.js` before the app. The built `runtime-config.js` (from `src/runtimeConfig.ts`) sets each global below only when it is not set yet, so a deployment prepends its own assignments to the file, as the Docker start script does. `serve.py` instead answers with a script of its own that sets only the first two.
+`index.html` loads `/runtime-config.js` and then `/authentication-recovery.js` before the app. The built `runtime-config.js` (from `src/boot/runtimeConfig.ts`) sets each global below only when it is not set yet, so a deployment prepends its own assignments to the file, as the Docker start script does. `serve.py` instead answers with a script of its own that sets only the first two.
 
 | Global | Default | Effect |
 |---|---|---|

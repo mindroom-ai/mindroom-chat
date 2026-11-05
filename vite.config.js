@@ -22,10 +22,10 @@ export const copyFiles = {
   targets: [
     // The MindRoom defaults are served as the runtime client config.
     { src: 'config.mindroom.json', dest: '', rename: 'config.json' },
-    // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n.ts).
-    // English ships in the bundle, with its overlay in src/app/locales/additions/en.json; the other
-    // languages' overlays in that directory load as chunks (src/app/localeAdditions.ts).
-    { src: 'src/app/locales/*.json', dest: 'public/locales' },
+    // Non-English catalogs load on demand from `public/locales/<code>.json` (src/app/i18n/i18n.ts).
+    // English ships in the bundle, with its overlay in src/app/i18n/locales/additions/en.json; the other
+    // languages' overlays in that directory load as chunks (src/app/i18n/localeAdditions.ts).
+    { src: 'src/app/i18n/locales/*.json', dest: 'public/locales' },
     // License texts and notices for the bundled code (NOTICE: noVNC source, fonts, native templates,
     // ported code); thirdPartyNoticesPlugin adds the npm dependencies' THIRD_PARTY_NOTICES.txt.
     // Under public/, so the service worker never answers them with the app shell.
@@ -38,41 +38,41 @@ export const copyFiles = {
 // authentication recovery script also serves shells cached by older workers.
 const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
-// The Lane C string overlays (src/app/localeAdditions.ts): one JSON file per language, in the
+// The Lane C string overlays (src/app/i18n/localeAdditions.ts): one JSON file per language, in the
 // folder of the English one (named by a file, which the move codemod rewrites).
-const LOCALE_ADDITIONS = `${path.posix.dirname('src/app/locales/additions/en.json')}/`;
+const LOCALE_ADDITIONS = `${path.posix.dirname('src/app/i18n/locales/additions/en.json')}/`;
 
 // The precache holds what a signed-in start needs before it shows a room: the entry chunk and the
 // chunks of these modules with their static imports, style sheets, fonts, images and the crypto
 // wasm, plus the shell pages (scripts/precache-plan.mjs). Every room header shows the call buttons, and the
 // thread actions menu opens from the first room's cards and banner (lazily, in Lane P code that
 // has no fallback for a missing chunk), so both come with the start. Everything else under assets/
-// is kept by the worker on first use (src/swRuntimeAssets.ts).
+// is kept by the worker on first use (src/sw/swRuntimeAssets.ts).
 const startup = startupPrecache({
   startupModules: [
-    'src/app/pages/client/clientPages.tsx',
-    'src/app/mindroom/threads/MindroomRoom.tsx',
-    'src/app/mindroom/calls/HeaderCallButtons.tsx',
-    'src/app/mindroom/threads/ThreadActionsMenu.tsx',
+    'src/app/shell/clientPages.tsx',
+    'src/app/room/Room.tsx',
+    'src/app/calls/HeaderCallButtons.tsx',
+    'src/app/threads/ThreadActionsMenu.tsx',
     'matrix-js-sdk/lib/rust-crypto/index.js',
   ],
   // The thinking marks (1.37 MB raw) show only while an agent thinks, so the worker keeps them the
   // first time a page shows one instead of every first visit downloading them.
   onDemandAssets: [
-    'src/app/mindroom/messages/thinking-mark-base.svg',
-    'src/app/mindroom/messages/thinking-mark-core.svg',
+    'src/app/messages/agent-run/thinking-mark-base.svg',
+    'src/app/messages/agent-run/thinking-mark-core.svg',
   ],
   // The PDF viewer's frame page (public/pdf-frame.html) has no hash in its name, so the worker
   // could not keep it at runtime without serving an old copy after an update.
   shellFiles: ['index.html', 'pdf-frame.html'],
-  // The Lane C string overlays (src/app/localeAdditions.ts), one chunk per language: the worker
+  // The Lane C string overlays (src/app/i18n/localeAdditions.ts), one chunk per language: the worker
   // fetches the ones for the languages the pages used when a new build installs.
   localeOverlay: new RegExp(`/${LOCALE_ADDITIONS}([A-Za-z-]+)\\.json$`),
 });
 
-// src/sw.ts with the precache list injected, emitted as sw.js. src/index.tsx registers it as a
+// src/sw/sw.ts with the precache list injected, emitted as sw.js. src/index.tsx registers it as a
 // classic script and public/manifest.json is the web manifest, so the plugin adds neither.
-const SW_ENTRY = 'src/sw.ts';
+const SW_ENTRY = 'src/sw/sw.ts';
 const serviceWorkerPlugin = VitePWA({
   strategies: 'injectManifest',
   injectManifest: {

@@ -6,12 +6,12 @@ import { color, configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { darkTheme, lightTheme } from '../../src/colors.css';
-import { RoomSchedulesButton } from '../../src/app/mindroom/schedules/RoomSchedulesButton';
-import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../src/app/mindroom/threads/scheduledTaskContract';
-import { MatrixClientProvider } from '../../src/app/hooks/useMatrixClient';
-import { useRoomEscapeReadReceipts } from '../../src/app/mindroom/threads/useRoomEscapeReadReceipts';
+import '../../src/app/i18n/i18n';
+import { darkTheme, lightTheme } from '../../src/app/theme/colors.css';
+import { RoomSchedulesButton } from '../../src/app/schedules/RoomSchedulesButton';
+import { MINDROOM_SCHEDULED_TASK_EVENT } from '../../src/app/matrix/protocol/scheduledTaskContract';
+import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
+import { useRoomEscapeReadReceipts } from '../../src/app/room/useRoomEscapeReadReceipts';
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');

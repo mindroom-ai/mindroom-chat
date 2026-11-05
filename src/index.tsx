@@ -1,44 +1,44 @@
 // First: it must change the SDK's logger before any other SDK module loads.
-import './app/mindroom/matrix/sdkDebugLogging';
+import './app/diagnostics/sdkDebugLogging';
 import { createRoot } from 'react-dom/client';
 import { App as NativeApp } from '@capacitor/app';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import './index.css';
-import './app/styles/Typography.css';
-import './app/i18n';
-import App from './app/pages/App';
+import './app/theme/Typography.css';
+import './app/i18n/i18n';
+import App from './app/shell/App';
 import {
   isNativeApp,
   isNativeIOS,
   registerNativeAppUrlCallbacks,
-} from './app/mindroom/native/nativeSso';
-import { installFlightRecorder } from './app/mindroom/diagnostics/flightRecorder';
+} from './app/native/nativeSso';
+import { installFlightRecorder } from './app/diagnostics/flightRecorder';
 import {
   initializeDeepTraceRecorder,
   recordDeepTraceEvent,
-} from './app/mindroom/diagnostics/deepTrace';
+} from './app/diagnostics/deepTrace';
 import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
-} from './app/mindroom/matrix/indexedDbLossRecovery';
+} from './app/account/lifecycle/indexedDbLossRecovery';
 import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap';
-import { bootstrapRideTraceFlagFromUrl } from './app/mindroom/threads/rideTraceRecorder';
-import { migrateMindroomSettingsStorage } from './app/mindroom/settings/mindroomSettingsStorage';
-import { migrateLegacyIOSPushEnabled } from './app/mindroom/native/iosPush';
-import { isServiceWorkerEnabled } from './app/utils/runtimeConfig';
-import { getActiveSession, subscribeToSessionStore } from './app/state/sessions';
+import { bootstrapRideTraceFlagFromUrl } from './app/timeline/rideTraceRecorder';
+import { migrateMindroomSettingsStorage } from './app/event-store/engine/prefetchSettingsStorage';
+import { migrateLegacyIOSPushEnabled } from './app/notifications/push/iosPush';
+import { isServiceWorkerEnabled } from './app/config/runtimeConfig';
+import { getActiveSession, subscribeToSessionStore } from './app/matrix/session/sessions';
 import {
   answerServiceWorkerSessionRequests,
   pushSessionToSW,
   waitForServiceWorkerControl,
-} from './sw-session';
-import { APP_BUILD_VERSION, startAppVersionMonitor } from './appVersion';
-import { watchForNewVersion } from './appUpdate';
-import { createServiceWorkerUrl } from './serviceWorkerRegistration';
-import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './serviceWorkerNavigation';
-import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
-import { installErrorCapture } from './app/features/error-reporting/errorReporting';
+} from './sw/swSession';
+import { APP_BUILD_VERSION, startAppVersionMonitor } from './app/config/appVersion';
+import { watchForNewVersion } from './app/config/appUpdate';
+import { createServiceWorkerUrl } from './app/config/serviceWorkerRegistration';
+import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './boot/serviceWorkerNavigation';
+import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/lib/basePath';
+import { installErrorCapture } from './app/bug-reports/error-reporting/errorReporting';
 
 /** Marks the one reload that recovers a page the service worker does not control. */
 const SW_CONTROL_RELOAD_KEY = 'mindroom_sw_control_reloaded';
@@ -109,7 +109,7 @@ const getActiveServiceWorker = async (): Promise<ServiceWorker | undefined> => {
 /**
  * Whether this app has an active worker that could take the page after a reload. Without one
  * (registration failed, was blocked, or is still installing) a reload changes nothing. A worker
- * that is still activating claims open pages when it finishes (src/sw.ts), so this waits for it
+ * that is still activating claims open pages when it finishes (src/sw/sw.ts), so this waits for it
  * to finish: a first install that ends just after the page loaded must not cost a reload.
  */
 const hasActivatedServiceWorker = async (): Promise<boolean> => {
@@ -212,7 +212,7 @@ runSafely('error capture', installErrorCapture);
 startDiagnostics();
 prepareDocument();
 runSafely('new version watch', () => {
-  // A part that cannot load after a deployment offers the new version (src/appUpdate.ts).
+  // A part that cannot load after a deployment offers the new version (src/app/config/appUpdate.ts).
   watchForNewVersion();
 });
 runSafely('recovery marker', () => {

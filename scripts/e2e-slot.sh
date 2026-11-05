@@ -2,9 +2,9 @@
 # Run a command against an isolated end-to-end environment, so several runs can share a machine.
 #
 # Usage: scripts/e2e-slot.sh <slot 1-50> [--snapshot[=<rev>]] [--preview] [--fresh] [--rtc] <command...>
-#   scripts/e2e-slot.sh 3 just e2e e2e/password-login.spec.ts
-#   scripts/e2e-slot.sh 3 --preview npx playwright test e2e/live/pinned-threads.spec.ts
-#   scripts/e2e-slot.sh 3 --rtc --preview npx playwright test e2e/lane-c/calls.spec.ts
+#   scripts/e2e-slot.sh 3 just e2e e2e/account/password-login.spec.ts
+#   scripts/e2e-slot.sh 3 --preview npx playwright test e2e/threads/pinned-threads.live.spec.ts
+#   scripts/e2e-slot.sh 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts
 #   scripts/e2e-slot.sh 3 down        # stop that slot's homeserver and call service, delete its data
 #
 # Slot N gets its own disposable Tuwunel (compose project mindroom-client-e2e-N on port 28100+N)

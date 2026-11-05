@@ -4,7 +4,7 @@
 # Usage: scripts/e2e-suite.sh [--rev <rev>] [--slots <list>] [--dev] [--out <file.tsv>] [<spec>...] [-- <playwright options>]
 #        scripts/e2e-suite.sh --resume <run directory> [--slots <list>] [--out <file.tsv>] [-- <playwright options>]
 #   scripts/e2e-suite.sh --slots 25-30 --out e2e-results.tsv
-#   scripts/e2e-suite.sh --slots 2 e2e/live/pinned-threads.spec.ts -- --repeat-each 3
+#   scripts/e2e-suite.sh --slots 2 e2e/threads/pinned-threads.live.spec.ts -- --repeat-each 3
 #
 # Every spec file is its own `scripts/e2e-slot.sh <slot> --snapshot=<rev> --preview` run: a clean
 # copy of the commit (default HEAD), its production build, and a homeserver that starts empty, so

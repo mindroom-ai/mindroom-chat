@@ -59,17 +59,17 @@ The specs in `e2e/` run in Playwright with the Chromium from `CHROMIUM_PATH`. `e
 
 ```bash
 just hs-up
-just e2e e2e/password-login.spec.ts   # starts the dev server on port 4200 unless one is running
+just e2e e2e/account/password-login.spec.ts   # starts the dev server on port 4200 unless one is running
 just hs-down
 ```
 
 Several runs can share a machine through slots. Slot `n` has its own homeserver on port 28100+n and its own app port 4300+n:
 
 ```bash
-just e2e-slot 3 npx playwright test e2e/password-login.spec.ts             # dev server on the working tree
-just e2e-slot 3 --snapshot npx playwright test e2e/password-login.spec.ts  # dev server on a clean copy of HEAD
-just e2e-slot 3 --preview npx playwright test e2e/password-login.spec.ts   # production build of HEAD
-just e2e-slot 3 --rtc --preview npx playwright test e2e/lane-c/calls.spec.ts  # with the slot's call service
+just e2e-slot 3 npx playwright test e2e/account/password-login.spec.ts             # dev server on the working tree
+just e2e-slot 3 --snapshot npx playwright test e2e/account/password-login.spec.ts  # dev server on a clean copy of HEAD
+just e2e-slot 3 --preview npx playwright test e2e/account/password-login.spec.ts   # production build of HEAD
+just e2e-slot 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts  # with the slot's call service
 just e2e-slot 3 down                                                        # stop the slot, delete its data
 ```
 
@@ -92,7 +92,7 @@ just e2e-slot 3 down                                                        # st
 | `version.json` | the build version, polled by running clients, whose service worker then installs a new deployment for the next start |
 | `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
 
-To deploy, serve `dist/` from the root of an origin and answer every path that is not a file with `index.html`; with `hashRouter.enabled` in `config.json`, routes live after `#` and no rewrite is needed. `config.json`, `runtime-config.js`, `authentication-recovery.js` and `version.json` are not precached by the service worker, so a deployment can change them without a new build. The precache holds the app shell, the code, styles and images of a signed-in start and the crypto wasm (`scripts/precache-plan.mjs`); other files under `assets/` (chunks loaded on demand, sounds, the thinking marks) and the catalogs under `public/locales/` are kept the first time a page loads them, and a new build's worker keeps the kept files its build still has. A page still open from the previous build therefore loads its on-demand chunks from the server: when a deployment removed them, the page says a new version is available and its Reload starts the new build (`src/appUpdate.ts`). Keep the previous build's `assets/` files for a while after a deployment to spare open pages even that. The build is not usable under a sub-path: its asset URLs start at `/`.
+To deploy, serve `dist/` from the root of an origin and answer every path that is not a file with `index.html`; with `hashRouter.enabled` in `config.json`, routes live after `#` and no rewrite is needed. `config.json`, `runtime-config.js`, `authentication-recovery.js` and `version.json` are not precached by the service worker, so a deployment can change them without a new build. The precache holds the app shell, the code, styles and images of a signed-in start and the crypto wasm (`scripts/precache-plan.mjs`); other files under `assets/` (chunks loaded on demand, sounds, the thinking marks) and the catalogs under `public/locales/` are kept the first time a page loads them, and a new build's worker keeps the kept files its build still has. A page still open from the previous build therefore loads its on-demand chunks from the server: when a deployment removed them, the page says a new version is available and its Reload starts the new build (`src/app/config/appUpdate.ts`). Keep the previous build's `assets/` files for a while after a deployment to spare open pages even that. The build is not usable under a sub-path: its asset URLs start at `/`.
 
 Who may frame the app is a response header, not part of the build (values in `scripts/frame-headers.json`, rule in `scripts/frame-headers.mjs`): `Content-Security-Policy: frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` on every path, and `frame-ancestors 'none'` with `X-Frame-Options: DENY` on the pairing page, in every spelling the router renders it under (`/connect`, `/CONNECT/`, `/%63onnect`, under a base path). `vite preview`, `serve.py` and the nginx start script `docker-entrypoint.d/40-frame-headers.sh` send them, and the service worker gives the pairing page its own when it answers from the cached app shell. `netlify.toml` sends them too, but its rules name only `/connect` and `/connect/`, so other spellings may get `'self'` there on a first visit.
 

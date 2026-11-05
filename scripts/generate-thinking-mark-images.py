@@ -10,7 +10,7 @@ import xml.etree.ElementTree as ET
 SVG = "http://www.w3.org/2000/svg"
 ET.register_namespace("", SVG)
 ET.register_namespace("xlink", "http://www.w3.org/1999/xlink")
-ARTWORK = Path(__file__).resolve().parents[1] / "src/app/mindroom/messages/thinking-mark.svg"
+ARTWORK = Path(__file__).resolve().parents[1] / "src/app/messages/agent-run/thinking-mark.svg"
 DIRECTORY = ARTWORK.parent
 LAYERS = {
     "base": {"outer-frame", "left-rooms", "right-rooms"},

@@ -3,8 +3,8 @@ import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import { lightTheme } from '../../src/colors.css';
-import { CustomEditor, useEditor } from '../../src/app/components/editor';
+import { lightTheme } from '../../src/app/theme/colors.css';
+import { CustomEditor, useEditor } from '../../src/app/editor';
 
 // The composer's text box alone, with the editor the room composer uses, for history checks.
 document.documentElement.className = `${configClass} ${varsClass} ${lightTheme}`;

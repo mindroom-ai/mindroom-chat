@@ -9,17 +9,17 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-dom/client', () => ({ createRoot: () => ({ render: vi.fn() }) }));
 vi.mock('@capacitor/app', () => ({ App: {} }));
-vi.mock('./app/mindroom/native/nativeSso', () => ({
+vi.mock('./app/native/nativeSso', () => ({
   isNativeIOS: () => false,
   isNativeApp: () => false,
   registerNativeAppUrlCallbacks: vi.fn(),
 }));
-vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({ installFlightRecorder: vi.fn() }));
-vi.mock('./app/mindroom/diagnostics/deepTrace', () => ({
+vi.mock('./app/diagnostics/flightRecorder', () => ({ installFlightRecorder: vi.fn() }));
+vi.mock('./app/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: vi.fn(),
   recordDeepTraceEvent: vi.fn(),
 }));
-vi.mock('./app/mindroom/matrix/indexedDbLossRecovery', () => ({
+vi.mock('./app/account/lifecycle/indexedDbLossRecovery', () => ({
   installIndexedDbLossRecovery: vi.fn(),
   readRecoveryReloadAge: () => undefined,
 }));
@@ -27,31 +27,31 @@ vi.mock('./app/theme/themeBootstrap', () => ({
   applyThemeToDom: vi.fn(),
   resolveInitialTheme: vi.fn(),
 }));
-vi.mock('./app/mindroom/threads/rideTraceRecorder', () => ({
+vi.mock('./app/timeline/rideTraceRecorder', () => ({
   bootstrapRideTraceFlagFromUrl: vi.fn(),
 }));
-vi.mock('./app/mindroom/settings/mindroomSettingsStorage', () => ({
+vi.mock('./app/event-store/engine/prefetchSettingsStorage', () => ({
   migrateMindroomSettingsStorage: vi.fn(),
 }));
-vi.mock('./app/mindroom/native/iosPush', () => ({ migrateLegacyIOSPushEnabled: vi.fn() }));
-vi.mock('./app/utils/runtimeConfig', () => ({ isServiceWorkerEnabled: () => true }));
-vi.mock('./app/state/sessions', () => ({
+vi.mock('./app/notifications/push/iosPush', () => ({ migrateLegacyIOSPushEnabled: vi.fn() }));
+vi.mock('./app/config/runtimeConfig', () => ({ isServiceWorkerEnabled: () => true }));
+vi.mock('./app/matrix/session/sessions', () => ({
   getActiveSession: mocks.getActiveSession,
   subscribeToSessionStore: vi.fn(),
 }));
-vi.mock('./sw-session', () => ({
+vi.mock('./sw/swSession', () => ({
   answerServiceWorkerSessionRequests: vi.fn(),
   pushSessionToSW: vi.fn(),
   waitForServiceWorkerControl: mocks.waitForServiceWorkerControl,
 }));
-vi.mock('./appVersion', () => ({
+vi.mock('./app/config/appVersion', () => ({
   APP_BUILD_VERSION: 'test-build',
   startAppVersionMonitor: vi.fn(),
 }));
-vi.mock('./serviceWorkerRegistration', () => ({ createServiceWorkerUrl: vi.fn() }));
-vi.mock('./app/pages/App', () => ({ default: () => null }));
-vi.mock('./app/i18n', () => ({}));
-vi.mock('./app/styles/Typography.css', () => ({}));
+vi.mock('./app/config/serviceWorkerRegistration', () => ({ createServiceWorkerUrl: vi.fn() }));
+vi.mock('./app/shell/App', () => ({ default: () => null }));
+vi.mock('./app/i18n/i18n', () => ({}));
+vi.mock('./app/theme/Typography.css', () => ({}));
 
 /** A first-install worker that is still activating, which the test finishes by hand. */
 const makeActivatingWorker = () => {

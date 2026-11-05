@@ -9,7 +9,7 @@ import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 // The source of `authentication-recovery.js`, which the entry below imports.
-const RECOVERY_ENTRY = 'src/authenticationRecovery.ts';
+const RECOVERY_ENTRY = 'src/boot/authenticationRecovery.ts';
 
 /** @type {import('esbuild').BuildOptions} */
 const common = {
@@ -37,7 +37,7 @@ export const bundleClassicScript = async (options) => {
 /** @returns {Promise<Record<'runtime-config.js' | 'authentication-recovery.js', string>>} */
 export const buildAuthenticationRecoveryAssets = async () => {
   const [runtimeConfig, authenticationRecovery] = await Promise.all([
-    bundleClassicScript({ entryPoints: [path.join(root, 'src/runtimeConfig.ts')] }),
+    bundleClassicScript({ entryPoints: [path.join(root, 'src/boot/runtimeConfig.ts')] }),
     bundleClassicScript({
       stdin: {
         contents:

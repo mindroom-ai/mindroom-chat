@@ -2,7 +2,7 @@
 // Migrates a room's legacy thread tags (one `com.mindroom.thread.tags` state event per thread,
 // state key = thread root, content `{ tags: { <tag>: metadata } }`) to the canonical per-tag
 // format (state key `["<root>","<tag>"]`, content = metadata), then tombstones the legacy
-// event. The parsing rules match src/app/mindroom/threads/threadTags.ts.
+// event. The parsing rules match src/app/event-store/threads/threadTags.ts.
 //
 // Usage: MATRIX_HOMESERVER=... MATRIX_ACCESS_TOKEN=... node scripts/migrate-thread-tags.mjs <room id> [--apply]
 import { pathToFileURL } from 'node:url';

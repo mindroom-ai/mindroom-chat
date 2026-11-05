@@ -37,7 +37,7 @@ eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_THIRD "mindroome2ethird$
 eval "$("${ROOT_DIR}/scripts/ensure-e2e-account.sh" E2E_DEACTIVATE "mindroome2edeactivate${RUN_SUFFIX}" 'Pwmindroome2edeactivate123!')"
 
 cd "${ROOT_DIR}"
-node ./e2e/live/seed-fixture-room.mjs
+node ./e2e/fixtures/live/seed-fixture-room.mjs
 
 export E2E_FIXTURE_ROOM_ID="$(
   node --input-type=module -e '

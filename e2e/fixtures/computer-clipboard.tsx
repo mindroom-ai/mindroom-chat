@@ -3,13 +3,13 @@ import { createRoot } from 'react-dom/client';
 import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '../../src/index.css';
-import { lightTheme } from '../../src/colors.css';
+import { lightTheme } from '../../src/app/theme/colors.css';
 import {
   ComputerScreen,
   type RfbClient,
   type RfbFactory,
-} from '../../src/app/mindroom/computer/ComputerScreen';
-import type { PasteResult } from '../../src/app/mindroom/computer/computerClipboard';
+} from '../../src/app/computer/ComputerScreen';
+import type { PasteResult } from '../../src/app/computer/computerClipboard';
 
 type RfbCall = ['paste', string] | ['key', number, string | null, boolean | undefined];
 

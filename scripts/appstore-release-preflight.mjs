@@ -6,8 +6,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-// The scenes e2e/app-store-screenshots.spec.ts captures, in upload order, named the way
-// src/app/mindroom/appstore/appStoreScreenshots.ts names its files: `<order>_<device>_<theme>_<scene>.png`.
+// The scenes e2e/diagnostics/app-store-screenshots.spec.ts captures, in upload order, named the way
+// src/app/native/appStoreScreenshots.ts names its files: `<order>_<device>_<theme>_<scene>.png`.
 // Fastlane sorts each device's files by name, so the order prefix keeps the scenes in sequence.
 const SCENES = [
   'light_personal-workspace',

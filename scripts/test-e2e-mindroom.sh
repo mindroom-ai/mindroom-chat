@@ -30,7 +30,7 @@ export E2E_FIXTURE_ROOM_ALIAS="${FIXTURE_ALIAS}"
 "${ROOT_DIR}/scripts/with-mindroom-tunnel.sh" bash -lc '
   set -euo pipefail
   cd "'"${ROOT_DIR}"'"
-  node ./e2e/live/seed-fixture-room.mjs
+  node ./e2e/fixtures/live/seed-fixture-room.mjs
 
   export E2E_FIXTURE_ROOM_ID="$(
     node --input-type=module <<'\''NODE'\''

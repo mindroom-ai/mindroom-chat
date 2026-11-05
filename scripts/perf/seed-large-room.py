@@ -1,5 +1,5 @@
 """Seed a large threaded room on a disposable homeserver and write the manifest that
-e2e/live/perf-large-room-streaming.spec.ts reads from PERF_STRESS_MANIFEST.
+e2e/timeline/perf-large-room-streaming.live.spec.ts reads from PERF_STRESS_MANIFEST.
 
 Usage: scripts/e2e-slot.sh <N> python3 scripts/perf/seed-large-room.py <manifest.json> [threads] [replies] [edits]
 

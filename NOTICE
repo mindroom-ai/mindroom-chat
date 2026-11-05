@@ -71,7 +71,7 @@ KaTeX fonts
   included unmodified. License text: licenses/KaTeX-fonts-OFL-1.1.txt.
 
 T3 Code timeline minimap
-  src/app/mindroom/threads/TimelineMinimap.tsx is a port of the timeline
+  src/app/timeline/TimelineMinimap.tsx is a port of the timeline
   minimap of T3 Code (https://github.com/pingdotgg/t3code,
   apps/web/src/components/chat/TimelineMinimap.tsx), Copyright (c) 2026 T3
   Tools Inc., MIT License; timelineMinimapViewModel.ts beside it shares two
@@ -129,7 +129,7 @@ files of every production dependency in package-lock.json, written at build
 time by scripts/third-party-notices.mjs. Settings > About opens it.
 
 Code block icons
-  src/app/mindroom/html/CODE_BLOCK_ICONS_LICENSES.md: language icons from
+  src/app/messages/html/CODE_BLOCK_ICONS_LICENSES.md: language icons from
   @pierre/trees (Apache-2.0) and icons from Lucide (ISC, portions from Feather,
   MIT), with their license texts.
 

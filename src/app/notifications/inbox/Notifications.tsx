@@ -1,0 +1,484 @@
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import {
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Chip,
+  Icon,
+  Icons,
+  Spinner,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
+import { useTranslation } from 'react-i18next';
+import dayjs from 'dayjs';
+import { useAtomValue } from 'jotai';
+import {
+  MatrixEventEvent,
+  Method,
+  type IRoomEvent,
+  type INotification,
+  type MatrixEvent,
+  type INotificationsResponse,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
+import {
+  Page,
+  PageContent,
+  PageContentCenter,
+  PageHeader,
+  PageScroll,
+} from '../../ui/page';
+import { SequenceCard } from '../../ui/sequence-card';
+import { RoomAvatar } from '../../avatars/room-avatar';
+import { mDirectAtom } from '../../matrix/state/mDirectList';
+import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
+import { INBOX_PATH } from '../../routes/paths';
+import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
+import { useRoomNavigate } from '../../navigation/useRoomNavigate';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import {
+  getDirectPartnerId,
+  getDirectRoomAvatarUrl,
+  getMemberDisplayName,
+  getRoomAvatarUrl,
+} from '../../matrix/room';
+import { getMxIdLocalPart } from '../../matrix/matrix';
+import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
+import {
+  MessageBadEncryptedContent,
+  MessageDeletedContent,
+} from '../../messages/content/FallbackContent';
+import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../messages/html/react-custom-html-parser';
+import { useSettingValue } from '../../preferences/useSettingValue';
+import { settingsAtom } from '../../preferences/settings';
+import { MindroomMarkRoomReadChip } from '../MarkRoomReadChip';
+import { isHighlightNotification } from '../inboxNotification';
+import { getEventThreadId } from '../messageNotificationRules';
+import {
+  resolveNotificationEvent,
+  shouldRenderNotificationLoadingPlaceholders,
+} from './notificationTimelineView';
+
+const PAGE_SIZE = 30;
+
+type NotificationFilter = 'all' | 'highlight';
+
+/** A run of notifications from one room, in the order the server listed them; never empty. */
+type RoomNotifications = { room: Room; notifications: [INotification, ...INotification[]] };
+
+type NotificationPages = {
+  status: AsyncStatus;
+  notifications: INotification[];
+  /** Where the next, older page starts; undefined once the list is complete. */
+  nextToken?: string;
+};
+
+const requestNotifications = (
+  mx: MatrixClient,
+  filter: NotificationFilter,
+  from: string | undefined,
+  limit: number
+): Promise<INotificationsResponse> =>
+  mx.http.authedRequest<INotificationsResponse>(Method.Get, '/notifications', {
+    limit: String(limit),
+    ...(filter === 'highlight' ? { only: 'highlight' } : {}),
+    ...(from ? { from } : {}),
+  });
+
+/** The notifications of the signed-in account, one page at a time, newest first. */
+const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
+  const [pages, setPages] = useState<NotificationPages>({
+    status: AsyncStatus.Idle,
+    notifications: [],
+  });
+  // Answers for an older filter, or for a page asked twice, are dropped.
+  const generation = useRef(0);
+
+  const load = useCallback(
+    (from: string | undefined, limit = PAGE_SIZE) => {
+      const mine = generation.current;
+      setPages((held) => ({ ...held, status: AsyncStatus.Loading }));
+      requestNotifications(mx, filter, from, limit).then(
+        (page) => {
+          if (generation.current !== mine) return;
+          setPages((held) => ({
+            status: AsyncStatus.Success,
+            notifications: from
+              ? [...held.notifications, ...page.notifications]
+              : page.notifications,
+            nextToken: page.next_token || undefined,
+          }));
+        },
+        () => {
+          if (generation.current !== mine) return;
+          setPages((held) => ({ ...held, status: AsyncStatus.Error }));
+        }
+      );
+    },
+    [filter, mx]
+  );
+
+  useEffect(() => {
+    generation.current += 1;
+    setPages({ status: AsyncStatus.Idle, notifications: [] });
+    load(undefined);
+  }, [load]);
+
+  const loadOlder = useCallback(() => {
+    if (pages.nextToken && pages.status !== AsyncStatus.Loading) load(pages.nextToken);
+  }, [load, pages.nextToken, pages.status]);
+
+  // The server keeps the read flags, so a receipt shows here only once the list is asked again:
+  // as many as are loaded, in one request, so older pages stay. The server answers at most 100.
+  // A receipt that lands after a switch of filter reloads the list now shown.
+  const shown = useRef({ load, count: 0 });
+  useEffect(() => {
+    shown.current = { load, count: pages.notifications.length };
+  }, [load, pages.notifications.length]);
+  const reload = useCallback(() => {
+    generation.current += 1;
+    shown.current.load(undefined, Math.max(PAGE_SIZE, shown.current.count));
+  }, []);
+
+  return { ...pages, loadOlder, reload };
+};
+
+/** Consecutive notifications of a joined room become one group; rooms left since are skipped. */
+const groupByRoom = (mx: MatrixClient, notifications: INotification[]): RoomNotifications[] =>
+  notifications.reduce<RoomNotifications[]>((groups, notification) => {
+    const room = mx.getRoom(notification.room_id);
+    if (!room || room.getMyMembership() !== 'join') return groups;
+    const last = groups.at(-1);
+    if (last?.room.roomId === room.roomId) last.notifications.push(notification);
+    else groups.push({ room, notifications: [notification] });
+    return groups;
+  }, []);
+
+// Long messages show their start; Open shows the rest in the room.
+const PREVIEW_MAX_HEIGHT = toRem(240);
+const PREVIEW_FADE = 'linear-gradient(to bottom, black 75%, transparent)';
+
+/**
+ * The event a notification points at, as the room shows it: its latest edit, decrypted. The
+ * notifications API returns events as the server stored them, so an encrypted one is decrypted
+ * here when the room timeline does not hold it yet.
+ */
+const useNotificationEvent = (mx: MatrixClient, room: Room, raw: IRoomEvent): MatrixEvent => {
+  const event = useMemo(() => resolveNotificationEvent(room, raw), [room, raw]);
+  const [, setDecrypted] = useState(0);
+  useEffect(() => {
+    if (!event.isEncrypted() || (!event.isBeingDecrypted() && event.getClearContent())) {
+      return undefined;
+    }
+    const redraw = () => setDecrypted((count) => count + 1);
+    event.on(MatrixEventEvent.Decrypted, redraw);
+    mx.decryptEventIfNeeded(event).catch(() => undefined);
+    return () => {
+      event.off(MatrixEventEvent.Decrypted, redraw);
+    };
+  }, [mx, event]);
+  return event;
+};
+
+/** Message content cut at a fixed height, fading out when it continues below. */
+function NotificationPreview({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [cut, setCut] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+    const measure = () => setCut(element.scrollHeight > element.clientHeight + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    Array.from(element.children).forEach((child) => observer.observe(child));
+    return () => observer.disconnect();
+  }, [children]);
+  return (
+    <div
+      ref={ref}
+      style={{
+        maxHeight: PREVIEW_MAX_HEIGHT,
+        overflow: 'hidden',
+        overflowWrap: 'anywhere',
+        maskImage: cut ? PREVIEW_FADE : undefined,
+        WebkitMaskImage: cut ? PREVIEW_FADE : undefined,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** How message HTML in this room's rows is turned into React, with authenticated media. */
+const useBodyParserOptions = (client: MatrixClient, roomId: string) => {
+  const authenticatedMedia = useMediaAuthentication();
+  return useMemo(
+    () =>
+      getReactCustomHtmlParser(client, roomId, {
+        linkifyOpts: LINKIFY_OPTS,
+        useAuthentication: authenticatedMedia,
+      }),
+    [client, roomId, authenticatedMedia]
+  );
+};
+
+/** Mentions and keywords stand out: a tinted row with an accent at its leading edge. */
+const highlightedRowStyle = {
+  backgroundColor: color.Primary.Container,
+  boxShadow: `inset ${toRem(3)} 0 0 ${color.Primary.Main}`,
+};
+
+const unreadDotStyle = { width: toRem(8), height: toRem(8), padding: 0, flexShrink: 0 };
+
+function NotificationRow({
+  room,
+  notification,
+  onOpen,
+}: {
+  room: Room;
+  notification: INotification;
+  /** Opens the message: in its thread when it has one, in the room otherwise. */
+  onOpen: (eventId: string, threadId?: string) => void;
+}) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const event = useNotificationEvent(client, room, notification.event);
+  const parserOptions = useBodyParserOptions(client, room.roomId);
+  const autoLoadMedia = useSettingValue(settingsAtom, 'mediaAutoLoad');
+  const sender = event.getSender() ?? '';
+  const senderName = getMemberDisplayName(room, sender) ?? getMxIdLocalPart(sender) ?? sender;
+  const eventId = event.getId() ?? notification.event.event_id;
+  const content = event.getContent();
+  const highlighted = isHighlightNotification(notification);
+
+  let body: ReactNode;
+  if (event.isRedacted()) body = <MessageDeletedContent />;
+  else if (event.isDecryptionFailure()) body = <MessageBadEncryptedContent />;
+  else if (event.isEncrypted() && !event.getClearContent()) body = <Spinner size="100" />;
+  else {
+    body = (
+      <RenderMessageContent
+        mEvent={event}
+        eventId={eventId}
+        roomId={room.roomId}
+        eventType={event.getType()}
+        msgType={typeof content.msgtype === 'string' ? content.msgtype : ''}
+        displayName={senderName}
+        ts={event.getTs()}
+        edited={!!event.replacingEvent()}
+        getContent={(() => content) as <T>() => T}
+        mediaAutoLoad={!!autoLoadMedia}
+        urlPreview={false}
+        outlineAttachment
+        htmlReactParserOptions={parserOptions}
+        linkifyOpts={LINKIFY_OPTS}
+      />
+    );
+  }
+
+  return (
+    <Box
+      gap="300"
+      alignItems="Start"
+      data-notification-highlight={highlighted || undefined}
+      style={{ padding: config.space.S300, ...(highlighted ? highlightedRowStyle : undefined) }}
+    >
+      <Box direction="Column" grow="Yes" gap="100" style={{ minWidth: 0 }}>
+        <Box gap="200" alignItems="Center">
+          {!notification.read && (
+            <Badge
+              variant="Primary"
+              fill="Solid"
+              radii="Pill"
+              size="200"
+              role="img"
+              aria-label={t('thread.status.unread')}
+              style={unreadDotStyle}
+            />
+          )}
+          <Text size="T300" truncate>
+            <b>{senderName}</b>
+          </Text>
+          <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
+            {dayjs(notification.ts).format('MMM D, HH:mm')}
+          </Text>
+          {highlighted && (
+            <Icon
+              size="50"
+              src={Icons.Mention}
+              aria-label={t('sharedUi.notifications.highlighted')}
+              style={{ color: color.Primary.Main, flexShrink: 0 }}
+            />
+          )}
+        </Box>
+        <NotificationPreview>{body}</NotificationPreview>
+      </Box>
+      <Chip
+        variant="Secondary"
+        radii="Pill"
+        onClick={() => onOpen(eventId, getEventThreadId(event))}
+      >
+        <Text size="T200">{t('sharedUi.notifications.open')}</Text>
+      </Chip>
+    </Box>
+  );
+}
+
+/**
+ * The avatar over a room's notifications. A direct chat shows the other person, with their
+ * picture or their color, as the Direct list and the room header do.
+ */
+function NotificationGroupAvatar({ room }: { room: Room }) {
+  const client = useMatrixClient();
+  const authenticated = useMediaAuthentication();
+  const withPerson = useAtomValue(mDirectAtom).has(room.roomId);
+  const pictureUrl = withPerson
+    ? getDirectRoomAvatarUrl(client, room, 64, authenticated)
+    : getRoomAvatarUrl(client, room, 64, authenticated);
+  return (
+    <Avatar size="200">
+      <RoomAvatar
+        roomId={room.roomId}
+        fallbackId={withPerson ? getDirectPartnerId(room) : undefined}
+        src={pictureUrl}
+        alt={room.name}
+        renderFallback={() => <Text size="H6">{room.name.slice(0, 1)}</Text>}
+      />
+    </Avatar>
+  );
+}
+
+/** The Inbox's Notifications page: messages that notified this account, grouped by room. */
+export function Notifications() {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
+  const [filter, setFilter] = useState<NotificationFilter>('all');
+  const { status, notifications, nextToken, loadOlder, reload } = useNotificationPages(
+    client,
+    filter
+  );
+  const groups = useMemo(() => groupByRoom(client, notifications), [client, notifications]);
+  const filters: [NotificationFilter, string][] = [
+    ['all', t('sharedUi.notifications.allNotifications')],
+    ['highlight', t('sharedUi.notifications.highlighted')],
+  ];
+  // A phone's header holds only the way back and the title; the filters open the list instead.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
+  const filterChips = (
+    <Box shrink="No" gap="200" role="group" aria-label={t('sharedUi.notifications.filter')}>
+      {filters.map(([value, label]) => (
+        <Chip
+          key={value}
+          radii="Pill"
+          variant={filter === value ? 'Primary' : 'SurfaceVariant'}
+          aria-pressed={filter === value}
+          onClick={() => setFilter(value)}
+        >
+          <Text size="T200">{label}</Text>
+        </Chip>
+      ))}
+    </Box>
+  );
+
+  return (
+    <Page>
+      <PageHeader balance>
+        <PhoneBackButton to={INBOX_PATH} />
+        <Box grow="Yes" alignItems="Center" justifyContent="SpaceBetween" gap="200">
+          <Text as="h1" size="H4" truncate>
+            {t('sharedUi.notifications.notificationMessages')}
+          </Text>
+          {!phone && filterChips}
+        </Box>
+      </PageHeader>
+      <PageScroll>
+        <PageContent>
+          <PageContentCenter>
+            <Box direction="Column" gap="400">
+              {phone && filterChips}
+              {shouldRenderNotificationLoadingPlaceholders(status, groups.length) && (
+                <Box justifyContent="Center" style={{ padding: config.space.S400 }}>
+                  <Spinner variant="Secondary" size="400" />
+                </Box>
+              )}
+              {status !== AsyncStatus.Loading && groups.length === 0 && (
+                <Box direction="Column" gap="100">
+                  <Text size="H5">{t('sharedUi.notifications.noNotifications')}</Text>
+                  <Text size="T300" priority="300">
+                    {t('sharedUi.notifications.youDonTHaveAnyNewNotificationsToDisplayYet')}
+                  </Text>
+                </Box>
+              )}
+              {groups.map(({ room, notifications: roomNotifications }) => (
+                <Box
+                  key={`${room.roomId}:${roomNotifications[0].event.event_id}`}
+                  direction="Column"
+                  gap="200"
+                >
+                  <Box alignItems="Center" gap="200">
+                    <NotificationGroupAvatar room={room} />
+                    <Text size="H5" truncate style={{ flexGrow: 1 }}>
+                      {room.name}
+                    </Text>
+                    {roomNotifications.some((notification) => !notification.read) && (
+                      <MindroomMarkRoomReadChip roomId={room.roomId} onMarked={reload} />
+                    )}
+                  </Box>
+                  <SequenceCard
+                    direction="Column"
+                    style={{ color: color.SurfaceVariant.OnContainer }}
+                  >
+                    {roomNotifications.map((notification) => (
+                      <NotificationRow
+                        key={notification.event.event_id}
+                        room={room}
+                        notification={notification}
+                        onOpen={(eventId, threadId) =>
+                          threadId
+                            ? navigateRoomThread(room.roomId, threadId, eventId)
+                            : navigateRoom(room.roomId, eventId)
+                        }
+                      />
+                    ))}
+                  </SequenceCard>
+                </Box>
+              ))}
+              {nextToken && (
+                <Button
+                  variant="Secondary"
+                  fill="Soft"
+                  size="300"
+                  radii="300"
+                  disabled={status === AsyncStatus.Loading}
+                  onClick={loadOlder}
+                  style={{ alignSelf: 'center' }}
+                >
+                  <Text size="B300">
+                    {t('mindroomUi.threads.mindroomRoomTimeline.loadOlderMessages')}
+                  </Text>
+                </Button>
+              )}
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
+    </Page>
+  );
+}

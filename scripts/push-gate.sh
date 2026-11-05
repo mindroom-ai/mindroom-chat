@@ -37,21 +37,21 @@ set -euo pipefail
 
 # 15 specs over the main paths, none slower than about 40 s at a normal load.
 SMOKE_SPECS=(
-  e2e/live/smoke.spec.ts                      # the app shell loads without critical errors
-  e2e/live/login.spec.ts                      # password sign-in, a stable shell, a reload
-  e2e/live/rooms.spec.ts                      # the room list and opening a room's timeline
-  e2e/lane-c/room-unread-filter.spec.ts       # unread marks in the room list
-  e2e/live/thread-unread-receipts.spec.ts     # unread threads cleared by mark-read and opening
-  e2e/lane-c/inbox-mark-read.spec.ts          # the Inbox's Mark as Read
-  e2e/live/long-composer-message.spec.ts      # sending and editing long messages, room and thread
-  e2e/lane-c/slash-commands.spec.ts           # composer commands
-  e2e/live/threads.spec.ts                    # thread overview, opening threads, a new root
-  e2e/lane-c/room-view-defaults.spec.ts       # Threads for people, Compact for agent rooms
-  e2e/live/compact-scroll-memory.spec.ts      # Compact view keeps its scroll position
-  e2e/live/compact-card-display-names.spec.ts # Compact cards' names
-  e2e/live/command-palette.spec.ts            # the palette, desktop and phone widths
-  e2e/lane-c/settings-search.spec.ts          # Settings pages and search, phone included
-  e2e/lane-c/phone-back-button.spec.ts        # the phone layout's back chevron, light, dark, RTL
+  e2e/shell/smoke.live.spec.ts                      # the app shell loads without critical errors
+  e2e/account/login.live.spec.ts                      # password sign-in, a stable shell, a reload
+  e2e/room/rooms.live.spec.ts                      # the room list and opening a room's timeline
+  e2e/sidebar/room-unread-filter.spec.ts       # unread marks in the room list
+  e2e/threads/thread-unread-receipts.live.spec.ts     # unread threads cleared by mark-read and opening
+  e2e/sidebar/inbox-mark-read.spec.ts          # the Inbox's Mark as Read
+  e2e/composer/long-composer-message.live.spec.ts      # sending and editing long messages, room and thread
+  e2e/composer/slash-commands.spec.ts           # composer commands
+  e2e/threads/threads.live.spec.ts                    # thread overview, opening threads, a new root
+  e2e/room/room-view-defaults.spec.ts       # Threads for people, Compact for agent rooms
+  e2e/threads/compact-scroll-memory.live.spec.ts      # Compact view keeps its scroll position
+  e2e/threads/compact-card-display-names.live.spec.ts # Compact cards' names
+  e2e/command-palette/command-palette.live.spec.ts            # the palette, desktop and phone widths
+  e2e/settings/settings-search.spec.ts          # Settings pages and search, phone included
+  e2e/ui/phone-back-button.spec.ts        # the phone layout's back chevron, light, dark, RTL
 )
 
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
@@ -108,7 +108,7 @@ main() {
   git -C "$checkout" archive "$sha" | tar -x -C "$tree"
   ln -s "$modules" "$tree/node_modules"
   # A repository whose index and HEAD are the commit's, reading the checkout's objects: unit tests
-  # read the index (src/executableScripts.test.ts checks the executable bits there).
+  # read the index (src/build/executableScripts.test.ts checks the executable bits there).
   git init -q "$tree"
   echo "$(git -C "$checkout" rev-parse --path-format=absolute --git-common-dir)/objects" \
     >"$tree/.git/objects/info/alternates"

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { color, Text } from 'folds';
-import { ModelPicker } from '../../src/app/mindroom/models/ModelPicker';
-import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreenSize';
-import { FilterBarMobileSheet } from '../../src/app/pages/client/threads/FilterBarMobileSheet';
-import { InviteAutocompleteMenu } from '../../src/app/components/invite-user-prompt/InviteAutocompleteMenu';
-import { InviteAutocompleteOption } from '../../src/app/components/invite-user-prompt/InviteAutocompleteMenu.css';
-import { AutocompleteMenu } from '../../src/app/components/editor/autocomplete/AutocompleteMenu';
-import { ImagePackView } from '../../src/app/components/image-pack-view';
-import { TextViewer } from '../../src/app/components/text-viewer/TextViewer';
-import { Modal } from '../../src/app/components/glass/GlassPrimitives';
+import { ModelPicker } from '../../src/app/models/ModelPicker';
+import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
+import { FilterBarMobileSheet } from '../../src/app/threads/page/FilterBarMobileSheet';
+import { InviteAutocompleteMenu } from '../../src/app/members/invite/InviteAutocompleteMenu';
+import { InviteAutocompleteOption } from '../../src/app/members/invite/InviteAutocompleteMenu.css';
+import { AutocompleteMenu } from '../../src/app/editor/autocomplete/AutocompleteMenu';
+import { ImagePackView } from '../../src/app/emoji/packs';
+import { TextViewer } from '../../src/app/messages/viewers/text-viewer/TextViewer';
+import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
 
 /** Real menu components with deterministic data; no backend or external model calls. */
 export function DialogMenusGlass() {

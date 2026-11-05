@@ -1,5 +1,5 @@
 // @ts-check
-// What the service worker precaches (src/sw.ts): the app shell and the files a signed-in start
+// What the service worker precaches (src/sw/sw.ts): the app shell and the files a signed-in start
 // needs before it can show a room, so the first visit no longer downloads every build file.
 //
 // The startup set is the entry chunk and the chunks that hold the listed startup modules, each with
@@ -7,12 +7,12 @@
 // images they import (the sidebar logo) and the crypto module's wasm. Chunks the app only reaches
 // through a dynamic import (calls, the emoji data, KaTeX, the remote computer, locale overlays),
 // sounds, and the images listed as on demand (large ones a start rarely shows) stay out: the worker
-// keeps each the first time a page loads it (src/swRuntimeAssets.ts).
+// keeps each the first time a page loads it (src/sw/swRuntimeAssets.ts).
 //
 // The worker also gets the build's inventory (`self.__MINDROOM_BUILD_INVENTORY`): every file under
 // assets/, so a new worker keeps the files the previous build kept at runtime that it still has,
 // and the overlay chunk of each language, so it can fetch the overlay for the languages the pages
-// used before it takes over (src/swLanguageFiles.ts).
+// used before it takes over (src/sw/swLanguageFiles.ts).
 //
 // `vite build` hands the plugin the bundle, then the PWA plugin's `closeBundle` builds the worker
 // (with `workerPlugin`, which writes the inventory in) and runs the manifest transform, which drops

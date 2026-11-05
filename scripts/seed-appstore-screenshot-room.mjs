@@ -11,7 +11,7 @@
  * The account must exist. The agents are registered here, one set per room alias. Everyone gets
  * the fictional household's avatar from scripts/fixtures/appstore/avatars/, so nothing private or
  * downloaded ends up in a screenshot. Every thread has a summary notice like the ones MindRoom
- * posts; e2e/app-store-screenshots.spec.ts finds the threads by those titles. Prints the room ID
+ * posts; e2e/diagnostics/app-store-screenshots.spec.ts finds the threads by those titles. Prints the room ID
  * as `Room: <id>`.
  */
 import { randomUUID } from 'node:crypto';

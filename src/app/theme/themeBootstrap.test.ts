@@ -7,7 +7,7 @@ const statusBarTheme = vi.hoisted(() => ({
   syncNativeStatusBarTheme: vi.fn(),
 }));
 
-vi.mock('../hooks/useTheme', () => {
+vi.mock('./useTheme', () => {
   const ThemeKind = {
     Light: 'light',
     Dark: 'dark',
@@ -43,10 +43,10 @@ vi.mock('../hooks/useTheme', () => {
   };
 });
 
-vi.mock('../mindroom/native/statusBarTheme', () => statusBarTheme);
+vi.mock('./statusBarTheme', () => statusBarTheme);
 
-import { DarkTheme, SilverTheme } from '../hooks/useTheme';
-import { SESSION_STORE_KEY } from '../state/sessions';
+import { DarkTheme, SilverTheme } from './useTheme';
+import { SESSION_STORE_KEY } from '../matrix/session/sessions';
 import { applyThemeToDom, resolveInitialTheme } from './themeBootstrap';
 
 const ACTIVE_SESSION_STORE = {

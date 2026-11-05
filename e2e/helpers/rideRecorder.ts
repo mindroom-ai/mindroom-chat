@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS } from '../../src/app/mindroom/threads/preloadSettings';
+import { THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS } from '../../src/app/event-store/cache/preloadSettings';
 
 /**
  * Shared scroll-ride harness for the virtualized thread timeline.

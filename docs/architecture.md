@@ -8,17 +8,17 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 
 ## How the app starts
 
-1. `index.html` loads `runtime-config.js` (`src/runtimeConfig.ts`: base path, service worker switch, sign-in recovery settings) and `authentication-recovery.js` (`src/authenticationRecovery.ts`), then the module `src/index.tsx`.
-2. `src/index.tsx` starts diagnostics, applies the stored theme, loads i18n, registers the service worker (`src/sw.ts`, which serves the cached app shell, precaches only what a signed-in start needs (`scripts/precache-plan.mjs`), keeps the build's other files on first use (`src/swRuntimeAssets.ts`) and the language catalogs with their overlays (`src/swLanguageFiles.ts`), and fetches authenticated media) unless it is switched off, watches for parts that cannot load after a deployment (`src/appUpdate.ts`), and renders `App`, whose root error boundary (`AppErrorBoundary`) shows a failed screen with Reload.
-3. `src/app/pages/App.tsx` sets up jotai, the theme and TanStack Query, loads `config.json` (`src/app/components/ClientConfigLoader.tsx`; see `docs/configuration.md`), and creates the router (`src/app/pages/Router.tsx`).
-4. Sign-in pages live under `src/app/pages/auth/`. Every signed-in route renders `ClientRoot` (`src/app/pages/client/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/client/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
-5. Accounts are kept in a session registry (`src/app/state/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
+1. `index.html` loads `runtime-config.js` (`src/boot/runtimeConfig.ts`: base path, service worker switch, sign-in recovery settings) and `authentication-recovery.js` (`src/boot/authenticationRecovery.ts`), then the module `src/index.tsx`.
+2. `src/index.tsx` starts diagnostics, applies the stored theme, loads i18n, registers the service worker (`src/sw/sw.ts`, which serves the cached app shell, precaches only what a signed-in start needs (`scripts/precache-plan.mjs`), keeps the build's other files on first use (`src/sw/swRuntimeAssets.ts`) and the language catalogs with their overlays (`src/sw/swLanguageFiles.ts`), and fetches authenticated media) unless it is switched off, watches for parts that cannot load after a deployment (`src/app/config/appUpdate.ts`), and renders `App`, whose root error boundary (`AppErrorBoundary`) shows a failed screen with Reload.
+3. `src/app/shell/App.tsx` sets up jotai, the theme and TanStack Query, loads `config.json` (`src/app/config/ClientConfigLoader.tsx`; see `docs/configuration.md`), and creates the router (`src/app/shell/Router.tsx`).
+4. Sign-in pages live under `src/app/pages/auth/`. Every signed-in route renders `ClientRoot` (`src/app/shell/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/app/account/lifecycle/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
+5. Accounts are kept in a session registry (`src/app/matrix/session/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
 
 ## Folders
 
 | Path | What is there |
 |---|---|
-| `src/index.tsx`, `src/runtimeConfig.ts`, `src/authenticationRecovery.ts`, `src/sw*.ts`, `src/appVersion.ts`, `src/appUpdate.ts` | Entry point, deployment bootstrap, service worker, check for new deployments, the reload into a new one |
+| `src/index.tsx`, `src/boot/runtimeConfig.ts`, `src/boot/authenticationRecovery.ts`, `src/sw/sw*.ts`, `src/app/config/appVersion.ts`, `src/app/config/appUpdate.ts` | Entry point, deployment bootstrap, service worker, check for new deployments, the reload into a new one |
 | `src/client/` | Creating, starting and signing out the Matrix client; access token refresh |
 | `src/app/pages/` | Router, sign-in pages (`auth/`), and the signed-in pages (`client/`: home, direct messages, threads, explore, inbox, spaces, canvases, connections) |
 | `src/app/features/` | Larger screens: the room (header, timeline, composer, members), room navigation, settings, room and space settings, creating rooms and spaces, calls |
@@ -27,7 +27,7 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 | `src/app/hooks/`, `src/app/state/` | React hooks and jotai atoms (sessions, settings, room and room list state) |
 | `src/app/utils/`, `src/app/plugins/` | Helpers: Matrix event and room helpers, HTML sanitizing, Markdown, emoji data, math, code highlighting, `matrix.to` links |
 | `src/app/styles/`, `src/app/theme/` | Shared vanilla-extract styles and the light and dark theme bootstrap |
-| `src/app/locales/` | Translation catalogs for 17 languages; `additions/` holds overlay keys per language |
+| `src/app/i18n/locales/` | Translation catalogs for 17 languages; `additions/` holds overlay keys per language |
 | `e2e/` | Playwright specs: the top level and `live/` (most need a homeserver), `lane-c/` (specs written for this repository), `fixtures/` (pages that render one component), `helpers/`, `rtc/` (MatrixRTC authorization service for the call specs), and `docker-compose.yaml` (the Tuwunel test homeserver) |
 | `scripts/` | Vite plugins and build helpers, check scripts (`strict-check.mjs`, `license-check.mjs`), provenance tools, e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), iOS and App Store helpers |
 | `public/` | Files served at the root as they are: icons, sounds, `manifest.json` |
@@ -47,14 +47,14 @@ Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) re
 To see which lane a file is in:
 
 ```bash
-node scripts/provenance-paths.cjs lane src/app/mindroom/messages/toolTrace.ts src/app/hooks/useClientConfig.ts
+node scripts/provenance-paths.cjs lane src/app/matrix/protocol/toolTrace.ts src/app/config/useClientConfig.ts
 ```
 
 `just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout, and the overlap check described in `docs/provenance.md` runs over new code.
 
 ## MindRoom event formats
 
-The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are Lane P code under `src/app/mindroom/`. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/mindroom/threads/MindroomRoom.tsx`, `MindroomRoomTimeline.tsx`), the message row seam (`src/app/mindroom/threads/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/components/RenderMessageContent.tsx`, which passes each message to `renderMindroomMessageContent` first. Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
+The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are Lane P code under `src/app/mindroom/`. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/room/Room.tsx`, `MindroomRoomTimeline.tsx`), the message row seam (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderMindroomMessageContent` first. Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
 
 | Format | Shape | Read in (under `src/app/mindroom/`) |
 |---|---|---|
@@ -72,6 +72,6 @@ The MindRoom backend defines the formats its agents send, and the client reads t
 
 Agents are recognized by their Matrix user ID (`mindroom_` localpart prefix, `matrix/agentIdentity.ts`). Other MindRoom data the client reads: `io.mindroom.settings` account data (`settings/mindroomAccountSettings.ts`), the router's `io.mindroom.auto_approve` room state (`auto-approve/`), and each agent's `io.mindroom.background_jobs` room state (`background-jobs/`).
 
-The client's own account data: `io.mindroom.spaces` holds the rail's folders and saved space order (`src/app/pages/client/sidebar/sidebarSpaces.ts`), and `io.mindroom.room_order` the rooms a person dragged into their own order, per Rooms section: `{"lists": {"home": [<room ID>, ...], <space ID>: [...]}}`, where `home` is Home's section and a space's room ID is that space's (`src/app/features/room-nav/roomOrder.ts`). A section without a list shows its rooms A to Z; rooms the list does not name follow the ones it does, A to Z, and Sort Rooms A to Z in the section's options menu deletes its list.
+The client's own account data: `io.mindroom.spaces` holds the rail's folders and saved space order (`src/app/spaces/sidebarSpaces.ts`), and `io.mindroom.room_order` the rooms a person dragged into their own order, per Rooms section: `{"lists": {"home": [<room ID>, ...], <space ID>: [...]}}`, where `home` is Home's section and a space's room ID is that space's (`src/app/sidebar/room-nav/roomOrder.ts`). A section without a list shows its rooms A to Z; rooms the list does not name follow the ones it does, A to Z, and Sort Rooms A to Z in the section's options menu deletes its list.
 
 Two tests pin formats to what the backend actually sends: `messages/backendApprovalContract.test.ts` reads approval events captured from the backend (`messages/__fixtures__/backendApprovalContract.json`), and `messages/__fixtures__/backendToolMarkerBodies.json` holds the backend's own HTML for tool markers, written by `scripts/capture-backend-tool-marker-bodies.py`. The backend's `docs/streaming.md`, `docs/canvases.md` and `docs/tools/worker-computer.md` describe the formats in prose.

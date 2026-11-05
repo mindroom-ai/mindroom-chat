@@ -3,11 +3,11 @@ import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { LightTheme } from '../../src/app/hooks/useTheme';
+import '../../src/app/i18n/i18n';
+import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { Modal } from '../../src/app/components/glass/GlassPrimitives';
-import { ImageViewer } from '../../src/app/components/image-viewer';
+import { Modal } from '../../src/app/ui/glass/GlassPrimitives';
+import { ImageViewer } from '../../src/app/messages/viewers/image-viewer';
 
 applyThemeToDom(LightTheme);
 

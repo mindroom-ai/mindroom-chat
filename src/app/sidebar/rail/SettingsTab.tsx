@@ -1,0 +1,275 @@
+import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { Text } from 'folds';
+import { useSetAtom } from 'jotai';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { SidebarAvatar, SidebarItem, SidebarItemTooltip } from '../../ui/sidebar';
+import { UserAvatar } from '../../avatars/user-avatar';
+import { authenticatedAvatarRequest } from '../../avatars/user-avatar/avatarMedia';
+import { Modal500 } from '../../ui/Modal500';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
+import { useUserProfile } from '../../members/useUserProfile';
+import { useActiveSession, useStoredSessions } from '../../matrix/session/useSessionStore';
+import {
+  setActiveSession,
+  updateSessionProfile,
+  type StoredSession,
+} from '../../matrix/session/sessions';
+import { settingsModalAtom } from '../../navigation/settingsModal';
+import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
+import { nameInitials } from '../../lib/common';
+import { getLoginPath } from '../../routes/pathUtils';
+import { withAddAccountSearch } from '../../navigation/addAccount';
+import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
+import { AccountMenu } from '../../account/switcher/AccountMenu';
+import { AccountSwitcher } from '../../account/switcher/AccountSwitcher';
+import { useAccountRemoval } from '../../account/switcher/useAccountRemoval';
+import { useShortcut } from '../../shortcuts/useShortcut';
+
+const AVATAR_SIZE = 96;
+
+const sessionName = (session: StoredSession): string =>
+  session.lastKnownDisplayName ?? getMxIdLocalPart(session.userId) ?? session.userId;
+
+const readBlobAsDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('No data'));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read the avatar'));
+    reader.readAsDataURL(blob);
+  });
+
+/**
+ * The active account's avatar as a data URL. It is cached on the stored
+ * session, so the rail shows it before the profile loads and offline; the
+ * authenticated media URL itself is never handed to an `<img>`.
+ */
+const useCachedActiveAvatar = (
+  session: StoredSession,
+  liveMxc: string | undefined,
+  resolved: boolean
+) => {
+  const mx = useMatrixClient();
+  const useAuthentication = useMediaAuthentication();
+  const [fetched, setFetched] = useState<{ mxc: string; dataUrl: string }>();
+  const targetMxc = resolved ? liveMxc : session.lastKnownAvatarUrl;
+  const cachedMatches =
+    !!session.lastKnownAvatarDataUrl && session.lastKnownAvatarUrl === targetMxc;
+
+  useEffect(() => {
+    if (!targetMxc || cachedMatches || fetched?.mxc === targetMxc) return undefined;
+    const httpUrl = mxcUrlToHttp(
+      mx,
+      targetMxc,
+      useAuthentication,
+      AVATAR_SIZE,
+      AVATAR_SIZE,
+      'crop'
+    );
+    if (!httpUrl) return undefined;
+    const accessToken = mx.getAccessToken();
+    let cancelled = false;
+    void (async () => {
+      try {
+        let response = await fetch(
+          httpUrl,
+          useAuthentication && accessToken
+            ? { headers: { Authorization: `Bearer ${accessToken}` } }
+            : {}
+        );
+        // Without a service worker the URL is a legacy one, which servers with authenticated
+        // media may refuse; ask the authenticated endpoint with the token instead.
+        const retry =
+          response.ok || useAuthentication ? undefined : authenticatedAvatarRequest(mx, httpUrl);
+        if (retry) response = await fetch(retry.url, retry.init);
+        if (!response.ok) return;
+        const dataUrl = await readBlobAsDataUrl(await response.blob());
+        if (cancelled) return;
+        setFetched({ mxc: targetMxc, dataUrl });
+        if (resolved) {
+          updateSessionProfile(session.sessionId, {
+            lastKnownAvatarUrl: targetMxc,
+            lastKnownAvatarDataUrl: dataUrl,
+          });
+        }
+      } catch {
+        // The rail falls back to initials.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mx, useAuthentication, targetMxc, cachedMatches, fetched?.mxc, resolved, session.sessionId]);
+
+  if (fetched && fetched.mxc === targetMxc) return fetched.dataUrl;
+  if (session.lastKnownAvatarDataUrl && (cachedMatches || !resolved))
+    return session.lastKnownAvatarDataUrl;
+  return undefined;
+};
+
+/**
+ * The account button at the foot of the icon rail: the active account's avatar, which opens the
+ * account menu (Settings, the other accounts, Add Account, Manage Accounts).
+ */
+export function SettingsTab() {
+  const client = useMatrixClient();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const setSettingsModal = useSetAtom(settingsModalAtom);
+  const activeSessionHook = useActiveSession();
+  const sessions = useStoredSessions();
+  const [menuButton, setMenuButton] = useState<HTMLElement>();
+  const [switcherOpen, setSwitcherOpen] = useState(false);
+  const [error, setError] = useState<string>();
+
+  const userId = activeSessionHook?.userId ?? client.getUserId() ?? '';
+  // The stored copy carries the freshest cached profile fields.
+  const activeSession =
+    sessions.find((session) => session.sessionId === activeSessionHook?.sessionId) ??
+    activeSessionHook;
+  const profile = useUserProfile(userId);
+
+  const displayName = profile.isDisplayNameResolved
+    ? profile.displayName ?? getMxIdLocalPart(userId) ?? userId
+    : activeSession?.lastKnownDisplayName ?? getMxIdLocalPart(userId) ?? userId;
+
+  useEffect(() => {
+    if (!activeSession || !profile.isDisplayNameResolved || !profile.displayName) return;
+    if (activeSession.lastKnownDisplayName === profile.displayName) return;
+    updateSessionProfile(activeSession.sessionId, { lastKnownDisplayName: profile.displayName });
+  }, [activeSession, profile.isDisplayNameResolved, profile.displayName]);
+
+  const avatarSrc = useCachedActiveAvatar(
+    activeSession ?? ({ sessionId: '', userId } as StoredSession),
+    profile.avatarUrl,
+    profile.isAvatarResolved
+  );
+
+  const otherAccounts = useMemo(
+    () =>
+      sessions
+        .filter((session) => session.sessionId !== activeSession?.sessionId)
+        .map((session) => ({
+          session,
+          displayName: sessionName(session),
+          avatarUrl: session.lastKnownAvatarDataUrl,
+        })),
+    [sessions, activeSession?.sessionId]
+  );
+
+  const closeMenu = useCallback(() => setMenuButton(undefined), []);
+
+  const failed = useCallback(() => {
+    setMenuButton(undefined);
+    setError(t('accountSwitcher.actionError'));
+    setSwitcherOpen(true);
+  }, [t]);
+
+  const handleSwitch = (session: StoredSession) => {
+    let next: StoredSession | undefined;
+    try {
+      next = setActiveSession(session.sessionId);
+    } catch {
+      next = undefined;
+    }
+    if (!next) {
+      failed();
+      return;
+    }
+    setError(undefined);
+    setSwitcherOpen(false);
+    // The stored path of the account chosen; the store's copy may already point elsewhere.
+    navigate(resolveSessionRestorePath(session.lastKnownPath));
+  };
+
+  const clearError = useCallback(() => setError(undefined), []);
+  const { removingSessionId, remove: handleRemove } = useAccountRemoval(clearError, failed);
+
+  const handleAddAccount = () => {
+    setSwitcherOpen(false);
+    navigate(withAddAccountSearch(getLoginPath(activeSession?.baseUrl)));
+  };
+
+  const openSettings = () => {
+    setSwitcherOpen(false);
+    setSettingsModal({});
+  };
+  useShortcut('settings', () => {
+    openSettings();
+    return true;
+  });
+
+  // Pressing the avatar while its menu is open closes the menu.
+  const toggleAccountMenu = (event: MouseEvent<HTMLElement>) => {
+    const button = event.currentTarget;
+    setMenuButton((open) => (open ? undefined : button));
+  };
+
+  const label = t('featureUi.accountMenu.open', { name: displayName });
+
+  // The active account carries the rail's selection mark; its menu opens beside it.
+  return (
+    <>
+      <SidebarItem active>
+        <SidebarItemTooltip tooltip={label}>
+          {(triggerRef) => (
+            <SidebarAvatar
+              as="button"
+              ref={triggerRef}
+              aria-label={label}
+              aria-haspopup="menu"
+              aria-expanded={!!menuButton}
+              // The signed-in account, not an open page.
+              aria-current="true"
+              onClick={toggleAccountMenu}
+            >
+              <UserAvatar
+                userId={userId}
+                src={avatarSrc}
+                alt={displayName}
+                renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
+              />
+            </SidebarAvatar>
+          )}
+        </SidebarItemTooltip>
+        {menuButton && (
+          <AccountMenu
+            anchor={menuButton}
+            active={{ userId, displayName, avatarUrl: avatarSrc }}
+            others={otherAccounts}
+            onOpenSettings={openSettings}
+            onSwitchAccount={handleSwitch}
+            onAddAccount={handleAddAccount}
+            onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
+            onClose={closeMenu}
+          />
+        )}
+      </SidebarItem>
+      {switcherOpen && (
+        <Modal500 requestClose={() => setSwitcherOpen(false)} fillPhoneScreen>
+          <AccountSwitcher
+            accounts={sessions.map((session) => ({
+              session,
+              active: session.sessionId === activeSession?.sessionId,
+              displayName:
+                session.sessionId === activeSession?.sessionId ? displayName : sessionName(session),
+              avatarUrl:
+                session.sessionId === activeSession?.sessionId
+                  ? avatarSrc
+                  : session.lastKnownAvatarDataUrl,
+            }))}
+            busySessionId={removingSessionId}
+            error={error}
+            onOpenSettings={openSettings}
+            onSwitchAccount={handleSwitch}
+            onRemoveAccount={(session) => void handleRemove(session)}
+            onAddAccount={handleAddAccount}
+            onClose={() => setSwitcherOpen(false)}
+          />
+        </Modal500>
+      )}
+    </>
+  );
+}

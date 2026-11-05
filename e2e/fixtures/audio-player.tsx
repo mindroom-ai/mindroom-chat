@@ -5,16 +5,16 @@ import { Provider } from 'jotai';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { DarkTheme, LightTheme } from '../../src/app/hooks/useTheme';
+import '../../src/app/i18n/i18n';
+import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { MatrixClientProvider } from '../../src/app/hooks/useMatrixClient';
-import { SpecVersionsProvider } from '../../src/app/hooks/useSpecVersions';
-import { MAudio } from '../../src/app/components/message/MsgTypeRenderers';
+import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
+import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
+import { MAudio } from '../../src/app/messages/content/MsgTypeRenderers';
 import {
   MATRIX_AUDIO_DETAILS_PROPERTY_NAME,
   MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
-} from '../../src/types/matrix/common';
+} from '../../src/app/matrix/types/common';
 
 const dark = new URLSearchParams(window.location.search).get('theme') === 'dark';
 applyThemeToDom(dark ? DarkTheme : LightTheme);

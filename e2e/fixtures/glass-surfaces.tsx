@@ -4,37 +4,37 @@ import { createRoot } from 'react-dom/client';
 import { createClient, MatrixEvent, MemoryStore, MsgType } from 'matrix-js-sdk';
 import { Provider, createStore } from 'jotai';
 import { AvatarFallback, Text, color, config } from 'folds';
-import { Header, Menu, MenuItem, Modal } from '../../src/app/components/glass/GlassPrimitives';
+import { Header, Menu, MenuItem, Modal } from '../../src/app/ui/glass/GlassPrimitives';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
+import '../../src/app/i18n/i18n';
 import {
   ButterTheme,
   DarkTheme,
   LightTheme,
   MidnightTheme,
   SilverTheme,
-} from '../../src/app/hooks/useTheme';
+} from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { MatrixClientProvider } from '../../src/app/hooks/useMatrixClient';
-import { SpecVersionsProvider } from '../../src/app/hooks/useSpecVersions';
-import { CustomEditor, useEditor } from '../../src/app/components/editor';
-import { SidebarAvatar } from '../../src/app/components/sidebar';
-import { MAudio } from '../../src/app/components/message/MsgTypeRenderers';
-import { glassShadow } from '../../src/app/styles/Glass.css';
-import { Page, PageHeader, PageNavHeader, PageRoot } from '../../src/app/components/page/Page';
-import { NavCategoryHeader } from '../../src/app/components/nav/NavCategoryHeader';
-import { ScreenSizeProvider, useScreenSize } from '../../src/app/hooks/useScreenSize';
-import { RoomThreadOverview } from '../../src/app/mindroom/threads/RoomThreadOverview';
-import type { ThreadFilterState } from '../../src/app/mindroom/threads/roomThreadOverviewModel';
-import { mindroomAccountSettingsAtom } from '../../src/app/mindroom/settings/useMindroomAccountSettings';
-import { Modal500 } from '../../src/app/components/Modal500';
-import * as threadBannerCss from '../../src/app/mindroom/threads/ThreadContextBanner.css';
+import { MatrixClientProvider } from '../../src/app/matrix/hooks/useMatrixClient';
+import { SpecVersionsProvider } from '../../src/app/matrix/hooks/useSpecVersions';
+import { CustomEditor, useEditor } from '../../src/app/editor';
+import { SidebarAvatar } from '../../src/app/ui/sidebar';
+import { MAudio } from '../../src/app/messages/content/MsgTypeRenderers';
+import { glassShadow } from '../../src/app/ui/styles/Glass.css';
+import { Page, PageHeader, PageNavHeader, PageRoot } from '../../src/app/ui/page/Page';
+import { NavCategoryHeader } from '../../src/app/ui/nav/NavCategoryHeader';
+import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
+import { RoomThreadOverview } from '../../src/app/threads/overview/RoomThreadOverview';
+import type { ThreadFilterState } from '../../src/app/event-store/threads/roomThreadOverviewModel';
+import { mindroomAccountSettingsAtom } from '../../src/app/matrix/hooks/useAccountSettings';
+import { Modal500 } from '../../src/app/ui/Modal500';
+import * as threadBannerCss from '../../src/app/threads/ThreadContextBanner.css';
 import { MessageGlass } from './MessageGlass';
 import { DialogMenusGlass } from './DialogMenusGlass';
 import { ChatControlsGlass } from './ChatControlsGlass';
-import { AccountDataEvent } from '../../src/types/matrix/accountData';
+import { AccountDataEvent } from '../../src/app/matrix/types/accountData';
 
 const themes = {
   light: LightTheme,

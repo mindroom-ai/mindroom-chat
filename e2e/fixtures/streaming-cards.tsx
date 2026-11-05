@@ -3,10 +3,10 @@ import { createRoot } from 'react-dom/client';
 import { configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { lightTheme } from '../../src/colors.css';
-import { CompactThreadCard } from '../../src/app/mindroom/threads/CompactThreadCard';
-import type { CompactThreadCardViewModel } from '../../src/app/mindroom/threads/types';
+import '../../src/app/i18n/i18n';
+import { lightTheme } from '../../src/app/theme/colors.css';
+import { CompactThreadCard } from '../../src/app/threads/overview/CompactThreadCard';
+import type { CompactThreadCardViewModel } from '../../src/app/event-store/threads/types';
 
 document.documentElement.className = `${configClass} ${varsClass} ${lightTheme}`;
 const cards: CompactThreadCardViewModel[] = Array.from({ length: 200 }, (_, index) => ({

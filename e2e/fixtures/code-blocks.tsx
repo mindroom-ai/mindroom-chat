@@ -6,19 +6,19 @@ import { color, configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
+import '../../src/app/i18n/i18n';
 import {
   butterTheme,
   darkTheme,
   lightTheme,
   midnightTheme,
   silverTheme,
-} from '../../src/colors.css';
-import { roundedRadii } from '../../src/config.css';
+} from '../../src/app/theme/colors.css';
+import { roundedRadii } from '../../src/app/theme/config.css';
 import {
   getReactCustomHtmlParser,
   LINKIFY_OPTS,
-} from '../../src/app/plugins/react-custom-html-parser';
+} from '../../src/app/messages/html/react-custom-html-parser';
 
 const themes = {
   light: [lightTheme, 'prism-light'],

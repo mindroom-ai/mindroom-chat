@@ -25,22 +25,22 @@ vi.mock('@capacitor/app', () => ({
   App: {},
 }));
 
-vi.mock('./app/mindroom/native/nativeSso', () => ({
+vi.mock('./app/native/nativeSso', () => ({
   isNativeIOS: mocks.isNativeIOS,
   isNativeApp: () => false,
   registerNativeAppUrlCallbacks: vi.fn(),
 }));
 
-vi.mock('./app/mindroom/diagnostics/flightRecorder', () => ({
+vi.mock('./app/diagnostics/flightRecorder', () => ({
   installFlightRecorder: mocks.installFlightRecorder,
 }));
 
-vi.mock('./app/mindroom/diagnostics/deepTrace', () => ({
+vi.mock('./app/diagnostics/deepTrace', () => ({
   initializeDeepTraceRecorder: mocks.initializeDeepTraceRecorder,
   recordDeepTraceEvent: mocks.recordDeepTraceEvent,
 }));
 
-vi.mock('./app/mindroom/matrix/indexedDbLossRecovery', () => ({
+vi.mock('./app/account/lifecycle/indexedDbLossRecovery', () => ({
   installIndexedDbLossRecovery: mocks.installIndexedDbLossRecovery,
   readRecoveryReloadAge: mocks.readRecoveryReloadAge,
 }));
@@ -50,49 +50,49 @@ vi.mock('./app/theme/themeBootstrap', () => ({
   resolveInitialTheme: vi.fn(),
 }));
 
-vi.mock('./app/mindroom/threads/rideTraceRecorder', () => ({
+vi.mock('./app/timeline/rideTraceRecorder', () => ({
   bootstrapRideTraceFlagFromUrl: vi.fn(),
 }));
 
-vi.mock('./app/mindroom/settings/mindroomSettingsStorage', () => ({
+vi.mock('./app/event-store/engine/prefetchSettingsStorage', () => ({
   migrateMindroomSettingsStorage: vi.fn(),
 }));
 
-vi.mock('./app/mindroom/native/iosPush', () => ({
+vi.mock('./app/notifications/push/iosPush', () => ({
   migrateLegacyIOSPushEnabled: vi.fn(),
 }));
 
-vi.mock('./app/utils/runtimeConfig', () => ({
+vi.mock('./app/config/runtimeConfig', () => ({
   isServiceWorkerEnabled: mocks.isServiceWorkerEnabled,
 }));
 
-vi.mock('./app/state/sessions', () => ({
+vi.mock('./app/matrix/session/sessions', () => ({
   getActiveSession: mocks.getActiveSession,
   subscribeToSessionStore: vi.fn(),
 }));
 
-vi.mock('./sw-session', () => ({
+vi.mock('./sw/swSession', () => ({
   pushSessionToSW: vi.fn(),
   waitForServiceWorkerControl: mocks.waitForServiceWorkerControl,
 }));
 
-vi.mock('./appVersion', () => ({
+vi.mock('./app/config/appVersion', () => ({
   APP_BUILD_VERSION: 'test-build',
   fetchPublishedAppVersion: mocks.fetchPublishedAppVersion,
   startAppVersionMonitor: vi.fn(),
 }));
 
-vi.mock('./serviceWorkerRegistration', () => ({
+vi.mock('./app/config/serviceWorkerRegistration', () => ({
   createServiceWorkerUrl: vi.fn(),
 }));
 
-vi.mock('./app/pages/App', () => ({
+vi.mock('./app/shell/App', () => ({
   default: () => null,
 }));
 
-vi.mock('./app/i18n', () => ({}));
+vi.mock('./app/i18n/i18n', () => ({}));
 
-vi.mock('./app/styles/Typography.css', () => ({}));
+vi.mock('./app/theme/Typography.css', () => ({}));
 
 describe('application bootstrap', () => {
   const originalServiceWorker = Object.getOwnPropertyDescriptor(navigator, 'serviceWorker');
@@ -290,7 +290,7 @@ describe('application bootstrap', () => {
         expect(browserWindow.sessionStorage.getItem('mindroom_sw_control_reloaded')).toBe('1');
 
         // Exercise the real worker navigation handler with an older cached shell.
-        const { fetchNavigationWithShellFallback } = await import('./serviceWorkerNavigation');
+        const { fetchNavigationWithShellFallback } = await import('./boot/serviceWorkerNavigation');
         vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('new build')));
         const response = await fetchNavigationWithShellFallback(
           new Request(destination),

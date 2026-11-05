@@ -5,17 +5,17 @@ import { color, config } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { DarkTheme, LightTheme } from '../../src/app/hooks/useTheme';
+import '../../src/app/i18n/i18n';
+import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { ClientConfigProvider } from '../../src/app/hooks/useClientConfig';
-import { RenderBody } from '../../src/app/components/message/RenderBody';
-import { MessageTextBody } from '../../src/app/components/message/layout/layout.css';
+import { ClientConfigProvider } from '../../src/app/config/useClientConfig';
+import { RenderBody } from '../../src/app/messages/content/RenderBody';
+import { MessageTextBody } from '../../src/app/messages/layout/layout.css';
 import {
   factoryRenderLinkifyWithMention,
   getReactCustomHtmlParser,
   LINKIFY_OPTS,
-} from '../../src/app/plugins/react-custom-html-parser';
+} from '../../src/app/messages/html/react-custom-html-parser';
 
 // `?dark` switches to the dark theme. Site icons come from the real message parser; the spec
 // answers every icon request itself, so nothing leaves the machine.

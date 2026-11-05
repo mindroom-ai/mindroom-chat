@@ -41,4 +41,4 @@ find "${SCREENSHOT_DIR}" -maxdepth 1 -type f ! -name '.*' -delete
 fixture_environment="$("${ROOT_DIR}/scripts/appstore-fixture-up.sh" --print-env)"
 eval "${fixture_environment}"
 
-exec npx playwright test e2e/app-store-screenshots.spec.ts --project=chromium "$@"
+exec npx playwright test e2e/diagnostics/app-store-screenshots.spec.ts --project=chromium "$@"

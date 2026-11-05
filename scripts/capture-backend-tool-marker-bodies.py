@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Capture MindRoom formatted_body renders of tool-marker bodies for copy tests.
 
-Writes src/app/mindroom/messages/__fixtures__/backendToolMarkerBodies.json by
+Writes src/app/messages/__fixtures__/backendToolMarkerBodies.json by
 running the backend's own markdown_to_html over each case. Run from this repo,
 pinning the backend's locked renderer versions:
 
     uv run --no-project --with markdown-it-py==4.0.0 \\
         --with mdit-py-plugins==0.5.0 --with pygments==2.20.0 \\
         python scripts/capture-backend-tool-marker-bodies.py ../mindroom \\
-        src/app/mindroom/messages/__fixtures__/backendToolMarkerBodies.json
+        src/app/messages/__fixtures__/backendToolMarkerBodies.json
 
 then format the output with Prettier and note the backend commit in
 messageCopyText.test.ts.

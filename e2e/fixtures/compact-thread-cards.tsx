@@ -4,17 +4,17 @@ import { Box, Icon, IconButton, Icons } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import i18n from '../../src/app/i18n';
-import { DarkTheme, LightTheme } from '../../src/app/hooks/useTheme';
+import i18n from '../../src/app/i18n/i18n';
+import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { CompactThreadCard } from '../../src/app/mindroom/threads/CompactThreadCard';
-import { CompactCardSwipe } from '../../src/app/mindroom/threads/CompactCardSwipe';
+import { CompactThreadCard } from '../../src/app/threads/overview/CompactThreadCard';
+import { CompactCardSwipe } from '../../src/app/threads/overview/CompactCardSwipe';
 import {
   formatCompactThreadMessageCount,
   getCompactThreadMessageCountLabel,
-} from '../../src/app/mindroom/threads/compactThreadCardViewModel';
-import * as css from '../../src/app/mindroom/threads/CompactRoomView.css';
-import type { CompactThreadCardViewModel } from '../../src/app/mindroom/threads/types';
+} from '../../src/app/threads/overview/compactThreadCardViewModel';
+import * as css from '../../src/app/threads/overview/CompactRoomView.css';
+import type { CompactThreadCardViewModel } from '../../src/app/event-store/threads/types';
 
 // Screenshot fixture for the compact room view: a realistic agent room with
 // unread, streaming, scheduled, tagged and resolved threads, rendered by the

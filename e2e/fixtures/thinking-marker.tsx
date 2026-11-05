@@ -2,12 +2,12 @@ import { createRoot } from 'react-dom/client';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { DarkTheme, LightTheme } from '../../src/app/hooks/useTheme';
+import '../../src/app/i18n/i18n';
+import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { ClientConfigProvider, type ClientConfig } from '../../src/app/hooks/useClientConfig';
-import { MindroomThinkingPlaceholder } from '../../src/app/mindroom/messages/MindroomThinkingPlaceholder';
-import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../src/app/mindroom/messages/thinkingPlaceholder';
+import { ClientConfigProvider, type ClientConfig } from '../../src/app/config/useClientConfig';
+import { MindroomThinkingPlaceholder } from '../../src/app/messages/agent-run/ThinkingPlaceholder';
+import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../src/app/matrix/protocol/thinkingPlaceholder';
 
 // Query flags: `dark` theme, `rtl` direction, `label=<text>` replaces the default "Thinking…",
 // and `elapsed=<ms>` starts the counter that many milliseconds ago.

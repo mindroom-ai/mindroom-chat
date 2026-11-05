@@ -7,10 +7,10 @@ import {
   SilverTheme,
   type Theme,
   ThemeKind,
-} from '../hooks/useTheme';
-import { MINDROOM_SESSION_STORE_KEY } from '../mindroom/cache/sessionStoreConfig';
-import { syncNativeStatusBarTheme } from '../mindroom/native/statusBarTheme';
-import { getSettings } from '../state/settings';
+} from './useTheme';
+import { MINDROOM_SESSION_STORE_KEY } from '../lib/sessionStoreConfig';
+import { syncNativeStatusBarTheme } from './statusBarTheme';
+import { getSettings } from '../preferences/settings';
 
 const UNAUTH_ROUTE_PATH_PATTERN = /(?:^|\/)(login|register|reset-password)(?:\/[^/]+)?\/?$/;
 const hasOwn = Object.prototype.hasOwnProperty;

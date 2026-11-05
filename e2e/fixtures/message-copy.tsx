@@ -3,12 +3,12 @@ import { Box } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { LightTheme } from '../../src/app/hooks/useTheme';
+import '../../src/app/i18n/i18n';
+import { LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
-import { Menu } from '../../src/app/components/glass/GlassPrimitives';
-import { MessageCopyTextItem } from '../../src/app/mindroom/messages/MindroomMessage';
-import { MessageMenuGroup } from '../../src/app/features/room/message/styles.css';
+import { Menu } from '../../src/app/ui/glass/GlassPrimitives';
+import { MessageCopyTextItem } from '../../src/app/messages/Message';
+import { MessageMenuGroup } from '../../src/app/messages/styles.css';
 
 applyThemeToDom(LightTheme);
 

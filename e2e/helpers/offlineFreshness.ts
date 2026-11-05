@@ -2,7 +2,7 @@ import type { BrowserContext, Page } from '@playwright/test';
 import type {
   CachedAttachmentReferenceRecord,
   CachedEventRecord,
-} from '../../src/app/mindroom/threads/cacheStore/cacheStoreSchema';
+} from '../../src/app/event-store/cache/db/cacheStoreSchema';
 
 type FreshnessProbe = {
   heldBodies: number;

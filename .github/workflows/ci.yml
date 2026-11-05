@@ -95,14 +95,14 @@ jobs:
           E2E_REUSE_EXISTING_SERVER: '0'
         run: >-
           npx playwright test
-          e2e/lane-c/room-unread-filter.spec.ts
-          e2e/live/command-palette.spec.ts
-          e2e/live/compact-card-display-names.spec.ts
-          e2e/live/login.spec.ts
-          e2e/live/long-composer-message.spec.ts
-          e2e/live/rooms.spec.ts
-          e2e/live/smoke.spec.ts
-          e2e/live/threads.spec.ts
+          e2e/sidebar/room-unread-filter.spec.ts
+          e2e/command-palette/command-palette.live.spec.ts
+          e2e/threads/compact-card-display-names.live.spec.ts
+          e2e/account/login.live.spec.ts
+          e2e/composer/long-composer-message.live.spec.ts
+          e2e/room/rooms.live.spec.ts
+          e2e/shell/smoke.live.spec.ts
+          e2e/threads/threads.live.spec.ts
       - name: Keep the report of a failed run
         if: failure()
         uses: actions/upload-artifact@v7

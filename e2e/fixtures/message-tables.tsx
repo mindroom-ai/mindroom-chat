@@ -6,16 +6,16 @@ import { color, configClass, varsClass } from 'folds';
 import 'folds/dist/style.css';
 import '@fontsource/inter/variable.css';
 import '../../src/index.css';
-import '../../src/app/i18n';
-import { darkTheme, lightTheme } from '../../src/colors.css';
-import { BreakWord } from '../../src/app/styles/Text.css';
+import '../../src/app/i18n/i18n';
+import { darkTheme, lightTheme } from '../../src/app/theme/colors.css';
+import { BreakWord } from '../../src/app/ui/styles/Text.css';
 import {
   getReactCustomHtmlParser,
   LINKIFY_OPTS,
-} from '../../src/app/plugins/react-custom-html-parser';
-import { sanitizeCustomHtml } from '../../src/app/utils/sanitize';
-import { useMindroomToolTraceMarkerParserOptions } from '../../src/app/mindroom/messages/MindroomHtmlBlocks';
-import { resolveHtmlReactParserOptions } from '../../src/app/utils/htmlReactParserOptions';
+} from '../../src/app/messages/html/react-custom-html-parser';
+import { sanitizeCustomHtml } from '../../src/app/rich-text/sanitize';
+import { useMindroomToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
+import { resolveHtmlReactParserOptions } from '../../src/app/rich-text/htmlReactParserOptions';
 
 const params = new URLSearchParams(window.location.search);
 const dark = params.has('dark');
