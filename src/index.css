@@ -32,6 +32,17 @@ body {
   isolation: isolate;
 }
 
+/* A touch screen keeps the pointer where the last tap left it, and WebKit hovers whatever slides
+   under that spot: after Unpin, the button that took its place opened its tooltip. On a screen
+   that cannot hover, the tooltips of buttons (folds' TooltipProvider puts them in the body) show
+   only while a keyboard moves the focus. Details a tap opens, such as an AI title's, live in
+   #portalContainer and stay. */
+@media (hover: none) {
+  html:not(:has(:focus-visible)) body > [role='tooltip'] {
+    display: none;
+  }
+}
+
 #root {
   /* --app-height and --app-viewport-offset-top follow a keyboard-panned visual viewport
      (useMobileKeyboardViewportFix); #root stays in normal flow. */

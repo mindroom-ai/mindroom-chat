@@ -17,8 +17,11 @@ import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/m
 // surface while a pointer hovers them. A touch screen keeps :hover on the element tapped last, so
 // there a tapped button kept that surface and read as pressed: after Unpin the pin still looked
 // pinned. On a phone (390 by 844, touch) a tap leaves no surface behind, while the pressed pin, the
-// resolved check and keyboard focus keep theirs, and a mouse still gets the hover surface. Checked
-// in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// resolved check and keyboard focus keep theirs, and a mouse still gets the hover surface. WebKit
+// also hovered the button that slid under the finger after a tap and opened its tooltip (Resolve
+// after Unpin); on the phone no tooltip opens after a tap, while keyboard focus and a mouse still
+// open them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit,
+// in WebKit.
 // Set BANNER_TOUCH_SHOTS=<directory> to save the banner after each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-banner-touch-hover-spec-password';
@@ -162,6 +165,22 @@ const shot = async (page: Page, target: Locator, name: string) => {
   });
 };
 
+/** The tooltips on screen. */
+const shownTooltips = (page: Page) => page.locator('[role="tooltip"]:visible');
+
+/** No tooltip opens after a tap; the top of the screen is saved to show it. */
+const expectNoTooltip = async (page: Page, name: string, where: string) => {
+  if (SHOTS) {
+    mkdirSync(SHOTS, { recursive: true });
+    await page.screenshot({
+      path: path.join(SHOTS, `${name}-top.png`),
+      clip: { x: 0, y: 0, width: PHONE.viewport?.width ?? 390, height: 200 },
+    });
+  }
+  const texts = await shownTooltips(page).allTextContents();
+  expect.soft(texts, `${where}: no tooltip opens after a tap`).toEqual([]);
+};
+
 /** No quiet banner button keeps a surface after a tap, unless it is pressed or keyboard-focused. */
 const expectNoLeftoverSurface = async (banner: Locator, where: string) => {
   const looks = await Promise.all(
@@ -205,11 +224,13 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   const pinned = await look(button('Unpin thread'));
   expect(pinned.alpha, `${engine}: the pressed pin keeps its surface`).toBeGreaterThan(0.01);
   await shot(page, banner, `banner-pinned-${engine}-phone`);
+  await expectNoTooltip(page, `banner-pinned-${engine}-phone`, `${engine} after Pin`);
 
   await tap('Unpin thread');
   await expect(button('Pin thread')).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(400);
   await shot(page, banner, `banner-after-unpin-${engine}-phone`);
+  await expectNoTooltip(page, `banner-after-unpin-${engine}-phone`, `${engine} after Unpin`);
   await expectNoLeftoverSurface(banner, `${engine} after Unpin`);
 
   await tap('Resolve');
@@ -220,11 +241,13 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     true
   );
   await shot(page, banner, `banner-resolved-${engine}-phone`);
+  await expectNoTooltip(page, `banner-resolved-${engine}-phone`, `${engine} after Resolve`);
 
   await tap('Resolved');
   await expect(button('Resolve')).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(400);
   await shot(page, banner, `banner-after-reopen-${engine}-phone`);
+  await expectNoTooltip(page, `banner-after-reopen-${engine}-phone`, `${engine} after reopening`);
   await expectNoLeftoverSurface(banner, `${engine} after reopening`);
 
   // A keyboard keeps its focus surface: Tab from Thread options to the pin. WebKit, as Safari,
@@ -238,6 +261,11 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   expect(focused.name, `${engine}: Tab reaches the pin`).toBe('Pin thread');
   expect(focused.focusVisible, `${engine}: the pin shows keyboard focus`).toBe(true);
   expect(focused.alpha, `${engine}: keyboard focus keeps its surface`).toBeGreaterThan(0.01);
+  // Keyboard focus still names the button in its tooltip.
+  await expect(
+    shownTooltips(page).filter({ hasText: 'Pin thread' }),
+    `${engine}: Tab to the pin opens its tooltip`
+  ).toHaveCount(1);
 
   // A message's toolbar shares the style: a hovering pointer leaves no surface on a touch screen.
   const message = page.locator('[data-message-id]').filter({ hasText: REPLIES[1] }).last();
@@ -249,6 +277,10 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   const replyAt = await center(reply);
   await page.mouse.move(replyAt.x, replyAt.y);
   await page.waitForTimeout(300);
+  // Chromium's touch emulation puts :hover back at the last tap when Reply's tooltip (hidden on a
+  // phone) comes into the page; the pointer moves once more to be over Reply again.
+  await page.mouse.move(replyAt.x + 1, replyAt.y);
+  await page.waitForTimeout(100);
   const toolbar = await look(reply);
   console.log(`${engine} toolbar: ${JSON.stringify(toolbar)}`);
   expect(toolbar.hover, `${engine}: the pointer is over Reply`).toBe(true);
@@ -268,6 +300,10 @@ const checkDesktop = async (page: Page, world: World, engine: string) => {
     0.01
   );
   await shot(page, banner, `banner-hover-${engine}-desktop`);
+  await expect(
+    shownTooltips(page).filter({ hasText: 'Thread options' }),
+    `${engine}: a mouse over Thread options opens its tooltip`
+  ).toHaveCount(1);
 
   const message = page.locator('[data-message-id]').filter({ hasText: REPLIES[1] }).last();
   const spot = await center(message.getByText(REPLIES[1], { exact: true }));
