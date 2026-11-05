@@ -702,7 +702,7 @@ test.describe('persisted historical room content', () => {
     }
   });
 
-  test('reopens an older thread body and decoded image after a WebKit profile restart', async ({
+  test('reopens an older thread body and decoded image after a WebKit profile restart', { tag: '@webkit' }, async ({
     baseURL,
     browserName,
   }, testInfo) => {

@@ -266,7 +266,7 @@ test.describe('thread live updates after IndexedDB connection loss', () => {
     }
   });
 
-  test('recovers when WebKit really kills its networking process', async ({ browserName }) => {
+  test('recovers when WebKit really kills its networking process', { tag: '@webkit' }, async ({ browserName }) => {
     test.skip(browserName !== 'webkit', 'Only WebKit hosts IndexedDB in a networking process');
     const homeserver = getHomeserver();
     const credentials = getPrimaryCredentials();

@@ -23,6 +23,25 @@ const chromeOnHost =
       }
     : desktopChrome;
 
+// Most WebKit checks launch Playwright's WebKit themselves from a Chromium test, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names it. The few tests that must run as WebKit (a persistent WebKit
+// profile, its networking process) carry the `@webkit` tag and run in this project, which exists
+// only when that variable is set, so a run without it, as on Linux, has the Chromium project only.
+// Select it alone with `--project=webkit`.
+const webkitExecutable = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+const webkitProject = webkitExecutable
+  ? [
+      {
+        name: 'webkit',
+        grep: /@webkit/,
+        use: {
+          ...devices['Desktop Safari'],
+          launchOptions: { executablePath: webkitExecutable },
+        },
+      },
+    ]
+  : [];
+
 /**
  * Playwright runs the specs in e2e/ in the Chromium from `CHROMIUM_PATH` (exported by
  * `nix develop`) against the dev server, which Playwright starts when nothing listens yet.
@@ -57,7 +76,7 @@ const playwrightConfig = defineConfig({
       args: ['--disable-features=IsolateSandboxedIframes'],
     },
   },
-  projects: [{ name: 'chromium', use: { ...chromeOnHost } }],
+  projects: [{ name: 'chromium', use: { ...chromeOnHost } }, ...webkitProject],
   webServer: {
     command: process.env.E2E_SERVER_COMMAND ?? `npx vite --port ${appPort}`,
     url: baseURL,
