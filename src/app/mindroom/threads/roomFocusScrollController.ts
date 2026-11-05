@@ -496,6 +496,14 @@ const useBottomPinRequests = ({
   });
 };
 
+/** The gesture listeners on a scroll area, what they were attached for, and what removes them. */
+type GestureListeners = {
+  scrollArea: HTMLElement;
+  threadId?: string;
+  cancelThreadOpenBottomPin: () => void;
+  detach: () => void;
+};
+
 /**
  * The reader's gestures on the scroll area: in an open thread they end its opening pin, in the
  * room view they end the aiming at the unread marker.
@@ -508,17 +516,41 @@ const useReaderGestures = (
   }: Pick<Options, 'cancelThreadOpenBottomPin' | 'scrollRef' | 'threadId'>,
   endMarkerOpening: () => void
 ) => {
+  const [listening] = useState<{ listeners?: GestureListeners }>({});
+  // Checked after every commit: the scroll area can mount after its view (Compact has none).
   useEffect(() => {
     const scrollArea = scrollRef.current;
-    if (!scrollArea) return undefined;
+    const attached = listening.listeners;
+    if (
+      attached?.scrollArea === scrollArea &&
+      attached.threadId === threadId &&
+      attached.cancelThreadOpenBottomPin === cancelThreadOpenBottomPin
+    ) {
+      return;
+    }
+    attached?.detach();
+    listening.listeners = undefined;
+    if (!scrollArea) return;
     const onGesture = threadId ? () => cancelThreadOpenBottomPin() : endMarkerOpening;
     READER_GESTURES.forEach((type) =>
       scrollArea.addEventListener(type, onGesture, { passive: true })
     );
-    return () => {
-      READER_GESTURES.forEach((type) => scrollArea.removeEventListener(type, onGesture));
+    listening.listeners = {
+      scrollArea,
+      threadId,
+      cancelThreadOpenBottomPin,
+      detach: () => {
+        READER_GESTURES.forEach((type) => scrollArea.removeEventListener(type, onGesture));
+      },
     };
-  }, [cancelThreadOpenBottomPin, endMarkerOpening, scrollRef, threadId]);
+  });
+  useEffect(
+    () => () => {
+      listening.listeners?.detach();
+      listening.listeners = undefined;
+    },
+    [listening]
+  );
 };
 
 /** Keeps the room focus item's index at its event's row while rows come and go above it. */

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { useState } from 'react';
+import { StrictMode, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import { act as actInDom } from 'react-dom/test-utils';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { MatrixEvent } from 'matrix-js-sdk';
@@ -236,6 +238,21 @@ describe('unread marker opening', () => {
     expect(mocks.scrollToItem).toHaveBeenCalledTimes(2);
   });
 
+  it('stops at a gesture on a scroll area that mounts after the room view', () => {
+    const { options, mocks } = setup(null, { unreadInfo: marker, unreadScrollAnchorIndex: 7 });
+    const renderer = render(<Harness options={options} />);
+
+    // The Compact view has no scroll area; the Full view mounts one and renders again.
+    const area = makeScrollArea();
+    options.scrollRef.current = area;
+    act(() => renderer.update(<Harness options={{ ...options }} />));
+    act(() => {
+      area.dispatchEvent(new Event('wheel'));
+    });
+    act(() => renderer.update(<Harness options={{ ...options, unreadScrollAnchorIndex: 27 }} />));
+    expect(mocks.scrollToItem).toHaveBeenCalledTimes(1);
+  });
+
   it('stops aiming once the view changes', () => {
     const { options, mocks } = setup(makeScrollArea(), {
       unreadInfo: marker,
@@ -247,6 +264,45 @@ describe('unread marker opening', () => {
     act(() => renderer.update(<Harness options={{ ...options, threadId: '$thread' }} />));
     act(() => renderer.update(<Harness options={{ ...options, unreadScrollAnchorIndex: 9 }} />));
     expect(mocks.scrollToItem).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('reader gestures', () => {
+  it('end the opening pin of an open thread once each, until the thread closes or unmounts', () => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+    const area = makeScrollArea();
+    const { options, mocks } = setup(area, { threadId: '$thread' });
+    // A react-dom root: StrictMode mounts the effects, unmounts them and mounts them again.
+    const root = createRoot(document.createElement('div'));
+    const show = (current: Options) =>
+      actInDom(() =>
+        root.render(
+          <StrictMode>
+            <Harness options={current} />
+          </StrictMode>
+        )
+      );
+    const gesture = (type: string) =>
+      actInDom(() => {
+        area.dispatchEvent(new Event(type));
+      });
+
+    show(options);
+    gesture('touchmove');
+    gesture('scroll');
+    expect(mocks.cancelThreadOpenBottomPin).toHaveBeenCalledTimes(1);
+
+    show({ ...options, threadId: undefined });
+    gesture('wheel');
+    expect(mocks.cancelThreadOpenBottomPin).toHaveBeenCalledTimes(1);
+
+    show(options);
+    gesture('pointerdown');
+    expect(mocks.cancelThreadOpenBottomPin).toHaveBeenCalledTimes(2);
+
+    actInDom(() => root.unmount());
+    gesture('keydown');
+    expect(mocks.cancelThreadOpenBottomPin).toHaveBeenCalledTimes(2);
   });
 });
 
