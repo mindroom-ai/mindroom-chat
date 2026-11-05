@@ -32,10 +32,11 @@ for spec in "$@"; do
   fi
   if [ "$(git -C "$dir" rev-parse --is-bare-repository 2>/dev/null)" = true ] ||
     [ "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" = "$(cd "$dir" && pwd -P)" ]; then
-    rev=$(git -C "$dir" rev-parse --verify "${rev:-HEAD}^{commit}") || {
+    commit=$(git -C "$dir" rev-parse --verify --quiet "${rev:-HEAD}^{commit}") || {
       echo "similarity-audit: no commit ${rev:-HEAD} in $dir" >&2
       exit 2
     }
+    rev=$commit
   elif [ -n "$rev" ]; then
     echo "similarity-audit: $dir is not a Git repository, so it takes no @commit" >&2
     exit 2
