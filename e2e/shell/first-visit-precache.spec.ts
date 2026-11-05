@@ -88,8 +88,21 @@ const expectRoom = async (page: Page): Promise<void> => {
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
 };
 
-const reloadOffline = async (context: BrowserContext, page: Page): Promise<void> => {
+// Offline for the page and its service worker. Playwright's offline mode does not stop the worker's
+// own fetches everywhere: on macOS (Chrome for Testing 145) they still reach the server while the
+// worker reports navigator.onLine false. So every request that leaves the browser fails as well.
+const goOffline = async (context: BrowserContext): Promise<void> => {
   await context.setOffline(true);
+  await context.route('**/*', (route) => route.abort('internetdisconnected'));
+};
+
+const goOnline = async (context: BrowserContext): Promise<void> => {
+  await context.unrouteAll();
+  await context.setOffline(false);
+};
+
+const reloadOffline = async (context: BrowserContext, page: Page): Promise<void> => {
+  await goOffline(context);
   await page.reload({ waitUntil: 'domcontentloaded' });
   await expectRoom(page);
 };
@@ -160,7 +173,7 @@ test('a first visit precaches the signed-in start and keeps on-demand chunks onc
   await expectRoom(page);
 
   // Online again, the next open loads the board, and the worker keeps its chunks.
-  await context.setOffline(false);
+  await goOnline(context);
   await emojiButton(page).click();
   await expect(anEmoji(page)).toBeVisible({ timeout: 60_000 });
   await page.keyboard.press('Escape');
@@ -179,5 +192,5 @@ test('a first visit precaches the signed-in start and keeps on-demand chunks onc
   await reloadOffline(context, page);
   await emojiButton(page).click();
   await expect(anEmoji(page)).toBeVisible({ timeout: 30_000 });
-  await context.setOffline(false);
+  await goOnline(context);
 });
