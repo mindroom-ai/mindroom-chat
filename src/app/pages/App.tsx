@@ -15,6 +15,7 @@ import { NoticeLayout } from '../mindroom/notices/NoticeBanners';
 import { NewVersionNotice } from '../components/app-update/NewVersionNotice';
 import { AppErrorBoundary } from '../components/app-error/AppErrorBoundary';
 import { installOverlayFocus } from '../utils/overlayFocus';
+import { useErrorReporting } from '../features/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
 
@@ -44,6 +45,8 @@ function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const screenSize = useScreenSize();
   // The router is created once per configuration; screen size changes reach pages by context.
   const router = useMemo(() => createRouter(clientConfig), [clientConfig]);
+  // Error reports, when the configuration names a collector, follow the router's pages.
+  useErrorReporting(clientConfig, router);
   return (
     <ScreenSizeProvider value={screenSize}>
       <RouterProvider router={router} />

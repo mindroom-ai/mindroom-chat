@@ -38,6 +38,7 @@ import { watchForNewVersion } from './appUpdate';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { AUTHENTICATION_RECOVERY_NAVIGATION_PARAM } from './serviceWorkerNavigation';
 import { appUrl, ensureBasePathTrailingSlash, getAppBasePath } from './app/utils/basePath';
+import { installErrorCapture } from './app/features/error-reporting/errorReporting';
 
 /** Marks the one reload that recovers a page the service worker does not control. */
 const SW_CONTROL_RELOAD_KEY = 'mindroom_sw_control_reloaded';
@@ -205,6 +206,9 @@ const startServiceWorker = (): void => {
   recoverServiceWorkerControl().catch(() => undefined);
 };
 
+// Before anything else runs: failures from here on wait for the configuration, which decides
+// whether they become error reports.
+runSafely('error capture', installErrorCapture);
 startDiagnostics();
 prepareDocument();
 runSafely('new version watch', () => {

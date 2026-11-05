@@ -29,6 +29,8 @@ export type SettingsContext = {
   localMindroom: boolean;
   useSystemTheme: boolean;
   developerTools: boolean;
+  /** The deployment names an error collector (`errorReporting.dsn` in config.json). */
+  errorReporting: boolean;
   /** The sidebar buttons the deployment offers a switch for. */
   railButtons: Readonly<Record<string, boolean>>;
 };
@@ -694,6 +696,16 @@ export const SETTINGS = [
     labelKey: `${ABOUT}.deepDiagnosticTracing`,
     scope: 'device',
     hidden: (context) => !context.nativeIOS,
+  },
+  {
+    id: 'errorReports',
+    page: 'about',
+    group: `${ABOUT}.options`,
+    labelKey: 'featureUi.settings.errorReports.title',
+    descriptionKey: 'featureUi.settings.errorReports.description',
+    keywordsKey: `${KEYWORDS}.errorReports`,
+    scope: 'device',
+    hidden: (context) => !context.errorReporting,
   },
 ] as const satisfies readonly SettingDefinition[];
 

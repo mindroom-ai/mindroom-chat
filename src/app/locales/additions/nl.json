@@ -273,7 +273,13 @@
         "profile": "profielfoto, foto, naam, bijnaam",
         "deactivate": "account verwijderen, account opheffen",
         "localMindroom": "koppelen, koppelcode, lokaal, desktop",
-        "emoji": "emoji, stickers, pakketten, eigen emoji"
+        "emoji": "emoji, stickers, pakketten, eigen emoji",
+        "errorReports": "fouten, crash, bug, diagnose, telemetrie, privacy"
+      },
+      "errorReports": {
+        "title": "Foutrapporten versturen",
+        "description": "Verstuurt crashes, mislukte synchronisatie, ontsleuteling en verzending, en trage schermen naar de foutregistratie die deze installatie heeft ingesteld. Rapporten bevatten nooit berichttekst, namen, ID's of bestandsnamen.",
+        "collector": "Rapporten gaan naar {{host}}."
       }
     },
     "createChat": {

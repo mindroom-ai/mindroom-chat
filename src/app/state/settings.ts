@@ -57,6 +57,8 @@ const BOOLEAN_SETTING_KEYS = [
   'isNotificationSounds', // Play a sound with each notification.
   // Developer
   'developerTools', // Developer options in the settings and message menus.
+  // About
+  'sendErrorReports', // Send error reports to the collector config.json names, if it names one.
 ] as const;
 
 type BooleanSettingKey = (typeof BOOLEAN_SETTING_KEYS)[number];
@@ -87,6 +89,7 @@ const ON_BY_DEFAULT: readonly BooleanSettingKey[] = [
   'isNotificationSounds',
   'simpleThreadFilters',
   'shortcutHints',
+  'sendErrorReports',
 ];
 
 const DEFAULT_BOOLEANS = Object.fromEntries(

@@ -8,6 +8,7 @@ import { ErrorDetail } from '../ErrorDetail';
 import { useNewVersion } from '../app-update/NewVersionNotice';
 import { checkForNewVersion, reloadForNewVersion } from '../../../appUpdate';
 import { isMissingBuildFile } from '../../utils/describeError';
+import { reportBoundaryError } from '../../features/error-reporting/errorReporting';
 
 /**
  * What the app shows when a screen fails to render, in place of a blank page: what happened, the
@@ -57,13 +58,14 @@ export function AppCrashScreen({ error }: { error: unknown }) {
 /**
  * The app's root error boundary. Route errors reach it too: the root route rethrows them
  * (src/app/pages/Router.tsx). A failure also asks the server for its version, so a page left
- * behind by a deployment says so.
+ * behind by a deployment says so, and goes into an error report when the deployment collects them.
  */
 export function AppErrorBoundary({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary
       FallbackComponent={AppCrashScreen}
-      onError={() => {
+      onError={(error, info) => {
+        reportBoundaryError(error, info.componentStack);
         checkForNewVersion().catch(() => undefined);
       }}
     >

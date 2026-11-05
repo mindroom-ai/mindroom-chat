@@ -273,7 +273,13 @@
         "profile": "Profilbild, Foto, Name, Spitzname",
         "deactivate": "Konto löschen, Konto schließen",
         "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
-        "emoji": "Emoji, Sticker, Pakete, eigene Emoji"
+        "emoji": "Emoji, Sticker, Pakete, eigene Emoji",
+        "errorReports": "Fehler, Absturz, Bug, Diagnose, Telemetrie, Datenschutz"
+      },
+      "errorReports": {
+        "title": "Fehlerberichte senden",
+        "description": "Sendet Abstürze, Fehler bei Synchronisierung, Entschlüsselung und Senden sowie langsame Ansichten an die Fehlererfassung dieser Installation. Berichte enthalten nie Nachrichtentext, Namen, IDs oder Dateinamen.",
+        "collector": "Berichte gehen an {{host}}."
       }
     },
     "createChat": {

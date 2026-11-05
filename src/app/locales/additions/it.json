@@ -277,7 +277,13 @@
         "profile": "immagine del profilo, foto, nome, soprannome",
         "deactivate": "elimina account, chiudi account",
         "localMindroom": "associa, codice di associazione, locale, desktop",
-        "emoji": "emoji, sticker, pacchetti, emoji personalizzate"
+        "emoji": "emoji, sticker, pacchetti, emoji personalizzate",
+        "errorReports": "errori, arresto anomalo, bug, diagnostica, telemetria, privacy"
+      },
+      "errorReports": {
+        "title": "Invia segnalazioni di errore",
+        "description": "Invia arresti anomali, errori di sincronizzazione, decrittazione e invio e schermate lente al sistema di tracciamento degli errori configurato per questa installazione. Le segnalazioni non includono mai il testo dei messaggi, nomi, ID o nomi di file.",
+        "collector": "Le segnalazioni vengono inviate a {{host}}."
       }
     },
     "createChat": {

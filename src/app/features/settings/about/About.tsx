@@ -21,6 +21,8 @@ import {
 } from '../../../mindroom/diagnostics/deepTrace';
 import { buildDiagnosticsExport } from '../../../mindroom/diagnostics/diagnosticsExport';
 import { APP_RELEASE_VERSION } from '../../../../appVersion';
+import { parseDsn } from '../../error-reporting/errorReporting';
+import { SettingSwitchTile } from '../SettingSwitchTile';
 import { SequenceCardStyle } from '../styles.css';
 
 type TraceNotice = 'storage-unavailable' | 'restart-may-reenable' | undefined;
@@ -178,6 +180,21 @@ function DeepTraceSetting() {
   );
 }
 
+/** Whether this device sends error reports to the collector the deployment names (`host`). */
+function ErrorReportsSetting({ host }: { host: string }) {
+  const { t } = useTranslation();
+  const description = t('featureUi.settings.errorReports.description');
+  const collector = t('featureUi.settings.errorReports.collector', { host });
+  return (
+    <SettingSwitchTile
+      focusId="errorReports"
+      setting="sendErrorReports"
+      title={t('featureUi.settings.errorReports.title')}
+      description={`${description} ${collector}`}
+    />
+  );
+}
+
 type AboutProps = {
   requestClose: () => void;
 };
@@ -305,10 +322,11 @@ function AppIdentity() {
   );
 }
 
-/** App version, diagnostics tools in the iOS app, and credits. */
+/** App version, diagnostics tools in the iOS app, error reports when configured, and credits. */
 export function About({ requestClose }: AboutProps) {
   const { t } = useTranslation();
   const nativeDiagnostics = isNativeIOS();
+  const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
 
   const header = (
     <PageHeader outlined={false}>
@@ -337,10 +355,11 @@ export function About({ requestClose }: AboutProps) {
         <PageContent>
           <Box direction="Column" gap="700">
             <AppIdentity />
-            {nativeDiagnostics && (
+            {(nativeDiagnostics || collectorHost) && (
               <AboutSection title={t('featureUi.settings.about.options')}>
-                <DiagnosticsExport />
-                <DeepTraceSetting />
+                {nativeDiagnostics && <DiagnosticsExport />}
+                {nativeDiagnostics && <DeepTraceSetting />}
+                {collectorHost && <ErrorReportsSetting host={collectorHost} />}
               </AboutSection>
             )}
             <AboutSection title={t('featureUi.settings.about.credits')}>

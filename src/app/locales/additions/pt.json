@@ -277,7 +277,13 @@
         "profile": "fotografia de perfil, fotografia, nome, alcunha",
         "deactivate": "eliminar conta, encerrar conta",
         "localMindroom": "emparelhar, código de emparelhamento, local, computador",
-        "emoji": "emoji, autocolantes, pacotes, emoji personalizados"
+        "emoji": "emoji, autocolantes, pacotes, emoji personalizados",
+        "errorReports": "erros, falha, bug, diagnóstico, telemetria, privacidade"
+      },
+      "errorReports": {
+        "title": "Enviar relatórios de erros",
+        "description": "Envia falhas, erros de sincronização, descriptografia e envio, e telas lentas para o rastreador de erros configurado por esta instalação. Os relatórios nunca incluem texto de mensagens, nomes, IDs ou nomes de arquivos.",
+        "collector": "Os relatórios vão para {{host}}."
       }
     },
     "createChat": {

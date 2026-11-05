@@ -111,6 +111,15 @@ export type ClientConfig = {
     sourceUrl?: string;
   };
 
+  /** Error reports from this deployment's clients (src/app/features/error-reporting). */
+  errorReporting?: {
+    /**
+     * DSN of a Sentry-compatible collector such as GlitchTip:
+     * `https://<public key>@<host>/<project id>`. HTTPS only; without it no reports are sent.
+     */
+    dsn?: string;
+  };
+
   push?: {
     ios?: {
       enabled?: boolean;

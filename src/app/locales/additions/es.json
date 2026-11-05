@@ -277,7 +277,13 @@
         "profile": "foto de perfil, foto, nombre, apodo",
         "deactivate": "eliminar cuenta, cerrar cuenta",
         "localMindroom": "vincular, código de vinculación, local, escritorio",
-        "emoji": "emoji, stickers, paquetes, emoji personalizados"
+        "emoji": "emoji, stickers, paquetes, emoji personalizados",
+        "errorReports": "errores, cierre inesperado, fallo, diagnóstico, telemetría, privacidad"
+      },
+      "errorReports": {
+        "title": "Enviar informes de errores",
+        "description": "Envía cierres inesperados, fallos de sincronización, descifrado y envío, y pantallas lentas al registro de errores que configuró esta instalación. Los informes nunca incluyen el texto de los mensajes, nombres, ID ni nombres de archivo.",
+        "collector": "Los informes se envían a {{host}}."
       }
     },
     "createChat": {

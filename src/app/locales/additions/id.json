@@ -269,7 +269,13 @@
         "profile": "foto profil, foto, nama, nama panggilan",
         "deactivate": "hapus akun, tutup akun",
         "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
-        "emoji": "emoji, stiker, paket, emoji kustom"
+        "emoji": "emoji, stiker, paket, emoji kustom",
+        "errorReports": "kesalahan, crash, bug, diagnostik, telemetri, privasi"
+      },
+      "errorReports": {
+        "title": "Kirim laporan kesalahan",
+        "description": "Mengirim crash, kegagalan sinkronisasi, dekripsi, dan pengiriman, serta layar yang lambat ke pelacak kesalahan yang disiapkan untuk penerapan ini. Laporan tidak pernah berisi teks pesan, nama, ID, atau nama file.",
+        "collector": "Laporan dikirim ke {{host}}."
       }
     },
     "createChat": {

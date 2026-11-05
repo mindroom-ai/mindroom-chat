@@ -104,6 +104,12 @@ A `welcome` text equal to its English default is shown translated into the app l
 | `mindroom.computers.apiUrl` | string (origin) | `""` | Origin of the MindRoom backend for agent computers and Connections, for example `https://mindroom.example.org`. It must be HTTPS (HTTP only for localhost and private addresses) with no path, query or credentials; any other value counts as unset. Unset, the client uses the origin the room's agents publish as `io.mindroom.server` state. A value a user saves in Settings > General > Computers wins over both, and an empty value there turns computers off on that device. |
 | `mindroom.uiActions.autoOpenFromHomeservers` | string[] (server names) | none | Agents whose user ID is on one of these servers may open panels in the client without a click (`io.mindroom.ui_action` events: show the computer, show a canvas, open the members panel, open a Settings section). Only events that arrive live, within 60 seconds, while the app is in the foreground count. Without the key no agent can. |
 
+### Error reports
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `errorReporting.dsn` | string (DSN) | none | DSN of a Sentry-compatible collector such as GlitchTip, `https://<public key>@<host>/<project id>`. HTTPS only; any other value counts as unset. Set, the client reports uncaught errors, unhandled rejections, crashes its root error boundary catches, entering the sync error state (with the `errcode`), messages still undecryptable after a minute (counted by failure code), failed sends (with the `errcode` and event type), main-thread blocks of 2 seconds or more, and rooms that take 3 seconds or more to show their messages. Each report carries the build (`version.json`'s `version` as the release), the browser, the viewport and the route template, such as `/home/:roomIdOrAlias/:eventId?/`. Reports never contain message text, room or display names, Matrix IDs, tokens, URL queries or file names (`src/app/features/error-reporting/scrub.ts`). The reporter is a chunk of its own, loaded only when this key is set, and each device can switch reports off in Settings > About (on by default). Unset, nothing is loaded or sent. |
+
 ### Push notifications (iOS app)
 
 Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is set and `gatewayUrl` is an HTTPS URL. The values go into the Matrix pusher the app registers with the homeserver.

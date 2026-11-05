@@ -18,6 +18,7 @@ const WEB: SettingsContext = {
   localMindroom: true,
   useSystemTheme: true,
   developerTools: false,
+  errorReporting: false,
   railButtons: { threads: true, canvases: true, explore: true },
 };
 
@@ -95,5 +96,10 @@ describe('settings registry', () => {
     expect(webSettings).toEqual(expect.arrayContaining(['lightTheme', 'darkTheme']));
     expect(webSettings).not.toContain('theme');
     expect(webSettings).not.toContain('accessToken');
+    // Error reports only where the deployment names a collector.
+    expect(webSettings).not.toContain('errorReports');
+    expect(getShownSettings({ ...WEB, errorReporting: true }).map((s) => s.id)).toContain(
+      'errorReports'
+    );
   });
 });

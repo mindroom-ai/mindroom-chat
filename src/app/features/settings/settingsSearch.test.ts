@@ -20,6 +20,7 @@ const WEB: SettingsContext = {
   localMindroom: true,
   useSystemTheme: true,
   developerTools: false,
+  errorReporting: false,
   railButtons: { threads: true, explore: true, createSpace: true, search: true },
 };
 

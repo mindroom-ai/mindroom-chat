@@ -273,7 +273,13 @@
         "profile": "profil fotoğrafı, fotoğraf, ad, takma ad",
         "deactivate": "hesabı sil, hesabı kapat",
         "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
-        "emoji": "emoji, çıkartmalar, paketler, özel emoji"
+        "emoji": "emoji, çıkartmalar, paketler, özel emoji",
+        "errorReports": "hatalar, çökme, hata, tanılama, telemetri, gizlilik"
+      },
+      "errorReports": {
+        "title": "Hata raporları gönder",
+        "description": "Çökmeleri, eşitleme, şifre çözme ve gönderme hatalarını ve yavaş ekranları bu kurulum için ayarlanan hata izleyicisine gönderir. Raporlar hiçbir zaman mesaj metni, ad, kimlik veya dosya adı içermez.",
+        "collector": "Raporlar {{host}} adresine gider."
       }
     },
     "createChat": {
