@@ -25,24 +25,26 @@ describe('ServerConfigsLoader', () => {
     const getAuthMetadata = vi.fn().mockRejectedValue(new Error('auth metadata unavailable'));
     let latestConfigs: ServerConfigs | undefined;
 
-    const renderer = create(
-      React.createElement(
-        ServerConfigsLoader as never,
-        {
-          mx: {
-            getCapabilities,
-            getMediaConfig,
-            getAuthMetadata,
-          } as never,
-        } as never,
-        ((configs: ServerConfigs) => {
-          latestConfigs = configs;
-          return React.createElement('div', null, 'Loaded');
-        }) as never
-      )
-    );
-
+    // Inside act, the mount effects run before the test goes on. After a bare create() React's
+    // scheduler ran them in a later task, and on a busy machine that came after the act below.
+    let renderer!: ReturnType<typeof create>;
     await act(async () => {
+      renderer = create(
+        React.createElement(
+          ServerConfigsLoader as never,
+          {
+            mx: {
+              getCapabilities,
+              getMediaConfig,
+              getAuthMetadata,
+            } as never,
+          } as never,
+          ((configs: ServerConfigs) => {
+            latestConfigs = configs;
+            return React.createElement('div', null, 'Loaded');
+          }) as never
+        )
+      );
       await flushPromises();
       await flushPromises();
     });
@@ -66,24 +68,26 @@ describe('ServerConfigsLoader', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     let latestConfigs: ServerConfigs | undefined;
 
-    const renderer = create(
-      React.createElement(
-        ServerConfigsLoader as never,
-        {
-          mx: {
-            getCapabilities,
-            getMediaConfig,
-            getAuthMetadata,
-          } as never,
-        } as never,
-        ((configs: ServerConfigs) => {
-          latestConfigs = configs;
-          return React.createElement('div', null, 'Loaded');
-        }) as never
-      )
-    );
-
+    // Inside act, the mount effects run before the test goes on. After a bare create() React's
+    // scheduler ran them in a later task, and on a busy machine that came after the act below.
+    let renderer!: ReturnType<typeof create>;
     await act(async () => {
+      renderer = create(
+        React.createElement(
+          ServerConfigsLoader as never,
+          {
+            mx: {
+              getCapabilities,
+              getMediaConfig,
+              getAuthMetadata,
+            } as never,
+          } as never,
+          ((configs: ServerConfigs) => {
+            latestConfigs = configs;
+            return React.createElement('div', null, 'Loaded');
+          }) as never
+        )
+      );
       await flushPromises();
       await flushPromises();
     });

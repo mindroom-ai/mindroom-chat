@@ -208,10 +208,15 @@ describe('useInitializeShownThread', () => {
     f.goLive();
     await f.settle();
 
-    f.room.processThreadRoots(
-      [f.mx.getEventMapper()({ ...listedRoot(1), event_id: '$later' })],
-      true
-    );
+    // Inside act, the card's re-render for the new thread runs its effects (the dwell timer among
+    // them) before settle() advances the clock. Outside it, React's scheduler ran them in a later
+    // task, and on a busy machine that came after the advance.
+    act(() => {
+      f.room.processThreadRoots(
+        [f.mx.getEventMapper()({ ...listedRoot(1), event_id: '$later' })],
+        true
+      );
+    });
     await f.settle();
 
     expect(f.room.getThread('$later')!.initialEventsFetched).toBe(true);

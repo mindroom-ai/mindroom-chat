@@ -75,22 +75,24 @@ describe('AuthFlowsLoader', () => {
       React.ComponentProps<typeof AuthFlowsLoader>
     >;
 
-    const renderer = create(
-      React.createElement(
-        AutoDiscoveryInfoProvider,
-        { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
-        React.createElement(
-          AuthFlowsLoaderComponent,
-          {
-            fallback: () => React.createElement(Text, null, 'Loading'),
-            error: () => React.createElement(Text, null, 'Error'),
-          },
-          () => React.createElement(Text, null, 'Loaded')
-        )
-      )
-    );
-
+    // Inside act, the mount effects run before the test goes on. After a bare create() React's
+    // scheduler ran them in a later task, and on a busy machine that came after the act below.
+    let renderer!: ReturnType<typeof create>;
     await act(async () => {
+      renderer = create(
+        React.createElement(
+          AutoDiscoveryInfoProvider,
+          { value: { 'm.homeserver': { base_url: 'https://example.com' } } },
+          React.createElement(
+            AuthFlowsLoaderComponent,
+            {
+              fallback: () => React.createElement(Text, null, 'Loading'),
+              error: () => React.createElement(Text, null, 'Error'),
+            },
+            () => React.createElement(Text, null, 'Loaded')
+          )
+        )
+      );
       await flushPromises();
     });
 

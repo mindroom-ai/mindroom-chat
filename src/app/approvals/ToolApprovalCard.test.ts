@@ -167,17 +167,24 @@ const approvalContext = {
   threadId: '$thread-root',
 };
 
+// Inside act, the card's mount effects run before a test clicks it. After a bare create() React's
+// scheduler ran them in a later task, and on a busy machine the click came first.
 const renderCard = (
   approval: ToolApprovalData = pendingApproval,
   props: Partial<typeof approvalContext> = {}
-) =>
-  create(
-    React.createElement(ToolApprovalCard, {
-      approval,
-      ...approvalContext,
-      ...props,
-    })
-  );
+) => {
+  let renderer!: ReturnType<typeof create>;
+  act(() => {
+    renderer = create(
+      React.createElement(ToolApprovalCard, {
+        approval,
+        ...approvalContext,
+        ...props,
+      })
+    );
+  });
+  return renderer;
+};
 
 const getNodeText = (value: ReactTestInstance | string): string => {
   if (typeof value === 'string') return value;

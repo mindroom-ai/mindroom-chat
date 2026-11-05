@@ -79,17 +79,19 @@ describe('SpecVersions authenticated cold start', () => {
       lastUsedAt: 1,
     });
 
-    const renderer = create(
-      React.createElement(
-        SpecVersions,
-        {
-          baseUrl: 'https://example.com',
-        },
-        React.createElement('div', null, 'child')
-      )
-    );
-
+    // Inside act, the mount effects run before the test goes on. After a bare create() React's
+    // scheduler ran them in a later task, and on a busy machine that came after the act below.
+    let renderer!: ReturnType<typeof create>;
     await act(async () => {
+      renderer = create(
+        React.createElement(
+          SpecVersions,
+          {
+            baseUrl: 'https://example.com',
+          },
+          React.createElement('div', null, 'child')
+        )
+      );
       await flushPromises();
       await flushPromises();
     });

@@ -283,6 +283,9 @@ describe('SpecVersions', () => {
     await act(async () => {
       await Promise.resolve();
     });
+    // The mount effect starts the refresh. After the bare create() above, React's scheduler runs
+    // it in a later task, which on a busy machine came after this act, so wait for it.
+    await vi.waitFor(() => expect(specVersions).toHaveBeenCalled());
     expect(specVersions).toHaveBeenCalledWith(expect.any(Function), 'https://example.com');
     expect(specVersions).toHaveBeenCalledTimes(1);
     const request = vi.mocked(specVersions).mock.calls[0]?.[0];
