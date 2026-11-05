@@ -1,0 +1,159 @@
+import { expect, test, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import {
+  addRoomToSpace,
+  createPrivateRoom,
+  createPrivateSpace,
+  joinRoom,
+  matrixFetch,
+  sendRoomMessage,
+  setAccountData,
+} from '../helpers/matrix';
+
+// Room and space names as the navigation shows them, with names people really give: several
+// rooms that differ only at their end, and long English names in an Arabic interface. A space
+// with 7 rooms, an invite and an unread room, on a phone (390 by 844, touch) and a desktop.
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'space-names-spec-password';
+const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+const SPACE_NAME = 'Engineering Operations and Infrastructure Planning Group';
+const LONG_ROOM = 'Quarterly planning for the customer onboarding experience redesign';
+const SIMILAR = ['Engineering room 1', 'Engineering room 2', 'Engineering room 3'];
+const INVITE_NAME = 'Invitation to the launch party planning committee for next spring';
+const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+const PHONE: BrowserContextOptions = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+
+test.use({
+  launchOptions: {
+    // Classic scrollbars, as desktop browsers show them. The other options repeat
+    // playwright.config.ts.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+const register = async (name: string) => {
+  const username = `spn_${name}_${RUN}`;
+  const body = await matrixFetch<{ user_id: string; access_token: string }>(
+    HOMESERVER,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+    }
+  );
+  return { username, userId: body.user_id, accessToken: body.access_token };
+};
+
+type Seed = { username: string; space: string };
+let seeded: Promise<Seed> | undefined;
+
+const seed = async (): Promise<Seed> => {
+  const owner = await register('owner');
+  const peer = await register('peer');
+  const space = await createPrivateSpace(HOMESERVER, owner.accessToken, {
+    name: SPACE_NAME,
+    topic: '',
+  });
+  for (const name of [...SIMILAR, LONG_ROOM]) {
+    const roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
+      name,
+      topic: 'Weekly notes and decisions',
+      invite: [peer.userId],
+    });
+    await addRoomToSpace(HOMESERVER, owner.accessToken, space, roomId);
+    await joinRoom(HOMESERVER, peer.accessToken, roomId);
+    if (name === LONG_ROOM) {
+      await sendRoomMessage(HOMESERVER, peer.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: 'The draft is ready for another look.',
+      });
+    }
+  }
+  await createPrivateRoom(HOMESERVER, peer.accessToken, {
+    name: INVITE_NAME,
+    invite: [owner.userId],
+  });
+  await setAccountData(HOMESERVER, owner.accessToken, owner.userId, 'io.mindroom.spaces', {
+    sidebar: [space],
+  });
+  return { username: owner.username, space };
+};
+
+const signIn = async (page: Page, language?: string) => {
+  seeded ??= seed();
+  const { username } = await seeded;
+  // The slot has no provisioning service.
+  await page.route('**/v1/local-mindroom/connections', (route) =>
+    route.fulfill({ json: { connections: [] } })
+  );
+  await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+  await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
+  if (language) {
+    await page.evaluate((code) => localStorage.setItem('i18nextLng', code), language);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
+  }
+};
+
+/** The direction a name's own line reads in: an English name truncates at its end only in ltr. */
+const direction = (locator: Locator) =>
+  locator.evaluate((element) => getComputedStyle(element).direction);
+
+test.beforeEach(async () => {
+  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+});
+
+test('long English names keep their start in a right-to-left interface', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const context = await browser.newContext(DESKTOP);
+  const page = await context.newPage();
+  await signIn(page, 'ar');
+  const { space } = await seeded!;
+
+  await page.goto(`/${encodeURIComponent(space)}/lobby/`);
+  const nav = page.getByTestId('resizable-page-nav');
+  await expect(nav.getByText(SPACE_NAME, { exact: true })).toBeVisible({ timeout: 30_000 });
+  expect(await direction(nav.getByText(SPACE_NAME, { exact: true }))).toBe('ltr');
+  const card = page.locator('main').getByText(LONG_ROOM, { exact: true });
+  await expect(card).toBeVisible();
+  expect(await direction(card)).toBe('ltr');
+  expect(await direction(page.locator('main').getByText('Weekly notes and decisions').first())).toBe(
+    'ltr'
+  );
+
+  await page.goto('/inbox/invites/');
+  const invite = page.getByText(INVITE_NAME, { exact: true });
+  await expect(invite).toBeVisible({ timeout: 30_000 });
+  expect(await direction(invite)).toBe('ltr');
+
+  await page.goto('/inbox/notifications/');
+  const heading = page.locator('main').getByText(LONG_ROOM, { exact: true });
+  await expect(heading).toBeVisible({ timeout: 30_000 });
+  expect(await direction(heading)).toBe('ltr');
+
+  await page.keyboard.press('ControlOrMeta+k');
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
+  await palette.getByRole('combobox').fill('quarterly');
+  const row = palette.locator('[role="option"][data-kind="room"]').getByText(LONG_ROOM);
+  await expect(row).toBeVisible();
+  expect(await direction(row)).toBe('ltr');
+  await context.close();
+});
