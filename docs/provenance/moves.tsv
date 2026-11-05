@@ -3,3 +3,4 @@ src/app/pages/client/inbox/acceptInvite.ts		clean-rewrite
 src/app/mindroom/threads/roomTimelineReplyDraft.ts		clean-rewrite
 src/app/mindroom/threads/threadOverviewRefreshCounter.ts		clean-rewrite
 src/app/mindroom/threads/timelinePaginationController.ts		clean-rewrite
+src/app/hooks/router/useThreadsSelected.ts		clean-rewrite
