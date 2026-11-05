@@ -29,3 +29,4 @@ src/app/mindroom/threads/roomTimelineReplyDraft.ts	1	rewritten in Lane C from a 
 src/app/mindroom/threads/threadOverviewRefreshCounter.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/mindroom/threads/timelinePaginationController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/hooks/router/useThreadsSelected.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/mindroom/threads/timelineReadReceiptController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)

@@ -2,7 +2,12 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { Direction, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  markMainTimelineAsRead,
+  markRoomAndThreadsAsRead,
+  markThreadAsRead,
+} from '../notifications/readReceipts';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
 
 vi.mock('../notifications/readReceipts', () => ({
@@ -100,5 +105,396 @@ describe('useTimelineReadReceiptController', () => {
       )
     );
     expect(setAtBottom).toHaveBeenCalledWith(true);
+  });
+});
+
+type ControllerOptions = Parameters<typeof useTimelineReadReceiptController>[0];
+
+/** An observer double that also keeps the options it was built with. */
+class RecordingObserver extends FakeObserver {
+  constructor(report: IntersectionObserverCallback, readonly options?: IntersectionObserverInit) {
+    super(report);
+  }
+}
+
+/** The four sides of a CSS margin shorthand, as top, right, bottom and left. */
+const marginSides = (margin = '') => {
+  const [top = '0px', right = top, bottom = top, left = right] = margin.trim().split(/\s+/);
+  return { top, right, bottom, left };
+};
+
+/** A timeline double whose forward neighbour is `next`. */
+const timelineDouble = (next?: object) => ({
+  getNeighbouringTimeline: (direction: Direction) =>
+    direction === Direction.Forward ? next ?? null : null,
+});
+
+const liveTimeline = timelineDouble();
+const loadedTimelines: Record<string, object> = {
+  // Older history whose forward links run into the live timeline.
+  $linked: timelineDouble(timelineDouble(liveTimeline)),
+  // History the reader jumped to, cut off from the live end.
+  $detached: timelineDouble(),
+};
+const roomWithTimelines = {
+  roomId: room.roomId,
+  getLiveTimeline: () => liveTimeline,
+  getUnfilteredTimelineSet: () => ({
+    getTimelineForEvent: (eventId: string) => loadedTimelines[eventId] ?? null,
+  }),
+} as unknown as Room;
+
+describe('useTimelineReadReceiptController bottom detection and receipts', () => {
+  let probe: ReactTestRenderer | undefined;
+  let frames: FrameRequestCallback[] = [];
+  let markAsRead: (() => void) | undefined;
+
+  function Probe({ options }: { options: ControllerOptions }) {
+    markAsRead = useTimelineReadReceiptController(options).handleMarkAsRead;
+    return null;
+  }
+
+  const optionsWith = (overrides: Partial<ControllerOptions> = {}): ControllerOptions => ({
+    atBottom: true,
+    atBottomAnchorRef: { current: anchor },
+    atBottomRef: { current: true },
+    atLiveEndRef: { current: true },
+    getScrollElement,
+    handleOpenEvent: vi.fn(),
+    hideActivity: false,
+    mx,
+    readUptoEventIdRef: { current: undefined },
+    room,
+    setAtBottom: vi.fn(),
+    threadEventsLength: 0,
+    threadInitialRenderMode: 'live',
+    threadTailLoaded: true,
+    timelineAtLiveEnd: true,
+    ...overrides,
+  });
+
+  const mount = (options: ControllerOptions) => {
+    act(() => {
+      probe = create(<Probe options={options} />);
+    });
+  };
+  const rerender = (options: ControllerOptions) => {
+    act(() => probe?.update(<Probe options={options} />));
+  };
+  const reportAnchor = (isIntersecting: boolean, target: Element = anchor) => {
+    const observer = observers.at(-1);
+    act(() =>
+      observer?.report(
+        [{ target, isIntersecting } as unknown as IntersectionObserverEntry],
+        observer as unknown as IntersectionObserver
+      )
+    );
+  };
+  const runFrames = () => frames.splice(0).forEach((frame) => frame(0));
+  const focusWindow = () => {
+    act(() => {
+      window.dispatchEvent(new Event('focus'));
+    });
+  };
+
+  beforeEach(() => {
+    observers.length = 0;
+    frames = [];
+    vi.clearAllMocks();
+    vi.stubGlobal('IntersectionObserver', RecordingObserver);
+    vi.stubGlobal('requestAnimationFrame', (frame: FrameRequestCallback) => frames.push(frame));
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    act(() => probe?.unmount());
+    probe = undefined;
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  describe('bottom detection', () => {
+    const awayFromLiveEnd = { atLiveEndRef: { current: false }, timelineAtLiveEnd: false };
+
+    it('shows the reader at the bottom at once and away only after 500 ms without a report', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const setAtBottom = vi.fn();
+      mount(optionsWith({ ...awayFromLiveEnd, setAtBottom }));
+
+      reportAnchor(true);
+      expect(setAtBottom).toHaveBeenCalledWith(true);
+
+      setAtBottom.mockClear();
+      reportAnchor(false);
+      act(() => {
+        vi.advanceTimersByTime(499);
+      });
+      expect(setAtBottom).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(setAtBottom).toHaveBeenCalledWith(false);
+    });
+
+    it('keeps the reader at the bottom when the anchor is back within 500 ms', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const setAtBottom = vi.fn();
+      mount(optionsWith({ ...awayFromLiveEnd, setAtBottom }));
+
+      reportAnchor(false);
+      act(() => {
+        vi.advanceTimersByTime(300);
+      });
+      reportAnchor(true);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(setAtBottom).toHaveBeenCalledWith(true);
+      expect(setAtBottom).not.toHaveBeenCalledWith(false);
+    });
+
+    it('sets nothing when the view unmounts within the 500 ms', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const setAtBottom = vi.fn();
+      mount(optionsWith({ ...awayFromLiveEnd, setAtBottom }));
+
+      reportAnchor(false);
+      act(() => probe?.unmount());
+      probe = undefined;
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(setAtBottom).not.toHaveBeenCalled();
+    });
+
+    it('ignores reports about other elements', () => {
+      const setAtBottom = vi.fn();
+      mount(optionsWith({ setAtBottom }));
+
+      reportAnchor(true, document.createElement('div'));
+      runFrames();
+      expect(setAtBottom).not.toHaveBeenCalled();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
+    it('watches the anchor from the scroll area, reaching 96 px below it, and starts over with a new scroll area', () => {
+      const firstArea = document.createElement('div');
+      const options = optionsWith({ getScrollElement: () => firstArea });
+      mount(options);
+      const first = observers.at(-1) as RecordingObserver | undefined;
+      expect(first?.options?.root).toBe(firstArea);
+      expect(marginSides(first?.options?.rootMargin)).toEqual({
+        top: '0px',
+        right: '0px',
+        bottom: '96px',
+        left: '0px',
+      });
+      expect(first?.observe).toHaveBeenCalledWith(anchor);
+
+      const secondArea = document.createElement('div');
+      rerender({ ...options, getScrollElement: () => secondArea });
+      const second = observers.at(-1) as RecordingObserver | undefined;
+      expect(second).not.toBe(first);
+      expect(first?.disconnect).toHaveBeenCalled();
+      expect(second?.options?.root).toBe(secondArea);
+      expect(second?.observe).toHaveBeenCalledWith(anchor);
+    });
+
+    it('uses the viewport as root while there is no scroll area', () => {
+      mount(optionsWith());
+      expect((observers.at(-1) as RecordingObserver | undefined)?.options?.root).toBeNull();
+    });
+  });
+
+  describe('reaching the bottom of the room', () => {
+    it('reads the main timeline on the next frame when the reader has no read marker', () => {
+      mount(optionsWith({ hideActivity: true }));
+
+      reportAnchor(true);
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+      expect(markMainTimelineAsRead).toHaveBeenCalledWith(mx, room.roomId, true);
+    });
+
+    it('reads nothing without window focus', () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+      mount(optionsWith());
+
+      reportAnchor(true);
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
+    it('reads nothing away from the live end', () => {
+      mount(optionsWith({ atLiveEndRef: { current: false }, timelineAtLiveEnd: false }));
+
+      reportAnchor(true);
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['in history linked to the live timeline', '$linked', 1],
+      ['in history cut off from the live timeline', '$detached', 0],
+      ['not loaded', '$unloaded', 0],
+    ])('with the read marker %s (%s), sends %i main receipts', (_where, marker, receipts) => {
+      mount(optionsWith({ room: roomWithTimelines, readUptoEventIdRef: { current: marker } }));
+
+      reportAnchor(true);
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledTimes(receipts);
+    });
+
+    it('reads the room from the fresh report once the view is back at its live end', () => {
+      const options = optionsWith({ atLiveEndRef: { current: false }, timelineAtLiveEnd: false });
+      mount(options);
+      const observer = observers.at(-1);
+
+      options.atLiveEndRef.current = true;
+      rerender({ ...options, timelineAtLiveEnd: true });
+      expect(observers.at(-1)).toBe(observer);
+      expect(observer?.unobserve).toHaveBeenCalledWith(anchor);
+      expect(observer?.observe).toHaveBeenLastCalledWith(anchor);
+
+      reportAnchor(true);
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledWith(mx, room.roomId, false);
+    });
+  });
+
+  describe('a thread at its bottom', () => {
+    const openThread = { threadId: '$thread', threadEventsLength: 2 };
+
+    it.each([
+      ['its newest replies are not loaded', { threadTailLoaded: false }],
+      ['it is still loading', { threadInitialRenderMode: 'loading' as const }],
+      ['it has no rows', { threadEventsLength: 0 }],
+    ])('is not read while %s', (_why, overrides: Partial<ControllerOptions>) => {
+      mount(optionsWith({ ...openThread, ...overrides }));
+
+      reportAnchor(true);
+      focusWindow();
+      runFrames();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+    });
+
+    it('is read on the next frame when it opens there, and again for each new reply', () => {
+      const options = optionsWith(openThread);
+      mount(options);
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+
+      runFrames();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+      expect(markThreadAsRead).toHaveBeenLastCalledWith(mx, room.roomId, '$thread', false);
+
+      rerender({ ...options, threadEventsLength: 3 });
+      runFrames();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(2);
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
+    it('is not read while the window has no focus', () => {
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+      mount(optionsWith(openThread));
+
+      reportAnchor(true);
+      runFrames();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('coming back to the window', () => {
+    const marker = { inLiveTimeline: true, readUptoEventId: '$linked' };
+
+    it('goes to a read marker in the live timeline and reads the room only when nothing scrolled', () => {
+      const handleOpenEvent = vi.fn();
+      mount(
+        optionsWith({
+          handleOpenEvent,
+          readUptoEventIdRef: { current: marker.readUptoEventId },
+          room: roomWithTimelines,
+          unreadInfo: marker,
+        })
+      );
+
+      focusWindow();
+      expect(handleOpenEvent).toHaveBeenCalledWith('$linked', false, expect.any(Function));
+      const onScroll = handleOpenEvent.mock.calls[0]?.[2] as (scrolled: boolean) => void;
+
+      onScroll(true);
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+
+      onScroll(false);
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads the room directly without a read marker in the live timeline', () => {
+      const handleOpenEvent = vi.fn();
+      mount(optionsWith({ handleOpenEvent }));
+
+      focusWindow();
+      runFrames();
+      expect(handleOpenEvent).not.toHaveBeenCalled();
+      expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads an open thread at its live end', () => {
+      mount(optionsWith({ threadId: '$thread', threadEventsLength: 1 }));
+      runFrames();
+      vi.mocked(markThreadAsRead).mockClear();
+
+      focusWindow();
+      runFrames();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('does nothing away from the bottom, or when the window loses focus', () => {
+      const handleOpenEvent = vi.fn();
+      mount(
+        optionsWith({
+          atBottom: false,
+          atBottomRef: { current: false },
+          handleOpenEvent,
+          unreadInfo: marker,
+        })
+      );
+
+      focusWindow();
+      act(() => {
+        window.dispatchEvent(new Event('blur'));
+      });
+      runFrames();
+      expect(handleOpenEvent).not.toHaveBeenCalled();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Mark as Read', () => {
+    it('reads the open thread at once', () => {
+      mount(optionsWith({ hideActivity: true, threadId: '$thread', threadTailLoaded: false }));
+
+      act(() => markAsRead?.());
+      expect(markThreadAsRead).toHaveBeenCalledWith(mx, room.roomId, '$thread', true);
+      expect(markRoomAndThreadsAsRead).not.toHaveBeenCalled();
+    });
+
+    it('reads the room and every thread at once, keeping its identity while its inputs stay', () => {
+      const options = optionsWith({ hideActivity: true });
+      mount(options);
+      const first = markAsRead;
+
+      act(() => markAsRead?.());
+      expect(markRoomAndThreadsAsRead).toHaveBeenCalledWith(mx, room.roomId, true);
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+
+      rerender({ ...options, atBottom: false, threadEventsLength: 4 });
+      expect(markAsRead).toBe(first);
+      rerender({ ...options, hideActivity: false });
+      expect(markAsRead).not.toBe(first);
+    });
   });
 });

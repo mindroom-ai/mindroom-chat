@@ -5,37 +5,109 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import { Direction } from 'matrix-js-sdk';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import { Direction, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { useDebounce } from '../../hooks/useDebounce';
+import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
 import {
   getIntersectionObserverEntry,
   useIntersectionObserver,
 } from '../../hooks/useIntersectionObserver';
-import { useDebounce } from '../../hooks/useDebounce';
-import { useDocumentFocusChange } from '../../hooks/useDocumentFocusChange';
+import { useLatestRef } from '../../hooks/useLatestRef';
 import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
   markThreadAsRead,
 } from '../notifications/readReceipts';
-import {
-  getEventTimeline,
-  getFirstLinkedTimeline,
-} from './timelinePagination';
 import type { ThreadInitialRenderMode } from './threadRenderUtils';
+import { getEventTimeline, getFirstLinkedTimeline } from './timelinePagination';
 import { TIMELINE_BOTTOM_THRESHOLD_PX } from './timelineScrollUtils';
 
-type RoomUnreadInfoLike = {
-  inLiveTimeline: boolean;
-  readUptoEventId: string;
+/**
+ * How long the bottom anchor must stay out of reach before the view counts as scrolled away, so a
+ * short overshoot does not flash Jump to Latest.
+ */
+const SCROLLED_AWAY_DELAY_MS = 500;
+
+type ReadReceiptControllerOptions = {
+  atBottom: boolean;
+  atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
+  atBottomRef: MutableRefObject<boolean>;
+  atLiveEndRef: MutableRefObject<boolean>;
+  getScrollElement: () => HTMLElement | null | undefined;
+  handleOpenEvent: (
+    eventId: string,
+    highlight?: boolean,
+    onScroll?: (scrolled: boolean) => void
+  ) => void | Promise<void>;
+  hideActivity: boolean;
+  mx: MatrixClient;
+  readUptoEventIdRef: MutableRefObject<string | undefined>;
+  room: Room;
+  setAtBottom: Dispatch<SetStateAction<boolean>>;
+  threadEventsLength: number;
+  threadId?: string;
+  threadInitialRenderMode: ThreadInitialRenderMode;
+  threadTailLoaded: boolean;
+  timelineAtLiveEnd: boolean;
+  unreadInfo?: { inLiveTimeline: boolean; readUptoEventId: string };
 };
 
-type OpenEventHandler = (
-  eventId: string,
-  highlight?: boolean,
-  onScroll?: (scrolled: boolean) => void
-) => void | Promise<void>;
+/** The values a read decision takes from the newest render. */
+type ReadContext = Pick<
+  ReadReceiptControllerOptions,
+  | 'handleOpenEvent'
+  | 'hideActivity'
+  | 'mx'
+  | 'room'
+  | 'threadEventsLength'
+  | 'threadId'
+  | 'threadInitialRenderMode'
+  | 'threadTailLoaded'
+  | 'unreadInfo'
+>;
 
+/**
+ * Whether the reader has seen the newest rows of the room: they have no read marker yet, or the
+ * loaded chain that holds the marker runs forward into the live timeline. A marker that is not
+ * loaded, or that sits in history cut off from the live end, leaves the rows after it unseen.
+ */
+const markerReachesLiveTimeline = (room: Room, markerEventId: string | undefined): boolean => {
+  if (!markerEventId) return true;
+  const markerTimeline = getEventTimeline(room, markerEventId);
+  if (!markerTimeline) return false;
+  return getFirstLinkedTimeline(markerTimeline, Direction.Forward) === room.getLiveTimeline();
+};
+
+/** Reads the main timeline on the next frame, when the reader has seen its newest rows. */
+const readRoomOnNextFrame = (context: ReadContext, markerEventId: string | undefined): void => {
+  const { hideActivity, mx, room } = context;
+  if (!markerReachesLiveTimeline(room, markerEventId)) return;
+  const { roomId } = room;
+  requestAnimationFrame(() => {
+    void markMainTimelineAsRead(mx, roomId, hideActivity);
+  });
+};
+
+/**
+ * Reads the open thread on the next frame, once its newest replies are loaded and rendered: its
+ * tail is loaded, it is past its loading render, and it has a row.
+ */
+const readThreadOnNextFrame = (context: ReadContext): void => {
+  const { hideActivity, mx, room, threadId } = context;
+  if (!threadId || !context.threadTailLoaded) return;
+  if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
+  const { roomId } = room;
+  requestAnimationFrame(() => {
+    void markThreadAsRead(mx, roomId, threadId, hideActivity);
+  });
+};
+
+/**
+ * Tracks whether the reader is at the bottom of the timeline, sends read receipts once they have
+ * seen its newest rows (at the bottom of the live end with the window focused, on coming back to
+ * the window, and while an open thread loads or grows at its bottom), and gives the timeline its
+ * Mark as Read action.
+ */
 export const useTimelineReadReceiptController = ({
   atBottom,
   atBottomAnchorRef,
@@ -54,179 +126,107 @@ export const useTimelineReadReceiptController = ({
   threadTailLoaded,
   timelineAtLiveEnd,
   unreadInfo,
-}: {
-  atBottom: boolean;
-  atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
-  atBottomRef: MutableRefObject<boolean>;
-  atLiveEndRef: MutableRefObject<boolean>;
-  getScrollElement: () => HTMLElement | null | undefined;
-  handleOpenEvent: OpenEventHandler;
-  hideActivity: boolean;
-  mx: MatrixClient;
-  readUptoEventIdRef: MutableRefObject<string | undefined>;
-  room: Room;
-  setAtBottom: Dispatch<SetStateAction<boolean>>;
-  threadEventsLength: number;
-  threadId?: string;
-  threadInitialRenderMode: ThreadInitialRenderMode;
-  threadTailLoaded: boolean;
-  timelineAtLiveEnd: boolean;
-  unreadInfo?: RoomUnreadInfoLike;
-}) => {
-  const tryAutoMarkAsRead = useCallback(() => {
-    // Mark the main timeline read only when the read marker lies on the chain that reaches
-    // the live end; a marker in older, unlinked history means the newest rows were not seen.
-    const markerEventId = readUptoEventIdRef.current;
-    const markerTimeline = markerEventId ? getEventTimeline(room, markerEventId) : undefined;
-    const markerChainEnd =
-      markerTimeline && getFirstLinkedTimeline(markerTimeline, Direction.Forward);
-    if (!markerEventId || markerChainEnd === room.getLiveTimeline()) {
-      // Wait a frame so the rows that brought the reader to the bottom have painted.
-      requestAnimationFrame(() => void markMainTimelineAsRead(mx, room.roomId, hideActivity));
-    }
-  }, [hideActivity, mx, readUptoEventIdRef, room]);
-
-  const tryAutoMarkThreadAsRead = useCallback(() => {
-    if (
-      !threadId ||
-      threadTailLoaded === false ||
-      threadInitialRenderMode === 'loading' ||
-      threadEventsLength === 0
-    ) {
-      return;
-    }
-
-    requestAnimationFrame(() => markThreadAsRead(mx, room.roomId, threadId, hideActivity));
-  }, [
+}: ReadReceiptControllerOptions): { handleMarkAsRead: () => void } => {
+  const contextRef = useLatestRef<ReadContext>({
+    handleOpenEvent,
     hideActivity,
     mx,
-    room.roomId,
+    room,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
     threadTailLoaded,
-  ]);
+    unreadInfo,
+  });
 
-  const debounceSetAtBottom = useDebounce(
-    useCallback((observed: IntersectionObserverEntry) => {
-      if (!observed.isIntersecting) setAtBottom(false);
-    }, [setAtBottom]),
-    { wait: 500 }
+  const confirmScrolledAway = useCallback(
+    (anchorInReach: boolean) => {
+      if (!anchorInReach) setAtBottom(false);
+    },
+    [setAtBottom]
   );
+  const settleScrolledAway = useDebounce(confirmScrolledAway, { wait: SCROLLED_AWAY_DELAY_MS });
 
-  const bottomObserver = useIntersectionObserver(
-    useCallback(
-      (entries: IntersectionObserverEntry[]) => {
-        const anchorEntry = getIntersectionObserverEntry(atBottomAnchorRef.current, entries);
-        if (!anchorEntry) return;
-        // Leaving the bottom settles after a pause, so a short bounce does not flicker it.
-        debounceSetAtBottom(anchorEntry);
-        if (anchorEntry.isIntersecting) {
-          setAtBottom(true);
-          if (atLiveEndRef.current && document.hasFocus()) {
-            if (threadId) {
-              tryAutoMarkThreadAsRead();
-            } else {
-              tryAutoMarkAsRead();
-            }
-          }
-        }
-      },
-      [
-        atBottomAnchorRef,
-        atLiveEndRef,
-        debounceSetAtBottom,
-        setAtBottom,
-        threadId,
-        tryAutoMarkAsRead,
-        tryAutoMarkThreadAsRead,
-      ]
-    ),
-    useCallback(
-      (): IntersectionObserverInit => ({
-        root: getScrollElement() ?? null,
-        rootMargin: `0px 0px ${TIMELINE_BOTTOM_THRESHOLD_PX}px 0px`,
-      }),
-      [getScrollElement]
-    ),
-    useCallback(() => atBottomAnchorRef.current, [atBottomAnchorRef])
+  // The scroll area is the root, grown by the bottom threshold below its lower edge only, so the
+  // anchor counts as reached while it is at most that far below the visible rows.
+  const getObserverOptions = useCallback(
+    (): IntersectionObserverInit => ({
+      root: getScrollElement() ?? null,
+      rootMargin: `0px 0px ${TIMELINE_BOTTOM_THRESHOLD_PX}px`,
+    }),
+    [getScrollElement]
   );
+  const getAnchor = useCallback(() => atBottomAnchorRef.current, [atBottomAnchorRef]);
 
-  // The focus controller hides the bottom while the window is away from the live end. Back there,
-  // the observer reports the anchor afresh: a reader who stayed at the bottom meanwhile never
-  // crossed its margin, so no other report would show them at the bottom again.
+  const handleAnchorReports = (entries: IntersectionObserverEntry[]) => {
+    const report = getIntersectionObserverEntry(atBottomAnchorRef.current, entries);
+    if (!report) return;
+    // Every report restarts the wait, and only the last one decides whether the reader left.
+    settleScrolledAway(report.isIntersecting);
+    if (!report.isIntersecting) return;
+    setAtBottom(true);
+    if (!atLiveEndRef.current || !document.hasFocus()) return;
+    const context = contextRef.current;
+    if (context.threadId) readThreadOnNextFrame(context);
+    else readRoomOnNextFrame(context, readUptoEventIdRef.current);
+  };
+  const observer = useIntersectionObserver(handleAnchorReports, getObserverOptions, getAnchor);
+
+  // Coming back to the live end while the anchor stayed within reach changes nothing the observer
+  // watches, so it would stay silent: observing the anchor afresh makes it report again.
   useEffect(() => {
     const anchor = atBottomAnchorRef.current;
-    if (!bottomObserver || !anchor || !timelineAtLiveEnd) return;
-    bottomObserver.unobserve(anchor);
-    bottomObserver.observe(anchor);
-  }, [atBottomAnchorRef, bottomObserver, timelineAtLiveEnd]);
+    if (!timelineAtLiveEnd || !observer || !anchor) return;
+    observer.unobserve(anchor);
+    observer.observe(anchor);
+  }, [atBottomAnchorRef, observer, timelineAtLiveEnd]);
 
-  useDocumentFocusChange(
-    useCallback(
-      (inFocus: boolean) => {
-        if (inFocus && atBottomRef.current) {
-          if (threadId) {
-            if (atLiveEndRef.current) {
-              tryAutoMarkThreadAsRead();
-            }
-            return;
-          }
-          const marker = unreadInfo?.inLiveTimeline ? unreadInfo.readUptoEventId : undefined;
-          if (!marker) {
-            tryAutoMarkAsRead();
-            return;
-          }
-          // Show the reader where they left off; when that row is already on screen there is
-          // nothing above it they missed, so the room counts as read.
-          void handleOpenEvent(marker, false, (scrolled) => {
-            if (!scrolled) tryAutoMarkAsRead();
-          });
-        }
-      },
-      [
-        atBottomRef,
-        atLiveEndRef,
-        handleOpenEvent,
-        threadId,
-        tryAutoMarkAsRead,
-        tryAutoMarkThreadAsRead,
-        unreadInfo,
-      ]
-    )
+  const handleWindowFocus = useCallback(
+    (inFocus: boolean) => {
+      if (!inFocus || !atBottomRef.current) return;
+      const context = contextRef.current;
+      if (context.threadId) {
+        if (atLiveEndRef.current) readThreadOnNextFrame(context);
+        return;
+      }
+      const marker = context.unreadInfo;
+      if (!marker?.inLiveTimeline) {
+        readRoomOnNextFrame(context, readUptoEventIdRef.current);
+        return;
+      }
+      // Go to the read marker, without a highlight. When it was already in view nothing moved,
+      // so the reader has seen the rows after it.
+      void context.handleOpenEvent(marker.readUptoEventId, false, (scrolled) => {
+        if (!scrolled) readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current);
+      });
+    },
+    [atBottomRef, atLiveEndRef, contextRef, readUptoEventIdRef]
   );
+  useDocumentFocusChange(handleWindowFocus);
 
+  // A thread that opens at its newest reply, or gets a reply while the reader sits at its
+  // bottom with the window focused, is read.
   useEffect(() => {
-    if (
-      !threadId ||
-      !atBottom ||
-      !timelineAtLiveEnd ||
-      !threadTailLoaded ||
-      threadInitialRenderMode === 'loading' ||
-      threadEventsLength === 0 ||
-      !document.hasFocus()
-    ) {
-      return;
-    }
-
-    tryAutoMarkThreadAsRead();
+    if (!threadId || !atBottom || !timelineAtLiveEnd || !document.hasFocus()) return;
+    readThreadOnNextFrame(contextRef.current);
   }, [
     atBottom,
+    contextRef,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
     threadTailLoaded,
     timelineAtLiveEnd,
-    tryAutoMarkThreadAsRead,
   ]);
 
+  const { roomId } = room;
   const handleMarkAsRead = useCallback(() => {
     if (threadId) {
-      markThreadAsRead(mx, room.roomId, threadId, hideActivity);
+      void markThreadAsRead(mx, roomId, threadId, hideActivity);
       return;
     }
-    markRoomAndThreadsAsRead(mx, room.roomId, hideActivity);
-  }, [hideActivity, mx, room.roomId, threadId]);
+    void markRoomAndThreadsAsRead(mx, roomId, hideActivity);
+  }, [hideActivity, mx, roomId, threadId]);
 
   return { handleMarkAsRead };
 };
