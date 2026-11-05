@@ -146,7 +146,8 @@ type ExpandAllProps = {
 function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
   const { t } = useTranslation();
   return (
-    <button type="button" style={expandAllToggleStyle} onClick={onToggle}>
+    // A token such as [+all], not a sentence: it keeps its order in a right-to-left interface.
+    <button type="button" style={expandAllToggleStyle} onClick={onToggle} dir="ltr">
       {expanded
         ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
         : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}

@@ -11,8 +11,9 @@ import {
 
 // A thread's title, its preview and the banner's summary are text people and agents wrote, so in
 // a right-to-left interface an English line keeps its own direction: it is cut at its end, not
-// at its start, and a closing question mark stays at its end. Checked on a phone and a desktop,
-// in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// at its start, and a closing question mark stays at its end. The [+all] toggle under the banner
+// reads as written. Checked on a phone and a desktop, in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-own-direction-spec-password';
 const RUN = Date.now().toString(36);
@@ -175,6 +176,23 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
   const summary = page.locator('[data-thread-context-summary]');
   await expect(summary).toHaveText(SUMMARY, { timeout: 30_000 });
   expect(await placement(summary)).toMatchObject({ direction: 'ltr', firstCharInside: true });
+
+  // The fold toggle under the banner is a token, [+all]: its plus stays before the word.
+  const toggle = page.getByRole('button', { name: '[+all]' });
+  await expect(toggle).toBeVisible();
+  const order = await toggle.evaluate((element) => {
+    const text = element.firstChild!;
+    const range = document.createRange();
+    const left = (offset: number) => {
+      range.setStart(text, offset);
+      range.setEnd(text, offset + 1);
+      return range.getBoundingClientRect().left;
+    };
+    return [0, 1, 2, 5].map(left);
+  });
+  expect(order, 'the characters of [+all] from left to right').toEqual(
+    [...order].sort((a, b) => a - b)
+  );
   await context.close();
 };
 
