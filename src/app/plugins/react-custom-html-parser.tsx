@@ -5,7 +5,6 @@ import React, {
   ReactElement,
   ReactNode,
   SyntheticEvent,
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -288,25 +287,8 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   const [copied, setCopied] = useState(false);
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
-  // Whether the code overflows its box, and whether the box shows the code's last line.
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [scrollable, setScrollable] = useState(false);
-  const [atEnd, setAtEnd] = useState(false);
-  const measureScroll = useCallback(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    const maxTop = element.scrollHeight - element.clientHeight;
-    setScrollable(maxTop > 1 || element.scrollWidth > element.clientWidth + 1);
-    // At fractional zoom the native maximum sits just below scrollHeight - clientHeight.
-    setAtEnd(element.scrollTop >= maxTop - 1);
-  }, []);
-  useEffect(() => {
-    const element = scrollRef.current;
-    if (!element || typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(measureScroll);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [measureScroll]);
+  // The view (collapse, wrap, code length) whose last line the reader scrolled to, if any.
+  const [endView, setEndView] = useState<string>();
 
   const codeElement = children.find(
     (child): child is Element => isTag(child) && child.name === 'code'
@@ -324,8 +306,16 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
 
   const long = countShownLines(code, wrap) > LONG_CODE_BLOCK_LINES;
   const collapsed = long && !expanded;
-  // The box keeps its size while streamed code grows in it or its lines stop wrapping.
-  useEffect(measureScroll, [measureScroll, code, collapsed, wrap]);
+  // Collapsed, the code overflows its box; unwrapped, its lines may overflow sideways. Neither
+  // is measured: mounting a block reads no layout.
+  const scrollable = collapsed || !wrap;
+  const view = `${collapsed}:${wrap}:${code.length}`;
+  const atEnd = endView === view;
+  const onScroll = (event: SyntheticEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = event.currentTarget;
+    // At fractional zoom the native maximum sits just below scrollHeight - clientHeight.
+    setEndView(scrollTop >= scrollHeight - clientHeight - 1 ? view : undefined);
+  };
 
   const copy = async () => {
     const done = await copyToClipboard(code);
@@ -429,14 +419,13 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
       {/* Native scroll areas need a tab stop for keyboard scrolling. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-tabindex */}
       <div
-        ref={scrollRef}
         className={css.CodeBlockScroll}
         // Collapsed, the block shows its first lines and scrolls through the rest in place.
         style={collapsed ? { maxHeight: `${COLLAPSED_LINES * 1.5}em` } : undefined}
         role={scrollable ? 'region' : undefined}
         aria-label={scrollable ? t('messageCodeBlock.code') : undefined}
         tabIndex={scrollable ? 0 : undefined}
-        onScroll={measureScroll}
+        onScroll={onScroll}
       >
         {body}
         {collapsed && !atEnd && <div className={css.CodeBlockBottomShadow} />}
