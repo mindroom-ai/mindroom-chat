@@ -24,6 +24,7 @@ import {
   threadStreamingStateMock,
   wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const { scheduledEventsByType } = vi.hoisted(() => ({
   scheduledEventsByType: new Map<string, unknown[]>(),
@@ -143,6 +144,8 @@ const setup = async () => {
     });
   return { ...roomState, renderer: renderer!, overview, type, toggle, preset, settle };
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline filter query wiring', () => {
   beforeEach(() => {

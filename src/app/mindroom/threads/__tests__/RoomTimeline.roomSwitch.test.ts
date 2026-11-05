@@ -12,6 +12,7 @@ import {
   roomUnreadState,
   wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 type TestRoom = ReturnType<typeof makeRoom>;
 
@@ -58,6 +59,8 @@ const renderTimeline = async (room: TestRoom, threadId?: string) => {
   };
   return { renderer: renderer!, show };
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline across room switches', () => {
   it("does not carry one room's Jump to Unread into the next room", async () => {

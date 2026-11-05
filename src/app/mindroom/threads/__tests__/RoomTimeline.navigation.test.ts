@@ -20,6 +20,9 @@ import {
   threadResolutionMapMock,
   virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline', () => {
   describe('navigation and focus', () => {

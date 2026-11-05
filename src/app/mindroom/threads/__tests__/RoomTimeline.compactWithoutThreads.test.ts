@@ -13,6 +13,7 @@ import {
   roomIntroType,
   roomThreadOverviewType,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const renderRoom = async (
   room: ReturnType<typeof makeRoom>,
@@ -32,6 +33,8 @@ const renderRoom = async (
 /** The rendered nodes of a component or of one of the harness's named doubles. */
 const nodesOf = (renderer: ReturnType<typeof create>, type: unknown) =>
   renderer.root.findAll((node) => node.type === type);
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline Compact room without threads', () => {
   // The header names the room, so its start says there is no thread instead of repeating the

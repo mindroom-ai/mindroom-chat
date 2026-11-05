@@ -13,6 +13,9 @@ import {
   matrixClientMock,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('new thread history', () => {
   it.each(['empty terminal page', 'older reply', 'request failure'])(

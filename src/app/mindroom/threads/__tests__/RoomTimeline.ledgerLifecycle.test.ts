@@ -1,6 +1,7 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 // Ledger lifecycle pins (mutant audit 2026-07-07):
 //  1. settle GENERATION guard — a ledger settle wait armed in a previous
@@ -164,6 +165,8 @@ const readLedgerSettleCounts = async () => {
 beforeEach(() => {
   settleWaits.length = 0;
 });
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline ledger lifecycle', () => {
   it('consumes room prepend debt once and drops it when the surface changes', async () => {

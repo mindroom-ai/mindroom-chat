@@ -2,6 +2,7 @@ import React from 'react';
 import parse from 'html-react-parser';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../../test-utils/importBeforeTests';
 
 vi.mock('./ApprovalArgumentFields.css', () => ({
   Arguments: 'Arguments',
@@ -32,6 +33,8 @@ vi.mock('./MindroomHtmlBlocks.css', () => ({
   ToolRowIndex: 'ToolRowIndex',
   ToolRowName: 'ToolRowName',
 }));
+
+importBeforeTests(() => import('../../test-utils/markerParserOptions'));
 
 describe('Mindroom paste marker HTML blocks', () => {
   it('renders paste marker spans as badges', async () => {

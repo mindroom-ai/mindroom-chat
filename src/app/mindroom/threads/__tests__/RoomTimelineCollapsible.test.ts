@@ -10,6 +10,7 @@ import {
   MindroomSyncEngineProvider,
   type MindroomSyncEngine,
 } from '../../engine';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const RELATION_ANNOTATION = 'm.annotation';
 const RELATION_REPLACE = 'm.replace';
@@ -1126,6 +1127,8 @@ afterEach(() => {
   mountedRenderers.forEach((renderer) => renderer.unmount());
   mountedRenderers.clear();
 });
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline collapsible wiring', () => {
   it('uses always-expanded mode for thread summary messages resolved from edits', async () => {

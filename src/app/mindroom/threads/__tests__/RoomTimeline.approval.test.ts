@@ -11,6 +11,7 @@ import {
   makeEvent,
   makeRoom,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const findElementInNode = (
   node: ReactNode,
@@ -23,6 +24,8 @@ const findElementInNode = (
     .map((child) => findElementInNode(child, predicate))
     .find((child): child is ReactElement => child !== undefined);
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline approval rendering', () => {
   it('renders thread summary and thread metadata for approval events', async () => {

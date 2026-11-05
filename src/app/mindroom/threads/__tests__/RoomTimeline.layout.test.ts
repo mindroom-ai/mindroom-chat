@@ -9,6 +9,7 @@ import {
   makeRoom,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const findTimelineContentBox = (renderer: ReturnType<typeof create>) => {
   const matches = renderer.root.findAll(
@@ -17,6 +18,8 @@ const findTimelineContentBox = (renderer: ReturnType<typeof create>) => {
   expect(matches).toHaveLength(1);
   return matches[0];
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline layout', () => {
   it('top-aligns short active thread timelines', async () => {

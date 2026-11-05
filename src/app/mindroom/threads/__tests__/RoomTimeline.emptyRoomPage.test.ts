@@ -14,6 +14,7 @@ import {
   roomIntroType,
   virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 type TestTimeline = ReturnType<typeof makeTimeline>;
 
@@ -47,6 +48,8 @@ const paginateBack = async () => {
     await flushAsyncWork();
   });
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline room pages without rows', () => {
   it('shows the room start when the last page brings no events', async () => {

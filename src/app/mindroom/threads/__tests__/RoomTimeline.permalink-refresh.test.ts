@@ -25,6 +25,9 @@ import {
   threadResolutionMapMock,
   TimelineRefreshHarness,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline', () => {
   describe('permalink focus and timeline refresh', () => {

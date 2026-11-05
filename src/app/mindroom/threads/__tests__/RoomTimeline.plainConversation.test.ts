@@ -12,6 +12,7 @@ import {
   threadLastActivityTsMapMock,
   wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 /** Three threads sent in order, the oldest with the latest reply. */
 const makeThreadRoom = () => {
@@ -47,6 +48,8 @@ const renderThreadedView = async (hasMindroomAgents: boolean) => {
   });
   return renderer!;
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline threaded view and the filter bar', () => {
   it('sorts the threads by their latest reply under the bar in a room with agents', async () => {

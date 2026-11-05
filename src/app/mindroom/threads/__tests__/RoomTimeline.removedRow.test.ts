@@ -15,6 +15,7 @@ import {
   matrixClientMock,
   virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 type TestEvent = ReturnType<typeof makeEvent>;
 type TestTimeline = ReturnType<typeof makeTimeline>;
@@ -71,6 +72,8 @@ const removeFromTimeline = (
 };
 
 const windowRange = () => virtualPaginatorState.lastOptions?.range;
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('getRangeWithoutRow', () => {
   it('moves the window up one row when a row above it leaves', () => {

@@ -12,6 +12,7 @@ import {
   roomTimelineVirtualizerState,
   threadRenderStateMock,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const threadId = '$root';
 const summary = (id: string, text: string, ts: number) =>
@@ -24,6 +25,8 @@ const summary = (id: string, text: string, ts: number) =>
       'io.mindroom.thread_summary': { version: 1, summary: text, message_count: 1 },
     },
   });
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('thread summary markers', () => {
   it('hides a repeated summary and marks the others in an open thread', async () => {

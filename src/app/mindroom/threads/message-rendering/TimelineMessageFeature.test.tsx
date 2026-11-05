@@ -23,6 +23,7 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
 import type { ThreadRecord } from '../types';
 import type { TimelineMessageRow } from './types';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 // Shared timeline fixtures stub the subscription. This suite deliberately exercises it.
 vi.doUnmock('../../../features/room/message/EncryptedContent');
@@ -112,6 +113,8 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
     update: () => act(() => renderer.update(<Harness />)),
   };
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('timeline message feature', () => {
   it('shares framing while retaining message, approval and sticker edit/reply policy', async () => {

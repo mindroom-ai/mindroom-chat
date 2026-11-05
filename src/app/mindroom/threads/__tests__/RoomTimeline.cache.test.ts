@@ -49,6 +49,7 @@ import {
   waitForCondition,
   wrapWithSyncEngine,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 // Fetch-controller persist calls are `.then()`-chained off IDB
 // promises inside effects that queue in Promise/microtask ticks; a
@@ -104,6 +105,8 @@ const makeThreadFilterRecord = (
     tailLoaded: false,
   },
 });
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline', () => {
   describe('cache and overview', () => {

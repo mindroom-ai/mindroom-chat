@@ -13,6 +13,7 @@ import {
   scrollType,
   virtualPaginatorState,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const makeScroll = () => {
   const listeners = new Map<string, Set<EventListener>>();
@@ -68,6 +69,8 @@ const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<stri
   });
   return { renderer: renderer!, scroll, room, ControlledRoomTimeline, root };
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline scroll-to-bottom request', () => {
   it('lands on the latest row after a view switch, even once the reader scrolled', async () => {

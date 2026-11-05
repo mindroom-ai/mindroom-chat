@@ -8,6 +8,7 @@ import {
   setRoomThreadExitTargetForHistoryState,
 } from '../roomNavigateState';
 import type { ScrollAnchorMemory } from '../../scroll/scrollAnchorMemory';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 type MockThreadContextBannerProps = {
   onExitThread?: () => void;
@@ -489,6 +490,8 @@ const createCompactScrollElement = () => ({
   addEventListener: () => {},
   removeEventListener: () => {},
 });
+
+importBeforeTests(() => import('../../../features/room/RoomView'));
 
 describe('RoomView', () => {
   const originalResizeObserver = globalThis.ResizeObserver;

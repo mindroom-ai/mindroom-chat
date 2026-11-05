@@ -10,6 +10,7 @@ import {
   makeRoom,
   threadResolutionMapMock,
 } from '../test-utils/RoomTimeline.test.shared';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 // The Threads view shows a thread chip under a room message only once its thread has a reply.
 
@@ -56,6 +57,8 @@ const renderTimeline = async (room: ReturnType<typeof makeRoom>) => {
   if (!renderer) throw new Error('The timeline did not render');
   return renderer;
 };
+
+importBeforeTests(() => import('../../../features/room/RoomTimeline'));
 
 describe('RoomTimeline thread chip', () => {
   it('shows a chip under a root with replies and none under a message without any', async () => {
