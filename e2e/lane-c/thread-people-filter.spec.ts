@@ -48,11 +48,20 @@ const screenshotBothThemes = async (page: Page, name: string) => {
   for (const colorScheme of ['light', 'dark'] as const) {
     // eslint-disable-next-line no-await-in-loop
     await page.emulateMedia({ colorScheme });
-    // The theme change animates its colors; the screenshot waits for them to settle.
+    // The theme change animates its colors; the screenshot waits for those transitions.
     // eslint-disable-next-line no-await-in-loop
-    await page.evaluate(() =>
-      Promise.all(document.getAnimations().map((animation) => animation.finished))
-    );
+    await page.evaluate(async () => {
+      // The transitions start with the next style update.
+      await new Promise((resolve) => {
+        requestAnimationFrame(resolve);
+      });
+      await Promise.all(
+        document
+          .getAnimations()
+          .filter((animation) => animation instanceof CSSTransition)
+          .map((animation) => animation.finished.catch(() => undefined))
+      );
+    });
     // eslint-disable-next-line no-await-in-loop
     await page.screenshot({ path: `${SCREENSHOT}/${name}-${colorScheme}.png` });
   }
