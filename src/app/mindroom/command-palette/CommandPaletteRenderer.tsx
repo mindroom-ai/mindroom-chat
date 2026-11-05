@@ -40,6 +40,19 @@ const mobileSheetFrameStyle = {
   height: '100dvh',
 } as const;
 
+// On wider screens the palette hangs from a line near the top instead of the middle, so message
+// hits that arrive later grow it downward and the rows already on screen stay where they are.
+const desktopFrameStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  height: '100%',
+  boxSizing: 'border-box',
+  paddingBlockStart: 'min(12vh, 96px)',
+  paddingBlockEnd: config.space.S400,
+  paddingInline: config.space.S400,
+} as const;
+
 // The dialog fills its glass shell, so the results scroll inside the shell's corners.
 const dialogStyle = {
   display: 'flex',
@@ -84,11 +97,7 @@ function PaletteDialog({ mobile, initialTab, requestClose, onLogout }: PaletteDi
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <FocusScope contain restoreFocus autoFocus>
-        {mobile ? (
-          <div style={mobileSheetFrameStyle}>{shell}</div>
-        ) : (
-          <OverlayCenter>{shell}</OverlayCenter>
-        )}
+        <div style={mobile ? mobileSheetFrameStyle : desktopFrameStyle}>{shell}</div>
       </FocusScope>
     </Overlay>
   );
