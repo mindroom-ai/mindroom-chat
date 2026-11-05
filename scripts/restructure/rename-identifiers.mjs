@@ -232,6 +232,7 @@ for (const row of rows) {
     let statement = declaration;
     while (statement.parent && statement.parent !== sf) statement = statement.parent;
     const exported =
+      ts.isExportSpecifier(declaration.parent) ||
       (statement.parent === sf &&
         Boolean(
           statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
