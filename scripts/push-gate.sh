@@ -161,9 +161,14 @@ die() {
 }
 
 interrupted() {
-  local pid
+  local pid part n
   for pid in $(jobs -p); do kill_tree "$pid"; done
-  bash "$checkout/scripts/e2e-slot.sh" "$slot" down >/dev/null 2>&1 || true
+  # Every slot of the list (46, 46,47 or 46-48), whose homeserver a spec may have left running.
+  for part in ${slot//,/ }; do
+    for n in $(seq "${part%-*}" "${part#*-}"); do
+      bash "$checkout/scripts/e2e-slot.sh" "$n" down >/dev/null 2>&1 || true
+    done
+  done
   exit 130
 }
 
