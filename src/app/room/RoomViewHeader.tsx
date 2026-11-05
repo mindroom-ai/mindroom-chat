@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
@@ -273,17 +273,9 @@ export function RoomViewHeader({
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
   const [prompt, setPrompt] = useState<'invite' | 'leave' | 'jumpToTime'>();
-  // The prompts open from an entry of the menu, which is gone once they close; focus then goes
-  // back to the menu's button instead of the start of the page.
-  const menuButton = useRef<HTMLElement>();
-  const closePrompt = () => {
-    setPrompt(undefined);
-    requestAnimationFrame(() => {
-      const focused = document.activeElement;
-      if (focused && focused !== document.body && focused.isConnected) return;
-      if (menuButton.current?.isConnected) menuButton.current.focus();
-    });
-  };
+  // The prompts open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
+  // then gives focus back to the menu's button.
+  const closePrompt = () => setPrompt(undefined);
 
   // A direct chat shows the other person, by picture or initial.
   const pictureMxc = useRoomAvatar(room, direct);
@@ -494,10 +486,7 @@ export function RoomViewHeader({
         <HeaderAction
           label={t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions')}
           icon={Icons.VerticalDots}
-          onClick={(event) => {
-            menuButton.current = event.currentTarget;
-            setMenuAnchor(rectOf(event));
-          }}
+          onClick={(event) => setMenuAnchor(rectOf(event))}
           buttonProps={{ 'aria-haspopup': 'menu', 'aria-expanded': !!menuAnchor }}
         />
       </Box>
@@ -575,12 +564,8 @@ export function RoomViewHeader({
           </FocusTrap>
         }
       />
-      {prompt === 'invite' && (
-        <InviteUserPrompt room={room} requestClose={closePrompt} />
-      )}
-      {prompt === 'jumpToTime' && (
-        <JumpToTime room={room} requestClose={closePrompt} />
-      )}
+      {prompt === 'invite' && <InviteUserPrompt room={room} requestClose={closePrompt} />}
+      {prompt === 'jumpToTime' && <JumpToTime room={room} requestClose={closePrompt} />}
       {prompt === 'leave' && (
         <LeaveRoomPrompt
           roomId={room.roomId}

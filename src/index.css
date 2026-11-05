@@ -274,3 +274,10 @@ html[dir='ltr'] [data-message-disclosure] {
 kbd[data-keys]::after {
   content: attr(data-keys);
 }
+
+/* A dialog that holds focus itself as it opens (lib/overlayFocus.ts) already stands out on its
+   own surface; a ring around all of it would only add noise. */
+[role='dialog'][tabindex='-1']:focus,
+[role='alertdialog'][tabindex='-1']:focus {
+  outline: none;
+}

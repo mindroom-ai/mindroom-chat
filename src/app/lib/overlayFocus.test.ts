@@ -218,4 +218,111 @@ describe('overlay focus', () => {
     await flush();
     expect(document.activeElement).toBe(document.body);
   });
+
+  describe('dialogs', () => {
+    /** A portaled dialog with a close button and a field, like the small prompts. */
+    const dialogLayer = (role: 'dialog' | 'alertdialog', modal = true) => {
+      const layer = document.createElement('div');
+      const dialog = document.createElement('div');
+      dialog.setAttribute('role', role);
+      if (modal) dialog.setAttribute('aria-modal', 'true');
+      const close = button('Close');
+      const field = document.createElement('input');
+      dialog.append(close, field);
+      layer.append(dialog);
+      return { layer, dialog, close, field };
+    };
+
+    // Safari does not focus a button it clicks, so focus stays on <body>.
+    const click = (target: Element, pointerType = 'mouse') => {
+      const down = new MouseEvent('pointerdown', { bubbles: true });
+      Object.defineProperty(down, 'pointerType', { value: pointerType });
+      target.dispatchEvent(down);
+      target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    };
+
+    it('takes focus on its first control when a click opened it, and gives it back on close', async () => {
+      click(trigger);
+      const { layer, close } = dialogLayer('dialog');
+      document.body.append(layer);
+      await flush();
+      expect(document.activeElement).toBe(close);
+
+      // Closed with the pointer: its Close button is gone, focus fell to <body>.
+      click(close);
+      layer.remove();
+      await flush();
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it('focuses an alert dialog itself, so its question is read and Enter confirms nothing', async () => {
+      click(trigger);
+      const { layer, dialog } = dialogLayer('alertdialog');
+      document.body.append(layer);
+      await flush();
+      expect(document.activeElement).toBe(dialog);
+      expect(dialog.tabIndex).toBe(-1);
+    });
+
+    it('focuses the dialog itself when a tap opened it and its first control is a text field', async () => {
+      click(trigger, 'touch');
+      const { layer, dialog, close } = dialogLayer('dialog');
+      close.remove();
+      document.body.append(layer);
+      await flush();
+      expect(document.activeElement).toBe(dialog);
+    });
+
+    it('leaves focus alone for a dialog nobody opened, unless it is modal', async () => {
+      const field = document.createElement('input');
+      document.getElementById('root')!.append(field);
+      field.focus();
+      const popover = dialogLayer('alertdialog', false);
+      document.body.append(popover.layer);
+      await flush();
+      expect(document.activeElement).toBe(field);
+
+      const modal = dialogLayer('dialog');
+      document.body.append(modal.layer);
+      await flush();
+      expect(document.activeElement).toBe(modal.close);
+    });
+
+    it('gives focus to the menu button after a dialog that a menu item opened as its menu closed', async () => {
+      click(trigger);
+      const menu = menuLayer();
+      document.body.append(menu.layer);
+      await flush();
+
+      // The item opens the dialog and closes the menu in one render.
+      click(menu.first);
+      menu.layer.remove();
+      const { layer, close } = dialogLayer('dialog');
+      document.body.append(layer);
+      await flush();
+      expect(document.activeElement).toBe(close);
+
+      press(close, 'Escape');
+      layer.remove();
+      await flush();
+      expect(document.activeElement).toBe(trigger);
+    });
+
+    it.each([
+      ['Tab', false],
+      ['Shift+Tab', true],
+    ] as const)('wraps focus around when %s would leave the dialog', async (_key, shiftKey) => {
+      click(trigger);
+      const opened = dialogLayer('dialog');
+      document.body.append(opened.layer);
+      await flush();
+      const from = shiftKey ? opened.close : opened.field;
+      from.focus();
+      // Safari's Option+Tab past a focus scope: focus leaves the page.
+      from.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey, bubbles: true }));
+      from.blur();
+      await flush();
+      expect(document.activeElement).toBe(shiftKey ? opened.field : opened.close);
+    });
+  });
 });

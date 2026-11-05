@@ -5,15 +5,25 @@
  * - Many menus open with `initialFocus: false`, so a mouse click does not ring their first item.
  *   Opened with Enter or Space instead, a layer whose opener keeps focus gets focus on its first
  *   control, as a menu button should.
+ * - A dialog or alert dialog takes focus as it opens, however it was opened, so a screen reader
+ *   announces it and Tab starts inside it: an alert dialog on itself (its name and question are
+ *   read, and Enter confirms nothing by accident), any other dialog on its first control. Opened by
+ *   a tap, a dialog whose first control is a text field takes focus itself instead, so the
+ *   on-screen keyboard does not cover it.
+ * - Tab never leaves an open dialog: when it would (Safari's Option+Tab, which some focus scopes let
+ *   through, or plain Tab skipping the buttons with Safari's default setting), focus wraps around to
+ *   the dialog's other end.
  * - A layer that closes after a key press (Escape, or Enter on one of its items) would leave focus
- *   on `<body>`; focus goes back to the control it came from. After a pointer press nothing moves,
- *   so a click elsewhere keeps its own focus.
+ *   on `<body>`; focus goes back to the control it came from. A dialog gives focus back however it
+ *   closed. After a pointer press on a menu nothing moves, so a click elsewhere keeps its own focus.
  */
 
 const PORTAL_CONTAINER_ID = 'portalContainer';
 const APP_ROOT_ID = 'root';
 /** How long after Enter or Space a new layer still counts as opened by that key. */
 const KEY_OPEN_WINDOW_MS = 400;
+/** How long after a press a new dialog still counts as opened by it, and its control as opener. */
+const DIALOG_OPEN_WINDOW_MS = 1000;
 
 const TABBABLE_SELECTOR = [
   'button:not([disabled])',
@@ -30,6 +40,16 @@ const PASSIVE_ROLES = new Set(['tooltip', 'status', 'alert', 'log', 'presentatio
 
 /** Controls whose Enter or Space can open a layer. */
 const OPENER_SELECTOR = 'button, [role="button"], [role="menuitem"], [role="tab"], a[href]';
+
+const DIALOG_SELECTOR = '[role="dialog"], [role="alertdialog"]';
+
+/** Fields that bring up an on-screen keyboard when they take focus. */
+const isTextEntry = (element: HTMLElement): boolean =>
+  element.matches('textarea, [contenteditable="true"]') ||
+  (element.matches('input') &&
+    !['checkbox', 'radio', 'button', 'submit', 'reset', 'range', 'color', 'file'].includes(
+      (element as HTMLInputElement).type
+    ));
 
 type Doc = Document & { defaultView: (Window & typeof globalThis) | null };
 
@@ -70,6 +90,30 @@ export const firstTabbable = (layer: Element): HTMLElement | undefined =>
 const canTakeFocus = (element: HTMLElement): boolean =>
   isShown(element) && !(element as HTMLButtonElement).disabled;
 
+/** The dialog a layer is or holds. */
+const dialogOf = (layer: Element): HTMLElement | undefined => {
+  const dialog = layer.matches(DIALOG_SELECTOR) ? layer : layer.querySelector(DIALOG_SELECTOR);
+  return dialog instanceof (layer.ownerDocument.defaultView?.HTMLElement ?? HTMLElement)
+    ? dialog
+    : undefined;
+};
+
+/** Where a dialog's focus starts; see the module comment. */
+const dialogFocusTarget = (dialog: HTMLElement, tapped: boolean): HTMLElement => {
+  if (dialog.getAttribute('role') === 'alertdialog') return dialog;
+  const first = firstTabbable(dialog);
+  if (!first || (tapped && isTextEntry(first))) return dialog;
+  return first;
+};
+
+/** A press that may open a layer: the control it was on and the layer that held that control. */
+type Press = {
+  opener: HTMLElement;
+  openerLayer: Element | undefined;
+  at: number;
+  tapped: boolean;
+};
+
 /** Starts the behavior on `doc`; returns a function that stops it. */
 export const installOverlayFocus = (doc: Document = document): (() => void) => {
   const win = (doc as Doc).defaultView;
@@ -81,7 +125,11 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   let lastInput: 'keyboard' | 'pointer' | undefined;
   let lastFocused: HTMLElement | undefined;
   /** The control Enter or Space was pressed on, and the layer that held it. */
-  let keyOpen: { opener: HTMLElement; openerLayer: Element | undefined; at: number } | undefined;
+  let keyOpen: Press | undefined;
+  /** The control the last pointer press was on, which Safari does not focus. */
+  let pointerPress: Press | undefined;
+  /** Layers that held a dialog when they opened; they give focus back however they close. */
+  const dialogLayers = new WeakSet<Element>();
 
   /** Whether `layer` is `ancestor`, or was opened from it directly or through other layers. */
   const openedFrom = (layer: Element, ancestor: Element): boolean => {
@@ -91,9 +139,16 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     return false;
   };
 
-  const remember = (layer: Element, opener: HTMLElement | undefined) => {
+  /**
+   * Records the control that opened `layer`. The layer that held it is given when the control may
+   * be gone already, as a menu item is once its menu closes.
+   */
+  const remember = (
+    layer: Element,
+    opener: HTMLElement | undefined,
+    openerLayer = layerOf(doc, opener)
+  ) => {
     if (!opener || openers.has(layer)) return;
-    const openerLayer = layerOf(doc, opener);
     // Focus can come back to a dialog from a popover it opened (a picker that closes): that
     // control is no opener of the dialog, and taking it for one would make the two layers each
     // other's parent, a loop for the walk back to an opener.
@@ -112,23 +167,55 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     if (target instanceof win.HTMLElement) lastFocused = target;
   };
 
+  const pressOn = (opener: Element | null | undefined, tapped: boolean): Press | undefined =>
+    opener instanceof win.HTMLElement
+      ? { opener, openerLayer: layerOf(doc, opener), at: win.performance.now(), tapped }
+      : undefined;
+
+  /** After Tab has moved focus out of the dialog it was in, puts it back at the other end. */
+  const keepTabInDialog = (event: KeyboardEvent) => {
+    const from = layerOf(doc, event.target as Node | null);
+    if (!from || !dialogLayers.has(from)) return;
+    win.setTimeout(() => {
+      const active = doc.activeElement;
+      const to = layerOf(doc, active);
+      if (!from.isConnected || (to && openedFrom(to, from))) return;
+      const dialog = dialogOf(from);
+      const tabbables = dialog
+        ? Array.from(dialog.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(canTakeFocus)
+        : [];
+      const target = event.shiftKey ? tabbables[tabbables.length - 1] : tabbables[0];
+      (target ?? dialog)?.focus({ preventScroll: true });
+    }, 0);
+  };
+
   const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Tab') keepTabInDialog(event);
     lastInput = 'keyboard';
     const plain = !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
     const target = event.target as Element | null;
     keyOpen =
-      plain && (event.key === 'Enter' || event.key === ' ') && target?.closest?.(OPENER_SELECTOR)
-        ? {
-            opener: target as HTMLElement,
-            openerLayer: layerOf(doc, target),
-            at: win.performance.now(),
-          }
+      plain && (event.key === 'Enter' || event.key === ' ')
+        ? pressOn(target?.closest?.(OPENER_SELECTOR), false)
         : undefined;
+    pointerPress = undefined;
   };
 
-  const onPointerDown = () => {
+  const onPointerDown = (event: Event) => {
     lastInput = 'pointer';
     keyOpen = undefined;
+    const target = event.target as Element | null;
+    const tapped = (event as PointerEvent).pointerType === 'touch';
+    // A touch also sends a compatibility mousedown after its pointerdown; keep the tap.
+    if (event.type === 'mousedown' && pointerPress?.tapped && pointerPress.opener.contains(target))
+      return;
+    pointerPress = pressOn(target?.closest?.(OPENER_SELECTOR), tapped);
+  };
+
+  /** The press that opened a layer appearing now, if one was that recent. */
+  const recentPress = (): Press | undefined => {
+    const press = keyOpen ?? pointerPress;
+    return press && win.performance.now() - press.at <= DIALOG_OPEN_WINDOW_MS ? press : undefined;
   };
 
   /** The layer's opener, or the opener of the layer that held it when that one is gone too. */
@@ -145,7 +232,6 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   const focusLayerOpenedByKey = (layer: Element) => {
     const open = keyOpen;
     if (!open || win.performance.now() - open.at > KEY_OPEN_WINDOW_MS) return;
-    if (isPassiveLayer(layer)) return;
     // A focus trap that moves focus itself does so in a timeout of its own, which runs first.
     win.setTimeout(() => {
       if (!layer.isConnected) return;
@@ -165,11 +251,40 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     }, 0);
   };
 
+  /**
+   * Moves focus into a dialog that opened from a press, or that is modal, unless its focus trap
+   * already did. A dialog that turns up unasked, such as an incoming call, leaves focus where the
+   * person is typing.
+   */
+  const focusDialog = (layer: Element, press: Press | undefined) => {
+    const dialog = dialogOf(layer);
+    if (!dialog || (!press && dialog.getAttribute('aria-modal') !== 'true')) return;
+    // A focus trap that moves focus itself does so in a timeout of its own, which runs first.
+    win.setTimeout(() => {
+      if (!layer.isConnected || layer.contains(doc.activeElement)) return;
+      const target = dialogFocusTarget(dialog, !!press?.tapped);
+      if (target === dialog && !dialog.hasAttribute('tabindex')) dialog.tabIndex = -1;
+      target.focus({ preventScroll: true });
+    }, 0);
+  };
+
+  const onLayerAdded = (layer: Element) => {
+    if (isPassiveLayer(layer)) return;
+    const press = recentPress();
+    if (press) remember(layer, press.opener, press.openerLayer);
+    if (dialogOf(layer)) {
+      dialogLayers.add(layer);
+      focusDialog(layer, press);
+    } else {
+      focusLayerOpenedByKey(layer);
+    }
+  };
+
   const returnFocusFrom = (layer: Element) => {
     if (!openers.has(layer)) return;
     // Focus traps give focus back in a timeout of their own; run after them.
     win.setTimeout(() => {
-      if (lastInput !== 'keyboard') return;
+      if (lastInput !== 'keyboard' && !dialogLayers.has(layer)) return;
       const active = doc.activeElement;
       if (active && active !== doc.body && active.isConnected) return;
       reachableOpener(layer)?.focus({ preventScroll: true });
@@ -179,7 +294,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   const onMutations = (records: MutationRecord[]) => {
     records.forEach((record) => {
       record.addedNodes.forEach((node) => {
-        if (node instanceof win.Element && layerOf(doc, node) === node) focusLayerOpenedByKey(node);
+        if (node instanceof win.Element && layerOf(doc, node) === node) onLayerAdded(node);
       });
       record.removedNodes.forEach((node) => {
         if (node instanceof win.Element) returnFocusFrom(node);
