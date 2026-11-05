@@ -51,3 +51,14 @@ src/app/hooks/useRoomPinnedEvents.ts		restructure-p1-shims
 src/app/mindroom/messages/editResolution.ts		restructure-p1-shims
 src/app/mindroom/threads/threadSummaryStore.ts		restructure-p1-shims
 src/app/pages/client/sidebar/SearchTab.tsx		restructure-p1-shims
+src/app/components/ReactQueryDevtoolsToggle.test.ts		restructure-p1-unwired
+src/app/components/ReactQueryDevtoolsToggle.tsx		restructure-p1-unwired
+src/app/hooks/useDeviceList.ts		restructure-p1-unwired
+src/app/hooks/usePinchToZoom.test.ts		restructure-p1-unwired
+src/app/hooks/usePinchToZoom.ts		restructure-p1-unwired
+src/app/mindroom/matrix/useAgentDeviceTrust.test.ts		restructure-p1-unwired
+src/app/mindroom/matrix/useAgentDeviceTrust.ts		restructure-p1-unwired
+src/app/mindroom/native/CloudflareAccessGate.test.tsx		restructure-p1-unwired
+src/app/mindroom/native/CloudflareAccessGate.tsx		restructure-p1-unwired
+src/app/utils/pageZoom.test.ts		restructure-p1-unwired
+src/app/utils/pageZoom.ts		restructure-p1-unwired

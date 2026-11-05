@@ -72,7 +72,7 @@ export const ImageViewer = as<'div', ImageViewerProps>(
 
     const imageTransform = `translate(${pan.translateX}px, ${pan.translateY}px) scale(${zoom})`;
 
-    // usePinchToZoom leaves page zoom alone while an element marked `data-image-viewer` is open.
+    // `data-image-viewer` marks the open viewer; the e2e media spec finds it by that.
     return (
       <Box
         data-image-viewer="true"

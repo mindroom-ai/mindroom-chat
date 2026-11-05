@@ -12,3 +12,4 @@ src/app/state/callEmbed.ts	3	bas=29%	callEmbedAtom	Element Call
 src/app/hooks/useRoomState.ts	1	bas=8%	StateTypeToState,useRoomState	restructure: dead code (restructure-p1-dead)
 src/app/utils/matrix-uia.ts	1	bas=7%	getLoginTermUrl	restructure: dead code (restructure-p1-dead)
 src/app/mindroom/computer/ComputerHeaderButton.tsx	1	bas=88%	ComputerHeaderButton	restructure: dead code (restructure-p1-dead)
+src/app/hooks/useDeviceList.ts	1	bas=0%	useDeviceListChange	restructure: unwired, mounted nowhere, decision 4 (restructure-p1-unwired)
