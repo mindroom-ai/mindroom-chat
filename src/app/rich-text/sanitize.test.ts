@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeCustomHtml } from './sanitize';
-import { mindroomCustomHtmlSanitizerPolicy } from './customHtmlPolicy';
+import { sanitizeCustomHtml, mindroomCustomHtmlSanitizerPolicy } from './sanitize';
 
 describe('mindroomCustomHtmlSanitizerPolicy', () => {
   it('keeps paste markers and Matrix math attributes needed by MindRoom rendering', () => {

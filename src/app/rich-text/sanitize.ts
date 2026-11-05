@@ -1,5 +1,4 @@
 import sanitizeHtml, { type IOptions, type Transformer } from 'sanitize-html';
-import { mindroomCustomHtmlSanitizerPolicy } from './customHtmlPolicy';
 
 /** Escapes text for use as HTML content or a quoted attribute value. */
 export const sanitizeText = (text: string): string =>
@@ -70,6 +69,30 @@ const BASE_ATTRIBUTES: Record<string, string[]> = {
   details: ['open'],
   th: ['colspan', 'rowspan', 'align'],
   td: ['colspan', 'rowspan', 'align'],
+};
+
+const PASTE_MARKER_ATTRIBUTES = [
+  'data-mindroom-paste-marker',
+  'data-mindroom-paste-id',
+  'data-mindroom-paste-chars',
+  'data-mindroom-paste-file',
+];
+
+/**
+ * What MindRoom messages need on top of the Matrix formatting tags: the agents' block tags
+ * (`<think>`, `<plan>`, ...; rendered as collapsible blocks), Matrix math (`data-mx-maths`), and
+ * the paste attachment markers the composer writes. Styles, URL schemes and the link
+ * transformers stay the base rules'.
+ */
+export const mindroomCustomHtmlSanitizerPolicy: {
+  allowedTags: string[];
+  allowedAttributes: Record<string, string[]>;
+} = {
+  allowedTags: ['think', 'debug', 'system', 'plan', 'analysis', 'research'],
+  allowedAttributes: {
+    span: ['data-mx-maths', ...PASTE_MARKER_ATTRIBUTES],
+    div: ['data-mx-maths'],
+  },
 };
 
 const BASE_STYLES: Record<string, Record<string, RegExp[]>> = {

@@ -2716,3 +2716,5 @@ src/app/search/AgentMessageSearch.tsx		restructure-p3-c6
 src/app/search/searchResultBodyRenderer.tsx		restructure-p3-c6
 src/app/notifications/systemNotificationExtensions.test.ts		restructure-p3-c6
 src/app/notifications/systemNotificationExtensions.tsx		restructure-p3-c6
+src/app/rich-text/customHtmlPolicy.ts		restructure-p3-c6
+src/app/rich-text/customHtmlPolicy.test.ts	src/app/rich-text/sanitize.test.ts	restructure-p3-c6
