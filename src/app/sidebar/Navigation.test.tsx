@@ -18,6 +18,7 @@ import {
   CollapsibleSidebarNav,
   SpacePageRoot,
 } from './Navigation';
+import { type PanelPhase, usePanelPresence } from '../ui/panels/panelPresence';
 
 const COLLAPSE_LABEL = 'Collapse navigation panel';
 const EXPAND_LABEL = 'Expand navigation panel';
@@ -144,6 +145,54 @@ const clickExplore = (renderer: Renderer): void => {
 
 const currentLocation = (renderer: Renderer) =>
   renderer.root.findByProps({ 'data-testid': 'location' }).props;
+
+let navPhase: PanelPhase | undefined;
+
+/** The page navigation; reports how its slot says it appears. */
+function NavProbe() {
+  navPhase = usePanelPresence()?.phase;
+  return <aside data-testid="page-nav" />;
+}
+
+/**
+ * A page that mounts anew for each path, as a space's page does for each space; Threads has no
+ * navigation.
+ */
+function PagePerPath() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/threads/')) return <main data-testid="page-content" />;
+  return (
+    <SectionPageRoot key={pathname} nav={<NavProbe />}>
+      <main data-testid="page-content" />
+    </SectionPageRoot>
+  );
+}
+
+/** The navigation beside pages that mount anew per path. */
+const renderPagePerPath = (initialPath: string): Renderer => {
+  let renderer: Renderer;
+  act(() => {
+    renderer = create(
+      <MemoryRouter
+        initialEntries={[initialPath]}
+        future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+      >
+        <NavToActivePathProvider value={makeNavToActivePathAtom('@alice:example.org')}>
+          <ScreenSizeProvider value={getScreenSize(1280)}>
+            <NavigationProvider>
+              <CollapsibleSidebarNav />
+              <PagePerPath />
+            </NavigationProvider>
+          </ScreenSizeProvider>
+        </NavToActivePathProvider>
+      </MemoryRouter>
+    );
+  });
+  return renderer!;
+};
+
+const navCount = (renderer: Renderer) =>
+  renderer.root.findAllByProps({ 'data-testid': 'page-nav' }).length;
 
 const expectNavigationState = (renderer: Renderer, collapsed: boolean): void => {
   const activeLabel = collapsed ? EXPAND_LABEL : COLLAPSE_LABEL;
@@ -414,6 +463,43 @@ describe('MindroomNavigation', () => {
     expectNavigationState(renderer, false);
     expect(localStorage.getItem(storageKey)).toBe('false');
 
+    act(() => renderer.unmount());
+  });
+
+  it('moves the navigation in when the click that opens it also opens a new page', () => {
+    localStorage.setItem(storageKey, 'true');
+    const renderer = renderPagePerPath('/home/');
+    expect(navCount(renderer)).toBe(0);
+
+    clickExplore(renderer);
+
+    expect(navCount(renderer)).toBe(1);
+    expect(navPhase).toBe('enter');
+    act(() => renderer.unmount());
+  });
+
+  it('shows the navigation in place when a new page comes with it already open', () => {
+    const renderer = renderPagePerPath('/home/');
+    expect(navPhase).toBe('shown');
+
+    clickExplore(renderer);
+
+    expect(navCount(renderer)).toBe(1);
+    expect(navPhase).toBe('shown');
+    act(() => renderer.unmount());
+  });
+
+  it('moves the navigation in on the next page after it opens on a page without one', () => {
+    localStorage.setItem(storageKey, 'true');
+    const renderer = renderPagePerPath('/threads/');
+    // Threads is not the selected section, so its button opens the navigation it does not show.
+    act(() => findButtons(renderer, 'Select section')[0].props.onClick());
+    expect(navCount(renderer)).toBe(0);
+
+    clickExplore(renderer);
+
+    expect(navCount(renderer)).toBe(1);
+    expect(navPhase).toBe('enter');
     act(() => renderer.unmount());
   });
 });

@@ -28,12 +28,21 @@ export type DesktopPageNav = {
   /** Whether the layout has a page navigation beside the content that can be collapsed. */
   canCollapse: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  /**
+   * Opened from collapsed and not on screen since: the next page navigation to appear moves in,
+   * also one that comes with a new page (a click on another space opens both at once).
+   */
+  opening: boolean;
+  /** The opening page navigation is on screen. */
+  opened: () => void;
 };
 
 const noPageNav: DesktopPageNav = {
   collapsed: false,
   canCollapse: false,
   setCollapsed: () => undefined,
+  opening: false,
+  opened: () => undefined,
 };
 
 export const DesktopPageNavContext = createContext<DesktopPageNav>(noPageNav);

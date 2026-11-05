@@ -48,11 +48,20 @@ type Slot = {
  * One place for a panel beside the content that opens and closes in motion. Pass the panel to
  * show (with a key naming which one) or undefined; the slot keeps a closing panel mounted until it
  * has moved out, and tells a new panel whether it opens, replaces another, or was there from the
- * start. Returns what to render in that place, or undefined when nothing is there.
+ * start. With `opening`, a panel there from the start opens all the same: the place came with the
+ * panel that was just opened (a new page with the navigation the same click opened). Returns what
+ * to render in that place, or undefined when nothing is there.
  */
-export function usePanelSlot(panel: ReactElement | undefined): ReactElement | undefined {
+export function usePanelSlot(
+  panel: ReactElement | undefined,
+  opening = false
+): ReactElement | undefined {
   const key = panel ? String(panel.key) : undefined;
-  const [slot, setSlot] = useState<Slot>({ key, shownKey: key, phase: 'shown' });
+  const [slot, setSlot] = useState<Slot>({
+    key,
+    shownKey: key,
+    phase: opening && panel ? 'enter' : 'shown',
+  });
   if (slot.key !== key) {
     let phase: PanelPhase = 'exit';
     if (key !== undefined) {

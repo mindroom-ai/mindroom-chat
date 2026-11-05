@@ -1,4 +1,4 @@
-import { ReactElement, ReactNode, useCallback, useMemo, useState } from 'react';
+import { ReactElement, ReactNode, useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import { PageRoot } from '../ui/page/Page';
@@ -34,18 +34,24 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   }));
   const savedCollapsed =
     saved.userId === userId ? saved.collapsed : readDesktopPageNavCollapsed(userId);
+  const collapsed = canCollapse && savedCollapsed;
+  // Opened from collapsed, until a page shows the navigation: one that mounts with it, such as
+  // the space a click opened together with the navigation, moves it in like the toggle does.
+  const [opening, setOpening] = useState(false);
 
   const setCollapsed = useCallback(
-    (collapsed: boolean) => {
-      writeDesktopPageNavCollapsed(userId, collapsed);
-      setSaved({ userId, collapsed });
+    (next: boolean) => {
+      writeDesktopPageNavCollapsed(userId, next);
+      setSaved({ userId, collapsed: next });
+      setOpening((pending) => !next && (collapsed || pending));
     },
-    [userId]
+    [userId, collapsed]
   );
+  const opened = useCallback(() => setOpening(false), []);
 
   const value = useMemo<DesktopPageNav>(
-    () => ({ collapsed: canCollapse && savedCollapsed, canCollapse, setCollapsed }),
-    [canCollapse, savedCollapsed, setCollapsed]
+    () => ({ collapsed, canCollapse, setCollapsed, opening, opened }),
+    [canCollapse, collapsed, setCollapsed, opening, opened]
   );
 
   return <DesktopPageNavContext.Provider value={value}>{children}</DesktopPageNavContext.Provider>;
@@ -127,16 +133,20 @@ function RememberSectionPath({ navId }: { navId: string }) {
 
 /**
  * A page with its navigation, which is left out while collapsed and moves in and out when that
- * changes. With `navId` (`home`, `direct`) it remembers the content open in that section, so its
- * rail button returns there.
+ * changes, also when the page mounts as the navigation opens (a click on another space). With
+ * `navId` (`home`, `direct`) it remembers the content open in that section, so its rail button
+ * returns there.
  */
 export function SectionPageRoot({
   nav,
   navId,
   children,
 }: SectionPageRootProps & { navId?: string }) {
-  const { collapsed } = useDesktopPageNav();
-  const shownNav = usePanelSlot(collapsed ? undefined : nav);
+  const { collapsed, opening, opened } = useDesktopPageNav();
+  const shownNav = usePanelSlot(collapsed ? undefined : nav, opening);
+  useLayoutEffect(() => {
+    if (opening && !collapsed) opened();
+  }, [collapsed, opened, opening]);
   return (
     <PageRoot main nav={shownNav}>
       {navId && <RememberSectionPath navId={navId} />}
