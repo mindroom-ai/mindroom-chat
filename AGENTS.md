@@ -21,7 +21,7 @@ A file keeps its lane when it moves: the lists keep import-time paths, and `docs
 
 ### Both lanes
 
-- **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` reports an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
+- **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
 
 ### Lane P edit rules
 

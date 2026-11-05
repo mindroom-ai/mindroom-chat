@@ -66,6 +66,8 @@ describe('domain layering lint', () => {
     const source = `import '${moduleOf(other, extension, probe)}';`;
     expect(await layeringMessages(source, probe)).toEqual([
       expect.objectContaining({
+        // An error, so `just lint` fails on it.
+        severity: 2,
         message: expect.stringContaining(`restricted zone. ${domain} (layer `),
       }),
     ]);

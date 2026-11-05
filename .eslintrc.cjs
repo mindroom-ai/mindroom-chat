@@ -357,7 +357,7 @@ module.exports = {
       files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
       excludedFiles: LAYERS_EXEMPT,
       rules: {
-        'import/no-restricted-paths': ['warn', { basePath: __dirname, zones: LAYER_ZONES }],
+        'import/no-restricted-paths': ['error', { basePath: __dirname, zones: LAYER_ZONES }],
       },
     },
     // The two wrappers come after the Lane C block, whose import rule they relax.
