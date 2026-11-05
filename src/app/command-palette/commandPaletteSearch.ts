@@ -1,4 +1,4 @@
-import Fuse, { type FuseOptionKey } from 'fuse.js';
+import Fuse, { type FuseOptionKey, type FuseResultMatch } from 'fuse.js';
 import type {
   CommandPaletteActionItem,
   CommandPaletteRoomItem,
@@ -98,6 +98,30 @@ export const commandPaletteSearchConfig = {
   } satisfies CommandPaletteSearchConfig<CommandPaletteThreadItem>,
 };
 
+/**
+ * How an item matches on its primary keys: 2 when one holds the query as typed (any case), 1 when
+ * one only resembles it, 0 when only other keys match.
+ */
+const getPrimaryRank = (
+  item: object,
+  matches: readonly FuseResultMatch[] | undefined,
+  query: string,
+  primaryKeys: readonly string[] | undefined
+): number => {
+  if (!primaryKeys) return 0;
+  const lowered = query.toLowerCase();
+  const values = item as Record<string, unknown>;
+  if (
+    primaryKeys.some((key) => {
+      const value = values[key];
+      return typeof value === 'string' && value.toLowerCase().includes(lowered);
+    })
+  ) {
+    return 2;
+  }
+  return matches?.some((match) => primaryKeys.includes(match.key ?? '')) ? 1 : 0;
+};
+
 export const searchCommandPaletteSection = <T extends SearchableCommandPaletteItem>({
   items,
   query,
@@ -135,9 +159,7 @@ export const searchCommandPaletteSection = <T extends SearchableCommandPaletteIt
       return {
         item: result.item,
         score: (result.score ?? 1) - normalizedBoost * BOOST_WEIGHT,
-        primary: result.matches?.some((match) => config.primaryKeys?.includes(match.key ?? ''))
-          ? 1
-          : 0,
+        primary: getPrimaryRank(result.item, result.matches, trimmedQuery, config.primaryKeys),
       };
     })
     .sort(
