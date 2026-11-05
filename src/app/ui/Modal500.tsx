@@ -17,6 +17,8 @@ interface Modal500Props {
    * room or space, "Seen by") fill the screen.
    */
   fillPhoneScreen?: boolean;
+  /** Sizes the dialog, such as the wider settings dialog. */
+  className?: string;
   children: ReactNode;
 }
 
@@ -58,7 +60,12 @@ const centerClass = (phone: boolean, fillPhoneScreen: boolean): string => {
  * margin around it, or fills the screen with `fillPhoneScreen`. Keyboard focus is held inside
  * while it is open and goes back to where it was once it closes.
  */
-export function Modal500({ requestClose, fillPhoneScreen = false, children }: Modal500Props) {
+export function Modal500({
+  requestClose,
+  fillPhoneScreen = false,
+  className,
+  children,
+}: Modal500Props) {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const fullScreen = phone && fillPhoneScreen;
   const modalRef = useNamedByHeading();
@@ -73,7 +80,7 @@ export function Modal500({ requestClose, fillPhoneScreen = false, children }: Mo
             aria-modal="true"
             variant="Background"
             size="500"
-            className={classNames(glassOverBackdrop, fullScreen && css.PhoneModal)}
+            className={classNames(glassOverBackdrop, fullScreen && css.PhoneModal, className)}
           >
             {children}
           </Modal>

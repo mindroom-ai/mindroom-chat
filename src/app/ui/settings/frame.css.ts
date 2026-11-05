@@ -6,6 +6,16 @@ import { color, config, toRem } from 'folds';
 // 24 px from the dialog's right edge and the cards end 28 px from it. Right-to-left languages
 // mirror all three.
 
+/** About 1000 by 700 px, and a margin smaller than that where the window is. */
+export const SettingsDialog = style({
+  selectors: {
+    '&&': {
+      maxWidth: `min(${toRem(1000)}, calc(100% - 2 * ${config.space.S400}))`,
+      maxHeight: `min(${toRem(700)}, calc(100% - 2 * ${config.space.S400}))`,
+    },
+  },
+});
+
 /** The menu column leaves 20 px between its rows and the divider (8 px come from the scroll). */
 export const SettingsMenu = style({
   flexGrow: 1,
