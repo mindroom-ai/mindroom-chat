@@ -134,8 +134,6 @@ test.describe('agent reasoning header', () => {
 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const collapsed = await headerGeometry(reply);
-    // eslint-disable-next-line no-console
-    console.log('reasoning header geometry', JSON.stringify(collapsed));
     expect(collapsed.chevronTransform).toBe('none');
     expect(collapsed.labelFont).toEqual({ size: '12px', weight: '400' });
     expect(collapsed.toggle?.height).toBeCloseTo(24, 0);
