@@ -38,6 +38,7 @@ import {
   getVideoMsgContent,
 } from '../matrix/send/msgContent';
 import { CommandAutocomplete } from './commands/CommandAutocomplete';
+import * as css from './RoomInput.css';
 import { useCommands } from './commands/useCommands';
 import { useComposingCheck } from '../lib/hooks/useComposingCheck';
 import { useImagePackRooms } from '../emoji/useImagePackRooms';
@@ -163,6 +164,7 @@ function ComposerIconButton({
           variant={variant}
           radii="300"
           size="300"
+          className={css.ComposerIconButton}
         >
           <Icon src={icon} filled={pressed} data-directional={directional || undefined} />
         </IconButton>

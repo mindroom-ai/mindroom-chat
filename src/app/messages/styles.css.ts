@@ -1,6 +1,7 @@
 import { createVar, fallbackVar, style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 /** The message row; its options bar is positioned against it. */
 export const MessageBase = style({
@@ -67,32 +68,39 @@ export const MessageOptionsRow = style({ gap: toRem(2) });
 /** The fill of a toolbar button at rest, for a button that has one (the resolved check). */
 export const toolbarButtonRestFill = createVar();
 
+// In the thread banner, 4 px apart, a finger gets a hit area 44 px tall and 36 px wide; the hover
+// toolbar's buttons, 2 px apart in a pill over the rows, keep theirs as drawn.
+const bannerTouchTarget = style(touchTarget('2px', '[data-thread-context-banner] '));
+
 /**
  * A toolbar button: no tile of its own at rest, so the pill is the only surface. It takes the
  * quiet tint on hover and keyboard focus, and the stronger one while pressed or its menu is open.
  * A touch screen keeps :hover on the button tapped last, where the tint would stay and read as
  * pressed, so where the pointer cannot hover the button keeps its rest fill under :hover.
  */
-export const MessageOptionsButton = style({
-  selectors: {
-    '&&': {
-      inlineSize: toolbarButtonSize,
-      blockSize: toolbarButtonSize,
-      padding: 0,
-      flexShrink: 0,
-      borderRadius: toolbarButtonRadius,
+export const MessageOptionsButton = style([
+  bannerTouchTarget,
+  {
+    selectors: {
+      '&&': {
+        inlineSize: toolbarButtonSize,
+        blockSize: toolbarButtonSize,
+        padding: 0,
+        flexShrink: 0,
+        borderRadius: toolbarButtonRadius,
+      },
     },
-  },
-  '@media': {
-    '(hover: none)': {
-      selectors: {
-        '&&:hover:not(:focus-visible):not(:active):not([aria-pressed="true"])': {
-          backgroundColor: fallbackVar(toolbarButtonRestFill, 'transparent'),
+    '@media': {
+      '(hover: none)': {
+        selectors: {
+          '&&:hover:not(:focus-visible):not(:active):not([aria-pressed="true"])': {
+            backgroundColor: fallbackVar(toolbarButtonRestFill, 'transparent'),
+          },
         },
       },
     },
   },
-});
+]);
 
 /**
  * The reply arrow is drawn from 8 to 18 in its 24 unit box, one unit below the middle. Lifting it

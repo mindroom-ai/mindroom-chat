@@ -122,6 +122,8 @@ export function FilterBarSlot({
 /** "[+all]" and "[-all]": a small bracketed toggle that unfolds or folds every long message. */
 const expandAllToggleStyle: CSSProperties = {
   all: 'unset',
+  // Holds the larger hit area a touch screen gives it (css.ExpandAllToggle).
+  position: 'relative',
   cursor: 'pointer',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSize: toRem(12),
@@ -147,7 +149,13 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
   const { t } = useTranslation();
   return (
     // A token such as [+all], not a sentence: it keeps its order in a right-to-left interface.
-    <button type="button" style={expandAllToggleStyle} onClick={onToggle} dir="ltr">
+    <button
+      type="button"
+      className={css.ExpandAllToggle}
+      style={expandAllToggleStyle}
+      onClick={onToggle}
+      dir="ltr"
+    >
       {expanded
         ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
         : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}

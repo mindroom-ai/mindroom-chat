@@ -178,6 +178,7 @@ vi.mock('../../matrix/matrix', () => ({
 }));
 
 vi.mock('../RoomViewHeader.css', () => ({
+  HeaderActionButton: 'HeaderActionButton',
   HeaderTopic: 'HeaderTopic',
 }));
 

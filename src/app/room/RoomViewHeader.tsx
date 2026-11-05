@@ -67,10 +67,13 @@ import type { ShortcutId } from '../shortcuts/shortcuts';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import { hasActiveThreadFilters, type ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
+import {
+  hasActiveThreadFilters,
+  type ThreadFilterState,
+} from '../event-store/threads/roomThreadOverviewModel';
 import { RoomHeaderMenu } from './RoomHeaderMenu';
 import { CompactViewIcon } from './CompactViewIcon';
-import { HeaderTopic } from './RoomViewHeader.css';
+import { HeaderActionButton, HeaderTopic } from './RoomViewHeader.css';
 import * as css from './RoomViewHeaderLayout.css';
 
 export type RoomViewHeaderProps = {
@@ -151,6 +154,7 @@ function HeaderAction({
           aria-label={label}
           aria-pressed={pressed}
           onClick={onClick}
+          className={HeaderActionButton}
           style={badge ? { position: 'relative' } : undefined}
           {...shortcutAttributes(shortcut)}
           {...buttonProps}

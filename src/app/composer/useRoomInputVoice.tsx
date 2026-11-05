@@ -33,6 +33,7 @@ import { hasFailedPasteMarkerInText } from './useRoomInputSendSessionController'
 import type { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
+import { ComposerIconButton } from './RoomInput.css';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -523,6 +524,7 @@ export const useRoomInputVoice = ({
           radii="300"
           disabled={voiceRecorderOpen || voiceAutoSendPending || otherRoomOwnsPendingVoiceDraft}
           aria-label={microphoneLabel}
+          className={ComposerIconButton}
         >
           <Icon src={Icons.Mic} />
         </IconButton>

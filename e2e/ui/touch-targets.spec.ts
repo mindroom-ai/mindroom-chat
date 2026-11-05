@@ -13,15 +13,21 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 
-// On a phone (390 by 844, touch) a tapped glass button (the composer's Formatting) keeps no hover
-// tint or hover scale afterwards, while a desktop mouse still gets both. Checked in Chromium and,
-// when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
-// Set TOUCH_TARGET_SHOTS=<directory> to save the controls.
+// On a phone (390 by 844, touch) the small controls get a hit area a finger can find: 44 px tall,
+// and 44 px wide where the next control is far enough, else up to the middle of the gap, so two
+// controls never share a point. Measured with elementFromPoint, which hit-tests like a tap: the
+// room header buttons, the composer buttons, the thread banner buttons and "[+all]". Their look
+// does not change. A tapped glass button (the composer's Formatting) also keeps no hover tint or
+// hover scale afterwards, while a desktop mouse still gets both. Checked in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// Set TOUCH_TARGET_SHOTS=<directory> to save the controls, and a mock of the composer and banner
+// with 44 px between button centres (the visible change a full 44 px width would need).
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-targets-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TOUCH_TARGET_SHOTS;
+const TARGET = 44;
 
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -36,6 +42,8 @@ const REPLIES = [
   'The API page needs one more pass before the docs ship; two examples still use the old field.',
 ] as const;
 const COMPOSER = ['Attach files', 'Record voice message', 'Formatting', 'Emoji', 'Send message'];
+const HEADER = ['Compact view', 'Show Members', 'More Options'];
+const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
 
 test.use({
   launchOptions: {
@@ -118,6 +126,17 @@ const openRoom = async (page: Page, world: World) => {
   await expect(page.getByRole('button', { name: 'Send message' })).toBeVisible();
 };
 
+const openThread = async (page: Page, world: World) => {
+  await go(
+    page,
+    `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`
+  );
+  const banner = page.locator('[data-thread-context-banner]');
+  await expect(banner).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(REPLIES[2], { exact: true })).toBeVisible({ timeout: 60_000 });
+  return banner;
+};
+
 const shot = async (page: Page, target: Locator, name: string) => {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
@@ -137,7 +156,77 @@ const shot = async (page: Page, target: Locator, name: string) => {
   });
 };
 
-const button = (scope: Page, name: string) => scope.getByRole('button', { name, exact: true });
+type Hit = { name: string; at: string; hit: string; inside: boolean };
+
+/**
+ * Taps around each control of a row (left to right): the points 1 px inside its hit area must land
+ * on it and the points 1 px outside must not. The area is 44 px tall, and 44 px wide unless the
+ * row's controls stand closer than that: then it reaches the middle of the gap on both sides.
+ */
+const measureRow = async (row: Locator[]) => {
+  const handles = await Promise.all(row.map((control) => control.elementHandle()));
+  const page = row[0]?.page();
+  if (!page) throw new Error('empty row');
+  return page.evaluate(
+    ({ elements, size }) => {
+      const named = (element: Element | null) => {
+        const owner = element?.closest('button');
+        if (owner) return owner.getAttribute('aria-label') ?? owner.textContent?.trim() ?? '';
+        const attributes = element
+          ? [...element.attributes].map((attribute) => attribute.name)
+          : [];
+        return `not a button: ${element?.tagName ?? 'nothing'} ${attributes.join(' ')}`;
+      };
+      const rects = elements.map((element) => element!.getBoundingClientRect());
+      const centres = rects.map((rect) => rect.left + rect.width / 2);
+      const pitch = Math.min(
+        size,
+        ...centres.slice(1).map((centre, index) => centre - centres[index]!)
+      );
+      const hits: { name: string; at: string; hit: string; inside: boolean }[] = [];
+      rects.forEach((rect, index) => {
+        const name = named(elements[index] ?? null);
+        const cx = centres[index]!;
+        const cy = rect.top + rect.height / 2;
+        const halfHeight = Math.max(size, rect.height) / 2;
+        // A control wider than the pitch keeps its own width. Its hit area below and above it is
+        // laid out from its padding box, so the inner probes stay inside its border.
+        const halfWidth = {
+          inner: Math.max(pitch, elements[index]!.clientWidth) / 2,
+          outer: Math.max(pitch, rect.width) / 2,
+        };
+        const probe = (at: string, dx: number, dy: number, inside: boolean) =>
+          hits.push({ name, at, inside, hit: named(document.elementFromPoint(cx + dx, cy + dy)) });
+        // Hit testing rounds the point to whole pixels, so the probes stay 1 px from each edge.
+        for (const inside of [true, false]) {
+          const where = inside ? 'in' : 'out';
+          const y = halfHeight + (inside ? -1 : 1);
+          const x = inside ? halfWidth.inner - 1 : halfWidth.outer + 1;
+          probe(`top ${where}`, 0, -y, inside);
+          probe(`bottom ${where}`, 0, y, inside);
+          probe(`start ${where}`, -x, 0, inside);
+          probe(`end ${where}`, x, 0, inside);
+          probe(`corner ${where}`, x, y, inside);
+        }
+      });
+      return { hits, widths: rects.map((rect) => rect.width), pitch };
+    },
+    { elements: handles, size: TARGET }
+  );
+};
+
+const expectRow = async (row: Locator[], where: string) => {
+  const { hits, widths, pitch } = await measureRow(row);
+  console.log(`${where}: widths ${JSON.stringify(widths)}, pitch ${pitch}`);
+  const wrong = hits.filter((hit: Hit) => (hit.hit === hit.name) !== hit.inside);
+  if (wrong.length) console.log(`${where} wrong: ${JSON.stringify(wrong)}`);
+  expect
+    .soft(wrong, `${where}: each hit area is 44 px or reaches the gap's middle, no further`)
+    .toEqual([]);
+};
+
+const button = (scope: Page | Locator, name: string) =>
+  scope.getByRole('button', { name, exact: true });
 
 /** A button's fill and scale, as computed now. */
 const surface = (target: Locator) =>
@@ -159,6 +248,9 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     .toBe(true);
   await openRoom(page, world);
   const composer = COMPOSER.map((name) => button(page, name));
+  // The expand toggle lies under a row's hover toolbar until the pointer leaves the rows.
+  const all = page.getByRole('button', { name: '[+all]', exact: true });
+  await expect(all).toBeVisible();
   await shot(page, page.getByRole('banner'), `header-${engine}-phone`);
   await shot(page, composer[0]!.locator('..').locator('..'), `composer-${engine}-phone`);
 
@@ -186,6 +278,36 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   expect
     .soft(tapped.scale, `${engine}: Formatting keeps no hover scale after a tap`)
     .toBe(rest.scale);
+
+  await expectRow(
+    HEADER.map((name) => button(page.getByRole('banner'), name)),
+    `${engine} room header`
+  );
+  await expectRow(composer.slice(0, 3), `${engine} composer start`);
+  await expectRow(composer.slice(3), `${engine} composer end`);
+  await expectRow([all], `${engine} [+all] in the room`);
+
+  const banner = await openThread(page, world);
+  await shot(page, banner, `banner-${engine}-phone`);
+  await expectRow(
+    BANNER.map((name) => button(banner, name)),
+    `${engine} thread banner`
+  );
+  await expectRow([all], `${engine} [+all] under the banner`);
+
+  if (SHOTS) {
+    // What a full 44 px width would look like: 12 px between the buttons instead of 4.
+    await page.addStyleTag({
+      content:
+        '[data-thread-context-banner] button + button, [aria-label="Formatting"], [aria-label="Record voice message"], [aria-label="Send message"] { margin-inline-start: 8px !important; }',
+    });
+    await shot(page, banner, `mock-44-pitch-banner-${engine}-phone`);
+    await shot(
+      page,
+      composer[0]!.locator('..').locator('..'),
+      `mock-44-pitch-composer-${engine}-phone`
+    );
+  }
 };
 
 const checkDesktop = async (page: Page, world: World, engine: string) => {
@@ -201,6 +323,14 @@ const checkDesktop = async (page: Page, world: World, engine: string) => {
   expect(hovered.hover, `${engine}: the mouse is over Formatting`).toBe(true);
   expect(hovered.fill, `${engine}: a mouse over Formatting tints it`).not.toBe(rest.fill);
   expect(hovered.scale, `${engine}: a mouse over Formatting lifts it`).toBe('1.025');
+  // A mouse gets no larger hit area: just above the button is not the button.
+  const above = await page.evaluate(
+    ({ x, y }) => document.elementFromPoint(x, y)?.closest('button')?.getAttribute('aria-label'),
+    { x: at.x + at.width / 2, y: at.y - 2 }
+  );
+  expect(above, `${engine}: 2 px above Formatting is not Formatting on a desktop`).not.toBe(
+    'Formatting'
+  );
 };
 
 /**
