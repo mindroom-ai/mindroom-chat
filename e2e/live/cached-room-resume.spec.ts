@@ -93,7 +93,7 @@ const installStartupFlashRecorder = async (
 
 const findTargetedJoinFlashes = (flashes: string[], targets: string[]): string[] =>
   flashes.filter((text) => {
-    const textWithoutHomeJoinAction = text.replace(/\bjoin with address\b/gi, '');
+    const textWithoutHomeJoinAction = text.replace(/\bjoin (?:with address|a room)\b/gi, '');
     return (
       /\bjoin(?:ing)?\b/i.test(textWithoutHomeJoinAction) &&
       targets.some((target) => target.length > 0 && text.includes(target))

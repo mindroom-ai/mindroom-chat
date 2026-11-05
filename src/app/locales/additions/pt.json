@@ -96,7 +96,14 @@
       "close": "Fechar"
     },
     "joinAddressPrompt": {
-      "close": "Fechar"
+      "close": "Fechar",
+      "joinARoom": "Entrar numa sala",
+      "searchOrPaste": "Pesquise salas ou cole um endereço",
+      "publicRoomsOn": "Salas públicas em {{server}}",
+      "noPublicRooms": "O seu servidor ainda não tem salas públicas. Cole um endereço para entrar numa sala.",
+      "directoryHidden": "O seu servidor não partilha a lista de salas públicas. Cole um endereço para entrar numa sala.",
+      "noMatches": "Nenhuma sala pública corresponde à sua pesquisa.",
+      "browseExplore": "Ver mais em Explorar"
     },
     "textViewer": {
       "close": "Fechar"

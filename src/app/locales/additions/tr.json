@@ -93,7 +93,14 @@
       "close": "Kapat"
     },
     "joinAddressPrompt": {
-      "close": "Kapat"
+      "close": "Kapat",
+      "joinARoom": "Bir odaya katıl",
+      "searchOrPaste": "Oda arayın veya bir adres yapıştırın",
+      "publicRoomsOn": "{{server}} üzerindeki herkese açık odalar",
+      "noPublicRooms": "Sunucunuzda henüz herkese açık oda yok. Bir odaya katılmak için bir adres yapıştırın.",
+      "directoryHidden": "Sunucunuz herkese açık oda listesini paylaşmıyor. Bir odaya katılmak için bir adres yapıştırın.",
+      "noMatches": "Aramanızla eşleşen herkese açık oda yok.",
+      "browseExplore": "Keşfet'te daha fazlasına göz atın"
     },
     "textViewer": {
       "close": "Kapat"

@@ -93,7 +93,14 @@
       "close": "Sluiten"
     },
     "joinAddressPrompt": {
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "joinARoom": "Deelnemen aan een kamer",
+      "searchOrPaste": "Zoek kamers of plak een adres",
+      "publicRoomsOn": "Openbare kamers op {{server}}",
+      "noPublicRooms": "Je server heeft nog geen openbare kamers. Plak een adres om aan een kamer deel te nemen.",
+      "directoryHidden": "Je server deelt zijn lijst met openbare kamers niet. Plak een adres om aan een kamer deel te nemen.",
+      "noMatches": "Geen openbare kamers gevonden voor je zoekopdracht.",
+      "browseExplore": "Meer bekijken in Verkennen"
     },
     "textViewer": {
       "close": "Sluiten"

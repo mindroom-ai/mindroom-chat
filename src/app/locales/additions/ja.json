@@ -90,7 +90,14 @@
       "close": "閉じる"
     },
     "joinAddressPrompt": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "joinARoom": "ルームに参加",
+      "searchOrPaste": "ルームを検索、またはアドレスを貼り付け",
+      "publicRoomsOn": "{{server}} の公開ルーム",
+      "noPublicRooms": "このサーバーにはまだ公開ルームがありません。アドレスを貼り付けてルームに参加してください。",
+      "directoryHidden": "このサーバーは公開ルームの一覧を共有していません。アドレスを貼り付けてルームに参加してください。",
+      "noMatches": "検索に一致する公開ルームはありません。",
+      "browseExplore": "探索でもっと見る"
     },
     "textViewer": {
       "close": "閉じる"

@@ -201,7 +201,7 @@ export function Home() {
       <RoomAction
         action="join"
         icon={Icons.Link}
-        label={t('nav.joinWithAddress')}
+        label={t('sharedUi.joinAddressPrompt.joinARoom')}
         onSelect={() => setJoinOpen(true)}
       />
       <RoomAction

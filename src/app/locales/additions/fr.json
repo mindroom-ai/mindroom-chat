@@ -96,7 +96,14 @@
       "close": "Fermer"
     },
     "joinAddressPrompt": {
-      "close": "Fermer"
+      "close": "Fermer",
+      "joinARoom": "Rejoindre une salle",
+      "searchOrPaste": "Rechercher des salles ou coller une adresse",
+      "publicRoomsOn": "Salles publiques sur {{server}}",
+      "noPublicRooms": "Votre serveur n'a pas encore de salle publique. Collez une adresse pour rejoindre une salle.",
+      "directoryHidden": "Votre serveur ne partage pas sa liste de salles publiques. Collez une adresse pour rejoindre une salle.",
+      "noMatches": "Aucune salle publique ne correspond à votre recherche.",
+      "browseExplore": "Voir plus dans Explorer"
     },
     "textViewer": {
       "close": "Fermer"

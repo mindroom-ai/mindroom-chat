@@ -90,7 +90,14 @@
       "close": "關閉"
     },
     "joinAddressPrompt": {
-      "close": "關閉"
+      "close": "關閉",
+      "joinARoom": "加入房間",
+      "searchOrPaste": "搜尋房間或貼上地址",
+      "publicRoomsOn": "{{server}} 上的公共房間",
+      "noPublicRooms": "你的伺服器還沒有公共房間。貼上地址即可加入房間。",
+      "directoryHidden": "你的伺服器不公開其公共房間列表。貼上地址即可加入房間。",
+      "noMatches": "沒有與搜尋相符的公共房間。",
+      "browseExplore": "在探索中瀏覽更多"
     },
     "textViewer": {
       "close": "關閉"

@@ -45,6 +45,8 @@ type RoomAccess = {
   requested: boolean;
   /** The join went through (sync may not have caught up yet). */
   succeeded: boolean;
+  /** Why the last join failed; cleared by the next attempt. */
+  joinError?: unknown;
 };
 
 type Attempt = {
@@ -245,6 +247,8 @@ function RoomAccessSession({
         loading,
         requested,
         succeeded: attempt?.kind === 'join' && attempt.status === 'succeeded',
+        joinError:
+          attempt?.kind === 'join' && attempt.status === 'failed' ? attempt.error : undefined,
       })}
       {dialogOpen && (
         <RoomAccessRequestDialog

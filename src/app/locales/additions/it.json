@@ -96,7 +96,14 @@
       "close": "Chiudi"
     },
     "joinAddressPrompt": {
-      "close": "Chiudi"
+      "close": "Chiudi",
+      "joinARoom": "Entra in una stanza",
+      "searchOrPaste": "Cerca stanze o incolla un indirizzo",
+      "publicRoomsOn": "Stanze pubbliche su {{server}}",
+      "noPublicRooms": "Il tuo server non ha ancora stanze pubbliche. Incolla un indirizzo per entrare in una stanza.",
+      "directoryHidden": "Il tuo server non condivide il suo elenco di stanze pubbliche. Incolla un indirizzo per entrare in una stanza.",
+      "noMatches": "Nessuna stanza pubblica corrisponde alla tua ricerca.",
+      "browseExplore": "Scopri di più in Esplora"
     },
     "textViewer": {
       "close": "Chiudi"

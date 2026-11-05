@@ -90,7 +90,14 @@
       "close": "Tutup"
     },
     "joinAddressPrompt": {
-      "close": "Tutup"
+      "close": "Tutup",
+      "joinARoom": "Bergabung ke ruang",
+      "searchOrPaste": "Cari ruang atau tempel alamat",
+      "publicRoomsOn": "Ruang publik di {{server}}",
+      "noPublicRooms": "Server Anda belum memiliki ruang publik. Tempel alamat untuk bergabung ke ruang.",
+      "directoryHidden": "Server Anda tidak membagikan daftar ruang publiknya. Tempel alamat untuk bergabung ke ruang.",
+      "noMatches": "Tidak ada ruang publik yang cocok dengan pencarian Anda.",
+      "browseExplore": "Lihat lebih banyak di Jelajahi"
     },
     "textViewer": {
       "close": "Tutup"

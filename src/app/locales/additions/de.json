@@ -93,7 +93,14 @@
       "close": "Schließen"
     },
     "joinAddressPrompt": {
-      "close": "Schließen"
+      "close": "Schließen",
+      "joinARoom": "Einem Raum beitreten",
+      "searchOrPaste": "Räume suchen oder Adresse einfügen",
+      "publicRoomsOn": "Öffentliche Räume auf {{server}}",
+      "noPublicRooms": "Dein Server hat noch keine öffentlichen Räume. Füge eine Adresse ein, um einem Raum beizutreten.",
+      "directoryHidden": "Dein Server teilt seine Liste öffentlicher Räume nicht. Füge eine Adresse ein, um einem Raum beizutreten.",
+      "noMatches": "Keine öffentlichen Räume passen zu deiner Suche.",
+      "browseExplore": "Mehr unter Erkunden ansehen"
     },
     "textViewer": {
       "close": "Schließen"

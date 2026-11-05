@@ -93,7 +93,14 @@
       "close": "Close"
     },
     "joinAddressPrompt": {
-      "close": "Close"
+      "close": "Close",
+      "joinARoom": "Join a Room",
+      "searchOrPaste": "Search rooms or paste an address",
+      "publicRoomsOn": "Public rooms on {{server}}",
+      "noPublicRooms": "Your server has no public rooms yet. Paste an address to join a room.",
+      "directoryHidden": "Your server doesn't share its list of public rooms. Paste an address to join a room.",
+      "noMatches": "No public rooms match your search.",
+      "browseExplore": "Browse more on Explore"
     },
     "textViewer": {
       "close": "Close"

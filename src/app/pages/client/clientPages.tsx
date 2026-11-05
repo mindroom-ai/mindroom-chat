@@ -11,7 +11,7 @@ import {
 } from '../../mindroom/sidebar/MindroomNavigation';
 import { MindroomPageNav } from '../../mindroom/sidebar/ResizablePageNav';
 import { CreateRoomForm } from '../../features/create-room/CreateRoom';
-import { JoinAddressForm } from '../../components/join-address-prompt';
+import { JoinRoomPanel } from '../../components/join-address-prompt';
 import { Page } from '../../components/page';
 import { PhonePageHeader } from '../../components/page/PhonePageHeader';
 import { HOME_PATH } from '../paths';
@@ -141,12 +141,23 @@ export function CreateRoomPage() {
   );
 }
 
-/** `/home/join/`: the join-by-address form as a page, the way `/home/create/` holds room creation. */
+const JOIN_PAGE_STYLE = {
+  display: 'flex',
+  flexDirection: 'column',
+  flexGrow: 1,
+  minHeight: 0,
+  width: '100%',
+  maxWidth: '640px',
+  margin: '0 auto',
+  padding: '24px',
+} as const;
+
+/** `/home/join/`: the Join a Room search and list as a page, the way `/home/create/` holds room creation. */
 export function JoinAddressPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const title = t('sharedUi.joinAddressPrompt.joinWithAddress');
+  const title = t('sharedUi.joinAddressPrompt.joinARoom');
   const openRoom = (roomIdOrAlias: string, viaServers?: string[], eventId?: string) =>
     navigate(
       withSearchParam(getHomeRoomPath(roomIdOrAlias, eventId), {
@@ -156,13 +167,14 @@ export function JoinAddressPage() {
   return (
     <Page>
       <PhonePageHeader to={HOME_PATH} title={title} />
-      <div style={{ padding: '24px', width: '100%', maxWidth: '640px', margin: '0 auto' }}>
+      {/* A column the list scrolls in, under the title and the search field. */}
+      <div style={JOIN_PAGE_STYLE}>
         {!phone && (
           <Text as="h1" size="H4" style={{ marginBottom: '16px' }}>
             {title}
           </Text>
         )}
-        <JoinAddressForm onOpen={openRoom} style={{}} />
+        <JoinRoomPanel onOpen={openRoom} />
       </div>
     </Page>
   );
