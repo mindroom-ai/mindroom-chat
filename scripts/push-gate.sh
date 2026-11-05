@@ -371,7 +371,7 @@ check_e2e() {
     return 1
   }
   # Skips are fine (a spec's opt-in screenshots), but a spec that ran no test at all checked nothing.
-  counts="$(awk -F '\t' 'NR > 1 { p += $2; f += $3; s += $4 + $10; k += $6; if ($2 + $6 == 0) idle++ }
+  counts="$(awk -F '\t' 'NR > 1 { p += $2; f += $3; s += $4 + $10; k += $6; if ($2 + $3 + $6 == 0) idle++ }
     END { printf "%d %d %d %d %d %d", NR - 1, p, f, k, s, idle }' "$work/e2e.tsv")"
   read -r specs passed failed flaky skipped idle <<<"$counts"
   echo "$specs of ${#SMOKE_SPECS[@]} specs: $passed passed, $failed failed, $flaky flaky, $skipped skipped; $idle specs ran no test"
