@@ -548,6 +548,16 @@ const wantsBrowserMenu = (evt: MouseEvent<HTMLElement>): boolean =>
   !!(evt.target as Element).closest('a, input, textarea, [contenteditable="true"]') ||
   (document.getSelection()?.toString() ?? '') !== '';
 
+/**
+ * The side of `anchor` a pop-out opens on: above it in the lower half of the window, where the
+ * newest messages are. folds puts a pop-out that does not fit below its anchor beside it instead,
+ * over the member list or past the window's edge.
+ */
+const popOutSide = (anchor: RectCords): 'Top' | 'Bottom' =>
+  typeof window !== 'undefined' && anchor.y + anchor.height / 2 > window.innerHeight / 2
+    ? 'Top'
+    : 'Bottom';
+
 /** A zero-size anchor at one viewport point, so a pop-out opens next to the pointer. */
 const pointRect = (left: number, top: number): RectCords => ({
   x: left,
@@ -831,7 +841,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       const emojiBoard = emojiAnchor && onReactionToggle && (
         <PopOut
           anchor={emojiAnchor}
-          position="Bottom"
+          position={popOutSide(emojiAnchor)}
           align="End"
           offset={4}
           content={
@@ -898,7 +908,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
                   onClick={startEdit}
                 />
               )}
-              <PopOut anchor={menuAnchor} position="Bottom" align="End" offset={4} content={menu}>
+              <PopOut
+                anchor={menuAnchor}
+                position={menuAnchor ? popOutSide(menuAnchor) : 'Bottom'}
+                align="End"
+                offset={4}
+                content={menu}
+              >
                 <ToolbarAction
                   label={t('mindroomUi.messages.mindroomMessage.moreOptions')}
                   icon={Icons.VerticalDots}
