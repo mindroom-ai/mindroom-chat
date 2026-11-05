@@ -219,10 +219,16 @@ describe('kept inputs', () => {
     const kept = () => JSON.parse(sent.at(-1) ?? '{}');
     return { window, sent, $, use, kept };
   };
-  const settle = () =>
-    new Promise((resolve) => {
-      setTimeout(resolve, 20);
-    });
+  // The bridge keeps a change a task after its event, and the window posts the message a task later
+  // still. Wait for tasks, not time: on a loaded machine a 20 ms timer fired before both had run.
+  const settle = async () => {
+    for (let task = 0; task < 10; task += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    }
+  };
   const RATE = `<input id="rate" type="range" min="0" max="10" value="2"><output id="shown"></output>
 <script>
   const rate = document.getElementById('rate');
