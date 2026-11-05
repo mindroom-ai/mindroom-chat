@@ -2,6 +2,7 @@
  * The thread filter bar's Tags dropdown: the tags it lists, in which order, and its search.
  */
 import type { TriState } from '../../event-store/threads/roomThreadOverviewModel';
+import { RESOLVED_TAG } from '../../event-store/threads/threadTags';
 
 export type ThreadTagOption = {
   tag: string;
@@ -13,14 +14,16 @@ export type ThreadTagOption = {
 
 /**
  * Every tag of the room's threads, most used first and then by name. A tag the filter names that
- * no thread carries any more stays listed, so its choice can be undone.
+ * no thread carries any more stays listed, so its choice can be undone. Resolved is left out: the
+ * status filter covers it, and a thread's tags for filtering never include it, so choosing it here
+ * would hide every thread.
  */
 export const buildThreadTagOptions = (
   tags: readonly string[],
   counts: Readonly<Record<string, number>> | undefined,
   filters: ReadonlyMap<string, TriState>
 ): ThreadTagOption[] =>
-  [...new Set([...tags, ...filters.keys()])]
+  [...new Set([...tags.filter((tag) => tag !== RESOLVED_TAG), ...filters.keys()])]
     .map((tag) => ({ tag, count: counts?.[tag] ?? 0, state: filters.get(tag) ?? 'any' }))
     .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag));
 

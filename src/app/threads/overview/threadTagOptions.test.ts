@@ -43,6 +43,12 @@ describe('the Tags dropdown list', () => {
     ]);
   });
 
+  it('leaves out resolved, which the status filter covers and no thread counts as a tag', () => {
+    expect(
+      buildThreadTagOptions(['bug', 'resolved'], { bug: 2 }, filters()).map(({ tag }) => tag)
+    ).toEqual(['bug']);
+  });
+
   it('lists each tag once and works without counts', () => {
     expect(
       buildThreadTagOptions(['bug', 'bug', 'docs'], undefined, filters([['bug', 'include']]))
