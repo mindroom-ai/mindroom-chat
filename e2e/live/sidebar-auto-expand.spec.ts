@@ -53,12 +53,12 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
     const collapse = page.getByRole('button', { name: 'Collapse navigation panel', exact: true });
     const expand = page.getByRole('button', { name: 'Expand navigation panel', exact: true });
     const spaceButton = page.locator('button[data-id="' + spaceId + '"]');
-    const scrollableRail = spaceButton.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
-    const primarySections = scrollableRail.locator(
-      'xpath=./*[@role="separator"][1]/preceding-sibling::*[1]'
+    const scrollableRail = spaceButton.locator(
+      'xpath=ancestor::*[@data-pinned or @data-rail-scroller][last()]'
     );
+    const primarySections = scrollableRail.locator('xpath=./*[1]/*[1]');
     const optionalSections = scrollableRail.locator(
-      'xpath=./*[@role="separator"][last()]/following-sibling::*[1]'
+      'xpath=(.//*[@role="separator"])[last()]/following-sibling::*[1]'
     );
     const activeAccount = page.getByRole('button', { name: activeAccountButtonNamePattern });
     const inbox = activeAccount.locator('xpath=../preceding-sibling::*[1]//button');
