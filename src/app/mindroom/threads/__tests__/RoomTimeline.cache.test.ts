@@ -637,10 +637,10 @@ describe('RoomTimeline', () => {
       const ledgerOps: string[] = [];
       let scrollTopValue = 0;
       const scrollElement = {
-        // Connected: quiescence waits run their real 150ms idle timer
+        // Connected: quiescence waits run their 150ms idle timer
         // instead of the detached-element instant resolve — the margin-
         // live window between fold and settle must exist for the paint-
-        // half pin below (the test's 250ms waits cover the idle).
+        // half pin below (the test's 250ms clock advances cover the idle).
         isConnected: true,
         addEventListener: vi.fn(),
         removeEventListener: vi.fn(),
@@ -680,6 +680,9 @@ describe('RoomTimeline', () => {
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
 
+      // Fake timers: the 150ms quiescence idle passes only when the test advances the clock, so a
+      // CPU-starved run cannot settle the ledger before the margin-live assertions.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
       try {
         await act(async () => {
           renderer = create(
@@ -706,12 +709,10 @@ describe('RoomTimeline', () => {
           loadOlderChip.props.onClick();
           await flushAsyncWork(10);
           // Task #125 follow-up: the prepend RENDER COMMIT waits for
-          // scroll quiescence (150ms with no scroll events, wall
-          // clock) before it lands — see scrollQuiescence.ts. This
-          // suite section runs real timers, so wait it out.
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
+          // scroll quiescence (150ms with no scroll events) before it
+          // lands — see scrollQuiescence.ts. This test runs fake timers,
+          // so advance the clock past it.
+          await vi.advanceTimersByTimeAsync(250);
           await flushAsyncWork(10);
         });
 
@@ -756,13 +757,11 @@ describe('RoomTimeline', () => {
         // scrollTo + rect fine-correction machinery this test previously
         // asserted raced virtual-core's own quiet-state adjustments).
         // Let the at-rest ledger settle fire (quiescence idle is 150ms,
-        // real timers in this suite section): the fold's ΔH converts into
+        // on this test's fake clock): the fold's ΔH converts into
         // ONE exactly-cancelling scrollTop shift and the margin returns
         // to zero.
         await act(async () => {
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
+          await vi.advanceTimersByTimeAsync(250);
           await flushAsyncWork(5);
         });
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
@@ -808,9 +807,7 @@ describe('RoomTimeline', () => {
               threadId,
             })
           );
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
+          await vi.advanceTimersByTimeAsync(250);
           await flushAsyncWork(5);
         });
         expect(scrollElement.scrollTop).toBe(2730);
@@ -818,6 +815,7 @@ describe('RoomTimeline', () => {
       } finally {
         roomTimelineVirtualizerState.setOptionsMock.mockReset();
         renderer?.unmount();
+        vi.useRealTimers();
       }
     });
 
@@ -1170,6 +1168,9 @@ describe('RoomTimeline', () => {
       const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
       let renderer: ReturnType<typeof create> | undefined;
 
+      // Fake timers: the 150ms quiescence idle passes only when the test advances the clock, so a
+      // CPU-starved run cannot settle the ledger before the margin-live assertions.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
       try {
         await act(async () => {
           renderer = create(
@@ -1213,6 +1214,7 @@ describe('RoomTimeline', () => {
       } finally {
         resolvePaginate?.(false);
         renderer?.unmount();
+        vi.useRealTimers();
       }
     });
 
@@ -1345,6 +1347,9 @@ describe('RoomTimeline', () => {
       settingsState.prefetchDepth = 200;
       roomTimelineVirtualizerState.virtualIndexes = [0, 1, 2];
 
+      // Fake timers: the 150ms quiescence idle passes only when the test advances the clock, so a
+      // CPU-starved run cannot settle the ledger before the margin-live assertions.
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
       try {
         await act(async () => {
           renderer = create(
@@ -1405,13 +1410,11 @@ describe('RoomTimeline', () => {
         expect(innerElement.style.marginTop).toBe('-9600px');
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
 
-        // At-rest settle (150ms quiescence, real timers): ONE exactly-
+        // At-rest settle (150ms quiescence, fake clock): ONE exactly-
         // cancelling scrollTop shift, margin back to zero, still no
         // scrollTo — the reconcile-loop-racing restore is gone.
         await act(async () => {
-          await new Promise((resolve) => {
-            setTimeout(resolve, 250);
-          });
+          await vi.advanceTimersByTimeAsync(250);
           await flushAsyncWork(5);
         });
         expect(scrollElement.scrollTop).toBe(9600);
@@ -1419,6 +1422,7 @@ describe('RoomTimeline', () => {
         expect(scrollElement.scrollTo).not.toHaveBeenCalled();
       } finally {
         renderer?.unmount();
+        vi.useRealTimers();
       }
     });
 
