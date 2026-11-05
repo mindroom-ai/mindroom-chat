@@ -23,6 +23,7 @@ import {
   getFirstLinkedTimeline,
 } from './timelinePagination';
 import type { ThreadInitialRenderMode } from './threadRenderUtils';
+import { TIMELINE_BOTTOM_THRESHOLD_PX } from './timelineScrollUtils';
 
 type RoomUnreadInfoLike = {
   inLiveTimeline: boolean;
@@ -113,7 +114,7 @@ export const useTimelineReadReceiptController = ({
     { wait: 500 }
   );
 
-  useIntersectionObserver(
+  const bottomObserver = useIntersectionObserver(
     useCallback(
       (entries: IntersectionObserverEntry[]) => {
         const anchorEntry = getIntersectionObserverEntry(atBottomAnchorRef.current, entries);
@@ -144,12 +145,22 @@ export const useTimelineReadReceiptController = ({
     useCallback(
       (): IntersectionObserverInit => ({
         root: getScrollElement() ?? null,
-        rootMargin: '0px 0px 96px 0px',
+        rootMargin: `0px 0px ${TIMELINE_BOTTOM_THRESHOLD_PX}px 0px`,
       }),
       [getScrollElement]
     ),
     useCallback(() => atBottomAnchorRef.current, [atBottomAnchorRef])
   );
+
+  // The focus controller hides the bottom while the window is away from the live end. Back there,
+  // the observer reports the anchor afresh: a reader who stayed at the bottom meanwhile never
+  // crossed its margin, so no other report would show them at the bottom again.
+  useEffect(() => {
+    const anchor = atBottomAnchorRef.current;
+    if (!bottomObserver || !anchor || !timelineAtLiveEnd) return;
+    bottomObserver.unobserve(anchor);
+    bottomObserver.observe(anchor);
+  }, [atBottomAnchorRef, bottomObserver, timelineAtLiveEnd]);
 
   useDocumentFocusChange(
     useCallback(

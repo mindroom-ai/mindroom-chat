@@ -5,6 +5,7 @@ import {
   isTimelineAtLiveEnd,
   shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
+  TIMELINE_BOTTOM_THRESHOLD_PX,
 } from './timelineScrollUtils';
 
 describe('isTimelineAtLiveEnd', () => {
@@ -61,18 +62,18 @@ describe('isTimelineAtLiveEnd', () => {
 });
 
 describe('isScrollNearBottom', () => {
-  it('allows a small threshold for bottom stickiness', () => {
+  it('counts the view as at the bottom up to the threshold Jump to Latest shows beyond', () => {
     expect(
       isScrollNearBottom({
         scrollHeight: 1000,
-        scrollTop: 576,
+        scrollTop: 600 - TIMELINE_BOTTOM_THRESHOLD_PX,
         clientHeight: 400,
       })
     ).toBe(true);
     expect(
       isScrollNearBottom({
         scrollHeight: 1000,
-        scrollTop: 540,
+        scrollTop: 599 - TIMELINE_BOTTOM_THRESHOLD_PX,
         clientHeight: 400,
       })
     ).toBe(false);
@@ -109,9 +110,9 @@ describe('shouldAutoScrollRoomOnLiveEvent', () => {
   const makeScrollElement = (scrollHeight: number, scrollTop: number, clientHeight: number) =>
     ({ scrollHeight, scrollTop, clientHeight } as unknown as HTMLElement);
 
-  it('returns true when at live end and scroll is near bottom (within 100px threshold)', () => {
+  it('returns true when at live end and scroll is near bottom (within 96px threshold)', () => {
     // scrollHeight 1000, clientHeight 400 → max scrollTop = 600
-    // scrollTop 550 → distance from bottom = 1000 - 550 - 400 = 50 → within 100px
+    // scrollTop 550 → distance from bottom = 1000 - 550 - 400 = 50 → within 96px
     expect(
       shouldAutoScrollRoomOnLiveEvent({
         scrollElement: makeScrollElement(1000, 550, 400),
@@ -121,7 +122,7 @@ describe('shouldAutoScrollRoomOnLiveEvent', () => {
   });
 
   it('returns false when user has scrolled up beyond threshold', () => {
-    // scrollTop 400 → distance from bottom = 1000 - 400 - 400 = 200 → beyond 100px
+    // scrollTop 400 → distance from bottom = 1000 - 400 - 400 = 200 → beyond 96px
     expect(
       shouldAutoScrollRoomOnLiveEvent({
         scrollElement: makeScrollElement(1000, 400, 400),

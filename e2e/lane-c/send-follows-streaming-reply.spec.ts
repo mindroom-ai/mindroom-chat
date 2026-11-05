@@ -14,8 +14,10 @@ import {
 // Regression: a reader at the bottom sends a message, and right away an agent starts typing and
 // streams its reply as a run of edits. The view must go to the sent message and stay at the
 // bottom while the reply grows under it, with nothing left behind the floating composer and no
-// Jump to Latest. The conditions match a real desktop: a long conversation with long agent
-// replies (code blocks and the thread summary lines), a wide window, and classic scrollbars.
+// Jump to Latest. The same holds for a reader resting a little above the bottom, near enough
+// that Jump to Latest stays hidden: the view counts as at the bottom exactly while it is hidden.
+// The conditions match a real desktop: a long conversation with long agent replies (code blocks
+// and the thread summary lines), a wide window, and classic scrollbars.
 
 test.use({
   viewport: { width: 2000, height: 1100 },
@@ -278,9 +280,12 @@ const streamAgentReply = async (
   return replyId;
 };
 
-/** The timeline's scroll area: the scrolling ancestor of the virtual rows. */
-const scrollGap = (page: Page) =>
-  page.evaluate(() => {
+/**
+ * How far the timeline's scroll area (the scrolling ancestor of the virtual rows) is above its
+ * bottom; with `place`, it first scrolls there.
+ */
+const scrollGap = (page: Page, place?: number) =>
+  page.evaluate((distance) => {
     let element = document.querySelector<HTMLElement>(
       '[data-thread-count], [data-testid="room-virtual-inner"]'
     )?.parentElement;
@@ -288,8 +293,11 @@ const scrollGap = (page: Page) =>
       element = element.parentElement;
     }
     if (!element) throw new Error('Timeline scroller missing');
+    if (distance !== undefined) {
+      element.scrollTop = element.scrollHeight - element.clientHeight - distance;
+    }
     return Math.round(element.scrollHeight - element.clientHeight - element.scrollTop);
-  });
+  }, place);
 
 /** The bottom edge of the row is on screen and nothing (the floating composer) covers it. */
 const bottomShows = (row: Locator): Promise<boolean> =>
@@ -328,6 +336,25 @@ const readUpAndBack = async (page: Page) => {
   await expect.poll(() => scrollGap(page)).toBeLessThanOrEqual(2);
 };
 
+/**
+ * The reader turns the wheel up a little and rests `gap` px above the bottom, near enough that
+ * Jump to Latest stays hidden. Nothing moves them while no row arrives.
+ */
+const restAboveBottom = async (page: Page, gap: number) => {
+  const rows = page.locator('[data-thread-count], [data-testid="room-virtual-inner"]').first();
+  const box = await rows.boundingBox();
+  if (!box) throw new Error('Timeline rows missing');
+  await page.mouse.move(box.x + 400, 500);
+  await page.mouse.wheel(0, -gap);
+  await page.waitForTimeout(300);
+  // The wheel's step is the browser's; the reader ends exactly `gap` px above the bottom.
+  await scrollGap(page, gap);
+  await page.waitForTimeout(800);
+  const rested = await scrollGap(page);
+  expect(rested, 'the reader rests where they scrolled').toBeGreaterThanOrEqual(gap - 2);
+  expect(rested, 'the reader rests where they scrolled').toBeLessThanOrEqual(gap + 2);
+};
+
 let shared: Page;
 
 const openShared = async (browser: Browser) => {
@@ -346,19 +373,59 @@ test.afterAll(async () => {
   await shared?.context().close();
 });
 
+// `gap`: how far above the bottom the reader rests when they send.
 const SCENARIOS = [
-  { surface: 'thread', view: 'threaded', typingAfterMs: 0, replyAfterMs: 50, frames: true },
-  { surface: 'thread', view: 'threaded', typingAfterMs: 150, replyAfterMs: 300, frames: false },
-  { surface: 'thread', view: 'compact', typingAfterMs: 300, replyAfterMs: 100, frames: true },
-  { surface: 'thread', view: 'compact', typingAfterMs: 0, replyAfterMs: 0, frames: false },
-  { surface: 'room', view: 'classic', typingAfterMs: 0, replyAfterMs: 50, frames: true },
-  { surface: 'room', view: 'classic', typingAfterMs: 200, replyAfterMs: 300, frames: false },
+  { surface: 'thread', view: 'threaded', typingAfterMs: 0, replyAfterMs: 50, frames: true, gap: 0 },
+  {
+    surface: 'thread',
+    view: 'threaded',
+    typingAfterMs: 150,
+    replyAfterMs: 300,
+    frames: false,
+    gap: 0,
+  },
+  {
+    surface: 'thread',
+    view: 'compact',
+    typingAfterMs: 300,
+    replyAfterMs: 100,
+    frames: true,
+    gap: 0,
+  },
+  { surface: 'thread', view: 'compact', typingAfterMs: 0, replyAfterMs: 0, frames: false, gap: 0 },
+  { surface: 'room', view: 'classic', typingAfterMs: 0, replyAfterMs: 50, frames: true, gap: 0 },
+  {
+    surface: 'room',
+    view: 'classic',
+    typingAfterMs: 200,
+    replyAfterMs: 300,
+    frames: false,
+    gap: 0,
+  },
+  {
+    surface: 'thread',
+    view: 'threaded',
+    typingAfterMs: 0,
+    replyAfterMs: 50,
+    frames: true,
+    gap: 60,
+  },
+  {
+    surface: 'thread',
+    view: 'compact',
+    typingAfterMs: 150,
+    replyAfterMs: 300,
+    frames: false,
+    gap: 60,
+  },
+  { surface: 'room', view: 'classic', typingAfterMs: 0, replyAfterMs: 50, frames: true, gap: 60 },
 ] as const;
 
 for (const scenario of SCENARIOS) {
   const stream = scenario.frames ? 'live frames' : 'edits';
   const timing = `typing after ${scenario.typingAfterMs} ms, reply after ${scenario.replyAfterMs} ms`;
-  test(`a send at the bottom of a ${scenario.surface} (${scenario.view}) follows a reply streamed with ${stream}, ${timing}`, async () => {
+  const where = scenario.gap ? `${scenario.gap} px above the bottom` : 'at the bottom';
+  test(`a send ${where} of a ${scenario.surface} (${scenario.view}) follows a reply streamed with ${stream}, ${timing}`, async () => {
     const page = shared;
     const fixture = await seedFixture(scenario.surface);
     await page.evaluate(
@@ -386,6 +453,10 @@ for (const scenario of SCENARIOS) {
     await readUpAndBack(page);
     await page.waitForTimeout(800);
     await expect.poll(() => scrollGap(page), { timeout: 10_000 }).toBeLessThanOrEqual(2);
+    if (scenario.gap) {
+      await restAboveBottom(page, scenario.gap);
+      await expect(jump).toBeHidden();
+    }
 
     const ownText = `Own message ${Date.now()}`;
     const composer = page.getByRole('textbox', { name: 'Send a message...' });

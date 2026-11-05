@@ -51,11 +51,17 @@ export const isTimelineAtLiveEnd = ({
 }: TimelineAtLiveEndOpts): boolean =>
   threadId ? !!threadTailLoaded || !canPaginateThreadFront : liveTimelineLinked && rangeAtEnd;
 
+/**
+ * How far above the end of its scroll range the timeline still counts as at the bottom: within
+ * it, the view follows new rows and Jump to Latest stays hidden; beyond it, Jump to Latest shows.
+ */
+export const TIMELINE_BOTTOM_THRESHOLD_PX = 96;
+
 export const isScrollNearBottom = ({
   scrollHeight,
   scrollTop,
   clientHeight,
-  thresholdPx = 24,
+  thresholdPx = TIMELINE_BOTTOM_THRESHOLD_PX,
 }: ScrollNearBottomOpts): boolean => scrollHeight - scrollTop - clientHeight <= thresholdPx;
 
 export const shouldAutoScrollThreadOnLiveEvent = ({
@@ -80,7 +86,7 @@ type RoomAutoScrollOpts = {
 export const shouldAutoScrollRoomOnLiveEvent = ({
   scrollElement,
   isTimelineAtLiveEnd,
-  thresholdPx = 100,
+  thresholdPx = TIMELINE_BOTTOM_THRESHOLD_PX,
 }: RoomAutoScrollOpts): boolean => {
   if (!isTimelineAtLiveEnd || !scrollElement) return false;
   return isScrollNearBottom({
@@ -369,7 +375,7 @@ export const setupFocusObserver = (opts: {
 export const isAnchorVisibleInScroll = (
   anchor: Element,
   scroll: Element,
-  marginPx = 100
+  marginPx = TIMELINE_BOTTOM_THRESHOLD_PX
 ): boolean => {
   const anchorRect = anchor.getBoundingClientRect();
   const scrollRect = scroll.getBoundingClientRect();
