@@ -172,6 +172,9 @@
       "retry": "Opnieuw proberen",
       "reloadNeeded": "Hiervoor moet de pagina opnieuw worden geladen. Niet-verzonden berichten, toegevoegde bestanden en een lopend gesprek gaan dan verloren.",
       "reload": "Pagina opnieuw laden"
+    },
+    "login": {
+      "noAccountLink": "Heb je geen account? <authLink>Registreren</authLink>"
     }
   },
   "featureUi": {

@@ -186,7 +186,7 @@ export function Login() {
       {auth?.allowRegistration !== false && (
         <Text align="Center">
           <Trans
-            i18nKey="sharedUi.login.accountLink"
+            i18nKey="sharedUi.login.noAccountLink"
             components={{
               authLink: <Link to={withAddAccountSearchIf(getRegisterPath(server), addAccount)} />,
             }}

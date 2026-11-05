@@ -169,6 +169,9 @@
       "retry": "再試行",
       "reloadNeeded": "読み込むにはページの再読み込みが必要です。未送信のメッセージ、添付したファイル、通話中の通話は失われます。",
       "reload": "ページを再読み込み"
+    },
+    "login": {
+      "noAccountLink": "アカウントをお持ちではありませんか? <authLink>登録</authLink>"
     }
   },
   "featureUi": {

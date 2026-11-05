@@ -169,6 +169,9 @@
       "retry": "重試",
       "reloadNeeded": "需要重新載入頁面才能載入此內容。未傳送的訊息、已加入的檔案和進行中的通話將會遺失。",
       "reload": "重新載入頁面"
+    },
+    "login": {
+      "noAccountLink": "沒有帳戶？ <authLink>註冊</authLink>"
     }
   },
   "featureUi": {

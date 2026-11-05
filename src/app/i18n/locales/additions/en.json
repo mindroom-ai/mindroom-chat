@@ -172,6 +172,9 @@
       "retry": "Retry",
       "reloadNeeded": "Loading this needs a page reload. Unsent messages, staged files and a call in progress would be lost.",
       "reload": "Reload page"
+    },
+    "login": {
+      "noAccountLink": "Don't have an account? <authLink>Register</authLink>"
     }
   },
   "featureUi": {

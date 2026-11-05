@@ -169,6 +169,9 @@
       "retry": "다시 시도",
       "reloadNeeded": "이것을 불러오려면 페이지를 새로고침해야 합니다. 보내지 않은 메시지, 첨부한 파일, 진행 중인 통화는 사라집니다.",
       "reload": "페이지 새로고침"
+    },
+    "login": {
+      "noAccountLink": "계정이 없나요? <authLink>가입</authLink>"
     }
   },
   "featureUi": {

@@ -169,6 +169,9 @@
       "retry": "Coba lagi",
       "reloadNeeded": "Untuk memuat ini, halaman perlu dimuat ulang. Pesan yang belum terkirim, berkas yang dilampirkan, dan panggilan yang sedang berlangsung akan hilang.",
       "reload": "Muat ulang halaman"
+    },
+    "login": {
+      "noAccountLink": "Belum punya akun? <authLink>Daftar</authLink>"
     }
   },
   "featureUi": {

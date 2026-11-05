@@ -175,6 +175,9 @@
       "retry": "Riprova",
       "reloadNeeded": "Per caricarlo bisogna ricaricare la pagina. I messaggi non inviati, i file allegati e una chiamata in corso andrebbero persi.",
       "reload": "Ricarica pagina"
+    },
+    "login": {
+      "noAccountLink": "Non hai un account? <authLink>Registrati</authLink>"
     }
   },
   "featureUi": {

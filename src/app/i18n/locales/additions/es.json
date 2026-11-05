@@ -175,6 +175,9 @@
       "retry": "Reintentar",
       "reloadNeeded": "Para cargarlo hay que recargar la página. Se perderían los mensajes sin enviar, los archivos adjuntos y la llamada en curso.",
       "reload": "Recargar página"
+    },
+    "login": {
+      "noAccountLink": "¿No tienes una cuenta? <authLink>Regístrate</authLink>"
     }
   },
   "featureUi": {

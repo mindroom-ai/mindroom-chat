@@ -172,6 +172,9 @@
       "retry": "Tekrar dene",
       "reloadNeeded": "Bunu yüklemek için sayfanın yeniden yüklenmesi gerekiyor. Gönderilmemiş mesajlar, eklenen dosyalar ve devam eden bir arama kaybolur.",
       "reload": "Sayfayı yeniden yükle"
+    },
+    "login": {
+      "noAccountLink": "Hesabınız yok mu? <authLink>Kayıt olun</authLink>"
     }
   },
   "featureUi": {

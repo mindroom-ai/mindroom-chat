@@ -175,6 +175,9 @@
       "retry": "Réessayer",
       "reloadNeeded": "Pour le charger, la page doit être rechargée. Les messages non envoyés, les fichiers joints et un appel en cours seraient perdus.",
       "reload": "Recharger la page"
+    },
+    "login": {
+      "noAccountLink": "Vous n'avez pas de compte ? <authLink>Inscrivez-vous</authLink>"
     }
   },
   "featureUi": {

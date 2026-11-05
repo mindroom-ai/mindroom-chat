@@ -169,6 +169,9 @@
       "retry": "重试",
       "reloadNeeded": "需要重新加载页面才能加载此内容。未发送的消息、已添加的文件和进行中的通话将会丢失。",
       "reload": "重新加载页面"
+    },
+    "login": {
+      "noAccountLink": "没有账户？ <authLink>注册</authLink>"
     }
   },
   "featureUi": {
