@@ -135,6 +135,11 @@ vi.mock('./threadNav.css', () => ({
   EntryTooltipDetails: 'EntryTooltipDetails',
   EntryUnreadDot: 'EntryUnreadDot',
 }));
+vi.mock('../../components/nav/NavItem.css', () => ({
+  rowControlsHidden: {},
+  rowControlsShift: 'rowControlsShift',
+  rowControlsShown: {},
+}));
 
 const entry = {
   key: '!room:example.org\u0000$thread',
@@ -216,7 +221,9 @@ describe('ThreadNavItem', () => {
 
     expect(renderer!.root.findAllByProps({ 'data-icon-src': 'Thread' })).toHaveLength(0);
     expect(renderer!.root.findAllByProps({ className: 'EntryMeta' })).toHaveLength(0);
-    expect(renderer!.root.findByProps({ className: 'EntryActions' })).toBeDefined();
+    expect(
+      renderer!.root.findByProps({ className: 'EntryActions rowControlsShift' })
+    ).toBeDefined();
   });
 
   it('uses room navigation in classic mode', () => {
