@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +9,10 @@ import { afterEach, describe, expect, it } from 'vitest';
 const CI_COMMON_SCRIPT_PATH = fileURLToPath(
   new URL('../../../../ios/App/ci_scripts/ci_common.sh', import.meta.url)
 );
+// The test's own bash by absolute path: the script runs with only the stubs on PATH and no host
+// environment or rc files (`--norc`; bash reads them when stdin is a socket and SHLVL is unset),
+// and some hosts (NixOS) have no bash in /bin or /usr/bin.
+const BASH_PATH = execFileSync('bash', ['-c', 'printf %s "$BASH"'], { encoding: 'utf8' });
 const temporaryDirectories: string[] = [];
 
 const writeExecutable = (path: string, content: string): void => {
@@ -27,10 +31,11 @@ const runBrewInstall = (failures: number) => {
   writeExecutable(
     join(directory, 'brew'),
     [
-      '#!/bin/bash',
+      `#!${BASH_PATH}`,
       'set -euo pipefail',
       'printf "%s\\n" "$*" >> "$BREW_ATTEMPTS_PATH"',
-      'attempt=$(wc -l < "$BREW_ATTEMPTS_PATH")',
+      'attempt=0',
+      'while IFS= read -r _line; do ((attempt += 1)); done < "$BREW_ATTEMPTS_PATH"',
       'if ((attempt <= BREW_FAILURES)); then',
       '  echo "simulated bottle download failure" >&2',
       '  exit 1',
@@ -39,12 +44,13 @@ const runBrewInstall = (failures: number) => {
   );
   writeExecutable(
     join(directory, 'sleep'),
-    ['#!/bin/bash', 'set -euo pipefail', 'printf "%s\\n" "$*" >> "$BREW_SLEEPS_PATH"'].join('\n')
+    [`#!${BASH_PATH}`, 'set -euo pipefail', 'printf "%s\\n" "$*" >> "$BREW_SLEEPS_PATH"'].join('\n')
   );
 
   const result = spawnSync(
-    'bash',
+    BASH_PATH,
     [
+      '--norc',
       '-c',
       'set -euo pipefail; source "$1"; brew_install_with_retry "$2"',
       'bash',
@@ -54,8 +60,7 @@ const runBrewInstall = (failures: number) => {
     {
       encoding: 'utf8',
       env: {
-        ...process.env,
-        PATH: `${directory}:/usr/bin:/bin`,
+        PATH: directory,
         BREW_ATTEMPTS_PATH: attemptsPath,
         BREW_FAILURES: String(failures),
         BREW_SLEEPS_PATH: sleepsPath,
