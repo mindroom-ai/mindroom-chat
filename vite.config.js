@@ -1,5 +1,6 @@
 // @ts-check
 import { readdirSync, realpathSync } from 'node:fs';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
@@ -37,6 +38,9 @@ export const copyFiles = {
 // authentication recovery script also serves shells cached by older workers.
 const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
+// The Lane C string overlays (src/app/localeAdditions.ts), one JSON file per language.
+const LOCALE_ADDITIONS = 'src/app/locales/additions/';
+
 // The precache holds what a signed-in start needs before it shows a room: the entry chunk and the
 // chunks of these modules with their static imports, style sheets, fonts, images and the crypto
 // wasm, plus the shell pages (scripts/precache-plan.mjs). Every room header shows the call buttons, and the
@@ -62,11 +66,12 @@ const startup = startupPrecache({
   shellFiles: ['index.html', 'pdf-frame.html'],
   // The Lane C string overlays (src/app/localeAdditions.ts), one chunk per language: the worker
   // fetches the ones for the languages the pages used when a new build installs.
-  localeOverlay: /\/src\/app\/locales\/additions\/([A-Za-z-]+)\.json$/,
+  localeOverlay: new RegExp(`/${LOCALE_ADDITIONS}([A-Za-z-]+)\\.json$`),
 });
 
 // src/sw.ts with the precache list injected, emitted as sw.js. src/index.tsx registers it as a
 // classic script and public/manifest.json is the web manifest, so the plugin adds neither.
+const SW_ENTRY = 'src/sw.ts';
 const serviceWorkerPlugin = VitePWA({
   strategies: 'injectManifest',
   injectManifest: {
@@ -80,8 +85,8 @@ const serviceWorkerPlugin = VitePWA({
     // Writes the build inventory into the worker (scripts/precache-plan.mjs).
     buildPlugins: { vite: [startup.workerPlugin] },
   },
-  srcDir: 'src',
-  filename: 'sw.ts',
+  srcDir: path.dirname(SW_ENTRY),
+  filename: path.basename(SW_ENTRY),
   devOptions: { enabled: false },
   injectRegister: false,
   manifest: false,

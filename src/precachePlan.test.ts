@@ -94,7 +94,8 @@ const ON_DEMAND = ['src/app/mindroom/messages/thinking-mark.svg'];
 
 const entry = (url: string) => ({ url, revision: url.startsWith('assets/') ? null : 'r', size: 1 });
 
-const OVERLAY = /\/src\/app\/locales\/additions\/([A-Za-z-]+)\.json$/;
+const LOCALE_ADDITIONS = 'src/app/locales/additions/';
+const OVERLAY = new RegExp(`/${LOCALE_ADDITIONS}([A-Za-z-]+)\\.json$`);
 
 describe('startupFiles', () => {
   it('takes the entry and the startup modules with their static imports, styles, fonts, images and wasm', () => {

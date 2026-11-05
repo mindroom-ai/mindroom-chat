@@ -36,14 +36,14 @@ const KEPT_MODULES: Record<string, string> = {
     'the computer service chosen on this device, saved in localStorage',
 };
 
-// The importer of the app: the glob runs from this file, so its keys start at `src/app/`.
+// The importer of the app: every module under src/app/, keyed by its path from the root.
 const APP_MODULES = import.meta.glob([
-  '../../**/*.{ts,tsx}',
-  '!../../**/*.test.*',
-  '!../../**/__tests__/**',
-  '!../../**/test-utils/**',
-  '!../../**/*.css.ts',
-  '!../../**/*.d.ts',
+  '/src/app/**/*.{ts,tsx}',
+  '!/src/app/**/*.test.*',
+  '!/src/app/**/__tests__/**',
+  '!/src/app/**/test-utils/**',
+  '!/src/app/**/*.css.ts',
+  '!/src/app/**/*.d.ts',
 ]);
 
 type AtomWrite = (get: unknown, set: (atom: unknown, value: unknown) => void) => unknown;

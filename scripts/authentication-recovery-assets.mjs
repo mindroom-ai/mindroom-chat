@@ -8,6 +8,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
+// The source of `authentication-recovery.js`, which the entry below imports.
+const RECOVERY_ENTRY = 'src/authenticationRecovery.ts';
 
 /** @type {import('esbuild').BuildOptions} */
 const common = {
@@ -39,7 +41,7 @@ export const buildAuthenticationRecoveryAssets = async () => {
     bundleClassicScript({
       stdin: {
         contents:
-          "import { installAuthenticationRecovery } from './src/authenticationRecovery';\n" +
+          `import { installAuthenticationRecovery } from './${RECOVERY_ENTRY}';\n` +
           'installAuthenticationRecovery(window);\n',
         resolveDir: root,
         sourcefile: 'authentication-recovery-entry.ts',
