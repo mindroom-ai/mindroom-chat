@@ -88,7 +88,12 @@ test.describe('ISSUE-207 gap-fill after restart', () => {
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     await expect(page.getByText(seedBody)).toBeVisible({ timeout: 30_000 });
 
-    // ~25 REST messages while the page is still mounted. This is enough
+    // Close the client first: a mounted client syncs the messages below
+    // live, and when the restarted client then gets a limited sync whose
+    // events it already holds, there is no gap and nothing to fill.
+    await page.goto('about:blank');
+
+    // ~25 REST messages while the client is closed. This is enough
     // to reliably trigger `limited=true` on the next incremental sync
     // once the client's since-token becomes stale after the reload.
     // The specific value here is the LAST one — that's what we assert
@@ -136,7 +141,7 @@ test.describe('ISSUE-207 gap-fill after restart', () => {
         window.requestAnimationFrame(tryReset);
       }
     });
-    await page.reload();
+    await page.goto(`/home/${encodeURIComponent(roomId)}`);
     await expectLoggedInShellStable(page);
 
     // Wait long enough for /sync to complete plus the gap-fill executor
