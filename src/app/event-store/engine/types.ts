@@ -67,7 +67,7 @@ export type SyncEngine = EngineLifecycle & {
   /**
    * The MindRoom cache session id derived from the client's baseUrl
    * and safe user id (matches the id used everywhere else — see
-   * `createSessionId` in `state/sessions.ts`). Included on the
+   * `createSessionId` in `matrix/session/sessions.ts`). Included on the
    * instance so consumers do not each recompute it.
    */
   readonly sessionId: string;

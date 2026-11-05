@@ -1180,7 +1180,7 @@ describe('loadCachedThreadSnapshot lazy cleanup (ISSUE-207 P1.4)', () => {
 // eventRepository seam and INTO the cacheStore save entry points
 // (single choke point). The seam now unconditionally delegates to the
 // injected `save`; per-save gating is exercised at the store level
-// (see cacheStore/__tests__/cacheHealthGate.test.ts) and cacheHealth
+// (see cache/db/__tests__/cacheHealthGate.test.ts) and cacheHealth
 // classification is exercised in cacheHealth.test.ts.
 describe('persist entry points always delegate to the injected save (ISSUE-207 P2.3)', () => {
   beforeEach(() => {

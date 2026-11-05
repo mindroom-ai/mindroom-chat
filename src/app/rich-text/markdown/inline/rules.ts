@@ -120,7 +120,7 @@ const SpoilerRule: InlineMDRule = {
 // a link that is refused never hides another one starting inside it.
 const LINK_REG = /\[([^[\]]+)\]\(((?:[^\s()[\]]|\([^\s()[\]]*\))+)\)/g;
 
-// The schemes the message sanitizer (`utils/sanitize`) keeps in links; any other destination,
+// The schemes the message sanitizer (`rich-text/sanitize`) keeps in links; any other destination,
 // relative ones included, stays text even before the sanitizer runs.
 const LINK_SCHEME_REG = /^(?:https?|ftp|mailto|magnet):/i;
 

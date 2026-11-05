@@ -2,7 +2,7 @@ import { type ReactNode, useSyncExternalStore } from 'react';
 import type { KatexOptions } from 'katex';
 
 // KaTeX (about 270 kB) loads with the first message that has math, not with the app: the notice
-// banners on the sign-in page reach `plugins/math.tsx` through the Markdown rules, and that file
+// banners on the sign-in page reach `rich-text/math.tsx` through the Markdown rules, and that file
 // takes its `katex` from here. Until KaTeX is in, rendering throws, so `renderLatexToHtml` shows
 // the TeX source; the `WithKatex` boundaries around math render again once it arrives.
 

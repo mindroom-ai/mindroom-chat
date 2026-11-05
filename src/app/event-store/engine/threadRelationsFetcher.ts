@@ -1,7 +1,7 @@
 /**
  * ISSUE-207 P5.1 Commit 2: engine-owned `/relations` fetcher.
  *
- * Migrated from `threads/threadBootstrap.ts`. Every non-reconciler
+ * Migrated from `threads/open/threadBootstrap.ts`. Every non-reconciler
  * `/relations` backfill path — the P4.4 overview-resume job and the
  * new `'thread-backfill'` scheduler job — now imports this from the
  * engine barrel. Two direct consequences:

@@ -242,7 +242,7 @@ export type CacheProbeCounters = {
   mergeSawIncomingEditRelation: number;
   // ISSUE-207 AC2 render-gap RG3 (2026-07-04): observability at the
   // ACTUAL render-pipeline entry point (getEditedEvent in
-  // utils/room.ts). Bumps once per getEditedEvent call:
+  // matrix/room.ts). Bumps once per getEditedEvent call:
   //
   //   renderTargetHadReplacement: `mEvent.replacingEvent()` returned
   //     a non-null candidate that PASSED the same-sender check and

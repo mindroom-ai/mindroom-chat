@@ -193,7 +193,7 @@ const makeTrapOptions = (close: () => void, returnFocus?: boolean): TrapOptions 
   initialFocus: false,
   clickOutsideDeactivates: true,
   returnFocusOnDeactivate: returnFocus,
-  // Escape closes the board, also from the search field (see stopPropagation in utils/keyboard).
+  // Escape closes the board, also from the search field (see stopPropagation in lib/keyboard).
   escapeDeactivates: stopPropagation,
   onDeactivate: close,
 });

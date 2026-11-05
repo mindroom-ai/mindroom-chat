@@ -2,7 +2,7 @@
 // (DEFAULT_PAGINATION_LIMIT / MIN / MAX / sanitizePaginationLimit) was
 // deleted alongside `MindroomMessagePreloadLimitSetting`. The user-
 // facing depth setting now lives at `prefetchDepth` in
-// `mindroom/settings/mindroomSettings.ts` and is sanitized by
+// `engine/prefetchSettings.ts` and is sanitized by
 // `sanitizePrefetchDepth` in `engine/prefetchPolicy.ts`.
 //
 // What remains here is three engine-adjacent batch/debounce constants

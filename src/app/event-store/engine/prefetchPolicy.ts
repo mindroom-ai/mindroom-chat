@@ -100,7 +100,7 @@ export const isRoomEligibleForRawFetch = (
  * Coerce an arbitrary settings value into a valid `PrefetchScope`.
  * Anything not on the whitelist — including older enum values, hand-
  * edited JSON, or genuine `undefined` — becomes the default. Same
- * shape as the sanitizers in `state/settings.ts` (silent fallback,
+ * shape as the sanitizers in `preferences/settings.ts` (silent fallback,
  * not throwing) so a corrupted storage blob never crashes the app.
  */
 export const sanitizePrefetchScope = (value: unknown): PrefetchScope => {
