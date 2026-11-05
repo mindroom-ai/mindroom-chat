@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
 import type { RectCords } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
@@ -50,6 +50,7 @@ import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/M
 import { moveStep } from '../../../mindroom/shortcuts/shortcuts';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
 import { useSpaceRailRooms } from './spaceRailRooms';
+import { revealRailEntry } from './RailScrollArea';
 import { getSpaceShareLink } from '../space/spaceLink';
 import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
 import {
@@ -369,6 +370,7 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
   const [localOrder, setLocalOrder] = useAtom(spaceOrderAtomFor(client.getSafeUserId()));
   const [openFolders, setOpenFolders] = useAtom(openFoldersAtom);
   const [hint, setHint] = useState<{ id: string; at: DropAt }>();
+  const stackRef = useRef<HTMLDivElement>(null);
 
   const joinedSpaces = useMemo(
     () =>
@@ -397,6 +399,14 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
   );
+
+  // Opening a space, from the rail or anywhere else, scrolls the rail to its entry (or to the
+  // closed folder that holds it).
+  const hasItems = items.length > 0;
+  useEffect(() => {
+    const entry = selectedSpaceId ? stackRef.current?.querySelector('[data-active]') : null;
+    if (entry) revealRailEntry(entry);
+  }, [selectedSpaceId, hasItems]);
 
   if (items.length === 0) return null;
 
@@ -538,7 +548,7 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
         accessibility={{ announcements: silentAnnouncements }}
       >
         <SortableContext items={shownDrags.map(dragId)} strategy={keepInPlace}>
-          <SidebarStack role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
+          <SidebarStack ref={stackRef} role="group" aria-label={t('sharedUi.roomTypes.spaces')}>
             {items.map(renderEntry)}
           </SidebarStack>
         </SortableContext>

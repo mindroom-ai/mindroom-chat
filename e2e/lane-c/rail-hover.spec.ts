@@ -534,8 +534,9 @@ test.describe('with more spaces than the rail can show', () => {
     await expect(deepest).toBeAttached({ timeout: 30_000 });
     await expect(entryOf(home)).toHaveAttribute('data-active', 'true');
 
-    // The top part overflows, so it scrolls.
-    const scroller = await home.evaluate((element) => {
+    // The rail's scrolling part overflows, so it scrolls. It holds the spaces in either layout;
+    // Home sits above it while the top group is pinned.
+    const scroller = await deepest.evaluate((element) => {
       let box = element.parentElement;
       while (box && getComputedStyle(box).overflowY === 'visible') box = box.parentElement;
       return {
@@ -543,9 +544,9 @@ test.describe('with more spaces than the rail can show', () => {
         scrollbar: box ? box.offsetWidth - box.clientWidth : 0,
       };
     });
-    expect(scroller.overflow, 'the top part overflows').toBeGreaterThan(200);
+    expect(scroller.overflow, 'the scrolling part overflows').toBeGreaterThan(200);
     // Scrollbars take width here (the launch options above); the rail's must not.
-    expect.soft(scroller.scrollbar, 'the top part shows no scrollbar').toBe(0);
+    expect.soft(scroller.scrollbar, 'the scrolling part shows no scrollbar').toBe(0);
 
     // One centre line for the scrolling part and the bottom group.
     await pointerAway(page);
