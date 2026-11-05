@@ -15,20 +15,6 @@ import { getKnownThreadReplyCount } from '../threadBadgeViewModel';
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 
-// ISSUE-207 P5.1 Commit 2: `fetchAllThreadRelations`,
-// `MAX_THREAD_FETCH_EVENTS`, and `MAX_THREAD_FETCH_ITERATIONS` moved
-// to `engine/threadRelationsFetcher.ts` so the `/relations` boundary
-// can be arch-guarded to "defined in engine/, imported only within
-// engine/**". Re-exported here for the existing unit test surface
-// (`threadBootstrap.test.ts` covers the fetcher end-to-end) and any
-// call sites that haven't been rewired yet — see arch guard for the
-// current allowlist.
-export {
-  fetchAllThreadRelations,
-  MAX_THREAD_FETCH_EVENTS,
-  MAX_THREAD_FETCH_ITERATIONS,
-  type ThreadRelationPageResult,
-} from '../../event-store/engine/threadRelationsFetcher';
 export const THREAD_OPEN_PREWARM_WAIT_MS = 400;
 
 const VISIBLE_THREAD_CACHE_PREWARM_LIMIT = 8;

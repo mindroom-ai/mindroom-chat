@@ -5,7 +5,7 @@ import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { getLinkedTimelines, getThreadTimelineEvents } from '../../event-store/timeline/linkedTimelines';
 import { reconcileThreadBackwardPagination } from '../../event-store/timeline/threadPaginationUtils';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
-import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { MAX_THREAD_FETCH_ITERATIONS } from '../../event-store/engine/threadRelationsFetcher';
 import {
   getAuthoritativeCachedThreadReplyCount,
   isCompleteCachedThreadSnapshot,

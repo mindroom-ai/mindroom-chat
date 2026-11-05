@@ -4,7 +4,7 @@ import { logTimelineDebug } from '../../diagnostics/timelineDebug';
 import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from '../../event-store/cache/eventRepository';
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
-import { MAX_THREAD_FETCH_ITERATIONS } from './threadBootstrap';
+import { MAX_THREAD_FETCH_ITERATIONS } from '../../event-store/engine/threadRelationsFetcher';
 import { useMindroomSyncEngine } from '../../event-store/engine';
 
 import type { ThreadSeedOpenPort } from './threadSessionTypes';
