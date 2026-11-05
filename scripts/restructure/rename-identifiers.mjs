@@ -11,12 +11,19 @@
 // that file is renamed with all its references in the files of tsconfig.json, as the language
 // service finds them; a shorthand property keeps its key (`{ old }` becomes `{ old: renamed }`).
 //
+// A declaration is also an import alias (`import { x as old }`), so a local name can follow
+// a renamed export. When a shorthand is renamed both as a property and as a local binding, the
+// two edits combine (`{ old }` becomes `{ new }`, or `{ newKey: newLocal }`).
+//
 // Beyond the language service:
+//   - properties of a module object typed `typeof import('<declaring module>')`, as
+//     `vi.importActual` and `importOriginal` return it, read (`actual.old`) or destructured;
 //   - `vi.mock` and `vi.doMock` factories of the declaring module: object literal keys named
 //     `old` become `new` (a shorthand `{ old }` becomes `{ new: old }`, or `{ new }` when its
 //     value is renamed too);
 //   - `vi.spyOn(<namespace import of the declaring module>, 'old')`: the string becomes 'new';
-//   - `import { new as new }` and `export { new as new }` left by a rename become `{ new }`;
+//   - `import { new as new }`, `export { new as new }` and `{ new: new }` left by a rename
+//     become `{ new }`;
 //   - every other string or template literal that contains `old` as a word is printed for review.
 //
 // --keep-lane-p-names: Lane P files (scripts/provenance-paths.cjs) keep their own names. Their
@@ -128,7 +135,8 @@ const declarationNames = (sf, name) => {
         ts.isInterfaceDeclaration(node) ||
         ts.isEnumDeclaration(node) ||
         ts.isParameter(node) ||
-        ts.isBindingElement(node)) &&
+        ts.isBindingElement(node) ||
+        (ts.isImportSpecifier(node) && node.propertyName)) &&
       node.name &&
       ts.isIdentifier(node.name) &&
       node.name.text === name
@@ -152,14 +160,42 @@ const at = (file, position) => {
   const sf = program.getSourceFile(file);
   return `${rel(file)}:${sf.getLineAndCharacterOfPosition(position).line + 1}`;
 };
+// A shorthand `{ a }` renamed twice, once as the property (`b: a`) and once as the local
+// binding (`a: c`), becomes `b: c`, or `b` when both are the same.
+const mergeShorthand = (original, one, other) => {
+  const pair = (text) => /^([A-Za-z_$][\w$]*): ([A-Za-z_$][\w$]*)$/.exec(text);
+  // A plain rename of the whole shorthand to the same name the property rename gives.
+  for (const [plain, keyed] of [
+    [one, other],
+    [other, one],
+  ]) {
+    const pairOf = pair(keyed);
+    if (!pair(plain) && pairOf && pairOf[2] === original && pairOf[1] === plain) return plain;
+  }
+  const a = pair(one);
+  const b = pair(other);
+  if (!a || !b) return undefined;
+  // The property rename keeps the local name (`new: original`), the local one the key.
+  const property = a[2] === original ? a : b[2] === original ? b : undefined;
+  const local =
+    a[1] === original && a !== property ? a : b[1] === original && b !== property ? b : undefined;
+  if (!property || !local) return undefined;
+  return property[1] === local[2] ? property[1] : `${property[1]}: ${local[2]}`;
+};
 const addEdit = (file, start, end, text, row) => {
   if (!edits.has(file)) edits.set(file, new Map());
   const fileEdits = edits.get(file);
   const existing = fileEdits.get(start);
   if (existing && (existing.end !== end || existing.text !== text)) {
-    throw new Error(
-      `${at(file, start)}: two renames edit the same name (${existing.text}, ${text})`
-    );
+    const original = fs.readFileSync(file, 'utf8').slice(start, end);
+    const merged = existing.end === end ? mergeShorthand(original, existing.text, text) : undefined;
+    if (merged === undefined) {
+      throw new Error(
+        `${at(file, start)}: two renames edit the same name (${existing.text}, ${text})`
+      );
+    }
+    fileEdits.set(start, { end, text: merged, row });
+    return;
   }
   fileEdits.set(start, { end, text, row });
 };
@@ -242,6 +278,63 @@ for (const row of rows) {
       // Anything else uses the file's own name for the import and stays.
     }
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// References the language service misses: properties of a module object typed
+// `typeof import('<declaring module>')` (vi.importActual, importOriginal), read or destructured
+// ---------------------------------------------------------------------------------------------
+
+const checker = program.getTypeChecker();
+const exportedOldNames = new Set(
+  [...renamedExports.values()].flatMap((renames) => [...renames.keys()])
+);
+const moduleFileOfType = (node) => {
+  const declaration = checker.getTypeAtLocation(node)?.getSymbol()?.declarations?.[0];
+  return declaration && ts.isSourceFile(declaration)
+    ? path.resolve(declaration.fileName)
+    : undefined;
+};
+for (const sf of program.getSourceFiles()) {
+  const file = path.resolve(sf.fileName);
+  if (
+    sf.isDeclarationFile ||
+    !file.startsWith(`${repo}${path.sep}`) ||
+    file.includes(`${path.sep}node_modules${path.sep}`)
+  ) {
+    continue;
+  }
+  const visit = (node) => {
+    if (
+      ts.isPropertyAccessExpression(node) &&
+      ts.isIdentifier(node.name) &&
+      exportedOldNames.has(node.name.text)
+    ) {
+      const to = renamedExports.get(moduleFileOfType(node.expression))?.get(node.name.text);
+      if (to)
+        addEdit(file, node.name.getStart(sf), node.name.getEnd(), to, { from: node.name.text, to });
+    }
+    if (
+      ts.isBindingElement(node) &&
+      ts.isObjectBindingPattern(node.parent) &&
+      !node.dotDotDotToken
+    ) {
+      const key = node.propertyName ?? node.name;
+      if (ts.isIdentifier(key) && exportedOldNames.has(key.text)) {
+        const to = renamedExports.get(moduleFileOfType(node.parent))?.get(key.text);
+        if (to && node.propertyName) {
+          addEdit(file, key.getStart(sf), key.getEnd(), to, { from: key.text, to });
+        } else if (to) {
+          addEdit(file, key.getStart(sf), key.getEnd(), `${to}: ${key.text}`, {
+            from: key.text,
+            to,
+          });
+        }
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -414,6 +507,19 @@ for (const [file, fileEdits] of edits) {
     if (
       (ts.isImportSpecifier(node) || ts.isExportSpecifier(node)) &&
       node.propertyName &&
+      node.propertyName.text === node.name.text
+    ) {
+      collapses.push({
+        start: node.propertyName.getStart(after),
+        end: node.name.getEnd(),
+        text: node.name.text,
+      });
+    }
+    if (
+      ts.isBindingElement(node) &&
+      node.propertyName &&
+      ts.isIdentifier(node.propertyName) &&
+      ts.isIdentifier(node.name) &&
       node.propertyName.text === node.name.text
     ) {
       collapses.push({
