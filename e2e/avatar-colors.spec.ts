@@ -7,10 +7,12 @@ import {
 import { loginWithPassword } from './helpers/auth';
 import {
   addRoomToSpace,
+  createDefaultThreadFilterState,
   createPrivateRoom,
   createPrivateSpace,
   joinRoom,
   matrixFetch,
+  seedRoomOverviewState,
   sendRoomMessage,
   setDirectAccountData,
 } from './helpers/matrix';
@@ -190,7 +192,15 @@ test('a user or room without a picture has one color on every screen', async ({
     await page.screenshot({ path: testInfo.outputPath(`${screen}.png`) });
   };
 
-  // The Compact view: the header tile, the faces on the thread bar, the members, the rail.
+  // The Compact view: the header tile, the faces on the thread bar, the members, the rail. A room
+  // without agents opens in Threads unless the reader chose a view.
+  await seedRoomOverviewState({
+    page,
+    roomId: seeded.roomId,
+    userId: seeded.viewer,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   await expect(page.getByText('Which color is the launch room?').first()).toBeVisible({
     timeout: 30_000,
