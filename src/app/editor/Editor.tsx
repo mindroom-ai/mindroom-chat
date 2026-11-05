@@ -3,6 +3,7 @@ import React, {
   CSSProperties,
   KeyboardEventHandler,
   ReactNode,
+  useCallback,
   useState,
 } from 'react';
 import classNames from 'classnames';
@@ -27,6 +28,9 @@ import * as css from './Editor.css';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
+import { findShortcut, usesCommandKey } from '../shortcuts/shortcuts';
+import { openOverlay } from '../shortcuts/shortcutDom';
+import { hasShortcutHandler } from '../shortcuts/useShortcut';
 
 const emptyDocument: Descendant[] = [createParagraphElement()];
 
@@ -224,6 +228,21 @@ const renderElement = (props: RenderElementProps) => <RenderElement {...props} /
 const renderLeaf = (props: RenderLeafProps) => <RenderLeaf {...props} />;
 const renderPlaceholder = (props: RenderPlaceholderProps) => <RenderPlaceholder {...props} />;
 
+/**
+ * Whether one of the app's shortcuts takes the key from the text box, such as Option (Alt) with
+ * an arrow in an empty composer, which opens the room above or below. On Apple platforms Slate
+ * moves by line on those keys, also in an empty text box, and its preventDefault would keep them
+ * from the shortcut listener on the window.
+ */
+const takenByShortcut = (event: KeyboardEvent): boolean =>
+  findShortcut(event, {
+    apple: usesCommandKey(),
+    composing: false,
+    computer: false,
+    overlay: openOverlay(),
+    registered: hasShortcutHandler,
+  }) !== undefined;
+
 /** A row of controls beside the text box; renders nothing without controls. */
 function EditorControls({ children }: { children?: ReactNode }) {
   if (!children) return null;
@@ -240,6 +259,17 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
   const { placeholder, ariaLabel = placeholder, editableName, maxHeight = '50vh' } = props;
   const { readOnly, onKeyDown, onKeyUp, onPaste, initialValue = emptyDocument } = props;
 
+  // When this returns true, Slate skips its own handling of the key (as after a preventDefault
+  // here), so a shortcut's key goes on to the window unprevented.
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      onKeyDown?.(event);
+      if (event.isDefaultPrevented() || event.isPropagationStopped()) return true;
+      return takenByShortcut(event.nativeEvent);
+    },
+    [onKeyDown]
+  );
+
   const textBox = (
     <Editable
       className={css.EditorTextarea}
@@ -254,7 +284,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       renderLeaf={renderLeaf}
       onPaste={onPaste}
       onKeyUp={onKeyUp}
-      onKeyDown={onKeyDown}
+      onKeyDown={handleKeyDown}
     />
   );
 
