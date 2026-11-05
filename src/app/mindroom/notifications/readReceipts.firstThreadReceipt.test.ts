@@ -120,4 +120,23 @@ describe('the first thread receipt in a room', () => {
 
     expect(receipts(requests)).toEqual([]);
   });
+
+  it('sends none to a thread an unthreaded receipt from another device read', async () => {
+    const { mx, room, older, requests } = await setupRoom();
+    await markThreadAsRead(mx, ROOM_ID, '$newer', false);
+    // Another device read the whole room after the older thread's reply.
+    room.addReceipt(
+      new MatrixEvent({
+        type: 'm.receipt',
+        room_id: ROOM_ID,
+        content: { '$newer-reply': { [ReceiptType.Read]: { [USER_ID]: { ts: 5000 } } } },
+      })
+    );
+    requests.mockClear();
+
+    expect(getThreadUnread(older, USER_ID)).toBe(false);
+    await markThreadAsRead(mx, ROOM_ID, '$older', false);
+
+    expect(receipts(requests)).toEqual([]);
+  });
 });

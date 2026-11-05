@@ -1,6 +1,7 @@
 import { createClient, MatrixEvent, ReceiptType, RelationType, Room } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getThreadUnread } from './roomThreadList';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 
 const ROOM_ID = '!read-up-to:example.org';
@@ -23,11 +24,16 @@ const message = (id: string, ts: number, threadId?: string) =>
     },
   });
 
-const threadReceipt = (userId: string, eventId: string, ts: number) =>
+/** A read receipt; `threadId` undefined makes it unthreaded. */
+const receipt = (userId: string, eventId: string, ts: number, threadId: string | undefined) =>
   new MatrixEvent({
     type: 'm.receipt',
     room_id: ROOM_ID,
-    content: { [eventId]: { [ReceiptType.Read]: { [userId]: { thread_id: '$root', ts } } } },
+    content: {
+      [eventId]: {
+        [ReceiptType.Read]: { [userId]: { ts, ...(threadId && { thread_id: threadId }) } },
+      },
+    },
   });
 
 /** A thread by Bob with its reply loaded; nobody has sent a receipt in the room. */
@@ -59,26 +65,44 @@ describe('getThreadEventReadUpTo', () => {
   it("answers no event where only the SDK's rule for older accounts reads the thread", async () => {
     const { room, thread } = await setupThread();
     // A thread receipt of the user's elsewhere in the room, newer than this thread's reply.
-    room.addReceipt(
-      new MatrixEvent({
-        type: 'm.receipt',
-        room_id: ROOM_ID,
-        content: { $other: { [ReceiptType.Read]: { [USER_ID]: { thread_id: '$x', ts: 5000 } } } },
-      })
-    );
+    room.addReceipt(receipt(USER_ID, '$other', 5000, '$x'));
 
     expect(thread.getEventReadUpTo(USER_ID)).toBe('$reply');
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBeNull();
   });
 
-  it("keeps the SDK's answer from a receipt in the thread", async () => {
+  it("answers the thread's own receipt when it is the room's oldest thread receipt", async () => {
     const { room, thread } = await setupThread();
-    room.addReceipt(threadReceipt(USER_ID, '$reply', 3000));
-    // The rule applies only to the signed-in user; another member's receipt still counts.
-    room.addReceipt(threadReceipt(OTHER_ID, '$reply', 3000));
+    // Sent after the reply it names: the case of the first thread opened, after a reload.
+    room.addReceipt(receipt(USER_ID, '$reply', 3000, '$root'));
+
+    expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+
+    // A reply the receipt does not name stays unread, though it is older than the receipt.
+    thread.addEvent(message('$later', 2500, '$root'), false);
+    expect(thread.getEventReadUpTo(USER_ID)).toBe('$later');
+    expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
+  it('answers the last event before a newer unthreaded receipt', async () => {
+    const { room, thread } = await setupThread();
+    room.addReceipt(receipt(USER_ID, '$other', 5000, '$x'));
+    // Another device read the whole room.
+    room.addReceipt(receipt(USER_ID, '$other', 6000, undefined));
+
+    expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
+  });
+
+  it("keeps the SDK's answer for another member, and once the thread has newer activity", async () => {
+    const { room, thread } = await setupThread();
+    room.addReceipt(receipt(USER_ID, '$reply', 3000, '$root'));
+    // The rule applies only to the signed-in user.
+    room.addReceipt(receipt(OTHER_ID, '$reply', 3000, '$root'));
 
     expect(getThreadEventReadUpTo(thread, OTHER_ID)).toBe('$reply');
-    thread.addEvent(message('$later', 4000, '$root'), false);
+    thread.addEvent(message('$newer', 4000, '$root'), false);
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
   });
 });

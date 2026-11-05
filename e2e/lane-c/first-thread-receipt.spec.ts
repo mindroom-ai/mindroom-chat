@@ -83,14 +83,20 @@ const answerIn = (rootId: string, body: string) => ({
 
 type SentReceipt = { eventId: string; threadId?: string };
 
+/** The event a read receipt request names, and its thread. */
+const parseReceipt = (request: Request): SentReceipt | undefined => {
+  const path = /\/receipt\/[^/]+\/([^/?]+)/.exec(request.url());
+  if (request.method() !== 'POST' || !path) return undefined;
+  const { thread_id: threadId } = (request.postDataJSON() ?? {}) as { thread_id?: string };
+  return { eventId: decodeURIComponent(path[1] ?? ''), threadId };
+};
+
 /** The read receipts the page sends, in order. */
 const recordReceipts = (page: Page): SentReceipt[] => {
   const sent: SentReceipt[] = [];
   page.on('request', (request: Request) => {
-    const path = /\/receipt\/[^/]+\/([^/?]+)/.exec(request.url());
-    if (request.method() !== 'POST' || !path) return;
-    const { thread_id: threadId } = (request.postDataJSON() ?? {}) as { thread_id?: string };
-    sent.push({ eventId: decodeURIComponent(path[1] ?? ''), threadId });
+    const receipt = parseReceipt(request);
+    if (receipt) sent.push(receipt);
   });
   return sent;
 };
@@ -159,17 +165,24 @@ const waitForOverview = async (page: Page, name: string, rootIds: string[]) => {
     });
 };
 
-/** Opens a thread from its card, waits for its last answer and its receipt, and goes back. */
-const readThread = async (page: Page, rootId: string, index: number) => {
-  const receipt = page.waitForRequest(
-    (request) =>
-      request.url().includes('/receipt/') && request.postDataJSON()?.thread_id === rootId,
-    { timeout: 30_000 }
-  );
+/** The next receipt the page sends for a thread. */
+const nextThreadReceipt = (page: Page, rootId: string) =>
+  page.waitForRequest((request) => parseReceipt(request)?.threadId === rootId, {
+    timeout: 30_000,
+  });
+
+/** Opens a thread from its card and waits for its last answer. */
+const openThread = async (page: Page, rootId: string, index: number) => {
   await page.locator(`[data-thread-root-id="${rootId}"]`).click();
   await expect(
     page.getByText(`${QUESTIONS[index]} Answer ${ANSWERS_PER_THREAD}`, { exact: true })
   ).toBeVisible({ timeout: 30_000 });
+};
+
+/** Opens a thread, waits for its receipt, and goes back. */
+const readThread = async (page: Page, rootId: string, index: number) => {
+  const receipt = nextThreadReceipt(page, rootId);
+  await openThread(page, rootId, index);
   await receipt;
   await page.goBack();
 };
@@ -208,9 +221,10 @@ test('the first thread receipt in a room leaves every other thread unread until 
         body: question,
       })
     );
+  let newestAnswer = '';
   for (const [index, rootId] of roots.entries()) {
     for (let answer = 1; answer <= ANSWERS_PER_THREAD; answer += 1) {
-      await sendRoomMessage(
+      newestAnswer = await sendRoomMessage(
         HOMESERVER,
         alice.accessToken,
         roomId,
@@ -248,7 +262,8 @@ test('the first thread receipt in a room leaves every other thread unread until 
     .poll(() => threadStates(page, reader, roomId, roots))
     .toEqual(expected(['unread', 'unread', 'unread', 'read']));
 
-  // After a reload, the client knows only the server's receipts.
+  // After a reload, the client knows only the server's receipts. The newest thread's receipt,
+  // sent after its last answer, is now the room's oldest thread receipt; that thread stays read.
   await page.reload();
   await waitForOverview(page, name, roots);
   await expect
@@ -260,10 +275,35 @@ test('the first thread receipt in a room leaves every other thread unread until 
   await expect
     .poll(() => threadStates(page, reader, roomId, roots))
     .toEqual(expected(['unread', 'read', 'unread', 'read']));
+
+  // The reader reads the whole room on another device: an unthreaded receipt.
+  await matrixFetch(
+    HOMESERVER,
+    `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(newestAnswer)}`,
+    { method: 'POST', accessToken: reader.accessToken, body: '{}' }
+  );
+  await expect
+    .poll(() => threadStates(page, reader, roomId, roots))
+    .toEqual(expected(['read', 'read', 'read', 'read']));
+  // Opening a thread that receipt read sends the thread no receipt; Alice's next answer gets one.
+  const firstReceipt = nextThreadReceipt(page, roots[0]!);
+  await openThread(page, roots[0]!, 0);
+  const nextAnswer = await sendRoomMessage(
+    HOMESERVER,
+    alice.accessToken,
+    roomId,
+    answerIn(roots[0]!, `${QUESTIONS[0]} One more answer`)
+  );
+  expect(parseReceipt(await firstReceipt)?.eventId).toBe(nextAnswer);
+  await page.goBack();
+  await expect
+    .poll(() => threadStates(page, reader, roomId, roots))
+    .toEqual(expected(['read', 'read', 'read', 'read']));
+
   // Receipts went only to the opened threads, and none was unthreaded, which would read them all.
   expect(receipts.filter((receipt) => !receipt.threadId)).toEqual([]);
   const threadReceipts = receipts.flatMap(({ threadId }) =>
     threadId && threadId !== 'main' ? [threadId] : []
   );
-  expect([...new Set(threadReceipts)]).toEqual([roots[3], roots[1]]);
+  expect([...new Set(threadReceipts)]).toEqual([roots[3], roots[1], roots[0]]);
 });
