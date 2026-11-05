@@ -13,7 +13,6 @@ import { Text, color } from 'folds';
 import {
   EventStatus,
   MatrixEventEvent,
-  RelationType,
   type MatrixClient,
   type MatrixEvent,
   type Relations,
@@ -79,6 +78,7 @@ import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../threadRouteUtils';
 import { canPinRoomEvents } from '../threadPinning';
 import { getLinkedTimelines } from '../linkedTimelines';
+import { genuineReplyEventId } from '../timelineRowFold';
 import {
   getTimelineMessageKind,
   NOTICE_STATE_EVENT_TYPES,
@@ -113,16 +113,13 @@ type UseTimelineMessageFeatureOptions = TimelineSettings & {
 const isEditableOwnMessage = (client: MatrixClient, event: MatrixEvent): boolean =>
   isConfirmedMatrixEventId(event.getId()) && canEditEvent(client, event);
 
-/** Whether the row should quote what it replies to (not the message right before it, not a thread fallback). */
+/**
+ * Whether the row quotes what it replies to: a genuine reply (not a thread fallback) to a message
+ * that does not show right above it (`previousEventId`, from `foldTimelineRowContexts`).
+ */
 const shouldShowReply = (row: TimelineMessageRow): boolean => {
-  const { event, previousEventId } = row;
-  const replyEventId = event.replyEventId;
-  if (!replyEventId) return false;
-  const relation = event.getWireContent?.()?.['m.relates_to'] as
-    | { rel_type?: string; is_falling_back?: boolean }
-    | undefined;
-  if (relation?.rel_type === RelationType.Thread && relation.is_falling_back) return false;
-  return replyEventId !== previousEventId;
+  const replyEventId = genuineReplyEventId(row.event);
+  return replyEventId !== undefined && replyEventId !== row.previousEventId;
 };
 
 /**
@@ -246,9 +243,14 @@ const useReactionToggle = (room: Room, threadId: string | undefined) => {
   }, [failure]);
   const toggle = useCallback<ReactionToggle>(
     (targetEventId, key, shortcode, relations) => {
-      sendReactionToggle(client, { room, threadId, targetEventId, key, shortcode, relations }).catch(
-        () => setFailure({ eventId: targetEventId })
-      );
+      sendReactionToggle(client, {
+        room,
+        threadId,
+        targetEventId,
+        key,
+        shortcode,
+        relations,
+      }).catch(() => setFailure({ eventId: targetEventId }));
     },
     [client, room, threadId]
   );

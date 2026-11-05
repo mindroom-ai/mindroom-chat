@@ -297,7 +297,7 @@ export const renderTimelineTiles = ({
         timelineSet,
         collapse: context.collapse,
         highlighted: focusItem?.eventId === id && focusItem.highlight,
-        previousEventId: context.previousEventId,
+        previousEventId: context.inPlaceReplyEventId,
       };
       const rendered = renderEvent(row, messageData);
       if (rendered !== null) {
