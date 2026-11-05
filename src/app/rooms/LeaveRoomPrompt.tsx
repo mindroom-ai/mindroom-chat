@@ -39,8 +39,10 @@ const promptWidth = `min(calc(100vw - 2 * ${config.space.S400}), ${toRem(400)})`
 const bodyPadding = `${config.space.S200} ${config.space.S400} ${config.space.S400}`;
 
 // Escape and a click outside dismiss the prompt; Escape does not reach the room behind it.
+// Focus starts on the dialog itself, so a screen reader reads the question, and Enter or Space
+// leaves nothing by accident.
 const promptTrap = (dismiss: () => void): FocusTrapOptions => ({
-  initialFocus: false,
+  initialFocus: `#${HEADING_ID}-dialog`,
   escapeDeactivates: stopPropagation,
   onDeactivate: dismiss,
   clickOutsideDeactivates: true,
@@ -78,9 +80,12 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
       <OverlayCenter>
         <FocusTrap focusTrapOptions={promptTrap(requestClose)}>
           <Dialog
+            id={`${HEADING_ID}-dialog`}
             role="alertdialog"
             aria-labelledby={HEADING_ID}
-            style={{ width: '100%', maxWidth: promptWidth }}
+            aria-describedby={`${HEADING_ID}-question`}
+            tabIndex={-1}
+            style={{ width: '100%', maxWidth: promptWidth, outline: 'none' }}
           >
             <Header
               size="500"
@@ -99,7 +104,7 @@ export function LeaveRoomPrompt({ roomId, onLeft, requestClose }: LeaveRoomPromp
               </IconButton>
             </Header>
             <Box direction="Column" gap="400" style={{ padding: bodyPadding }}>
-              <Text size="T300" priority="400">
+              <Text id={`${HEADING_ID}-question`} size="T300" priority="400">
                 {t('sharedUi.leaveRoomPrompt.areYouSureYouWantToLeaveThisRoom')}
               </Text>
               <SettingTile

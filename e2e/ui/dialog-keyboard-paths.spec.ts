@@ -6,7 +6,8 @@ import { matrixFetch } from '../helpers/matrix';
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
 // - a prompt opened from the room header's menu (Invite, Leave Room) gives focus back to the
 //   menu's button when it closes, instead of to the start of the page;
-// - the arrow keys move between the entries of the room header's menu.
+// - the arrow keys move between the entries of the room header's menu;
+// - the Leave Room confirmation takes focus as it opens, so a screen reader announces it.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'dialog-keyboard-paths-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -123,9 +124,25 @@ const menuArrowKeys = async (page: Page) => {
   await expect(first).toBeFocused();
 };
 
+const leavePromptTakesFocus = async (page: Page) => {
+  const { viewer, roomId } = await seed();
+  await openRoom(page, viewer, roomId);
+  // With the pointer, as most people open it: the menu entry that had focus is gone then.
+  await page.getByRole('button', { name: 'More Options', exact: true }).click();
+  await page.getByRole('button', { name: 'Leave Room', exact: true }).click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toBeVisible();
+  await expect
+    .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
+  // Nothing destructive has focus: Enter right away does not leave the room.
+  await expect(page.getByRole('button', { name: 'Leave', exact: true })).not.toBeFocused();
+};
+
 const CHECKS: Array<[string, (page: Page) => Promise<void>]> = [
   ['prompts from the header menu give focus back to its button', focusReturnsToMenuButton],
   ['the arrow keys move through the header menu', menuArrowKeys],
+  ['the Leave Room confirmation takes focus as it opens', leavePromptTakesFocus],
 ];
 
 for (const [title, check] of CHECKS) {
