@@ -54,6 +54,10 @@ describe('opt-in deep diagnostic trace', () => {
   let dispose: (() => void) | undefined;
 
   beforeEach(async () => {
+    // The recorder's one-second loop timer records a navigation event on its first tick and a
+    // stall event on a late one. A test that runs past a second on a busy machine found them
+    // after its own events, so the timer only ticks when a test advances it.
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
     storage = new MemoryStorage();
     dispose = initializeDeepTraceRecorder(storage);
     await clearDeepTrace();
@@ -65,6 +69,7 @@ describe('opt-in deep diagnostic trace', () => {
     dispose = undefined;
     await clearDeepTrace();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it('records nothing until the device-local preference is enabled', async () => {
@@ -419,6 +424,8 @@ describe('opt-in deep diagnostic trace', () => {
     expect(completion?.data?.content_bytes).toBeNull();
   });
 
+  // Writes 5,005 events through fake-indexeddb: about a second alone, more than the default
+  // 5 s on a busy machine, and a timed-out run kept writing into the next tests.
   it('caps the persisted ring by event count and keeps the newest evidence', async () => {
     await setDeepTraceEnabled(true, storage);
     for (let start = 0; start < DEEP_TRACE_MAX_EVENTS + 5; start += 200) {
@@ -437,7 +444,7 @@ describe('opt-in deep diagnostic trace', () => {
       data: { index: DEEP_TRACE_MAX_EVENTS + 4 },
     });
     expect(snapshot.events.find((event) => event.data?.index === 0)).toBeUndefined();
-  });
+  }, 30_000);
 
   it('clears retained events without changing the opt-in preference', async () => {
     await setDeepTraceEnabled(true, storage);
