@@ -354,10 +354,14 @@ const checkOutputDirection = async (
   await shot(page, panel, `tool-row-open-${language}-${engine}-phone`);
   expect.soft(outputReads, `“${RESULT}” reads left to right (${where})`).toBe(true);
   expect.soft(queryReads, `“${QUERY}” reads left to right (${where})`).toBe(true);
+  // WebKit gives text cut off by the ellipsis an empty box, so the name must also have width.
   const [name] = names.rects;
   expect
     .soft(
-      !!name && name.left >= names.box.left - 1 && name.right <= names.box.right + 1,
+      !!name &&
+        name.right - name.left > 1 &&
+        name.left >= names.box.left - 1 &&
+        name.right <= names.box.right + 1,
       `the tool names keep their start (${where})`
     )
     .toBe(true);
