@@ -1,4 +1,5 @@
 import { ReceiptType, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { isSeenThreadRoot } from './seenThreadRoots';
 
 /**
  * When the user last read the room's main timeline: the newest of their main and unthreaded
@@ -33,9 +34,9 @@ const answeredInThread = (room: Room, event: MatrixEvent, userId: string): boole
 /**
  * Whether a message in the main timeline, such as a thread root, is unread for the user: someone
  * else sent it after the user last read the main timeline (`readTs`, see
- * `getMainTimelineReadTs`), and the user has not replied in its thread. The room's unread dot and
- * the unread thread filter both follow this rule, so a room is unread only for what the filter
- * finds.
+ * `getMainTimelineReadTs`), the user has not replied in its thread, and has not opened its thread
+ * on this device (`isSeenThreadRoot`). The room's unread dot and the unread thread filter both
+ * follow this rule, so a room is unread only for what the filter finds.
  */
 export const isMainTimelineMessageUnread = (
   room: Room,
@@ -46,4 +47,5 @@ export const isMainTimelineMessageUnread = (
   event.getSender() !== userId &&
   !event.isRedacted() &&
   event.getTs() > readTs &&
-  !answeredInThread(room, event, userId);
+  !answeredInThread(room, event, userId) &&
+  !isSeenThreadRoot(userId, room.roomId, event.getId());

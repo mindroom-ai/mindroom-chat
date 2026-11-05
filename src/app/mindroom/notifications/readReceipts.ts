@@ -13,6 +13,9 @@ import { inMainTimelineForReceipt } from 'matrix-js-sdk/lib/client';
 import { getThreadReadState } from '../threads/roomThreadList';
 import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 import { isVisibleThreadReplyEvent } from '../threads/threadUtils';
+import { getMainTimelineReadTs } from '../../utils/mainTimelineRead';
+import { getThreadRootReadAction } from '../../utils/room';
+import { forgetReadThreadRoots, rememberSeenThreadRoot } from '../../utils/seenThreadRoots';
 
 const receiptTypeFor = (privateReceipt: boolean): ReceiptType =>
   privateReceipt ? ReceiptType.ReadPrivate : ReceiptType.Read;
@@ -103,9 +106,34 @@ const lacksThreadReceipt = (room: Room): boolean =>
   room.getOldestThreadedReceiptTs?.() === Number.POSITIVE_INFINITY;
 
 /**
- * Reads one thread: a receipt scoped to the thread on its newest reply. Without the SDK's thread
- * model, the server's latest reply is fetched. A reply the user already read gets no new receipt,
- * except the room's first thread receipt, which lets later replies show as unread.
+ * Reads the root of an opened thread, which belongs to the main timeline: a main receipt once
+ * nothing else there is unread, else a record on this device (see `getThreadRootReadAction`).
+ * Never an unthreaded receipt, which would read every thread.
+ */
+const markThreadRootAsRead = async (
+  mx: MatrixClient,
+  room: Room,
+  threadId: string,
+  privateReceipt: boolean
+): Promise<void> => {
+  const userId = mx.getUserId();
+  const root = room.findEventById(threadId) ?? room.getThread(threadId)?.rootEvent;
+  if (!userId || !isConfirmed(root)) return;
+  const action = getThreadRootReadAction(mx, room, root);
+  if (action === 'seen') {
+    rememberSeenThreadRoot(userId, room.roomId, root, getMainTimelineReadTs(room, userId));
+  } else if (action === 'receipt') {
+    await markMainTimelineAsRead(mx, room.roomId, privateReceipt);
+    // The receipt's local echo moved the read time past the roots seen before.
+    forgetReadThreadRoots(userId, room.roomId, getMainTimelineReadTs(room, userId));
+  }
+};
+
+/**
+ * Reads one thread: its root (`markThreadRootAsRead`), then a receipt scoped to the thread on its
+ * newest reply. Without the SDK's thread model, the server's latest reply is fetched. A reply the
+ * user already read gets no new receipt, except the room's first thread receipt, which lets later
+ * replies show as unread.
  */
 export const markThreadAsRead = async (
   mx: MatrixClient,
@@ -117,6 +145,8 @@ export const markThreadAsRead = async (
   if (!isConfirmedMatrixEventId(threadId)) return;
   const room = mx.getRoom(roomId);
   if (!room) return;
+  // The root first, so views that update on the thread receipt find the root read too.
+  await markThreadRootAsRead(mx, room, threadId, privateReceipt);
   const thread = room.getThread(threadId);
   let target: MatrixEvent | undefined;
   if (thread) {

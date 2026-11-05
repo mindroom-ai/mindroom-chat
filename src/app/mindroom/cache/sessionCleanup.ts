@@ -10,6 +10,7 @@ import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../threads/roomViewMode';
 import { clearThreadSummarySharedState } from '../threads/threadSummaryStore';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../utils/safeLocalStorage';
+import { clearSeenThreadRoots } from '../../utils/seenThreadRoots';
 import {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
@@ -85,6 +86,7 @@ export const clearMindroomUserUiState = (userId: string): void => {
   clearRecentThreadsStore(userId);
   clearRecentlyOpenedPanelHeightStore(userId);
   clearThreadSidebarPreferencesStore(userId);
+  clearSeenThreadRoots(userId);
 };
 
 export const clearMindroomSessionUiState = (sessionId: string): void => {

@@ -33,6 +33,14 @@ const setupRoom = async () => {
   const root = message('$root', 1000);
   const reply = message('$reply', 2000, '$root');
   room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
+  // The reader read the main timeline, the root included, so only the thread is left to read.
+  room.addReceipt(
+    new MatrixEvent({
+      type: 'm.receipt',
+      room_id: ROOM_ID,
+      content: { $root: { [ReceiptType.Read]: { [USER_ID]: { thread_id: 'main', ts: 1500 } } } },
+    })
+  );
   const thread = room.createThread('$root', root, [reply], false);
   await vi.waitFor(() =>
     expect(thread.events.some((event) => event.getId() === '$reply')).toBe(true)

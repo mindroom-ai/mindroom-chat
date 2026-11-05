@@ -1,6 +1,8 @@
 import {
+  Direction,
   EventTimeline,
   EventType,
+  NotificationCountType,
   RelationType,
   type EventTimelineSet,
   type IContent,
@@ -18,6 +20,7 @@ import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from './matchesEnum';
 import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimelineRead';
+import { countSeenThreadRootsAfter } from './seenThreadRoots';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -301,6 +304,56 @@ export const roomHaveUnread = (client: MatrixClient, room: Room): boolean => {
     if (isMainTimelineMessageUnread(room, event, selfId, readTs)) return true;
   }
   return false;
+};
+
+/** How opening a thread reads its root; see `getThreadRootReadAction`. */
+export type ThreadRootReadAction = 'receipt' | 'seen';
+
+/**
+ * How to mark a thread's root read when the user opens the thread. The root belongs to the main
+ * timeline, and the server reads all of it on any main receipt, the messages after the one the
+ * receipt names included. So `receipt`, a main receipt, only once nothing else there is unread
+ * (`isMainTimelineMessageUnread`, which counts the roots seen before as read), and until then
+ * `seen`: the root counts as read on this device (`rememberSeenThreadRoot`). Undefined when the
+ * root is read already.
+ *
+ * The walk goes back from the newest loaded event to the user's read position or own last
+ * message. When it runs out of loaded events first, the server's count of unread main-timeline
+ * notifications tells whether the history not loaded holds more than this root and the roots seen
+ * before.
+ */
+export const getThreadRootReadAction = (
+  mx: MatrixClient,
+  room: Room,
+  root: MatrixEvent
+): ThreadRootReadAction | undefined => {
+  const selfId = mx.getUserId();
+  if (!selfId) return undefined;
+  const readTs = getMainTimelineReadTs(room, selfId);
+  if (!isMainTimelineMessageUnread(room, root, selfId, readTs)) return undefined;
+  const readUpToId = room.getEventReadUpTo(selfId);
+  const timeline = room.getLiveTimeline();
+  const events = timeline.getEvents();
+
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!event || event.getId() === root.getId()) continue;
+    // The timeline is in order, so everything older was read too.
+    if (event.getId() === readUpToId || event.getTs() <= readTs) return 'receipt';
+    if (!isUnreadWorthy(event)) continue;
+    if (event.getSender() === selfId) return 'receipt';
+    if (isMainTimelineMessageUnread(room, event, selfId, readTs)) return 'seen';
+  }
+
+  const olderNotLoaded =
+    timeline.getPaginationToken(Direction.Backward) !== null ||
+    !!timeline.getNeighbouringTimeline(Direction.Backward);
+  if (!olderNotLoaded) return 'receipt';
+  const known =
+    (mx.getPushActionsForEvent(root)?.notify ? 1 : 0) +
+    countSeenThreadRootsAfter(selfId, room.roomId, readTs);
+  const counted = room.getRoomUnreadNotificationCount(NotificationCountType.Total) ?? 0;
+  return counted <= known ? 'receipt' : 'seen';
 };
 
 export const getUnreadInfo = (room: Room) => ({
