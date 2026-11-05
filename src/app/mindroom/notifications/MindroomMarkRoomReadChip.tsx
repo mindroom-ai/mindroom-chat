@@ -4,7 +4,8 @@ import { useMarkRoomsRead } from './useMarkRoomsRead';
 
 /**
  * The "Mark as read" chip shown with a room's unread messages; reads its threads too, then calls
- * `onMarked` once the receipt has been sent.
+ * `onMarked` once the receipt has been sent. Beside a long room name it keeps its label on one
+ * line: the name shrinks instead.
  */
 export function MindroomMarkRoomReadChip({
   roomId,
@@ -22,6 +23,7 @@ export function MindroomMarkRoomReadChip({
       before={checkIcon}
       radii="Pill"
       variant="SurfaceVariant"
+      style={{ flexShrink: 0 }}
       onClick={() => {
         void markRead([roomId]).then(onMarked);
       }}
