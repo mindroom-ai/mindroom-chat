@@ -96,3 +96,4 @@ src/app/pages/client/canvases/index.ts	1	restructure: barrel, importers point at
 src/app/components/room-access/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
 src/app/pages/client/threads/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
 src/app/components/particle-background/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
+src/app/mindroom/routing/clientRouteRestore.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)

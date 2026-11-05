@@ -1,293 +1,132 @@
+// Room and space routes name a room by alias (`#room:server`) or by room ID (`!id:server`). The
+// signed-in layout stores room ID routes as each session's last route, and swaps a visible alias
+// route for its room ID route before the page renders, so no page flashes a join prompt while an
+// alias resolves.
+
 import type { MatrixClient } from 'matrix-js-sdk';
 import { generatePath, matchPath } from 'react-router-dom';
-import {
-  DIRECT_ROOM_PATH,
-  HOME_ROOM_PATH,
-  SPACE_LOBBY_PATH,
-  SPACE_PATH,
-  SPACE_ROOM_PATH,
-  SPACE_SEARCH_PATH,
-} from '../routes/paths';
 import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
+import { decodeRouteParam } from '../routes/pathUtils';
+import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_PATH, SPACE_ROOM_PATH } from '../routes/paths';
 
-const MINDROOM_ROUTE_PARSE_BASE_URL = 'https://mindroom.local';
+/**
+ * The routes whose segments name rooms and spaces, in the order they are tried. The space room
+ * pattern takes every path of two or three segments outside Home and Direct Messages, the space
+ * lobby and search routes among them; their fixed second segment is not an alias, so they come
+ * back unchanged.
+ */
+const ROOM_ROUTE_PATTERNS = [HOME_ROOM_PATH, DIRECT_ROOM_PATH, SPACE_ROOM_PATH, SPACE_PATH];
 
+/** The optional segment that focuses an event. Every other segment names a room or space. */
+const EVENT_SEGMENT = 'eventId';
+
+/** Stored routes are relative paths; this base only makes them parse. */
+const STORED_ROUTE_BASE = 'https://mindroom.local';
+
+/** One present segment of a matched route: its parameter name and its decoded text. */
+type Segment = { name: string; text: string };
+
+type RoomRoute = { pattern: string; segments: Segment[] };
+
+/**
+ * The first room route that matches the whole pathname (case-sensitive, trailing slash
+ * optional), with each segment decoded once. Malformed percent-encoding is kept as text.
+ */
+const matchRoomRoute = (pathname: string): RoomRoute | undefined => {
+  for (const pattern of ROOM_ROUTE_PATTERNS) {
+    const match = matchPath({ path: pattern, caseSensitive: true, end: true }, pathname);
+    if (match) {
+      const segments = Object.entries(match.params).flatMap(([name, encoded]) =>
+        encoded === undefined ? [] : [{ name, text: decodeRouteParam(encoded) }]
+      );
+      return { pattern, segments };
+    }
+  }
+  return undefined;
+};
+
+const namesRoom = (segment: Segment): boolean => segment.name !== EVENT_SEGMENT;
+
+/** The route's path, each segment encoded on its own; `generatePath` drops the trailing slash. */
+const buildPathname = (pattern: string, segments: Segment[]): string =>
+  generatePath(
+    pattern,
+    Object.fromEntries(segments.map(({ name, text }) => [name, encodeURIComponent(text)]))
+  );
+
+/**
+ * A room or space segment as a room ID from what the client already holds: an alias maps to the
+ * room that carries it as its canonical or an alternative alias, and a segment that is no alias
+ * stays as it is. Undefined for an alias no room carries. Only an alias makes it read the client.
+ */
+const knownRoomId = (mx: MatrixClient, roomIdOrAlias: string): string | undefined =>
+  isRoomAlias(roomIdOrAlias) ? getCanonicalAliasRoomId(mx, roomIdOrAlias) : roomIdOrAlias;
+
+/** The room ID the homeserver's room directory gives for an alias; else the alias, never a throw. */
+const directoryRoomId = async (mx: MatrixClient, alias: string): Promise<string> => {
+  try {
+    const { room_id: roomId } = await mx.getRoomIdForAlias(alias);
+    return roomId || alias;
+  } catch {
+    return alias;
+  }
+};
+
+/**
+ * Parses a stored route against a fixed base, or gives undefined when it is not a URL. A relative
+ * path keeps its percent-encoding. The origin is not checked: an absolute URL, or `//host/path`,
+ * keeps its own, so a caller uses only the path, search and hash, or checks the origin first.
+ */
 export const parseStoredRouteUrl = (storedPath: string): URL | undefined => {
   try {
-    return new URL(storedPath, MINDROOM_ROUTE_PARSE_BASE_URL);
+    return new URL(storedPath, STORED_ROUTE_BASE);
   } catch {
     return undefined;
   }
 };
 
-const decodeRouteParam = (value: string | undefined): string | undefined => {
-  if (!value) return undefined;
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
-  }
-};
+/** Whether a room or space segment of the route is an alias. Event segments never count. */
+export const pathnameContainsAliasRoute = (pathname: string): boolean =>
+  matchRoomRoute(pathname)?.segments.some(
+    (segment) => namesRoom(segment) && isRoomAlias(segment.text)
+  ) ?? false;
 
-const canonicalizeRouteParam = (
-  mx: MatrixClient,
-  value: string | undefined
-): string | undefined => {
-  const decodedValue = decodeRouteParam(value);
-  if (!decodedValue) return decodedValue;
-  if (!isRoomAlias(decodedValue)) return decodedValue;
-  return getCanonicalAliasRoomId(mx, decodedValue) ?? decodedValue;
-};
-
-const hasAliasRouteParam = (value: string | undefined): boolean => {
-  const decodedValue = decodeRouteParam(value);
-  return !!decodedValue && isRoomAlias(decodedValue);
-};
-
-const encodeMaybeDecodedRouteParam = (value: string | undefined): string | null =>
-  value ? encodeURIComponent(decodeRouteParam(value) ?? value) : null;
-
-export const pathnameContainsAliasRoute = (pathname: string): boolean => {
-  const homeRoomMatch = matchPath(
-    { path: HOME_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (homeRoomMatch) {
-    return hasAliasRouteParam(homeRoomMatch.params.roomIdOrAlias);
-  }
-
-  const directRoomMatch = matchPath(
-    { path: DIRECT_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (directRoomMatch) {
-    return hasAliasRouteParam(directRoomMatch.params.roomIdOrAlias);
-  }
-
-  const spaceRoomMatch = matchPath(
-    { path: SPACE_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceRoomMatch) {
-    return (
-      hasAliasRouteParam(spaceRoomMatch.params.spaceIdOrAlias) ||
-      hasAliasRouteParam(spaceRoomMatch.params.roomIdOrAlias)
-    );
-  }
-
-  const spaceOnlyMatch = matchPath({ path: SPACE_PATH, caseSensitive: true, end: true }, pathname);
-  if (spaceOnlyMatch) {
-    return hasAliasRouteParam(spaceOnlyMatch.params.spaceIdOrAlias);
-  }
-
-  const spaceLobbyMatch = matchPath(
-    { path: SPACE_LOBBY_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceLobbyMatch) {
-    return hasAliasRouteParam(spaceLobbyMatch.params.spaceIdOrAlias);
-  }
-
-  const spaceSearchMatch = matchPath(
-    { path: SPACE_SEARCH_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceSearchMatch) {
-    return hasAliasRouteParam(spaceSearchMatch.params.spaceIdOrAlias);
-  }
-
-  return false;
-};
-
-const resolveCanonicalRouteParam = async (
-  mx: MatrixClient,
-  value: string | undefined
-): Promise<string | undefined> => {
-  const decodedValue = decodeRouteParam(value);
-  if (!decodedValue) return decodedValue;
-  if (!isRoomAlias(decodedValue)) return decodedValue;
-
-  const knownRoomId = getCanonicalAliasRoomId(mx, decodedValue);
-  if (knownRoomId) return knownRoomId;
-
-  try {
-    const response = await mx.getRoomIdForAlias(decodedValue);
-    return response.room_id ?? decodedValue;
-  } catch {
-    return decodedValue;
-  }
-};
-
+/**
+ * The pathname to store as the session's last route: each alias the client already knows becomes
+ * its room ID, other aliases stay, without network access. Gives back the pathname unchanged when
+ * it is no room or space route. Search and hash are the caller's to append.
+ */
 export const canonicalizeSessionPathname = (mx: MatrixClient, pathname: string): string => {
-  const homeRoomMatch = matchPath(
-    { path: HOME_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
+  const route = matchRoomRoute(pathname);
+  if (!route) return pathname;
+  const segments = route.segments.map((segment) =>
+    namesRoom(segment)
+      ? { ...segment, text: knownRoomId(mx, segment.text) ?? segment.text }
+      : segment
   );
-  if (homeRoomMatch) {
-    return generatePath(HOME_ROOM_PATH, {
-      roomIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, homeRoomMatch.params.roomIdOrAlias) ??
-          homeRoomMatch.params.roomIdOrAlias!
-      ),
-      eventId: encodeMaybeDecodedRouteParam(homeRoomMatch.params.eventId),
-    });
-  }
-
-  const directRoomMatch = matchPath(
-    { path: DIRECT_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (directRoomMatch) {
-    return generatePath(DIRECT_ROOM_PATH, {
-      roomIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, directRoomMatch.params.roomIdOrAlias) ??
-          directRoomMatch.params.roomIdOrAlias!
-      ),
-      eventId: encodeMaybeDecodedRouteParam(directRoomMatch.params.eventId),
-    });
-  }
-
-  const spaceRoomMatch = matchPath(
-    { path: SPACE_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceRoomMatch) {
-    return generatePath(SPACE_ROOM_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, spaceRoomMatch.params.spaceIdOrAlias) ??
-          spaceRoomMatch.params.spaceIdOrAlias!
-      ),
-      roomIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, spaceRoomMatch.params.roomIdOrAlias) ??
-          spaceRoomMatch.params.roomIdOrAlias!
-      ),
-      eventId: encodeMaybeDecodedRouteParam(spaceRoomMatch.params.eventId),
-    });
-  }
-
-  const spaceOnlyMatch = matchPath({ path: SPACE_PATH, caseSensitive: true, end: true }, pathname);
-  if (spaceOnlyMatch) {
-    return generatePath(SPACE_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, spaceOnlyMatch.params.spaceIdOrAlias) ??
-          spaceOnlyMatch.params.spaceIdOrAlias!
-      ),
-    });
-  }
-
-  const spaceLobbyMatch = matchPath(
-    { path: SPACE_LOBBY_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceLobbyMatch) {
-    return generatePath(SPACE_LOBBY_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, spaceLobbyMatch.params.spaceIdOrAlias) ??
-          spaceLobbyMatch.params.spaceIdOrAlias!
-      ),
-    });
-  }
-
-  const spaceSearchMatch = matchPath(
-    { path: SPACE_SEARCH_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceSearchMatch) {
-    return generatePath(SPACE_SEARCH_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        canonicalizeRouteParam(mx, spaceSearchMatch.params.spaceIdOrAlias) ??
-          spaceSearchMatch.params.spaceIdOrAlias!
-      ),
-    });
-  }
-
-  return pathname;
+  return buildPathname(route.pattern, segments);
 };
 
+/**
+ * The pathname with room IDs for the visible route: like `canonicalizeSessionPathname`, and the
+ * aliases the client does not know are looked up in the homeserver's room directory, all at once.
+ * A failed lookup keeps its alias, so the promise rejects only when the client itself throws.
+ */
 export const resolveCanonicalizedPathname = async (
   mx: MatrixClient,
   pathname: string
 ): Promise<string> => {
-  const homeRoomMatch = matchPath(
-    { path: HOME_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
+  const route = matchRoomRoute(pathname);
+  if (!route) return pathname;
+  const segments = await Promise.all(
+    route.segments.map(async (segment) =>
+      namesRoom(segment)
+        ? {
+            ...segment,
+            text: knownRoomId(mx, segment.text) ?? (await directoryRoomId(mx, segment.text)),
+          }
+        : segment
+    )
   );
-  if (homeRoomMatch) {
-    return generatePath(HOME_ROOM_PATH, {
-      roomIdOrAlias: encodeURIComponent(
-        (await resolveCanonicalRouteParam(mx, homeRoomMatch.params.roomIdOrAlias)) ??
-          homeRoomMatch.params.roomIdOrAlias!
-      ),
-      eventId: encodeMaybeDecodedRouteParam(homeRoomMatch.params.eventId),
-    });
-  }
-
-  const directRoomMatch = matchPath(
-    { path: DIRECT_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (directRoomMatch) {
-    return generatePath(DIRECT_ROOM_PATH, {
-      roomIdOrAlias: encodeURIComponent(
-        (await resolveCanonicalRouteParam(mx, directRoomMatch.params.roomIdOrAlias)) ??
-          directRoomMatch.params.roomIdOrAlias!
-      ),
-      eventId: encodeMaybeDecodedRouteParam(directRoomMatch.params.eventId),
-    });
-  }
-
-  const spaceRoomMatch = matchPath(
-    { path: SPACE_ROOM_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceRoomMatch) {
-    const [spaceIdOrAlias, roomIdOrAlias] = await Promise.all([
-      resolveCanonicalRouteParam(mx, spaceRoomMatch.params.spaceIdOrAlias),
-      resolveCanonicalRouteParam(mx, spaceRoomMatch.params.roomIdOrAlias),
-    ]);
-
-    return generatePath(SPACE_ROOM_PATH, {
-      spaceIdOrAlias: encodeURIComponent(spaceIdOrAlias ?? spaceRoomMatch.params.spaceIdOrAlias!),
-      roomIdOrAlias: encodeURIComponent(roomIdOrAlias ?? spaceRoomMatch.params.roomIdOrAlias!),
-      eventId: encodeMaybeDecodedRouteParam(spaceRoomMatch.params.eventId),
-    });
-  }
-
-  const spaceOnlyMatch = matchPath({ path: SPACE_PATH, caseSensitive: true, end: true }, pathname);
-  if (spaceOnlyMatch) {
-    return generatePath(SPACE_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        (await resolveCanonicalRouteParam(mx, spaceOnlyMatch.params.spaceIdOrAlias)) ??
-          spaceOnlyMatch.params.spaceIdOrAlias!
-      ),
-    });
-  }
-
-  const spaceLobbyMatch = matchPath(
-    { path: SPACE_LOBBY_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceLobbyMatch) {
-    return generatePath(SPACE_LOBBY_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        (await resolveCanonicalRouteParam(mx, spaceLobbyMatch.params.spaceIdOrAlias)) ??
-          spaceLobbyMatch.params.spaceIdOrAlias!
-      ),
-    });
-  }
-
-  const spaceSearchMatch = matchPath(
-    { path: SPACE_SEARCH_PATH, caseSensitive: true, end: true },
-    pathname
-  );
-  if (spaceSearchMatch) {
-    return generatePath(SPACE_SEARCH_PATH, {
-      spaceIdOrAlias: encodeURIComponent(
-        (await resolveCanonicalRouteParam(mx, spaceSearchMatch.params.spaceIdOrAlias)) ??
-          spaceSearchMatch.params.spaceIdOrAlias!
-      ),
-    });
-  }
-
-  return pathname;
+  return buildPathname(route.pattern, segments);
 };
