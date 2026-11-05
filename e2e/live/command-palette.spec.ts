@@ -33,16 +33,16 @@ test.describe('command palette', () => {
     await expect(input).toBeFocused();
 
     await input.fill(roomName);
-    await dialog.getByRole('button', { name: 'Rooms', exact: true }).click();
-    await expect(input).toHaveValue(`# ${roomName}`);
+    await dialog.getByRole('tab', { name: 'Rooms', exact: true }).click();
+    await expect(input).toHaveValue(roomName);
     await expect(input).toBeFocused();
-    await expect(dialog.getByRole('button', { name: 'Rooms', exact: true })).toHaveAttribute(
-      'aria-pressed',
+    await expect(dialog.getByRole('tab', { name: 'Rooms', exact: true })).toHaveAttribute(
+      'aria-selected',
       'true'
     );
     await expect(dialog.getByRole('option').filter({ hasText: roomName })).toBeVisible();
     await expect(dialog.locator('[role="option"]:not([data-kind="room"])')).toHaveCount(0);
-    await dialog.getByRole('button', { name: 'All', exact: true }).click();
+    await dialog.getByRole('tab', { name: 'All', exact: true }).click();
     await expect(input).toHaveValue(roomName);
     await input.fill('');
     const firstSelectedId = await input.getAttribute('aria-activedescendant');
@@ -115,7 +115,11 @@ test.describe('command palette', () => {
     await expect(trigger).toHaveCount(1);
     const header = page.getByRole('banner').filter({ hasText: currentName });
     await header.getByRole('button', { name: 'More Options' }).click();
-    await page.getByRole('button', { name: 'Message Search' }).click();
+    // The sidebar's Message Search is a button too now; it opens the palette instead.
+    await page
+      .getByRole('button', { name: 'Message Search' })
+      .and(page.locator(':not([data-home-room-action])'))
+      .click();
     await expect(page).toHaveURL(
       new RegExp(`/search/\\?${new URLSearchParams({ rooms: currentId })}$`)
     );
@@ -172,10 +176,10 @@ test.describe('command palette', () => {
       expect(shellCornerRadii.bottomRight).toBe(shellCornerRadii.topRight);
       await page.screenshot({ path: testInfo.outputPath('rounded-command-palette.png') });
 
-      await dialog.getByRole('button', { name: 'Spaces', exact: true }).click();
-      await expect(input).toHaveValue('* ');
+      await dialog.getByRole('tab', { name: 'Actions', exact: true }).click();
+      await expect(dialog.getByRole('tab', { selected: true })).toHaveText('Actions');
       await expect(input).toBeFocused();
-      await input.fill('> zxqnotfound');
+      await input.fill('zxqnotfound');
       await expect(dialog.getByRole('option')).toHaveCount(0);
       await expect(input).not.toHaveAttribute('aria-activedescendant');
       await dialog.getByRole('button', { name: 'Clear search' }).click();
