@@ -206,12 +206,62 @@ const LOGICAL_SIDES_EXCLUDED = [
   '**/__tests__/**',
 ];
 
+// Domain layers, lowest first (docs/architecture.md "Layers"). A domain imports only domains of a
+// lower layer: static, type-only and dynamic imports and re-exports count (the rule does not see an
+// inline `import('...')` type), while the folders inside one domain import each other freely.
+// Adding a domain means adding it here; src/test/layering.test.ts fails while a folder of src/app
+// has no layer.
+const LAYERS = [
+  ['lib', 'src/boot', 'src/types'],
+  ['config', 'i18n', 'preferences', 'routes', 'shortcuts', 'src/sw'],
+  ['diagnostics', 'native', 'ui'],
+  ['matrix', 'theme'],
+  ['avatars', 'models', 'navigation', 'rich-text', 'ui-actions'],
+  ['computer', 'emoji', 'event-store'],
+  ['approvals', 'bug-reports', 'calls', 'connections', 'editor'],
+  ['background-jobs', 'members', 'messages'],
+  ['canvas', 'composer', 'notifications', 'schedules', 'search'],
+  ['rooms', 'threads'],
+  ['account', 'spaces', 'timeline'],
+  ['command-palette', 'local-mindroom', 'room'],
+  ['settings'],
+  ['sidebar'],
+  ['shell'],
+  ['src/index.tsx'],
+];
+const domainDir = (domain) => (domain.startsWith('src/') ? `./${domain}` : `./src/app/${domain}`);
+// One zone per domain: it may import nothing of its own layer or above. The entry point, alone at
+// the top, needs none.
+const LAYER_ZONES = LAYERS.flatMap((layer, index) =>
+  layer.map((domain) => ({
+    target: domainDir(domain),
+    from: LAYERS.slice(index)
+      .flat()
+      .filter((other) => other !== domain)
+      .map(domainDir),
+    message: `${domain} (layer ${index}) may import only lower layers; see docs/architecture.md "Layers".`,
+  }))
+).filter((zone) => zone.from.length > 0);
+// Tests and their helpers (the files tsconfig.app.json leaves out) may import any layer.
+const LAYERS_EXEMPT = [
+  '**/*.test.{ts,tsx}',
+  '**/*.test.shared.ts',
+  '**/__tests__/**',
+  '**/test-utils/**',
+  '**/testUtils.ts',
+];
+
 module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
   parserOptions: { ecmaVersion: 'latest', sourceType: 'module', ecmaFeatures: { jsx: true } },
   env: { browser: true, es2022: true, node: true },
-  settings: { react: { version: '18.2' } },
+  settings: {
+    react: { version: '18.2' },
+    // import/no-restricted-paths skips an import it cannot resolve, and the node resolver tries no
+    // TypeScript extensions by default.
+    'import/resolver': { node: { extensions: ['.ts', '.tsx', '.js', '.jsx', '.mjs'] } },
+  },
   plugins: ['@typescript-eslint', 'react', 'react-hooks', 'import', 'jsx-a11y'],
   extends: [
     'eslint:recommended',
@@ -300,6 +350,15 @@ module.exports = {
       files: ['src/**/*.css.ts'],
       excludedFiles: LOGICAL_SIDES_EXCLUDED,
       rules: { 'no-restricted-syntax': ['error', ...LOGICAL_SIDES_IN_STYLE_FILES] },
+    },
+    {
+      // Domain layers (LAYERS above), in both lanes. Zones resolve from this directory, so the
+      // rule does not depend on the directory ESLint runs in.
+      files: ['src/**/*.{ts,tsx,js,jsx,mjs}'],
+      excludedFiles: LAYERS_EXEMPT,
+      rules: {
+        'import/no-restricted-paths': ['warn', { basePath: __dirname, zones: LAYER_ZONES }],
+      },
     },
     // The two wrappers come after the Lane C block, whose import rule they relax.
     {
