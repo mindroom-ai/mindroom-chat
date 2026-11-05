@@ -14,6 +14,10 @@ import { PageScroll } from '../../ui/page/PageScroll';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { SettingTile } from '../../ui/SettingTile';
 import { scrollHeaderHeight } from '../../ui/page/scrollHeaderInset';
+import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
+import { SettingsBreadcrumb } from '../../ui/settings/SettingsPageFrame';
+import { TitleBarLine } from '../../ui/settings/titleBar.css';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { readImagePackUpload } from './imagePackUpload';
 import {
   addPackImages,
@@ -141,6 +145,7 @@ const CARD_STYLE = { padding: config.space.S300 };
 export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
   const client = useMatrixClient();
   const { t } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const canEdit = canEditPack(client, address);
   const saved = useSavedPack(client, address);
   const alive = useAlive();
@@ -261,19 +266,25 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
     }
   };
 
+  // Back leads to the settings page the pack opened from; phones use their pages' chevron.
+  const backLabel = t('sharedUi.imagePackView.back');
+  const back = phone ? (
+    <PhoneBackButton onBack={requestClose} label={backLabel} />
+  ) : (
+    <IconButton variant="Surface" onClick={requestClose} aria-label={backLabel}>
+      <Icon src={Icons.ArrowLeft} data-directional />
+    </IconButton>
+  );
   const header = (
-    <PageHeader outlined={false} style={HEADER_INSET}>
+    <PageHeader
+      outlined={false}
+      balance={phone}
+      className={TitleBarLine}
+      style={phone ? undefined : HEADER_INSET}
+    >
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
-        <IconButton
-          variant="Surface"
-          onClick={requestClose}
-          aria-label={t('sharedUi.imagePackView.back')}
-        >
-          <Icon src={Icons.ArrowLeft} data-directional />
-        </IconButton>
-        <Text size="H3" truncate>
-          {t('sharedUi.imagePackView.emojisStickers')}
-        </Text>
+        {back}
+        <SettingsBreadcrumb title={t('sharedUi.imagePackView.emojisStickers')} />
       </Box>
     </PageHeader>
   );

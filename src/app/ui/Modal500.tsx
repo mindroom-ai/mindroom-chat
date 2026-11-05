@@ -34,15 +34,18 @@ const closingTrap = (onClose: () => void): TrapOptions => ({
 });
 
 /**
- * Names the dialog after the first heading inside it (the settings title, a room's name), which
- * changes as its pages do.
+ * Names the dialog after the element marked `data-dialog-title` (the "Settings" of a settings
+ * page's title bar), or else the first heading inside it (a room's name), which changes as its
+ * pages do.
  */
 const useNamedByHeading = () => {
   const ref = useRef<HTMLDivElement>(null);
   const fallbackId = useId();
   useLayoutEffect(() => {
     const dialog = ref.current;
-    const heading = dialog?.querySelector?.<HTMLElement>('h1, h2, h3, [role="heading"]');
+    const heading =
+      dialog?.querySelector?.<HTMLElement>('[data-dialog-title]') ??
+      dialog?.querySelector?.<HTMLElement>('h1, h2, h3, [role="heading"]');
     if (!dialog || !heading) return;
     if (!heading.id) heading.id = `${fallbackId}-title`;
     dialog.setAttribute('aria-labelledby', heading.id);

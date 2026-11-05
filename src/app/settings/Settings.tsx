@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -55,6 +55,7 @@ import { Notifications } from '../notifications/settings/Notifications';
 import { PrivacySecurity } from './pages/PrivacySecurity';
 import { Sidebar } from './pages/InterfaceSettings';
 import { StorageOffline } from './pages/StorageOffline';
+import { SettingsBreadcrumbRoot } from '../ui/settings/SettingsPageFrame';
 import { SettingsMenu, SettingsMenuGroupLabel } from '../ui/settings/frame.css';
 
 type SettingsProps = {
@@ -265,6 +266,10 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     [context.localMindroom, context.native, t]
   );
   const isMobile = viewport === ScreenSize.Mobile;
+  // Each page's title bar names the dialog; pages come and go, so the title keeps one ID for the
+  // dialog's label to point at.
+  const titleId = useId();
+  const dialogTitle = useMemo(() => ({ label: t('settings.title'), id: titleId }), [t, titleId]);
 
   // On mobile a page closes back to the menu; on desktop it closes the dialog.
   const handlePageRequestClose = useCallback(
@@ -322,13 +327,15 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
       {activePage !== undefined && (
         // `display: contents` keeps the page in the dialog's row; search looks for settings here.
         <div ref={pageRef} style={{ display: 'contents' }}>
-          <SettingsTargetContext.Provider value={target}>
-            <SettingsPageContent
-              page={activePage}
-              requestClose={handlePageRequestClose}
-              closeDialog={requestClose}
-            />
-          </SettingsTargetContext.Provider>
+          <SettingsBreadcrumbRoot.Provider value={dialogTitle}>
+            <SettingsTargetContext.Provider value={target}>
+              <SettingsPageContent
+                page={activePage}
+                requestClose={handlePageRequestClose}
+                closeDialog={requestClose}
+              />
+            </SettingsTargetContext.Provider>
+          </SettingsBreadcrumbRoot.Provider>
         </div>
       )}
     </PageRoot>

@@ -1,21 +1,7 @@
 import { useCallback, useEffect, useRef, useState, ReactNode } from 'react';
-import {
-  Box,
-  Button,
-  Icon,
-  IconButton,
-  Icons,
-  Spinner,
-  Switch,
-  Text,
-  color,
-  config,
-  toRem,
-} from 'folds';
+import { Box, Button, Icon, Icons, Spinner, Switch, Text, color, config, toRem } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { ViewerOverlay } from '../../messages/content/FileContent';
-import { Page, PageContent, PageHeader } from '../../ui/page/Page';
-import { PageScroll } from '../../ui/page/PageScroll';
 import { SequenceCard } from '../../ui/SequenceCard';
 import { SettingTile } from '../../ui/SettingTile';
 import { TextViewer } from '../../messages/viewers/TextViewer';
@@ -36,6 +22,7 @@ import { buildDiagnosticsExport } from '../../diagnostics/diagnosticsExport';
 import { APP_RELEASE_VERSION } from '../../config/appVersion';
 import { parseDsn } from '../../bug-reports/error-reporting/errorReporting';
 import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
+import { SettingsPageFrame } from '../../ui/settings/SettingsPageFrame';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 
 type TraceNotice = 'storage-unavailable' | 'restart-may-reenable' | undefined;
@@ -383,47 +370,20 @@ export function About({ requestClose }: AboutProps) {
   const nativeDiagnostics = isNativeIOS();
   const collectorHost = parseDsn(useClientConfig().errorReporting?.dsn)?.host;
 
-  const header = (
-    <PageHeader outlined={false}>
-      <Box grow="Yes" gap="200">
-        <Box grow="Yes" alignItems="Center" gap="200">
-          <Text size="H3" truncate>
-            {t('settings.nav.about')}
-          </Text>
-        </Box>
-        <Box shrink="No">
-          <IconButton
-            variant="Surface"
-            aria-label={t('featureUi.settings.emojisStickers.globalPacks.close')}
-            onClick={requestClose}
-          >
-            <Icon src={Icons.Cross} />
-          </IconButton>
-        </Box>
-      </Box>
-    </PageHeader>
-  );
-
   return (
-    <Page>
-      <PageScroll header={header}>
-        <PageContent>
-          <Box direction="Column" gap="700">
-            <AppIdentity />
-            {(nativeDiagnostics || collectorHost) && (
-              <AboutSection title={t('featureUi.settings.about.options')}>
-                {nativeDiagnostics && <DiagnosticsExport />}
-                {nativeDiagnostics && <DeepTraceSetting />}
-                {collectorHost && <ErrorReportsSetting host={collectorHost} />}
-              </AboutSection>
-            )}
-            <AboutSection title={t('featureUi.settings.about.credits')}>
-              <CreditsList />
-              <ThirdPartyNotices />
-            </AboutSection>
-          </Box>
-        </PageContent>
-      </PageScroll>
-    </Page>
+    <SettingsPageFrame title={t('settings.nav.about')} requestClose={requestClose}>
+      <AppIdentity />
+      {(nativeDiagnostics || collectorHost) && (
+        <AboutSection title={t('featureUi.settings.about.options')}>
+          {nativeDiagnostics && <DiagnosticsExport />}
+          {nativeDiagnostics && <DeepTraceSetting />}
+          {collectorHost && <ErrorReportsSetting host={collectorHost} />}
+        </AboutSection>
+      )}
+      <AboutSection title={t('featureUi.settings.about.credits')}>
+        <CreditsList />
+        <ThirdPartyNotices />
+      </AboutSection>
+    </SettingsPageFrame>
   );
 }
