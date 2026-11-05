@@ -45,8 +45,10 @@ export const SettingsSearchField = style({
   paddingInlineEnd: config.space.S300,
 });
 
-/** The list of search results that takes the menu's place. */
-export const SettingsSearchResults = style({});
+/** The list of search results that takes the menu's place, ending where the menu's rows do. */
+export const SettingsSearchResults = style({
+  paddingInlineEnd: config.space.S300,
+});
 
 // The result Enter would open looks like the menu's current page.
 globalStyle(`${SettingsSearchResults} > [aria-selected="true"]`, {
