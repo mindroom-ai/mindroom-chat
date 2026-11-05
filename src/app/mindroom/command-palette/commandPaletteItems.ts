@@ -254,7 +254,9 @@ export const useCommandPaletteSource = ({
       'create-room': () => openCreateRoom(selectedSpaceId),
       'open-settings': () => setSettingsModal({}),
       'copy-current-room-link': inCurrentRoom(copyRoomLink),
-      'mark-current-room-read': inCurrentRoom((room) => markRoomsRead([room.roomId])),
+      'mark-current-room-read': inCurrentRoom((room) => {
+        void markRoomsRead([room.roomId]);
+      }),
       'open-current-room-settings': inCurrentRoom((room) =>
         openRoomSettings(room.roomId, selectedSpaceId)
       ),

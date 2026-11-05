@@ -91,10 +91,11 @@ type NotificationPages = {
 const requestNotifications = (
   mx: MatrixClient,
   filter: NotificationFilter,
-  from: string | undefined
+  from: string | undefined,
+  limit: number
 ): Promise<INotificationsResponse> =>
   mx.http.authedRequest<INotificationsResponse>(Method.Get, '/notifications', {
-    limit: String(PAGE_SIZE),
+    limit: String(limit),
     ...(filter === 'highlight' ? { only: 'highlight' } : {}),
     ...(from ? { from } : {}),
   });
@@ -109,10 +110,10 @@ const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
   const generation = useRef(0);
 
   const load = useCallback(
-    (from: string | undefined) => {
+    (from: string | undefined, limit = PAGE_SIZE) => {
       const mine = generation.current;
       setPages((held) => ({ ...held, status: AsyncStatus.Loading }));
-      requestNotifications(mx, filter, from).then(
+      requestNotifications(mx, filter, from, limit).then(
         (page) => {
           if (generation.current !== mine) return;
           setPages((held) => ({
@@ -142,7 +143,19 @@ const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
     if (pages.nextToken && pages.status !== AsyncStatus.Loading) load(pages.nextToken);
   }, [load, pages.nextToken, pages.status]);
 
-  return { ...pages, loadOlder };
+  // The server keeps the read flags, so a receipt shows here only once the list is asked again:
+  // as many as are loaded, in one request, so older pages stay. The server answers at most 100.
+  // A receipt that lands after a switch of filter reloads the list now shown.
+  const shown = useRef({ load, count: 0 });
+  useEffect(() => {
+    shown.current = { load, count: pages.notifications.length };
+  }, [load, pages.notifications.length]);
+  const reload = useCallback(() => {
+    generation.current += 1;
+    shown.current.load(undefined, Math.max(PAGE_SIZE, shown.current.count));
+  }, []);
+
+  return { ...pages, loadOlder, reload };
 };
 
 /** Consecutive notifications of a joined room become one group; rooms left since are skipped. */
@@ -357,7 +370,10 @@ export function Notifications() {
   const client = useMatrixClient();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [filter, setFilter] = useState<NotificationFilter>('all');
-  const { status, notifications, nextToken, loadOlder } = useNotificationPages(client, filter);
+  const { status, notifications, nextToken, loadOlder, reload } = useNotificationPages(
+    client,
+    filter
+  );
   const groups = useMemo(() => groupByRoom(client, notifications), [client, notifications]);
   const filters: [NotificationFilter, string][] = [
     ['all', t('sharedUi.notifications.allNotifications')],
@@ -422,7 +438,7 @@ export function Notifications() {
                       {room.name}
                     </Text>
                     {roomNotifications.some((notification) => !notification.read) && (
-                      <MindroomMarkRoomReadChip roomId={room.roomId} />
+                      <MindroomMarkRoomReadChip roomId={room.roomId} onMarked={reload} />
                     )}
                   </Box>
                   <SequenceCard

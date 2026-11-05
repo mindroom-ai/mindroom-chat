@@ -17,7 +17,7 @@ export function MindroomMarkRoomReadMenuItem(props: MarkRoomReadItemProps) {
   const markRoomsRead = useMarkRoomsRead();
 
   const markRead = () => {
-    markRoomsRead([props.room.roomId]);
+    void markRoomsRead([props.room.roomId]);
     props.onClose();
   };
 

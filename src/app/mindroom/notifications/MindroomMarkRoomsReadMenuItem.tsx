@@ -25,7 +25,7 @@ export function MindroomMarkRoomsReadMenuItem({
       aria-disabled={empty || undefined}
       onSelect={() => {
         if (empty) return;
-        markRead(roomIds);
+        void markRead(roomIds);
         onClose();
       }}
     />

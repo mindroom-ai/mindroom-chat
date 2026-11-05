@@ -5,18 +5,18 @@ import { settingsAtom } from '../../state/settings';
 import { markRoomAndThreadsAsRead } from './readReceipts';
 
 /**
- * A function that reads the given rooms and all their threads, in the order listed.
- * Users who hide their read activity send private receipts.
+ * A function that reads the given rooms and all their threads, in the order listed, and settles
+ * once every receipt has been sent. Users who hide their read activity send private receipts.
  */
-export const useMarkRoomsRead = (): ((roomIds: readonly string[]) => void) => {
+export const useMarkRoomsRead = (): ((roomIds: readonly string[]) => Promise<void>) => {
   const client = useMatrixClient();
   const [privateReceipts] = useSetting(settingsAtom, 'hideActivity');
 
   return useCallback(
-    (roomIds) => {
-      roomIds.forEach((roomId) => {
-        void markRoomAndThreadsAsRead(client, roomId, privateReceipts);
-      });
+    async (roomIds) => {
+      await Promise.all(
+        roomIds.map((roomId) => markRoomAndThreadsAsRead(client, roomId, privateReceipts))
+      );
     },
     [client, privateReceipts]
   );
