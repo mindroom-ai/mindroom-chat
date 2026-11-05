@@ -7,7 +7,7 @@ import { activeAccountButtonNamePattern } from './auth';
 import { matrixFetch, sendRoomMessage } from './matrix';
 
 /**
- * Fixtures for the agent specs (`e2e/lane-c/agent-*.spec.ts`): a real MindRoom backend with the stub model of
+ * Fixtures for the agent specs (`e2e/<domain>/agent-*.spec.ts`): a real MindRoom backend with the stub model of
  * scripts/agent-stack/stack.py, run against this slot's homeserver, and a browser signed in as its test account.
  * With E2E_AGENT_MODEL=real the backend runs Claude Haiku 5.5 and GPT-6 Luna instead, following a script that
  * gives the stub's hashtags the same meaning; the provider keys must then be in the environment (stack.py's

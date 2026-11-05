@@ -99,7 +99,7 @@ e2e *args:
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 
-# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's MindRoom backend for the e2e/lane-c/agent-*.spec.ts specs, which start it themselves. Options: --model stub|real (default $E2E_AGENT_MODEL, else stub; real runs Claude Haiku 5.5 and GPT-6 Luna with the provider keys of the environment), --calls <MatrixRTC service URL> [--calls-profile realtime|live] (the helper answers voice calls with gpt-realtime-2.1-mini or gpt-live-1; needs OPENAI_API_KEY), --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
+# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's MindRoom backend for the e2e/<domain>/agent-*.spec.ts specs, which start it themselves. Options: --model stub|real (default $E2E_AGENT_MODEL, else stub; real runs Claude Haiku 5.5 and GPT-6 Luna with the provider keys of the environment), --calls <MatrixRTC service URL> [--calls-profile realtime|live] (the helper answers voice calls with gpt-realtime-2.1-mini or gpt-live-1; needs OPENAI_API_KEY), --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
 agent-stack slot *args:
     python3 scripts/agent-stack/stack.py {{slot}} {{args}}
 

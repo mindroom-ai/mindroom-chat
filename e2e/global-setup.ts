@@ -8,18 +8,18 @@ import { spawnSync } from 'node:child_process';
  * | Variable | Used for |
  * | --- | --- |
  * | `E2E_HOMESERVER` | Homeserver base URL (a full URL); falls back to `config.mindroom.json`, then `mindroom.chat` |
- * | `E2E_USERNAME`, `E2E_PASSWORD` | Primary account (`live/` specs, account specs, fixture-room seeding) |
+ * | `E2E_USERNAME`, `E2E_PASSWORD` | Primary account (`*.live.spec.ts` specs, account specs, fixture-room seeding) |
  * | `E2E_SECOND_USERNAME`, `E2E_SECOND_PASSWORD` | Second account (multi-account specs) |
  * | `E2E_THIRD_USERNAME`, `E2E_THIRD_PASSWORD` | Third account (three-account spec) |
  * | `E2E_DEACTIVATE_USERNAME`, `E2E_DEACTIVATE_PASSWORD` | Account that the deactivation spec destroys |
  * | `E2E_AGENT_USERNAME`, `E2E_AGENT_PASSWORD`, `E2E_AGENT_USER_ID` | An agent account (a `mindroom_` user) |
  * | `E2E_UI_ACTIONS_HOMESERVER` | Disposable homeserver with open registration; those specs register their own users |
  * | `E2E_FIXTURE_ROOM_ALIAS`, `E2E_FIXTURE_ROOM_ID` | Fixture room made by `e2e/fixtures/live/seed-fixture-room.mjs` |
- * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `live/` specs; locally a room shared with the agent account |
+ * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `*.live.spec.ts` specs; locally a room shared with the agent account |
  * | `E2E_DEPLOYED_BASE_URL`, `E2E_DEPLOYED_HOMESERVER`, `E2E_DEPLOYED_USERNAME`, `E2E_DEPLOYED_PASSWORD` | Specs against a deployed client |
  * | `E2E_COMPUTER_FIXTURE` | Path of the gateway fixture JSON for the worker-computer spec |
  * | `E2E_SCREENSHOT_VARIANT`, `SHOT_PREFIX` | App Store screenshot spec output |
- * | `PERF_*`, `REPRO_REPLY_COUNT`, `IOS_INVARIANT_REPLY_COUNT` | Sizes of the `live/perf-*` and iOS specs |
+ * | `PERF_*`, `REPRO_REPLY_COUNT`, `IOS_INVARIANT_REPLY_COUNT` | Sizes of the `timeline/perf-*`, thread reply chip and iOS specs |
  * | `PLAYWRIGHT_CHROMIUM_EXECUTABLE` | Browser for specs that launch their own (`just e2e` copies `CHROMIUM_PATH` into it) |
  *
  * With no `E2E_USERNAME` and a homeserver on http://127.0.0.1:28008 (`just hs-up`; the port is E2E_MATRIX_PORT when set), this

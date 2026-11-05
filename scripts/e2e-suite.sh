@@ -125,13 +125,13 @@ main() {
   echo "$sha" >"$run/commit"
   echo "e2e-suite: ${#specs[@]} spec files of ${sha:0:12} on slots ${slots[*]}; run directory $run" >&2
 
-  # The queue: live specs (e2e/live/ or *.live.spec.ts) first, the slowest, one line per spec
+  # The queue: live specs (*.live.spec.ts) first, the slowest, one line per spec
   # with the server it needs.
   {
     for spec in "${specs[@]}"; do
       server=preview
       if [ "$dev_all" = 1 ] || printf '%s\n' "${dev_specs[@]}" | grep -qxF "$spec"; then server=dev; fi
-      case "$spec" in e2e/live/* | *.live.spec.ts) rank=0 ;; *) rank=1 ;; esac
+      case "$spec" in *.live.spec.ts) rank=0 ;; *) rank=1 ;; esac
       printf '%s\t%s\t%s\n' "$rank" "$server" "$spec"
     done
   } | sort -k1,1 -k3,3 | cut -f2- >"$run/queue"
