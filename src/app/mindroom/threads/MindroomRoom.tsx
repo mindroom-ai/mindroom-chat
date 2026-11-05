@@ -23,7 +23,6 @@ import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { settingsModalAtom } from '../../state/settingsModal';
-import { SettingsPages, type SettingsPage } from '../../features/settings/settingsPages';
 import { MembersDrawer } from '../../features/room/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentIdentity';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
@@ -44,7 +43,7 @@ import {
 } from '../canvas/canvasIndex';
 import { useCanvasOpenRequest } from '../canvas/useCanvasOpenRequest';
 import { ChatUiActionContext, useChatUiActions } from '../ui-actions/ChatUiActionProvider';
-import type { ChatUiAction, ChatUiSettingsSection } from '../ui-actions/chatUiProtocol';
+import type { ChatUiAction } from '../ui-actions/chatUiProtocol';
 import type { RoomViewHeaderProps } from './MindroomRoomViewHeader';
 import { RoomView } from './MindroomRoomView';
 import { isThreadRouteReady } from './threadRouteUtils';
@@ -84,17 +83,6 @@ const HeaderCallMenuEntries = lazyPart(() =>
 /** The call panel fits two tiles side by side; wider, it fits more. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
-
-/** Where each Settings section an agent may ask for lives in the Settings dialog. */
-const SETTINGS_PAGE_FOR_SECTION: Record<ChatUiSettingsSection, SettingsPage> = {
-  general: SettingsPages.GeneralPage,
-  account: SettingsPages.AccountPage,
-  notifications: SettingsPages.NotificationPage,
-  devices: SettingsPages.DevicesPage,
-  'emojis-stickers': SettingsPages.EmojisStickersPage,
-  developer: SettingsPages.DeveloperToolsPage,
-  about: SettingsPages.AboutPage,
-};
 
 /** The side-panel controls of the room header; the room owns their state. */
 type HeaderPanelControls = Pick<
@@ -311,7 +299,8 @@ export function Room() {
           break;
         case 'open_settings':
           setSettingsModal({
-            initialPage: SETTINGS_PAGE_FOR_SECTION[action.section],
+            // The registry resolves the section, earlier page ids included, to its page.
+            initialPage: action.section,
             requestId: action.eventId,
           });
           break;

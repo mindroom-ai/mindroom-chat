@@ -116,9 +116,9 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
     page.getByRole('button', { name: 'Open account menu for Avery Menu' })
   ).toBeVisible();
 
-  // Settings > General > Sidebar: hide Threads and Search.
+  // Settings > This app > Sidebar: hide Threads and Search.
   await chooseFromAccountMenu(page, 'Settings');
-  await expect(page.getByText('Sidebar', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Sidebar', exact: true }).click();
   const threadsSwitch = page.getByRole('switch', { name: 'Show Threads in the sidebar' });
   const searchSwitch = page.getByRole('switch', { name: 'Show Search in the sidebar' });
   await expect(threadsSwitch).toHaveAttribute('aria-checked', 'true');
@@ -148,6 +148,7 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await expect(page).toHaveURL(/\/threads\/?$/);
 
   await chooseFromAccountMenu(page, 'Settings');
+  await page.getByRole('button', { name: 'Sidebar', exact: true }).click();
   await expect(page.getByRole('switch', { name: 'Show Threads in the sidebar' })).toHaveAttribute(
     'aria-checked',
     'false'

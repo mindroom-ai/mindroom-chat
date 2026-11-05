@@ -33,6 +33,7 @@ import {
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
+  SETTINGS_PATH,
   SPACE_LOBBY_PATH,
   SPACE_PATH,
   SPACE_ROOM_PATH,
@@ -45,6 +46,7 @@ import { Login } from './auth/login/Login';
 import { Register } from './auth/register/Register';
 import { ResetPassword } from './auth/reset-password/ResetPassword';
 import { ClientRoot } from './client/ClientRoot';
+import { SettingsDeepLink } from '../features/settings/SettingsDeepLink';
 
 // The signed-in pages load as their own chunks, so the sign-in pages start without them.
 // ProtectedRoutes asks for them as soon as a signed-in route renders: they load while ClientRoot
@@ -211,6 +213,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route path={DIRECT_CREATE_PATH} element={<DirectCreate />} />
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
+        <Route path={SETTINGS_PATH} element={<SettingsDeepLink />} />
         <Route
           path={THREADS_PATH}
           element={

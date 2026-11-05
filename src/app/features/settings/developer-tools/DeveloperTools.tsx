@@ -9,6 +9,7 @@ import { SettingTile } from '../../../components/setting-tile';
 import { copyToClipboard } from '../../../utils/dom';
 import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
 import { SettingsCard } from '../SettingsCard';
+import { SettingSwitchTile } from '../SettingSwitchTile';
 
 const TOOLS = 'featureUi.settings.developerTools.developTools';
 const DATA = 'featureUi.settings.developerTools.accountData';
@@ -120,7 +121,10 @@ function AccountDataViewer() {
   );
 }
 
-/** The developer tools switch; turned on, the access token and the account data appear. */
+/**
+ * The developer tools switch and the hidden timeline events; with the tools on, the access token
+ * and the account data appear.
+ */
 export function DeveloperTools({ requestClose }: SettingsPageProps) {
   const { t } = useTranslation();
   const [developerTools, setDeveloperTools] = useSetting(settingsAtom, 'developerTools');
@@ -141,6 +145,10 @@ export function DeveloperTools({ requestClose }: SettingsPageProps) {
                 onChange={setDeveloperTools}
               />
             }
+          />
+          <SettingSwitchTile
+            setting="showHiddenEvents"
+            title={t('settings.general.messages.showHiddenEvents')}
           />
           {developerTools && <AccessTokenTile />}
         </SettingsCard>

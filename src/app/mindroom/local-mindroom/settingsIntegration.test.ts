@@ -30,29 +30,49 @@ describe('getSettingsMenuItems', () => {
     const items = getSettingsMenuItems(false, t);
 
     expect(items.map((item) => item.name)).toEqual([
-      'General',
       'Account',
       'Notifications',
-      'Devices',
-      'Emojis & Stickers',
+      'Privacy & security',
+      'Appearance',
+      'Chats',
+      'Sidebar',
+      'Language & region',
+      'Connected accounts',
+      'Computers',
       'Archived Rooms',
+      'Storage & offline',
       'Developer Tools',
       'About',
     ]);
   });
+
+  it('leaves Connections out of the apps, which cannot open its window', () => {
+    const items = getSettingsMenuItems(false, t, true);
+
+    expect(items.some((item) => item.page === SettingsPages.ConnectionsPage)).toBe(false);
+  });
 });
 
 describe('resolveSettingsInitialPage', () => {
-  it('preserves an explicit General page request', () => {
-    expect(resolveSettingsInitialPage(SettingsPages.GeneralPage, ScreenSize.Desktop, false)).toBe(
-      SettingsPages.GeneralPage
+  it('preserves an explicit page request', () => {
+    expect(resolveSettingsInitialPage(SettingsPages.PrivacyPage, ScreenSize.Desktop, false)).toBe(
+      SettingsPages.PrivacyPage
     );
   });
 
-  it('falls back to General when Local MindRoom is requested but disabled', () => {
+  it('opens the page that took over an earlier page id', () => {
+    expect(resolveSettingsInitialPage('general', ScreenSize.Desktop, false)).toBe(
+      SettingsPages.AppearancePage
+    );
+    expect(resolveSettingsInitialPage('devices', ScreenSize.Mobile, false)).toBe(
+      SettingsPages.PrivacyPage
+    );
+  });
+
+  it('falls back to the default page when Local MindRoom is requested but disabled', () => {
     expect(
       resolveSettingsInitialPage(LOCAL_MINDROOM_SETTINGS_PAGE, ScreenSize.Desktop, false)
-    ).toBe(SettingsPages.GeneralPage);
+    ).toBe(SettingsPages.AppearancePage);
   });
 
   it('keeps mobile settings closed when no initial page is requested', () => {

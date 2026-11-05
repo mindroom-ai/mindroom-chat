@@ -76,7 +76,7 @@ const signIn = async (
 
 const openDevices = async (page: Page) => {
   await openSettingsFromAccountRail(page);
-  await page.getByRole('button', { name: 'Devices' }).click();
+  await page.getByRole('button', { name: 'Privacy & security', exact: true }).click();
   await expect(page.getByText('Security', { exact: true })).toBeVisible();
 };
 

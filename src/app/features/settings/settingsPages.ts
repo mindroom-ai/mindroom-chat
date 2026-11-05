@@ -1,16 +1,22 @@
-// Pages of the settings dialog. MindRoom extensions add their own page IDs
-// (archived rooms, Local MindRoom) next to the core ones.
+import type { SettingsPageId, SettingsPageRequest } from './settingsRegistry';
 
+// The pages of the settings dialog; settingsRegistry.ts says what each holds and where it sits.
 export const SettingsPages = {
-  GeneralPage: 'general',
   AccountPage: 'account',
   NotificationPage: 'notifications',
-  DevicesPage: 'devices',
-  EmojisStickersPage: 'emojis-stickers',
+  PrivacyPage: 'privacy',
+  AppearancePage: 'appearance',
+  ChatsPage: 'chats',
+  SidebarPage: 'sidebar',
+  LanguagePage: 'language',
+  ConnectionsPage: 'connections',
+  ComputersPage: 'computers',
+  LocalMindroomPage: 'mindroom.local-mindroom',
+  ArchivedRoomsPage: 'archived-rooms',
+  StoragePage: 'storage',
   DeveloperToolsPage: 'developer-tools',
   AboutPage: 'about',
-} as const;
+} as const satisfies Record<string, SettingsPageId>;
 
-type CoreSettingsPage = (typeof SettingsPages)[keyof typeof SettingsPages];
-
-export type SettingsPage = CoreSettingsPage | 'archived-rooms' | 'mindroom.local-mindroom';
+/** A page to open the dialog on: its id, or an earlier id that now leads to it. */
+export type SettingsPage = SettingsPageRequest;

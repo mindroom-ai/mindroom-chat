@@ -31,7 +31,7 @@ export function UnverifiedTab() {
             ref={triggerRef}
             outlined
             aria-label={label}
-            onClick={() => setSettingsModal({ initialPage: SettingsPages.DevicesPage })}
+            onClick={() => setSettingsModal({ initialPage: SettingsPages.PrivacyPage })}
           >
             <Icon
               src={Icons.ShieldUser}

@@ -103,10 +103,15 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
 
       for (const name of [
         'Account',
-        'General',
         'Notifications',
-        'Devices',
-        'Emojis & Stickers',
+        'Privacy & security',
+        'Appearance',
+        'Chats',
+        'Sidebar',
+        'Language & region',
+        'Connected accounts',
+        'Computers',
+        'Storage & offline',
         'Developer Tools',
         'About',
       ]) {
@@ -115,7 +120,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
           .locator('header')
           .filter({ has: page.getByText(name, { exact: true }) });
         await checkHeader(header, name.toLowerCase().replaceAll(/[^a-z]+/g, '-'));
-        if (name === 'General') {
+        if (name === 'Language & region') {
           await page.setViewportSize({ width: 390, height: 620 });
           await page
             .locator('form:has(input[name="customDateFormatInput"]) button[aria-pressed]')

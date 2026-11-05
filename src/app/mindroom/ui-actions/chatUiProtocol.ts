@@ -1,19 +1,15 @@
 import { type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../matrix/agentIdentity';
 import type { IEncryptedFile } from '../../../types/matrix/common';
+import {
+  isSettingsPageRequest,
+  type SettingsPageRequest,
+} from '../../features/settings/settingsRegistry';
 
 export const CHAT_UI_ACTION_KEY = 'io.mindroom.ui_action';
 
-export const SETTINGS_SECTIONS = [
-  'general',
-  'account',
-  'notifications',
-  'devices',
-  'emojis-stickers',
-  'developer',
-  'about',
-] as const;
-export type ChatUiSettingsSection = typeof SETTINGS_SECTIONS[number];
+// Any settings page id, or an earlier one such as `general` or `devices`, that the registry knows.
+export type ChatUiSettingsSection = SettingsPageRequest;
 
 type ChatUiTarget = {
   eventId: string;
@@ -262,11 +258,8 @@ export const readChatUiAction = (
     threadId,
   };
   if (data.action === 'show_computer') return { ...target, action: 'show_computer' };
-  if (
-    data.action === 'open_settings' &&
-    SETTINGS_SECTIONS.some((section) => section === data.section)
-  ) {
-    return { ...target, action: 'open_settings', section: data.section as ChatUiSettingsSection };
+  if (data.action === 'open_settings' && isSettingsPageRequest(data.section)) {
+    return { ...target, action: 'open_settings', section: data.section };
   }
   if (data.action === 'open_panel' && data.panel === 'members') {
     return { ...target, action: 'open_panel', panel: 'members' };

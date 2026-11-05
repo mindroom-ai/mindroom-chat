@@ -35,7 +35,7 @@ describe('SettingsModalRenderer', () => {
   it('renders the shared settings modal state and closes by clearing it', async () => {
     const store = createStore();
     store.set(settingsModalAtom, {
-      initialPage: SettingsPages.DevicesPage,
+      initialPage: SettingsPages.PrivacyPage,
     });
 
     const renderer = create(
@@ -47,7 +47,7 @@ describe('SettingsModalRenderer', () => {
     );
 
     const settingsView = renderer.root.findByProps({ 'data-testid': 'settings-view' });
-    expect(settingsView.props['data-initial-page']).toBe(SettingsPages.DevicesPage);
+    expect(settingsView.props['data-initial-page']).toBe(SettingsPages.PrivacyPage);
 
     await act(async () => {
       settingsView.props.requestClose();

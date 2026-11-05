@@ -33,7 +33,9 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
     await expect(
       page.getByText('Switch accounts, add another account, or remove an inactive one.')
     ).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'General' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Appearance', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(page.getByRole('button', { name: 'Logout' }).first()).toBeVisible();
 
     await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-044-active-avatar-settings');
@@ -74,7 +76,9 @@ test.describe('live ISSUE-044 settings avatar behavior', () => {
 
     await page.getByRole('button', { name: 'Close' }).click();
     await chooseFromAccountMenu(page, 'Settings');
-    await expect(page.getByRole('button', { name: 'General' })).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole('button', { name: 'Appearance', exact: true })).toBeVisible({
+      timeout: 30_000,
+    });
     await expect(
       page.getByText('Switch accounts, add another account, or remove an inactive one.')
     ).toHaveCount(0);

@@ -37,7 +37,7 @@ test.describe('complete interface localization', () => {
     );
     await loginWithPassword(page, { homeserver, username, password });
     await chooseFromAccountMenu(page, 'Settings');
-    await page.getByRole('button', { name: 'General', exact: true }).click();
+    await page.getByRole('button', { name: 'Language & region', exact: true }).click();
     await page.evaluate(() => {
       (window as Window & { localizationMarker?: string }).localizationMarker = 'same-document';
     });

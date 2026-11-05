@@ -25,6 +25,8 @@ export const DIRECT_CREATE_PATH = '/direct/create/';
 export const DIRECT_ROOM_PATH = '/direct/:roomIdOrAlias/:eventId?/';
 
 export const THREADS_PATH = '/threads/';
+/** Opens the Settings dialog on a page; settingsRegistry.ts lists the page ids. */
+export const SETTINGS_PATH = '/settings/:page?/';
 export const CANVASES_PATH = '/canvases/';
 
 export const EXPLORE_PATH = '/explore/';

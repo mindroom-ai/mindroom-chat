@@ -16,6 +16,7 @@ import { MenuItem } from '../../components/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../components/page';
+import { NavCategoryHeader } from '../../components/nav';
 import { UserAvatar } from '../../components/user-avatar';
 import { LogoutDialog } from '../../components/LogoutDialog';
 import { useUserProfile } from '../../hooks/useUserProfile';
@@ -24,55 +25,75 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { mxcUrlToHttp } from '../../utils/mediaUrl';
 import { getMxIdLocalPart } from '../../utils/matrix';
-import { useShowLocalMindroom } from '../../mindroom/local-mindroom/useShowLocalMindroom';
-import { renderMindroomSettingsPage } from '../../mindroom/settings/settingsExtensions';
+import { ArchivedRooms } from '../../mindroom/rooms/ArchivedRoomsPage';
+import { LocalMindroom } from '../../mindroom/local-mindroom/LocalMindroom';
+import {
+  ComputersSettingsPage,
+  ConnectionsSettingsPage,
+} from '../../mindroom/settings/AgentSettingsPages';
 import {
   getSettingsMenuItems,
   resolveSettingsInitialPage,
   type SettingsMenuItem,
 } from './settingsMenu';
-import { SettingsPages, type SettingsPage } from './settingsPages';
+import { SETTINGS_GROUPS, type SettingsPageId } from './settingsRegistry';
+import type { SettingsPage } from './settingsPages';
+import { useSettingsContext } from './useSettingsContext';
 import { About } from './about';
 import { Account } from './account';
+import { Appearance } from './appearance/Appearance';
+import { Chats } from './chats/Chats';
 import { DeveloperTools } from './developer-tools';
-import { Devices } from './devices';
-import { EmojisStickers } from './emojis-stickers';
-import { General } from './general';
+import { LanguageRegion } from './language/LanguageRegion';
 import { Notifications } from './notifications';
-import { SettingsMenu } from './frame.css';
+import { PrivacySecurity } from './privacy/PrivacySecurity';
+import { Sidebar } from './sidebar/Sidebar';
+import { StorageOffline } from './storage/StorageOffline';
+import { SettingsMenu, SettingsMenuGroupLabel } from './frame.css';
 
 type SettingsProps = {
+  /** A page id, or an earlier one; settingsRegistry.ts resolves it. */
   initialPage?: SettingsPage;
   requestClose: () => void;
 };
 
-function SettingsPageContent({
-  page,
-  requestClose,
-  showLocalMindroom,
-}: {
-  page: SettingsPage;
+type PageContentProps = {
+  page: SettingsPageId;
   requestClose: () => void;
-  showLocalMindroom: boolean;
-}) {
+  /** Closes the whole dialog, for pages that open a room. */
+  closeDialog: () => void;
+};
+
+function SettingsPageContent({ page, requestClose, closeDialog }: PageContentProps) {
   switch (page) {
-    case SettingsPages.GeneralPage:
-      return <General requestClose={requestClose} />;
-    case SettingsPages.AccountPage:
+    case 'account':
       return <Account requestClose={requestClose} />;
-    case SettingsPages.NotificationPage:
+    case 'notifications':
       return <Notifications requestClose={requestClose} />;
-    case SettingsPages.DevicesPage:
-      return <Devices requestClose={requestClose} />;
-    case SettingsPages.EmojisStickersPage:
-      return <EmojisStickers requestClose={requestClose} />;
-    case SettingsPages.DeveloperToolsPage:
+    case 'privacy':
+      return <PrivacySecurity requestClose={requestClose} />;
+    case 'appearance':
+      return <Appearance requestClose={requestClose} />;
+    case 'chats':
+      return <Chats requestClose={requestClose} />;
+    case 'sidebar':
+      return <Sidebar requestClose={requestClose} />;
+    case 'language':
+      return <LanguageRegion requestClose={requestClose} />;
+    case 'connections':
+      return <ConnectionsSettingsPage requestClose={requestClose} />;
+    case 'computers':
+      return <ComputersSettingsPage requestClose={requestClose} />;
+    case 'mindroom.local-mindroom':
+      return <LocalMindroom requestClose={requestClose} onNavigate={closeDialog} />;
+    case 'archived-rooms':
+      return <ArchivedRooms requestClose={requestClose} onNavigate={closeDialog} />;
+    case 'storage':
+      return <StorageOffline requestClose={requestClose} />;
+    case 'developer-tools':
       return <DeveloperTools requestClose={requestClose} />;
-    case SettingsPages.AboutPage:
+    case 'about':
       return <About requestClose={requestClose} />;
-    default:
-      // MindRoom pages (archived rooms, Local MindRoom) close the dialog when they open a room.
-      return <>{renderMindroomSettingsPage(page, showLocalMindroom, requestClose, requestClose)}</>;
   }
 }
 
@@ -96,29 +117,55 @@ function useOwnProfile() {
 type SettingsMenuListProps = {
   items: SettingsMenuItem[];
   activePage: SettingsPage | undefined;
-  onSelect: (page: SettingsPage) => void;
+  onSelect: (page: SettingsPageId) => void;
 };
 
+/** The pages under their group headings (You, This app, Agents & connections, ...). */
 function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps) {
-  const entries = items.map(({ page, name, icon }) => {
-    const current = page === activePage;
-    const labelStyle = current ? { fontWeight: config.fontWeight.W600 } : undefined;
-    return (
-      <MenuItem
-        key={page}
-        radii="500"
-        variant="Background"
-        before={<Icon size="100" src={icon} filled={current} />}
-        aria-pressed={current}
-        onClick={() => onSelect(page)}
-      >
-        <Text size="T300" style={labelStyle} truncate>
-          {name}
-        </Text>
-      </MenuItem>
-    );
-  });
-  return <div className={SettingsMenu}>{entries}</div>;
+  const { t } = useTranslation();
+  const groups = SETTINGS_GROUPS.map((group) => ({
+    ...group,
+    items: items.filter((item) => item.group === group.id),
+  })).filter((group) => group.items.length > 0);
+
+  return (
+    <div className={SettingsMenu}>
+      {groups.map((group) => (
+        <div key={group.id} role="group" aria-labelledby={`settings-group-${group.id}`}>
+          <NavCategoryHeader>
+            <Text
+              id={`settings-group-${group.id}`}
+              as="span"
+              size="O400"
+              priority="300"
+              className={SettingsMenuGroupLabel}
+              truncate
+            >
+              {t(group.labelKey)}
+            </Text>
+          </NavCategoryHeader>
+          {group.items.map(({ page, name, icon }) => {
+            const current = page === activePage;
+            const labelStyle = current ? { fontWeight: config.fontWeight.W600 } : undefined;
+            return (
+              <MenuItem
+                key={page}
+                radii="500"
+                variant="Background"
+                before={<Icon size="100" src={icon} filled={current} />}
+                aria-pressed={current}
+                onClick={() => onSelect(page)}
+              >
+                <Text size="T300" style={labelStyle} truncate>
+                  {name}
+                </Text>
+              </MenuItem>
+            );
+          })}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function LogoutButton() {
@@ -159,19 +206,22 @@ function LogoutButton() {
   );
 }
 
-/** The settings dialog: account header and page menu beside the selected page. */
+/**
+ * The settings dialog: the page menu under the account header, grouped as settingsRegistry.ts
+ * says, beside the selected page; on phones the menu and a page take turns.
+ */
 export function Settings({ initialPage, requestClose }: SettingsProps) {
   const { t } = useTranslation();
   const viewport = useScreenSizeContext();
-  const showLocalMindroom = useShowLocalMindroom();
+  const context = useSettingsContext();
   const { userId, displayName, avatarUrl } = useOwnProfile();
-  const [activePage, setActivePage] = useState<SettingsPage | undefined>(() =>
-    resolveSettingsInitialPage(initialPage, viewport, showLocalMindroom)
+  const [activePage, setActivePage] = useState<SettingsPageId | undefined>(() =>
+    resolveSettingsInitialPage(initialPage, viewport, context.localMindroom, context.native)
   );
 
   const menuItems = useMemo(
-    () => getSettingsMenuItems(showLocalMindroom, t),
-    [showLocalMindroom, t]
+    () => getSettingsMenuItems(context.localMindroom, t, context.native),
+    [context.localMindroom, context.native, t]
   );
   const isMobile = viewport === ScreenSize.Mobile;
 
@@ -225,7 +275,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
         <SettingsPageContent
           page={activePage}
           requestClose={handlePageRequestClose}
-          showLocalMindroom={showLocalMindroom}
+          closeDialog={requestClose}
         />
       )}
     </PageRoot>

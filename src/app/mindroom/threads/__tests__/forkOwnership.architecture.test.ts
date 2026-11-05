@@ -20,15 +20,15 @@ const OWNERSHIP_EDGES = [
   },
   {
     consumer: appFile('features/settings/Settings.tsx'),
-    owner: mindroomFile('settings/settingsExtensions.tsx'),
+    owner: mindroomFile('settings/AgentSettingsPages.tsx'),
   },
   {
-    consumer: appFile('features/settings/settingsMenu.ts'),
-    owner: mindroomFile('settings/settingsMenuExtensions.ts'),
+    consumer: appFile('features/settings/sidebar/Sidebar.tsx'),
+    owner: mindroomFile('settings/MindroomInterfaceSettings.tsx'),
   },
   {
-    consumer: appFile('features/settings/general/General.tsx'),
-    owner: mindroomFile('settings/settingsExtensions.tsx'),
+    consumer: appFile('features/settings/storage/StorageOffline.tsx'),
+    owner: mindroomFile('settings/MindroomPrefetchSettings.tsx'),
   },
   ...['home/Home.tsx', 'space/Space.tsx'].map((page) => ({
     consumer: appFile(`pages/client/${page}`),

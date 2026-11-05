@@ -27,3 +27,13 @@ globalStyle(SETTINGS_CARD, {
 globalStyle(`${SETTINGS_CARD} button:not([role="switch"])`, {
   borderWidth: config.borderWidth.B400,
 });
+
+/** A group heading of the menu (You, This app, ...) lines up with the rows' icons. */
+export const SettingsMenuGroupLabel = style({
+  paddingInline: config.space.S200,
+});
+
+// Each group after the first keeps a gap from the one above.
+globalStyle(`${SettingsMenu} > [role="group"] + [role="group"]`, {
+  marginBlockStart: config.space.S300,
+});

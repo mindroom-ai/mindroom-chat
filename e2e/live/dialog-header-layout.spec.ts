@@ -142,7 +142,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         window.dispatchEvent(new PopStateEvent('popstate'));
       });
       await chooseFromAccountMenu(page, 'Settings');
-      await page.getByRole('button', { name: 'Emojis & Stickers', exact: true }).click();
+      await page.getByRole('button', { name: 'Chats', exact: true }).click();
       await page.getByRole('button', { name: 'Select', exact: true }).click();
       const packsHeader = page
         .locator('header')

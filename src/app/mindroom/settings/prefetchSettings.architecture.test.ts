@@ -21,7 +21,7 @@
  *       LIVE consumer; the exempt files hold only negation / drop /
  *       docstring references.
  *   (c) Positive assertions:
- *       - `settingsExtensions.tsx` imports `MindroomPrefetchSettings`.
+ *       - the Storage & offline settings page imports `MindroomPrefetchSettings`.
  *       - `mindroomSettingsStorage.ts` declares `prefetchScope` and imports
  *         from `../engine/prefetchPolicy`.
  * D4 semantics (stored value DROPPED, never mapped to prefetchDepth) is
@@ -103,13 +103,13 @@ describe('ISSUE-207 P6.1 / D4 — legacy preload setting removal', () => {
     expect(offenders).toEqual([]);
   });
 
-  it('wires MindroomPrefetchSettings into the general-messages extension slot', () => {
-    const settingsExtensionsSource = readFileSync(
-      resolve(MINDROOM_DIR, 'settings/settingsExtensions.tsx'),
+  it('wires MindroomPrefetchSettings into the Storage & offline settings page', () => {
+    const storagePageSource = readFileSync(
+      resolve(MINDROOM_DIR, '../features/settings/storage/StorageOffline.tsx'),
       'utf8'
     );
-    expect(settingsExtensionsSource).toContain('MindroomPrefetchSettings');
-    expect(settingsExtensionsSource).not.toContain('MindroomMessagePreloadLimitSetting');
+    expect(storagePageSource).toContain('MindroomPrefetchSettings');
+    expect(storagePageSource).not.toContain('MindroomMessagePreloadLimitSetting');
   });
 
   it('declares prefetchScope + prefetchDepth in the versioned MindRoom store', () => {

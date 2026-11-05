@@ -10,6 +10,11 @@ src/app/mindroom/calls/AgentCallButton.test.tsx	1	Element Call
 src/app/mindroom/calls/AgentCallHeaderButton.test.tsx	1	Element Call
 src/app/mindroom/calls/useStartAgentCall.test.tsx	1	Element Call
 src/app/mindroom/calls/useStartAgentCall.ts	1	Element Call
+src/app/mindroom/local-mindroom/settingsMenu.test.ts	1	Settings registry
+src/app/mindroom/local-mindroom/settingsMenu.ts	1	Settings registry
+src/app/mindroom/local-mindroom/settingsRenderer.tsx	1	Settings registry
+src/app/mindroom/settings/settingsExtensions.tsx	1	Settings registry
+src/app/mindroom/settings/settingsMenuExtensions.ts	1	Settings registry
 src/app/mindroom/threads/MindroomCallChatView.test.tsx	1	Element Call
 src/app/plugins/call/CallEmbed.dispose.test.ts	1	Element Call
 src/app/plugins/call/CallEmbed.origin.test.ts	1	Element Call

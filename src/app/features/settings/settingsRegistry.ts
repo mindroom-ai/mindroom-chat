@@ -43,13 +43,16 @@ export const SETTINGS_GROUPS = [
 
 export type SettingsGroupId = (typeof SETTINGS_GROUPS)[number]['id'];
 
+/** What decides whether a page is offered: the platform and the account. */
+export type SettingsPageContext = Pick<SettingsContext, 'native' | 'localMindroom'>;
+
 type PageDefinition = {
   id: string;
   group: SettingsGroupId;
   labelKey: TranslationKey;
   /** Earlier ids of this page, still accepted wherever a page id is. */
   aliases?: readonly string[];
-  hidden?: (context: SettingsContext) => boolean;
+  hidden?: (context: SettingsPageContext) => boolean;
 };
 
 export const SETTINGS_PAGES = [
@@ -718,11 +721,11 @@ export const isSettingsPageRequest = (request: unknown): request is SettingsPage
 const pageDefinition = (id: SettingsPageId): PageDefinition =>
   SETTINGS_PAGES.find((page) => page.id === id) as PageDefinition;
 
-export const isSettingsPageShown = (id: SettingsPageId, context: SettingsContext): boolean =>
+export const isSettingsPageShown = (id: SettingsPageId, context: SettingsPageContext): boolean =>
   !pageDefinition(id).hidden?.(context);
 
 /** The pages of the menu in display order, without the ones this account or app lacks. */
-export const getShownSettingsPages = (context: SettingsContext) =>
+export const getShownSettingsPages = (context: SettingsPageContext) =>
   SETTINGS_PAGES.filter((page) => isSettingsPageShown(page.id, context));
 
 export const getSettingDefinition = (id: string): SettingDefinition | undefined =>

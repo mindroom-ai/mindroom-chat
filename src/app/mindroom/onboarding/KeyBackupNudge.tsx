@@ -24,7 +24,7 @@ function KeyBackupNudgeCard() {
   // has backup, and their dismissal would permanently suppress it.
   if (dismissed || presence !== 'absent') return null;
 
-  const openSecuritySettings = () => setSettingsModal({ initialPage: SettingsPages.DevicesPage });
+  const openSecuritySettings = () => setSettingsModal({ initialPage: SettingsPages.PrivacyPage });
   const onDismiss = () => {
     dismissKeyBackupNudge(userId);
     setDismissed(true);

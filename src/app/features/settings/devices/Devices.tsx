@@ -8,10 +8,9 @@ import { useAlive } from '../../../hooks/useAlive';
 import { getAccountManagementUrl } from '../../../hooks/useAccountManagement';
 import { useServerConfigs } from '../../../components/ServerConfigsLoader';
 import { SettingTile } from '../../../components/setting-tile';
-import { SettingsPageFrame, type SettingsPageProps } from '../SettingsPageFrame';
 import { SettingsCard } from '../SettingsCard';
 import { AuthenticationCancelled, useAuthenticatedAction } from '../useAuthenticatedAction';
-import { countUnverifiedOtherDevices, useOwnDeviceTrust } from '../../../hooks/useOwnDeviceTrust';
+import { countUnverifiedOtherDevices, type OwnDeviceTrust } from '../../../hooks/useOwnDeviceTrust';
 import { SecurityOverlay } from '../../../components/device-verification/SecurityOverlay';
 import {
   VerificationRequestDialog,
@@ -19,7 +18,6 @@ import {
 } from '../../../components/device-verification/VerificationRequestDialog';
 import { SecuritySettings } from './SecuritySettings';
 import { ThisDeviceVerification } from './ThisDeviceVerification';
-import { LocalKeyBackup } from './LocalKeyBackup';
 import { describeError, describeKnownError } from '../../../utils/describeError';
 import { ErrorDetail } from '../../../components/ErrorDetail';
 
@@ -267,10 +265,10 @@ function DeviceRow(props: DeviceRowProps) {
 }
 
 /**
- * The account's sessions: this device first, then the others with rename and sign out. Signing
- * another device out asks for the password or single sign-on again.
+ * The account's encryption setup and sessions: this device first, then the others with rename
+ * and sign out. Signing another device out asks for the password or single sign-on again.
  */
-export function Devices({ requestClose }: SettingsPageProps) {
+export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
@@ -279,7 +277,6 @@ export function Devices({ requestClose }: SettingsPageProps) {
   const { run, prompt } = useAuthenticatedAction();
   const [signingOut, setSigningOut] = useState<string>();
   const [error, setError] = useState<{ during: 'verify' | 'signOut'; failure: unknown }>();
-  const trust = useOwnDeviceTrust();
   const [verification, setVerification] = useState<VerificationRequest>();
   const [requestingFor, setRequestingFor] = useState<string>();
   const currentId = client.getDeviceId();
@@ -405,7 +402,7 @@ export function Devices({ requestClose }: SettingsPageProps) {
   }
 
   return (
-    <SettingsPageFrame title={t('settings.nav.devices')} requestClose={requestClose}>
+    <>
       {trust && <SecuritySettings trust={trust} />}
       {dashboardUrl && (
         <Box direction="Column" gap="100">
@@ -433,7 +430,6 @@ export function Devices({ requestClose }: SettingsPageProps) {
         </Box>
       )}
       {body}
-      {trust && <LocalKeyBackup />}
       {prompt}
       {verification && (
         <SecurityOverlay
@@ -448,6 +444,6 @@ export function Devices({ requestClose }: SettingsPageProps) {
           />
         </SecurityOverlay>
       )}
-    </SettingsPageFrame>
+    </>
   );
 }

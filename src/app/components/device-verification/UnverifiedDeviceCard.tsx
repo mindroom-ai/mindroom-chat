@@ -42,7 +42,7 @@ export function UnverifiedDeviceCard() {
         outlined
         before={<Icon size="200" src={Icons.ShieldUser} />}
         style={{ justifyContent: 'flex-start' }}
-        onClick={() => openSettings({ initialPage: SettingsPages.DevicesPage })}
+        onClick={() => openSettings({ initialPage: SettingsPages.PrivacyPage })}
       >
         <Text as="span" size="B300">
           {t('featureUi.settings.devices.verification.verify')}

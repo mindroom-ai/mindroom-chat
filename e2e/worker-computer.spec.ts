@@ -83,7 +83,8 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   };
   await expectNoShowComputerInMenu();
   await openSettingsFromAccountRail(page);
-  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('button', { name: 'Computers', exact: true }).click();
+  await page.getByRole('button', { name: 'Advanced', exact: true }).click();
   const serviceInput = page.getByRole('textbox', { name: 'Computer service URL', exact: true });
   await serviceInput.fill(fixture.api_origin);
   await page.getByRole('button', { name: 'Save computer service', exact: true }).click();
@@ -247,7 +248,8 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   await expect(panel).toHaveCount(0);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await openSettingsFromAccountRail(page);
-  await page.getByRole('button', { name: 'General', exact: true }).click();
+  await page.getByRole('button', { name: 'Computers', exact: true }).click();
+  await page.getByRole('button', { name: 'Advanced', exact: true }).click();
   await expect(serviceInput).toHaveValue(fixture.api_origin);
   await serviceInput.fill('');
   await page.getByRole('button', { name: 'Save computer service', exact: true }).click();

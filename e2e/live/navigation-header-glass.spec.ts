@@ -203,9 +203,9 @@ for (const [themeId, width] of [
         panel.getByRole('link', { name: '01 · Design studio', exact: true })
       ).toBeVisible();
       await chooseFromAccountMenu(page, 'Settings');
-      await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Appearance', exact: true })).toBeVisible();
       const settingsHeader = page
-        .getByRole('button', { name: 'General', exact: true })
+        .getByRole('button', { name: 'Appearance', exact: true })
         .locator('xpath=ancestor::*[@data-y-scrollbar-width][1]')
         .locator('header');
       await expectFloatingNavHeader(settingsHeader, { inheritsPanelTint: true });

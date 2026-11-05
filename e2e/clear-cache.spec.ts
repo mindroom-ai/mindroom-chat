@@ -19,7 +19,7 @@ const TEST_STORAGE_VALUE = 'test-value';
 
 test.use({ baseURL: DEPLOYED_BASE_URL });
 
-test('clears app cache from Settings > About without signing the user out', async ({
+test('clears app cache from Settings > Storage & offline without signing the user out', async ({
   page,
 }, testInfo) => {
   test.skip(
@@ -45,7 +45,7 @@ test('clears app cache from Settings > About without signing the user out', asyn
   await openSettingsFromAccountRail(page);
   await expect(page.getByText('Settings', { exact: true })).toBeVisible();
 
-  await page.getByRole('button', { name: 'About' }).click();
+  await page.getByRole('button', { name: 'Storage & offline', exact: true }).click();
   await expect(page.getByText('Clear Cache & Reload', { exact: true })).toBeVisible();
 
   const clearCacheButton = page.getByRole('button', { name: 'Clear Cache' });

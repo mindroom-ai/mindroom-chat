@@ -71,7 +71,7 @@ export const openAccountSwitcher = async (page: Page) => {
 
 export const openSettingsFromAccountRail = async (page: Page) => {
   await chooseFromAccountMenu(page, 'Settings');
-  await expect(page.getByRole('button', { name: 'General' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Appearance', exact: true })).toBeVisible();
 };
 
 export const switchToStoredUsername = async (page: Page, username: string) => {

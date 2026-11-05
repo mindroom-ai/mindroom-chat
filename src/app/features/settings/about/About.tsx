@@ -4,9 +4,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Page, PageContent, PageHeader, PageScroll } from '../../../components/page';
 import { SequenceCard } from '../../../components/sequence-card';
 import { SettingTile } from '../../../components/setting-tile';
-import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useClientConfig } from '../../../hooks/useClientConfig';
-import { clearAllCacheAndReload } from '../../../../client/initMatrix';
 import {
   MINDROOM_CLIENT_BRANDING,
   getMindroomWelcomePageContent,
@@ -305,10 +303,9 @@ function AppIdentity() {
   );
 }
 
-/** App version, cache and diagnostics tools, and credits. */
+/** App version, diagnostics tools in the iOS app, and credits. */
 export function About({ requestClose }: AboutProps) {
   const { t } = useTranslation();
-  const client = useMatrixClient();
   const nativeDiagnostics = isNativeIOS();
 
   const header = (
@@ -332,38 +329,18 @@ export function About({ requestClose }: AboutProps) {
     </PageHeader>
   );
 
-  const clearCacheButton = (
-    <Button
-      size="300"
-      radii="300"
-      variant="Secondary"
-      fill="Soft"
-      outlined
-      onClick={() => void clearAllCacheAndReload(client)}
-    >
-      <Text size="B300">{t('featureUi.settings.about.clearCache')}</Text>
-    </Button>
-  );
-
   return (
     <Page>
       <PageScroll header={header}>
         <PageContent>
           <Box direction="Column" gap="700">
             <AppIdentity />
-            <AboutSection title={t('featureUi.settings.about.options')}>
-              <SettingTile
-                title={t('featureUi.settings.about.clearCacheAndReload')}
-                description={t('featureUi.settings.about.clearCacheDescription')}
-                after={clearCacheButton}
-              />
-              {nativeDiagnostics ? (
-                <>
-                  <DiagnosticsExport />
-                  <DeepTraceSetting />
-                </>
-              ) : null}
-            </AboutSection>
+            {nativeDiagnostics && (
+              <AboutSection title={t('featureUi.settings.about.options')}>
+                <DiagnosticsExport />
+                <DeepTraceSetting />
+              </AboutSection>
+            )}
             <AboutSection title={t('featureUi.settings.about.credits')}>
               <CreditsList />
             </AboutSection>
