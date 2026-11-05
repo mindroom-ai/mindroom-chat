@@ -1,50 +1,75 @@
-import { SyncState, type MatrixClient } from 'matrix-js-sdk';
-import { useCallback, useEffect, useState } from 'react';
-import { useSyncState } from './useSyncState';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { ClientEvent, MatrixClient, SyncState, SyncStateData } from 'matrix-js-sdk';
 
-export type ClientSyncStateData = {
-  current: SyncState | null | undefined;
-  // The SDK's flag: the last /sync still had to-device messages, so it polls again at once.
-  catchingUp?: boolean;
+/** A sync state, and whether sync said it was still catching up when it reached it. */
+type SyncReading = { state: SyncState | null | undefined; catchingUp: boolean };
+
+/**
+ * Whether newer server data may still be on its way: sync has not started, has processed only its
+ * first (possibly stored) response, is catching up after a lost connection, or is draining queued
+ * messages with immediate follow-up requests. A client that is offline or failing counts as done,
+ * so views that wait on this give up rather than wait forever.
+ */
+const mayStillCatchUp = ({ state, catchingUp }: SyncReading): boolean => {
+  switch (state) {
+    case null:
+    case undefined:
+    case SyncState.Prepared:
+    case SyncState.Catchup:
+      return true;
+    case SyncState.Syncing:
+      return catchingUp;
+    case SyncState.Reconnecting:
+    case SyncState.Error:
+    case SyncState.Stopped:
+      return false;
+  }
 };
 
-const readClientSyncStateData = (mx: MatrixClient | undefined): ClientSyncStateData => ({
-  current: mx?.getSyncState?.() ?? null,
-  catchingUp: mx?.getSyncStateData?.()?.catchingUp,
-});
+const readClient = (mx: MatrixClient | undefined): SyncReading => {
+  if (!mx) return { state: undefined, catchingUp: false };
+  // Test stand-ins of the client may have no getSyncStateData.
+  const data = typeof mx.getSyncStateData === 'function' ? mx.getSyncStateData() : null;
+  return { state: mx.getSyncState(), catchingUp: data?.catchingUp === true };
+};
 
-const keepIfSame =
-  (next: ClientSyncStateData) =>
-  (state: ClientSyncStateData): ClientSyncStateData =>
-    state.current === next.current && state.catchingUp === next.catchingUp ? state : next;
+/**
+ * True while the client is still catching up with the server (see `mayStillCatchUp`), and without
+ * a client; false once sync runs with nothing pending. Follows the client's sync events and turns
+ * true again when a later sync catches up. The caller re-renders only when the answer changes.
+ */
+export function useInitialClientCatchup(mx: MatrixClient | undefined): boolean {
+  // The newest sync event of the subscribed client, which outranks the client's getters. It ends
+  // with its subscription, so a client subscribed again is read afresh.
+  const lastEventRef = useRef<{ client: MatrixClient; reading: SyncReading }>();
 
-// The client has caught up once a sync reports nothing left to catch up on.
-export const isInitialClientCatchupInProgress = ({
-  current,
-  catchingUp,
-}: ClientSyncStateData): boolean =>
-  current == null ||
-  current === SyncState.Prepared ||
-  current === SyncState.Catchup ||
-  (current === SyncState.Syncing && catchingUp === true);
-
-/** The client's sync state, starting from the state it is already in. */
-export const useClientSyncStateData = (mx: MatrixClient | undefined): ClientSyncStateData => {
-  const [stateData, setStateData] = useState(() => readClientSyncStateData(mx));
-
-  useEffect(() => {
-    setStateData(keepIfSame(readClientSyncStateData(mx)));
-  }, [mx]);
-
-  useSyncState(
-    mx,
-    useCallback((current, _previous, data) => {
-      setStateData(keepIfSame({ current, catchingUp: data?.catchingUp }));
-    }, [])
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      if (!mx) return () => undefined;
+      const onSync = (state: SyncState, _previous: SyncState | null, data?: SyncStateData) => {
+        lastEventRef.current = {
+          client: mx,
+          reading: { state, catchingUp: data?.catchingUp === true },
+        };
+        onChange();
+      };
+      mx.on(ClientEvent.Sync, onSync);
+      return () => {
+        mx.removeListener(ClientEvent.Sync, onSync);
+        lastEventRef.current = undefined;
+      };
+    },
+    [mx]
   );
 
-  return stateData;
-};
+  // React reads this again right after subscribing, so a sync state reached between the render
+  // and the subscription still counts.
+  const getSnapshot = useCallback(() => {
+    const lastEvent = lastEventRef.current;
+    return mayStillCatchUp(
+      lastEvent && lastEvent.client === mx ? lastEvent.reading : readClient(mx)
+    );
+  }, [mx]);
 
-export const useInitialClientCatchup = (mx: MatrixClient | undefined): boolean =>
-  isInitialClientCatchupInProgress(useClientSyncStateData(mx));
+  return useSyncExternalStore(subscribe, getSnapshot);
+}

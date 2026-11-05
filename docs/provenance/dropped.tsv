@@ -98,3 +98,4 @@ src/app/pages/client/threads/index.ts	1	restructure: barrel, importers point at 
 src/app/components/particle-background/index.ts	1	restructure: barrel, importers point at the declaring modules (restructure-p4b-barrels)
 src/app/mindroom/routing/clientRouteRestore.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/components/message/content/useAudioContentSource.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/hooks/useInitialClientCatchup.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
