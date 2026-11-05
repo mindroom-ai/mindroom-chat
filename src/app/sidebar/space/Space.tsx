@@ -1,7 +1,7 @@
 import { ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import type { IconSrc } from 'folds';
-import { Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Navigate, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
@@ -39,6 +39,7 @@ import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { getRoomSearchParams } from '../../routes/pathSearchParam';
+import { SPACE_LOBBY_PATH } from '../../routes/paths';
 import {
   decodeRouteParam,
   getDirectRoomPath,
@@ -259,13 +260,13 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
 }
 
 /** A shortcut row at the top of the space navigation, linking to one of the space's pages. */
-type SpacePageLinkProps = { icon: IconSrc; label: string } & (
+type SpacePageLinkProps = { icon: IconSrc; label: string; selected?: boolean } & (
   | { to: string; onSelect?: undefined }
   | { onSelect: () => void; to?: undefined }
 );
 
 /** One of the shortcuts above the space's rooms: a link when it opens a page, else a button. */
-function SpacePageLink({ icon, label, to, onSelect }: SpacePageLinkProps) {
+function SpacePageLink({ icon, label, to, onSelect, selected }: SpacePageLinkProps) {
   const content = (
     <NavItemContent>
       <Box as="span" alignItems="Center" gap="200" grow="Yes">
@@ -279,7 +280,7 @@ function SpacePageLink({ icon, label, to, onSelect }: SpacePageLinkProps) {
     </NavItemContent>
   );
   return (
-    <NavItem radii="400" variant="Background">
+    <NavItem aria-selected={selected} radii="400" variant="Background">
       {to === undefined ? (
         <NavButton onClick={onSelect}>{content}</NavButton>
       ) : (
@@ -303,6 +304,7 @@ export function Space() {
   const [roomsClosed, setRoomsClosed] = useState(false);
   const openCommandPalette = useSetAtom(commandPaletteOpenAtom);
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
+  const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
   const roomsByName = useMemo(() => sortRoomIdsByName(client, spaceRooms), [client, spaceRooms]);
   // Like Home: A to Z until the person drags a room, then their order.
@@ -335,6 +337,7 @@ export function Space() {
               icon={Icons.Flag}
               label={t('sharedUi.space.lobby')}
               to={getSpaceLobbyPath(spaceIdOrAlias)}
+              selected={lobbySelected}
             />
             {/* Message search is the command palette's Messages tab, as on Home. */}
             <SpacePageLink
