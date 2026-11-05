@@ -38,8 +38,9 @@ export const copyFiles = {
 // authentication recovery script also serves shells cached by older workers.
 const precacheGlobIgnores = ['runtime-config.js', 'authentication-recovery.js', 'version.json'];
 
-// The Lane C string overlays (src/app/localeAdditions.ts), one JSON file per language.
-const LOCALE_ADDITIONS = 'src/app/locales/additions/';
+// The Lane C string overlays (src/app/localeAdditions.ts): one JSON file per language, in the
+// folder of the English one (named by a file, which the move codemod rewrites).
+const LOCALE_ADDITIONS = `${path.posix.dirname('src/app/locales/additions/en.json')}/`;
 
 // The precache holds what a signed-in start needs before it shows a room: the entry chunk and the
 // chunks of these modules with their static imports, style sheets, fonts, images and the crypto

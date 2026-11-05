@@ -94,7 +94,7 @@ const ON_DEMAND = ['src/app/mindroom/messages/thinking-mark.svg'];
 
 const entry = (url: string) => ({ url, revision: url.startsWith('assets/') ? null : 'r', size: 1 });
 
-const LOCALE_ADDITIONS = 'src/app/locales/additions/';
+const LOCALE_ADDITIONS = 'src/app/locales/additions/en.json'.replace(/[^/]+$/, '');
 const OVERLAY = new RegExp(`/${LOCALE_ADDITIONS}([A-Za-z-]+)\\.json$`);
 
 describe('startupFiles', () => {
