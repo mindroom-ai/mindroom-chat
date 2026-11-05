@@ -8,7 +8,6 @@ import {
   moduleDependencies,
   resolvedDependencies,
 } from '../../../../test/architecture';
-import { filesMovedFrom } from '../../../../test/movedFrom';
 
 /**
  * ISSUE-207 P3.3 architecture guards. Anchor the post-strip boundary
@@ -25,12 +24,11 @@ import { filesMovedFrom } from '../../../../test/movedFrom';
  *      pre-strip `roomLiveEventController`) does not import any
  *      persist entry point and does not import `cacheStore/` (the
  *      cache-write layer). Rendering owns paint, not persistence.
- *   3. Engine modules must not import from `MindroomRoomTimeline` —
+ *   3. Engine modules must not import from `RoomTimeline` —
  *      the engine is a client-level singleton and must not depend on
  *      the mounted room component.
  */
 
-// __tests__/engine.architecture.test.ts → engine/__tests__ → engine → mindroom
 const thisDir = dirname(fileURLToPath(import.meta.url));
 const engineRoot = dirname(thisDir); // src/app/event-store/engine
 const mindroomTreeRoot = dirname(dirname(engineRoot)); // src/app
@@ -89,17 +87,16 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
     for (const name of PERSIST_ENTRY_POINT_NAMES) {
       expect(source, `roomLiveRenderController must not import ${name}`).not.toContain(name);
     }
-    // Any cacheStore import path (subpath or ./cacheStore) is forbidden
+    // Any cache/db import path (the barrel or a module in it) is forbidden
     // — the render-only controller must not touch the cache-write layer.
-    expect(source).not.toMatch(/from ['"][^'"]*\/cacheStore['"]/);
-    expect(source).not.toMatch(/from ['"]\.\/cacheStore['"]/);
+    expect(source).not.toMatch(/from ['"][^'"]*\/cache\/db(?:['"/])/);
     // The two pre-strip persist controllers are gone; guard against
     // reintroducing them under any name.
     expect(source).not.toContain('threadCachePersistenceController');
     expect(source).not.toContain('roomCacheLifecycleController');
   });
 
-  it('engine modules do not import MindroomRoomTimeline', () => {
+  it('engine modules do not import RoomTimeline', () => {
     const files = engineModulePaths();
     const offenders: string[] = [];
     // Match only actual import statements — comment/docstring references
@@ -178,10 +175,15 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
   });
 
   it('limits thread relation requests to one SDK adapter and two fallback call sites', () => {
-    const files = filesMovedFrom('src/app/mindroom/threads/').filter(isProductionSourceFile);
+    // Parse only the files that name a relations call: parsing all of src/app is slow.
+    const files = mindroomTsFiles().filter((file) =>
+      readFileSync(file, 'utf8').includes('Relations')
+    );
     const perFileCounts: Record<string, number> = {};
     for (const file of files) {
       const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      // The engine owns relation paging (the fetchAllThreadRelations guard above).
+      if (rel.startsWith('event-store/engine/')) continue;
       const matches = memberAccesses(file).filter(
         (access) => access.name === 'fetchRelations' && access.kind === 'call'
       );
@@ -189,6 +191,8 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
     }
     expect(perFileCounts).toEqual({
       'event-store/sdk/threadBootstrapSdk.ts': 1,
+      // The receipts limit-1 probe noted in the fetchAllThreadRelations guard above.
+      'notifications/readReceipts.ts': 1,
     });
     const callers: Record<string, number> = {};
     for (const file of files) {
@@ -239,7 +243,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
       const forbidden = moduleDependencies(path)
         .map((dependency) => dependency.specifier)
         .filter((specifier) =>
-          /(?:react|jotai|Controller|cacheStore|eventRepository|cacheProbe|timelineDebug|engine)/.test(
+          /(?:react|jotai|Controller|cacheStore|cache\/db|eventRepository|cacheProbe|timelineDebug|engine)/.test(
             specifier
           )
         );
