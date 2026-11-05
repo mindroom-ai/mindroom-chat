@@ -261,7 +261,8 @@ export const scrubText = (input: string, max: number = MAX_MESSAGE): string => {
 
 /** A single code after scrubbing, or `<text>` for anything with spaces or other text in it. */
 const scrubCode = (value: Code): Code => {
-  if (typeof value !== 'string') return Number.isFinite(value) ? value : '<text>';
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : '<text>';
   const scrubbed = scrubText(value, MAX_CODE);
   return CODE.test(scrubbed) ? scrubbed : '<text>';
 };

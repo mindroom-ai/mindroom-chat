@@ -175,6 +175,8 @@ const leakyEvent = (): ReportEvent => {
           data: {
             from: '/home/:roomIdOrAlias/',
             to: '/direct/%40alice%3Aexample.org/',
+            initial: true,
+            duration_ms: 3456,
             displayname: 'Alice Liddell',
           },
         },
@@ -255,6 +257,8 @@ describe('scrubEvent', () => {
     expect(scrubbed?.breadcrumbs?.values[0]?.data).toEqual({
       from: '/home/:roomIdOrAlias/',
       to: '/direct/<user-id>/',
+      initial: true,
+      duration_ms: 3456,
     });
   });
 

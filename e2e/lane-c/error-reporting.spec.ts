@@ -21,7 +21,13 @@ type Report = {
   message?: string;
   tags?: Record<string, string>;
   request?: { url?: string; headers?: Record<string, string> };
-  exception?: { values: { type: string; value: string }[] };
+  exception?: {
+    values: {
+      type: string;
+      value: string;
+      stacktrace?: { frames: { filename?: string; function?: string; in_app?: boolean }[] };
+    }[];
+  };
 };
 
 type Sent = { url: string; body: string };
@@ -138,11 +144,20 @@ test('reports a forced error without private data, and stops when switched off',
     { text: marker, secret: token ?? '' }
   );
 
+  // And one from code with a script address of this origin, as the app's own files have.
+  await page.evaluate((text) => {
+    const source = `window.setTimeout(function forcedFrame() { throw new Error(${JSON.stringify(
+      text
+    )}); });\n//# sourceURL=${window.location.origin}/assets/forced-error.js`;
+    // eslint-disable-next-line no-eval
+    (0, eval)(source);
+  }, `${marker} from app code`);
+
   await expect
     .poll(() => sent.filter((request) => request.body.includes(marker)).length, {
       timeout: 15_000,
     })
-    .toBe(2);
+    .toBe(3);
   const reports = sent.map((request) => JSON.parse(request.body) as Report);
   await testInfo.attach('reports.json', {
     body: JSON.stringify(reports, null, 2),
@@ -188,6 +203,17 @@ test('reports a forced error without private data, and stops when switched off',
   expect(forced?.request?.headers?.['User-Agent']).toContain('Chrome');
   expect(forced?.exception?.values[0]?.value).toContain('"<text>"');
   expect(forced?.exception?.values[0]?.value).toContain('<room-id>');
+  const fromApp = reports.find(
+    (report) => report.exception?.values[0]?.value === `${marker} from app code`
+  );
+  const origin = new URL(page.url()).origin;
+  expect(fromApp?.exception?.values[0]?.stacktrace?.frames).toContainEqual(
+    expect.objectContaining({
+      filename: `${origin}/assets/forced-error.js`,
+      function: 'forcedFrame',
+      in_app: true,
+    })
+  );
 
   // Settings > About turns reports off on this device, at once.
   await chooseFromAccountMenu(page, 'Settings');
