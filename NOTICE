@@ -40,6 +40,11 @@ noVNC
   2.0 (its vendored pako is MIT). The web bundle includes noVNC unmodified.
   Source: https://github.com/novnc/noVNC (tag v1.7.0), also published as the
   npm package @novnc/novnc@1.7.0, which carries the license texts in docs/.
+  Two parts of it carry their own notices, reproduced in
+  licenses/noVNC-notices.txt: core/crypto/des.js (BSD-style notices,
+  Copyright (C) 1999 AT&T Laboratories Cambridge, Copyright (c) 1996 Widget
+  Workshop, Inc., Copyright (C) 1996 Jef Poskanzer) and vendor/pako (pako,
+  MIT License, Copyright (C) 2014-2016 Vitaly Puzrin).
 
 folds
   folds 2.7.1, by Ajay Bura, Apache License 2.0 (https://www.npmjs.com/package/folds;
@@ -53,6 +58,68 @@ Inter
   (https://github.com/rsms/inter), SIL Open Font License 1.1, packaged as
   @fontsource/inter 4.5.14 (MIT). The web bundle includes its font files
   unmodified. License text: licenses/Inter-OFL-1.1.txt.
+
+KaTeX fonts
+  The math renderer, katex 0.16.44 (MIT, Copyright (c) 2013-2020 Khan Academy
+  and other contributors), brings its fonts into the web bundle: 20 KaTeX
+  typefaces in woff2, woff and ttf, Copyright (c) 2009-2010 Design Science,
+  Inc. and Copyright (c) 2014-2018 Khan Academy, SIL Open Font License 1.1,
+  with Reserved Font Names KaTeX_AMS, KaTeX_Caligraphic, KaTeX_Fraktur,
+  KaTeX_Main, KaTeX_Math, KaTeX_SansSerif, KaTeX_Script, KaTeX_Size1,
+  KaTeX_Size2, KaTeX_Size3, KaTeX_Size4 and KaTeX_Typewriter. They are
+  included unmodified. License text: licenses/KaTeX-fonts-OFL-1.1.txt.
+
+T3 Code timeline minimap
+  src/app/mindroom/threads/TimelineMinimap.tsx is a port of the timeline
+  minimap of T3 Code (https://github.com/pingdotgg/t3code,
+  apps/web/src/components/chat/TimelineMinimap.tsx), Copyright (c) 2026 T3
+  Tools Inc., MIT License; timelineMinimapViewModel.ts beside it shares two
+  lines with T3 Code's timelineMinimapItems.ts. License text:
+  licenses/T3-Code-MIT.txt.
+
+Capacitor native project templates
+  android/ and ios/ began as the native project templates of the Capacitor
+  CLI (@capacitor/cli 8.5.2, https://capacitorjs.com), Copyright (c)
+  2017-present Drifty Co., MIT License. License text:
+  licenses/Capacitor-MIT.txt.
+  Unchanged from the templates:
+    android/.gitignore, android/app/.gitignore,
+    android/app/proguard-rules.pro, android/gradle.properties,
+    android/gradle/wrapper/gradle-wrapper.properties, android/gradlew,
+    android/gradlew.bat, android/settings.gradle, android/variables.gradle,
+    and under android/app/src/main/res/: layout/activity_main.xml,
+    mipmap-anydpi-v26/ic_launcher.xml,
+    mipmap-anydpi-v26/ic_launcher_round.xml, values/styles.xml,
+    xml/file_paths.xml; ios/.gitignore, and under ios/App/:
+    App.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist,
+    App/Assets.xcassets/Contents.json,
+    App/Assets.xcassets/Splash.imageset/Contents.json,
+    App/Base.lproj/LaunchScreen.storyboard.
+  Changed from the templates, keeping template lines:
+    android/build.gradle, android/app/build.gradle,
+    android/app/src/main/AndroidManifest.xml,
+    android/app/src/main/res/values/ic_launcher_background.xml,
+    android/app/src/main/res/values/strings.xml, and under ios/App/:
+    Podfile, App.xcodeproj/project.pbxproj, App/AppDelegate.swift,
+    App/SceneDelegate.swift, App/Info.plist, App/Base.lproj/Main.storyboard,
+    App/Assets.xcassets/AppIcon.appiconset/Contents.json.
+  android/gradlew and android/gradlew.bat are the Gradle wrapper scripts,
+  Copyright 2015-2021 the original authors, Apache License 2.0; their
+  headers are kept. The Android launcher icons and launch screens are not
+  the template's: scripts/generate-android-icons.sh draws them from the
+  MindRoom logo.
+
+Sign-in marks
+  public/res/svg/sso-apple-white.svg and public/res/svg/sso-github.svg are
+  the Apple and GitHub icons of Simple Icons (https://simpleicons.org),
+  released under CC0 1.0. public/res/svg/sso-google.svg is Google's "G"
+  logo. The Apple logo, the GitHub mark and the Google "G" are trademarks of
+  Apple Inc., GitHub, Inc. and Google LLC; the Apache License 2.0 of this
+  project does not cover them. Each appears only on the button that signs
+  in with its service. The owners' terms for that use:
+    Apple: https://developer.apple.com/design/human-interface-guidelines/sign-in-with-apple
+    GitHub: https://github.com/logos
+    Google: https://developers.google.com/identity/branding-guidelines
 
 The build output carries LICENSE, this NOTICE and licenses/ in
 public/licenses/ (vite.config.js), beside the bundled code they describe.
@@ -87,8 +154,9 @@ Modified dependencies
   folds 2.7.1 (Apache-2.0), patches/folds+2.7.1.patch modifies:
     dist/style.css.
 
-  @capacitor/android 8.1.0 (MIT), patches/@capacitor+android+8.1.0.patch
-  modifies, under capacitor/src/main/java/com/getcapacitor/:
+  @capacitor/android 8.5.1 (MIT), patches/@capacitor+android+8.1.0.patch
+  (written against 8.1.0; it applies unchanged to 8.5.1) modifies, under
+  capacitor/src/main/java/com/getcapacitor/:
     MessageHandler.java, plugin/CapacitorCookies.java,
     plugin/CapacitorHttp.java, plugin/SystemBars.java.
 

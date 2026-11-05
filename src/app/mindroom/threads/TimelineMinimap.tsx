@@ -1,3 +1,6 @@
+// Ported from the timeline minimap of T3 Code (https://github.com/pingdotgg/t3code,
+// apps/web/src/components/chat/TimelineMinimap.tsx), Copyright (c) 2026 T3 Tools Inc.,
+// MIT License. The license text is in licenses/T3-Code-MIT.txt; NOTICE lists the port.
 import { useTranslation } from 'react-i18next';
 import React, { MouseEvent, RefObject, useCallback, useEffect, useState } from 'react';
 import {
