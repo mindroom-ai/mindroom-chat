@@ -231,9 +231,13 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
     await settle(page);
     await expect(resolve).toBeVisible();
     await expect.poll(() => composerText(page)).toContain('draft');
-    await page.keyboard.press('ControlOrMeta+a');
-    await page.keyboard.press('Backspace');
-    await expect.poll(() => composerText(page)).toBe('');
+    // Under load Chromium can deliver Backspace before the select-all's selectionchange event, so
+    // the editor deletes at its old caret (as in thread-arrow-up-edit.spec.ts); clear until empty.
+    await expect(async () => {
+      await page.keyboard.press('ControlOrMeta+a');
+      await page.keyboard.press('Backspace');
+      expect(await composerText(page)).toBe('');
+    }).toPass({ timeout: 10_000 });
 
     // From the empty composer it resolves, and again reopens.
     await page.keyboard.press('ControlOrMeta+Shift+Enter');
