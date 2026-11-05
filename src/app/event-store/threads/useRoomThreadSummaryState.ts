@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { storeThreadSummaryInState, useThreadSummaryStateMap } from './threadSummaryState';
 
 type UseRoomThreadSummaryStateOptions = {
@@ -14,7 +14,7 @@ export const useRoomThreadSummaryState = ({
   const summaryMap = useThreadSummaryStateMap({ roomId, sessionId });
 
   const storeThreadSummary = useCallback(
-    (threadRootId: string, ...infos: Array<MindroomThreadSummaryInfo | undefined>) => {
+    (threadRootId: string, ...infos: Array<ThreadSummaryInfo | undefined>) => {
       storeThreadSummaryInState(sessionId, roomId, threadRootId, ...infos);
     },
     [roomId, sessionId]

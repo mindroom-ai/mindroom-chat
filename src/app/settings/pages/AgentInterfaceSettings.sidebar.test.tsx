@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../../config/useClientConfig';
 import { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } from '../../preferences/accountSettings';
-import { MindroomInterfaceSettings } from './AgentInterfaceSettings';
+import { AgentInterfaceSettings } from './AgentInterfaceSettings';
 
 const state = vi.hoisted(() => ({
   config: {} as ClientConfig,
@@ -61,7 +61,7 @@ const render = (config: ClientConfig = {}) => {
   state.config = config;
   let renderer!: ReactTestRenderer;
   act(() => {
-    renderer = create(<MindroomInterfaceSettings />);
+    renderer = create(<AgentInterfaceSettings />);
   });
   return renderer;
 };

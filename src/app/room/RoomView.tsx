@@ -28,12 +28,12 @@ import { StateEvent } from '../matrix/types/room';
 import { RoomInput } from '../composer/RoomInput';
 import { BackgroundJobsBar } from '../background-jobs/BackgroundJobsBar';
 import { computerOwnsKeyboardEvent } from '../computer/computerFocus';
-import { useMindroomSyncEngine } from '../event-store/engine/engineContext';
+import { useSyncEngine } from '../event-store/engine/engineContext';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
 import { ThreadApprovalQueue } from '../approvals/ThreadApprovalControls';
 import { ThreadApprovalProvider } from '../approvals/ThreadApprovalProvider';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
@@ -43,7 +43,7 @@ import { isConfirmedMatrixEventId, isLocalEchoEventId } from '../event-store/thr
 import { useRoomViewThreadState } from './useRoomViewThreadState';
 import { useShortcut } from '../shortcuts/useShortcut';
 
-const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
+const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
 /** Stand-in for handlers the thread state mock or a minimal state leaves out. */
 const ignore = () => undefined;
 
@@ -194,7 +194,7 @@ export function RoomView({
   const { t } = useTranslation();
   const client = useMatrixClient();
   const editor = useEditor();
-  const engine = useMindroomSyncEngine();
+  const engine = useSyncEngine();
   const { roomId } = room;
   const areaRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);

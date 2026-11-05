@@ -1,13 +1,13 @@
 const AI_RUN_METADATA_KEY = 'io.mindroom.ai_run';
 
-type MindroomAiRunModel = {
+type AiRunModel = {
   config?: unknown;
   display_name?: unknown;
   id?: unknown;
   provider?: unknown;
 };
 
-type MindroomAiRunUsage = {
+type AiRunUsage = {
   input_tokens?: unknown;
   output_tokens?: unknown;
   cache_read_tokens?: unknown;
@@ -15,22 +15,22 @@ type MindroomAiRunUsage = {
   time_to_first_token?: unknown;
 };
 
-type MindroomAiRunContext = {
+type AiRunContext = {
   input_tokens?: unknown;
   window_tokens?: unknown;
   cache_read_input_tokens?: unknown;
   uncached_input_tokens?: unknown;
 };
 
-type MindroomAiRunTools = {
+type AiRunTools = {
   count?: unknown;
 };
 
-type MindroomAiRunCost = {
+type AiRunCost = {
   usd?: unknown;
 };
 
-type MindroomAiRunMetadata = {
+type AiRunMetadata = {
   version?: unknown;
   status?: unknown;
   run_id?: unknown;
@@ -42,7 +42,7 @@ type MindroomAiRunMetadata = {
   cost?: unknown;
 };
 
-export type MindroomAiRunInfo = {
+export type AiRunInfo = {
   status?: string;
   runId?: string;
   sessionId?: string;
@@ -84,45 +84,45 @@ const asNonNegativeDecimal = (value: unknown): number | undefined => {
   return number !== undefined && number >= 0 ? number : undefined;
 };
 
-const getMindroomAiRunMetadataFromCandidate = (
+const getAiRunMetadataFromCandidate = (
   content: Record<string, unknown>
-): MindroomAiRunMetadata | undefined => {
+): AiRunMetadata | undefined => {
   const metadata = content[AI_RUN_METADATA_KEY];
   if (!isRecord(metadata)) return undefined;
   if (metadata.version !== 1) return undefined;
-  return metadata as MindroomAiRunMetadata;
+  return metadata as AiRunMetadata;
 };
 
-const getMindroomAiRunMetadata = (
+const getAiRunMetadata = (
   content: Record<string, unknown>
-): MindroomAiRunMetadata | undefined => {
+): AiRunMetadata | undefined => {
   const newContent = isRecord(content['m.new_content'])
     ? (content['m.new_content'] as Record<string, unknown>)
     : undefined;
 
   if (newContent) {
-    const fromNewContent = getMindroomAiRunMetadataFromCandidate(newContent);
+    const fromNewContent = getAiRunMetadataFromCandidate(newContent);
     if (fromNewContent) return fromNewContent;
   }
 
-  return getMindroomAiRunMetadataFromCandidate(content);
+  return getAiRunMetadataFromCandidate(content);
 };
 
-export const getMindroomAiRunInfo = (
+export const getAiRunInfo = (
   content: Record<string, unknown>
-): MindroomAiRunInfo | undefined => {
-  const metadata = getMindroomAiRunMetadata(content);
+): AiRunInfo | undefined => {
+  const metadata = getAiRunMetadata(content);
   if (!metadata) return undefined;
 
-  const model = isRecord(metadata.model) ? (metadata.model as MindroomAiRunModel) : undefined;
-  const usage = isRecord(metadata.usage) ? (metadata.usage as MindroomAiRunUsage) : undefined;
+  const model = isRecord(metadata.model) ? (metadata.model as AiRunModel) : undefined;
+  const usage = isRecord(metadata.usage) ? (metadata.usage as AiRunUsage) : undefined;
   const context = isRecord(metadata.context)
-    ? (metadata.context as MindroomAiRunContext)
+    ? (metadata.context as AiRunContext)
     : undefined;
-  const tools = isRecord(metadata.tools) ? (metadata.tools as MindroomAiRunTools) : undefined;
-  const cost = isRecord(metadata.cost) ? (metadata.cost as MindroomAiRunCost) : undefined;
+  const tools = isRecord(metadata.tools) ? (metadata.tools as AiRunTools) : undefined;
+  const cost = isRecord(metadata.cost) ? (metadata.cost as AiRunCost) : undefined;
 
-  const info: MindroomAiRunInfo = {
+  const info: AiRunInfo = {
     status: asString(metadata.status),
     runId: asString(metadata.run_id),
     sessionId: asString(metadata.session_id),
@@ -180,8 +180,8 @@ export const getStreamStatusFromContent = (
  * state. Absent or unrecognized metadata returns false — callers must not
  * treat "not terminal" as "still streaming".
  */
-export const hasTerminalMindroomStreamMetadata = (content: Record<string, unknown>): boolean => {
-  const metadata = getMindroomAiRunMetadata(content);
+export const hasTerminalStreamMetadata = (content: Record<string, unknown>): boolean => {
+  const metadata = getAiRunMetadata(content);
   const aiRunStatus =
     typeof metadata?.status === 'string' ? metadata.status.toLowerCase() : undefined;
   if (aiRunStatus && TERMINAL_AI_RUN_STATUSES.has(aiRunStatus)) return true;
@@ -190,9 +190,9 @@ export const hasTerminalMindroomStreamMetadata = (content: Record<string, unknow
   return !!streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus);
 };
 
-export const isMindroomAiRunStreaming = (content: Record<string, unknown>): boolean => {
+export const isAiRunStreaming = (content: Record<string, unknown>): boolean => {
   // Check io.mindroom.ai_run metadata (present on final edits)
-  const metadata = getMindroomAiRunMetadata(content);
+  const metadata = getAiRunMetadata(content);
   if (metadata) {
     const status = typeof metadata.status === 'string' ? metadata.status : undefined;
     return !status || !TERMINAL_AI_RUN_STATUSES.has(status);

@@ -1,6 +1,6 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { resolveThreadRootPreviewText } from './threadPresentation';
 
 export const RECENT_THREAD_SUMMARY_LIMIT = 120;
@@ -65,7 +65,7 @@ type ResolveRecentThreadSummaryTextOptions = {
   room: Room;
   threadRootId: string;
   rootEvent?: MatrixEvent;
-  summaryInfo?: MindroomThreadSummaryInfo;
+  summaryInfo?: ThreadSummaryInfo;
   fallbackSummaryText?: string;
   roomName?: string;
   t?: TFunction;

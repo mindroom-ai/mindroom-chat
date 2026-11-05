@@ -1,7 +1,7 @@
 import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { createBackfillScheduler } from '../../event-store/engine';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { fetchAndPersistThreadContent } from './threadContentPrefetch';
 import { saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 
@@ -60,7 +60,7 @@ describe('fetchAndPersistThreadContent', () => {
     const persistThreadEventCache = vi.fn();
     const onApplyThreadRelations = vi.fn();
     const onStoreThreadSummary = vi.fn();
-    let currentSummary: MindroomThreadSummaryInfo | undefined;
+    let currentSummary: ThreadSummaryInfo | undefined;
 
     const load = fetchAndPersistThreadContent({
       mx,

@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ToolApprovalData } from '../matrix/protocol/toolApproval';
-import { downloadMindroomSidecarBlob } from '../event-store/cache/sidecarDownload';
+import { downloadSidecarBlob } from '../event-store/cache/sidecarDownload';
 import { ApprovalArgumentFields, countArgumentFields } from './ApprovalArgumentFields';
 import * as css from './ApprovalArgumentFields.css';
 
@@ -25,7 +25,7 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
     const source = JSON.parse(sourceKey) as ToolApprovalData['argumentSource'];
     if (!open || complete || !source) return undefined;
     setError(false);
-    void downloadMindroomSidecarBlob(mx, source)
+    void downloadSidecarBlob(mx, source)
       .then(async (blob) => {
         const value: unknown = JSON.parse(await blob.text());
         if (!value || typeof value !== 'object' || Array.isArray(value))

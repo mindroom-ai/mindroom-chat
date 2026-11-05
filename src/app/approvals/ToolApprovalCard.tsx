@@ -32,7 +32,7 @@ import { describeApprovalChip } from './approvalLabels';
 import * as sectionCss from './ThreadApprovals.css';
 import { useApprovalRoom } from './approvalPeople';
 
-type MindroomToolApprovalCardProps = {
+type ToolApprovalCardProps = {
   approval: ToolApprovalData;
   roomId?: string;
   eventId?: string;
@@ -47,7 +47,7 @@ const getTimestamp = (value: string | null): number | undefined => {
 
 const MAX_TIMEOUT_DELAY = 2_147_483_647;
 
-export function MindroomToolApprovalCard(props: MindroomToolApprovalCardProps) {
+export function ToolApprovalCard(props: ToolApprovalCardProps) {
   const { eventId, roomId, approval, threadId } = props;
   const userId = useMatrixClient().getUserId();
   const context = useThreadApprovals();
@@ -82,7 +82,7 @@ function StandaloneToolApprovalCard({
   roomId,
   eventId,
   threadId,
-}: MindroomToolApprovalCardProps) {
+}: ToolApprovalCardProps) {
   const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const mx = useMatrixClient();

@@ -1,17 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY,
-  createMindroomPasteAttachment,
-  createMindroomPasteId,
-  formatMindroomPasteMarkerTextAsHtml,
-  getMindroomPasteAttachmentFile,
-  parseMindroomPasteMarker,
-  withMindroomPasteAttachmentMetadata,
+  createPasteAttachment,
+  createPasteId,
+  formatPasteMarkerTextAsHtml,
+  getPasteAttachmentFile,
+  parsePasteMarker,
+  withPasteAttachmentMetadata,
 } from './pasteAttachmentMarker';
 
 describe('pasteAttachmentMarker', () => {
   it('creates a text attachment with a parseable marker', async () => {
-    const created = createMindroomPasteAttachment('hello world', { id: 'paste-a3f19c' });
+    const created = createPasteAttachment('hello world', { id: 'paste-a3f19c' });
 
     expect(created.id).toBe('paste-a3f19c');
     expect(created.file.name).toBe('mindroom-paste-a3f19c.txt');
@@ -20,7 +20,7 @@ describe('pasteAttachmentMarker', () => {
     expect(created.marker).toBe(
       '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]'
     );
-    expect(parseMindroomPasteMarker(created.marker)).toEqual({
+    expect(parsePasteMarker(created.marker)).toEqual({
       id: 'paste-a3f19c',
       chars: 11,
       fileName: 'mindroom-paste-a3f19c.txt',
@@ -29,27 +29,27 @@ describe('pasteAttachmentMarker', () => {
   });
 
   it('creates short lowercase hex ids', () => {
-    expect(createMindroomPasteId(() => new Uint8Array([0xa3, 0xf1, 0x9c]))).toBe('paste-a3f19c');
+    expect(createPasteId(() => new Uint8Array([0xa3, 0xf1, 0x9c]))).toBe('paste-a3f19c');
   });
 
   it('rejects malformed markers', () => {
-    expect(parseMindroomPasteMarker('[[mindroom-paste id=bad chars=11 file="x.txt"]]')).toBe(
+    expect(parsePasteMarker('[[mindroom-paste id=bad chars=11 file="x.txt"]]')).toBe(
       undefined
     );
     expect(
-      parseMindroomPasteMarker(
+      parsePasteMarker(
         '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":"NaN","file":"x.txt"}]]'
       )
     ).toBe(undefined);
     expect(
-      parseMindroomPasteMarker(
+      parsePasteMarker(
         '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"../x.txt"}]]'
       )
     ).toBe(undefined);
   });
 
   it('formats inline markers as safe HTML spans', () => {
-    const html = formatMindroomPasteMarkerTextAsHtml(
+    const html = formatPasteMarkerTextAsHtml(
       'Before <unsafe> [[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]] after'
     );
 
@@ -65,11 +65,11 @@ describe('pasteAttachmentMarker', () => {
   });
 
   it('returns undefined when text has no paste marker', () => {
-    expect(formatMindroomPasteMarkerTextAsHtml('ordinary message')).toBeUndefined();
+    expect(formatPasteMarkerTextAsHtml('ordinary message')).toBeUndefined();
   });
 
   it('adds parseable metadata to generated paste file events', () => {
-    const content = withMindroomPasteAttachmentMetadata(
+    const content = withPasteAttachmentMetadata(
       {
         msgtype: 'm.file',
         body: 'mindroom-paste-a3f19c.txt',
@@ -93,7 +93,7 @@ describe('pasteAttachmentMarker', () => {
       chars: 11,
       file: 'mindroom-paste-a3f19c.txt',
     });
-    expect(getMindroomPasteAttachmentFile(content)).toEqual({
+    expect(getPasteAttachmentFile(content)).toEqual({
       id: 'paste-a3f19c',
       chars: 11,
       fileName: 'mindroom-paste-a3f19c.txt',
@@ -113,7 +113,7 @@ describe('pasteAttachmentMarker', () => {
       },
     });
 
-    expect(createMindroomPasteId()).toBe('paste-deadbe');
+    expect(createPasteId()).toBe('paste-deadbe');
 
     vi.stubGlobal('crypto', originalCrypto);
   });

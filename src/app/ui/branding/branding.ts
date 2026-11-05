@@ -14,12 +14,12 @@ export const MINDROOM_LOGO_SRC = MindRoomLogo;
 export const MINDROOM_LOGO_ALT = 'MindRoom Chat Logo';
 export const MINDROOM_FAVICON_SRC = MindRoomFavicon;
 
-export type MindroomPoweredByLink = {
+export type PoweredByLink = {
   label: string;
   url: string;
 };
 
-export const MINDROOM_DEFAULT_POWERED_BY: MindroomPoweredByLink[] = [
+export const MINDROOM_DEFAULT_POWERED_BY: PoweredByLink[] = [
   { label: 'MindRoom', url: MINDROOM_SITE_URL },
   { label: 'Matrix', url: 'https://matrix.org' },
 ];

@@ -5,13 +5,13 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
   clearAttachmentRepositoryMemory,
-  hydrateCachedMindroomLongText,
+  hydrateCachedLongText,
   prefetchEventAttachments,
 } from './attachmentRepository';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import {
-  clearMindroomLongTextHydrationCache,
-  getMindroomLongTextSource,
+  clearLongTextHydrationCache,
+  getLongTextSource,
 } from '../../matrix/protocol/longText';
 import { resetCacheHealthForTesting } from './cacheHealth';
 import {
@@ -58,12 +58,12 @@ beforeEach(() => {
   resetCacheStoreForTesting();
   resetCacheHealthForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
 });
 afterEach(() => {
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
   vi.unstubAllGlobals();
 });
 
@@ -95,7 +95,7 @@ it('restores a server-supplied surviving edit after latest-edit retraction and c
   expect(await loadCachedAttachment(sessionId, 'mxc://test/earlier')).toBeUndefined();
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
   client = account();
 
   // Server history supplies the previous edit, which compaction no longer retains.
@@ -126,7 +126,7 @@ it('restores a server-supplied surviving edit after latest-edit retraction and c
 
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
   const offlineFetch = vi.fn().mockRejectedValue(new TypeError('offline'));
   vi.stubGlobal('fetch', offlineFetch);
   const reopened = account();
@@ -134,8 +134,8 @@ it('restores a server-supplied surviving edit after latest-edit retraction and c
   const cold = new MatrixEvent(cachedRoot!);
   hydrateCachedEvents({ room: reopened.room, events: [cold] });
   expect(
-    await hydrateCachedMindroomLongText(reopened.mx, {
-      ...getMindroomLongTextSource(cold.getContent())!,
+    await hydrateCachedLongText(reopened.mx, {
+      ...getLongTextSource(cold.getContent())!,
       owner: getEventAttachmentOwner(cold),
     })
   ).toMatchObject({ body: 'complete earlier' });

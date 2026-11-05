@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { atom, useAtomValue, useStore, type Atom, type WritableAtom } from 'jotai';
 import type { MatrixClient, MatrixError, UploadProgress, UploadResponse } from 'matrix-js-sdk';
 import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import type { MindroomPasteMarker } from '../protocol/pasteAttachmentMarker';
+import type { PasteMarker } from '../protocol/pasteAttachmentMarker';
 import { toMatrixUploadError, uploadContent, type TUploadContent } from '../matrix';
 
 /** Where one file's upload stands. String values keep logged and stored states readable. */
@@ -47,7 +47,7 @@ export type TUploadFamilyObserverAtom = Atom<Upload[]>;
 export type TUploadMetadata = {
   markedAsSpoiler: boolean;
   /** Set when the file holds text the composer turned into an attachment. */
-  mindroomPasteAttachment?: Pick<MindroomPasteMarker, 'id' | 'chars' | 'fileName'>;
+  mindroomPasteAttachment?: Pick<PasteMarker, 'id' | 'chars' | 'fileName'>;
   /** Set when the file is a recorded voice message. */
   voiceMessage?: {
     /** Length in milliseconds. */

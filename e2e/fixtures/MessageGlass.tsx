@@ -2,14 +2,14 @@ import React from 'react';
 import { Button, Text, color } from 'folds';
 import parse from 'html-react-parser';
 import { CustomEditor, useEditor } from '../../src/app/editor/Editor';
-import { ThreadSummaryCard as MindroomThreadSummaryCard } from '../../src/app/messages/thread-summary/ThreadSummaryCard';
-import { MindroomToolApprovalCard } from '../../src/app/approvals/ToolApprovalCard';
+import { ThreadSummaryCard } from '../../src/app/messages/thread-summary/ThreadSummaryCard';
+import { ToolApprovalCard } from '../../src/app/approvals/ToolApprovalCard';
 import {
   ApprovalGroup,
   ApprovalHistory,
 } from '../../src/app/approvals/ThreadApprovalControls';
 import { ApprovalReceipt } from '../../src/app/approvals/ApprovalReceipt';
-import { useMindroomToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
+import { useToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../src/app/rich-text/htmlReactParserOptions';
 import type { ToolApprovalData } from '../../src/app/matrix/protocol/toolApproval';
 import * as approvals from '../../src/app/approvals/ThreadApprovals.css';
@@ -46,7 +46,7 @@ const toolContent = { formatted_body: toolHtml };
 
 export function MessageGlass() {
   const toolParserOptions = resolveHtmlReactParserOptions(
-    useMindroomToolTraceMarkerParserOptions(toolBaseOptions, toolContent)
+    useToolTraceMarkerParserOptions(toolBaseOptions, toolContent)
   );
   const editor = useEditor();
   return (
@@ -61,7 +61,7 @@ export function MessageGlass() {
       <div style={{ display: 'grid', gap: 16, maxWidth: 600, margin: '0 auto' }}>
         <Text size="H4">Conversation surfaces</Text>
         <div data-testid="summary">
-          <MindroomThreadSummaryCard
+          <ThreadSummaryCard
             summaryInfo={{ summaryText: 'Review the release notes together', messageCount: 12 }}
             renderBody={({ body }) => body}
           />
@@ -80,7 +80,7 @@ export function MessageGlass() {
           />
         </div>
         <div data-testid="approval">
-          <MindroomToolApprovalCard
+          <ToolApprovalCard
             approval={approval}
             roomId="!glass:example.org"
             eventId="$pending"

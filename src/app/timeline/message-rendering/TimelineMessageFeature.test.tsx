@@ -31,7 +31,7 @@ vi.doUnmock('../../messages/content/EncryptedContent');
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker', async () => {
   const ReactImport = await import('react');
   return {
-    MindroomThreadSummaryMarker: (props: Record<string, unknown>) =>
+    ThreadSummaryMarker: (props: Record<string, unknown>) =>
       ReactImport.createElement('summary-marker', props),
   };
 });

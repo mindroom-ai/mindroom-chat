@@ -233,9 +233,9 @@ vi.mock('../../config/useClientConfig', () => ({
 }));
 
 vi.mock('../../computer/useAgentServers', () => ({
-  useRoomMindroomServers: () => roomState.mindroomServers,
+  useRoomAgentServers: () => roomState.mindroomServers,
   useBindsOpenIdTokens: () => roomState.bindsOpenIdTokens,
-  useMindroomServerUrls: () => [],
+  useAgentServerUrls: () => [],
 }));
 
 vi.mock('../../computer/ComputerPanel', () => ({

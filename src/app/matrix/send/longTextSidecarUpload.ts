@@ -2,7 +2,7 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { getFileMsgContent } from './msgContent';
 import { uploadContent } from '../matrix';
 import { createMindroomRoomUploadItems } from './roomInputUploadPreparation';
-import { withMindroomLongTextSidecarMetadata } from '../protocol/longText';
+import { withLongTextSidecarMetadata } from '../protocol/longText';
 
 const SIDECAR_FILENAME = 'message-content.json';
 const SIDECAR_MIMETYPE = 'application/json';
@@ -12,7 +12,7 @@ const SIDECAR_MIMETYPE = 'application/json';
  * whole content is uploaded as JSON (encrypted in an encrypted room), and the event to send is an
  * `m.file` preview that points at it. MindRoom and MindRoom Chat read the whole content back.
  */
-export const uploadMindroomLongTextSidecar = async (
+export const uploadLongTextSidecar = async (
   mx: MatrixClient,
   room: Room,
   content: Record<string, unknown>,
@@ -32,7 +32,7 @@ export const uploadMindroomLongTextSidecar = async (
       onError: reject,
     });
   });
-  return withMindroomLongTextSidecarMetadata(
+  return withLongTextSidecarMetadata(
     { ...getFileMsgContent(item, mxc), ...preview },
     new TextEncoder().encode(json).length
   );

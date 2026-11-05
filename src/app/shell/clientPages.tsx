@@ -9,7 +9,7 @@ import {
   CollapsibleSidebarNav,
   SpacePageRoot,
 } from '../sidebar/Navigation';
-import { MindroomPageNav } from '../sidebar/ResizablePageNav';
+import { CollapsiblePageNav } from '../sidebar/ResizablePageNav';
 import { CreateRoomForm } from '../rooms/create/CreateRoom';
 import { JoinRoomPanel } from '../rooms/join/JoinAddressPrompt';
 import { Page } from '../ui/page/Page';
@@ -86,7 +86,7 @@ export function SectionPage({
   navId?: string;
 }) {
   return (
-    <SectionPageRoot navId={navId} nav={<MindroomPageNav path={path}>{nav}</MindroomPageNav>}>
+    <SectionPageRoot navId={navId} nav={<CollapsiblePageNav path={path}>{nav}</CollapsiblePageNav>}>
       <Outlet />
     </SectionPageRoot>
   );
@@ -97,9 +97,9 @@ export function SpaceSectionPage({ path }: { path: string }) {
   return (
     <SpacePageRoot
       nav={
-        <MindroomPageNav path={path}>
+        <CollapsiblePageNav path={path}>
           <Space />
-        </MindroomPageNav>
+        </CollapsiblePageNav>
       }
     >
       <Outlet />

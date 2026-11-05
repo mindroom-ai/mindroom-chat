@@ -24,7 +24,7 @@ import {
 } from './app/account/lifecycle/indexedDbLossRecovery';
 import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap';
 import { bootstrapRideTraceFlagFromUrl } from './app/timeline/rideTraceRecorder';
-import { migrateMindroomSettingsStorage } from './app/event-store/engine/prefetchSettingsStorage';
+import { migratePrefetchSettingsStorage } from './app/event-store/engine/prefetchSettingsStorage';
 import { migrateLegacyIOSPushEnabled } from './app/notifications/push/iosPush';
 import { isServiceWorkerEnabled } from './app/config/runtimeConfig';
 import { getActiveSession, subscribeToSessionStore } from './app/matrix/session/sessions';
@@ -81,7 +81,7 @@ const prepareDocument = (): void => {
     migrateLegacyIOSPushEnabled();
   });
   runSafely('settings migration', () => {
-    migrateMindroomSettingsStorage();
+    migratePrefetchSettingsStorage();
   });
   runSafely('native app links', () => {
     // Capacitor's App plugin reports the SSO and pairing links the native app opens with.

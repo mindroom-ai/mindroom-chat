@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { MindroomLongTextSource } from '../matrix/protocol/longText';
-import { getMindroomLongTextDownloadName } from './content/longTextDownload';
+import { LongTextSource } from '../matrix/protocol/longText';
+import { getLongTextDownloadName } from './content/longTextDownload';
 
-const source = (overrides: Partial<MindroomLongTextSource> = {}): MindroomLongTextSource => ({
+const source = (overrides: Partial<LongTextSource> = {}): LongTextSource => ({
   previewContent: {
     msgtype: 'm.file',
     body: 'preview',
@@ -13,10 +13,10 @@ const source = (overrides: Partial<MindroomLongTextSource> = {}): MindroomLongTe
   ...overrides,
 });
 
-describe('getMindroomLongTextDownloadName', () => {
+describe('getLongTextDownloadName', () => {
   it('uses a sanitized Matrix file name when one is available', () => {
     expect(
-      getMindroomLongTextDownloadName(
+      getLongTextDownloadName(
         source({
           previewContent: {
             msgtype: 'm.file',
@@ -33,7 +33,7 @@ describe('getMindroomLongTextDownloadName', () => {
 
   it('falls back to the mxc media id and expected sidecar extension', () => {
     expect(
-      getMindroomLongTextDownloadName(
+      getLongTextDownloadName(
         source({
           mxcUri: 'mxc://mindroom/overflow-body',
           isV2ContentJson: false,

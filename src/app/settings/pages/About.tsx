@@ -21,10 +21,7 @@ import { SettingTile } from '../../ui/SettingTile';
 import { TextViewer } from '../../messages/viewers/TextViewer';
 import { useClientConfig } from '../../config/useClientConfig';
 import { appUrl } from '../../lib/basePath';
-import {
-  MINDROOM_CLIENT_BRANDING,
-  getMindroomWelcomePageContent,
-} from '../../ui/branding/clientBranding';
+import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../../ui/branding/clientBranding';
 import { isNativeIOS } from '../../native/nativeSso';
 import { saveFile } from '../../native/nativeFileSave';
 import { getFlightRecorderStatus } from '../../diagnostics/flightRecorder';
@@ -347,7 +344,7 @@ function AboutSection({ title, children }: { title: string; children: ReactNode 
 function AppIdentity() {
   const { t } = useTranslation();
   const { welcome } = useClientConfig();
-  const { subtitle } = getMindroomWelcomePageContent(welcome as never, t);
+  const { subtitle } = getWelcomePageContent(welcome as never, t);
   const { appName, logoAlt, logoSrc, sourceUrl } = MINDROOM_CLIENT_BRANDING;
   const logoSize = toRem(60);
 

@@ -1,5 +1,5 @@
 import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { buildCompactThreadRootData } from '../event-store/threads/compactThreadRootData';
 import { isVisibleThreadRootEvent } from '../event-store/timeline/roomTimelineEvents';
 import {
@@ -89,7 +89,7 @@ const getFilteredRoomOverviewEvents = (
   scheduledStatusMap: Map<string, ThreadScheduledStatus>,
   threadReplyCountMapForMeta: Map<string, number>,
   threadParticipantMap: Map<string, string[]>,
-  summaryMap: Map<string, MindroomThreadSummaryInfo>,
+  summaryMap: Map<string, ThreadSummaryInfo>,
   currentUserId: string,
   searchQuery: string,
   threadSortFreezeState: ThreadSortFreezeState | null,
@@ -206,7 +206,7 @@ export const getRoomEventFocusTarget = ({
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   threadReplyCountMapForMeta: Map<string, number>;
   threadParticipantMap: Map<string, string[]>;
-  summaryMap: Map<string, MindroomThreadSummaryInfo>;
+  summaryMap: Map<string, ThreadSummaryInfo>;
   currentUserId: string;
   searchQuery?: string;
   threadSortFreezeState?: ThreadSortFreezeState | null;

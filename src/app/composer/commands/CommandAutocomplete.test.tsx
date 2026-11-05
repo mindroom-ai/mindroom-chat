@@ -9,7 +9,7 @@ import {
   type AutocompleteQuery,
   getAutocompleteQuery,
 } from '../../editor/autocomplete/autocompleteQuery';
-import { getMindroomCommandQuery } from './agentCommandQuery';
+import { getAgentCommandQuery } from './agentCommandQuery';
 import { AgentCommandAutocomplete, CommandAutocomplete } from './CommandAutocomplete';
 import { defined } from '../../../test/utils/defined';
 
@@ -85,7 +85,7 @@ const editorWith = (text: string) => {
   Transforms.select(editor, Editor.end(editor, []));
   const range = defined(getPrevWorldRange(editor), `a word in ${text}`);
   const query: AutocompleteQuery<string> | undefined = text.startsWith('!')
-    ? getMindroomCommandQuery(editor, range)
+    ? getAgentCommandQuery(editor, range)
     : getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES);
   return { editor, query: defined(query, `a query in ${text}`), requestClose: vi.fn() };
 };

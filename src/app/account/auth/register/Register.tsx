@@ -11,7 +11,7 @@ import {
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../config/useClientConfig';
 import {
-  getMindroomAuthSsoRedirectUrl,
+  getAuthSsoRedirectUrl,
   shouldDisablePasswordLogin,
   shouldRequireAppleProvider,
   shouldUseSsoOnlyRegistration,
@@ -146,7 +146,7 @@ export function Register() {
   // A completed SSO sign-up returns with a login token, which the login page exchanges.
   const ssoRedirectUrl = useMemo(
     () =>
-      getMindroomAuthSsoRedirectUrl(
+      getAuthSsoRedirectUrl(
         `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(getLoginPath(server), addAccount)}`
       ),
     [hashRouter, server, addAccount]

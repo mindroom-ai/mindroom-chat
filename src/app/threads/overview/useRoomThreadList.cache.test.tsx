@@ -6,8 +6,8 @@ import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBacken
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
-import { createMindroomSyncEngine } from '../../event-store/engine/syncEngine';
-import { MindroomSyncEngineProvider } from '../../event-store/engine/engineContext';
+import { createSyncEngine } from '../../event-store/engine/syncEngine';
+import { SyncEngineProvider } from '../../event-store/engine/engineContext';
 import {
   clearRoomCachedContent,
   deleteCacheStoreDb,
@@ -45,7 +45,7 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   const room = new Room(roomId, mx, userId, { timelineSupport: true });
   room.setMaxListeners(500);
   mx.store.storeRoom(room);
-  const engine = createMindroomSyncEngine({ mx });
+  const engine = createSyncEngine({ mx });
   sessionId = engine.sessionId;
   const roots = Array.from({ length: 400 }, (_, index): Partial<IEvent> => {
     const reply = {
@@ -129,9 +129,9 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   await act(async () => {
     renderer = create(
       <MatrixClientProvider value={mx}>
-        <MindroomSyncEngineProvider engine={engine}>
+        <SyncEngineProvider engine={engine}>
           <Harness />
-        </MindroomSyncEngineProvider>
+        </SyncEngineProvider>
       </MatrixClientProvider>
     );
   });
@@ -161,7 +161,7 @@ it.each([false, true])(
     const mx = new Client();
     const room = new Room(roomId, mx, userId, { timelineSupport: true });
     mx.store.storeRoom(room);
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
     const persist = engine.persist.forRoom(room);
     const saveRoot = vi.spyOn(persist, 'persistThreadEventCache');
     vi.spyOn(engine.persist, 'forRoom').mockReturnValue(persist);
@@ -221,9 +221,9 @@ it.each([false, true])(
     await act(async () => {
       renderer = create(
         <MatrixClientProvider value={mx}>
-          <MindroomSyncEngineProvider engine={engine}>
+          <SyncEngineProvider engine={engine}>
             <Harness />
-          </MindroomSyncEngineProvider>
+          </SyncEngineProvider>
         </MatrixClientProvider>
       );
       await vi.waitFor(async () => {
@@ -251,7 +251,7 @@ it('saves only changed listed roots when the overview is shown again', async () 
   const mx = new Client();
   const room = new Room(roomId, mx, userId, { timelineSupport: true });
   mx.store.storeRoom(room);
-  const engine = createMindroomSyncEngine({ mx });
+  const engine = createSyncEngine({ mx });
   sessionId = engine.sessionId;
   const saveRoot = vi.fn();
   const forRoom = engine.persist.forRoom.bind(engine.persist);
@@ -290,9 +290,9 @@ it('saves only changed listed roots when the overview is shown again', async () 
     await act(async () => {
       renderer = create(
         <MatrixClientProvider value={mx}>
-          <MindroomSyncEngineProvider engine={engine}>
+          <SyncEngineProvider engine={engine}>
             <Harness />
-          </MindroomSyncEngineProvider>
+          </SyncEngineProvider>
         </MatrixClientProvider>
       );
       await vi.waitFor(() => expect(loading).toBe(false));
@@ -352,7 +352,7 @@ it('saves encrypted listed roots once decrypted, and again when a failed one dec
   const mx = new Client();
   const room = new Room(roomId, mx, userId, { timelineSupport: true });
   mx.store.storeRoom(room);
-  const engine = createMindroomSyncEngine({ mx });
+  const engine = createSyncEngine({ mx });
   sessionId = engine.sessionId;
   const saved: string[] = [];
   const forRoom = engine.persist.forRoom.bind(engine.persist);
@@ -397,9 +397,9 @@ it('saves encrypted listed roots once decrypted, and again when a failed one dec
     await act(async () => {
       renderer = create(
         <MatrixClientProvider value={mx}>
-          <MindroomSyncEngineProvider engine={engine}>
+          <SyncEngineProvider engine={engine}>
             <Harness />
-          </MindroomSyncEngineProvider>
+          </SyncEngineProvider>
         </MatrixClientProvider>
       );
       await vi.waitFor(() => expect(loading).toBe(false));

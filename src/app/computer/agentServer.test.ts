@@ -4,8 +4,8 @@ import {
   MINDROOM_SERVER_EVENT,
   distinctServerUrls,
   isLoopbackOrigin,
-  parseMindroomServer,
-  selectMindroomServers,
+  parseAgentServer,
+  selectAgentServers,
 } from './agentServer';
 
 const agent = '@mindroom_code:example.org';
@@ -27,10 +27,10 @@ const serverEvent = (
 describe('MindRoom server state', () => {
   it('reads the origin and computer an agent publishes', () => {
     expect(
-      parseMindroomServer(serverEvent({ api_origin: 'http://localhost:8765', computer: true }))
+      parseAgentServer(serverEvent({ api_origin: 'http://localhost:8765', computer: true }))
     ).toEqual({ agentUserId: agent, apiUrl: 'http://localhost:8765', computer: true, ts: 1 });
     expect(
-      parseMindroomServer(serverEvent({ api_origin: 'https://mind.example.org', computer: 'yes' }))
+      parseAgentServer(serverEvent({ api_origin: 'https://mind.example.org', computer: 'yes' }))
         ?.computer
     ).toBe(false);
   });
@@ -40,11 +40,11 @@ describe('MindRoom server state', () => {
     ['an origin with a path', { api_origin: 'https://mind.example.org/app' }],
     ['no origin', {}],
   ])('ignores %s', (_case, content) => {
-    expect(parseMindroomServer(serverEvent(content))).toBeUndefined();
+    expect(parseAgentServer(serverEvent(content))).toBeUndefined();
   });
 
   it('orders the servers newest first', () => {
-    const servers = selectMindroomServers([
+    const servers = selectAgentServers([
       serverEvent({ api_origin: 'http://localhost:8765' }, { ts: 1 }),
       serverEvent(
         { api_origin: 'https://mind.example.org' },

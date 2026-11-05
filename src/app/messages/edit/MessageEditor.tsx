@@ -29,8 +29,8 @@ import { settingsAtom } from '../../preferences/settings';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { mobileOrTablet } from '../../lib/user-agent';
 import { trimReplyFromBody } from '../../matrix/room';
-import { buildMindroomEditContent } from './longEdit';
-import { useMindroomEditableContent } from './useEditableContent';
+import { buildEditContent } from './longEdit';
+import { useEditableContent } from './useEditableContent';
 import { TEXT_MSGTYPES } from '../../event-store/timeline/timelineRowTypes';
 
 const CUSTOM_HTML = 'org.matrix.custom.html';
@@ -181,7 +181,7 @@ function LoadedMessageEditor({
     }
     setStatus('saving');
     try {
-      const edit = await buildMindroomEditContent(client, room, edited, {
+      const edit = await buildEditContent(client, room, edited, {
         rel_type: RelationType.Replace,
         event_id: eventId,
       });
@@ -255,7 +255,7 @@ function LoadedMessageEditor({
  */
 export function MessageEditor({ room, mEvent, onDone }: EditSession) {
   const { t } = useTranslation();
-  const editable = useMindroomEditableContent(room, mEvent);
+  const editable = useEditableContent(room, mEvent);
   if (editable.content) {
     return (
       <LoadedMessageEditor room={room} mEvent={mEvent} content={editable.content} onDone={onDone} />

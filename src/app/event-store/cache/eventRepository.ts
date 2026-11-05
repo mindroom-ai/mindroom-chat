@@ -35,7 +35,7 @@ import { readRoomOfflineProgress, updateRoomOfflineProgress } from './db/cacheSt
 import { collectEventAttachments } from '../../matrix/protocol/eventAttachments';
 import {
   getThreadSummaryInfosFromEventSources,
-  type MindroomThreadSummaryInfo,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getSerializedRelationEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getLatestEdit } from '../../matrix/room';
@@ -894,7 +894,7 @@ const publishCachedThreadSummaries = async (
   sessionId: string,
   roomId: string,
   threadId: string,
-  summaries: MindroomThreadSummaryInfo[],
+  summaries: ThreadSummaryInfo[],
   write: Promise<void | boolean>,
   lease: CacheStoreWriteLease
 ): Promise<void> => {
@@ -974,7 +974,7 @@ export const persistThreadEventCacheSnapshot = ({
     ? save(...saveArgs)
     : save(...saveArgs, relationSnapshotMode);
   const summaries = getThreadSummaryInfosFromEventSources(events).filter(
-    (info): info is MindroomThreadSummaryInfo => !!info?.summaryText
+    (info): info is ThreadSummaryInfo => !!info?.summaryText
   );
   if (summaries.length > 0) {
     const lease = writeLease ?? captureCacheStoreWriteLease(sessionId, room.roomId);

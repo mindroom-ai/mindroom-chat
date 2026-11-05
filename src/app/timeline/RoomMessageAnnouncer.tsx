@@ -9,7 +9,7 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { createDecryptionWaits, isAwaitingDecryption } from '../matrix/decryptionWaits';
-import { isMindroomAiRunStreaming } from '../matrix/protocol/aiRun';
+import { isAiRunStreaming } from '../matrix/protocol/aiRun';
 import { isThreadListTimeline } from '../event-store/timeline/roomLiveEventArrive';
 import { readCanvasNoticeTitle } from '../matrix/protocol/chatUiProtocol';
 import { matchesEnum } from '../lib/matchesEnum';
@@ -121,14 +121,14 @@ export function RoomMessageAnnouncer({
       const target = replacedId(event);
       if (target) {
         const original = streaming.get(target);
-        if (!original || isMindroomAiRunStreaming(event.getContent<Content>())) return;
+        if (!original || isAiRunStreaming(event.getContent<Content>())) return;
         streaming.delete(target);
         announce(original, shownContent(event));
         return;
       }
       if (!isAnnounceable(event, scope)) return;
       const id = event.getId();
-      if (id && isMindroomAiRunStreaming(event.getContent<Content>())) {
+      if (id && isAiRunStreaming(event.getContent<Content>())) {
         streaming.set(id, event);
         return;
       }

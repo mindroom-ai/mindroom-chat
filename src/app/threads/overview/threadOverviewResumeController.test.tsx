@@ -4,8 +4,8 @@ import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-j
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   createBackfillScheduler,
-  MindroomSyncEngineProvider,
-  type MindroomSyncEngine,
+  SyncEngineProvider,
+  type SyncEngine,
 } from '../../event-store/engine';
 import { fetchAndPersistThreadContent } from '../open/threadContentPrefetch';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
@@ -120,7 +120,7 @@ describe('useThreadOverviewResumeController', () => {
 
     const room = { roomId: '!room:example.org' } as Room;
     const mx = {} as MatrixClient;
-    const engine = { scheduler: createBackfillScheduler() } as MindroomSyncEngine;
+    const engine = { scheduler: createBackfillScheduler() } as SyncEngine;
     const threadIdRef = { current: undefined } as MutableRefObject<string | undefined>;
     const onApplyThreadRelations = vi.fn();
     const persistThreadEventCache = vi.fn();
@@ -128,7 +128,7 @@ describe('useThreadOverviewResumeController', () => {
     const setOverviewRefreshCounter = vi.fn();
     let renderer!: ReactTestRenderer;
     const render = (threadId: string | undefined) => (
-      <MindroomSyncEngineProvider engine={engine}>
+      <SyncEngineProvider engine={engine}>
         <Harness
           compactViewRequested={false}
           mx={mx}
@@ -140,7 +140,7 @@ describe('useThreadOverviewResumeController', () => {
           threadId={threadId}
           threadIdRef={threadIdRef}
         />
-      </MindroomSyncEngineProvider>
+      </SyncEngineProvider>
     );
 
     await act(async () => {
@@ -222,7 +222,7 @@ describe('useThreadOverviewResumeController', () => {
         getRoom: () => room,
       } as unknown as MatrixClient;
       const scheduler = createBackfillScheduler({ mx });
-      const engine = { scheduler } as MindroomSyncEngine;
+      const engine = { scheduler } as SyncEngine;
       const threadIdRef = { current: undefined } as MutableRefObject<string | undefined>;
       const overviewApply = vi.fn();
       const overviewPersist = vi.fn();
@@ -230,7 +230,7 @@ describe('useThreadOverviewResumeController', () => {
       const setOverviewRefreshCounter = vi.fn();
       let renderer!: ReactTestRenderer;
       const render = (compactViewRequested: boolean) => (
-        <MindroomSyncEngineProvider engine={engine}>
+        <SyncEngineProvider engine={engine}>
           <Harness
             compactViewRequested={compactViewRequested}
             mx={mx}
@@ -242,7 +242,7 @@ describe('useThreadOverviewResumeController', () => {
             threadId={undefined}
             threadIdRef={threadIdRef}
           />
-        </MindroomSyncEngineProvider>
+        </SyncEngineProvider>
       );
 
       await act(async () => {

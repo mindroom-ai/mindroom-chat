@@ -47,7 +47,7 @@ vi.mock('./BrokenContent', () => ({
 
 vi.mock('../agent-run/Reasoning.css', () => ({}));
 vi.mock('../html/HtmlBlocks', () => ({
-  useMindroomToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
+  useToolTraceMarkerParserOptions: toolTraceParserOptionsMock,
 }));
 
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
@@ -56,7 +56,7 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({
 }));
 
 vi.mock('../../approvals/ToolApprovalCard', () => ({
-  MindroomToolApprovalCard: ({
+  ToolApprovalCard: ({
     approval,
     eventId,
     roomId,
@@ -74,14 +74,14 @@ vi.mock('../../approvals/ToolApprovalCard', () => ({
 
 vi.mock('./LongTextText', () => ({
   // Sidecar contents the tests have "downloaded", by MXC URI.
-  useMindroomLongTextResolvedContent: (source: { mxcUri: string } | undefined) =>
+  useLongTextResolvedContent: (source: { mxcUri: string } | undefined) =>
     source ? resolvedLongText.get(source.mxcUri) : undefined,
-  MindroomLongTextKind: {
+  LongTextKind: {
     Text: 'text',
     Emote: 'emote',
     Notice: 'notice',
   },
-  MindroomLongTextText: ({ content, hydrate, kind, renderAfterBody, renderBody }: any) => {
+  LongTextText: ({ content, hydrate, kind, renderAfterBody, renderBody }: any) => {
     longTextTextMock({ hydrate, kind });
     return React.createElement(
       'div',
@@ -94,14 +94,14 @@ vi.mock('./LongTextText', () => ({
 }));
 
 vi.mock('./PasteAttachmentContent', () => ({
-  MindroomPasteAttachmentContent: ({ attachment }: any) => {
+  PasteAttachmentContent: ({ attachment }: any) => {
     pasteAttachmentContentMock(attachment);
     return React.createElement('div', { 'data-renderer': 'paste-attachment' }, attachment.fileName);
   },
 }));
 
 vi.mock('../agent-run/StreamingIndicator', () => ({
-  renderMindroomStreamingIndicator: () =>
+  renderStreamingIndicator: () =>
     React.createElement('span', { 'data-renderer': 'streaming' }),
 }));
 
@@ -110,7 +110,7 @@ vi.mock('../../ui/PendingSendIndicator.css', () => ({
 }));
 
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({
-  MindroomThinkingPlaceholder: ({ startedAt }: { startedAt?: number }) =>
+  ThinkingPlaceholder: ({ startedAt }: { startedAt?: number }) =>
     React.createElement(
       'span',
       { 'data-renderer': 'thinking-placeholder', 'data-started-at': startedAt },
@@ -148,15 +148,15 @@ const messageExtras = {
 
 const renderNode = async (
   options: Partial<
-    Parameters<typeof import('./renderAgentMessageContent').renderMindroomMessageContent>[0]
+    Parameters<typeof import('./renderAgentMessageContent').renderAgentMessageContent>[0]
   >
 ) => {
-  const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+  const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
   return create(
     React.createElement(
       React.Fragment,
       null,
-      renderMindroomMessageContent({
+      renderAgentMessageContent({
         displayName: 'MindRoom',
         msgType: 'm.text',
         content: {
@@ -173,7 +173,7 @@ const renderNode = async (
 
 importBeforeTests(() => import('./renderAgentMessageContent'));
 
-describe('renderMindroomMessageContent', () => {
+describe('renderAgentMessageContent', () => {
   it('renders only the marked router transcription placeholder as an animated status', async () => {
     const placeholder = await renderNode({
       msgType: 'm.text',
@@ -800,10 +800,10 @@ describe('renderMindroomMessageContent', () => {
 
     // What Chat's real hydration returns after downloading a file with these bytes.
     const downloaded = async (file: unknown, raw = JSON.stringify(file)) => {
-      const { hydrateMindroomLongTextSource } = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
+      const { hydrateLongTextSource } = await vi.importActual<typeof import('../../matrix/protocol/longText')>(
         '../../matrix/protocol/longText'
       );
-      return hydrateMindroomLongTextSource(
+      return hydrateLongTextSource(
         { previewContent: { body: '' }, mxcUri: `mxc://test/${raw.length}`, isV2ContentJson: true },
         async () => raw,
         {}
@@ -1164,9 +1164,9 @@ describe('renderMindroomMessageContent', () => {
   });
 
   it('returns undefined for non-MindRoom media messages so generic rendering can handle them', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
 
-    const rendered = renderMindroomMessageContent({
+    const rendered = renderAgentMessageContent({
       displayName: 'MindRoom',
       msgType: 'm.image',
       content: {
@@ -1187,7 +1187,7 @@ it.each(['m.notice', 'm.emote'])(
     const { IDBFactory } = await import('fake-indexeddb');
     const { createClient, MatrixEvent } = await import('matrix-js-sdk');
     const cache = await import('../../event-store/cache/db');
-    const { hydrateCachedMindroomLongText } = await import('../../event-store/cache/attachmentRepository');
+    const { hydrateCachedLongText } = await import('../../event-store/cache/attachmentRepository');
     const { createSessionId } = await import('../../matrix/session/sessions');
     globalThis.indexedDB = new IDBFactory();
     cache.resetCacheStoreForTesting();
@@ -1216,7 +1216,7 @@ it.each(['m.notice', 'm.emote'])(
         await persistAttachmentEvents(mx, [mEvent]);
         const tree = await renderNode({ msgType, content, mEvent });
         const node = tree.root.find((item) => !!item.props.longTextSource);
-        const hydrated = await hydrateCachedMindroomLongText(mx, node.props.longTextSource);
+        const hydrated = await hydrateCachedLongText(mx, node.props.longTextSource);
         expect(hydrated.body).toBe('complete body');
         tree.unmount();
       }

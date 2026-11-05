@@ -1,20 +1,20 @@
 import { atom } from 'jotai';
 import {
-  loadMindroomSettings,
-  saveMindroomSettings,
-  sanitizeMindroomSettings,
-  type MindroomSettings,
+  loadPrefetchSettings,
+  savePrefetchSettings,
+  sanitizePrefetchSettings,
+  type PrefetchSettings,
 } from './prefetchSettingsStorage';
 
-export type { MindroomSettings } from './prefetchSettingsStorage';
+export type { PrefetchSettings } from './prefetchSettingsStorage';
 
-const baseMindroomSettingsAtom = atom<MindroomSettings>(loadMindroomSettings());
+const basePrefetchSettingsAtom = atom<PrefetchSettings>(loadPrefetchSettings());
 
-export const mindroomSettingsAtom = atom<MindroomSettings, [MindroomSettings], undefined>(
-  (get) => get(baseMindroomSettingsAtom),
+export const prefetchSettingsAtom = atom<PrefetchSettings, [PrefetchSettings], undefined>(
+  (get) => get(basePrefetchSettingsAtom),
   (_get, set, update) => {
-    const next = sanitizeMindroomSettings(update);
-    set(baseMindroomSettingsAtom, next);
-    saveMindroomSettings(next);
+    const next = sanitizePrefetchSettings(update);
+    set(basePrefetchSettingsAtom, next);
+    savePrefetchSettings(next);
   }
 );

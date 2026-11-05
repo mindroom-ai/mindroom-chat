@@ -1,12 +1,12 @@
 import type { IContent, IEventRelation, MatrixClient, Room } from 'matrix-js-sdk';
 import {
-  buildMindroomLongTextPreview,
+  buildLongTextPreview,
   contentBytes,
-  getMindroomLongTextSource,
+  getLongTextSource,
   MAX_EVENT_CONTENT_BYTES,
-  MindroomLongTextSource,
+  LongTextSource,
 } from '../../matrix/protocol/longText';
-import { uploadMindroomLongTextSidecar } from '../../matrix/send/longTextSidecarUpload';
+import { uploadLongTextSidecar } from '../../matrix/send/longTextSidecarUpload';
 
 /**
  * The edit event for new content. One that does not fit one event is uploaded whole as a long-text
@@ -14,7 +14,7 @@ import { uploadMindroomLongTextSidecar } from '../../matrix/send/longTextSidecar
  * the event and takes the message from its `m.new_content`, and Chat does the same. The event then
  * replaces the message with the sidecar's preview.
  */
-export const buildMindroomEditContent = async (
+export const buildEditContent = async (
   mx: MatrixClient,
   room: Room,
   newContent: IContent,
@@ -28,11 +28,11 @@ export const buildMindroomEditContent = async (
   };
   if (contentBytes(edit) <= MAX_EVENT_CONTENT_BYTES) return edit;
 
-  const replacement = await uploadMindroomLongTextSidecar(
+  const replacement = await uploadLongTextSidecar(
     mx,
     room,
     edit,
-    buildMindroomLongTextPreview(newContent)
+    buildLongTextPreview(newContent)
   );
   return {
     msgtype: newContent.msgtype,
@@ -47,11 +47,11 @@ export const buildMindroomEditContent = async (
  * The content to edit: a message sent as a long-text sidecar is edited from its whole content, so
  * `undefined` when that cannot be loaded, because saving its preview would cut the message.
  */
-export const loadMindroomEditableContent = async (
+export const loadEditableContent = async (
   content: Record<string, unknown>,
-  hydrate: (source: MindroomLongTextSource) => Promise<Record<string, unknown>>
+  hydrate: (source: LongTextSource) => Promise<Record<string, unknown>>
 ): Promise<Record<string, unknown> | undefined> => {
-  const source = getMindroomLongTextSource(content);
+  const source = getLongTextSource(content);
   if (!source) return content;
   const whole = await hydrate(source);
   return whole === source.previewContent ? undefined : whole;

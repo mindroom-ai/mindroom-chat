@@ -8,12 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-const MINDROOM_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const APP_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('ISSUE-207 P6.1 / D4 prefetch settings replacement', () => {
-  it('wires MindroomPrefetchSettings into the Storage & offline settings page', () => {
+  it('wires PrefetchSettings into the Storage & offline settings page', () => {
     const storagePageSource = readFileSync(
-      resolve(MINDROOM_DIR, 'settings/pages/StorageOffline.tsx'),
+      resolve(APP_DIR, 'settings/pages/StorageOffline.tsx'),
       'utf8'
     );
     expect(storagePageSource).toContain('PrefetchSettings');
@@ -21,12 +21,12 @@ describe('ISSUE-207 P6.1 / D4 prefetch settings replacement', () => {
   });
 
   it('migrates explicitly at app bootstrap', () => {
-    const indexSource = readFileSync(resolve(MINDROOM_DIR, '../index.tsx'), 'utf8');
+    const indexSource = readFileSync(resolve(APP_DIR, '../index.tsx'), 'utf8');
 
     expect(indexSource).toContain('migrateLegacyIOSPushEnabled();');
-    expect(indexSource).toContain('migrateMindroomSettingsStorage();');
+    expect(indexSource).toContain('migratePrefetchSettingsStorage();');
     expect(indexSource.indexOf('migrateLegacyIOSPushEnabled();')).toBeLessThan(
-      indexSource.indexOf('migrateMindroomSettingsStorage();')
+      indexSource.indexOf('migratePrefetchSettingsStorage();')
     );
   });
 
@@ -36,14 +36,14 @@ describe('ISSUE-207 P6.1 / D4 prefetch settings replacement', () => {
     // constants or a deep cached room/thread materializes thousands of
     // IndexedDB records before first paint (AC1 regression).
     const hydration = readFileSync(
-      resolve(MINDROOM_DIR, 'timeline/roomCacheHydrationController.ts'),
+      resolve(APP_DIR, 'timeline/roomCacheHydrationController.ts'),
       'utf8'
     );
     expect(hydration).not.toMatch(/limit:\s*prefetchDepth/);
     expect(hydration).toMatch(/limit:\s*ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE/);
 
     const threadOpen = readFileSync(
-      resolve(MINDROOM_DIR, 'threads/open/threadOpenCacheController.ts'),
+      resolve(APP_DIR, 'threads/open/threadOpenCacheController.ts'),
       'utf8'
     );
     expect(threadOpen).not.toMatch(/limit:\s*prefetchDepthRef/);

@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Box, Button, Icon, Icons, Spinner, Text, color } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { hasMindroomVoiceCallsPresence } from './agentCall';
+import { hasVoiceCallsPresence } from './agentCall';
 import { usePresenceStatuses } from './agentPresence';
 import { AGENT_CALL_ERROR_KEYS, useAgentCaller } from './agentCaller';
 
@@ -38,7 +38,7 @@ export function AgentCallButton({
 
   if (
     !isMindroomAgentUserIdForViewer(userId, mx.getUserId() ?? undefined) ||
-    !hasMindroomVoiceCallsPresence(status)
+    !hasVoiceCallsPresence(status)
   ) {
     return null;
   }

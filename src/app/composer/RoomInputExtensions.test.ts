@@ -5,13 +5,13 @@ import {
   type AutocompleteQuery,
 } from '../editor/autocomplete/autocompleteQuery';
 import {
-  createMindroomRoomInputPasteMarkerElement,
-  getMindroomRoomInputPasteMarkerFileNames,
-  isMindroomRoomInputAutocompleteQuery,
-  MindroomRoomInputAutocomplete,
-  MindroomRoomInputReplyContext,
-  MindroomRoomInputThreadIndicator,
-  removeMindroomRoomInputPasteMarkerElements,
+  createRoomInputPasteMarkerElement,
+  getRoomInputPasteMarkerFileNames,
+  isRoomInputAutocompleteQuery,
+  RoomInputAutocomplete,
+  RoomInputReplyContext,
+  RoomInputThreadIndicator,
+  removeRoomInputPasteMarkerElements,
 } from './RoomInputExtensions';
 import { BlockType } from '../editor/types';
 
@@ -44,14 +44,14 @@ const query = (prefix: string): AutocompleteQuery<string> => ({
 
 describe('RoomInputMindroomExtensions', () => {
   it('recognizes only MindRoom room-input autocomplete queries', () => {
-    expect(isMindroomRoomInputAutocompleteQuery(query('!'))).toBe(true);
-    expect(isMindroomRoomInputAutocompleteQuery(query(AutocompletePrefix.Command))).toBe(false);
-    expect(isMindroomRoomInputAutocompleteQuery(undefined)).toBe(false);
+    expect(isRoomInputAutocompleteQuery(query('!'))).toBe(true);
+    expect(isRoomInputAutocompleteQuery(query(AutocompletePrefix.Command))).toBe(false);
+    expect(isRoomInputAutocompleteQuery(undefined)).toBe(false);
   });
 
   it('does not render MindRoom autocomplete for upstream room-input queries', () => {
     expect(
-      MindroomRoomInputAutocomplete({
+      RoomInputAutocomplete({
         editor: {} as Editor,
         query: query(AutocompletePrefix.Command),
         requestClose: () => undefined,
@@ -61,14 +61,14 @@ describe('RoomInputMindroomExtensions', () => {
 
   it('renders the thread indicator only for threaded reply drafts', () => {
     expect(
-      MindroomRoomInputThreadIndicator({
+      RoomInputThreadIndicator({
         room: {} as never,
         relation: undefined,
       })
     ).toBeNull();
 
     expect(
-      MindroomRoomInputThreadIndicator({
+      RoomInputThreadIndicator({
         room: {} as never,
         relation: {
           event_id: '$thread',
@@ -80,14 +80,14 @@ describe('RoomInputMindroomExtensions', () => {
 
   it('renders the composer context only for replies or pending sends', () => {
     expect(
-      MindroomRoomInputReplyContext({
+      RoomInputReplyContext({
         room: {} as never,
         relation: undefined,
       })
     ).toBeNull();
 
     expect(
-      MindroomRoomInputReplyContext({
+      RoomInputReplyContext({
         pendingSend: true,
         room: {} as never,
         relation: undefined,
@@ -95,7 +95,7 @@ describe('RoomInputMindroomExtensions', () => {
     ).not.toBeNull();
 
     expect(
-      MindroomRoomInputReplyContext({
+      RoomInputReplyContext({
         children: 'reply',
         room: {} as never,
         relation: undefined,
@@ -106,7 +106,7 @@ describe('RoomInputMindroomExtensions', () => {
   it('creates and finds paste marker editor nodes', () => {
     const marker =
       '[[mindroom-paste:{"v":1,"id":"paste-a3f19c","chars":11,"file":"mindroom-paste-a3f19c.txt"}]]';
-    const element = createMindroomRoomInputPasteMarkerElement({
+    const element = createRoomInputPasteMarkerElement({
       id: 'paste-a3f19c',
       chars: 11,
       fileName: 'mindroom-paste-a3f19c.txt',
@@ -123,7 +123,7 @@ describe('RoomInputMindroomExtensions', () => {
     });
 
     expect(
-      getMindroomRoomInputPasteMarkerFileNames([
+      getRoomInputPasteMarkerFileNames([
         {
           type: BlockType.Paragraph,
           children: [{ text: 'Before ' }, element, { text: ' after' }],
@@ -139,8 +139,8 @@ describe('RoomInputMindroomExtensions', () => {
       },
     ];
 
-    removeMindroomRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
+    removeRoomInputPasteMarkerElements(editor, new Set(['mindroom-paste-a3f19c.txt']));
 
-    expect(getMindroomRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
+    expect(getRoomInputPasteMarkerFileNames(editor.children)).toEqual(new Set());
   });
 });

@@ -31,7 +31,7 @@ importBeforeTests(() => import('../RoomTimeline'));
 describe('thread summary markers', () => {
   it('hides a repeated summary and marks the others in an open thread', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    const { MindroomThreadSummaryMarker } = await import(
+    const { ThreadSummaryMarker } = await import(
       '../../messages/thread-summary/ThreadSummaryMarker'
     );
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
@@ -73,7 +73,7 @@ describe('thread summary markers', () => {
       // history state, which the planner's own tests cover.
       expect(
         renderer!.root
-          .findAllByType(MindroomThreadSummaryMarker)
+          .findAllByType(ThreadSummaryMarker)
           .map((node) => node.props.plan?.previousSummaryText)
       ).toEqual([undefined, 'Push bug']);
     } finally {
@@ -128,7 +128,7 @@ describe('thread summary markers', () => {
 
   it('compares a summary by its latest edit, as its row shows it', async () => {
     const { RoomTimeline } = await import('../RoomTimeline');
-    const { MindroomThreadSummaryMarker } = await import(
+    const { ThreadSummaryMarker } = await import(
       '../../messages/thread-summary/ThreadSummaryMarker'
     );
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
@@ -173,7 +173,7 @@ describe('thread summary markers', () => {
       expect(getRenderedEventIds(renderer!)).toEqual(['$s1', '$s2']);
       expect(
         renderer!.root
-          .findAllByType(MindroomThreadSummaryMarker)
+          .findAllByType(ThreadSummaryMarker)
           .map((node) => node.props.plan?.previousSummaryText)
       ).toEqual([undefined, 'Push bug']);
     } finally {

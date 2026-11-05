@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import {
   getThreadSummaryInfosFromEventSources,
-  type MindroomThreadSummaryInfo,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryWriter } from '../../event-store/threads/threadSummaryState';
 import type { ThreadCacheCoverage, ThreadRecord } from '../../event-store/threads/types';
@@ -45,8 +45,8 @@ type UseThreadOverviewCacheHydrationOptions = {
 };
 
 type CachedOverviewUpdate = ThreadOverviewCachedMetadataUpdate & {
-  nextSummaryInfo?: MindroomThreadSummaryInfo;
-  summaryCandidates?: Array<MindroomThreadSummaryInfo | undefined>;
+  nextSummaryInfo?: ThreadSummaryInfo;
+  summaryCandidates?: Array<ThreadSummaryInfo | undefined>;
 };
 
 export type FetchedRelationOverviewUpdateOptions = {

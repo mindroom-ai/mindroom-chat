@@ -2,7 +2,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
   pickLatestThreadSummaryInfo,
-  type MindroomThreadSummaryInfo,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getThreadStreamingState } from './useThreadStreamingState';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
@@ -39,8 +39,8 @@ type BuildThreadRecordOptions = {
   room: Room;
   threadRootId: string;
   threadRootEvent?: MatrixEvent;
-  summaryInfo?: MindroomThreadSummaryInfo;
-  fallbackSummaryInfo?: MindroomThreadSummaryInfo;
+  summaryInfo?: ThreadSummaryInfo;
+  fallbackSummaryInfo?: ThreadSummaryInfo;
   fallbackReplyCount?: number;
   rootPreviewText?: string;
   fallbackLatestReplyPreviewText?: string;
@@ -60,8 +60,8 @@ type BuildThreadRecordMapOptions = {
   room: Room;
   threadRootIds: string[];
   threadRootEventMap?: ReadonlyMap<string, MatrixEvent>;
-  summaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
-  fallbackSummaryMap?: ReadonlyMap<string, MindroomThreadSummaryInfo>;
+  summaryMap?: ReadonlyMap<string, ThreadSummaryInfo>;
+  fallbackSummaryMap?: ReadonlyMap<string, ThreadSummaryInfo>;
   fallbackReplyCountMap?: ReadonlyMap<string, number>;
   rootPreviewTextMap?: ReadonlyMap<string, string>;
   fallbackLatestReplyPreviewMap?: ReadonlyMap<string, string>;

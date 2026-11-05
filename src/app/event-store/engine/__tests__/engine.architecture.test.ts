@@ -31,7 +31,7 @@ import {
 
 const thisDir = dirname(fileURLToPath(import.meta.url));
 const engineRoot = dirname(thisDir); // src/app/event-store/engine
-const mindroomTreeRoot = dirname(dirname(engineRoot)); // src/app
+const treeRoot = dirname(dirname(engineRoot)); // src/app
 
 const walk = (dir: string, out: string[] = []): string[] => {
   for (const entry of readdirSync(dir)) {
@@ -55,7 +55,7 @@ const isProductionSourceFile = (path: string): boolean =>
   !path.includes(`${'/test-utils/'}`);
 
 const engineModulePaths = () => walk(engineRoot).filter(isProductionSourceFile);
-const mindroomTsFiles = () => walk(mindroomTreeRoot).filter(isProductionSourceFile);
+const tsFiles = () => walk(treeRoot).filter(isProductionSourceFile);
 
 const PERSIST_ENTRY_POINT_NAMES = [
   'persistThreadEventCacheSnapshot',
@@ -65,10 +65,10 @@ const PERSIST_ENTRY_POINT_NAMES = [
 
 describe('ISSUE-207 P3.3 engine boundary architecture', () => {
   it('persist entry points are consumed only by engine/** modules (allowlist: engine + eventRepository itself)', () => {
-    const files = mindroomTsFiles();
+    const files = tsFiles();
     const offenders: string[] = [];
     for (const file of files) {
-      const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      const rel = relative(treeRoot, file).replace(/\\/g, '/');
       if (rel.startsWith('event-store/engine/')) continue;
       if (rel === 'event-store/cache/eventRepository.ts') continue;
       const source = readFileSync(file, 'utf8');
@@ -82,7 +82,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
   });
 
   it('roomLiveRenderController does not import any persist entry point and does not import cacheStore', () => {
-    const renderControllerPath = join(mindroomTreeRoot, 'timeline/roomLiveRenderController.ts');
+    const renderControllerPath = join(treeRoot, 'timeline/roomLiveRenderController.ts');
     const source = readFileSync(renderControllerPath, 'utf8');
     for (const name of PERSIST_ENTRY_POINT_NAMES) {
       expect(source, `roomLiveRenderController must not import ${name}`).not.toContain(name);
@@ -106,7 +106,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
     for (const file of files) {
       const source = readFileSync(file, 'utf8');
       if (importRegex.test(source)) {
-        offenders.push(relative(mindroomTreeRoot, file));
+        offenders.push(relative(treeRoot, file));
       }
     }
     expect(offenders).toEqual([]);
@@ -117,11 +117,11 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
   // through-relations fetcher; the `mx.fetchRelations` boundary is
   // reserved for the bounded SDK adapter used by the two fallback bootstraps.
   it('fetchAllThreadRelations is defined in engine/, and imported only within engine/**', () => {
-    const files = mindroomTsFiles();
+    const files = tsFiles();
     const definers: string[] = [];
     const nonEngineImporters: string[] = [];
     for (const file of files) {
-      const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      const rel = relative(treeRoot, file).replace(/\\/g, '/');
       const source = readFileSync(file, 'utf8');
       if (source.includes('export async function fetchAllThreadRelations')) {
         definers.push(rel);
@@ -169,12 +169,12 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
 
   it('limits thread relation requests to one SDK adapter and two fallback call sites', () => {
     // Parse only the files that name a relations call: parsing all of src/app is slow.
-    const files = mindroomTsFiles().filter((file) =>
+    const files = tsFiles().filter((file) =>
       readFileSync(file, 'utf8').includes('Relations')
     );
     const perFileCounts: Record<string, number> = {};
     for (const file of files) {
-      const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      const rel = relative(treeRoot, file).replace(/\\/g, '/');
       // The engine owns relation paging (the fetchAllThreadRelations guard above).
       if (rel.startsWith('event-store/engine/')) continue;
       const matches = memberAccesses(file).filter(
@@ -189,7 +189,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
     });
     const callers: Record<string, number> = {};
     for (const file of files) {
-      const rel = relative(mindroomTreeRoot, file).replace(/\\/g, '/');
+      const rel = relative(treeRoot, file).replace(/\\/g, '/');
       if (rel === 'event-store/sdk/threadBootstrapSdk.ts') continue;
       const matches = calledIdentifierNames(file).filter(
         (name) => name === 'fetchThreadBootstrapRelations'
@@ -201,7 +201,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
 
   it('keeps brittle timeline SDK mutations out of the previous controllers', () => {
     for (const name of ['roomCacheHydrationController', 'roomPaginationCommandController']) {
-      const path = join(mindroomTreeRoot, 'timeline', `${name}.ts`);
+      const path = join(treeRoot, 'timeline', `${name}.ts`);
       const accessedMembers = memberAccesses(path).map((access) => access.name);
       const forbiddenCalls = new Set([
         'addLiveEvents',
@@ -224,7 +224,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
       'replayEvents',
     ]);
     expect(
-      memberAccesses(join(mindroomTreeRoot, 'threads/open/threadOpenSdkBootstrap.ts')).filter((access) =>
+      memberAccesses(join(treeRoot, 'threads/open/threadOpenSdkBootstrap.ts')).filter((access) =>
         forbiddenAccesses.has(access.name)
       )
     ).toEqual([]);
@@ -232,7 +232,7 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
 
   it('keeps the SDK compatibility modules free of UI and data-layer ownership', () => {
     for (const name of ['roomTimelineSdk', 'threadBootstrapSdk']) {
-      const path = join(mindroomTreeRoot, 'event-store/sdk', `${name}.ts`);
+      const path = join(treeRoot, 'event-store/sdk', `${name}.ts`);
       const forbidden = moduleDependencies(path)
         .map((dependency) => dependency.specifier)
         .filter((specifier) =>
@@ -322,7 +322,7 @@ describe('engine framework-agnostic boundary (library-extraction guard)', () => 
         const isTsxComponent = (resolved?.endsWith('.tsx') ?? false) && !isSeam;
         const isAdapterHook = adapterName.test(specBase);
         if (isTsxComponent || isAdapterHook) {
-          offenders.push(`${rel}: imports ${relative(mindroomTreeRoot, resolved)}`);
+          offenders.push(`${rel}: imports ${relative(treeRoot, resolved)}`);
         }
       }
     }

@@ -1,22 +1,22 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import type { HTMLReactParserOptions } from 'html-react-parser';
-import { useMindroomToolTraceMarkerParserOptions } from '../../app/messages/html/HtmlBlocks';
-import type { MindroomToolMetadataStatus } from '../../app/matrix/protocol/toolTrace';
+import { useToolTraceMarkerParserOptions } from '../../app/messages/html/HtmlBlocks';
+import type { ToolMetadataStatus } from '../../app/matrix/protocol/toolTrace';
 import {
   type HtmlReactParserOptionsSource,
   resolveHtmlReactParserOptions,
 } from '../../app/rich-text/htmlReactParserOptions';
 
-/** What `useMindroomToolTraceMarkerParserOptions` gives a message with this content. */
+/** What `useToolTraceMarkerParserOptions` gives a message with this content. */
 export const renderMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>,
-  metadataStatus?: MindroomToolMetadataStatus
+  metadataStatus?: ToolMetadataStatus
 ): HtmlReactParserOptionsSource => {
   let source: HtmlReactParserOptionsSource = baseOpts;
   function Probe() {
-    source = useMindroomToolTraceMarkerParserOptions(baseOpts, content, metadataStatus);
+    source = useToolTraceMarkerParserOptions(baseOpts, content, metadataStatus);
     return null;
   }
   renderToStaticMarkup(<Probe />);
@@ -27,6 +27,6 @@ export const renderMarkerParserOptions = (
 export const markerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>,
-  metadataStatus?: MindroomToolMetadataStatus
+  metadataStatus?: ToolMetadataStatus
 ): HTMLReactParserOptions =>
   resolveHtmlReactParserOptions(renderMarkerParserOptions(baseOpts, content, metadataStatus));

@@ -1,7 +1,7 @@
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { contentBytes, getMindroomLongTextSource, hydrateMindroomLongTextSource } from '../../matrix/protocol/longText';
-import { buildMindroomEditContent, loadMindroomEditableContent } from './longEdit';
+import { contentBytes, getLongTextSource, hydrateLongTextSource } from '../../matrix/protocol/longText';
+import { buildEditContent, loadEditableContent } from './longEdit';
 
 const relation = { rel_type: 'm.replace', event_id: '$original' };
 const mentions = { user_ids: ['@mindroom_writer:example.org'] };
@@ -27,12 +27,12 @@ const setup = () => {
   return { mx, client: mx as unknown as MatrixClient, room };
 };
 
-describe('buildMindroomEditContent', () => {
+describe('buildEditContent', () => {
   it('sends an edit that fits one event as it is', async () => {
     const { mx, client, room } = setup();
     const newContent = { msgtype: 'm.text', body: 'fixed', 'm.mentions': {} };
 
-    const edit = await buildMindroomEditContent(client, room, newContent, relation);
+    const edit = await buildEditContent(client, room, newContent, relation);
 
     expect(edit).toEqual({
       ...newContent,
@@ -46,7 +46,7 @@ describe('buildMindroomEditContent', () => {
   it('sends a large edit as a long-text sidecar', async () => {
     const { mx, client, room } = setup();
 
-    const edit = await buildMindroomEditContent(client, room, longContent, relation);
+    const edit = await buildEditContent(client, room, longContent, relation);
 
     // The file holds the whole edit, as MindRoom uploads its own: MindRoom reads the file in place
     // of the event and takes the edited message from its `m.new_content`.
@@ -59,8 +59,8 @@ describe('buildMindroomEditContent', () => {
     });
     const replacement = edit['m.new_content'] as Record<string, unknown>;
     // Chat reads the edited message out of that file too.
-    const source = getMindroomLongTextSource(replacement)!;
-    expect(await hydrateMindroomLongTextSource(source, async () => uploaded, {})).toEqual(
+    const source = getLongTextSource(replacement)!;
+    expect(await hydrateLongTextSource(source, async () => uploaded, {})).toEqual(
       longContent
     );
     expect(replacement).toMatchObject({
@@ -81,29 +81,29 @@ describe('buildMindroomEditContent', () => {
   });
 });
 
-describe('loadMindroomEditableContent', () => {
+describe('loadEditableContent', () => {
   it('returns text content as it is', async () => {
     const hydrate = vi.fn();
     const content = { msgtype: 'm.text', body: 'short' };
 
-    expect(await loadMindroomEditableContent(content, hydrate)).toBe(content);
+    expect(await loadEditableContent(content, hydrate)).toBe(content);
     expect(hydrate).not.toHaveBeenCalled();
   });
 
   it('returns the whole content of a long-text message', async () => {
     const hydrate = vi.fn(async () => longContent);
 
-    expect(await loadMindroomEditableContent(longTextFile, hydrate)).toBe(longContent);
+    expect(await loadEditableContent(longTextFile, hydrate)).toBe(longContent);
     expect(hydrate.mock.calls[0][0]).toMatchObject({ mxcUri: 'mxc://example.org/earlier' });
   });
 
   it('returns nothing when the whole content cannot be loaded', async () => {
     // Hydration falls back to the preview, which must never be edited in place of the message.
     const hydrate = vi.fn(
-      async (source: NonNullable<ReturnType<typeof getMindroomLongTextSource>>) =>
+      async (source: NonNullable<ReturnType<typeof getLongTextSource>>) =>
         source.previewContent
     );
 
-    expect(await loadMindroomEditableContent(longTextFile, hydrate)).toBeUndefined();
+    expect(await loadEditableContent(longTextFile, hydrate)).toBeUndefined();
   });
 });

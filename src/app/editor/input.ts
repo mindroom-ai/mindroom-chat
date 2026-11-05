@@ -3,10 +3,10 @@ import { ChildNode, Element as DomElement, isTag, isText } from 'domhandler';
 import { Descendant } from 'slate';
 import { escapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import {
-  getMindroomEditorMathText,
-  getMindroomEditorPasteMarkerElement,
-  isMindroomEditorMathBlockElement,
-  parseMindroomEditorMathBlock,
+  getEditorMathText,
+  getEditorPasteMarkerElement,
+  isEditorMathBlockElement,
+  parseEditorMathBlock,
 } from './editorExtensions';
 import { BlockType, HeadingLevel } from './types';
 import type {
@@ -57,7 +57,7 @@ function getText(node: ChildNode): string {
 }
 
 const isBlockNode = (node: ChildNode): boolean =>
-  isTag(node) && (BLOCK_TAGS.has(node.name) || isMindroomEditorMathBlockElement(node));
+  isTag(node) && (BLOCK_TAGS.has(node.name) || isEditorMathBlockElement(node));
 
 const MATRIX_TO_PREFIX = 'https://matrix.to/#/';
 
@@ -125,10 +125,10 @@ function parseInline(node: ChildNode, marks: Marks, markdown: boolean): InlineCo
   }
   if (!isTag(node)) return [];
 
-  const pasteMarker = getMindroomEditorPasteMarkerElement(node, getText);
+  const pasteMarker = getEditorPasteMarkerElement(node, getText);
   if (pasteMarker) return [pasteMarker];
 
-  const math = getMindroomEditorMathText(node, getText, markdown);
+  const math = getEditorMathText(node, getText, markdown);
   if (math !== undefined) return [textLeaf(math, marks)];
 
   // eslint-disable-next-line @typescript-eslint/no-use-before-define
@@ -267,8 +267,8 @@ const headingLevel = (name: string): HeadingLevel => {
 };
 
 function parseBlock(node: DomElement, markdown: boolean): Descendant[] {
-  if (isMindroomEditorMathBlockElement(node)) {
-    return parseMindroomEditorMathBlock(node, getText, markdown);
+  if (isEditorMathBlockElement(node)) {
+    return parseEditorMathBlock(node, getText, markdown);
   }
   const md = node.attribs['data-md'];
 

@@ -10,13 +10,13 @@ import {
 } from './eventRepository';
 import {
   prefetchEventAttachments,
-  hydrateCachedMindroomLongText,
+  hydrateCachedLongText,
   clearAttachmentRepositoryMemory,
 } from './attachmentRepository';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import {
-  getMindroomLongTextSource,
-  clearMindroomLongTextHydrationCache,
+  getLongTextSource,
+  clearLongTextHydrationCache,
 } from '../../matrix/protocol/longText';
 import {
   resetCacheStoreForTesting,
@@ -55,7 +55,7 @@ beforeEach(() => {
   resetCacheStoreForTesting();
   resetCacheHealthForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
   vi.stubGlobal(
     'fetch',
     vi.fn(
@@ -66,7 +66,7 @@ beforeEach(() => {
 afterEach(() => {
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
   vi.unstubAllGlobals();
 });
 it.each(['room', 'thread', 'grouped'] as const)(
@@ -140,10 +140,10 @@ it('authoritative thread repair must allow original full-body ownership after ed
   });
   expect(await saved.write).toBe(true);
   const source = {
-    ...getMindroomLongTextSource(restored.getContent())!,
+    ...getLongTextSource(restored.getContent())!,
     owner: getEventAttachmentOwner(restored),
   };
-  expect(await hydrateCachedMindroomLongText(ctx.mx, source)).toMatchObject({
+  expect(await hydrateCachedLongText(ctx.mx, source)).toMatchObject({
     body: 'complete original',
   });
   expect(

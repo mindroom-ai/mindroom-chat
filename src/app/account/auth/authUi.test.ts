@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 import { describe, expect, it, vi } from 'vitest';
 
-import { MINDROOM_AUTH_BRANDING, getMindroomAuthSsoRedirectUrl } from './authUi';
+import { MINDROOM_AUTH_BRANDING, getAuthSsoRedirectUrl } from './authUi';
 
 vi.mock('@capacitor/browser', () => ({
   Browser: {
@@ -27,7 +27,7 @@ describe('authUi', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(false);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('web');
 
-    expect(getMindroomAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
+    expect(getAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
       'https://chat.example/login?addAccount=1'
     );
   });
@@ -36,7 +36,7 @@ describe('authUi', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('android');
 
-    expect(getMindroomAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
+    expect(getAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
       'mindroom://auth/login?addAccount=1'
     );
   });
@@ -45,7 +45,7 @@ describe('authUi', () => {
     vi.mocked(Capacitor.isNativePlatform).mockReturnValue(true);
     vi.mocked(Capacitor.getPlatform).mockReturnValue('ios');
 
-    expect(getMindroomAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
+    expect(getAuthSsoRedirectUrl('https://chat.example/login?addAccount=1')).toBe(
       'mindroom://auth/login?addAccount=1'
     );
   });

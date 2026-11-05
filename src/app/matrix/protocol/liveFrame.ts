@@ -1,4 +1,4 @@
-import type { MindroomToolTraceEvent } from './toolTrace';
+import type { ToolTraceEvent } from './toolTrace';
 
 /** Event type of the ephemeral frames that stream a MindRoom reply. */
 export const LIVE_FRAME_EVENT_TYPE = 'io.mindroom.live';
@@ -7,7 +7,7 @@ export const LIVE_FRAME_EVENT_TYPE = 'io.mindroom.live';
 export type LiveDocs = {
   md: string;
   reasoning: string;
-  tools: MindroomToolTraceEvent[];
+  tools: ToolTraceEvent[];
   status: string;
   activity: string;
 };
@@ -16,7 +16,7 @@ export type LiveDocs = {
 export type LiveSplice = { at: number; del: number; ins: string; len: number };
 
 /** Truncates or extends the tool list to `len`, then sets each 0-based index. */
-export type LiveToolsDelta = { len: number; set: [number, MindroomToolTraceEvent][] };
+export type LiveToolsDelta = { len: number; set: [number, ToolTraceEvent][] };
 
 export type LiveDelta = {
   md?: LiveSplice;
@@ -44,8 +44,8 @@ const isCount = (value: unknown): value is number =>
 const isStatus = (value: unknown): value is string =>
   typeof value === 'string' && LIVE_STATUSES.has(value);
 
-const parseTools = (value: unknown): MindroomToolTraceEvent[] | null =>
-  Array.isArray(value) && value.every(isRecord) ? (value as MindroomToolTraceEvent[]) : null;
+const parseTools = (value: unknown): ToolTraceEvent[] | null =>
+  Array.isArray(value) && value.every(isRecord) ? (value as ToolTraceEvent[]) : null;
 
 const parseSplice = (value: unknown): LiveSplice | null => {
   if (!isRecord(value)) return null;
@@ -59,12 +59,12 @@ const parseSplice = (value: unknown): LiveSplice | null => {
 const parseToolsDelta = (value: unknown): LiveToolsDelta | null => {
   if (!isRecord(value) || !isCount(value.len) || !Array.isArray(value.set)) return null;
   const { len } = value;
-  const set: [number, MindroomToolTraceEvent][] = [];
+  const set: [number, ToolTraceEvent][] = [];
   for (const item of value.set) {
     if (!Array.isArray(item) || item.length !== 2) return null;
     const [index, entry] = item;
     if (!isCount(index) || index >= len || !isRecord(entry)) return null;
-    set.push([index, entry as MindroomToolTraceEvent]);
+    set.push([index, entry as ToolTraceEvent]);
   }
   return { len, set };
 };
@@ -130,10 +130,10 @@ const applySplice = (doc: string, splice: LiveSplice): string | null => {
 };
 
 const applyToolsDelta = (
-  tools: MindroomToolTraceEvent[],
+  tools: ToolTraceEvent[],
   delta: LiveToolsDelta
-): MindroomToolTraceEvent[] | null => {
-  const next: (MindroomToolTraceEvent | undefined)[] = tools.slice(0, delta.len);
+): ToolTraceEvent[] | null => {
+  const next: (ToolTraceEvent | undefined)[] = tools.slice(0, delta.len);
   next.length = delta.len;
   delta.set.forEach(([index, entry]) => {
     next[index] = entry;
@@ -141,7 +141,7 @@ const applyToolsDelta = (
   for (let index = 0; index < next.length; index += 1) {
     if (next[index] === undefined) return null;
   }
-  return next as MindroomToolTraceEvent[];
+  return next as ToolTraceEvent[];
 };
 
 /** The documents after a delta, or null when the delta does not fit them (divergence). */

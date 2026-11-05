@@ -23,7 +23,7 @@ vi.mock('../matrix/hooks/useIgnoredUsers', () => ({
 }));
 vi.mock('../event-store/engine', () => ({
   enqueueThreadApprovalBackfill: mocks.backfill,
-  useMindroomSyncEngine: () => ({ scheduler, persist }),
+  useSyncEngine: () => ({ scheduler, persist }),
 }));
 vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
 let current: ThreadApprovals;

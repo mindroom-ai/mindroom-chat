@@ -11,7 +11,7 @@ export const DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES = [
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-export const getMindroomThinkingPlaceholderBody = (
+export const getThinkingPlaceholderBody = (
   content: Record<string, unknown>
 ): string | undefined => {
   const newContent = isRecord(content['m.new_content'])
@@ -21,10 +21,10 @@ export const getMindroomThinkingPlaceholderBody = (
   return typeof body === 'string' ? body : undefined;
 };
 
-export const isMindroomThinkingPlaceholderBody = (content: Record<string, unknown>): boolean =>
-  getMindroomThinkingPlaceholderBody(content) === MINDROOM_THINKING_PLACEHOLDER_BODY;
+export const isThinkingPlaceholderBody = (content: Record<string, unknown>): boolean =>
+  getThinkingPlaceholderBody(content) === MINDROOM_THINKING_PLACEHOLDER_BODY;
 
-export const resolveMindroomThinkingPlaceholderMessages = (
+export const resolveThinkingPlaceholderMessages = (
   configuredMessages: unknown
 ): readonly string[] => {
   if (!Array.isArray(configuredMessages)) return DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES;

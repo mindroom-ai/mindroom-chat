@@ -291,7 +291,7 @@ vi.mock('../../approvals/ThreadApprovalProvider', () => ({
 }));
 
 vi.mock('../../event-store/engine/engineContext', () => ({
-  useMindroomSyncEngine: () => ({
+  useSyncEngine: () => ({
     noteRoomFocused: () => undefined,
     clearRoomFocus: () => undefined,
   }),

@@ -25,7 +25,7 @@ const configuredCopy = (
   localized: string | undefined
 ) => (value !== undefined && value !== fallback ? value : localized ?? fallback);
 
-export const getMindroomWelcomePageContent = (
+export const getWelcomePageContent = (
   welcome: ClientConfig['welcome'] | undefined,
   t?: TFunction
 ) => ({

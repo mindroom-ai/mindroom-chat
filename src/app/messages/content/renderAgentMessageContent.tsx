@@ -8,38 +8,38 @@ import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import { RenderBody } from './RenderBody';
 import { BrokenContent } from './BrokenContent';
 import { trimReplyFromBody } from '../../matrix/room';
-import { MindroomMessageExtras } from '../MessageExtras';
-import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from '../../matrix/protocol/messageExtrasData';
-import { useMindroomToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
-import type { MindroomToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import { isMindroomAiRunStreaming } from '../../matrix/protocol/aiRun';
+import { MessageExtras } from '../MessageExtras';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
+import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
+import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import {
-  formatMindroomMarkdownTextBodyAsHtml,
-  formatMindroomMessageTextBodyAsHtml,
+  formatMarkdownTextBodyAsHtml,
+  formatMessageTextBodyAsHtml,
 } from '../html/blocks';
-import { getMindroomLongTextSource } from '../../matrix/protocol/longText';
-import { MindroomLongTextKind, MindroomLongTextText } from './LongTextText';
-import { MindroomPasteAttachmentContent } from './PasteAttachmentContent';
-import { MindroomThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
-import { withReasoning as withMindroomReasoning } from '../agent-run/Reasoning';
+import { getLongTextSource } from '../../matrix/protocol/longText';
+import { LongTextKind, LongTextText } from './LongTextText';
+import { PasteAttachmentContent } from './PasteAttachmentContent';
+import { ThinkingPlaceholder } from '../agent-run/ThinkingPlaceholder';
+import { withReasoning } from '../agent-run/Reasoning';
 import { LIVE_REASONING_KEY } from '../live/useLiveReplyContent';
-import { MindroomTranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
-import { ThreadSummaryCard as MindroomThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
-import { MindroomToolApprovalCard } from '../../approvals/ToolApprovalCard';
-import { renderMindroomStreamingIndicator } from '../agent-run/StreamingIndicator';
-import { isMindroomThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
-import { isMindroomTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
-import { getMindroomPasteAttachmentFile } from '../../matrix/protocol/pasteAttachmentMarker';
+import { TranscribingPlaceholder } from '../agent-run/TranscribingPlaceholder';
+import { ThreadSummaryCard } from '../thread-summary/ThreadSummaryCard';
+import { ToolApprovalCard } from '../../approvals/ToolApprovalCard';
+import { renderStreamingIndicator } from '../agent-run/StreamingIndicator';
+import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
+import { isTranscribingPlaceholder } from '../../matrix/protocol/transcribingPlaceholder';
+import { getPasteAttachmentFile } from '../../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_TOOL_APPROVAL_EVENT, parseToolApprovalContent } from '../../matrix/protocol/toolApproval';
-import { getMindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
-import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
+import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { ChatUiActionButton } from '../../ui-actions/ChatUiActionButton';
 import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
 import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
 
-export type RenderMindroomMessageContentOptions = {
+export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
   /** Whether the sender is a MindRoom account on the viewer's homeserver. */
   fromMindroomAgent?: boolean;
@@ -61,15 +61,15 @@ export type RenderMindroomMessageContentOptions = {
   hydrateLongText?: boolean;
 };
 
-type MindroomMessageExtrasRenderNoticeProps = {
+type MessageExtrasRenderNoticeProps = {
   children: React.ReactNode;
   onRendered?: () => void;
 };
 
-function MindroomMessageExtrasRenderNotice({
+function MessageExtrasRenderNotice({
   children,
   onRendered,
-}: MindroomMessageExtrasRenderNoticeProps) {
+}: MessageExtrasRenderNoticeProps) {
   React.useEffect(() => {
     onRendered?.();
   }, [onRendered]);
@@ -77,24 +77,24 @@ function MindroomMessageExtrasRenderNotice({
   return <>{children}</>;
 }
 
-type MindroomRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
+type AgentRenderBodyProps = Omit<ComponentProps<typeof RenderBody>, 'htmlReactParserOptions'> & {
   htmlReactParserOptions: HTMLReactParserOptions;
   /** The content whose tool and paste markers the body renders. */
   markerContent: Record<string, unknown>;
-  metadataStatus?: MindroomToolMetadataStatus;
+  metadataStatus?: ToolMetadataStatus;
 };
 
 /** A body with MindRoom's markers, parsed again only when that message changes. */
-function MindroomRenderBody({
+function AgentRenderBody({
   htmlReactParserOptions,
   markerContent,
   metadataStatus,
   ...props
-}: MindroomRenderBodyProps) {
+}: AgentRenderBodyProps) {
   return (
     <RenderBody
       {...props}
-      htmlReactParserOptions={useMindroomToolTraceMarkerParserOptions(
+      htmlReactParserOptions={useToolTraceMarkerParserOptions(
         htmlReactParserOptions,
         markerContent,
         metadataStatus
@@ -103,7 +103,7 @@ function MindroomRenderBody({
   );
 }
 
-export const renderMindroomMessageContent = ({
+export const renderAgentMessageContent = ({
   mEvent,
   fromMindroomAgent = false,
   displayName,
@@ -122,7 +122,7 @@ export const renderMindroomMessageContent = ({
   renderUrlsPreview,
   showMessageExtras = false,
   hydrateLongText = true,
-}: RenderMindroomMessageContentOptions): ReactNode | undefined => {
+}: RenderAgentMessageContentOptions): ReactNode | undefined => {
   const withToolRefFormattedBodyFallback = (bodyContent: Record<string, unknown>) => {
     if (typeof bodyContent.formatted_body === 'string') return bodyContent;
     if (typeof bodyContent.body !== 'string') return bodyContent;
@@ -130,8 +130,8 @@ export const renderMindroomMessageContent = ({
     // MindRoom writes an agent's HTML from its Markdown body; a reply that arrives with the body
     // alone renders as that HTML would have.
     const formattedBody =
-      (fromMindroomAgent && formatMindroomMarkdownTextBodyAsHtml(bodyContent.body)) ||
-      formatMindroomMessageTextBodyAsHtml(bodyContent.body);
+      (fromMindroomAgent && formatMarkdownTextBodyAsHtml(bodyContent.body)) ||
+      formatMessageTextBodyAsHtml(bodyContent.body);
     if (!formattedBody) return bodyContent;
 
     return {
@@ -142,7 +142,7 @@ export const renderMindroomMessageContent = ({
   };
 
   const getRenderableLongTextSource = (bodyContent: Record<string, unknown>) => {
-    const source = getMindroomLongTextSource(bodyContent);
+    const source = getLongTextSource(bodyContent);
     if (!source) return undefined;
 
     const { previewContent } = source;
@@ -155,7 +155,7 @@ export const renderMindroomMessageContent = ({
     }
 
     const trimmedBody = trimReplyFromBody(previewContent.body);
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(trimmedBody);
+    const formattedBody = formatMarkdownTextBodyAsHtml(trimmedBody);
     if (!formattedBody) return source;
 
     return {
@@ -168,8 +168,8 @@ export const renderMindroomMessageContent = ({
     };
   };
 
-  const withReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
-    withMindroomReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
+  const wrapWithReasoning = (bodyContent: Record<string, unknown>, body: ReactNode) =>
+    withReasoning(bodyContent, body, htmlReactParserOptions, linkifyOpts);
 
   const renderBody =
     (bodyContent: Record<string, unknown>) => (props: { body: string; customBody?: string }) => {
@@ -184,9 +184,9 @@ export const renderMindroomMessageContent = ({
           ? renderableContent.formatted_body
           : undefined);
 
-      return withReasoning(
+      return wrapWithReasoning(
         renderableContent,
-        <MindroomRenderBody
+        <AgentRenderBody
           {...props}
           customBody={customBody}
           highlightRegex={highlightRegex}
@@ -197,17 +197,17 @@ export const renderMindroomMessageContent = ({
       );
     };
 
-  const renderLongTextBody: ComponentProps<typeof MindroomLongTextText>['renderBody'] = (
+  const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
     resolvedContent,
     props,
     metadataStatus
   ) =>
-    withReasoning(
+    wrapWithReasoning(
       // The live reasoning rides on the outer content, not on the preview or the sidecar.
       content[LIVE_REASONING_KEY] === undefined
         ? resolvedContent
         : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
-      <MindroomRenderBody
+      <AgentRenderBody
         {...props}
         highlightRegex={highlightRegex}
         htmlReactParserOptions={htmlReactParserOptions}
@@ -228,7 +228,7 @@ export const renderMindroomMessageContent = ({
       if (MINDROOM_MESSAGE_EXTRAS_KEY in extrasContent) {
         return {
           content: extrasContent,
-          extras: parseMindroomMessageExtras(extrasContent),
+          extras: parseMessageExtras(extrasContent),
           fallbackIndex: undefined,
         };
       }
@@ -240,7 +240,7 @@ export const renderMindroomMessageContent = ({
         const fallbackContent = fallbackContents[fallbackIndex];
         return {
           content: fallbackContent,
-          extras: parseMindroomMessageExtras(fallbackContent),
+          extras: parseMessageExtras(fallbackContent),
           fallbackIndex,
         };
       }
@@ -252,22 +252,22 @@ export const renderMindroomMessageContent = ({
     if (!extras) return undefined;
 
     return (
-      <MindroomMessageExtrasRenderNotice
+      <MessageExtrasRenderNotice
         onRendered={
           fallbackIndex === undefined ? undefined : () => onFallbackExtrasRendered?.(fallbackIndex)
         }
       >
-        <MindroomMessageExtras
+        <MessageExtras
           extras={extras}
           htmlReactParserOptions={htmlReactParserOptions}
           markerContent={parserOptionsContent}
         />
-      </MindroomMessageExtrasRenderNotice>
+      </MessageExtrasRenderNotice>
     );
   };
 
   const getMessageStateSuffix = (renderStateSuffix?: () => ReactNode) =>
-    getMindroomMessageStateSuffixRenderer({
+    getMessageStateSuffixRenderer({
       edited,
       pendingSend,
       failedSend,
@@ -285,10 +285,10 @@ export const renderMindroomMessageContent = ({
     );
   }
 
-  const threadSummaryInfo = getMindroomThreadSummaryInfo(content);
+  const threadSummaryInfo = getThreadSummaryInfo(content);
   if (threadSummaryInfo) {
     return (
-      <MindroomThreadSummaryCard
+      <ThreadSummaryCard
         edited={edited}
         summaryInfo={threadSummaryInfo}
         renderBody={renderBody(content)}
@@ -300,7 +300,7 @@ export const renderMindroomMessageContent = ({
     // Only MindRoom sends approval cards; any member can post this event type.
     const approval = fromMindroomAgent ? parseToolApprovalContent(eventType, content) : null;
     return approval ? (
-      <MindroomToolApprovalCard
+      <ToolApprovalCard
         approval={approval}
         roomId={roomId}
         eventId={eventId}
@@ -312,25 +312,25 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Text || msgType === MsgType.File) {
-    if (msgType === MsgType.Text && isMindroomTranscribingPlaceholder(content)) {
+    if (msgType === MsgType.Text && isTranscribingPlaceholder(content)) {
       return (
         <MText
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
-          renderBody={() => <MindroomTranscribingPlaceholder />}
+          renderBody={() => <TranscribingPlaceholder />}
           renderAfterBody={renderMessageExtras(content)}
         />
       );
     }
 
-    const isStreaming = isMindroomAiRunStreaming(content);
-    if (msgType === MsgType.Text && isStreaming && isMindroomThinkingPlaceholderBody(content)) {
+    const isStreaming = isAiRunStreaming(content);
+    if (msgType === MsgType.Text && isStreaming && isThinkingPlaceholderBody(content)) {
       return (
         <MText
           content={content}
           renderStateSuffix={getMessageStateSuffix()}
           renderBody={() =>
-            withReasoning(content, <MindroomThinkingPlaceholder startedAt={mEvent?.getTs()} />)
+            wrapWithReasoning(content, <ThinkingPlaceholder startedAt={mEvent?.getTs()} />)
           }
           renderAfterBody={renderMessageExtras(content)}
         />
@@ -340,11 +340,11 @@ export const renderMindroomMessageContent = ({
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       const longText = (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Text}
+        <LongTextText
+          kind={LongTextKind.Text}
           edited={edited}
           renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderMindroomStreamingIndicator : undefined
+            isStreaming ? renderStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
@@ -373,10 +373,10 @@ export const renderMindroomMessageContent = ({
     }
 
     if (msgType === MsgType.File) {
-      const pasteAttachment = getMindroomPasteAttachmentFile(content);
+      const pasteAttachment = getPasteAttachmentFile(content);
       if (pasteAttachment) {
         return (
-          <MindroomPasteAttachmentContent
+          <PasteAttachmentContent
             owner={getEventAttachmentOwner(mEvent)}
             attachment={pasteAttachment}
           />
@@ -390,7 +390,7 @@ export const renderMindroomMessageContent = ({
         <MText
           edited={edited}
           renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderMindroomStreamingIndicator : undefined
+            isStreaming ? renderStreamingIndicator : undefined
           )}
           content={renderableContent}
           renderBody={renderBody(renderableContent)}
@@ -402,16 +402,16 @@ export const renderMindroomMessageContent = ({
   }
 
   if (msgType === MsgType.Emote) {
-    const isStreaming = isMindroomAiRunStreaming(content);
+    const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       return (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Emote}
+        <LongTextText
+          kind={LongTextKind.Emote}
           displayName={displayName}
           edited={edited}
           renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderMindroomStreamingIndicator : undefined
+            isStreaming ? renderStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
@@ -431,7 +431,7 @@ export const renderMindroomMessageContent = ({
         displayName={displayName}
         edited={edited}
         renderStateSuffix={getMessageStateSuffix(
-          isStreaming ? renderMindroomStreamingIndicator : undefined
+          isStreaming ? renderStreamingIndicator : undefined
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}
@@ -468,15 +468,15 @@ export const renderMindroomMessageContent = ({
         />
       );
     }
-    const isStreaming = isMindroomAiRunStreaming(content);
+    const isStreaming = isAiRunStreaming(content);
     const longTextSource = getRenderableLongTextSource(content);
     if (longTextSource) {
       return (
-        <MindroomLongTextText
-          kind={MindroomLongTextKind.Notice}
+        <LongTextText
+          kind={LongTextKind.Notice}
           edited={edited}
           renderStateSuffix={getMessageStateSuffix(
-            isStreaming ? renderMindroomStreamingIndicator : undefined
+            isStreaming ? renderStreamingIndicator : undefined
           )}
           content={longTextSource.previewContent}
           longTextSource={{ ...longTextSource, owner: getEventAttachmentOwner(mEvent) }}
@@ -495,7 +495,7 @@ export const renderMindroomMessageContent = ({
       <MNotice
         edited={edited}
         renderStateSuffix={getMessageStateSuffix(
-          isStreaming ? renderMindroomStreamingIndicator : undefined
+          isStreaming ? renderStreamingIndicator : undefined
         )}
         content={renderableContent}
         renderBody={renderBody(renderableContent)}

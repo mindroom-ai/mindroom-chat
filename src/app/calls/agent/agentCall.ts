@@ -17,7 +17,7 @@ import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteU
 
 export const MINDROOM_VOICE_CALLS_PRESENCE = '📞 Voice calls';
 
-export const hasMindroomVoiceCallsPresence = (status: string | undefined): boolean =>
+export const hasVoiceCallsPresence = (status: string | undefined): boolean =>
   status?.split(' | ').includes(MINDROOM_VOICE_CALLS_PRESENCE) ?? false;
 
 export type MindroomAgentCallOrigin = { room_id: string; thread_id: string | null };

@@ -1,5 +1,5 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { VisibleThreadRootData } from '../../event-store/threads/roomThreadOverviewModel';
 import { buildThreadRecordMap } from '../../event-store/threads/threadRecord';
 import type { ThreadOverviewCachedMetadataSnapshot } from './threadOverviewCacheMetadata';
@@ -11,7 +11,7 @@ type ThreadResolutionLike = {
   tags: Record<string, unknown> | null;
 };
 
-export type BuildMindroomThreadIndexRecordMapsOptions = {
+export type BuildThreadIndexRecordMapsOptions = {
   threadId: string | undefined;
   compactViewRequested: boolean;
   room: Room;
@@ -20,8 +20,8 @@ export type BuildMindroomThreadIndexRecordMapsOptions = {
   visibleThreadRootEventMap: ReadonlyMap<string, MatrixEvent>;
   compactThreadRootEventMap: ReadonlyMap<string, MatrixEvent>;
   compactThreadRootBodyMap: ReadonlyMap<string, string>;
-  summaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
-  fallbackSummaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
+  summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
+  fallbackSummaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   fallbackReplyCountMap: ReadonlyMap<string, number>;
   cachedMetadata: Pick<
     ThreadOverviewCachedMetadataSnapshot,
@@ -37,12 +37,12 @@ export type BuildMindroomThreadIndexRecordMapsOptions = {
   scheduledStatusMap: ReadonlyMap<string, ThreadScheduledStatus>;
 };
 
-export type MindroomThreadIndexRecordMaps = {
+export type ThreadIndexRecordMaps = {
   normalThreadRecordMap: Map<string, ThreadRecord>;
   compactThreadRecordMap: Map<string, ThreadRecord>;
 };
 
-export const buildMindroomThreadIndexRecordMaps = ({
+export const buildThreadIndexRecordMaps = ({
   threadId,
   compactViewRequested,
   room,
@@ -59,7 +59,7 @@ export const buildMindroomThreadIndexRecordMaps = ({
   threadResolutionMap,
   currentUserId,
   scheduledStatusMap,
-}: BuildMindroomThreadIndexRecordMapsOptions): MindroomThreadIndexRecordMaps => {
+}: BuildThreadIndexRecordMapsOptions): ThreadIndexRecordMaps => {
   const emptyThreadRecordMap = new Map<string, ThreadRecord>();
   if (threadId) {
     return {

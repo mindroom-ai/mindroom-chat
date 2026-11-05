@@ -58,7 +58,7 @@ import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
-import { withMindroomPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
+import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
 import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from './roomInputSendSession';
@@ -74,11 +74,11 @@ import {
 } from './slashCommandQuery';
 import { sendComposerSticker } from './composerSticker';
 import {
-  isMindroomRoomInputAutocompleteQuery,
-  MindroomRoomInputAutocomplete,
-  MindroomRoomInputReplyContext,
+  isRoomInputAutocompleteQuery,
+  RoomInputAutocomplete,
+  RoomInputReplyContext,
 } from './RoomInputExtensions';
-import { getMindroomCommandQuery } from './commands/agentCommandQuery';
+import { getAgentCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
@@ -188,7 +188,7 @@ const buildUploadMessageContent = async (
   else if (type.startsWith('audio/') || item.metadata.voiceMessage) {
     content = getAudioMsgContent(item, mxc, getVoiceMessageContentOptions(signalBridgedRoom));
   } else content = getFileMsgContent(item, mxc);
-  return withMindroomPasteAttachmentMetadata(
+  return withPasteAttachmentMetadata(
     content,
     item.metadata.mindroomPasteAttachment
   ) as IContent;
@@ -418,7 +418,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ? autocompleteQuery
       : undefined;
     let autocompleteMenuOpen = false;
-    if (autocompleteQuery && isMindroomRoomInputAutocompleteQuery(autocompleteQuery)) {
+    if (autocompleteQuery && isRoomInputAutocompleteQuery(autocompleteQuery)) {
       autocompleteMenuOpen =
         getCommandSuggestions(MINDROOM_COMMANDS, autocompleteQuery.text).length > 0;
     } else if (slashQuery) {
@@ -453,7 +453,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const syncAutocompleteQuery = useCallback(() => {
       const range = getPrevWorldRange(editor);
       const query = range
-        ? getMindroomCommandQuery(editor, range) ??
+        ? getAgentCommandQuery(editor, range) ??
           getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES)
         : undefined;
       setAutocompleteQuery(query);
@@ -503,8 +503,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const autocomplete =
       autocompleteQuery &&
-      (isMindroomRoomInputAutocompleteQuery(autocompleteQuery) ? (
-        <MindroomRoomInputAutocomplete
+      (isRoomInputAutocompleteQuery(autocompleteQuery) ? (
+        <RoomInputAutocomplete
           editor={editor}
           query={autocompleteQuery}
           requestClose={closeAutocomplete}
@@ -591,7 +591,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
               ) : (
                 threadId &&
                 submitPending && (
-                  <MindroomRoomInputReplyContext room={room} relation={undefined} pendingSend />
+                  <RoomInputReplyContext room={room} relation={undefined} pendingSend />
                 )
               )}
             </>

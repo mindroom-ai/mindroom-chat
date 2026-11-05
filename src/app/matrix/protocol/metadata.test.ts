@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { isMindroomMessageMetadataKey } from './metadata';
+import { isMessageMetadataKey } from './metadata';
 
-describe('isMindroomMessageMetadataKey', () => {
+describe('isMessageMetadataKey', () => {
   it('recognizes MindRoom message metadata namespaces', () => {
-    expect(isMindroomMessageMetadataKey('io.mindroom.ai_run')).toBe(true);
-    expect(isMindroomMessageMetadataKey('io.mindroom.stream_status')).toBe(true);
-    expect(isMindroomMessageMetadataKey('com.mindroom.skip_mentions')).toBe(true);
+    expect(isMessageMetadataKey('io.mindroom.ai_run')).toBe(true);
+    expect(isMessageMetadataKey('io.mindroom.stream_status')).toBe(true);
+    expect(isMessageMetadataKey('com.mindroom.skip_mentions')).toBe(true);
   });
 
   it('ignores Matrix and unrelated application metadata', () => {
-    expect(isMindroomMessageMetadataKey('m.mentions')).toBe(false);
-    expect(isMindroomMessageMetadataKey('io.example.key')).toBe(false);
-    expect(isMindroomMessageMetadataKey('com.example.key')).toBe(false);
+    expect(isMessageMetadataKey('m.mentions')).toBe(false);
+    expect(isMessageMetadataKey('io.example.key')).toBe(false);
+    expect(isMessageMetadataKey('com.example.key')).toBe(false);
   });
 });
 

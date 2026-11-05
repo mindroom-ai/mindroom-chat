@@ -5,7 +5,7 @@ import { createPreferLiveEventMapper, loadThreadCachedSnapshot } from '../../eve
 import { mergeThreadBackfillEvents } from '../../event-store/cache/threadCacheSnapshot';
 import { getThreadOpenSeedSnapshot, saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
 import { MAX_THREAD_FETCH_ITERATIONS } from '../../event-store/engine/threadRelationsFetcher';
-import { useMindroomSyncEngine } from '../../event-store/engine';
+import { useSyncEngine } from '../../event-store/engine';
 
 import type { ThreadSeedOpenPort } from './threadSessionTypes';
 
@@ -41,7 +41,7 @@ export const useThreadSeedPrewarmController = ({
   loadThreadOpenSeedSnapshotFromCache?: (expectedThreadId: string) => Promise<MatrixEvent[]>;
   debugTraceId: string;
 }): ThreadSeedPrewarmController => {
-  const syncEngine = useMindroomSyncEngine();
+  const syncEngine = useSyncEngine();
   const activeThreadIdRef = useRef(activeThreadId);
   useEffect(() => {
     activeThreadIdRef.current = activeThreadId;

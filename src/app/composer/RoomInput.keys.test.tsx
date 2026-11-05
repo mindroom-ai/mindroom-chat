@@ -103,15 +103,15 @@ vi.mock('./useTypingStatusUpdater', () => ({
 vi.mock('../preferences/useSetting', () => ({ useSetting: () => [false] }));
 vi.mock('../lib/user-agent', () => ({ mobileOrTablet: () => false }));
 vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
-  withMindroomPasteAttachmentMetadata: (content: unknown) => content,
+  withPasteAttachmentMetadata: (content: unknown) => content,
 }));
 vi.mock('../models/ModelPicker', () => ({ ThreadModelPicker: () => null }));
 vi.mock('../ui/IconTooltip', () => ({ IconTooltip: () => null }));
-vi.mock('./commands/agentCommandQuery', () => ({ getMindroomCommandQuery: () => undefined }));
+vi.mock('./commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('./RoomInputExtensions', () => ({
-  isMindroomRoomInputAutocompleteQuery: () => false,
-  MindroomRoomInputAutocomplete: () => null,
-  MindroomRoomInputReplyContext: () => null,
+  isRoomInputAutocompleteQuery: () => false,
+  RoomInputAutocomplete: () => null,
+  RoomInputReplyContext: () => null,
 }));
 vi.mock('./useRoomInputSendSessionController', () => ({
   useRoomInputSendSessionController: () => ({ startSendSession: state.startSendSession }),

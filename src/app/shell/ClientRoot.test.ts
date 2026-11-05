@@ -149,7 +149,7 @@ type MockClient = {
   removeListener: ReturnType<typeof vi.fn>;
   getRooms: ReturnType<typeof vi.fn>;
   getSyncState: ReturnType<typeof vi.fn>;
-  // MindroomSyncEngine (ISSUE-207 P3.1) reads these to derive its
+  // SyncEngine (ISSUE-207 P3.1) reads these to derive its
   // session id at construction time.
   getHomeserverUrl: ReturnType<typeof vi.fn>;
   getSafeUserId: ReturnType<typeof vi.fn>;
@@ -572,7 +572,7 @@ describe('ClientRoot', () => {
       }),
       once: vi.fn(),
       removeListener: vi.fn(),
-      // Needed by MindroomSyncEngine (ISSUE-207 P3.1) to derive its
+      // Needed by SyncEngine (ISSUE-207 P3.1) to derive its
       // session id when ClientRoot's engine effect creates it.
       getHomeserverUrl: vi.fn(() => 'https://example.com'),
       getSafeUserId: vi.fn(() => '@alice:example.com'),

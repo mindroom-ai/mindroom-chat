@@ -2,7 +2,7 @@ import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MessageEvent, StateEvent } from '../../matrix/types/room';
-import { isMindroomThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
+import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../../matrix/protocol/toolApproval';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
 import { hasLoadedFirstThreadPage } from '../sdk/threadBootstrapSdk';
@@ -113,7 +113,7 @@ export const getLatestRenderableVisibleThreadReplyEvent = (
     const event = replyEvents[i];
     if (!getVisibleThreadEventBodyPreviewText(event)) continue;
 
-    if (isMindroomThreadSummaryEvent(event)) {
+    if (isThreadSummaryEvent(event)) {
       summaryFallback ??= event;
       continue;
     }

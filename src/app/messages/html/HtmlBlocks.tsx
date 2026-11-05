@@ -5,8 +5,8 @@ import { ChildNode } from 'domhandler';
 import { Box, Icon, IconSrc, Icons, Text } from 'folds';
 import {
   MINDROOM_TOOL_REF_ICON,
-  MindroomToolRefParseResult,
-  parseMindroomToolRefHtml,
+  ToolRefParseResult,
+  parseToolRefHtml,
 } from './blocks';
 import {
   extractTextFromChildren,
@@ -18,13 +18,13 @@ import {
   trimLeadingToolRefBoundary,
 } from '../agent-run/toolRefDom';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
-import { MindroomPasteMarker, parseMindroomPasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
+import { PasteMarker, parsePasteMarker } from '../../matrix/protocol/pasteAttachmentMarker';
 import {
   MINDROOM_TOOL_TRACE_KEY,
-  MindroomToolTraceEvent,
-  MindroomToolMetadataStatus,
-  getMindroomToolTraceV2Events,
-  isMindroomToolTraceV2,
+  ToolTraceEvent,
+  ToolMetadataStatus,
+  getToolTraceV2Events,
+  isToolTraceV2,
 } from '../../matrix/protocol/toolTrace';
 import * as css from './HtmlBlocks.css';
 import * as activityCss from '../../ui/ThreadActivity.css';
@@ -43,9 +43,9 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 
-type MindroomTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
+type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
 
-const MINDROOM_BLOCK_META: Record<MindroomTagName, { icon: IconSrc }> = {
+const MINDROOM_BLOCK_META: Record<BlockTagName, { icon: IconSrc }> = {
   think: {
     icon: Icons.Bulb,
   },
@@ -66,7 +66,7 @@ const MINDROOM_BLOCK_META: Record<MindroomTagName, { icon: IconSrc }> = {
   },
 };
 
-function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
+function PasteMarkerBadge({ marker }: { marker: PasteMarker }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
   return (
@@ -98,7 +98,7 @@ function MindroomPasteMarkerBadge({ marker }: { marker: MindroomPasteMarker }) {
   );
 }
 
-function MindroomCollapsibleBlock({
+function CollapsibleBlock({
   icon,
   label,
   children,
@@ -136,52 +136,52 @@ function MindroomCollapsibleBlock({
   );
 }
 
-export const renderMindroomHtmlBlock = (
+export const renderHtmlBlock = (
   name: string,
   children: ChildNode[],
   opts: HTMLReactParserOptions
 ): React.ReactElement | undefined => {
   if (!Object.prototype.hasOwnProperty.call(MINDROOM_BLOCK_META, name)) return undefined;
 
-  const blockName = name as MindroomTagName;
+  const blockName = name as BlockTagName;
   const { icon } = MINDROOM_BLOCK_META[blockName];
 
   return (
-    <MindroomNamedBlock icon={icon} blockName={blockName}>
+    <NamedBlock icon={icon} blockName={blockName}>
       {domToReact(children, opts)}
-    </MindroomNamedBlock>
+    </NamedBlock>
   );
 };
 
-function MindroomNamedBlock({
+function NamedBlock({
   icon,
   blockName,
   children,
 }: {
   icon: IconSrc;
-  blockName: MindroomTagName;
+  blockName: BlockTagName;
   children: ReactNode;
 }) {
   const { t } = useTranslation();
   return (
-    <MindroomCollapsibleBlock
+    <CollapsibleBlock
       icon={icon}
       label={t(`mindroomUi.messages.mindroomHtmlBlocks.blocks.${blockName}`)}
     >
       {children}
-    </MindroomCollapsibleBlock>
+    </CollapsibleBlock>
   );
 }
 
-type MindroomToolBlockStatus =
+type ToolBlockStatus =
   | 'pending'
   | 'completed'
   | 'completed_with_result'
-  | MindroomToolMetadataStatus;
+  | ToolMetadataStatus;
 
-type MindroomToolBlockRenderData = {
+type ToolBlockRenderData = {
   index: number;
-  status: MindroomToolBlockStatus;
+  status: ToolBlockStatus;
   command: string;
   toolName: string;
   argsPreview?: string;
@@ -203,10 +203,10 @@ const asToolOutput = (value: unknown): string | undefined =>
     : undefined;
 
 const buildToolRefRenderData = (
-  toolRef: MindroomToolRefParseResult,
-  eventRaw?: MindroomToolTraceEvent,
-  metadataStatus?: MindroomToolMetadataStatus
-): MindroomToolBlockRenderData => {
+  toolRef: ToolRefParseResult,
+  eventRaw?: ToolTraceEvent,
+  metadataStatus?: ToolMetadataStatus
+): ToolBlockRenderData => {
   const traceType = asToolTraceText(eventRaw?.type);
   const traceToolName = asToolTraceText(eventRaw?.tool_name) ?? toolRef.toolName;
   const argsPreview = asToolTraceText(eventRaw?.args_preview);
@@ -277,11 +277,11 @@ const TOOL_STATE_TITLE = {
   expired: 'mindroomUi.messages.mindroomHtmlBlocks.toolCallsExpired',
 } as const satisfies Record<ToolCallState, string>;
 
-function MindroomToolRefGroupItem({
+function ToolRefGroupItem({
   parsedTool,
   state,
 }: {
-  parsedTool: MindroomToolBlockRenderData;
+  parsedTool: ToolBlockRenderData;
   state: ToolCallState;
 }) {
   const { src, tone } = TOOL_STATE_ICON[state];
@@ -318,10 +318,10 @@ const useToolCallApprovals = () => {
     }));
 };
 
-function MindroomToolRefGroupBlock({
+function ToolRefGroupBlock({
   parsedTools,
 }: {
-  parsedTools: MindroomToolBlockRenderData[];
+  parsedTools: ToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
   const approvals = useToolCallApprovals();
@@ -372,7 +372,7 @@ function MindroomToolRefGroupBlock({
       }
     >
       {loadedTools.map((parsedTool, index) => (
-        <MindroomToolRefGroupItem
+        <ToolRefGroupItem
           key={`tool-group-item-${parsedTool.index}-${parsedTool.command}`}
           parsedTool={parsedTool}
           state={states[index]}
@@ -428,12 +428,12 @@ const normalizeLeadingToolRefBoundaryInPlace = (element: Element): boolean => {
   return true;
 };
 
-const getPasteMarkerFromElement = (element: Element): MindroomPasteMarker | undefined => {
+const getPasteMarkerFromElement = (element: Element): PasteMarker | undefined => {
   if (element.name !== 'span' || element.attribs['data-mindroom-paste-marker'] !== 'true') {
     return undefined;
   }
 
-  const marker = parseMindroomPasteMarker(extractTextFromChildren(element.children));
+  const marker = parsePasteMarker(extractTextFromChildren(element.children));
   if (!marker) return undefined;
 
   if (element.attribs['data-mindroom-paste-id'] !== marker.id) return undefined;
@@ -448,21 +448,21 @@ const MINDROOM_PASTE_MARKER_ATTRIBUTE = 'data-mindroom-paste-marker';
 // Literal substring detection assumes MindRoom-emitted markers: a literal 🔧
 // and lowercase paste-marker attributes. Entity-encoded or case-variant
 // spellings from non-MindRoom senders fall back to plain rendering.
-const valueHasMindroomMarkerCandidate = (value: unknown): boolean =>
+const valueHasMarkerCandidate = (value: unknown): boolean =>
   typeof value === 'string' &&
   (value.includes(MINDROOM_TOOL_REF_ICON) || value.includes(MINDROOM_PASTE_MARKER_ATTRIBUTE));
 
-const contentHasMindroomMarkerCandidate = (content: Record<string, unknown>): boolean => {
-  if (isMindroomToolTraceV2(content)) return true;
-  if (valueHasMindroomMarkerCandidate(content.formatted_body)) return true;
-  if (valueHasMindroomMarkerCandidate(content.body)) return true;
+const contentHasMarkerCandidate = (content: Record<string, unknown>): boolean => {
+  if (isToolTraceV2(content)) return true;
+  if (valueHasMarkerCandidate(content.formatted_body)) return true;
+  if (valueHasMarkerCandidate(content.body)) return true;
 
   const extras = content[MINDROOM_MESSAGE_EXTRAS_KEY];
   if (extras && typeof extras === 'object') {
     const { sections } = extras as { sections?: unknown };
     if (Array.isArray(sections)) {
       return sections.some((section) =>
-        valueHasMindroomMarkerCandidate((section as { content?: unknown } | null)?.content)
+        valueHasMarkerCandidate((section as { content?: unknown } | null)?.content)
       );
     }
   }
@@ -470,10 +470,10 @@ const contentHasMindroomMarkerCandidate = (content: Record<string, unknown>): bo
   return false;
 };
 
-const createMindroomToolTraceMarkerParserOptions = (
+const createToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
-  traceEvents: MindroomToolTraceEvent[] | undefined,
-  metadataStatus?: MindroomToolMetadataStatus
+  traceEvents: ToolTraceEvent[] | undefined,
+  metadataStatus?: ToolMetadataStatus
 ): HTMLReactParserOptions => {
   const baseReplace = baseOpts.replace;
   const baseTransform = baseOpts.transform;
@@ -497,11 +497,11 @@ const createMindroomToolTraceMarkerParserOptions = (
       if (isDomElementNode(domNode)) {
         const pasteMarker = getPasteMarkerFromElement(domNode);
         if (pasteMarker) {
-          return <MindroomPasteMarkerBadge marker={pasteMarker} />;
+          return <PasteMarkerBadge marker={pasteMarker} />;
         }
 
         type ToolRefItem = {
-          data: MindroomToolBlockRenderData;
+          data: ToolBlockRenderData;
           trailingElement?: Element;
         };
 
@@ -509,7 +509,7 @@ const createMindroomToolTraceMarkerParserOptions = (
           const toolRefPrefix = getToolRefPrefixFromElement(element);
           if (!toolRefPrefix) return undefined;
 
-          const toolRef = parseMindroomToolRefHtml(toolRefPrefix.html);
+          const toolRef = parseToolRefHtml(toolRefPrefix.html);
           if (!toolRef) return undefined;
 
           const data = buildToolRefRenderData(
@@ -580,7 +580,7 @@ const createMindroomToolTraceMarkerParserOptions = (
           items.forEach((item) => consumedToolIndexes.add(item.data.index));
           groupRootIndexes.add(firstItem.data.index);
           const toolBlock = (
-            <MindroomToolRefGroupBlock
+            <ToolRefGroupBlock
               key={`tool-group-${firstItem.data.index}`}
               parsedTools={items.map((item) => item.data)}
             />
@@ -593,7 +593,7 @@ const createMindroomToolTraceMarkerParserOptions = (
           const [trailingElement] = trailingElements;
           const chainedToolBlocks: ReactNode[] = [];
           const restChildren = takeLeadingToolRefs(trailingElement, (html) => {
-            const toolRef = parseMindroomToolRefHtml(html);
+            const toolRef = parseToolRefHtml(html);
             // Leave content that repeats a consumed index to the check above.
             // The marker starts that content, so its first bracketed number is
             // in the marker.
@@ -605,7 +605,7 @@ const createMindroomToolTraceMarkerParserOptions = (
             consumedToolIndexes.add(toolRef.index);
             groupRootIndexes.add(toolRef.index);
             chainedToolBlocks.push(
-              <MindroomToolRefGroupBlock
+              <ToolRefGroupBlock
                 key={`tool-group-${toolRef.index}`}
                 parsedTools={[
                   buildToolRefRenderData(toolRef, traceEvents?.[toolRef.index - 1], metadataStatus),
@@ -665,17 +665,17 @@ const createMindroomToolTraceMarkerParserOptions = (
  * message that did not change is kept when the timeline renders again, as it does for every
  * streamed edit of another message.
  */
-export const useMindroomToolTraceMarkerParserOptions = (
+export const useToolTraceMarkerParserOptions = (
   baseOpts: HTMLReactParserOptions,
   content: Record<string, unknown>,
-  metadataStatus?: MindroomToolMetadataStatus
+  metadataStatus?: ToolMetadataStatus
 ): HtmlReactParserOptionsSource => {
-  const hasMarkers = contentHasMindroomMarkerCandidate(content);
+  const hasMarkers = contentHasMarkerCandidate(content);
   const toolTrace = content[MINDROOM_TOOL_TRACE_KEY];
   return useMemo(() => {
     // Most messages carry no markers, and the base options keep the same identity.
     if (!hasMarkers) return baseOpts;
-    const traceEvents = getMindroomToolTraceV2Events(toolTrace);
-    return () => createMindroomToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus);
+    const traceEvents = getToolTraceV2Events(toolTrace);
+    return () => createToolTraceMarkerParserOptions(baseOpts, traceEvents, metadataStatus);
   }, [baseOpts, hasMarkers, toolTrace, metadataStatus]);
 };

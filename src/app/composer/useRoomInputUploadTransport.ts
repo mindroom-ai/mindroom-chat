@@ -9,7 +9,7 @@ import {
 } from './roomInputDrafts';
 import { type TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError, uploadContent } from '../matrix/matrix';
-import { getMindroomRoomInputVoiceUploadRelation } from './RoomInputExtensions';
+import { getRoomInputVoiceUploadRelation } from './RoomInputExtensions';
 import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 
 type Store = ReturnType<typeof createStore>;
@@ -123,7 +123,7 @@ export const useRoomInputUploadTransport = (mx: MatrixClient, store: Store, room
         mxc,
         getVoiceMessageContentOptions(context.signalBridgedRoom)
       );
-      const relation = getMindroomRoomInputVoiceUploadRelation(context, item.file);
+      const relation = getRoomInputVoiceUploadRelation(context, item.file);
       if (relation) content['m.relates_to'] = relation;
       const txnId = mx.makeTxnId();
       try {

@@ -3,11 +3,11 @@ import type { MatrixClient } from 'matrix-js-sdk/lib/client';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { clearNavToActivePathStore } from '../../routes/navToActivePath';
 import {
-  clearMindroomInMemoryCaches,
-  clearMindroomSessionNativeState,
-  clearMindroomSessionUiState,
-  clearMindroomUserUiState,
-  deleteMindroomSessionCaches,
+  clearInMemoryCaches,
+  clearSessionNativeState,
+  clearSessionUiState,
+  clearUserUiState,
+  deleteSessionCaches,
 } from './sessionCleanup';
 import {
   StoredSession,
@@ -26,7 +26,7 @@ import {
   forgetCloudflareAccessToken,
   renewExpiredCloudflareAccess,
 } from '../../native/cloudflareAccess';
-import { stopMindroomSyncEngineForClient } from '../../event-store/engine/syncEngine';
+import { stopSyncEngineForClient } from '../../event-store/engine/syncEngine';
 import { getCanvasStateDbName } from '../../canvas/canvasStateStore';
 import { getCanvasIndexDbName } from '../../canvas/canvasIndexStore';
 import {
@@ -70,7 +70,7 @@ const getMatrixClientSessionCleanupContext = (
 
 const stopClientRuntime = (mx: MatrixClient): void => {
   try {
-    stopMindroomSyncEngineForClient(mx);
+    stopSyncEngineForClient(mx);
   } catch {
     // Matrix cleanup must continue even if a trailing cache flush fails.
   }
@@ -87,13 +87,13 @@ const clearSessionScopedUiState = (
   if (clearUserScopedState) {
     try {
       clearNavToActivePathStore(userId);
-      clearMindroomUserUiState(userId);
+      clearUserUiState(userId);
     } catch {
       // Local UI cleanup is best effort and must not retain account credentials.
     }
   }
   try {
-    clearMindroomSessionUiState(sessionId);
+    clearSessionUiState(sessionId);
   } catch {
     // Continue with Matrix stores and credential removal.
   }
@@ -101,7 +101,7 @@ const clearSessionScopedUiState = (
 
 const clearSessionScopedNativeState = (sessionId: string): void => {
   try {
-    clearMindroomSessionNativeState(sessionId);
+    clearSessionNativeState(sessionId);
   } catch {
     // Native preference cleanup is best effort during account removal.
   }
@@ -144,7 +144,7 @@ const deleteSessionLocalData = async (
     mx ? clearMatrixClientStores(mx, session) : deleteNamedDatabase(indexedDbStoreNames.sync),
     mx ? Promise.resolve() : deleteNamedDatabase(indexedDbStoreNames.crypto),
     mx ? Promise.resolve() : deleteNamedDatabases(rustCryptoStoreNames),
-    deleteMindroomSessionCaches(session.sessionId),
+    deleteSessionCaches(session.sessionId),
     // Saved canvas state is the user's data rather than a cache, so only account removal deletes it.
     deleteNamedDatabase(getCanvasStateDbName(session.sessionId)),
     deleteNamedDatabase(getCanvasIndexDbName(session.sessionId)),
@@ -269,7 +269,7 @@ export const clearAllCacheAndReload = async (mx?: MatrixClient): Promise<void> =
   }
 
   try {
-    clearMindroomInMemoryCaches();
+    clearInMemoryCaches();
   } catch {
     // ignore MindRoom in-memory cleanup errors
   }

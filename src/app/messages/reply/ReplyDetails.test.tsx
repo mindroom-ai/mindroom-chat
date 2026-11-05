@@ -3,14 +3,14 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MindroomReplyDetails } from './ReplyDetails';
+import { ReplyDetails } from './ReplyDetails';
 import { ThreadConversationCostProvider } from '../../event-store/threads/useThreadConversationCost';
 import type { ThreadConversationCost } from '../../event-store/threads/threadConversationCost';
-import type { MindroomAiRunInfo } from '../../matrix/protocol/aiRun';
+import type { AiRunInfo } from '../../matrix/protocol/aiRun';
 
 vi.mock('../../i18n/useAppLanguageCode', () => ({ useAppLanguageCode: () => 'en' }));
 
-const reply: MindroomAiRunInfo = {
+const reply: AiRunInfo = {
   status: 'completed',
   runId: 'run-123',
   sessionId: 'session-456',
@@ -55,11 +55,11 @@ afterEach(() => {
   container.remove();
 });
 
-const render = (info: MindroomAiRunInfo, eventId?: string, cost?: ThreadConversationCost) =>
+const render = (info: AiRunInfo, eventId?: string, cost?: ThreadConversationCost) =>
   act(() => {
     root.render(
       <ThreadConversationCostProvider value={cost}>
-        <MindroomReplyDetails info={info} eventId={eventId} />
+        <ReplyDetails info={info} eventId={eventId} />
       </ThreadConversationCostProvider>
     );
   });
@@ -84,7 +84,7 @@ const section = (heading: string) =>
     (element) => element.querySelector('h3')?.textContent === heading
   );
 
-describe('MindroomReplyDetails', () => {
+describe('ReplyDetails', () => {
   it('leads with the model and leaves out a completed status', () => {
     render(reply);
 

@@ -24,7 +24,7 @@ import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
 import { TOKEN_REFRESH_TIMEOUT_MS } from '../../matrix/client/sessionTokenRefresh';
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { MINDROOM_EDIT_DEBUG_STORAGE_KEY } from '../../matrix/protocol/editDebug';
-import { clearMindroomLongTextHydrationCache } from '../../matrix/protocol/longText';
+import { clearLongTextHydrationCache } from '../../matrix/protocol/longText';
 import {
   SESSION_STORE_KEY,
   SessionStoreWriteError,
@@ -67,7 +67,7 @@ vi.mock('../../matrix/client/secretStorageKeys', () => ({
 }));
 
 vi.mock('../../matrix/protocol/longText', () => ({
-  clearMindroomLongTextHydrationCache: vi.fn(),
+  clearLongTextHydrationCache: vi.fn(),
 }));
 
 vi.mock('../../event-store/cache/attachmentRepository', () => ({
@@ -79,7 +79,7 @@ vi.mock('../../matrix/client/matrixClientFactory', () => ({
 }));
 
 vi.mock('../../event-store/engine/syncEngine', () => ({
-  stopMindroomSyncEngineForClient: vi.fn(),
+  stopSyncEngineForClient: vi.fn(),
 }));
 
 vi.mock('../../routes/navToActivePath', () => ({
@@ -1260,7 +1260,7 @@ describe('clearAllCacheAndReload', () => {
 
     expect(stopClient).toHaveBeenCalledTimes(1);
     expect(vi.mocked(clearSecretStorageKeys)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(clearMindroomLongTextHydrationCache)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(clearLongTextHydrationCache)).toHaveBeenCalledTimes(1);
     expect(unregisterApp).toHaveBeenCalledTimes(1);
     expect(unregisterOther).not.toHaveBeenCalled();
     expect(appCache.delete).toHaveBeenCalledWith(appRequest);

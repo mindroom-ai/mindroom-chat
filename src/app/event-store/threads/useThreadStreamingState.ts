@@ -5,9 +5,9 @@ import {
   ACTIVE_STREAM_STATUSES,
   STREAM_STATUS_KEY,
   TERMINAL_STREAM_STATUSES,
-  getMindroomAiRunInfo,
+  getAiRunInfo,
   getStreamStatusFromContent,
-  hasTerminalMindroomStreamMetadata,
+  hasTerminalStreamMetadata,
 } from '../../matrix/protocol/aiRun';
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
@@ -62,7 +62,7 @@ const getStatusFromRecordMetadata = (metadata: unknown): string | undefined => {
   return statusCandidate.toLowerCase();
 };
 
-const getMindroomStreamStatus = (content: Record<string, unknown>): string | undefined => {
+const getStreamStatus = (content: Record<string, unknown>): string | undefined => {
   const fromStringForm = getStreamStatusFromContent(content);
   if (fromStringForm) return fromStringForm;
 
@@ -96,19 +96,19 @@ const isEventStreaming = (
   timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>
 ): boolean => {
   const content = getPreferredEventContent(mEvent, timelineSet);
-  const aiRunStatus = getMindroomAiRunInfo(content)?.status?.toLowerCase();
+  const aiRunStatus = getAiRunInfo(content)?.status?.toLowerCase();
   if (aiRunStatus === 'streaming') {
     return true;
   }
 
-  const streamStatus = getMindroomStreamStatus(content);
-  // hasTerminalMindroomStreamMetadata owns the ai_run terminal set (which
+  const streamStatus = getStreamStatus(content);
+  // hasTerminalStreamMetadata owns the ai_run terminal set (which
   // includes 'cached' — NOT in TERMINAL_STREAM_STATUSES) plus string-form
   // stream statuses; the local check only adds the record-form fallback.
   // Diverging here wedges a permanent spinner while the stop chip (gated on
   // the shared helper) is hidden.
   const terminalMetadata =
-    hasTerminalMindroomStreamMetadata(content) ||
+    hasTerminalStreamMetadata(content) ||
     (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus));
 
   if (hasStopReaction(relations) && !terminalMetadata) {

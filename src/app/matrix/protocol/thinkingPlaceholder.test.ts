@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { isMindroomThinkingPlaceholderBody } from './thinkingPlaceholder';
+import { isThinkingPlaceholderBody } from './thinkingPlaceholder';
 
-describe('isMindroomThinkingPlaceholderBody', () => {
+describe('isThinkingPlaceholderBody', () => {
   it('matches only the exact MindRoom thinking placeholder body', () => {
-    expect(isMindroomThinkingPlaceholderBody({ body: 'Thinking...' })).toBe(true);
-    expect(isMindroomThinkingPlaceholderBody({ body: 'Thinking' })).toBe(false);
-    expect(isMindroomThinkingPlaceholderBody({ body: ' Thinking...' })).toBe(false);
-    expect(isMindroomThinkingPlaceholderBody({ body: 'Thinking...\n' })).toBe(false);
+    expect(isThinkingPlaceholderBody({ body: 'Thinking...' })).toBe(true);
+    expect(isThinkingPlaceholderBody({ body: 'Thinking' })).toBe(false);
+    expect(isThinkingPlaceholderBody({ body: ' Thinking...' })).toBe(false);
+    expect(isThinkingPlaceholderBody({ body: 'Thinking...\n' })).toBe(false);
   });
 
   it('uses m.new_content body when an edit wrapper is present', () => {
     expect(
-      isMindroomThinkingPlaceholderBody({
+      isThinkingPlaceholderBody({
         body: 'old text',
         'm.new_content': {
           body: 'Thinking...',
@@ -20,7 +20,7 @@ describe('isMindroomThinkingPlaceholderBody', () => {
     ).toBe(true);
 
     expect(
-      isMindroomThinkingPlaceholderBody({
+      isThinkingPlaceholderBody({
         body: 'Thinking...',
         'm.new_content': {
           body: 'real answer',

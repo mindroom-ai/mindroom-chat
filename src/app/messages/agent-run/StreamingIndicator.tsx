@@ -17,4 +17,4 @@ export function StreamingIndicator() {
   );
 }
 
-export const renderMindroomStreamingIndicator = () => <StreamingIndicator />;
+export const renderStreamingIndicator = () => <StreamingIndicator />;

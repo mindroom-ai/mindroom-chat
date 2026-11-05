@@ -1,18 +1,18 @@
 /**
- * ISSUE-207 P3.1: MindroomSyncEngine barrel.
+ * ISSUE-207 P3.1: SyncEngine barrel.
  *
  * Consumers should import from here so future internal reshuffles
  * don't ripple across the codebase.
  */
 
-export { createMindroomSyncEngine } from './syncEngine';
-export type { CreateMindroomSyncEngineOptions } from './syncEngine';
+export { createSyncEngine } from './syncEngine';
+export type { CreateSyncEngineOptions } from './syncEngine';
 export {
-  MindroomSyncEngineProvider,
-  useMindroomSyncEngine,
-  useMindroomSyncEngineOptional,
+  SyncEngineProvider,
+  useSyncEngine,
+  useSyncEngineOptional,
 } from './engineContext';
-export type { MindroomSyncEngineProviderProps } from './engineContext';
+export type { SyncEngineProviderProps } from './engineContext';
 export { createEngineWriteThrough } from './engineWriteThrough';
 export type { EngineWriteThrough, EngineWriteThroughOptions } from './engineWriteThrough';
 export { createEngineGapTracker, createInMemoryGapFillScheduler } from './engineGapTracker';
@@ -27,7 +27,7 @@ export type {
   EngineLifecycle,
   EngineLiveEventHandler,
   EngineLiveEventMeta,
-  MindroomSyncEngine,
+  SyncEngine,
 } from './types';
 export { createEnginePersistFacade } from './enginePersistFacade';
 export type {

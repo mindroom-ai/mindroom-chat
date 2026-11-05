@@ -5,7 +5,7 @@ import {
   type CachedAttachmentDownloadOptions,
 } from './attachmentRepository';
 
-export const downloadMindroomSidecarBlob = async (
+export const downloadSidecarBlob = async (
   mx: MatrixClient,
   source: { mxcUri: string; encryptedFile?: IEncryptedFile },
   mimeType = 'application/json',

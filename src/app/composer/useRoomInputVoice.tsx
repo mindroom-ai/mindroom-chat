@@ -22,8 +22,8 @@ import {
 } from '../matrix/matrix';
 import { Membership } from '../matrix/types/room';
 import {
-  getMindroomRoomInputVoiceSendContext,
-  refreshMindroomRoomInputVoiceSendContext,
+  getRoomInputVoiceSendContext,
+  refreshRoomInputVoiceSendContext,
 } from './RoomInputExtensions';
 import {
   VoiceRecorderComposer,
@@ -179,7 +179,7 @@ export const useRoomInputVoice = ({
   // The session id prevents a parked draft from leaking audio across account switches.
   const getVoiceSendContext = useCallback(
     (): PendingVoiceSendContext =>
-      getMindroomRoomInputVoiceSendContext({
+      getRoomInputVoiceSendContext({
         ownerSessionId: mx.getUserId() ?? '',
         ...getContext(),
       }),
@@ -272,7 +272,7 @@ export const useRoomInputVoice = ({
         const sendContext = composerBundle?.relationContext
           ? { ...context, ...composerBundle.relationContext }
           : context;
-        liveContext = refreshMindroomRoomInputVoiceSendContext(mx, sendContext);
+        liveContext = refreshRoomInputVoiceSendContext(mx, sendContext);
         if (!liveContext) {
           throw new Error(t('composer.voiceRoomUnavailable'));
         }

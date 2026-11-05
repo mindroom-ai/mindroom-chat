@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import React from 'react';
 import * as css from './TranscribingPlaceholder.css';
 
-export function MindroomTranscribingPlaceholder() {
+export function TranscribingPlaceholder() {
   const { t } = useTranslation();
   return (
     <span

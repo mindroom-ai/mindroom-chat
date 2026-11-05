@@ -1,7 +1,7 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
+import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 
 vi.mock('../../ui/PendingSendIndicator.css', () => ({
   Container: 'PendingSendIndicator',
@@ -14,10 +14,10 @@ const renderSuffix = (renderSuffixFn: (() => React.ReactNode) | undefined): stri
   return rendered;
 };
 
-describe('getMindroomMessageStateSuffixRenderer', () => {
+describe('getMessageStateSuffixRenderer', () => {
   it('preserves generic edited rendering when no custom suffix or pending indicator is needed', () => {
     expect(
-      getMindroomMessageStateSuffixRenderer({
+      getMessageStateSuffixRenderer({
         edited: true,
         pendingSend: false,
       })
@@ -26,7 +26,7 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
 
   it('renders the pending send indicator when a message is pending', () => {
     const rendered = renderSuffix(
-      getMindroomMessageStateSuffixRenderer({
+      getMessageStateSuffixRenderer({
         pendingSend: true,
       })
     );
@@ -37,7 +37,7 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
 
   it('composes custom suffixes with the pending send indicator', () => {
     const rendered = renderSuffix(
-      getMindroomMessageStateSuffixRenderer({
+      getMessageStateSuffixRenderer({
         pendingSend: true,
         renderStateSuffix: () => React.createElement('span', { 'data-renderer': 'streaming' }),
       })
@@ -49,7 +49,7 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
 
   it('composes edited markers with the pending send indicator', () => {
     const rendered = renderSuffix(
-      getMindroomMessageStateSuffixRenderer({
+      getMessageStateSuffixRenderer({
         edited: true,
         pendingSend: true,
       })
@@ -61,7 +61,7 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
 
   it('composes custom suffixes, edited markers, and pending send indicators in order', () => {
     const rendered = renderSuffix(
-      getMindroomMessageStateSuffixRenderer({
+      getMessageStateSuffixRenderer({
         edited: true,
         pendingSend: true,
         renderStateSuffix: () => React.createElement('span', { 'data-renderer': 'streaming' }),
@@ -80,7 +80,7 @@ describe('getMindroomMessageStateSuffixRenderer', () => {
 
   it('renders terminal failure instead of the pending indicator', () => {
     const rendered = renderSuffix(
-      getMindroomMessageStateSuffixRenderer({
+      getMessageStateSuffixRenderer({
         pendingSend: true,
         failedSend: true,
       })

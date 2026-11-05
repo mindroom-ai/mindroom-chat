@@ -12,21 +12,21 @@ import {
   MINDROOM_MESSAGE_EXTRAS_TEXT_HTML,
   MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN,
   MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN,
-  MindroomMessageExtras as MindroomMessageExtrasData,
-  MindroomMessageExtrasSection,
+  MessageExtras as MindroomMessageExtrasData,
+  MessageExtrasSection,
 } from '../matrix/protocol/messageExtrasData';
-import { sanitizeMindroomMessageExtraHtml } from './messageExtrasHtml';
-import { useMindroomToolTraceMarkerParserOptions } from './html/HtmlBlocks';
+import { sanitizeMessageExtraHtml } from './messageExtrasHtml';
+import { useToolTraceMarkerParserOptions } from './html/HtmlBlocks';
 import * as css from './MessageExtras.css';
 
-type MindroomMessageExtraDetailsProps = React.DetailedHTMLProps<
+type MessageExtraDetailsProps = React.DetailedHTMLProps<
   React.DetailsHTMLAttributes<HTMLDetailsElement>,
   HTMLDetailsElement
 > & {
   defaultOpen: boolean;
 };
 
-type MindroomMessageExtrasProps = {
+type MessageExtrasProps = {
   extras: MindroomMessageExtrasData;
   htmlReactParserOptions: HTMLReactParserOptions;
   /** The content whose tool and paste markers the sections render. */
@@ -43,7 +43,7 @@ const renderMarkdown = (content: string, htmlReactParserOptions: HtmlReactParser
 
 const renderSectionContent = (
   content: string,
-  contentType: MindroomMessageExtrasSection['contentType'],
+  contentType: MessageExtrasSection['contentType'],
   htmlReactParserOptions: HtmlReactParserOptionsSource
 ) => {
   try {
@@ -56,7 +56,7 @@ const renderSectionContent = (
     }
 
     if (contentType === MINDROOM_MESSAGE_EXTRAS_TEXT_HTML) {
-      const sanitizedHtml = sanitizeMindroomMessageExtraHtml(content);
+      const sanitizedHtml = sanitizeMessageExtraHtml(content);
       return <div className={css.Html}>{parse(sanitizedHtml)}</div>;
     }
   } catch {
@@ -66,29 +66,29 @@ const renderSectionContent = (
   return null;
 };
 
-type MindroomMessageExtraSectionContentProps = {
+type MessageExtraSectionContentProps = {
   content: string;
-  contentType: MindroomMessageExtrasSection['contentType'];
+  contentType: MessageExtrasSection['contentType'];
   htmlReactParserOptions: HtmlReactParserOptionsSource;
 };
 
 // Sanitizing + parsing section markdown/HTML is expensive; timeline re-renders
 // (e.g. streaming m.replace bursts) must not re-parse unchanged sections.
-function MindroomMessageExtraSectionContent({
+function MessageExtraSectionContent({
   content,
   contentType,
   htmlReactParserOptions,
-}: MindroomMessageExtraSectionContentProps) {
+}: MessageExtraSectionContentProps) {
   return useMemo(
     () => renderSectionContent(content, contentType, htmlReactParserOptions),
     [content, contentType, htmlReactParserOptions]
   );
 }
 
-const getSectionKey = (section: MindroomMessageExtrasSection, index: number): string =>
+const getSectionKey = (section: MessageExtrasSection, index: number): string =>
   `${index}:${section.title}:${section.contentType}`;
 
-function MindroomMessageExtraDetails({ defaultOpen, ...props }: MindroomMessageExtraDetailsProps) {
+function MessageExtraDetails({ defaultOpen, ...props }: MessageExtraDetailsProps) {
   const initializedRef = useRef(false);
   const handleRef = useCallback(
     (node: HTMLDetailsElement | null) => {
@@ -103,13 +103,13 @@ function MindroomMessageExtraDetails({ defaultOpen, ...props }: MindroomMessageE
   return <details {...props} ref={handleRef} />;
 }
 
-export function MindroomMessageExtras({
+export function MessageExtras({
   extras,
   htmlReactParserOptions,
   markerContent,
-}: MindroomMessageExtrasProps) {
+}: MessageExtrasProps) {
   const { t } = useTranslation();
-  const parserOptions = useMindroomToolTraceMarkerParserOptions(
+  const parserOptions = useToolTraceMarkerParserOptions(
     htmlReactParserOptions,
     markerContent
   );
@@ -119,22 +119,22 @@ export function MindroomMessageExtras({
       aria-label={t('mindroomUi.messages.mindroomMessageExtras.messageExtras')}
     >
       {extras.sections.map((section, index) => {
-        const detailsProps: MindroomMessageExtraDetailsProps = {
+        const detailsProps: MessageExtraDetailsProps = {
           className: css.Section,
           defaultOpen: !section.collapsed,
         };
 
         return (
-          <MindroomMessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
+          <MessageExtraDetails key={getSectionKey(section, index)} {...detailsProps}>
             <summary className={css.Summary}>{section.title}</summary>
             <div className={css.Content}>
-              <MindroomMessageExtraSectionContent
+              <MessageExtraSectionContent
                 content={section.content}
                 contentType={section.contentType}
                 htmlReactParserOptions={parserOptions}
               />
             </div>
-          </MindroomMessageExtraDetails>
+          </MessageExtraDetails>
         );
       })}
     </div>

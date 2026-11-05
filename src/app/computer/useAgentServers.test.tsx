@@ -3,11 +3,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
-import { MINDROOM_SERVER_EVENT, type MindroomServer } from './agentServer';
+import { MINDROOM_SERVER_EVENT, type AgentServer } from './agentServer';
 import {
   useBindsOpenIdTokens,
-  useMindroomServerUrls,
-  useRoomMindroomServers,
+  useAgentServerUrls,
+  useRoomAgentServers,
 } from './useAgentServers';
 
 const native = vi.hoisted(() => ({ isNativePlatform: false }));
@@ -48,9 +48,9 @@ const redeliver = (room: Room, event: MatrixEvent) =>
   });
 
 const mount = (room: Room) => {
-  const seen: MindroomServer[][] = [];
+  const seen: AgentServer[][] = [];
   function Probe() {
-    seen.push(useRoomMindroomServers(room));
+    seen.push(useRoomAgentServers(room));
     return null;
   }
   act(() => {
@@ -120,10 +120,10 @@ it('shows a membership change that lands between a commit and its passive effect
   await room.addLiveEvents([membership('join'), serverEvent('http://localhost:8765')], {
     addToState: true,
   });
-  const seen: MindroomServer[][] = [];
+  const seen: AgentServer[][] = [];
   let rejoined = false;
   function Probe() {
-    const servers = useRoomMindroomServers(room);
+    const servers = useRoomAgentServers(room);
     seen.push(servers);
     // Runs right after the commit that drops the server, before React runs passive effects.
     useLayoutEffect(() => {
@@ -171,7 +171,7 @@ const mountServerUrls = async () => {
   mx.reEmitter.reEmit(room, [RoomStateEvent.Events, RoomStateEvent.Members]);
   const seen: string[][] = [];
   function Probe() {
-    seen.push(useMindroomServerUrls());
+    seen.push(useAgentServerUrls());
     return null;
   }
   await act(async () => {

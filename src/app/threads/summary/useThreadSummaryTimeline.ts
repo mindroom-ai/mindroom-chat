@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef } from 'react';
 import { MatrixEvent, MatrixEventEvent } from 'matrix-js-sdk';
-import { isMindroomThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
+import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 import { planThreadSummaryTimeline, type ThreadSummaryHistory } from '../../event-store/threads/threadSummaryTimeline';
 
 type ThreadSummaryTimelineOptions = {
@@ -25,7 +25,7 @@ export const useThreadSummaryTimeline = (
     // The wire type, so an event whose first attempt failed still counts.
     const encrypted = events.filter((event) => event.isEncrypted());
     const decrypted = (event: MatrixEvent) => {
-      if (isMindroomThreadSummaryEvent(event)) countDecryption();
+      if (isThreadSummaryEvent(event)) countDecryption();
     };
     encrypted.forEach((event) => event.on(MatrixEventEvent.Decrypted, decrypted));
     return () => {

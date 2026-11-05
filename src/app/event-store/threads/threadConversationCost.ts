@@ -1,6 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../../matrix/room';
-import { getMindroomAiRunInfo } from '../../matrix/protocol/aiRun';
+import { getAiRunInfo } from '../../matrix/protocol/aiRun';
 import type { ThreadSummaryHistory } from './threadSummaryTimeline';
 
 type ConversationCostTotal = {
@@ -49,7 +49,7 @@ export const summarizeThreadConversationCost = (
     // Edits and reactions carry no cost of their own; a reply's latest edit is read through it.
     if (!eventId || reactionOrEditEvent(event) || event.isRedacted()) return;
     if (!isTrustedSender(sender) || ignoredUserIds?.has(sender)) return;
-    const costUsd = getMindroomAiRunInfo(getContent(event))?.costUsd;
+    const costUsd = getAiRunInfo(getContent(event))?.costUsd;
     if (costUsd === undefined) return;
     const replyMicros = Math.round(costUsd * MICROS_PER_USD);
     micros += replyMicros;

@@ -3,7 +3,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import { RelationType } from 'matrix-js-sdk/lib/@types/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { getRoomThreadTagSnapshotMap, type ThreadTagSnapshot } from '../tags/threadTagSnapshots';
@@ -349,7 +349,7 @@ export const buildCrossRoomThreadIndexEntry = ({
   room: Room;
   threadRootId: string;
   threadRootEvent?: MatrixEvent;
-  summaryInfo?: MindroomThreadSummaryInfo;
+  summaryInfo?: ThreadSummaryInfo;
   currentUserId?: string;
   parentSpaceIds?: string[];
   /** null is an explicitly untagged root in a shared room snapshot. */

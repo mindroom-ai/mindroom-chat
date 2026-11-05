@@ -15,7 +15,7 @@ import { TUploadItem, UploadStatus } from '../matrix/state/upload';
 import { toMatrixUploadError } from '../matrix/matrix';
 import { UploadBoardHeader } from './upload/UploadBoard';
 import { UploadCardRenderer } from './upload/UploadCardRenderer';
-import { createMindroomRoomInputPasteMarkerElement } from './RoomInputExtensions';
+import { createRoomInputPasteMarkerElement } from './RoomInputExtensions';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
 
@@ -232,7 +232,7 @@ describe('attachment staging ownership', () => {
     await act(async () => {
       Transforms.insertNodes(
         harness.editor,
-        createMindroomRoomInputPasteMarkerElement(pasteMarker)
+        createRoomInputPasteMarkerElement(pasteMarker)
       );
       harness.feature.access.append(ROOM_ID, [item]);
       harness.onEditorChange();
@@ -335,7 +335,7 @@ describe('attachment staging ownership', () => {
     const harness = renderHarness();
     const { access } = harness.feature;
     const item = createPasteItem();
-    harness.editor.children = [createMindroomRoomInputPasteMarkerElement(pasteMarker)];
+    harness.editor.children = [createRoomInputPasteMarkerElement(pasteMarker)];
     act(() => {
       access.append(ROOM_ID, [item]);
       const release = access.protectPasteItems([item]);

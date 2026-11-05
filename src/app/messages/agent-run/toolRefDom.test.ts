@@ -1,14 +1,14 @@
 import { Element, htmlToDOM } from 'html-react-parser';
 import { describe, expect, it } from 'vitest';
-import { getRenderedMindroomToolRefs, getToolRefPrefixFromElement } from './toolRefDom';
+import { getRenderedToolRefs, getToolRefPrefixFromElement } from './toolRefDom';
 import { cpuNow } from '../../../test/utils/cpuNow';
 
 const indexesOf = (html: string) =>
-  getRenderedMindroomToolRefs(html).toolBlocks.map(({ index, toolName }) => [index, toolName]);
+  getRenderedToolRefs(html).toolBlocks.map(({ index, toolName }) => [index, toolName]);
 
 // Parity with the full renderer lives in react-custom-html-parser.test.ts,
 // which renders the backend fixtures with the app's real base parser.
-describe('getRenderedMindroomToolRefs', () => {
+describe('getRenderedToolRefs', () => {
   it('reads leading markers of top-level paragraphs, divs, and list items', () => {
     expect(
       indexesOf(
@@ -44,7 +44,7 @@ describe('getRenderedMindroomToolRefs', () => {
 
   it('counts every rendered 🔧 and those inside tool-block markers', () => {
     expect(
-      getRenderedMindroomToolRefs(
+      getRenderedToolRefs(
         '<p>🔧 <code>x</code> [1]</p><pre><code>🔧 `x` [1]</code></pre><p>🔧 <code>🔧</code> [2]</p>'
       )
     ).toMatchObject({ iconCount: 4, toolBlockIconCount: 3 });

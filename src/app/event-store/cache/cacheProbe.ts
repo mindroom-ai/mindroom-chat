@@ -37,7 +37,7 @@ export type CacheProbeCounters = {
   // (durability fallback — a silent drop would otherwise be invisible).
   editCompactionTargetMisses: number;
   // ISSUE-207 P3.1 (AC6 evidence): counts live events processed by the
-  // client-level MindroomSyncEngine. Bumped once per event delivered to
+  // client-level SyncEngine. Bumped once per event delivered to
   // the engine's write-through handler after `liveMode` has flipped true
   // — so IDB-replay and initial-sync-burst events are excluded. A room
   // that is not currently mounted still contributes when its live events

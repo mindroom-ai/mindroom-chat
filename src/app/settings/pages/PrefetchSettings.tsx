@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Text, config, type RectCords } from 'folds';
 import { PopOut } from '../../ui/directional';
 import type { PrefetchScope } from '../../event-store/engine/prefetchPolicy';
-import { mindroomSettingsAtom } from '../../event-store/engine/prefetchSettings';
+import { prefetchSettingsAtom } from '../../event-store/engine/prefetchSettings';
 import { useSetting } from '../../preferences/useSetting';
 import { stopPropagation } from '../../lib/keyboard';
 import { SettingTile } from '../../ui/SettingTile';
@@ -73,7 +73,7 @@ function ScopeMenu({ current, onPick, onDismiss }: ScopeMenuProps) {
 /** The menu for which rooms keep their history loaded in the background. */
 export function SelectPrefetchScope() {
   const { t } = useTranslation();
-  const [scope, setScope] = useSetting(mindroomSettingsAtom, 'prefetchScope');
+  const [scope, setScope] = useSetting(prefetchSettingsAtom, 'prefetchScope');
   const [anchor, setAnchor] = useState<RectCords | undefined>(undefined);
   const dismiss = () => setAnchor(undefined);
 

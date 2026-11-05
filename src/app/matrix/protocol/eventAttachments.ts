@@ -1,7 +1,7 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { describeMatrixEventRevision } from '../eventRevision';
 import type { IEncryptedFile } from '../types/common';
-import { getMindroomLongTextSource } from './longText';
+import { getLongTextSource } from './longText';
 
 export const ESSENTIAL_BODY_MAX_BYTES = 32 * 1024 * 1024;
 export const AUTO_MEDIA_MAX_BYTES = 5 * 1024 * 1024;
@@ -111,7 +111,7 @@ export const collectEventAttachments = (
         ? record(event.getContent()['m.new_content'])
         : event.getContent();
     const attachments: EventAttachment[] = [];
-    const longText = getMindroomLongTextSource(content);
+    const longText = getLongTextSource(content);
     if (longText)
       attachments.push({
         mxcUri: longText.mxcUri,

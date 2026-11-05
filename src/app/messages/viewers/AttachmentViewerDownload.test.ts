@@ -124,12 +124,12 @@ vi.mock('../../native/nativeFileSave', () => ({
 }));
 
 vi.mock('../content/longTextDownload', () => ({
-  downloadMindroomLongTextSidecarBlob: downloadSidecarMock,
-  getMindroomLongTextDownloadName: () => 'response.json',
+  downloadLongTextSidecarBlob: downloadSidecarMock,
+  getLongTextDownloadName: () => 'response.json',
 }));
 
 vi.mock('../content/LongTextText', () => ({
-  useMindroomLongTextResolvedContent: () => undefined,
+  useLongTextResolvedContent: () => undefined,
 }));
 
 const findButtonByText = (renderer: ReactTestRenderer, text: string) =>
@@ -302,12 +302,12 @@ describe('attachment viewer downloads', () => {
 
   it('retries a failed long-response save without downloading the sidecar again', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
-    const { DownloadOriginalMenuItem: MindroomDownloadOriginalMenuItem } = await import(
+    const { DownloadOriginalMenuItem } = await import(
       '../MessageControls'
     );
     const onClose = vi.fn();
     const renderer = create(
-      React.createElement(MindroomDownloadOriginalMenuItem, {
+      React.createElement(DownloadOriginalMenuItem, {
         source: {
           previewContent: {},
           mxcUri: 'mxc://example.test/response',
@@ -336,12 +336,12 @@ describe('attachment viewer downloads', () => {
 
   it('keeps the long-response menu open when the native save picker is cancelled', async () => {
     saveFileMock.mockResolvedValueOnce(false);
-    const { DownloadOriginalMenuItem: MindroomDownloadOriginalMenuItem } = await import(
+    const { DownloadOriginalMenuItem } = await import(
       '../MessageControls'
     );
     const onClose = vi.fn();
     const renderer = create(
-      React.createElement(MindroomDownloadOriginalMenuItem, {
+      React.createElement(DownloadOriginalMenuItem, {
         source: {
           previewContent: {},
           mxcUri: 'mxc://example.test/response',
@@ -367,11 +367,11 @@ describe('attachment viewer downloads', () => {
         finishSave = resolve;
       })
     );
-    const { DownloadOriginalMenuItem: MindroomDownloadOriginalMenuItem } = await import(
+    const { DownloadOriginalMenuItem } = await import(
       '../MessageControls'
     );
     const renderer = create(
-      React.createElement(MindroomDownloadOriginalMenuItem, {
+      React.createElement(DownloadOriginalMenuItem, {
         source: {
           previewContent: {},
           mxcUri: 'mxc://example.test/response',

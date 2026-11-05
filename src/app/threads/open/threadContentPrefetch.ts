@@ -20,7 +20,7 @@ import {
 } from '../../event-store/engine';
 import {
   getThreadSummaryInfosFromEventSources,
-  type MindroomThreadSummaryInfo,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { isCompleteCachedThreadSnapshot } from '../../event-store/cache/threadCacheSnapshot';
 import { saveThreadOpenSeedSnapshot } from '../../event-store/cache/threadOpenSeedCache';
@@ -69,7 +69,7 @@ export const fetchAndPersistThreadContent = async ({
    * object means a newer summary source was published while the relation
    * request was in flight, so the entire fetched snapshot must be discarded.
    */
-  getCurrentThreadSummary?: (threadRootId: string) => MindroomThreadSummaryInfo | undefined;
+  getCurrentThreadSummary?: (threadRootId: string) => ThreadSummaryInfo | undefined;
   beginThreadCacheWrite: () => PersistThreadEventCache;
   onApplyThreadRelations?: (options: FetchedRelationOverviewUpdateOptions) => void;
   onStoreThreadSummary?: ThreadSummaryWriter;

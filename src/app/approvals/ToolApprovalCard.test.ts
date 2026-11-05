@@ -2,7 +2,7 @@
 import React from 'react';
 import { act, create, ReactTestInstance } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MindroomToolApprovalCard } from './ToolApprovalCard';
+import { ToolApprovalCard } from './ToolApprovalCard';
 import { ThreadApprovals } from './ThreadApprovalProvider';
 import { MINDROOM_TOOL_APPROVAL_RESPONSE_EVENT, ToolApprovalData } from '../matrix/protocol/toolApproval';
 
@@ -172,7 +172,7 @@ const renderCard = (
   props: Partial<typeof approvalContext> = {}
 ) =>
   create(
-    React.createElement(MindroomToolApprovalCard, {
+    React.createElement(ToolApprovalCard, {
       approval,
       ...approvalContext,
       ...props,
@@ -208,7 +208,7 @@ const createDeferred = () => {
   return { promise, resolve };
 };
 
-describe('MindroomToolApprovalCard', () => {
+describe('ToolApprovalCard', () => {
   beforeEach(() => {
     sendEventMock.mockReset();
     currentUserId = '@alice:example.org';
@@ -244,7 +244,7 @@ describe('MindroomToolApprovalCard', () => {
     threadApprovals = { ...threadApprovals, records: [] };
     act(() =>
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: pendingApproval,
           ...approvalContext,
         })
@@ -468,7 +468,7 @@ describe('MindroomToolApprovalCard', () => {
       vi.setSystemTime(arrival);
       await act(async () => {
         renderer.update(
-          React.createElement(MindroomToolApprovalCard, {
+          React.createElement(ToolApprovalCard, {
             ...approvalContext,
             approval: {
               ...timedPendingApproval,
@@ -650,7 +650,7 @@ describe('MindroomToolApprovalCard', () => {
 
     act(() => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: {
             ...pendingApproval,
             approverUserId: '@other:example.org',
@@ -784,7 +784,7 @@ describe('MindroomToolApprovalCard', () => {
 
     await act(async () => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: {
             ...timedPendingApproval,
             status: 'approved',
@@ -830,7 +830,7 @@ describe('MindroomToolApprovalCard', () => {
 
     await act(async () => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: {
             ...timedPendingApproval,
             status: 'approved',
@@ -874,7 +874,7 @@ describe('MindroomToolApprovalCard', () => {
 
     await act(async () => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: {
             ...timedPendingApproval,
             status: 'approved',
@@ -922,7 +922,7 @@ describe('MindroomToolApprovalCard', () => {
 
     await act(async () => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: {
             ...activeApproval,
             autoApproval: {
@@ -1009,7 +1009,7 @@ describe('MindroomToolApprovalCard', () => {
 
     await act(async () => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: { ...pendingApproval, approvalId: 'approval-2' },
           ...approvalContext,
           eventId: '$approval-2',
@@ -1250,7 +1250,7 @@ describe('MindroomToolApprovalCard', () => {
     ).toHaveLength(0);
     act(() =>
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: { ...approval, status: 'approved' },
           ...approvalContext,
         })
@@ -1314,7 +1314,7 @@ describe('MindroomToolApprovalCard', () => {
     };
 
     const renderer = create(
-      React.createElement(MindroomToolApprovalCard, {
+      React.createElement(ToolApprovalCard, {
         approval: pendingApproval,
         ...approvalContext,
       }),
@@ -1350,7 +1350,7 @@ describe('MindroomToolApprovalCard', () => {
 
     await act(async () => {
       renderer.update(
-        React.createElement(MindroomToolApprovalCard, {
+        React.createElement(ToolApprovalCard, {
           approval: {
             ...pendingApproval,
             status: 'approved',

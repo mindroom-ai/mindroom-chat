@@ -1,40 +1,40 @@
 /**
- * ISSUE-207 P3.1: React context wrapper for MindroomSyncEngine.
+ * ISSUE-207 P3.1: React context wrapper for SyncEngine.
  *
  * The engine itself is framework-agnostic. This module exposes it to
  * the React tree so consumers (Commit 5 rewires the fetch controllers
  * onto engine.persist through this hook) don't have to prop-drill.
  * ClientRoot.tsx creates the engine, calls start(), then wraps the
- * ready content with `<MindroomSyncEngineProvider>` next to the
+ * ready content with `<SyncEngineProvider>` next to the
  * MatrixClientProvider.
  */
 
 import React, { createContext, useContext } from 'react';
-import type { MindroomSyncEngine } from './types';
+import type { SyncEngine } from './types';
 
-const MindroomSyncEngineContext = createContext<MindroomSyncEngine | undefined>(undefined);
+const SyncEngineContext = createContext<SyncEngine | undefined>(undefined);
 
-export type MindroomSyncEngineProviderProps = {
-  engine: MindroomSyncEngine;
+export type SyncEngineProviderProps = {
+  engine: SyncEngine;
   children: React.ReactNode;
 };
 
-export const MindroomSyncEngineProvider = ({
+export const SyncEngineProvider = ({
   engine,
   children,
-}: MindroomSyncEngineProviderProps): React.ReactElement => {
+}: SyncEngineProviderProps): React.ReactElement => {
   return (
-    <MindroomSyncEngineContext.Provider value={engine}>
+    <SyncEngineContext.Provider value={engine}>
       {children}
-    </MindroomSyncEngineContext.Provider>
+    </SyncEngineContext.Provider>
   );
 };
 
-export const useMindroomSyncEngine = (): MindroomSyncEngine => {
-  const engine = useContext(MindroomSyncEngineContext);
+export const useSyncEngine = (): SyncEngine => {
+  const engine = useContext(SyncEngineContext);
   if (!engine) {
     throw new Error(
-      'useMindroomSyncEngine must be used within a MindroomSyncEngineProvider (see ClientRoot.tsx)'
+      'useSyncEngine must be used within a SyncEngineProvider (see ClientRoot.tsx)'
     );
   }
   return engine;
@@ -45,6 +45,6 @@ export const useMindroomSyncEngine = (): MindroomSyncEngine => {
  * present. Useful for legacy tests during the P3 migration window
  * where the tree isn't wrapped yet.
  */
-export const useMindroomSyncEngineOptional = (): MindroomSyncEngine | undefined => {
-  return useContext(MindroomSyncEngineContext);
+export const useSyncEngineOptional = (): SyncEngine | undefined => {
+  return useContext(SyncEngineContext);
 };

@@ -60,15 +60,15 @@ afterEach(() => {
   markRoomAndThreadsAsReadMock.mockReset();
 });
 
-describe('MindroomMarkRoomsReadMenuItem', () => {
+describe('MarkRoomsReadMenuItem', () => {
   it.each([false, true])(
     'marks every listed room and closes the menu (private: %s)',
     async (hideActivity) => {
       const onClose = vi.fn();
       state.hideActivity = hideActivity;
-      const { MarkRoomsReadMenuItem: MindroomMarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
+      const { MarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
       const renderer = create(
-        React.createElement(MindroomMarkRoomsReadMenuItem, {
+        React.createElement(MarkRoomsReadMenuItem, {
           roomIds: ['!a:example.org', '!b:example.org'],
           onClose,
         })
@@ -97,9 +97,9 @@ describe('MindroomMarkRoomsReadMenuItem', () => {
 
   it('keeps an empty room list tabbable without sending receipts or closing', async () => {
     const onClose = vi.fn();
-    const { MarkRoomsReadMenuItem: MindroomMarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
+    const { MarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
     const renderer = create(
-      React.createElement(MindroomMarkRoomsReadMenuItem, { roomIds: [], onClose })
+      React.createElement(MarkRoomsReadMenuItem, { roomIds: [], onClose })
     );
     const button = renderer.root.findByType('button');
 

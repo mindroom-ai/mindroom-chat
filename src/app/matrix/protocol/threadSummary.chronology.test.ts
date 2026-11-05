@@ -4,7 +4,7 @@ import {
   buildThreadSummaryMap,
   getLatestThreadSummaryInfoFromEventSources,
   getThreadSummaryEventInfo,
-  getMindroomThreadSummaryInfo,
+  getThreadSummaryInfo,
   pickLatestThreadSummaryInfo,
 } from './threadSummary';
 import { resolveThreadSummaryInfo } from '../../event-store/threads/threadPresentation';
@@ -31,7 +31,7 @@ describe('summary event chronology', () => {
     const automatic = notice('$auto', 'Stale automatic', 1100, 9000);
     const manual = notice('$manual', 'Accepted human title', 1200, 1000);
     manual.event.content!['io.mindroom.thread_summary'].model = 'manual';
-    const legacy = getMindroomThreadSummaryInfo(automatic.getContent());
+    const legacy = getThreadSummaryInfo(automatic.getContent());
     expect(
       resolveThreadSummaryInfo({
         preferredSummaryInfo: legacy,

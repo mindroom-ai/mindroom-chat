@@ -6,22 +6,19 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Page, PageHero, PageHeroSection } from '../ui/page/Page';
 import { useClientConfig } from '../config/useClientConfig';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import {
-  MINDROOM_CLIENT_BRANDING,
-  getMindroomWelcomePageContent,
-} from '../ui/branding/clientBranding';
+import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from '../ui/branding/clientBranding';
 import { getLocalMindroomConnections } from '../local-mindroom/api';
 import {
   getWelcomeSetupFirstSeenStorageKey,
   isConnectionRevoked,
-  resolveMindroomProvisioningRequest,
+  resolveProvisioningRequest,
   shouldShowWelcomeSetupPrompt,
 } from '../local-mindroom/provisioning';
 import { LOCAL_MINDROOM_SETTINGS_PAGE } from '../local-mindroom/settingsPage';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import { KeyBackupNudge } from '../account/onboarding/KeyBackupNudge';
 import { UnverifiedDeviceCard } from '../account/verification/UnverifiedDeviceCard';
-import type { MindroomPoweredByLink } from '../ui/branding/branding';
+import type { PoweredByLink } from '../ui/branding/branding';
 import { settingsModalAtom } from '../navigation/settingsModal';
 
 const SETUP_COMMAND =
@@ -60,7 +57,7 @@ const useWelcomeSetupPrompt = (): boolean => {
   const offered = useShowLocalMindroom();
   const [show, setShow] = useState(false);
   const userId = mx.getSafeUserId();
-  const { provisioningBaseUrl } = resolveMindroomProvisioningRequest({
+  const { provisioningBaseUrl } = resolveProvisioningRequest({
     sessionHomeserverUrl: mx.getHomeserverUrl(),
     provisioningOverrideUrl: sidebar?.mindRoomProvisioningUrl,
     accessToken: mx.getAccessToken() ?? undefined,
@@ -158,7 +155,7 @@ function WelcomeLink({ href, icon, children }: WelcomeLinkProps) {
 const CREDIT_LINK_STYLE = { color: 'var(--mr-link-color)', textDecoration: 'none' } as const;
 
 /** "Powered by A • B": the credited projects, each linked. */
-function PoweredByLine({ links }: { links: readonly MindroomPoweredByLink[] }) {
+function PoweredByLine({ links }: { links: readonly PoweredByLink[] }) {
   if (links.length === 0) return null;
   const linked = links.map((link, index) => (
     <Fragment key={link.url}>
@@ -179,7 +176,7 @@ function PoweredByLine({ links }: { links: readonly MindroomPoweredByLink[] }) {
 export function WelcomePage() {
   const { t } = useTranslation();
   const { welcome } = useClientConfig();
-  const content = getMindroomWelcomePageContent(welcome as never, t);
+  const content = getWelcomePageContent(welcome as never, t);
   const showSetup = useWelcomeSetupPrompt();
 
   return (

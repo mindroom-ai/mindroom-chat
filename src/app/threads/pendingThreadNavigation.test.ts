@@ -9,7 +9,7 @@ import {
   RoomEvent,
 } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createMindroomSyncEngine } from '../event-store/engine/syncEngine';
+import { createSyncEngine } from '../event-store/engine/syncEngine';
 import { useThreadRenderState } from '../timeline/useThreadRenderState';
 
 type Snapshot = ReturnType<typeof useThreadRenderState>;
@@ -36,7 +36,7 @@ const Harness = ({
 
 describe('pending thread replies across navigation', () => {
   let renderer: ReactTestRenderer | undefined;
-  let engine: ReturnType<typeof createMindroomSyncEngine> | undefined;
+  let engine: ReturnType<typeof createSyncEngine> | undefined;
   afterEach(() => {
     act(() => renderer?.unmount());
     renderer = undefined;
@@ -58,7 +58,7 @@ describe('pending thread replies across navigation', () => {
     });
     mx.store.storeRoom(room);
     mx.reEmitter.reEmit(room, [RoomEvent.LocalEchoUpdated]);
-    engine = createMindroomSyncEngine({ mx });
+    engine = createSyncEngine({ mx });
     engine.start();
     let state: Snapshot;
     const open = (threadId = '$root', targetRoom = room) => {

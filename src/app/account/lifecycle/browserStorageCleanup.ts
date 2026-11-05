@@ -1,7 +1,7 @@
 import { appUrl, ensureBasePathTrailingSlash, normalizeBasePath } from '../../lib/basePath';
 import {
   MINDROOM_SINGLETON_INDEXED_DB_NAMES,
-  getMindroomSessionIndexedDbNames,
+  getSessionIndexedDbNames,
 } from './sessionCleanup';
 import {
   StoredSession,
@@ -68,7 +68,7 @@ export const mergeSessionCleanupContexts = (
 const getSessionCacheIndexedDbNames = (session: SessionCleanupContext): string[] => {
   const indexedDbStoreNames = getSessionIndexedDbStoreName(session);
 
-  return [indexedDbStoreNames.sync, ...getMindroomSessionIndexedDbNames(session.sessionId)];
+  return [indexedDbStoreNames.sync, ...getSessionIndexedDbNames(session.sessionId)];
 };
 
 const getFallbackAppOwnedIndexedDbNames = (sessions: SessionCleanupContext[]): string[] =>

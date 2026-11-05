@@ -9,7 +9,7 @@ import { type MatrixClient, type MatrixEvent, RelationType, type Room } from 'ma
 import {
   getLatestThreadSummaryInfoFromEventSources,
   getThreadSummaryInfosFromEventSources,
-  isMindroomThreadSummaryEvent,
+  isThreadSummaryEvent,
 } from '../matrix/protocol/threadSummary';
 import { markMainTimelineAsRead } from '../notifications/readReceipts';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
@@ -40,7 +40,7 @@ type RoomUnreadInfo = ReturnType<typeof getRoomUnreadInfo>;
  * ISSUE-207 P3.3: render-only room live controller.
  *
  * Persistence, edit compaction, and the redaction cache lifecycle
- * moved into `MindroomSyncEngine`'s write-through
+ * moved into `SyncEngine`'s write-through
  * (`engine/engineWriteThrough.ts`) in Commit 3 — this controller no
  * longer touches the cache directly. What remains is the UI-visible
  * arrival wiring: local-echo refresh, expand-once ids, supplemental
@@ -204,7 +204,7 @@ export const useRoomLiveRenderController = ({
           // ISSUE-088: pending local echoes (e.g. a freshly-sent voice message)
           // arrive with `liveEvent: false` before the server confirmation re-fires
           // with `liveEvent: true`. Without driving a re-render here, the compact
-          // view's useMindroomThreadIndex memo chain doesn't recompute and the
+          // view's useThreadIndex memo chain doesn't recompute and the
           // "0 replies" card never appears until the second arrival. Scoped
           // narrowly to sent-but-not-yet-confirmed standalone roots in the room
           // view, so paginated history and thread-only arrivals are unaffected.
@@ -274,7 +274,7 @@ export const useRoomLiveRenderController = ({
         // arrival to flow through the summary store / unread info /
         // auto-follow paths below.
         if (threadOnlyRoomActivity) {
-          if (isMindroomThreadSummaryEvent(mEvt)) {
+          if (isThreadSummaryEvent(mEvt)) {
             const rootId = mEvt.threadRootId;
             if (rootId) {
               const info = getLatestThreadSummaryInfoFromEventSources([mEvt]);

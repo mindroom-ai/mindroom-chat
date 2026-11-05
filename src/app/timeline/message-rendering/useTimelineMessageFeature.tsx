@@ -67,11 +67,11 @@ import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
 import { FailedSendActions } from '../../messages/FailedSendActions';
 import { toggleReaction as sendReactionToggle } from '../../messages/reactions/reactionToggle';
 import { ApprovalHistory } from '../../approvals/ThreadApprovalControls';
-import { MindroomThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
-import { getMindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { ThreadSummaryMarker } from '../../messages/thread-summary/ThreadSummaryMarker';
+import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getToolApprovalRenderContent } from '../../matrix/protocol/toolApproval';
 import { shouldShowLinkFavicons } from '../../rich-text/linkFaviconPolicy';
-import { renderMindroomRoomTimelineThreadBadge } from '../ThreadBadge';
+import { renderThreadBadge } from '../ThreadBadge';
 import { buildMindroomRoomTimelineReplyDraft } from '../roomTimelineReplyDraft';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { canPinRoomEvents } from '../../event-store/threads/threadPinning';
@@ -480,7 +480,7 @@ export const useTimelineMessageFeature = ({
           : getLatestMessageContent(event, editedEvent)
       ) as Record<string, unknown>;
       const summaryInfo =
-        threadId && kind === 'message' ? getMindroomThreadSummaryInfo(content) : undefined;
+        threadId && kind === 'message' ? getThreadSummaryInfo(content) : undefined;
       const marker = summaryInfo
         ? data.threadSummaryTimeline.markersByEventId.get(eventId)
         : undefined;
@@ -492,7 +492,7 @@ export const useTimelineMessageFeature = ({
             data-message-item={row.index}
             spaced
           >
-            <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
+            <ThreadSummaryMarker summaryInfo={summaryInfo} plan={marker} />
           </MessageAside>
         );
       }
@@ -561,7 +561,7 @@ export const useTimelineMessageFeature = ({
       const threadBadge =
         threadId || showThreadRepliesInRoom || !hasThreadReplies(data.threadRecordMap.get(eventId))
           ? null
-          : renderMindroomRoomTimelineThreadBadge({
+          : renderThreadBadge({
               eventId,
               event,
               threadRecordMap: data.threadRecordMap,

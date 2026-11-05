@@ -9,7 +9,7 @@ import { AdvancedFold } from '../../ui/settings/AdvancedFold';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 import { useComputerApiUrls } from '../../computer/useComputerApiUrl';
 import { ComputerSettings } from '../../computer/ComputerSettings';
-import { MindroomConnectionsSettings } from '../../connections/ConnectionsSettings';
+import { ConnectionsSettings } from '../../connections/ConnectionsSettings';
 
 /** Agents & connections › Connected accounts: the portal where agents get their accounts. */
 export function ConnectionsSettingsPage({ requestClose }: SettingsPageProps) {
@@ -17,7 +17,7 @@ export function ConnectionsSettingsPage({ requestClose }: SettingsPageProps) {
 
   return (
     <SettingsPageFrame title={t('settings.general.connections.title')} requestClose={requestClose}>
-      <MindroomConnectionsSettings className={SequenceCardStyle} />
+      <ConnectionsSettings className={SequenceCardStyle} />
     </SettingsPageFrame>
   );
 }

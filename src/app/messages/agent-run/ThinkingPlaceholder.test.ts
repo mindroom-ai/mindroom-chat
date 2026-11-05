@@ -3,11 +3,11 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../../config/useClientConfig';
-import { MindroomThinkingPlaceholder } from './ThinkingPlaceholder';
+import { ThinkingPlaceholder } from './ThinkingPlaceholder';
 import thinkingMark from './thinking-mark.svg?raw';
 import {
   DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES,
-  resolveMindroomThinkingPlaceholderMessages,
+  resolveThinkingPlaceholderMessages,
 } from '../../matrix/protocol/thinkingPlaceholder';
 
 vi.mock('./ThinkingPlaceholder.css', () => ({
@@ -35,7 +35,7 @@ const renderPlaceholder = (messages?: string[], startedAt?: number) =>
           },
         },
       },
-      React.createElement(MindroomThinkingPlaceholder, { startedAt })
+      React.createElement(ThinkingPlaceholder, { startedAt })
     )
   );
 
@@ -45,24 +45,24 @@ const labelTexts = (renderer: ReturnType<typeof renderPlaceholder> | undefined) 
     renderer?.root.findByProps({ className }).children.join('')
   );
 
-describe('resolveMindroomThinkingPlaceholderMessages', () => {
+describe('resolveThinkingPlaceholderMessages', () => {
   it('uses non-empty configured messages', () => {
     expect(
-      resolveMindroomThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])
+      resolveThinkingPlaceholderMessages([' Configured ', '', 'Also configured'])
     ).toEqual(['Configured', 'Also configured']);
   });
 
   it('falls back to built-in messages when config has no usable messages', () => {
-    expect(resolveMindroomThinkingPlaceholderMessages(undefined)).toBe(
+    expect(resolveThinkingPlaceholderMessages(undefined)).toBe(
       DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES
     );
-    expect(resolveMindroomThinkingPlaceholderMessages(['', '   ', 42])).toBe(
+    expect(resolveThinkingPlaceholderMessages(['', '   ', 42])).toBe(
       DEFAULT_MINDROOM_THINKING_PLACEHOLDER_MESSAGES
     );
   });
 });
 
-describe('MindroomThinkingPlaceholder', () => {
+describe('ThinkingPlaceholder', () => {
   it('keeps the artwork in decorative image layers outside the host document', () => {
     const renderer = renderPlaceholder(['Working']);
 

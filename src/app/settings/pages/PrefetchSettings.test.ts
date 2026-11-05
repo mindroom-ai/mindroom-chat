@@ -94,7 +94,7 @@ vi.mock('../../preferences/settings', () => ({
 }));
 
 vi.mock('../../event-store/engine/prefetchSettings', () => ({
-  mindroomSettingsAtom: {},
+  prefetchSettingsAtom: {},
 }));
 
 vi.mock('../../lib/keyboard', () => ({
@@ -115,14 +115,14 @@ afterEach(() => {
   state.setPrefetchDepth.mockReset();
 });
 
-describe('MindroomPrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
+describe('PrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
   it('renders scope opt-in without obsolete depth control', async () => {
-    const { PrefetchSettings: MindroomPrefetchSettings } = await import('./PrefetchSettings');
+    const { PrefetchSettings } = await import('./PrefetchSettings');
 
     let renderer: ReactTestRenderer | undefined;
     act(() => {
       renderer = create(
-        React.createElement(MindroomPrefetchSettings, { className: 'settings-card' })
+        React.createElement(PrefetchSettings, { className: 'settings-card' })
       );
     });
 

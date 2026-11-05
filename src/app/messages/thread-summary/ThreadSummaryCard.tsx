@@ -5,11 +5,11 @@ import { MessageEditedContent } from '../content/FallbackContent';
 import { MessageTextBody } from '../layout/layout';
 import { Time } from '../Time';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import * as css from './ThreadSummaryCard.css';
 
 type ThreadSummaryCardProps = {
-  summaryInfo: MindroomThreadSummaryInfo;
+  summaryInfo: ThreadSummaryInfo;
   /** Thread badges and overview rows: a single provenance line, no chip and no time. */
   compact?: boolean;
   /** The summary notice was edited. */

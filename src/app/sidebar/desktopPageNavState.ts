@@ -38,6 +38,6 @@ const noPageNav: MindroomDesktopPageNav = {
 
 export const MindroomDesktopPageNavContext = createContext<MindroomDesktopPageNav>(noPageNav);
 
-/** The page navigation's collapse state, from the nearest `MindroomNavigationProvider`. */
+/** The page navigation's collapse state, from the nearest `NavigationProvider`. */
 export const useMindroomDesktopPageNav = (): MindroomDesktopPageNav =>
   useContext(MindroomDesktopPageNavContext);

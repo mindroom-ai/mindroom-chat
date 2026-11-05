@@ -1,4 +1,4 @@
-import { isMindroomMessageMetadataKey } from './metadata';
+import { isMessageMetadataKey } from './metadata';
 
 // Says that this event's own file holds the message, so it is never inherited from another edit.
 const LONG_TEXT_KEY = 'io.mindroom.long_text';
@@ -6,7 +6,7 @@ const LONG_TEXT_KEY = 'io.mindroom.long_text';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
-export const copyMindroomResolvedEditMetadata = (
+export const copyResolvedEditMetadata = (
   resolvedContent: Record<string, unknown>,
   sources: ReadonlyArray<Record<string, unknown> | undefined>
 ): void => {
@@ -19,7 +19,7 @@ export const copyMindroomResolvedEditMetadata = (
 
       Object.entries(metadataSource).forEach(([key, value]) => {
         if (resolvedContent[key] !== undefined) return;
-        if (!isMindroomMessageMetadataKey(key) || key === LONG_TEXT_KEY) return;
+        if (!isMessageMetadataKey(key) || key === LONG_TEXT_KEY) return;
         resolvedContent[key] = value;
       });
     });

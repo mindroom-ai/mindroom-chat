@@ -14,7 +14,7 @@ import {
   LINKIFY_OPTS,
 } from '../../src/app/messages/html/react-custom-html-parser';
 import { sanitizeCustomHtml } from '../../src/app/rich-text/sanitize';
-import { useMindroomToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
+import { useToolTraceMarkerParserOptions } from '../../src/app/messages/html/HtmlBlocks';
 import { resolveHtmlReactParserOptions } from '../../src/app/rich-text/htmlReactParserOptions';
 
 const params = new URLSearchParams(window.location.search);
@@ -52,7 +52,7 @@ function Fixture() {
     : '';
   const formattedBody = toolPrefix + html;
   const options = resolveHtmlReactParserOptions(
-    useMindroomToolTraceMarkerParserOptions(parser, { formatted_body: formattedBody })
+    useToolTraceMarkerParserOptions(parser, { formatted_body: formattedBody })
   );
 
   return (

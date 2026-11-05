@@ -14,7 +14,7 @@ import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
-import { copyMindroomResolvedEditMetadata } from './protocol/editMetadata';
+import { copyResolvedEditMetadata } from './protocol/editMetadata';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
@@ -159,7 +159,7 @@ const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): 
   const newContent = getNewContent(latest);
   if (!newContent || older.length === 0) return;
   const borrowed: Record<string, unknown> = {};
-  copyMindroomResolvedEditMetadata(
+  copyResolvedEditMetadata(
     borrowed,
     older.map((edit) => edit.getContent())
   );
@@ -229,7 +229,7 @@ export const getLatestMessageContent = (
 
   const content: IContent = { ...newContent };
   // MindRoom metadata the edit carries beside `m.new_content` belongs to the shown content too.
-  copyMindroomResolvedEditMetadata(content, [editedEvent.getContent()]);
+  copyResolvedEditMetadata(content, [editedEvent.getContent()]);
   return content;
 };
 

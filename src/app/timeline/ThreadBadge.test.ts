@@ -2,7 +2,7 @@ import type { ReactElement, ReactNode } from 'react';
 import React from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { renderMindroomRoomTimelineThreadBadge, ThreadBadgeRenderer } from './ThreadBadge';
+import { renderThreadBadge, ThreadBadge } from './ThreadBadge';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
 vi.mock('../messages/ThreadIndicator', () => ({
@@ -66,10 +66,10 @@ const makeRecord = (threadRootId = '$root'): ThreadRecord => ({
   absoluteIndex: 0,
 });
 
-describe('ThreadBadgeRenderer', () => {
+describe('ThreadBadge', () => {
   it('renders nothing without a badge model', () => {
     expect(
-      ThreadBadgeRenderer({
+      ThreadBadge({
         model: undefined,
         room: {} as Room,
         onClick: vi.fn(),
@@ -94,7 +94,7 @@ describe('ThreadBadgeRenderer', () => {
       isResolved: true,
     };
 
-    const rendered = ThreadBadgeRenderer({
+    const rendered = ThreadBadge({
       model,
       room: {} as Room,
       onClick: vi.fn(),
@@ -118,10 +118,10 @@ describe('ThreadBadgeRenderer', () => {
   });
 });
 
-describe('renderMindroomRoomTimelineThreadBadge', () => {
+describe('renderThreadBadge', () => {
   it('hides timeline thread badges inside an active thread', () => {
     expect(
-      renderMindroomRoomTimelineThreadBadge({
+      renderThreadBadge({
         eventId: '$root',
         event: makeEvent({}, undefined),
         threadRecordMap: new Map([['$root', makeRecord()]]),
@@ -133,7 +133,7 @@ describe('renderMindroomRoomTimelineThreadBadge', () => {
   });
 
   it('renders the timeline thread badge seam with the derived model', () => {
-    const badge = renderMindroomRoomTimelineThreadBadge({
+    const badge = renderThreadBadge({
       eventId: '$root',
       event: makeEvent({}, undefined),
       threadRecordMap: new Map([['$root', makeRecord()]]),
@@ -156,7 +156,7 @@ describe('renderMindroomRoomTimelineThreadBadge', () => {
 
   it('does not render a timeline thread badge without a record', () => {
     expect(
-      renderMindroomRoomTimelineThreadBadge({
+      renderThreadBadge({
         eventId: '$missing',
         event: makeEvent({}, undefined),
         threadRecordMap: new Map([['$root', makeRecord()]]),

@@ -4,7 +4,7 @@ import { useHref } from 'react-router-dom';
 import { Page, PageContent } from '../ui/page/Page';
 import { ROOT_PATH } from '../routes/paths';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
-import { MindroomConnectionsSettings } from './ConnectionsSettings';
+import { ConnectionsSettings } from './ConnectionsSettings';
 import { connectionsHandoffSupported } from './openConnections';
 import { useConnectionsHandoff } from './useOpenConnectionsPortal';
 
@@ -33,7 +33,7 @@ export function ConnectionsPage() {
   return (
     <Page>
       <PageContent>
-        <MindroomConnectionsSettings />
+        <ConnectionsSettings />
       </PageContent>
     </Page>
   );

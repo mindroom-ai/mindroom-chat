@@ -7,7 +7,7 @@ import { AuthFlowsLoader } from '../AuthFlowsLoader';
 import { useAutoDiscoveryInfo } from '../../../matrix/hooks/useAutoDiscoveryInfo';
 import { useClientConfig } from '../../../config/useClientConfig';
 import {
-  getMindroomAuthSsoRedirectUrl,
+  getAuthSsoRedirectUrl,
   shouldDisablePasswordLogin,
   shouldRequireAppleProvider,
 } from '../authUi';
@@ -147,7 +147,7 @@ export function Login() {
   // The homeserver sends the browser (or, in the native app, the app link) back here.
   const ssoRedirectUrl = useMemo(
     () =>
-      getMindroomAuthSsoRedirectUrl(
+      getAuthSsoRedirectUrl(
         `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(getLoginPath(server), addAccount)}`
       ),
     [hashRouter, server, addAccount]

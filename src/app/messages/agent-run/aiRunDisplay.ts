@@ -1,13 +1,13 @@
 import type { TFunction } from 'i18next';
-import { MindroomAiRunInfo } from '../../matrix/protocol/aiRun';
+import { AiRunInfo } from '../../matrix/protocol/aiRun';
 
-export const formatMindroomAiRunNumber = (
+export const formatAiRunNumber = (
   value: number | undefined,
   locale?: string
 ): string | undefined =>
   typeof value === 'number' ? Math.round(value).toLocaleString(locale) : undefined;
 
-export const formatMindroomAiRunTimeToFirstToken = (
+export const formatAiRunTimeToFirstToken = (
   value: number | undefined
 ): string | undefined => {
   if (typeof value !== 'number' || value < 0) return undefined;
@@ -15,7 +15,7 @@ export const formatMindroomAiRunTimeToFirstToken = (
 };
 
 /** A USD amount sized for per-reply costs: cents from $0.10 up, two significant digits below. */
-export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
+export const formatCostUsd = (usd: number, locale?: string): string => {
   const currency = (options: Intl.NumberFormatOptions) =>
     new Intl.NumberFormat(locale, { style: 'currency', currency: 'USD', ...options });
   if (usd === 0) return currency({ minimumFractionDigits: 2 }).format(0);
@@ -27,21 +27,21 @@ export const formatMindroomCostUsd = (usd: number, locale?: string): string => {
 };
 
 /** A share of a bar, such as 82.6 %, in the reader's number style. */
-export const formatMindroomAiRunPercentage = (percentage: number, locale?: string): string =>
+export const formatAiRunPercentage = (percentage: number, locale?: string): string =>
   new Intl.NumberFormat(locale, {
     style: 'percent',
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(percentage / 100);
 
-type MindroomAiRunTokenPart = {
+type AiRunTokenPart = {
   key: 'cacheRead' | 'newInput' | 'input' | 'output';
   label: string;
   tokens: number;
   percentage: number;
 };
 
-type MindroomAiRunContextBarSegment = MindroomAiRunTokenPart & {
+type AiRunContextBarSegment = AiRunTokenPart & {
   key: 'cacheRead' | 'newInput' | 'input';
 };
 
@@ -52,17 +52,17 @@ const TOKEN_PART_LABELS = {
   output: ['mindroomUi.messages.mindroomReplyDetails.output', 'Output'],
 } as const;
 
-const tokenPartLabel = (key: MindroomAiRunTokenPart['key'], t?: TFunction): string => {
+const tokenPartLabel = (key: AiRunTokenPart['key'], t?: TFunction): string => {
   const [labelKey, fallback] = TOKEN_PART_LABELS[key];
   return t ? t(labelKey) : fallback;
 };
 
 /** What a reply's tokens were spent on; input splits by cache only where the backend reported the split. */
-export const getMindroomAiRunTokenParts = (
-  info: MindroomAiRunInfo,
+export const getAiRunTokenParts = (
+  info: AiRunInfo,
   t?: TFunction
-): { total: number; parts: MindroomAiRunTokenPart[] } | undefined => {
-  const counts: [MindroomAiRunTokenPart['key'], number | undefined][] =
+): { total: number; parts: AiRunTokenPart[] } | undefined => {
+  const counts: [AiRunTokenPart['key'], number | undefined][] =
     info.uncachedInputTokens === undefined
       ? [
           ['input', info.inputTokens],
@@ -73,7 +73,7 @@ export const getMindroomAiRunTokenParts = (
           ['newInput', info.uncachedInputTokens],
           ['output', info.outputTokens],
         ];
-  const used = counts.filter((entry): entry is [MindroomAiRunTokenPart['key'], number] => {
+  const used = counts.filter((entry): entry is [AiRunTokenPart['key'], number] => {
     const tokens = entry[1];
     return tokens !== undefined && tokens > 0;
   });
@@ -90,7 +90,7 @@ export const getMindroomAiRunTokenParts = (
   };
 };
 
-export const getMindroomAiRunModelLabel = (info: MindroomAiRunInfo): string | undefined => {
+export const getAiRunModelLabel = (info: AiRunInfo): string | undefined => {
   const providerAndId = [info.modelProvider, info.modelId].filter(Boolean).join(' / ');
   if (info.modelConfig && providerAndId) return `${info.modelConfig} (${providerAndId})`;
   if (info.modelConfig) return info.modelConfig;
@@ -119,7 +119,7 @@ const formatModelId = (modelId: string): string => {
 };
 
 /** A short, friendly model name intended for the always-visible message badge. */
-export const getMindroomAiRunCompactModelLabel = (info: MindroomAiRunInfo): string | undefined => {
+export const getAiRunCompactModelLabel = (info: AiRunInfo): string | undefined => {
   if (info.modelDisplayName) return info.modelDisplayName;
 
   const modelConfig = info.modelConfig?.trim();
@@ -138,8 +138,8 @@ const isValidContextBarTokenCount = (value: number | undefined): value is number
   typeof value === 'number' && value >= 0;
 
 /** How much of the model's context window the reply's last request filled. */
-export const getMindroomAiRunContextLabel = (
-  info: MindroomAiRunInfo,
+export const getAiRunContextLabel = (
+  info: AiRunInfo,
   t?: TFunction,
   locale?: string
 ): string | undefined => {
@@ -149,9 +149,9 @@ export const getMindroomAiRunContextLabel = (
     return undefined;
   }
 
-  const percentage = formatMindroomAiRunPercentage((inputTokens / windowTokens) * 100, locale);
-  const input = formatMindroomAiRunNumber(inputTokens, locale);
-  const window = formatMindroomAiRunNumber(windowTokens, locale);
+  const percentage = formatAiRunPercentage((inputTokens / windowTokens) * 100, locale);
+  const input = formatAiRunNumber(inputTokens, locale);
+  const window = formatAiRunNumber(windowTokens, locale);
   return t
     ? t('mindroomUi.messages.mindroomReplyDetails.contextWindowUsage', {
         input,
@@ -161,10 +161,10 @@ export const getMindroomAiRunContextLabel = (
     : `${input} of ${window} · ${percentage}`;
 };
 
-export const getMindroomAiRunContextBarSegments = (
-  info: MindroomAiRunInfo,
+export const getAiRunContextBarSegments = (
+  info: AiRunInfo,
   t?: TFunction
-): MindroomAiRunContextBarSegment[] | undefined => {
+): AiRunContextBarSegment[] | undefined => {
   const inputTokens = info.contextInputTokens;
   const windowTokens = info.contextWindowTokens;
   const cacheReadTokens = info.contextCacheReadInputTokens;

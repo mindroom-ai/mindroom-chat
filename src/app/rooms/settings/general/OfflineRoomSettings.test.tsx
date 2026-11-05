@@ -7,8 +7,8 @@ import type {
   OfflineRoomController,
   OfflineRoomSnapshot,
 } from '../../../event-store/engine/roomOffline';
-import type { MindroomSyncEngine } from '../../../event-store/engine/types';
-import { MindroomSyncEngineProvider } from '../../../event-store/engine/engineContext';
+import type { SyncEngine } from '../../../event-store/engine/types';
+import { SyncEngineProvider } from '../../../event-store/engine/engineContext';
 import { OfflineRoomSettings } from './OfflineRoomSettings';
 
 vi.mock('focus-trap-react', () => ({
@@ -106,13 +106,13 @@ const createOfflineFixture = (initial: OfflineRoomSnapshot) => {
     setPinned: vi.fn(() => Promise.resolve()),
     clear: vi.fn(() => Promise.resolve()),
   };
-  const engine = { offline: controller } as MindroomSyncEngine;
+  const engine = { offline: controller } as SyncEngine;
   let renderer!: ReactTestRenderer;
   act(() => {
     renderer = create(
-      <MindroomSyncEngineProvider engine={engine}>
+      <SyncEngineProvider engine={engine}>
         <OfflineRoomSettings roomId="!room:example.test" />
-      </MindroomSyncEngineProvider>
+      </SyncEngineProvider>
     );
   });
   return {

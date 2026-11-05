@@ -1,5 +1,5 @@
 /**
- * ISSUE-207 P3.1: MindroomSyncEngine — shared types.
+ * ISSUE-207 P3.1: SyncEngine — shared types.
  *
  * The engine is a client-level singleton that owns every Tier-1 write
  * (D2). It is created alongside the Matrix client and torn down on
@@ -55,7 +55,7 @@ export type EngineLifecycle = {
   stop(): void;
 };
 
-export type MindroomSyncEngine = EngineLifecycle & {
+export type SyncEngine = EngineLifecycle & {
   readonly offline: OfflineRoomController;
   clearRoomFocus(roomId: string): void;
   backgroundPageAllowance(roomId: string): number;

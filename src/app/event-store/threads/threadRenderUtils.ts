@@ -1,9 +1,9 @@
 import { MatrixEvent, RelationType, Room } from 'matrix-js-sdk';
 import {
-  hasMindroomMessageExtras,
-  parseMindroomMessageExtras,
+  hasMessageExtras,
+  parseMessageExtras,
 } from '../../matrix/protocol/messageExtrasData';
-import { getMindroomThreadSummaryInfo, hasMindroomThreadSummary } from '../../matrix/protocol/threadSummary';
+import { getThreadSummaryInfo, hasThreadSummary } from '../../matrix/protocol/threadSummary';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getLatestEdit, reactionOrEditEvent } from '../../matrix/room';
 import { inSameDay } from '../../lib/time';
@@ -417,14 +417,14 @@ export const estimateThreadEventRowHeight = (
   const contentRecord = content as Record<string, unknown>;
   const body = typeof content.body === 'string' ? content.body : '';
   // Thread rows render a summary as a one-line marker under the reply before it.
-  if (getMindroomThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
+  if (getThreadSummaryInfo(contentRecord)?.summaryText) return base + THREAD_ROW_LINE_PX;
   // Always-expanded rows (agent tool traces / legacy thread summaries) never
   // fold: the body renders in full and each extras section adds a
   // collapsed accordion header. Estimating these at the fold cap made
   // every one of them mount ~hundreds of px small — the per-frame jumps
   // the ride-smoothness e2e budget now pins.
-  if (hasMindroomThreadSummary(contentRecord) || hasMindroomMessageExtras(contentRecord)) {
-    const sections = parseMindroomMessageExtras(contentRecord)?.sections.length ?? 0;
+  if (hasThreadSummary(contentRecord) || hasMessageExtras(contentRecord)) {
+    const sections = parseMessageExtras(contentRecord)?.sections.length ?? 0;
     return (
       base + estimateBodyLines(body) * THREAD_ROW_LINE_PX + sections * THREAD_ROW_SECTION_HEADER_PX
     );

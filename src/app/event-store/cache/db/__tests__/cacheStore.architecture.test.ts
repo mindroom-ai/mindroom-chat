@@ -16,10 +16,10 @@ import { describe, expect, it } from 'vitest';
 
 const HERE = fileURLToPath(new URL('./', import.meta.url));
 // src/app/event-store/cache/db/__tests__ → src/app
-const MINDROOM_ROOT = path.resolve(HERE, '..', '..', '..', '..');
-const MESSAGES_DIR = path.resolve(MINDROOM_ROOT, 'messages');
+const APP_ROOT = path.resolve(HERE, '..', '..', '..', '..');
+const MESSAGES_DIR = path.resolve(APP_ROOT, 'messages');
 const SELF_FILE = path.resolve(HERE, 'cacheStore.architecture.test.ts');
-const ATTACHMENT_REPOSITORY_FILE = path.resolve(MINDROOM_ROOT, 'event-store/cache/attachmentRepository.ts');
+const ATTACHMENT_REPOSITORY_FILE = path.resolve(APP_ROOT, 'event-store/cache/attachmentRepository.ts');
 
 const walkSourceFiles = (rootDir: string): string[] => {
   const files: string[] = [];
@@ -43,7 +43,7 @@ const readSource = (file: string): string => readFileSync(file, 'utf8');
 describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
   it('(c) render components do not import cacheStore directly', () => {
     // RoomTimeline.tsx: the timeline render component.
-    const timelineSource = readSource(path.resolve(MINDROOM_ROOT, 'timeline/RoomTimeline.tsx'));
+    const timelineSource = readSource(path.resolve(APP_ROOT, 'timeline/RoomTimeline.tsx'));
     expect(timelineSource).not.toContain('/cache/db');
 
     // Render sources under messages/**. Tests may wire the store
@@ -54,7 +54,7 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
       if (source.includes('/cache/db')) {
         throw new Error(
           `${path.relative(
-            MINDROOM_ROOT,
+            APP_ROOT,
             file
           )} imports cacheStore directly — render components must go through the eventRepository seam`
         );
@@ -83,27 +83,27 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
     // is excluded.
     const ALLOWED_CONSUMERS = new Set(
       [
-        path.resolve(MINDROOM_ROOT, 'event-store/cache/eventRepository.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/threads/threadSummaryState.ts'),
-        path.resolve(MINDROOM_ROOT, 'threads/summary/threadSummaryActions.ts'),
-        path.resolve(MINDROOM_ROOT, 'account/lifecycle/sessionCleanup.ts'),
+        path.resolve(APP_ROOT, 'event-store/cache/eventRepository.ts'),
+        path.resolve(APP_ROOT, 'event-store/threads/threadSummaryState.ts'),
+        path.resolve(APP_ROOT, 'threads/summary/threadSummaryActions.ts'),
+        path.resolve(APP_ROOT, 'account/lifecycle/sessionCleanup.ts'),
         ATTACHMENT_REPOSITORY_FILE,
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'engineGapTracker.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'gapFillExecutor.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'deepHistoryJob.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'syncEngine.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'roomOffline.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'engineWriteThrough.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'enginePersistFacade.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'reconciler.ts'),
-        path.resolve(MINDROOM_ROOT, 'event-store/engine', 'reconcilerScan.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'engineGapTracker.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'gapFillExecutor.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'deepHistoryJob.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'syncEngine.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'roomOffline.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'engineWriteThrough.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'enginePersistFacade.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'reconciler.ts'),
+        path.resolve(APP_ROOT, 'event-store/engine', 'reconcilerScan.ts'),
       ].map((absPath) => absPath)
     );
 
-    const cacheStoreDir = path.resolve(MINDROOM_ROOT, 'event-store/cache/db');
+    const cacheStoreDir = path.resolve(APP_ROOT, 'event-store/cache/db');
     const offenders: string[] = [];
 
-    for (const file of walkSourceFiles(MINDROOM_ROOT)) {
+    for (const file of walkSourceFiles(APP_ROOT)) {
       if (file === SELF_FILE) continue;
       if (file.startsWith(`${cacheStoreDir}${path.sep}`)) continue;
       // Skip test files — the guard is about source-code coupling, not
@@ -115,7 +115,7 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
       // "/cacheStore/..." (deep import into the store's internals).
       const pattern = /['"](?:\.\.?\/)+(?:[^'"]*\/)?(?:cache\/)?db(?:['"/])/;
       if (pattern.test(source) && !ALLOWED_CONSUMERS.has(file)) {
-        offenders.push(path.relative(MINDROOM_ROOT, file));
+        offenders.push(path.relative(APP_ROOT, file));
       }
     }
 

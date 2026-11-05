@@ -16,21 +16,21 @@ const MINDROOM_SETTINGS_STORAGE_KEY = 'mindroomSettings';
 const LEGACY_SETTINGS_STORAGE_KEY = 'settings';
 const MINDROOM_SETTINGS_STORE_VERSION = 2;
 
-export type MindroomSettings = {
+export type PrefetchSettings = {
   prefetchScope: PrefetchScope;
   prefetchDepth: number;
 };
 
-type MindroomSettingsStore = MindroomSettings & {
+type PrefetchSettingsStore = PrefetchSettings & {
   v: typeof MINDROOM_SETTINGS_STORE_VERSION;
 };
 
-const DEFAULT_MINDROOM_SETTINGS: MindroomSettings = {
+const DEFAULT_MINDROOM_SETTINGS: PrefetchSettings = {
   prefetchScope: DEFAULT_PREFETCH_SCOPE,
   prefetchDepth: sanitizePrefetchDepth(undefined),
 };
 
-export const sanitizeMindroomSettings = (value: unknown): MindroomSettings => {
+export const sanitizePrefetchSettings = (value: unknown): PrefetchSettings => {
   const record = isRecord(value) ? value : {};
   return {
     prefetchScope: sanitizePrefetchScope(
@@ -50,7 +50,7 @@ const parseRecord = (raw: string | null): Record<string, unknown> | undefined =>
   }
 };
 
-const isNewerMindroomSettingsStore = (raw: string | null): boolean => {
+const isNewerPrefetchSettingsStore = (raw: string | null): boolean => {
   const current = parseRecord(raw);
   return (
     raw !== null &&
@@ -60,43 +60,43 @@ const isNewerMindroomSettingsStore = (raw: string | null): boolean => {
   );
 };
 
-const serializeMindroomSettings = (settings: MindroomSettings): string =>
+const serializePrefetchSettings = (settings: PrefetchSettings): string =>
   JSON.stringify({
     v: MINDROOM_SETTINGS_STORE_VERSION,
-    ...sanitizeMindroomSettings(settings),
-  } satisfies MindroomSettingsStore);
+    ...sanitizePrefetchSettings(settings),
+  } satisfies PrefetchSettingsStore);
 
 /**
  * Reads the versioned MindRoom-owned store. Until the explicit app bootstrap
  * migration runs, installations upgrading from the shared client `settings`
  * blob still hydrate the two legacy extension fields from that blob.
  */
-export const loadMindroomSettings = (
+export const loadPrefetchSettings = (
   storage: Storage | undefined = getSafeLocalStorage()
-): MindroomSettings => {
+): PrefetchSettings => {
   const currentRaw = getStorageItemSafe(storage, MINDROOM_SETTINGS_STORAGE_KEY);
   if (currentRaw !== null) {
     const current = parseRecord(currentRaw);
     if (current?.v !== 1 && current?.v !== MINDROOM_SETTINGS_STORE_VERSION)
       return DEFAULT_MINDROOM_SETTINGS;
-    return sanitizeMindroomSettings(current);
+    return sanitizePrefetchSettings(current);
   }
 
   const legacy = parseRecord(getStorageItemSafe(storage, LEGACY_SETTINGS_STORAGE_KEY));
-  return sanitizeMindroomSettings(legacy);
+  return sanitizePrefetchSettings(legacy);
 };
 
-export const saveMindroomSettings = (
-  settings: MindroomSettings,
+export const savePrefetchSettings = (
+  settings: PrefetchSettings,
   storage: Storage | undefined = getSafeLocalStorage()
 ): boolean => {
-  if (isNewerMindroomSettingsStore(getStorageItemSafe(storage, MINDROOM_SETTINGS_STORAGE_KEY))) {
+  if (isNewerPrefetchSettingsStore(getStorageItemSafe(storage, MINDROOM_SETTINGS_STORAGE_KEY))) {
     return false;
   }
   return setStorageItemSafe(
     storage,
     MINDROOM_SETTINGS_STORAGE_KEY,
-    serializeMindroomSettings(settings)
+    serializePrefetchSettings(settings)
   );
 };
 
@@ -112,12 +112,12 @@ const LEGACY_MINDROOM_KEYS = new Set(['paginationLimit', 'prefetchScope', 'prefe
  * owned snapshot; blocked-storage recovery remains best effort, matching the
  * fork-wide policy documented in FORK_CHANGES.md.
  */
-export const migrateMindroomSettingsStorage = (
+export const migratePrefetchSettingsStorage = (
   storage: Storage | undefined = getSafeLocalStorage()
 ): boolean => {
   if (!storage) return false;
 
-  if (!saveMindroomSettings(loadMindroomSettings(storage), storage)) return false;
+  if (!savePrefetchSettings(loadPrefetchSettings(storage), storage)) return false;
 
   const legacyRaw = getStorageItemSafe(storage, LEGACY_SETTINGS_STORAGE_KEY);
   const legacy = parseRecord(legacyRaw);

@@ -15,7 +15,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { createSessionId } from '../matrix/session/sessions';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
@@ -78,10 +78,10 @@ export type RoomViewThreadState = {
   handleViewModeChange: (mode: RoomViewMode) => void;
   setThreadSortFreezeState: Dispatch<SetStateAction<ThreadSortFreezeState | null>>;
   storeThreadSummary: ReturnType<typeof useRoomThreadSummaryState>['storeThreadSummary'];
-  summaryMap: Map<string, MindroomThreadSummaryInfo>;
+  summaryMap: Map<string, ThreadSummaryInfo>;
   threadFilterState: ThreadFilterState;
   threadSortFreezeState: ThreadSortFreezeState | null;
-  threadSummaryInfo?: MindroomThreadSummaryInfo;
+  threadSummaryInfo?: ThreadSummaryInfo;
   viewMode: RoomViewMode;
 };
 

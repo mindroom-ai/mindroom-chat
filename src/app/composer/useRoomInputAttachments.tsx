@@ -36,15 +36,15 @@ import {
 import { getDataTransferFiles } from '../lib/dom';
 import type { TUploadContent } from '../matrix/matrix';
 import {
-  createMindroomPasteId,
-  createMindroomPasteMarker,
-  getMindroomPasteFileName,
+  createPasteId,
+  createPasteMarker,
+  getPasteFileName,
 } from '../matrix/protocol/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import type { AttachmentSnapshot, RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import {
-  createMindroomRoomInputPasteMarkerElement,
-  getMindroomRoomInputPasteMarkerFileNames,
+  createRoomInputPasteMarkerElement,
+  getRoomInputPasteMarkerFileNames,
 } from './RoomInputExtensions';
 
 type CreateRoomInputUploadItems = (
@@ -273,7 +273,7 @@ export const useRoomInputAttachments = ({
 
   const onEditorChange = useCallback(() => {
     const { roomId: activeRoomId, editor: activeEditor } = current.current;
-    const present = getMindroomRoomInputPasteMarkerFileNames(activeEditor.children);
+    const present = getRoomInputPasteMarkerFileNames(activeEditor.children);
     const orphans = access.snapshot().staged.filter(
       (item) =>
         isPasteItem(item) &&
@@ -304,8 +304,8 @@ export const useRoomInputAttachments = ({
     async (text: string) => {
       const pasteRoomId = current.current.roomId;
       const pasteDraftKey = current.current.draftKey;
-      const id = createMindroomPasteId();
-      const fileName = getMindroomPasteFileName(id);
+      const id = createPasteId();
+      const fileName = getPasteFileName(id);
       const marker = { id, chars: text.length, fileName };
       const file = new File([text], fileName, { type: 'text/plain' });
       const items = await createUploadItems([file], () => ({
@@ -318,9 +318,9 @@ export const useRoomInputAttachments = ({
       if (!item) return;
       const node: Descendant | { text: string } = item.prepError
         ? { text }
-        : (createMindroomRoomInputPasteMarkerElement({
+        : (createRoomInputPasteMarkerElement({
             ...marker,
-            raw: createMindroomPasteMarker(marker),
+            raw: createPasteMarker(marker),
           }) as Descendant);
 
       if (current.current.roomId === pasteRoomId && current.current.draftKey === pasteDraftKey) {

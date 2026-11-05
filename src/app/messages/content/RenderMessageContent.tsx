@@ -27,10 +27,10 @@ import { ImageViewer } from '../viewers/ImageViewer';
 import { PdfViewer } from '../viewers/PdfViewer';
 import { TextViewer } from '../viewers/TextViewer';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { renderMindroomMessageContent } from './renderAgentMessageContent';
-import { getMindroomMessageStateSuffixRenderer } from './messageStateSuffix';
+import { renderAgentMessageContent } from './renderAgentMessageContent';
+import { getMessageStateSuffixRenderer } from './messageStateSuffix';
 import { getEventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
-import { isMindroomVisibleRouterVoiceEcho } from '../../matrix/protocol/transcribingPlaceholder';
+import { isVisibleRouterVoiceEcho } from '../../matrix/protocol/transcribingPlaceholder';
 import {
   hasMindroomAgentMessageMetadata,
   isMindroomAgentUserIdForViewer,
@@ -128,14 +128,14 @@ export function RenderMessageContent({
   // Agents stream by editing; their replies are not "edited" in the human sense.
   const agentManaged =
     fromMindroomAgent &&
-    (hasMindroomAgentMessageMetadata(content) || isMindroomVisibleRouterVoiceEcho(content));
+    (hasMindroomAgentMessageMetadata(content) || isVisibleRouterVoiceEcho(content));
   const showEdited = !!edited && !agentManaged;
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
     : undefined;
 
-  const mindroomContent = renderMindroomMessageContent({
+  const mindroomContent = renderAgentMessageContent({
     mEvent,
     fromMindroomAgent,
     displayName,
@@ -158,7 +158,7 @@ export function RenderMessageContent({
   if (mindroomContent !== undefined) return <>{mindroomContent}</>;
 
   const owner = getEventAttachmentOwner(mEvent);
-  const renderStateSuffix = getMindroomMessageStateSuffixRenderer({
+  const renderStateSuffix = getMessageStateSuffixRenderer({
     edited: showEdited,
     pendingSend,
     failedSend,

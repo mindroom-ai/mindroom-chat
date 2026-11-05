@@ -2,7 +2,7 @@ import { MsgType } from 'matrix-js-sdk';
 
 export const MINDROOM_PASTE_EVENT_CONTENT_BUDGET_BYTES = 56 * 1024;
 
-type EstimateMindroomTextMessageContentOptions = {
+type EstimateTextMessageContentOptions = {
   body: string;
   formattedBody?: string;
   msgType?: MsgType.Text | MsgType.Notice | MsgType.Emote;
@@ -29,11 +29,11 @@ const escapeHtmlText = (text: string): string =>
 
 const byteLength = (text: string): number => textEncoder.encode(text).byteLength;
 
-export const estimateMindroomTextMessageContentBytes = ({
+export const estimateTextMessageContentBytes = ({
   body,
   formattedBody,
   msgType = MsgType.Text,
-}: EstimateMindroomTextMessageContentOptions): number => {
+}: EstimateTextMessageContentOptions): number => {
   const content: Record<string, unknown> = {
     msgtype: msgType,
     body,
@@ -62,7 +62,7 @@ export const shouldConvertPasteToAttachment = ({
       : undefined;
 
   return (
-    estimateMindroomTextMessageContentBytes({
+    estimateTextMessageContentBytes({
       body,
       formattedBody,
       msgType,

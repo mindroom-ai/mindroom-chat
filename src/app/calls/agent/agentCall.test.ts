@@ -6,7 +6,7 @@ import {
   clearAgentCallOrigin,
   createAgentVoiceRoom,
   findAgentCallRoom,
-  hasMindroomVoiceCallsPresence,
+  hasVoiceCallsPresence,
   prepareAgentCallRoom,
   toAgentCallOrigin,
 } from './agentCall';
@@ -139,9 +139,9 @@ describe('MindRoom agent calls', () => {
   });
 
   it('requires the exact voice-call presence capability', () => {
-    expect(hasMindroomVoiceCallsPresence('🤖 Model: openai/gpt-5.5 | 📞 Voice calls')).toBe(true);
-    expect(hasMindroomVoiceCallsPresence('💼 Discusses voice calls')).toBe(false);
-    expect(hasMindroomVoiceCallsPresence(undefined)).toBe(false);
+    expect(hasVoiceCallsPresence('🤖 Model: openai/gpt-5.5 | 📞 Voice calls')).toBe(true);
+    expect(hasVoiceCallsPresence('💼 Discusses voice calls')).toBe(false);
+    expect(hasVoiceCallsPresence(undefined)).toBe(false);
   });
 
   it('finds my permanent call room with the agent', () => {

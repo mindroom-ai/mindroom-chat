@@ -5,7 +5,7 @@ import { Provider, createStore } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider } from '../config/useClientConfig';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
-import { MindroomConnectionsSettings } from './ConnectionsSettings';
+import { ConnectionsSettings } from './ConnectionsSettings';
 
 const mocks = vi.hoisted(() => {
   const authedRequest = vi.fn();
@@ -79,7 +79,7 @@ vi.mock('./openConnections', () => ({
   openConnectionsPortal: mocks.openConnectionsPortal,
 }));
 vi.mock('../computer/useAgentServers', () => ({
-  useMindroomServerUrls: () => mocks.discoveredUrls,
+  useAgentServerUrls: () => mocks.discoveredUrls,
 }));
 
 const OPEN_LABEL = 'Open Connections';
@@ -115,7 +115,7 @@ const render = (deploymentUrl = 'https://backend.example') =>
     renderer = create(
       <Provider store={store}>
         <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: deploymentUrl } } }}>
-          <MindroomConnectionsSettings />
+          <ConnectionsSettings />
         </ClientConfigProvider>
       </Provider>
     );

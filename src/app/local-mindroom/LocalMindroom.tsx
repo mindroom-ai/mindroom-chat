@@ -24,7 +24,7 @@ import {
   getMindroomDocsUrl,
   getConnectionName,
   isConnectionRevoked,
-  resolveMindroomProvisioningRequest,
+  resolveProvisioningRequest,
 } from './provisioning';
 import { PairCodeForm } from './PairCodeForm';
 import { hostOf } from '../lib/httpUrl';
@@ -243,7 +243,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
   const navigate = useNavigate();
   const client = useMatrixClient();
   const provisioningOverrideUrl = useClientConfig().sidebar?.mindRoomProvisioningUrl;
-  const { provisioningBaseUrl, canAuthenticate } = resolveMindroomProvisioningRequest({
+  const { provisioningBaseUrl, canAuthenticate } = resolveProvisioningRequest({
     sessionHomeserverUrl: client.getHomeserverUrl(),
     provisioningOverrideUrl,
     accessToken: client.getAccessToken() ?? undefined,

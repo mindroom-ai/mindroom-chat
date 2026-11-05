@@ -13,10 +13,10 @@ import { useNavToActivePathMapper } from '../routes/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { getDesktopPageNavCollapsedStorageKey } from './desktopPageNavState';
 import {
-  NavigationProvider as MindroomNavigationProvider,
-  SectionPageRoot as MindroomPageRoot,
-  CollapsibleSidebarNav as MindroomSidebarNav,
-  SpacePageRoot as MindroomSpacePageRoot,
+  NavigationProvider,
+  SectionPageRoot,
+  CollapsibleSidebarNav,
+  SpacePageRoot,
 } from './Navigation';
 
 const COLLAPSE_LABEL = 'Collapse navigation panel';
@@ -113,13 +113,13 @@ const navigationAtWidth = (width: number, initialPath = '/home/') => (
   >
     <NavToActivePathProvider value={makeNavToActivePathAtom('@alice:example.org')}>
       <ScreenSizeProvider value={getScreenSize(width)}>
-        <MindroomNavigationProvider>
-          <MindroomSidebarNav />
-          <MindroomPageRoot nav={<aside data-testid="page-nav" />}>
+        <NavigationProvider>
+          <CollapsibleSidebarNav />
+          <SectionPageRoot nav={<aside data-testid="page-nav" />}>
             <main data-testid="page-content" />
             <LocationProbe />
-          </MindroomPageRoot>
-        </MindroomNavigationProvider>
+          </SectionPageRoot>
+        </NavigationProvider>
       </ScreenSizeProvider>
     </NavToActivePathProvider>
   </MemoryRouter>
@@ -192,11 +192,11 @@ describe('MindroomNavigation', () => {
       renderer = create(
         <ScreenSizeProvider value={getScreenSize(1280)}>
           <SpaceProvider value={{ roomId: '!resolved-space:example.org' } as Room}>
-            <MindroomNavigationProvider>
-              <MindroomSpacePageRoot nav={<aside />}>
+            <NavigationProvider>
+              <SpacePageRoot nav={<aside />}>
                 <main />
-              </MindroomSpacePageRoot>
-            </MindroomNavigationProvider>
+              </SpacePageRoot>
+            </NavigationProvider>
           </SpaceProvider>
         </ScreenSizeProvider>
       );

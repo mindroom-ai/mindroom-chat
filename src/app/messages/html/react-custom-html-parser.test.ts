@@ -22,12 +22,12 @@ import {
 import { markerParserOptions } from '../../../test/utils/markerParserOptions';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import backendToolMarkerBodies from '../__fixtures__/backendToolMarkerBodies.json';
-import { getRenderedMindroomToolRefs } from '../agent-run/toolRefDom';
+import { getRenderedToolRefs } from '../agent-run/toolRefDom';
 import {
   getMessageCopyTexts,
-  scanMindroomToolMarkerLines,
+  scanToolMarkerLines,
 } from '../messageCopyText';
-import { formatMindroomMessageTextBodyAsHtml } from './blocks';
+import { formatMessageTextBodyAsHtml } from './blocks';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 
 const clipboardMocks = vi.hoisted(() => ({
@@ -577,7 +577,7 @@ describe('tool call status from approval cards', () => {
   });
 });
 
-describe('useMindroomToolTraceMarkerParserOptions', () => {
+describe('useToolTraceMarkerParserOptions', () => {
   it.each(['', '\n  '])(
     'preserves custom rendering after tool groups separated by %j',
     (separator) => {
@@ -912,7 +912,7 @@ describe('useMindroomToolTraceMarkerParserOptions', () => {
     );
     expect(toolBlocks).toHaveLength(count);
     expect(renderToStaticMarkup(shown[shown.length - 1] as React.ReactElement)).toBe('<p>Done</p>');
-    expect(getRenderedMindroomToolRefs(html).toolBlocks).toHaveLength(count);
+    expect(getRenderedToolRefs(html).toolBlocks).toHaveLength(count);
   });
 
   it('consumes pending hourglass as part of the marker and does not render it as trailing text', () => {
@@ -1271,7 +1271,7 @@ describe('copy stripping matches the app renderer', () => {
     // Repeated indexes render once as a block and again as text, so compare sets.
     const plainBodyFallback = formattedBody === undefined;
     const detected = new Set(
-      getRenderedMindroomToolRefs(html).toolBlocks.map(({ index }) => index)
+      getRenderedToolRefs(html).toolBlocks.map(({ index }) => index)
     );
     const rendered = new Set(renderedToolIndexes);
     detected.forEach((index) => expect(rendered.has(index)).toBe(true));
@@ -1281,7 +1281,7 @@ describe('copy stripping matches the app renderer', () => {
       expect(detected.size).toBe(rendered.size);
     }
 
-    const scan = scanMindroomToolMarkerLines(body, formattedBody, plainBodyFallback);
+    const scan = scanToolMarkerLines(body, formattedBody, plainBodyFallback);
     if (!scan) return;
     // Stripped lines are exactly the tool blocks, and nothing of them is shown
     // as text: no 🔧, and no ⏳ beyond what the copy keeps.
@@ -1302,7 +1302,7 @@ describe('copy stripping matches the app renderer', () => {
   it.each(Object.entries(backendToolMarkerBodies))(
     'plain-body fallback: %s',
     async (name, { body }) => {
-      const fallbackHtml = formatMindroomMessageTextBodyAsHtml(body);
+      const fallbackHtml = formatMessageTextBodyAsHtml(body);
       if (fallbackHtml) await expectCopyMatchesRender(name, body, undefined, fallbackHtml);
     }
   );
@@ -1326,7 +1326,7 @@ describe('copy stripping matches the app renderer', () => {
       '<pre><code data-label="🔧 `x` [1]">code</code></pre><p>🔧 <code>x</code> [1]</p>',
     ],
   ])('crafted formatted_body: %s', async (name, body, formattedBody) => {
-    expect(scanMindroomToolMarkerLines(body, formattedBody, false)).toBeUndefined();
+    expect(scanToolMarkerLines(body, formattedBody, false)).toBeUndefined();
     await expectCopyMatchesRender(name, body, formattedBody, formattedBody);
   });
 });

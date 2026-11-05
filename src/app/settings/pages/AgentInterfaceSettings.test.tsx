@@ -77,19 +77,19 @@ afterEach(() => {
   state.setAccountSettings.mockResolvedValue(undefined);
 });
 
-describe('MindroomInterfaceSettings', () => {
+describe('AgentInterfaceSettings', () => {
   it('offers the sidebar Canvases button only where the deployment has canvases', async () => {
-    const { MindroomInterfaceSettings } = await import('./AgentInterfaceSettings');
+    const { AgentInterfaceSettings } = await import('./AgentInterfaceSettings');
     const title = { 'data-title': 'Show Canvases in the sidebar' };
     let renderer!: ReactTestRenderer;
     act(() => {
-      renderer = create(React.createElement(MindroomInterfaceSettings));
+      renderer = create(React.createElement(AgentInterfaceSettings));
     });
     expect(renderer.root.findAllByProps(title)).toHaveLength(0);
 
     state.clientConfig = { mindroom: { canvas: { enabled: true } } };
     act(() => {
-      renderer.update(React.createElement(MindroomInterfaceSettings));
+      renderer.update(React.createElement(AgentInterfaceSettings));
     });
     const tile = renderer.root.findByProps(title);
     expect(tile.findByType('button').props['aria-pressed']).toBe(true);

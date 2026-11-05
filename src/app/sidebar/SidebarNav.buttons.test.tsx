@@ -4,11 +4,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
 import {
   DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
-  type MindroomAccountSettings,
+  type AccountSettings,
 } from '../preferences/accountSettings';
 import { SidebarNav } from './SidebarNav';
 
-const state = vi.hoisted(() => ({ settings: {} as Partial<MindroomAccountSettings> }));
+const state = vi.hoisted(() => ({ settings: {} as Partial<AccountSettings> }));
 
 // A rail button stand-in that names itself; a declaration, so the hoisted mocks can use it.
 function tab(name: string) {
@@ -99,7 +99,7 @@ const renderedTabs = (config: ClientConfig = CANVASES) => {
   return { tabs, separators };
 };
 
-const SWITCHES: Array<[string, keyof MindroomAccountSettings]> = [
+const SWITCHES: Array<[string, keyof AccountSettings]> = [
   ['threads', 'showThreadsInSidebar'],
   ['canvases', 'showCanvasesInSidebar'],
   ['explore', 'showExploreInSidebar'],

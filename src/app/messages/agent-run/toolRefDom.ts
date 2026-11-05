@@ -3,8 +3,8 @@ import { ChildNode } from 'domhandler';
 import {
   MINDROOM_TOOL_REF_HTML_REG_G,
   MINDROOM_TOOL_REF_ICON,
-  MindroomToolRefParseResult,
-  parseMindroomToolRefHtml,
+  ToolRefParseResult,
+  parseToolRefHtml,
 } from '../html/blocks';
 
 // DOM-only helpers for MindRoom tool markers, shared by the renderer and by
@@ -138,7 +138,7 @@ export const takeLeadingToolRefs = (
     const from = childStartOf(start) + split;
     TOOL_REF_PREFIX_REG.lastIndex = from;
     const match = TOOL_REF_PREFIX_REG.exec(html);
-    if (!match || !parseMindroomToolRefHtml(match[0])) break;
+    if (!match || !parseToolRefHtml(match[0])) break;
     const longest = from + match[0].length;
     // The `]` comes before the optional pending icon and the trailing whitespace.
     const shortest = from + match[0].trimEnd().length - (match[3]?.length ?? 0);
@@ -191,12 +191,12 @@ export const getToolRefPrefixFromElement = (element: Element): ToolRefElementPre
   return prefixHtml ? { html: prefixHtml, trailingChildren } : undefined;
 };
 
-export const countMindroomToolRefIcons = (text: string): number =>
+export const countToolRefIcons = (text: string): number =>
   text.split(MINDROOM_TOOL_REF_ICON).length - 1;
 
-export type RenderedMindroomToolRefs = {
+export type RenderedToolRefs = {
   /** Markers shown as tool blocks, in document order. */
-  toolBlocks: MindroomToolRefParseResult[];
+  toolBlocks: ToolRefParseResult[];
   /**
    * 🔧 icons anywhere in the rendered text or in any attribute, tool-block
    * markers included. Attributes count because the renderer shows some, such
@@ -214,8 +214,8 @@ export type RenderedMindroomToolRefs = {
  * and headings with its own options, so markers there stay text; wrappers it
  * leaves alone (`div`, `details`) do show nested markers, which this skips.
  */
-export const getRenderedMindroomToolRefs = (html: string): RenderedMindroomToolRefs => {
-  const toolBlocks: MindroomToolRefParseResult[] = [];
+export const getRenderedToolRefs = (html: string): RenderedToolRefs => {
+  const toolBlocks: ToolRefParseResult[] = [];
   let toolBlockIconCount = 0;
   const visit = (node: ChildNode) => {
     if (!isDomElementNode(node)) return;
@@ -224,14 +224,14 @@ export const getRenderedMindroomToolRefs = (html: string): RenderedMindroomToolR
     if (!text.trimStart().startsWith(MINDROOM_TOOL_REF_ICON)) return;
 
     takeLeadingToolRefs(node, (html) => {
-      const toolRef = parseMindroomToolRefHtml(html);
+      const toolRef = parseToolRefHtml(html);
       // The renderer groups by the first bracketed number in the text, so a name
       // holding another index can hide the block; count it as text instead.
       // The marker starts the text, so that number is in the marker.
       if (!toolRef || parseToolRefIndexFromTextPrefix(html) !== toolRef.index) return false;
 
       toolBlocks.push(toolRef);
-      toolBlockIconCount += countMindroomToolRefIcons(html);
+      toolBlockIconCount += countToolRefIcons(html);
       return true;
     });
   };
@@ -242,7 +242,7 @@ export const getRenderedMindroomToolRefs = (html: string): RenderedMindroomToolR
         isDomElementNode(node)
           ? count +
             Object.values(node.attribs).reduce(
-              (sum, value) => sum + countMindroomToolRefIcons(value),
+              (sum, value) => sum + countToolRefIcons(value),
               0
             ) +
             countAttributeIcons(node.children as ChildNode[])
@@ -255,7 +255,7 @@ export const getRenderedMindroomToolRefs = (html: string): RenderedMindroomToolR
   return {
     toolBlocks,
     iconCount:
-      countMindroomToolRefIcons(extractTextFromChildren(nodes)) + countAttributeIcons(nodes),
+      countToolRefIcons(extractTextFromChildren(nodes)) + countAttributeIcons(nodes),
     toolBlockIconCount,
   };
 };

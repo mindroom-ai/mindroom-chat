@@ -4,28 +4,28 @@ import type { ParagraphElement, PasteMarkerElement } from './slate';
 import { BlockType } from './types';
 import { sanitizeText } from '../rich-text/sanitize';
 import {
-  formatMindroomPasteMarkerAsHtml,
-  parseMindroomPasteMarker,
+  formatPasteMarkerAsHtml,
+  parsePasteMarker,
 } from '../matrix/protocol/pasteAttachmentMarker';
 
-export type MindroomEditorTextExtractor = (node: ChildNode) => string;
+export type EditorTextExtractor = (node: ChildNode) => string;
 
-export const formatMindroomEditorMathMarkdown = (latex: string, displayMode: boolean): string =>
+export const formatEditorMathMarkdown = (latex: string, displayMode: boolean): string =>
   displayMode ? `$$${latex}$$` : `$${latex}$`;
 
-const splitMindroomEditorMathLines = (latex: string): string[] => latex.split(/\r?\n/);
+const splitEditorMathLines = (latex: string): string[] => latex.split(/\r?\n/);
 
-const hasMindroomEditorMathLineBreak = (latex: string): boolean => /[\r\n]/.test(latex);
+const hasEditorMathLineBreak = (latex: string): boolean => /[\r\n]/.test(latex);
 
-const isMindroomEditorMathElement = (node: Element): boolean =>
+const isEditorMathElement = (node: Element): boolean =>
   (node.name === 'span' || node.name === 'div') && node.attribs['data-mx-maths'] !== undefined;
 
-export const isMindroomEditorMathBlockElement = (node: Element): boolean =>
+export const isEditorMathBlockElement = (node: Element): boolean =>
   node.name === 'div' && node.attribs['data-mx-maths'] !== undefined;
 
-export const getMindroomEditorMathLatex = (
+export const getEditorMathLatex = (
   node: Element,
-  getText: MindroomEditorTextExtractor
+  getText: EditorTextExtractor
 ): string | undefined => {
   const latex = node.attribs['data-mx-maths'];
   if (typeof latex === 'string' && latex.length > 0) {
@@ -36,40 +36,40 @@ export const getMindroomEditorMathLatex = (
   return text.length > 0 ? text : undefined;
 };
 
-export const getMindroomEditorMathText = (
+export const getEditorMathText = (
   node: Element,
-  getText: MindroomEditorTextExtractor,
+  getText: EditorTextExtractor,
   markdown?: boolean
 ): string | undefined => {
-  if (!isMindroomEditorMathElement(node)) return undefined;
+  if (!isEditorMathElement(node)) return undefined;
 
-  const latex = getMindroomEditorMathLatex(node, getText);
+  const latex = getEditorMathLatex(node, getText);
   if (!latex) return undefined;
 
   const displayMode = node.name === 'div';
-  return markdown ? formatMindroomEditorMathMarkdown(latex, displayMode) : latex;
+  return markdown ? formatEditorMathMarkdown(latex, displayMode) : latex;
 };
 
-export const parseMindroomEditorMathBlock = (
+export const parseEditorMathBlock = (
   node: Element,
-  getText: MindroomEditorTextExtractor,
+  getText: EditorTextExtractor,
   markdown?: boolean
 ): ParagraphElement[] => {
-  const latex = getMindroomEditorMathLatex(node, getText);
+  const latex = getEditorMathLatex(node, getText);
   if (!latex) return [];
 
   if (!markdown) {
-    return splitMindroomEditorMathLines(latex).map<ParagraphElement>((lineText) => ({
+    return splitEditorMathLines(latex).map<ParagraphElement>((lineText) => ({
       type: BlockType.Paragraph,
       children: [{ text: lineText }],
     }));
   }
 
-  if (!hasMindroomEditorMathLineBreak(latex)) {
+  if (!hasEditorMathLineBreak(latex)) {
     return [
       {
         type: BlockType.Paragraph,
-        children: [{ text: formatMindroomEditorMathMarkdown(latex, true) }],
+        children: [{ text: formatEditorMathMarkdown(latex, true) }],
       },
     ];
   }
@@ -79,7 +79,7 @@ export const parseMindroomEditorMathBlock = (
       type: BlockType.Paragraph,
       children: [{ text: '$$' }],
     },
-    ...splitMindroomEditorMathLines(latex).map<ParagraphElement>((lineText) => ({
+    ...splitEditorMathLines(latex).map<ParagraphElement>((lineText) => ({
       type: BlockType.Paragraph,
       children: [{ text: lineText }],
     })),
@@ -90,15 +90,15 @@ export const parseMindroomEditorMathBlock = (
   ];
 };
 
-export const getMindroomEditorPasteMarkerElement = (
+export const getEditorPasteMarkerElement = (
   node: Element,
-  getText: MindroomEditorTextExtractor
+  getText: EditorTextExtractor
 ): PasteMarkerElement | undefined => {
   if (node.name !== 'span' || node.attribs['data-mindroom-paste-marker'] !== 'true') {
     return undefined;
   }
 
-  const marker = parseMindroomPasteMarker(getText(node));
+  const marker = parsePasteMarker(getText(node));
   if (!marker) return undefined;
 
   return {
@@ -111,10 +111,10 @@ export const getMindroomEditorPasteMarkerElement = (
   };
 };
 
-export const mindroomEditorPasteMarkerElementToCustomHtml = (node: PasteMarkerElement): string => {
-  const marker = parseMindroomPasteMarker(node.marker);
-  return marker ? formatMindroomPasteMarkerAsHtml(marker) : sanitizeText(node.marker);
+export const editorPasteMarkerElementToCustomHtml = (node: PasteMarkerElement): string => {
+  const marker = parsePasteMarker(node.marker);
+  return marker ? formatPasteMarkerAsHtml(marker) : sanitizeText(node.marker);
 };
 
-export const mindroomEditorPasteMarkerElementToPlainText = (node: PasteMarkerElement): string =>
+export const editorPasteMarkerElementToPlainText = (node: PasteMarkerElement): string =>
   node.marker;

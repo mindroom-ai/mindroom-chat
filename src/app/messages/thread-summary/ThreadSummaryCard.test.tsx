@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { ThreadSummaryCard as MindroomThreadSummaryCard } from './ThreadSummaryCard';
-import { getMindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { ThreadSummaryCard } from './ThreadSummaryCard';
+import { getThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 
 const cssSource = () =>
   readFileSync(new URL('./ThreadSummaryCard.css.ts', import.meta.url), 'utf8');
@@ -59,11 +59,11 @@ const getNodeText = (value: ReactTestInstance | string): string => {
   return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
 };
 
-describe('MindroomThreadSummaryCard', () => {
+describe('ThreadSummaryCard', () => {
   it('labels a manually authored summary without claiming AI generation', () => {
     const renderer = create(
-      React.createElement(MindroomThreadSummaryCard, {
-        summaryInfo: getMindroomThreadSummaryInfo({
+      React.createElement(ThreadSummaryCard, {
+        summaryInfo: getThreadSummaryInfo({
           msgtype: 'm.notice',
           body: 'Handwritten summary',
           'io.mindroom.thread_summary': {
@@ -81,7 +81,7 @@ describe('MindroomThreadSummaryCard', () => {
   });
   it('renders compact non-interactive AI summary provenance', () => {
     const renderer = create(
-      React.createElement(MindroomThreadSummaryCard, {
+      React.createElement(ThreadSummaryCard, {
         summaryInfo: {
           summaryText: 'Deployment completed and health checks passed.',
           messageCount: 3,

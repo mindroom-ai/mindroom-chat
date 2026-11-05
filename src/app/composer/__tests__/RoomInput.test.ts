@@ -436,7 +436,7 @@ vi.mock('../commands/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
-vi.mock('../commands/agentCommandQuery', () => ({ getMindroomCommandQuery: () => undefined }));
+vi.mock('../commands/agentCommandQuery', () => ({ getAgentCommandQuery: () => undefined }));
 vi.mock('../RoomInputExtensions', async () => {
   const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
     await vi.importActual<typeof import('../roomInputSendSession')>(
@@ -444,7 +444,7 @@ vi.mock('../RoomInputExtensions', async () => {
     );
 
   return {
-    createMindroomRoomInputPasteMarkerElement: (marker: {
+    createRoomInputPasteMarkerElement: (marker: {
       id: string;
       chars: number;
       fileName: string;
@@ -457,7 +457,7 @@ vi.mock('../RoomInputExtensions', async () => {
       marker: marker.raw,
       children: [{ text: '' }],
     }),
-    getMindroomRoomInputPasteMarkerFileNames: (nodes: Array<any>) => {
+    getRoomInputPasteMarkerFileNames: (nodes: Array<any>) => {
       const fileNames = new Set<string>();
       const visit = (node: any) => {
         if (node?.type === 'paste-marker' && typeof node.fileName === 'string') {
@@ -469,7 +469,7 @@ vi.mock('../RoomInputExtensions', async () => {
       nodes.forEach(visit);
       return fileNames;
     },
-    removeMindroomRoomInputPasteMarkerElements: (
+    removeRoomInputPasteMarkerElements: (
       editor: { children?: Array<any> },
       fileNames: Set<string>
     ) => {
@@ -485,7 +485,7 @@ vi.mock('../RoomInputExtensions', async () => {
           : node
       );
     },
-    getMindroomRoomInputVoiceSendContext: ({
+    getRoomInputVoiceSendContext: ({
       ownerSessionId,
       roomId,
       room,
@@ -508,7 +508,7 @@ vi.mock('../RoomInputExtensions', async () => {
       threadingEnabled,
       signalBridgedRoom: false,
     }),
-    refreshMindroomRoomInputVoiceSendContext: (
+    refreshRoomInputVoiceSendContext: (
       mxClient: { getRoom: (roomId: string) => unknown },
       context: {
         ownerSessionId: string;
@@ -528,7 +528,7 @@ vi.mock('../RoomInputExtensions', async () => {
         signalBridgedRoom: false,
       };
     },
-    getMindroomRoomInputVoiceUploadRelation: (
+    getRoomInputVoiceUploadRelation: (
       context: {
         threadId: string | undefined;
         replyDraft: IReplyDraft | undefined;
@@ -548,9 +548,9 @@ vi.mock('../RoomInputExtensions', async () => {
         },
         false
       ),
-    isMindroomRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
-    MindroomRoomInputAutocomplete: () => null,
-    MindroomRoomInputReplyContext: ({
+    isRoomInputAutocompleteQuery: (query?: { prefix?: string }) => query?.prefix === '!',
+    RoomInputAutocomplete: () => null,
+    RoomInputReplyContext: ({
       children,
       pendingSend,
     }: {

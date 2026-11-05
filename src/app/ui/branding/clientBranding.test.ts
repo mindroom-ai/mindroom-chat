@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { MINDROOM_CLIENT_BRANDING, getMindroomWelcomePageContent } from './clientBranding';
+import { MINDROOM_CLIENT_BRANDING, getWelcomePageContent } from './clientBranding';
 
 describe('clientBranding', () => {
   it('exposes client-facing MindRoom Chat defaults', () => {
@@ -13,7 +13,7 @@ describe('clientBranding', () => {
 
   it('merges configured welcome content with MindRoom defaults', () => {
     expect(
-      getMindroomWelcomePageContent({
+      getWelcomePageContent({
         docsUrl: '',
         poweredBy: [{ label: 'Custom', url: 'https://example.test' }],
         title: 'Custom title',
@@ -40,7 +40,7 @@ describe('clientBranding', () => {
       (translations[key] ?? key).replace('{{appName}}', String(options?.appName ?? ''));
 
     expect(
-      getMindroomWelcomePageContent(
+      getWelcomePageContent(
         {
           docsLabel: 'Docs',
           sourceLabel: 'Source Code',
@@ -57,7 +57,7 @@ describe('clientBranding', () => {
     });
 
     expect(
-      getMindroomWelcomePageContent(
+      getWelcomePageContent(
         {
           docsLabel: 'Handbook',
           sourceLabel: 'Repository',

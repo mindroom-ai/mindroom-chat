@@ -118,7 +118,7 @@ vi.mock('../../ui/branding/clientBranding', () => ({
     logoSrc: 'logo.svg',
     sourceUrl: 'https://example.test/source',
   },
-  getMindroomWelcomePageContent: () => ({ subtitle: 'Chat' }),
+  getWelcomePageContent: () => ({ subtitle: 'Chat' }),
 }));
 
 vi.mock('../../native/nativeSso', () => ({

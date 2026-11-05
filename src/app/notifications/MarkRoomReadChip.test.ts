@@ -51,12 +51,12 @@ afterEach(() => {
   markRoomAndThreadsAsReadMock.mockReset();
 });
 
-describe('MindroomMarkRoomReadChip', () => {
+describe('MarkRoomReadChip', () => {
   it('marks the room and its threads as read', async () => {
     state.hideActivity = true;
-    const { MarkRoomReadChip: MindroomMarkRoomReadChip } = await import('./MarkRoomReadChip');
+    const { MarkRoomReadChip } = await import('./MarkRoomReadChip');
     const renderer = create(
-      React.createElement(MindroomMarkRoomReadChip, { roomId: '!room:example.org' })
+      React.createElement(MarkRoomReadChip, { roomId: '!room:example.org' })
     );
     const button = renderer.root.findByType('button');
 

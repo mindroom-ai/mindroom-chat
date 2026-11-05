@@ -57,7 +57,7 @@ import { MessageEditor } from './edit/MessageEditor';
 import { MessageBugReportItem } from '../bug-reports/MessageBugReportItem';
 import { useThreadPinning } from '../event-store/threads/useThreadPinning';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
-import { MindroomModelBadge } from './agent-run/ModelBadge';
+import { ModelBadge } from './agent-run/ModelBadge';
 import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
@@ -71,7 +71,7 @@ import {
   getMessageCopyTexts,
   getMessageCopyTextSource,
   isCopyTextMessageContent,
-  scanMindroomToolMarkerLines,
+  scanToolMarkerLines,
 } from './messageCopyText';
 import {
   MessageAllReactionItem,
@@ -237,11 +237,7 @@ export function MessageCopyTextItem({
     if (loading) return undefined;
     const source = getMessageCopyTextSource(content, originalContent ?? content, resolvedContent);
     if (!source) return undefined;
-    const scan = scanMindroomToolMarkerLines(
-      source.body,
-      source.formattedBody,
-      source.plainBodyFallback
-    );
+    const scan = scanToolMarkerLines(source.body, source.formattedBody, source.plainBodyFallback);
     return getMessageCopyTexts(source, scan);
   }, [content, loading, originalContent, resolvedContent]);
   const handleCopy = async (text: string | undefined) => {
@@ -685,7 +681,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         <AvatarBase>
           <div className={css.MessageAvatarWithModel}>
             {avatar}
-            <MindroomModelBadge info={aiRunInfo} />
+            <ModelBadge info={aiRunInfo} />
           </div>
         </AvatarBase>
       );

@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
 import { Room } from 'matrix-js-sdk';
 import { type Thread, ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import * as threadIndicatorCss from '../messages/ThreadIndicator.css';
 import { useThreadHeaderInfo } from './useThreadHeaderInfo';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
@@ -56,7 +56,7 @@ type BannerMenuState = {
 export interface ThreadContextBannerProps {
   room: Room;
   threadId: string;
-  summaryInfo?: MindroomThreadSummaryInfo;
+  summaryInfo?: ThreadSummaryInfo;
   onExitThread: () => void;
 }
 

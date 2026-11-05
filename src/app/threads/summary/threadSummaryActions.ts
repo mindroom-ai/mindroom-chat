@@ -1,7 +1,7 @@
 import { MsgType, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import {
-  getMindroomThreadSummaryInfo,
+  getThreadSummaryInfo,
   getLatestThreadSummaryInfoFromEventSources,
   pickLatestThreadSummaryInfo,
   isSupportedThreadSummaryTimestamp,
@@ -130,7 +130,7 @@ export const saveThreadSummary = async (
   // A first summary can precede SDK thread hydration. Publish the accepted
   // notice through the same state/cache used by the overview and thread banner.
   storeThreadSummaryInState(sessionId, room.roomId, threadId, {
-    ...getMindroomThreadSummaryInfo(content),
+    ...getThreadSummaryInfo(content),
     eventId,
     ...(eventTs !== undefined && isSupportedThreadSummaryTimestamp(eventTs) ? { eventTs } : {}),
   });

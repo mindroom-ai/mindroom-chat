@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAppOwnedCacheLocalStorage } from '../lib/appOwnedStorage';
-import { clearMindroomUserUiState } from '../account/lifecycle/sessionCleanup';
+import { clearUserUiState } from '../account/lifecycle/sessionCleanup';
 
 const buildVersionMock = vi.hoisted(() => ({
   value: `release/candidate 1-${'x'.repeat(160)}`,
@@ -772,7 +772,7 @@ describe('iOS freeze flight recorder', () => {
     storage.values.set(FLIGHT_RECORDER_ABNORMAL_KEY, 'abnormal');
 
     clearAppOwnedCacheLocalStorage(storage);
-    clearMindroomUserUiState('@alice:example.org');
+    clearUserUiState('@alice:example.org');
 
     expect(storage.getItem(FLIGHT_RECORDER_CURRENT_KEY)).toBe('current');
     expect(storage.getItem(FLIGHT_RECORDER_ABNORMAL_KEY)).toBe('abnormal');

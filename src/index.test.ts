@@ -55,7 +55,7 @@ vi.mock('./app/timeline/rideTraceRecorder', () => ({
 }));
 
 vi.mock('./app/event-store/engine/prefetchSettingsStorage', () => ({
-  migrateMindroomSettingsStorage: vi.fn(),
+  migratePrefetchSettingsStorage: vi.fn(),
 }));
 
 vi.mock('./app/notifications/push/iosPush', () => ({

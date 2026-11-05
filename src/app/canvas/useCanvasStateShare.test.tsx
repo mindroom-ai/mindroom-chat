@@ -11,7 +11,7 @@ import { CANVAS_STATE_EVENT_TYPE, useCanvasStateShare } from './useCanvasStateSh
 
 const sidecars = vi.hoisted(() => ({ upload: vi.fn() }));
 vi.mock('../matrix/send/longTextSidecarUpload', () => ({
-  uploadMindroomLongTextSidecar: sidecars.upload,
+  uploadLongTextSidecar: sidecars.upload,
 }));
 
 const sendEvent = vi.fn();

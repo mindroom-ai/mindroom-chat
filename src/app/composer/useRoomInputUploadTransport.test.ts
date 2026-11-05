@@ -7,7 +7,7 @@ import { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 
 // The composer extensions pull in editor styles; a room-level voice message has no relation.
 vi.mock('./RoomInputExtensions', () => ({
-  getMindroomRoomInputVoiceUploadRelation: () => undefined,
+  getRoomInputVoiceUploadRelation: () => undefined,
 }));
 
 let renderer: ReactTestRenderer | undefined;

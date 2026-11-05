@@ -7,8 +7,8 @@ import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { useRoomThreadList } from './useRoomThreadList';
 import { loadCachedThreadRootsForRoom } from '../../event-store/cache/eventRepository';
-import { MindroomSyncEngineProvider } from '../../event-store/engine/engineContext';
-import { createMindroomSyncEngine } from '../../event-store/engine/syncEngine';
+import { SyncEngineProvider } from '../../event-store/engine/engineContext';
+import { createSyncEngine } from '../../event-store/engine/syncEngine';
 
 vi.mock('../../event-store/threads/roomThreadList', async (importOriginal) => {
   const original = await importOriginal<typeof import('../../event-store/threads/roomThreadList')>();
@@ -73,12 +73,12 @@ describe('useRoomThreadList', () => {
     } as unknown as Thread;
     const room = { ...makeRoom(), getThreads: () => [thread] } as Room;
     const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
     let snapshot!: ThreadListSnapshot;
     let renderer!: ReactTestRenderer;
     const render = (enabled: boolean) => (
       <MatrixClientProvider value={mx}>
-        <MindroomSyncEngineProvider engine={engine}>
+        <SyncEngineProvider engine={engine}>
           <Harness
             room={room}
             enabled={enabled}
@@ -86,7 +86,7 @@ describe('useRoomThreadList', () => {
               snapshot = value;
             }}
           />
-        </MindroomSyncEngineProvider>
+        </SyncEngineProvider>
       </MatrixClientProvider>
     );
     await act(async () => {
@@ -117,12 +117,12 @@ describe('useRoomThreadList', () => {
 
     const room = makeRoom();
     const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
     let snapshot: ThreadListSnapshot | undefined;
     let renderer!: ReactTestRenderer;
     const render = (enabled: boolean) => (
       <MatrixClientProvider value={mx}>
-        <MindroomSyncEngineProvider engine={engine}>
+        <SyncEngineProvider engine={engine}>
           <Harness
             enabled={enabled}
             onRender={(value) => {
@@ -130,7 +130,7 @@ describe('useRoomThreadList', () => {
             }}
             room={room}
           />
-        </MindroomSyncEngineProvider>
+        </SyncEngineProvider>
       </MatrixClientProvider>
     );
 
@@ -167,15 +167,15 @@ describe('useRoomThreadList', () => {
     vi.mocked(loadCachedThreadRootsForRoom).mockRejectedValueOnce(new Error('Cache closed'));
     const room = makeRoom();
     const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
     const mount = async () => {
       let renderer!: ReactTestRenderer;
       await act(async () => {
         renderer = create(
           <MatrixClientProvider value={mx}>
-            <MindroomSyncEngineProvider engine={engine}>
+            <SyncEngineProvider engine={engine}>
               <Harness enabled room={room} onRender={() => undefined} />
-            </MindroomSyncEngineProvider>
+            </SyncEngineProvider>
           </MatrixClientProvider>
         );
       });
@@ -210,13 +210,13 @@ describe('useRoomThreadList', () => {
       );
       const room = makeRoom();
       const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@self:example.org' });
-      const engine = createMindroomSyncEngine({ mx });
+      const engine = createSyncEngine({ mx });
       let snapshot: ThreadListSnapshot | undefined;
       let renderer!: ReactTestRenderer;
       await act(async () => {
         renderer = create(
           <MatrixClientProvider value={mx}>
-            <MindroomSyncEngineProvider engine={engine}>
+            <SyncEngineProvider engine={engine}>
               <Harness
                 enabled
                 room={room}
@@ -224,7 +224,7 @@ describe('useRoomThreadList', () => {
                   snapshot = value;
                 }}
               />
-            </MindroomSyncEngineProvider>
+            </SyncEngineProvider>
           </MatrixClientProvider>
         );
       });

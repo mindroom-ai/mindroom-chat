@@ -1,8 +1,8 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MindroomModelBadge } from './ModelBadge';
-import { getMindroomAiRunInfo } from '../../matrix/protocol/aiRun';
+import { ModelBadge } from './ModelBadge';
+import { getAiRunInfo } from '../../matrix/protocol/aiRun';
 
 vi.mock('./ModelBadge.css', () => ({
   Badge: 'Badge',
@@ -10,7 +10,7 @@ vi.mock('./ModelBadge.css', () => ({
   Label: 'Label',
 }));
 
-describe('MindroomModelBadge', () => {
+describe('ModelBadge', () => {
   it.each([
     ['  my Friendly Model  ', 'my Friendly Model', 'my Friendly Model · friendly_alias (openai)'],
     [undefined, 'Friendly Alias', 'friendly_alias (openai)'],
@@ -19,13 +19,13 @@ describe('MindroomModelBadge', () => {
   ])(
     'renders model display name %s with an alias fallback',
     (displayName, expectedLabel, details) => {
-      const info = getMindroomAiRunInfo({
+      const info = getAiRunInfo({
         'io.mindroom.ai_run': {
           version: 1,
           model: { config: 'friendly_alias', display_name: displayName, provider: 'openai' },
         },
       });
-      const renderer = create(<MindroomModelBadge info={info!} />);
+      const renderer = create(<ModelBadge info={info!} />);
 
       expect(renderer.root.findByProps({ className: 'Label' }).children).toEqual([expectedLabel]);
       const badge = renderer.root.findByProps({ title: details });
@@ -35,7 +35,7 @@ describe('MindroomModelBadge', () => {
 
   it('uses the Anthropic mark for Claude models routed through Vertex AI', () => {
     const renderer = create(
-      <MindroomModelBadge
+      <ModelBadge
         info={{
           modelConfig: 'fable',
           modelProvider: 'vertexai',
@@ -60,7 +60,7 @@ describe('MindroomModelBadge', () => {
     ['bedrock', 'anthropic.claude-fable-5'],
   ])('recognizes provider-prefixed Claude model IDs from %s', (modelProvider, modelId) => {
     const renderer = create(
-      <MindroomModelBadge info={{ modelConfig: 'fable', modelProvider, modelId }} />
+      <ModelBadge info={{ modelConfig: 'fable', modelProvider, modelId }} />
     );
 
     const icon = renderer.root.findByType('svg');
@@ -73,7 +73,7 @@ describe('MindroomModelBadge', () => {
     'keeps the generic provider icon for unrelated model ID %s',
     (modelId) => {
       const renderer = create(
-        <MindroomModelBadge info={{ modelConfig: 'fable', modelProvider: 'vertexai', modelId }} />
+        <ModelBadge info={{ modelConfig: 'fable', modelProvider: 'vertexai', modelId }} />
       );
 
       const anthropicPaths = renderer.root

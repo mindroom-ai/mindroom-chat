@@ -6,7 +6,7 @@ import '../../src/app/i18n/i18n';
 import { DarkTheme, LightTheme } from '../../src/app/theme/useTheme';
 import { applyThemeToDom } from '../../src/app/theme/themeBootstrap';
 import { ClientConfigProvider, type ClientConfig } from '../../src/app/config/useClientConfig';
-import { MindroomThinkingPlaceholder } from '../../src/app/messages/agent-run/ThinkingPlaceholder';
+import { ThinkingPlaceholder } from '../../src/app/messages/agent-run/ThinkingPlaceholder';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../src/app/matrix/protocol/thinkingPlaceholder';
 
 // Query flags: `dark` theme, `rtl` direction, `label=<text>` replaces the default "Thinking…",
@@ -31,7 +31,7 @@ createRoot(document.getElementById('root')!).render(
     <main style={{ display: 'grid', gap: 16, padding: 16, minWidth: 0 }}>
       {contexts.map(({ name, fontSize }) => (
         <section key={name} aria-label={name} style={{ fontSize, lineHeight: 1.5, minWidth: 0 }}>
-          <MindroomThinkingPlaceholder startedAt={startedAt} />
+          <ThinkingPlaceholder startedAt={startedAt} />
         </section>
       ))}
     </main>

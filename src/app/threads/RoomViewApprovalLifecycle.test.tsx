@@ -48,7 +48,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx })
 vi.mock('../matrix/hooks/useIgnoredUsers', () => ({ useIgnoredUsers: () => ignored }));
 vi.mock('../event-store/engine', () => ({
   enqueueThreadApprovalBackfill: async () => ({ events: [], repairedEventIds: [] }),
-  useMindroomSyncEngine: () => ({ scheduler }),
+  useSyncEngine: () => ({ scheduler }),
 }));
 vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({ useStateEvent: () => undefined }));
@@ -246,7 +246,7 @@ it('gives the jobs bar the open thread and whether the viewer may send a cancel'
 });
 
 vi.mock('../event-store/engine/engineContext', () => ({
-  useMindroomSyncEngine: () => ({
+  useSyncEngine: () => ({
     noteRoomFocused: () => undefined,
     clearRoomFocus: () => undefined,
   }),

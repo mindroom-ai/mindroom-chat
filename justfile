@@ -49,7 +49,7 @@ build:
     npx vite build
 
 # The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint and test; scripts/push-gate.sh runs the overlap history check before each push.
-check: typecheck strict lint test script-tests license-check verify-ported check-holes upstream-overlap
+check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames upstream-overlap
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).
 license-check:
@@ -65,6 +65,11 @@ check-holes:
     python3 scripts/check_holes.py --wave 1 --rev feed1b4
     python3 scripts/check_holes.py --wave 2 --rev ec7dca5
     python3 scripts/check_holes.py --overlap --rev 54314f8
+
+# Every Lane P line a commit of docs/provenance/identifier-renames.tsv changes differs only by the names it lists (also runs the script's own tests).
+identifier-renames:
+    node --test scripts/check-identifier-renames.test.mjs
+    node scripts/check-identifier-renames.mjs
 
 # No run of 3+ shared lines or 30+ shared tokens with any version of the upstream client (docs/provenance.md); pass a full upstream git clone, skipped without one. Add --history to check every commit.
 upstream-overlap corpus='' *args:

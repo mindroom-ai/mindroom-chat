@@ -7,7 +7,7 @@ import { SettingTile } from '../ui/SettingTile';
 import { useClientConfig } from '../config/useClientConfig';
 import { resolveComputerApiUrl } from './api';
 import { computerServicePreferenceAtom } from './computerServiceSettings';
-import { useMindroomServerUrls } from './useAgentServers';
+import { useAgentServerUrls } from './useAgentServers';
 
 type Feedback = 'saved' | 'invalid' | 'storageFailed';
 
@@ -29,7 +29,7 @@ const isPlainHttp = (value: string): boolean =>
 export function ComputerSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
   const deploymentUrl = useClientConfig().mindroom?.computers?.apiUrl || undefined;
-  const discoveredUrls = useMindroomServerUrls();
+  const discoveredUrls = useAgentServerUrls();
   const [preference, setPreference] = useAtom(computerServicePreferenceAtom);
   const shownValue = preference ?? deploymentUrl ?? '';
   const [draft, setDraft] = useState(shownValue);

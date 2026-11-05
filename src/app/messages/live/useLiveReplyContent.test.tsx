@@ -8,7 +8,7 @@ import type { LiveFrame } from '../../matrix/protocol/liveFrame';
 import { loadLiveMarkdown } from './liveMarkdown';
 import { getLiveReplyStore, LIVE_REPLY_FRESHNESS_MS } from './liveReplyStore';
 import { useLiveReplyContent } from './useLiveReplyContent';
-import { isMindroomThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
+import { isThinkingPlaceholderBody } from '../../matrix/protocol/thinkingPlaceholder';
 
 const ROOM = '!room:example';
 const REPLY = '$reply';
@@ -290,7 +290,7 @@ describe('useLiveReplyContent', () => {
     it('keeps the thinking placeholder recognizable when the reply has no text yet', () => {
       render(warmingUp([LINE_ONE], {}, 'Thinking...'));
 
-      expect(isMindroomThinkingPlaceholderBody(shown())).toBe(true);
+      expect(isThinkingPlaceholderBody(shown())).toBe(true);
       expect(shown()['io.mindroom.live_activity']).toBe(LINE_ONE);
     });
 

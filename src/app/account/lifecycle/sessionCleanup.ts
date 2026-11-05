@@ -1,4 +1,4 @@
-import { clearMindroomLongTextHydrationCache } from '../../matrix/protocol/longText';
+import { clearLongTextHydrationCache } from '../../matrix/protocol/longText';
 import { clearAttachmentRepositoryMemory } from '../../event-store/cache/attachmentRepository';
 import { clearRoomInputDrafts } from '../../composer/roomInputDrafts';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
@@ -38,7 +38,7 @@ export const MINDROOM_SINGLETON_INDEXED_DB_NAMES = [
   MINDROOM_CACHE_DB_BASE_NAME,
 ] as const;
 
-export const getMindroomSessionIndexedDbNames = (sessionId: string): string[] => [
+export const getSessionIndexedDbNames = (sessionId: string): string[] => [
   getLegacyThreadEventCacheDbName(sessionId),
   getLegacyRoomEventCacheDbName(sessionId),
   getLegacyThreadSummaryCacheDbName(sessionId),
@@ -62,7 +62,7 @@ const deleteLegacyCacheDb = (dbName: string): Promise<void> =>
     }
   });
 
-export const deleteMindroomSessionCaches = async (sessionId: string): Promise<void> => {
+export const deleteSessionCaches = async (sessionId: string): Promise<void> => {
   // Delete the unified DB plus each legacy per-session DB name. The
   // three-way legacy split collapsed to a single unified DB in P2.1;
   // enumerating the legacy names here is the logout-cleanup fallback
@@ -78,7 +78,7 @@ export const deleteMindroomSessionCaches = async (sessionId: string): Promise<vo
 // localStorage key may still exist on installs that ran older builds.
 const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
-export const clearMindroomUserUiState = (userId: string): void => {
+export const clearUserUiState = (userId: string): void => {
   clearRoomInputDrafts(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
@@ -89,17 +89,17 @@ export const clearMindroomUserUiState = (userId: string): void => {
   clearSeenThreadRoots(userId);
 };
 
-export const clearMindroomSessionUiState = (sessionId: string): void => {
+export const clearSessionUiState = (sessionId: string): void => {
   clearRoomViewModeStore(sessionId);
   clearThreadSummarySharedState(sessionId);
 };
 
-export const clearMindroomSessionNativeState = (sessionId: string): void => {
+export const clearSessionNativeState = (sessionId: string): void => {
   clearIOSPushState(sessionId);
 };
 
-export const clearMindroomInMemoryCaches = (): void => {
+export const clearInMemoryCaches = (): void => {
   revokeAllCacheStoreWrites();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
 };

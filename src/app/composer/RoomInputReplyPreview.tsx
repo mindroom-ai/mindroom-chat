@@ -10,7 +10,7 @@ import {
   getReplyPreviewText,
   replaceMatrixUserIdsWithDisplayNames,
 } from '../event-store/threads/threadMessagePreview';
-import { MindroomRoomInputReplyContext } from './RoomInputExtensions';
+import { RoomInputReplyContext } from './RoomInputExtensions';
 
 type RoomInputReplyPreviewProps = {
   room: Room;
@@ -45,11 +45,7 @@ export function RoomInputReplyPreview({
       );
 
   return (
-    <MindroomRoomInputReplyContext
-      room={room}
-      relation={replyDraft.relation}
-      pendingSend={submitPending}
-    >
+    <RoomInputReplyContext room={room} relation={replyDraft.relation} pendingSend={submitPending}>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
         <IconButton
           size="300"
@@ -74,6 +70,6 @@ export function RoomInputReplyPreview({
           </ReplyLayout>
         </Box>
       </Box>
-    </MindroomRoomInputReplyContext>
+    </RoomInputReplyContext>
   );
 }

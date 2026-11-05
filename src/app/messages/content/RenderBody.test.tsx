@@ -54,7 +54,7 @@ vi.mock('../html/HtmlBlocks.css', () => ({
 }));
 
 // eslint-disable-next-line import/first
-import { useMindroomToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
+import { useToolTraceMarkerParserOptions } from '../html/HtmlBlocks';
 
 // eslint-disable-next-line import/first
 import { RenderBody } from './RenderBody';
@@ -182,7 +182,7 @@ describe('RenderBody', () => {
     ['plain content', '<p>streamed <strong>text</strong></p>'],
     ['content with a tool marker', '<p>streamed</p><p>🔧 <code>search</code> [1]</p>'],
   ])('stays memoized through the mindroom marker parser options for %s', (_case, html) => {
-    // Mirrors the production composition in renderMindroomMessageContent: content
+    // Mirrors the production composition in renderAgentMessageContent: content
     // resolved again on every render must keep the parser options, otherwise the
     // RenderBody memo is silently defeated on every render.
     function Body({ content }: { content: Record<string, unknown> }) {
@@ -190,7 +190,7 @@ describe('RenderBody', () => {
         <RenderBody
           body={content.body as string}
           customBody={content.formatted_body as string}
-          htmlReactParserOptions={useMindroomToolTraceMarkerParserOptions(
+          htmlReactParserOptions={useToolTraceMarkerParserOptions(
             htmlReactParserOptions,
             content
           )}

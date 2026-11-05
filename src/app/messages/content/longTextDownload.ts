@@ -1,7 +1,7 @@
 import { MatrixClient } from 'matrix-js-sdk';
 import { ESSENTIAL_BODY_MAX_BYTES } from '../../matrix/protocol/eventAttachments';
-import { MindroomLongTextSource } from '../../matrix/protocol/longText';
-import { downloadMindroomSidecarBlob } from '../../event-store/cache/sidecarDownload';
+import { LongTextSource } from '../../matrix/protocol/longText';
+import { downloadSidecarBlob } from '../../event-store/cache/sidecarDownload';
 
 const FILENAME_INVALID_CHARS = /[<>:"/\\|?*]/g;
 const FILENAME_EXT_REG = /\.[A-Za-z0-9]{1,8}$/;
@@ -19,7 +19,7 @@ const getMxcMediaId = (mxcUri: string): string | undefined => {
   return sanitizeFilename(mediaId);
 };
 
-export const getMindroomLongTextDownloadName = (source: MindroomLongTextSource): string => {
+export const getLongTextDownloadName = (source: LongTextSource): string => {
   const info = isRecord(source.previewContent.info) ? source.previewContent.info : undefined;
   const infoName = typeof info?.name === 'string' ? sanitizeFilename(info.name) : undefined;
   const fallbackId = getMxcMediaId(source.mxcUri);
@@ -35,12 +35,12 @@ const getLongTextMimeType = (content: Record<string, unknown>): string => {
   return typeof info?.mimetype === 'string' ? info.mimetype : 'application/json';
 };
 
-export const downloadMindroomLongTextSidecarBlob = async (
+export const downloadLongTextSidecarBlob = async (
   mx: MatrixClient,
-  source: MindroomLongTextSource,
+  source: LongTextSource,
   originalFile = false
 ): Promise<Blob> => {
-  return downloadMindroomSidecarBlob(
+  return downloadSidecarBlob(
     mx,
     source,
     getLongTextMimeType(source.previewContent),
@@ -48,10 +48,10 @@ export const downloadMindroomLongTextSidecarBlob = async (
   );
 };
 
-export const downloadMindroomLongTextSidecarText = async (
+export const downloadLongTextSidecarText = async (
   mx: MatrixClient,
-  source: MindroomLongTextSource
+  source: LongTextSource
 ): Promise<string> => {
-  const blob = await downloadMindroomLongTextSidecarBlob(mx, source);
+  const blob = await downloadLongTextSidecarBlob(mx, source);
   return blob.text();
 };

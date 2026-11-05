@@ -8,9 +8,9 @@ import {
 } from './threadMessagePreview';
 import {
   getThreadSummaryInfosFromEventSources,
-  isMindroomThreadSummaryEvent,
+  isThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
-  type MindroomThreadSummaryInfo,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getMemberDisplayName } from '../../matrix/room';
 import {
@@ -27,7 +27,7 @@ import {
 } from './threadUtils';
 
 export type ThreadPresentationSnapshot = {
-  summaryInfo: MindroomThreadSummaryInfo | undefined;
+  summaryInfo: ThreadSummaryInfo | undefined;
   summaryText: string | undefined;
   rootPreviewText: string | undefined;
   latestReplyPreviewText: string | undefined;
@@ -39,14 +39,14 @@ export type ThreadPresentationSnapshot = {
 };
 
 type ResolveThreadSummaryInfoOptions = {
-  preferredSummaryInfo?: MindroomThreadSummaryInfo;
+  preferredSummaryInfo?: ThreadSummaryInfo;
   thread?: VisibleThreadEventCollectionLike | null;
 };
 
 export const resolveThreadSummaryInfo = ({
   preferredSummaryInfo,
   thread,
-}: ResolveThreadSummaryInfoOptions): MindroomThreadSummaryInfo | undefined =>
+}: ResolveThreadSummaryInfoOptions): ThreadSummaryInfo | undefined =>
   pickLatestThreadSummaryInfo(
     ...getThreadSummaryInfosFromEventSources(
       thread?.replyToEvent && isVisibleThreadReplyEvent(thread.replyToEvent)
@@ -86,7 +86,7 @@ type ResolveThreadPresentationSnapshotOptions = {
   fallbackMessageCount?: number;
   fallbackParticipantIds?: string[];
   preferredRootPreviewText?: string;
-  preferredSummaryInfo?: MindroomThreadSummaryInfo;
+  preferredSummaryInfo?: ThreadSummaryInfo;
   room: Room;
   rootEvent?: MatrixEvent;
   thread?: VisibleThreadEventCollectionLike | null;
@@ -116,7 +116,7 @@ export const resolveThreadPresentationSnapshot = ({
   const latestPreviewEvent =
     !fallbackLatestReplyPreviewText &&
     bundledReply &&
-    !isMindroomThreadSummaryEvent(bundledReply) &&
+    !isThreadSummaryEvent(bundledReply) &&
     isVisibleThreadReplyEvent(bundledReply) &&
     getVisibleThreadEventBodyPreviewText(bundledReply) &&
     (!loadedPreviewEvent || bundledReply.getTs() > loadedPreviewEvent.getTs())

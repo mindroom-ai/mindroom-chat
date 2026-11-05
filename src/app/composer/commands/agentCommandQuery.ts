@@ -3,7 +3,7 @@ import type { AutocompleteQuery } from '../../editor/autocomplete/autocompleteQu
 
 export const MINDROOM_COMMAND_PREFIX = '!' as const;
 
-export const getMindroomCommandQuery = (
+export const getAgentCommandQuery = (
   editor: Editor,
   prevWordRange: BaseRange
 ): AutocompleteQuery<typeof MINDROOM_COMMAND_PREFIX> | undefined => {

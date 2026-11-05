@@ -1,6 +1,6 @@
 import { useAtomValue } from 'jotai';
 import { useClientConfig } from '../config/useClientConfig';
-import { useMindroomServerUrls } from './useAgentServers';
+import { useAgentServerUrls } from './useAgentServers';
 import { resolveComputerApiUrl } from './api';
 import {
   computerServicePreferenceAtom,
@@ -24,7 +24,7 @@ export const useComputerApiUrl = (discoveredUrl?: string): string | undefined =>
  * which `discovered` marks so a token for one is requested only after the homeserver confirms binding.
  */
 export const useComputerApiUrls = (): { urls: string[]; discovered: boolean } => {
-  const discoveredUrls = useMindroomServerUrls();
+  const discoveredUrls = useAgentServerUrls();
   const preference = useAtomValue(computerServicePreferenceAtom);
   const configured = useComputerApiUrl();
   if (configured) return { urls: [configured], discovered: false };

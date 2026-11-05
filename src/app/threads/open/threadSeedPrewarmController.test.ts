@@ -6,11 +6,11 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createEnginePersistFacade } from '../../event-store/engine/enginePersistFacade';
 import {
-  createMindroomSyncEngine,
+  createSyncEngine,
   createBackfillScheduler,
-  MindroomSyncEngineProvider,
+  SyncEngineProvider,
 } from '../../event-store/engine';
-import type { MindroomSyncEngine } from '../../event-store/engine';
+import type { SyncEngine } from '../../event-store/engine';
 import {
   resetCacheStoreForTesting,
   saveThreadEventsToCache,
@@ -50,7 +50,7 @@ const makeRootEvent = () =>
 
 // NOTE: the controller persists through the engine facade
 // (`engine.persist.persistThreadEventCache`, reached via
-// `useMindroomSyncEngine()`), NOT through a prop — the spy the tests
+// `useSyncEngine()`), NOT through a prop — the spy the tests
 // assert on lives on the fake engine passed to the provider below.
 function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
   useThreadSeedPrewarmController({
@@ -68,11 +68,11 @@ function Harness({ mx, room }: { mx: MatrixClient; room: Room }) {
   return null;
 }
 
-const renderPrewarm = async (mx: MatrixClient, room: Room, engine: MindroomSyncEngine) => {
+const renderPrewarm = async (mx: MatrixClient, room: Room, engine: SyncEngine) => {
   await act(async () => {
     create(
       React.createElement(
-        MindroomSyncEngineProvider,
+        SyncEngineProvider,
         { engine },
         React.createElement(Harness, { mx, room })
       )
@@ -113,7 +113,7 @@ describe('threadSeedPrewarmController cache-only seeds', () => {
       scheduler: createBackfillScheduler({ mx }),
       persist: { ...createEnginePersistFacade({ sessionId: SESSION_ID }), persistThreadEventCache },
       sessionId: SESSION_ID,
-    } as unknown as MindroomSyncEngine;
+    } as unknown as SyncEngine;
     return { mx, room, engine, fetchRelations, persistThreadEventCache };
   };
 
@@ -197,7 +197,7 @@ it('does not publish a held seed read after room clear', async () => {
   });
   const room = new SdkRoom(ROOM_ID, mx, '@alice:seed.example.org');
   mx.store.storeRoom(room);
-  const engine = createMindroomSyncEngine({ mx });
+  const engine = createSyncEngine({ mx });
   await saveThreadEventsToCache(engine.sessionId, ROOM_ID, THREAD_ID, [rawReply('$held-seed', 1)]);
   let release!: () => void;
   const held = new Promise<void>((resolve) => {
@@ -225,7 +225,7 @@ it('does not publish a held seed read after room clear', async () => {
   let renderer!: ReactTestRenderer;
   await act(async () => {
     renderer = create(
-      React.createElement(MindroomSyncEngineProvider, { engine }, React.createElement(HeldHarness))
+      React.createElement(SyncEngineProvider, { engine }, React.createElement(HeldHarness))
     );
   });
   await vi.waitFor(() => expect(load).toHaveBeenCalledOnce());

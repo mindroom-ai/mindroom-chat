@@ -1,6 +1,6 @@
 import { createClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { downloadMindroomSidecarBlob } from './sidecarDownload';
+import { downloadSidecarBlob } from './sidecarDownload';
 
 const mx = createClient({
   baseUrl: 'https://matrix.example.org',
@@ -19,7 +19,7 @@ describe('sidecar download boundary', () => {
         )
     );
     await expect(
-      downloadMindroomSidecarBlob(mx, { mxcUri: 'mxc://example.org/args' })
+      downloadSidecarBlob(mx, { mxcUri: 'mxc://example.org/args' })
     ).rejects.toThrow('403');
   });
 });

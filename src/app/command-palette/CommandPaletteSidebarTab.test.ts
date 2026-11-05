@@ -3,7 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from './commandPaletteState';
-import { CommandPaletteSidebarTab as MindroomCommandPaletteSidebarTab } from './CommandPaletteSidebarTab';
+import { CommandPaletteSidebarTab } from './CommandPaletteSidebarTab';
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
@@ -70,13 +70,13 @@ const renderSearchTab = (open = false) => {
   store.set(commandPaletteOpenAtom, open ? 'all' : undefined);
 
   const renderer = create(
-    React.createElement(Provider, { store }, React.createElement(MindroomCommandPaletteSidebarTab))
+    React.createElement(Provider, { store }, React.createElement(CommandPaletteSidebarTab))
   );
 
   return { renderer, store };
 };
 
-describe('MindroomCommandPaletteSidebarTab', () => {
+describe('CommandPaletteSidebarTab', () => {
   it('opens the shared command palette atom on All from the sidebar trigger', async () => {
     const { renderer, store } = renderSearchTab(false);
     const button = renderer.root.findByType('button');

@@ -5,12 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from '../../matrix/protocol/messageExtrasData';
-import { renderMindroomMessageContent } from './renderAgentMessageContent';
-import type { MindroomToolMetadataStatus } from '../../matrix/protocol/toolTrace';
+import { renderAgentMessageContent } from './renderAgentMessageContent';
+import type { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
 
 const sanitizeCustomHtmlSpy = vi.hoisted(() => vi.fn((html: string) => html));
 // The tool metadata status the long-text renderer reports, as while a sidecar loads.
-const longText = vi.hoisted(() => ({ status: 'loading' as MindroomToolMetadataStatus }));
+const longText = vi.hoisted(() => ({ status: 'loading' as ToolMetadataStatus }));
 
 vi.mock('../../rich-text/sanitize', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../rich-text/sanitize')>()),
@@ -50,14 +50,14 @@ vi.mock('../html/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => text,
 }));
 
-vi.mock('../agent-run/StreamingIndicator', () => ({ renderMindroomStreamingIndicator: () => null }));
+vi.mock('../agent-run/StreamingIndicator', () => ({ renderStreamingIndicator: () => null }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () => null }));
-vi.mock('../../approvals/ToolApprovalCard', () => ({ MindroomToolApprovalCard: () => null }));
-vi.mock('./PasteAttachmentContent', () => ({ MindroomPasteAttachmentContent: () => null }));
-vi.mock('../agent-run/ThinkingPlaceholder', () => ({ MindroomThinkingPlaceholder: () => null }));
+vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => null }));
+vi.mock('./PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
+vi.mock('../agent-run/ThinkingPlaceholder', () => ({ ThinkingPlaceholder: () => null }));
 vi.mock('./LongTextText', () => ({
-  MindroomLongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  MindroomLongTextText: ({ content, renderBody }: any) =>
+  LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
+  LongTextText: ({ content, renderBody }: any) =>
     renderBody(
       content,
       { body: content.body, customBody: content.formatted_body },
@@ -139,7 +139,7 @@ function Timeline({ replies, highlightRegex }: { replies: Reply[]; highlightRege
       {replies.map((content, index) => (
         // eslint-disable-next-line react/no-array-index-key
         <React.Fragment key={index}>
-          {renderMindroomMessageContent({
+          {renderAgentMessageContent({
             displayName: 'Agent',
             msgType: 'm.text',
             content,
@@ -173,7 +173,7 @@ const toolCalls = () =>
     .findAll((node) => node.props.className === 'activity-detail')
     .map((node) => node.children.join(''));
 
-describe('renderMindroomMessageContent parsing', () => {
+describe('renderAgentMessageContent parsing', () => {
   beforeEach(() => {
     sanitizeCustomHtmlSpy.mockClear();
   });

@@ -4,11 +4,11 @@ import {
   MESSAGE_AVATAR_WIDTH_PX,
   MESSAGE_LAYOUT_GAP_SPACE_KEY,
 } from '../layout/config';
-import { getMindroomModelBadgeMaxWidth } from './modelBadgeLayout';
+import { getModelBadgeMaxWidth } from './modelBadgeLayout';
 
 // Under the avatar the badge may use the avatar column plus the message gap on each side; a longer
 // model name is cut with an ellipsis (the full name is in the title).
-const widestBadge = getMindroomModelBadgeMaxWidth(
+const widestBadge = getModelBadgeMaxWidth(
   toRem(MESSAGE_AVATAR_WIDTH_PX),
   config.space[MESSAGE_LAYOUT_GAP_SPACE_KEY]
 );

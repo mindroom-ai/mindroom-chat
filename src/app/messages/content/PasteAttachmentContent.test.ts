@@ -1,7 +1,7 @@
 import React from 'react';
 import { create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MindroomPasteAttachmentContent } from './PasteAttachmentContent';
+import { PasteAttachmentContent } from './PasteAttachmentContent';
 
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
@@ -38,10 +38,10 @@ vi.mock('./PasteAttachmentContent.css.ts', () => ({
   Title: 'Title',
 }));
 
-describe('MindroomPasteAttachmentContent', () => {
+describe('PasteAttachmentContent', () => {
   it('renders compact action labels for pasted text attachments', () => {
     const renderer = create(
-      React.createElement(MindroomPasteAttachmentContent, {
+      React.createElement(PasteAttachmentContent, {
         attachment: {
           id: 'paste-b47409',
           chars: 1224043,

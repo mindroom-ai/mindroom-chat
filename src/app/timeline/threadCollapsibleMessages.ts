@@ -1,8 +1,8 @@
 import { type IContent, type MatrixEvent, RelationType, type Room } from 'matrix-js-sdk';
-import { hasMindroomMessageExtras } from '../matrix/protocol/messageExtrasData';
-import { getMindroomLongTextMxcUri } from '../matrix/protocol/longText';
+import { hasMessageExtras } from '../matrix/protocol/messageExtrasData';
+import { getLongTextMxcUri } from '../matrix/protocol/longText';
 import { CANVAS_RESPONSE_KEY } from '../messages/canvas/canvasMessages';
-import { hasMindroomThreadSummary } from '../matrix/protocol/threadSummary';
+import { hasThreadSummary } from '../matrix/protocol/threadSummary';
 import type { ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { isRenderableEvent } from '../event-store/timeline/roomTimelineEvents';
 import { getThreadFilteredEvents } from '../threads/threadRoomFocus';
@@ -21,7 +21,7 @@ export const shouldForceCollapsibleMessageOverflow = (content: IContent): boolea
   // A canvas answer shows as a one-line receipt however long its data is; a forged one that
   // renders as text still folds by its measured height.
   if (content[CANVAS_RESPONSE_KEY] !== undefined) return false;
-  if (getMindroomLongTextMxcUri(content as Record<string, unknown>)) return true;
+  if (getLongTextMxcUri(content as Record<string, unknown>)) return true;
 
   const body = content.body;
   return typeof body === 'string' && body.length >= FORCE_COLLAPSED_OVERFLOW_BODY_LENGTH;
@@ -131,7 +131,7 @@ export const getCollapsibleMessageMode = (
   isAgentMessage = false
 ) => {
   // Like T3 Code, agent replies always show in full, attached long text
-  // (getMindroomLongTextMxcUri) included; people's long messages fold.
+  // (getLongTextMxcUri) included; people's long messages fold.
   // NOTE deliberately NOT exempt by content: a long-text attachment from a
   // person folds like every other long message, and
   // `shouldForceCollapsibleMessageOverflow` guarantees the "Show more"
@@ -140,8 +140,8 @@ export const getCollapsibleMessageMode = (
   // the agent exemption keys on the sender, which never changes.
   if (
     isAgentMessage ||
-    hasMindroomThreadSummary(resolvedContent as Record<string, unknown>) ||
-    hasMindroomMessageExtras(resolvedContent as Record<string, unknown>)
+    hasThreadSummary(resolvedContent as Record<string, unknown>) ||
+    hasMessageExtras(resolvedContent as Record<string, unknown>)
   ) {
     return 'always-expanded';
   }

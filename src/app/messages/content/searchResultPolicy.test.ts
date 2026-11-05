@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { shouldUseMindroomLightweightSearchResultBody } from './searchResultPolicy';
+import { shouldUseLongTextSearchResultBody } from './searchResultPolicy';
 
-describe('shouldUseMindroomLightweightSearchResultBody', () => {
+describe('shouldUseLongTextSearchResultBody', () => {
   it('uses the lightweight search renderer for MindRoom long-text metadata', () => {
     expect(
-      shouldUseMindroomLightweightSearchResultBody({
+      shouldUseLongTextSearchResultBody({
         body: 'short preview',
         'io.mindroom.long_text': {
           version: 2,
@@ -15,7 +15,7 @@ describe('shouldUseMindroomLightweightSearchResultBody', () => {
 
   it('does not force lightweight rendering for ordinary message content', () => {
     expect(
-      shouldUseMindroomLightweightSearchResultBody({
+      shouldUseLongTextSearchResultBody({
         body: 'short preview',
       })
     ).toBe(false);

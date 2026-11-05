@@ -6,16 +6,16 @@ import { ProviderModelIcon } from '../../models/ProviderModelIcon';
 import { IconTooltip } from '../../ui/IconTooltip';
 import type { ThreadConversationCost } from '../../event-store/threads/threadConversationCost';
 import { useThreadConversationCost } from '../../event-store/threads/useThreadConversationCost';
-import { MindroomAiRunInfo } from '../../matrix/protocol/aiRun';
+import { AiRunInfo } from '../../matrix/protocol/aiRun';
 import {
-  formatMindroomAiRunNumber,
-  formatMindroomAiRunPercentage,
-  formatMindroomAiRunTimeToFirstToken,
-  formatMindroomCostUsd,
-  getMindroomAiRunCompactModelLabel,
-  getMindroomAiRunContextBarSegments,
-  getMindroomAiRunContextLabel,
-  getMindroomAiRunTokenParts,
+  formatAiRunNumber,
+  formatAiRunPercentage,
+  formatAiRunTimeToFirstToken,
+  formatCostUsd,
+  getAiRunCompactModelLabel,
+  getAiRunContextBarSegments,
+  getAiRunContextLabel,
+  getAiRunTokenParts,
 } from '../agent-run/aiRunDisplay';
 import * as css from './ReplyDetails.css';
 
@@ -62,7 +62,7 @@ type MeterPart = {
 function Meter({ parts, legend = false }: { parts: MeterPart[]; legend?: boolean }) {
   const language = useAppLanguageCode();
   const amount = (part: MeterPart) =>
-    `${formatMindroomAiRunNumber(part.tokens, language)} · ${formatMindroomAiRunPercentage(
+    `${formatAiRunNumber(part.tokens, language)} · ${formatAiRunPercentage(
       part.percentage,
       language
     )}`;
@@ -108,7 +108,7 @@ function CostHistory({ threadCost, index }: { threadCost: ThreadConversationCost
   const highest = Math.max(...shown.map(({ usd }) => usd));
   // Without older replies the numbers would be wrong, so a reply is named by its cost alone.
   const replyLabel = (position: number) => {
-    const cost = formatMindroomCostUsd(replies[position].usd, language);
+    const cost = formatCostUsd(replies[position].usd, language);
     return complete
       ? t('mindroomUi.messages.mindroomReplyDetails.costHistoryBar', { index: position + 1, cost })
       : cost;
@@ -189,7 +189,7 @@ function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
   const throughReply = eventId ? threadCost?.byEventId.get(eventId) : undefined;
   const index =
     threadCost && eventId ? threadCost.replies.findIndex((reply) => reply.eventId === eventId) : -1;
-  const conversationCost = throughReply && formatMindroomCostUsd(throughReply.usd, language);
+  const conversationCost = throughReply && formatCostUsd(throughReply.usd, language);
   return (
     <section
       className={css.CostCard}
@@ -200,7 +200,7 @@ function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
           <span className={css.CostLabel}>
             {t('mindroomUi.messages.mindroomReplyDetails.thisReply')}
           </span>
-          <span className={css.CostValue}>{formatMindroomCostUsd(costUsd, language)}</span>
+          <span className={css.CostValue}>{formatCostUsd(costUsd, language)}</span>
         </div>
         {threadCost && throughReply && (
           <div className={css.CostFigure}>
@@ -233,15 +233,15 @@ function CostCard({ costUsd, eventId }: { costUsd: number; eventId?: string }) {
   );
 }
 
-function Tokens({ info }: { info: MindroomAiRunInfo }) {
+function Tokens({ info }: { info: AiRunInfo }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const tokens = getMindroomAiRunTokenParts(info, t);
+  const tokens = getAiRunTokenParts(info, t);
   if (!tokens) return null;
   return (
     <Section
       title={t('mindroomUi.messages.mindroomReplyDetails.tokens')}
-      value={formatMindroomAiRunNumber(tokens.total, language)}
+      value={formatAiRunNumber(tokens.total, language)}
     >
       <Meter parts={tokens.parts} legend />
       <ul className={css.Legend}>
@@ -251,7 +251,7 @@ function Tokens({ info }: { info: MindroomAiRunInfo }) {
             <Text as="span" size="T200" priority="300">
               {part.label}
             </Text>{' '}
-            {formatMindroomAiRunNumber(part.tokens, language)}
+            {formatAiRunNumber(part.tokens, language)}
           </Text>
         ))}
       </ul>
@@ -259,12 +259,12 @@ function Tokens({ info }: { info: MindroomAiRunInfo }) {
   );
 }
 
-function ContextWindow({ info }: { info: MindroomAiRunInfo }) {
+function ContextWindow({ info }: { info: AiRunInfo }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const usage = getMindroomAiRunContextLabel(info, t, language);
+  const usage = getAiRunContextLabel(info, t, language);
   if (!usage) return null;
-  const segments = getMindroomAiRunContextBarSegments(info, t);
+  const segments = getAiRunContextBarSegments(info, t);
   return (
     <Section title={t('mindroomUi.messages.mindroomReplyDetails.contextWindow')} value={usage}>
       {/* The bar's track is the unused part of the window. */}
@@ -273,9 +273,9 @@ function ContextWindow({ info }: { info: MindroomAiRunInfo }) {
   );
 }
 
-function Activity({ info }: { info: MindroomAiRunInfo }) {
+function Activity({ info }: { info: AiRunInfo }) {
   const { t } = useTranslation();
-  const firstToken = formatMindroomAiRunTimeToFirstToken(info.timeToFirstToken);
+  const firstToken = formatAiRunTimeToFirstToken(info.timeToFirstToken);
   if (info.toolCount === undefined && !firstToken) return null;
   return (
     <Text as="div" size="T200" priority="300" className={css.Meta}>
@@ -303,15 +303,15 @@ const isFlaggedStatus = (status: string | undefined): status is keyof typeof STA
   status === 'error' || status === 'cancelled';
 
 /** What a MindRoom reply ran on, what it and the conversation cost, and what it used. */
-export function MindroomReplyDetails({
+export function ReplyDetails({
   info,
   eventId,
 }: {
-  info: MindroomAiRunInfo;
+  info: AiRunInfo;
   eventId?: string;
 }) {
   const { t } = useTranslation();
-  const modelLabel = getMindroomAiRunCompactModelLabel(info);
+  const modelLabel = getAiRunCompactModelLabel(info);
   const modelSource = [info.modelProvider, info.modelId].filter(Boolean).join(' · ');
   const status = info.status?.toLowerCase();
 

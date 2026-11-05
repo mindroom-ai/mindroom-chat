@@ -2,23 +2,23 @@ import React, { type MouseEventHandler } from 'react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Box, config } from 'folds';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
-import { ThreadSummaryCard as MindroomThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
+import { ThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
 import { buildThreadBadgeViewModelFromRecord } from '../threads/threadBadgeViewModel';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 
-type ThreadBadgeRendererProps = {
+type ThreadBadgeProps = {
   model: ThreadBadgeViewModel | undefined;
   room: Room;
   onClick: MouseEventHandler;
   includeRecentSummaryData?: boolean;
 };
 
-export const ThreadBadgeRenderer = ({
+export const ThreadBadge = ({
   model,
   room,
   onClick,
   includeRecentSummaryData = false,
-}: ThreadBadgeRendererProps): React.ReactNode => {
+}: ThreadBadgeProps): React.ReactNode => {
   if (!model) return null;
 
   const { threadRootId } = model.id;
@@ -27,7 +27,7 @@ export const ThreadBadgeRenderer = ({
     <>
       {model.summaryInfo && (
         <Box style={{ marginTop: config.space.S200 }}>
-          <MindroomThreadSummaryCard
+          <ThreadSummaryCard
             compact
             summaryInfo={model.summaryInfo}
             renderBody={({ body }) => <>{body}</>}
@@ -51,7 +51,7 @@ export const ThreadBadgeRenderer = ({
   );
 };
 
-const getMindroomRoomTimelineThreadBadgeModel = ({
+const getThreadBadgeModel = ({
   eventId,
   event,
   threadRecordMap,
@@ -72,7 +72,7 @@ const getMindroomRoomTimelineThreadBadgeModel = ({
   });
 };
 
-type RenderMindroomRoomTimelineThreadBadgeOptions = {
+type RenderThreadBadgeOptions = {
   eventId: string;
   event: Pick<MatrixEvent, 'threadRootId'>;
   threadRecordMap: ReadonlyMap<string, ThreadRecord>;
@@ -82,7 +82,7 @@ type RenderMindroomRoomTimelineThreadBadgeOptions = {
   includeRecentSummaryData?: boolean;
 };
 
-export const renderMindroomRoomTimelineThreadBadge = ({
+export const renderThreadBadge = ({
   eventId,
   event,
   threadRecordMap,
@@ -90,8 +90,8 @@ export const renderMindroomRoomTimelineThreadBadge = ({
   room,
   onClick,
   includeRecentSummaryData,
-}: RenderMindroomRoomTimelineThreadBadgeOptions) => {
-  const model = getMindroomRoomTimelineThreadBadgeModel({
+}: RenderThreadBadgeOptions) => {
+  const model = getThreadBadgeModel({
     eventId,
     event,
     threadRecordMap,
@@ -100,7 +100,7 @@ export const renderMindroomRoomTimelineThreadBadge = ({
   if (!model) return null;
 
   return (
-    <ThreadBadgeRenderer
+    <ThreadBadge
       model={model}
       room={room}
       onClick={onClick}

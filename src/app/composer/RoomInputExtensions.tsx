@@ -17,24 +17,24 @@ import {
   getUploadRelationForSendSession,
 } from './roomInputSendSession';
 import type { TUploadContent } from '../matrix/matrix';
-import type { MindroomPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
+import type { PasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 
-export type MindroomRoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
-export type MindroomRoomInputAutocompleteQuery =
-  AutocompleteQuery<MindroomRoomInputAutocompletePrefix>;
+export type RoomInputAutocompletePrefix = typeof MINDROOM_COMMAND_PREFIX;
+export type RoomInputAutocompleteQuery =
+  AutocompleteQuery<RoomInputAutocompletePrefix>;
 
-type MindroomRoomInputAutocompleteProps = {
+type RoomInputAutocompleteProps = {
   editor: Editor;
   query: AutocompleteQuery<string> | undefined;
   requestClose: () => void;
 };
 
-type MindroomRoomInputThreadIndicatorProps = {
+type RoomInputThreadIndicatorProps = {
   room: Room;
   relation: IReplyDraft['relation'] | undefined;
 };
 
-type MindroomRoomInputReplyContextProps = {
+type RoomInputReplyContextProps = {
   children?: React.ReactNode;
   leading?: React.ReactNode;
   pendingSend?: boolean;
@@ -42,11 +42,11 @@ type MindroomRoomInputReplyContextProps = {
   room: Room;
 };
 
-export const isMindroomRoomInputAutocompleteQuery = (
+export const isRoomInputAutocompleteQuery = (
   query: AutocompleteQuery<string> | undefined
-): query is MindroomRoomInputAutocompleteQuery => query?.prefix === MINDROOM_COMMAND_PREFIX;
+): query is RoomInputAutocompleteQuery => query?.prefix === MINDROOM_COMMAND_PREFIX;
 
-export const getMindroomRoomInputVoiceSendContext = ({
+export const getRoomInputVoiceSendContext = ({
   ownerSessionId,
   roomId,
   room,
@@ -79,7 +79,7 @@ export const getMindroomRoomInputVoiceSendContext = ({
  * picked up here. handleVoiceSend in the parent uses this so the bridge-
  * detection / membership predicates stay isolated to the extensions module.
  */
-export const refreshMindroomRoomInputVoiceSendContext = (
+export const refreshRoomInputVoiceSendContext = (
   mx: MatrixClient,
   context: PendingVoiceSendContext
 ): PendingVoiceSendContext | null => {
@@ -92,7 +92,7 @@ export const refreshMindroomRoomInputVoiceSendContext = (
   };
 };
 
-export const getMindroomRoomInputVoiceUploadRelation = (
+export const getRoomInputVoiceUploadRelation = (
   context: PendingVoiceSendContext,
   file: TUploadContent
 ) => {
@@ -111,8 +111,8 @@ export const getMindroomRoomInputVoiceUploadRelation = (
   return getUploadRelationForSendSession(session, false);
 };
 
-export const createMindroomRoomInputPasteMarkerElement = (
-  marker: MindroomPasteMarker
+export const createRoomInputPasteMarkerElement = (
+  marker: PasteMarker
 ): PasteMarkerElement => ({
   type: BlockType.PasteMarker,
   id: marker.id,
@@ -122,14 +122,14 @@ export const createMindroomRoomInputPasteMarkerElement = (
   children: [{ text: '' }],
 });
 
-export const isMindroomRoomInputPasteMarkerElement = (node: unknown): node is PasteMarkerElement =>
+export const isRoomInputPasteMarkerElement = (node: unknown): node is PasteMarkerElement =>
   Element.isElement(node) && node.type === BlockType.PasteMarker;
 
-export const getMindroomRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<string> => {
+export const getRoomInputPasteMarkerFileNames = (nodes: Descendant[]): Set<string> => {
   const fileNames = new Set<string>();
 
   const visit = (node: Descendant) => {
-    if (isMindroomRoomInputPasteMarkerElement(node)) {
+    if (isRoomInputPasteMarkerElement(node)) {
       fileNames.add(node.fileName);
       return;
     }
@@ -142,7 +142,7 @@ export const getMindroomRoomInputPasteMarkerFileNames = (nodes: Descendant[]): S
   return fileNames;
 };
 
-export const removeMindroomRoomInputPasteMarkerElements = (
+export const removeRoomInputPasteMarkerElements = (
   editor: Editor,
   fileNames: Set<string>
 ) => {
@@ -150,36 +150,36 @@ export const removeMindroomRoomInputPasteMarkerElements = (
 
   Transforms.removeNodes(editor, {
     at: [],
-    match: (node) => isMindroomRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
+    match: (node) => isRoomInputPasteMarkerElement(node) && fileNames.has(node.fileName),
   });
 };
 
-export function MindroomRoomInputAutocomplete({
+export function RoomInputAutocomplete({
   editor,
   query,
   requestClose,
-}: MindroomRoomInputAutocompleteProps) {
-  if (!isMindroomRoomInputAutocompleteQuery(query)) return null;
+}: RoomInputAutocompleteProps) {
+  if (!isRoomInputAutocompleteQuery(query)) return null;
 
   return <AgentCommandAutocomplete editor={editor} query={query} requestClose={requestClose} />;
 }
 
-export function MindroomRoomInputThreadIndicator({
+export function RoomInputThreadIndicator({
   room,
   relation,
-}: MindroomRoomInputThreadIndicatorProps) {
+}: RoomInputThreadIndicatorProps) {
   if (relation?.rel_type !== RelationType.Thread) return null;
 
   return <ThreadIndicator room={room} />;
 }
 
-export function MindroomRoomInputReplyContext({
+export function RoomInputReplyContext({
   children,
   leading,
   pendingSend,
   relation,
   room,
-}: MindroomRoomInputReplyContextProps) {
+}: RoomInputReplyContextProps) {
   if (!leading && !children && !pendingSend) return null;
 
   return (
@@ -190,7 +190,7 @@ export function MindroomRoomInputReplyContext({
     >
       {leading}
       <Box direction="Row" gap="200" alignItems="Center">
-        <MindroomRoomInputThreadIndicator room={room} relation={relation} />
+        <RoomInputThreadIndicator room={room} relation={relation} />
         {children}
         {pendingSend && <PendingSendIndicator />}
       </Box>

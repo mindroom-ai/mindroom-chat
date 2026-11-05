@@ -1,4 +1,4 @@
-export type MindroomCommandItem = {
+export type AgentCommandItem = {
   name: string;
   syntax: string;
   description: string;
@@ -6,7 +6,7 @@ export type MindroomCommandItem = {
 
 // Mirrors the MindRoom bot command set (mindroom/commands/parsing.py CommandType
 // + _COMMAND_DOCS), in the order `!help` lists them.
-export const MINDROOM_COMMANDS: MindroomCommandItem[] = [
+export const MINDROOM_COMMANDS: AgentCommandItem[] = [
   {
     name: 'help',
     syntax: '!help [topic]',

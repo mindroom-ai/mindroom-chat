@@ -28,7 +28,7 @@ const getOrigin = (url?: string): string | undefined => {
   }
 };
 
-export const resolveMindroomProvisioningRequest = ({
+export const resolveProvisioningRequest = ({
   sessionHomeserverUrl,
   provisioningOverrideUrl,
   accessToken,

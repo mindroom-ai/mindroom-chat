@@ -92,10 +92,10 @@ describe('RoomTimeline approval rendering', () => {
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
     const reactions = approvalMessage?.props.reactions;
-    const { ThreadBadgeRenderer } = await import('../ThreadBadge');
+    const { ThreadBadge } = await import('../ThreadBadge');
     const threadBadge = findElementInNode(
       reactions,
-      (element) => element.type === ThreadBadgeRenderer
+      (element) => element.type === ThreadBadge
     );
 
     expect(threadBadge).toBeDefined();
@@ -153,10 +153,10 @@ describe('RoomTimeline approval rendering', () => {
     });
 
     const approvalMessage = renderer?.root.findByProps({ 'data-message-id': '$approval' });
-    const { ThreadBadgeRenderer } = await import('../ThreadBadge');
+    const { ThreadBadge } = await import('../ThreadBadge');
     const threadBadge = findElementInNode(
       approvalMessage?.props.reactions,
-      (element) => element.type === ThreadBadgeRenderer
+      (element) => element.type === ThreadBadge
     );
 
     expect(approvalMessage).toBeDefined();
@@ -237,10 +237,10 @@ describe('RoomTimeline approval rendering', () => {
       tool_name: 'web_search',
       status: 'pending',
     });
-    const { ThreadBadgeRenderer } = await import('../ThreadBadge');
+    const { ThreadBadge } = await import('../ThreadBadge');
     const threadBadge = findElementInNode(
       approvalMessage?.props.reactions,
-      (element) => element.type === ThreadBadgeRenderer
+      (element) => element.type === ThreadBadge
     );
     expect(threadBadge?.props.model.summaryInfo?.summaryText).toBe(
       'Encrypted approval summary'

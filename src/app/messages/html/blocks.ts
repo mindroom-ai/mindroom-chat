@@ -10,12 +10,12 @@ import { findDisplayLatexBlockMatch } from '../../rich-text/math';
 import { CodeBlockRule } from '../../rich-text/markdown/block/rules';
 import { sanitizeText } from '../../rich-text/sanitize';
 import {
-  formatMindroomPasteMarkerAsHtml,
-  formatMindroomPasteMarkerTextAsHtml,
-  parseMindroomPasteMarker,
+  formatPasteMarkerAsHtml,
+  formatPasteMarkerTextAsHtml,
+  parsePasteMarker,
 } from '../../matrix/protocol/pasteAttachmentMarker';
 
-export type MindroomToolRefParseResult = {
+export type ToolRefParseResult = {
   toolName: string;
   index: number;
   pending: boolean;
@@ -28,7 +28,7 @@ export const MINDROOM_TOOL_REF_HTML_REG_G = /🔧 <code>([^<]+)<\/code> \[(\d+)\
 
 const MINDROOM_TOOL_REF_TEXT_REG = /^\s*🔧\s+`([^`]+)`\s+\[(\d+)\](?:\s+(⏳))?\s*$/u;
 
-const parseToolRefMatch = (match: RegExpExecArray): MindroomToolRefParseResult | undefined => {
+const parseToolRefMatch = (match: RegExpExecArray): ToolRefParseResult | undefined => {
   const toolName = match[1]?.trim();
   const index = Number(match[2]);
 
@@ -41,7 +41,7 @@ const parseToolRefMatch = (match: RegExpExecArray): MindroomToolRefParseResult |
   };
 };
 
-export const parseMindroomToolRefHtml = (html: string): MindroomToolRefParseResult | undefined => {
+export const parseToolRefHtml = (html: string): ToolRefParseResult | undefined => {
   const normalized = html.trim();
   MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
 
@@ -51,7 +51,7 @@ export const parseMindroomToolRefHtml = (html: string): MindroomToolRefParseResu
   return parseToolRefMatch(match);
 };
 
-export const parseMindroomToolRefText = (text: string): MindroomToolRefParseResult | undefined => {
+export const parseToolRefText = (text: string): ToolRefParseResult | undefined => {
   const match = MINDROOM_TOOL_REF_TEXT_REG.exec(text);
   if (!match) return undefined;
   return parseToolRefMatch(match);
@@ -65,8 +65,8 @@ const escapeHtmlText = (text: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const formatMindroomToolRefLineAsHtml = (line: string): string | undefined => {
-  const toolRef = parseMindroomToolRefText(line);
+const formatToolRefLineAsHtml = (line: string): string | undefined => {
+  const toolRef = parseToolRefText(line);
   if (!toolRef) return undefined;
 
   return `<p>🔧 <code>${escapeHtmlText(toolRef.toolName)}</code> [${toolRef.index}]${
@@ -178,7 +178,7 @@ const listItemCanFlattenToToolRefPrefix = (markdown: string): boolean => {
   MINDROOM_TOOL_REF_HTML_REG_G.lastIndex = 0;
   const match = MINDROOM_TOOL_REF_HTML_REG_G.exec(flattenedInline.trim());
   if (match?.index !== 0) return false;
-  return parseMindroomToolRefHtml(match[0]) !== undefined;
+  return parseToolRefHtml(match[0]) !== undefined;
 };
 
 const preserveListContainedToolMarkers = (markdown: string): string =>
@@ -208,30 +208,30 @@ const exceedsInlineMarkerBudget = (text: string): boolean => {
 
 const hasAmbiguousMarkdownMarkerContext = (lines: string[]): boolean =>
   lines.some((line) => {
-    if (line === line.trim() && parseMindroomToolRefText(line)) return false;
+    if (line === line.trim() && parseToolRefText(line)) return false;
 
     const unescapedMarkerText = line.replace(/\\([`~])/g, '');
     return unescapedMarkerText.includes('``') || unescapedMarkerText.includes('~~~');
   });
 
-const formatStandaloneMindroomMarkerAsHtml = (
+const formatStandaloneMarkerAsHtml = (
   line: string,
   allowRichMarkers: boolean
 ): string | undefined => {
   if (!allowRichMarkers || line !== line.trim()) return undefined;
 
-  const toolHtml = formatMindroomToolRefLineAsHtml(line);
+  const toolHtml = formatToolRefLineAsHtml(line);
   if (toolHtml) return toolHtml;
 
-  const pasteMarker = parseMindroomPasteMarker(line);
-  return pasteMarker ? `<p>${formatMindroomPasteMarkerAsHtml(pasteMarker)}</p>` : undefined;
+  const pasteMarker = parsePasteMarker(line);
+  return pasteMarker ? `<p>${formatPasteMarkerAsHtml(pasteMarker)}</p>` : undefined;
 };
 
-export const formatMindroomMessageTextBodyAsHtml = (body: string): string | undefined => {
+export const formatMessageTextBodyAsHtml = (body: string): string | undefined => {
   const lines = body.replace(/\r\n?/g, '\n').split('\n');
   const htmlParts: string[] = [];
   let paragraphLines: string[] = [];
-  let hasMindroomMarker = false;
+  let hasMarker = false;
 
   const flushParagraph = () => {
     if (paragraphLines.length === 0) return;
@@ -241,10 +241,10 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
 
   lines.forEach((line) => {
     const markerHtml =
-      formatMindroomToolRefLineAsHtml(line) ?? formatMindroomPasteMarkerTextAsHtml(line);
+      formatToolRefLineAsHtml(line) ?? formatPasteMarkerTextAsHtml(line);
     if (markerHtml) {
       flushParagraph();
-      hasMindroomMarker = true;
+      hasMarker = true;
       htmlParts.push(markerHtml);
       return;
     }
@@ -259,7 +259,7 @@ export const formatMindroomMessageTextBodyAsHtml = (body: string): string | unde
 
   flushParagraph();
 
-  return hasMindroomMarker ? htmlParts.join('') : undefined;
+  return hasMarker ? htmlParts.join('') : undefined;
 };
 
 // The block elements the Markdown parser writes; the rest of its output is inline text.
@@ -326,7 +326,7 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
       (index === lines.length - 1 || lines[index + 1].trim() === '');
     const markerHtml = separator
       ? '<hr/>'
-      : formatStandaloneMindroomMarkerAsHtml(line, allowRichMarkers);
+      : formatStandaloneMarkerAsHtml(line, allowRichMarkers);
     if (markerHtml) {
       flushMarkdown(true);
       htmlParts.push(markerHtml);
@@ -340,13 +340,13 @@ const formatMarkdownPreviewSegment = (body: string, allowRichMarkers: boolean): 
   return htmlParts.join('');
 };
 
-export const formatMindroomMarkdownTextBodyAsHtml = (body: string): string => {
+export const formatMarkdownTextBodyAsHtml = (body: string): string => {
   const normalizedBody = body.replace(/\r\n?/g, '\n');
   // Standalone tool markers become HTML without the parser, so a reply with
   // many tool calls must not spend the parser's budget on them.
   const textWithoutToolMarkers = normalizedBody
     .split('\n')
-    .filter((line) => line !== line.trim() || !parseMindroomToolRefText(line))
+    .filter((line) => line !== line.trim() || !parseToolRefText(line))
     .join('\n');
   const blockLineCount = body.match(MARKDOWN_PREVIEW_BLOCK_LINE_REG)?.length ?? 0;
   if (

@@ -7,19 +7,19 @@ const TOOL_TRACE_TAG = 'io.mindroom.tool_trace';
 const MAIN_EVENT_SNAPSHOT_KEY = '<== MAIN_EVENT ==>';
 const REPLACEMENT_EVENT_SNAPSHOT_KEY_REG = /^<== REPLACEMENT_EVENT_(\d+) ==>$/;
 
-let mindroomLongTextHydrationCache = new WeakMap<object, Map<string, Record<string, unknown>>>();
+let longTextHydrationCache = new WeakMap<object, Map<string, Record<string, unknown>>>();
 // In-flight downloads, coalesced per (owner, identity): the prewarm pool and
 // any number of concurrently mounting rows share ONE fetch per sidecar
 // instead of racing duplicates (the prewarm effect restarts on every
 // threadEvents update while prior fetches are still in flight). Entries are
 // removed on settle, so a failed fetch stays retryable — only completed
 // parses are cached.
-let mindroomLongTextInflight = new WeakMap<
+let longTextInflight = new WeakMap<
   object,
   Map<string, Promise<Record<string, unknown> | undefined>>
 >();
 
-export type MindroomLongTextSource = {
+export type LongTextSource = {
   owner?: EventAttachmentOwner;
   previewContent: Record<string, unknown>;
   mxcUri: string;
@@ -27,32 +27,32 @@ export type MindroomLongTextSource = {
   isV2ContentJson: boolean;
 };
 
-export type MindroomLongTextSidecarTextLoader = (source: MindroomLongTextSource) => Promise<string>;
+export type LongTextSidecarTextLoader = (source: LongTextSource) => Promise<string>;
 
-export const getMindroomLongTextSourceIdentity = (source: MindroomLongTextSource): string =>
+export const getLongTextSourceIdentity = (source: LongTextSource): string =>
   JSON.stringify({
     encryptedFile: source.encryptedFile,
     isV2ContentJson: source.isV2ContentJson,
     mxcUri: source.mxcUri,
   });
 
-const getMindroomLongTextCache = (owner: object): Map<string, Record<string, unknown>> => {
-  const existing = mindroomLongTextHydrationCache.get(owner);
+const getLongTextCache = (owner: object): Map<string, Record<string, unknown>> => {
+  const existing = longTextHydrationCache.get(owner);
   if (existing) return existing;
 
   const cache = new Map<string, Record<string, unknown>>();
-  mindroomLongTextHydrationCache.set(owner, cache);
+  longTextHydrationCache.set(owner, cache);
   return cache;
 };
 
-const getMindroomLongTextInflight = (
+const getLongTextInflight = (
   owner: object
 ): Map<string, Promise<Record<string, unknown> | undefined>> => {
-  const existing = mindroomLongTextInflight.get(owner);
+  const existing = longTextInflight.get(owner);
   if (existing) return existing;
 
   const inflight = new Map<string, Promise<Record<string, unknown> | undefined>>();
-  mindroomLongTextInflight.set(owner, inflight);
+  longTextInflight.set(owner, inflight);
   return inflight;
 };
 
@@ -67,7 +67,7 @@ const asEncryptedFile = (value: unknown): IEncryptedFile | undefined => {
   return value as unknown as IEncryptedFile;
 };
 
-const isMindroomLongTextV2Meta = (meta: unknown): boolean =>
+const isLongTextV2Meta = (meta: unknown): boolean =>
   isRecord(meta) && meta.version === 2 && meta.encoding === LONG_TEXT_V2_ENCODING;
 
 const looksLikeMessageContent = (value: Record<string, unknown>): boolean => {
@@ -149,14 +149,14 @@ const getLongTextCandidates = (content: Record<string, unknown>): Record<string,
   return newContent ? [newContent, content] : [content];
 };
 
-export const hasMindroomLongTextMetadata = (content: Record<string, unknown>): boolean =>
+export const hasLongTextMetadata = (content: Record<string, unknown>): boolean =>
   getLongTextCandidates(content).some((candidate) => isRecord(candidate[LONG_TEXT_TAG]));
 
 const getLongTextSourceFromCandidate = (
   previewContent: Record<string, unknown>
-): MindroomLongTextSource | undefined => {
+): LongTextSource | undefined => {
   const meta = previewContent[LONG_TEXT_TAG];
-  if (!isMindroomLongTextV2Meta(meta)) return undefined;
+  if (!isLongTextV2Meta(meta)) return undefined;
 
   const encryptedFile = asEncryptedFile(previewContent.file);
   const mxcUri = encryptedFile?.url ?? (isMxc(previewContent.url) ? previewContent.url : undefined);
@@ -171,7 +171,7 @@ const getLongTextSourceFromCandidate = (
   };
 };
 
-export const withMindroomToolTraceFallback = (
+export const withToolTraceFallback = (
   content: Record<string, unknown>,
   ...fallbackSources: Array<Record<string, unknown> | undefined>
 ): Record<string, unknown> => {
@@ -186,13 +186,13 @@ export const withMindroomToolTraceFallback = (
   };
 };
 
-export const clearMindroomLongTextHydrationCache = () => {
-  mindroomLongTextHydrationCache = new WeakMap();
-  mindroomLongTextInflight = new WeakMap();
+export const clearLongTextHydrationCache = () => {
+  longTextHydrationCache = new WeakMap();
+  longTextInflight = new WeakMap();
 };
 
 /** How a long text was read from its sidecar file; MindRoom's own reader is stricter than Chat's. */
-export type MindroomLongTextSidecarFacts = {
+export type LongTextSidecarFacts = {
   /** The file was the message content itself, the only shape MindRoom reads. */
   topLevelContent: boolean;
   bytes: number;
@@ -200,12 +200,12 @@ export type MindroomLongTextSidecarFacts = {
 
 const SIDECAR_FACTS = Symbol('mindroomLongTextSidecarFacts');
 
-export const getMindroomLongTextSidecarFacts = (
+export const getLongTextSidecarFacts = (
   content: Record<string, unknown>
-): MindroomLongTextSidecarFacts | undefined =>
-  (content as Record<symbol, MindroomLongTextSidecarFacts | undefined>)[SIDECAR_FACTS];
+): LongTextSidecarFacts | undefined =>
+  (content as Record<symbol, LongTextSidecarFacts | undefined>)[SIDECAR_FACTS];
 
-export const parseMindroomLongTextJsonSidecar = (
+export const parseLongTextJsonSidecar = (
   rawSidecar: string
 ): Record<string, unknown> | undefined => {
   try {
@@ -218,7 +218,7 @@ export const parseMindroomLongTextJsonSidecar = (
         value: {
           topLevelContent: content === parsed,
           bytes: new TextEncoder().encode(rawSidecar).length,
-        } satisfies MindroomLongTextSidecarFacts,
+        } satisfies LongTextSidecarFacts,
       });
     }
     return content;
@@ -227,7 +227,7 @@ export const parseMindroomLongTextJsonSidecar = (
   }
 };
 
-const normalizeHydratedMindroomContent = (
+const normalizeHydratedContent = (
   hydratedContent: Record<string, unknown>
 ): Record<string, unknown> => {
   if (!isRecord(hydratedContent['m.new_content'])) return hydratedContent;
@@ -268,9 +268,9 @@ const normalizeHydratedMindroomContent = (
   return normalizedContent;
 };
 
-export const getMindroomLongTextSource = (
+export const getLongTextSource = (
   content: Record<string, unknown>
-): MindroomLongTextSource | undefined => {
+): LongTextSource | undefined => {
   const candidates = getLongTextCandidates(content);
   for (const candidate of candidates) {
     const source = getLongTextSourceFromCandidate(candidate);
@@ -281,14 +281,14 @@ export const getMindroomLongTextSource = (
       previewContent:
         candidate === content
           ? source.previewContent
-          : withMindroomToolTraceFallback(source.previewContent, content),
+          : withToolTraceFallback(source.previewContent, content),
     };
   }
   return undefined;
 };
 
-export const getMindroomLongTextMxcUri = (content: Record<string, unknown>): string | undefined =>
-  getMindroomLongTextSource(content)?.mxcUri;
+export const getLongTextMxcUri = (content: Record<string, unknown>): string | undefined =>
+  getLongTextSource(content)?.mxcUri;
 
 /**
  * Plaintext budget for content sent as one event. Encryption grows an event by about a third, so
@@ -309,7 +309,7 @@ const MESSAGE_PREVIEW_LENGTH = 2000;
  * The event for a typed message sent as a long-text sidecar: the start of its text, and the
  * mentions and relation that route it. The file holds the whole message.
  */
-export const buildMindroomLongTextPreview = (content: Record<string, unknown>) => {
+export const buildLongTextPreview = (content: Record<string, unknown>) => {
   const body = typeof content.body === 'string' ? content.body : '';
   // Cut between characters, never inside a surrogate pair.
   const start = body.slice(0, MESSAGE_PREVIEW_LENGTH).replace(/[\uD800-\uDBFF]$/, '');
@@ -324,7 +324,7 @@ export const buildMindroomLongTextPreview = (content: Record<string, unknown>) =
  * Marks a preview as a v2 long-text sidecar, as MindRoom's backend writes them: the event is a
  * short `m.file` preview, and the file it points at holds the message's whole content as JSON.
  */
-export const withMindroomLongTextSidecarMetadata = (
+export const withLongTextSidecarMetadata = (
   preview: Record<string, unknown> & { body: string },
   originalSize: number
 ): Record<string, unknown> => ({
@@ -338,24 +338,24 @@ export const withMindroomLongTextSidecarMetadata = (
   },
 });
 
-export const getCachedMindroomLongTextContent = (
-  source: MindroomLongTextSource,
+export const getCachedLongTextContent = (
+  source: LongTextSource,
   cacheOwner: object
 ): Record<string, unknown> | undefined =>
-  getMindroomLongTextCache(cacheOwner).get(getMindroomLongTextSourceIdentity(source));
+  getLongTextCache(cacheOwner).get(getLongTextSourceIdentity(source));
 
-export const hydrateMindroomLongTextSource = async (
-  source: MindroomLongTextSource,
-  loadSidecarText: MindroomLongTextSidecarTextLoader,
+export const hydrateLongTextSource = async (
+  source: LongTextSource,
+  loadSidecarText: LongTextSidecarTextLoader,
   cacheOwner: object,
   isCurrent: () => boolean = () => true
 ): Promise<Record<string, unknown>> => {
   if (!isCurrent()) return source.previewContent;
-  const cached = getCachedMindroomLongTextContent(source, cacheOwner);
+  const cached = getCachedLongTextContent(source, cacheOwner);
   if (cached) return cached;
 
-  const identity = getMindroomLongTextSourceIdentity(source);
-  const inflight = getMindroomLongTextInflight(cacheOwner);
+  const identity = getLongTextSourceIdentity(source);
+  const inflight = getLongTextInflight(cacheOwner);
   const pending = inflight.get(identity);
 
   const download =
@@ -368,9 +368,9 @@ export const hydrateMindroomLongTextSource = async (
         // finally-cleanup — before inflight.set below, pinning an
         // already-resolved preview promise in the map forever.
         const sidecarText = await Promise.resolve().then(() => loadSidecarText(source));
-        const hydratedContent = parseMindroomLongTextJsonSidecar(sidecarText);
+        const hydratedContent = parseLongTextJsonSidecar(sidecarText);
         if (!hydratedContent) return undefined;
-        return normalizeHydratedMindroomContent(hydratedContent);
+        return normalizeHydratedContent(hydratedContent);
       } catch {
         return undefined;
       } finally {
@@ -381,6 +381,6 @@ export const hydrateMindroomLongTextSource = async (
   // Shared parsing does not share publication authority between room consumers.
   const content = await download;
   if (!isCurrent() || !content) return source.previewContent;
-  getMindroomLongTextCache(cacheOwner).set(identity, content);
+  getLongTextCache(cacheOwner).set(identity, content);
   return content;
 };

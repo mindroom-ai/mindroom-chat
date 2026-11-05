@@ -9,18 +9,18 @@ import { TextViewer } from '../viewers/TextViewer';
 import { bytesToSize } from '../../lib/common';
 import { FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
 import * as css from './PasteAttachmentContent.css';
-import type { MindroomPasteAttachmentFile } from '../../matrix/protocol/pasteAttachmentMarker';
+import type { PasteAttachmentFile } from '../../matrix/protocol/pasteAttachmentMarker';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 
-type MindroomPasteAttachmentContentProps = {
+type PasteAttachmentContentProps = {
   owner?: EventAttachmentOwner;
-  attachment: MindroomPasteAttachmentFile;
+  attachment: PasteAttachmentFile;
   outlined?: boolean;
 };
 
 const getPasteAttachmentDetail = (
-  { chars, size }: Pick<MindroomPasteAttachmentFile, 'chars' | 'size'>,
+  { chars, size }: Pick<PasteAttachmentFile, 'chars' | 'size'>,
   t: TFunction,
   locale: string
 ): string | undefined => {
@@ -36,11 +36,11 @@ const getPasteAttachmentDetail = (
   return undefined;
 };
 
-export function MindroomPasteAttachmentContent({
+export function PasteAttachmentContent({
   owner,
   attachment,
   outlined,
-}: MindroomPasteAttachmentContentProps) {
+}: PasteAttachmentContentProps) {
   const glassRef = useGlassHighlight<HTMLDivElement>();
   const { t } = useTranslation();
   const language = useAppLanguageCode();

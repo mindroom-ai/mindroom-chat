@@ -1,4 +1,4 @@
-export type MindroomToolTraceEvent = {
+export type ToolTraceEvent = {
   type?: unknown;
   tool_name?: unknown;
   args_preview?: unknown;
@@ -8,52 +8,52 @@ export type MindroomToolTraceEvent = {
   progress?: unknown;
 };
 
-export type MindroomToolMetadataStatus = 'loading' | 'unavailable';
+export type ToolMetadataStatus = 'loading' | 'unavailable';
 
-type MindroomToolTraceContent = {
+type ToolTraceContent = {
   version?: unknown;
   events?: unknown;
 };
 
 export const MINDROOM_TOOL_TRACE_KEY = 'io.mindroom.tool_trace';
 
-const asMindroomToolTrace = (trace: unknown): MindroomToolTraceContent | undefined =>
-  trace && typeof trace === 'object' ? (trace as MindroomToolTraceContent) : undefined;
+const asToolTrace = (trace: unknown): ToolTraceContent | undefined =>
+  trace && typeof trace === 'object' ? (trace as ToolTraceContent) : undefined;
 
 const getToolTraceEvents = (
-  trace: MindroomToolTraceContent | undefined
-): MindroomToolTraceEvent[] | undefined => {
+  trace: ToolTraceContent | undefined
+): ToolTraceEvent[] | undefined => {
   const eventsRaw = trace?.events;
   if (!Array.isArray(eventsRaw) || eventsRaw.length === 0) return undefined;
 
   const events = eventsRaw.filter(
-    (event): event is MindroomToolTraceEvent => !!event && typeof event === 'object'
+    (event): event is ToolTraceEvent => !!event && typeof event === 'object'
   );
 
   return events.length > 0 ? events : undefined;
 };
 
-export const isMindroomToolTraceV2 = (content: Record<string, unknown>): boolean =>
-  asMindroomToolTrace(content[MINDROOM_TOOL_TRACE_KEY])?.version === 2;
+export const isToolTraceV2 = (content: Record<string, unknown>): boolean =>
+  asToolTrace(content[MINDROOM_TOOL_TRACE_KEY])?.version === 2;
 
-export const getMindroomToolTraceEvents = (
+export const getContentToolTraceEvents = (
   content: Record<string, unknown>
-): MindroomToolTraceEvent[] | undefined =>
-  getToolTraceEvents(asMindroomToolTrace(content[MINDROOM_TOOL_TRACE_KEY]));
+): ToolTraceEvent[] | undefined =>
+  getToolTraceEvents(asToolTrace(content[MINDROOM_TOOL_TRACE_KEY]));
 
 /** The events of a tool trace value (`content['io.mindroom.tool_trace']`) when it is version 2. */
-export const getMindroomToolTraceV2Events = (
+export const getToolTraceV2Events = (
   trace: unknown
-): MindroomToolTraceEvent[] | undefined => {
-  const toolTrace = asMindroomToolTrace(trace);
+): ToolTraceEvent[] | undefined => {
+  const toolTrace = asToolTrace(trace);
   return toolTrace?.version === 2 ? getToolTraceEvents(toolTrace) : undefined;
 };
 
-export const getMindroomToolTraceEventByIndex = (
+export const getToolTraceEventByIndex = (
   content: Record<string, unknown>,
   oneBasedIndex: number
-): MindroomToolTraceEvent | undefined => {
+): ToolTraceEvent | undefined => {
   if (!Number.isInteger(oneBasedIndex) || oneBasedIndex < 1) return undefined;
-  const events = getMindroomToolTraceEvents(content);
+  const events = getContentToolTraceEvents(content);
   return events?.[oneBasedIndex - 1];
 };

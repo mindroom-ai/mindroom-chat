@@ -1,5 +1,5 @@
-import { hasMindroomLongTextMetadata } from '../../matrix/protocol/longText';
+import { hasLongTextMetadata } from '../../matrix/protocol/longText';
 
-export const shouldUseMindroomLightweightSearchResultBody = (
+export const shouldUseLongTextSearchResultBody = (
   content: Record<string, unknown>
-): boolean => hasMindroomLongTextMetadata(content);
+): boolean => hasLongTextMetadata(content);

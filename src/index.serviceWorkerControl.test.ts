@@ -31,7 +31,7 @@ vi.mock('./app/timeline/rideTraceRecorder', () => ({
   bootstrapRideTraceFlagFromUrl: vi.fn(),
 }));
 vi.mock('./app/event-store/engine/prefetchSettingsStorage', () => ({
-  migrateMindroomSettingsStorage: vi.fn(),
+  migratePrefetchSettingsStorage: vi.fn(),
 }));
 vi.mock('./app/notifications/push/iosPush', () => ({ migrateLegacyIOSPushEnabled: vi.fn() }));
 vi.mock('./app/config/runtimeConfig', () => ({ isServiceWorkerEnabled: () => true }));

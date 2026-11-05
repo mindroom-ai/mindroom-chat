@@ -4,9 +4,9 @@ import { ClientEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk'
 import { useMatrixClient } from './useMatrixClient';
 import {
   MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE,
-  type MindroomAccountSettings,
-  mergeMindroomAccountSettings,
-  sanitizeMindroomAccountSettings,
+  type AccountSettings,
+  mergeAccountSettings,
+  sanitizeAccountSettings,
 } from '../../preferences/accountSettings';
 
 /**
@@ -49,12 +49,12 @@ const writes = new WeakMap<MatrixClient, Promise<void>>();
  */
 export const enqueueAccountSettingsPatch = (
   mx: MatrixClient,
-  patch: Partial<MindroomAccountSettings>
+  patch: Partial<AccountSettings>
 ): Promise<void> => {
   const task = (writes.get(mx) ?? Promise.resolve())
     .catch(() => undefined)
     .then(async () => {
-      const next = mergeMindroomAccountSettings(settingsContent(mx), patch);
+      const next = mergeAccountSettings(settingsContent(mx), patch);
       await mx.setAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as never, next as never);
     });
   writes.set(mx, task);
@@ -62,12 +62,12 @@ export const enqueueAccountSettingsPatch = (
 };
 
 /** The account's MindRoom settings, with defaults for anything unset or malformed. */
-export const useAccountSettings = (): MindroomAccountSettings => {
+export const useAccountSettings = (): AccountSettings => {
   const content = useAtomValue(accountSettingsAtom);
-  return useMemo(() => sanitizeMindroomAccountSettings(content), [content]);
+  return useMemo(() => sanitizeAccountSettings(content), [content]);
 };
 
-type AccountSettingsWriter = (patch: Partial<MindroomAccountSettings>) => Promise<void>;
+type AccountSettingsWriter = (patch: Partial<AccountSettings>) => Promise<void>;
 
 /**
  * A writer for this client's settings patches; each call resolves once the homeserver accepted

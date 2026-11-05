@@ -8,23 +8,23 @@ export const MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN = 'text/plain';
 export const MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN = 'text/markdown';
 export const MINDROOM_MESSAGE_EXTRAS_TEXT_HTML = 'text/html';
 
-export type MindroomMessageExtraContentType =
+export type MessageExtraContentType =
   | typeof MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN
   | typeof MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN
   | typeof MINDROOM_MESSAGE_EXTRAS_TEXT_HTML;
 
-export type MindroomMessageExtrasVersion = 1 | 2;
+export type MessageExtrasVersion = 1 | 2;
 
-export type MindroomMessageExtrasSection = {
+export type MessageExtrasSection = {
   title: string;
-  contentType: MindroomMessageExtraContentType;
+  contentType: MessageExtraContentType;
   content: string;
   collapsed: boolean;
 };
 
-export type MindroomMessageExtras = {
-  version: MindroomMessageExtrasVersion;
-  sections: MindroomMessageExtrasSection[];
+export type MessageExtras = {
+  version: MessageExtrasVersion;
+  sections: MessageExtrasSection[];
 };
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
@@ -32,8 +32,8 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
 
 const isSupportedContentType = (
   value: unknown,
-  version: MindroomMessageExtrasVersion
-): value is MindroomMessageExtraContentType => {
+  version: MessageExtrasVersion
+): value is MessageExtraContentType => {
   if (
     value === MINDROOM_MESSAGE_EXTRAS_TEXT_PLAIN ||
     value === MINDROOM_MESSAGE_EXTRAS_TEXT_MARKDOWN
@@ -46,8 +46,8 @@ const isSupportedContentType = (
 
 const parseSection = (
   section: unknown,
-  version: MindroomMessageExtrasVersion
-): MindroomMessageExtrasSection | undefined => {
+  version: MessageExtrasVersion
+): MessageExtrasSection | undefined => {
   if (!isPlainObject(section)) return undefined;
 
   const title = typeof section.title === 'string' ? section.title.trim() : '';
@@ -65,7 +65,7 @@ const parseSection = (
   };
 };
 
-export const parseMindroomMessageExtras = (content: unknown): MindroomMessageExtras | null => {
+export const parseMessageExtras = (content: unknown): MessageExtras | null => {
   try {
     if (!isPlainObject(content)) return null;
 
@@ -78,7 +78,7 @@ export const parseMindroomMessageExtras = (content: unknown): MindroomMessageExt
     const sections = extras.sections
       .slice(0, MINDROOM_MESSAGE_EXTRAS_MAX_SECTIONS)
       .map((section) => parseSection(section, version))
-      .filter((section): section is MindroomMessageExtrasSection => !!section);
+      .filter((section): section is MessageExtrasSection => !!section);
 
     if (sections.length === 0) return null;
 
@@ -91,5 +91,5 @@ export const parseMindroomMessageExtras = (content: unknown): MindroomMessageExt
   }
 };
 
-export const hasMindroomMessageExtras = (content: unknown): boolean =>
-  parseMindroomMessageExtras(content) !== null;
+export const hasMessageExtras = (content: unknown): boolean =>
+  parseMessageExtras(content) !== null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getMindroomLongTextSource, hydrateMindroomLongTextSource } from '../matrix/protocol/longText';
-import { getMindroomToolTraceEventByIndex } from '../matrix/protocol/toolTrace';
+import { getLongTextSource, hydrateLongTextSource } from '../matrix/protocol/longText';
+import { getToolTraceEventByIndex } from '../matrix/protocol/toolTrace';
 
 const expectDefined = <T>(value: T | undefined): T => {
   expect(value).toBeDefined();
@@ -23,9 +23,9 @@ describe('MindRoom message pipeline', () => {
       },
     };
 
-    const source = expectDefined(getMindroomLongTextSource(previewContent));
+    const source = expectDefined(getLongTextSource(previewContent));
 
-    const resolved = await hydrateMindroomLongTextSource(
+    const resolved = await hydrateLongTextSource(
       source,
       async () =>
         JSON.stringify({
@@ -48,6 +48,6 @@ describe('MindRoom message pipeline', () => {
 
     expect(resolved.formatted_body).toBe('<p>🔧 <code>search_web</code> [1]</p>');
 
-    expect(getMindroomToolTraceEventByIndex(resolved, 1)?.tool_name).toBe('search_web');
+    expect(getToolTraceEventByIndex(resolved, 1)?.tool_name).toBe('search_web');
   });
 });

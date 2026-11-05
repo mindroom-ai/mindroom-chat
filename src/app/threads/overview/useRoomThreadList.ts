@@ -7,7 +7,7 @@ import {
   sortThreadsByActivity,
 } from '../../event-store/threads/roomThreadList';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { useMindroomSyncEngine } from '../../event-store/engine/engineContext';
+import { useSyncEngine } from '../../event-store/engine/engineContext';
 import {
   createPreferLiveEventMapper,
   loadCachedThreadRootsForRoom,
@@ -66,7 +66,7 @@ const getRootRevision = (room: Room, rootEvent: MatrixEvent): number => {
 
 export const useRoomThreadList = (room: Room, enabled = true) => {
   const mx = useMatrixClient();
-  const engine = useMindroomSyncEngine();
+  const engine = useSyncEngine();
   const [loading, setLoading] = useState(enabled);
   const [loadedSuccessfully, setLoadedSuccessfully] = useState(false);
   const [error, setError] = useState<Error>();

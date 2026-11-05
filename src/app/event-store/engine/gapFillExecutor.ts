@@ -55,7 +55,7 @@ export type GapFillExecutorOptions = {
   readonly getPrefetchConfig?: () => PrefetchConfig;
   /**
    * ISSUE-207 P7.2 audit finding #5: returns the currently-focused
-   * room id (populated by `MindroomSyncEngine.noteRoomFocused`). Only
+   * room id (populated by `SyncEngine.noteRoomFocused`). Only
    * consulted when `config.scope === 'current-room-only'`. Optional
    * for the same back-compat reason as `getPrefetchConfig`.
    */

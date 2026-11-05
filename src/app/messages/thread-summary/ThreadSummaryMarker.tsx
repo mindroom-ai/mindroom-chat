@@ -3,12 +3,12 @@ import { Trans, useTranslation } from 'react-i18next';
 import { Text, Tooltip, type RectCords } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { IconSparkles } from '@tabler/icons-react';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
 import * as css from './ThreadSummaryMarker.css';
 
-type MindroomThreadSummaryMarkerProps = {
-  summaryInfo: MindroomThreadSummaryInfo;
+type ThreadSummaryMarkerProps = {
+  summaryInfo: ThreadSummaryInfo;
   plan?: ThreadSummaryMarkerPlan;
 };
 
@@ -17,10 +17,10 @@ type OpenMode = 'hover' | 'pinned';
 // Inside a thread the banner already shows the current summary, so a summary
 // event shrinks to one quiet line under the reply before it. Hovering it, or
 // tapping it on a phone, shows the full title and the one it replaced.
-export function MindroomThreadSummaryMarker({
+export function ThreadSummaryMarker({
   summaryInfo,
   plan,
-}: MindroomThreadSummaryMarkerProps) {
+}: ThreadSummaryMarkerProps) {
   const { t } = useTranslation();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState<{ mode: OpenMode; anchor: RectCords }>();

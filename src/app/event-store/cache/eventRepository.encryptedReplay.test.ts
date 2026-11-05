@@ -3,7 +3,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { createClient, MatrixEvent, Room, type IEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../matrix/session/sessions';
-import { createMindroomSyncEngine } from '../engine/syncEngine';
+import { createSyncEngine } from '../engine/syncEngine';
 import { createEngineWriteThrough } from '../engine/engineWriteThrough';
 import {
   clearAttachmentRepositoryMemory,
@@ -162,7 +162,7 @@ it('rejects encrypted replay that finishes after room clear', async () => {
 it('does not write an encrypted event twice when repository decryption emits through the SDK', async () => {
   const client = account();
   const duplicateWrites: Promise<unknown>[] = [];
-  const engine = createMindroomSyncEngine({
+  const engine = createSyncEngine({
     mx: client.mx,
     writeThrough: createEngineWriteThrough({
       sessionId: client.sessionId,

@@ -63,14 +63,14 @@ afterEach(() => {
   markRoomAndThreadsAsReadMock.mockReset();
 });
 
-describe('MindroomMarkRoomReadMenuItem', () => {
+describe('MarkRoomReadMenuItem', () => {
   it.each([false, true])(
     'marks the room and closes the menu (private: %s)',
     async (hideActivity) => {
       const onClose = vi.fn();
       state.hideActivity = hideActivity;
-      const { MarkRoomReadMenuItem: MindroomMarkRoomReadMenuItem } = await import('./MarkRoomReadMenuItem');
-      const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
+      const { MarkRoomReadMenuItem } = await import('./MarkRoomReadMenuItem');
+      const renderer = create(React.createElement(MarkRoomReadMenuItem, { room, onClose }));
       const button = renderer.root.findByType('button');
 
       act(() => button.props.onClick());

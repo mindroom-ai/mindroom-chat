@@ -30,7 +30,7 @@ export function ResizablePageNav({
   );
 }
 
-export function MindroomPageNav({ path, children }: { path: string; children: ReactNode }) {
+export function CollapsiblePageNav({ path, children }: { path: string; children: ReactNode }) {
   const { canCollapse, setCollapsed } = useMindroomDesktopPageNav();
   return (
     <MobileFriendlyPageNav path={path}>

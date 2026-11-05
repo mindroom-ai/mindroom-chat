@@ -19,7 +19,7 @@ import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs'
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import * as css from '../../rich-text/CustomHtml.css';
-import { renderMindroomCustomHtmlElement } from './customHtmlRenderers';
+import { renderCustomHtmlElement } from './customHtmlRenderers';
 import { renderTextWithMatrixMath } from '../../rich-text/matrixMath';
 import {
   CheckIcon,
@@ -520,11 +520,9 @@ const renderCustomElement = (
   options: HTMLReactParserOptions
 ): ReactElement | undefined =>
   isMatrixMath(name, attribs) ? (
-    <WithKatex
-      render={() => renderMindroomCustomHtmlElement(name, attribs, children, options) ?? null}
-    />
+    <WithKatex render={() => renderCustomHtmlElement(name, attribs, children, options) ?? null} />
   ) : (
-    renderMindroomCustomHtmlElement(name, attribs, children, options)
+    renderCustomHtmlElement(name, attribs, children, options)
   );
 
 export const getReactCustomHtmlParser = (

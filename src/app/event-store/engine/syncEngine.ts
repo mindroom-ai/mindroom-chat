@@ -1,5 +1,5 @@
 /**
- * ISSUE-207 P3.1: MindroomSyncEngine core (Commit 1 — skeleton).
+ * ISSUE-207 P3.1: SyncEngine core (Commit 1 — skeleton).
  *
  * The engine is the client-level owner of Tier-1 cache writes (plan
  * decision D2). It attaches SDK listeners at the client scope so live
@@ -53,7 +53,7 @@ import {
   resolveRoomPrefetchTier,
   type PrefetchConfig,
 } from './prefetchPolicy';
-import type { EngineLiveEventMeta, MindroomSyncEngine } from './types';
+import type { EngineLiveEventMeta, SyncEngine } from './types';
 import { trackPendingThreadEvent } from '../cache/pendingThreadEvents';
 import {
   persistRoomChunkWithPreferLive,
@@ -67,7 +67,7 @@ const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'C
 
 const activeEngineStops = new WeakMap<MatrixClient, () => void>();
 
-export const stopMindroomSyncEngineForClient = (mx: MatrixClient): void => {
+export const stopSyncEngineForClient = (mx: MatrixClient): void => {
   activeEngineStops.get(mx)?.();
 };
 
@@ -91,7 +91,7 @@ const getBindableDocument = (): BindableDocument | undefined => {
   return document;
 };
 
-export type CreateMindroomSyncEngineOptions = {
+export type CreateSyncEngineOptions = {
   connection?: OfflineConnection;
   mx: MatrixClient;
   /**
@@ -118,7 +118,7 @@ export type CreateMindroomSyncEngineOptions = {
    * mid-session scope change picks up on the next enqueue.
    *
    * ClientRoot wires this to a jotai store read of
-   * `mindroomSettingsAtom` (non-React accessor); tests default to
+   * `prefetchSettingsAtom` (non-React accessor); tests default to
    * `{ scope: 'my-server', ... }` so behavior is unchanged from the
    * pre-#5 hardcoded policy.
    */
@@ -131,7 +131,7 @@ const DEFAULT_PREFETCH_CONFIG: PrefetchConfig = {
   scope: DEFAULT_PREFETCH_SCOPE,
 };
 
-export const createMindroomSyncEngine = ({
+export const createSyncEngine = ({
   mx,
   writeThrough,
   gapTracker,
@@ -140,7 +140,7 @@ export const createMindroomSyncEngine = ({
   getPrefetchConfig,
   subscribePrefetchConfig,
   connection,
-}: CreateMindroomSyncEngineOptions): MindroomSyncEngine => {
+}: CreateSyncEngineOptions): SyncEngine => {
   const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
 
   const effectiveScheduler = scheduler ?? createBackfillScheduler({ mx });

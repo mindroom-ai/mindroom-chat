@@ -1,16 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  buildMindroomLongTextPreview,
-  clearMindroomLongTextHydrationCache,
-  getMindroomLongTextSource,
-  hasMindroomLongTextMetadata,
-  hydrateMindroomLongTextSource,
-  parseMindroomLongTextJsonSidecar,
+  buildLongTextPreview,
+  clearLongTextHydrationCache,
+  getLongTextSource,
+  hasLongTextMetadata,
+  hydrateLongTextSource,
+  parseLongTextJsonSidecar,
 } from './longText';
 import { MINDROOM_MESSAGE_EXTRAS_KEY } from './messageExtrasData';
 
 beforeEach(() => {
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
 });
 
 const expectDefined = <T>(value: T | undefined): T => {
@@ -21,12 +21,12 @@ const expectDefined = <T>(value: T | undefined): T => {
   return value;
 };
 
-describe('buildMindroomLongTextPreview', () => {
+describe('buildLongTextPreview', () => {
   it('previews the start of the text and keeps the routing', () => {
     const relation = { rel_type: 'm.thread', event_id: '$thread' };
     const mentions = { user_ids: ['@mindroom_writer:example.org'] };
 
-    const preview = buildMindroomLongTextPreview({
+    const preview = buildLongTextPreview({
       msgtype: 'm.text',
       body: 'x'.repeat(50_000),
       format: 'org.matrix.custom.html',
@@ -44,16 +44,16 @@ describe('buildMindroomLongTextPreview', () => {
 
   it('cuts the preview between characters', () => {
     // An emoji is two UTF-16 units; the 2000-unit cut would split the last one in half.
-    const preview = buildMindroomLongTextPreview({ body: `${'x'.repeat(1999)}${'😀'.repeat(10)}` });
+    const preview = buildLongTextPreview({ body: `${'x'.repeat(1999)}${'😀'.repeat(10)}` });
 
     expect(preview.body).toBe(`${'x'.repeat(1999)}\n\n[Message continues in attached file]`);
     expect(Object.keys(preview)).toEqual(['body']);
   });
 });
 
-describe('getMindroomLongTextSource', () => {
+describe('getLongTextSource', () => {
   it('ignores regular file events without long_text metadata', () => {
-    const source = getMindroomLongTextSource({
+    const source = getLongTextSource({
       msgtype: 'm.file',
       url: 'mxc://server/not-long-text',
       body: 'attachment.pdf',
@@ -63,7 +63,7 @@ describe('getMindroomLongTextSource', () => {
   });
 
   it('detects v2 unencrypted sidecar source from content.url', () => {
-    const source = getMindroomLongTextSource({
+    const source = getLongTextSource({
       msgtype: 'm.file',
       url: 'mxc://server/id',
       'io.mindroom.long_text': {
@@ -78,7 +78,7 @@ describe('getMindroomLongTextSource', () => {
   });
 
   it('detects v2 encrypted sidecar source from content.file.url', () => {
-    const source = getMindroomLongTextSource({
+    const source = getLongTextSource({
       msgtype: 'm.file',
       file: {
         url: 'mxc://server/encrypted',
@@ -99,7 +99,7 @@ describe('getMindroomLongTextSource', () => {
   });
 
   it('uses m.new_content when raw edit wrapper is provided', () => {
-    const source = getMindroomLongTextSource({
+    const source = getLongTextSource({
       'm.new_content': {
         msgtype: 'm.file',
         url: 'mxc://server/new-content',
@@ -120,7 +120,7 @@ describe('getMindroomLongTextSource', () => {
       version: 2,
       events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
     };
-    const source = getMindroomLongTextSource({
+    const source = getLongTextSource({
       'io.mindroom.tool_trace': toolTrace,
       'm.new_content': {
         body: 'Preview\n\n🔧 `run_shell_command` [1]',
@@ -138,10 +138,10 @@ describe('getMindroomLongTextSource', () => {
   });
 });
 
-describe('hasMindroomLongTextMetadata', () => {
+describe('hasLongTextMetadata', () => {
   it('detects long-text metadata without requiring a resolvable sidecar source', () => {
     expect(
-      hasMindroomLongTextMetadata({
+      hasLongTextMetadata({
         msgtype: 'm.text',
         body: 'placeholder',
         'io.mindroom.long_text': {
@@ -153,7 +153,7 @@ describe('hasMindroomLongTextMetadata', () => {
 
   it('detects metadata in raw edit wrappers', () => {
     expect(
-      hasMindroomLongTextMetadata({
+      hasLongTextMetadata({
         'm.new_content': {
           msgtype: 'm.text',
           body: 'placeholder',
@@ -167,7 +167,7 @@ describe('hasMindroomLongTextMetadata', () => {
 
   it('ignores regular message content', () => {
     expect(
-      hasMindroomLongTextMetadata({
+      hasLongTextMetadata({
         msgtype: 'm.text',
         body: 'normal',
       })
@@ -175,9 +175,9 @@ describe('hasMindroomLongTextMetadata', () => {
   });
 });
 
-describe('parseMindroomLongTextJsonSidecar', () => {
+describe('parseLongTextJsonSidecar', () => {
   it('parses sidecar json into content object', () => {
-    const parsed = parseMindroomLongTextJsonSidecar(
+    const parsed = parseLongTextJsonSidecar(
       JSON.stringify({
         msgtype: 'm.text',
         body: 'hello',
@@ -191,7 +191,7 @@ describe('parseMindroomLongTextJsonSidecar', () => {
   });
 
   it('extracts message content from event envelope payloads', () => {
-    const parsed = parseMindroomLongTextJsonSidecar(
+    const parsed = parseLongTextJsonSidecar(
       JSON.stringify({
         type: 'm.room.message',
         sender: '@bot:example.com',
@@ -209,7 +209,7 @@ describe('parseMindroomLongTextJsonSidecar', () => {
   });
 
   it('extracts the latest replacement content from debug snapshot payloads', () => {
-    const parsed = parseMindroomLongTextJsonSidecar(
+    const parsed = parseLongTextJsonSidecar(
       JSON.stringify({
         '<== MAIN_EVENT ==>': {
           content: {
@@ -241,7 +241,7 @@ describe('parseMindroomLongTextJsonSidecar', () => {
   });
 
   it('returns undefined for sidecar json without message content', () => {
-    const parsed = parseMindroomLongTextJsonSidecar(
+    const parsed = parseLongTextJsonSidecar(
       JSON.stringify({
         random: { payload: true },
       })
@@ -251,14 +251,14 @@ describe('parseMindroomLongTextJsonSidecar', () => {
   });
 
   it('returns undefined for invalid sidecar json', () => {
-    expect(parseMindroomLongTextJsonSidecar('{not-json')).toBeUndefined();
+    expect(parseLongTextJsonSidecar('{not-json')).toBeUndefined();
   });
 });
 
-describe('hydrateMindroomLongTextSource', () => {
+describe('hydrateLongTextSource', () => {
   it('hydrates v2 sidecar json and keeps tool-trace metadata', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         formatted_body: '<p>preview</p>',
@@ -270,7 +270,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(
+    const resolved = await hydrateLongTextSource(
       source,
       async () =>
         JSON.stringify({
@@ -305,7 +305,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('hydrates v2 edit wrapper payloads by rendering from m.new_content', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         url: 'mxc://server/edit-wrapper',
@@ -316,7 +316,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(
+    const resolved = await hydrateLongTextSource(
       source,
       async () =>
         JSON.stringify({
@@ -356,7 +356,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('preserves wrapper MindRoom extras when hydrated m.new_content omits them', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         url: 'mxc://server/edit-wrapper-extras',
@@ -377,7 +377,7 @@ describe('hydrateMindroomLongTextSource', () => {
       ],
     };
 
-    const resolved = await hydrateMindroomLongTextSource(
+    const resolved = await hydrateLongTextSource(
       source,
       async () =>
         JSON.stringify({
@@ -400,7 +400,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('falls back to wrapper body when m.new_content body is missing', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         url: 'mxc://server/edit-wrapper-fallback',
@@ -411,7 +411,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(
+    const resolved = await hydrateLongTextSource(
       source,
       async () =>
         JSON.stringify({
@@ -431,7 +431,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('falls back to preview content when sidecar fetch fails', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview body',
         url: 'mxc://server/preview',
@@ -442,7 +442,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(
+    const resolved = await hydrateLongTextSource(
       source,
       async () => {
         throw new Error('download failed');
@@ -456,7 +456,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('falls back to preview content when v2 sidecar json parsing fails', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview body',
         url: 'mxc://server/preview',
@@ -467,7 +467,7 @@ describe('hydrateMindroomLongTextSource', () => {
       })
     );
 
-    const resolved = await hydrateMindroomLongTextSource(source, async () => '{bad-json', {});
+    const resolved = await hydrateLongTextSource(source, async () => '{bad-json', {});
 
     expect(resolved).toBe(source.previewContent);
     expect(resolved.body).toBe('preview body');
@@ -475,7 +475,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('uses cache for repeated hydration of the same mxc uri', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview body',
         url: 'mxc://server/cached',
@@ -494,8 +494,8 @@ describe('hydrateMindroomLongTextSource', () => {
     );
 
     const cacheOwner = {};
-    const first = await hydrateMindroomLongTextSource(source, loadSidecarText, cacheOwner);
-    const second = await hydrateMindroomLongTextSource(source, loadSidecarText, cacheOwner);
+    const first = await hydrateLongTextSource(source, loadSidecarText, cacheOwner);
+    const second = await hydrateLongTextSource(source, loadSidecarText, cacheOwner);
 
     expect(loadSidecarText).toHaveBeenCalledTimes(1);
     expect(second).toBe(first);
@@ -503,7 +503,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('does not share hydrated plaintext between account clients', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview body',
         url: 'mxc://server/shared-id',
@@ -522,8 +522,8 @@ describe('hydrateMindroomLongTextSource', () => {
       JSON.stringify({ msgtype: 'm.text', body: 'account B plaintext' })
     );
 
-    const first = await hydrateMindroomLongTextSource(source, loadForAccountA, accountA);
-    const second = await hydrateMindroomLongTextSource(source, loadForAccountB, accountB);
+    const first = await hydrateLongTextSource(source, loadForAccountA, accountA);
+    const second = await hydrateLongTextSource(source, loadForAccountB, accountB);
 
     expect(first.body).toBe('account A plaintext');
     expect(second.body).toBe('account B plaintext');
@@ -534,7 +534,7 @@ describe('hydrateMindroomLongTextSource', () => {
   it('does not share plaintext across different encryption descriptors for one MXC URI', async () => {
     const makeEncryptedSource = (key: string) =>
       expectDefined(
-        getMindroomLongTextSource({
+        getLongTextSource({
           msgtype: 'm.file',
           body: 'preview body',
           file: {
@@ -558,12 +558,12 @@ describe('hydrateMindroomLongTextSource', () => {
       JSON.stringify({ msgtype: 'm.text', body: 'second descriptor plaintext' })
     );
 
-    const first = await hydrateMindroomLongTextSource(
+    const first = await hydrateLongTextSource(
       makeEncryptedSource('key-a'),
       firstLoader,
       cacheOwner
     );
-    const second = await hydrateMindroomLongTextSource(
+    const second = await hydrateLongTextSource(
       makeEncryptedSource('key-b'),
       secondLoader,
       cacheOwner
@@ -577,7 +577,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('coalesces concurrent downloads of the same sidecar into one fetch', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         url: 'mxc://server/coalesce',
@@ -597,8 +597,8 @@ describe('hydrateMindroomLongTextSource', () => {
     );
 
     // The prewarm pool and a mounting row race the same source: one fetch.
-    const first = hydrateMindroomLongTextSource(source, loader, cacheOwner);
-    const second = hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    const first = hydrateLongTextSource(source, loader, cacheOwner);
+    const second = hydrateLongTextSource(source, loader, cacheOwner);
     // The loader is deferred one microtask past in-flight registration.
     await Promise.resolve();
     expect(loader).toHaveBeenCalledTimes(1);
@@ -612,7 +612,7 @@ describe('hydrateMindroomLongTextSource', () => {
 
   it('retries after a failed download instead of pinning the failure in flight', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         url: 'mxc://server/retry',
@@ -628,17 +628,17 @@ describe('hydrateMindroomLongTextSource', () => {
       .mockRejectedValueOnce(new Error('offline'))
       .mockResolvedValueOnce(JSON.stringify({ msgtype: 'm.text', body: 'Recovered' }));
 
-    const failed = await hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    const failed = await hydrateLongTextSource(source, loader, cacheOwner);
     expect(failed).toBe(source.previewContent);
 
-    const recovered = await hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    const recovered = await hydrateLongTextSource(source, loader, cacheOwner);
     expect(recovered.body).toBe('Recovered');
     expect(loader).toHaveBeenCalledTimes(2);
   });
 
   it('retries after a SYNCHRONOUS loader throw instead of pinning the entry in flight', async () => {
     const source = expectDefined(
-      getMindroomLongTextSource({
+      getLongTextSource({
         msgtype: 'm.file',
         body: 'preview',
         url: 'mxc://server/sync-throw',
@@ -660,10 +660,10 @@ describe('hydrateMindroomLongTextSource', () => {
       })
       .mockResolvedValueOnce(JSON.stringify({ msgtype: 'm.text', body: 'Recovered' }));
 
-    const failed = await hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    const failed = await hydrateLongTextSource(source, loader, cacheOwner);
     expect(failed).toBe(source.previewContent);
 
-    const recovered = await hydrateMindroomLongTextSource(source, loader, cacheOwner);
+    const recovered = await hydrateLongTextSource(source, loader, cacheOwner);
     expect(recovered.body).toBe('Recovered');
     expect(loader).toHaveBeenCalledTimes(2);
   });

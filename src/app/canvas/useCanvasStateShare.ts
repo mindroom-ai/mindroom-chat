@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import { uploadMindroomLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
+import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import type { CanvasSaved } from '../messages/canvas/canvasDocument';
 import { contentBytes, MAX_EVENT_CONTENT_BYTES } from '../matrix/protocol/longText';
@@ -50,7 +50,7 @@ export function useCanvasStateShare(
       const event =
         contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
           ? content
-          : await uploadMindroomLongTextSidecar(mx, room, content, {
+          : await uploadLongTextSidecar(mx, room, content, {
               msgtype: 'm.notice',
               body: 'Canvas state',
               'm.relates_to': relation,

@@ -4,15 +4,15 @@ import {
   getRoomThreadExitTargetFromHistoryState,
   ROOM_THREAD_EXIT_TARGET_STATE_KEY,
 } from '../routes/roomNavigateState';
-import { navigateMindroomRoomThread } from './threadNavigation';
+import { navigateToRoomThread } from './threadNavigation';
 
-describe('navigateMindroomRoomThread', () => {
+describe('navigateToRoomThread', () => {
   it('seeds pushed thread opens with an exit target and persists it after navigation', () => {
     const navigateRoomThreadDirect = vi.fn();
     const scheduled: (() => void)[] = [];
     const historyState = { key: 'thread-navigation-test-pushed' };
 
-    navigateMindroomRoomThread({
+    navigateToRoomThread({
       roomId: '!room:example.org',
       threadId: '$thread',
       eventId: '$reply',
@@ -60,7 +60,7 @@ describe('navigateMindroomRoomThread', () => {
     const navigateRoomThreadDirect = vi.fn();
     const opts: NavigateOptions = { state: { source: 'test-suite' } };
 
-    navigateMindroomRoomThread({
+    navigateToRoomThread({
       roomId: '!room:example.org',
       threadId: '$thread',
       opts,
@@ -91,7 +91,7 @@ describe('navigateMindroomRoomThread', () => {
   it('marks native iOS thread opens to use the exact exit path instead of history back', () => {
     const navigateRoomThreadDirect = vi.fn();
 
-    navigateMindroomRoomThread({
+    navigateToRoomThread({
       roomId: '!room:example.org',
       threadId: '$thread',
       navigateRoomThreadDirect,
@@ -122,7 +122,7 @@ describe('navigateMindroomRoomThread', () => {
     const schedule = vi.fn();
     const opts: NavigateOptions = { replace: true };
 
-    navigateMindroomRoomThread({
+    navigateToRoomThread({
       roomId: '!room:example.org',
       threadId: '$thread',
       opts,

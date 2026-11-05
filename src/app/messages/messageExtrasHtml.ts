@@ -254,7 +254,7 @@ const hasUnsafeSvgUrlReference = (value: string): boolean => {
   return false;
 };
 
-export const sanitizeMindroomMessageExtraHtml = (html: string): string =>
+export const sanitizeMessageExtraHtml = (html: string): string =>
   sanitizeHtml(html, {
     allowedTags: [...allowedTags, ...svgTags],
     allowedAttributes: {

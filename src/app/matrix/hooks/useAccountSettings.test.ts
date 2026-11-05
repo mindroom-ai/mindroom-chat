@@ -1,7 +1,7 @@
 import { MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../../preferences/accountSettings';
-import { enqueueAccountSettingsPatch as enqueueMindroomAccountSettingsPatch } from './useAccountSettings';
+import { enqueueAccountSettingsPatch } from './useAccountSettings';
 
 const makeClient = (initial: Record<string, unknown>) => {
   let content = initial;
@@ -15,12 +15,12 @@ const makeClient = (initial: Record<string, unknown>) => {
   return { mx, setAccountData };
 };
 
-describe('enqueueMindroomAccountSettingsPatch', () => {
+describe('enqueueAccountSettingsPatch', () => {
   it('serializes same-turn patches and keeps the last value for each setting', async () => {
     const { mx, setAccountData } = makeClient({ showCanvasesInSidebar: false, futureKey: 'keep' });
 
-    const first = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: true });
-    const second = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: false });
+    const first = enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: true });
+    const second = enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: false });
     await Promise.all([first, second]);
 
     expect(setAccountData).toHaveBeenCalledTimes(2);
@@ -50,9 +50,9 @@ describe('enqueueMindroomAccountSettingsPatch', () => {
       setAccountData,
     } as unknown as MatrixClient;
 
-    const first = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: true });
+    const first = enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: true });
     await vi.waitFor(() => expect(setAccountData).toHaveBeenCalledTimes(1));
-    const second = enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: false });
+    const second = enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: false });
     releaseFirst?.();
     await Promise.all([first, second]);
 
@@ -68,10 +68,10 @@ describe('enqueueMindroomAccountSettingsPatch', () => {
     setAccountData.mockRejectedValueOnce(new Error('offline'));
 
     await expect(
-      enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: true })
+      enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: true })
     ).rejects.toThrow('offline');
     await expect(
-      enqueueMindroomAccountSettingsPatch(mx, { showCanvasesInSidebar: false })
+      enqueueAccountSettingsPatch(mx, { showCanvasesInSidebar: false })
     ).resolves.toBeUndefined();
 
     expect(setAccountData).toHaveBeenCalledTimes(2);

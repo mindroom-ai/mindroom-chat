@@ -185,7 +185,7 @@ export const getExpectedSessionDbNames = (session: SessionLike): string[] => {
   return names;
 };
 
-const findMindroomCacheDbNames = async (page: Page, dbPrefix: string): Promise<string[]> =>
+const findCacheDbNames = async (page: Page, dbPrefix: string): Promise<string[]> =>
   page.evaluate(async (prefix) => {
     const databases = await indexedDB.databases();
     return databases
@@ -256,7 +256,7 @@ export const readThreadEventCacheRecords = async (
     bundledReplaceBody?: string;
   }[]
 > => {
-  const dbNames = await findMindroomCacheDbNames(page, UNIFIED_CACHE_DB_PREFIX);
+  const dbNames = await findCacheDbNames(page, UNIFIED_CACHE_DB_PREFIX);
   const records = await readStoreRecords(page, dbNames, UNIFIED_EVENTS_STORE);
   return records
     .filter((record) => record.roomId === roomId && record.scope === threadId)
@@ -285,7 +285,7 @@ export const readThreadEventCacheRecords = async (
 };
 
 export const readRoomEventCacheEventIds = async (page: Page, roomId: string): Promise<string[]> => {
-  const dbNames = await findMindroomCacheDbNames(page, UNIFIED_CACHE_DB_PREFIX);
+  const dbNames = await findCacheDbNames(page, UNIFIED_CACHE_DB_PREFIX);
   const records = await readStoreRecords(page, dbNames, UNIFIED_EVENTS_STORE);
   return records
     .filter((record) => record.roomId === roomId && record.scope === '')

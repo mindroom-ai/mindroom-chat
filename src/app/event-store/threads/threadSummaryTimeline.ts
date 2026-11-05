@@ -1,8 +1,8 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
 import { reactionOrEditEvent } from '../../matrix/room';
 import {
-  getMindroomThreadSummaryInfo,
-  isMindroomThreadSummaryEvent,
+  getThreadSummaryInfo,
+  isThreadSummaryEvent,
 } from '../../matrix/protocol/threadSummary';
 
 export type ThreadSummaryMarkerPlan = {
@@ -55,10 +55,10 @@ export const planThreadSummaryTimeline = (
   events.forEach((event) => {
     const eventId = event.getId();
     // Edits, reactions and ignored senders have no row of their own.
-    if (!eventId || reactionOrEditEvent(event) || !isMindroomThreadSummaryEvent(event)) return;
+    if (!eventId || reactionOrEditEvent(event) || !isThreadSummaryEvent(event)) return;
     if (ignoredUserIds?.has(event.getSender() ?? '')) return;
     // Parse as the timeline row does, so only rows that would show a marker are planned.
-    const summaryText = getMindroomThreadSummaryInfo(getContent(event))?.summaryText;
+    const summaryText = getThreadSummaryInfo(getContent(event))?.summaryText;
     if (!summaryText) return;
 
     const repeated = summaryText === previousSummaryText;

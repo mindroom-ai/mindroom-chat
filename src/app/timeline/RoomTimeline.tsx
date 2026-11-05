@@ -28,10 +28,10 @@ import { MessageLayout, settingsAtom } from '../preferences/settings';
 import { getEditedEvent, getLatestMessageContent } from '../matrix/room';
 import { RoomIntro } from './RoomIntro';
 import { InsetScrollbar } from '../ui/InsetScrollbar';
-import { mindroomSettingsAtom } from '../event-store/engine/prefetchSettings';
+import { prefetchSettingsAtom } from '../event-store/engine/prefetchSettings';
 import { sanitizePrefetchDepth } from '../event-store/engine/prefetchPolicy';
-import { scheduleReconcile, useMindroomSyncEngine } from '../event-store/engine';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import { scheduleReconcile, useSyncEngine } from '../event-store/engine';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
@@ -88,7 +88,7 @@ import { useThreadOverviewResumeController } from '../threads/overview/threadOve
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
 import { useThreadOverviewRefreshCounter } from '../threads/overview/threadOverviewRefreshCounter';
 import { useTimelineDebugTraceIds } from './timelineDebugController';
-import { useMindroomThreadIndex } from '../threads/overview/useThreadIndex';
+import { useThreadIndex } from '../threads/overview/useThreadIndex';
 import { useRoomThreadResolutionMap } from '../threads/tags/useRoomThreadTags';
 import { useThreadTimelineState } from './useThreadTimelineState';
 import { useThreadSession } from '../threads/open/useThreadSession';
@@ -161,7 +161,7 @@ export type RoomTimelineProps = {
   threadId?: string;
   /** Show a permalinked thread root in the room instead of opening its thread. */
   focusEventInRoom?: boolean;
-  summaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
+  summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   onStoreThreadSummary: ThreadSummaryWriter;
   threadFilterState: ThreadFilterState;
   /** The filter bar's sort lock: the room's thread order as it was when the reader locked it. */
@@ -211,7 +211,7 @@ const useTimelineDisplaySettings = () => ({
   messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
   showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
   hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
-  prefetchDepth: sanitizePrefetchDepth(useSettingValue(mindroomSettingsAtom, 'prefetchDepth')),
+  prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
 
 /**
@@ -240,7 +240,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   } = props;
   const mx = useMatrixClient();
   const alive = useAlive();
-  const engine = useMindroomSyncEngine();
+  const engine = useSyncEngine();
   const { sessionId } = engine;
   const { t } = useTranslation();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
@@ -400,7 +400,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   const threadResolutionMap = useRoomThreadResolutionMap(room);
-  const threadIndex = useMindroomThreadIndex({
+  const threadIndex = useThreadIndex({
     room,
     threadId,
     eventId,
@@ -423,7 +423,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     mx,
     onStoreThreadSummary: onStoreThreadSummary as (
       threadRootId: string,
-      info: MindroomThreadSummaryInfo | undefined
+      info: ThreadSummaryInfo | undefined
     ) => void,
   });
 
@@ -1064,7 +1064,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     mx,
     onStoreThreadSummary: onStoreThreadSummary as (
       threadRootId: string,
-      info: MindroomThreadSummaryInfo | undefined
+      info: ThreadSummaryInfo | undefined
     ) => void,
     onApplyThreadRelations: threadIndex.applyThreadOverviewRelationEvents,
     beginThreadCacheWrite,

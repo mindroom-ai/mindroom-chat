@@ -11,7 +11,7 @@ import React, {
 import { MatrixEvent, MatrixEventEvent, Room, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { enqueueThreadApprovalBackfill, useMindroomSyncEngine } from '../event-store/engine';
+import { enqueueThreadApprovalBackfill, useSyncEngine } from '../event-store/engine';
 import { useLiveEventArrive } from '../event-store/timeline/roomLiveEventArrive';
 import { collectKnownRedactedEventIds } from '../matrix/eventRevision';
 import {
@@ -86,7 +86,7 @@ function ActiveThreadApprovalProvider({
 }) {
   const mx = useMatrixClient();
   const ignoredUsers = useIgnoredUsers();
-  const { scheduler, persist } = useMindroomSyncEngine();
+  const { scheduler, persist } = useSyncEngine();
   const timelineEvents = useRef<readonly MatrixEvent[]>([]);
   const [history, setHistory] = useState(() =>
     mergeThreadApprovalEvents(

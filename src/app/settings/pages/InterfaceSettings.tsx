@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { MindroomInterfaceSettings } from './AgentInterfaceSettings';
+import { AgentInterfaceSettings } from './AgentInterfaceSettings';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 
@@ -9,7 +9,7 @@ export function Sidebar({ requestClose }: SettingsPageProps) {
 
   return (
     <SettingsPageFrame title={t('featureUi.settings.sidebar.title')} requestClose={requestClose}>
-      <MindroomInterfaceSettings className={SequenceCardStyle} />
+      <AgentInterfaceSettings className={SequenceCardStyle} />
     </SettingsPageFrame>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  estimateMindroomTextMessageContentBytes,
+  estimateTextMessageContentBytes,
   shouldConvertPasteToAttachment,
 } from './pasteAttachment';
 
@@ -26,10 +26,10 @@ describe('pasteAttachment', () => {
   });
 
   it('accounts for formatted body overhead when present', () => {
-    const plainOnlyBytes = estimateMindroomTextMessageContentBytes({
+    const plainOnlyBytes = estimateTextMessageContentBytes({
       body: `${'a'.repeat(40)}${'b'.repeat(40)}`,
     });
-    const formattedBytes = estimateMindroomTextMessageContentBytes({
+    const formattedBytes = estimateTextMessageContentBytes({
       body: `${'a'.repeat(40)}${'b'.repeat(40)}`,
       formattedBody: `${'<strong>a</strong>'.repeat(40)}${'b'.repeat(40)}`,
     });
@@ -52,7 +52,7 @@ describe('pasteAttachment', () => {
         currentFormattedBody: '',
         pastedText: 'x'.repeat(40),
         includeFormattedPaste: true,
-        budgetBytes: estimateMindroomTextMessageContentBytes({ body: 'x'.repeat(40) }) + 1,
+        budgetBytes: estimateTextMessageContentBytes({ body: 'x'.repeat(40) }) + 1,
       })
     ).toBe(true);
   });

@@ -1,4 +1,4 @@
-import type { MindroomThreadSummaryInfo } from '../../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../../matrix/protocol/threadSummary';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   openCacheStore,
@@ -19,7 +19,7 @@ export const saveCachedThreadSummary = async (
   sessionId: string,
   roomId: string,
   threadRootId: string,
-  info: MindroomThreadSummaryInfo
+  info: ThreadSummaryInfo
 ): Promise<void> => {
   const lease = captureCacheStoreWriteLease(sessionId, roomId);
   // ISSUE-207 P2.3: cache health gate — same choke-point pattern as
@@ -66,12 +66,12 @@ export const saveCachedThreadSummary = async (
 export const loadCachedThreadSummaries = async (
   sessionId: string,
   roomId: string
-): Promise<Map<string, MindroomThreadSummaryInfo>> => {
-  const result = new Map<string, MindroomThreadSummaryInfo>();
+): Promise<Map<string, ThreadSummaryInfo>> => {
+  const result = new Map<string, ThreadSummaryInfo>();
   const db = await openCacheStore(sessionId);
   if (!db) return result;
 
-  return new Promise<Map<string, MindroomThreadSummaryInfo>>((resolve, reject) => {
+  return new Promise<Map<string, ThreadSummaryInfo>>((resolve, reject) => {
     const transaction = db.transaction(THREAD_SUMMARIES_STORE, 'readonly');
     const store = transaction.objectStore(THREAD_SUMMARIES_STORE);
     const index = store.index(THREAD_SUMMARIES_BY_ROOM_INDEX);

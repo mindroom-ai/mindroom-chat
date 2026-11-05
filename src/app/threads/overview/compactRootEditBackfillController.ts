@@ -9,7 +9,7 @@ import {
 import to from 'await-to-js';
 import type { PersistRoomEventCache } from '../../event-store/engine/enginePersistFacade';
 import { getLatestEdit } from '../../matrix/room';
-import { logMindroomEditDebug as logEditDebug } from '../../matrix/protocol/editDebug';
+import { logEditDebug } from '../../matrix/protocol/editDebug';
 import { markThreadEditBackfillAttempted } from '../../event-store/threads/threadEditBackfill';
 import { getCompactRootEventsNeedingBackfill } from '../open/threadBootstrap';
 

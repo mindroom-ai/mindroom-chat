@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore } from 'jotai';
 import { getRoomInputDraftKey, roomIdToMsgDraftAtomFamily } from '../../composer/roomInputDrafts';
-import { clearMindroomLongTextHydrationCache } from '../../matrix/protocol/longText';
+import { clearLongTextHydrationCache } from '../../matrix/protocol/longText';
 import { clearAttachmentRepositoryMemory } from '../../event-store/cache/attachmentRepository';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
@@ -21,16 +21,16 @@ import {
 } from '../../event-store/cache/db';
 import {
   MINDROOM_SINGLETON_INDEXED_DB_NAMES,
-  clearMindroomInMemoryCaches,
-  clearMindroomSessionNativeState,
-  clearMindroomSessionUiState,
-  clearMindroomUserUiState,
-  deleteMindroomSessionCaches,
-  getMindroomSessionIndexedDbNames,
+  clearInMemoryCaches,
+  clearSessionNativeState,
+  clearSessionUiState,
+  clearUserUiState,
+  deleteSessionCaches,
+  getSessionIndexedDbNames,
 } from './sessionCleanup';
 
 vi.mock('../../matrix/protocol/longText', () => ({
-  clearMindroomLongTextHydrationCache: vi.fn(),
+  clearLongTextHydrationCache: vi.fn(),
 }));
 
 vi.mock('../../event-store/cache/attachmentRepository', () => ({
@@ -54,7 +54,7 @@ it('removes only the logged-out account composer drafts from storage and memory'
   const draft = [{ type: 'paragraph' as const, children: [{ text: 'Private draft' }] }];
   store.set(roomIdToMsgDraftAtomFamily(aliceKey), draft);
   store.set(roomIdToMsgDraftAtomFamily(bobKey), draft);
-  clearMindroomUserUiState('@draft-alice:example.org');
+  clearUserUiState('@draft-alice:example.org');
   expect(values.size).toBe(1);
   expect(store.get(roomIdToMsgDraftAtomFamily(aliceKey))).toEqual([]);
   expect(store.get(roomIdToMsgDraftAtomFamily(bobKey))).toEqual(draft);
@@ -158,7 +158,7 @@ describe('MindRoom session cleanup', () => {
   });
 
   it('derives session-scoped MindRoom IndexedDB names', () => {
-    expect(getMindroomSessionIndexedDbNames('session-a')).toEqual([
+    expect(getSessionIndexedDbNames('session-a')).toEqual([
       'thread-cache::session-a',
       'room-cache::session-a',
       'summary-cache::session-a',
@@ -171,7 +171,7 @@ describe('MindRoom session cleanup', () => {
   });
 
   it('deletes the unified DB plus every legacy per-session DB together', async () => {
-    await deleteMindroomSessionCaches('session-a');
+    await deleteSessionCaches('session-a');
 
     // The unified deleteCacheStoreDb still gets called through the store
     // API. Every legacy per-session DB is deleted directly via the
@@ -198,7 +198,7 @@ describe('MindRoom session cleanup', () => {
       }),
     };
 
-    await expect(deleteMindroomSessionCaches('session-a')).resolves.toBeUndefined();
+    await expect(deleteSessionCaches('session-a')).resolves.toBeUndefined();
 
     expect(vi.mocked(deleteCacheStoreDb)).toHaveBeenCalledWith('session-a');
     expect(deleteCalls.sort()).toEqual(
@@ -210,10 +210,10 @@ describe('MindRoom session cleanup', () => {
     const removeItem = vi.fn();
     vi.stubGlobal('localStorage', { removeItem });
 
-    clearMindroomUserUiState('@alice:example.com');
-    clearMindroomSessionUiState('session-a');
-    clearMindroomSessionNativeState('session-a');
-    clearMindroomInMemoryCaches();
+    clearUserUiState('@alice:example.com');
+    clearSessionUiState('session-a');
+    clearSessionNativeState('session-a');
+    clearInMemoryCaches();
 
     vi.unstubAllGlobals();
 
@@ -230,7 +230,7 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearRoomViewModeStore)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearThreadSummarySharedState)).toHaveBeenCalledWith('session-a');
     expect(vi.mocked(clearIOSPushState)).toHaveBeenCalledWith('session-a');
-    expect(vi.mocked(clearMindroomLongTextHydrationCache)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(clearLongTextHydrationCache)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(clearAttachmentRepositoryMemory)).toHaveBeenCalledTimes(1);
   });
 });

@@ -76,8 +76,8 @@ vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => ({}) }));
 // teardown is what these tests follow.
 vi.mock('./useBindAtoms', () => ({ useBindAtoms: vi.fn() }));
 vi.mock('../event-store/engine', () => ({
-  createMindroomSyncEngine: ({ mx }: { mx: unknown }) => ({ mx, start: vi.fn(), stop: vi.fn() }),
-  MindroomSyncEngineProvider: ({ children }: { children: React.ReactNode }) => children,
+  createSyncEngine: ({ mx }: { mx: unknown }) => ({ mx, start: vi.fn(), stop: vi.fn() }),
+  SyncEngineProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const ROOM_ID = '!shared:example.org';

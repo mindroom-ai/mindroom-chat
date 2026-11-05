@@ -5,8 +5,8 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../../matrix/types/common';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { trimReplyFromBody } from '../../matrix/room';
-import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMindroomMessageExtras } from '../../matrix/protocol/messageExtrasData';
-import { clearMindroomLongTextHydrationCache, MindroomLongTextSource } from '../../matrix/protocol/longText';
+import { MINDROOM_MESSAGE_EXTRAS_KEY, parseMessageExtras } from '../../matrix/protocol/messageExtrasData';
+import { clearLongTextHydrationCache, LongTextSource } from '../../matrix/protocol/longText';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const matrixMocks = vi.hoisted(() => ({
@@ -36,7 +36,7 @@ vi.mock('../../matrix/protocol/longText', async () => {
   const actual = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
   return {
     ...actual,
-    hydrateMindroomLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
+    hydrateLongTextSource: longTextMocks.hydrateMindroomLongTextSource,
   };
 });
 vi.mock('./FallbackContent', () => ({
@@ -146,45 +146,45 @@ vi.mock('../../timeline/CollapsibleMessage.css', () => ({
   CollapsiblePill: 'collapsible-pill',
 }));
 vi.mock('../MessageExtras', () => ({
-  MindroomMessageExtras: () => null,
+  MessageExtras: () => null,
 }));
 vi.mock('./PasteAttachmentContent', () => ({
-  MindroomPasteAttachmentContent: () => null,
+  PasteAttachmentContent: () => null,
 }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({
-  MindroomThinkingPlaceholder: () => null,
+  ThinkingPlaceholder: () => null,
 }));
 vi.mock('../agent-run/TranscribingPlaceholder', () => ({
-  MindroomTranscribingPlaceholder: () => null,
+  TranscribingPlaceholder: () => null,
 }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
   ThreadSummaryCard: () => null,
 }));
 vi.mock('../../approvals/ToolApprovalCard', () => ({
-  MindroomToolApprovalCard: () => null,
+  ToolApprovalCard: () => null,
 }));
 vi.mock('../agent-run/StreamingIndicator', () => ({
-  renderMindroomStreamingIndicator: () => null,
+  renderStreamingIndicator: () => null,
 }));
 vi.mock('./messageStateSuffix', () => ({
-  getMindroomMessageStateSuffixRenderer: () => undefined,
+  getMessageStateSuffixRenderer: () => undefined,
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => hookMocks.mx,
 }));
 
-const getDownloadMindroomLongTextSidecarText = async () =>
-  (await import('./longTextDownload')).downloadMindroomLongTextSidecarText;
-const getDownloadMindroomLongTextSidecarBlob = async () =>
-  (await import('./longTextDownload')).downloadMindroomLongTextSidecarBlob;
-const getMindroomLongTextTextModule = async () => import('./LongTextText');
+const getDownloadLongTextSidecarText = async () =>
+  (await import('./longTextDownload')).downloadLongTextSidecarText;
+const getDownloadLongTextSidecarBlob = async () =>
+  (await import('./longTextDownload')).downloadLongTextSidecarBlob;
+const getLongTextTextModule = async () => import('./LongTextText');
 const getShouldResetResolvedContentToPreview = async () =>
   (await import('./LongTextText')).shouldResetResolvedContentToPreview;
 const mockMx = hookMocks.mx as MatrixClient;
 
 const createLongTextSource = (
-  overrides: Partial<MindroomLongTextSource> = {}
-): MindroomLongTextSource => ({
+  overrides: Partial<LongTextSource> = {}
+): LongTextSource => ({
   previewContent: {
     msgtype: 'm.file',
     'io.mindroom.long_text': { version: 2, encoding: 'matrix_event_content_json' },
@@ -216,18 +216,18 @@ const createDeferred = <T>() => {
   return { promise, resolve };
 };
 
-const renderMindroomLongTextText = async (
+const renderLongTextText = async (
   content: Record<string, unknown>
 ): Promise<{
   renderer: ReactTestRenderer;
   update: (nextContent: Record<string, unknown>) => Promise<void>;
 }> => {
-  const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+  const { LongTextKind, LongTextText } = await getLongTextTextModule();
   let renderer!: ReactTestRenderer;
 
   const render = (nextContent: Record<string, unknown>) =>
-    React.createElement(MindroomLongTextText, {
-      kind: MindroomLongTextKind.Text,
+    React.createElement(LongTextText, {
+      kind: LongTextKind.Text,
       content: nextContent,
       longTextSource: createLongTextSource({ previewContent: nextContent }),
       renderBody: () => null,
@@ -248,14 +248,14 @@ const renderMindroomLongTextText = async (
 };
 
 const renderResolvedContentProbe = async (
-  source: MindroomLongTextSource | undefined,
+  source: LongTextSource | undefined,
   enabled: boolean
 ): Promise<{
   onResolvedContent: ReturnType<typeof vi.fn>;
   renderer: ReactTestRenderer;
-  update: (nextSource: MindroomLongTextSource | undefined, nextEnabled: boolean) => Promise<void>;
+  update: (nextSource: LongTextSource | undefined, nextEnabled: boolean) => Promise<void>;
 }> => {
-  const { useMindroomLongTextResolvedContent } = await getMindroomLongTextTextModule();
+  const { useLongTextResolvedContent } = await getLongTextTextModule();
   const onResolvedContent = vi.fn();
   let renderer!: ReactTestRenderer;
 
@@ -263,10 +263,10 @@ const renderResolvedContentProbe = async (
     nextSource,
     nextEnabled,
   }: {
-    nextSource: MindroomLongTextSource | undefined;
+    nextSource: LongTextSource | undefined;
     nextEnabled: boolean;
   }) => {
-    const resolvedContent = useMindroomLongTextResolvedContent(nextSource, nextEnabled);
+    const resolvedContent = useLongTextResolvedContent(nextSource, nextEnabled);
 
     React.useEffect(() => {
       onResolvedContent(resolvedContent);
@@ -275,7 +275,7 @@ const renderResolvedContentProbe = async (
     return null;
   };
 
-  const render = (nextSource: MindroomLongTextSource | undefined, nextEnabled: boolean) =>
+  const render = (nextSource: LongTextSource | undefined, nextEnabled: boolean) =>
     React.createElement(Probe, { nextSource, nextEnabled });
 
   await act(async () => {
@@ -294,17 +294,17 @@ const renderResolvedContentProbe = async (
 };
 
 const renderResolvedContentDomProbe = async (
-  source: MindroomLongTextSource | undefined,
+  source: LongTextSource | undefined,
   enabled: boolean
 ): Promise<{
   getProbeText: () => string;
   renderer: ReactTestRenderer;
   update: (
-    nextSource: MindroomLongTextSource | undefined,
+    nextSource: LongTextSource | undefined,
     nextEnabled: boolean
   ) => Promise<{ renderPhaseValues: (Record<string, unknown> | undefined)[] }>;
 }> => {
-  const { useMindroomLongTextResolvedContent } = await getMindroomLongTextTextModule();
+  const { useLongTextResolvedContent } = await getLongTextTextModule();
   let renderer!: ReactTestRenderer;
   const renderPhaseValues: (Record<string, unknown> | undefined)[] = [];
 
@@ -312,10 +312,10 @@ const renderResolvedContentDomProbe = async (
     nextSource,
     nextEnabled,
   }: {
-    nextSource: MindroomLongTextSource | undefined;
+    nextSource: LongTextSource | undefined;
     nextEnabled: boolean;
   }) => {
-    const resolvedContent = useMindroomLongTextResolvedContent(nextSource, nextEnabled);
+    const resolvedContent = useLongTextResolvedContent(nextSource, nextEnabled);
     renderPhaseValues.push(resolvedContent);
 
     return React.createElement(
@@ -325,7 +325,7 @@ const renderResolvedContentDomProbe = async (
     );
   };
 
-  const render = (nextSource: MindroomLongTextSource | undefined, nextEnabled: boolean) =>
+  const render = (nextSource: LongTextSource | undefined, nextEnabled: boolean) =>
     React.createElement(Probe, { nextSource, nextEnabled });
 
   const getProbeText = () => {
@@ -384,7 +384,7 @@ importBeforeTests(async () => {
   await import('./renderAgentMessageContent');
 });
 
-describe('downloadMindroomLongTextSidecarText', () => {
+describe('downloadLongTextSidecarText', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     reportVersions(['v1.11']);
@@ -398,7 +398,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
   });
 
   it('downloads unencrypted sidecar content through shared transport', async () => {
-    const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
     // A homeserver without authenticated media gets the legacy URL.
     reportVersions([]);
     matrixMocks.networkBody.mockResolvedValue(
@@ -407,7 +407,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       })
     );
 
-    const text = await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
+    const text = await downloadLongTextSidecarText(mockMx, createLongTextSource());
 
     expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', false);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(
@@ -418,7 +418,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
   });
 
   it('authenticates unencrypted sidecar downloads without relying on the service worker', async () => {
-    const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
     const mediaUrl = 'https://example.org/_matrix/client/v1/media/download/server/content';
     matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
     Object.assign(hookMocks.mx, {
@@ -431,7 +431,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       })
     );
 
-    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
+    await downloadLongTextSidecarText(mockMx, createLongTextSource());
 
     expect(matrixMocks.mxcUrlToHttp).toHaveBeenCalledWith(mockMx, 'mxc://server/content', true);
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl, {
@@ -440,7 +440,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
   });
 
   it('does not send the access token to a media URL outside the homeserver', async () => {
-    const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
     const mediaUrl = 'https://media.example.net/_matrix/client/v1/media/download/server/content';
     matrixMocks.mxcUrlToHttp.mockReturnValue(mediaUrl);
     Object.assign(hookMocks.mx, {
@@ -451,18 +451,18 @@ describe('downloadMindroomLongTextSidecarText', () => {
       new Blob(['{"msgtype":"m.text","body":"body"}'], { type: 'application/json' })
     );
 
-    await downloadMindroomLongTextSidecarText(mockMx, createLongTextSource());
+    await downloadLongTextSidecarText(mockMx, createLongTextSource());
 
     expect(matrixMocks.networkBody).toHaveBeenCalledWith(mediaUrl);
   });
 
   it('downloads sidecar blob for unencrypted content', async () => {
-    const downloadMindroomLongTextSidecarBlob = await getDownloadMindroomLongTextSidecarBlob();
+    const downloadLongTextSidecarBlob = await getDownloadLongTextSidecarBlob();
     reportVersions([]);
     const blob = new Blob(['raw-content'], { type: 'application/json' });
     matrixMocks.networkBody.mockResolvedValue(blob);
 
-    const downloadedBlob = await downloadMindroomLongTextSidecarBlob(
+    const downloadedBlob = await downloadLongTextSidecarBlob(
       mockMx,
       createLongTextSource(),
       true
@@ -477,7 +477,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
   });
 
   it('downloads encrypted sidecar cipher bytes and decrypts only the consumer blob', async () => {
-    const downloadMindroomLongTextSidecarText = await getDownloadMindroomLongTextSidecarText();
+    const downloadLongTextSidecarText = await getDownloadLongTextSidecarText();
     const encryptedFile: IEncryptedFile = {
       url: 'mxc://server/encrypted',
       key: { kty: 'oct', k: 'abc', alg: 'A256CTR', key_ops: ['encrypt', 'decrypt'] },
@@ -501,7 +501,7 @@ describe('downloadMindroomLongTextSidecarText', () => {
       new Blob([new Uint8Array(32)], { type: 'application/octet-stream' })
     );
 
-    const text = await downloadMindroomLongTextSidecarText(
+    const text = await downloadLongTextSidecarText(
       mockMx,
       createLongTextSource({
         previewContent: {
@@ -583,12 +583,12 @@ describe('shouldResetResolvedContentToPreview', () => {
   });
 });
 
-describe('MindroomLongTextText hydration identity', () => {
+describe('LongTextText hydration identity', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // A warm real cache now short-circuits the mocked hydrate entirely, so
     // every test starts cold unless it warms the cache itself.
-    clearMindroomLongTextHydrationCache();
+    clearLongTextHydrationCache();
     longTextMocks.hydrateMindroomLongTextSource.mockResolvedValue({
       body: 'Resolved response',
       msgtype: 'm.text',
@@ -596,13 +596,13 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('defers sidecar hydration until hydration is enabled', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const content = createPreviewContent();
     let renderer!: ReactTestRenderer;
 
     const render = (hydrate: boolean) =>
-      React.createElement(MindroomLongTextText, {
-        kind: MindroomLongTextKind.Text,
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
         hydrate,
         content,
         longTextSource: createLongTextSource({ previewContent: content }),
@@ -640,12 +640,12 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('renders prewarmed sidecar content on the first paint without a preview flash', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
     // Warm the REAL cache the way the prewarm pool does.
     const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
-    await actualLongText.hydrateMindroomLongTextSource(
+    await actualLongText.hydrateLongTextSource(
       source,
       async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
       mockMx
@@ -654,8 +654,8 @@ describe('MindroomLongTextText hydration identity', () => {
 
     // No act(): this inspects the FIRST render, before any effect runs.
     const renderer = create(
-      React.createElement(MindroomLongTextText, {
-        kind: MindroomLongTextKind.Text,
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
         content,
         longTextSource: source,
         renderBody: (_content, props) => props.body,
@@ -678,11 +678,11 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('shows warm content on the render that enables hydration, before effects run', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const content = createPreviewContent();
     const source = createLongTextSource({ previewContent: content });
     const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
-    await actualLongText.hydrateMindroomLongTextSource(
+    await actualLongText.hydrateLongTextSource(
       source,
       async () => JSON.stringify({ msgtype: 'm.text', body: 'Full prewarmed response' }),
       mockMx
@@ -690,8 +690,8 @@ describe('MindroomLongTextText hydration identity', () => {
     longTextMocks.hydrateMindroomLongTextSource.mockClear();
 
     const render = (hydrate: boolean) =>
-      React.createElement(MindroomLongTextText, {
-        kind: MindroomLongTextKind.Text,
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
         hydrate,
         content,
         longTextSource: source,
@@ -726,7 +726,7 @@ describe('MindroomLongTextText hydration identity', () => {
 
   it('renders hydrated Markdown and a tool card while the real message stays collapsed', async () => {
     const { CollapsibleMessage } = await import('../../timeline/CollapsibleMessage');
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = createPreviewContent();
     const toolTrace = {
       version: 2,
@@ -773,7 +773,7 @@ describe('MindroomLongTextText hydration identity', () => {
               CollapsibleMessage,
               { collapseMode: 'default', forceOverflowing: true },
               ({ loadFullContent }) =>
-                renderMindroomMessageContent({
+                renderAgentMessageContent({
                   displayName: 'MindRoom',
                   msgType: 'm.text',
                   content,
@@ -830,7 +830,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('renders preview Markdown and groups consecutive tool cards before long-text hydration', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: [
@@ -852,7 +852,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -880,7 +880,7 @@ describe('MindroomLongTextText hydration identity', () => {
   it.each(['resolved', 'unavailable'])(
     'keeps preview tool calls grouped while details become %s',
     async (outcome) => {
-      const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+      const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
       const deferred = createDeferred<Record<string, unknown>>();
       longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(deferred.promise);
       const content = {
@@ -893,7 +893,7 @@ describe('MindroomLongTextText hydration identity', () => {
           React.createElement(
             ClientConfigProvider,
             { value: {} },
-            renderMindroomMessageContent({
+            renderAgentMessageContent({
               displayName: 'MindRoom',
               msgType: 'm.text',
               content,
@@ -961,7 +961,7 @@ describe('MindroomLongTextText hydration identity', () => {
   );
 
   it('keeps narrative boundaries and code examples outside preview tool groups', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: [
@@ -986,7 +986,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1016,13 +1016,13 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('keeps tool details loading on the first render when a cold row becomes visible', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     longTextMocks.hydrateMindroomLongTextSource.mockReturnValue(createDeferred().promise);
     const content = createPreviewContent();
     const statuses: string[] = [];
     const render = (hydrate: boolean) =>
-      React.createElement(MindroomLongTextText, {
-        kind: MindroomLongTextKind.Text,
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
         content,
         hydrate,
         longTextSource: createLongTextSource({ previewContent: content }),
@@ -1051,7 +1051,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('renders a root tool card after escaped multi-character inline syntax', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: ['Use \\~~literal~~.', '', '🔧 `run_shell_command` [1]'].join('\n'),
@@ -1063,7 +1063,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1085,7 +1085,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('keeps a list-contained tool marker prefix literal before long-text hydration', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: '- 🔧 `foo\\`bar` [1] trailing text',
@@ -1097,7 +1097,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1122,7 +1122,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('keeps span-wrapped list-contained tool markers literal before hydration', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: [
@@ -1141,7 +1141,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1164,7 +1164,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('does not expose added escapes in a list-contained tool marker', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: '- 🔧 \\`tool\\` [1]',
@@ -1176,7 +1176,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1200,7 +1200,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('keeps a reply-only long-text preview empty before hydration', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const content = {
       ...createPreviewContent(),
       body: '> <@alice:example.org> Previous reply\n\n',
@@ -1212,7 +1212,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1234,7 +1234,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('trims a reply fallback only once when preview formatting falls back', async () => {
-    const { renderMindroomMessageContent } = await import('./renderAgentMessageContent');
+    const { renderAgentMessageContent } = await import('./renderAgentMessageContent');
     const documentBody = [
       'Intro paragraph',
       '',
@@ -1253,7 +1253,7 @@ describe('MindroomLongTextText hydration identity', () => {
         React.createElement(
           ClientConfigProvider,
           { value: {} },
-          renderMindroomMessageContent({
+          renderAgentMessageContent({
             displayName: 'MindRoom',
             msgType: 'm.text',
             content,
@@ -1277,7 +1277,7 @@ describe('MindroomLongTextText hydration identity', () => {
 
   it('does not restart hydration for equivalent preview content with a new object reference', async () => {
     const content = createPreviewContent();
-    const { renderer, update } = await renderMindroomLongTextText(content);
+    const { renderer, update } = await renderLongTextText(content);
 
     expect(longTextMocks.hydrateMindroomLongTextSource).toHaveBeenCalledTimes(1);
 
@@ -1297,7 +1297,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('keeps preview extras available when hydrated content omits them', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const previewContent = {
       ...createPreviewContent(),
       [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('preview extra'),
@@ -1309,8 +1309,8 @@ describe('MindroomLongTextText hydration identity', () => {
 
     await act(async () => {
       renderer = create(
-        React.createElement(MindroomLongTextText, {
-          kind: MindroomLongTextKind.Text,
+        React.createElement(LongTextText, {
+          kind: LongTextKind.Text,
           content: previewContent,
           longTextSource: createLongTextSource({ previewContent }),
           renderBody: (_content, props) => props.body,
@@ -1349,7 +1349,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('prefers live extras over stale hydrated extras when only extras change', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const previewContent = {
       ...createPreviewContent(),
       [MINDROOM_MESSAGE_EXTRAS_KEY]: createMessageExtras('hydrated extra E1'),
@@ -1367,8 +1367,8 @@ describe('MindroomLongTextText hydration identity', () => {
     let renderer!: ReactTestRenderer;
 
     const render = (nextContent: Record<string, unknown>) =>
-      React.createElement(MindroomLongTextText, {
-        kind: MindroomLongTextKind.Text,
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
         content: nextContent,
         longTextSource: createLongTextSource({ previewContent: nextContent }),
         renderBody: (_content, props) => props.body,
@@ -1376,9 +1376,9 @@ describe('MindroomLongTextText hydration identity', () => {
           React.createElement(
             'span',
             { 'data-testid': 'extras-probe' },
-            parseMindroomMessageExtras(extrasContent)?.sections[0]?.content ??
+            parseMessageExtras(extrasContent)?.sections[0]?.content ??
               (!(MINDROOM_MESSAGE_EXTRAS_KEY in extrasContent)
-                ? parseMindroomMessageExtras(fallbackContent)?.sections[0]?.content
+                ? parseMessageExtras(fallbackContent)?.sections[0]?.content
                 : undefined) ??
               'extras-missing'
           ),
@@ -1421,7 +1421,7 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 
   it('keeps the previous hydrated tool trace while the next rich preview hydrates', async () => {
-    const { MindroomLongTextKind, MindroomLongTextText } = await getMindroomLongTextTextModule();
+    const { LongTextKind, LongTextText } = await getLongTextTextModule();
     const toolTrace = {
       version: 2,
       events: [{ type: 'tool_call_completed', tool_name: 'run_shell_command' }],
@@ -1442,8 +1442,8 @@ describe('MindroomLongTextText hydration identity', () => {
     let renderer!: ReactTestRenderer;
 
     const render = (nextContent: Record<string, unknown>) =>
-      React.createElement(MindroomLongTextText, {
-        kind: MindroomLongTextKind.Text,
+      React.createElement(LongTextText, {
+        kind: LongTextKind.Text,
         content: nextContent,
         longTextSource: createLongTextSource({
           previewContent: nextContent,
@@ -1461,7 +1461,7 @@ describe('MindroomLongTextText hydration identity', () => {
 
     longTextMocks.hydrateMindroomLongTextSource.mockReset();
     longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
-      (source: MindroomLongTextSource) => {
+      (source: LongTextSource) => {
         if (source.mxcUri === 'mxc://server/stream-a') {
           return Promise.resolve({
             body: 'Hydrated A',
@@ -1511,22 +1511,22 @@ describe('MindroomLongTextText hydration identity', () => {
   });
 });
 
-describe('useMindroomLongTextResolvedContent', () => {
+describe('useLongTextResolvedContent', () => {
   beforeEach(async () => {
-    clearMindroomLongTextHydrationCache();
+    clearLongTextHydrationCache();
     vi.clearAllMocks();
     matrixMocks.mxcUrlToHttp.mockReturnValue(
       'https://example.org/_matrix/media/v3/download/server/content'
     );
 
-    const actualMindroomLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     longTextMocks.hydrateMindroomLongTextSource.mockImplementation(
-      actualMindroomLongText.hydrateMindroomLongTextSource
+      actualLongText.hydrateLongTextSource
     );
   });
 
   it('returns cached content synchronously without fetching again', async () => {
-    const actualMindroomLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     const source = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),
@@ -1538,7 +1538,7 @@ describe('useMindroomLongTextResolvedContent', () => {
       body: 'Warm cache response',
     };
 
-    await actualMindroomLongText.hydrateMindroomLongTextSource(
+    await actualLongText.hydrateLongTextSource(
       source,
       async () => JSON.stringify(resolvedContent),
       mockMx
@@ -1651,7 +1651,7 @@ describe('useMindroomLongTextResolvedContent', () => {
   });
 
   it('does not return stale resolved content when the source mxcUri changes', async () => {
-    const actualMindroomLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
+    const actualLongText = await vi.importActual<typeof import('../../matrix/protocol/longText')>('../../matrix/protocol/longText');
     const sourceA = createLongTextSource({
       previewContent: {
         ...createPreviewContent(),
@@ -1680,7 +1680,7 @@ describe('useMindroomLongTextResolvedContent', () => {
       body: 'B body',
     };
 
-    await actualMindroomLongText.hydrateMindroomLongTextSource(
+    await actualLongText.hydrateLongTextSource(
       sourceA,
       async () => JSON.stringify(resolvedContentA),
       mockMx

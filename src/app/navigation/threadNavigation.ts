@@ -14,7 +14,7 @@ export type NavigateRoomThreadDirect = (
   opts?: NavigateOptions
 ) => void;
 
-export type MindroomRoomThreadNavigationOptions = {
+export type RoomThreadNavigationOptions = {
   roomId: string;
   threadId: string;
   eventId?: string;
@@ -26,7 +26,7 @@ export type MindroomRoomThreadNavigationOptions = {
   isNativeIOSDevice?: () => boolean;
 };
 
-export const getMindroomCurrentRoutePath = (location: LocationPathParts): string =>
+export const getCurrentRoutePath = (location: LocationPathParts): string =>
   `${location.pathname}${location.search}${location.hash}`;
 
 const afterNextPaint = (callback: () => void) => {
@@ -37,7 +37,7 @@ const afterNextPaint = (callback: () => void) => {
   queueMicrotask(callback);
 };
 
-export const navigateMindroomRoomThread = ({
+export const navigateToRoomThread = ({
   roomId,
   threadId,
   eventId,
@@ -47,11 +47,11 @@ export const navigateMindroomRoomThread = ({
   getHistoryState = () => window.history.state,
   schedule = afterNextPaint,
   isNativeIOSDevice = isNativeIOS,
-}: MindroomRoomThreadNavigationOptions): void => {
+}: RoomThreadNavigationOptions): void => {
   const seededExitTarget = !opts?.replace;
   const exitTarget = seededExitTarget
     ? {
-        exitPath: getMindroomCurrentRoutePath(getLocation()),
+        exitPath: getCurrentRoutePath(getLocation()),
         roomId,
         threadId,
         useHistoryBack: !isNativeIOSDevice(),

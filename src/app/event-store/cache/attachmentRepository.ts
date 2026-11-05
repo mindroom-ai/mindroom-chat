@@ -16,10 +16,10 @@ import {
 } from './db';
 
 import {
-  parseMindroomLongTextJsonSidecar,
-  getCachedMindroomLongTextContent,
-  hydrateMindroomLongTextSource,
-  type MindroomLongTextSource,
+  parseLongTextJsonSidecar,
+  getCachedLongTextContent,
+  hydrateLongTextSource,
+  type LongTextSource,
 } from '../../matrix/protocol/longText';
 import {
   collectEventAttachments,
@@ -244,7 +244,7 @@ export const downloadCachedAttachment = async (
     if (
       options.essential &&
       source.isV2ContentJson &&
-      !parseMindroomLongTextJsonSidecar(await consumerBlob.text())
+      !parseLongTextJsonSidecar(await consumerBlob.text())
     ) {
       throw new Error('Invalid long-text body JSON');
     }
@@ -345,15 +345,15 @@ export const prefetchEventAttachments = async (
 };
 
 /** Each owner validates the shared raw payload before claiming readable coverage. */
-export const hydrateCachedMindroomLongText = async (
+export const hydrateCachedLongText = async (
   mx: MatrixClient,
-  source: MindroomLongTextSource
+  source: LongTextSource
 ): Promise<Record<string, unknown>> => {
   const owner = source.owner;
   const sessionId = getSessionId(mx);
   const writeLease = captureCacheStoreWriteLease(sessionId, owner?.roomId);
   const isCurrent = () => isCacheStoreWriteLeaseCurrent(writeLease);
-  const load = async (nextSource: MindroomLongTextSource) => {
+  const load = async (nextSource: LongTextSource) => {
     const blob = await downloadCachedAttachment(
       mx,
       { ...nextSource, mimeType: 'application/json' },
@@ -361,8 +361,8 @@ export const hydrateCachedMindroomLongText = async (
     );
     return blob.text();
   };
-  if (!owner) return hydrateMindroomLongTextSource(source, load, mx, isCurrent);
-  const cached = getCachedMindroomLongTextContent(source, mx);
+  if (!owner) return hydrateLongTextSource(source, load, mx, isCurrent);
+  const cached = getCachedLongTextContent(source, mx);
   if (
     cached &&
     hasCachedReference(await getCachedAttachmentMetadata(sessionId, source.mxcUri), owner)
@@ -371,7 +371,7 @@ export const hydrateCachedMindroomLongText = async (
   try {
     // Every owner participates in raw transport/persistence before parsed hydration can coalesce.
     const text = await load(source);
-    return await hydrateMindroomLongTextSource(source, async () => text, mx, isCurrent);
+    return await hydrateLongTextSource(source, async () => text, mx, isCurrent);
   } catch {
     return isCurrent() ? cached ?? source.previewContent : source.previewContent;
   }

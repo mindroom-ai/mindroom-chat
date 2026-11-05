@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClientEvent, RoomEvent, SyncState } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { createMindroomSyncEngine, stopMindroomSyncEngineForClient } from '../syncEngine';
+import { createSyncEngine, stopSyncEngineForClient } from '../syncEngine';
 import type { EngineWriteThrough } from '../engineWriteThrough';
 import type { EngineGapTracker } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
@@ -76,7 +76,7 @@ const makeEvent = (): MatrixEvent =>
     threadRootId: undefined,
   } as unknown as MatrixEvent);
 
-describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
+describe('SyncEngine (ISSUE-207 P3.1)', () => {
   beforeEach(() => {
     resetCacheProbe();
   });
@@ -87,7 +87,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
 
   it('derives sessionId from client baseUrl + safe user id', () => {
     const mx = createMockClient();
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
     // Matches createSessionId shape: encoded baseUrl + '::' + encoded userId
     expect(engine.sessionId).toContain(encodeURIComponent('https://example.test'));
     expect(engine.sessionId).toContain(encodeURIComponent('@alice:example.test'));
@@ -95,7 +95,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
 
   it('is idempotent: repeated start()/stop() calls attach and detach listeners exactly once', () => {
     const mx = createMockClient();
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
 
     engine.start();
     engine.start();
@@ -122,11 +122,11 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleLiveEvent: vi.fn(),
       flush: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
 
-    stopMindroomSyncEngineForClient(mx);
-    stopMindroomSyncEngineForClient(mx);
+    stopSyncEngineForClient(mx);
+    stopSyncEngineForClient(mx);
 
     expect(writeThrough.flush).toHaveBeenCalledTimes(1);
     expect(mx.__listeners.get(ClientEvent.Sync)?.size ?? 0).toBe(0);
@@ -140,7 +140,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
         throw new Error('flush failed');
       }),
     };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
 
     expect(() => engine.stop()).toThrow('flush failed');
@@ -148,12 +148,12 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
     expect(engine.isLiveMode()).toBe(false);
     expect(mx.__listeners.get(ClientEvent.Sync)?.size ?? 0).toBe(0);
     expect(mx.__listeners.get(RoomEvent.Timeline)?.size ?? 0).toBe(0);
-    expect(() => stopMindroomSyncEngineForClient(mx)).not.toThrow();
+    expect(() => stopSyncEngineForClient(mx)).not.toThrow();
   });
 
   it('removes every listener it attached on stop() (full symmetry)', () => {
     const mx = createMockClient();
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
 
     engine.start();
     // `on` invocation count === `removeListener` invocation count after stop.
@@ -172,7 +172,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleLiveEvent: vi.fn(),
       flush: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
 
     // Pre-Prepared: the timeline event should NOT reach write-through.
@@ -219,7 +219,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleLiveEvent: vi.fn(),
       flush: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
     expect(engine.isLiveMode()).toBe(true);
 
@@ -236,7 +236,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleLiveEvent: vi.fn(),
       flush: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
 
     // Missing room
@@ -257,7 +257,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
   it('saves a confirmed local echo once, except redactions and events a timeline saved', () => {
     const mx = createMockClient(SyncState.Syncing);
     const writeThrough: EngineWriteThrough = { handleLiveEvent: vi.fn(), flush: vi.fn() };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
     const room = makeRoom('!r1');
     const confirmed = (overrides: Partial<MatrixEvent> = {}) =>
@@ -302,7 +302,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
 
   it('dispatches redactions through the write-through layer once live', async () => {
     const mx = createMockClient(SyncState.Syncing);
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
     engine.start();
 
     // Redaction events carry `redacts` but no relation; the real
@@ -311,7 +311,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
     // handleLiveEvent calls without exercising the full cleanup plan.
     engine.stop();
     const writeThrough = { handleLiveEvent: vi.fn(), flush: vi.fn() };
-    const engine2 = createMindroomSyncEngine({ mx, writeThrough });
+    const engine2 = createSyncEngine({ mx, writeThrough });
     engine2.start();
 
     mx.__emit(RoomEvent.Redaction, makeEvent(), makeRoom('!r1'));
@@ -332,7 +332,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, gapTracker });
+    const engine = createSyncEngine({ mx, gapTracker });
     engine.start();
 
     mx.__emit(ClientEvent.Sync, SyncState.Prepared, null);
@@ -352,7 +352,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleSyncPrepared: vi.fn().mockRejectedValue(new Error('blocked cache')),
       stop: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, gapTracker });
+    const engine = createSyncEngine({ mx, gapTracker });
     engine.start();
 
     expect(() => mx.__emit(ClientEvent.Sync, SyncState.Prepared, null)).not.toThrow();
@@ -369,7 +369,7 @@ describe('MindroomSyncEngine (ISSUE-207 P3.1)', () => {
       handleLiveEvent: vi.fn(),
       flush: vi.fn(),
     };
-    const engine = createMindroomSyncEngine({ mx, writeThrough });
+    const engine = createSyncEngine({ mx, writeThrough });
     engine.start();
     engine.stop();
     expect(writeThrough.flush).toHaveBeenCalled();

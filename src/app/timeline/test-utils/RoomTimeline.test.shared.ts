@@ -18,8 +18,8 @@ import {
 import {
   createBackfillScheduler,
   createEnginePersistFacade,
-  MindroomSyncEngineProvider,
-  type MindroomSyncEngine,
+  SyncEngineProvider,
+  type SyncEngine,
 } from '../../event-store/engine';
 import type { useThreadAwareTimelineRefresh } from '../useThreadAwareTimelineRefresh';
 import type { ScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
@@ -262,7 +262,7 @@ vi.mock('../../preferences/settings', () => ({
 }));
 
 vi.mock('../../event-store/engine/prefetchSettings', () => ({
-  mindroomSettingsAtom: {},
+  prefetchSettingsAtom: {},
 }));
 
 vi.mock('../../matrix/hooks/useRoom', () => ({
@@ -1645,18 +1645,18 @@ const threadFilterStateFromLegacy = (
 };
 
 // ISSUE-207 P3.3: shared stub sync engine wired to the real persist
-// facade. `useMindroomSyncEngine` inside RoomTimeline consumers
+// facade. `useSyncEngine` inside RoomTimeline consumers
 // resolves to this object, so persist calls flow through the real
 // `persist*Snapshot` seams and hit the already-mocked
 // `save…ToCache` fns. Only `persist` is exercised by these tests
 // (the real client-level engine and its listeners live under
 // ClientRoot, out of scope here).
 const HARNESS_TEST_SESSION_ID = 'test-session';
-const harnessSyncEngine: MindroomSyncEngine = {
-  offline: {} as MindroomSyncEngine['offline'],
+const harnessSyncEngine: SyncEngine = {
+  offline: {} as SyncEngine['offline'],
   clearRoomFocus: () => undefined,
   backgroundPageAllowance: () => 200,
-  mx: matrixClientMock as unknown as MindroomSyncEngine['mx'],
+  mx: matrixClientMock as unknown as SyncEngine['mx'],
   sessionId: HARNESS_TEST_SESSION_ID,
   start: () => undefined,
   stop: () => undefined,
@@ -1678,7 +1678,7 @@ const harnessSyncEngine: MindroomSyncEngine = {
 // .tsx, so avoiding JSX keeps its import shape unchanged.
 const wrapWithSyncEngine = (element: React.ReactElement): React.ReactElement => {
   const props = { engine: harnessSyncEngine, children: element };
-  return React.createElement(MindroomSyncEngineProvider, props);
+  return React.createElement(SyncEngineProvider, props);
 };
 
 const createControlledRoomTimelineHarness = (
@@ -1759,12 +1759,12 @@ const createControlledRoomTimelineHarness = (
     }, []);
 
     // ISSUE-207 P3.3: the room timeline consumes the persist facade
-    // off `useMindroomSyncEngine`. Wrap the harness with a stub engine
+    // off `useSyncEngine`. Wrap the harness with a stub engine
     // provider so tests exercise the real persist snapshot seams
     // (which delegate to the already-mocked `save…ToCache` fns) without
     // requiring a full ClientRoot mount.
     // eslint-disable-next-line react/no-children-prop
-    return React.createElement(MindroomSyncEngineProvider, {
+    return React.createElement(SyncEngineProvider, {
       engine: harnessSyncEngine,
       children: React.createElement(RoomTimelineComponent, {
         room,

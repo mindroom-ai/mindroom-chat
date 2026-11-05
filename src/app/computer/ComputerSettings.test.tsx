@@ -8,11 +8,11 @@ import {
   computerServicePreferenceAtom,
   loadComputerServicePreference,
 } from './computerServiceSettings';
-import { ComputerSettings as MindroomComputerSettings } from './ComputerSettings';
+import { ComputerSettings } from './ComputerSettings';
 
 const discovery = vi.hoisted(() => ({ urls: [] as string[] }));
 vi.mock('./useAgentServers', () => ({
-  useMindroomServerUrls: () => discovery.urls,
+  useAgentServerUrls: () => discovery.urls,
 }));
 vi.mock('folds', () => ({
   Box: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
@@ -68,7 +68,7 @@ const render = (deploymentUrl = '') =>
     renderer = create(
       <Provider store={store}>
         <ClientConfigProvider value={{ mindroom: { computers: { apiUrl: deploymentUrl } } }}>
-          <MindroomComputerSettings />
+          <ComputerSettings />
         </ClientConfigProvider>
       </Provider>
     );

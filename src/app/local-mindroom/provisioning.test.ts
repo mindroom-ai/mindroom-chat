@@ -5,7 +5,7 @@ import {
   getMindroomDocsUrl,
   getWelcomeSetupFirstSeenStorageKey,
   isConnectionRevoked,
-  resolveMindroomProvisioningRequest,
+  resolveProvisioningRequest,
   shouldShowWelcomeSetupPrompt,
 } from './provisioning';
 
@@ -15,7 +15,7 @@ describe('local mindroom helpers', () => {
   });
 
   it('uses active session homeserver origin for provisioning by default', () => {
-    const result = resolveMindroomProvisioningRequest({
+    const result = resolveProvisioningRequest({
       sessionHomeserverUrl: 'https://matrix.example.org',
       accessToken: 'session-token',
     });
@@ -28,7 +28,7 @@ describe('local mindroom helpers', () => {
   });
 
   it('cannot authenticate to a mismatched override origin', () => {
-    const result = resolveMindroomProvisioningRequest({
+    const result = resolveProvisioningRequest({
       sessionHomeserverUrl: 'https://matrix.example.org',
       provisioningOverrideUrl: 'https://provisioning.other.example',
       accessToken: 'session-token',
@@ -39,7 +39,7 @@ describe('local mindroom helpers', () => {
   });
 
   it('can authenticate when origins match', () => {
-    const result = resolveMindroomProvisioningRequest({
+    const result = resolveProvisioningRequest({
       sessionHomeserverUrl: 'https://matrix.example.org',
       provisioningOverrideUrl: 'https://matrix.example.org',
       accessToken: 'session-token',

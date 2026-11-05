@@ -18,17 +18,17 @@ import {
   MINDROOM_SERVER_EVENT,
   distinctServerUrls,
   isLoopbackOrigin,
-  selectMindroomServers,
-  type MindroomServer,
+  selectAgentServers,
+  type AgentServer,
 } from './agentServer';
 
 // In the native apps a published localhost server is the phone itself, never the agent's MindRoom.
-const selectRoomServers = (events: MatrixEvent[]): MindroomServer[] =>
-  selectMindroomServers(events).filter(
+const selectRoomServers = (events: MatrixEvent[]): AgentServer[] =>
+  selectAgentServers(events).filter(
     (server) => !(Capacitor.isNativePlatform() && isLoopbackOrigin(server.apiUrl))
   );
 
-const roomServers = (room: Room): MindroomServer[] =>
+const roomServers = (room: Room): AgentServer[] =>
   selectRoomServers(agentRoomState(room, MINDROOM_SERVER_EVENT));
 
 // One answer per client for what Chat shows; a token for a published origin is only ever requested after a
@@ -58,7 +58,7 @@ export const useBindsOpenIdTokens = (): boolean => {
 };
 
 /** The servers of the room's agents, read again when one changes or an agent's membership does. */
-export const useRoomMindroomServers = (room: Room): MindroomServer[] =>
+export const useRoomAgentServers = (room: Room): AgentServer[] =>
   useAgentRoomState(room, MINDROOM_SERVER_EVENT, selectRoomServers);
 
 const joinedRoomServerUrls = (mx: MatrixClient): string[] =>
@@ -73,7 +73,7 @@ const sameUrls = (a: string[], b: string[]): boolean =>
   a.length === b.length && a.every((url, index) => url === b[index]);
 
 /** Every server the agents in the user's rooms publish, newest first, while the homeserver binds tokens. */
-export const useMindroomServerUrls = (): string[] => {
+export const useAgentServerUrls = (): string[] => {
   const mx = useMatrixClient();
   const bindsTokens = useBindsOpenIdTokens();
   const [version, refresh] = useForceUpdate();

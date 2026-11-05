@@ -2,19 +2,19 @@ import React, { type ReactNode } from 'react';
 import { MessageEditedContent } from './FallbackContent';
 import { renderFailedSendIndicator, renderPendingSendIndicator } from '../../ui/PendingSendIndicator';
 
-export type MindroomMessageStateSuffixOptions = {
+export type MessageStateSuffixOptions = {
   edited?: boolean;
   pendingSend?: boolean;
   failedSend?: boolean;
   renderStateSuffix?: () => ReactNode;
 };
 
-export const getMindroomMessageStateSuffixRenderer = ({
+export const getMessageStateSuffixRenderer = ({
   edited,
   pendingSend,
   failedSend,
   renderStateSuffix,
-}: MindroomMessageStateSuffixOptions): (() => ReactNode) | undefined => {
+}: MessageStateSuffixOptions): (() => ReactNode) | undefined => {
   if (!renderStateSuffix && !pendingSend && !failedSend) {
     return undefined;
   }

@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { create } from 'react-test-renderer';
 import { Icons } from 'folds';
-import { LocalMindroomTab as MindroomTab } from './LocalMindroomTab';
+import { LocalMindroomTab } from './LocalMindroomTab';
 
 vi.mock('./LocalMindroomTab.css', () => ({
   LinkIndicator: 'link-indicator',
@@ -33,9 +33,9 @@ vi.mock('../../settings/Settings', () => ({
   Settings: () => React.createElement('div'),
 }));
 
-describe('MindroomTab', () => {
+describe('LocalMindroomTab', () => {
   it('renders a link badge on the local MindRoom shortcut', () => {
-    const renderer = create(React.createElement(MindroomTab));
+    const renderer = create(React.createElement(LocalMindroomTab));
 
     const linkIcons = renderer.root.findAll((node) => node.props?.src === Icons.Link);
     expect(linkIcons.length).toBeGreaterThan(0);

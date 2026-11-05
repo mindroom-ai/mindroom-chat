@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getMindroomAiRunInfo, isMindroomAiRunStreaming } from './aiRun';
+import { getAiRunInfo, isAiRunStreaming } from './aiRun';
 
-describe('getMindroomAiRunInfo', () => {
+describe('getAiRunInfo', () => {
   it('extracts metadata from top-level message content', () => {
-    const info = getMindroomAiRunInfo({
+    const info = getAiRunInfo({
       'io.mindroom.ai_run': {
         version: 1,
         status: 'completed',
@@ -55,7 +55,7 @@ describe('getMindroomAiRunInfo', () => {
   });
 
   it('reads metadata from m.new_content wrapper payloads', () => {
-    const info = getMindroomAiRunInfo({
+    const info = getAiRunInfo({
       'io.mindroom.ai_run': {
         version: 1,
         model: { config: 'old', display_name: 'Old Model' },
@@ -80,7 +80,7 @@ describe('getMindroomAiRunInfo', () => {
   it.each([undefined, null, '', '   ', 42, {}, []])(
     'ignores missing or invalid model display name %j while preserving the alias',
     (displayName) => {
-      const info = getMindroomAiRunInfo({
+      const info = getAiRunInfo({
         'io.mindroom.ai_run': {
           version: 1,
           model: { config: 'friendly_alias', display_name: displayName },
@@ -93,24 +93,24 @@ describe('getMindroomAiRunInfo', () => {
   );
 
   it('returns undefined when metadata is absent or invalid', () => {
-    expect(getMindroomAiRunInfo({})).toBeUndefined();
+    expect(getAiRunInfo({})).toBeUndefined();
     expect(
-      getMindroomAiRunInfo({ 'io.mindroom.ai_run': { version: 1, usage: 'bad' } })
+      getAiRunInfo({ 'io.mindroom.ai_run': { version: 1, usage: 'bad' } })
     ).toBeUndefined();
-    expect(getMindroomAiRunInfo({ 'io.mindroom.ai_run': { version: 3 } })).toBeUndefined();
+    expect(getAiRunInfo({ 'io.mindroom.ai_run': { version: 3 } })).toBeUndefined();
   });
 });
 
-describe('isMindroomAiRunStreaming', () => {
+describe('isAiRunStreaming', () => {
   it('returns false when no ai_run metadata is present', () => {
-    expect(isMindroomAiRunStreaming({})).toBe(false);
-    expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 2 } })).toBe(false);
+    expect(isAiRunStreaming({})).toBe(false);
+    expect(isAiRunStreaming({ 'io.mindroom.ai_run': { version: 2 } })).toBe(false);
   });
 
   it('returns false for terminal statuses', () => {
     const terminalStatuses = ['completed', 'cached', 'error', 'cancelled'];
     for (const status of terminalStatuses) {
-      expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(
+      expect(isAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(
         false
       );
     }
@@ -119,17 +119,17 @@ describe('isMindroomAiRunStreaming', () => {
   it('returns true for non-terminal statuses', () => {
     const activeStatuses = ['streaming', 'running', 'active', 'thinking'];
     for (const status of activeStatuses) {
-      expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(true);
+      expect(isAiRunStreaming({ 'io.mindroom.ai_run': { version: 1, status } })).toBe(true);
     }
   });
 
   it('returns true when metadata exists but status is absent', () => {
-    expect(isMindroomAiRunStreaming({ 'io.mindroom.ai_run': { version: 1 } })).toBe(true);
+    expect(isAiRunStreaming({ 'io.mindroom.ai_run': { version: 1 } })).toBe(true);
   });
 
   it('reads metadata from m.new_content wrapper', () => {
     expect(
-      isMindroomAiRunStreaming({
+      isAiRunStreaming({
         'm.new_content': {
           body: 'partial',
           'io.mindroom.ai_run': { version: 1, status: 'running' },
@@ -138,7 +138,7 @@ describe('isMindroomAiRunStreaming', () => {
     ).toBe(true);
 
     expect(
-      isMindroomAiRunStreaming({
+      isAiRunStreaming({
         'm.new_content': {
           body: 'done',
           'io.mindroom.ai_run': { version: 1, status: 'completed' },
@@ -150,7 +150,7 @@ describe('isMindroomAiRunStreaming', () => {
   it('returns true when io.mindroom.stream_status is active (no ai_run metadata)', () => {
     const activeStatuses = ['pending', 'streaming', 'running', 'active'];
     for (const status of activeStatuses) {
-      expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(true);
+      expect(isAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(true);
     }
   });
 
@@ -165,17 +165,17 @@ describe('isMindroomAiRunStreaming', () => {
       'cancelled',
     ];
     for (const status of terminalStatuses) {
-      expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(false);
+      expect(isAiRunStreaming({ 'io.mindroom.stream_status': status })).toBe(false);
     }
   });
 
   it('returns false when io.mindroom.stream_status is unrecognized (no ai_run metadata)', () => {
-    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'unknown' })).toBe(false);
+    expect(isAiRunStreaming({ 'io.mindroom.stream_status': 'unknown' })).toBe(false);
   });
 
   it('reads stream_status from m.new_content wrapper', () => {
     expect(
-      isMindroomAiRunStreaming({
+      isAiRunStreaming({
         'm.new_content': {
           body: 'partial response',
           'io.mindroom.stream_status': 'streaming',
@@ -184,7 +184,7 @@ describe('isMindroomAiRunStreaming', () => {
     ).toBe(true);
 
     expect(
-      isMindroomAiRunStreaming({
+      isAiRunStreaming({
         'm.new_content': {
           body: 'final response',
           'io.mindroom.stream_status': 'completed',
@@ -194,14 +194,14 @@ describe('isMindroomAiRunStreaming', () => {
   });
 
   it('is case-insensitive for stream_status', () => {
-    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'STREAMING' })).toBe(true);
-    expect(isMindroomAiRunStreaming({ 'io.mindroom.stream_status': 'Completed' })).toBe(false);
+    expect(isAiRunStreaming({ 'io.mindroom.stream_status': 'STREAMING' })).toBe(true);
+    expect(isAiRunStreaming({ 'io.mindroom.stream_status': 'Completed' })).toBe(false);
   });
 
   it('prefers ai_run metadata over stream_status when both present', () => {
     // ai_run says completed, stream_status says streaming → not streaming (ai_run wins)
     expect(
-      isMindroomAiRunStreaming({
+      isAiRunStreaming({
         'io.mindroom.ai_run': { version: 1, status: 'completed' },
         'io.mindroom.stream_status': 'streaming',
       })
@@ -209,7 +209,7 @@ describe('isMindroomAiRunStreaming', () => {
 
     // ai_run says running, stream_status says completed → streaming (ai_run wins)
     expect(
-      isMindroomAiRunStreaming({
+      isAiRunStreaming({
         'io.mindroom.ai_run': { version: 1, status: 'running' },
         'io.mindroom.stream_status': 'completed',
       })
@@ -217,37 +217,37 @@ describe('isMindroomAiRunStreaming', () => {
   });
 });
 
-describe('getMindroomAiRunInfo reply cost', () => {
+describe('getAiRunInfo reply cost', () => {
   const withRun = (run: Record<string, unknown>) => ({
     'io.mindroom.ai_run': { version: 1, status: 'completed', ...run },
   });
 
   it('parses cost.usd decimal strings', () => {
-    expect(getMindroomAiRunInfo(withRun({ cost: { usd: '0.0421' } }))?.costUsd).toBe(0.0421);
+    expect(getAiRunInfo(withRun({ cost: { usd: '0.0421' } }))?.costUsd).toBe(0.0421);
   });
 
   it('accepts a numeric cost', () => {
-    expect(getMindroomAiRunInfo(withRun({ cost: { usd: 1.5 } }))?.costUsd).toBe(1.5);
+    expect(getAiRunInfo(withRun({ cost: { usd: 1.5 } }))?.costUsd).toBe(1.5);
   });
 
   it('rejects malformed cost values', () => {
     ['abc', '-1', 'NaN', 'Infinity', '', ' 1', '1e309', -1, Number.NaN, {}, null].forEach((usd) => {
-      expect(getMindroomAiRunInfo(withRun({ cost: { usd } }))?.costUsd).toBeUndefined();
+      expect(getAiRunInfo(withRun({ cost: { usd } }))?.costUsd).toBeUndefined();
     });
-    expect(getMindroomAiRunInfo(withRun({ cost: '0.5' }))?.costUsd).toBeUndefined();
+    expect(getAiRunInfo(withRun({ cost: '0.5' }))?.costUsd).toBeUndefined();
   });
 
   it('parses time_to_first_token strings the backend sends', () => {
     expect(
-      getMindroomAiRunInfo(withRun({ usage: { time_to_first_token: '0.512' } }))?.timeToFirstToken
+      getAiRunInfo(withRun({ usage: { time_to_first_token: '0.512' } }))?.timeToFirstToken
     ).toBe(0.512);
   });
 });
 
-describe('getMindroomAiRunInfo uncached input', () => {
+describe('getAiRunInfo uncached input', () => {
   it('reads the uncached input the backend splits from cache reads', () => {
     expect(
-      getMindroomAiRunInfo({
+      getAiRunInfo({
         'io.mindroom.ai_run': {
           version: 1,
           usage: { input_tokens: 1674, uncached_input_tokens: 266 },

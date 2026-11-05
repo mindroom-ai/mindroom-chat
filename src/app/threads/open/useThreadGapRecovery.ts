@@ -6,12 +6,12 @@ import {
   type Room,
   type RoomEventHandlerMap,
 } from 'matrix-js-sdk';
-import { scheduleReconcile, type MindroomSyncEngine } from '../../event-store/engine';
+import { scheduleReconcile, type SyncEngine } from '../../event-store/engine';
 import { hydrateThreadFromCache } from './threadOpenCacheController';
 import { compareThreadRenderOrder } from '../../event-store/threads/threadRenderUtils';
 
 export type ThreadGapRecoveryOptions = {
-  engine: MindroomSyncEngine;
+  engine: SyncEngine;
   room: Room;
   threadId?: string;
   append: (threadId: string, events: MatrixEvent[]) => void;

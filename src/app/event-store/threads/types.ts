@@ -1,5 +1,5 @@
 import type { IEvent, MatrixEvent } from 'matrix-js-sdk';
-import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadPreviewLocalization } from './threadMessagePreview';
 
 export type ThreadId = {
@@ -8,7 +8,7 @@ export type ThreadId = {
 };
 
 export type ThreadPresentationSnapshot = {
-  summaryInfo: MindroomThreadSummaryInfo | undefined;
+  summaryInfo: ThreadSummaryInfo | undefined;
   summaryText: string | undefined;
   rootPreviewText: string | undefined;
   latestReplyPreviewText: string | undefined;
@@ -141,7 +141,7 @@ export type CompactThreadCardViewModel = {
 
 export type ThreadBadgeViewModel = {
   id: ThreadId;
-  summaryInfo?: MindroomThreadSummaryInfo;
+  summaryInfo?: ThreadSummaryInfo;
   recentThreadSummaryText?: string;
   replyCount: number;
   participantIds?: string[];

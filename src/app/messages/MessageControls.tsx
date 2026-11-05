@@ -17,14 +17,14 @@ import { ModalLayer } from '../ui/ModalLayer';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { saveFile } from '../native/nativeFileSave';
-import { getMindroomAiRunInfo, type MindroomAiRunInfo } from '../matrix/protocol/aiRun';
-import { getMindroomLongTextSource, type MindroomLongTextSource } from '../matrix/protocol/longText';
+import { getAiRunInfo, type AiRunInfo } from '../matrix/protocol/aiRun';
+import { getLongTextSource, type LongTextSource } from '../matrix/protocol/longText';
 import {
-  downloadMindroomLongTextSidecarBlob,
-  getMindroomLongTextDownloadName,
+  downloadLongTextSidecarBlob,
+  getLongTextDownloadName,
 } from './content/longTextDownload';
-import { useMindroomLongTextResolvedContent } from './content/LongTextText';
-import { MindroomReplyDetails } from './reply/ReplyDetails';
+import { useLongTextResolvedContent } from './content/LongTextText';
+import { ReplyDetails } from './reply/ReplyDetails';
 import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity';
 import * as css from './MessageControls.css';
 
@@ -48,15 +48,15 @@ export const useMessageControls = (
   const viewerId = useMatrixClient().getUserId() ?? undefined;
   const sender = mEvent?.getSender();
   const aiRunInfo = useMemo(() => {
-    const info = getMindroomAiRunInfo(content);
+    const info = getAiRunInfo(content);
     // Anyone can write the run keys; a cost counts only from MindRoom's own accounts.
     if (!info || info.costUsd === undefined) return info;
     return isMindroomAgentUserIdForViewer(sender, viewerId)
       ? info
       : { ...info, costUsd: undefined };
   }, [content, sender, viewerId]);
-  const longTextSource = useMemo(() => getMindroomLongTextSource(content), [content]);
-  const resolvedLongTextContent = useMindroomLongTextResolvedContent(longTextSource, menuOpen);
+  const longTextSource = useMemo(() => getLongTextSource(content), [content]);
+  const resolvedLongTextContent = useLongTextResolvedContent(longTextSource, menuOpen);
 
   return {
     aiRunInfo,
@@ -101,7 +101,7 @@ function ReplyDetailsHeader({
 }
 
 type AiRunControlsProps = {
-  info: MindroomAiRunInfo;
+  info: AiRunInfo;
   eventId?: string;
   /** The message element; focus returns there when the dialog closes. */
   forwardedRef?: Ref<HTMLDivElement>;
@@ -150,7 +150,7 @@ export function AiRunControls({
             header={<ReplyDetailsHeader title={title} onClose={closeDetails} closeRef={closeRef} />}
             className={css.ReplyDetailsScroll}
           >
-            <MindroomReplyDetails info={info} eventId={eventId} />
+            <ReplyDetails info={info} eventId={eventId} />
           </PageScroll>
         </Dialog>
       </ModalLayer>
@@ -194,14 +194,14 @@ export function DownloadOriginalMenuItem({
   source,
   onClose,
 }: {
-  source: MindroomLongTextSource;
+  source: LongTextSource;
   onClose?: () => void;
 }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const [state, setState] = useState<DownloadState>('idle');
   const activeRef = useRef(false);
-  const blobRef = useRef<{ source: MindroomLongTextSource; blob: Blob }>();
+  const blobRef = useRef<{ source: LongTextSource; blob: Blob }>();
 
   const handleClick = async () => {
     if (activeRef.current) return;
@@ -210,10 +210,10 @@ export function DownloadOriginalMenuItem({
     try {
       let blob = blobRef.current?.source === source ? blobRef.current.blob : undefined;
       if (!blob) {
-        blob = await downloadMindroomLongTextSidecarBlob(mx, source, true);
+        blob = await downloadLongTextSidecarBlob(mx, source, true);
         blobRef.current = { source, blob };
       }
-      const saved = await saveFile(blob, getMindroomLongTextDownloadName(source));
+      const saved = await saveFile(blob, getLongTextDownloadName(source));
       setState('idle');
       if (saved) onClose?.();
     } catch {

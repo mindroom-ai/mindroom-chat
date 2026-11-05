@@ -65,8 +65,8 @@ vi.mock('./SpecVersions', () => ({
 }));
 vi.mock('./SyncStatus', () => ({ SyncStatus: () => null }));
 vi.mock('../event-store/engine', () => ({
-  createMindroomSyncEngine: vi.fn(),
-  MindroomSyncEngineProvider: ({ children }: { children: React.ReactNode }) => children,
+  createSyncEngine: vi.fn(),
+  SyncEngineProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock('../matrix/session/useSessionStore', () => ({ useActiveSession: vi.fn() }));
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => ({}) }));

@@ -1,6 +1,6 @@
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { buildMindroomThreadIndexRecordMaps } from './threadIndexRecords';
+import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 
 const makeEvent = ({
   eventId,
@@ -54,10 +54,10 @@ const compactRootData = {
   bodyMap: new Map([['$root', 'compact live preview']]),
 };
 
-describe('buildMindroomThreadIndexRecordMaps', () => {
+describe('buildThreadIndexRecordMaps', () => {
   it('shares one record-building policy for normal and compact room surfaces', () => {
     const rootEvent = makeEvent({ eventId: '$root', body: 'root event body' });
-    const records = buildMindroomThreadIndexRecordMaps({
+    const records = buildThreadIndexRecordMaps({
       threadId: undefined,
       compactViewRequested: true,
       room: makeRoom(rootEvent),
@@ -154,7 +154,7 @@ describe('buildMindroomThreadIndexRecordMaps', () => {
   });
 
   it('does not build room overview records while inside a thread route', () => {
-    const records = buildMindroomThreadIndexRecordMaps({
+    const records = buildThreadIndexRecordMaps({
       threadId: '$thread',
       compactViewRequested: true,
       room: makeRoom(),

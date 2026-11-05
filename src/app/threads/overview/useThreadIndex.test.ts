@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createDefaultThreadFilterState, type ThreadFilterState } from '../../event-store/threads/roomThreadOverviewModel';
 import type { ThreadRecord } from '../../event-store/threads/types';
-import { resolveMindroomThreadIndexSnapshot } from './useThreadIndex';
+import { resolveThreadIndexSnapshot } from './useThreadIndex';
 
 const makeFilterState = (overrides: Partial<ThreadFilterState> = {}): ThreadFilterState => ({
   ...createDefaultThreadFilterState(),
@@ -46,7 +46,7 @@ const makeRecord = (threadRootId: string, overrides: Partial<ThreadRecord> = {})
   ...overrides,
 });
 
-describe('resolveMindroomThreadIndexSnapshot', () => {
+describe('resolveThreadIndexSnapshot', () => {
   it('selects the compact record map and derives counts from the active root set', () => {
     const normalRecord = makeRecord('$normal', {
       status: {
@@ -63,7 +63,7 @@ describe('resolveMindroomThreadIndexSnapshot', () => {
       },
     });
 
-    const snapshot = resolveMindroomThreadIndexSnapshot({
+    const snapshot = resolveThreadIndexSnapshot({
       threadId: undefined,
       compactViewRequested: true,
       visibleThreadRootIds: ['$normal'],
@@ -92,7 +92,7 @@ describe('resolveMindroomThreadIndexSnapshot', () => {
     const fallbackThreadFilterState = makeFilterState();
     const filteredState = makeFilterState({ resolved: 'include' });
 
-    const snapshot = resolveMindroomThreadIndexSnapshot({
+    const snapshot = resolveThreadIndexSnapshot({
       threadId: undefined,
       compactViewRequested: false,
       visibleThreadRootIds: ['$root'],

@@ -6,10 +6,10 @@ import { act } from 'react-dom/test-utils';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  MindroomMessageExtras as MindroomMessageExtrasData,
-  MindroomMessageExtrasSection,
+  MessageExtras as MindroomMessageExtrasData,
+  MessageExtrasSection,
 } from '../matrix/protocol/messageExtrasData';
-import { MindroomMessageExtras } from './MessageExtras';
+import { MessageExtras } from './MessageExtras';
 
 vi.mock('./html/HtmlBlocks.css', () => ({}));
 vi.mock('../approvals/ApprovalArgumentFields.css', () => ({}));
@@ -38,17 +38,17 @@ vi.mock('../rich-text/sanitize', async (importOriginal) => {
 
 vi.mock('./messageExtrasHtml', async (importOriginal) => {
   const original = await importOriginal<typeof import('./messageExtrasHtml')>();
-  sanitizeExtraHtmlSpy.mockImplementation(original.sanitizeMindroomMessageExtraHtml);
+  sanitizeExtraHtmlSpy.mockImplementation(original.sanitizeMessageExtraHtml);
   return {
     ...original,
-    sanitizeMindroomMessageExtraHtml: sanitizeExtraHtmlSpy,
+    sanitizeMessageExtraHtml: sanitizeExtraHtmlSpy,
   };
 });
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const createExtras = (
-  sections: MindroomMessageExtrasSection[],
+  sections: MessageExtrasSection[],
   version: MindroomMessageExtrasData['version'] = 1
 ): MindroomMessageExtrasData => ({
   version,
@@ -56,8 +56,8 @@ const createExtras = (
 });
 
 const section = (
-  overrides: Partial<MindroomMessageExtrasSection> = {}
-): MindroomMessageExtrasSection => ({
+  overrides: Partial<MessageExtrasSection> = {}
+): MessageExtrasSection => ({
   title: 'Details',
   contentType: 'text/plain',
   content: 'payload',
@@ -70,10 +70,10 @@ const getNodeText = (value: ReactTestInstance | string | number): string => {
   return value.children.map((child) => getNodeText(child as ReactTestInstance | string)).join('');
 };
 
-describe('MindroomMessageExtras', () => {
+describe('MessageExtras', () => {
   it('renders one details element per section', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras([
           section({ title: 'First' }),
           section({ title: 'Second', content: 'two' }),
@@ -97,7 +97,7 @@ describe('MindroomMessageExtras', () => {
     act(() => {
       root = createRoot(container);
       root.render(
-        React.createElement(MindroomMessageExtras, {
+        React.createElement(MessageExtras, {
           extras: createExtras([
             section({ collapsed: true }),
             section({ title: 'Open', collapsed: false }),
@@ -124,7 +124,7 @@ describe('MindroomMessageExtras', () => {
     let root: Root | undefined;
 
     const render = () =>
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras,
         htmlReactParserOptions: {},
         markerContent: {},
@@ -162,7 +162,7 @@ describe('MindroomMessageExtras', () => {
     let root: Root | undefined;
 
     const render = (extras: MindroomMessageExtrasData) =>
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras,
         htmlReactParserOptions: {},
         markerContent: {},
@@ -222,7 +222,7 @@ describe('MindroomMessageExtras', () => {
 
   it('renders text/plain literally without markdown or HTML parsing', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras([
           section({
             content: '<strong>literal</strong>\n**not bold**',
@@ -243,7 +243,7 @@ describe('MindroomMessageExtras', () => {
 
   it('renders text/markdown through sanitized markdown output', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras([
           section({
             contentType: 'text/markdown',
@@ -266,7 +266,7 @@ describe('MindroomMessageExtras', () => {
 
   it('escapes raw dangerous markdown input before HTML parsing', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras([
           section({
             contentType: 'text/markdown',
@@ -289,7 +289,7 @@ describe('MindroomMessageExtras', () => {
 
   it('renders titles as escaped React text', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras([
           section({
             title: '<img src=x onerror=alert(1)>',
@@ -308,7 +308,7 @@ describe('MindroomMessageExtras', () => {
 
   it('renders sanitized text/html as elements inside one client-owned details wrapper', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -341,7 +341,7 @@ describe('MindroomMessageExtras', () => {
 
   it('renders sanitized text/html SVG sections as React SVG elements', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -370,7 +370,7 @@ describe('MindroomMessageExtras', () => {
 
   it('removes sender-owned disclosure controls from text/html sections', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -400,7 +400,7 @@ describe('MindroomMessageExtras', () => {
     let root: Root | undefined;
 
     const render = (html: string) =>
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -442,7 +442,7 @@ describe('MindroomMessageExtras', () => {
 
   it('sanitizes malicious html sections while preserving sibling sections', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -472,7 +472,7 @@ describe('MindroomMessageExtras', () => {
 
   it('does not linkify disallowed plain-text URL schemes inside text/html sections', () => {
     const renderer = create(
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -515,7 +515,7 @@ describe('MindroomMessageExtras', () => {
     const htmlReactParserOptions = {};
 
     const render = () =>
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras(
           [
             section({
@@ -569,7 +569,7 @@ describe('MindroomMessageExtras', () => {
     const htmlReactParserOptions = {};
 
     const render = (content: string) =>
-      React.createElement(MindroomMessageExtras, {
+      React.createElement(MessageExtras, {
         extras: createExtras([section({ title: 'HTML', contentType: 'text/html', content })], 2),
         htmlReactParserOptions,
         markerContent: {},

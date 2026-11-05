@@ -7,7 +7,7 @@ import { SettingTile } from '../ui/SettingTile';
 import { useComputerApiUrls } from '../computer/useComputerApiUrl';
 import { useOpenConnectionsPortal } from './useOpenConnectionsPortal';
 
-export function MindroomConnectionsSettings({ className }: { className?: string }) {
+export function ConnectionsSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
   const { urls: backendUrls, discovered } = useComputerApiUrls();
   const openPortal = useOpenConnectionsPortal(discovered);

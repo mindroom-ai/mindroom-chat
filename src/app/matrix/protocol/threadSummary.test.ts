@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isMindroomThreadSummaryEvent,
+  isThreadSummaryEvent,
   findLatestThreadSummaryEvent,
   getLatestThreadSummaryInfo,
   getLatestThreadSummaryInfoFromEventSources,
   getThreadSummaryPreviewText,
   buildThreadSummaryMap,
-  hasMindroomThreadSummary,
+  hasThreadSummary,
   pickLatestThreadSummaryInfo,
 } from './threadSummary';
 
@@ -45,27 +45,27 @@ const makeThreadEvent = (id: string, threadRootId: string, content: Record<strin
   threadRootId,
 });
 
-describe('isMindroomThreadSummaryEvent', () => {
+describe('isThreadSummaryEvent', () => {
   it('returns true for m.notice with thread_summary metadata', () => {
-    expect(isMindroomThreadSummaryEvent(makeSummaryEvent('Summary text'))).toBe(true);
+    expect(isThreadSummaryEvent(makeSummaryEvent('Summary text'))).toBe(true);
   });
 
   it('returns false for m.text messages', () => {
     expect(
-      isMindroomThreadSummaryEvent(
+      isThreadSummaryEvent(
         makeEvent({ msgtype: 'm.text', body: 'hi', 'io.mindroom.thread_summary': true })
       )
     ).toBe(false);
   });
 
   it('returns false when thread_summary metadata is absent', () => {
-    expect(isMindroomThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))).toBe(
+    expect(isThreadSummaryEvent(makeEvent({ msgtype: 'm.notice', body: 'hi' }))).toBe(
       false
     );
   });
 
   it('returns false for empty content', () => {
-    expect(isMindroomThreadSummaryEvent(makeEvent({}))).toBe(false);
+    expect(isThreadSummaryEvent(makeEvent({}))).toBe(false);
   });
 });
 
@@ -96,10 +96,10 @@ describe('findLatestThreadSummaryEvent', () => {
   });
 });
 
-describe('hasMindroomThreadSummary', () => {
+describe('hasThreadSummary', () => {
   it('returns true for versioned thread summary metadata objects', () => {
     expect(
-      hasMindroomThreadSummary({
+      hasThreadSummary({
         msgtype: 'm.notice',
         body: 'Summary body',
         'io.mindroom.thread_summary': {
@@ -112,7 +112,7 @@ describe('hasMindroomThreadSummary', () => {
 
   it('returns true when edited m.new_content carries the versioned metadata', () => {
     expect(
-      hasMindroomThreadSummary({
+      hasThreadSummary({
         msgtype: 'm.notice',
         body: 'Original body',
         'm.new_content': {
@@ -129,7 +129,7 @@ describe('hasMindroomThreadSummary', () => {
 
   it('returns true for legacy boolean thread summary flags', () => {
     expect(
-      hasMindroomThreadSummary({
+      hasThreadSummary({
         msgtype: 'm.notice',
         body: 'Legacy summary body',
         'io.mindroom.thread_summary': true,

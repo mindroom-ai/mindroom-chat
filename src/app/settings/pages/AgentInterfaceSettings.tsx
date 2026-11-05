@@ -10,34 +10,34 @@ import {
 } from '../railButtons';
 import { getCommandPaletteShortcutLabel } from '../../command-palette/commandPaletteShortcut';
 import {
-  useAccountSettings as useMindroomAccountSettings,
-  useSetAccountSettings as useSetMindroomAccountSettings,
+  useAccountSettings,
+  useSetAccountSettings,
 } from '../../matrix/hooks/useAccountSettings';
-import type { MindroomAccountSettings } from '../../preferences/accountSettings';
+import type { AccountSettings } from '../../preferences/accountSettings';
 import { SIDEBAR_SWITCH_SETTINGS } from '../../preferences/settingsRegistry';
 
-type MindroomInterfaceSettingsProps = {
+type AgentInterfaceSettingsProps = {
   className?: string;
 };
 
-type MindroomBooleanSetting = keyof MindroomAccountSettings;
+type BooleanAccountSetting = keyof AccountSettings;
 
-type MindroomAccountSwitchProps = {
+type AccountSettingSwitchProps = {
   focusId: string;
-  setting: MindroomBooleanSetting;
+  setting: BooleanAccountSetting;
   title: string;
   description: string;
 };
 
-function MindroomAccountSwitch({
+function AccountSettingSwitch({
   focusId,
   setting,
   title,
   description,
-}: MindroomAccountSwitchProps) {
+}: AccountSettingSwitchProps) {
   const { t } = useTranslation();
-  const settings = useMindroomAccountSettings();
-  const setAccountSettings = useSetMindroomAccountSettings();
+  const settings = useAccountSettings();
+  const setAccountSettings = useSetAccountSettings();
   // setAccountData only resolves once the change echoes back over sync, so
   // show the requested value immediately and hand back to the store when the
   // write settles (echo arrived, or failed and the stored value still rules).
@@ -84,7 +84,7 @@ function MindroomAccountSwitch({
  * deployment offers, in rail order, backed by `io.mindroom.settings` account data. Each
  * description says where the button's page stays reachable while it is hidden.
  */
-export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettingsProps) {
+export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProps) {
   const { t } = useTranslation();
   const offered = useOfferedRailButtons();
   const shortcut = getCommandPaletteShortcutLabel();
@@ -128,7 +128,7 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
         {switches
           .filter(([button]) => offered[button])
           .map(([button, title, description]) => (
-            <MindroomAccountSwitch
+            <AccountSettingSwitch
               key={button}
               focusId={SIDEBAR_SWITCH_SETTINGS[button]}
               setting={RAIL_BUTTON_SETTING[button]}

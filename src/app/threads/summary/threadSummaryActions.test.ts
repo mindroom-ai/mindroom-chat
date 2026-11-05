@@ -2,7 +2,7 @@ import { EventStatus, MatrixEvent, type MatrixClient, type Room } from 'matrix-j
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
-  getMindroomThreadSummaryInfo,
+  getThreadSummaryInfo,
   getThreadSummaryEventInfo,
   getLatestThreadSummaryInfoFromEventSources,
 } from '../../matrix/protocol/threadSummary';
@@ -109,7 +109,7 @@ describe('thread summary actions', () => {
     const saving = saveThreadSummary(mx, room, '$root', 'Human title');
     await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
     const content = sendMessage.mock.calls[0][2];
-    const generatedTs = getMindroomThreadSummaryInfo(content)!.generatedTs!;
+    const generatedTs = getThreadSummaryInfo(content)!.generatedTs!;
     const automatic = new MatrixEvent({
       event_id: '$auto',
       type: 'm.room.message',
@@ -206,7 +206,7 @@ describe('thread summary actions', () => {
       }
       await saveThreadSummary(mx, room, '$root', 'Human title wins');
       expect(getStoredSummary()?.summaryText).toBe('Human title wins');
-      const written = getMindroomThreadSummaryInfo(sendMessage.mock.calls[0][2]);
+      const written = getThreadSummaryInfo(sendMessage.mock.calls[0][2]);
       expect(written?.generatedTs).toBeGreaterThan(prior.generatedTs);
       if (source === 'cached-events') {
         const cachedPage = await loadLatestCachedThreadEvents('session', room.roomId, '$root', 32);
@@ -325,8 +325,8 @@ describe('thread summary actions', () => {
         pinned: true,
       },
     });
-    expect(getMindroomThreadSummaryInfo(content)?.summaryText).toBe('Updated summary');
-    expect(getMindroomThreadSummaryInfo(content)?.generatedTs).toBeGreaterThan(0);
+    expect(getThreadSummaryInfo(content)?.summaryText).toBe('Updated summary');
+    expect(getThreadSummaryInfo(content)?.generatedTs).toBeGreaterThan(0);
   });
 
   it.each(['', '  ', 'x'.repeat(301)])(

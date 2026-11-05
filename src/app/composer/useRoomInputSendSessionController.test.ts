@@ -6,8 +6,8 @@ import { IReplyDraft } from './roomInputDrafts';
 import { TUploadItem, Upload, UploadStatus } from '../matrix/state/upload';
 import { TUploadContent, toMatrixUploadError } from '../matrix/matrix';
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
-import { createMindroomPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
-import { parseMindroomLongTextJsonSidecar } from '../matrix/protocol/longText';
+import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
+import { parseLongTextJsonSidecar } from '../matrix/protocol/longText';
 import {
   StartRoomInputSendSessionOptions,
   useRoomInputSendSessionController,
@@ -462,7 +462,7 @@ describe('useRoomInputSendSessionController prep-error uploads', () => {
   it('blocks text containing a failed paste marker until the failed paste upload is removed', async () => {
     const { api, mx } = renderHarness();
     const failed = createFile('mindroom-paste-a3f19c.txt');
-    const marker = createMindroomPasteMarker({
+    const marker = createPasteMarker({
       id: 'paste-a3f19c',
       chars: 11,
       fileName: 'mindroom-paste-a3f19c.txt',
@@ -900,7 +900,7 @@ describe('useRoomInputSendSessionController long messages', () => {
 
     // The whole message, relation included, is uploaded as the file MindRoom reads back.
     expect(mx.uploadContent).toHaveBeenCalledTimes(1);
-    const uploaded = parseMindroomLongTextJsonSidecar(
+    const uploaded = parseLongTextJsonSidecar(
       await (mx.uploadContent.mock.calls[0][0] as Blob).text()
     );
     expect(uploaded).toMatchObject({

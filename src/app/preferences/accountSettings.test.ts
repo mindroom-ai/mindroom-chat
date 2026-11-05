@@ -1,32 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
-  mergeMindroomAccountSettings,
-  sanitizeMindroomAccountSettings,
+  mergeAccountSettings,
+  sanitizeAccountSettings,
 } from './accountSettings';
 
-describe('sanitizeMindroomAccountSettings', () => {
+describe('sanitizeAccountSettings', () => {
   it('falls back to defaults for non-object content', () => {
-    expect(sanitizeMindroomAccountSettings(undefined)).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
-    expect(sanitizeMindroomAccountSettings(null)).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
-    expect(sanitizeMindroomAccountSettings('simple')).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
-    expect(sanitizeMindroomAccountSettings([true])).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
+    expect(sanitizeAccountSettings(undefined)).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
+    expect(sanitizeAccountSettings(null)).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
+    expect(sanitizeAccountSettings('simple')).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
+    expect(sanitizeAccountSettings([true])).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
   });
 
   it('shows Canvases in the sidebar by default while preserving explicit booleans', () => {
     expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar).toBe(true);
-    expect(sanitizeMindroomAccountSettings({}).showCanvasesInSidebar).toBe(true);
+    expect(sanitizeAccountSettings({}).showCanvasesInSidebar).toBe(true);
     expect(
-      sanitizeMindroomAccountSettings({ showCanvasesInSidebar: false }).showCanvasesInSidebar
+      sanitizeAccountSettings({ showCanvasesInSidebar: false }).showCanvasesInSidebar
     ).toBe(false);
     expect(
-      sanitizeMindroomAccountSettings({ showCanvasesInSidebar: 'no' }).showCanvasesInSidebar
+      sanitizeAccountSettings({ showCanvasesInSidebar: 'no' }).showCanvasesInSidebar
     ).toBe(true);
   });
 
   it('ignores unknown keys when reading', () => {
     expect(
-      sanitizeMindroomAccountSettings({
+      sanitizeAccountSettings({
         simpleMode: true,
         futureKey: 'x',
         expandLongMessagesByDefault: true,
@@ -35,10 +35,10 @@ describe('sanitizeMindroomAccountSettings', () => {
   });
 });
 
-describe('mergeMindroomAccountSettings', () => {
+describe('mergeAccountSettings', () => {
   it('overlays the patch onto stored content', () => {
     expect(
-      mergeMindroomAccountSettings(
+      mergeAccountSettings(
         { showCanvasesInSidebar: false },
         { showCanvasesInSidebar: true }
       )
@@ -49,7 +49,7 @@ describe('mergeMindroomAccountSettings', () => {
 
   it('preserves unknown keys written by other clients', () => {
     expect(
-      mergeMindroomAccountSettings(
+      mergeAccountSettings(
         { showCanvasesInSidebar: false, futureKey: { nested: 1 } },
         { showCanvasesInSidebar: true }
       )
@@ -57,10 +57,10 @@ describe('mergeMindroomAccountSettings', () => {
   });
 
   it('treats malformed stored content as empty', () => {
-    expect(mergeMindroomAccountSettings(undefined, { showCanvasesInSidebar: true })).toEqual({
+    expect(mergeAccountSettings(undefined, { showCanvasesInSidebar: true })).toEqual({
       showCanvasesInSidebar: true,
     });
-    expect(mergeMindroomAccountSettings('garbage', { showCanvasesInSidebar: true })).toEqual({
+    expect(mergeAccountSettings('garbage', { showCanvasesInSidebar: true })).toEqual({
       showCanvasesInSidebar: true,
     });
   });

@@ -1,8 +1,8 @@
 import type { IEvent } from 'matrix-js-sdk';
 import {
   getThreadSummaryEventInfo,
-  hasMindroomThreadSummary,
-  type MindroomThreadSummaryInfo,
+  hasThreadSummary,
+  type ThreadSummaryInfo,
 } from '../../../matrix/protocol/threadSummary';
 import { compareCachedPaginationAnchors } from '../eventCacheTokenUtils';
 
@@ -244,9 +244,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const getCachedThreadSummaryInfoFromRawEvent = (
   rawEvent: Partial<IEvent>
-): MindroomThreadSummaryInfo | undefined => {
+): ThreadSummaryInfo | undefined => {
   const content = rawEvent.content;
-  if (!isRecord(content) || !hasMindroomThreadSummary(content)) return undefined;
+  if (!isRecord(content) || !hasThreadSummary(content)) return undefined;
 
   return getThreadSummaryEventInfo({
     getContent: () => content,

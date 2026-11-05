@@ -5,8 +5,8 @@ import { parseBlockMD } from '../rich-text/markdown/block/parser';
 import { unescapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import { getMatrixToRoom, getMatrixToRoomEvent, getMatrixToUser } from '../matrix/matrix-to';
 import {
-  mindroomEditorPasteMarkerElementToCustomHtml,
-  mindroomEditorPasteMarkerElementToPlainText,
+  editorPasteMarkerElementToCustomHtml,
+  editorPasteMarkerElementToPlainText,
 } from './editorExtensions';
 import { BlockType } from './types';
 import type { CustomElement, FormattedText, MentionElement } from './slate';
@@ -55,7 +55,7 @@ const inlineElementToCustomHtml = (node: CustomElement, children: string): strin
     case BlockType.Link:
       return `<a href="${sanitizeText(node.href)}">${children}</a>`;
     case BlockType.PasteMarker:
-      return mindroomEditorPasteMarkerElementToCustomHtml(node);
+      return editorPasteMarkerElementToCustomHtml(node);
     default:
       return undefined;
   }
@@ -157,7 +157,7 @@ const inlineElementToPlainText = (node: CustomElement, children: string): string
     case BlockType.Emoticon:
       return isMxcUri(node.key) ? `:${node.shortcode}:` : node.key;
     case BlockType.PasteMarker:
-      return mindroomEditorPasteMarkerElementToPlainText(node);
+      return editorPasteMarkerElementToPlainText(node);
     default:
       return undefined;
   }

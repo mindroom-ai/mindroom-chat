@@ -9,7 +9,7 @@ import { parseToolApprovalContent } from '../matrix/protocol/toolApproval';
 
 const mocks = vi.hoisted(() => ({ download: vi.fn(), mx: {} }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mocks.mx }));
-vi.mock('../event-store/cache/sidecarDownload', () => ({ downloadMindroomSidecarBlob: mocks.download }));
+vi.mock('../event-store/cache/sidecarDownload', () => ({ downloadSidecarBlob: mocks.download }));
 vi.mock('./ApprovalArgumentFields.css', () => ({
   Arguments: 'Arguments',
   Fields: 'Fields',

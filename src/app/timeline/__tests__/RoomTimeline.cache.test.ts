@@ -1631,7 +1631,7 @@ describe('RoomTimeline', () => {
     // saveRoomEventsToCacheMock after `waitForPersistSweepDebounce`.
     // Their subject — the mount-time sweep that re-serialized the whole
     // loaded timeline — is gone (persistence moved into
-    // MindroomSyncEngine's per-event write-through). Coverage of the
+    // SyncEngine's per-event write-through). Coverage of the
     // engine's live-event persistence lives in
     // `src/app/event-store/engine/engineWriteThrough.compaction.test.ts`
     // (13 tests) and `src/app/event-store/engine/__tests__/engineAllRoomsCoverage.test.ts`

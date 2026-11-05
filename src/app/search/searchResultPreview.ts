@@ -1,7 +1,7 @@
 import { IEventWithRoomId, MsgType, RelationType } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { MessageEvent } from '../matrix/types/room';
-import { shouldUseMindroomLightweightSearchResultBody } from '../messages/content/searchResultPolicy';
+import { shouldUseLongTextSearchResultBody } from '../messages/content/searchResultPolicy';
 import { parseInlineMD } from '../rich-text/markdown/inline/parser';
 import { parseBlockMD } from '../rich-text/markdown/block/parser';
 
@@ -104,7 +104,7 @@ export const shouldUseLightweightSearchResultBody = (
     typeof content?.formatted_body === 'string' ? content.formatted_body : undefined;
 
   return (
-    shouldUseMindroomLightweightSearchResultBody(content as Record<string, unknown>) ||
+    shouldUseLongTextSearchResultBody(content as Record<string, unknown>) ||
     (typeof body === 'string' && body.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT) ||
     (typeof formattedBody === 'string' &&
       formattedBody.length > SEARCH_RESULT_RICH_BODY_CHAR_LIMIT * 2)

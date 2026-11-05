@@ -2,7 +2,7 @@
 
 export const MINDROOM_EDIT_DEBUG_STORAGE_KEY = 'mindroom.debug.edits';
 
-export const isMindroomEditDebugEnabled = (): boolean => {
+export const isEditDebugEnabled = (): boolean => {
   try {
     const g = globalThis as {
       __MINDROOM_DEBUG_EDITS__?: boolean;
@@ -17,10 +17,10 @@ export const isMindroomEditDebugEnabled = (): boolean => {
   }
 };
 
-export const logMindroomEditDebug = (
+export const logEditDebug = (
   scope: string,
   details: Record<string, unknown>
 ) => {
-  if (!isMindroomEditDebugEnabled()) return;
+  if (!isEditDebugEnabled()) return;
   console.info(`[mindroom-edits:${scope}]`, details);
 };

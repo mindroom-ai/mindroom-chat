@@ -17,7 +17,7 @@ import {
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { Dialog, Header } from '../../../ui/glass/GlassPrimitives';
-import { useMindroomSyncEngine } from '../../../event-store/engine/engineContext';
+import { useSyncEngine } from '../../../event-store/engine/engineContext';
 import type { OfflineRoomSnapshot } from '../../../event-store/engine/roomOffline';
 
 type OfflineRoomSettingsProps = {
@@ -51,7 +51,7 @@ const PAUSE_MESSAGE_KEYS = {
 } as const;
 
 const useOfflineRoomSnapshot = (roomId: string): OfflineRoomSnapshot => {
-  const { offline } = useMindroomSyncEngine();
+  const { offline } = useSyncEngine();
   const store = useMemo(
     () => ({
       listen: (onStoreChange: () => void) => offline.subscribe(roomId, onStoreChange),
@@ -141,7 +141,7 @@ type ClearPhase = 'closed' | 'confirming' | 'clearing' | 'failed';
  * whole room, keeping it offline, and clearing what was downloaded.
  */
 export function OfflineRoomSettings({ roomId }: OfflineRoomSettingsProps) {
-  const { offline } = useMindroomSyncEngine();
+  const { offline } = useSyncEngine();
   const { t } = useTranslation();
   const snapshot = useOfflineRoomSnapshot(roomId);
   const [clearPhase, setClearPhase] = useState<ClearPhase>('closed');

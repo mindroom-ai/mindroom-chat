@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import { copyMindroomResolvedEditMetadata } from './editMetadata';
+import { copyResolvedEditMetadata } from './editMetadata';
 
-describe('copyMindroomResolvedEditMetadata', () => {
+describe('copyResolvedEditMetadata', () => {
   it('copies only missing MindRoom metadata from edit wrapper sources in priority order', () => {
     const resolvedContent: Record<string, unknown> = {
       body: 'Final answer',
@@ -10,7 +10,7 @@ describe('copyMindroomResolvedEditMetadata', () => {
       'io.mindroom.ai_run': { version: 1, status: 'streaming' },
     };
 
-    copyMindroomResolvedEditMetadata(resolvedContent, [
+    copyResolvedEditMetadata(resolvedContent, [
       {
         'm.new_content': {
           'io.mindroom.tool_trace': {
@@ -46,7 +46,7 @@ describe('copyMindroomResolvedEditMetadata', () => {
     // The marker means "this event's file holds the message"; it is true only beside that file.
     const shortEdit: Record<string, unknown> = { msgtype: 'm.text', body: 'Short now' };
 
-    copyMindroomResolvedEditMetadata(shortEdit, [
+    copyResolvedEditMetadata(shortEdit, [
       {
         'm.new_content': {
           msgtype: 'm.file',

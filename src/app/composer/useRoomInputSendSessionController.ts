@@ -12,12 +12,12 @@ import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import { TUploadContent } from '../matrix/matrix';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
 import {
-  buildMindroomLongTextPreview,
+  buildLongTextPreview,
   contentBytes,
   MAX_EVENT_CONTENT_BYTES,
 } from '../matrix/protocol/longText';
-import { uploadMindroomLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
-import { createMindroomPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
+import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
+import { createPasteMarker } from '../matrix/protocol/pasteAttachmentMarker';
 import { discardFailedLocalEcho } from '../matrix/protocol/pendingLocalEcho';
 import {
   createRoomInputSendSessionState,
@@ -119,7 +119,7 @@ export const hasFailedPasteMarkerInText = (
 
     let marker: string;
     try {
-      marker = createMindroomPasteMarker({
+      marker = createPasteMarker({
         id: pasteMetadata.id,
         chars: pasteMetadata.chars,
         fileName: pasteMetadata.fileName,
@@ -185,11 +185,11 @@ export const useRoomInputSendSessionController = ({
       const eventContent =
         contentBytes(content) <= MAX_EVENT_CONTENT_BYTES
           ? content
-          : await uploadMindroomLongTextSidecar(
+          : await uploadLongTextSidecar(
               mx,
               session.room,
               content,
-              buildMindroomLongTextPreview(content)
+              buildLongTextPreview(content)
             );
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);

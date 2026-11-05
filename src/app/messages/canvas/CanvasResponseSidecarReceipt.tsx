@@ -1,15 +1,15 @@
 import React, { type ReactNode, useMemo } from 'react';
 import {
-  getMindroomLongTextSidecarFacts,
-  getMindroomLongTextSourceIdentity,
-  type MindroomLongTextSource,
+  getLongTextSidecarFacts,
+  getLongTextSourceIdentity,
+  type LongTextSource,
 } from '../../matrix/protocol/longText';
-import { useMindroomLongTextResolvedContent } from '../content/LongTextText';
+import { useLongTextResolvedContent } from '../content/LongTextText';
 import { isAllText, MINDROOM_SIDECAR_MAX_BYTES, readCanvasResponse } from './canvasMessages';
 import { CanvasResponseReceipt } from './CanvasResponseReceipt';
 
 type CanvasResponseSidecarReceiptProps = {
-  source: MindroomLongTextSource;
+  source: LongTextSource;
   /** The event's own relation; MindRoom also ignores the one inside the uploaded file. */
   relation: unknown;
   hydrate: boolean;
@@ -30,15 +30,15 @@ export function CanvasResponseSidecarReceipt({
 }: CanvasResponseSidecarReceiptProps) {
   // The parent builds a new source (and owner) object on every render; the download hook keys on
   // the object, so keep one per file and owner.
-  const key = `${getMindroomLongTextSourceIdentity(source)}\n${JSON.stringify(
+  const key = `${getLongTextSourceIdentity(source)}\n${JSON.stringify(
     source.owner ?? null
   )}`;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const stableSource = useMemo(() => source, [key]);
-  const resolved = useMindroomLongTextResolvedContent(stableSource, hydrate);
+  const resolved = useLongTextResolvedContent(stableSource, hydrate);
   // Chat's reader accepts more files than MindRoom's; a receipt claims only what the agent reads,
   // so the file must be the content itself, within MindRoom's download limit, and valid text.
-  const facts = resolved && getMindroomLongTextSidecarFacts(resolved);
+  const facts = resolved && getLongTextSidecarFacts(resolved);
   // MindRoom reads any m.new_content in the file as the message, so an answer must have none.
   const readByMindroom =
     resolved !== undefined &&

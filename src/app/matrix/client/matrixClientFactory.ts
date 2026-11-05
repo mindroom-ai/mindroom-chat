@@ -10,7 +10,7 @@ import { traceDeepDiagnosticFetch } from '../../diagnostics/deepTrace';
 import { bindHomeserverReachability, createHomeserverReachability } from './homeserverReachability';
 import { getCloudflareAccessToken } from '../../native/cloudflareAccess';
 
-type MindroomCreateClientOpts = ICreateClientOpts & {
+type CreateClientOpts = ICreateClientOpts & {
   threadSupport?: boolean;
 };
 
@@ -123,7 +123,7 @@ class MessageSendScheduler extends MatrixScheduler {
   }
 }
 
-export const createMatrixClient = (options: MindroomCreateClientOpts) => {
+export const createMatrixClient = (options: CreateClientOpts) => {
   const reachability = createHomeserverReachability(
     createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
     options.baseUrl

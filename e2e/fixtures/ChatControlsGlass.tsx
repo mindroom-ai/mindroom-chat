@@ -14,8 +14,8 @@ import {
   UploadCardError,
   UploadCardProgress,
 } from '../../src/app/composer/upload/UploadCard';
-import { MindroomPasteAttachmentContent } from '../../src/app/messages/content/PasteAttachmentContent';
-import { MindroomMessageExtras } from '../../src/app/messages/MessageExtras';
+import { PasteAttachmentContent } from '../../src/app/messages/content/PasteAttachmentContent';
+import { MessageExtras } from '../../src/app/messages/MessageExtras';
 import { MsgType } from 'matrix-js-sdk';
 
 export function ChatControlsGlass() {
@@ -115,7 +115,7 @@ export function ChatControlsGlass() {
             </UrlPreviewContent>
           </UrlPreview>
           <div data-testid="paste">
-            <MindroomPasteAttachmentContent
+            <PasteAttachmentContent
               attachment={{
                 id: 'paste-aabbcc',
                 fileName: 'meeting-notes.txt',
@@ -144,7 +144,7 @@ export function ChatControlsGlass() {
               <Text size="T300">draft.txt</Text>
             </UploadCard>
           </div>
-          <MindroomMessageExtras
+          <MessageExtras
             extras={{
               version: 1,
               sections: [

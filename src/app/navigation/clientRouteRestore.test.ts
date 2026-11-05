@@ -2,7 +2,7 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import {
   canonicalizeSessionPathname,
-  parseMindroomStoredRouteUrl,
+  parseStoredRouteUrl,
   pathnameContainsAliasRoute,
   resolveCanonicalizedPathname,
 } from './clientRouteRestore';
@@ -33,10 +33,10 @@ const makeMatrixClient = ({
 
 describe('clientRouteRestore', () => {
   it('parses stored relative routes with a stable MindRoom base URL', () => {
-    expect(parseMindroomStoredRouteUrl('/home/%21room%3Amindroom.chat/')?.pathname).toBe(
+    expect(parseStoredRouteUrl('/home/%21room%3Amindroom.chat/')?.pathname).toBe(
       '/home/%21room%3Amindroom.chat/'
     );
-    expect(parseMindroomStoredRouteUrl('http://[')).toBeUndefined();
+    expect(parseStoredRouteUrl('http://[')).toBeUndefined();
   });
 
   it('detects alias routes before rendering children that would flash join fallbacks', () => {

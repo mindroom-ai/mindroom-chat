@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeMindroomMessageExtraHtml } from './messageExtrasHtml';
+import { sanitizeMessageExtraHtml } from './messageExtrasHtml';
 
-describe('sanitizeMindroomMessageExtraHtml', () => {
+describe('sanitizeMessageExtraHtml', () => {
   it('keeps ordinary structured HTML and safe links', () => {
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <h2>Evidence</h2>
       <p><strong>Result</strong> <em>ok</em> <code class="language-ts">value</code></p>
       <div><blockquote>quoted</blockquote><hr><br></div>
@@ -35,7 +35,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
   });
 
   it('keeps safe inline SVG primitives for charts, badges, and diagrams', () => {
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <svg viewBox="0 0 200 40" preserveAspectRatio="none" class="sparkline">
         <title>Sparkline</title>
         <desc>Recent status trend</desc>
@@ -78,7 +78,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
   });
 
   it('strips SVG script vectors while keeping safe SVG siblings', () => {
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <svg class="safe bad@class -bad" onload="alert(1)" style="background:url(javascript:alert(1))" href="javascript:alert(1)" xlink:href="https://evil.example/x.svg#bad">
         <script>alert(1)</script>
         <circle cx="50" cy="50" r="40" onclick="alert(1)" fill="red" stroke="url(https://tracker.example/stroke.svg#paint)"></circle>
@@ -128,7 +128,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
   });
 
   it('removes executable, embed, form, media, metadata, reply, and image surfaces', () => {
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <script>window.__mindroomExtrasXss = true</script>
       <style>body { color: red }</style>
       <iframe src="https://example.test"></iframe>
@@ -175,7 +175,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
   });
 
   it('strips event handlers, style attributes, data attributes, and unsafe code classes', () => {
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <p onclick="alert(1)" style="color:red" data-id="x">paragraph</p>
       <code class="language-ts unsafe" onload="alert(1)">code</code>
       <pre class="language-js other">pre</pre>
@@ -193,7 +193,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
 
   it('rejects unsafe, protocol-relative, relative, and malformed href values', () => {
     const scriptHref = `${'java'}script:alert(1)`;
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <a href="${scriptHref}">javascript</a>
       <a href="data:text/html,evil">data</a>
       <a href="vbscript:msgbox(1)">vbscript</a>
@@ -221,7 +221,7 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
   });
 
   it('removes nested details, summary, and MindRoom semantic tags', () => {
-    const sanitized = sanitizeMindroomMessageExtraHtml(`
+    const sanitized = sanitizeMessageExtraHtml(`
       <details open><summary>sender summary</summary><p>sender details</p></details>
       <think>hidden thought</think>
       <debug>debug data</debug>
@@ -253,9 +253,9 @@ describe('sanitizeMindroomMessageExtraHtml', () => {
   it('handles malformed and deeply nested HTML without throwing', () => {
     const deepHtml = `${'<div>'.repeat(150)}deep${'</div>'.repeat(150)}`;
 
-    expect(() => sanitizeMindroomMessageExtraHtml('<p><strong>broken')).not.toThrow();
-    expect(() => sanitizeMindroomMessageExtraHtml(deepHtml)).not.toThrow();
-    expect(sanitizeMindroomMessageExtraHtml('<p><strong>broken')).toContain(
+    expect(() => sanitizeMessageExtraHtml('<p><strong>broken')).not.toThrow();
+    expect(() => sanitizeMessageExtraHtml(deepHtml)).not.toThrow();
+    expect(sanitizeMessageExtraHtml('<p><strong>broken')).toContain(
       '<p><strong>broken</strong></p>'
     );
   });

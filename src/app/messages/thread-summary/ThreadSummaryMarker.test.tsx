@@ -3,7 +3,7 @@
 import React from 'react';
 import { act, create, ReactTestInstance, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MindroomThreadSummaryMarker } from './ThreadSummaryMarker';
+import { ThreadSummaryMarker } from './ThreadSummaryMarker';
 
 vi.mock('folds', () => ({
   Box: ({ as: Tag = 'div', children, ...props }: any) => React.createElement(Tag, props, children),
@@ -56,10 +56,10 @@ afterEach(() => {
   act(() => renderers.splice(0).forEach((renderer) => renderer.unmount()));
 });
 
-describe('MindroomThreadSummaryMarker', () => {
+describe('ThreadSummaryMarker', () => {
   it('says the AI titled the thread for its first summary', () => {
     const renderer = render(
-      <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={{ first: true }} />
+      <ThreadSummaryMarker summaryInfo={summaryInfo} plan={{ first: true }} />
     );
 
     expect(text(trigger(renderer))).toBe('AI titled this thread');
@@ -67,7 +67,7 @@ describe('MindroomThreadSummaryMarker', () => {
 
   it('says the AI updated the title for a later summary', () => {
     const renderer = render(
-      <MindroomThreadSummaryMarker summaryInfo={summaryInfo} plan={{ first: false }} />
+      <ThreadSummaryMarker summaryInfo={summaryInfo} plan={{ first: false }} />
     );
 
     expect(text(trigger(renderer))).toBe('AI title updated');
@@ -75,7 +75,7 @@ describe('MindroomThreadSummaryMarker', () => {
 
   it('says the title was edited for a manual summary', () => {
     const renderer = render(
-      <MindroomThreadSummaryMarker
+      <ThreadSummaryMarker
         summaryInfo={{ ...summaryInfo, isManual: true }}
         plan={{ first: false }}
       />
@@ -85,7 +85,7 @@ describe('MindroomThreadSummaryMarker', () => {
   });
 
   it('keeps the full title out of view until opened', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     expect(text(trigger(renderer))).toBe('AI title updated');
     expect(popout(renderer)).toHaveLength(0);
@@ -94,7 +94,7 @@ describe('MindroomThreadSummaryMarker', () => {
 
   it('shows the new title, its provenance and the old title when tapped', () => {
     const renderer = render(
-      <MindroomThreadSummaryMarker
+      <ThreadSummaryMarker
         summaryInfo={summaryInfo}
         plan={{ first: false, previousSummaryText: 'Push bug' }}
       />
@@ -113,7 +113,7 @@ describe('MindroomThreadSummaryMarker', () => {
   });
 
   it('lets the pointer through to the marker and timeline while open', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onClick());
 
@@ -124,7 +124,7 @@ describe('MindroomThreadSummaryMarker', () => {
   });
 
   it('opens while a mouse hovers and closes when it leaves', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'mouse' }));
     expect(popout(renderer)).toHaveLength(1);
@@ -134,14 +134,14 @@ describe('MindroomThreadSummaryMarker', () => {
   });
 
   it('does not open from a touch pointer entering, only from the tap', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onPointerEnter({ pointerType: 'touch' }));
     expect(popout(renderer)).toHaveLength(0);
   });
 
   it('closes on Escape and on a tap elsewhere', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onClick());
     act(() => {
@@ -157,7 +157,7 @@ describe('MindroomThreadSummaryMarker', () => {
   });
 
   it('closes when keyboard focus moves on', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onClick());
     act(() => trigger(renderer).props.onBlur());
@@ -166,7 +166,7 @@ describe('MindroomThreadSummaryMarker', () => {
   });
 
   it('stays open and follows the marker when the timeline scrolls', () => {
-    const renderer = render(<MindroomThreadSummaryMarker summaryInfo={summaryInfo} />);
+    const renderer = render(<ThreadSummaryMarker summaryInfo={summaryInfo} />);
 
     act(() => trigger(renderer).props.onClick());
     expect(popout(renderer)[0].props['data-top']).toBe(20);
@@ -182,7 +182,7 @@ describe('MindroomThreadSummaryMarker', () => {
 
   it('describes the marker with the full title for screen readers', () => {
     const renderer = render(
-      <MindroomThreadSummaryMarker
+      <ThreadSummaryMarker
         summaryInfo={summaryInfo}
         plan={{ first: false, previousSummaryText: 'Push bug' }}
       />

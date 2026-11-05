@@ -11,7 +11,7 @@ import {
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { _createAndReEmitRoom } from 'matrix-js-sdk/lib/sync';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createMindroomSyncEngine } from '../syncEngine';
+import { createSyncEngine } from '../syncEngine';
 import type { EngineWriteThrough } from '../engineWriteThrough';
 import type { EngineGapTracker } from '../engineGapTracker';
 import { loadRoomThreads } from '../../threads/roomThreadList';
@@ -122,7 +122,7 @@ describe('engine live writes and the SDK thread lists', () => {
       handleSyncPrepared: vi.fn().mockResolvedValue(undefined),
       stop: vi.fn(),
     } as unknown as EngineGapTracker;
-    const engine = createMindroomSyncEngine({ mx: client, writeThrough, gapTracker });
+    const engine = createSyncEngine({ mx: client, writeThrough, gapTracker });
     engine.start();
     return { engine, writeThrough };
   };

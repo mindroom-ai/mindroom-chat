@@ -13,7 +13,7 @@ import { readRoomEventCacheEventIds } from '../helpers/storage';
 const hasCredentials = !!process.env.E2E_USERNAME;
 
 // ISSUE-207 P0.2 → P3.3: F1 (cache write-through only existed for the
-// mounted room) is fixed. `MindroomSyncEngine` attaches
+// mounted room) is fixed. `SyncEngine` attaches
 // `RoomEvent.Timeline`/`RoomEvent.Redaction` listeners at the client
 // scope and writes every live event through the shared write-through,
 // regardless of which room is mounted. Expected green on and after

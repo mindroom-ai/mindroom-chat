@@ -3,7 +3,7 @@ import type { MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import {
   getLatestThreadSummaryInfoFromEventSources,
   getThreadSummaryInfosFromEventSources,
-  type MindroomThreadSummaryInfo,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import type { ThreadSummaryWriter } from '../../event-store/threads/threadSummaryState';
@@ -16,7 +16,7 @@ export const getActiveThreadSummaryInfo = ({
   thread: Pick<Thread, 'events' | 'timeline'> | null;
   threadEvents: MatrixEvent[];
   threadId: string | undefined;
-}): MindroomThreadSummaryInfo | undefined =>
+}): ThreadSummaryInfo | undefined =>
   threadId
     ? getLatestThreadSummaryInfoFromEventSources(threadEvents, thread?.events, thread?.timeline)
     : undefined;
@@ -34,7 +34,7 @@ export const useThreadSummaryPublishController = ({
   thread: Pick<Thread, 'events' | 'timeline'> | null;
   threadEvents: MatrixEvent[];
   threadId: string | undefined;
-  threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
+  threadSummaryInfoMap: Map<string, ThreadSummaryInfo>;
 }) => {
   const activeThreadSummaryInfo = useMemo(
     () =>

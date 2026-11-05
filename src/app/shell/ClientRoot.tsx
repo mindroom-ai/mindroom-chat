@@ -36,8 +36,8 @@ import { useActiveSession } from '../matrix/session/useSessionStore';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { CapabilitiesProvider } from '../matrix/hooks/useCapabilities';
 import { MediaConfigProvider } from '../matrix/hooks/useMediaConfig';
-import { createMindroomSyncEngine, MindroomSyncEngineProvider } from '../event-store/engine';
-import type { MindroomSyncEngine } from '../event-store/engine';
+import { createSyncEngine, SyncEngineProvider } from '../event-store/engine';
+import type { SyncEngine } from '../event-store/engine';
 import {
   useLivePrefetchConfig,
   usePrefetchConfigSubscription,
@@ -349,7 +349,7 @@ function CatchingUpBar() {
 
 type AccountProvidersProps = {
   mx: MatrixClient;
-  engine: MindroomSyncEngine;
+  engine: SyncEngine;
   sync: SyncProgress;
   children: ReactNode;
 };
@@ -360,7 +360,7 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
     <ServerConfigsLoader mx={mx}>
       {(serverConfigs) => (
         <MatrixClientProvider value={mx}>
-          <MindroomSyncEngineProvider engine={engine}>
+          <SyncEngineProvider engine={engine}>
             <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
               <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
                 <ClientStartupProvider hasCompletedInitialSync={sync.live}>
@@ -372,7 +372,7 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
                 </ClientStartupProvider>
               </MediaConfigProvider>
             </CapabilitiesProvider>
-          </MindroomSyncEngineProvider>
+          </SyncEngineProvider>
         </MatrixClientProvider>
       )}
     </ServerConfigsLoader>
@@ -393,7 +393,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
   const latestSession = useRef(session);
   const [attempt, setAttempt] = useState(0);
   const [startup, setStartup] = useState<StartupState>({ status: 'loading' });
-  const [engine, setEngine] = useState<MindroomSyncEngine>();
+  const [engine, setEngine] = useState<SyncEngine>();
   const [sync, setSync] = useState<SyncProgress>(NO_SYNC_YET);
   const [queryClient] = useState(() => new QueryClient());
   const getPrefetchConfig = useLivePrefetchConfig();
@@ -443,7 +443,7 @@ function ClientSession({ session, children }: ClientSessionProps) {
   // first, then the startup listeners, and only then the sync loop starts.
   useEffect(() => {
     if (!mx) return undefined;
-    const created = createMindroomSyncEngine({ mx, getPrefetchConfig, subscribePrefetchConfig });
+    const created = createSyncEngine({ mx, getPrefetchConfig, subscribePrefetchConfig });
     created.start();
     setEngine(created);
     return () => {

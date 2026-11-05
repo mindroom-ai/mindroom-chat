@@ -5,7 +5,7 @@ import { createClient, MatrixEvent, Room, type Thread } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import { createEngineWriteThrough } from '../event-store/engine/engineWriteThrough';
 import {
-  getMindroomThreadSummaryInfo,
+  getThreadSummaryInfo,
   getThreadSummaryEventInfo,
   getThreadSummaryInfosFromEventSources,
 } from '../matrix/protocol/threadSummary';
@@ -199,12 +199,12 @@ it.each([
       sessionId,
       roomId,
       '$root',
-      getMindroomThreadSummaryInfo(automatic.getContent())!
+      getThreadSummaryInfo(automatic.getContent())!
     );
     if (!pendingCacheRead) await ensureThreadSummaryStateLoaded(sessionId, roomId);
     const threadEvents = [automatic, manual];
     const thread = { events: threadEvents, timeline: threadEvents } as Thread;
-    const summaries = new Map([['$root', getMindroomThreadSummaryInfo(manual.getContent())!]]);
+    const summaries = new Map([['$root', getThreadSummaryInfo(manual.getContent())!]]);
     const room = { getThread: () => thread };
     const Harness = () => {
       const { storeThreadSummary, summaryMap } = useRoomThreadSummaryState({ sessionId, roomId });

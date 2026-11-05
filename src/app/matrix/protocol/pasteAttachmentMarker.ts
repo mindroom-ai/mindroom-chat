@@ -1,26 +1,26 @@
 import type { IEncryptedFile } from '../types/common';
 
-export type MindroomPasteMarker = {
+export type PasteMarker = {
   id: string;
   chars: number;
   fileName: string;
   raw: string;
 };
 
-export type MindroomPasteAttachmentMetadata = {
+export type PasteAttachmentMetadata = {
   version: 1;
   id: string;
   chars: number;
   file: string;
 };
 
-export type MindroomPasteAttachment = {
+export type PasteAttachment = {
   id: string;
   marker: string;
   file: File;
 };
 
-export type MindroomPasteAttachmentFile = {
+export type PasteAttachmentFile = {
   id: string;
   chars?: number;
   fileName: string;
@@ -30,13 +30,13 @@ export type MindroomPasteAttachmentFile = {
   encryptedFile?: IEncryptedFile;
 };
 
-export type MindroomPasteMarkerMatch = {
-  marker: MindroomPasteMarker;
+export type PasteMarkerMatch = {
+  marker: PasteMarker;
   index: number;
   length: number;
 };
 
-type CreateMindroomPasteAttachmentOptions = {
+type CreatePasteAttachmentOptions = {
   id?: string;
 };
 
@@ -77,23 +77,23 @@ const getRandomBytes = (): Uint8Array => {
   return bytes;
 };
 
-export const createMindroomPasteId = (randomBytes: () => Uint8Array = getRandomBytes): string =>
+export const createPasteId = (randomBytes: () => Uint8Array = getRandomBytes): string =>
   `paste-${bytesToLowercaseHex(randomBytes()).slice(0, PASTE_ID_BYTE_LENGTH * 2)}`;
 
-export const getMindroomPasteFileName = (id: string): string => {
+export const getPasteFileName = (id: string): string => {
   if (!PASTE_ID_REG.test(id)) {
     throw new Error(`Invalid MindRoom paste id: ${id}`);
   }
   return `mindroom-${id}.txt`;
 };
 
-export const isMindroomPasteFileName = (fileName: string): boolean =>
+export const isPasteFileName = (fileName: string): boolean =>
   PASTE_FILE_NAME_REG.test(fileName);
 
-export const getMindroomPasteIdFromFileName = (fileName: string): string | undefined =>
+export const getPasteIdFromFileName = (fileName: string): string | undefined =>
   fileName.match(PASTE_FILE_NAME_REG)?.[1];
 
-export const createMindroomPasteMarker = ({
+export const createPasteMarker = ({
   id,
   chars,
   fileName,
@@ -130,11 +130,11 @@ const markerFromParts = ({
   chars: unknown;
   fileName: unknown;
   raw: string;
-}): MindroomPasteMarker | undefined => {
+}): PasteMarker | undefined => {
   if (typeof id !== 'string' || !PASTE_ID_REG.test(id)) return undefined;
   if (typeof chars !== 'number' || !Number.isInteger(chars) || chars < 0) return undefined;
   if (typeof fileName !== 'string' || !PASTE_FILE_NAME_REG.test(fileName)) return undefined;
-  if (fileName !== getMindroomPasteFileName(id)) return undefined;
+  if (fileName !== getPasteFileName(id)) return undefined;
 
   return {
     id,
@@ -144,7 +144,7 @@ const markerFromParts = ({
   };
 };
 
-export const createMindroomPasteAttachmentMetadata = ({
+export const createPasteAttachmentMetadata = ({
   id,
   chars,
   fileName,
@@ -152,7 +152,7 @@ export const createMindroomPasteAttachmentMetadata = ({
   id: string;
   chars: number;
   fileName: string;
-}): MindroomPasteAttachmentMetadata => {
+}): PasteAttachmentMetadata => {
   const marker = markerFromParts({
     id,
     chars,
@@ -171,9 +171,9 @@ export const createMindroomPasteAttachmentMetadata = ({
   };
 };
 
-export const parseMindroomPasteAttachmentMetadata = (
+export const parsePasteAttachmentMetadata = (
   value: unknown
-): MindroomPasteAttachmentMetadata | undefined => {
+): PasteAttachmentMetadata | undefined => {
   if (!isRecord(value)) return undefined;
   if (value.version !== MINDROOM_PASTE_MARKER_VERSION) return undefined;
 
@@ -193,7 +193,7 @@ export const parseMindroomPasteAttachmentMetadata = (
   };
 };
 
-export const withMindroomPasteAttachmentMetadata = (
+export const withPasteAttachmentMetadata = (
   content: Record<string, unknown>,
   metadata: { id: string; chars: number; fileName: string } | undefined
 ): Record<string, unknown> => {
@@ -201,14 +201,14 @@ export const withMindroomPasteAttachmentMetadata = (
 
   return {
     ...content,
-    [MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]: createMindroomPasteAttachmentMetadata(metadata),
+    [MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]: createPasteAttachmentMetadata(metadata),
   };
 };
 
-export const getMindroomPasteAttachmentFile = (
+export const getPasteAttachmentFile = (
   content: Record<string, unknown>
-): MindroomPasteAttachmentFile | undefined => {
-  const metadata = parseMindroomPasteAttachmentMetadata(
+): PasteAttachmentFile | undefined => {
+  const metadata = parsePasteAttachmentMetadata(
     content[MINDROOM_PASTE_ATTACHMENT_CONTENT_KEY]
   );
   const contentFileName =
@@ -218,7 +218,7 @@ export const getMindroomPasteAttachmentFile = (
       ? content.body
       : undefined;
   const fileName = metadata?.file ?? contentFileName;
-  if (!fileName || !isMindroomPasteFileName(fileName)) return undefined;
+  if (!fileName || !isPasteFileName(fileName)) return undefined;
   if (metadata && contentFileName && contentFileName !== metadata.file) return undefined;
 
   const encryptedFile = isRecord(content.file)
@@ -233,7 +233,7 @@ export const getMindroomPasteAttachmentFile = (
   if (!mxcUri) return undefined;
 
   const info = isRecord(content.info) ? content.info : undefined;
-  const id = metadata?.id ?? getMindroomPasteIdFromFileName(fileName);
+  const id = metadata?.id ?? getPasteIdFromFileName(fileName);
   if (!id) return undefined;
 
   return {
@@ -247,7 +247,7 @@ export const getMindroomPasteAttachmentFile = (
   };
 };
 
-export const parseMindroomPasteMarker = (text: string): MindroomPasteMarker | undefined => {
+export const parsePasteMarker = (text: string): PasteMarker | undefined => {
   const trimmed = text.trim();
   if (
     !trimmed.startsWith(MINDROOM_PASTE_MARKER_START) ||
@@ -277,8 +277,8 @@ export const parseMindroomPasteMarker = (text: string): MindroomPasteMarker | un
   }
 };
 
-export const findMindroomPasteMarkersInText = (text: string): MindroomPasteMarkerMatch[] => {
-  const matches: MindroomPasteMarkerMatch[] = [];
+export const findPasteMarkersInText = (text: string): PasteMarkerMatch[] => {
+  const matches: PasteMarkerMatch[] = [];
   let cursor = 0;
 
   while (cursor < text.length) {
@@ -292,7 +292,7 @@ export const findMindroomPasteMarkersInText = (text: string): MindroomPasteMarke
     if (endIndex === -1) break;
 
     const raw = text.slice(startIndex, endIndex + MINDROOM_PASTE_MARKER_END.length);
-    const marker = parseMindroomPasteMarker(raw);
+    const marker = parsePasteMarker(raw);
     if (marker) {
       matches.push({
         marker,
@@ -306,7 +306,7 @@ export const findMindroomPasteMarkersInText = (text: string): MindroomPasteMarke
   return matches;
 };
 
-export const formatMindroomPasteMarkerAsHtml = (marker: MindroomPasteMarker): string =>
+export const formatPasteMarkerAsHtml = (marker: PasteMarker): string =>
   [
     '<span data-mindroom-paste-marker="true"',
     ` data-mindroom-paste-id="${escapeHtmlText(marker.id)}"`,
@@ -316,13 +316,13 @@ export const formatMindroomPasteMarkerAsHtml = (marker: MindroomPasteMarker): st
     '</span>',
   ].join('');
 
-export const createMindroomPasteAttachment = (
+export const createPasteAttachment = (
   pastedText: string,
-  options: CreateMindroomPasteAttachmentOptions = {}
-): MindroomPasteAttachment => {
-  const id = options.id ?? createMindroomPasteId();
-  const fileName = getMindroomPasteFileName(id);
-  const marker = createMindroomPasteMarker({
+  options: CreatePasteAttachmentOptions = {}
+): PasteAttachment => {
+  const id = options.id ?? createPasteId();
+  const fileName = getPasteFileName(id);
+  const marker = createPasteMarker({
     id,
     chars: pastedText.length,
     fileName,
@@ -335,17 +335,17 @@ export const createMindroomPasteAttachment = (
   };
 };
 
-export const formatMindroomPasteMarkerTextAsHtml = (text: string): string | undefined => {
+export const formatPasteMarkerTextAsHtml = (text: string): string | undefined => {
   let hasPasteMarker = false;
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   const htmlLines = lines.flatMap((line) => {
     let cursor = 0;
     let html = '';
 
-    findMindroomPasteMarkersInText(line).forEach(({ marker, index, length }) => {
+    findPasteMarkersInText(line).forEach(({ marker, index, length }) => {
       hasPasteMarker = true;
       html += escapeHtmlText(line.slice(cursor, index));
-      html += formatMindroomPasteMarkerAsHtml(marker);
+      html += formatPasteMarkerAsHtml(marker);
       cursor = index + length;
     });
 

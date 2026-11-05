@@ -10,7 +10,7 @@ import {
 import type { NavigateOptions } from 'react-router-dom';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import to from 'await-to-js';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollToElement, ScrollToItem } from './useVirtualPaginator';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import type { ThreadFilterState, ThreadSortFreezeState } from '../event-store/threads/roomThreadOverviewModel';
@@ -137,7 +137,7 @@ export const useRoomEventOpenController = ({
   threadResolutionMap: Map<string, ThreadResolutionState>;
   threadSortControlSignature: string;
   threadSortFreezeState: ThreadSortFreezeState | null;
-  threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
+  threadSummaryInfoMap: Map<string, ThreadSummaryInfo>;
 }): {
   handleOpenEvent: OpenRoomEventHandler;
   openRoomEventRoute: OpenRoomEventRoute;

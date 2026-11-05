@@ -5,10 +5,10 @@ import {
   getMessageCopyTexts,
   getMessageCopyTextSource,
   isCopyTextMessageContent,
-  scanMindroomToolMarkerLines,
+  scanToolMarkerLines,
   type MessageCopyTextSource,
 } from './messageCopyText';
-import type { MindroomToolTraceEvent } from '../matrix/protocol/toolTrace';
+import type { ToolTraceEvent } from '../matrix/protocol/toolTrace';
 
 const TOOL_TRACE_KEY = 'io.mindroom.tool_trace';
 
@@ -265,7 +265,7 @@ describe('getMessageCopyTextSource', () => {
       source &&
         getMessageCopyTexts(
           source,
-          scanMindroomToolMarkerLines(source.body, source.formattedBody, source.plainBodyFallback)
+          scanToolMarkerLines(source.body, source.formattedBody, source.plainBodyFallback)
         )
     ).toEqual({ text: body });
   });
@@ -281,10 +281,10 @@ const copyTexts = (source: Omit<MessageCopyTextSource, 'plainBodyFallback'>) => 
   const fullSource = { plainBodyFallback: true, ...source };
   return getMessageCopyTexts(
     fullSource,
-    scanMindroomToolMarkerLines(fullSource.body, fullSource.formattedBody, true)
+    scanToolMarkerLines(fullSource.body, fullSource.formattedBody, true)
   );
 };
-const copy = (body: string, toolTraceEvents?: MindroomToolTraceEvent[]) =>
+const copy = (body: string, toolTraceEvents?: ToolTraceEvent[]) =>
   copyTexts({ body, toolTraceEvents });
 const copyText = (body: string) => copy(body).text;
 

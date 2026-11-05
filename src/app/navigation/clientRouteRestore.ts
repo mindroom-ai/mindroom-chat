@@ -12,7 +12,7 @@ import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 
 const MINDROOM_ROUTE_PARSE_BASE_URL = 'https://mindroom.local';
 
-export const parseMindroomStoredRouteUrl = (storedPath: string): URL | undefined => {
+export const parseStoredRouteUrl = (storedPath: string): URL | undefined => {
   try {
     return new URL(storedPath, MINDROOM_ROUTE_PARSE_BASE_URL);
   } catch {

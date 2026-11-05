@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   MINDROOM_TOOL_REF_HTML_REG_G,
-  formatMindroomMarkdownTextBodyAsHtml,
-  formatMindroomMessageTextBodyAsHtml,
-  parseMindroomToolRefHtml,
-  parseMindroomToolRefText,
+  formatMarkdownTextBodyAsHtml,
+  formatMessageTextBodyAsHtml,
+  parseToolRefHtml,
+  parseToolRefText,
 } from './blocks';
 
 const PASTE_MARKER =
@@ -21,9 +21,9 @@ describe('MINDROOM_TOOL_REF_HTML_REG_G', () => {
   });
 });
 
-describe('parseMindroomToolRefHtml', () => {
+describe('parseToolRefHtml', () => {
   it('parses a pending HTML tool ref marker', () => {
-    expect(parseMindroomToolRefHtml('🔧 <code>search_web</code> [1] ⏳')).toEqual({
+    expect(parseToolRefHtml('🔧 <code>search_web</code> [1] ⏳')).toEqual({
       toolName: 'search_web',
       index: 1,
       pending: true,
@@ -31,7 +31,7 @@ describe('parseMindroomToolRefHtml', () => {
   });
 
   it('parses a completed HTML tool ref marker', () => {
-    expect(parseMindroomToolRefHtml('🔧 <code>read_file</code> [2]')).toEqual({
+    expect(parseToolRefHtml('🔧 <code>read_file</code> [2]')).toEqual({
       toolName: 'read_file',
       index: 2,
       pending: false,
@@ -40,14 +40,14 @@ describe('parseMindroomToolRefHtml', () => {
 
   it('requires the full marker string to match', () => {
     expect(
-      parseMindroomToolRefHtml('prefix 🔧 <code>search_web</code> [1] suffix')
+      parseToolRefHtml('prefix 🔧 <code>search_web</code> [1] suffix')
     ).toBeUndefined();
   });
 });
 
-describe('parseMindroomToolRefText', () => {
+describe('parseToolRefText', () => {
   it('parses the plain text body marker contract', () => {
-    expect(parseMindroomToolRefText('🔧 `shell` [3]')).toEqual({
+    expect(parseToolRefText('🔧 `shell` [3]')).toEqual({
       toolName: 'shell',
       index: 3,
       pending: false,
@@ -55,14 +55,14 @@ describe('parseMindroomToolRefText', () => {
   });
 
   it('returns undefined for non-marker text', () => {
-    expect(parseMindroomToolRefText('normal response text')).toBeUndefined();
+    expect(parseToolRefText('normal response text')).toBeUndefined();
   });
 });
 
-describe('formatMindroomMessageTextBodyAsHtml', () => {
+describe('formatMessageTextBodyAsHtml', () => {
   it('converts plain text tool marker lines to the formatted marker contract', () => {
     expect(
-      formatMindroomMessageTextBodyAsHtml(
+      formatMessageTextBodyAsHtml(
         [
           'Before <unsafe>',
           '',
@@ -85,7 +85,7 @@ describe('formatMindroomMessageTextBodyAsHtml', () => {
 
   it('formats paste markers and keeps tool refs parseable', () => {
     expect(
-      formatMindroomMessageTextBodyAsHtml(
+      formatMessageTextBodyAsHtml(
         [`Before ${PASTE_MARKER} after`, '', '🔧 `run_shell_command` [1]'].join('\n')
       )
     ).toBe(
@@ -101,13 +101,13 @@ describe('formatMindroomMessageTextBodyAsHtml', () => {
   });
 
   it('returns undefined without special MindRoom markers', () => {
-    expect(formatMindroomMessageTextBodyAsHtml('plain response')).toBeUndefined();
+    expect(formatMessageTextBodyAsHtml('plain response')).toBeUndefined();
   });
 });
 
-describe('formatMindroomMarkdownTextBodyAsHtml', () => {
+describe('formatMarkdownTextBodyAsHtml', () => {
   it('renders bold text containing inline code before the sidecar arrives', () => {
-    const html = formatMindroomMarkdownTextBodyAsHtml(
+    const html = formatMarkdownTextBodyAsHtml(
       '**2. Pointed `config.yaml` at it** (line 50):'
     );
 
@@ -117,7 +117,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('renders standalone separators while preserving separators in code examples', () => {
-    const html = formatMindroomMarkdownTextBodyAsHtml(
+    const html = formatMarkdownTextBodyAsHtml(
       ['Before', '', '---', '', 'After', '', '```text', '---', '```'].join('\n')
     );
 
@@ -126,7 +126,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it.each(['---', '***', '___', '-----'])('renders a standalone %s separator', (separator) => {
-    expect(formatMindroomMarkdownTextBodyAsHtml(separator)).toBe('<hr/>');
+    expect(formatMarkdownTextBodyAsHtml(separator)).toBe('<hr/>');
   });
 
   it.each([
@@ -134,19 +134,19 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     ['Before', '', '---', '```', 'x', '```'],
     ['$$', 'x', '$$', '---', '', 'After'],
   ])('treats recognized code and math blocks as separator boundaries', (...lines) => {
-    expect(formatMindroomMarkdownTextBodyAsHtml(lines.join('\n'))).toContain('<hr/>');
+    expect(formatMarkdownTextBodyAsHtml(lines.join('\n'))).toContain('<hr/>');
   });
 
   it.each(['\\---', '    ---', '> ---', '`---`', 'Heading\n---', '---\nText', '~~~\n\n---\n\n~~~'])(
     'keeps non-standalone or ambiguous separators literal: %s',
     (body) => {
-      expect(formatMindroomMarkdownTextBodyAsHtml(body)).not.toContain('<hr');
+      expect(formatMarkdownTextBodyAsHtml(body)).not.toContain('<hr');
     }
   );
 
   it('renders safe Markdown and root tool references', () => {
     expect(
-      formatMindroomMarkdownTextBodyAsHtml(
+      formatMarkdownTextBodyAsHtml(
         ['# Preview <unsafe>', '', 'Ready **now**.', '', '🔧 `run_shell_command` [1]'].join('\n')
       )
     ).toBe(
@@ -159,7 +159,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps fenced markers literal while promoting tool calls outside the fence', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['```', '🔧 `run_shell_command` [1]', PASTE_MARKER, '```', '', '🔧 `outside_tool` [2]'].join(
         '\n'
       )
@@ -173,7 +173,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('groups root tool markers despite unrelated inline code, strike, and math', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       [
         'Update `notes.md`, ~~old~~, and $x$.',
         '',
@@ -190,10 +190,10 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('uses the parser code-fence grammar when preserving dash text', () => {
-    const infoBacktick = formatMindroomMarkdownTextBodyAsHtml(
+    const infoBacktick = formatMarkdownTextBodyAsHtml(
       ['```foo`bar', '- item', '```'].join('\n')
     );
-    const exactClose = formatMindroomMarkdownTextBodyAsHtml(
+    const exactClose = formatMarkdownTextBodyAsHtml(
       ['```', '- inside one', '````', '- inside two', '```'].join('\n')
     );
 
@@ -204,7 +204,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps ambiguous fences guarded across parser-recognized blocks', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['~~~', '```', 'example', '```', '🔧 `example_tool` [1]'].join('\n')
     );
 
@@ -213,7 +213,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('does not add Markdown escapes to list-shaped tool text inside code fences', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['```', '- 🔧 `tool_name` [1]', '```'].join('\n')
     );
 
@@ -229,7 +229,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     ];
 
     bodies.forEach((body) => {
-      const formattedBody = formatMindroomMarkdownTextBodyAsHtml(body);
+      const formattedBody = formatMarkdownTextBodyAsHtml(body);
 
       expect(formattedBody).toContain('<ul data-md="*">');
       expect(formattedBody).not.toContain('<ol');
@@ -237,10 +237,10 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('uses the parser display-math grammar when preserving dash text', () => {
-    const sameLineDelimiters = formatMindroomMarkdownTextBodyAsHtml(
+    const sameLineDelimiters = formatMarkdownTextBodyAsHtml(
       ['$$a', '- b', 'c$$'].join('\n')
     );
-    const contentLineClose = formatMindroomMarkdownTextBodyAsHtml(
+    const contentLineClose = formatMarkdownTextBodyAsHtml(
       ['$$', '- a', 'b$$', '- outside'].join('\n')
     );
 
@@ -252,7 +252,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('promotes root markers when earlier inline syntax is escaped', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['Use \\`literal` and \\~~also literal~~.', '', '🔧 `tool` [1]'].join('\n')
     );
 
@@ -261,7 +261,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
 
   it('drops blank separators between consecutive tool references', () => {
     expect(
-      formatMindroomMarkdownTextBodyAsHtml(
+      formatMarkdownTextBodyAsHtml(
         [
           '🔧 `run_shell_command` [1]',
           '',
@@ -287,12 +287,12 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     const marker = (name: string, index: number) => `<p>🔧 <code>${name}</code> [${index}]</p>`;
 
     expect(
-      formatMindroomMarkdownTextBodyAsHtml(
+      formatMarkdownTextBodyAsHtml(
         ['🔧 `add_memory` [1]', '', '🔧 `send_voice_message` [2]', '', 'Done.'].join('\n')
       )
     ).toBe(`${marker('add_memory', 1)}${marker('send_voice_message', 2)}<p>Done.</p>`);
     expect(
-      formatMindroomMarkdownTextBodyAsHtml(
+      formatMarkdownTextBodyAsHtml(
         [
           'Let me **check**.',
           '',
@@ -320,7 +320,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
 
   it('makes paragraphs only of the text beside a marker when blocks follow it', () => {
     expect(
-      formatMindroomMarkdownTextBodyAsHtml(
+      formatMarkdownTextBodyAsHtml(
         ['🔧 `search` [1]', '', 'Found:', '- one', '', 'Thanks.', '', '🔧 `save` [2]'].join('\n')
       )
     ).toBe(
@@ -331,12 +331,12 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
       ].join('')
     );
     // Text without markers keeps the parser's lines.
-    expect(formatMindroomMarkdownTextBodyAsHtml('One\n\nTwo')).toBe('One<br/><br/>Two');
+    expect(formatMarkdownTextBodyAsHtml('One\n\nTwo')).toBe('One<br/><br/>Two');
   });
 
   it('keeps a literal marker beside a real one out of a paragraph', () => {
     expect(
-      formatMindroomMarkdownTextBodyAsHtml(
+      formatMarkdownTextBodyAsHtml(
         ['🔧 `read_file` [1]', '', '  🔧 `quoted_tool` [2]', '', '🔧 `edit_file` [3]'].join('\n')
       )
     ).toBe(
@@ -349,7 +349,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('renders standalone paste markers between Markdown chunks', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['Before **bold**', '', PASTE_MARKER, '', 'After *italic*'].join('\n')
     );
 
@@ -359,16 +359,16 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps ambiguous inline, container, and tilde-fence markers literal', () => {
-    const inlinePaste = formatMindroomMarkdownTextBodyAsHtml(
+    const inlinePaste = formatMarkdownTextBodyAsHtml(
       `Before **bold** ${PASTE_MARKER} after`
     );
-    const multilineCode = formatMindroomMarkdownTextBodyAsHtml(
+    const multilineCode = formatMarkdownTextBodyAsHtml(
       `\`\`before\n${PASTE_MARKER}\nafter\`\``
     );
-    const listFence = formatMindroomMarkdownTextBodyAsHtml(
+    const listFence = formatMarkdownTextBodyAsHtml(
       ['- ~~~', '  🔧 `run_shell_command` [1]', '  ~~~'].join('\n')
     );
-    const tildeFence = formatMindroomMarkdownTextBodyAsHtml(
+    const tildeFence = formatMarkdownTextBodyAsHtml(
       ['~~~', '🔧 `run_shell_command` [1]', '~~~'].join('\n')
     );
 
@@ -381,7 +381,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps indented markers literal without suppressing root tool calls elsewhere', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       [
         '    🔧 `example_tool` [1]',
         '',
@@ -398,10 +398,10 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('preserves safe blockquotes, unordered dash lists, and display-math dashes', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['> Safe <unsafe> and **quoted**', '', '- alpha', '-  beta'].join('\n')
     );
-    const mathBody = formatMindroomMarkdownTextBodyAsHtml(['$$', '- a + b', '$$'].join('\n'));
+    const mathBody = formatMarkdownTextBodyAsHtml(['$$', '- a + b', '$$'].join('\n'));
 
     expect(formattedBody).toContain('<blockquote data-md=">">');
     expect(formattedBody).toContain('&lt;unsafe&gt;');
@@ -412,7 +412,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('preserves inline Markdown in ordinary wrench list prose', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       [
         '- prose 🔧 ordinary **bold** text',
         '- 🔧 ordinary **strong** text',
@@ -428,7 +428,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('sanitizes display math exactly once', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['$$', String.raw`\begin{aligned}a & b\end{aligned}`, '$$'].join('\n')
     );
 
@@ -439,7 +439,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('sanitizes inline math exactly once', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       String.raw`When $a < b & c$, continue.`
     );
 
@@ -451,7 +451,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps dash lists unordered when later text contains inline code', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['- first', '- second', '', 'Use `x`'].join('\n')
     );
 
@@ -461,7 +461,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps root dash lists unordered with wide marker spacing', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['-     first', '-     second'].join('\n')
     );
 
@@ -470,7 +470,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('keeps nested dash lists unordered', () => {
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       ['- parent', '    - child'].join('\n')
     );
 
@@ -479,12 +479,12 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
   });
 
   it('leaves tab-indented dash text literal', () => {
-    expect(formatMindroomMarkdownTextBodyAsHtml('\t- item')).toBe('\t- item');
+    expect(formatMarkdownTextBodyAsHtml('\t- item')).toBe('\t- item');
   });
 
   it('keeps parser-accepted dash items unordered when content starts with whitespace', () => {
     ['-  ', '- \titem'].forEach((body) => {
-      const formattedBody = formatMindroomMarkdownTextBodyAsHtml(body);
+      const formattedBody = formatMarkdownTextBodyAsHtml(body);
 
       expect(formattedBody).toContain('<ul data-md="*">');
       expect(formattedBody).not.toContain('<ol');
@@ -495,9 +495,9 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     const blockHeavy = Array.from({ length: 4_000 }, (_, index) => `# heading ${index}`).join('\n');
     const inlineHeavy = String.raw`\*`.repeat(513);
 
-    expect(() => formatMindroomMarkdownTextBodyAsHtml(blockHeavy)).not.toThrow();
-    expect(formatMindroomMarkdownTextBodyAsHtml(blockHeavy)).toBe('');
-    expect(formatMindroomMarkdownTextBodyAsHtml(inlineHeavy)).toBe('');
+    expect(() => formatMarkdownTextBodyAsHtml(blockHeavy)).not.toThrow();
+    expect(formatMarkdownTextBodyAsHtml(blockHeavy)).toBe('');
+    expect(formatMarkdownTextBodyAsHtml(inlineHeavy)).toBe('');
   });
 
   it('does not count standalone tool markers against the parser budget', () => {
@@ -505,7 +505,7 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
       { length: 120 },
       (_, index) => `🔧 \`matrix_matrix_read_room_recent\` [${index + 1}]`
     );
-    const formattedBody = formatMindroomMarkdownTextBodyAsHtml(
+    const formattedBody = formatMarkdownTextBodyAsHtml(
       [...markers, '', 'Done: **sent**.'].join('\n\n')
     );
 
@@ -514,6 +514,6 @@ describe('formatMindroomMarkdownTextBodyAsHtml', () => {
     ).toHaveLength(120);
     expect(formattedBody).toContain('<strong data-md="**">sent</strong>');
     // An ambiguous `` line sends the markers through the parser, so they count again.
-    expect(formatMindroomMarkdownTextBodyAsHtml([...markers, 'a `` b'].join('\n\n'))).toBe('');
+    expect(formatMarkdownTextBodyAsHtml([...markers, 'a `` b'].join('\n\n'))).toBe('');
   });
 });

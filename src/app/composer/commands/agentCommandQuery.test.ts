@@ -1,7 +1,7 @@
 import { createEditor } from 'slate';
 import { describe, expect, it } from 'vitest';
 import {
-  getMindroomCommandQuery,
+  getAgentCommandQuery,
   MINDROOM_COMMAND_PREFIX,
 } from './agentCommandQuery';
 
@@ -20,10 +20,10 @@ const createTextEditor = (text: string, anchorOffset = text.length, focusOffset 
   return editor;
 };
 
-describe('getMindroomCommandQuery', () => {
+describe('getAgentCommandQuery', () => {
   it('returns query when command starts at beginning of message', () => {
     const editor = createTextEditor('!sch');
-    const query = getMindroomCommandQuery(editor, {
+    const query = getAgentCommandQuery(editor, {
       anchor: { path: [0, 0], offset: 0 },
       focus: { path: [0, 0], offset: 4 },
     });
@@ -34,7 +34,7 @@ describe('getMindroomCommandQuery', () => {
 
   it('returns undefined when command is not at beginning of message', () => {
     const editor = createTextEditor('hello !sch');
-    const query = getMindroomCommandQuery(editor, {
+    const query = getAgentCommandQuery(editor, {
       anchor: { path: [0, 0], offset: 6 },
       focus: { path: [0, 0], offset: 10 },
     });
@@ -44,7 +44,7 @@ describe('getMindroomCommandQuery', () => {
 
   it('returns undefined when selection is not collapsed', () => {
     const editor = createTextEditor('!schedule', 2, 9);
-    const query = getMindroomCommandQuery(editor, {
+    const query = getAgentCommandQuery(editor, {
       anchor: { path: [0, 0], offset: 0 },
       focus: { path: [0, 0], offset: 9 },
     });

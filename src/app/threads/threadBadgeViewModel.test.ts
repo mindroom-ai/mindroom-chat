@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { MindroomThreadSummaryInfo } from '../matrix/protocol/threadSummary';
+import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ThreadRecord } from '../event-store/threads/types';
 import { buildThreadBadgeViewModelFromRecord } from './threadBadgeViewModel';
 
@@ -48,7 +48,7 @@ describe('buildThreadBadgeViewModelFromRecord', () => {
   });
 
   it('maps canonical record presentation and status into the badge model', () => {
-    const summaryInfo: MindroomThreadSummaryInfo = {
+    const summaryInfo: ThreadSummaryInfo = {
       summaryText: 'Newer cached summary',
       messageCount: 4,
       generatedTs: 2000,

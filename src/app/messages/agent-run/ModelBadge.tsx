@@ -1,16 +1,16 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { MindroomAiRunInfo } from '../../matrix/protocol/aiRun';
-import { getMindroomAiRunCompactModelLabel, getMindroomAiRunModelLabel } from './aiRunDisplay';
+import { AiRunInfo } from '../../matrix/protocol/aiRun';
+import { getAiRunCompactModelLabel, getAiRunModelLabel } from './aiRunDisplay';
 import { ProviderModelIcon } from '../../models/ProviderModelIcon';
 import * as css from './ModelBadge.css';
 
-export function MindroomModelBadge({ info }: { info: MindroomAiRunInfo }) {
+export function ModelBadge({ info }: { info: AiRunInfo }) {
   const { t } = useTranslation();
-  const label = getMindroomAiRunCompactModelLabel(info);
+  const label = getAiRunCompactModelLabel(info);
   if (!label) return null;
 
-  const modelDetails = getMindroomAiRunModelLabel(info);
+  const modelDetails = getAiRunModelLabel(info);
   const fullModelLabel =
     info.modelDisplayName && modelDetails && modelDetails !== label
       ? `${label} · ${modelDetails}`

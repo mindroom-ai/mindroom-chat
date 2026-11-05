@@ -11,13 +11,13 @@ import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import { usePageResume } from '../../lib/hooks/usePageResume';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { logTimelineDebug } from '../../diagnostics/timelineDebug';
-import { type MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { fetchAndPersistThreadContent } from '../open/threadContentPrefetch';
 import { resolveThreadOverviewRefreshTargets } from './threadOverviewRefreshTargets';
 import type { TimelineEventEntry } from '../../event-store/timeline/roomTimelineEvents';
 import type { Timeline } from '../../event-store/timeline/timelinePagination';
 import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCacheHydration';
-import { useMindroomSyncEngine } from '../../event-store/engine';
+import { useSyncEngine } from '../../event-store/engine';
 import { getThreadSummaryStateSnapshot } from '../../event-store/threads/threadSummaryState';
 
 import type { PersistThreadEventCache } from '../../event-store/engine/enginePersistFacade';
@@ -53,7 +53,7 @@ export const useThreadOverviewResumeController = ({
   filteredThreadRootIds: string[];
   limit: number;
   mx: MatrixClient;
-  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
+  onStoreThreadSummary: (threadRootId: string, info: ThreadSummaryInfo | undefined) => void;
   onApplyThreadRelations: (options: FetchedRelationOverviewUpdateOptions) => void;
   beginThreadCacheWrite: () => PersistThreadEventCache;
   refreshCompactThreadList: () => Promise<void>;
@@ -67,7 +67,7 @@ export const useThreadOverviewResumeController = ({
   threadReplyCountMap: Map<string, number>;
   threadResolutionMap: Map<string, { isResolved: boolean }>;
 }): void => {
-  const syncEngine = useMindroomSyncEngine();
+  const syncEngine = useSyncEngine();
   // ISSUE-207 P4.4: the `overviewResumeRefreshInFlightRef` and
   // `pendingOverviewResumeRefreshRef` in-flight-guards are gone —
   // per-thread fetch dedup is now the engine scheduler's job

@@ -2,7 +2,7 @@ import { TokenRefreshLogoutError } from 'matrix-js-sdk';
 import { createStoredSessionTokenRefresh } from '../matrix/client/sessionTokenRefresh';
 import { listSessions, type StoredSession } from '../matrix/session/sessions';
 import { HomeserverSignedOutError, LocalMindroomApiError, requestMatrixOpenIdToken } from './api';
-import { resolveMindroomProvisioningRequest } from './provisioning';
+import { resolveProvisioningRequest } from './provisioning';
 
 export type PairingAccount = {
   session: StoredSession;
@@ -25,7 +25,7 @@ export const getPairingAccounts = (
   provisioningOverrideUrl: string | undefined
 ): PairingAccount[] =>
   sessions.flatMap((session) => {
-    const { canAuthenticate, provisioningBaseUrl } = resolveMindroomProvisioningRequest({
+    const { canAuthenticate, provisioningBaseUrl } = resolveProvisioningRequest({
       sessionHomeserverUrl: session.baseUrl,
       provisioningOverrideUrl,
       accessToken: session.accessToken,

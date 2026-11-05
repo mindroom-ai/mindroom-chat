@@ -1,6 +1,6 @@
 import { KnownMembership, type Room, type RoomMember } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { hasMindroomVoiceCallsPresence } from './agentCall';
+import { hasVoiceCallsPresence } from './agentCall';
 
 export type AgentCallCandidate = { userId: string; displayName: string };
 
@@ -15,7 +15,7 @@ export const getAgentCallCandidates = (
       (member) =>
         member.membership === KnownMembership.Join &&
         isMindroomAgentUserIdForViewer(member.userId, viewerUserId) &&
-        hasMindroomVoiceCallsPresence(presenceStatusFor(member.userId))
+        hasVoiceCallsPresence(presenceStatusFor(member.userId))
     )
     .map((member) => ({ userId: member.userId, displayName: member.name }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName));

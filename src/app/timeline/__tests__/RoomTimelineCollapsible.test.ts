@@ -7,8 +7,8 @@ import { createDefaultThreadFilterState } from '../../event-store/threads/roomTh
 import {
   createBackfillScheduler,
   createEnginePersistFacade,
-  MindroomSyncEngineProvider,
-  type MindroomSyncEngine,
+  SyncEngineProvider,
+  type SyncEngine,
 } from '../../event-store/engine';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
@@ -149,7 +149,7 @@ vi.mock('../../preferences/settings', () => ({
 }));
 
 vi.mock('../../event-store/engine/prefetchSettings', () => ({
-  mindroomSettingsAtom: {},
+  prefetchSettingsAtom: {},
 }));
 
 vi.mock('../../matrix/hooks/useRoom', () => ({
@@ -933,12 +933,12 @@ const createControlledRoomTimelineHarness = (
     room: ReturnType<typeof makeRoom>;
     threadId?: string;
   }) {
-    // ISSUE-207 P3.3: wrap in a MindroomSyncEngine provider so the
-    // component's `useMindroomSyncEngine` resolves. The persist facade
+    // ISSUE-207 P3.3: wrap in a SyncEngine provider so the
+    // component's `useSyncEngine` resolves. The persist facade
     // is real; its writes route through the mocked cacheStore fns
     // used by these tests' own vi.mock setup.
     // eslint-disable-next-line react/no-children-prop
-    return React.createElement(MindroomSyncEngineProvider, {
+    return React.createElement(SyncEngineProvider, {
       engine: harnessSyncEngine,
       children: React.createElement(RoomTimelineComponent, {
         room,
@@ -967,8 +967,8 @@ const createControlledRoomTimelineHarness = (
 };
 
 const HARNESS_TEST_SESSION_ID = 'test-session';
-const harnessSyncEngine: MindroomSyncEngine = {
-  mx: {} as MindroomSyncEngine['mx'],
+const harnessSyncEngine: SyncEngine = {
+  mx: {} as SyncEngine['mx'],
   sessionId: HARNESS_TEST_SESSION_ID,
   start: () => undefined,
   stop: () => undefined,

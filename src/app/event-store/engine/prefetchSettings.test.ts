@@ -24,21 +24,21 @@ describe('MindRoom local settings storage', () => {
   });
 
   it('migrates v1 implicit homeserver scope while preserving explicit all-room opt-in', async () => {
-    const { loadMindroomSettings, migrateMindroomSettingsStorage } = await import(
+    const { loadPrefetchSettings, migratePrefetchSettingsStorage } = await import(
       './prefetchSettingsStorage'
     );
     values.set(
       'mindroomSettings',
       JSON.stringify({ v: 1, prefetchScope: 'my-server', prefetchDepth: 2000 })
     );
-    expect(loadMindroomSettings().prefetchScope).toBe('current-room-only');
-    expect(migrateMindroomSettingsStorage()).toBe(true);
+    expect(loadPrefetchSettings().prefetchScope).toBe('current-room-only');
+    expect(migratePrefetchSettingsStorage()).toBe(true);
     expect(JSON.parse(values.get('mindroomSettings')!).v).toBe(2);
     values.set(
       'mindroomSettings',
       JSON.stringify({ v: 1, prefetchScope: 'all-rooms', prefetchDepth: 2000 })
     );
-    expect(loadMindroomSettings().prefetchScope).toBe('all-rooms');
+    expect(loadPrefetchSettings().prefetchScope).toBe('all-rooms');
   });
 
   it('hydrates legacy extension fields without mapping the deleted pagination limit', async () => {
@@ -46,8 +46,8 @@ describe('MindRoom local settings storage', () => {
       'settings',
       JSON.stringify({ paginationLimit: 120, prefetchScope: 'all-rooms', prefetchDepth: 2500 })
     );
-    const { mindroomSettingsAtom } = await import('./prefetchSettings');
-    const snapshot = createStore().get(mindroomSettingsAtom);
+    const { prefetchSettingsAtom } = await import('./prefetchSettings');
+    const snapshot = createStore().get(prefetchSettingsAtom);
 
     expect(snapshot).toEqual({ prefetchScope: 'all-rooms', prefetchDepth: 2500 });
     expect(snapshot).not.toHaveProperty('paginationLimit');
@@ -58,9 +58,9 @@ describe('MindRoom local settings storage', () => {
       'mindroomSettings',
       JSON.stringify({ v: 1, prefetchScope: 'invalid', prefetchDepth: 'many' })
     );
-    const { mindroomSettingsAtom } = await import('./prefetchSettings');
+    const { prefetchSettingsAtom } = await import('./prefetchSettings');
 
-    expect(createStore().get(mindroomSettingsAtom)).toEqual({
+    expect(createStore().get(prefetchSettingsAtom)).toEqual({
       prefetchScope: 'current-room-only',
       prefetchDepth: 10000,
     });
@@ -68,10 +68,10 @@ describe('MindRoom local settings storage', () => {
 
   it('writes only the versioned MindRoom-owned store', async () => {
     values.set('settings', JSON.stringify({ pageZoom: 90 }));
-    const { mindroomSettingsAtom } = await import('./prefetchSettings');
+    const { prefetchSettingsAtom } = await import('./prefetchSettings');
     const store = createStore();
 
-    store.set(mindroomSettingsAtom, {
+    store.set(prefetchSettingsAtom, {
       prefetchScope: 'current-room-only',
       prefetchDepth: 3000,
     });
@@ -94,9 +94,9 @@ describe('MindRoom local settings storage', () => {
         prefetchDepth: 2000,
       })
     );
-    const { migrateMindroomSettingsStorage } = await import('./prefetchSettingsStorage');
+    const { migratePrefetchSettingsStorage } = await import('./prefetchSettingsStorage');
 
-    expect(migrateMindroomSettingsStorage()).toBe(true);
+    expect(migratePrefetchSettingsStorage()).toBe(true);
     expect(JSON.parse(values.get('mindroomSettings') ?? '{}')).toEqual({
       v: 2,
       prefetchScope: 'all-rooms',
@@ -108,9 +108,9 @@ describe('MindRoom local settings storage', () => {
   it('does not mutate storage merely by importing or reading settings', async () => {
     const legacy = JSON.stringify({ pageZoom: 90, paginationLimit: 120 });
     values.set('settings', legacy);
-    const { loadMindroomSettings } = await import('./prefetchSettingsStorage');
+    const { loadPrefetchSettings } = await import('./prefetchSettingsStorage');
 
-    expect(loadMindroomSettings()).toEqual({
+    expect(loadPrefetchSettings()).toEqual({
       prefetchScope: 'current-room-only',
       prefetchDepth: 10000,
     });
@@ -126,9 +126,9 @@ describe('MindRoom local settings storage', () => {
     vi.mocked(localStorage.setItem).mockImplementation(() => {
       throw new DOMException('quota', 'QuotaExceededError');
     });
-    const { migrateMindroomSettingsStorage } = await import('./prefetchSettingsStorage');
+    const { migratePrefetchSettingsStorage } = await import('./prefetchSettingsStorage');
 
-    expect(migrateMindroomSettingsStorage()).toBe(false);
+    expect(migratePrefetchSettingsStorage()).toBe(false);
     expect(JSON.parse(values.get('settings') ?? '{}')).toEqual({
       pageZoom: 90,
       prefetchScope: 'all-rooms',
@@ -139,19 +139,19 @@ describe('MindRoom local settings storage', () => {
   it('does not overwrite a newer versioned store on downgrade', async () => {
     const future = JSON.stringify({ v: 3, prefetchScope: 'future', prefetchDepth: 42 });
     values.set('mindroomSettings', future);
-    const { migrateMindroomSettingsStorage } = await import('./prefetchSettingsStorage');
+    const { migratePrefetchSettingsStorage } = await import('./prefetchSettingsStorage');
 
-    expect(migrateMindroomSettingsStorage()).toBe(false);
+    expect(migratePrefetchSettingsStorage()).toBe(false);
     expect(values.get('mindroomSettings')).toBe(future);
   });
 
   it('does not overwrite a newer store through an ordinary atom write', async () => {
     const future = JSON.stringify({ v: 3, prefetchScope: 'future', prefetchDepth: 42 });
     values.set('mindroomSettings', future);
-    const { mindroomSettingsAtom } = await import('./prefetchSettings');
+    const { prefetchSettingsAtom } = await import('./prefetchSettings');
     const store = createStore();
 
-    store.set(mindroomSettingsAtom, {
+    store.set(prefetchSettingsAtom, {
       prefetchScope: 'current-room-only',
       prefetchDepth: 3000,
     });

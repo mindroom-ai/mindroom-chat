@@ -1,7 +1,7 @@
 import { RelationType, type MatrixEvent } from 'matrix-js-sdk';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
-import { hasMindroomMessageExtras } from '../matrix/protocol/messageExtrasData';
-import { hasMindroomThreadSummary } from '../matrix/protocol/threadSummary';
+import { hasMessageExtras } from '../matrix/protocol/messageExtrasData';
+import { hasThreadSummary } from '../matrix/protocol/threadSummary';
 import { inSameDay } from '../lib/time';
 import { estimateThreadEventRowHeight } from '../event-store/threads/threadRenderUtils';
 import { startsAuthorGroup } from './timelineRowFold';
@@ -113,8 +113,8 @@ const estimateMediaPx = (content: Record<string, unknown>, type: string): number
 /** Whether the message always shows in full: agent replies, summaries and tool traces. */
 const showsInFull = (event: MatrixEvent, content: Record<string, unknown>): boolean =>
   isMindroomAgentUserId(event.getSender() ?? undefined) ||
-  hasMindroomThreadSummary(content) ||
-  hasMindroomMessageExtras(content);
+  hasThreadSummary(content) ||
+  hasMessageExtras(content);
 
 /**
  * A message row's height without an author line: the text estimate, or the rich HTML or media

@@ -10,7 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { saveAttachmentOwner } from '../../cache/__tests__/attachmentFixtures';
-import { createMindroomSyncEngine } from '../syncEngine';
+import { createSyncEngine } from '../syncEngine';
 import { createSessionId } from '../../../matrix/session/sessions';
 import { createRoomOfflineController } from '../roomOffline';
 import { createBackfillScheduler } from '../backfillScheduler';
@@ -45,7 +45,7 @@ const raw = (id: string) => ({
   origin_server_ts: 1,
   content: { msgtype: 'm.text', body: id },
 });
-const engines: ReturnType<typeof createMindroomSyncEngine>[] = [];
+const engines: ReturnType<typeof createSyncEngine>[] = [];
 beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
@@ -98,7 +98,7 @@ const fixture = (request = vi.fn().mockResolvedValue({ chunk: [] })) => {
     },
   };
   const make = (realGap = false) => {
-    const engine = createMindroomSyncEngine({
+    const engine = createSyncEngine({
       mx,
       connection,
       gapTracker: realGap

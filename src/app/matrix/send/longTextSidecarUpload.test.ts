@@ -2,11 +2,11 @@ import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { decryptFile } from '../matrix';
 import {
-  getMindroomLongTextSidecarFacts,
-  getMindroomLongTextSource,
-  parseMindroomLongTextJsonSidecar,
+  getLongTextSidecarFacts,
+  getLongTextSource,
+  parseLongTextJsonSidecar,
 } from '../protocol/longText';
-import { uploadMindroomLongTextSidecar } from './longTextSidecarUpload';
+import { uploadLongTextSidecar } from './longTextSidecarUpload';
 
 const content = {
   msgtype: 'm.text',
@@ -41,11 +41,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe('uploadMindroomLongTextSidecar', () => {
+describe('uploadLongTextSidecar', () => {
   it('uploads the whole content and returns the preview MindRoom reads as a long-text sidecar', async () => {
     const { mx, room, uploads } = setup();
 
-    const event = await uploadMindroomLongTextSidecar(mx, room, content, preview);
+    const event = await uploadLongTextSidecar(mx, room, content, preview);
 
     // The shape MindRoom's backend accepts (sidecar_content.sidecar_mxc_url).
     expect(event).toMatchObject({
@@ -65,12 +65,12 @@ describe('uploadMindroomLongTextSidecar', () => {
     });
     expect(event.file).toBeUndefined();
     // Chat's own reader finds the file and parses back exactly the content that was sent.
-    expect(getMindroomLongTextSource(event)?.mxcUri).toBe('mxc://example.org/sidecar');
+    expect(getLongTextSource(event)?.mxcUri).toBe('mxc://example.org/sidecar');
     const uploaded = await uploads[0].text();
-    const parsed = parseMindroomLongTextJsonSidecar(uploaded)!;
+    const parsed = parseLongTextJsonSidecar(uploaded)!;
     expect(parsed).toEqual(content);
     // The file is the content itself, the shape MindRoom reads, and its size is recorded.
-    expect(getMindroomLongTextSidecarFacts(parsed)).toEqual({
+    expect(getLongTextSidecarFacts(parsed)).toEqual({
       topLevelContent: true,
       bytes: new TextEncoder().encode(uploaded).length,
     });
@@ -78,9 +78,9 @@ describe('uploadMindroomLongTextSidecar', () => {
   });
 
   it('records when Chat read a file shape MindRoom does not read', () => {
-    const nested = parseMindroomLongTextJsonSidecar(JSON.stringify({ content }))!;
+    const nested = parseLongTextJsonSidecar(JSON.stringify({ content }))!;
     expect(nested).toEqual(content);
-    expect(getMindroomLongTextSidecarFacts(nested)?.topLevelContent).toBe(false);
+    expect(getLongTextSidecarFacts(nested)?.topLevelContent).toBe(false);
   });
 
   it('uploads ciphertext in an encrypted room and references it with its key', async () => {
@@ -88,21 +88,21 @@ describe('uploadMindroomLongTextSidecar', () => {
     vi.stubGlobal('window', globalThis);
     const { mx, room, uploads } = setup({ encrypted: true });
 
-    const event = await uploadMindroomLongTextSidecar(mx, room, content, preview);
+    const event = await uploadLongTextSidecar(mx, room, content, preview);
 
     expect(event.url).toBeUndefined();
     const file = event.file as Record<string, unknown>;
     expect(file).toMatchObject({ url: 'mxc://example.org/sidecar', v: 'v2' });
-    expect(getMindroomLongTextSource(event)?.encryptedFile).toEqual(file);
+    expect(getLongTextSource(event)?.encryptedFile).toEqual(file);
     const ciphertext = await uploads[0].arrayBuffer();
     expect(new TextDecoder().decode(ciphertext)).not.toContain('Here is the whole draft');
     const plaintext = await decryptFile(ciphertext, 'application/json', file as never);
-    expect(parseMindroomLongTextJsonSidecar(await plaintext.text())).toEqual(content);
+    expect(parseLongTextJsonSidecar(await plaintext.text())).toEqual(content);
   });
 
   it('fails when the upload fails', async () => {
     const { mx, room } = setup({ uploadError: new Error('offline') });
 
-    await expect(uploadMindroomLongTextSidecar(mx, room, content, preview)).rejects.toBeTruthy();
+    await expect(uploadLongTextSidecar(mx, room, content, preview)).rejects.toBeTruthy();
   });
 });

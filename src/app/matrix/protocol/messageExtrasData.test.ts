@@ -4,8 +4,8 @@ import {
   MINDROOM_MESSAGE_EXTRAS_MAX_CONTENT_CHARS,
   MINDROOM_MESSAGE_EXTRAS_MAX_SECTIONS,
   MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS,
-  hasMindroomMessageExtras,
-  parseMindroomMessageExtras,
+  hasMessageExtras,
+  parseMessageExtras,
 } from './messageExtrasData';
 
 const createContent = (sections: unknown[], overrides: Record<string, unknown> = {}) => ({
@@ -23,27 +23,27 @@ const validSection = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-describe('parseMindroomMessageExtras', () => {
+describe('parseMessageExtras', () => {
   it('returns null when the custom key is missing', () => {
-    expect(parseMindroomMessageExtras({ body: 'Hello' })).toBeNull();
+    expect(parseMessageExtras({ body: 'Hello' })).toBeNull();
   });
 
   it('returns null for a non-object extras value', () => {
-    expect(parseMindroomMessageExtras({ [MINDROOM_MESSAGE_EXTRAS_KEY]: 'bad' })).toBeNull();
+    expect(parseMessageExtras({ [MINDROOM_MESSAGE_EXTRAS_KEY]: 'bad' })).toBeNull();
   });
 
   it('returns null for unsupported versions', () => {
-    expect(parseMindroomMessageExtras(createContent([validSection()], { version: 0 }))).toBeNull();
-    expect(parseMindroomMessageExtras(createContent([validSection()], { version: 3 }))).toBeNull();
+    expect(parseMessageExtras(createContent([validSection()], { version: 0 }))).toBeNull();
+    expect(parseMessageExtras(createContent([validSection()], { version: 3 }))).toBeNull();
   });
 
   it('returns null when sections is not an array', () => {
-    expect(parseMindroomMessageExtras(createContent([], { sections: {} }))).toBeNull();
+    expect(parseMessageExtras(createContent([], { sections: {} }))).toBeNull();
   });
 
   it('normalizes a valid schema', () => {
     expect(
-      parseMindroomMessageExtras(
+      parseMessageExtras(
         createContent([
           validSection({
             title: '  Evidence  ',
@@ -69,7 +69,7 @@ describe('parseMindroomMessageExtras', () => {
 
   it('keeps v1 plain and markdown normalization unchanged', () => {
     expect(
-      parseMindroomMessageExtras(
+      parseMessageExtras(
         createContent([
           validSection({
             title: 'Plain',
@@ -104,19 +104,19 @@ describe('parseMindroomMessageExtras', () => {
   });
 
   it('defaults collapsed to true', () => {
-    const extras = parseMindroomMessageExtras(createContent([validSection()]));
+    const extras = parseMessageExtras(createContent([validSection()]));
 
     expect(extras?.sections[0].collapsed).toBe(true);
   });
 
   it('keeps explicit collapsed false open', () => {
-    const extras = parseMindroomMessageExtras(createContent([validSection({ collapsed: false })]));
+    const extras = parseMessageExtras(createContent([validSection({ collapsed: false })]));
 
     expect(extras?.sections[0].collapsed).toBe(false);
   });
 
   it('skips invalid sections while keeping valid sections', () => {
-    const extras = parseMindroomMessageExtras(
+    const extras = parseMessageExtras(
       createContent([
         null,
         validSection({ title: '   ' }),
@@ -131,12 +131,12 @@ describe('parseMindroomMessageExtras', () => {
 
   it('skips text/html in v1', () => {
     expect(
-      parseMindroomMessageExtras(createContent([validSection({ content_type: 'text/html' })]))
+      parseMessageExtras(createContent([validSection({ content_type: 'text/html' })]))
     ).toBeNull();
   });
 
   it('skips v1 text/html while keeping valid v1 sections', () => {
-    const extras = parseMindroomMessageExtras(
+    const extras = parseMessageExtras(
       createContent([
         validSection({ title: 'HTML', content_type: 'text/html', content: '<p>skip</p>' }),
         validSection({ title: 'Plain', content_type: 'text/plain', content: 'keep' }),
@@ -158,7 +158,7 @@ describe('parseMindroomMessageExtras', () => {
 
   it('accepts v2 plain, markdown, and html sections', () => {
     expect(
-      parseMindroomMessageExtras(
+      parseMessageExtras(
         createContent(
           [
             validSection({ title: 'Plain', content_type: 'text/plain', content: 'plain' }),
@@ -194,7 +194,7 @@ describe('parseMindroomMessageExtras', () => {
   });
 
   it('skips unknown v2 content types while preserving valid sections', () => {
-    const extras = parseMindroomMessageExtras(
+    const extras = parseMessageExtras(
       createContent(
         [
           validSection({ title: 'Unsupported', content_type: 'application/json' }),
@@ -216,7 +216,7 @@ describe('parseMindroomMessageExtras', () => {
 
   it('returns null for v2 envelopes when all sections are invalid', () => {
     expect(
-      parseMindroomMessageExtras(
+      parseMessageExtras(
         createContent([validSection({ content_type: 'application/json' })], { version: 2 })
       )
     ).toBeNull();
@@ -224,14 +224,14 @@ describe('parseMindroomMessageExtras', () => {
 
   it('reports only valid envelopes as collapsible extras metadata', () => {
     expect(
-      hasMindroomMessageExtras(
+      hasMessageExtras(
         createContent([validSection({ content_type: 'text/html', content: '<p>ok</p>' })], {
           version: 2,
         })
       )
     ).toBe(true);
     expect(
-      hasMindroomMessageExtras(
+      hasMessageExtras(
         createContent([validSection({ content_type: 'text/html', content: '<p>skip</p>' })])
       )
     ).toBe(false);
@@ -239,7 +239,7 @@ describe('parseMindroomMessageExtras', () => {
 
   it('skips oversized content', () => {
     expect(
-      parseMindroomMessageExtras(
+      parseMessageExtras(
         createContent([
           validSection({ content: 'x'.repeat(MINDROOM_MESSAGE_EXTRAS_MAX_CONTENT_CHARS + 1) }),
         ])
@@ -248,7 +248,7 @@ describe('parseMindroomMessageExtras', () => {
   });
 
   it('caps section count at the first configured candidates', () => {
-    const extras = parseMindroomMessageExtras(
+    const extras = parseMessageExtras(
       createContent(
         Array.from({ length: MINDROOM_MESSAGE_EXTRAS_MAX_SECTIONS + 1 }, (_, index) =>
           validSection({ title: `Section ${index + 1}` })
@@ -262,7 +262,7 @@ describe('parseMindroomMessageExtras', () => {
 
   it('trims and clamps titles', () => {
     const title = ` ${'a'.repeat(MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS + 10)} `;
-    const extras = parseMindroomMessageExtras(createContent([validSection({ title })]));
+    const extras = parseMessageExtras(createContent([validSection({ title })]));
 
     expect(extras?.sections[0].title).toBe('a'.repeat(MINDROOM_MESSAGE_EXTRAS_MAX_TITLE_CHARS));
   });
@@ -271,7 +271,7 @@ describe('parseMindroomMessageExtras', () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
-    expect(() => parseMindroomMessageExtras(circular)).not.toThrow();
-    expect(parseMindroomMessageExtras(circular)).toBeNull();
+    expect(() => parseMessageExtras(circular)).not.toThrow();
+    expect(parseMessageExtras(circular)).toBeNull();
   });
 });

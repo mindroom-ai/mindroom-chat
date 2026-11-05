@@ -3,7 +3,7 @@ import React from 'react';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useClientConfig } from '../../config/useClientConfig';
 import * as css from './ThinkingPlaceholder.css';
-import { resolveMindroomThinkingPlaceholderMessages } from '../../matrix/protocol/thinkingPlaceholder';
+import { resolveThinkingPlaceholderMessages } from '../../matrix/protocol/thinkingPlaceholder';
 import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
 import thinkingBase from './thinking-mark-base.svg';
 import thinkingCore from './thinking-mark-core.svg';
@@ -53,17 +53,17 @@ function useThinkingElapsed(startedAt: number | undefined): string | undefined {
   return startedAt === undefined ? undefined : formatter.format(tenths / 10);
 }
 
-type MindroomThinkingPlaceholderProps = {
+type ThinkingPlaceholderProps = {
   /** When the reply arrived, in milliseconds since the epoch; shows a counter from it. */
   startedAt?: number;
 };
 
-export function MindroomThinkingPlaceholder({ startedAt }: MindroomThinkingPlaceholderProps) {
+export function ThinkingPlaceholder({ startedAt }: ThinkingPlaceholderProps) {
   const { t } = useTranslation();
   const clientConfig = useClientConfig();
   const messages = React.useMemo(
     () =>
-      resolveMindroomThinkingPlaceholderMessages(
+      resolveThinkingPlaceholderMessages(
         clientConfig.mindroom?.thinkingPlaceholderMessages
       ),
     [clientConfig.mindroom?.thinkingPlaceholderMessages]

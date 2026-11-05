@@ -5,7 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { loadLiveMarkdown, renderLiveMarkdown, useLiveMarkdownReady } from '../live/liveMarkdown';
-import { renderMindroomMessageContent } from '../content/renderAgentMessageContent';
+import { renderAgentMessageContent } from '../content/renderAgentMessageContent';
 
 // The real renderer, watched for when it is requested.
 vi.mock('../live/liveMarkdown', async (importOriginal) => {
@@ -52,17 +52,17 @@ vi.mock('../content/FallbackContent', () => ({ MessageEmptyContent: () => null }
 vi.mock('../html/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => text,
 }));
-vi.mock('./StreamingIndicator', () => ({ renderMindroomStreamingIndicator: () => null }));
+vi.mock('./StreamingIndicator', () => ({ renderStreamingIndicator: () => null }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () => null }));
-vi.mock('../../approvals/ToolApprovalCard', () => ({ MindroomToolApprovalCard: () => null }));
-vi.mock('../content/PasteAttachmentContent', () => ({ MindroomPasteAttachmentContent: () => null }));
+vi.mock('../../approvals/ToolApprovalCard', () => ({ ToolApprovalCard: () => null }));
+vi.mock('../content/PasteAttachmentContent', () => ({ PasteAttachmentContent: () => null }));
 vi.mock('./ThinkingPlaceholder', () => ({
-  MindroomThinkingPlaceholder: () => React.createElement('span', null, 'Thinking placeholder'),
+  ThinkingPlaceholder: () => React.createElement('span', null, 'Thinking placeholder'),
 }));
 // The long-text renderer renders the preview content it gets, as before its sidecar loads.
 vi.mock('../content/LongTextText', () => ({
-  MindroomLongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
-  MindroomLongTextText: ({ content, renderBody }: any) =>
+  LongTextKind: { Text: 'text', Emote: 'emote', Notice: 'notice' },
+  LongTextText: ({ content, renderBody }: any) =>
     renderBody(content, { body: content.body, customBody: content.formatted_body }, 'ready'),
 }));
 vi.mock('../../approvals/ApprovalArgumentFields.css', () => ({}));
@@ -114,7 +114,7 @@ describe('MindroomReasoning', () => {
     act(() => {
       renderer = create(
         <ClientConfigProvider value={{}}>
-          {renderMindroomMessageContent({
+          {renderAgentMessageContent({
             displayName: 'Agent',
             msgType,
             content,
@@ -174,7 +174,7 @@ describe('MindroomReasoning', () => {
     vi.mocked(renderLiveMarkdown).mockClear();
     const element = (body: string) => (
       <ClientConfigProvider value={{}}>
-        {renderMindroomMessageContent({
+        {renderAgentMessageContent({
           displayName: 'Agent',
           msgType: 'm.text',
           content: {
@@ -201,7 +201,7 @@ describe('MindroomReasoning', () => {
   it('collapses the reasoning once the reply finishes, even after it was toggled', () => {
     const element = (content: Record<string, unknown>) => (
       <ClientConfigProvider value={{}}>
-        {renderMindroomMessageContent({
+        {renderAgentMessageContent({
           displayName: 'Agent',
           msgType: 'm.text',
           content,

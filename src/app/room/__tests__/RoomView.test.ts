@@ -127,7 +127,7 @@ vi.stubGlobal('window', {
 });
 
 vi.mock('../../threads/useInitializeShownThread', () => ({ useInitializeShownThread: () => undefined }));
-vi.mock('../../event-store/engine/engineContext', () => ({ useMindroomSyncEngine: () => syncEngine }));
+vi.mock('../../event-store/engine/engineContext', () => ({ useSyncEngine: () => syncEngine }));
 
 vi.mock('folds', async (importOriginal) => {
   const actual = await importOriginal<typeof import('folds')>();

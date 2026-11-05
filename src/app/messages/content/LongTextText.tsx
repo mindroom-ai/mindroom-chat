@@ -5,15 +5,15 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 
 import { MEmote, MNotice, MText } from './MsgTypeRenderers';
 import {
-  MindroomLongTextSource,
-  getCachedMindroomLongTextContent,
-  getMindroomLongTextSourceIdentity,
-  withMindroomToolTraceFallback,
+  LongTextSource,
+  getCachedLongTextContent,
+  getLongTextSourceIdentity,
+  withToolTraceFallback,
 } from '../../matrix/protocol/longText';
-import { MindroomToolMetadataStatus } from '../../matrix/protocol/toolTrace';
-import { hydrateCachedMindroomLongText } from '../../event-store/cache/attachmentRepository';
+import { ToolMetadataStatus } from '../../matrix/protocol/toolTrace';
+import { hydrateCachedLongText } from '../../event-store/cache/attachmentRepository';
 
-export enum MindroomLongTextKind {
+export enum LongTextKind {
   Text = 'text',
   Emote = 'emote',
   Notice = 'notice',
@@ -26,17 +26,17 @@ type RenderBodyProps = {
   customBody?: string;
 };
 
-type MindroomLongTextTextProps = {
-  kind: MindroomLongTextKind;
+type LongTextTextProps = {
+  kind: LongTextKind;
   displayName?: string;
   edited?: boolean;
   renderStateSuffix?: () => ReactNode;
   content: Record<string, unknown>;
-  longTextSource: MindroomLongTextSource;
+  longTextSource: LongTextSource;
   renderBody: (
     content: Record<string, unknown>,
     props: RenderBodyProps,
-    toolMetadataStatus: MindroomToolMetadataStatus
+    toolMetadataStatus: ToolMetadataStatus
   ) => ReactNode;
   renderAfterBody?: (
     content: Record<string, unknown>,
@@ -67,9 +67,9 @@ export const shouldResetResolvedContentToPreview = (
   return !hasRenderableFormattedBody(currentResolvedContent);
 };
 
-export const getMindroomLongTextHydrationIdentity = (
+export const getLongTextHydrationIdentity = (
   content: Record<string, unknown>,
-  source: Pick<MindroomLongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri' | 'owner'>
+  source: Pick<LongTextSource, 'encryptedFile' | 'isV2ContentJson' | 'mxcUri' | 'owner'>
 ): string => {
   const info = isRecord(content.info) ? content.info : undefined;
   const meta = isRecord(content['io.mindroom.long_text'])
@@ -101,17 +101,17 @@ export const getMindroomLongTextHydrationIdentity = (
   });
 };
 
-export const useMindroomLongTextResolvedContent = (
-  source: MindroomLongTextSource | undefined,
+export const useLongTextResolvedContent = (
+  source: LongTextSource | undefined,
   enabled: boolean
 ): Record<string, unknown> | undefined => {
   const mx = useMatrixClient();
-  const sourceIdentity = source ? getMindroomLongTextSourceIdentity(source) : undefined;
+  const sourceIdentity = source ? getLongTextSourceIdentity(source) : undefined;
   const [resolvedEntry, setResolvedEntry] = useState<
     { sourceIdentity: string; content: Record<string, unknown> } | undefined
   >(() => {
     if (!source) return undefined;
-    const cachedContent = getCachedMindroomLongTextContent(source, mx);
+    const cachedContent = getCachedLongTextContent(source, mx);
     return cachedContent && sourceIdentity ? { sourceIdentity, content: cachedContent } : undefined;
   });
 
@@ -121,10 +121,10 @@ export const useMindroomLongTextResolvedContent = (
       return undefined;
     }
 
-    const cachedContent = getCachedMindroomLongTextContent(source, mx);
+    const cachedContent = getCachedLongTextContent(source, mx);
     if (cachedContent) {
       setResolvedEntry({
-        sourceIdentity: getMindroomLongTextSourceIdentity(source),
+        sourceIdentity: getLongTextSourceIdentity(source),
         content: cachedContent,
       });
       if (!source.owner) return undefined;
@@ -137,11 +137,11 @@ export const useMindroomLongTextResolvedContent = (
     let cancelled = false;
 
     void (async () => {
-      const nextContent = await hydrateCachedMindroomLongText(mx, source);
+      const nextContent = await hydrateCachedLongText(mx, source);
 
       if (!cancelled) {
         setResolvedEntry({
-          sourceIdentity: getMindroomLongTextSourceIdentity(source),
+          sourceIdentity: getLongTextSourceIdentity(source),
           content: nextContent,
         });
       }
@@ -156,10 +156,10 @@ export const useMindroomLongTextResolvedContent = (
     return resolvedEntry.content;
   }
 
-  return source ? getCachedMindroomLongTextContent(source, mx) : undefined;
+  return source ? getCachedLongTextContent(source, mx) : undefined;
 };
 
-export function MindroomLongTextText({
+export function LongTextText({
   kind,
   displayName,
   edited,
@@ -170,11 +170,11 @@ export function MindroomLongTextText({
   renderAfterBody,
   renderUrlsPreview,
   hydrate = true,
-}: MindroomLongTextTextProps) {
+}: LongTextTextProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const { encryptedFile, isV2ContentJson, mxcUri, owner } = longTextSource;
-  const hydrationIdentity = getMindroomLongTextHydrationIdentity(content, longTextSource);
+  const hydrationIdentity = getLongTextHydrationIdentity(content, longTextSource);
   const hydrationInputRef = useRef({
     content,
     encryptedFile,
@@ -183,7 +183,7 @@ export function MindroomLongTextText({
     owner,
   });
   const [loading, setLoading] = useState(
-    () => hydrate && !getCachedMindroomLongTextContent(longTextSource, mx)
+    () => hydrate && !getCachedLongTextContent(longTextSource, mx)
   );
   const [settledHydrationIdentity, setSettledHydrationIdentity] = useState<string>();
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
@@ -193,7 +193,7 @@ export function MindroomLongTextText({
   // keep the cheap preview (PR #110's guard) even when their sidecar is
   // already warm.
   const [resolvedContent, setResolvedContent] = useState<Record<string, unknown>>(
-    () => (hydrate ? getCachedMindroomLongTextContent(longTextSource, mx) : undefined) ?? content
+    () => (hydrate ? getCachedLongTextContent(longTextSource, mx) : undefined) ?? content
   );
 
   hydrationInputRef.current = {
@@ -218,7 +218,7 @@ export function MindroomLongTextText({
       if (hydrate) {
         // Warm cache: resolve synchronously — no preview reset, no async
         // round-trip, no loading state.
-        const cachedContent = getCachedMindroomLongTextContent(
+        const cachedContent = getCachedLongTextContent(
           {
             previewContent: currentContent,
             encryptedFile: currentEncryptedFile,
@@ -231,7 +231,7 @@ export function MindroomLongTextText({
           setResolvedContent(cachedContent);
           setLoading(false);
           if (currentOwner)
-            await hydrateCachedMindroomLongText(mx, {
+            await hydrateCachedLongText(mx, {
               previewContent: currentContent,
               encryptedFile: currentEncryptedFile,
               isV2ContentJson: currentIsV2ContentJson,
@@ -244,7 +244,7 @@ export function MindroomLongTextText({
 
       setResolvedContent((currentResolvedContent) =>
         !hydrate || shouldResetResolvedContentToPreview(currentContent, currentResolvedContent)
-          ? withMindroomToolTraceFallback(currentContent, currentResolvedContent)
+          ? withToolTraceFallback(currentContent, currentResolvedContent)
           : currentResolvedContent
       );
 
@@ -254,7 +254,7 @@ export function MindroomLongTextText({
       }
 
       setLoading(true);
-      const nextContent = await hydrateCachedMindroomLongText(mx, {
+      const nextContent = await hydrateCachedLongText(mx, {
         previewContent: currentContent,
         encryptedFile: currentEncryptedFile,
         isV2ContentJson: currentIsV2ContentJson,
@@ -298,10 +298,10 @@ export function MindroomLongTextText({
   // module cache for the current source; the effect converges state to the
   // same value.
   const warmResolvedContent = hydrate
-    ? getCachedMindroomLongTextContent(longTextSource, mx)
+    ? getCachedLongTextContent(longTextSource, mx)
     : undefined;
   const displayContent = warmResolvedContent ?? resolvedContent;
-  const toolMetadataStatus: MindroomToolMetadataStatus =
+  const toolMetadataStatus: ToolMetadataStatus =
     !warmResolvedContent && (loading || !hydrate || settledHydrationIdentity !== hydrationIdentity)
       ? 'loading'
       : 'unavailable';
@@ -309,7 +309,7 @@ export function MindroomLongTextText({
   const afterBody = renderAfterBody?.(content, displayContent);
 
   let textContent: ReactNode;
-  if (kind === MindroomLongTextKind.Emote) {
+  if (kind === LongTextKind.Emote) {
     textContent = (
       <MEmote
         displayName={displayName ?? ''}
@@ -321,7 +321,7 @@ export function MindroomLongTextText({
         renderUrlsPreview={renderUrlsPreview}
       />
     );
-  } else if (kind === MindroomLongTextKind.Notice) {
+  } else if (kind === LongTextKind.Notice) {
     textContent = (
       <MNotice
         edited={edited}

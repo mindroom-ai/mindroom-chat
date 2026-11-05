@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { EventTimeline, MatrixClient, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
-import { buildThreadSummaryMap, type MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { buildThreadSummaryMap, type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { getRoomEventThreadOpenTarget } from '../../routes/roomDeepLink';
 import {
   buildRoomSurfaceEventEntries,
@@ -52,7 +52,7 @@ import {
   mergeCompactThreadRootBodyMaps,
   useThreadOverviewCachedMetadata,
 } from './threadOverviewCacheMetadata';
-import { buildMindroomThreadIndexRecordMaps } from './threadIndexRecords';
+import { buildThreadIndexRecordMaps } from './threadIndexRecords';
 
 type ThreadResolutionLike = {
   isResolved: boolean;
@@ -71,7 +71,7 @@ const EMPTY_ORDERING: ThreadIndexOrdering = {
   displayOrderedIds: [],
 };
 
-export type MindroomThreadIndexSnapshot = {
+export type ThreadIndexSnapshot = {
   showCompactRoomView: boolean;
   normalThreadRecordMap: Map<string, ThreadRecord>;
   compactThreadRecordMap: Map<string, ThreadRecord>;
@@ -95,14 +95,14 @@ export type MindroomThreadIndexSnapshot = {
   threadSortControlSignature: string;
 };
 
-export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
+export type UseThreadIndexResult = ThreadIndexSnapshot & {
   roomSurfaceEventEntries: TimelineEventEntry[];
   visibleThreadRootData: VisibleThreadRootData;
   compactThreadRootData: VisibleThreadRootData;
   hasZeroReplyRootCoverage: boolean;
   threadReplyCountMap: Map<string, number>;
   threadParticipantMap: Map<string, string[]>;
-  threadSummaryInfoMap: Map<string, MindroomThreadSummaryInfo>;
+  threadSummaryInfoMap: Map<string, ThreadSummaryInfo>;
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   availableRoomTags: string[];
   roomThreadListThreads: Thread[];
@@ -110,7 +110,7 @@ export type UseMindroomThreadIndexResult = MindroomThreadIndexSnapshot & {
   applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
 };
 
-export type ResolveMindroomThreadIndexSnapshotOptions = {
+export type ResolveThreadIndexSnapshotOptions = {
   pinnedThreadRootIds?: string[];
   threadId: string | undefined;
   compactViewRequested: boolean;
@@ -174,7 +174,7 @@ export const resolveFocusedRoomOverviewRootId = ({
   return undefined;
 };
 
-export const resolveMindroomThreadIndexSnapshot = ({
+export const resolveThreadIndexSnapshot = ({
   pinnedThreadRootIds,
   threadId,
   compactViewRequested,
@@ -190,7 +190,7 @@ export const resolveMindroomThreadIndexSnapshot = ({
   threadSortControlSignature,
   focusedRoomOverviewRequested,
   focusedRoomOverviewRootId,
-}: ResolveMindroomThreadIndexSnapshotOptions): MindroomThreadIndexSnapshot => {
+}: ResolveThreadIndexSnapshotOptions): ThreadIndexSnapshot => {
   const showCompactRoomView = compactViewRequested && compactThreadRootIds.length > 0;
   const threadRecordMap = showCompactRoomView ? compactThreadRecordMap : normalThreadRecordMap;
   const normalOverviewOrdering = threadId
@@ -268,7 +268,7 @@ export const resolveMindroomThreadIndexSnapshot = ({
   };
 };
 
-export type UseMindroomThreadIndexOptions = {
+export type UseThreadIndexOptions = {
   room: Room;
   threadId: string | undefined;
   eventId: string | undefined;
@@ -281,7 +281,7 @@ export type UseMindroomThreadIndexOptions = {
   readonly hideMembershipEvents: boolean;
   readonly hideNickAvatarEvents: boolean;
   readonly showHiddenEvents: boolean;
-  summaryMap: ReadonlyMap<string, MindroomThreadSummaryInfo>;
+  summaryMap: ReadonlyMap<string, ThreadSummaryInfo>;
   threadResolutionMap: Map<string, ThreadResolutionLike>;
   currentUserId: string | undefined;
   requestedThreadFilterState: ThreadFilterState;
@@ -289,10 +289,10 @@ export type UseMindroomThreadIndexOptions = {
   overviewRefreshCounter: number;
   sessionId: string;
   mx: MatrixClient;
-  onStoreThreadSummary: (threadRootId: string, info: MindroomThreadSummaryInfo | undefined) => void;
+  onStoreThreadSummary: (threadRootId: string, info: ThreadSummaryInfo | undefined) => void;
 };
 
-export const useMindroomThreadIndex = ({
+export const useThreadIndex = ({
   room,
   threadId,
   eventId,
@@ -314,7 +314,7 @@ export const useMindroomThreadIndex = ({
   sessionId,
   mx,
   onStoreThreadSummary,
-}: UseMindroomThreadIndexOptions): UseMindroomThreadIndexResult => {
+}: UseThreadIndexOptions): UseThreadIndexResult => {
   const loadedTimelineEvents = useMemo(() => {
     if (threadId) return [] as MatrixEvent[];
     return getLinkedTimelineEvents(linkedTimelines);
@@ -334,7 +334,7 @@ export const useMindroomThreadIndex = ({
   const threadSummaryInfoMap = useMemo(
     () =>
       threadId
-        ? new Map<string, MindroomThreadSummaryInfo>()
+        ? new Map<string, ThreadSummaryInfo>()
         : buildThreadSummaryMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
@@ -512,7 +512,7 @@ export const useMindroomThreadIndex = ({
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
-    return buildMindroomThreadIndexRecordMaps({
+    return buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
       room,
@@ -572,7 +572,7 @@ export const useMindroomThreadIndex = ({
 
   const snapshot = useMemo(
     () =>
-      resolveMindroomThreadIndexSnapshot({
+      resolveThreadIndexSnapshot({
         pinnedThreadRootIds: [...pinnedEventIds].reverse(),
         threadId,
         compactViewRequested,

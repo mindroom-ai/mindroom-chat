@@ -24,7 +24,7 @@ import {
 import type { CanvasTheme } from '../messages/canvas/canvasTheme';
 import { FailedSendActions } from '../messages/FailedSendActions';
 import { useLocalEchoStatus } from '../messages/useLocalEchoStatus';
-import { uploadMindroomLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
+import { uploadLongTextSidecar } from '../matrix/send/longTextSidecarUpload';
 import * as css from './CanvasPanel.css';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
@@ -395,7 +395,7 @@ export function CanvasPanel({
     uploadingSubmission.current = submission;
     setUploading(true);
     const current = () => uploadingSubmission.current === submission;
-    uploadMindroomLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
+    uploadLongTextSidecar(mx, room, content, buildCanvasResponsePreview(content))
       .then((preview) => {
         if (current() && !deliver(preview, label, submission)) refused();
       })

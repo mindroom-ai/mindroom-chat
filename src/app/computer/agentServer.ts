@@ -4,7 +4,7 @@ import { resolveComputerApiUrl } from './api';
 /** Each MindRoom agent's server in a room, as state keyed by the agent's own user ID. */
 export const MINDROOM_SERVER_EVENT = 'io.mindroom.server';
 
-export type MindroomServer = {
+export type AgentServer = {
   agentUserId: string;
   apiUrl: string;
   computer: boolean;
@@ -12,7 +12,7 @@ export type MindroomServer = {
 };
 
 /** Read one agent's server from state `agentRoomState` already checked the agent published about itself. */
-export const parseMindroomServer = (event: MatrixEvent): MindroomServer | undefined => {
+export const parseAgentServer = (event: MatrixEvent): AgentServer | undefined => {
   const { api_origin: origin, computer } = event.getContent();
   const apiUrl = typeof origin === 'string' ? resolveComputerApiUrl(origin) : undefined;
   if (!apiUrl) return undefined;
@@ -25,8 +25,8 @@ export const parseMindroomServer = (event: MatrixEvent): MindroomServer | undefi
 };
 
 /** The servers the agents' state names, newest first. */
-export const selectMindroomServers = (events: MatrixEvent[]): MindroomServer[] =>
-  events.flatMap((event) => parseMindroomServer(event) ?? []).sort((a, b) => b.ts - a.ts);
+export const selectAgentServers = (events: MatrixEvent[]): AgentServer[] =>
+  events.flatMap((event) => parseAgentServer(event) ?? []).sort((a, b) => b.ts - a.ts);
 
 /** Whether an origin is this device itself, which a published server must not be for a phone. */
 export const isLoopbackOrigin = (origin: string): boolean => {
@@ -42,6 +42,6 @@ export const isLoopbackOrigin = (origin: string): boolean => {
 };
 
 /** Each distinct server origin, newest first. */
-export const distinctServerUrls = (servers: MindroomServer[]): string[] => [
+export const distinctServerUrls = (servers: AgentServer[]): string[] => [
   ...new Set([...servers].sort((a, b) => b.ts - a.ts).map((server) => server.apiUrl)),
 ];

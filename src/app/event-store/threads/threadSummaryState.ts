@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { type MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
+import { type ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import { loadCachedThreadSummaries, saveCachedThreadSummary } from '../cache/db';
 import {
   buildPreferredThreadSummaryMap,
@@ -10,18 +10,18 @@ type ThreadSummaryListener = () => void;
 
 export type ThreadSummaryWriter = (
   threadRootId: string,
-  ...infos: Array<MindroomThreadSummaryInfo | undefined>
+  ...infos: Array<ThreadSummaryInfo | undefined>
 ) => void;
 
 type RoomThreadSummaryState = {
-  summaryMap: Map<string, MindroomThreadSummaryInfo>;
+  summaryMap: Map<string, ThreadSummaryInfo>;
   listeners: Set<ThreadSummaryListener>;
   loadPromise?: Promise<void>;
   hasLoaded?: boolean;
-  incomingDuringLoad?: Map<string, Array<MindroomThreadSummaryInfo | undefined>>;
+  incomingDuringLoad?: Map<string, Array<ThreadSummaryInfo | undefined>>;
 };
 
-const EMPTY_SUMMARY_MAP = new Map<string, MindroomThreadSummaryInfo>();
+const EMPTY_SUMMARY_MAP = new Map<string, ThreadSummaryInfo>();
 const roomThreadSummaryStates = new Map<string, RoomThreadSummaryState>();
 
 const getStateKey = (sessionId: string, roomId: string): string => `${sessionId}|${roomId}`;
@@ -44,8 +44,8 @@ const notifyStateListeners = (state: RoomThreadSummaryState) => {
 };
 
 const areSummaryMapsEqual = (
-  left: Map<string, MindroomThreadSummaryInfo>,
-  right: Map<string, MindroomThreadSummaryInfo>
+  left: Map<string, ThreadSummaryInfo>,
+  right: Map<string, ThreadSummaryInfo>
 ): boolean => {
   if (left === right) return true;
   if (left.size !== right.size) return false;
@@ -97,7 +97,7 @@ export const subscribeToThreadSummaryState = (
 export const getThreadSummaryStateSnapshot = (
   sessionId: string | undefined,
   roomId: string | undefined
-): Map<string, MindroomThreadSummaryInfo> => {
+): Map<string, ThreadSummaryInfo> => {
   if (!sessionId || !roomId) return EMPTY_SUMMARY_MAP;
   return getOrCreateState(sessionId, roomId).summaryMap;
 };
@@ -109,7 +109,7 @@ export const ensureThreadSummaryStateLoaded = async (sessionId: string, roomId: 
   // batches before this merge could resurrect a legacy record with a skewed
   // metadata clock after its newer replacement has already been published.
   const incomingDuringLoad =
-    state.incomingDuringLoad ?? new Map<string, Array<MindroomThreadSummaryInfo | undefined>>();
+    state.incomingDuringLoad ?? new Map<string, Array<ThreadSummaryInfo | undefined>>();
   state.incomingDuringLoad = incomingDuringLoad;
   state.hasLoaded = false;
 
@@ -147,7 +147,7 @@ export const storeThreadSummaryInState = (
   sessionId: string,
   roomId: string,
   threadRootId: string,
-  ...infos: Array<MindroomThreadSummaryInfo | undefined>
+  ...infos: Array<ThreadSummaryInfo | undefined>
 ): boolean => {
   if (!threadRootId) return false;
 
@@ -202,7 +202,7 @@ type UseThreadSummaryStateOptions = {
 export const useThreadSummaryStateMap = ({
   roomId,
   sessionId,
-}: UseThreadSummaryStateOptions): Map<string, MindroomThreadSummaryInfo> => {
+}: UseThreadSummaryStateOptions): Map<string, ThreadSummaryInfo> => {
   const subscribe = useCallback(
     (listener: ThreadSummaryListener) => subscribeToThreadSummaryState(sessionId, roomId, listener),
     [roomId, sessionId]

@@ -30,7 +30,7 @@ export const MINDROOM_AUTH_BRANDING = {
   ],
 } as const;
 
-export const getMindroomAuthSsoRedirectUrl = (webRedirectUrl: string): string =>
+export const getAuthSsoRedirectUrl = (webRedirectUrl: string): string =>
   isNativeApp() ? buildNativeSsoRedirectUrl(webRedirectUrl) : webRedirectUrl;
 
 export {

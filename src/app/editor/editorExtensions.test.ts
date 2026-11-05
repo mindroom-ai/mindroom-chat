@@ -4,14 +4,14 @@ import { describe, expect, it } from 'vitest';
 
 import { BlockType } from './types';
 import {
-  formatMindroomEditorMathMarkdown,
-  getMindroomEditorMathLatex,
-  getMindroomEditorMathText,
-  getMindroomEditorPasteMarkerElement,
-  isMindroomEditorMathBlockElement,
-  mindroomEditorPasteMarkerElementToCustomHtml,
-  mindroomEditorPasteMarkerElementToPlainText,
-  parseMindroomEditorMathBlock,
+  formatEditorMathMarkdown,
+  getEditorMathLatex,
+  getEditorMathText,
+  getEditorPasteMarkerElement,
+  isEditorMathBlockElement,
+  editorPasteMarkerElementToCustomHtml,
+  editorPasteMarkerElementToPlainText,
+  parseEditorMathBlock,
 } from './editorExtensions';
 
 const marker =
@@ -39,7 +39,7 @@ describe('Mindroom editor extension API', () => {
       ].join('')
     );
 
-    const element = getMindroomEditorPasteMarkerElement(node, getText);
+    const element = getEditorPasteMarkerElement(node, getText);
 
     expect(element).toEqual({
       type: BlockType.PasteMarker,
@@ -49,14 +49,14 @@ describe('Mindroom editor extension API', () => {
       marker,
       children: [{ text: '' }],
     });
-    expect(mindroomEditorPasteMarkerElementToCustomHtml(element!)).toBe(
+    expect(editorPasteMarkerElementToCustomHtml(element!)).toBe(
       [
         '<span data-mindroom-paste-marker="true" data-mindroom-paste-id="paste-a3f19c" data-mindroom-paste-chars="11" data-mindroom-paste-file="mindroom-paste-a3f19c.txt">',
         '[[mindroom-paste:{&quot;v&quot;:1,&quot;id&quot;:&quot;paste-a3f19c&quot;,&quot;chars&quot;:11,&quot;file&quot;:&quot;mindroom-paste-a3f19c.txt&quot;}]]',
         '</span>',
       ].join('')
     );
-    expect(mindroomEditorPasteMarkerElementToPlainText(element!)).toBe(marker);
+    expect(editorPasteMarkerElementToPlainText(element!)).toBe(marker);
   });
 
   it('owns Matrix math editor markdown reconstruction', () => {
@@ -64,13 +64,13 @@ describe('Mindroom editor extension API', () => {
     const blockNode = parseSingleTag(`<div data-mx-maths="a\r
 b">fallback</div>`);
 
-    expect(getMindroomEditorMathLatex(inlineNode, getText)).toBe('x^2');
-    expect(formatMindroomEditorMathMarkdown('x^2', false)).toBe('$x^2$');
-    expect(getMindroomEditorMathText(inlineNode, getText, true)).toBe('$x^2$');
-    expect(getMindroomEditorMathText(inlineNode, getText, false)).toBe('x^2');
-    expect(isMindroomEditorMathBlockElement(inlineNode)).toBe(false);
-    expect(isMindroomEditorMathBlockElement(blockNode)).toBe(true);
-    expect(parseMindroomEditorMathBlock(blockNode, getText)).toEqual([
+    expect(getEditorMathLatex(inlineNode, getText)).toBe('x^2');
+    expect(formatEditorMathMarkdown('x^2', false)).toBe('$x^2$');
+    expect(getEditorMathText(inlineNode, getText, true)).toBe('$x^2$');
+    expect(getEditorMathText(inlineNode, getText, false)).toBe('x^2');
+    expect(isEditorMathBlockElement(inlineNode)).toBe(false);
+    expect(isEditorMathBlockElement(blockNode)).toBe(true);
+    expect(parseEditorMathBlock(blockNode, getText)).toEqual([
       {
         type: BlockType.Paragraph,
         children: [{ text: 'a' }],
@@ -80,7 +80,7 @@ b">fallback</div>`);
         children: [{ text: 'b' }],
       },
     ]);
-    expect(parseMindroomEditorMathBlock(blockNode, getText, true)).toEqual([
+    expect(parseEditorMathBlock(blockNode, getText, true)).toEqual([
       {
         type: BlockType.Paragraph,
         children: [{ text: '$$' }],

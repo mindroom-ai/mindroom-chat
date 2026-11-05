@@ -36,7 +36,7 @@ import { renderMarkerParserOptions } from '../../../test/utils/markerParserOptio
 
 const baseOpts: HTMLReactParserOptions = {};
 
-describe('useMindroomToolTraceMarkerParserOptions identity', () => {
+describe('useToolTraceMarkerParserOptions identity', () => {
   it('returns the base options unchanged for content without mindroom markers', () => {
     expect(
       renderMarkerParserOptions(baseOpts, {

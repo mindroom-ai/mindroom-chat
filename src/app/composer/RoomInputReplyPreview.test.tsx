@@ -24,7 +24,7 @@ vi.mock('../messages/layout/layout', () => ({
   ),
 }));
 vi.mock('./RoomInputExtensions', () => ({
-  MindroomRoomInputReplyContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  RoomInputReplyContext: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('../members/useMemberPowerTag', () => ({
   useAccessiblePowerTagColors: () => new Map(),

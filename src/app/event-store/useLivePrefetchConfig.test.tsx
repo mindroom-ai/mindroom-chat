@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { afterEach, describe, expect, it } from 'vitest';
-import { mindroomSettingsAtom } from './engine/prefetchSettings';
+import { prefetchSettingsAtom } from './engine/prefetchSettings';
 import { useLivePrefetchConfig, usePrefetchConfigSubscription } from './useLivePrefetchConfig';
 
 describe('useLivePrefetchConfig', () => {
@@ -33,8 +33,8 @@ describe('useLivePrefetchConfig', () => {
     expect(readConfig?.()).toEqual({ scope: 'current-room-only' });
 
     act(() => {
-      store.set(mindroomSettingsAtom, {
-        ...store.get(mindroomSettingsAtom),
+      store.set(prefetchSettingsAtom, {
+        ...store.get(prefetchSettingsAtom),
         prefetchScope: 'current-room-only',
       });
     });
@@ -67,8 +67,8 @@ describe('useLivePrefetchConfig', () => {
       calls += 1;
     });
     act(() => {
-      store.set(mindroomSettingsAtom, {
-        ...store.get(mindroomSettingsAtom),
+      store.set(prefetchSettingsAtom, {
+        ...store.get(prefetchSettingsAtom),
         prefetchScope: 'all-rooms',
       });
     });

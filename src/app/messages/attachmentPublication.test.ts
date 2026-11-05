@@ -16,17 +16,17 @@ import {
   getCachedAttachmentMetadata,
 } from '../event-store/cache/db';
 import {
-  hydrateCachedMindroomLongText,
+  hydrateCachedLongText,
   clearAttachmentRepositoryMemory,
   prefetchEventAttachments,
 } from '../event-store/cache/attachmentRepository';
 import {
-  clearMindroomLongTextHydrationCache,
-  getCachedMindroomLongTextContent,
-  getMindroomLongTextSource,
+  clearLongTextHydrationCache,
+  getCachedLongTextContent,
+  getLongTextSource,
 } from '../matrix/protocol/longText';
 import { getEventAttachmentOwner } from '../matrix/protocol/eventAttachments';
-import { clearMindroomInMemoryCaches } from '../account/lifecycle/sessionCleanup';
+import { clearInMemoryCaches } from '../account/lifecycle/sessionCleanup';
 
 const baseUrl = 'https://matrix.example.org';
 const roomId = '!test:matrix.example.org';
@@ -42,7 +42,7 @@ beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   resetCacheStoreForTesting();
   clearAttachmentRepositoryMemory();
-  clearMindroomLongTextHydrationCache();
+  clearLongTextHydrationCache();
 });
 afterEach(() => {
   vi.restoreAllMocks();
@@ -62,17 +62,17 @@ it.each(['room-clear', 'logout', 'unowned-logout'] as const)(
           })
       )
     );
-    const pending = hydrateCachedMindroomLongText(
+    const pending = hydrateCachedLongText(
       mx,
       kind === 'unowned-logout' ? { ...source, owner: undefined } : source
     );
     await vi.waitFor(() => expect(finish).toBeDefined());
     if (kind === 'room-clear') await clearRoomCachedContent(sessionId, roomId);
-    else clearMindroomInMemoryCaches();
+    else clearInMemoryCaches();
     finish(new Response(JSON.stringify({ msgtype: 'm.text', body: 'late body' })));
     expect(await pending).toEqual(source.previewContent);
     expect(await loadCachedAttachment(sessionId, source.mxcUri)).toBeUndefined();
-    expect(getCachedMindroomLongTextContent(source, mx)).toBeUndefined();
+    expect(getCachedLongTextContent(source, mx)).toBeUndefined();
   }
 );
 it('does not store or read attachment reference rows for ordinary text batches', async () => {
@@ -157,8 +157,8 @@ it('accepts the server revision after hydrating a pending SDK edit with a later 
     )
   );
   const hydrateRoot = () =>
-    hydrateCachedMindroomLongText(mx, {
-      ...getMindroomLongTextSource(root.getContent())!,
+    hydrateCachedLongText(mx, {
+      ...getLongTextSource(root.getContent())!,
       owner: getEventAttachmentOwner(root),
     });
   expect(await hydrateRoot()).toMatchObject({ body: 'complete edited body' });
@@ -371,8 +371,8 @@ it('keeps validated essential coverage when storage pressure denies a repeated p
       missingEssential: 0,
     });
     expect(fetch).toHaveBeenCalledTimes(1);
-    clearMindroomLongTextHydrationCache();
-    expect(await hydrateCachedMindroomLongText(mx, source)).toMatchObject({
+    clearLongTextHydrationCache();
+    expect(await hydrateCachedLongText(mx, source)).toMatchObject({
       body: 'validated body',
     });
     expect(fetch).toHaveBeenCalledTimes(1);

@@ -359,12 +359,12 @@ vi.mock('../../bug-reports/MessageBugReportItem', async () => {
 });
 
 vi.mock('../../matrix/protocol/longText', () => ({
-  getMindroomLongTextSource: longTextMocks.getMindroomLongTextSource,
+  getLongTextSource: longTextMocks.getMindroomLongTextSource,
 }));
 
 vi.mock('../content/LongTextText', () => ({
   downloadMindroomLongTextSidecarBlob: longTextMocks.downloadMindroomLongTextSidecarBlob,
-  useMindroomLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
+  useLongTextResolvedContent: longTextMocks.useMindroomLongTextResolvedContent,
 }));
 
 vi.mock('../../preferences/settings', () => ({
@@ -532,7 +532,7 @@ const openContextMenu = async (renderer: ReactTestRenderer) => {
   });
 };
 
-const mindroomAiRunContent = {
+const aiRunContent = {
   msgtype: 'm.text',
   body: 'hello',
   'io.mindroom.ai_run': {
@@ -642,7 +642,7 @@ describe('Message reply details menu item', () => {
   }, 10000);
 
   it('opens reply details from the context menu and configures explicit return focus', async () => {
-    const { renderer, messageBaseNode } = await renderMessage(mindroomAiRunContent);
+    const { renderer, messageBaseNode } = await renderMessage(aiRunContent);
     const aiRunAvatars = renderer.root.findAll(
       (node) => node.type === 'div' && node.props['data-user-id'] === '@alice:example.org'
     );
@@ -683,7 +683,7 @@ describe('Message reply details menu item', () => {
   });
 
   it('keeps the header info button path opening the same reply details', async () => {
-    const { renderer } = await renderMessage(mindroomAiRunContent, { collapse: false });
+    const { renderer } = await renderMessage(aiRunContent, { collapse: false });
 
     const infoButton = getButtonByAriaLabel(renderer, 'Reply details');
 

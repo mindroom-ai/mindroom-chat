@@ -3,7 +3,7 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createClient, Direction, MatrixEvent, Room, RoomEvent, type IEvent } from 'matrix-js-sdk';
 import 'fake-indexeddb/auto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createMindroomSyncEngine, type MindroomSyncEngine } from '../../event-store/engine';
+import { createSyncEngine, type SyncEngine } from '../../event-store/engine';
 import {
   __setCacheStoreByteBudgetForTests,
   deleteCacheStoreDb,
@@ -37,7 +37,7 @@ function Harness({
   threadId,
   loaded,
 }: {
-  engine: MindroomSyncEngine;
+  engine: SyncEngine;
   room: Room;
   threadId: string;
   loaded?: MatrixEvent[];
@@ -82,7 +82,7 @@ const setup = (
   chunks: Partial<IEvent>[][],
   loaded?: MatrixEvent[],
   relations: Partial<IEvent>[] = [],
-  render: (engine: MindroomSyncEngine, room: Room) => React.ReactElement = (engine, room) => (
+  render: (engine: SyncEngine, room: Room) => React.ReactElement = (engine, room) => (
     <Harness engine={engine} room={room} threadId={ROOT_ID} loaded={loaded} />
   )
 ) => {
@@ -111,7 +111,7 @@ const setup = (
     }),
   ]);
   room.getLiveTimeline().setPaginationToken('gap', Direction.Backward);
-  const engine = createMindroomSyncEngine({
+  const engine = createSyncEngine({
     mx,
     getPrefetchConfig: () => ({ scope: 'all-rooms' }),
   });
@@ -366,7 +366,7 @@ describe('mounted thread gap recovery', () => {
       room,
       append,
     }: {
-      engine: MindroomSyncEngine;
+      engine: SyncEngine;
       room: Room;
       append: (threadId: string, events: MatrixEvent[]) => void;
     }) {

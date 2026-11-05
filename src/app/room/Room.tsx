@@ -34,7 +34,7 @@ import { CloseComputerPanelContext } from '../computer/ComputerScreenUnavailable
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
-import { useBindsOpenIdTokens, useRoomMindroomServers } from '../computer/useAgentServers';
+import { useBindsOpenIdTokens, useRoomAgentServers } from '../computer/useAgentServers';
 import { RoomCanvasPanel } from '../canvas/RoomCanvasPanel';
 import {
   useComputerShown,
@@ -105,7 +105,7 @@ type ShownCanvas = { event: MatrixEvent; expanded: boolean; conversation: string
 /** The computer agents of the room and the server each one runs on. */
 const useRoomComputer = (
   members: ReturnType<typeof useRoomMembers>,
-  roomServers: ReturnType<typeof useRoomMindroomServers>,
+  roomServers: ReturnType<typeof useRoomAgentServers>,
   myUserId: string
 ) => {
   const bindsOpenIdTokens = useBindsOpenIdTokens();
@@ -194,7 +194,7 @@ export function Room() {
     [members]
   );
 
-  const roomServers = useRoomMindroomServers(room);
+  const roomServers = useRoomAgentServers(room);
   const computerTarget = useRoomComputer(members, roomServers, ownUserId);
   const computer = useRoomComputerState({
     mx: client,

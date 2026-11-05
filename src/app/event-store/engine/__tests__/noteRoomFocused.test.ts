@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import 'fake-indexeddb/auto';
 import { SyncState } from 'matrix-js-sdk';
 import type { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
-import { createMindroomSyncEngine } from '../syncEngine';
+import { createSyncEngine } from '../syncEngine';
 import { StateEvent } from '../../../matrix/types/room';
 import {
   getEvictionProtectedRoomIds,
@@ -78,7 +78,7 @@ describe('engine.noteRoomFocused (ISSUE-207 P4.2)', () => {
     const rooms = new Map<string, Room>();
     rooms.set('!own:mindroom.chat', makeRoom('!own:mindroom.chat', '@alice:mindroom.chat'));
     const mx = createClient(rooms);
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
 
     engine.noteRoomFocused('!own:mindroom.chat');
     // The ledger write is async with no returned promise; poll until it
@@ -99,7 +99,7 @@ describe('engine.noteRoomFocused (ISSUE-207 P4.2)', () => {
     const rooms = new Map<string, Room>();
     rooms.set('!fed:example.org', makeRoom('!fed:example.org', '@carol:example.org'));
     const mx = createClient(rooms);
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
 
     engine.noteRoomFocused('!fed:example.org');
     // Poll — see the same-server test above for why a fixed sleep flakes.
@@ -119,7 +119,7 @@ describe('engine.noteRoomFocused (ISSUE-207 P4.2)', () => {
     const rooms = new Map<string, Room>();
     rooms.set('!bg:unknown', makeRoom('!bg:unknown', undefined));
     const mx = createClient(rooms);
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
 
     engine.noteRoomFocused('!bg:unknown');
     // Absence can't be polled-for; give the (should-not-happen) write a
@@ -139,7 +139,7 @@ describe('engine.noteRoomFocused (ISSUE-207 P4.2)', () => {
     rooms.set('!a:mindroom.chat', makeRoom('!a:mindroom.chat', '@alice:mindroom.chat'));
     rooms.set('!b:mindroom.chat', makeRoom('!b:mindroom.chat', '@alice:mindroom.chat'));
     const mx = createClient(rooms);
-    const engine = createMindroomSyncEngine({ mx });
+    const engine = createSyncEngine({ mx });
 
     engine.noteRoomFocused('!a:mindroom.chat');
     expect(getEvictionProtectedRoomIds()).toEqual(['!a:mindroom.chat']);

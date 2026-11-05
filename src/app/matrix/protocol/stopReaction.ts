@@ -1,6 +1,6 @@
 import { MatrixEvent } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
-import { hasTerminalMindroomStreamMetadata, isMindroomAiRunStreaming } from './aiRun';
+import { hasTerminalStreamMetadata, isAiRunStreaming } from './aiRun';
 import { type AnnotationEntry, getActiveAnnotationsByKey } from './reactionAnnotations';
 
 /**
@@ -26,7 +26,7 @@ export const isStaleStopReactionKey = (
 ): boolean =>
   STOP_REACTION_KEYS.has(key) &&
   !!targetEvent &&
-  hasTerminalMindroomStreamMetadata((targetEvent.getContent() as Record<string, unknown>) ?? {});
+  hasTerminalStreamMetadata((targetEvent.getContent() as Record<string, unknown>) ?? {});
 
 export const getRenderableAnnotationsByKey = (
   relations: Relations | undefined,
@@ -46,5 +46,5 @@ export const isAgentStopButton = (
 ): boolean =>
   key === '🛑' &&
   !!targetEvent &&
-  isMindroomAiRunStreaming((targetEvent.getContent() as Record<string, unknown>) ?? {}) &&
+  isAiRunStreaming((targetEvent.getContent() as Record<string, unknown>) ?? {}) &&
   events.some((event) => event.getSender() === targetEvent.getSender());

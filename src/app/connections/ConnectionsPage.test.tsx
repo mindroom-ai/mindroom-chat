@@ -18,7 +18,7 @@ vi.mock('../computer/useComputerApiUrl', () => ({
 }));
 vi.mock('./useOpenConnectionsPortal', () => ({ useConnectionsHandoff: () => mocks.handOff }));
 vi.mock('./ConnectionsSettings', () => ({
-  MindroomConnectionsSettings: () => <section>settings card</section>,
+  ConnectionsSettings: () => <section>settings card</section>,
 }));
 vi.mock('../ui/page/Page', () => ({
   Page: ({ children }: { children?: React.ReactNode }) => <main>{children}</main>,
