@@ -18,7 +18,7 @@ import { HOME_PATH } from '../paths';
 import { getHomeRoomPath, withSearchParam } from '../pathUtils';
 import { ClientBindAtoms } from './ClientBindAtoms';
 import { ClientLayout } from './ClientLayout';
-import { FloatingCardsContext } from '../../components/page/floatingCards';
+import { FloatingCardsContext, useFloatingCardsLayout } from '../../components/page/floatingCards';
 import { FloatingShell } from '../../components/page/floatingCards.css';
 import { ClientShell } from './ClientShell';
 import { Space } from './space/Space';
@@ -49,10 +49,10 @@ export { Notifications } from './inbox/Notifications';
 /**
  * The signed-in frame around every page: account atoms, dialogs, the rail and the page. Wider
  * than a phone, the page and the side panels beside a room float as cards on the app background;
- * phones show one column at a time, full-bleed.
+ * phones, also held sideways, stay full-bleed.
  */
 export function SignedInChrome() {
-  const floating = useScreenSizeContext() !== ScreenSize.Mobile;
+  const floating = useFloatingCardsLayout();
   return (
     <ClientBindAtoms>
       <ClientShell>
