@@ -1,6 +1,7 @@
 import { ReactNode, forwardRef, useId, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 import { SettingScopeLabel } from './settings/SettingScopeLabel';
+import { ScopeLine } from './settings/scopeLabel.css';
 
 type SettingTileProps = {
   title?: ReactNode;
@@ -13,7 +14,7 @@ type SettingTileProps = {
   children?: ReactNode;
   /**
    * The tile's setting in the settings registry: search scrolls to it, and the tile says where it
-   * applies (this device, the account, the room).
+   * applies (this device, the account, the room) at the end of its description line.
    */
   focusId?: string;
 };
@@ -60,11 +61,14 @@ export function SettingTile(props: SettingTileProps) {
   const titleId = title ? `${id}-title` : undefined;
   const descriptionId = description ? `${id}-description` : undefined;
   const afterRef = useNamedToggle(titleId, descriptionId);
-  const descriptionText = description ? (
-    <Text id={descriptionId} priority="300" size="T200">
-      {description}
-    </Text>
-  ) : null;
+  // The scope follows the description on its line, or stands there alone.
+  const descriptionLine =
+    description || focusId ? (
+      <Text priority="300" size="T200" className={ScopeLine}>
+        {description ? <span id={descriptionId}>{description}</span> : null}
+        {focusId && <SettingScopeLabel id={focusId} />}
+      </Text>
+    ) : null;
 
   return (
     <Box data-setting-id={focusId} gap="300" alignItems="Center">
@@ -75,9 +79,8 @@ export function SettingTile(props: SettingTileProps) {
             {title}
           </Text>
         ) : null}
-        {descriptionText}
+        {descriptionLine}
         {children}
-        {focusId && <SettingScopeLabel id={focusId} />}
       </Box>
       <FixedSlot ref={afterRef}>{after}</FixedSlot>
     </Box>
