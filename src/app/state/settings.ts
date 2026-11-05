@@ -50,6 +50,7 @@ const BOOLEAN_SETTING_KEYS = [
   'hour24Clock', // Times as 13:00 instead of 1:00 PM.
   'threadBannerCollapsed',
   'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
+  'hideThreadFilterBar', // The room header's filter button hid the thread filter bar.
   // Notifications
   'showNotifications', // Desktop notifications for new messages.
   'isNotificationSounds', // Play a sound with each notification.

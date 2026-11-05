@@ -208,6 +208,7 @@ const useTimelineDisplaySettings = () => ({
   messageLayout: useSettingValue(settingsAtom, 'messageLayout'),
   messageSpacing: useSettingValue(settingsAtom, 'messageSpacing'),
   showHiddenEvents: !!useSettingValue(settingsAtom, 'showHiddenEvents'),
+  hideThreadFilterBar: !!useSettingValue(settingsAtom, 'hideThreadFilterBar'),
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(mindroomSettingsAtom, 'prefetchDepth')),
 });
 
@@ -250,6 +251,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     messageLayout,
     messageSpacing,
     showHiddenEvents,
+    hideThreadFilterBar,
     prefetchDepth,
   } = useTimelineDisplaySettings();
   const compactLayout = messageLayout === MessageLayout.Compact;
@@ -1160,7 +1162,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
 
   const compactCards = compactViewRequested && !threadIndex.focusedRoomOverviewBypass;
-  const filterBar = showRoomThreadOverviewControls && !plainConversation && (
+  // The header's filter button hides the bar; the filters keep applying while it is hidden.
+  const filterBarShown =
+    showRoomThreadOverviewControls && !plainConversation && !hideThreadFilterBar;
+  const filterBar = filterBarShown && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
         hasMindroomAgents={hasMindroomAgents}

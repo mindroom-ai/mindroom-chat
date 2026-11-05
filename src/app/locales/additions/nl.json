@@ -320,7 +320,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "Compacte weergave"
+        "compactView": "Compacte weergave",
+        "threadFiltersActive": "Threadfilters (actief)"
       }
     },
     "computer": {

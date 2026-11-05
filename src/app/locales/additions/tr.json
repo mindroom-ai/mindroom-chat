@@ -320,7 +320,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "Kompakt görünüm"
+        "compactView": "Kompakt görünüm",
+        "threadFiltersActive": "Konu filtreleri (etkin)"
       }
     },
     "computer": {

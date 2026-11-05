@@ -348,7 +348,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "عرض مدمج"
+        "compactView": "عرض مدمج",
+        "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       }
     },
     "computer": {

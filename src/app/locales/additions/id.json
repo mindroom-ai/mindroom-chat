@@ -313,7 +313,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "Tampilan ringkas"
+        "compactView": "Tampilan ringkas",
+        "threadFiltersActive": "Filter utas (aktif)"
       }
     },
     "computer": {

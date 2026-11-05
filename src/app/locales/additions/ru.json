@@ -334,7 +334,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "Компактный вид"
+        "compactView": "Компактный вид",
+        "threadFiltersActive": "Фильтры веток (активны)"
       }
     },
     "computer": {

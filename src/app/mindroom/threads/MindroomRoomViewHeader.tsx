@@ -13,6 +13,7 @@ import {
   Icons,
   Text,
   Tooltip,
+  toRem,
   type IconSrc,
   type RectCords,
 } from 'folds';
@@ -36,6 +37,8 @@ import { useRoomPermissions } from '../../hooks/useRoomPermissions';
 import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
+import { useSetting } from '../../state/hooks/settings';
+import { settingsAtom } from '../../state/settings';
 import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../../utils/matrix';
 import { copyToClipboard } from '../../utils/dom';
 import { nameInitials } from '../../utils/common';
@@ -59,6 +62,7 @@ import type { CanvasListEntry } from '../canvas/canvasIndexStore';
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { useRoomViewMode } from './useRoomViewMode';
 import type { RoomViewMode } from './roomViewMode';
+import { hasActiveThreadFilters, type ThreadFilterState } from './roomThreadOverviewModel';
 import { RoomHeaderMenu } from './RoomHeaderMenu';
 import { CompactViewIcon } from './roomViewSwitchIcon';
 import { HeaderTopic } from '../../features/room/RoomViewHeader.css';
@@ -69,6 +73,8 @@ export type RoomViewHeaderProps = {
   joinRequestCount?: number;
   /** The open thread, if any: the room's view switch does not apply inside a thread. */
   threadId?: string;
+  /** The room's thread filters: the filter button marks them while their bar is hidden. */
+  threadFilterState?: ThreadFilterState;
   computerAvailable?: boolean;
   computerOpen?: boolean;
   /** Whether an agent or the user showed the computer in this conversation before. */
@@ -156,6 +162,17 @@ const joinRequestBadgeStyle = {
   pointerEvents: 'none',
 } as const;
 
+// A dot on the filter button's top end corner: filters apply while their bar is hidden.
+const hiddenFiltersDotStyle = {
+  position: 'absolute',
+  top: toRem(6),
+  insetInlineEnd: toRem(6),
+  minWidth: toRem(8),
+  height: toRem(8),
+  padding: 0,
+  pointerEvents: 'none',
+} as const;
+
 const rectOf = (event: MouseEvent<HTMLElement>): RectCords => {
   const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
   return { x, y, width, height };
@@ -168,8 +185,8 @@ const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): stri
 };
 
 /**
- * The Compact and Full switch: Compact shows threads as cards, Full the classic timeline. A room
- * without agents opens in Threads, so its switch returns there instead.
+ * The room's view and its Compact and Full switch: Compact shows threads as cards, Full the
+ * classic timeline. A room without agents opens in Threads, so its switch returns there instead.
  */
 const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
   const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(
@@ -180,9 +197,14 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
   const fullMode: RoomViewMode | undefined = availableViewModes.includes(preferredFull)
     ? preferredFull
     : availableViewModes.find((mode) => mode !== 'compact');
-  if (!availableViewModes.includes('compact') || fullMode === undefined) return undefined;
+  if (!availableViewModes.includes('compact') || fullMode === undefined) {
+    return { viewMode, viewSwitch: undefined };
+  }
   const compact = viewMode === 'compact';
-  return { compact, toggle: () => setViewMode(compact ? fullMode : 'compact') };
+  return {
+    viewMode,
+    viewSwitch: { compact, toggle: () => setViewMode(compact ? fullMode : 'compact') },
+  };
 };
 
 /**
@@ -194,6 +216,7 @@ export function RoomViewHeader({
   hasMindroomAgents,
   joinRequestCount = 0,
   threadId,
+  threadFilterState,
   computerAvailable,
   computerOpen,
   computerShown,
@@ -209,7 +232,14 @@ export function RoomViewHeader({
   const { t } = useTranslation();
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const mx = useMatrixClient();
-  const viewSwitch = useViewSwitch(room, hasMindroomAgents);
+  const { viewMode, viewSwitch } = useViewSwitch(room, hasMindroomAgents);
+  const [filterBarHidden, setFilterBarHidden] = useSetting(settingsAtom, 'hideThreadFilterBar');
+  // The views with a thread filter bar, as MindroomRoomTimeline draws it: Compact cards, and
+  // Threads in a room with agents.
+  const hasFilterBar =
+    !threadId && (viewMode === 'compact' || (viewMode === 'threaded' && !!hasMindroomAgents));
+  const hiddenFiltersActive =
+    filterBarHidden && !!threadFilterState && hasActiveThreadFilters(threadFilterState);
   const navigate = useNavigate();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
   const openRoomSettings = useOpenRoomSettings();
@@ -344,6 +374,33 @@ export function RoomViewHeader({
             active={viewSwitch.compact}
             onClick={viewSwitch.toggle}
             buttonProps={{ 'data-room-view-switch': '' }}
+          />
+        )}
+        {hasFilterBar && (
+          <HeaderAction
+            label={
+              hiddenFiltersActive
+                ? t('mindroomUi.threads.mindroomRoomViewHeader.threadFiltersActive')
+                : t('mindroomUi.threads.roomThreadOverview.threadFilters')
+            }
+            icon={Icons.Filter}
+            pressed={!filterBarHidden}
+            active={!filterBarHidden}
+            onClick={() => setFilterBarHidden(!filterBarHidden)}
+            badge={
+              hiddenFiltersActive && (
+                <Badge
+                  style={hiddenFiltersDotStyle}
+                  size="200"
+                  variant="Primary"
+                  fill="Solid"
+                  radii="Pill"
+                  aria-hidden="true"
+                  data-hidden-filters-dot=""
+                />
+              )
+            }
+            buttonProps={{ 'data-thread-filter-bar-toggle': '' }}
           />
         )}
         {hasMindroomAgents && (

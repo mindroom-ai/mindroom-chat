@@ -48,7 +48,7 @@ const ignore = () => undefined;
 
 const BACKGROUND_JOB_CANCEL_EVENT = 'io.mindroom.background_job_cancel';
 
-export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId'> & {
+export type RoomViewProps = Omit<RoomViewHeaderProps, 'threadId' | 'threadFilterState'> & {
   room: Room;
   eventId?: string;
   threadId?: string;
@@ -298,6 +298,7 @@ export function RoomView({
           <RoomViewHeader
             hasMindroomAgents={hasMindroomAgents}
             threadId={effectiveThreadId}
+            threadFilterState={threadState.threadFilterState}
             {...headerProps}
           />
         </div>

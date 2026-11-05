@@ -320,7 +320,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "কমপ্যাক্ট ভিউ"
+        "compactView": "কমপ্যাক্ট ভিউ",
+        "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
       }
     },
     "computer": {

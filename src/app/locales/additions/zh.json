@@ -313,7 +313,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "紧凑视图"
+        "compactView": "紧凑视图",
+        "threadFiltersActive": "讨论串过滤器（已启用）"
       }
     },
     "computer": {

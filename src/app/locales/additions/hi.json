@@ -320,7 +320,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "सघन दृश्य"
+        "compactView": "सघन दृश्य",
+        "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       }
     },
     "computer": {

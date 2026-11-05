@@ -313,7 +313,8 @@
     },
     "threads": {
       "mindroomRoomViewHeader": {
-        "compactView": "コンパクト表示"
+        "compactView": "コンパクト表示",
+        "threadFiltersActive": "スレッドフィルター（有効）"
       }
     },
     "computer": {
