@@ -242,7 +242,16 @@ export function ThreadFilterDropdown({
         ref={triggerRef}
         type="button"
         className={classNames(overviewCss.PresetButton, count > 0 && css.TriggerActive)}
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        // While open, a press keeps the focus in the panel: Safari focuses no button, so the
+        // panel would lose the focus to nothing and close, and the click would open it again.
+        onMouseDown={(event) => {
+          if (open) event.preventDefault();
+        }}
+        onClick={() => {
+          // Closing hands the focus to the button, as Escape does.
+          if (open) triggerRef.current?.focus();
+          setOpen(!open);
+        }}
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="dialog"

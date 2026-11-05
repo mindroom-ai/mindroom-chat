@@ -162,6 +162,19 @@ describe('the Tags dropdown', () => {
     expect(document.activeElement).toBe(tags.trigger());
   });
 
+  it('closes on a second press of its button, which keeps the focus in the panel until then', () => {
+    const tags = setup();
+    // While closed, a press focuses the button as usual.
+    expect(fireEvent.mouseDown(tags.trigger())).toBe(true);
+    tags.open();
+    // Safari focuses no button on a press: the search would lose the focus to nothing and close
+    // the panel, and the click would open it again.
+    expect(fireEvent.mouseDown(tags.trigger())).toBe(false);
+    fireEvent.click(tags.trigger());
+    expect(tags.panel()).toBeNull();
+    expect(document.activeElement).toBe(tags.trigger());
+  });
+
   it('closes when the focus leaves it, but not when a tag is pressed', () => {
     const tags = setup();
     tags.open();
