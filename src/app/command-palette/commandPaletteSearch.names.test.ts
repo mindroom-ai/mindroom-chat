@@ -28,6 +28,22 @@ describe('searchCommandPaletteSection room names', () => {
     expect(results).toHaveLength(3);
   });
 
+  it('ranks a name that holds the typed text above names that only resemble it', () => {
+    const items = [
+      room('!fuzzy:example.org', 'Weekly sync with the platform crew', 25),
+      room('!space:example.org', 'Platform reliability', 25),
+      room('!named:example.org', 'Quarterly planning for the customer onboarding redesign'),
+    ];
+
+    const results = searchCommandPaletteSection({
+      items,
+      query: 'Plan',
+      config: commandPaletteSearchConfig.rooms,
+    });
+
+    expect(results[0]?.id).toBe('!named:example.org');
+  });
+
   it('keeps the boost order among rooms that match the same way', () => {
     const items = [room('!a:example.org', 'Team room 1'), room('!b:example.org', 'Team room 2', 25)];
 
