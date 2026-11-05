@@ -766,13 +766,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
 
   // Jumps: the paginator scrolls to mounted rows and moves the window; the virtual list
   // scrolls to the rows of the window it has not mounted.
-  const { scrollToItem: paginatorScrollToItem, scrollToElement, retryPagination } = paginator;
+  const {
+    scrollToItem: paginatorScrollToItem,
+    scrollToElement: paginatorScrollToElement,
+    retryPagination,
+  } = paginator;
   useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, retryPagination);
-  const { scrollToItem, scrollThreadEventIntoView } = useTimelineRowJumps({
+  const { scrollToItem, scrollToElement, scrollThreadEventIntoView } = useTimelineRowJumps({
     paginatorScrollToItem,
+    paginatorScrollToElement,
     activeRangeRef,
     virtualizerRef,
     threadEventIndexMapRef,
+    onJump: ledger.endSettleDiscardWatch,
   });
   const cancelThreadBottomSettle = useCallback(
     () => backController.suppressOpenBottomPin(),

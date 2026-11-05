@@ -7,7 +7,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import type { Virtualizer } from '@tanstack/react-virtual';
-import type { ItemRange, ScrollToItem } from './useVirtualPaginator';
+import type { ItemRange, ScrollToElement, ScrollToItem } from './useVirtualPaginator';
 import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
 import type { ViewScopedFlag } from './roomTimelineViewScope';
@@ -245,20 +245,33 @@ export const useGestureBottomPins = ({
 /**
  * Jumps to a row. The paginator scrolls to mounted rows and moves the window; the virtual list
  * scrolls to the rows of the window it has not mounted. A thread's rows are all in the list.
+ * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own.
  */
 export const useTimelineRowJumps = ({
   paginatorScrollToItem,
+  paginatorScrollToElement,
   activeRangeRef,
   virtualizerRef,
   threadEventIndexMapRef,
+  onJump,
 }: {
   paginatorScrollToItem: ScrollToItem;
+  paginatorScrollToElement: ScrollToElement;
   activeRangeRef: MutableRefObject<ItemRange>;
   virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
+  onJump: () => void;
 }) => {
+  const scrollToElement = useCallback<ScrollToElement>(
+    (element, opts) => {
+      onJump();
+      return paginatorScrollToElement(element, opts);
+    },
+    [onJump, paginatorScrollToElement]
+  );
   const scrollToItem = useCallback<ScrollToItem>(
     (index, opts) => {
+      onJump();
       if (paginatorScrollToItem(index, opts)) return true;
       const { start, end } = activeRangeRef.current;
       if (index < start || index >= end) return false;
@@ -268,16 +281,17 @@ export const useTimelineRowJumps = ({
       });
       return true;
     },
-    [activeRangeRef, paginatorScrollToItem, virtualizerRef]
+    [activeRangeRef, onJump, paginatorScrollToItem, virtualizerRef]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {
       const index = threadEventIndexMapRef.current.get(targetEventId);
       if (index === undefined) return false;
+      onJump();
       virtualizerRef.current.scrollToIndex(index, { align: 'center' });
       return true;
     },
-    [threadEventIndexMapRef, virtualizerRef]
+    [onJump, threadEventIndexMapRef, virtualizerRef]
   );
-  return { scrollToItem, scrollThreadEventIntoView };
+  return { scrollToElement, scrollToItem, scrollThreadEventIntoView };
 };

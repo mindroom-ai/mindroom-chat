@@ -7,7 +7,7 @@ import {
 } from './roomFocusScrollController';
 import { useThreadBackPaginationController } from './threadBackPaginationController';
 import { useViewScopedFlag } from './roomTimelineViewScope';
-import { useGestureBottomPins, useLatestRowPin } from './roomTimelineScroll';
+import { useGestureBottomPins, useLatestRowPin, useTimelineRowJumps } from './roomTimelineScroll';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 
 /** A thread's scroll area at its bottom: listeners by event type and a recorded `scrollTo`. */
@@ -373,5 +373,48 @@ describe('useLatestRowPin in an open thread the reader has scrolled', () => {
     thread.element.scrollHeight = 3400;
     thread.showRows(23);
     expect(thread.element.scrollTo).not.toHaveBeenCalled();
+  });
+});
+
+describe('useTimelineRowJumps', () => {
+  it('tells the ledger before every jump to a row', () => {
+    const steps: string[] = [];
+    let jumps: ReturnType<typeof useTimelineRowJumps> | undefined;
+    function Jumps() {
+      jumps = useTimelineRowJumps({
+        // Row 0 is in the window but not mounted: the virtual list scrolls there.
+        paginatorScrollToItem: (index) => {
+          steps.push(`paginator row ${index}`);
+          return false;
+        },
+        paginatorScrollToElement: () => {
+          steps.push('paginator element');
+          return true;
+        },
+        activeRangeRef: { current: { start: 0, end: 44 } },
+        virtualizerRef: {
+          current: { scrollToIndex: (index: number) => steps.push(`virtual list row ${index}`) },
+        },
+        threadEventIndexMapRef: { current: new Map([['$reply', 3]]) },
+        onJump: () => steps.push('ledger'),
+      });
+      return null;
+    }
+    act(() => {
+      create(createElement(Jumps));
+    });
+
+    jumps?.scrollToItem(0);
+    jumps?.scrollToElement({} as HTMLElement);
+    jumps?.scrollThreadEventIntoView('$reply');
+    expect(steps).toEqual([
+      'ledger',
+      'paginator row 0',
+      'virtual list row 0',
+      'ledger',
+      'paginator element',
+      'ledger',
+      'virtual list row 3',
+    ]);
   });
 });

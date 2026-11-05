@@ -64,6 +64,8 @@ export type TimelineScrollLedgerControllerOptions = {
 };
 
 export type TimelineScrollLedgerController = {
+  /** Ends the discarded-settle watch: the timeline is about to jump to a row. */
+  endSettleDiscardWatch: () => void;
   holdThreadBannerResize: (deltaPx: number, scrollTop: number) => void;
   ledgerPxAtRender: number;
   measureElement: (node: Element | null) => void;
@@ -411,6 +413,14 @@ export const useTimelineScrollLedgerController = ({
     [getScrollElement, threadId]
   );
 
+  // A jump to a row moves the position itself, and a jump toward the start
+  // can land near the pre-settle offset in one large scroll event, the shape
+  // of a discarded settle. Restoring the fold then would push the row the
+  // jump reached out of view, so every jump ends the watch first.
+  const endSettleDiscardWatch = useCallback(() => {
+    settleDiscardWatchRef.current = undefined;
+  }, []);
+
   // The settle is one synchronous block. Clearing the DOM margin, shifting
   // scrollTop, and resetting virtual-core's scrollMargin may not be split
   // across paints. scrollTop must be written before setOptions because the
@@ -718,6 +728,7 @@ export const useTimelineScrollLedgerController = ({
   ]);
 
   return {
+    endSettleDiscardWatch,
     holdThreadBannerResize,
     ledgerPxAtRender,
     measureElement,
