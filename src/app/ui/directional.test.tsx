@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PopOut, TooltipProvider, documentIsRightToLeft, mirrorPlacement, textDirection } from './directional';
+import {
+  PopOut,
+  TooltipProvider,
+  documentIsRightToLeft,
+  mirrorPlacement,
+  textDirection,
+} from './directional';
 
 const received = vi.hoisted(() => ({ popOut: [] as unknown[], tooltip: [] as unknown[] }));
 
@@ -122,5 +128,39 @@ describe('PopOut and TooltipProvider', () => {
     renderBoth();
     expect(received.popOut[0]).toMatchObject({ position: 'Bottom', align: 'Start', offset: 4 });
     expect(received.tooltip[0]).toMatchObject({ position: 'Left', align: 'Start' });
+  });
+});
+
+describe('TooltipProvider on a touch screen', () => {
+  const pointer = (type: string, pointerType: string, movement = 0) => {
+    const event = new MouseEvent(type, { bubbles: true });
+    Object.defineProperties(event, {
+      pointerType: { value: pointerType },
+      movementX: { value: movement },
+    });
+    document.body.dispatchEvent(event);
+  };
+
+  it('opens no tooltip from a hover that a tap set off, until a mouse moves', () => {
+    act(() => {
+      create(<TooltipProvider tooltip={<span />}>{(ref) => <span ref={ref} />}</TooltipProvider>);
+    });
+    // folds hands its children a ref object and listens on the trigger after the ref is set.
+    const foldsRef: { current: Element | null } = { current: null };
+    type Trigger = { ref: (node: Element | null) => void };
+    const { children } = received.tooltip[0] as { children: (ref: unknown) => Trigger };
+    const trigger = document.createElement('button');
+    children(foldsRef).ref(trigger);
+    expect(foldsRef.current).toBe(trigger);
+    const opened = vi.fn();
+    trigger.addEventListener('mouseenter', opened);
+
+    pointer('pointerdown', 'touch');
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(opened).not.toHaveBeenCalled();
+
+    pointer('pointermove', 'mouse', 3);
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(opened).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,4 +1,4 @@
-import React, { forwardRef } from 'react';
+import React, { forwardRef, type MutableRefObject, type ReactNode, type RefCallback } from 'react';
 import {
   PopOut as FoldsPopOut,
   TooltipProvider as FoldsTooltipProvider,
@@ -69,11 +69,77 @@ export const PopOut = forwardRef<HTMLElement, Placement & Record<string, unknown
   }
 ) as unknown as typeof FoldsPopOut;
 
-/** folds' TooltipProvider, placed in reading order like {@link PopOut}. */
-export const TooltipProvider = forwardRef<HTMLElement, Placement & Record<string, unknown>>(
-  function DirectionalTooltipProvider({ position, align, ...props }, ref) {
-    const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
-    const Base = FoldsTooltipProvider as React.ElementType;
-    return <Base {...props} {...placement} ref={ref} />;
+/** Whether the last press was a touch, with no mouse moved since. */
+let touchedLast = false;
+let watchingPresses = false;
+
+const watchPresses = () => {
+  if (watchingPresses || typeof document === 'undefined') return;
+  watchingPresses = true;
+  const options = { capture: true, passive: true };
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      touchedLast = event.pointerType === 'touch';
+    },
+    options
+  );
+  document.addEventListener(
+    'pointermove',
+    (event) => {
+      if (event.pointerType === 'mouse' && (event.movementX || event.movementY))
+        touchedLast = false;
+    },
+    options
+  );
+};
+
+/**
+ * A tap is no hover, so after one a trigger's mouseenter opens no tooltip. Browsers send one with
+ * each tap, and WebKit sends another when the page under the tapped spot changes, such as a menu
+ * closing from a hardware keyboard's Escape; nothing would close that tooltip again. Registered
+ * before folds' own listener, it keeps that listener from seeing the event.
+ */
+const skipHoverAfterTouch = (event: Event) => {
+  if (touchedLast) event.stopImmediatePropagation();
+};
+
+type TriggerRef = RefCallback<HTMLElement | SVGElement>;
+// folds hands its children a ref object (typed as a callback); one guarded callback per ref keeps
+// React from detaching and attaching it again on every render.
+const guardedTriggers = new WeakMap<object, TriggerRef>();
+
+const guardTrigger = (triggerRef: TriggerRef): TriggerRef => {
+  // Test doubles of folds may hand over no ref at all.
+  if (!triggerRef) return triggerRef;
+  let guarded = guardedTriggers.get(triggerRef);
+  if (!guarded) {
+    guarded = (node) => {
+      node?.addEventListener('mouseenter', skipHoverAfterTouch);
+      if (typeof triggerRef === 'function') triggerRef(node);
+      else (triggerRef as MutableRefObject<HTMLElement | SVGElement | null>).current = node;
+    };
+    guardedTriggers.set(triggerRef, guarded);
   }
-) as unknown as typeof FoldsTooltipProvider;
+  return guarded;
+};
+
+type TooltipChildren = (triggerRef: TriggerRef) => ReactNode;
+
+/**
+ * folds' TooltipProvider, placed in reading order like {@link PopOut}, which a tap on a touch
+ * screen does not open.
+ */
+export const TooltipProvider = forwardRef<
+  HTMLElement,
+  Placement & { children: TooltipChildren } & Record<string, unknown>
+>(function DirectionalTooltipProvider({ position, align, children, ...props }, ref) {
+  watchPresses();
+  const placement = mirrorPlacement({ position, align }, documentIsRightToLeft());
+  const Base = FoldsTooltipProvider as React.ElementType;
+  return (
+    <Base {...props} {...placement} ref={ref}>
+      {(triggerRef: TriggerRef) => children(guardTrigger(triggerRef))}
+    </Base>
+  );
+}) as unknown as typeof FoldsTooltipProvider;
