@@ -3,17 +3,19 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 
-// Hovering any rail entry slides its button 4 px toward the inline end and grows the indicator
+// Hovering any rail entry slides its button 2 px toward the inline end and grows the indicator
 // on the rail's outer edge to 18 px; a selected entry slides too and keeps its 24 px indicator.
-// Keyboard focus looks like hover, pressing settles the button back and reduced motion keeps the
-// indicator only. Set RAIL_HOVER_SHOTS=<directory> to also save the rest, hover and selected
+// The indicators must reach the screen, at the top of the rail and in its bottom group alike.
+// Keyboard focus looks like hover, pressing keeps the slide and shrinks the button a little, and
+// reduced motion keeps the indicator only. Set RAIL_HOVER_SHOTS=<directory> to also save the
 // screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-hover-spec-password';
 const SHOTS = process.env.RAIL_HOVER_SHOTS;
 
-/** The slide and the indicator heights the rail promises. */
-const SLIDE = 4;
+/** The slide, the press scale and the indicator heights the rail promises. */
+const SLIDE = 2;
+const PRESS_SCALE = 0.95;
 const HOVER_HEIGHT = 18;
 const SELECTED_HEIGHT = 24;
 
@@ -160,6 +162,70 @@ const indicator = (entry: Locator) =>
     };
   });
 
+/**
+ * The indicator as it reaches the screen: whether the pointer finds the entry along it (nothing
+ * covers it), and how many pixel rows of the rail's outer edge stand out from the rail next to
+ * it. Left to right only.
+ */
+const drawnIndicator = async (page: Page, entry: Locator) => {
+  const { left, top, width, uncovered } = await entry.evaluate((element) => {
+    const style = getComputedStyle(element, '::before');
+    const box = element.getBoundingClientRect();
+    const edge = box.left + parseFloat(style.left);
+    const middle = box.top + box.height / 2;
+    const pillWidth = parseFloat(style.width);
+    return {
+      left: edge,
+      top: middle - 20,
+      width: pillWidth,
+      uncovered: [-6, 0, 6].every(
+        (offset) => document.elementFromPoint(edge + pillWidth / 2, middle + offset) === element
+      ),
+    };
+  });
+  // The indicator's column and the rail beside it, before the button (12 px in).
+  const png = await page.screenshot({
+    clip: { x: left, y: top, width: width + 8, height: 40 },
+    scale: 'css',
+  });
+  const rows = await page.evaluate(
+    async ({ data, pillX, railX }) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext('2d');
+      if (!context) return 0;
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, image.width, image.height).data;
+      const luminance = (x: number, y: number) => {
+        const at = (y * image.width + x) * 4;
+        const [r = 0, g = 0, b = 0] = pixels.subarray(at, at + 3);
+        return 0.299 * r + 0.587 * g + 0.114 * b;
+      };
+      let drawn = 0;
+      for (let y = 0; y < image.height; y += 1) {
+        if (Math.abs(luminance(pillX, y) - luminance(railX, y)) > 40) drawn += 1;
+      }
+      return drawn;
+    },
+    { data: png.toString('base64'), pillX: Math.floor(width / 2), railX: Math.floor(width) + 5 }
+  );
+  return { uncovered, rows };
+};
+
+/** A button's computed `scale` and how long a change of it takes to ease in, in seconds. */
+const scaleOf = (button: Locator) =>
+  button.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const properties = style.transitionProperty.split(',').map((name) => name.trim());
+    const durations = style.transitionDuration.split(',').map((value) => parseFloat(value));
+    const index = properties.indexOf('scale');
+    return { scale: style.scale, seconds: index < 0 ? 0 : durations[index] ?? 0 };
+  });
+
 /** Waits for the slide and the indicator's transitions (160 and 200 ms) to land. */
 const settle = (page: Page) => page.waitForTimeout(400);
 
@@ -179,21 +245,38 @@ const hoverAndMeasure = async (page: Page, button: Locator) => {
   await settle(page);
   const hoverCentre = await centre(button);
   const hover = await indicator(entry);
+  const drawn = await drawnIndicator(page, entry);
   await pointerAway(page);
   const after = await indicator(entry);
+  const afterDrawn = await drawnIndicator(page, entry);
   return {
     selected,
     dx: hoverCentre.x - restCentre.x,
     dy: hoverCentre.y - restCentre.y,
     rest,
     hover,
+    drawn,
     after,
+    afterDrawn,
   };
+};
+
+/** The indicator reaches the screen at about `height` px and nothing covers it. */
+const expectDrawn = (
+  name: string,
+  drawn: Awaited<ReturnType<typeof drawnIndicator>>,
+  height: number
+) => {
+  expect(drawn.uncovered, `${name} indicator uncovered`).toBe(true);
+  expect(
+    Math.abs(drawn.rows - height),
+    `${name} indicator on screen: ${drawn.rows} px`
+  ).toBeLessThanOrEqual(2);
 };
 
 /** One hover's checks, for a selected entry or not. */
 const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndMeasure>>) => {
-  const { selected, dx, dy, rest, hover, after } = measured;
+  const { selected, dx, dy, rest, hover, drawn, after, afterDrawn } = measured;
   // A slide toward the inline end, no lift.
   expect(dx, `${name} slide`).toBeCloseTo(SLIDE, 0);
   expect(Math.abs(dy), `${name} vertical move`).toBeLessThan(0.6);
@@ -203,11 +286,16 @@ const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndM
   if (selected) {
     expect(rest.height, `${name} selected rest`).toBeCloseTo(SELECTED_HEIGHT, 0);
     expect(hover.height, `${name} selected hover`).toBeCloseTo(SELECTED_HEIGHT, 0);
+    expectDrawn(`${name} selected hover`, drawn, SELECTED_HEIGHT);
     expect(after.height, `${name} selected after`).toBeCloseTo(SELECTED_HEIGHT, 0);
+    expectDrawn(`${name} selected after`, afterDrawn, SELECTED_HEIGHT);
   } else {
     expect(rest.height, `${name} rest`).toBeCloseTo(0, 1);
     expect(hover.height, `${name} hover`).toBeCloseTo(HOVER_HEIGHT, 0);
+    expectDrawn(`${name} hover`, drawn, HOVER_HEIGHT);
     expect(after.height, `${name} after`).toBeCloseTo(0, 1);
+    // The screen check can tell: once the pointer leaves, the edge is bare again.
+    expect(afterDrawn.rows, `${name} indicator gone`).toBeLessThanOrEqual(1);
   }
 };
 
@@ -272,6 +360,49 @@ test('every rail entry slides toward the inline end and grows its indicator on h
   expectHover('selected space', selectedSpace);
 });
 
+test('the bottom group shows its indicators while Inbox or Search is open', async ({ page }) => {
+  test.slow();
+  const account = await register('rail_hover_d');
+  await publishCrossSigning(account);
+  await signIn(page, account);
+
+  const search = rail(page).getByRole('button', { name: 'Open command palette' });
+  const inbox = rail(page).getByRole('button', { name: 'Inbox' });
+  const bottom: Record<string, Locator> = {
+    Search: search,
+    'device verification': rail(page).getByRole('button', { name: 'Unverified Device' }),
+    Inbox: inbox,
+    account: rail(page).getByRole('button', { name: /Open account menu for / }),
+    collapse: rail(page).getByRole('button', { name: 'Collapse navigation panel' }),
+  };
+  for (const [name, button] of Object.entries(bottom)) {
+    await expect(button, `${name} on the rail`).toBeVisible({ timeout: 30_000 });
+  }
+
+  // Inbox open: its tall indicator shows at rest and on hover; the others still grow theirs.
+  await inbox.click();
+  await expect(entryOf(inbox)).toHaveAttribute('data-active', 'true');
+  await pointerAway(page);
+  expectDrawn('Inbox open', await drawnIndicator(page, entryOf(inbox)), SELECTED_HEIGHT);
+  for (const [name, button] of Object.entries(bottom)) {
+    expectHover(`${name} with Inbox open`, await hoverAndMeasure(page, button));
+  }
+
+  // Search open: the command palette's backdrop covers the rail, and the tall indicator shows
+  // through it.
+  await search.click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await expect(entryOf(search)).toHaveAttribute('data-active', 'true');
+  await settle(page);
+  const searchOpen = await drawnIndicator(page, entryOf(search));
+  expect(
+    Math.abs(searchOpen.rows - SELECTED_HEIGHT),
+    `Search open: ${searchOpen.rows} px`
+  ).toBeLessThanOrEqual(2);
+  await page.keyboard.press('Escape');
+  await expect(entryOf(search)).not.toHaveAttribute('data-active', 'true');
+});
+
 test('focus, pressing, reduced motion and right to left', async ({ page }) => {
   test.slow();
   const account = await register('rail_hover_b');
@@ -296,26 +427,47 @@ test('focus, pressing, reduced motion and right to left', async ({ page }) => {
   await settle(page);
   expect((await indicator(entry)).height).toBeCloseTo(0, 1);
 
-  // The indicator sits flush with the rail's leading edge; the button slides away from it.
+  // The indicator sits flush with the rail's leading edge; the button slides away from it and
+  // leaves a clear gap.
   await explore.hover();
   await settle(page);
-  expect((await indicator(entry)).left).toBeCloseTo(railBox?.x ?? 0, 0);
+  const hovered = await indicator(entry);
+  expect(hovered.left).toBeCloseTo(railBox?.x ?? 0, 0);
   expect((await centre(explore)).x - rest.x).toBeCloseTo(SLIDE, 0);
+  expect(((await explore.boundingBox())?.x ?? 0) - hovered.right, 'gap').toBeGreaterThan(8);
+  const entryBox = await entry.boundingBox();
+  const resting = await scaleOf(explore);
 
-  // Pressing settles the button back; releasing away from it does not click it.
+  // Pressing keeps the slide and quickly shrinks the button a little; the entry and its
+  // indicator stay put. Releasing away from the button does not click it, and it eases back.
   await page.mouse.down();
+  expect((await scaleOf(explore)).seconds, 'press transition').toBeLessThanOrEqual(0.1);
   await settle(page);
-  expect((await centre(explore)).x).toBeCloseTo(rest.x, 0);
+  expect((await scaleOf(explore)).scale).toBe(String(PRESS_SCALE));
+  expect((await explore.boundingBox())?.width).toBeCloseTo(42 * PRESS_SCALE, 0);
+  expect((await centre(explore)).x - rest.x, 'press slide').toBeCloseTo(SLIDE, 0);
+  expect(await entry.boundingBox()).toEqual(entryBox);
+  expect((await indicator(entry)).height, 'press indicator').toBeCloseTo(HOVER_HEIGHT, 0);
   await page.mouse.move(700, 450);
   await page.mouse.up();
+  expect((await scaleOf(explore)).seconds, 'release transition').toBeCloseTo(resting.seconds, 2);
+  expect(resting.seconds).toBeGreaterThanOrEqual(0.15);
+  await settle(page);
+  expect((await scaleOf(explore)).scale).not.toBe(String(PRESS_SCALE));
 
-  // Reduced motion: no slide, the indicator still shows.
+  // Reduced motion: no slide and no press, the indicator still shows.
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await pointerAway(page);
   await explore.hover();
   await settle(page);
   expect((await centre(explore)).x).toBeCloseTo(rest.x, 0);
   expect((await indicator(entry)).height).toBeCloseTo(HOVER_HEIGHT, 0);
+  await page.mouse.down();
+  await settle(page);
+  expect((await scaleOf(explore)).scale).toBe('none');
+  expect((await centre(explore)).x).toBeCloseTo(rest.x, 0);
+  await page.mouse.move(700, 450);
+  await page.mouse.up();
 
   // Right to left: the indicator moves to the rail's trailing (right) edge and the button slides
   // left, away from it.
@@ -331,9 +483,17 @@ test('focus, pressing, reduced motion and right to left', async ({ page }) => {
   expect(rtlIndicator.height).toBeCloseTo(HOVER_HEIGHT, 0);
   expect((await centre(explore)).x - rtlRest.x).toBeCloseTo(-SLIDE, 0);
   expect(rtlRail?.x).toBeGreaterThan(railBox?.x ?? 0);
+
+  // Holding Space on a focused rail button presses it too.
+  await pointerAway(page);
+  await explore.focus();
+  await page.keyboard.down('Space');
+  await settle(page);
+  expect((await scaleOf(explore)).scale).toBe(String(PRESS_SCALE));
+  await page.keyboard.up('Space');
 });
 
-test('saves the rail at rest, hovered and selected-hovered, light and dark', async ({ page }) => {
+test('saves the rail at rest, hovered and selected, light and dark', async ({ page }) => {
   test.skip(!SHOTS, 'Set RAIL_HOVER_SHOTS=<directory> to save the screenshots');
   test.slow();
   const account = await register('rail_hover_c');
@@ -360,6 +520,18 @@ test('saves the rail at rest, hovered and selected-hovered, light and dark', asy
       clip: { x: 0, y: 0, width: 140, height: Math.min(box?.height ?? 500, 520) },
     });
   };
+  /** The rail's bottom group, from just above Search to the foot of the rail. */
+  const bottomShot = async (name: string) => {
+    const box = await rail(page).boundingBox();
+    const search = await rail(page)
+      .getByRole('button', { name: 'Open command palette' })
+      .boundingBox();
+    const y = Math.max(0, (search?.y ?? 0) - 24);
+    await page.screenshot({
+      path: `${SHOTS}/L6-rail-hover-${name}.png`,
+      clip: { x: 0, y, width: 140, height: (box?.y ?? 0) + (box?.height ?? 900) - y },
+    });
+  };
 
   for (const [themeId, label] of [
     ['light-theme', 'light'],
@@ -379,5 +551,17 @@ test('saves the rail at rest, hovered and selected-hovered, light and dark', asy
     await home.hover();
     await settle(page);
     await shot(`selected-${label}`);
+    // The bottom group: Inbox hovered beside the account's selection mark, then Inbox open.
+    const inbox = rail(page).getByRole('button', { name: 'Inbox' });
+    await pointerAway(page);
+    await inbox.hover();
+    await settle(page);
+    await bottomShot(`bottom-hover-${label}`);
+    await inbox.click();
+    await expect(entryOf(inbox)).toHaveAttribute('data-active', 'true');
+    await pointerAway(page);
+    await bottomShot(`inbox-selected-${label}`);
+    await home.click();
+    await expect(entryOf(home)).toHaveAttribute('data-active', 'true');
   }
 });

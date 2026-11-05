@@ -54,7 +54,7 @@ const sidebarItemRoot = style({});
 
 /**
  * How far a hovered or keyboard-focused rail button slides toward the inline end (right, or left
- * in a right-to-left language): the indicator's width, which leaves room for the indicator.
+ * in a right-to-left language), away from the indicator: half the indicator's width.
  */
 const hoverSlide = createVar();
 
@@ -75,9 +75,9 @@ export const SidebarItem = recipe({
     Centered,
     {
       position: 'relative',
-      vars: { [hoverSlide]: toRem(4) },
+      vars: { [hoverSlide]: toRem(2) },
       selectors: {
-        '[dir=rtl] &': { vars: { [hoverSlide]: toRem(-4) } },
+        '[dir=rtl] &': { vars: { [hoverSlide]: toRem(-2) } },
         // The indicator: a pill on the rail's outer edge (the left one, or the right one in a
         // right-to-left language). home.png: 4 px wide, flush with the edge (12 px before the
         // 42 px avatar). Its inner end is round. It grows from nothing to its hover height and
@@ -116,6 +116,12 @@ export const SidebarItem = recipe({
 const railButtonFill = (tone: string, percent: number) =>
   `color-mix(in srgb, ${tone} ${percent}%, transparent)`;
 
+/**
+ * A pressed rail button, by the pointer or by the Space key. Inside the entry and doubled, to
+ * outrank the glass material's `button&:active:not(:disabled)` press.
+ */
+const pressed = `${sidebarItemRoot} &&:active`;
+
 /** The theme classes whose palettes are dark. */
 const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme)';
 
@@ -135,22 +141,30 @@ export const SidebarAvatar = recipe({
       cursor: 'pointer',
       outline: 'none',
       // The slide follows the entry, not the button: the entry keeps the pointer when the button
-      // has moved out from under it. Reduced motion keeps the indicator and drops the slide.
+      // has moved out from under it. Reduced motion keeps the indicator and drops the slide and
+      // the press.
       '@media': {
         '(prefers-reduced-motion: reduce)': {
-          selectors: { [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: 'none' } },
+          selectors: {
+            [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: 'none' },
+            [pressed]: { scale: 'none' },
+          },
         },
       },
       selectors: {
         // Doubled to outrank the glass material's `button&` transition, which only names `scale`
-        // (its hover grow); both properties ease.
+        // (its hover grow); both properties ease back at the normal pace.
         '&&': {
-          transition: `scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1), translate ${motion.duration.Normal} ease-out`,
+          transition: `scale ${motion.duration.Normal} cubic-bezier(0.2, 0.8, 0.2, 1), translate ${motion.duration.Normal} ease-out`,
         },
         // Keyboard focus looks like hover.
         [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: `${hoverSlide} 0` },
-        // Pressing settles the button back.
-        [`${sidebarItemRoot}:hover &:active`]: { translate: 'none' },
+        // Pressing keeps the slide and quickly shrinks the button a little; the entry, and so
+        // the layout and the indicator, stay put.
+        [pressed]: {
+          scale: '0.95',
+          transition: `scale ${motion.duration.Instant} ease-out, translate ${motion.duration.Normal} ease-out`,
+        },
         '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
         '&:active': { backgroundColor: color.SurfaceVariant.ContainerActive },
         // An outline, not a ring shadow: the glass material of raised buttons owns box-shadow.
