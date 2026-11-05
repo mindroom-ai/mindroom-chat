@@ -2832,3 +2832,4 @@ src/app/navigation/clientRouteRestore.ts		clean-rewrite
 src/app/messages/content/useAudioContentSource.ts		clean-rewrite
 src/app/matrix/hooks/useInitialClientCatchup.ts		clean-rewrite
 ios/Tests/public/index.html		clean-rewrite
+src/app/timeline/roomLiveRenderController.ts		clean-rewrite

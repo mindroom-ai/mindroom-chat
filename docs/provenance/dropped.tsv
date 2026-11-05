@@ -100,3 +100,4 @@ src/app/mindroom/routing/clientRouteRestore.ts	1	rewritten in Lane C from a beha
 src/app/components/message/content/useAudioContentSource.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/hooks/useInitialClientCatchup.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 ios/Tests/public/index.html	2	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/mindroom/threads/roomLiveRenderController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
