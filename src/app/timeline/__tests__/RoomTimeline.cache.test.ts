@@ -108,7 +108,9 @@ const makeThreadFilterRecord = (
 
 importBeforeTests(() => import('../RoomTimeline'));
 
-describe('RoomTimeline', () => {
+// Each test renders the whole timeline, many with hundreds of rows: up to a second of CPU time
+// alone, over 5 s on a busy machine, so each test gets 30 s.
+describe('RoomTimeline', { timeout: 30_000 }, () => {
   describe('cache and overview', () => {
     it('renders without thread render hook initialization errors', async () => {
       const { RoomTimeline } = await import('../RoomTimeline');
