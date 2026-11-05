@@ -94,7 +94,12 @@ function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterPr
         autoFocus
         data-people-filter-search="true"
       />
-      <div className={css.List}>
+      <div
+        className={css.List}
+        // A press on a person keeps the focus where it is, so the panel does not close on blur.
+        onMouseDown={(event) => event.preventDefault()}
+        data-people-filter-list="true"
+      >
         {options.map((person) => (
           <label key={person.userId} className={css.Person} data-person-option={person.userId}>
             <Checkbox

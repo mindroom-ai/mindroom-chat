@@ -76,7 +76,8 @@ const one = (name: string): ReactTestInstance => {
   if (!node) throw new Error(`no ${name}`);
   return node;
 };
-const listedPeople = () => byData('data-person-option').map((node) => node.props['data-person-option']);
+const listedPeople = () =>
+  byData('data-person-option').map((node) => node.props['data-person-option']);
 const open = () =>
   act(() => {
     one('data-people-filter-button').props.onClick();
@@ -123,6 +124,10 @@ describe('the People dropdown', () => {
       (node) => node.props['data-person-option'] === '@bob:example.org'
     );
     if (!bob) throw new Error('no Bob');
+    // A press on the row must not take the focus out of the panel, which would close it.
+    const preventDefault = vi.fn();
+    one('data-people-filter-list').props.onMouseDown({ preventDefault });
+    expect(preventDefault).toHaveBeenCalled();
     act(() => {
       bob.findByProps({ readOnly: true }).props.onClick();
     });
