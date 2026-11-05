@@ -10,7 +10,7 @@ vi.mock('../messages/ThreadIndicator', () => ({
 }));
 
 vi.mock('../messages/thread-summary/ThreadSummaryCard', () => ({
-  MindroomThreadSummaryCard: 'mindroom-thread-summary-card',
+  ThreadSummaryCard: 'mindroom-thread-summary-card',
 }));
 
 const findElementInNode = (

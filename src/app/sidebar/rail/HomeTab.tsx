@@ -1,7 +1,7 @@
 import { Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useHomeSelected } from '../../routes/useHomeSelected';
-import { MindroomMarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
+import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { getHomePath } from '../../routes/pathUtils';
 import { useHomeRooms } from '../../matrix/state/useHomeRooms';
 import { SectionTab } from './SectionTab';
@@ -24,7 +24,7 @@ export function HomeTab({ onSelect }: HomeTabProps) {
       label={t('nav.home')}
       icon={Icons.Home}
       rooms={roomIds}
-      menu={(close) => <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />}
+      menu={(close) => <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />}
       onSelect={onSelect}
     />
   );

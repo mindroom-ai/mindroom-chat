@@ -13,7 +13,7 @@ import {
 } from '../../matrix/hooks/useRoomsNotificationPreferences';
 import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
-import { MindroomMarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
+import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { getDirectCreatePath, getDirectRoomPath } from '../../routes/pathUtils';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
@@ -50,7 +50,7 @@ export function Direct() {
               <NavOptionsMenu label={t('featureUi.directNav.options')}>
                 {(close) => (
                   <MenuGroup>
-                    <MindroomMarkRoomsReadMenuItem
+                    <MarkRoomsReadMenuItem
                       roomIds={dmRooms.map((room) => room.roomId)}
                       onClose={close}
                     />

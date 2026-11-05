@@ -1,7 +1,7 @@
 import React, { type ReactNode } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MindroomTab } from './LocalMindroomTab';
+import { LocalMindroomTab } from './LocalMindroomTab';
 
 vi.mock('./LocalMindroomTab.css', () => ({ LinkIndicator: 'link-indicator' }));
 
@@ -49,9 +49,9 @@ vi.mock('../../settings/Settings', () => ({
 const render = () => {
   let renderer: ReactTestRenderer | undefined;
   act(() => {
-    renderer = create(<MindroomTab />);
+    renderer = create(<LocalMindroomTab />);
   });
-  if (!renderer) throw new Error('MindroomTab did not render');
+  if (!renderer) throw new Error('LocalMindroomTab did not render');
   return renderer;
 };
 
@@ -70,7 +70,7 @@ const dialogs = (renderer: ReactTestRenderer) =>
 const settings = (renderer: ReactTestRenderer) =>
   renderer.root.find((node) => node.type === 'button' && 'data-settings' in node.props);
 
-describe('MindroomTab', () => {
+describe('LocalMindroomTab', () => {
   it('opens Settings at the Local MindRoom page in a dialog when pressed', () => {
     const renderer = render();
     expect(dialogs(renderer)).toHaveLength(0);

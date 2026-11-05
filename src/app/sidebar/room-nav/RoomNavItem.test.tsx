@@ -110,7 +110,7 @@ vi.mock('../../rooms/LeaveRoomPrompt', () => ({
 }));
 
 vi.mock('../../notifications/MarkRoomReadMenuItem', () => ({
-  MindroomMarkRoomReadMenuItem: () => null,
+  MarkRoomReadMenuItem: () => null,
 }));
 
 vi.mock('../../avatars/RoomAvatar', async () => {

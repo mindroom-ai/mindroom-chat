@@ -6,7 +6,7 @@ import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
-import { useBindMindroomAccountSettings } from '../matrix/hooks/useAccountSettings';
+import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
 
 vi.mock('../matrix/state/mDirectList', () => ({ mDirectAtom: {}, useBindMDirectAtom: vi.fn() }));
 vi.mock('../matrix/state/inviteList', () => ({ allInvitesAtom: {}, useBindAllInvitesAtom: vi.fn() }));
@@ -24,7 +24,7 @@ vi.mock('../messages/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames:
 vi.mock('../models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
 vi.mock('../matrix/state/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
 vi.mock('../matrix/hooks/useAccountSettings', () => ({
-  useBindMindroomAccountSettings: vi.fn(),
+  useBindAccountSettings: vi.fn(),
 }));
 
 describe('useBindAtoms', () => {
@@ -72,7 +72,7 @@ describe('useBindAtoms', () => {
       renderer = create(React.createElement(Probe));
     });
 
-    expect(useBindMindroomAccountSettings).toHaveBeenCalledWith(client);
+    expect(useBindAccountSettings).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 

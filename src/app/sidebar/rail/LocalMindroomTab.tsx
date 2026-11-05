@@ -24,7 +24,7 @@ const LOGO_FIT = { objectFit: 'contain' } as const;
  * Settings on the page that pairs a MindRoom running on the person's own machine with this
  * account. The dialog is rendered only while open, so every press starts on that page.
  */
-export function MindroomTab() {
+export function LocalMindroomTab() {
   const { t } = useTranslation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const closeSettings = () => setSettingsOpen(false);

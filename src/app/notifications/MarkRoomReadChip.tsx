@@ -7,13 +7,7 @@ import { useMarkRoomsRead } from './useMarkRoomsRead';
  * `onMarked` once the receipt has been sent. Beside a long room name it keeps its label on one
  * line: the name shrinks instead.
  */
-export function MindroomMarkRoomReadChip({
-  roomId,
-  onMarked,
-}: {
-  roomId: string;
-  onMarked?: () => void;
-}) {
+export function MarkRoomReadChip({ roomId, onMarked }: { roomId: string; onMarked?: () => void }) {
   const { t } = useTranslation();
   const markRead = useMarkRoomsRead();
   const checkIcon = <Icon size="50" src={Icons.CheckTwice} />;

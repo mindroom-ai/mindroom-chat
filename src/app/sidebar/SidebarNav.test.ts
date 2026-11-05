@@ -69,7 +69,7 @@ vi.mock('./rail/CreateTab', () => ({
 }));
 
 vi.mock('./rail/LocalMindroomTab', () => ({
-  MindroomTab: () => React.createElement('div', { 'data-tab': 'mindroom' }),
+  LocalMindroomTab: () => React.createElement('div', { 'data-tab': 'mindroom' }),
 }));
 
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
@@ -84,7 +84,7 @@ vi.mock('../matrix/hooks/useAccountSettings', async () => {
     '../preferences/accountSettings'
   );
   return {
-    useMindroomAccountSettings: () => ({
+    useAccountSettings: () => ({
       ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
       showCanvasesInSidebar: mocks.showCanvases,
     }),

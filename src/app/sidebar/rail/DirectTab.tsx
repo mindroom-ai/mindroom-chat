@@ -1,7 +1,7 @@
 import { Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { useDirectSelected } from '../../routes/useDirectSelected';
-import { MindroomMarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
+import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { getDirectPath } from '../../routes/pathUtils';
 import { useDirectRoomIds } from '../direct/useDirectRooms';
 import { SectionTab } from './SectionTab';
@@ -25,7 +25,7 @@ export function DirectTab({ onSelect }: DirectTabProps) {
       label={t('nav.directMessages')}
       icon={Icons.User}
       rooms={roomIds}
-      menu={(close) => <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />}
+      menu={(close) => <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />}
       personal
       onSelect={onSelect}
     />

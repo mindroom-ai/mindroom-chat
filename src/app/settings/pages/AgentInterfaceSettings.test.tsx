@@ -59,8 +59,8 @@ vi.mock('../../ui/SettingTile', () => ({
 }));
 
 vi.mock('../../matrix/hooks/useAccountSettings', () => ({
-  useMindroomAccountSettings: () => state.settings,
-  useSetMindroomAccountSettings: () => state.setAccountSettings,
+  useAccountSettings: () => state.settings,
+  useSetAccountSettings: () => state.setAccountSettings,
 }));
 
 vi.mock('react-i18next', async () => {

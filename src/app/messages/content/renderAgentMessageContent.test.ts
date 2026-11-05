@@ -51,7 +51,7 @@ vi.mock('../html/HtmlBlocks', () => ({
 }));
 
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
-  MindroomThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
+  ThreadSummaryCard: ({ summaryInfo }: { summaryInfo: { summaryText?: string } }) =>
     React.createElement('div', { 'data-renderer': 'summary-card' }, summaryInfo.summaryText),
 }));
 

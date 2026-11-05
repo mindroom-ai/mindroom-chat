@@ -61,7 +61,7 @@ import {
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../messages/html/react-custom-html-parser';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { settingsAtom } from '../../preferences/settings';
-import { MindroomMarkRoomReadChip } from '../MarkRoomReadChip';
+import { MarkRoomReadChip } from '../MarkRoomReadChip';
 import { isHighlightNotification } from '../inboxNotification';
 import { getEventThreadId } from '../messageNotificationRules';
 import {
@@ -433,7 +433,7 @@ export function Notifications() {
                       {room.name}
                     </Text>
                     {roomNotifications.some((notification) => !notification.read) && (
-                      <MindroomMarkRoomReadChip roomId={room.roomId} onMarked={reload} />
+                      <MarkRoomReadChip roomId={room.roomId} onMarked={reload} />
                     )}
                   </Box>
                   <SequenceCard

@@ -158,7 +158,7 @@ vi.mock('../agent-run/TranscribingPlaceholder', () => ({
   MindroomTranscribingPlaceholder: () => null,
 }));
 vi.mock('../thread-summary/ThreadSummaryCard', () => ({
-  MindroomThreadSummaryCard: () => null,
+  ThreadSummaryCard: () => null,
 }));
 vi.mock('../../approvals/ToolApprovalCard', () => ({
   MindroomToolApprovalCard: () => null,

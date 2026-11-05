@@ -1,7 +1,7 @@
 import { MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE } from '../../preferences/accountSettings';
-import { enqueueMindroomAccountSettingsPatch } from './useAccountSettings';
+import { enqueueAccountSettingsPatch as enqueueMindroomAccountSettingsPatch } from './useAccountSettings';
 
 const makeClient = (initial: Record<string, unknown>) => {
   let content = initial;

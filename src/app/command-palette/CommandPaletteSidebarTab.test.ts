@@ -3,7 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import { commandPaletteOpenAtom } from './commandPaletteState';
-import { MindroomCommandPaletteSidebarTab } from './CommandPaletteSidebarTab';
+import { CommandPaletteSidebarTab as MindroomCommandPaletteSidebarTab } from './CommandPaletteSidebarTab';
 
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');

@@ -69,7 +69,7 @@ describe('MindroomMarkRoomReadMenuItem', () => {
     async (hideActivity) => {
       const onClose = vi.fn();
       state.hideActivity = hideActivity;
-      const { MindroomMarkRoomReadMenuItem } = await import('./MarkRoomReadMenuItem');
+      const { MarkRoomReadMenuItem: MindroomMarkRoomReadMenuItem } = await import('./MarkRoomReadMenuItem');
       const renderer = create(React.createElement(MindroomMarkRoomReadMenuItem, { room, onClose }));
       const button = renderer.root.findByType('button');
 

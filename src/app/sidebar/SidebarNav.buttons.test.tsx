@@ -70,7 +70,7 @@ vi.mock('../account/switcher/UnverifiedTab', () => ({
   UnverifiedTab: tab('unverified'),
 }));
 vi.mock('./rail/CreateTab', () => ({ CreateTab: tab('createSpace') }));
-vi.mock('./rail/LocalMindroomTab', () => ({ MindroomTab: tab('localMindroom') }));
+vi.mock('./rail/LocalMindroomTab', () => ({ LocalMindroomTab: tab('localMindroom') }));
 vi.mock('../calls/CallTab', () => ({ CallTab: () => null }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({
@@ -79,7 +79,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
   }),
 }));
 vi.mock('../matrix/hooks/useAccountSettings', () => ({
-  useMindroomAccountSettings: () => ({ ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS, ...state.settings }),
+  useAccountSettings: () => ({ ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS, ...state.settings }),
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 

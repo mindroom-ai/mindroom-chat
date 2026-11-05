@@ -29,7 +29,7 @@ import { nameInitials } from '../../lib/common';
 import { getMatrixToRoom } from '../../matrix/matrix-to';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { IconTooltip } from '../../ui/IconTooltip';
-import { MindroomMarkRoomReadMenuItem } from '../../notifications/MarkRoomReadMenuItem';
+import { MarkRoomReadMenuItem } from '../../notifications/MarkRoomReadMenuItem';
 import { ArchiveRoomMenuItem } from '../../rooms/archive/ArchiveRoomMenuItem';
 import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
 import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
@@ -89,7 +89,7 @@ const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(functio
   return (
     <Menu style={roomMenuStyle} ref={ref}>
       <Box direction="Column" gap="100" style={menuGroupStyle}>
-        <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+        <MarkRoomReadMenuItem room={room} onClose={requestClose} />
         {notificationMode && (
           <RoomNotificationModeSwitcher
             roomId={room.roomId}

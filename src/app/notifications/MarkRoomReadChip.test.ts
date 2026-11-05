@@ -54,7 +54,7 @@ afterEach(() => {
 describe('MindroomMarkRoomReadChip', () => {
   it('marks the room and its threads as read', async () => {
     state.hideActivity = true;
-    const { MindroomMarkRoomReadChip } = await import('./MarkRoomReadChip');
+    const { MarkRoomReadChip: MindroomMarkRoomReadChip } = await import('./MarkRoomReadChip');
     const renderer = create(
       React.createElement(MindroomMarkRoomReadChip, { roomId: '!room:example.org' })
     );

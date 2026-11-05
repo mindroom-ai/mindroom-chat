@@ -1,7 +1,7 @@
 import { useClientConfig } from '../config/useClientConfig';
 import { useShowLocalMindroom } from '../local-mindroom/useShowLocalMindroom';
 import type { MindroomAccountSettings } from '../preferences/accountSettings';
-import { useMindroomAccountSettings } from '../matrix/hooks/useAccountSettings';
+import { useAccountSettings } from '../matrix/hooks/useAccountSettings';
 
 /** The icon rail buttons each person can hide in Settings. */
 export type RailButton =
@@ -45,7 +45,7 @@ export function useOfferedRailButtons(): RailButtons {
 /** The buttons the rail shows: offered by the deployment and not turned off in Settings. */
 export function useRailButtons(): RailButtons {
   const offered = useOfferedRailButtons();
-  const settings = useMindroomAccountSettings();
+  const settings = useAccountSettings();
   const shown = (button: RailButton) => offered[button] && settings[RAIL_BUTTON_SETTING[button]];
   return {
     threads: shown('threads'),

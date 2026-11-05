@@ -116,7 +116,7 @@ export function SelectPrefetchScope() {
  * Settings → General → Messages: how far background prefetch reaches. Rooms whose history is
  * prefetched open from cache, at the cost of syncing their history in the background.
  */
-export function MindroomPrefetchSettings({ className }: { className?: string }) {
+export function PrefetchSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
   return (
     <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">

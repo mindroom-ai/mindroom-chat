@@ -30,7 +30,7 @@ import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
 import { useVisibleRooms } from '../../matrix/state/archivedRooms';
 import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
-import { MindroomMarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
+import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
 import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
@@ -181,7 +181,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
           {(close) => (
             <>
               <MenuGroup>
-                <MindroomMarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
+                <MarkRoomsReadMenuItem roomIds={roomIds} onClose={close} />
                 {onSortByName && (
                   <MenuEntry
                     label={t('featureUi.roomOrder.sortByName')}

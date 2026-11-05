@@ -2,7 +2,7 @@ import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { create } from 'react-test-renderer';
 import { Icons } from 'folds';
-import { MindroomTab } from './LocalMindroomTab';
+import { LocalMindroomTab as MindroomTab } from './LocalMindroomTab';
 
 vi.mock('./LocalMindroomTab.css', () => ({
   LinkIndicator: 'link-indicator',

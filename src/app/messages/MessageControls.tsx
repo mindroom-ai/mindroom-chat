@@ -29,7 +29,7 @@ import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity
 import * as css from './MessageControls.css';
 
 /** What a message hands to its header and menu so both open the same reply details. */
-export type MindroomAiRunControlsRenderProps = {
+export type AiRunControlsRenderProps = {
   open: boolean;
   openDetails: () => void;
   closeDetails: () => void;
@@ -40,7 +40,7 @@ export type MindroomAiRunControlsRenderProps = {
  * whose text overflowed into a sidecar file, that file (loaded while the menu is open, so Copy
  * Text copies the whole reply).
  */
-export const useMindroomMessageControls = (
+export const useMessageControls = (
   content: Record<string, unknown>,
   menuOpen: boolean,
   mEvent?: MatrixEvent
@@ -100,21 +100,21 @@ function ReplyDetailsHeader({
   );
 }
 
-type MindroomAiRunControlsProps = {
+type AiRunControlsProps = {
   info: MindroomAiRunInfo;
   eventId?: string;
   /** The message element; focus returns there when the dialog closes. */
   forwardedRef?: Ref<HTMLDivElement>;
-  children: (controls: MindroomAiRunControlsRenderProps) => ReactNode;
+  children: (controls: AiRunControlsRenderProps) => ReactNode;
 };
 
 /** Owns the Reply details dialog of an agent reply; the children render its triggers. */
-export function MindroomAiRunControls({
+export function AiRunControls({
   info,
   eventId,
   forwardedRef,
   children,
-}: MindroomAiRunControlsProps) {
+}: AiRunControlsProps) {
   const [open, setOpen] = useState(false);
   const openDetails = useCallback(() => setOpen(true), []);
   const closeDetails = useCallback(() => setOpen(false), []);
@@ -159,7 +159,7 @@ export function MindroomAiRunControls({
 }
 
 /** The small "i" beside the sender name of an agent reply. */
-export function MindroomAiRunInfoButton(props: { open: boolean; onOpen: () => void }) {
+export function AiRunInfoButton(props: { open: boolean; onOpen: () => void }) {
   const label = useReplyDetailsLabel();
   const info = <Icon size="50" src={Icons.Info} />;
   return (
@@ -177,7 +177,7 @@ export function MindroomAiRunInfoButton(props: { open: boolean; onOpen: () => vo
 }
 
 /** "Reply details" in the message menu of an agent reply. */
-export function MindroomAiRunMenuItem(props: { onOpen: () => void }) {
+export function AiRunMenuItem(props: { onOpen: () => void }) {
   const label = useReplyDetailsLabel();
   return (
     <MenuEntry label={label} icon={Icons.Info} aria-haspopup="dialog" onSelect={props.onOpen} />
@@ -190,7 +190,7 @@ type DownloadState = 'idle' | 'saving' | 'failed';
  * Save the sidecar file holding the full text of a long reply. A failed save offers a retry that
  * reuses the downloaded file; a cancelled native save picker leaves the menu open.
  */
-export function MindroomDownloadOriginalMenuItem({
+export function DownloadOriginalMenuItem({
   source,
   onClose,
 }: {

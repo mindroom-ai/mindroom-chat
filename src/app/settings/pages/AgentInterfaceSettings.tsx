@@ -10,8 +10,8 @@ import {
 } from '../railButtons';
 import { getCommandPaletteShortcutLabel } from '../../command-palette/commandPaletteShortcut';
 import {
-  useMindroomAccountSettings,
-  useSetMindroomAccountSettings,
+  useAccountSettings as useMindroomAccountSettings,
+  useSetAccountSettings as useSetMindroomAccountSettings,
 } from '../../matrix/hooks/useAccountSettings';
 import type { MindroomAccountSettings } from '../../preferences/accountSettings';
 import { SIDEBAR_SWITCH_SETTINGS } from '../../preferences/settingsRegistry';

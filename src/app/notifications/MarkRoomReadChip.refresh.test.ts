@@ -34,12 +34,12 @@ vi.mock('../preferences/useSetting', () => ({ useSetting: () => [false] }));
 vi.mock('../preferences/settings', () => ({ settingsAtom: {} }));
 vi.mock('./readReceipts', () => ({ markRoomAndThreadsAsRead: () => receipt.promise() }));
 
-describe('MindroomMarkRoomReadChip', () => {
+describe('MarkRoomReadChip', () => {
   it('reports the room as marked once its receipt is sent', async () => {
-    const { MindroomMarkRoomReadChip } = await import('./MarkRoomReadChip');
+    const { MarkRoomReadChip } = await import('./MarkRoomReadChip');
     const onMarked = vi.fn();
     const renderer = create(
-      React.createElement(MindroomMarkRoomReadChip, { roomId: '!room:example.org', onMarked })
+      React.createElement(MarkRoomReadChip, { roomId: '!room:example.org', onMarked })
     );
 
     act(() => {

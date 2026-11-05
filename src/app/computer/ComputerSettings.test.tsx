@@ -8,7 +8,7 @@ import {
   computerServicePreferenceAtom,
   loadComputerServicePreference,
 } from './computerServiceSettings';
-import { MindroomComputerSettings } from './ComputerSettings';
+import { ComputerSettings as MindroomComputerSettings } from './ComputerSettings';
 
 const discovery = vi.hoisted(() => ({ urls: [] as string[] }));
 vi.mock('./useAgentServers', () => ({

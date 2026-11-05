@@ -13,17 +13,17 @@ import {
  * The raw `io.mindroom.settings` account data content of the signed-in account, as the
  * homeserver last sent it. Readers sanitize it; undefined until the account data is known.
  */
-export const mindroomAccountSettingsAtom = atom<Record<string, unknown> | undefined>(undefined);
+export const accountSettingsAtom = atom<Record<string, unknown> | undefined>(undefined);
 
 const settingsContent = (mx: MatrixClient): Record<string, unknown> | undefined =>
   mx.getAccountData(MINDROOM_ACCOUNT_SETTINGS_EVENT_TYPE as never)?.getContent();
 
 /**
- * Keeps {@link mindroomAccountSettingsAtom} in step with the account data of `mx`: the stored
+ * Keeps {@link accountSettingsAtom} in step with the account data of `mx`: the stored
  * content now, and each change sync delivers (including the echo of this client's own writes).
  */
-export const useBindMindroomAccountSettings = (mx: MatrixClient): void => {
-  const setContent = useSetAtom(mindroomAccountSettingsAtom);
+export const useBindAccountSettings = (mx: MatrixClient): void => {
+  const setContent = useSetAtom(accountSettingsAtom);
 
   useEffect(() => {
     setContent(settingsContent(mx));
@@ -47,7 +47,7 @@ const writes = new WeakMap<MatrixClient, Promise<void>>();
  * (re-read, so whatever the server echoed back counts); a failed write rejects its own caller
  * only.
  */
-export const enqueueMindroomAccountSettingsPatch = (
+export const enqueueAccountSettingsPatch = (
   mx: MatrixClient,
   patch: Partial<MindroomAccountSettings>
 ): Promise<void> => {
@@ -62,8 +62,8 @@ export const enqueueMindroomAccountSettingsPatch = (
 };
 
 /** The account's MindRoom settings, with defaults for anything unset or malformed. */
-export const useMindroomAccountSettings = (): MindroomAccountSettings => {
-  const content = useAtomValue(mindroomAccountSettingsAtom);
+export const useAccountSettings = (): MindroomAccountSettings => {
+  const content = useAtomValue(accountSettingsAtom);
   return useMemo(() => sanitizeMindroomAccountSettings(content), [content]);
 };
 
@@ -73,10 +73,10 @@ type AccountSettingsWriter = (patch: Partial<MindroomAccountSettings>) => Promis
  * A writer for this client's settings patches; each call resolves once the homeserver accepted
  * its write. Stable while the client stays the same.
  */
-export function useSetMindroomAccountSettings(): AccountSettingsWriter {
+export function useSetAccountSettings(): AccountSettingsWriter {
   const mx = useMatrixClient();
   return useMemo<AccountSettingsWriter>(
-    () => enqueueMindroomAccountSettingsPatch.bind(undefined, mx),
+    () => enqueueAccountSettingsPatch.bind(undefined, mx),
     [mx]
   );
 }

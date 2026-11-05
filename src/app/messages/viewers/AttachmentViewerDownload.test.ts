@@ -302,7 +302,7 @@ describe('attachment viewer downloads', () => {
 
   it('retries a failed long-response save without downloading the sidecar again', async () => {
     saveFileMock.mockRejectedValueOnce(new Error('save failed'));
-    const { MindroomDownloadOriginalMenuItem } = await import(
+    const { DownloadOriginalMenuItem: MindroomDownloadOriginalMenuItem } = await import(
       '../MessageControls'
     );
     const onClose = vi.fn();
@@ -336,7 +336,7 @@ describe('attachment viewer downloads', () => {
 
   it('keeps the long-response menu open when the native save picker is cancelled', async () => {
     saveFileMock.mockResolvedValueOnce(false);
-    const { MindroomDownloadOriginalMenuItem } = await import(
+    const { DownloadOriginalMenuItem: MindroomDownloadOriginalMenuItem } = await import(
       '../MessageControls'
     );
     const onClose = vi.fn();
@@ -367,7 +367,7 @@ describe('attachment viewer downloads', () => {
         finishSave = resolve;
       })
     );
-    const { MindroomDownloadOriginalMenuItem } = await import(
+    const { DownloadOriginalMenuItem: MindroomDownloadOriginalMenuItem } = await import(
       '../MessageControls'
     );
     const renderer = create(

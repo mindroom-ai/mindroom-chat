@@ -16,11 +16,11 @@ vi.mock('../../local-mindroom/useShowLocalMindroom', () => ({
   useShowLocalMindroom: () => state.localMindroom,
 }));
 vi.mock('../../matrix/hooks/useAccountSettings', () => ({
-  useMindroomAccountSettings: () => ({
+  useAccountSettings: () => ({
     ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
     showSearchInSidebar: false,
   }),
-  useSetMindroomAccountSettings: () => state.write,
+  useSetAccountSettings: () => state.write,
 }));
 vi.mock('../../command-palette/commandPaletteShortcut', () => ({
   getCommandPaletteShortcutLabel: () => 'Ctrl + K',

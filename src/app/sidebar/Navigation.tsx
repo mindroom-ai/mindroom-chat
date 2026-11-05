@@ -25,7 +25,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
  * is saved per account and applies wherever navigation and content share the screen; phones
  * always show the navigation as its own page and keep the saved choice for later.
  */
-export function MindroomNavigationProvider({ children }: { children: ReactNode }) {
+export function NavigationProvider({ children }: { children: ReactNode }) {
   const userId = useMatrixClient().getUserId() ?? '';
   const canCollapse = useScreenSizeContext() !== ScreenSize.Mobile;
   const [saved, setSaved] = useState(() => ({
@@ -87,7 +87,7 @@ function PageNavToggle() {
  * collapse. Choosing the section already shown toggles its navigation instead of navigating;
  * choosing another opens it.
  */
-export function MindroomSidebarNav() {
+export function CollapsibleSidebarNav() {
   const { collapsed, canCollapse, setCollapsed } = useMindroomDesktopPageNav();
   useShortcut('roomList', () => {
     if (!canCollapse) return false;
@@ -118,7 +118,7 @@ export function MindroomSidebarNav() {
   );
 }
 
-type MindroomPageRootProps = {
+type SectionPageRootProps = {
   nav: ReactElement;
   children: ReactNode;
 };
@@ -134,11 +134,11 @@ function RememberSectionPath({ navId }: { navId: string }) {
  * changes. With `navId` (`home`, `direct`) it remembers the content open in that section, so its
  * rail button returns there.
  */
-export function MindroomPageRoot({
+export function SectionPageRoot({
   nav,
   navId,
   children,
-}: MindroomPageRootProps & { navId?: string }) {
+}: SectionPageRootProps & { navId?: string }) {
   const { collapsed } = useMindroomDesktopPageNav();
   const shownNav = usePanelSlot(collapsed ? undefined : nav);
   return (
@@ -150,8 +150,8 @@ export function MindroomPageRoot({
 }
 
 /** A space's page: also remembers the content open in the space, like the other sections. */
-export function MindroomSpacePageRoot({ nav, children }: MindroomPageRootProps) {
+export function SpacePageRoot({ nav, children }: SectionPageRootProps) {
   const space = useSpace();
   useNavToActivePathMapper(space.roomId, true);
-  return <MindroomPageRoot nav={nav}>{children}</MindroomPageRoot>;
+  return <SectionPageRoot nav={nav}>{children}</SectionPageRoot>;
 }

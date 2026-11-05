@@ -51,7 +51,7 @@ vi.mock('../html/react-custom-html-parser', () => ({
 }));
 
 vi.mock('../agent-run/StreamingIndicator', () => ({ renderMindroomStreamingIndicator: () => null }));
-vi.mock('../thread-summary/ThreadSummaryCard', () => ({ MindroomThreadSummaryCard: () => null }));
+vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () => null }));
 vi.mock('../../approvals/ToolApprovalCard', () => ({ MindroomToolApprovalCard: () => null }));
 vi.mock('./PasteAttachmentContent', () => ({ MindroomPasteAttachmentContent: () => null }));
 vi.mock('../agent-run/ThinkingPlaceholder', () => ({ MindroomThinkingPlaceholder: () => null }));

@@ -7,7 +7,7 @@ import { useMarkRoomsRead } from './useMarkRoomsRead';
  * "Mark all as read" in a list's menu (Home, a space): reads every listed room with its threads.
  * With nothing listed it stays in the menu, focusable but inert.
  */
-export function MindroomMarkRoomsReadMenuItem({
+export function MarkRoomsReadMenuItem({
   roomIds,
   onClose,
 }: {

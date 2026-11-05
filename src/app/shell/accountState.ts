@@ -8,7 +8,7 @@ import {
   emptyCrossRoomThreadIndexSnapshot,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { archivedRoomsAtom } from '../matrix/state/archivedRooms';
-import { mindroomAccountSettingsAtom } from '../matrix/hooks/useAccountSettings';
+import { accountSettingsAtom } from '../matrix/hooks/useAccountSettings';
 import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { createRoomModalAtom } from '../navigation/createRoomModal';
 import { createSpaceModalAtom } from '../navigation/createSpaceModal';
@@ -56,7 +56,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   (store) => store.set(archivedRoomsAtom, new Set<string>()),
   (store) => store.set(roomIdToTypingMembersAtom, { type: 'RESET' }),
   (store) => store.set(roomToUnreadAtom, { type: 'RESET', unreadInfos: [] }),
-  toInitial(mindroomAccountSettingsAtom),
+  toInitial(accountSettingsAtom),
   // Built by the pages from the account's rooms and people.
   (store) => store.set(crossRoomThreadIndexAtom, emptyCrossRoomThreadIndexSnapshot()),
   toInitial(userDirectoryCacheAtom),

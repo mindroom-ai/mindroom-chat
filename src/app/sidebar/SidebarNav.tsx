@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Sidebar, SidebarStack, SidebarStackSeparator } from '../ui/sidebar/SidebarItem';
 import { SidebarContent } from '../ui/sidebar/SidebarContent';
-import { MindroomTab } from './rail/LocalMindroomTab';
+import { LocalMindroomTab } from './rail/LocalMindroomTab';
 import { CanvasesTab } from './rail/CanvasesTab';
 import { DirectTab } from './rail/DirectTab';
 import { ExploreTab } from './rail/ExploreTab';
@@ -75,7 +75,7 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
               <CallTab />
               {shown.search && <SearchTab />}
               <UnverifiedTab />
-              {shown.localMindroom && <MindroomTab />}
+              {shown.localMindroom && <LocalMindroomTab />}
               <InboxTab />
               <SettingsTab />
             </SidebarStack>

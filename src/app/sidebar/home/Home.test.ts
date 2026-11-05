@@ -183,7 +183,7 @@ vi.mock('../threads/RecentlyOpenedNavCategory', () => ({
   RecentlyOpenedNavCategory: () => React.createElement('div', { 'data-recently-opened-nav': true }),
 }));
 vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
-  MindroomMarkRoomsReadMenuItem: 'div',
+  MarkRoomsReadMenuItem: 'div',
 }));
 vi.mock('./HiddenRailPages', () => ({ HiddenRailPages: () => null }));
 

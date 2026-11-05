@@ -96,7 +96,7 @@ vi.mock('../threads/RecentlyOpenedNavCategory', () => ({
   RecentlyOpenedNavCategory: () => null,
 }));
 vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
-  MindroomMarkRoomsReadMenuItem: () => null,
+  MarkRoomsReadMenuItem: () => null,
 }));
 vi.mock('../../matrix/state/useHomeRooms', () => ({ useHomeRooms: () => listed.roomIds }));
 

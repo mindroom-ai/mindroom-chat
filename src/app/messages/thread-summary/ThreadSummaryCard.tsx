@@ -8,7 +8,7 @@ import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
 import type { MindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import * as css from './ThreadSummaryCard.css';
 
-type MindroomThreadSummaryCardProps = {
+type ThreadSummaryCardProps = {
   summaryInfo: MindroomThreadSummaryInfo;
   /** Thread badges and overview rows: a single provenance line, no chip and no time. */
   compact?: boolean;
@@ -21,12 +21,12 @@ type MindroomThreadSummaryCardProps = {
  * A thread title (`io.mindroom.thread_summary` notice) rendered as a card: who wrote it (an
  * agent's model or a person editing it by hand) and how many messages it covers.
  */
-export function MindroomThreadSummaryCard({
+export function ThreadSummaryCard({
   summaryInfo,
   compact,
   edited,
   renderBody,
-}: MindroomThreadSummaryCardProps) {
+}: ThreadSummaryCardProps) {
   const { t } = useTranslation();
   // The timeline card follows the pointer like the other glass cards; compact rows sit inside one.
   const glassRef = useGlassHighlight<HTMLElement>(undefined, !compact);

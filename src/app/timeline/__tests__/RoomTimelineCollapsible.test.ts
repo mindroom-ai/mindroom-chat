@@ -410,7 +410,7 @@ vi.mock('../../messages/ThreadIndicator', () => ({
 }));
 
 vi.mock('../../messages/thread-summary/ThreadSummaryCard', () => ({
-  MindroomThreadSummaryCard: passthrough,
+  ThreadSummaryCard: passthrough,
 }));
 
 vi.mock('../../messages/thread-summary/ThreadSummaryMarker.css', () => ({

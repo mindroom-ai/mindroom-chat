@@ -8,7 +8,7 @@ import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { AdvancedFold } from '../../ui/settings/AdvancedFold';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
 import { useComputerApiUrls } from '../../computer/useComputerApiUrl';
-import { MindroomComputerSettings } from '../../computer/ComputerSettings';
+import { ComputerSettings } from '../../computer/ComputerSettings';
 import { MindroomConnectionsSettings } from '../../connections/ConnectionsSettings';
 
 /** Agents & connections › Connected accounts: the portal where agents get their accounts. */
@@ -45,7 +45,7 @@ export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
         />
       </SettingsSection>
       <AdvancedFold>
-        <MindroomComputerSettings className={SequenceCardStyle} />
+        <ComputerSettings className={SequenceCardStyle} />
       </AdvancedFold>
     </SettingsPageFrame>
   );

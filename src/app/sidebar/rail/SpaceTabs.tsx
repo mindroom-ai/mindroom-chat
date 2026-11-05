@@ -46,7 +46,7 @@ import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
 import { copyToClipboard } from '../../lib/dom';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
-import { MindroomMarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
+import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { moveStep } from '../../shortcuts/shortcuts';
 import { getSpacePath, joinPathComponent } from '../../routes/pathUtils';
 import { useSpaceRailRooms } from './spaceRailRooms';
@@ -223,7 +223,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
         </SidebarItemTooltip>
         {unreadBadge}
         <SidebarContextMenu anchor={menuAnchor} onClose={closeMenu}>
-          <MindroomMarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
+          <MarkRoomsReadMenuItem roomIds={spaceRooms} onClose={closeMenu} />
           <InviteToSpaceItem space={space} onSelect={closeThen(() => setInviting(true))} />
           <MenuEntry
             label={t('sharedUi.spaceTabs.copyLink')}

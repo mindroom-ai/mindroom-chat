@@ -16,7 +16,7 @@ describe('ISSUE-207 P6.1 / D4 prefetch settings replacement', () => {
       resolve(MINDROOM_DIR, 'settings/pages/StorageOffline.tsx'),
       'utf8'
     );
-    expect(storagePageSource).toContain('MindroomPrefetchSettings');
+    expect(storagePageSource).toContain('PrefetchSettings');
     expect(storagePageSource).not.toContain('MindroomMessagePreloadLimitSetting');
   });
 

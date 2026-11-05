@@ -53,7 +53,7 @@ vi.mock('../html/react-custom-html-parser', () => ({
   renderTextWithLatex: (text: string) => text,
 }));
 vi.mock('./StreamingIndicator', () => ({ renderMindroomStreamingIndicator: () => null }));
-vi.mock('../thread-summary/ThreadSummaryCard', () => ({ MindroomThreadSummaryCard: () => null }));
+vi.mock('../thread-summary/ThreadSummaryCard', () => ({ ThreadSummaryCard: () => null }));
 vi.mock('../../approvals/ToolApprovalCard', () => ({ MindroomToolApprovalCard: () => null }));
 vi.mock('../content/PasteAttachmentContent', () => ({ MindroomPasteAttachmentContent: () => null }));
 vi.mock('./ThinkingPlaceholder', () => ({

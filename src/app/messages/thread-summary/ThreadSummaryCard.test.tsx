@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import React from 'react';
 import { create, ReactTestInstance } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
-import { MindroomThreadSummaryCard } from './ThreadSummaryCard';
+import { ThreadSummaryCard as MindroomThreadSummaryCard } from './ThreadSummaryCard';
 import { getMindroomThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 
 const cssSource = () =>

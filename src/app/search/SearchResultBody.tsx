@@ -104,7 +104,7 @@ const quotesAnotherMessage = (content: Record<string, unknown>): boolean => {
  * the lightweight path: a snippet around the first match, as HTML when the message has some.
  * Hits without a message body (redactions, reactions, room names and topics) are a line of text.
  */
-export function MindroomSearchResultBody({
+export function SearchResultBody({
   room,
   item,
   highlights,

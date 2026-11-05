@@ -4,10 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import {
-  MindroomNavigationProvider,
-  MindroomPageRoot,
-  MindroomSidebarNav,
-  MindroomSpacePageRoot,
+  NavigationProvider,
+  SectionPageRoot,
+  CollapsibleSidebarNav,
+  SpacePageRoot,
 } from '../sidebar/Navigation';
 import { MindroomPageNav } from '../sidebar/ResizablePageNav';
 import { CreateRoomForm } from '../rooms/create/CreateRoom';
@@ -57,10 +57,10 @@ export function SignedInChrome() {
   return (
     <ClientBindAtoms>
       <ClientShell>
-        <MindroomNavigationProvider>
+        <NavigationProvider>
           <FloatingCardsContext.Provider value={floating}>
             <ClientLayout
-              nav={<MindroomSidebarNav />}
+              nav={<CollapsibleSidebarNav />}
               className={floating ? FloatingShell : undefined}
             >
               {/* A page whose code is still loading leaves the rail and dialogs in place. */}
@@ -69,7 +69,7 @@ export function SignedInChrome() {
               </Suspense>
             </ClientLayout>
           </FloatingCardsContext.Provider>
-        </MindroomNavigationProvider>
+        </NavigationProvider>
       </ClientShell>
     </ClientBindAtoms>
   );
@@ -86,16 +86,16 @@ export function SectionPage({
   navId?: string;
 }) {
   return (
-    <MindroomPageRoot navId={navId} nav={<MindroomPageNav path={path}>{nav}</MindroomPageNav>}>
+    <SectionPageRoot navId={navId} nav={<MindroomPageNav path={path}>{nav}</MindroomPageNav>}>
       <Outlet />
-    </MindroomPageRoot>
+    </SectionPageRoot>
   );
 }
 
 /** A space with its navigation; it remembers the page open in that space. */
 export function SpaceSectionPage({ path }: { path: string }) {
   return (
-    <MindroomSpacePageRoot
+    <SpacePageRoot
       nav={
         <MindroomPageNav path={path}>
           <Space />
@@ -103,7 +103,7 @@ export function SpaceSectionPage({ path }: { path: string }) {
       }
     >
       <Outlet />
-    </MindroomSpacePageRoot>
+    </SpacePageRoot>
   );
 }
 

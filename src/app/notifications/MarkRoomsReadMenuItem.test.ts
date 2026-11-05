@@ -66,7 +66,7 @@ describe('MindroomMarkRoomsReadMenuItem', () => {
     async (hideActivity) => {
       const onClose = vi.fn();
       state.hideActivity = hideActivity;
-      const { MindroomMarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
+      const { MarkRoomsReadMenuItem: MindroomMarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
       const renderer = create(
         React.createElement(MindroomMarkRoomsReadMenuItem, {
           roomIds: ['!a:example.org', '!b:example.org'],
@@ -97,7 +97,7 @@ describe('MindroomMarkRoomsReadMenuItem', () => {
 
   it('keeps an empty room list tabbable without sending receipts or closing', async () => {
     const onClose = vi.fn();
-    const { MindroomMarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
+    const { MarkRoomsReadMenuItem: MindroomMarkRoomsReadMenuItem } = await import('./MarkRoomsReadMenuItem');
     const renderer = create(
       React.createElement(MindroomMarkRoomsReadMenuItem, { roomIds: [], onClose })
     );

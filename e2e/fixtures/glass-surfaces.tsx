@@ -28,7 +28,7 @@ import { NavCategoryHeader } from '../../src/app/ui/nav/NavCategoryHeader';
 import { ScreenSizeProvider, useScreenSize } from '../../src/app/lib/hooks/useScreenSize';
 import { RoomThreadOverview } from '../../src/app/threads/overview/RoomThreadOverview';
 import type { ThreadFilterState } from '../../src/app/event-store/threads/roomThreadOverviewModel';
-import { mindroomAccountSettingsAtom } from '../../src/app/matrix/hooks/useAccountSettings';
+import { accountSettingsAtom as mindroomAccountSettingsAtom } from '../../src/app/matrix/hooks/useAccountSettings';
 import { Modal500 } from '../../src/app/ui/Modal500';
 import * as threadBannerCss from '../../src/app/threads/ThreadContextBanner.css';
 import { MessageGlass } from './MessageGlass';

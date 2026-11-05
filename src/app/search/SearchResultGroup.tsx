@@ -5,7 +5,7 @@ import { useRelativeTime } from '../i18n/useRelativeTime';
 import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getSearchResultOpenTarget, type SearchResultOpenTarget } from './searchResultOpenTarget';
-import { MindroomSearchResultBody, type SearchResultBodyProps } from './SearchResultBody';
+import { SearchResultBody, type SearchResultBodyProps } from './SearchResultBody';
 import type { ResultItem } from './useMessageSearch';
 
 function SearchResultTime({ ts }: { ts: number }) {
@@ -54,7 +54,7 @@ export function SearchResultItem({ onOpen, ...props }: SearchResultItemProps) {
         </Chip>
       </Box>
       <Box direction="Column" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-        <MindroomSearchResultBody {...props} />
+        <SearchResultBody {...props} />
       </Box>
     </SequenceCard>
   );

@@ -201,7 +201,7 @@ vi.mock('../../matrix/hooks/useStateEvents', () => ({
 }));
 
 vi.mock('../../notifications/MarkRoomReadMenuItem', () => ({
-  MindroomMarkRoomReadMenuItem: () => null,
+  MarkRoomReadMenuItem: () => null,
 }));
 
 vi.mock('../../rooms/archive/ArchiveRoomMenuItem', () => ({

@@ -26,7 +26,7 @@ const isPlainHttp = (value: string): boolean =>
  * (and Connections). It follows the deployment, or the server the room agents publish, until
  * the user saves an origin here; an empty value turns computers off on this device.
  */
-export function MindroomComputerSettings({ className }: { className?: string }) {
+export function ComputerSettings({ className }: { className?: string }) {
   const { t } = useTranslation();
   const deploymentUrl = useClientConfig().mindroom?.computers?.apiUrl || undefined;
   const discoveredUrls = useMindroomServerUrls();

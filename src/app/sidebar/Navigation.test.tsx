@@ -13,10 +13,10 @@ import { useNavToActivePathMapper } from '../routes/useNavToActivePathMapper';
 import { getScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { getDesktopPageNavCollapsedStorageKey } from './desktopPageNavState';
 import {
-  MindroomNavigationProvider,
-  MindroomPageRoot,
-  MindroomSidebarNav,
-  MindroomSpacePageRoot,
+  NavigationProvider as MindroomNavigationProvider,
+  SectionPageRoot as MindroomPageRoot,
+  CollapsibleSidebarNav as MindroomSidebarNav,
+  SpacePageRoot as MindroomSpacePageRoot,
 } from './Navigation';
 
 const COLLAPSE_LABEL = 'Collapse navigation panel';

@@ -9,7 +9,7 @@ import {
 } from './commandPaletteShortcut';
 
 /** The sidebar's search button: opens the command palette and teaches its shortcut. */
-export function MindroomCommandPaletteSidebarTab() {
+export function CommandPaletteSidebarTab() {
   const { t } = useTranslation();
   const [openTab, setOpenTab] = useAtom(commandPaletteOpenAtom);
   const open = openTab !== undefined;
@@ -46,4 +46,4 @@ export function MindroomCommandPaletteSidebarTab() {
   );
 }
 
-export { MindroomCommandPaletteSidebarTab as SearchTab };
+export { CommandPaletteSidebarTab as SearchTab };

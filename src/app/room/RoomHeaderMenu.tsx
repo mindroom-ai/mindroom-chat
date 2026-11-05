@@ -10,7 +10,7 @@ import {
   getRoomNotificationModeIcon,
   useRoomsNotificationPreferencesContext,
 } from '../matrix/hooks/useRoomsNotificationPreferences';
-import { MindroomMarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
+import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
 import { ArchiveRoomMenuItem } from '../rooms/archive/ArchiveRoomMenuItem';
 
 /** What the room header's options menu offers; an action left out hides its entry. */
@@ -87,7 +87,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
     return (
       <Menu ref={ref} style={{ minWidth: toRem(200), maxWidth: toRem(280) }}>
         <MenuGroup>
-          <MindroomMarkRoomReadMenuItem room={room} onClose={requestClose} />
+          <MarkRoomReadMenuItem room={room} onClose={requestClose} />
           <NotificationModeEntry room={room} onChosen={requestClose} />
           {onInvite && (
             <MenuEntry

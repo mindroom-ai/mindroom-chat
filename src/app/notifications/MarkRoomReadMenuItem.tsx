@@ -12,7 +12,7 @@ type MarkRoomReadItemProps = {
 };
 
 /** "Mark as read" in a room's menu: reads the room and every thread in it, then closes the menu. */
-export function MindroomMarkRoomReadMenuItem(props: MarkRoomReadItemProps) {
+export function MarkRoomReadMenuItem(props: MarkRoomReadItemProps) {
   const { t } = useTranslation();
   const markRoomsRead = useMarkRoomsRead();
 

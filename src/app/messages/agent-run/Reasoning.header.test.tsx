@@ -1,7 +1,7 @@
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Icon, Icons } from 'folds';
-import { withMindroomReasoning } from './Reasoning';
+import { withReasoning } from './Reasoning';
 
 vi.mock('./Reasoning.css', () => ({
   Reasoning: 'Reasoning',
@@ -27,7 +27,7 @@ describe('reasoning header', () => {
 
   const toggle = (content: Record<string, unknown>) => {
     act(() => {
-      renderer = create(<>{withMindroomReasoning(content, <p>Answer</p>, {})}</>);
+      renderer = create(<>{withReasoning(content, <p>Answer</p>, {})}</>);
     });
     return renderer!.root.findByType('button');
   };

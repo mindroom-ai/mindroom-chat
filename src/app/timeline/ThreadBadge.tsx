@@ -2,7 +2,7 @@ import React, { type MouseEventHandler } from 'react';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Box, config } from 'folds';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
-import { MindroomThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
+import { ThreadSummaryCard as MindroomThreadSummaryCard } from '../messages/thread-summary/ThreadSummaryCard';
 import { buildThreadBadgeViewModelFromRecord } from '../threads/threadBadgeViewModel';
 import type { ThreadBadgeViewModel, ThreadRecord } from '../event-store/threads/types';
 

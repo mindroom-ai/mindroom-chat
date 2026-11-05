@@ -162,7 +162,7 @@ function ReasoningHeader({
  * reply shows its stored reasoning (`io.mindroom.reasoning`) collapsed with how long it took. The
  * live activity line (`io.mindroom.live_activity`) goes below the body.
  */
-export const withMindroomReasoning = (
+export const withReasoning = (
   content: Record<string, unknown>,
   body: ReactNode,
   htmlReactParserOptions: HTMLReactParserOptions,

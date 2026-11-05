@@ -61,11 +61,11 @@ import { MindroomModelBadge } from './agent-run/ModelBadge';
 import { isKeyboardFocus, useToolbarClearance } from './hoverToolbarPlacement';
 import { getSenderNameTone } from './senderNameTone';
 import {
-  MindroomAiRunControls,
-  MindroomAiRunInfoButton,
-  MindroomAiRunMenuItem,
-  MindroomDownloadOriginalMenuItem,
-  useMindroomMessageControls,
+  AiRunControls,
+  AiRunInfoButton,
+  AiRunMenuItem,
+  DownloadOriginalMenuItem,
+  useMessageControls,
 } from './MessageControls';
 import {
   getMessageCopyTexts,
@@ -647,7 +647,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // An agent reply's run details, and for a long reply the file with its whole text, which
     // loads while the menu is open so that Copy Text copies all of it.
     const { aiRunInfo, longTextSource, resolvedLongTextContent, longTextLoading } =
-      useMindroomMessageControls(content, !!menuAnchor, mEvent);
+      useMessageControls(content, !!menuAnchor, mEvent);
     // The sender edits their own confirmed text messages, long texts included.
     const canEdit = !!onEditId && confirmed && canEditEvent(client, mEvent);
     const startEdit = () => onEditId?.(eventId);
@@ -706,7 +706,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             </Text>
           </Username>
           <Box shrink="No" alignItems="Center" gap="100">
-            {controls && <MindroomAiRunInfoButton open={controls.open} onOpen={openAiRun} />}
+            {controls && <AiRunInfoButton open={controls.open} onOpen={openAiRun} />}
             <Time
               ts={mEvent.getTs()}
               compact={compactLayout}
@@ -813,9 +813,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               {confirmed && canPinEvent && (
                 <MessagePinItem room={room} mEvent={mEvent} onClose={dismissMenu} />
               )}
-              {controls && <MindroomAiRunMenuItem onOpen={openAiRun} />}
+              {controls && <AiRunMenuItem onOpen={openAiRun} />}
               {longTextSource && (
-                <MindroomDownloadOriginalMenuItem source={longTextSource} onClose={dismissMenu} />
+                <DownloadOriginalMenuItem source={longTextSource} onClose={dismissMenu} />
               )}
               {!hideReadReceipts && confirmed && (
                 <MessageReadReceiptItem room={room} eventId={eventId} onClose={dismissMenu} />
@@ -955,9 +955,9 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     // An agent reply owns its Reply details dialog, which its header and menu open.
     if (!aiRunInfo) return renderBody();
     return (
-      <MindroomAiRunControls info={aiRunInfo} eventId={eventId} forwardedRef={baseRef}>
+      <AiRunControls info={aiRunInfo} eventId={eventId} forwardedRef={baseRef}>
         {renderBody}
-      </MindroomAiRunControls>
+      </AiRunControls>
     );
   }
 );

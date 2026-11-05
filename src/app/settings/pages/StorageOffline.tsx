@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { SettingTile } from '../../ui/SettingTile';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { clearAllCacheAndReload } from '../../account/lifecycle/initMatrix';
-import { MindroomPrefetchSettings } from './PrefetchSettings';
+import { PrefetchSettings } from './PrefetchSettings';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
 import { SequenceCardStyle } from '../../ui/settings/styles.css';
@@ -18,7 +18,7 @@ export function StorageOffline({ requestClose }: SettingsPageProps) {
       title={t('featureUi.settings.menu.pages.storage')}
       requestClose={requestClose}
     >
-      <MindroomPrefetchSettings className={SequenceCardStyle} />
+      <PrefetchSettings className={SequenceCardStyle} />
       <SettingsSection>
         <SettingTile
           focusId="clearCache"

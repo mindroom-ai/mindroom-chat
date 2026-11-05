@@ -117,7 +117,7 @@ afterEach(() => {
 
 describe('MindroomPrefetchSettings (ISSUE-207 P6.1 / D4)', () => {
   it('renders scope opt-in without obsolete depth control', async () => {
-    const { MindroomPrefetchSettings } = await import('./PrefetchSettings');
+    const { PrefetchSettings: MindroomPrefetchSettings } = await import('./PrefetchSettings');
 
     let renderer: ReactTestRenderer | undefined;
     act(() => {

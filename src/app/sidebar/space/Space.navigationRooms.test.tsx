@@ -118,7 +118,7 @@ vi.mock('../threads/RecentlyOpenedNavCategory', () => ({
   RecentlyOpenedNavCategory: () => null,
 }));
 vi.mock('../../notifications/MarkRoomsReadMenuItem', () => ({
-  MindroomMarkRoomsReadMenuItem: () => null,
+  MarkRoomsReadMenuItem: () => null,
 }));
 
 describe('Space navigation', () => {
