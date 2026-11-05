@@ -738,8 +738,10 @@ describe('useRoomInputSendSessionController caption send failures', () => {
 
     expect(failure).toBe(sendFailure);
     expect(mx.sendMessage).toHaveBeenCalledTimes(2);
-    expect(onUploadSent).toHaveBeenCalledWith(root);
-    expect(onUploadSent).not.toHaveBeenCalledWith(voice);
+    // By identity: on Node 22, Files with the same content and type are deeply equal whatever
+    // their names, so `not.toHaveBeenCalledWith(voice)` failed for the call with root.
+    expect(onUploadSent).toHaveBeenCalledTimes(1);
+    expect(onUploadSent.mock.calls[0]?.[0]).toBe(root);
     expect(mocks.resetEditor).not.toHaveBeenCalledWith(editor);
     expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, composerFallback);
     expect(api.hasActiveSendSession()).toBe(false);
