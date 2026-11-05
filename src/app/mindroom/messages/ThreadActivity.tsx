@@ -42,7 +42,7 @@ export function ThreadActivity({
   const [expanded, setExpanded] = useState(false);
   const panelId = useId();
   return (
-    // Lets the message content take the full column, so every row lines up its chevron.
+    // Lets the message content take the full column, so every row has the same width.
     <div className={css.Activity} data-message-disclosure="">
       <button
         type="button"
@@ -54,12 +54,7 @@ export function ThreadActivity({
         {icon}
         <span className={css.Title}>{title}</span>
         {detail && <span className={css.Detail}>{detail}</span>}
-        <Icon
-          size="50"
-          className={css.Chevron}
-          src={expanded ? Icons.ChevronTop : Icons.ChevronBottom}
-          aria-hidden
-        />
+        <Icon size="50" className={css.Chevron} src={Icons.ChevronRight} aria-hidden />
       </button>
       {preview}
       {expanded && (

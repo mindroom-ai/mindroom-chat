@@ -10,8 +10,8 @@ export const Activity = style([
   },
 ]);
 
-// One full-width row per activity: no border at rest, a tint on hover, and the chevron
-// pinned to the right edge so every row has the same geometry.
+// One full-width row per activity: no border at rest and a tint on hover, so every row has the
+// same geometry. The chevron follows the text.
 export const Line = style([
   DefaultReset,
   {
@@ -81,10 +81,17 @@ export const Detail = style({
   opacity: 0.9,
 });
 
+/** Points along the text while collapsed (right, or left in right-to-left), down while open. */
 export const Chevron = style({
   flexShrink: 0,
-  marginInlineStart: 'auto',
   opacity: config.opacity.P400,
+  selectors: {
+    '[dir=rtl] &': { transform: 'rotate(180deg)' },
+    [`${Line}[aria-expanded="true"] &`]: { transform: 'rotate(90deg)' },
+  },
+  '@media': {
+    '(prefers-reduced-motion: no-preference)': { transition: 'transform 150ms ease' },
+  },
 });
 
 export const Panel = style({
