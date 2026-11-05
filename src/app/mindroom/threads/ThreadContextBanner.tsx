@@ -28,6 +28,7 @@ import { ThreadTagPicker } from './ThreadTagPicker';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 import { getThreadResolverDisplayName } from './threadResolutionAttribution';
 import * as css from './ThreadContextBanner.css';
+import * as toolbarCss from '../../features/room/message/styles.css';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { ThreadApprovalPermissions } from '../messages/ThreadApprovalControls';
 import { AutoApproveChip } from '../auto-approve/AutoApproveChip';
@@ -273,8 +274,9 @@ export function ThreadContextBanner({
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
-          size="300"
-          radii="300"
+          className={toolbarCss.MessageOptionsButton}
+          variant="SurfaceVariant"
+          fill="None"
           aria-label={t('thread.backToRoom')}
           onClick={onExitThread}
         >
@@ -325,8 +327,9 @@ export function ThreadContextBanner({
                     triggerRef(node);
                     showDetailsRef.current = node;
                   }}
-                  size="300"
-                  radii="300"
+                  className={toolbarCss.MessageOptionsButton}
+                  variant="SurfaceVariant"
+                  fill="None"
                   aria-label={t('thread.showDetails')}
                   onClick={() => toggleCollapsed(false)}
                 >
@@ -470,8 +473,9 @@ export function ThreadContextBanner({
                       triggerRef(node);
                       moreButtonRef.current = node;
                     }}
-                    size="300"
-                    radii="300"
+                    className={toolbarCss.MessageOptionsButton}
+                    variant="SurfaceVariant"
+                    fill="None"
                     aria-label={t('threadActions.more')}
                     aria-haspopup="menu"
                     aria-expanded={!!activeMenu}
@@ -489,10 +493,13 @@ export function ThreadContextBanner({
                   {(triggerRef) => (
                     <IconButton
                       ref={triggerRef}
-                      className={isPinned ? undefined : css.CompactHidden}
-                      size="300"
-                      radii="300"
                       aria-label={t(isPinned ? 'threadNav.unpin' : 'threadNav.pin')}
+                      className={classNames(
+                        toolbarCss.MessageOptionsButton,
+                        !isPinned && css.CompactHidden
+                      )}
+                      variant="SurfaceVariant"
+                      fill="None"
                       aria-pressed={isPinned}
                       disabled={pinning.updating || updating}
                       onClick={() => pinning.setPinned(mutableThreadRootId, !isPinned)}
@@ -531,10 +538,13 @@ export function ThreadContextBanner({
                   {(triggerRef) => (
                     <IconButton
                       ref={triggerRef}
-                      className={headerModel.isResolved ? css.ResolvedButton : css.CompactHidden}
-                      size="300"
-                      radii="300"
                       aria-label={t(headerModel.isResolved ? 'thread.resolved' : 'thread.resolve')}
+                      className={classNames(
+                        toolbarCss.MessageOptionsButton,
+                        headerModel.isResolved ? css.ResolvedButton : css.CompactHidden
+                      )}
+                      variant="SurfaceVariant"
+                      fill="None"
                       aria-describedby={showResolver ? resolverBylineId : undefined}
                       onClick={handleToggleResolve}
                       disabled={resolveDisabled}

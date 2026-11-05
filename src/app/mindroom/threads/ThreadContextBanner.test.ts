@@ -182,6 +182,10 @@ vi.mock('./ThreadIndicator.css', () => ({
   ThreadScheduledIcon: 'ThreadScheduledIcon',
 }));
 
+vi.mock('../../features/room/message/styles.css', () => ({
+  MessageOptionsButton: 'MessageOptionsButton',
+}));
+
 // Resolve t() keys against the real en.json so assertions below keep
 // checking user-visible English copy ('Thread View', 'Resolve', …).
 vi.mock('react-i18next', async () => {
@@ -593,7 +597,7 @@ describe('ThreadContextBanner rendering', () => {
     const summarized = renderBanner('A concise thread summary');
     expect(hidden(summarized)).toEqual(['TagsRow', 'Pin thread', 'Resolve', 'MobileOnlyTags']);
     const more = summarized.root.findByProps({ 'aria-label': 'Thread options' });
-    expect(more.props.className).toBeUndefined();
+    expect(more.props.className).toBe('MessageOptionsButton');
     summarized.unmount();
 
     // Without a title the eyebrow is the only label, so it stays.
@@ -1088,7 +1092,7 @@ describe('ThreadContextBanner rendering', () => {
       (node) => node.type === 'button' && node.props['aria-label'] === 'Resolve'
     );
     expect(resolve.findByType('i').props.src).toBe('check');
-    expect(resolve.props.className).toBe('CompactHidden');
+    expect(resolve.props.className).toBe('MessageOptionsButton CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
     expect(tips).toEqual([
       'Back to room',
@@ -1142,7 +1146,7 @@ describe('ThreadContextBanner rendering', () => {
     const chip = renderer.root.find(
       (node) => node.type === 'button' && node.props['aria-label'] === 'Resolved'
     );
-    expect(chip.props.className).toBe('ResolvedButton');
+    expect(chip.props.className).toBe('MessageOptionsButton ResolvedButton');
     // Screen readers hear who resolved it from the button too, also where the byline is hidden.
     const bylineId = renderer.root.findByProps({ 'data-thread-resolution-byline': 'true' }).props
       .id;
