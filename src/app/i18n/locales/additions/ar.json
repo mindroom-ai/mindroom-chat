@@ -466,11 +466,11 @@
     },
     "peopleSearch": {
       "failed": "تعذر البحث عن أشخاص على الخادم.",
-      "messageUserId": "مراسلة {{userId}}"
+      "messageUserId": "مراسلة ⁨{{userId}}⁩"
     },
     "startChat": {
-      "title": "هل تريد بدء دردشة مع {{name}}؟",
-      "description": "يرسل دعوة إلى {{userId}}."
+      "title": "هل تريد بدء دردشة مع ⁨{{name}}⁩؟",
+      "description": "يرسل دعوة إلى ⁨{{userId}}⁩."
     }
   },
   "shortcuts": {
