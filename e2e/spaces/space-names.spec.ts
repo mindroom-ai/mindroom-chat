@@ -150,7 +150,8 @@ test('long English names keep their start in a right-to-left interface', async (
   expect(await direction(heading)).toBe('ltr');
 
   await page.keyboard.press('ControlOrMeta+k');
-  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
+  // The palette's accessible name is in Arabic too.
+  const palette = page.getByRole('dialog').filter({ has: page.getByRole('combobox') });
   await palette.getByRole('combobox').fill('quarterly');
   const row = palette.locator('[role="option"][data-kind="room"]').getByText(LONG_ROOM);
   await expect(row).toBeVisible();
