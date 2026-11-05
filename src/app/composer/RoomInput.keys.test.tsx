@@ -96,8 +96,8 @@ vi.mock('../matrix/protocol/pasteAttachmentMarker', () => ({
 }));
 vi.mock('../models/ModelPicker', () => ({ ThreadModelPicker: () => null }));
 vi.mock('../ui/IconTooltip', () => ({ IconTooltip: () => null }));
+vi.mock('./commands/agentCommandQuery', () => ({ getMindroomCommandQuery: () => undefined }));
 vi.mock('./RoomInputExtensions', () => ({
-  getMindroomRoomInputAutocompleteQuery: () => undefined,
   isMindroomRoomInputAutocompleteQuery: () => false,
   MindroomRoomInputAutocomplete: () => null,
   MindroomRoomInputReplyContext: () => null,

@@ -32,7 +32,6 @@ import {
 
 vi.mock('../cacheStoreLegacyWipe', () => ({
   performLegacyDbWipe: vi.fn(async () => undefined),
-  shouldAttemptLegacySingletonWipe: () => false,
 }));
 
 const SESSION_ID = 'p2-review-session';

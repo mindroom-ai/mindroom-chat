@@ -1,6 +1,6 @@
 import React from 'react';
 import { MatrixClient, RelationType, Room } from 'matrix-js-sdk';
-import { BaseRange, Descendant, Editor, Element, Transforms } from 'slate';
+import { Descendant, Editor, Element, Transforms } from 'slate';
 import { Box, config } from 'folds';
 import { Membership } from '../matrix/types/room';
 import type { AutocompleteQuery } from '../editor/autocomplete/autocompleteQuery';
@@ -8,7 +8,7 @@ import type { PasteMarkerElement } from '../editor/slate';
 import { BlockType } from '../editor/types';
 import type { IReplyDraft, PendingVoiceSendContext } from './roomInputDrafts';
 import { AgentCommandAutocomplete } from './commands/CommandAutocomplete';
-import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './commands/agentCommandQuery';
+import { MINDROOM_COMMAND_PREFIX } from './commands/agentCommandQuery';
 import { PendingSendIndicator } from '../ui/PendingSendIndicator';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
 import { isSignalBridgeRoom } from '../matrix/bridgeDetection';
@@ -41,11 +41,6 @@ type MindroomRoomInputReplyContextProps = {
   relation: IReplyDraft['relation'] | undefined;
   room: Room;
 };
-
-export const getMindroomRoomInputAutocompleteQuery = (
-  editor: Editor,
-  prevWordRange: BaseRange
-): MindroomRoomInputAutocompleteQuery | undefined => getMindroomCommandQuery(editor, prevWordRange);
 
 export const isMindroomRoomInputAutocompleteQuery = (
   query: AutocompleteQuery<string> | undefined

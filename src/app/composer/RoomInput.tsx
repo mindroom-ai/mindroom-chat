@@ -76,11 +76,11 @@ import {
 } from './slashCommandQuery';
 import { sendComposerSticker } from './composerSticker';
 import {
-  getMindroomRoomInputAutocompleteQuery,
   isMindroomRoomInputAutocompleteQuery,
   MindroomRoomInputAutocomplete,
   MindroomRoomInputReplyContext,
 } from './RoomInputExtensions';
+import { getMindroomCommandQuery } from './commands/agentCommandQuery';
 import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createMindroomRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
@@ -455,7 +455,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const syncAutocompleteQuery = useCallback(() => {
       const range = getPrevWorldRange(editor);
       const query = range
-        ? getMindroomRoomInputAutocompleteQuery(editor, range) ??
+        ? getMindroomCommandQuery(editor, range) ??
           getAutocompleteQuery(editor, range, AUTOCOMPLETE_PREFIXES)
         : undefined;
       setAutocompleteQuery(query);

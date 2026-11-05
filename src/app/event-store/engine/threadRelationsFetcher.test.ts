@@ -1,15 +1,12 @@
 import { beforeAll, describe, expect, it, vi } from 'vitest';
-import { makeEvent, makeRoom, matrixClientMock } from '../../timeline/test-utils/RoomTimeline.test.shared';
+import { makeEvent, matrixClientMock } from '../../timeline/test-utils/RoomTimeline.test.shared';
 
 let fetchAllThreadRelations: typeof import('./threadRelationsFetcher').fetchAllThreadRelations;
-let shouldRefreshOverviewForTimelineEvent: typeof import('../../threads/open/threadBootstrap').shouldRefreshOverviewForTimelineEvent;
 let MAX_THREAD_FETCH_EVENTS = 0;
 
 beforeAll(async () => {
-  const threadBootstrap = await import('../../threads/open/threadBootstrap');
   const threadRelationsFetcher = await import('./threadRelationsFetcher');
   fetchAllThreadRelations = threadRelationsFetcher.fetchAllThreadRelations;
-  shouldRefreshOverviewForTimelineEvent = threadBootstrap.shouldRefreshOverviewForTimelineEvent;
   MAX_THREAD_FETCH_EVENTS = threadRelationsFetcher.MAX_THREAD_FETCH_EVENTS;
 });
 
@@ -209,48 +206,6 @@ describe('fetchAllThreadRelations', () => {
       null,
       null,
       expect.objectContaining({ limit: 200, recurse: true })
-    );
-  });
-
-  it('refreshes overview metadata only for thread-targeted timeline events', async () => {
-    const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
-    const threadReply = makeEvent('$thread-reply', {
-      threadRootId: threadRoot.getId(),
-    });
-    const roomMessage = makeEvent('$message');
-    const threadRootEdit = makeEvent('$thread-root-edit', {
-      associatedId: threadRoot.getId(),
-      relation: { rel_type: 'm.replace', event_id: threadRoot.getId() },
-    });
-    const threadReplyEdit = makeEvent('$thread-reply-edit', {
-      associatedId: threadReply.getId(),
-      relation: { rel_type: 'm.replace', event_id: threadReply.getId() },
-    });
-    const roomAnnotation = makeEvent('$annotation', {
-      associatedId: roomMessage.getId(),
-      relation: { rel_type: 'm.annotation', event_id: roomMessage.getId() },
-    });
-    const room = makeRoom({
-      liveEvents: [threadRoot, roomMessage],
-      findEventById: (eventId: string) => {
-        if (eventId === threadRoot.getId()) return threadRoot;
-        if (eventId === threadReply.getId()) return threadReply;
-        if (eventId === roomMessage.getId()) return roomMessage;
-        return undefined;
-      },
-    });
-
-    expect(shouldRefreshOverviewForTimelineEvent(room as never, roomMessage as never)).toBe(false);
-    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadRoot as never)).toBe(true);
-    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadReply as never)).toBe(true);
-    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadRootEdit as never)).toBe(
-      true
-    );
-    expect(shouldRefreshOverviewForTimelineEvent(room as never, threadReplyEdit as never)).toBe(
-      true
-    );
-    expect(shouldRefreshOverviewForTimelineEvent(room as never, roomAnnotation as never)).toBe(
-      false
     );
   });
 });

@@ -433,6 +433,7 @@ vi.mock('../commands/useCommands', () => ({
   useCommands: () => ({}),
 }));
 
+vi.mock('../commands/agentCommandQuery', () => ({ getMindroomCommandQuery: () => undefined }));
 vi.mock('../RoomInputExtensions', async () => {
   const { createRoomInputSendSessionState, getUploadRelationForSendSession } =
     await vi.importActual<typeof import('../roomInputSendSession')>(
@@ -481,7 +482,6 @@ vi.mock('../RoomInputExtensions', async () => {
           : node
       );
     },
-    getMindroomRoomInputAutocompleteQuery: () => undefined,
     getMindroomRoomInputVoiceSendContext: ({
       ownerSessionId,
       roomId,

@@ -840,11 +840,6 @@
       "remove": "Supprimer",
       "removeAll": "Tout supprimer"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "Réessayer l'importation",
-      "retry": "Réessayer",
-      "cancelUpload": "Annuler l'importation"
-    },
     "uploadCardRenderer": {
       "spoiler": "Spoiler",
       "retryUpload": "Réessayer l'importation",

@@ -31,7 +31,6 @@ import {
 // need the legacy-DB cleanup interference.
 vi.mock('../cacheStoreLegacyWipe', () => ({
   performLegacyDbWipe: vi.fn(async () => undefined),
-  shouldAttemptLegacySingletonWipe: () => false,
 }));
 
 const SESSION_ID = 'ledger-test-session';

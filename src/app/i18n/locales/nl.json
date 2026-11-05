@@ -836,11 +836,6 @@
       "remove": "Verwijderen",
       "removeAll": "Alles verwijderen"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "Upload opnieuw proberen",
-      "retry": "Opnieuw proberen",
-      "cancelUpload": "Upload annuleren"
-    },
     "uploadCardRenderer": {
       "spoiler": "Spoiler",
       "retryUpload": "Upload opnieuw proberen",

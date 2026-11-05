@@ -836,11 +836,6 @@
       "remove": "Kaldır",
       "removeAll": "Tümünü kaldır"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "Yüklemeyi tekrar dene",
-      "retry": "Tekrar dene",
-      "cancelUpload": "Yüklemeyi iptal et"
-    },
     "uploadCardRenderer": {
       "spoiler": "Spoiler",
       "retryUpload": "Yüklemeyi tekrar dene",

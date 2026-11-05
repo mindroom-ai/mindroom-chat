@@ -74,7 +74,6 @@ vi.mock('../../../ui/setting-tile', () => ({
   }) => React.createElement('section', null, before, title, description, after),
 }));
 vi.mock('../../../emoji/board', () => ({ EmojiBoard: () => null }));
-vi.mock('../../../composer/upload', () => ({ CompactUploadCardRenderer: () => null }));
 vi.mock('../../../emoji/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
 vi.mock('../../../matrix/hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../../lib/hooks/useFilePicker', () => ({ useFilePicker: () => vi.fn() }));

@@ -836,11 +836,6 @@
       "remove": "移除",
       "removeAll": "全部删除"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "重试上传",
-      "retry": "重试",
-      "cancelUpload": "取消上传"
-    },
     "uploadCardRenderer": {
       "spoiler": "剧透",
       "retryUpload": "重试上传",

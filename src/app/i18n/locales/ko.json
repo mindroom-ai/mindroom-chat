@@ -836,11 +836,6 @@
       "remove": "제거",
       "removeAll": "모두 제거"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "업로드 다시 시도",
-      "retry": "다시 시도",
-      "cancelUpload": "업로드 취소"
-    },
     "uploadCardRenderer": {
       "spoiler": "스포일러",
       "retryUpload": "업로드 다시 시도",

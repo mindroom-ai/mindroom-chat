@@ -836,11 +836,6 @@
       "remove": "Hapus",
       "removeAll": "Hapus semua"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "Coba unggah lagi",
-      "retry": "Coba lagi",
-      "cancelUpload": "Batalkan unggahan"
-    },
     "uploadCardRenderer": {
       "spoiler": "Spoiler",
       "retryUpload": "Coba unggah lagi",

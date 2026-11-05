@@ -660,8 +660,8 @@ vi.mock('../../event-store/cache/db', async (importOriginal) => {
   };
 });
 
-// ISSUE-207 P2.3: partial mock — cacheStore's barrel re-exports
-// `MAX_CACHE_BEFORE_TOKENS` from this module, so a fully synthetic
+// ISSUE-207 P2.3: partial mock: the cache store modules import more
+// of this module, so a fully synthetic
 // mock breaks the `../cacheStore` mock above (which uses
 // `importOriginal`). Keep the real module intact and only override
 // the comparison helper.

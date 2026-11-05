@@ -2108,11 +2108,6 @@
       "CommandUnFlip": "বার্তা হিসাবে {{value1}} পাঠান",
       "CommandUnIgnore": "ব্যবহারকারীকে উপেক্ষা করা বন্ধ করুন। উদাহরণ: /unignore userId1 userId2"
     },
-    "compactUploadCardRenderer": {
-      "cancelUpload": "আপলোড বাতিল করুন",
-      "retry": "আবার চেষ্টা করুন",
-      "retryUpload": "আপলোড পুনরায় চেষ্টা করুন"
-    },
     "configConfig": {
       "continueOffline": "অফলাইনে চালিয়ে যান",
       "failedToLoadClientConfigurationFile": "ক্লায়েন্ট কনফিগারেশন ফাইল লোড করতে ব্যর্থ হয়েছে.",

@@ -844,11 +844,6 @@
       "remove": "Удалить",
       "removeAll": "Удалить всё"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "Повторить загрузку",
-      "retry": "Повторить",
-      "cancelUpload": "Отменить загрузку"
-    },
     "uploadCardRenderer": {
       "spoiler": "Спойлер",
       "retryUpload": "Повторить загрузку",

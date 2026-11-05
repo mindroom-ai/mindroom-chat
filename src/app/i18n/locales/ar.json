@@ -852,11 +852,6 @@
       "remove": "إزالة",
       "removeAll": "إزالة الكل"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "إعادة محاولة الرفع",
-      "retry": "إعادة المحاولة",
-      "cancelUpload": "إلغاء الرفع"
-    },
     "uploadCardRenderer": {
       "spoiler": "محتوى مخفي",
       "retryUpload": "إعادة محاولة الرفع",

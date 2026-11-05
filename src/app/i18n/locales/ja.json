@@ -836,11 +836,6 @@
       "remove": "削除",
       "removeAll": "すべて削除"
     },
-    "compactUploadCardRenderer": {
-      "retryUpload": "アップロードを再試行",
-      "retry": "再試行",
-      "cancelUpload": "アップロードをキャンセル"
-    },
     "uploadCardRenderer": {
       "spoiler": "スポイラー",
       "retryUpload": "アップロードを再試行",
