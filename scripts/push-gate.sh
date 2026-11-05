@@ -355,7 +355,7 @@ check_old_name() {
 }
 
 check_e2e() {
-  local rc=0 spec missing=() counts specs passed failed flaky skipped idle
+  local rc=0 spec missing=() counts specs passed failed flaky skipped idle first
   for spec in "${SMOKE_SPECS[@]}"; do
     git -C "$checkout" cat-file -e "$sha:$spec" 2>/dev/null || missing+=("$spec")
   done
@@ -374,7 +374,9 @@ check_e2e() {
   counts="$(awk -F '\t' 'NR > 1 { p += $2; f += $3; s += $4 + $10; k += $6; if ($2 + $3 + $6 == 0) idle++ }
     END { printf "%d %d %d %d %d %d", NR - 1, p, f, k, s, idle }' "$work/e2e.tsv")"
   read -r specs passed failed flaky skipped idle <<<"$counts"
-  echo "$specs of ${#SMOKE_SPECS[@]} specs: $passed passed, $failed failed, $flaky flaky, $skipped skipped; $idle specs ran no test"
+  # The first failure's spec and error, so the table says why (a port another program took, say).
+  first="$(awk -F '\t' 'NR > 1 && $3 > 0 { print $1 ": " substr($5, 1, 120); exit }' "$work/e2e.tsv")"
+  echo "$specs of ${#SMOKE_SPECS[@]} specs: $passed passed, $failed failed, $flaky flaky, $skipped skipped; $idle specs ran no test${first:+; first: $first}"
   [ "$rc" = 0 ] && [ "$specs" = "${#SMOKE_SPECS[@]}" ] && [ "$failed" = 0 ] && [ "$idle" = 0 ]
 }
 
