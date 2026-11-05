@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { loginWithPassword } from '../helpers/auth';
+import { loginWithPassword, openAccountMenu } from '../helpers/auth';
 import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { createRoom } from './createRoom';
 
@@ -270,6 +270,19 @@ test('the first batch of keyboard shortcuts', async ({ page, context }) => {
     await expect(settings).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(settings).toHaveCount(0);
+
+    // The account menu's Settings shows the keys beside its name, not in it.
+    await openAccountMenu(page);
+    const settingsItem = page.getByRole('menuitem', { name: 'Settings', exact: true });
+    await expect(settingsItem).toHaveText('Settings');
+    await expect(settingsItem).toHaveAttribute('aria-keyshortcuts', 'Control+,');
+    expect(
+      await settingsItem
+        .locator('[data-keys]')
+        .evaluate((hint) => getComputedStyle(hint, '::after').content)
+    ).toBe('"Ctrl+,"');
+    await page.keyboard.press('Escape');
+    await expect(settingsItem).toHaveCount(0);
 
     await page.keyboard.press('ControlOrMeta+/');
     const help = page.getByRole('dialog', { name: 'Keyboard shortcuts' });
