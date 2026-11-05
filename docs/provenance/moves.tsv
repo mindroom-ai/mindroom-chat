@@ -2703,3 +2703,4 @@ src/vitest.styles.setup.ts	src/test/vitest.styles.setup.ts	restructure-p2
 src/app/messages/pins/pinnedMessageExtensions.ts		restructure-p3-c4
 src/app/messages/reply/replyExtensions.test.ts		restructure-p3-c4
 src/app/messages/reply/replyExtensions.tsx		restructure-p3-c4
+src/app/messages/messageExtensions.tsx		restructure-p3-c4
