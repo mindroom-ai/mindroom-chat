@@ -217,6 +217,8 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
 
 type RoomNavOptionsProps = {
   room: Room;
+  /** Shown while the row is hovered, holds focus or has its menu open; hidden, it stays mounted. */
+  shown: boolean;
   anchor: RectCords | undefined;
   onAnchorChange: (anchor: RectCords | undefined) => void;
   onPrompt: (prompt: RoomNavPrompt) => void;
@@ -225,6 +227,7 @@ type RoomNavOptionsProps = {
 
 function RoomNavOptions({
   room,
+  shown,
   anchor,
   onAnchorChange,
   onPrompt,
@@ -255,7 +258,7 @@ function RoomNavOptions({
   );
 
   return (
-    <NavItemOptions>
+    <NavItemOptions shown={shown}>
       <PopOut anchor={anchor} offset={4} position="Right" align="Start" content={menu}>
         <IconButton
           variant="Background"
@@ -407,15 +410,15 @@ export function RoomNavItem(props: RoomNavItemProps) {
         hasUnread={Boolean(unread)}
         status={status}
       />
-      {showOptions ? (
-        <RoomNavOptions
-          room={room}
-          anchor={optionsAnchor}
-          onAnchorChange={setOptionsAnchor}
-          onPrompt={setPrompt}
-          notificationMode={notificationMode}
-        />
-      ) : null}
+      {/* Mounted while hidden too, so the button can leave as smoothly as it came. */}
+      <RoomNavOptions
+        room={room}
+        shown={showOptions}
+        anchor={optionsAnchor}
+        onAnchorChange={setOptionsAnchor}
+        onPrompt={setPrompt}
+        notificationMode={notificationMode}
+      />
     </NavItem>
   );
 

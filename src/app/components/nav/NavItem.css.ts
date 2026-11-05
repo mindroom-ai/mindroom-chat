@@ -1,6 +1,7 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, globalStyle, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { motion } from '../../styles/Motion.css';
 
 const variant = (name: 'Background' | 'Surface' | 'SurfaceVariant' | 'Primary' | 'Secondary') => ({
   vars: {
@@ -16,9 +17,13 @@ const centeredFlex = { display: 'flex', alignItems: 'center' } as const;
 // Flex box that also takes the space left in its row; `minWidth: 0` lets long text shrink it.
 const fillingFlex = { ...centeredFlex, flexGrow: 1, minWidth: 0 } as const;
 
+/** Every sidebar row, whatever its variant: the hook for rules about what sits inside it. */
+const NavItemRow = style({});
+
 // A sidebar row. Its action (NavButton or NavLink) fills it; NavItemOptions sit at its end.
 export const NavItem = recipe({
   base: [
+    NavItemRow,
     DefaultReset,
     centeredFlex,
     {
@@ -101,6 +106,67 @@ export const NavItemOptions = style([
   centeredFlex,
   { flexShrink: 0, gap: config.space.S100, paddingInlineEnd: config.space.S100 },
 ]);
+
+/** How far a row's hidden controls sit toward the row's end before they slide in. */
+const revealShift = createVar();
+const revealTiming = `${motion.duration.Normal} ${motion.easing.Standard}`;
+
+/**
+ * Row controls that fade in while sliding in from the row's inline end when the row is hovered or
+ * holds focus, and leave the same way. Hidden, they stay mounted but take no pointer and no focus
+ * (`visibility` switches only after the fade out ends). Reduced motion keeps the fade alone, and
+ * `src/index.css` shortens even that.
+ */
+export const rowControlsHidden = {
+  opacity: 0,
+  transform: `translateX(${revealShift})`,
+  visibility: 'hidden',
+  pointerEvents: 'none',
+  transition: `opacity ${revealTiming}, transform ${revealTiming}, visibility 0s linear ${motion.duration.Normal}`,
+} as const;
+
+export const rowControlsShown = {
+  opacity: 1,
+  transform: 'none',
+  visibility: 'visible',
+  pointerEvents: 'auto',
+  transition: `opacity ${revealTiming}, transform ${revealTiming}, visibility 0s`,
+} as const;
+
+export const rowControlsShift = style({
+  vars: { [revealShift]: toRem(6) },
+  selectors: { '[dir=rtl] &': { vars: { [revealShift]: toRem(-6) } } },
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      vars: { [revealShift]: '0px' },
+      selectors: { '[dir=rtl] &': { vars: { [revealShift]: '0px' } } },
+    },
+  },
+});
+
+/**
+ * Options laid over the end of their row (`data-shown` says whether they show), so the row's text
+ * stays where it is while they come and go. Shown, they keep the row's action clear of them.
+ */
+export const NavItemOptionsReveal = style([
+  rowControlsShift,
+  {
+    position: 'absolute',
+    insetBlock: 0,
+    insetInlineEnd: 0,
+    ...rowControlsHidden,
+    selectors: { '&[data-shown=true]': rowControlsShown },
+  },
+]);
+
+/** The width of a row's one options button (folds IconButton size 300) and its end padding. */
+const OPTIONS_WIDTH = `calc(${toRem(32)} + ${config.space.S100})`;
+globalStyle(
+  `${NavItemRow}:has(> ${NavItemOptionsReveal}[data-shown=true]) > :not(${NavItemOptionsReveal})`,
+  {
+    paddingInlineEnd: OPTIONS_WIDTH,
+  }
+);
 
 export const NavCategory = style([DefaultReset, { position: 'relative' }]);
 

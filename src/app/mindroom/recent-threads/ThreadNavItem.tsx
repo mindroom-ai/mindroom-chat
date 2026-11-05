@@ -1,3 +1,4 @@
+import classNames from 'classnames';
 import { memo, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -16,6 +17,8 @@ import { useInitializeShownThread } from '../threads/useInitializeShownThread';
 import { useRoomViewMode } from '../threads/useRoomViewMode';
 import { useToggleThreadResolution } from '../threads/useRoomThreadTags';
 import * as css from './threadNav.css';
+import './threadNavReveal.css';
+import { rowControlsShift } from '../../components/nav/NavItem.css';
 
 type ThreadNavItemProps = {
   entry: CrossRoomThreadIndexEntry;
@@ -227,7 +230,12 @@ function ThreadNavItemRow({
               </Box>
             </NavItemContent>
           </NavButton>
-          <Box as="span" alignItems="Center" gap="100" className={css.EntryActions}>
+          <Box
+            as="span"
+            alignItems="Center"
+            gap="100"
+            className={classNames(css.EntryActions, rowControlsShift)}
+          >
             <IconButton
               size="300"
               radii="300"

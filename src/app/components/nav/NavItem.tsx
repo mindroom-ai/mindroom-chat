@@ -91,10 +91,24 @@ export const NavItemContent = as<'div'>(({ as: AsContent = 'div', className, ...
   <AsContent className={classNames(css.NavItemContent, className)} {...props} ref={ref} />
 ));
 
-/** Trailing controls of a row, outside its main action. */
-export const NavItemOptions = as<'div'>(({ as: Options = 'div', className, ...rest }, ref) => (
-  <Options {...rest} ref={ref} className={classNames(css.NavItemOptions, className)} />
-));
+/**
+ * Trailing controls of a row, outside its main action. With `shown`, they stay mounted over the
+ * row's end and fade and slide in while it is true and out again when it turns false.
+ */
+export const NavItemOptions = as<'div', { shown?: boolean }>(
+  ({ as: Options = 'div', className, shown, ...rest }, ref) => (
+    <Options
+      data-shown={shown === undefined ? undefined : String(shown)}
+      {...rest}
+      ref={ref}
+      className={classNames(
+        css.NavItemOptions,
+        shown !== undefined && css.NavItemOptionsReveal,
+        className
+      )}
+    />
+  )
+);
 
 /** A group of rows under a NavCategoryHeader. */
 export const NavCategory = as<'div'>(({ as: AsCategory = 'div', className, ...props }, ref) => (
