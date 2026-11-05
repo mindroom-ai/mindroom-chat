@@ -40,19 +40,16 @@ const useSessionRequest = (accessToken: string | undefined): typeof fetch =>
     [accessToken]
   );
 
+/** The branded splash says what it waits for; its column already holds the one spinner. */
 function ConnectingSplash({ onCancel }: { onCancel?: () => void }) {
   const { t } = useTranslation();
   return (
-    <MindRoomSplashScreen>
-      <Box direction="Column" grow="Yes" alignItems="Center" justifyContent="Center" gap="400">
-        <Spinner variant="Secondary" size="600" />
-        <Text>{t('sharedUi.specVersions.connectingToServer')}</Text>
-        {onCancel && (
-          <Button variant="Secondary" fill="Soft" size="300" radii="300" onClick={onCancel}>
-            <Text size="B300">{t('sharedUi.specVersions.cancelAndReturnToSignIn')}</Text>
-          </Button>
-        )}
-      </Box>
+    <MindRoomSplashScreen message={t('sharedUi.specVersions.connectingToServer')}>
+      {onCancel && (
+        <Button variant="Secondary" fill="Soft" size="300" radii="300" onClick={onCancel}>
+          <Text size="B300">{t('sharedUi.specVersions.cancelAndReturnToSignIn')}</Text>
+        </Button>
+      )}
     </MindRoomSplashScreen>
   );
 }
