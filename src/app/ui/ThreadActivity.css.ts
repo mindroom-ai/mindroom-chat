@@ -67,13 +67,19 @@ export const Icon = styleVariants({
   ],
 });
 
+// A title too long for the line truncates, so the chevron stays in view after it.
 export const Title = style({
-  flexShrink: 0,
+  minWidth: 0,
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
   fontWeight: 600,
   whiteSpace: 'nowrap',
 });
 
+// The detail takes only the room the title leaves, so it gives way first.
 export const Detail = style({
+  flex: '1 1 0px',
+  maxWidth: 'max-content',
   minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
