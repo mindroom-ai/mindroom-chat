@@ -710,7 +710,7 @@ describe('RoomTimeline', () => {
           await flushAsyncWork(10);
           // Task #125 follow-up: the prepend RENDER COMMIT waits for
           // scroll quiescence (150ms with no scroll events) before it
-          // lands — see scrollQuiescence.ts. This test runs fake timers,
+          // lands (see scrollQuiescence.ts). This test runs fake timers,
           // so advance the clock past it.
           await vi.advanceTimersByTimeAsync(250);
           await flushAsyncWork(10);
