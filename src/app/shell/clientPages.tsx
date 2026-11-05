@@ -20,6 +20,7 @@ import { ClientBindAtoms } from './ClientBindAtoms';
 import { ClientLayout } from './ClientLayout';
 import { FloatingCardsContext, useFloatingCardsLayout } from '../ui/page/floatingCards';
 import { FloatingShell } from '../ui/page/floatingCards.css';
+import './layout/floatingCardsLayout.css';
 import { ClientShell } from './ClientShell';
 import { Space } from '../sidebar/space/Space';
 
