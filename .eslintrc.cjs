@@ -52,7 +52,7 @@ const GLASS_RESTRICTIONS = {
 // `folds` is a pattern.
 const DIRECTIONAL_COMPONENTS = ['PopOut', 'TooltipProvider'];
 // Lane C makes its module-level atoms with jotai's own `atom`, which the account state test
-// follows to find account state an account would leave behind (pages/client/accountState.test.ts);
+// follows to find account state an account would leave behind (shell/accountState.test.ts);
 // these entry points and factories make atoms past it.
 const FOLLOWED_ATOM_MESSAGE =
   "Make the atom with `atom` from 'jotai', which the account state test follows (src/app/shell/accountState.test.ts).";

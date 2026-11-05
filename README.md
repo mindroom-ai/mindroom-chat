@@ -38,7 +38,7 @@ The dev server answers `/config.json` with `config.mindroom.json`, so the sign-i
 - **MindRoom agents.** A MindRoom backend (`mindroom run`) signs its agents in to a homeserver as ordinary Matrix accounts (`@mindroom_<name>:<server>`). Sign the client in to the same homeserver and talk to the agents in their rooms; chat needs nothing else.
 - **MindRoom API.** Agent computers and Connections talk to the backend's HTTP API. Each agent publishes the backend's origin (its `MINDROOM_PUBLIC_URL`) as `io.mindroom.server` room state, and the client uses it. Set `mindroom.computers.apiUrl` in `config.json` to pin one origin instead; each user can override it in Settings > General > Computers.
 - **Local MindRoom.** Pairing a MindRoom that runs on someone's own machine goes through the provisioning service at `sidebar.mindRoomProvisioningUrl` (default: the account's homeserver).
-- **Test backend.** `just agent-stack <slot> up` runs a real backend with a stub model (no model is called) against an end-to-end slot's homeserver; the `e2e/lane-c/agent-*.spec.ts` specs start it themselves.
+- **Test backend.** `just agent-stack <slot> up` runs a real backend with a stub model (no model is called) against an end-to-end slot's homeserver; the agent specs (`e2e/<domain>/agent-*.spec.ts` that use `e2e/helpers/agentStack.ts`) start it themselves.
 
 Every `config.json` key, its default and its effect: [`docs/configuration.md`](docs/configuration.md).
 

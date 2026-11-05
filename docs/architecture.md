@@ -1,6 +1,6 @@
 # Architecture
 
-MindRoom Client is a single-page React app that talks to a Matrix homeserver through `matrix-js-sdk`, and to a MindRoom backend's HTTP API for the features that need one (agent computers, Connections, Local MindRoom pairing). This page covers how it starts, where the code lives, the two kinds of code in the repository, and how it reads the event formats MindRoom agents send.
+MindRoom Client is a single-page React app that talks to a Matrix homeserver through `matrix-js-sdk`, and to a MindRoom backend's HTTP API for the features that need one (agent computers, Connections, Local MindRoom pairing). This page covers how it starts, where the code lives and the rules for placing it, the two kinds of code in the repository, and how it reads the event formats MindRoom agents send.
 
 ## Stack
 
@@ -11,67 +11,196 @@ React 18.2, TypeScript 5.4 and Vite 5.4; vanilla-extract for styles (`*.css.ts`)
 1. `index.html` loads `runtime-config.js` (`src/boot/runtimeConfig.ts`: base path, service worker switch, sign-in recovery settings) and `authentication-recovery.js` (`src/boot/authenticationRecovery.ts`), then the module `src/index.tsx`.
 2. `src/index.tsx` starts diagnostics, applies the stored theme, loads i18n, registers the service worker (`src/sw/sw.ts`, which serves the cached app shell, precaches only what a signed-in start needs (`scripts/precache-plan.mjs`), keeps the build's other files on first use (`src/sw/swRuntimeAssets.ts`) and the language catalogs with their overlays (`src/sw/swLanguageFiles.ts`), and fetches authenticated media) unless it is switched off, watches for parts that cannot load after a deployment (`src/app/config/appUpdate.ts`), and renders `App`, whose root error boundary (`AppErrorBoundary`) shows a failed screen with Reload.
 3. `src/app/shell/App.tsx` sets up jotai, the theme and TanStack Query, loads `config.json` (`src/app/config/ClientConfigLoader.tsx`; see `docs/configuration.md`), and creates the router (`src/app/shell/Router.tsx`).
-4. Sign-in pages live under `src/app/pages/auth/`. Every signed-in route renders `ClientRoot` (`src/app/shell/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/app/account/lifecycle/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
+4. Sign-in pages live under `src/app/account/auth/`. Every signed-in route renders `ClientRoot` (`src/app/shell/ClientRoot.tsx`), which builds the active account's `MatrixClient` (`src/app/account/lifecycle/initMatrix.ts`: IndexedDB stores, Rust crypto, sync), shows the startup screen until the first sync, and then the shell with the icon rail.
 5. Accounts are kept in a session registry (`src/app/matrix/session/sessions.ts`), each with its own stores, so several accounts can be signed in and switched.
 
-## Folders
+## Layout
+
+The code is grouped by feature: one folder per domain, which holds the screens, hooks, state and helpers of one concept. A file goes where someone looking for that concept would look first.
+
+```
+src/
+  index.tsx, index.css   entry point (index.html loads it) and global CSS, with their tests
+  boot/                  scripts built on their own and loaded before the app: runtimeConfig, authenticationRecovery,
+                         serviceWorkerNavigation
+  sw/                    the service worker (sw.ts) and its helpers: session, authenticated media, runtime assets,
+                         language files, framing
+  types/                 ambient .d.ts files only
+  test/                  Vitest setup, architecture.ts (import graph helpers for architecture tests), layering.test.ts,
+                         utils/ (shared test helpers)
+  build/                 tests of build tooling and repository files (precache plan, icons, index.html, npm scripts)
+  app/
+    lib/                 helpers with no app knowledge (dom, keyboard, time, regex, storage, describeError, lazyPart);
+                         hooks/ (generic React hooks, media/), state/ (jotai helpers)
+    config/              config.json loader and provider, runtime config reader, app version, update check, service
+                         worker registration
+    i18n/                i18next setup, languages, English resources, overlay loader; locales/ (17 catalogs) and
+                         locales/additions/ (overlay keys)
+    theme/               theme bootstrap, useTheme, code token palette, page zoom, status bar colors
+    preferences/         user settings (settings atom, useSetting), the settings catalog, account settings
+    routes/              URL schema: paths, path helpers, search params, deep links, route restore, "is selected" hooks
+    shortcuts/           shortcut registry, key labels, useShortcut, DOM helpers
+    diagnostics/         flight recorder, deep trace, trace schema, timeline debug probes, SDK debug logging, export
+    native/              Capacitor layer: platform checks, native sign-in, Cloudflare Access, file save, App Store scenes
+    ui/                  the design system: dialogs, menus, tooltips, setting tiles, glass/, nav/, page/, panels/,
+                         settings/ (settings page kit), sidebar/ (rail items), splash/, media/, particle-background/,
+                         branding/, styles/
+    matrix/              Matrix core: room and event helpers, media URLs, edits, permalinks, createRoom, cs-api;
+                         client/ (client factory, sync policy, crypto store continuity, token refresh), session/
+                         (stored sessions), hooks/, state/ (client-derived atoms), send/ (outgoing content),
+                         protocol/ (MindRoom formats over Matrix), types/
+    navigation/          moving the user around: room navigation, selected room and space, view mode, dialog atoms
+    rich-text/           formatted text without message knowledge: sanitizing, math, links, tables, markdown/, code/
+    avatars/             user and room avatars, authenticated avatar media, swatches
+    event-store/         the client-side store of room and thread events: cache/ (IndexedDB cache, event repository,
+                         probes), engine/ (sync engine, backfill, reconciler, prefetch), threads/ (thread model),
+                         timeline/ (timeline model), sdk/ (the only adapters of matrix-js-sdk internals)
+    models/              agent model picker, provider icons, model controller, agent device trust check
+    ui-actions/          agent-driven UI actions (button, provider, controller)
+    computer/            the worker computer panel, screen, touchpad, clipboard, API, settings, agent servers
+    emoji/               emoji data, recent emoji, skin tone; board/, custom/ packs, packs/ editor, server/, settings/
+    editor/              the Slate editor of the composer and of message editing; autocomplete/
+    approvals/           tool approval cards and controls, the approval provider, auto-approve/
+    bug-reports/         in-app bug reports: payload, room, send, message menu item; error-reporting/
+    calls/               MatrixRTC calls (panel, tiles, rings, state) and agent/ calls
+    connections/         the agent service Connections portal and links
+    background-jobs/     the agents' background jobs bar
+    members/             member lists and drawer, power tags, user directory; invite/, profile/
+    messages/            one message: Message, controls, extras, event readers, thread indicator; content/, html/,
+                         agent-run/, reactions/, reply/, edit/, pins/, thread-summary/, canvas/, live/, viewers/
+                         (image, PDF, text), url-preview/, layout/
+    canvas/              agent canvases: panel, room canvas panel, index, state; page/ (the Canvases route)
+    composer/            the room input: drafts, send session, extensions; commands/, upload/, voice/
+    notifications/       unread title, chimes, read receipts and mark-read items; inbox/ (route), notices/, push/ (iOS),
+                         settings/
+    schedules/           the scheduled tasks dialog and button
+    search/              message search page, filters, results, highlighting
+    rooms/               room management: cards, access control, leave prompt; create/, explore/ (route), join/,
+                         settings/ (room settings pages), archive/
+    threads/             thread features: overview/ (list, compact view, filters), open/ (session, bootstrap), tags/,
+                         summary/, cross-room/, page/ (the Threads route), banner, actions menu
+    account/             sign-in and the account: auth/, lifecycle/ (start, stop, wipe a session), switcher/,
+                         settings/, devices/, encryption/, verification/, uia/, onboarding/
+    spaces/              spaces: rail order, leave, add existing; lobby/, create/
+    timeline/            the room and thread timeline: RoomTimeline, rows, scrolling, pagination, minimap, collapsing,
+                         room intro, thread badge; typing/, jump-to-time/, message-rendering/
+    command-palette/     the command palette
+    local-mindroom/      pairing a Local MindRoom backend (Connect page, settings page, provisioning)
+    room/                the open room screen: Room, RoomView, RoomViewHeader, header menu, route, topic viewer, tombstone
+    settings/            the Settings dialog: frame, search, menu, deep link, rail buttons; pages/ (app-wide preferences)
+    sidebar/             the left navigation: rail/, home/, direct/, space/, room-nav/, threads/ (recent threads)
+    shell/               app composition: App, Router, client pages, ClientRoot, layout, startup features, welcome page,
+                         sync status, error boundary, update notice; shortcuts/ (global handler, hints, help)
+e2e/
+  <domain>/              Playwright specs grouped by the same domain names; specs against the live homeserver that
+                         take long end in .live.spec.ts
+  fixtures/              pages that render one component (fixtures/live/: live seeding script and minimap fixture)
+  helpers/               shared helpers
+  rtc/                   the MatrixRTC authorization service for the call specs
+  env.ts, global-setup.ts, api.d.ts, docker-compose*.yaml   environment, setup, the Tuwunel test homeserver
+```
+
+Outside `src/` and `e2e/`:
 
 | Path | What is there |
 |---|---|
-| `src/index.tsx`, `src/boot/runtimeConfig.ts`, `src/boot/authenticationRecovery.ts`, `src/sw/sw*.ts`, `src/app/config/appVersion.ts`, `src/app/config/appUpdate.ts` | Entry point, deployment bootstrap, service worker, check for new deployments, the reload into a new one |
-| `src/client/` | Creating, starting and signing out the Matrix client; access token refresh |
-| `src/app/pages/` | Router, sign-in pages (`auth/`), and the signed-in pages (`client/`: home, direct messages, threads, explore, inbox, spaces, canvases, connections) |
-| `src/app/features/` | Larger screens: the room (header, timeline, composer, members), room navigation, settings, room and space settings, creating rooms and spaces, calls |
-| `src/app/components/` | Shared UI: the Slate editor, message rendering, media viewers, emoji board, liquid glass surfaces (`glass/`), dialogs, avatars |
-| `src/app/mindroom/` | MindRoom features: agent messages (streaming, tool calls, approvals, thread titles), threads and the Compact view, live reply frames, canvases, computers, voice, schedules, background jobs, Connections, Local MindRoom, command palette, notifications, native app glue, diagnostics |
-| `src/app/hooks/`, `src/app/state/` | React hooks and jotai atoms (sessions, settings, room and room list state) |
-| `src/app/utils/`, `src/app/plugins/` | Helpers: Matrix event and room helpers, HTML sanitizing, Markdown, emoji data, math, code highlighting, `matrix.to` links |
-| `src/app/styles/`, `src/app/theme/` | Shared vanilla-extract styles and the light and dark theme bootstrap |
-| `src/app/i18n/locales/` | Translation catalogs for 17 languages; `additions/` holds overlay keys per language |
-| `e2e/` | Playwright specs: the top level and `live/` (most need a homeserver), `lane-c/` (specs written for this repository), `fixtures/` (pages that render one component), `helpers/`, `rtc/` (MatrixRTC authorization service for the call specs), and `docker-compose.yaml` (the Tuwunel test homeserver) |
 | `scripts/` | Vite plugins and build helpers, check scripts (`strict-check.mjs`, `license-check.mjs`), provenance tools, e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), iOS and App Store helpers |
 | `public/` | Files served at the root as they are: icons, sounds, `manifest.json` |
 | `ios/`, `android/` | The Capacitor native projects |
 | `docs/` | This page, `configuration.md`, provenance records, design reference screenshots, specs and plans |
 
-Unit tests sit next to the code they test (`*.test.ts`, `*.test.tsx`, `__tests__/`) and run in Vitest, in Node by default; DOM tests opt in with `// @vitest-environment jsdom`.
+Unit tests run in Vitest, in Node by default; DOM tests opt in with `// @vitest-environment jsdom`.
+
+## Placement and naming
+
+Where a file goes, first match wins:
+
+1. **Domain.** A file goes to the domain of the screen or concept it serves. A file several domains use goes to the lowest domain all of them may import (see [Layers](#layers)), and its own imports must not climb above it. If a file would have to import a higher domain, move the shared part down; never move the import up.
+2. **Component:** `<domain>/<Name>.tsx`, with its styles in `<Name>.css.ts` beside it. A sub-folder only for a sub-feature of three or more source files.
+3. **Hook:** with its domain. A hook that only wraps React or the DOM goes in `lib/hooks/`, one that only reads Matrix data in `matrix/hooks/`.
+4. **Atom:** with the domain that owns the state. Client-derived global state goes in `matrix/state/`, user preferences in `preferences/`, atoms that only open a dialog in `navigation/`.
+5. **Pure helper:** domain logic in its domain, Matrix event logic in `matrix/`, `io.mindroom.*` content formats in `matrix/protocol/`, text formatting in `rich-text/`, helpers with no app knowledge in `lib/`.
+6. **Tests:** `X.test.ts(x)` or `X.<aspect>.test.ts(x)` beside `X`; tests of several modules in `<domain>/__tests__/`; shared helpers in `src/test/`, one domain's helpers in its `__tests__/` or `test-utils/`; fixtures in `<domain>/__fixtures__/`.
+7. **Settings pages:** a page about one domain's objects lives in that domain and is built from `ui/settings/`; pages for app-wide preferences live in `settings/pages/`.
+8. **Route pages:** in the domain that owns the screen (`threads/page/`, `canvas/page/`, `rooms/explore/`, `notifications/inbox/`, `account/auth/`, `room/RoomRoute.tsx`). `shell/Router.tsx` maps `routes/paths.ts` to the lazy modules of `shell/clientPages.tsx`; there is no `pages/` folder.
+9. **e2e:** `e2e/<domain>/<name>.spec.ts`, and `<name>.live.spec.ts` for long specs against the live homeserver.
+
+No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check.
+
+Naming:
+
+- Drop `Mindroom` and `MindRoom` where they only marked the code as ours rather than upstream (`room/Room.tsx`, `messages/Message.tsx`). Keep product and protocol names: Local MindRoom (`local-mindroom/`), the `MINDROOM_*` event constants, `isMindroomAgent*`, `io.mindroom.*`, storage keys, persisted IndexedDB names, the `window.__MINDROOM_*` globals that e2e specs read, and the i18n namespace `mindroomUi`.
+- Name by content: `renderAgentMessageContent.tsx`, `agentCommandQuery.ts`, `prefetchSettings.ts`.
+- A component file is named after its export (PascalCase), a hook `useX.ts`, everything else camelCase. A file and its main export are renamed together.
+- No two modules in one folder whose names differ only in case: the iOS app is built on a case-insensitive file system.
+
+## Layers
+
+A domain imports only domains in a strictly lower layer. Runtime, type-only and dynamic imports all count; tests are exempt; inside a domain, sub-folders import each other freely.
+
+| layer | domains |
+|---|---|
+| 0 | `lib`, `src/boot`, `src/types` |
+| 1 | `config`, `i18n`, `preferences`, `routes`, `shortcuts`, `src/sw` |
+| 2 | `diagnostics`, `native`, `ui` |
+| 3 | `matrix`, `theme` |
+| 4 | `avatars`, `models`, `navigation`, `rich-text`, `ui-actions` |
+| 5 | `computer`, `emoji`, `event-store` |
+| 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
+| 7 | `background-jobs`, `members`, `messages` |
+| 8 | `canvas`, `composer`, `notifications`, `schedules`, `search` |
+| 9 | `rooms`, `threads` |
+| 10 | `account`, `spaces`, `timeline` |
+| 11 | `command-palette`, `local-mindroom`, `room` |
+| 12 | `settings` |
+| 13 | `sidebar` |
+| 14 | `shell` |
+| 15 | `src/index.tsx` |
+
+`just lint` enforces it: `.eslintrc.cjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
+
+Limits:
+
+- Inline type imports (`typeof import('...')`) are not checked by the rule. The one cross-domain use, `shell/Router.tsx` to `room/Room`, points downward.
+- File-level cycles are checked separately: `threads/__tests__/featureOwnership.architecture.test.ts` requires the runtime import graph of `src/app` to be acyclic, apart from one listed cycle, `emoji/emojiData.ts` and `emoji/emoji.ts` (a lazy `import()` and the handover of the emoji tables back). Remove the allowance when that handshake goes.
 
 ## Two lanes of code
 
 Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) records how each came to be, and [`AGENTS.md`](../AGENTS.md) holds the rules for editing them.
 
-- **Lane P (ported).** Files written by Bas Nijholt for the earlier MindRoom client, copied at their original paths and licensed under Apache-2.0 for this project. They are listed in `docs/provenance/portable.tsv` (code), `portable-wave2.tsv` (other text files: native shells, locales, scripts) and `portable-wave3.tsv` (binary assets); `dropped.tsv` lists the ones deleted since with a dropped feature. Most of `src/app/mindroom/` is Lane P. Lane P files change only in the ways `AGENTS.md` allows (fill blanked lines, re-point an import, adapt to a Lane C interface, delete dropped features), never run through a formatter.
+- **Lane P (ported).** Files written by Bas Nijholt for the earlier MindRoom client and licensed under Apache-2.0 for this project. They are listed at the paths they were imported at in `docs/provenance/portable.tsv` (code), `portable-wave2.tsv` (other text files: native shells, locales, scripts) and `portable-wave3.tsv` (binary assets); `dropped.tsv` lists the ones deleted since. Lane P files change only in the ways `AGENTS.md` allows (fill blanked lines, re-point an import, adapt to a Lane C interface, delete dead code or dropped features), and never run through a formatter.
 - **Lane C (clean).** Everything else, written new for this repository: the app shell, client setup and sync, room list, timeline, composer editor, settings, sign-in pages, and the seams. Lane C must pass `just strict` and the type-aware ESLint rules of `just lint`.
-- **Seams.** Modules that Lane P files import but that were not ported. `docs/provenance/seams.tsv` lists each one's path and the names Lane P imports from it. A seam keeps that path and those exports, with an implementation of its own; when a Lane P test and a seam disagree, the seam changes.
+- **Seams.** Modules that Lane P files import but that were not ported, with an implementation of their own. `docs/provenance/seams.tsv` lists each one's import-time path and the names Lane P imported from it, and `seams-dropped.tsv` the ones deleted or merged since. A seam may move, be renamed or be merged like other Lane C code; the Lane P imports of it are re-pointed with it. When a Lane P test and a seam disagree, the seam changes.
 
-To see which lane a file is in:
+A file keeps its lane when it moves. `docs/provenance/moves.tsv` (old path, new path, batch) maps each moved file to where it is now, and `scripts/provenance-paths.cjs` folds it for the tools that sort files by lane (`strict-check.mjs`, the ESLint config, `similarity-audit.sh`, `check_holes.py`). To see which lane a file is in:
 
 ```bash
 node scripts/provenance-paths.cjs lane src/app/matrix/protocol/toolTrace.ts src/app/config/useClientConfig.ts
+node scripts/provenance-paths.cjs lane-p        # every Lane P file where it is now
 ```
 
 `just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout, and the overlap check described in `docs/provenance.md` runs over new code.
 
 ## MindRoom event formats
 
-The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are Lane P code under `src/app/mindroom/`. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/room/Room.tsx`, `MindroomRoomTimeline.tsx`), the message row seam (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderMindroomMessageContent` first. Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
+The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are mostly Lane P code. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/room/Room.tsx`, `src/app/timeline/RoomTimeline.tsx`), the message row seam (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderAgentMessageContent.tsx` first. Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
 
-| Format | Shape | Read in (under `src/app/mindroom/`) |
+| Format | Shape | Read in (under `src/app/`) |
 |---|---|---|
-| Stream status | `io.mindroom.stream_status` (`pending`, `streaming`, `approval_pending`, `completed`, `cancelled`, `interrupted`, `error`) at the top of the reply's edits and in their `m.new_content` | `messages/aiRun.ts`, `threads/useThreadStreamingState.ts` |
-| Live reply frames | `io.mindroom.live` ephemeral events that carry a reply while it streams, where the homeserver relays them | `live/` |
-| Tool trace | `io.mindroom.tool_trace`: `{version, events: [{type, tool_name, args_preview?, result_preview?, truncated?}], content_truncated?}` | `messages/toolTrace.ts`, rendered by `messages/MindroomHtmlBlocks.tsx` |
-| Run metadata | `io.mindroom.ai_run`: `{version, run_id, session_id, status, model, usage?}` | `messages/aiRun.ts`, `threads/threadConversationCost.ts`; shown by `messages/MindroomMessageControls.tsx` |
-| Thread title | an `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}` | `messages/threadSummary.ts`, `threads/threadSummaryTimeline.ts` |
-| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread | `threads/threadTags.ts`, `threads/useMutateThreadTags.ts`, `threads/useRoomThreadTags.ts` |
-| Tool approval | event `io.mindroom.tool_approval` (`tool_name`, `arguments`, `status`, `approval_id`, `expires_at`, ...), answered with `io.mindroom.tool_approval_response` | `messages/toolApproval.ts`, `messages/approvalActions.ts`, `messages/MindroomToolApprovalCard.tsx` |
-| Canvas page API | pages get `window.mindroom.submit`, `saveState`, `state` and `colorScheme`, and the `--mr-*` theme variables, in a sandboxed `srcdoc` frame with its own content security policy | `canvas/canvasDocument.ts` |
+| Stream status | `io.mindroom.stream_status` (`pending`, `streaming`, `approval_pending`, `completed`, `cancelled`, `interrupted`, `error`) at the top of the reply's edits and in their `m.new_content` | `matrix/protocol/aiRun.ts`, `event-store/threads/useThreadStreamingState.ts` |
+| Live reply frames | `io.mindroom.live` ephemeral events that carry a reply while it streams, where the homeserver relays them | `messages/live/` |
+| Tool trace | `io.mindroom.tool_trace`: `{version, events: [{type, tool_name, args_preview?, result_preview?, truncated?}], content_truncated?}` | `matrix/protocol/toolTrace.ts`, rendered by `messages/html/HtmlBlocks.tsx` |
+| Run metadata | `io.mindroom.ai_run`: `{version, run_id, session_id, status, model, usage?}` | `matrix/protocol/aiRun.ts`, `event-store/threads/threadConversationCost.ts`; shown by `messages/MessageControls.tsx` |
+| Thread title | an `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}` | `matrix/protocol/threadSummary.ts`, `event-store/threads/threadSummaryTimeline.ts` |
+| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread | `event-store/threads/threadTags.ts`, `threads/tags/useMutateThreadTags.ts`, `threads/tags/useRoomThreadTags.ts` |
+| Tool approval | event `io.mindroom.tool_approval` (`tool_name`, `arguments`, `status`, `approval_id`, `expires_at`, ...), answered with `io.mindroom.tool_approval_response` | `matrix/protocol/toolApproval.ts`, `approvals/approvalActions.ts`, `approvals/ToolApprovalCard.tsx` |
+| Canvas page API | pages get `window.mindroom.submit`, `saveState`, `state` and `colorScheme`, and the `--mr-*` theme variables, in a sandboxed `srcdoc` frame with its own content security policy | `messages/canvas/canvasDocument.ts` |
 | Computer | `/api/computers/*` on the MindRoom backend, a WebSocket for the screen, authorized with a Matrix OpenID token | `computer/api.ts` |
-| MindRoom server | room state `io.mindroom.server`, keyed by each agent's user ID: `{api_origin, computer}` | `server/mindroomServer.ts`, `server/useMindroomServers.ts` |
-| UI actions | `io.mindroom.ui_action` in an agent's message: show the computer or a canvas, open a panel or a Settings section | `ui-actions/chatUiProtocol.ts` |
+| MindRoom server | room state `io.mindroom.server`, keyed by each agent's user ID: `{api_origin, computer}` | `computer/agentServer.ts`, `computer/useAgentServers.ts` |
+| UI actions | `io.mindroom.ui_action` in an agent's message: show the computer or a canvas, open a panel or a Settings section | `matrix/protocol/chatUiProtocol.ts` |
 
-Agents are recognized by their Matrix user ID (`mindroom_` localpart prefix, `matrix/agentIdentity.ts`). Other MindRoom data the client reads: `io.mindroom.settings` account data (`settings/mindroomAccountSettings.ts`), the router's `io.mindroom.auto_approve` room state (`auto-approve/`), and each agent's `io.mindroom.background_jobs` room state (`background-jobs/`).
+Agents are recognized by their Matrix user ID (`mindroom_` localpart prefix, `matrix/protocol/agentIdentity.ts`). Other MindRoom data the client reads: `io.mindroom.settings` account data (`preferences/accountSettings.ts`), the router's `io.mindroom.auto_approve` room state (`approvals/auto-approve/`), and each agent's `io.mindroom.background_jobs` room state (`background-jobs/`).
 
 The client's own account data: `io.mindroom.spaces` holds the rail's folders and saved space order (`src/app/spaces/sidebarSpaces.ts`), and `io.mindroom.room_order` the rooms a person dragged into their own order, per Rooms section: `{"lists": {"home": [<room ID>, ...], <space ID>: [...]}}`, where `home` is Home's section and a space's room ID is that space's (`src/app/sidebar/room-nav/roomOrder.ts`). A section without a list shows its rooms A to Z; rooms the list does not name follow the ones it does, A to Z, and Sort Rooms A to Z in the section's options menu deletes its list.
 
-Two tests pin formats to what the backend actually sends: `messages/backendApprovalContract.test.ts` reads approval events captured from the backend (`messages/__fixtures__/backendApprovalContract.json`), and `messages/__fixtures__/backendToolMarkerBodies.json` holds the backend's own HTML for tool markers, written by `scripts/capture-backend-tool-marker-bodies.py`. The backend's `docs/streaming.md`, `docs/canvases.md` and `docs/tools/worker-computer.md` describe the formats in prose.
+Two tests pin formats to what the backend actually sends: `src/app/messages/backendApprovalContract.test.ts` reads approval events captured from the backend (`src/app/messages/__fixtures__/backendApprovalContract.json`), and `src/app/messages/__fixtures__/backendToolMarkerBodies.json` holds the backend's own HTML for tool markers, written by `scripts/capture-backend-tool-marker-bodies.py`. The backend's `docs/streaming.md`, `docs/canvases.md` and `docs/tools/worker-computer.md` describe the formats in prose.
