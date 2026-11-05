@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Usage: scripts/similarity-audit.sh <corpus dir>...
+# Usage: scripts/similarity-audit.sh <corpus>...
 #
-# Compares Lane C code against each corpus directory with `jscpd --min-tokens 50`.
+# Compares Lane C code against each corpus with `jscpd --min-tokens 50`. A corpus is a directory,
+# or a Git repository given as <dir>@<commit>; a Git checkout given without a commit means
+# <dir>@HEAD. A repository is compared as the files tracked at that commit (`git archive`), so
+# its untracked files, build output and nested worktrees never count.
 # Lane P is every path in docs/provenance/portable.tsv and portable-wave2.tsv, where
 # docs/provenance/moves.tsv says it is now, minus the paths in docs/provenance/dropped.tsv. Lane C is every other file under src/, scripts/ and e2e/, plus the
 # root config files, tracked or untracked but not ignored by Git, that exists in the working tree.
@@ -14,15 +17,30 @@ set -euo pipefail
 export LC_ALL=C
 
 if [ "$#" -eq 0 ]; then
-  echo "usage: scripts/similarity-audit.sh <corpus dir>..." >&2
+  echo "usage: scripts/similarity-audit.sh <corpus dir or git repository[@commit]>..." >&2
   exit 2
 fi
 
-for corpus in "$@"; do
-  if [ ! -d "$corpus" ]; then
-    echo "similarity-audit: $corpus is not a directory" >&2
+# Each corpus as "<dir><TAB><commit>": the commit is empty for a plain directory.
+corpora=()
+for spec in "$@"; do
+  dir=$spec rev=
+  case "$spec" in *@*) dir=${spec%@*} rev=${spec##*@} ;; esac
+  if [ ! -d "$dir" ]; then
+    echo "similarity-audit: $dir is not a directory" >&2
     exit 2
   fi
+  if [ "$(git -C "$dir" rev-parse --is-bare-repository 2>/dev/null)" = true ] ||
+    [ "$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null)" = "$(cd "$dir" && pwd -P)" ]; then
+    rev=$(git -C "$dir" rev-parse --verify "${rev:-HEAD}^{commit}") || {
+      echo "similarity-audit: no commit ${rev:-HEAD} in $dir" >&2
+      exit 2
+    }
+  elif [ -n "$rev" ]; then
+    echo "similarity-audit: $dir is not a Git repository, so it takes no @commit" >&2
+    exit 2
+  fi
+  corpora+=("$dir"$'\t'"$rev")
 done
 
 repo=$(git -C "$(dirname "$0")" rev-parse --show-toplevel)
@@ -64,18 +82,28 @@ echo "similarity-audit: $lane_c_count Lane C files ($(wc -l < "$work/lane-p.txt"
 mkdir -p "$out"
 printf 'corpus\tclones\tduplicated_lines\n' > "$out/summary.tsv"
 index=0
-for corpus in "$@"; do
+for entry in "${corpora[@]}"; do
   index=$((index + 1))
-  corpus=$(cd "$corpus" && pwd -P)
-  dest="$out/$index-$(basename "$corpus")"
+  dir=${entry%%$'\t'*} rev=${entry#*$'\t'}
+  dest="$out/$index-$(basename "$(cd "$dir" && pwd -L)")"
+  if [ -n "$rev" ]; then
+    corpus="$work/corpus-$index"
+    mkdir -p "$corpus"
+    git -C "$dir" archive "$rev" | tar -x -C "$corpus"
+    label="$(basename "$(cd "$dir" && pwd -L)")@$rev"
+    echo "similarity-audit: $label: $(find "$corpus" -type f | wc -l) tracked files"
+  else
+    corpus=$(cd "$dir" && pwd -P)
+    label=$corpus
+  fi
   rm -rf "$dest"
   mkdir -p "$dest" "$work/report-$index"
   npx --yes jscpd@4 --min-tokens 50 --reporters json --silent \
     --ignore '**/node_modules/**,**/.git/**' --output "$work/report-$index" "$work/lane-c" "$corpus"
-  python3 - "$work/report-$index/jscpd-report.json" "$work/lane-c" "$corpus" "$dest" "$out/summary.tsv" <<'PY'
+  python3 - "$work/report-$index/jscpd-report.json" "$work/lane-c" "$corpus" "$dest" "$out/summary.tsv" "$label" <<'PY'
 import json, os, sys
 
-report_path, lane_c, corpus, dest, summary = sys.argv[1:]
+report_path, lane_c, corpus, dest, summary, label = sys.argv[1:]
 lane_c, corpus = os.path.realpath(lane_c), os.path.realpath(corpus)
 
 
@@ -115,8 +143,8 @@ with open(os.path.join(dest, "clones.tsv"), "w") as f:
     f.writelines("\t".join(map(str, row)) + "\n" for row in rows)
 total = sum(row[4] for row in rows)
 with open(summary, "a") as f:
-    f.write(f"{corpus}\t{len(rows)}\t{total}\n")
-print(f"similarity-audit: {corpus}: {len(rows)} cross clones, {total} lines")
+    f.write(f"{label}\t{len(rows)}\t{total}\n")
+print(f"similarity-audit: {label}: {len(rows)} cross clones, {total} lines")
 PY
 done
 echo "similarity-audit: wrote $out"

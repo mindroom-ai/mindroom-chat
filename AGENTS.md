@@ -54,7 +54,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just verify-ported [chat checkout]` | recomputes both Lane P import waves (`port_files.py --wave N --verify`); prints a notice and passes when no path is given |
 | `just check-holes` | `scripts/check_holes.py`: each wave's Lane P files differ from the import only in their blanked lines, at the commit that filled them |
 | `just identifier-renames` | `scripts/check-identifier-renames.mjs`: every Lane P line that a commit of `docs/provenance/identifier-renames.tsv` changes differs from the line before only by the names that commit adds to the table (or, in a revert, removes); runs its `node --test` suite first |
-| `just similarity-audit <corpus dir>...` | jscpd (`--min-tokens 50`) of Lane C files (`src/`, `scripts/`, `e2e/`, root config; both portable lists minus `dropped.tsv` excluded) against each corpus; writes `docs/provenance/audit/<date>/` |
+| `just similarity-audit <corpus>...` | jscpd (`--min-tokens 50`) of Lane C files (`src/`, `scripts/`, `e2e/`, root config; both portable lists minus `dropped.tsv` excluded) against each corpus: a directory, or a Git repository as `<dir>@<commit>` (a checkout alone means `@HEAD`), compared as the files tracked at that commit; writes `docs/provenance/audit/<date>/` |
 | `just hs-up` | starts the disposable Tuwunel test homeserver (`e2e/docker-compose.yaml`, `http://127.0.0.1:28008`) and waits until it is healthy |
 | `just hs-down` | stops the test homeserver and deletes its data |
 | `just e2e [args]` | Playwright in the Chromium from `CHROMIUM_PATH` against the dev server, which it starts when nothing listens on port 4200; run `just hs-up` first for specs that need the homeserver |
