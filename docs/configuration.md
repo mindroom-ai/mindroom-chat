@@ -130,6 +130,8 @@ location = /errors/envelope {
   proxy_set_header X-Sentry-Auth $http_x_sentry_auth;
   proxy_ssl_server_name on;
   proxy_ssl_verify on;
+  # The default depth of 1 rejects chains through a cross-signed root, as Let's Encrypt's are now.
+  proxy_ssl_verify_depth 3;
   proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
   proxy_hide_header Set-Cookie;
   proxy_connect_timeout 5s;
