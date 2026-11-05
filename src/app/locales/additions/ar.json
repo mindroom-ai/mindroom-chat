@@ -298,7 +298,8 @@
         "collector": "تُرسل التقارير إلى ⁨{{host}}⁩."
       },
       "about": {
-        "thirdPartyNotices": "إشعارات الجهات الخارجية"
+        "thirdPartyNotices": "إشعارات الجهات الخارجية",
+        "soundsCredit": "أصوات الإشعارات والدعوات نغمات مُركَّبة صُنعت لهذا التطبيق."
       }
     },
     "createChat": {

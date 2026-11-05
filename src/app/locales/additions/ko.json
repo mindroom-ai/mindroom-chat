@@ -278,7 +278,8 @@
         "collector": "보고서는 {{host}}(으)로 전송됩니다."
       },
       "about": {
-        "thirdPartyNotices": "타사 고지 사항"
+        "thirdPartyNotices": "타사 고지 사항",
+        "soundsCredit": "알림음과 초대음은 이 앱을 위해 합성한 차임입니다."
       }
     },
     "createChat": {

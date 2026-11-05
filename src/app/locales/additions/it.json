@@ -286,7 +286,8 @@
         "collector": "Le segnalazioni vengono inviate a {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Avvisi di terze parti"
+        "thirdPartyNotices": "Avvisi di terze parti",
+        "soundsCredit": "I suoni di notifica e di invito sono rintocchi sintetizzati per questa app."
       }
     },
     "createChat": {

@@ -286,7 +286,8 @@
         "collector": "Les rapports sont envoyés à {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Avis de tiers"
+        "thirdPartyNotices": "Avis de tiers",
+        "soundsCredit": "Les sons de notification et d'invitation sont des carillons synthétisés pour cette application."
       }
     },
     "createChat": {

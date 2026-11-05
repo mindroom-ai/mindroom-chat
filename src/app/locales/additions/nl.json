@@ -282,7 +282,8 @@
         "collector": "Rapporten gaan naar {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Kennisgevingen van derden"
+        "thirdPartyNotices": "Kennisgevingen van derden",
+        "soundsCredit": "De meldings- en uitnodigingsgeluiden zijn klanken die voor deze app zijn gesynthetiseerd."
       }
     },
     "createChat": {

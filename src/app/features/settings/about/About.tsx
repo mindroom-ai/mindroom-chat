@@ -214,12 +214,11 @@ type AboutProps = {
   requestClose: () => void;
 };
 
-const CC_BY_4 = 'https://creativecommons.org/licenses/by/4.0/';
-
 /**
  * Third-party work the client ships, in display order. Each translation names
  * the project in its own tag (`project`), the copyright holder in `<owner>`,
- * and the license in `<license>`.
+ * and the license in `<license>`. Third-party notices lists the rest. Emoji come
+ * from the system's fonts, so no emoji art or font is credited.
  */
 const CREDITS = [
   {
@@ -227,24 +226,6 @@ const CREDITS = [
     tag: 'sdk',
     project: 'https://github.com/matrix-org/matrix-js-sdk',
     license: 'https://github.com/matrix-org/matrix-js-sdk/blob/develop/LICENSE',
-  },
-  {
-    i18nKey: 'featureUi.settings.about.emojiArtCredit',
-    tag: 'art',
-    project: 'https://github.com/jdecked/twemoji',
-    license: CC_BY_4,
-  },
-  {
-    i18nKey: 'featureUi.settings.about.emojiFontCredit',
-    tag: 'font',
-    project: 'https://github.com/mozilla/twemoji-colr',
-    license: 'https://www.apache.org/licenses/LICENSE-2.0',
-  },
-  {
-    i18nKey: 'featureUi.settings.about.soundResourcesCredit',
-    tag: 'resources',
-    project: 'https://material.io/design/sound/sound-resources.html',
-    license: CC_BY_4,
   },
 ] as const;
 
@@ -258,6 +239,7 @@ function CreditLink({ href, children }: { href: string; children?: ReactNode }) 
 }
 
 function CreditsList() {
+  const { t } = useTranslation();
   return (
     <Box
       as="ul"
@@ -279,6 +261,10 @@ function CreditsList() {
           </li>
         );
       })}
+      {/* public/sound/notification.ogg and invite.ogg: sine tones made for this client. */}
+      <li>
+        <Text size="T300">{t('featureUi.settings.about.soundsCredit')}</Text>
+      </li>
     </Box>
   );
 }

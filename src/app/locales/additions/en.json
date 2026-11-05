@@ -282,7 +282,8 @@
         "collector": "Reports go to {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Third-party notices"
+        "thirdPartyNotices": "Third-party notices",
+        "soundsCredit": "The notification and invite sounds are chimes synthesized for this app."
       }
     },
     "createChat": {

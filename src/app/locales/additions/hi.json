@@ -282,7 +282,8 @@
         "collector": "रिपोर्ट {{host}} पर जाती हैं।"
       },
       "about": {
-        "thirdPartyNotices": "तृतीय-पक्ष सूचनाएँ"
+        "thirdPartyNotices": "तृतीय-पक्ष सूचनाएँ",
+        "soundsCredit": "सूचना और आमंत्रण की ध्वनियाँ इस ऐप के लिए संश्लेषित की गई झंकारें हैं।"
       }
     },
     "createChat": {

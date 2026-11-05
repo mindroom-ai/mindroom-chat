@@ -54,14 +54,11 @@ const LITERAL_TOKENS: Readonly<Record<string, readonly string[]>> = {
   'featureUi.settings.devices.otherDevices.manageYourDevicesOnOidcDashboard': ['OIDC'],
   'featureUi.settings.notifications.specialMessages.mentionRoom': ['@room'],
   'featureUi.settings.notifications.specialMessages.containsRoom': ['@room'],
-  'featureUi.settings.about.emojiArtCredit': ['Twemoji', 'Twitter, Inc', 'CC-BY 4.0'],
-  'featureUi.settings.about.emojiFontCredit': ['twemoji-colr', 'Mozilla Foundation', 'Apache 2.0'],
   'featureUi.settings.about.matrixSdkCredit': [
     'matrix-js-sdk',
     'Matrix.org Foundation C.I.C',
     'Apache 2.0',
   ],
-  'featureUi.settings.about.soundResourcesCredit': ['Google', 'CC-BY 4.0'],
 };
 
 describe('literal translation tokens', () => {

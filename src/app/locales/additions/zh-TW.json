@@ -278,7 +278,8 @@
         "collector": "報告會傳送至 {{host}}。"
       },
       "about": {
-        "thirdPartyNotices": "第三方聲明"
+        "thirdPartyNotices": "第三方聲明",
+        "soundsCredit": "通知和邀請提示音是為本應用程式合成的鈴聲。"
       }
     },
     "createChat": {

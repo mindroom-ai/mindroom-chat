@@ -282,7 +282,8 @@
         "collector": "Berichte gehen an {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Hinweise zu Drittanbietern"
+        "thirdPartyNotices": "Hinweise zu Drittanbietern",
+        "soundsCredit": "Die Benachrichtigungs- und Einladungstöne sind Klänge, die für diese App synthetisiert wurden."
       }
     },
     "createChat": {

@@ -278,7 +278,8 @@
         "collector": "送信先: {{host}}"
       },
       "about": {
-        "thirdPartyNotices": "サードパーティ通知"
+        "thirdPartyNotices": "サードパーティ通知",
+        "soundsCredit": "通知音と招待音は、このアプリのために合成したチャイムです。"
       }
     },
     "createChat": {

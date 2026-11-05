@@ -282,7 +282,8 @@
         "collector": "Raporlar {{host}} adresine gider."
       },
       "about": {
-        "thirdPartyNotices": "Üçüncü taraf bildirimleri"
+        "thirdPartyNotices": "Üçüncü taraf bildirimleri",
+        "soundsCredit": "Bildirim ve davet sesleri bu uygulama için sentezlenmiş zil sesleridir."
       }
     },
     "createChat": {

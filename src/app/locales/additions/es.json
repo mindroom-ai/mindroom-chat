@@ -286,7 +286,8 @@
         "collector": "Los informes se envían a {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Avisos de terceros"
+        "thirdPartyNotices": "Avisos de terceros",
+        "soundsCredit": "Los sonidos de notificación e invitación son tonos sintetizados para esta aplicación."
       }
     },
     "createChat": {

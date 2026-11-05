@@ -278,7 +278,8 @@
         "collector": "Laporan dikirim ke {{host}}."
       },
       "about": {
-        "thirdPartyNotices": "Pemberitahuan pihak ketiga"
+        "thirdPartyNotices": "Pemberitahuan pihak ketiga",
+        "soundsCredit": "Suara notifikasi dan undangan adalah nada yang disintesis untuk aplikasi ini."
       }
     },
     "createChat": {
