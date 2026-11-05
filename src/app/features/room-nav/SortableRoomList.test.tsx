@@ -52,22 +52,26 @@ describe('SortableRoomRow', () => {
     onReorder.mockReset();
   });
 
-  const press = (target: Element, key: string, altKey = true) =>
+  // Ctrl with Shift: the test platform is not an Apple one, where it is Command with Shift.
+  const moveKeys = { ctrlKey: true, shiftKey: true };
+  const press = (target: Element, key: string, modifiers: KeyboardEventInit = moveKeys) =>
     act(() => {
-      target.dispatchEvent(new KeyboardEvent('keydown', { key, altKey, bubbles: true }));
+      target.dispatchEvent(new KeyboardEvent('keydown', { key, ...modifiers, bubbles: true }));
     });
 
-  it('moves a room one place with Alt and the up or down arrow key on its link', () => {
+  it('moves a room one place with Ctrl, Shift and the up or down arrow key on its link', () => {
     press(container.querySelector('a[href="#!birch"]')!, 'ArrowUp');
     expect(onReorder).toHaveBeenLastCalledWith(['!birch', '!alder', '!cedar']);
     press(container.querySelector('a[href="#!birch"]')!, 'ArrowDown');
     expect(onReorder).toHaveBeenLastCalledWith(['!alder', '!cedar', '!birch']);
   });
 
-  it('does not move past either end or without Alt', () => {
+  it('does not move past either end, with Alt, or without the modifiers', () => {
     press(container.querySelector('a[href="#!alder"]')!, 'ArrowUp');
     press(container.querySelector('a[href="#!cedar"]')!, 'ArrowDown');
-    press(container.querySelector('a[href="#!birch"]')!, 'ArrowUp', false);
+    // Alt and the arrows open the room above or below instead.
+    press(container.querySelector('a[href="#!birch"]')!, 'ArrowUp', { altKey: true });
+    press(container.querySelector('a[href="#!birch"]')!, 'ArrowUp', {});
     expect(onReorder).not.toHaveBeenCalled();
   });
 

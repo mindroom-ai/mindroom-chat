@@ -27,6 +27,7 @@ import {
   SortableRoomNavItem,
 } from './SortableRoomNavItem';
 import { moveRoom } from './roomOrder';
+import { moveStep } from '../../mindroom/shortcuts/shortcuts';
 import * as css from './SortableRoomList.css';
 
 type DropAt = 'above' | 'below';
@@ -83,21 +84,13 @@ class RowTouchSensor extends TouchSensor {
 const keepInPlace = () => null;
 
 // The drag library's own announcements are English only and name the rows by their sortable IDs;
-// Alt with the arrow keys moves a room from the keyboard instead.
+// ⌘ or Ctrl with Shift and the arrow keys moves a room from the keyboard instead.
 const silent = () => undefined;
 const silentAnnouncements = {
   onDragStart: silent,
   onDragOver: silent,
   onDragEnd: silent,
   onDragCancel: silent,
-};
-
-/** Alt with the up or down arrow key: the step it asks for. */
-const altArrowStep = (event: React.KeyboardEvent): -1 | 1 | undefined => {
-  if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return undefined;
-  if (event.key === 'ArrowUp') return -1;
-  if (event.key === 'ArrowDown') return 1;
-  return undefined;
 };
 
 type SortableRoomListProps = {
@@ -112,8 +105,8 @@ type SortableRoomListProps = {
 
 /**
  * A room section whose rows (`SortableRoomRow`) move by drag and drop, the mouse after a short
- * move and a finger after a long press, or one place at a time with Alt and the up or down arrow
- * key on a row's link.
+ * move and a finger after a long press, or one place at a time with ⌘ or Ctrl, Shift and the up
+ * or down arrow key on a row's link.
  */
 export function SortableRoomList({ listId, roomIds, onReorder, children }: SortableRoomListProps) {
   const [dragged, setDragged] = useState<string>();
@@ -190,7 +183,7 @@ export function SortableRoomRow(props: SortableRoomRowProps) {
   const at = drag.hint?.roomId === roomId ? drag.hint.at : undefined;
 
   const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    const step = altArrowStep(event);
+    const step = moveStep(event.nativeEvent);
     // Keys typed in the row's menu or dialogs (portals that pass their events through) move nothing.
     if (!step || !(event.target instanceof Node) || !event.currentTarget.contains(event.target)) {
       return;

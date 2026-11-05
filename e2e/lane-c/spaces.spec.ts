@@ -264,9 +264,9 @@ test('the rail lists spaces in their saved order and reorders them by drag and d
   await dragOnto(page, button(second), button(third), 'above');
   await expect.poll(() => railSpaceIds(page)).toEqual([second, third, first]);
 
-  // Alt with an arrow key moves the focused space.
+  // Ctrl (Command on a Mac) with Shift and an arrow key moves the focused space.
   await button(first).focus();
-  await page.keyboard.press('Alt+ArrowUp');
+  await page.keyboard.press('ControlOrMeta+Shift+ArrowUp');
   await expect.poll(() => railSpaceIds(page)).toEqual([second, first, third]);
 
   // Dropping a space on another groups both in a folder, which every device sees.

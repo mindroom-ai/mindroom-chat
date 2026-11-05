@@ -151,9 +151,10 @@ test('a room dragged above another keeps its place after a reload and on a secon
       .poll(() => rowOrder(other, 'Home'), { timeout: 30_000 })
       .toEqual([cedar, alder, birch]);
 
-    // Alt with the down arrow on a room's link moves it one place down.
+    // Ctrl (Command on a Mac) with Shift and the down arrow on a room's link moves it one place
+    // down.
     await row(page, 'Home', alder).getByRole('link').focus();
-    await page.keyboard.press('Alt+ArrowDown');
+    await page.keyboard.press('ControlOrMeta+Shift+ArrowDown');
     await expect.poll(() => rowOrder(page, 'Home')).toEqual([cedar, birch, alder]);
     await expect
       .poll(() => rowOrder(other, 'Home'), { timeout: 30_000 })
@@ -162,13 +163,13 @@ test('a room dragged above another keeps its place after a reload and on a secon
     await otherContext.close();
   }
 
-  // Each Alt with the up arrow moves the room one more place up; the focus stays on its link.
+  // Each press with the up arrow moves the room one more place up; the focus stays on its link.
   const alderLink = row(page, 'Home', alder).getByRole('link');
   await alderLink.focus();
-  await page.keyboard.press('Alt+ArrowUp');
+  await page.keyboard.press('ControlOrMeta+Shift+ArrowUp');
   await expect.poll(() => rowOrder(page, 'Home')).toEqual([cedar, alder, birch]);
   await expect(alderLink).toBeFocused();
-  await page.keyboard.press('Alt+ArrowUp');
+  await page.keyboard.press('ControlOrMeta+Shift+ArrowUp');
   await expect.poll(() => rowOrder(page, 'Home')).toEqual([alder, cedar, birch]);
   await expect.poll(() => savedLists(account)).toEqual({ home: [alder, cedar, birch] });
 
@@ -225,9 +226,9 @@ test("a space's rooms and the rail's spaces move by drag and drop", async ({ pag
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([fern, dahlia, elm]);
   await expect.poll(() => savedLists(account)).toEqual({ [grove]: [fern, dahlia, elm] });
 
-  // Alt with the up arrow moves a room one place up.
+  // Ctrl (Command on a Mac) with Shift and the up arrow moves a room one place up.
   await row(page, 'Grove', elm).getByRole('link').focus();
-  await page.keyboard.press('Alt+ArrowUp');
+  await page.keyboard.press('ControlOrMeta+Shift+ArrowUp');
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([fern, elm, dahlia]);
 
   await page.reload();

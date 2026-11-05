@@ -47,6 +47,7 @@ import { getRoomAvatarUrl, isSpace } from '../../../utils/room';
 import { copyToClipboard } from '../../../utils/dom';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../../utils/sortableDrag';
 import { MindroomMarkRoomsReadMenuItem } from '../../../mindroom/notifications/MindroomMarkRoomsReadMenuItem';
+import { moveStep } from '../../../mindroom/shortcuts/shortcuts';
 import { getSpacePath, joinPathComponent } from '../../pathUtils';
 import { useSpaceRailRooms } from './spaceRailRooms';
 import { getSpaceShareLink } from '../space/spaceLink';
@@ -130,13 +131,14 @@ function useRailSortable(drag: SidebarDragItem, hint: DropAt | undefined) {
   };
 }
 
-/** Moves a rail entry one place up or down; Alt with an arrow key asks for it. */
+/** Moves a rail entry one place up or down; ⌘ or Ctrl with Shift and an arrow key asks for it. */
 type MoveEntry = (direction: -1 | 1) => void;
 
 const moveKeyHandler = (move: MoveEntry) => (event: React.KeyboardEvent<HTMLElement>) => {
-  if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+  const step = moveStep(event.nativeEvent);
+  if (!step) return;
   event.preventDefault();
-  move(event.key === 'ArrowUp' ? -1 : 1);
+  move(step);
 };
 
 type SpaceTabProps = {
