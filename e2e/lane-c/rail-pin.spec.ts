@@ -13,7 +13,8 @@ const SHOTS = process.env.RAIL_PIN_SHOTS;
 const SPACE_COUNT = 26;
 const HEIGHTS = [600, 800, 1000];
 const HOVER_INDICATOR = 18;
-const SELECTED_INDICATOR = 24;
+/** A hovered selected entry's indicator: taller than its 24 px at rest. */
+const SELECTED_HOVER_INDICATOR = 32;
 
 // Headless Chromium hides scrollbars; desktop browsers with classic scrollbars show them, and a
 // scrollbar would take width from the rail. The other launch options repeat playwright.config.ts.
@@ -296,15 +297,15 @@ const drawnIndicator = async (page: Page, button: Locator) => {
 };
 
 /**
- * Hovers the button and expects its whole indicator on screen at the rail's edge: the hover one,
- * or the selection's for the selected entry.
+ * Hovers the button and expects its whole hover indicator on screen at the rail's edge, the
+ * taller one for the selected entry.
  */
 const expectIndicator = async (page: Page, name: string, button: Locator) => {
   await pointerAway(page);
   await button.hover();
   await settle(page);
   const selected = (await button.locator('xpath=..').getAttribute('data-active')) !== null;
-  const height = selected ? SELECTED_INDICATOR : HOVER_INDICATOR;
+  const height = selected ? SELECTED_HOVER_INDICATOR : HOVER_INDICATOR;
   const drawn = await drawnIndicator(page, button);
   expect.soft(drawn.uncovered, `${name}: nothing covers the indicator`).toBe(true);
   expect

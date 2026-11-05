@@ -4,7 +4,8 @@ import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 
 // Hovering any rail entry slides its button 2 px toward the inline end and grows the indicator
-// on the rail's outer edge to 18 px; a selected entry slides too and keeps its 24 px indicator.
+// on the rail's outer edge to 18 px; a selected entry reacts the same way: it slides too and
+// its 24 px indicator grows to 32 px.
 // The indicators must reach the screen, at the top of the rail and in its bottom group alike.
 // Keyboard focus looks like hover, pressing keeps the slide and shrinks the button a little, and
 // reduced motion keeps the indicator only. Set RAIL_HOVER_SHOTS=<directory> to also save the
@@ -18,6 +19,7 @@ const SLIDE = 2;
 const PRESS_SCALE = 0.95;
 const HOVER_HEIGHT = 18;
 const SELECTED_HEIGHT = 24;
+const SELECTED_HOVER_HEIGHT = 32;
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -296,8 +298,8 @@ const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndM
   expect(hover.transitionSeconds, `${name} indicator transition`).toBeGreaterThanOrEqual(0.1);
   if (selected) {
     expect(rest.height, `${name} selected rest`).toBeCloseTo(SELECTED_HEIGHT, 0);
-    expect(hover.height, `${name} selected hover`).toBeCloseTo(SELECTED_HEIGHT, 0);
-    expectDrawn(`${name} selected hover`, drawn, SELECTED_HEIGHT);
+    expect(hover.height, `${name} selected hover`).toBeCloseTo(SELECTED_HOVER_HEIGHT, 0);
+    expectDrawn(`${name} selected hover`, drawn, SELECTED_HOVER_HEIGHT);
     expect(after.height, `${name} selected after`).toBeCloseTo(SELECTED_HEIGHT, 0);
     expectDrawn(`${name} selected after`, afterDrawn, SELECTED_HEIGHT);
   } else {
@@ -374,12 +376,24 @@ test('every rail entry slides toward the inline end and grows its indicator on h
   // Home on the landing page and the account, which always carries the selection mark.
   expect(selectedChecked).toBeGreaterThanOrEqual(2);
 
-  // A selected space slides too and keeps its tall indicator.
+  // A selected space reacts to the pointer like an unselected one: the same slide, and its
+  // indicator grows too.
   await space.click();
   await expect(entryOf(space)).toHaveAttribute('data-active', 'true');
   const selectedSpace = await hoverAndMeasure(page, space);
   expect(selectedSpace.selected).toBe(true);
   expectHover('selected space', selectedSpace);
+  const unselected = await hoverAndMeasure(page, named.Home ?? space);
+  expect(unselected.selected, 'Home, no longer selected').toBe(false);
+  expect(selectedSpace.dx, 'selected and unselected slide alike').toBeCloseTo(unselected.dx, 0);
+  expect(selectedSpace.hover.height - selectedSpace.rest.height, 'selected grows').toBeCloseTo(
+    SELECTED_HOVER_HEIGHT - SELECTED_HEIGHT,
+    0
+  );
+  expect(unselected.hover.height - unselected.rest.height, 'unselected grows').toBeCloseTo(
+    HOVER_HEIGHT,
+    0
+  );
 });
 
 test('the bottom group shows its indicators while Inbox or Search is open', async ({ page }) => {

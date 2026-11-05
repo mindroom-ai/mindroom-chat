@@ -59,9 +59,11 @@ const sidebarItemRoot = style({});
 const hoverSlide = createVar();
 
 // The indicator's heights. home.png: 24 px when selected. A hovered entry's is 18 px: a clear
-// bar, still shorter than the selection's.
+// bar, still shorter than the selection's. A hovered selected entry's grows to 32 px, so the
+// selected entry answers the pointer too and reads as something to press.
 const indicatorHeight = 24;
 const hoverIndicatorScale = 18 / indicatorHeight;
+const selectedHoverIndicatorScale = 32 / indicatorHeight;
 
 /** A hovered entry, or one whose button has keyboard focus. */
 const entryEngaged = ['&:hover::before', '&:has(> :focus-visible)::before'].join(', ');
@@ -81,7 +83,7 @@ export const SidebarItem = recipe({
         // The indicator: a pill on the rail's outer edge (the left one, or the right one in a
         // right-to-left language). home.png: 4 px wide, flush with the edge (12 px before the
         // 42 px avatar). Its inner end is round. It grows from nothing to its hover height and
-        // back, and to its full height while the entry is selected.
+        // back, and to its full height while the entry is selected (taller still on hover).
         '&::before': {
           content: '',
           position: 'absolute',
@@ -104,8 +106,9 @@ export const SidebarItem = recipe({
     active: {
       true: {
         selectors: {
-          // Listed with the hover selectors so that hovering never shrinks the selection's.
-          [`&::before, ${entryEngaged}`]: { transform: 'none' },
+          '&::before': { transform: 'none' },
+          // After the base hover rule, which it outranks by coming later.
+          [entryEngaged]: { transform: `scaleY(${selectedHoverIndicatorScale})` },
         },
       },
     },
