@@ -48,7 +48,7 @@ dev *args:
 build:
     npx vite build
 
-# The full local check. The repository has no CI, so nothing else runs it.
+# The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint and test; scripts/push-gate.sh runs the overlap history check before each push.
 check: typecheck strict lint test script-tests license-check verify-ported check-holes upstream-overlap
 
 # Fail when an installed package has a license outside the allowlist (also runs the script's own tests).

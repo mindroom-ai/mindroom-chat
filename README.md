@@ -46,7 +46,7 @@ Every `config.json` key, its default and its effect: [`docs/configuration.md`](d
 
 | Command | What it does |
 |---|---|
-| `just check` | The full local check (the repository has no CI): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
+| `just check` | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint` and `test`): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
 | `just typecheck` | `tsc` over the app sources without tests; must report 0 errors |
 | `just strict` | `tsc` with `tsconfig.strict.json`; fails on errors in Lane C files only |
 | `just lint` | ESLint, with type-aware rules for Lane C TypeScript |
