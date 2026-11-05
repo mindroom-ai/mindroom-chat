@@ -18,6 +18,7 @@ import { mxcUrlToHttp } from '../matrix/mediaUrl';
 import { toolTitle } from './approvalLabels';
 import type { ApprovalChipLabel, describeApprovalChip } from './approvalLabels';
 import * as css from './ThreadApprovals.css';
+import { ownDirectionLine } from '../ui/directional';
 
 const CHIP_LABEL_KEYS = {
   waitingForYou: 'mindroomUi.messages.threadApprovalControls.waitingForYou',
@@ -88,7 +89,9 @@ export function ApprovalSectionHeader({
         <Icon size="100" src={toolIcon(operation)} />
       </span>
       <span className={css.SectionTitle}>{toolTitle(operation)}</span>
-      <span className={css.SectionTool}>{operation}</span>
+      <span className={css.SectionTool} {...ownDirectionLine}>
+        {operation}
+      </span>
       {count > 1 && (
         <Text as="span" size="T200" className={css.SectionCount}>
           {t('mindroomUi.messages.threadApprovalControls.callCount', { count })}

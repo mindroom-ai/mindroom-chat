@@ -4,6 +4,7 @@ import { createRoom } from '../helpers/createRoom';
 import {
   joinRoom,
   loginToMatrix,
+  matrixFetch,
   registerAgentAccount,
   sendRoomMessage,
   type MatrixSession,
@@ -12,8 +13,8 @@ import {
 // A thread's title, its preview and the banner's summary are text people and agents wrote, so in
 // a right-to-left interface an English line keeps its own direction: it is cut at its end, not
 // at its start, and a closing question mark stays at its end. The [+all] toggle under the banner
-// reads as written. Checked on a phone and a desktop, in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// reads as written, and so does an approval card's tool identifier. Checked on a phone and a
+// desktop, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-own-direction-spec-password';
 const RUN = Date.now().toString(36);
@@ -81,6 +82,39 @@ const seed = async (engine: string) => {
     is_falling_back: true,
     'm.in_reply_to': { event_id: rootId },
   };
+  // The card's preview shows the latest reply, so the approval comes first.
+  const now = Date.now();
+  const approvalId = `approval-${RUN}-${engine}`;
+  await matrixFetch(
+    HOMESERVER,
+    `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.tool_approval/${approvalId}`,
+    {
+      method: 'PUT',
+      accessToken: agent.accessToken,
+      body: JSON.stringify({
+        msgtype: 'io.mindroom.tool_approval',
+        body: 'Approval required: run_shell_command',
+        approval_id: approvalId,
+        tool_name: 'run_shell_command',
+        agent_name: 'export',
+        status: 'pending',
+        approvable: true,
+        approver_user_id: reader.userId,
+        requester_id: reader.userId,
+        approval_scope: {
+          id: 'shell',
+          entity_name: 'export',
+          invoking_agent: 'export',
+          operation: { tool_name: 'run_shell_command' },
+        },
+        arguments: { command: 'ls exports' },
+        requested_at: new Date(now - 60_000).toISOString(),
+        expires_at: new Date(now + 3_600_000).toISOString(),
+        thread_id: rootId,
+        'm.relates_to': relation,
+      }),
+    }
+  );
   await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: REPLY,
@@ -193,6 +227,12 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
   expect(order, 'the characters of [+all] from left to right').toEqual(
     [...order].sort((a, b) => a - b)
   );
+
+  // The approval card names the tool by its identifier too, which keeps its start in view.
+  await page.getByRole('button', { name: /^مراجعة/ }).click();
+  const toolName = page.getByRole('dialog').getByText('run_shell_command', { exact: true });
+  await expect(toolName).toBeVisible();
+  expect(await placement(toolName)).toMatchObject({ direction: 'ltr', firstCharInside: true });
   await context.close();
 };
 
