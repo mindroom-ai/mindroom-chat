@@ -124,7 +124,7 @@ for (const [themeId, width] of [
       const editor = page.locator('[data-editable-name="RoomInput"]');
       const composer = editor.locator('xpath=../../..');
       const buttons = composer.getByRole('button');
-      const buttonCount = width < 500 ? 5 : 6;
+      const buttonCount = 5;
       await expect(buttons).toHaveCount(buttonCount);
       const typing = page.getByText('Avery is typing...', { exact: true });
       const setTyping = async (active: boolean) => {
