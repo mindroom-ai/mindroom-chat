@@ -459,11 +459,18 @@ test.describe.serial('keyboard and accessibility', () => {
     expect(await axeMainScreens('ar')).toEqual([]);
 
     // The chrome is mirrored, not only its text: the navigation header keeps its title 12 px from
-    // the start (the right) and its menu 16 px from the end, and the list's inset scrollbar runs
-    // at the end edge, as a platform scrollbar does in right-to-left languages.
+    // the start (the right) and its menu at the end (the left), 12 px in, where the rows end beside
+    // the floating page card, and the list's inset scrollbar runs at the end edge, as a platform
+    // scrollbar does in right-to-left languages.
     await openInApp(page, `/home/${encodeURIComponent(roomId)}/`);
     const homeNav = page.getByRole('navigation', { name: label('ar', 'nav.home') });
-    expect(await sidePaddings(homeNav.locator('header').first())).toEqual({ left: 16, right: 12 });
+    const navHeader = homeNav.locator('header').first();
+    expect(await sidePaddings(navHeader)).toEqual({ left: 12, right: 12 });
+    const navHeaderBox = (await navHeader.boundingBox())!;
+    const navMenuBox = (await navHeader.locator('button').last().boundingBox())!;
+    expect(navMenuBox.x + navMenuBox.width / 2).toBeLessThan(
+      navHeaderBox.x + navHeaderBox.width / 2
+    );
     const navTrack = await insetWithin(homeNav, '[role="scrollbar"]');
     expect(navTrack.left).toBeLessThan(navTrack.right);
     // The room header puts its wider inset on the title side.
