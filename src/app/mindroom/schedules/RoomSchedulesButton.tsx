@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import {
+  type CSSProperties,
+  type MouseEvent,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import type { Room } from 'matrix-js-sdk';
@@ -18,6 +25,27 @@ import { getPendingRoomSchedules } from './roomSchedules';
 import { RoomSchedulesDialog } from './RoomSchedulesDialog';
 import * as css from './roomSchedules.css';
 
+/** The horizontal center of `element` in viewport pixels while `active`, following layout changes. */
+function useCenterX(element: Element | null, active: boolean): number | undefined {
+  const [centerX, setCenterX] = useState<number>();
+  useLayoutEffect(() => {
+    if (!active || !element) return undefined;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setCenterX(rect.left + rect.width / 2);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [active, element]);
+  return active ? centerX : undefined;
+}
+
 type RoomSchedulesButtonProps = {
   room: Room;
   onOpenThread: (threadId: string) => void;
@@ -34,6 +62,9 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
   const [openRoomId, setOpenRoomId] = useState<string>();
   // The list is for one room: switching rooms closes it rather than showing another room's tasks.
   const open = openRoomId === room.roomId;
+  // The room header spans the room view, which the list sits over.
+  const [roomHeader, setRoomHeader] = useState<Element | null>(null);
+  const roomViewCenter = useCenterX(roomHeader, open);
 
   useEffect(() => {
     if (openRoomId !== undefined && openRoomId !== room.roomId) setOpenRoomId(undefined);
@@ -60,7 +91,10 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
             aria-label={label}
             aria-haspopup="dialog"
             aria-expanded={open}
-            onClick={() => setOpenRoomId(room.roomId)}
+            onClick={(event: MouseEvent<HTMLButtonElement>) => {
+              setRoomHeader(event.currentTarget.closest('header'));
+              setOpenRoomId(room.roomId);
+            }}
           >
             <Icon size="400" src={Icons.Clock} />
             {tasks.length > 0 && (
@@ -73,7 +107,13 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
       </TooltipProvider>
       {open && (
         <Overlay open backdrop={<OverlayBackdrop />}>
-          <OverlayCenter>
+          <OverlayCenter
+            style={
+              roomViewCenter === undefined
+                ? undefined
+                : ({ [css.ROOM_VIEW_CENTER]: `${roomViewCenter}px` } as CSSProperties)
+            }
+          >
             <FocusTrap
               focusTrapOptions={{
                 initialFocus: false,

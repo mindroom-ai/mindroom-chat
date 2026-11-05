@@ -95,7 +95,25 @@ test.describe('room schedules in the chat header', () => {
     await addAgent();
     await trigger.click();
     const dialog = page.getByRole('dialog', { name: 'Scheduled tasks', exact: true });
-    await expect(dialog.getByText('Summarize the weekly report', { exact: true })).toBeVisible();
+    const prompt = dialog.getByText('Summarize the weekly report', { exact: true });
+    await expect(prompt).toBeVisible();
+    // The prompt is plain text whose first letter lines up with its label's, like the other fields.
+    const textStart = (element: Element) => {
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect().x;
+    };
+    expect(await prompt.evaluate(textStart)).toBe(
+      await dialog.getByText('Prompt', { exact: true }).evaluate(textStart)
+    );
+    // The list sits over the room view, whose width the room header spans, not the whole window.
+    const roomView = await trigger.evaluate((button) => {
+      const { left, width } = button.closest('header')!.getBoundingClientRect();
+      return { center: left + width / 2, width };
+    });
+    const listBounds = (await dialog.boundingBox())!;
+    expect(roomView.width).toBeGreaterThan(listBounds.width);
+    expect(Math.abs(listBounds.x + listBounds.width / 2 - roomView.center)).toBeLessThanOrEqual(1);
     await expect(dialog.getByText('cheap', { exact: true })).toBeVisible();
     const creator = dialog.getByRole('link', { name: '@Schedule creator', exact: true });
     await expect(creator).toHaveAttribute('title', userId);

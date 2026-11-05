@@ -263,7 +263,7 @@ export const RoomSchedulesDialog = forwardRef<
           </Header>
         }
       >
-        <Box direction="Column" gap="300" className={css.Content}>
+        <Box direction="Column" gap="400" className={css.Content}>
           {tasks.length === 0 ? (
             <Box direction="Column" gap="200" className={css.Empty}>
               <Text size="T400">{t('roomSchedules.empty')}</Text>
