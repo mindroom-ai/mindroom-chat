@@ -982,11 +982,32 @@ export type EventProps = Pick<
   messageSpacing: MessageSpacing;
 };
 
-const ROOM_STATE_LINES: Record<string, string> = {
-  'm.room.name': 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomName',
-  'm.room.topic': 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomTopic',
-  'm.room.avatar': 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomAvatar',
+const ROOM_STATE_LINES: Record<string, { key: string; icon: IconSrc }> = {
+  'm.room.name': {
+    key: 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomName',
+    icon: Icons.Hash,
+  },
+  'm.room.topic': {
+    key: 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomTopic',
+    icon: Icons.Text,
+  },
+  'm.room.avatar': {
+    key: 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomAvatar',
+    icon: Icons.Photo,
+  },
 };
+
+/** A state row's icon and line, the icon in the column the membership rows keep theirs. */
+function StateLine({ icon, children }: { icon: IconSrc; children: ReactNode }) {
+  return (
+    <Box alignItems="Center" gap="200">
+      <Icon size="100" src={icon} />
+      <Text size="T300" priority="300">
+        {children}
+      </Text>
+    </Box>
+  );
+}
 
 /** The one-line text of a state event: membership changes, room name, topic, and avatar. */
 function StateEventLine({ room, mEvent }: { room: Room; mEvent: MatrixEvent }) {
@@ -994,23 +1015,16 @@ function StateEventLine({ room, mEvent }: { room: Room; mEvent: MatrixEvent }) {
   const type = mEvent.getType();
   if (type === 'm.room.member') {
     const parsed = parseMemberEvent(mEvent);
-    return (
-      <Box alignItems="Center" gap="200">
-        <Icon size="100" src={parsed.icon} />
-        <Text size="T300" priority="300">
-          {parsed.body}
-        </Text>
-      </Box>
-    );
+    return <StateLine icon={parsed.icon}>{parsed.body}</StateLine>;
   }
-  const key = ROOM_STATE_LINES[type];
-  if (!key) return null;
+  const line = ROOM_STATE_LINES[type];
+  if (!line) return null;
   const senderId = mEvent.getSender() ?? '';
   const sender = getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
   return (
-    <Text size="T300" priority="300">
-      <Trans i18nKey={key as never} values={{ sender }} components={{ sender: <b /> }} />
-    </Text>
+    <StateLine icon={line.icon}>
+      <Trans i18nKey={line.key as never} values={{ sender }} components={{ sender: <b /> }} />
+    </StateLine>
   );
 }
 
