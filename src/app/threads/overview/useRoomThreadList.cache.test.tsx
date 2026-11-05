@@ -32,6 +32,8 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
+// Saving 400 threads through fake-indexeddb and restoring them takes about 2 s alone; on a busy
+// machine it passed the 5 s default, and the timed-out run kept working into the next tests.
 it('restores 400 cached threads while only one is in the SDK and discovery is pending', async () => {
   const fetchFn = vi.fn(() => Promise.reject(new TypeError('Offline')));
   class OfflineClient extends MatrixClient {
@@ -136,7 +138,7 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
     );
   });
   await act(async () => {
-    await vi.waitFor(() => expect(ids).toHaveLength(400), { timeout: 5000 });
+    await vi.waitFor(() => expect(ids).toHaveLength(400), { timeout: 20_000 });
   });
   expect(new Set(ids)).toEqual(new Set(roots.map((root) => root.event_id)));
   expect(fetchFn).not.toHaveBeenCalled();
@@ -146,7 +148,7 @@ it('restores 400 cached threads while only one is in the SDK and discovery is pe
   expect(room.getThread('$root-0')?.replyToEvent?.getId()).toBe('$reply-0');
   expect(room.getThread('$root-0')?.initialEventsFetched).toBe(false);
   expect(room.getThread('$root-1')?.events).toHaveLength(0);
-});
+}, 30_000);
 
 it.each([false, true])(
   'saves server-listed roots and later revisions without claiming replies downloaded (later page: %s)',
