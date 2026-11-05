@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 
@@ -64,9 +64,14 @@ export const MessageOptionsBar = style([
 /** The row of buttons inside the pill. */
 export const MessageOptionsRow = style({ gap: toRem(2) });
 
+/** The fill of a toolbar button at rest, for a button that has one (the resolved check). */
+export const toolbarButtonRestFill = createVar();
+
 /**
  * A toolbar button: no tile of its own at rest, so the pill is the only surface. It takes the
  * quiet tint on hover and keyboard focus, and the stronger one while pressed or its menu is open.
+ * A touch screen keeps :hover on the button tapped last, where the tint would stay and read as
+ * pressed, so where the pointer cannot hover the button keeps its rest fill under :hover.
  */
 export const MessageOptionsButton = style({
   selectors: {
@@ -76,6 +81,15 @@ export const MessageOptionsButton = style({
       padding: 0,
       flexShrink: 0,
       borderRadius: toolbarButtonRadius,
+    },
+  },
+  '@media': {
+    '(hover: none)': {
+      selectors: {
+        '&&:hover:not(:focus-visible):not(:active):not([aria-pressed="true"])': {
+          backgroundColor: fallbackVar(toolbarButtonRestFill, 'transparent'),
+        },
+      },
     },
   },
 });

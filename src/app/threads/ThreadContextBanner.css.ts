@@ -2,6 +2,7 @@ import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
 import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
+import { toolbarButtonRestFill } from '../messages/styles.css';
 
 // Collapsed, the banner shrinks to a pill with back and Show details at the
 // start of the row, so the messages show beside it.
@@ -153,6 +154,7 @@ export const ResolverName = style({
 
 // Resolved, the check fills like a set pin: solid green, as the chip was.
 export const ResolvedButton = style({
+  vars: { [toolbarButtonRestFill]: color.Success.Main },
   backgroundColor: color.Success.Main,
   color: color.Success.OnMain,
   selectors: {
