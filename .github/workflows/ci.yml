@@ -1,0 +1,111 @@
+# Every push to main and every pull request: the type check, the strict Lane C check, ESLint and
+# the unit suite in one job, and a smoke subset of the end-to-end specs against a disposable Tuwunel
+# homeserver in another. The upstream overlap check needs the upstream clone, which never leaves the
+# coordinator's machine, so it runs in scripts/push-gate.sh before each push and never here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    # Screenshots and the session log change nothing these jobs check.
+    paths-ignore:
+      - 'docs/design/**'
+      - 'docs/provenance.md'
+  pull_request:
+    paths-ignore:
+      - 'docs/design/**'
+      - 'docs/provenance.md'
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request replaces a run that is still going.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Type check, lint and unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      # node_modules as `npm ci` leaves it, patches applied; a new lockfile or patch makes a new key.
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      # Each check runs even when one before it failed, so one run reports all of them.
+      - name: Type check
+        run: npx tsc --noEmit -p tsconfig.app.json
+      - name: Strict check
+        if: ${{ !cancelled() }}
+        run: node scripts/strict-check.mjs
+      - name: Lint
+        if: ${{ !cancelled() }}
+        run: npm run lint
+      - name: Unit tests
+        if: ${{ !cancelled() }}
+        run: npx vitest run
+
+  e2e:
+    name: End-to-end smoke specs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Restore node_modules
+        id: modules
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json', 'patches/**') }}
+      - name: Install dependencies
+        if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      # The `just hs-up` homeserver on 127.0.0.1:28008; e2e/global-setup.ts registers the accounts.
+      - name: Start the test homeserver
+        run: docker compose -f e2e/docker-compose.yaml up -d --wait
+      # Playwright's own Chromium: no CHROMIUM_PATH is set here, so the config falls back to it.
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Build
+        run: npx vite build
+      # The production build through `vite preview`, as `scripts/e2e-slot.sh --preview` serves it.
+      # Playwright retries a failed test once on CI (playwright.config.ts). The specs share one
+      # homeserver and run in path order, so none of them looks for its room in a long room list.
+      - name: Smoke specs
+        env:
+          E2E_SERVER_COMMAND: npx vite preview --host 127.0.0.1 --port 4200 --strictPort
+          E2E_REUSE_EXISTING_SERVER: '0'
+        run: >-
+          npx playwright test
+          e2e/lane-c/room-unread-filter.spec.ts
+          e2e/live/command-palette.spec.ts
+          e2e/live/compact-card-display-names.spec.ts
+          e2e/live/login.spec.ts
+          e2e/live/long-composer-message.spec.ts
+          e2e/live/rooms.spec.ts
+          e2e/live/smoke.spec.ts
+          e2e/live/threads.spec.ts
+      - name: Keep the report of a failed run
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
