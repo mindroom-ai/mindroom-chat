@@ -67,6 +67,7 @@ vi.mock('./DnD', () => ({
 
 vi.mock('./RoomItem.css', () => ({
   ErrorNameContainer: 'ErrorNameContainer',
+  RoomName: 'RoomName',
   RoomItemCard: 'RoomItemCard',
   RoomProfileTopic: 'RoomProfileTopic',
 }));
