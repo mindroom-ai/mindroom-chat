@@ -211,9 +211,39 @@ export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
 
-// Leaving an account.
-
 type JotaiStore = ReturnType<typeof createStore>;
+
+// What a reload would lose.
+
+/** The keys a family holds atoms for, listed without creating or removing any. */
+const familyKeys = <Key>(family: {
+  setShouldRemove: (test: ((createdAt: number, key: Key) => boolean) | null) => void;
+}): Key[] => {
+  const keys: Key[] = [];
+  family.setShouldRemove((_createdAt, key) => {
+    keys.push(key);
+    return false;
+  });
+  family.setShouldRemove(null);
+  return keys;
+};
+
+/**
+ * Whether a composer holds something that only lives in memory, so a page reload would drop it:
+ * a staged file, the message being replied to, or a recorded voice message. Typed text is not one:
+ * every change is written to localStorage, and the reloaded composer restores it.
+ */
+export const composersHoldUnsavedWork = (store: JotaiStore): boolean =>
+  store.get(pendingVoiceSendDraftAtom) !== undefined ||
+  store.get(voiceAutoSendPendingAtom) ||
+  familyKeys(roomIdToUploadItemsAtomFamily).some(
+    (roomId) => store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0
+  ) ||
+  familyKeys(roomIdToReplyDraftAtomFamily).some(
+    (key) => store.get(roomIdToReplyDraftAtomFamily(key)) !== undefined
+  );
+
+// Leaving an account.
 
 const dropEveryEntry = (family: { setShouldRemove: (test: (() => boolean) | null) => void }) => {
   family.setShouldRemove(() => true);

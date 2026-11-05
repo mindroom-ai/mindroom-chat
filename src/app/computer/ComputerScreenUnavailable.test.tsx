@@ -1,10 +1,9 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen } from '@testing-library/react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { ErrorBoundary } from 'react-error-boundary';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ComputerPanel } from './ComputerPanel';
-import { CloseComputerPanelContext } from './ComputerScreenUnavailable';
 
 // The screen's chunk is gone, as after a deployment removed the build this page runs.
 vi.mock('./ComputerScreen', () => {
@@ -54,30 +53,30 @@ describe('ComputerScreenUnavailable', () => {
     vi.restoreAllMocks();
   });
 
-  it('closes the computer panel when the screen cannot load, instead of crashing the app', async () => {
+  it('keeps the panel open with Retry when the screen cannot load, instead of crashing the app', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    const closePanel = vi.fn();
     const request = service();
     render(
       <ErrorBoundary fallback={<p>The app crashed</p>}>
-        <CloseComputerPanelContext.Provider value={closePanel}>
-          <ComputerPanel
-            agents={[{ userId: AGENT, name: 'Helper' }]}
-            apiUrl="https://computer.example.org"
-            mx={client()}
-            roomId="!room:example.org"
-            onClose={vi.fn()}
-            request={request}
-          />
-        </CloseComputerPanelContext.Provider>
+        <ComputerPanel
+          agents={[{ userId: AGENT, name: 'Helper' }]}
+          apiUrl="https://computer.example.org"
+          mx={client()}
+          roomId="!room:example.org"
+          onClose={vi.fn()}
+          request={request}
+        />
       </ErrorBoundary>
     );
 
     // The panel opened a stream, so it mounted the screen, whose load failed.
-    await waitFor(() => expect(closePanel).toHaveBeenCalledOnce());
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
     expect(
-      request.mock.calls.some(([input]) => String(input).endsWith('/stream-ticket'))
-    ).toBe(true);
+      screen.getByText("This couldn't load. Check your connection and try again.")
+    ).toBeTruthy();
+    expect(request.mock.calls.some(([input]) => String(input).endsWith('/stream-ticket'))).toBe(
+      true
+    );
     await act(async () => {
       await Promise.resolve();
     });

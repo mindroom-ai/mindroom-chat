@@ -166,6 +166,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Passwort vergessen?"
+    },
+    "partUnavailable": {
+      "failed": "Das konnte nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.",
+      "retry": "Erneut versuchen",
+      "reloadNeeded": "Dafür muss die Seite neu geladen werden. Nicht gesendete Nachrichten, angehängte Dateien und ein laufender Anruf gehen dabei verloren.",
+      "reload": "Seite neu laden"
     }
   },
   "featureUi": {

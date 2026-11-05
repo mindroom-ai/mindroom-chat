@@ -1,6 +1,5 @@
 import {
   ChangeEventHandler,
-  ComponentProps,
   MouseEvent as ReactMouseEvent,
   ReactNode,
   useCallback,
@@ -42,7 +41,7 @@ import { type ImagePack, PackImageReader } from '../custom/ImagePack';
 import { emojiSkinToneAtom } from '../emojiSkinTone';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { mobileOrTablet } from '../../lib/user-agent';
-import { stopPropagation } from '../../lib/keyboard';
+import { makeTrapOptions } from './boardFocusTrap';
 
 /** The two boards of the picker; only callers that take stickers offer the switch. */
 export const EmojiBoardTab = { Emoji: 'Emoji', Sticker: 'Sticker' } as const;
@@ -185,18 +184,6 @@ type EmojiBoardProps = EmojiPickHandlers & {
   returnFocusOnDeactivate?: boolean;
   requestClose: () => void;
 };
-
-type TrapOptions = NonNullable<ComponentProps<typeof FocusTrap>['focusTrapOptions']>;
-
-/** Options of the focus trap around the board: leaving the trap closes the board. */
-const makeTrapOptions = (close: () => void, returnFocus?: boolean): TrapOptions => ({
-  initialFocus: false,
-  clickOutsideDeactivates: true,
-  returnFocusOnDeactivate: returnFocus,
-  // Escape closes the board, also from the search field (see stopPropagation in lib/keyboard).
-  escapeDeactivates: stopPropagation,
-  onDeactivate: close,
-});
 
 /** Emoji and sticker picker with search, recent emoji, custom packs, and adding a custom emoji. */
 export function EmojiBoard(props: EmojiBoardProps) {

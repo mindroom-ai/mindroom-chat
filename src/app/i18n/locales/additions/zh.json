@@ -163,6 +163,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "忘记密码？"
+    },
+    "partUnavailable": {
+      "failed": "无法加载。请检查网络连接后重试。",
+      "retry": "重试",
+      "reloadNeeded": "需要重新加载页面才能加载此内容。未发送的消息、已添加的文件和进行中的通话将会丢失。",
+      "reload": "重新加载页面"
     }
   },
   "featureUi": {

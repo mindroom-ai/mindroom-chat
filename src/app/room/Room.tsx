@@ -12,7 +12,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { Box } from 'folds';
+import { Box, Button, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoom } from '../matrix/hooks/useRoom';
 import { useRoomMembers } from '../matrix/hooks/useRoomMembers';
@@ -30,7 +30,6 @@ import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { ComputerPanel } from '../computer/ComputerPanel';
-import { CloseComputerPanelContext } from '../computer/ComputerScreenUnavailable';
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
 import { useRoomComputerState } from '../computer/useRoomComputerState';
@@ -55,15 +54,32 @@ import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
 import { useCallPanel } from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
-import { lazyPart } from '../lib/lazyPart';
+import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
+import { PartUnavailable } from '../ui/PartUnavailable';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
-/** Without its chunk (offline before any call here) the call panel closes again. */
-function CallPanelUnavailable({ onClose }: ComponentProps<typeof CallPanelComponent>) {
-  useEffect(() => onClose(), [onClose]);
-  return null;
+/** Without its chunk (offline before any call here) the call panel says so and offers Retry. */
+function CallPanelUnavailable({
+  onClose,
+  retryLoad,
+}: ComponentProps<typeof CallPanelComponent> & PartLoadRetry) {
+  const { t } = useTranslation();
+  return (
+    <PartUnavailable retryLoad={retryLoad}>
+      <Button
+        type="button"
+        size="300"
+        radii="300"
+        variant="Secondary"
+        fill="None"
+        onClick={onClose}
+      >
+        <Text size="B300">{t('featureUi.calls.panel.dismiss')}</Text>
+      </Button>
+    </PartUnavailable>
+  );
 }
 
 // Calls load on first use, so rooms without one never load them.
@@ -418,24 +434,19 @@ export function Room() {
         onCollapse={closeComputer}
         testId="resizable-computer-panel"
       >
-        {/* A screen whose chunk cannot load closes the panel through this. */}
-        <CloseComputerPanelContext.Provider value={closeComputer}>
-          <ComputerPanel
-            agents={computerTarget.agents}
-            apiUrl={computerTarget.apiUrl}
-            mx={client}
-            roomId={roomId}
-            threadId={threadId}
-            continuationReady={routeReady}
-            requestedAgent={computer.requestedAgent}
-            onInteractionChange={reportInteraction}
-            onClose={closeComputer}
-            expanded={!mobile && computerExpanded}
-            onToggleExpanded={
-              mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
-            }
-          />
-        </CloseComputerPanelContext.Provider>
+        <ComputerPanel
+          agents={computerTarget.agents}
+          apiUrl={computerTarget.apiUrl}
+          mx={client}
+          roomId={roomId}
+          threadId={threadId}
+          continuationReady={routeReady}
+          requestedAgent={computer.requestedAgent}
+          onInteractionChange={reportInteraction}
+          onClose={closeComputer}
+          expanded={!mobile && computerExpanded}
+          onToggleExpanded={mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)}
+        />
       </ResizablePanel>
     );
   } else if (canvas) {

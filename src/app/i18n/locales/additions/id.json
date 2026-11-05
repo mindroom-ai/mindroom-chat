@@ -163,6 +163,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Lupa kata sandi?"
+    },
+    "partUnavailable": {
+      "failed": "Ini tidak dapat dimuat. Periksa koneksi Anda dan coba lagi.",
+      "retry": "Coba lagi",
+      "reloadNeeded": "Untuk memuat ini, halaman perlu dimuat ulang. Pesan yang belum terkirim, berkas yang dilampirkan, dan panggilan yang sedang berlangsung akan hilang.",
+      "reload": "Muat ulang halaman"
     }
   },
   "featureUi": {

@@ -163,6 +163,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "パスワードをお忘れですか?"
+    },
+    "partUnavailable": {
+      "failed": "読み込めませんでした。接続を確認して、もう一度お試しください。",
+      "retry": "再試行",
+      "reloadNeeded": "読み込むにはページの再読み込みが必要です。未送信のメッセージ、添付したファイル、通話中の通話は失われます。",
+      "reload": "ページを再読み込み"
     }
   },
   "featureUi": {

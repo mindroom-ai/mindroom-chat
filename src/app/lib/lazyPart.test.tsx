@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { type RefAttributes, Suspense, createRef, forwardRef, useImperativeHandle } from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { lazyPart } from './lazyPart';
+import { type PartLoadRetry, lazyPart } from './lazyPart';
 
 function Greeting({ name }: { name: string }) {
   return <p>Hello {name}</p>;
@@ -134,5 +134,75 @@ describe('lazyPart', () => {
     expect(await screen.findByText('Ada is offline')).toBeTruthy();
     expect(handle.current).toBeNull();
     expect(errors).not.toHaveBeenCalled();
+  });
+
+  describe('retryLoad', () => {
+    function Offline({ name, retryLoad }: { name: string } & PartLoadRetry) {
+      return (
+        <button
+          type="button"
+          onClick={() => {
+            retryLoad().catch(() => undefined);
+          }}
+        >
+          Retry {name}
+        </button>
+      );
+    }
+
+    it('replaces the fallback with the part, and later mounts use it', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const load = vi.fn<() => Promise<typeof loaded>>().mockImplementationOnce(offline);
+      load.mockResolvedValue(loaded);
+      const Part = lazyPart<{ name: string }>(load, Offline);
+
+      const first = renderPart(Part);
+      fireEvent.click(await screen.findByRole('button', { name: 'Retry Ada' }));
+      expect(await screen.findByText('Hello Ada')).toBeTruthy();
+      expect(load).toHaveBeenCalledTimes(2);
+      first.unmount();
+
+      renderPart(Part, 'Grace');
+      expect(await screen.findByText('Hello Grace')).toBeTruthy();
+      expect(load).toHaveBeenCalledTimes(2);
+    });
+
+    it('hands the ref to the part a retry loaded', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const load = vi
+        .fn<() => Promise<{ default: typeof GreetingWithHandle }>>()
+        .mockImplementationOnce(offline)
+        .mockResolvedValue({ default: GreetingWithHandle });
+      const Part = lazyPart<{ name: string } & RefAttributes<Greeter>>(load, Offline);
+      const handle = createRef<Greeter>();
+      render(
+        <Suspense fallback={null}>
+          <Part ref={handle} name="Ada" />
+        </Suspense>
+      );
+      fireEvent.click(await screen.findByRole('button', { name: 'Retry Ada' }));
+      expect(await screen.findByText('Ada has a handle')).toBeTruthy();
+      expect(handle.current?.greet()).toBe('Hello Ada');
+    });
+
+    it('rejects and keeps the fallback when the load fails again', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      let retry: (() => Promise<void>) | undefined;
+      function Remember({ retryLoad }: { name: string } & PartLoadRetry) {
+        retry = retryLoad;
+        return <p>Unavailable</p>;
+      }
+      const load = vi.fn<() => Promise<typeof loaded>>(offline);
+      const Part = lazyPart<{ name: string }>(load, Remember);
+      renderPart(Part);
+      expect(await screen.findByText('Unavailable')).toBeTruthy();
+
+      await act(async () => {
+        await expect(retry?.()).rejects.toThrow('Failed to fetch dynamically imported module');
+      });
+      expect(screen.getByText('Unavailable')).toBeTruthy();
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledTimes(2);
+    });
   });
 });

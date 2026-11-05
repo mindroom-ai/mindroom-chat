@@ -166,6 +166,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Wachtwoord vergeten?"
+    },
+    "partUnavailable": {
+      "failed": "Dit kon niet worden geladen. Controleer je verbinding en probeer het opnieuw.",
+      "retry": "Opnieuw proberen",
+      "reloadNeeded": "Hiervoor moet de pagina opnieuw worden geladen. Niet-verzonden berichten, toegevoegde bestanden en een lopend gesprek gaan dan verloren.",
+      "reload": "Pagina opnieuw laden"
     }
   },
   "featureUi": {

@@ -24,6 +24,7 @@ import { PopOut } from '../ui/directional';
 import { Dialog, Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
 import { Navigate } from 'react-router-dom';
+import { useStore } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
 import { HttpApiEvent } from 'matrix-js-sdk/lib/http-api/interface';
@@ -55,6 +56,8 @@ import { getLoginPath } from '../routes/pathUtils';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { SpecVersions } from './SpecVersions';
 import { SyncStatus } from './SyncStatus';
+import { reloadWouldLoseWork } from './reloadWouldLoseWork';
+import { ReloadWouldLoseWorkContext } from '../ui/PartUnavailable';
 import type { TFunction } from 'i18next';
 import { describeKnownError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
@@ -356,23 +359,27 @@ type AccountProvidersProps = {
 
 /** Everything the signed-in pages read from context, plus the sync banner above them. */
 function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps) {
+  const store = useStore();
+  const wouldLoseWork = useCallback(() => reloadWouldLoseWork(store, mx), [store, mx]);
   return (
     <ServerConfigsLoader mx={mx}>
       {(serverConfigs) => (
         <MatrixClientProvider value={mx}>
-          <SyncEngineProvider engine={engine}>
-            <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
-              <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
-                <ClientStartupProvider hasCompletedInitialSync={sync.live}>
-                  {/* One live region for every banner, so a change of state is read out. */}
-                  <div role="status" aria-live="polite">
-                    {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
-                  </div>
-                  {children}
-                </ClientStartupProvider>
-              </MediaConfigProvider>
-            </CapabilitiesProvider>
-          </SyncEngineProvider>
+          <ReloadWouldLoseWorkContext.Provider value={wouldLoseWork}>
+            <SyncEngineProvider engine={engine}>
+              <CapabilitiesProvider value={serverConfigs.capabilities ?? {}}>
+                <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
+                  <ClientStartupProvider hasCompletedInitialSync={sync.live}>
+                    {/* One live region for every banner, so a change of state is read out. */}
+                    <div role="status" aria-live="polite">
+                      {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
+                    </div>
+                    {children}
+                  </ClientStartupProvider>
+                </MediaConfigProvider>
+              </CapabilitiesProvider>
+            </SyncEngineProvider>
+          </ReloadWouldLoseWorkContext.Provider>
         </MatrixClientProvider>
       )}
     </ServerConfigsLoader>

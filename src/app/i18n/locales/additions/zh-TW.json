@@ -163,6 +163,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "忘記密碼？"
+    },
+    "partUnavailable": {
+      "failed": "無法載入。請檢查網路連線後再試一次。",
+      "retry": "重試",
+      "reloadNeeded": "需要重新載入頁面才能載入此內容。未傳送的訊息、已加入的檔案和進行中的通話將會遺失。",
+      "reload": "重新載入頁面"
     }
   },
   "featureUi": {

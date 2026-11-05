@@ -169,6 +169,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Mot de passe oublié ?"
+    },
+    "partUnavailable": {
+      "failed": "Impossible de charger cet élément. Vérifiez votre connexion et réessayez.",
+      "retry": "Réessayer",
+      "reloadNeeded": "Pour le charger, la page doit être rechargée. Les messages non envoyés, les fichiers joints et un appel en cours seraient perdus.",
+      "reload": "Recharger la page"
     }
   },
   "featureUi": {

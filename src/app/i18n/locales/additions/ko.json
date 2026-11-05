@@ -163,6 +163,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "비밀번호를 잊으셨나요?"
+    },
+    "partUnavailable": {
+      "failed": "불러오지 못했습니다. 연결을 확인하고 다시 시도하세요.",
+      "retry": "다시 시도",
+      "reloadNeeded": "이것을 불러오려면 페이지를 새로고침해야 합니다. 보내지 않은 메시지, 첨부한 파일, 진행 중인 통화는 사라집니다.",
+      "reload": "페이지 새로고침"
     }
   },
   "featureUi": {

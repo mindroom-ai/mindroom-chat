@@ -169,6 +169,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Esqueceu-se da palavra-passe?"
+    },
+    "partUnavailable": {
+      "failed": "Não foi possível carregar. Verifique sua conexão e tente novamente.",
+      "retry": "Tentar novamente",
+      "reloadNeeded": "Para carregar isto, é preciso recarregar a página. Mensagens não enviadas, arquivos anexados e uma chamada em andamento seriam perdidos.",
+      "reload": "Recarregar página"
     }
   },
   "featureUi": {

@@ -166,6 +166,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Forgot Password?"
+    },
+    "partUnavailable": {
+      "failed": "This couldn't load. Check your connection and try again.",
+      "retry": "Retry",
+      "reloadNeeded": "Loading this needs a page reload. Unsent messages, staged files and a call in progress would be lost.",
+      "reload": "Reload page"
     }
   },
   "featureUi": {

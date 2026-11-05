@@ -166,6 +166,12 @@
     },
     "passwordLoginForm": {
       "forgotPassword": "Parolanızı mı unuttunuz?"
+    },
+    "partUnavailable": {
+      "failed": "Bu yüklenemedi. Bağlantınızı kontrol edip tekrar deneyin.",
+      "retry": "Tekrar dene",
+      "reloadNeeded": "Bunu yüklemek için sayfanın yeniden yüklenmesi gerekiyor. Gönderilmemiş mesajlar, eklenen dosyalar ve devam eden bir arama kaybolur.",
+      "reload": "Sayfayı yeniden yükle"
     }
   },
   "featureUi": {
