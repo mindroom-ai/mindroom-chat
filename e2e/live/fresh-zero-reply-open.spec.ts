@@ -24,15 +24,6 @@ const getZeroReplyThreadButton = (page: import('@playwright/test').Page, rootBod
     name: new RegExp(`${escapeRegex(rootBody)}[\\s\\S]*0 replies`, 'i'),
   });
 
-const getExpandedZeroReplyThreadButton = (
-  page: import('@playwright/test').Page,
-  rootBody: string
-) =>
-  page
-    .locator('[data-message-item]', { hasText: rootBody })
-    .getByRole('button', { name: /Thread 0 replies/i })
-    .first();
-
 const clickThreadExitButton = async (page: import('@playwright/test').Page) => {
   await page.evaluate(() => {
     const exitButton = document.querySelector('[data-thread-context-banner] button');
@@ -92,22 +83,6 @@ const delayNextUiMessageSend = async (
       await page.unroute(pattern, handler).catch(() => undefined);
     },
   };
-};
-
-const expectPendingThenConfirmedThreadRoute = async (page: import('@playwright/test').Page) => {
-  await expect
-    .poll(() => new URL(page.url()).searchParams.get('threadId'), {
-      timeout: 30_000,
-      message: 'Thread route should open on a provisional local-echo id first',
-    })
-    .toMatch(/^~/);
-
-  await expect
-    .poll(() => new URL(page.url()).searchParams.get('threadId'), {
-      timeout: 30_000,
-      message: 'Thread route should canonicalize to the confirmed root id',
-    })
-    .toMatch(/^\$/);
 };
 
 const prepareFreshRoom = async (viewMode: 'compact' | 'threaded') => {
@@ -204,7 +179,7 @@ test.describe('live issue-068 fresh zero-reply open', () => {
     }
   });
 
-  test('expanded view opens a fresh zero-reply root while the send request is still pending', async ({
+  test('expanded view shows no thread chip under a fresh zero-reply root and opens it from Reply in Thread', async ({
     page,
   }) => {
     const diagnostics = attachBrowserDiagnostics(page);
@@ -233,18 +208,29 @@ test.describe('live issue-068 fresh zero-reply open', () => {
 
       await delayedSend.waitForIntercept();
 
-      const threadButton = getExpandedZeroReplyThreadButton(page, rootBody);
+      // A root without replies has no thread chip, neither pending nor confirmed.
+      const rootRow = page.locator('[data-message-item]', { hasText: rootBody });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
-      await expect(threadButton).toBeVisible({ timeout: 30_000 });
+      await expect(rootRow.locator('button[data-thread-root-id]')).toHaveCount(0);
       expect(delayedSend.isReleased()).toBe(false);
 
-      await threadButton.click();
+      // Once confirmed, Reply in Thread on its toolbar opens its thread.
+      const confirmedRow = page.locator('[data-message-item][data-message-id^="$"]', {
+        hasText: rootBody,
+      });
+      await expect(confirmedRow).toHaveCount(1, { timeout: 30_000 });
+      await expect(rootRow.locator('button[data-thread-root-id]')).toHaveCount(0);
+      await confirmedRow.hover();
+      await confirmedRow.getByRole('button', { name: 'Reply in Thread', exact: true }).click();
       await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText('Failed to load this thread')).toHaveCount(0);
-      expect(delayedSend.isReleased()).toBe(false);
-
-      await expectPendingThenConfirmedThreadRoute(page);
+      await expect
+        .poll(() => new URL(page.url()).searchParams.get('threadId'), {
+          timeout: 30_000,
+          message: 'Thread route should open on the confirmed root id',
+        })
+        .toMatch(/^\$/);
       await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-068-expanded');
     } finally {
       await delayedSend.dispose();

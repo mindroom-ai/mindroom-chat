@@ -85,6 +85,7 @@ import {
   TEXT_MSGTYPES,
 } from '../timelineRowTypes';
 import { LiveReplyMessageContent } from './LiveReplyMessageContent';
+import type { ThreadRecord } from '../types';
 import type { TimelineMessageData, TimelineMessageRow } from './types';
 
 /**
@@ -129,6 +130,14 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
 const UNFOLDED_MEDIA_MSGTYPES: ReadonlySet<string> = new Set(['m.image', 'm.video']);
 
 const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
+
+/**
+ * Whether a room row starts a thread with at least one reply, which earns it the thread chip.
+ * The record's count is the loaded replies once all of them are, and before that the larger of
+ * the loaded replies and the server's `m.thread` count.
+ */
+export const hasThreadReplies = (record: ThreadRecord | undefined): boolean =>
+  (record?.status.replyCount ?? 0) > 0;
 
 /** The settings each message row reads; the row list re-renders when one changes. */
 const useMessageDisplaySettings = () => ({
@@ -548,10 +557,11 @@ export const useTimelineMessageFeature = ({
         canSendRedaction &&
         !event.isRedacted() &&
         (event.getSender() === userId || canRedactOthers);
-      // Room rows show the thread they start under their reactions. An open thread shows none,
-      // and neither does the classic view, which shows the replies themselves.
+      // Room rows show the thread they start under their reactions once it has a reply; a message
+      // without one, resolved or not, shows none (Reply in Thread on its toolbar starts one). An
+      // open thread shows none, and neither does the classic view, which shows the replies.
       const threadBadge =
-        threadId || showThreadRepliesInRoom
+        threadId || showThreadRepliesInRoom || !hasThreadReplies(data.threadRecordMap.get(eventId))
           ? null
           : renderMindroomRoomTimelineThreadBadge({
               eventId,

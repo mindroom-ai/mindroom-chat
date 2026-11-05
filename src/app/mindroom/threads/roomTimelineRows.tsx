@@ -14,6 +14,8 @@ import { reactionOrEditEvent } from '../../utils/room';
 import { today, timeDayMonthYear, yesterday } from '../../utils/time';
 import { VirtualTile } from '../../components/virtualizer';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
+import { hasThreadReplies } from './message-rendering/useTimelineMessageFeature';
+import type { ThreadRecord } from './types';
 import { getRenderableEventEntries, type TimelineEventEntry } from './roomTimelineEvents';
 import { buildClassicRoomRowEntries } from './roomTimelineClassicRows';
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
@@ -134,7 +136,7 @@ export const timelineRowSizing = ({
   windowStart: number;
   roomRowsRef: MutableRefObject<MatrixEvent[]>;
   activeRangeRef: MutableRefObject<Timeline['range']>;
-  threadRecordMapRef: MutableRefObject<ReadonlyMap<string, unknown>>;
+  threadRecordMapRef: MutableRefObject<ReadonlyMap<string, ThreadRecord>>;
 }) => {
   const estimateSize = (index?: number): number => {
     if (!threadId) {
@@ -145,9 +147,10 @@ export const timelineRowSizing = ({
       if (!event || position === undefined) {
         return ROOM_ROW_ESTIMATE_PX.comfortable + ROOM_ROW_UNMEASURED_PX;
       }
-      // The threaded view shows a badge under each message that has a thread record.
+      // The threaded view shows a badge under each message that starts a thread with replies.
       const threadBadge =
-        !showThreadRepliesInRoom && threadRecordMapRef.current.has(event.getId() ?? '');
+        !showThreadRepliesInRoom &&
+        hasThreadReplies(threadRecordMapRef.current.get(event.getId() ?? ''));
       return (
         estimateRoomRowHeight(event, rows[position - 1], { threadBadge }) + ROOM_ROW_UNMEASURED_PX
       );

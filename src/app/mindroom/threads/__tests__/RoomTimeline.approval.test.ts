@@ -103,7 +103,7 @@ describe('RoomTimeline approval rendering', () => {
     expect(threadBadge?.props.includeRecentSummaryData).toBe(true);
   });
 
-  it('renders a zero-reply thread badge for approval roots with empty thread metadata', async () => {
+  it('renders no thread badge for approval roots with empty thread metadata', async () => {
     const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const approvalEvent = makeEvent('$approval', {
@@ -156,9 +156,8 @@ describe('RoomTimeline approval rendering', () => {
       (element) => element.type === ThreadBadgeRenderer
     );
 
-    expect(threadBadge).toBeDefined();
-    expect(threadBadge?.props.model.id.threadRootId).toBe('$approval');
-    expect(threadBadge?.props.model.replyCount).toBe(0);
+    expect(approvalMessage).toBeDefined();
+    expect(threadBadge).toBeUndefined();
   });
 
   it('routes decrypted encrypted approval events through the approval renderer', async () => {
