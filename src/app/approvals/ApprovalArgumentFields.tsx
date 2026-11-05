@@ -8,6 +8,7 @@ import {
   toArgumentFields,
 } from './argumentFields';
 import * as css from './ApprovalArgumentFields.css';
+import { ownDirectionLine } from '../ui/directional';
 
 // A clamped preview shows each value on its own lines, so blank lines would hide the text.
 const oneLine = (text: string) => text.replace(/\s+/g, ' ').trim();
@@ -27,6 +28,7 @@ function FieldRows({ fields, clamp }: { fields: ArgumentField[]; clamp: boolean 
             ) : (
               <span
                 className={classNames(value.kind === 'scalar' && css.Scalar, clamp && css.Clamped)}
+                {...ownDirectionLine}
               >
                 {shown(value.text)}
               </span>

@@ -25,6 +25,9 @@ import {
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
 // - In Russian, the Inbox's narrow cards leave a tool line less room than its title needs. The
 //   title truncates with an ellipsis and the arrow stays in view, right after it.
+// - In Arabic, a tool's output, its arguments and the tool names after the title read in their
+//   own direction: `8 results` and `2026 SaaS churn benchmarks`, not `results 8`, and a list of
+//   tool names cut short keeps its start. English reads the same as before.
 // Set TOOL_ROWS_SHOTS=<directory> to save each check's rows.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'tool-rows-phone-spec-password';
@@ -176,6 +179,8 @@ const seed = async (engine: string) => {
   return { reader, roomId, rootId };
 };
 
+type World = Awaited<ReturnType<typeof seed>>;
+
 const disclosures = (page: Page) =>
   page.locator('[data-message-disclosure] > button[aria-controls]');
 
@@ -183,6 +188,16 @@ const disclosures = (page: Page) =>
 const openIn = async (page: Page, language: string, route: string) => {
   await page.evaluate((code) => localStorage.setItem('i18nextLng', code), language);
   await page.goto(route);
+};
+
+const threadRoute = (world: World) =>
+  `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`;
+
+const tap = async (page: Page, target: Locator) => {
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  if (!box) throw new Error('nothing to tap');
+  await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
 };
 
 const shot = async (page: Page, target: Locator, name: string) => {
@@ -248,6 +263,34 @@ const measureArrow = (row: Locator) =>
     };
   });
 
+/** Where each of some texts shows inside an element, and the element's own box. */
+const placeTexts = (target: Locator, needles: string[]) =>
+  target.evaluate((element, texts) => {
+    const rects = texts.map((needle) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const at = node.textContent?.indexOf(needle) ?? -1;
+        if (at >= 0) {
+          const range = document.createRange();
+          range.setStart(node, at);
+          range.setEnd(node, at + needle.length);
+          const { left, right } = range.getBoundingClientRect();
+          return { left, right };
+        }
+      }
+      throw new Error(`no “${needle}” in ${element.textContent ?? ''}`);
+    });
+    const { left, right } = element.getBoundingClientRect();
+    return { rects, box: { left, right } };
+  }, needles);
+
+/** Whether `first` shows left of `second`, so that the two read left to right. */
+const readsLeftToRight = async (target: Locator, first: string, second: string) => {
+  const { rects } = await placeTexts(target, [first, second]);
+  const [before, after] = rects;
+  return !!before && !!after && before.left < after.left;
+};
+
 /** Russian Inbox: the narrow card truncates a tool line's title and keeps its arrow in view. */
 const checkRussianInbox = async (page: Page, engine: string) => {
   await openIn(page, 'ru', '/inbox/notifications/');
@@ -273,6 +316,63 @@ const checkRussianInbox = async (page: Page, engine: string) => {
   }
 };
 
+/** The thread in a language, with the tool line of the reply that searched the web. */
+const openToolLine = async (page: Page, world: World, language: 'en' | 'ar') => {
+  await openIn(page, language, threadRoute(world));
+  const tools = disclosures(page).filter({ hasText: 'web_search' });
+  await expect(tools).toHaveCount(1, { timeout: 60_000 });
+  return tools;
+};
+
+/**
+ * A tool's output, its arguments and the tool names after the title read in their own direction,
+ * and the output lines up with the interface.
+ */
+const checkOutputDirection = async (
+  page: Page,
+  world: World,
+  engine: string,
+  language: 'en' | 'ar'
+) => {
+  const where = `${engine}, ${language}`;
+  const tools = await openToolLine(page, world, language);
+  // A detail cut short keeps its start: the first tool's name shows whole.
+  const names = await placeTexts(tools.getByText(/^web_search, /), ['web_search']);
+  await tap(page, tools);
+  await expect(tools).toHaveAttribute('aria-expanded', 'true');
+  const panel = tools.locator('xpath=..');
+  const result = panel.getByRole('button', { name: RESULT, exact: true });
+  await expect(result).toBeVisible();
+  const output = await placeTexts(result, ['8', 'results']);
+  const outputReads = await readsLeftToRight(result, '8', 'results');
+  const queryReads = await readsLeftToRight(
+    panel.getByText(QUERY, { exact: true }),
+    '2026',
+    'SaaS'
+  );
+  console.log(`${where}: ${JSON.stringify({ names, output, outputReads, queryReads })}`);
+  await shot(page, panel, `tool-row-open-${language}-${engine}-phone`);
+  expect.soft(outputReads, `“${RESULT}” reads left to right (${where})`).toBe(true);
+  expect.soft(queryReads, `“${QUERY}” reads left to right (${where})`).toBe(true);
+  const [name] = names.rects;
+  expect
+    .soft(
+      !!name && name.left >= names.box.left - 1 && name.right <= names.box.right + 1,
+      `the tool names keep their start (${where})`
+    )
+    .toBe(true);
+  // The output lines up with the interface's start: the right in Arabic.
+  const lefts = output.rects.map((rect) => rect.left);
+  const rights = output.rects.map((rect) => rect.right);
+  const fromStart =
+    language === 'ar'
+      ? output.box.right - Math.max(...rights)
+      : Math.min(...lefts) - output.box.left;
+  expect
+    .soft(fromStart, `the output starts at the interface's start (${where})`)
+    .toBeLessThanOrEqual(2);
+};
+
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
   const world = await seed(engine);
   const context = await browser.newContext({ ...PHONE, baseURL });
@@ -284,6 +384,8 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
       password: PASSWORD,
     });
     await checkRussianInbox(page, engine);
+    await checkOutputDirection(page, world, engine, 'en');
+    await checkOutputDirection(page, world, engine, 'ar');
   } finally {
     await context.close();
   }

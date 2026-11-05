@@ -1,6 +1,7 @@
 import React, { ReactNode, useId, useState } from 'react';
 import { Icon, Icons, IconSrc, Spinner } from 'folds';
 import * as css from './ThreadActivity.css';
+import { ownDirectionLine } from './directional';
 
 export type ActivityTone = keyof typeof css.Icon;
 
@@ -53,7 +54,7 @@ export function ThreadActivity({
       >
         {icon}
         <span className={css.Title}>{title}</span>
-        {detail && <span className={css.Detail}>{detail}</span>}
+        {detail && <span className={css.Detail} {...ownDirectionLine}>{detail}</span>}
         <Icon size="50" className={css.Chevron} src={Icons.ChevronRight} aria-hidden />
       </button>
       {preview}
@@ -66,7 +67,10 @@ export function ThreadActivity({
   );
 }
 
-/** A tool result shown on one line; selecting it shows the whole text. */
+/**
+ * A tool result shown on one line; selecting it shows the whole text. It reads in its own
+ * direction, so `8 results` keeps its order in a right-to-left interface.
+ */
 export function ActivityResult({ text }: { text: string }) {
   const [full, setFull] = useState(false);
   return (
@@ -75,6 +79,7 @@ export function ActivityResult({ text }: { text: string }) {
       className={css.Result}
       aria-expanded={full}
       onClick={() => setFull((value) => !value)}
+      {...ownDirectionLine}
     >
       {text}
     </button>
