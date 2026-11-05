@@ -94,13 +94,38 @@ export const MoreMenu = style({
   padding: config.space.S200,
 });
 
-export const MoreMenuAction = style({
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: config.space.S200,
-  padding: `${config.space.S100} ${config.space.S100} ${config.space.S200}`,
-});
+export const MoreMenuAction = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: config.space.S200,
+    width: '100%',
+    minHeight: toRem(44),
+    paddingBlock: 0,
+    paddingInlineStart: config.space.S100,
+    paddingInlineEnd: config.space.S400,
+    border: 'none',
+    borderRadius: config.radii.R400,
+    background: 'none',
+    color: color.Surface.OnContainer,
+    fontSize: config.fontSize.T200,
+    lineHeight: config.lineHeight.T200,
+    fontWeight: config.fontWeight.W500,
+    textAlign: 'start',
+    cursor: 'pointer',
+    selectors: {
+      '&:hover': { backgroundColor: color.Surface.ContainerHover },
+      '&:focus-visible': {
+        outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+        outlineOffset: `-${config.borderWidth.B600}`,
+      },
+      '&:disabled': { cursor: 'default' },
+      '&[data-error]': { color: color.Critical.Main },
+    },
+  },
+]);
 
 export const MoreMenuMeta = style({
   display: 'grid',
@@ -111,8 +136,8 @@ export const MoreMenuMeta = style({
 });
 
 export const MoreMenuMetaLabel = style({
-  color: color.SurfaceVariant.OnContainer,
-  opacity: config.opacity.P500,
+  color: color.Surface.OnContainer,
+  fontWeight: config.fontWeight.W500,
 });
 
 export const MoreMenuMetaValue = style({

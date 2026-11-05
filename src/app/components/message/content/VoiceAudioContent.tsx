@@ -89,7 +89,10 @@ type VoiceDetailsMenuProps = Pick<
   onDismiss: () => void;
 };
 
-/** The More menu: volume and download first, then name (when known), type, size and length. */
+/**
+ * The More menu: labeled volume and download rows first, then name (when known), type, size and
+ * length.
+ */
 function VoiceDetailsMenu({
   subject,
   filename,
@@ -117,16 +120,16 @@ function VoiceDetailsMenu({
         aria-label={t('sharedUi.voiceAudioContent.moreAudioOptions')}
         className={css.MoreMenu}
       >
-        <div className={css.MoreMenuAction}>
-          <VoiceVolumeButton />
-          <FileDownloadButton
-            encInfo={encInfo}
-            url={url}
-            mimeType={mimeType}
-            owner={owner}
-            filename={filename ?? subject}
-          />
-        </div>
+        <VoiceVolumeButton className={css.MoreMenuAction} />
+        <FileDownloadButton
+          className={css.MoreMenuAction}
+          label={t('sharedUi.voiceAudioContent.download')}
+          encInfo={encInfo}
+          url={url}
+          mimeType={mimeType}
+          owner={owner}
+          filename={filename ?? subject}
+        />
         {filename ? (
           <DetailRow label={t('sharedUi.voiceAudioContent.name')} value={filename} truncate />
         ) : null}

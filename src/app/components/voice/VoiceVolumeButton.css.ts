@@ -1,53 +1,37 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 
-// Same 44 px hit area as the playback speed pill beside it.
-export const Button = style([
-  DefaultReset,
-  {
-    flexShrink: 0,
-    display: 'inline-grid',
-    placeItems: 'center',
-    width: toRem(44),
-    height: toRem(44),
-    padding: 0,
-    border: 'none',
-    borderRadius: config.radii.Pill,
-    background: 'none',
-    color: 'inherit',
-    cursor: 'pointer',
-    selectors: {
-      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
-      '&:focus-visible': {
-        outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
-        outlineOffset: `-${toRem(6)}`,
-      },
-    },
-  },
-]);
-
+/** The small glass chip that holds the slider, below the More menu's volume row. */
 export const Menu = style({
-  width: toRem(200),
-  padding: `${config.space.S300} ${config.space.S400}`,
+  width: toRem(164),
+  paddingBlock: config.space.S300,
+  paddingInline: config.space.S400,
+  borderRadius: config.radii.R500,
 });
 
-/** The slider's hit area; the visible line sits on its vertical center. */
+/**
+ * The slider's hit area; the visible line sits on its vertical center. Like the waveform, it
+ * runs left to right in every language: react-range moves the thumb from the left edge.
+ */
 export const Track = style([
   DefaultReset,
   {
+    direction: 'ltr',
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
     inlineSize: '100%',
-    height: toRem(24),
+    height: toRem(32),
     cursor: 'pointer',
   },
 ]);
 
+// One quiet line without a fill: the thumb alone marks the volume.
 export const TrackLine = style({
   width: '100%',
   height: toRem(6),
   borderRadius: config.radii.Pill,
+  backgroundColor: `color-mix(in srgb, ${color.Surface.OnContainer} 14%, transparent)`,
 });
 
 export const Thumb = style({
@@ -55,7 +39,7 @@ export const Thumb = style({
   height: toRem(16),
   borderRadius: config.radii.Round,
   background: color.Primary.Main,
-  boxShadow: `0 0 0 ${config.borderWidth.B300} ${color.Primary.OnMain}`,
+  boxShadow: '0 1px 3px rgb(0 0 0 / 30%)',
   outline: 'none',
   selectors: {
     '&:focus-visible': {

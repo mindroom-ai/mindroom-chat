@@ -9,14 +9,19 @@ import { Menu } from '../glass/GlassPrimitives';
 import { voiceMessageVolumeAtom } from '../../mindroom/settings/voiceMessageSettings';
 import * as css from './VoiceVolumeButton.css';
 
-// The library positions the 16 px thumb from the top of the 24 px hit area; pulling it up by
-// its own height puts its center on the 6 px line.
+// With this margin the 16 px thumb has an empty margin box, which the track centers: its top
+// lands on the top of the 32 px hit area. react-range then moves it down by half the height
+// difference (8 px), which puts its center on the 6 px line.
 const THUMB_CENTERING_OFFSET = -16;
 // Each arrow key press moves the volume by 5 %.
 const VOLUME_STEP = 0.05;
 
-/** Volume for every voice message player, in a small slider popover. */
-export function VoiceVolumeButton() {
+/**
+ * The More menu's "Voice volume" row, with the speaker at its end. It opens the slider in a small
+ * chip below the row, so the player above stays visible. The volume applies to every voice
+ * message player.
+ */
+export function VoiceVolumeButton({ className }: { className: string }) {
   const { t } = useTranslation();
   const [volume, setVolume] = useAtom(voiceMessageVolumeAtom);
   const [anchor, setAnchor] = useState<RectCords>();
@@ -37,19 +42,20 @@ export function VoiceVolumeButton() {
       <button
         ref={triggerRef}
         type="button"
-        className={css.Button}
+        className={className}
         aria-label={t('sharedUi.voiceVolumeButton.voiceVolumeCurrentlyValue1', { value1: percent })}
         aria-haspopup="dialog"
         aria-expanded={!!anchor}
         onClick={handleClick}
       >
+        <span>{t('sharedUi.voiceVolumeButton.voiceVolume')}</span>
         <Icon size="100" src={volume === 0 ? Icons.VolumeMute : Icons.VolumeHigh} />
       </button>
       <PopOut
         anchor={anchor}
-        offset={8}
-        position="Top"
-        align="Center"
+        offset={4}
+        position="Bottom"
+        align="End"
         content={
           <FocusTrap
             focusTrapOptions={{
@@ -71,12 +77,7 @@ export function VoiceVolumeButton() {
                 onChange={([value]) => setVolume(value)}
                 renderTrack={({ props, children }) => (
                   <div {...props} className={css.Track} style={{ ...props.style }}>
-                    <div
-                      className={css.TrackLine}
-                      style={{
-                        background: `linear-gradient(to right, var(--mr-volume-fill, currentColor) ${percent}%, var(--mr-volume-rest, rgba(127, 127, 127, 0.3)) ${percent}%)`,
-                      }}
-                    />
+                    <div className={css.TrackLine} />
                     {children}
                   </div>
                 )}
