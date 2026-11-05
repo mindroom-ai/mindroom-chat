@@ -123,6 +123,13 @@ test('sessions verify each other by emoji or recovery key and then read the hist
     await first.keyboard.press('Enter');
     await expect(first.getByText(secret)).toBeVisible();
   }
+  // A uploads new keys to the backup after a random delay of up to 10 s, and B looks for a
+  // missing key there only once, right after verification; so the history is in the backup first.
+  await openDevices(first);
+  await expect(first.getByText(/Connected · Version: \S+ · Keys: [1-9]/)).toBeVisible({
+    timeout: 30_000,
+  });
+  await closeSettings(first);
 
   // Session B signs in later, so it holds no key for that history.
   const second = await signIn(browser, username);
