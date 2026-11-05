@@ -161,7 +161,7 @@ describe('ResizablePanel at the member edge', () => {
       const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse, true);
       act(() => handle().props.onPointerDown(pointer(700, pointerType)));
       act(() => handle().props.onPointerMove(pointer(906, pointerType)));
-      expect(width()).toBe(0);
+      expect(width()).toBe(160);
       expect(handle().props['aria-valuetext']).toBe('Hide Members');
       expect(onCollapse).not.toHaveBeenCalled();
       act(() => handle().props.onPointerUp(pointer(906, pointerType)));
@@ -206,10 +206,12 @@ describe('ResizablePageNav', () => {
       const { renderer, handle, width } = renderPanel(ScreenSize.Tablet, onCollapse);
       act(() => handle().props.onPointerDown(pointer(356, pointerType)));
       act(() => handle().props.onPointerMove(pointer(190, pointerType)));
-      expect(width()).toBe(200);
+      expect(width()).toBe(190);
+      expect(handle().props['aria-valuetext']).toBeUndefined();
       act(() => handle().props.onPointerMove(pointer(160, pointerType)));
-      expect(width()).toBe(0);
-      expect(handle().props['aria-valuenow']).toBe(0);
+      expect(width()).toBe(160);
+      expect(handle().props['aria-valuenow']).toBe(160);
+      expect(handle().props['aria-valuemin']).toBe(0);
       expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
       expect(onCollapse).not.toHaveBeenCalled();
       expect(storage.get(storageKey)).toBe('356');
@@ -224,18 +226,23 @@ describe('ResizablePageNav', () => {
     }
   );
 
-  it('lets a drag leave the collapse preview without flickering near the threshold', () => {
+  it('follows the pointer below the smallest width and settles on it above the threshold', () => {
     const onCollapse = vi.fn();
     const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
     act(() => handle().props.onPointerDown(pointer(256)));
+    act(() => handle().props.onPointerMove(pointer(40)));
+    expect(width()).toBe(40);
+    act(() => handle().props.onPointerMove(pointer(-30)));
+    expect(width()).toBe(0);
     act(() => handle().props.onPointerMove(pointer(160)));
-    expect(width()).toBe(0);
-    act(() => handle().props.onPointerMove(pointer(170)));
-    expect(width()).toBe(0);
+    expect(width()).toBe(160);
+    expect(handle().props['aria-valuetext']).toBe('Collapse navigation panel');
     act(() => handle().props.onPointerMove(pointer(180)));
-    expect(width()).toBe(200);
+    expect(width()).toBe(180);
+    expect(handle().props['aria-valuetext']).toBeUndefined();
     act(() => handle().props.onPointerUp(pointer(180)));
     expect(onCollapse).not.toHaveBeenCalled();
+    expect(width()).toBe(200);
     expect(storage.get(storageKey)).toBe('200');
     act(() => renderer.unmount());
   });
@@ -247,7 +254,7 @@ describe('ResizablePageNav', () => {
       const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
       act(() => handle().props.onPointerDown(pointer(256)));
       act(() => handle().props.onPointerMove(pointer(150)));
-      expect(width()).toBe(0);
+      expect(width()).toBe(150);
       act(() => handle().props[event](pointer(150)));
       expect(width()).toBe(256);
       expect(onCollapse).not.toHaveBeenCalled();
@@ -262,7 +269,7 @@ describe('ResizablePageNav', () => {
     const { renderer, handle, width } = renderPanel(ScreenSize.Desktop, onCollapse);
     act(() => handle().props.onPointerDown(pointer(800)));
     act(() => handle().props.onPointerMove(pointer(906)));
-    expect(width()).toBe(0);
+    expect(width()).toBe(150);
     act(() => handle().props.onPointerUp(pointer(906)));
     expect(onCollapse).toHaveBeenCalledTimes(1);
     expect(storage.has(storageKey)).toBe(false);
@@ -364,7 +371,7 @@ describe('ResizablePageNav', () => {
 
   it.each([
     { pointerX: 400, preview: 400 },
-    { pointerX: 150, preview: 0 },
+    { pointerX: 150, preview: 150 },
   ])(
     'discards the $preview px preview on mobile and restores the saved width',
     ({ pointerX, preview }) => {

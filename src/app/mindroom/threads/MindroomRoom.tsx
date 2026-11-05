@@ -1,5 +1,6 @@
 import {
   type ComponentProps,
+  type ReactElement,
   Suspense,
   useCallback,
   useEffect,
@@ -28,6 +29,7 @@ import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/agentId
 import { useMembersDrawer } from '../sidebar/useMembersDrawer';
 import { ResizableMembersPanel } from '../sidebar/ResizableMembersPanel';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../sidebar/ResizablePanel';
+import { usePanelSlot } from '../sidebar/panelPresence';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import { CloseComputerPanelContext } from '../computer/ComputerScreenUnavailable';
 import type { ComputerAgent } from '../computer/types';
@@ -409,6 +411,89 @@ export function Room() {
     ),
   };
 
+  // One side panel at a time, keyed by which it is: opening or closing one moves it in or out,
+  // and one taking another's place changes width without closing first.
+  let requestedPanel: ReactElement | undefined;
+  if (computerOpen && computerTarget.apiUrl) {
+    requestedPanel = (
+      <ResizablePanel
+        key="computer"
+        side="end"
+        storageKey={`mindroom.computer.width:${ownUserId}`}
+        defaultWidth={COMPUTER_DEFAULT_WIDTH}
+        minContentWidth={CONVERSATION_MIN_WIDTH}
+        maxPanelWidth={COMPUTER_MAX_WIDTH}
+        fullWidth={!mobile && computerExpanded}
+        passthrough={mobile}
+        resizeLabel={t('mindroomUi.computer.resize')}
+        collapseLabel={t('mindroomUi.computer.close')}
+        onCollapse={closeComputer}
+        testId="resizable-computer-panel"
+      >
+        {/* A screen whose chunk cannot load closes the panel through this. */}
+        <CloseComputerPanelContext.Provider value={closeComputer}>
+          <ComputerPanel
+            agents={computerTarget.agents}
+            apiUrl={computerTarget.apiUrl}
+            mx={client}
+            roomId={roomId}
+            threadId={threadId}
+            continuationReady={routeReady}
+            requestedAgent={computer.requestedAgent}
+            onInteractionChange={reportInteraction}
+            onClose={closeComputer}
+            expanded={!mobile && computerExpanded}
+            onToggleExpanded={
+              mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
+            }
+          />
+        </CloseComputerPanelContext.Provider>
+      </ResizablePanel>
+    );
+  } else if (canvas) {
+    requestedPanel = (
+      <RoomCanvasPanel
+        key="canvas"
+        mx={client}
+        room={room}
+        event={canvas.event}
+        onClose={closeCanvas}
+        expanded={canvas.expanded}
+        onToggleExpanded={() =>
+          setShownCanvas((shown) => shown && { ...shown, expanded: !shown.expanded })
+        }
+        libraries={clientConfig.mindroom?.canvas?.libraries === true}
+      />
+    );
+  } else if (callShown) {
+    requestedPanel = (
+      <ResizablePanel
+        key="call"
+        side="end"
+        storageKey={`mindroom.call.width:${ownUserId}`}
+        defaultWidth={CALL_DEFAULT_WIDTH}
+        minContentWidth={CONVERSATION_MIN_WIDTH}
+        maxPanelWidth={CALL_MAX_WIDTH}
+        passthrough={mobile}
+        resizeLabel={t('featureUi.calls.panel.resize')}
+        collapseLabel={t('featureUi.calls.panel.close')}
+        onCollapse={() => setCallOpen(false)}
+        testId="resizable-call-panel"
+      >
+        <Suspense fallback={null}>
+          <CallPanel room={room} onClose={() => setCallOpen(false)} />
+        </Suspense>
+      </ResizablePanel>
+    );
+  } else if (membersShown) {
+    requestedPanel = (
+      <ResizableMembersPanel key="members" onClose={() => setMembersOpen(false)}>
+        <MembersDrawer key={roomId} room={room} members={members} />
+      </ResizableMembersPanel>
+    );
+  }
+  const sidePanel = usePanelSlot(requestedPanel);
+
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
@@ -428,76 +513,7 @@ export function Room() {
               />
             </Box>
           )}
-          {computerOpen && computerTarget.apiUrl && (
-            <ResizablePanel
-              side="end"
-              storageKey={`mindroom.computer.width:${ownUserId}`}
-              defaultWidth={COMPUTER_DEFAULT_WIDTH}
-              minContentWidth={CONVERSATION_MIN_WIDTH}
-              maxPanelWidth={COMPUTER_MAX_WIDTH}
-              fullWidth={!mobile && computerExpanded}
-              passthrough={mobile}
-              resizeLabel={t('mindroomUi.computer.resize')}
-              collapseLabel={t('mindroomUi.computer.close')}
-              onCollapse={closeComputer}
-              testId="resizable-computer-panel"
-            >
-              {/* A screen whose chunk cannot load closes the panel through this. */}
-              <CloseComputerPanelContext.Provider value={closeComputer}>
-                <ComputerPanel
-                  agents={computerTarget.agents}
-                  apiUrl={computerTarget.apiUrl}
-                  mx={client}
-                  roomId={roomId}
-                  threadId={threadId}
-                  continuationReady={routeReady}
-                  requestedAgent={computer.requestedAgent}
-                  onInteractionChange={reportInteraction}
-                  onClose={closeComputer}
-                  expanded={!mobile && computerExpanded}
-                  onToggleExpanded={
-                    mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
-                  }
-                />
-              </CloseComputerPanelContext.Provider>
-            </ResizablePanel>
-          )}
-          {canvas && (
-            <RoomCanvasPanel
-              mx={client}
-              room={room}
-              event={canvas.event}
-              onClose={closeCanvas}
-              expanded={canvas.expanded}
-              onToggleExpanded={() =>
-                setShownCanvas((shown) => shown && { ...shown, expanded: !shown.expanded })
-              }
-              libraries={clientConfig.mindroom?.canvas?.libraries === true}
-            />
-          )}
-          {callShown && (
-            <ResizablePanel
-              side="end"
-              storageKey={`mindroom.call.width:${ownUserId}`}
-              defaultWidth={CALL_DEFAULT_WIDTH}
-              minContentWidth={CONVERSATION_MIN_WIDTH}
-              maxPanelWidth={CALL_MAX_WIDTH}
-              passthrough={mobile}
-              resizeLabel={t('featureUi.calls.panel.resize')}
-              collapseLabel={t('featureUi.calls.panel.close')}
-              onCollapse={() => setCallOpen(false)}
-              testId="resizable-call-panel"
-            >
-              <Suspense fallback={null}>
-                <CallPanel room={room} onClose={() => setCallOpen(false)} />
-              </Suspense>
-            </ResizablePanel>
-          )}
-          {membersShown && (
-            <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
-              <MembersDrawer key={roomId} room={room} members={members} />
-            </ResizableMembersPanel>
-          )}
+          {sidePanel}
         </Box>
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>

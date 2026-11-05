@@ -20,6 +20,7 @@ import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { getSpacePath, getSpaceRoomPath } from '../../pages/pathUtils';
 import { MembersDrawer } from '../room/MembersDrawer';
 import { ResizableMembersPanel } from '../../mindroom/sidebar/ResizableMembersPanel';
+import { usePanelSlot } from '../../mindroom/sidebar/panelPresence';
 import { useMembersDrawer } from '../../mindroom/sidebar/useMembersDrawer';
 import { LobbyHeader, SpaceAvatar, useSpaceAvatarSrc } from './LobbyHeader';
 import { RoomItemCard } from './RoomItem';
@@ -282,6 +283,13 @@ export function Lobby() {
     );
   };
 
+  const membersPanel = usePanelSlot(
+    membersOpen ? (
+      <ResizableMembersPanel key="members" onClose={() => setMembersOpen(false)}>
+        <MembersDrawer key={space.roomId} room={space} members={members} />
+      </ResizableMembersPanel>
+    ) : undefined
+  );
   const lobbyHeader = (
     <LobbyHeader
       powerLevels={powerLevels}
@@ -329,11 +337,7 @@ export function Lobby() {
             </IconButton>
           </ScrollTopContainer>
         </Page>
-        {membersOpen && (
-          <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
-            <MembersDrawer key={space.roomId} room={space} members={members} />
-          </ResizableMembersPanel>
-        )}
+        {membersPanel}
       </Box>
     </PowerLevelsContextProvider>
   );

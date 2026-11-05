@@ -14,10 +14,21 @@ export const Panel = style({
   },
 });
 
-globalStyle(`${Panel} > :first-child`, { width: '100%', minWidth: 0 });
-globalStyle(`${Panel}[data-collapse-preview='true'] > :first-child`, {
-  visibility: 'hidden',
-  overflow: 'hidden',
+// The panel's first child sits between it and the content. The content keeps its own width (the
+// panel's smallest, or the width it opens to or closes from) while the panel is narrower, so it
+// slides in and out of view at the panel's moving edge, next to the splitter, instead of reflowing.
+globalStyle(`${Panel} > :first-child`, {
+  display: 'flex',
+  width: '100%',
+  minWidth: 0,
+  minHeight: 0,
+  overflowX: 'clip',
+});
+// The page navigation's moving edge is its end, so its content slides toward the rail.
+globalStyle(`${Panel}[data-side='start'] > :first-child`, { justifyContent: 'flex-end' });
+globalStyle(`${Panel} > :first-child > *`, {
+  flex: '0 0 auto',
+  width: 'var(--mr-panel-content-width, 100%)',
 });
 
 export const Handle = style({

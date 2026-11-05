@@ -1,4 +1,4 @@
-import { ReactNode, useCallback, useMemo, useState } from 'react';
+import { ReactElement, ReactNode, useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import { PageRoot } from '../../components/page';
@@ -16,6 +16,7 @@ import {
   useMindroomDesktopPageNav,
   writeDesktopPageNavCollapsed,
 } from './desktopPageNavState';
+import { usePanelSlot } from './panelPresence';
 
 /**
  * Owns whether the page navigation (the room list beside the content) is collapsed. The choice
@@ -110,7 +111,7 @@ export function MindroomSidebarNav() {
 }
 
 type MindroomPageRootProps = {
-  nav: ReactNode;
+  nav: ReactElement;
   children: ReactNode;
 };
 
@@ -121,8 +122,9 @@ function RememberSectionPath({ navId }: { navId: string }) {
 }
 
 /**
- * A page with its navigation, which is left out while collapsed. With `navId` (`home`, `direct`)
- * it remembers the content open in that section, so its rail button returns there.
+ * A page with its navigation, which is left out while collapsed and moves in and out when that
+ * changes. With `navId` (`home`, `direct`) it remembers the content open in that section, so its
+ * rail button returns there.
  */
 export function MindroomPageRoot({
   nav,
@@ -130,8 +132,9 @@ export function MindroomPageRoot({
   children,
 }: MindroomPageRootProps & { navId?: string }) {
   const { collapsed } = useMindroomDesktopPageNav();
+  const shownNav = usePanelSlot(collapsed ? undefined : nav);
   return (
-    <PageRoot main nav={collapsed ? undefined : nav}>
+    <PageRoot main nav={shownNav}>
       {navId && <RememberSectionPath navId={navId} />}
       {children}
     </PageRoot>

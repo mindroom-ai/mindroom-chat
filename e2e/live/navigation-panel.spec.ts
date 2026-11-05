@@ -113,7 +113,9 @@ for (const mobile of [false, true]) {
         await page.mouse.move(dragX, dragY);
         await page.mouse.down();
         await page.mouse.move(dragX - resizedWidth + 150, dragY, { steps: 8 });
-        await expect.poll(async () => (await panel.boundingBox())?.width).toBe(0);
+        // Below its smallest width the panel follows the pointer, ready to close on release.
+        await expect.poll(async () => (await panel.boundingBox())?.width).toBe(150);
+        await expect(panel).toHaveAttribute('data-collapse-preview', 'true');
         await expect(panel).toHaveCount(1);
         await expect(page.getByRole('button', { name: 'Expand navigation panel' })).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Send message', exact: true })).toBeVisible();
