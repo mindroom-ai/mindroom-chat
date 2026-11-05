@@ -23,8 +23,8 @@ vi.mock('../editor', async () => ({
   ...(await import('../editor/utils')),
   ...(await import('../editor/output')),
 }));
-vi.mock('./commands/AgentCommandAutocomplete', () => ({
-  MindroomCommandAutocomplete: () => null,
+vi.mock('./commands/CommandAutocomplete', () => ({
+  AgentCommandAutocomplete: () => null,
 }));
 vi.mock('../ui/pendingSendIndicator', () => ({ PendingSendIndicator: () => null }));
 vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));

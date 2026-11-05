@@ -17,8 +17,8 @@ vi.mock('../editor', async () => ({
   ...(await import('../editor/output')),
 }));
 // The paste marker module brings the composer's menus and indicators along.
-vi.mock('./commands/AgentCommandAutocomplete', () => ({
-  MindroomCommandAutocomplete: () => null,
+vi.mock('./commands/CommandAutocomplete', () => ({
+  AgentCommandAutocomplete: () => null,
 }));
 vi.mock('../ui/pendingSendIndicator', () => ({ PendingSendIndicator: () => null }));
 vi.mock('../messages/ThreadIndicator', () => ({ ThreadIndicator: () => null }));

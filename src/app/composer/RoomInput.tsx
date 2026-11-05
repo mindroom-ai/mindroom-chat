@@ -61,7 +61,7 @@ import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withMindroomPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
-import { getMindroomCommandSuggestions } from './commands/agentCommandSuggestions';
+import { MINDROOM_COMMANDS } from './commands/agentCommands';
 import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from './roomInputSendSession';
 import { IconTooltip } from '../ui/IconTooltip';
@@ -70,7 +70,7 @@ import { composeTextMessage } from './composeTextMessage';
 import {
   type ActingCommand,
   describeCommandFailure,
-  getSlashCommandSuggestions,
+  getCommandSuggestions,
   isSlashCommandQuery,
   readActingCommand,
 } from './slashCommandQuery';
@@ -243,6 +243,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const mountedRef = useRef(true);
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
     const commands = useCommands(room);
+    const commandList = useMemo(() => Object.values(commands), [commands]);
     const [commandProblem, setCommandProblem] = useState<string>();
 
     useEffect(() => {
@@ -420,9 +421,10 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       : undefined;
     let autocompleteMenuOpen = false;
     if (autocompleteQuery && isMindroomRoomInputAutocompleteQuery(autocompleteQuery)) {
-      autocompleteMenuOpen = getMindroomCommandSuggestions(autocompleteQuery.text).length > 0;
+      autocompleteMenuOpen =
+        getCommandSuggestions(MINDROOM_COMMANDS, autocompleteQuery.text).length > 0;
     } else if (slashQuery) {
-      autocompleteMenuOpen = getSlashCommandSuggestions(commands, slashQuery.text).length > 0;
+      autocompleteMenuOpen = getCommandSuggestions(commandList, slashQuery.text).length > 0;
     } else if (autocompleteQuery) {
       autocompleteMenuOpen =
         (autocompleteQuery.prefix === AutocompletePrefix.UserMention ||
@@ -515,7 +517,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             <CommandAutocomplete
               editor={editor}
               query={slashQuery}
-              commands={commands}
+              title={t('featureUi.room.commandAutocomplete.commands')}
+              commands={commandList}
               requestClose={closeAutocomplete}
             />
           )}

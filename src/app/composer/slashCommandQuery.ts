@@ -23,13 +23,16 @@ export const isSlashCommandQuery = (
   return before.trim() === '';
 };
 
-/** The commands whose name starts with what was typed after the `/`. */
-export const getSlashCommandSuggestions = (
-  commands: Record<string, SlashCommand>,
+/**
+ * The commands whose name starts with what was typed after the prefix (`/` or `!`), ignoring
+ * case, in their order.
+ */
+export const getCommandSuggestions = <T extends { name: string }>(
+  commands: readonly T[],
   typed: string
-): SlashCommand[] => {
+): T[] => {
   const start = typed.toLowerCase();
-  return Object.values(commands).filter((command) => command.name.startsWith(start));
+  return commands.filter((command) => command.name.toLowerCase().startsWith(start));
 };
 
 /** The composer's text for a command's arguments: a mention pill reads as its Matrix ID. */

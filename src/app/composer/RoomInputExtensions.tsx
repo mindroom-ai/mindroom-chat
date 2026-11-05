@@ -7,7 +7,7 @@ import type { AutocompleteQuery } from '../editor/autocomplete/autocompleteQuery
 import type { PasteMarkerElement } from '../editor/slate';
 import { BlockType } from '../editor/types';
 import type { IReplyDraft, PendingVoiceSendContext } from './roomInputDrafts';
-import { MindroomCommandAutocomplete } from './commands/AgentCommandAutocomplete';
+import { AgentCommandAutocomplete } from './commands/CommandAutocomplete';
 import { getMindroomCommandQuery, MINDROOM_COMMAND_PREFIX } from './commands/agentCommandQuery';
 import { PendingSendIndicator } from '../ui/pendingSendIndicator';
 import { ThreadIndicator } from '../messages/ThreadIndicator';
@@ -178,7 +178,7 @@ export function MindroomRoomInputAutocomplete({
 }: MindroomRoomInputAutocompleteProps) {
   if (!isMindroomRoomInputAutocompleteQuery(query)) return null;
 
-  return <MindroomCommandAutocomplete editor={editor} query={query} requestClose={requestClose} />;
+  return <AgentCommandAutocomplete editor={editor} query={query} requestClose={requestClose} />;
 }
 
 export function MindroomRoomInputThreadIndicator({

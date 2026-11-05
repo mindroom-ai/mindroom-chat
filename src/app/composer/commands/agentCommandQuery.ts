@@ -1,4 +1,4 @@
-import { BaseRange, Editor, Range, Transforms } from 'slate';
+import { BaseRange, Editor, Range } from 'slate';
 import type { AutocompleteQuery } from '../../editor/autocomplete/autocompleteQuery';
 
 export const MINDROOM_COMMAND_PREFIX = '!' as const;
@@ -25,9 +25,4 @@ export const getMindroomCommandQuery = (
     prefix: MINDROOM_COMMAND_PREFIX,
     text: word.slice(1),
   };
-};
-
-export const insertMindroomCommand = (editor: Editor, range: BaseRange, commandName: string) => {
-  Transforms.select(editor, range);
-  Editor.insertText(editor, `!${commandName} `);
 };

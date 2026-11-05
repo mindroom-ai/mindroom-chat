@@ -15,8 +15,8 @@ import {
 } from './RoomInputExtensions';
 import { BlockType } from '../editor/types';
 
-vi.mock('./commands/AgentCommandAutocomplete', () => ({
-  MindroomCommandAutocomplete: () => null,
+vi.mock('./commands/CommandAutocomplete', () => ({
+  AgentCommandAutocomplete: () => null,
 }));
 
 vi.mock('../messages/ThreadIndicator', () => ({

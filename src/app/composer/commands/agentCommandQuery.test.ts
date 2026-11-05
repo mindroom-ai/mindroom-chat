@@ -2,7 +2,6 @@ import { createEditor } from 'slate';
 import { describe, expect, it } from 'vitest';
 import {
   getMindroomCommandQuery,
-  insertMindroomCommand,
   MINDROOM_COMMAND_PREFIX,
 } from './agentCommandQuery';
 
@@ -51,23 +50,5 @@ describe('getMindroomCommandQuery', () => {
     });
 
     expect(query).toBeUndefined();
-  });
-
-  it('inserts selected command as plain text', () => {
-    const editor = createTextEditor('!sch');
-    insertMindroomCommand(
-      editor,
-      {
-        anchor: { path: [0, 0], offset: 0 },
-        focus: { path: [0, 0], offset: 4 },
-      },
-      'schedule'
-    );
-    expect(editor.children).toEqual([
-      {
-        type: 'paragraph',
-        children: [{ text: '!schedule ' }],
-      },
-    ]);
   });
 });
