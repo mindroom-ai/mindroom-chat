@@ -27,3 +27,4 @@ android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml	2	Unused Androi
 src/app/pages/client/inbox/acceptInvite.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/mindroom/threads/roomTimelineReplyDraft.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/mindroom/threads/threadOverviewRefreshCounter.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/mindroom/threads/timelinePaginationController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)

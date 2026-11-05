@@ -1,8 +1,9 @@
-import { useCallback, useMemo, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
+import { useCallback, useMemo, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { Direction, type EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
-import to from 'await-to-js';
 import { useAlive } from '../../hooks/useAlive';
+import { useLatestRef } from '../../hooks/useLatestRef';
 import { decryptAllTimelineEvent } from '../../utils/room';
+import { getRenderableEvents } from './roomTimelineEvents';
 import {
   getEventIdAbsoluteIndex,
   getLinkedTimelines,
@@ -12,11 +13,40 @@ import {
   type RecalibrateFilterOpts,
   type Timeline,
 } from './timelinePagination';
-import { getRenderableEvents } from './roomTimelineEvents';
+
+// How the room view (not a thread) brings in history it does not hold yet: the timeline around
+// one event, for a jump to a row that is not loaded, and one page at the older or newer end of the
+// chain it shows. Whether an event makes a row depends on its decrypted type (a decrypted reaction
+// or edit makes none), so what arrives is decrypted before any rows are counted.
+
+/** Decrypts the events of `timeline`. An event that fails stays as it is; nothing is thrown. */
+const decryptQuietly = async (mx: MatrixClient, timeline: EventTimeline): Promise<void> => {
+  try {
+    await decryptAllTimelineEvent(mx, timeline);
+  } catch {
+    // The row of an event that cannot be decrypted shows the failure; the load goes on.
+  }
+};
+
+/** The timeline the server returns around `eventId`; undefined when it has none or fails. */
+const fetchEventContext = async (
+  mx: MatrixClient,
+  room: Room,
+  eventId: string
+): Promise<EventTimeline | undefined> => {
+  try {
+    return (await mx.getEventTimeline(room.getUnfilteredTimelineSet(), eventId)) ?? undefined;
+  } catch {
+    return undefined;
+  }
+};
 
 /**
- * Fetches the timeline around an event. `onLoad` gets the linked chain and the event's index
- * in it once the slice is decrypted; `onError` runs when the event cannot be found.
+ * A loader for the room's history around one event. Each load ends in one call: `onLoad` with the
+ * chain linked to the returned timeline (oldest first) and the event's index across that chain,
+ * or `onError` when the request fails, returns nothing, or returns a timeline without the event.
+ * The handlers of the newest render answer. Loads are neither merged nor cancelled, and the loader
+ * does not check that its component is still mounted: the handlers do.
  */
 export const useEventTimelineLoader = (
   mx: MatrixClient,
@@ -24,28 +54,98 @@ export const useEventTimelineLoader = (
   onLoad: (eventId: string, linkedTimelines: EventTimeline[], absoluteIndex: number) => void,
   onError: () => void
 ): ((eventId: string) => Promise<void>) => {
-  // The newest handlers run when a fetch lands, so the loader itself stays stable.
-  const handlersRef = useRef({ onLoad, onError });
-  handlersRef.current = { onLoad, onError };
-  const loadEventTimeline = useCallback(
-    async (eventId: string) => {
-      const timelineSet = room.getUnfilteredTimelineSet();
-      const [, eventTimeline] = await to(mx.getEventTimeline(timelineSet, eventId));
+  const handlersRef = useLatestRef({ onLoad, onError });
 
-      const chain = eventTimeline ? getLinkedTimelines(eventTimeline) : [];
-      const absoluteIndex =
-        eventTimeline ? getEventIdAbsoluteIndex(chain, eventTimeline, eventId) : undefined;
-      if (!eventTimeline || absoluteIndex === undefined) return handlersRef.current.onError();
-
-      if (room.hasEncryptionStateEvent()) await to(decryptAllTimelineEvent(mx, eventTimeline));
+  return useCallback(
+    async (eventId: string): Promise<void> => {
+      const holder = await fetchEventContext(mx, room, eventId);
+      if (!holder) {
+        handlersRef.current.onError();
+        return;
+      }
+      // The caller counts rows in what it gets, so the returned timeline is decrypted first.
+      if (room.hasEncryptionStateEvent()) await decryptQuietly(mx, holder);
+      const chain = getLinkedTimelines(holder);
+      const absoluteIndex = getEventIdAbsoluteIndex(chain, holder, eventId);
+      if (absoluteIndex === undefined) {
+        handlersRef.current.onError();
+        return;
+      }
       handlersRef.current.onLoad(eventId, chain, absoluteIndex);
     },
-    [mx, room]
+    [handlersRef, mx, room]
   );
-
-  return loadEventTimeline;
 };
 
+/** The chain on screen when a page starts, and what each of its timelines held then. */
+type PageStart = {
+  chain: EventTimeline[];
+  /** Raw events per timeline of `chain`. */
+  eventCounts: number[];
+  filterOpts: RecalibrateFilterOpts | undefined;
+  /** Rows per timeline of `chain` under `filterOpts`, when there are filters. */
+  rowCounts: number[] | undefined;
+};
+
+/** Rows `timeline` renders on its own: the count the window update takes after the page. */
+const countTimelineRows = (timeline: EventTimeline, opts: RecalibrateFilterOpts): number =>
+  getRenderableEvents(
+    [timeline],
+    opts.room,
+    opts.threadId,
+    opts.ignoredUsersSet,
+    opts.showHiddenEvents,
+    opts.hideMembershipEvents,
+    opts.hideNickAvatarEvents,
+    opts.showThreadRepliesInRoom
+  ).length;
+
+const recordPageStart = (
+  chain: EventTimeline[],
+  filterOpts: RecalibrateFilterOpts | undefined
+): PageStart => ({
+  chain,
+  eventCounts: chain.map(timelineToEventsCount),
+  filterOpts,
+  // With every filter the window update applies, thread replies shown in the room included:
+  // a row the chain already held must not count as added.
+  rowCounts: filterOpts
+    ? chain.map((timeline) => countTimelineRows(timeline, filterOpts))
+    : undefined,
+});
+
+/** The timelines a page at `edge` may have filled: the edge and every timeline beyond it. */
+const timelinesFrom = (
+  chain: EventTimeline[],
+  edge: EventTimeline,
+  backwards: boolean
+): EventTimeline[] => {
+  const position = chain.indexOf(edge);
+  if (position === -1) return [edge];
+  return backwards ? chain.slice(0, position + 1) : chain.slice(position);
+};
+
+/** Asks the server for one page at `edge`. False when the request failed. */
+const requestPage = async (
+  mx: MatrixClient,
+  edge: EventTimeline,
+  backwards: boolean,
+  limit: number
+): Promise<boolean> => {
+  try {
+    await mx.paginateEventTimeline(edge, { backwards, limit });
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The room view's pager: `true` loads older history at the start of the chain on screen, `false`
+ * newer history at its end, and the mounted window moves so the rows on screen keep their place.
+ * It works on the state of the newest render. One page is out at a time: a call made meanwhile
+ * does nothing. Failures leave the window as it is; the promise never rejects for them.
+ */
 export const useTimelinePagination = (
   mx: MatrixClient,
   timeline: Readonly<Timeline>,
@@ -54,92 +154,52 @@ export const useTimelinePagination = (
   filterOptsRef: RefObject<RecalibrateFilterOpts | undefined>
 ): ((backwards: boolean) => Promise<void>) => {
   const alive = useAlive();
-  const latestTimeline = useRef(timeline);
-  latestTimeline.current = timeline;
+  const timelineRef = useLatestRef(timeline);
 
-  const handleTimelinePagination = useMemo(() => {
-    let fetching = false;
+  return useMemo(() => {
+    // Each pager has its own: a new client, setter, limit or filter ref starts with none out.
+    let pageInFlight = false;
 
     return async (backwards: boolean): Promise<void> => {
-      if (fetching) return;
-      const lTimelines = latestTimeline.current.linkedTimelines;
-      const timelinesEventsCount = lTimelines.map(timelineToEventsCount);
-      const fOpts = filterOptsRef.current ?? undefined;
-      const timelinesRenderableCounts = fOpts
-        ? lTimelines.map(
-            (tl) =>
-              getRenderableEvents(
-                [tl],
-                fOpts.room,
-                fOpts.threadId,
-                fOpts.ignoredUsersSet,
-                fOpts.showHiddenEvents,
-                fOpts.hideMembershipEvents,
-                fOpts.hideNickAvatarEvents
-              ).length
-          )
-        : undefined;
-
-      const edgeTimeline = backwards ? lTimelines[0] : lTimelines[lTimelines.length - 1];
-      if (!edgeTimeline) return;
-
-      const direction = backwards ? Direction.Backward : Direction.Forward;
-      if (!edgeTimeline.getPaginationToken(direction)) {
-        // Nothing is left to fetch past this edge, but the SDK may have joined another
-        // timeline to it (an earlier page reached history it already held). Take that
-        // timeline into the window; with the chain unchanged there is nothing to load.
-        const chainGrew =
-          getLinkedTimelines(edgeTimeline).length !== lTimelines.length;
-        if (!chainGrew) return;
+      if (pageInFlight) return;
+      const start = recordPageStart(
+        timelineRef.current.linkedTimelines,
+        filterOptsRef.current ?? undefined
+      );
+      const edge = backwards ? start.chain[0] : start.chain[start.chain.length - 1];
+      if (!edge) return;
+      const moveWindow = () =>
         recalibrateTimelinePagination(
           setTimeline,
-          lTimelines,
-          timelinesEventsCount,
+          start.chain,
+          start.eventCounts,
           backwards,
-          fOpts,
-          timelinesRenderableCounts
+          start.filterOpts,
+          start.rowCounts
         );
+
+      if (!edge.getPaginationToken(backwards ? Direction.Backward : Direction.Forward)) {
+        // The room's start or its live end. Timelines the SDK has linked on since the window
+        // was set join it now.
+        if (getLinkedTimelines(edge).length !== start.chain.length) moveWindow();
         return;
       }
 
-      fetching = true;
+      pageInFlight = true;
       try {
-        const eventsBefore = getTimelinesEventsCount(getLinkedTimelines(edgeTimeline));
-        const [error] = await to(
-          mx.paginateEventTimeline(edgeTimeline, {
-            backwards,
-            limit,
-          })
-        );
-        // A failed page leaves the window as it is; reaching the edge again retries it.
-        if (error) return;
-        const pagedTimelines = getLinkedTimelines(edgeTimeline);
-        if (getTimelinesEventsCount(pagedTimelines) === eventsBefore) return;
-        // Rows are counted from decrypted content (a readable reaction or edit is hidden),
-        // so decrypt what the page brought before the window moves. A page that joined the
-        // chain to a neighbouring timeline brings that timeline's events too.
-        const grown = backwards
-          ? pagedTimelines.slice(0, pagedTimelines.indexOf(edgeTimeline) + 1)
-          : pagedTimelines.slice(pagedTimelines.indexOf(edgeTimeline));
-
+        const eventsBefore = getTimelinesEventsCount(getLinkedTimelines(edge));
+        const answered = await requestPage(mx, edge, backwards, limit);
+        if (!answered || !alive()) return;
+        const chainAfter = getLinkedTimelines(edge);
+        // A page without events (it only moved or cleared the token) leaves the window.
+        if (getTimelinesEventsCount(chainAfter) === eventsBefore) return;
         await Promise.all(
-          grown.map((pagedTimeline) => to(decryptAllTimelineEvent(mx, pagedTimeline)))
+          timelinesFrom(chainAfter, edge, backwards).map((filled) => decryptQuietly(mx, filled))
         );
-
-        if (alive()) {
-          recalibrateTimelinePagination(
-            setTimeline,
-            lTimelines,
-            timelinesEventsCount,
-            backwards,
-            fOpts,
-            timelinesRenderableCounts
-          );
-        }
+        if (alive()) moveWindow();
       } finally {
-        fetching = false;
+        pageInFlight = false;
       }
     };
-  }, [mx, alive, setTimeline, limit, filterOptsRef]);
-  return handleTimelinePagination;
+  }, [alive, filterOptsRef, limit, mx, setTimeline, timelineRef]);
 };
