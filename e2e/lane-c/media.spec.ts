@@ -1,6 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
+import { createDefaultThreadFilterState, seedRoomOverviewState } from '../helpers/matrix';
 
 // Attachments against the disposable homeserver of `just hs-up`: a large picture goes out with a
 // thumbnail that the timeline shows while the viewer opens the original, an encrypted room
@@ -79,8 +80,18 @@ const signIn = async (browser: Browser, username: string): Promise<Page> => {
   return page;
 };
 
-/** Opens the room in the Full view, where each message is its own row. */
-const openFullRoom = async (page: Page, roomId: string) => {
+/**
+ * Opens the room in the Full view, where each message is its own row. A room without agents
+ * opens in Threads and its switch returns there, so the spec chooses Classic for it.
+ */
+const openFullRoom = async (page: Page, roomId: string, username: string) => {
+  await seedRoomOverviewState({
+    page,
+    roomId,
+    userId: `@${username}:matrix.localhost`,
+    viewMode: 'classic',
+    filterState: createDefaultThreadFilterState(),
+  });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   const viewSwitch = page.locator('[data-room-view-switch]');
   await expect(viewSwitch).toBeVisible({ timeout: 30_000 });
@@ -145,9 +156,9 @@ test('pictures and files reach the other person in an encrypted room', async ({ 
 
   // The reader's session exists before anything is sent, so the room key reaches it.
   const reader = await signIn(browser, `omar_${stamp}`);
-  await openFullRoom(reader, roomId);
+  await openFullRoom(reader, roomId, `omar_${stamp}`);
   const sender = await signIn(browser, `ines_${stamp}`);
-  await openFullRoom(sender, roomId);
+  await openFullRoom(sender, roomId, `ines_${stamp}`);
 
   const notes = 'Tide tables for the survey, version 3\n';
   await stageFiles(sender, [
@@ -199,7 +210,7 @@ test('spoilers stay hidden and an oversize file does not hold back the rest', as
   await page.route('**/media/config', (route) =>
     route.fulfill({ status: 200, json: { 'm.upload.size': 4_000 } })
   );
-  await openFullRoom(page, roomId);
+  await openFullRoom(page, roomId, `lena_${stamp}`);
 
   await stageFiles(page, [
     { name: 'plot-twist.jpg', mimeType: 'image/jpeg', buffer: await drawPicture(page, 40, 30) },
