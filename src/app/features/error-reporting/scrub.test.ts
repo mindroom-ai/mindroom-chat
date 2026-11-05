@@ -258,6 +258,20 @@ describe('scrubEvent', () => {
     });
   });
 
+  it('keeps a release that is a full commit hash, and drops one that is not a version', () => {
+    const release = '65bd73646449d6fb0e768885adcb4b314e924a15';
+    const report = scrubEvent({
+      ...leakyEvent(),
+      release,
+      contexts: { app: { app_version: 'v0.1.0', app_build: release } },
+    });
+    expect(report?.release).toBe(release);
+    expect(report?.contexts?.app).toEqual({ app_version: 'v0.1.0', app_build: release });
+    expect(scrubEvent({ ...leakyEvent(), release: 'built by @alice:example.org' })?.release).toBe(
+      undefined
+    );
+  });
+
   it('refuses a report without a valid event id', () => {
     expect(scrubEvent({ ...leakyEvent(), event_id: '@alice:example.org' })).toBeNull();
   });

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import { getStoredSessionByUsername } from '../helpers/accounts';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
+import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 
 // Error reports against the disposable homeserver of `just hs-up` (or a slot of
@@ -209,8 +210,8 @@ test('loads no reporter and sends nothing without a DSN', async ({ page }) => {
     if (/reporter[-.][\w-]*\.(?:js|ts)/.test(request.url())) chunks.push(request.url());
   });
   await configure(page, undefined);
-  await page.goto('/login/');
-  await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();
+  await page.goto(buildLoginPath(HOMESERVER));
+  await expect(page.locator('input[name="serverInput"]')).toHaveValue(HOMESERVER);
   await forceError(page, 'Forced test error without a DSN');
   await page.waitForTimeout(1_500);
   expect(sent).toEqual([]);

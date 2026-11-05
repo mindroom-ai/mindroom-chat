@@ -103,11 +103,15 @@ const BREADCRUMB_KEYS: ReadonlySet<string> = new Set([
   'initial',
 ]);
 
-/** Contexts a report may carry, each with the fields it may hold. */
-const CONTEXT_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  viewport: ['width', 'height', 'device_pixel_ratio'],
-  app: ['app_version', 'app_build'],
-};
+/** The viewport context's fields, all numbers. */
+const VIEWPORT_FIELDS: ReadonlySet<string> = new Set(['width', 'height', 'device_pixel_ratio']);
+
+// A build or release name, as `version.json` publishes it (src/appVersion.ts): kept as it is, so a
+// full commit hash survives the token patterns.
+const VERSION = /^[A-Za-z0-9._+-]{1,128}$/;
+
+const version = (value: unknown): string | undefined =>
+  typeof value === 'string' && VERSION.test(value) ? value : undefined;
 
 // Extensions of the files people attach and share, the ones a path segment or a word is
 // scrubbed for. The app's own code (.js, .css, .wasm, .json) is not among them, so failed chunk
@@ -312,10 +316,12 @@ const scrubContexts = (
   contexts: ReportEvent['contexts']
 ): Record<string, Record<string, Code | undefined>> => {
   const result: Record<string, Record<string, Code | undefined>> = {};
-  Object.entries(CONTEXT_FIELDS).forEach(([name, fields]) => {
-    const context = contexts?.[name];
-    if (context) result[name] = pickCodes(context, new Set(fields));
-  });
+  const viewport = contexts?.viewport;
+  if (viewport) result.viewport = pickCodes(viewport, VIEWPORT_FIELDS);
+  const app = contexts?.app;
+  if (app) {
+    result.app = { app_version: version(app.app_version), app_build: version(app.app_build) };
+  }
   return result;
 };
 
@@ -353,7 +359,7 @@ export const scrubEvent = (event: ReportEvent): ReportEvent | null => {
     platform: 'javascript',
     level: LEVELS.includes(event.level) ? event.level : 'error',
     logger: event.logger === undefined ? undefined : String(scrubCode(event.logger)),
-    release: event.release === undefined ? undefined : String(scrubCode(event.release)),
+    release: version(event.release),
     environment: event.environment === undefined ? undefined : String(scrubCode(event.environment)),
     sdk: event.sdk && {
       name: String(scrubCode(event.sdk.name)),
