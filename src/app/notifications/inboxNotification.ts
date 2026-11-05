@@ -17,4 +17,4 @@ export const isHighlightNotification = (notification: Pick<INotification, 'actio
  * person has joined, a listed invite would only read "Unsupported message".
  */
 export const isMessageNotification = (notification: Pick<INotification, 'event'>): boolean =>
-  notification.event.state_key === undefined;
+  !('state_key' in notification.event);
