@@ -1,7 +1,7 @@
 import { type ComponentProps, type MouseEventHandler, type ReactNode } from 'react';
 import { Box, Icon, Text, config, type IconSrc } from 'folds';
 import { MenuItem } from './glass/GlassPrimitives';
-import { ShortcutKeys, shortcutAttributes } from '../mindroom/shortcuts/ShortcutKeys';
+import { ShortcutHint, shortcutAttributes } from '../mindroom/shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../mindroom/shortcuts/shortcuts';
 
 type MenuEntryProps = Omit<
@@ -44,7 +44,7 @@ export function MenuEntry({
       after={
         shortcut ? (
           <Box as="span" alignItems="Center" gap="200">
-            <ShortcutKeys id={shortcut} />
+            <ShortcutHint id={shortcut} />
             {end}
           </Box>
         ) : (

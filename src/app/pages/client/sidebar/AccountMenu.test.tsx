@@ -71,17 +71,10 @@ const open = (others: AccountMenuAccount[], withManage = others.length > 0) => {
   return { anchor, ...props };
 };
 
-// What a screen reader names each entry: its label, or its text without the hidden key caps.
-const spokenText = (element: Element) => {
-  const copy = element.cloneNode(true) as Element;
-  copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
-  return copy.textContent;
-};
-
 const entryNames = () =>
   within(screen.getByRole('menu'))
     .getAllByRole('menuitem')
-    .map((item) => item.getAttribute('aria-label') ?? spokenText(item));
+    .map((item) => item.getAttribute('aria-label') ?? item.textContent);
 
 afterEach(() => {
   cleanup();
@@ -111,10 +104,11 @@ describe('AccountMenu', () => {
   it('offers Settings and Add Account alone with a single account', () => {
     open([]);
     expect(entryNames()).toEqual(['Settings', 'Add Account']);
-    // Settings shows its shortcut and names it for assistive technology.
+    // Settings shows its shortcut beside its name, not in it, and names it for assistive technology.
     const settings = screen.getByRole('menuitem', { name: 'Settings' });
+    expect(settings.textContent).toBe('Settings');
     expect(settings.getAttribute('aria-keyshortcuts')).toBe('Control+,');
-    expect(settings.textContent).toContain('Ctrl+,');
+    expect(settings.querySelector('[data-keys]')?.getAttribute('data-keys')).toBe('Ctrl+,');
   });
 
   it('closes and switches when an account is chosen', () => {

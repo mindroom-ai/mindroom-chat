@@ -90,16 +90,10 @@ const renderMenu = (props: Partial<ThreadActionsMenuProps> = {}) => {
 };
 
 const glyph = (src: IconSrc) => renderToStaticMarkup(<>{src()}</>);
-// The row's name: its text without the key caps, which assistive technology skips.
-const spokenText = (item: HTMLElement) => {
-  const copy = item.cloneNode(true) as HTMLElement;
-  copy.querySelectorAll('[aria-hidden="true"]').forEach((hidden) => hidden.remove());
-  return copy.textContent;
-};
 const rows = (items: HTMLElement[]) =>
   items.map((item) => ({
     action: item.dataset.threadAction,
-    label: spokenText(item),
+    label: item.textContent,
     icon: item.querySelector('svg')?.innerHTML,
   }));
 const resolveRow = (items: HTMLElement[]) =>
@@ -120,7 +114,9 @@ describe('ThreadActionsMenu rows', () => {
     ]);
     // Resolve acts on the open thread here, so it shows the shortcut that does the same.
     expect(resolveRow(items)?.getAttribute('aria-keyshortcuts')).toBe('Control+Shift+Enter');
-    expect(resolveRow(items)?.textContent).toContain('Ctrl+Shift+Enter');
+    expect(resolveRow(items)?.querySelector('[data-keys]')?.getAttribute('data-keys')).toBe(
+      'Ctrl+Shift+Enter'
+    );
     // The icon follows the label, so the label starts the row and names it.
     items.forEach((item) => {
       const label = item.querySelector('span');

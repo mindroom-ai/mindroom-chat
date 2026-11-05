@@ -1,11 +1,12 @@
 import { Text } from 'folds';
 import { ariaShortcut, formatShortcut, type ShortcutId } from './shortcuts';
+import * as css from './ShortcutKeys.css';
 
 // Plain styles: menus and rail buttons across the app show these, and their tests stub folds.
 const keysStyle = { fontFamily: 'inherit', whiteSpace: 'nowrap', unicodeBidi: 'isolate' } as const;
 const labelRowStyle = { display: 'inline-flex', alignItems: 'center', gap: '0.75em' } as const;
 
-/** A shortcut's keys in quiet text, as tooltips and menu rows show them. */
+/** A shortcut's keys in quiet text, as tooltips show them after the label. */
 export function ShortcutKeys({ id }: { id: ShortcutId }) {
   // Screen readers hear the keys from the control's aria-keyshortcuts, not in its name.
   return (
@@ -20,6 +21,16 @@ export function ShortcutKeys({ id }: { id: ShortcutId }) {
     >
       {formatShortcut(id)}
     </Text>
+  );
+}
+
+/**
+ * A menu row's shortcut, drawn by CSS from `data-keys`: the row's text and its accessible name
+ * stay the action's name, and the control's aria-keyshortcuts gives the keys.
+ */
+export function ShortcutHint({ id }: { id: ShortcutId }) {
+  return (
+    <kbd className={css.KeysHint} dir="ltr" aria-hidden="true" data-keys={formatShortcut(id)} />
   );
 }
 
