@@ -1,0 +1,135 @@
+# Name scrub of 2026-11-04 (docs/provenance.md, "Name scrub"). Columns: scope, old, new. Rules apply in
+# this order, line by line, to lines matching the trigger (Python re syntax); see scripts/rename_map.py.
+scope	old	new
+trigger	(?i)cinny	
+path	e2e/cinny-021-clear-cache.spec.ts	e2e/clear-cache.spec.ts
+path	e2e/cinny124-flight-recorder.spec.ts	e2e/flight-recorder.spec.ts
+path	e2e/cinny132-keyboard-viewport.spec.ts	e2e/keyboard-viewport.spec.ts
+path	e2e/live/cinny001-last-open-thread.spec.ts	e2e/live/last-open-thread.spec.ts
+path	e2e/live/cinny001b-root-restore.spec.ts	e2e/live/root-path-thread-restore.spec.ts
+path	e2e/live/cinny015-thread-exit-scroll.spec.ts	e2e/live/thread-exit-scroll.spec.ts
+path	e2e/live/cinny029-thread-load-button.spec.ts	e2e/live/thread-load-button.spec.ts
+path	e2e/live/cinny030-thread-filter-persistence.spec.ts	e2e/live/thread-filter-persistence.spec.ts
+path	e2e/live/cinny031-focused-room-view.spec.ts	e2e/live/focused-room-view.spec.ts
+path	e2e/live/cinny032-search-result-open-target.spec.ts	e2e/live/search-result-open-target.spec.ts
+path	e2e/live/cinny033-jump-to-latest.spec.ts	e2e/live/jump-to-latest.spec.ts
+path	e2e/live/cinny033-message-permalink-open-target.spec.ts	e2e/live/message-permalink-open-target.spec.ts
+path	e2e/live/cinny034-direct-room-timeline.spec.ts	e2e/live/direct-room-timeline.spec.ts
+path	e2e/live/cinny044-settings-avatar.spec.ts	e2e/live/settings-avatar.spec.ts
+path	e2e/live/cinny060-thread-summary-consistency.spec.ts	e2e/live/thread-summary-consistency.spec.ts
+path	e2e/live/cinny061-thread-summary-cache-upgrade.spec.ts	e2e/live/thread-summary-cache-upgrade.spec.ts
+path	e2e/live/cinny067-thread-send-stability.spec.ts	e2e/live/thread-send-stability.spec.ts
+path	e2e/live/cinny068-fresh-zero-reply-open.spec.ts	e2e/live/fresh-zero-reply-open.spec.ts
+path	e2e/live/cinny069-room-resume-thread-preload.spec.ts	e2e/live/room-resume-thread-preload.spec.ts
+path	e2e/live/cinny070-thread-prepend-scroll.spec.ts	e2e/live/thread-prepend-scroll.spec.ts
+path	e2e/live/cinny071-cached-room-resume.spec.ts	e2e/live/cached-room-resume.spec.ts
+path	e2e/live/cinny073-recent-threads-mobile.spec.ts	e2e/live/recent-threads-mobile.spec.ts
+path	e2e/live/cinny075-reactions.spec.ts	e2e/live/message-reactions.spec.ts
+path	e2e/live/cinny076-classic-view-thread-bubbles.spec.ts	e2e/live/classic-view-thread-bubbles.spec.ts
+path	e2e/live/cinny077-classic-large-room-scroll.spec.ts	e2e/live/classic-large-room-scroll.spec.ts
+path	e2e/live/cinny111-thread-list-overflow.spec.ts	e2e/live/thread-list-overflow.spec.ts
+path	e2e/live/cinny207-background-room-freshness.spec.ts	e2e/live/background-room-freshness.spec.ts
+path	e2e/live/cinny207-gap-fill-restart.spec.ts	e2e/live/gap-fill-restart.spec.ts
+path	e2e/live/cinny207-stale-cache-divergence.spec.ts	e2e/live/stale-cache-divergence.spec.ts
+path	e2e/live/cinny207-stop-emoji-redaction.spec.ts	e2e/live/stop-emoji-redaction.spec.ts
+path	e2e/live/cinny207-streamed-edit-cache.spec.ts	e2e/live/streamed-edit-cache.spec.ts
+path	e2e/live/cinny217-invite-menu-portal.spec.ts	e2e/live/invite-menu-portal.spec.ts
+path	scripts/cinny-overlap/check.py	scripts/upstream-overlap/check.py
+path	scripts/cinny-overlap/rewrite_history.py	scripts/upstream-overlap/rewrite_history.py
+all	cinny001b\-root\-restore	root-path-thread-restore
+all	cinny001\-last\-open\-thread	last-open-thread
+all	cinny\-021\-clear\-cache	clear-cache
+all	cinny015\-thread\-exit\-scroll	thread-exit-scroll
+all	cinny029\-thread\-load\-button	thread-load-button
+all	cinny030\-thread\-filter\-persistence	thread-filter-persistence
+all	cinny031\-focused\-room\-view	focused-room-view
+all	cinny032\-search\-result\-open\-target	search-result-open-target
+all	cinny033\-jump\-to\-latest	jump-to-latest
+all	cinny033\-message\-permalink\-open\-target	message-permalink-open-target
+all	cinny034\-direct\-room\-timeline	direct-room-timeline
+all	cinny044\-settings\-avatar	settings-avatar
+all	cinny060\-thread\-summary\-consistency	thread-summary-consistency
+all	cinny061\-thread\-summary\-cache\-upgrade	thread-summary-cache-upgrade
+all	cinny067\-thread\-send\-stability	thread-send-stability
+all	cinny068\-fresh\-zero\-reply\-open	fresh-zero-reply-open
+all	cinny069\-room\-resume\-thread\-preload	room-resume-thread-preload
+all	cinny070\-thread\-prepend\-scroll	thread-prepend-scroll
+all	cinny071\-cached\-room\-resume	cached-room-resume
+all	cinny073\-recent\-threads\-mobile	recent-threads-mobile
+all	cinny075\-reactions	message-reactions
+all	cinny076\-classic\-view\-thread\-bubbles	classic-view-thread-bubbles
+all	cinny077\-classic\-large\-room\-scroll	classic-large-room-scroll
+all	cinny111\-thread\-list\-overflow	thread-list-overflow
+all	cinny124\-flight\-recorder	flight-recorder
+all	cinny132\-keyboard\-viewport	keyboard-viewport
+all	cinny207\-background\-room\-freshness	background-room-freshness
+all	cinny207\-gap\-fill\-restart	gap-fill-restart
+all	cinny207\-stale\-cache\-divergence	stale-cache-divergence
+all	cinny207\-stop\-emoji\-redaction	stop-emoji-redaction
+all	cinny207\-streamed\-edit\-cache	streamed-edit-cache
+all	cinny217\-invite\-menu\-portal	invite-menu-portal
+all	cinny-overlap	upstream-overlap
+message	\bcinny-?001\b(?![-\w])	last-open-thread
+message	\bcinny-?001b\b(?![-\w])	root-path-thread-restore
+message	\bcinny-?015\b(?![-\w])	thread-exit-scroll
+message	\bcinny-?021\b(?![-\w])	clear-cache
+message	\bcinny-?029\b(?![-\w])	thread-load-button
+message	\bcinny-?030\b(?![-\w])	thread-filter-persistence
+message	\bcinny-?031\b(?![-\w])	focused-room-view
+message	\bcinny-?032\b(?![-\w])	search-result-open-target
+message	\bcinny-?034\b(?![-\w])	direct-room-timeline
+message	\bcinny-?044\b(?![-\w])	settings-avatar
+message	\bcinny-?060\b(?![-\w])	thread-summary-consistency
+message	\bcinny-?061\b(?![-\w])	thread-summary-cache-upgrade
+message	\bcinny-?067\b(?![-\w])	thread-send-stability
+message	\bcinny-?068\b(?![-\w])	fresh-zero-reply-open
+message	\bcinny-?069\b(?![-\w])	room-resume-thread-preload
+message	\bcinny-?070\b(?![-\w])	thread-prepend-scroll
+message	\bcinny-?071\b(?![-\w])	cached-room-resume
+message	\bcinny-?073\b(?![-\w])	recent-threads-mobile
+message	\bcinny-?075\b(?![-\w])	message-reactions
+message	\bcinny-?076\b(?![-\w])	classic-view-thread-bubbles
+message	\bcinny-?077\b(?![-\w])	classic-large-room-scroll
+message	\bcinny-?111\b(?![-\w])	thread-list-overflow
+message	\bcinny-?124\b(?![-\w])	flight-recorder
+message	\bcinny-?132\b(?![-\w])	keyboard-viewport
+message	\bcinny-?217\b(?![-\w])	invite-menu-portal
+text	//github\.com/ajbura/cinny\b	//upstream.invalid/source
+text	//cinny\.in\b	//upstream.invalid
+text	Cinny \(`cinnyapp/\*`,	the upstream client named in `docs/provenance.md` (its GitHub organization,
+text	Cinny \(`cinnyapp/cinny`,	the upstream client named in `docs/provenance.md` (its repository,
+text	`cinnyapp/[^`]*`	`upstream`
+text	\bcinnyapp\b	upstream
+text	\bm\.cinny\.spaces\b	io.mindroom.spaces
+text	\bio\.cinny\.	io.mindroom.
+text	(?<![A-Za-z0-9])cinny_e2e_	mindroom_e2e_
+text	(?<![A-Za-z0-9])cinny_	mindroom_client_
+text	CINNY(?=-?\d)	ISSUE
+text	Cinny(?=-\d)	Issue
+text	cinny(?=-?\d)	issue
+text	\bfork of Cinny\b	fork of the upstream client named in `docs/provenance.md`
+text	\bcold Cinny boot\b	cold client boot
+text	\bfor Cinny live e2e tests\b	for live e2e tests
+text	\bCinny E2E\b	MindRoom E2E
+text	\brendering in Cinny\.	rendering in the client.
+text	\(Cinny renders\b	(the client renders
+text	\bof Cinny's render tree\b	of the app's render tree
+text	\bCinny-owned\b	client-owned
+text	\bCinny settings\b	client settings
+text	\bCinny `settings`	client `settings`
+text	\bCinny's unversioned\b	the client's unversioned
+text	\bvs Cinny unresolved\b	vs client unresolved
+text	\bloads Cinny inside\b	loads the client inside
+text	\bthe Cinny credit\b	the upstream client credit
+text	\b([Tt])he Cinny's\b	\1he upstream client's
+text	\bCinny's\b	the upstream client's
+text	\bCinny-(?=[a-z])	upstream-
+text	\b([Tt])he Cinny\b(?= [a-z])(?! (?:or|and|is|was|has|had|owns|wrote|writes|renders|uses|does|did|keeps|by|in|inside|as|on|to|for|with|from|at|of|itself)\b)	\1he upstream
+text	\b([Tt])he Cinny\b	\1he upstream client
+text	\b([Aa]) Cinny\b(?= [a-z])(?! (?:or|and|is|was|has|had|owns|wrote|writes|renders|uses|does|did|keeps|by|in|inside|as|on|to|for|with|from|at|of|itself)\b)	\1n upstream
+text	\bCinny\b(?= [a-z])(?! (?:or|and|is|was|has|had|owns|wrote|writes|renders|uses|does|did|keeps|by|in|inside|as|on|to|for|with|from|at|of|itself)\b)	upstream
+text	\bCinny\b	the upstream client
+text	Cinny	Mindroom
+text	CINNY	MINDROOM
+text	cinny	mindroom
+text	(?i)cinny	mindroom

@@ -19,6 +19,10 @@ Lines listed for the wave in docs/provenance/holes-overlap-import.tsv (path, lin
 too: Bas-authored lines that are part of a run shared with the upstream client (scripts/upstream-overlap/check.py),
 blanked in every commit by the history rewrite of 2026-11-03. A new import must rerun that check
 on its output and blank what it reports.
+
+Paths in the portable lists are this repository's paths. docs/provenance/rename-map.tsv (the name
+scrub, read through scripts/rename_map.py) maps a renamed path back to its path in the checkout,
+and the copied text goes through the same rules the scrub applied to the import commits.
 """
 
 import subprocess
@@ -30,6 +34,11 @@ BAS = "<bas@nijho.lt>"
 THRESHOLD = 0.95
 REPO = Path(__file__).resolve().parent.parent
 PROV = REPO / "docs" / "provenance"
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from rename_map import RenameMap  # noqa: E402
+
+NAMES = RenameMap()
 
 
 def blame_authors(chat: Path, commit: str, path: str) -> list[str]:
@@ -56,15 +65,16 @@ def overlap_holes(wave: int) -> dict[str, set[int]]:
 
 
 def ported(chat: Path, commit: str, path: str, overlap: set[int]) -> tuple[str, list[int]]:
-    authors = blame_authors(chat, commit, path)
-    lines = source_lines(chat, commit, path)
+    source = NAMES.source_path(path)
+    authors = blame_authors(chat, commit, source)
+    lines = source_lines(chat, commit, source)
     bas = sum(1 for a in authors if a == BAS)
     if not authors or bas / len(authors) < THRESHOLD:
         raise SystemExit(f"{path}: only {bas}/{len(authors)} lines by Bas at {commit}")
     holes = [i + 1 for i, a in enumerate(authors) if a != BAS]
     for n in [*holes, *overlap]:
         lines[n - 1] = ""
-    return "\n".join(lines), holes
+    return NAMES.content("\n".join(lines)), holes
 
 
 def main() -> None:
@@ -79,9 +89,9 @@ def main() -> None:
         import_commit = (PROV / "import.txt").read_text().splitlines()[wave - 1].split()[0]
         bad = []
         for path, sha in rows:
-            source = subprocess.run(["git", "-C", str(chat), "rev-parse", f"{commit}:{path}"], capture_output=True, text=True).stdout.strip()
+            source = subprocess.run(["git", "-C", str(chat), "rev-parse", f"{commit}:{NAMES.source_path(path)}"], capture_output=True, text=True).stdout.strip()
             ported_sha = subprocess.run(["git", "-C", str(REPO), "rev-parse", f"{import_commit}:{path}"], capture_output=True, text=True).stdout.strip()
-            authors = set(subprocess.run(["git", "-C", str(chat), "log", "--format=%ae", commit, "--", path], capture_output=True, text=True).stdout.split())
+            authors = set(subprocess.run(["git", "-C", str(chat), "log", "--format=%ae", commit, "--", NAMES.source_path(path)], capture_output=True, text=True).stdout.split())
             if not (sha == source == ported_sha) or authors != {"bas@nijho.lt"}:
                 bad.append(path)
         if bad:
