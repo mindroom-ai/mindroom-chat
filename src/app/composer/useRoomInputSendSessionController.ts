@@ -153,6 +153,10 @@ export const useRoomInputSendSessionController = ({
 } => {
   const sendSessionRef = useRef<SendSession | undefined>();
   const processingSendSessionRef = useRef(false);
+  // Messages sent while another is still going out, each started once the one before is done.
+  const queuedSendsRef = useRef<(() => void)[]>([]);
+  const startSendSessionRef =
+    useRef<(options?: StartRoomInputSendSessionOptions) => Promise<void>>();
   const composerContextRef = useRef({ roomId, threadId });
   composerContextRef.current = { roomId, threadId };
 
@@ -367,6 +371,7 @@ export const useRoomInputSendSessionController = ({
       }
     } finally {
       processingSendSessionRef.current = false;
+      if (!sendSessionRef.current) queuedSendsRef.current.shift()?.();
     }
   }, [attachments, sendSessionText, sendSessionUpload, restoreComposerFallback, clearSendSession]);
 
@@ -390,6 +395,37 @@ export const useRoomInputSendSessionController = ({
         }
         if (!hasRoomInputSendFailures(existingSession)) {
           // Repeated sends while uploads are still resolving should not create duplicate events.
+          if (!textContent) return;
+          // A new message follows the one still going out, in order. The composer takes it now,
+          // as it does any message; the reply draft the earlier message took stays with that one.
+          const queuedFallback = composerFallback ?? structuredClone(editor.children);
+          if (!composerAlreadyReset) {
+            resetEditor(editor); resetEditorHistory(editor);
+            sendTypingStatus(false);
+          }
+          const queuedContext: RoomInputSendContext = context ?? {
+            roomId,
+            room,
+            threadId,
+            replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
+            threadingEnabled,
+            signalBridgedRoom: isSignalBridgeRoom(room),
+          };
+          queuedSendsRef.current.push(() => {
+            startSendSessionRef
+              .current?.({
+                textContent,
+                context: queuedContext,
+                composerFallback: queuedFallback,
+                composerContext: composerContext ?? { roomId, threadId },
+                composerAlreadyReset: true,
+                onUploadSent,
+              })
+              .catch((error: unknown) => {
+                // eslint-disable-next-line no-console
+                console.warn('[room-input] could not send the queued message', error);
+              });
+          });
           return;
         }
 
@@ -499,6 +535,8 @@ export const useRoomInputSendSessionController = ({
       unsubscribe();
     };
   }, [attachments, processSendSession]);
+
+  startSendSessionRef.current = startSendSession;
 
   const hasActiveSendSession = useCallback(() => sendSessionRef.current !== undefined, []);
 
