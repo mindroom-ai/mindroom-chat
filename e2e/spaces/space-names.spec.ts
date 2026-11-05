@@ -157,3 +157,40 @@ test('long English names keep their start in a right-to-left interface', async (
   expect(await direction(row)).toBe('ltr');
   await context.close();
 });
+
+test('the Lobby row is marked as the page shown while the lobby is open', async ({ browser }) => {
+  test.setTimeout(120_000);
+  const context = await browser.newContext(DESKTOP);
+  const page = await context.newPage();
+  await signIn(page);
+  const { space } = await seeded!;
+  await page.goto(`/${encodeURIComponent(space)}/lobby/`);
+  const lobby = page.getByTestId('resizable-page-nav').getByRole('link', { name: 'Lobby' });
+  await expect(lobby).toHaveAttribute('aria-current', 'page', { timeout: 30_000 });
+  await page.getByTestId('resizable-page-nav').getByRole('link', { name: SIMILAR[0] }).click();
+  await expect(lobby).not.toHaveAttribute('aria-current', 'page');
+  await context.close();
+});
+
+test('on a phone the lobby shows rooms that differ only at their end in full', async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const context = await browser.newContext(PHONE);
+  const page = await context.newPage();
+  await signIn(page);
+  const { space } = await seeded!;
+  await page.goto(`/${encodeURIComponent(space)}/lobby/`);
+  for (const name of [...SIMILAR, LONG_ROOM]) {
+    const card = page.locator('main').getByText(name, { exact: true });
+    await expect(card).toBeVisible({ timeout: 30_000 });
+    // Nothing of the name is cut off: it wraps instead of ending in an ellipsis.
+    const cut = await card.evaluate(
+      (element) =>
+        element.scrollWidth > element.clientWidth + 1 ||
+        element.scrollHeight > element.clientHeight + 1
+    );
+    expect(cut, name).toBe(false);
+  }
+  await context.close();
+});
