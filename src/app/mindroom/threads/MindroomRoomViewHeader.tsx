@@ -366,7 +366,8 @@ export function RoomViewHeader({
           )}
         </Box>
       </Box>
-      <Box shrink="No" alignItems="Center">
+      {/* A small gap, so a tinted button never touches its neighbour. */}
+      <Box shrink="No" alignItems="Center" gap="100">
         {viewSwitch && !threadId && (
           <HeaderAction
             label={t('mindroomUi.threads.mindroomRoomViewHeader.compactView')}
@@ -385,8 +386,8 @@ export function RoomViewHeader({
                 : t('mindroomUi.threads.roomThreadOverview.threadFilters')
             }
             icon={Icons.Filter}
+            // A plain button: the bar itself shows whether it is on; the dot marks hidden filters.
             pressed={!filterBarHidden}
-            active={!filterBarHidden}
             onClick={() => setFilterBarHidden(!filterBarHidden)}
             badge={
               hiddenFiltersActive && (
