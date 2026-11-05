@@ -157,27 +157,16 @@ const setUpRoom = async (name: string) => {
   });
   await joinRoom(HOMESERVER, alice.accessToken, roomId);
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  let lastOlder = '';
   for (let index = 1; index <= OLDER_MESSAGES; index += 1) {
     const author = index % 3 === 0 ? reader : alice;
-    await sendRoomMessage(HOMESERVER, author.accessToken, roomId, {
+    lastOlder = await sendRoomMessage(HOMESERVER, author.accessToken, roomId, {
       msgtype: 'm.text',
       body: `Earlier planning note ${index}`,
     });
   }
-  // A thread the reader read before, as in a room they use. Without an earlier thread receipt the
-  // SDK counts every reply older than the reader's first one as read.
-  const earlierRoot = await sendRoomMessage(HOMESERVER, alice.accessToken, roomId, {
-    msgtype: 'm.text',
-    body: 'Earlier agenda',
-  });
-  const earlierReply = await sendRoomMessage(
-    HOMESERVER,
-    alice.accessToken,
-    roomId,
-    inThread(earlierRoot, 'Earlier agenda, settled')
-  );
-  await sendReceipt(reader, roomId, earlierReply, earlierRoot);
-  await sendReceipt(reader, roomId, earlierRoot, 'main');
+  // The reader read the older conversation, and has sent no thread receipt in this room.
+  await sendReceipt(reader, roomId, lastOlder, 'main');
   return { reader, alice, roomId };
 };
 

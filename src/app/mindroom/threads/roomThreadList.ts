@@ -6,6 +6,7 @@ import type { MatrixEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
+import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 
 /** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
 export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
@@ -39,7 +40,7 @@ export const getThreadReadState = (
 
   // The SDK validates receipt targets against its timeline, which omits replies
   // known only through the bundled summary. Resolve those receipt IDs here too.
-  const readUpToId = thread.getEventReadUpTo(userId);
+  const readUpToId = getThreadEventReadUpTo(thread, userId);
   const readEventIds = new Set([readUpToId]);
   for (const receiptType of [ReceiptType.Read, ReceiptType.ReadPrivate]) {
     // A retained local echo can mask a newer server receipt outside the timeline.

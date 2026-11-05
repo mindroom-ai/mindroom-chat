@@ -23,33 +23,46 @@ const message = (id: string, ts: number, threadId?: string) =>
     },
   });
 
-/** A room whose thread has its reply loaded, for an account that never sent a thread receipt. */
+/**
+ * A room with two threads by Bob, their replies loaded, for an account that never sent a thread
+ * receipt there.
+ */
 const setupRoom = async () => {
   const mx = createClient({ baseUrl: 'https://example.org', userId: USER_ID });
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
   const room = new Room(ROOM_ID, mx, USER_ID);
   mx.store.storeRoom(room);
   const requests = vi.spyOn(mx.http, 'authedRequest').mockResolvedValue({});
-  const root = message('$root', 1000);
-  const reply = message('$reply', 2000, '$root');
-  room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
-  // The reader read the main timeline, the root included, so only the thread is left to read.
+  const roots = [message('$older', 1000), message('$newer', 1100)];
+  roots.forEach((root) =>
+    room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false })
+  );
+  // The reader read the main timeline, the roots included, so only the threads are left to read.
   room.addReceipt(
     new MatrixEvent({
       type: 'm.receipt',
       room_id: ROOM_ID,
-      content: { $root: { [ReceiptType.Read]: { [USER_ID]: { thread_id: 'main', ts: 1500 } } } },
+      content: { $newer: { [ReceiptType.Read]: { [USER_ID]: { thread_id: 'main', ts: 1500 } } } },
     })
   );
-  const thread = room.createThread('$root', root, [reply], false);
+  const [older, newer] = roots.map((root, index) => {
+    const reply = message(`${root.getId()}-reply`, 2000 + index * 1000, root.getId());
+    return room.createThread(root.getId()!, root, [reply], false);
+  }) as [Thread, Thread];
   await vi.waitFor(() =>
-    expect(thread.events.some((event) => event.getId() === '$reply')).toBe(true)
+    [older, newer].forEach((thread) => expect(thread.events.at(-1)?.getId()).toMatch(/-reply$/))
   );
-  return { mx, room, thread, requests };
+  return { mx, room, older, newer, requests };
 };
 
-const receiptRequests = (requests: { mock: { calls: unknown[][] } }) =>
-  requests.mock.calls.filter(([, path]) => String(path).includes('/receipt/'));
+/** The receipts sent, as the event each names and its thread. */
+const receipts = (requests: { mock: { calls: unknown[][] } }) =>
+  requests.mock.calls
+    .filter(([, path]) => String(path).includes('/receipt/'))
+    .map(([, path, , body]) => [
+      decodeURIComponent(String(path).split('/').at(-1) ?? ''),
+      (body as { thread_id?: string } | undefined)?.thread_id,
+    ]);
 
 describe('the first thread receipt in a room', () => {
   let previousThreadSupport: FeatureSupport;
@@ -64,38 +77,47 @@ describe('the first thread receipt in a room', () => {
     vi.restoreAllMocks();
   });
 
-  it('is sent for a reply the SDK already counts as read, so a later reply shows as unread', async () => {
-    const { mx, room, thread, requests } = await setupRoom();
-    // Without any thread receipt from this account, the SDK reads every loaded reply as read.
+  it('leaves the other thread unread, and that thread gets its own receipt once read', async () => {
+    const { mx, room, older, newer, requests } = await setupRoom();
+    // The SDK counts every loaded reply as read while the account has no thread receipt here.
     expect(room.getOldestThreadedReceiptTs()).toBe(Number.POSITIVE_INFINITY);
-    expect(getThreadUnread(thread, USER_ID)).toBe(false);
-    thread.addEvent(message('$unseen', 3000, '$root'), false);
-    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+    expect(older.getEventReadUpTo(USER_ID)).toBe('$older-reply');
+    expect(getThreadUnread(older, USER_ID)).toBe(true);
+    expect(getThreadUnread(newer, USER_ID)).toBe(true);
 
-    await markThreadAsRead(mx, ROOM_ID, '$root', false);
+    await markThreadAsRead(mx, ROOM_ID, '$newer', false);
 
-    expect(receiptRequests(requests)).toEqual([
-      [
-        'POST',
-        `/rooms/${encodeURIComponent(ROOM_ID)}/receipt/${ReceiptType.Read}/%24unseen`,
-        undefined,
-        { thread_id: '$root' },
-      ],
+    expect(receipts(requests)).toEqual([['$newer-reply', '$newer']]);
+    expect(getThreadUnread(newer, USER_ID)).toBe(false);
+    // The SDK now counts the older thread as read, since its reply predates that receipt.
+    expect(older.getEventReadUpTo(USER_ID)).toBe('$older-reply');
+    expect(getThreadUnread(older, USER_ID)).toBe(true);
+
+    await markThreadAsRead(mx, ROOM_ID, '$older', false);
+
+    expect(receipts(requests)).toEqual([
+      ['$newer-reply', '$newer'],
+      ['$older-reply', '$older'],
     ]);
-    expect(room.getOldestThreadedReceiptTs()).toBeLessThan(Number.POSITIVE_INFINITY);
-    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+    expect(getThreadUnread(older, USER_ID)).toBe(false);
+  });
 
-    thread.addEvent(message('$later', Date.now() + 60_000, '$root'), false);
-    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  it('lets a later reply show as unread', async () => {
+    const { mx, newer } = await setupRoom();
+    await markThreadAsRead(mx, ROOM_ID, '$newer', false);
+
+    newer.addEvent(message('$later', 4000, '$newer'), false);
+
+    expect(getThreadUnread(newer, USER_ID)).toBe(true);
   });
 
   it('is sent only once: a read thread gets no receipt after it', async () => {
     const { mx, requests } = await setupRoom();
-    await markThreadAsRead(mx, ROOM_ID, '$root', false);
+    await markThreadAsRead(mx, ROOM_ID, '$newer', false);
     requests.mockClear();
 
-    await markThreadAsRead(mx, ROOM_ID, '$root', false);
+    await markThreadAsRead(mx, ROOM_ID, '$newer', false);
 
-    expect(receiptRequests(requests)).toEqual([]);
+    expect(receipts(requests)).toEqual([]);
   });
 });
