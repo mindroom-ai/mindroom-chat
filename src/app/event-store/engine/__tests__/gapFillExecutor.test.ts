@@ -118,10 +118,12 @@ const flushMicrotasks = async (): Promise<void> => {
   }
 };
 
+// Both helpers poll until their condition holds, and only the test timeout bounds them. They used
+// to give up after 30 polls of 5 ms; on a busy machine that ran out before twenty gap pages were
+// saved, and the test read the marker halfway through.
 const waitForCompleted = async (minimum = 1): Promise<void> => {
   // Loop-await on a probe read until the executor's last batch settles.
-  for (let i = 0; i < 30; i += 1) {
-    if (getCacheProbeSnapshot().schedulerCompleted >= minimum) return;
+  while (getCacheProbeSnapshot().schedulerCompleted < minimum) {
     // eslint-disable-next-line no-await-in-loop
     await new Promise((resolve) => {
       setTimeout(resolve, 5);
@@ -130,14 +132,12 @@ const waitForCompleted = async (minimum = 1): Promise<void> => {
 };
 
 const waitForCondition = async (condition: () => boolean): Promise<void> => {
-  for (let i = 0; i < 30; i += 1) {
-    if (condition()) return;
+  while (!condition()) {
     // eslint-disable-next-line no-await-in-loop
     await new Promise((resolve) => {
       setTimeout(resolve, 5);
     });
   }
-  throw new Error('condition did not become true');
 };
 
 describe('gapFillExecutor (ISSUE-207 P4.2)', () => {
