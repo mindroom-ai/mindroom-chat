@@ -126,7 +126,10 @@ export const currentPanelSize = (panel: HTMLElement): PanelSize => ({
 
 /**
  * Moves a panel from one size to another: the browser animates its width (and the gap, as a start
- * margin), so React renders nothing per frame. `hold` keeps the end size after the motion, for a panel about to leave. Returns undefined, and
+ * margin), so React renders nothing per frame. `hold` keeps the end size after the motion, for a
+ * panel about to leave. A panel that stays moves toward its own width on every frame rather than
+ * to `to`, so it arrives where it settles also when that changes on the way: a panel that just
+ * mounted measures the room beside it only after its motion has started. Returns undefined, and
  * moves nothing, under reduced motion or without the Web Animations API.
  */
 export const animatePanel = (
@@ -140,7 +143,9 @@ export const animatePanel = (
     width: `${width}px`,
     marginInlineStart: `${-gap}px`,
   });
-  return panel.animate([frame(from), frame(to)], {
+  // Without a last keyframe the motion ends at the panel's width and gap as styled.
+  const keyframes = hold ? [frame(from), frame(to)] : [{ ...frame(from), offset: 0 }];
+  return panel.animate(keyframes, {
     duration: PANEL_MOTION_MS,
     easing: PANEL_MOTION_EASING,
     fill: hold ? 'forwards' : 'none',
