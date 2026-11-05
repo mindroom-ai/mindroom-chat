@@ -10,3 +10,11 @@ export const isHighlightNotification = (notification: Pick<INotification, 'actio
     (action) =>
       isRecord(action) && action.set_tweak === TweakName.Highlight && action.value !== false
   );
+
+/**
+ * Whether the Inbox lists a notification: messages, not state events. The default push rules
+ * also notify of an invite and of a room's replacement, which the room itself shows; once the
+ * person has joined, a listed invite would only read "Unsupported message".
+ */
+export const isMessageNotification = (notification: Pick<INotification, 'event'>): boolean =>
+  notification.event.state_key === undefined;

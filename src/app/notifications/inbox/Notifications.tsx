@@ -63,7 +63,7 @@ import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../messages/html/reac
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { settingsAtom } from '../../preferences/settings';
 import { MarkRoomReadChip } from '../MarkRoomReadChip';
-import { isHighlightNotification } from '../inboxNotification';
+import { isHighlightNotification, isMessageNotification } from '../inboxNotification';
 import { getEventThreadId } from '../messageNotificationRules';
 import {
   resolveNotificationEvent,
@@ -154,11 +154,16 @@ const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
   return { ...pages, loadOlder, reload };
 };
 
-/** Consecutive notifications of a joined room become one group; rooms left since are skipped. */
+/**
+ * Consecutive notifications of a joined room become one group; rooms left since and notifications
+ * of state events are skipped.
+ */
 const groupByRoom = (mx: MatrixClient, notifications: INotification[]): RoomNotifications[] =>
   notifications.reduce<RoomNotifications[]>((groups, notification) => {
     const room = mx.getRoom(notification.room_id);
-    if (!room || room.getMyMembership() !== 'join') return groups;
+    if (!room || room.getMyMembership() !== 'join' || !isMessageNotification(notification)) {
+      return groups;
+    }
     const last = groups.at(-1);
     if (last?.room.roomId === room.roomId) last.notifications.push(notification);
     else groups.push({ room, notifications: [notification] });
