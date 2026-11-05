@@ -12,7 +12,7 @@
 // service finds them; a shorthand property keeps its key (`{ old }` becomes `{ old: renamed }`).
 //
 // A declaration is also an import alias (`import { x as old }`), so a local name can follow
-// a renamed export. When a shorthand is renamed both as a property and as a local binding, the
+// a renamed export, and a re-exported name (`export { old } from`), so a facade's name can. When a shorthand is renamed both as a property and as a local binding, the
 // two edits combine (`{ old }` becomes `{ new }`, or `{ newKey: newLocal }`).
 //
 // Beyond the language service:
@@ -136,6 +136,7 @@ const declarationNames = (sf, name) => {
         ts.isEnumDeclaration(node) ||
         ts.isParameter(node) ||
         ts.isBindingElement(node) ||
+        ts.isExportSpecifier(node) ||
         (ts.isImportSpecifier(node) && node.propertyName)) &&
       node.name &&
       ts.isIdentifier(node.name) &&
@@ -161,26 +162,44 @@ const at = (file, position) => {
   return `${rel(file)}:${sf.getLineAndCharacterOfPosition(position).line + 1}`;
 };
 // A shorthand `{ a }` renamed twice, once as the property (`b: a`) and once as the local
-// binding (`a: c`), becomes `b: c`, or `b` when both are the same.
+// binding (`a: c`), becomes `b: c`, or `b` when both are the same; an import or export
+// specifier `a` renamed both at its module (`b as a`) and as its own name (`a as c`) becomes
+// `b as c`, which the collapse below writes `b` when both are the same.
 const mergeShorthand = (original, one, other) => {
-  const pair = (text) => /^([A-Za-z_$][\w$]*): ([A-Za-z_$][\w$]*)$/.exec(text);
-  // A plain rename of the whole shorthand to the same name the property rename gives.
-  for (const [plain, keyed] of [
-    [one, other],
-    [other, one],
-  ]) {
-    const pairOf = pair(keyed);
-    if (!pair(plain) && pairOf && pairOf[2] === original && pairOf[1] === plain) return plain;
+  for (const separator of [': ', ' as ']) {
+    const pair = (text) => {
+      const parts = text.split(separator);
+      return parts.length === 2 && parts.every((part) => /^[A-Za-z_$][\w$]*$/.test(part))
+        ? ['', ...parts]
+        : undefined;
+    };
+    // A plain rename of the whole shorthand to the same name the property rename gives.
+    for (const [plain, keyed] of [
+      [one, other],
+      [other, one],
+    ]) {
+      const pairOf = pair(keyed);
+      if (
+        /^[A-Za-z_$][\w$]*$/.test(plain) &&
+        pairOf &&
+        pairOf[2] === original &&
+        pairOf[1] === plain
+      ) {
+        return plain;
+      }
+    }
+    const a = pair(one);
+    const b = pair(other);
+    if (!a || !b) continue;
+    // The outer rename keeps the inner name (`new: original`), the inner one the outer name.
+    const outer = a[2] === original ? a : b[2] === original ? b : undefined;
+    const inner =
+      a[1] === original && a !== outer ? a : b[1] === original && b !== outer ? b : undefined;
+    if (!outer || !inner) continue;
+    if (separator === ' as ') return `${outer[1]} as ${inner[2]}`;
+    return outer[1] === inner[2] ? outer[1] : `${outer[1]}: ${inner[2]}`;
   }
-  const a = pair(one);
-  const b = pair(other);
-  if (!a || !b) return undefined;
-  // The property rename keeps the local name (`new: original`), the local one the key.
-  const property = a[2] === original ? a : b[2] === original ? b : undefined;
-  const local =
-    a[1] === original && a !== property ? a : b[1] === original && b !== property ? b : undefined;
-  if (!property || !local) return undefined;
-  return property[1] === local[2] ? property[1] : `${property[1]}: ${local[2]}`;
+  return undefined;
 };
 const addEdit = (file, start, end, text, row) => {
   if (!edits.has(file)) edits.set(file, new Map());
