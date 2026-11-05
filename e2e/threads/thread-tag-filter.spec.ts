@@ -18,7 +18,8 @@ import {
 // the dropdown); the button names a lone tag; the choice survives a reload; Clear brings every
 // thread back; a tag the search excludes shows checked and marked; and on a phone with touch the
 // People and Tags panels open inside the screen and close on a second tap of their button. A
-// second press or tap on the Preset button closes its list too.
+// second press or tap on the Preset button closes its list too, and a filter toggle tapped back to
+// where it started keeps no hover tint.
 // Classic scrollbars are shown, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit.
 // Set L28_SHOTS=<directory> to save the L28 screenshots (Chromium only).
@@ -200,6 +201,38 @@ const checkPresetToggle = async (page: Page, press: (target: Locator) => Promise
   await expect(button).toHaveAttribute('aria-expanded', 'false');
 };
 
+/** A button's fill. */
+const fill = (button: Locator) =>
+  button.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+/**
+ * Taps a toggle until it is back in the state it started in, and checks that it then looks as it
+ * did: a touch screen keeps :hover on the button tapped last, and the hover tint made a toggle
+ * tapped off look on.
+ */
+const expectRestAfterTaps = async (
+  page: Page,
+  button: Locator,
+  state: string,
+  engine: string,
+  name: string
+) => {
+  const rest = await fill(button);
+  const start = await button.getAttribute(state);
+  for (let taps = 0; taps < 3; taps += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await button.tap();
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(300);
+    // eslint-disable-next-line no-await-in-loop
+    if ((await button.getAttribute(state)) === start) break;
+  }
+  await expect(button).toHaveAttribute(state, start ?? '');
+  // The fill's transition ends first.
+  await page.waitForTimeout(300);
+  expect.soft(await fill(button), `${engine}: ${name} looks as it did before the taps`).toBe(rest);
+};
+
 /** Everything the dropdown does, on a signed-in page that shows the seeded room. */
 const checkTagFilter = async (page: Page, engine: string) => {
   const { cards, overview, button, panel, search, options, option, box } = tagFilterOf(page);
@@ -328,8 +361,22 @@ const checkPhone = async (
     await page.goto(`/home/${encodeURIComponent(roomId)}`);
     const { cards, overview, button, panel, option } = tagFilterOf(page);
     await expect(cards).toHaveCount(TOPICS.length, { timeout: 120_000 });
+    await expectRestAfterTaps(
+      page,
+      overview.locator('[data-simple-unresolved-toggle]'),
+      'aria-pressed',
+      engine,
+      'Unresolved'
+    );
     await overview.locator('[data-thread-filter-mode-switch]').tap();
     await checkPresetToggle(page, (target) => target.tap());
+    await expectRestAfterTaps(
+      page,
+      overview.locator('[data-filter-key="streaming"]'),
+      'data-filter-state',
+      engine,
+      'the streaming status toggle'
+    );
     for (const name of ['people', 'tag']) {
       const trigger = overview.locator(`[data-${name}-filter-button]`);
       // eslint-disable-next-line no-await-in-loop

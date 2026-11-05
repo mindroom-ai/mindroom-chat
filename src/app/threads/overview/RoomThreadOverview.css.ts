@@ -63,10 +63,14 @@ export const ToggleButton = style({
   font: 'inherit',
   transition: transition(['background-color', 'border-color', 'opacity'], motion.duration.Normal),
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+  // Only a pointer that can hover tints the button: a touch screen keeps :hover on the
+  // button tapped last, so a toggle tapped off still looked on.
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
     },
+  },
+  selectors: {
     '&:focus-visible': {
       outline: `2px solid ${color.Primary.Main}`,
       outlineOffset: '1px',
@@ -80,9 +84,9 @@ export const ToggleInclude = style({
   color: color.Success.OnContainer,
   opacity: '1',
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.Success.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Success.ContainerHover } },
     },
   },
 });
@@ -93,9 +97,9 @@ export const ToggleIncludeOr = style({
   color: color.Warning.OnContainer,
   opacity: '1',
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.Warning.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Warning.ContainerHover } },
     },
   },
 });
@@ -106,10 +110,12 @@ export const ToggleExclude = style({
   color: color.Critical.OnContainer,
   opacity: '1',
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.Critical.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Critical.ContainerHover } },
     },
+  },
+  selectors: {
     // A slash across the icon: the status is excluded.
     '&::after': {
       content: '""',
@@ -140,10 +146,12 @@ export const SortButton = style({
   cursor: 'pointer', whiteSpace: 'nowrap',
   transition: transition(['background-color', 'border-color'], motion.duration.Normal),
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
     },
+  },
+  selectors: {
     '&:focus-visible': {
       outline: `2px solid ${color.Primary.Main}`,
       outlineOffset: '1px',
@@ -156,9 +164,9 @@ export const SortButtonActive = style({
   borderColor: color.Primary.ContainerLine,
   color: color.Primary.OnContainer,
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.Primary.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Primary.ContainerHover } },
     },
   },
 });
@@ -169,9 +177,9 @@ export const PauseButtonActive = style({
   color: color.Warning.OnContainer,
   opacity: '1',
 
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.Warning.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.Warning.ContainerHover } },
     },
   },
 });
@@ -199,10 +207,12 @@ export const PresetButton = style({
   cursor: 'pointer', whiteSpace: 'nowrap',
   font: 'inherit',
   transition: transition(['background-color', 'border-color'], motion.duration.Normal),
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
     },
+  },
+  selectors: {
     '&:focus-visible': {
       outline: `2px solid ${color.Primary.Main}`,
       outlineOffset: '1px',
@@ -267,10 +277,12 @@ export const InfoButton = style({
   padding: 0,
   font: 'inherit',
   transition: transition(['background-color'], motion.duration.Normal),
-  selectors: {
-    '&:hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
+  '@media': {
+    '(hover: hover)': {
+      selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
     },
+  },
+  selectors: {
     '&:focus-visible': {
       outline: `2px solid ${color.Primary.Main}`,
       outlineOffset: '1px',
