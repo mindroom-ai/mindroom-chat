@@ -1,0 +1,33 @@
+/*
+ * The native tests read this exact body color (rgb(21, 62, 53)) and sample it at the centre of
+ * the web view, so the body's background paints the whole view and nothing sits at its centre.
+ */
+body {
+  margin: 0;
+  background-color: #153e35;
+  color: #f2f5f4;
+  font: 16px/1.4 -apple-system, system-ui, sans-serif;
+}
+
+/* Below the status bar, which the web view runs under (StatusBar overlaysWebView). */
+.native-test-page {
+  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
+  padding-right: calc(env(safe-area-inset-right, 0px) + 16px);
+  padding-bottom: 12px;
+  padding-left: calc(env(safe-area-inset-left, 0px) + 16px);
+}
+
+.native-test-page p {
+  margin: 0 0 12px;
+}
+
+.native-diagnostics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.native-diagnostics button {
+  font: inherit;
+  padding: 8px 12px;
+}

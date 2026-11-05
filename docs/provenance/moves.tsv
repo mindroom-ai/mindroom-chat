@@ -2831,3 +2831,4 @@ src/app/ui/virtualizer/style.css.ts	src/app/ui/VirtualTile.css.ts	restructure-p4
 src/app/navigation/clientRouteRestore.ts		clean-rewrite
 src/app/messages/content/useAudioContentSource.ts		clean-rewrite
 src/app/matrix/hooks/useInitialClientCatchup.ts		clean-rewrite
+ios/Tests/public/index.html		clean-rewrite

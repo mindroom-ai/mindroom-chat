@@ -1,14 +1,27 @@
 <!DOCTYPE html>
+<!--
+  The web root of the generated iOS test host (scripts/ios-routing-test-project.rb copies this
+  folder in place of the web bundle). The native asset handler answers every app route with this
+  file, so its assets use root-absolute URLs. boot.js sets window.routingBootId on each JavaScript
+  boot and shows the two diagnostics buttons that ios/Tests/UI/NativeDiagnosticsTests.swift taps.
+  No Content-Security-Policy, storage, cookies or message listeners: the Swift tests bring their own.
+-->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <base href="/" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MindRoom native routing fixture</title>
-    <link rel="stylesheet" href="./style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>MindRoom native test page</title>
+    <link rel="stylesheet" href="/style.css" />
+    <script type="module" src="/boot.js"></script>
   </head>
   <body>
-    <main id="app">MindRoom routing fixture loaded</main>
-    <script type="module" src="./boot.js"></script>
+    <main class="native-test-page">
+      <p>Native test page for the MindRoom iOS shell.</p>
+      <div class="native-diagnostics">
+        <button type="button" id="native-diagnostics-read">Read native diagnostics</button>
+        <!-- boot.js reveals it after its first read; its aria-label carries the JSON. -->
+        <button type="button" id="native-diagnostics-result" hidden></button>
+      </div>
+    </main>
   </body>
 </html>
