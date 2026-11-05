@@ -194,9 +194,34 @@ describe('InviteAutocompleteMenu', () => {
     act(() => {
       scroller.dispatchEvent(new Event('scroll'));
       window.dispatchEvent(new Event('resize'));
+      scroller.dispatchEvent(new Event('animationend', { bubbles: true }));
+      scroller.dispatchEvent(new Event('transitionend', { bubbles: true }));
     });
     expect(fieldReads).toBe(reads);
     scroller.remove();
+  });
+
+  it('lines the list up with the field again once the dialog around it has slid in', () => {
+    // The list opens while the dialog still slides up: the field is 5 px below where it stops.
+    const dialog = document.body.appendChild(document.createElement('div'));
+    field = { ...field, y: 105 };
+    render(<People open />, { container: dialog.appendChild(document.createElement('div')) });
+    expect(anchor()).toMatchObject({ y: 105 });
+
+    field = { ...field, y: 100 };
+    act(() => {
+      dialog.dispatchEvent(new Event('animationend', { bubbles: true }));
+    });
+    expect(anchor()).toMatchObject({ y: 100 });
+
+    // A dialog that moves by a transition settles the same way.
+    field = { ...field, y: 96 };
+    act(() => {
+      dialog.dispatchEvent(new Event('transitionend', { bubbles: true }));
+    });
+    expect(anchor()).toMatchObject({ y: 96 });
+    cleanup();
+    dialog.remove();
   });
 
   it('stops listening when unmounted while open', () => {
@@ -204,8 +229,9 @@ describe('InviteAutocompleteMenu', () => {
     unmount();
     const reads = fieldReads;
 
-    window.dispatchEvent(new Event('scroll'));
-    window.dispatchEvent(new Event('resize'));
+    for (const type of ['scroll', 'resize', 'animationend', 'transitionend']) {
+      window.dispatchEvent(new Event(type));
+    }
 
     expect(fieldReads).toBe(reads);
   });

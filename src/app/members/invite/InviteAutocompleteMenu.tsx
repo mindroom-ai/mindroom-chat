@@ -54,9 +54,17 @@ const remeasure = (box: Element, stored: Measurement | undefined): Measurement =
 };
 
 /**
- * Measures the anchor box while the list is open: once before the first paint, then on every
- * resize and every scroll in the page. The scroll listener captures, so it also hears scrolling
- * containers such as the dialog. Closing drops the measurement, so each opening starts afresh.
+ * Events after which the field may sit somewhere else: a scroll anywhere in the page (the
+ * listeners capture, so they also hear scrolling containers such as the dialog), a window
+ * resize, and the end of an animation or a transition. The last two catch a dialog that was
+ * still sliding in when the list opened: the list lined up with the field mid-slide and would
+ * otherwise stay a few pixels off until the next scroll.
+ */
+const FIELD_MOVES = ['scroll', 'resize', 'animationend', 'transitionend'] as const;
+
+/**
+ * Measures the anchor box while the list is open: once before the first paint, then after each
+ * event of `FIELD_MOVES`. Closing drops the measurement, so each opening starts afresh.
  */
 const useOpenMeasurement = (
   open: boolean,
@@ -71,11 +79,9 @@ const useOpenMeasurement = (
       if (box) setMeasurement((stored) => remeasure(box, stored));
     };
     update();
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
+    for (const type of FIELD_MOVES) window.addEventListener(type, update, true);
     return () => {
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
+      for (const type of FIELD_MOVES) window.removeEventListener(type, update, true);
       setMeasurement(undefined);
     };
   }, [open, anchorBoxRef]);
@@ -151,8 +157,9 @@ const useDismissTrapOptions = (
 /**
  * The floating list of people under the invite search field. It opens below the field, or above
  * it when only that side has room, as wide as the field and no taller than the room on that side,
- * and follows the field while the page scrolls or resizes. The caller owns the rows, their order
- * and the keyboard; this frame only reports when the reader dismisses the list.
+ * and follows the field when the page scrolls or resizes and when the dialog around it settles.
+ * The caller owns the rows, their order and the keyboard; this frame only reports when the reader
+ * dismisses the list.
  */
 export function InviteAutocompleteMenu({
   open,
