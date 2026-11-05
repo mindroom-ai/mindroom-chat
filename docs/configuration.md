@@ -108,7 +108,34 @@ A `welcome` text equal to its English default is shown translated into the app l
 
 | Key | Type | Default | Effect |
 |---|---|---|---|
-| `errorReporting.dsn` | string (DSN) | none | DSN of a Sentry-compatible collector such as GlitchTip, `https://<public key>@<host>/<project id>`. HTTPS only; any other value counts as unset. Set, the client reports uncaught errors, unhandled rejections, crashes its root error boundary catches, entering the sync error state (with the `errcode`), messages still undecryptable after a minute (counted by failure code), failed sends (with the `errcode` and event type), main-thread blocks of 2 seconds or more, and rooms that take 3 seconds or more to show their messages. Each report carries the build (`version.json`'s `version` as the release), the browser, the viewport and the route template, such as `/home/:roomIdOrAlias/:eventId?/`. Reports never contain message text, room or display names, Matrix IDs, tokens, URL queries or file names (`src/app/bug-reports/error-reporting/scrub.ts`). The reporter is a chunk of its own, loaded only when this key is set, and each device can switch reports off in Settings > About (on by default). Unset, nothing is loaded or sent. |
+| `errorReporting.dsn` | string (DSN) | none | DSN of a Sentry-compatible collector such as GlitchTip, `https://<public key>@<host>/<project id>`. HTTPS only; any other value counts as unset. Set, the client reports uncaught errors, unhandled rejections, crashes its root error boundary catches, entering the sync error state (with the `errcode`), messages still undecryptable after a minute (counted by failure code), failed sends (with the `errcode` and event type), main-thread blocks of 2 seconds or more, and rooms that take 3 seconds or more to show their messages. Each report carries the build (`version.json`'s `version` as the release), the browser, the viewport and the route template, such as `/home/:roomIdOrAlias/:eventId?/`. Reports never contain message text, room or display names, Matrix IDs, tokens, URL queries or file names (`src/app/bug-reports/error-reporting/scrub.ts`). The reporter is a chunk of its own, loaded only when this key is set, and each device can switch reports off in Settings > About (on by default). Unset, nothing is loaded or sent. Each report is posted as an envelope to the collector's envelope endpoint (`/api/<project id>/envelope/`), with the public key in the `X-Sentry-Auth` header and never in an address. |
+| `errorReporting.tunnel` | string (path) | none | A path on the client's own origin, such as `/errors/envelope`, that the client's server forwards to the collector's envelope endpoint. Set, reports go there instead of to the collector: privacy blocklists (EasyPrivacy in uBlock Origin, Brave Shields, AdGuard) drop requests to error collectors, but not to the app's own origin. A value on another origin counts as unset. The server must forward the body, its `Content-Type` and the `X-Sentry-Auth` header to one fixed collector and project; see below. |
+| `errorReporting.environment` | string | the page's host name | The `environment` of every report, such as `lab` or `production`, so test hosts and previews stay apart from the deployment in the collector. |
+
+Without a tunnel the client posts to the collector's origin, which needs a CORS preflight for the `X-Sentry-Auth` header (GlitchTip allows it), and those reports cannot outlive the page. Reports that do not reach the collector are counted: the first of a page load logs one `[error-reports]` warning on the console, and the next report that gets through carries each failure as a `report` breadcrumb. For nginx, a tunnel for project 1 of `https://errors.example.org` looks like this; the address is fixed, so the tunnel relays nothing else, and the collector checks the key against that project:
+
+```nginx
+location = /errors/envelope {
+  if ($request_method != POST) { return 405; }
+  client_max_body_size 64k;
+  client_body_buffer_size 64k;
+  # Resolved per request, so nginx starts while the collector's name does not resolve.
+  # 127.0.0.11 is Docker's DNS on user-defined networks; elsewhere use the host's resolver.
+  resolver 127.0.0.11 ipv6=off valid=60s;
+  set $collector https://errors.example.org;
+  proxy_pass $collector/api/1/envelope/;
+  # Only the body, its type and the key go on: no cookies, addresses or other headers.
+  proxy_pass_request_headers off;
+  proxy_set_header Content-Type $content_type;
+  proxy_set_header X-Sentry-Auth $http_x_sentry_auth;
+  proxy_ssl_server_name on;
+  proxy_ssl_verify on;
+  proxy_ssl_trusted_certificate /etc/ssl/certs/ca-certificates.crt;
+  proxy_hide_header Set-Cookie;
+  proxy_connect_timeout 5s;
+  proxy_read_timeout 15s;
+}
+```
 
 ### Push notifications (iOS app)
 

@@ -13,6 +13,20 @@ import { settingsAtom } from '../../preferences/settings';
 
 type Reporter = typeof import('./reporter');
 
+type ErrorReportingConfig = ClientConfig['errorReporting'];
+
+/** Where reports go while they are on, built from config.json's `errorReporting`. */
+export type ReportTarget = {
+  /** The collector's envelope endpoint, or the tunnel on the app's own origin that forwards to it. */
+  url: string;
+  /** The DSN, which each envelope's header names. */
+  dsn: string;
+  /** The DSN's public key: each envelope carries it in its `X-Sentry-Auth` header. */
+  key: string;
+  /** The reports' environment. */
+  environment: string;
+};
+
 /** Where a failure was caught. */
 export type Mechanism = 'onerror' | 'onunhandledrejection' | 'react-error-boundary';
 
@@ -25,18 +39,19 @@ const MAX_HELD = 20;
 
 const held: Held[] = [];
 let decided = false;
-/** The store endpoint while reports are on. */
-let endpoint: string | undefined;
+/** Where reports go while they are on. */
+let target: ReportTarget | undefined;
 let reporterModule: Promise<Reporter | undefined> | undefined;
 let reporter: Reporter | undefined;
 let place: Place | undefined;
 
-/** A DSN's store endpoint and the collector's host. */
-export type Collector = { endpoint: string; host: string };
+/** A DSN (without any secret key), its envelope endpoint, its public key and the collector's host. */
+export type Collector = { dsn: string; endpoint: string; key: string; host: string };
 
 /**
  * The collector a DSN (`https://<public key>@<host>[/<path>]/<project id>`) names, or nothing for
  * an unusable one. Only HTTPS collectors count: reports must not cross the network in the clear.
+ * The key stays out of the endpoint's address: privacy lists block addresses with `sentry_key=`.
  */
 export const parseDsn = (dsn: unknown): Collector | undefined => {
   if (typeof dsn !== 'string') return undefined;
@@ -51,19 +66,50 @@ export const parseDsn = (dsn: unknown): Collector | undefined => {
   const project = path.slice(slash + 1);
   if (url.protocol !== 'https:' || !url.username || !/^\d+$/.test(project)) return undefined;
   return {
-    endpoint: `https://${url.host}${path.slice(0, slash)}/api/${project}/store/?sentry_key=${
-      url.username
-    }&sentry_version=7`,
+    dsn: `https://${url.username}@${url.host}${path}`,
+    endpoint: `https://${url.host}${path.slice(0, slash)}/api/${project}/envelope/`,
+    key: url.username,
     host: url.host,
   };
 };
 
+/**
+ * The address of a tunnel (`errorReporting.tunnel`): a path on the app's own origin whose server
+ * forwards envelopes to the collector, where the privacy lists that block collectors do not look.
+ * Nothing for an unset value or one on another origin.
+ */
+export const tunnelUrl = (
+  tunnel: unknown,
+  origin: string = window.location.origin
+): string | undefined => {
+  if (typeof tunnel !== 'string' || tunnel.trim() === '') return undefined;
+  try {
+    const url = new URL(tunnel.trim(), origin);
+    return url.origin === origin ? url.href : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Where `config` sends reports: through its tunnel when it has one, else to the collector. */
+const reportTarget = (config: ErrorReportingConfig): ReportTarget | undefined => {
+  const collector = parseDsn(config?.dsn);
+  if (!collector) return undefined;
+  const environment = typeof config?.environment === 'string' ? config.environment.trim() : '';
+  return {
+    url: tunnelUrl(config?.tunnel) ?? collector.endpoint,
+    dsn: collector.dsn,
+    key: collector.key,
+    environment: environment || window.location.hostname,
+  };
+};
+
 const capture = (value: unknown, mechanism: Mechanism, componentStack?: string): void => {
-  if (reporter && endpoint) {
+  if (reporter && target) {
     reporter.captureError(value, mechanism, componentStack);
     return;
   }
-  if (decided && !endpoint) return;
+  if (decided && !target) return;
   if (held.length < MAX_HELD) held.push({ value, mechanism, componentStack });
 };
 
@@ -105,7 +151,7 @@ export const reportBoundaryError = (error: unknown, componentStack?: string | nu
 const noteRoute = (next: Place): void => {
   if (place?.pathname === next.pathname && place.search === next.search) return;
   place = { pathname: next.pathname, search: next.search };
-  if (reporter && endpoint) reporter.noteRoute(place.pathname, place.search);
+  if (reporter && target) reporter.noteRoute(place.pathname, place.search);
 };
 
 const loadReporter = (): Promise<Reporter | undefined> => {
@@ -114,25 +160,25 @@ const loadReporter = (): Promise<Reporter | undefined> => {
 };
 
 /**
- * Turns reports on for `dsn` when it is usable and `enabled` (the device setting), or off.
- * Resolves to the reporter while reports are on.
+ * Turns reports on for `config` when its DSN is usable and `enabled` (the device setting), or
+ * off. Resolves to the reporter while reports are on.
  */
 export const configureErrorReporting = (
-  dsn: string | undefined,
+  config: ErrorReportingConfig,
   enabled: boolean
 ): Promise<Reporter | undefined> => {
   decided = true;
-  const collector = enabled ? parseDsn(dsn) : undefined;
-  endpoint = collector?.endpoint;
-  if (!collector) {
+  const next = enabled ? reportTarget(config) : undefined;
+  target = next;
+  if (!next) {
     held.length = 0;
     reporter?.stopReporter();
     return Promise.resolve(undefined);
   }
   return loadReporter().then((loaded) => {
     // The configuration may have changed while the chunk loaded.
-    if (!loaded || endpoint !== collector.endpoint) return undefined;
-    loaded.startReporter(collector.endpoint, place);
+    if (!loaded || JSON.stringify(target) !== JSON.stringify(next)) return undefined;
+    loaded.startReporter(next, place);
     reporter = loaded;
     held
       .splice(0)
@@ -147,15 +193,15 @@ type RouterLike = {
 };
 
 /**
- * Applies the deployment's DSN and this device's setting, and follows the router's location.
- * For the component that owns the router.
+ * Applies the deployment's `errorReporting` and this device's setting, and follows the router's
+ * location. For the component that owns the router.
  */
 export const useErrorReporting = (config: ClientConfig, router: RouterLike): void => {
   const [enabled] = useSetting(settingsAtom, 'sendErrorReports');
-  const dsn = config.errorReporting?.dsn;
+  const { dsn, tunnel, environment } = config.errorReporting ?? {};
   useEffect(() => {
-    configureErrorReporting(dsn, enabled).catch(() => undefined);
-  }, [dsn, enabled]);
+    configureErrorReporting({ dsn, tunnel, environment }, enabled).catch(() => undefined);
+  }, [dsn, tunnel, environment, enabled]);
   useEffect(() => {
     noteRoute(router.state.location);
     return router.subscribe((state) => noteRoute(state.location));
@@ -165,12 +211,12 @@ export const useErrorReporting = (config: ClientConfig, router: RouterLike): voi
 /** Reports the signed-in account's sync, decryption and send failures while reports are on. */
 export function ErrorReportingClientFeature(): null {
   const mx = useMatrixClient();
-  const dsn = useClientConfig().errorReporting?.dsn;
+  const { dsn, tunnel, environment } = useClientConfig().errorReporting ?? {};
   const [enabled] = useSetting(settingsAtom, 'sendErrorReports');
   useEffect(() => {
     let stop: (() => void) | undefined;
     let cancelled = false;
-    configureErrorReporting(dsn, enabled)
+    configureErrorReporting({ dsn, tunnel, environment }, enabled)
       .then((loaded) => {
         if (!cancelled && loaded) stop = loaded.watchClient(mx);
       })
@@ -179,6 +225,6 @@ export function ErrorReportingClientFeature(): null {
       cancelled = true;
       stop?.();
     };
-  }, [mx, dsn, enabled]);
+  }, [mx, dsn, tunnel, environment, enabled]);
   return null;
 }

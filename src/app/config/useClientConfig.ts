@@ -118,6 +118,14 @@ export type ClientConfig = {
      * `https://<public key>@<host>/<project id>`. HTTPS only; without it no reports are sent.
      */
     dsn?: string;
+    /**
+     * A path on the client's own origin, such as `/errors/envelope`, whose server forwards each
+     * envelope to the collector's envelope endpoint. Without it reports go to the collector
+     * directly, where privacy blocklists may stop them.
+     */
+    tunnel?: string;
+    /** The reports' environment, such as `lab`; the page's host name when unset. */
+    environment?: string;
   };
 
   push?: {

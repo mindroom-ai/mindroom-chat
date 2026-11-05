@@ -2,8 +2,9 @@
  * The error reporter, loaded as its own chunk only when the deployment configured a collector and
  * this device lets it send (errorReporting.ts). It turns uncaught errors, error boundary catches,
  * sync failures, messages that stay undecryptable, failed sends, long main-thread blocks and slow
- * room opens into reports in the Sentry event format, and posts them to the collector's store
- * endpoint after `scrubEvent` (scrub.ts) has removed what must not leave the device.
+ * room opens into reports in the Sentry event format, and posts each, after `scrubEvent`
+ * (scrub.ts) has removed what must not leave the device, as an envelope to the collector's
+ * envelope endpoint or to a tunnel on the app's own origin that forwards it there.
  *
  * It reads codes only: error names, `errcode`s, HTTP statuses, decryption failure codes, event
  * types, durations and route templates. It never reads a message's content, a room's name or a
@@ -23,7 +24,7 @@ import {
 } from 'matrix-js-sdk';
 import { APP_BUILD_VERSION, APP_RELEASE_VERSION } from '../../config/appVersion';
 import { getSettings } from '../../preferences/settings';
-import type { Mechanism } from './errorReporting';
+import type { Mechanism, ReportTarget } from './errorReporting';
 import { matchRoute, type RouteMatch } from './routeTemplate';
 import {
   type ReportBreadcrumb,
@@ -41,6 +42,7 @@ const REPEAT_AFTER_MS = 5 * 60_000;
 const MAX_BREADCRUMBS = 40;
 // Keepalive requests may carry 64 KiB at most, all of them together.
 const MAX_BODY_LENGTH = 60_000;
+const SDK = { name: 'mindroom-client.reporter', version: '1' };
 
 /** Main-thread blocks this long become breadcrumbs, and the longer ones reports. */
 const LONG_TASK_BREADCRUMB_MS = 200;
@@ -61,9 +63,11 @@ const MAX_TRACKED_DECRYPTIONS = 2_000;
 const TIMELINE = '[data-testid="room-virtual-inner"], [data-thread-count]';
 const TILE = '[data-message-id]';
 
-let endpoint: string | undefined;
+let target: ReportTarget | undefined;
 let pausedUntil = 0;
 let reportsThisPage = 0;
+/** Reports this page load sent that did not reach the collector. */
+let failedSends = 0;
 const recentReports: number[] = [];
 const lastReported = new Map<string, number>();
 const breadcrumbs: ReportBreadcrumb[] = [];
@@ -180,8 +184,8 @@ const newReport = (level: ReportLevel, source: string): ReportEvent => {
     level,
     logger: 'mindroom-client',
     release: APP_BUILD_VERSION,
-    environment: window.location.hostname,
-    sdk: { name: 'mindroom-client.reporter', version: '1' },
+    environment: target?.environment,
+    sdk: SDK,
     tags: {
       source,
       route: route.template,
@@ -237,19 +241,45 @@ const mayReport = (key: string, now: number): boolean => {
   return recentReports.length < MAX_REPORTS_PER_MINUTE;
 };
 
+/**
+ * `event` as an envelope, three lines: a header with the event's ID and the DSN (Sentry-style
+ * tunnels route by it), the item header, and the event.
+ */
+export const toEnvelope = (event: ReportEvent, dsn: string, sentAt: Date = new Date()): string =>
+  `${[
+    JSON.stringify({ event_id: event.event_id, sent_at: sentAt.toISOString(), dsn }),
+    JSON.stringify({ type: 'event' }),
+    JSON.stringify(event),
+  ].join('\n')}\n`;
+
+/**
+ * Counts a report that did not reach the collector. A privacy extension drops every report
+ * without a word, so the first failure of a page load says so on the console, and the reports
+ * that do get through carry each failure as a breadcrumb.
+ */
+const noteFailure = (status?: number): void => {
+  failedSends += 1;
+  addBreadcrumb('report', { state: 'failed', http_status: status, count: failedSends }, 'warning');
+  if (failedSends > 1) return;
+  console.warn(
+    '[error-reports] a report did not reach the collector:',
+    status === undefined ? 'blocked or offline' : `HTTP ${status}`
+  );
+};
+
 /** Scrubs the report and posts it, when the setting is on and the limits allow it. */
 const send = (report: ReportEvent, key: string): void => {
-  const target = endpoint;
+  const destination = target;
   // The setting is read at each report, so switching it off in any tab stops reports at once.
-  if (!target || !getSettings().sendErrorReports) return;
+  if (!destination || !getSettings().sendErrorReports) return;
   const now = Date.now();
   if (!mayReport(key, now)) return;
   const clean = scrubEvent(report);
   if (!clean) return;
-  let body = JSON.stringify(clean);
+  let body = toEnvelope(clean, destination.dsn);
   if (body.length > MAX_BODY_LENGTH) {
     clean.breadcrumbs = undefined;
-    body = JSON.stringify(clean);
+    body = toEnvelope(clean, destination.dsn);
     if (body.length > MAX_BODY_LENGTH) return;
   }
   reportsThisPage += 1;
@@ -259,23 +289,31 @@ const send = (report: ReportEvent, key: string): void => {
     const oldest = lastReported.keys().next().value;
     if (oldest !== undefined) lastReported.delete(oldest);
   }
-  fetch(target, {
+  // A tunnel shares the page's origin; a collector elsewhere needs a CORS preflight for the auth
+  // header, and browsers may refuse that to keepalive requests, which can outlive the page.
+  const sameOrigin = new URL(destination.url).origin === window.location.origin;
+  fetch(destination.url, {
     method: 'POST',
     body,
-    // A simple request: no preflight, and the collector reads it as JSON all the same.
-    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    keepalive: true,
+    headers: {
+      'Content-Type': 'application/x-sentry-envelope',
+      // The key goes in a header, never in the address: privacy lists block `?sentry_key=`.
+      'X-Sentry-Auth': `Sentry sentry_version=7, sentry_key=${destination.key}, sentry_client=${SDK.name}/${SDK.version}`,
+    },
+    keepalive: sameOrigin,
     mode: 'cors',
     credentials: 'omit',
     referrerPolicy: 'no-referrer',
     cache: 'no-store',
   })
     .then((response) => {
+      if (response.ok) return;
+      noteFailure(response.status);
       if (response.status !== 429) return;
       const retryAfter = Number(response.headers.get('Retry-After'));
       pausedUntil = Date.now() + (retryAfter > 0 ? retryAfter * 1000 : 60_000);
     })
-    .catch(() => undefined);
+    .catch(() => noteFailure());
 };
 
 /** Reports an uncaught error, an unhandled rejection or an error boundary's catch. */
@@ -455,15 +493,15 @@ const observeConnectivity = (): (() => void) => {
 };
 
 /**
- * Starts reporting to `target` (a store endpoint), with `place` as the page shown since startup.
- * Starting again only changes the endpoint.
+ * Starts reporting to `next`, with `place` as the page shown since startup. Starting again only
+ * changes where reports go.
  */
 export const startReporter = (
-  target: string,
+  next: ReportTarget,
   place?: { pathname: string; search: string }
 ): void => {
-  const starting = endpoint === undefined;
-  endpoint = target;
+  const starting = target === undefined;
+  target = next;
   if (!starting) return;
   // Only the first start times the startup room open; a later one (the setting switched back
   // on) just takes the current page.
@@ -476,7 +514,7 @@ export const startReporter = (
 
 /** Stops all reports and forgets the breadcrumbs. */
 export const stopReporter = (): void => {
-  endpoint = undefined;
+  target = undefined;
   stopObservers?.();
   stopObservers = undefined;
   cancelRoomOpen();

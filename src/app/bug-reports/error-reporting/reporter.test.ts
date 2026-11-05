@@ -10,20 +10,40 @@ import {
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { APP_BUILD_VERSION } from '../../config/appVersion';
+import type { ReportTarget } from './errorReporting';
 import type { ReportEvent } from './scrub';
 
 type Reporter = typeof import('./reporter');
 
-const ENDPOINT = 'https://errors.example.org/api/1/store/?sentry_key=abc123&sentry_version=7';
+const TARGET: ReportTarget = {
+  url: 'https://errors.example.org/api/1/envelope/',
+  dsn: 'https://abc123@errors.example.org/1',
+  key: 'abc123',
+  environment: 'chat.example.org',
+};
 const ROOM_PATH = `/home/${encodeURIComponent('!AbCdEfGhIjKl:example.org')}/`;
 
 let reporter: Reporter;
 const fetchMock = vi.fn((_url: string, _init: RequestInit) =>
-  Promise.resolve({ status: 200, headers: new Headers() })
+  Promise.resolve({ ok: true, status: 200, headers: new Headers() })
 );
 
+/** An envelope's lines: its header, the item header and the event. */
+const envelopeLines = (
+  body: unknown
+): [Record<string, unknown>, Record<string, unknown>, ReportEvent] => {
+  const lines = String(body).split('\n');
+  expect(lines).toHaveLength(4);
+  expect(lines[3]).toBe('');
+  return lines.slice(0, 3).map((line) => JSON.parse(line) as unknown) as [
+    Record<string, unknown>,
+    Record<string, unknown>,
+    ReportEvent
+  ];
+};
+
 const reports = (): ReportEvent[] =>
-  fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init.body)) as ReportEvent);
+  fetchMock.mock.calls.map(([, init]) => envelopeLines(init.body)[2]);
 
 const matrixError = (message: string, errcode: string, httpStatus: number) =>
   Object.assign(new Error(message), { name: 'MatrixError', errcode, httpStatus });
@@ -100,21 +120,29 @@ describe('parseStack', () => {
 
 describe('reports', () => {
   it('sends an uncaught error with the release, route and browser, scrubbed', () => {
-    reporter.startReporter(ENDPOINT, { pathname: ROOM_PATH, search: '' });
+    reporter.startReporter(TARGET, { pathname: ROOM_PATH, search: '' });
     reporter.captureError(
       new TypeError("Cannot read properties of undefined (reading 'getId') for @alice:example.org"),
       'onerror'
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] ?? [];
-    expect(url).toBe(ENDPOINT);
+    expect(url).toBe(TARGET.url);
     expect(init).toMatchObject({
       method: 'POST',
       credentials: 'omit',
       referrerPolicy: 'no-referrer',
-      keepalive: true,
+      // Another origin: the auth header needs a preflight, which keepalive requests may not do.
+      keepalive: false,
+    });
+    // The key travels in a header only, never in an address a privacy list could match.
+    expect(Object.fromEntries(new Headers(init?.headers))).toEqual({
+      'content-type': 'application/x-sentry-envelope',
+      'x-sentry-auth':
+        'Sentry sentry_version=7, sentry_key=abc123, sentry_client=mindroom-client.reporter/1',
     });
     const [report] = reports();
+    expect(report?.environment).toBe('chat.example.org');
     expect(report?.exception?.values[0]).toMatchObject({
       type: 'TypeError',
       value: "Cannot read properties of undefined (reading 'getId') for <user-id>",
@@ -132,7 +160,7 @@ describe('reports', () => {
   });
 
   it('sends nothing while the setting is off, and a repeat only after five minutes', () => {
-    reporter.startReporter(ENDPOINT);
+    reporter.startReporter(TARGET);
     localStorage.setItem('settings', JSON.stringify({ sendErrorReports: false }));
     reporter.captureError(new Error('while off'), 'onerror');
     expect(fetchMock).not.toHaveBeenCalled();
@@ -150,7 +178,7 @@ describe('reports', () => {
   });
 
   it('keeps React’s component stack with an error boundary catch', () => {
-    reporter.startReporter(ENDPOINT);
+    reporter.startReporter(TARGET);
     reporter.captureError(
       new Error('render failed'),
       'react-error-boundary',
@@ -162,7 +190,7 @@ describe('reports', () => {
   });
 
   it('records navigation as route templates', () => {
-    reporter.startReporter(ENDPOINT, { pathname: '/home/', search: '' });
+    reporter.startReporter(TARGET, { pathname: '/home/', search: '' });
     reporter.noteRoute(ROOM_PATH, '?threadId=%24Ev3ntIdAbCdEfGhIjKl');
     reporter.captureError(new Error('after navigating'), 'onerror');
     expect(reports()[0]?.breadcrumbs?.values).toContainEqual(
@@ -172,11 +200,85 @@ describe('reports', () => {
       })
     );
   });
+
+  it('posts to a tunnel on the app’s own origin as a keepalive request', () => {
+    const tunnel = `${window.location.origin}/errors/envelope`;
+    reporter.startReporter({ ...TARGET, url: tunnel });
+    reporter.captureError(new Error('through the tunnel'), 'onerror');
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(tunnel);
+    expect(init?.keepalive).toBe(true);
+    expect(new Headers(init?.headers).get('X-Sentry-Auth')).toContain('sentry_key=abc123');
+    const [header, item, report] = envelopeLines(init?.body);
+    expect(header).toMatchObject({ event_id: report.event_id, dsn: TARGET.dsn });
+    expect(item).toEqual({ type: 'event' });
+  });
+
+  it('counts reports that do not arrive, warns once, and tells the next report', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    fetchMock
+      .mockImplementationOnce(() => Promise.reject(new TypeError('Failed to fetch')))
+      .mockImplementationOnce(() =>
+        Promise.resolve({ ok: false, status: 503, headers: new Headers() })
+      );
+    reporter.startReporter(TARGET);
+    reporter.captureError(new Error('blocked by an extension'), 'onerror');
+    await vi.waitFor(() => expect(warn).toHaveBeenCalledTimes(1));
+    expect(String(warn.mock.calls[0]?.[0])).toContain('[error-reports]');
+    reporter.captureError(new Error('the collector is down'), 'onerror');
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    reporter.captureError(new Error('this one arrives'), 'onerror');
+    expect(reports()[2]?.breadcrumbs?.values).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          category: 'report',
+          level: 'warning',
+          data: { state: 'failed', count: 1 },
+        }),
+        expect.objectContaining({
+          category: 'report',
+          level: 'warning',
+          data: { state: 'failed', http_status: 503, count: 2 },
+        }),
+      ])
+    );
+    warn.mockRestore();
+  });
+});
+
+describe('toEnvelope', () => {
+  it('frames a report as an envelope header, one event item header and the event', () => {
+    const report: ReportEvent = {
+      event_id: '0123456789abcdef0123456789abcdef',
+      timestamp: 1_700_000_000,
+      platform: 'javascript',
+      level: 'error',
+      message: 'two\nlines',
+    };
+    const body = reporter.toEnvelope(
+      report,
+      'https://abc123@errors.example.org/1',
+      new Date(Date.UTC(2026, 10, 5, 12))
+    );
+    expect(body).toBe(
+      [
+        '{"event_id":"0123456789abcdef0123456789abcdef","sent_at":"2026-11-05T12:00:00.000Z","dsn":"https://abc123@errors.example.org/1"}',
+        '{"type":"event"}',
+        JSON.stringify(report),
+        '',
+      ].join('\n')
+    );
+    expect(envelopeLines(body)[2]).toEqual(report);
+  });
 });
 
 describe('watchClient', () => {
   it('reports entering the sync error state once, with its errcode and no token', () => {
-    reporter.startReporter(ENDPOINT);
+    reporter.startReporter(TARGET);
     const { mx, stop } = watchFakeClient();
     const error = matrixError(
       'MatrixError: [401] Invalid token (https://matrix.example.org/_matrix/client/v3/sync?access_token=syt_c2VjcmV0_abcdefghij_123456)',
@@ -200,7 +302,7 @@ describe('watchClient', () => {
 
   it('counts messages that stay undecryptable by failure code, without their IDs', () => {
     vi.useFakeTimers();
-    reporter.startReporter(ENDPOINT);
+    reporter.startReporter(TARGET);
     const { mx, stop } = watchFakeClient();
     const decrypted = (id: string, code: string | null) => ({
       getId: () => id,
@@ -223,7 +325,7 @@ describe('watchClient', () => {
   });
 
   it('reports a failed send with its errcode and event type, never the message', () => {
-    reporter.startReporter(ENDPOINT);
+    reporter.startReporter(TARGET);
     const { mx, stop } = watchFakeClient();
     const event = {
       status: EventStatus.NOT_SENT,
