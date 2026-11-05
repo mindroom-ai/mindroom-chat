@@ -1,4 +1,5 @@
 import { type ReactNode, type RefObject, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import FocusTrap from 'focus-trap-react';
 import classNames from 'classnames';
 import { config, type RectCords } from 'folds';
@@ -63,8 +64,21 @@ const remeasure = (box: Element, stored: Measurement | undefined): Measurement =
 const FIELD_MOVES = ['scroll', 'resize', 'animationend', 'transitionend'] as const;
 
 /**
- * Measures the anchor box while the list is open: once before the first paint, then after each
- * event of `FIELD_MOVES`. Closing drops the measurement, so each opening starts afresh.
+ * Whether an animation or a transition is running on the box or an element around it, such as
+ * the dialog sliding in. Without `document.getAnimations` (older engines, test documents) it
+ * answers no, and the events of `FIELD_MOVES` still settle the list when the motion ends.
+ */
+const isMoving = (box: Element): boolean =>
+  document.getAnimations?.().some((animation) => {
+    const target = (animation.effect as KeyframeEffect | null)?.target;
+    return animation.playState === 'running' && !!target?.contains(box);
+  }) ?? false;
+
+/**
+ * Measures the anchor box while the list is open: once before the first paint, on every frame
+ * while the box or an element around it moves (a list opened as the dialog slides in moves with
+ * it, instead of snapping into place when the slide ends), and after each event of
+ * `FIELD_MOVES`. Closing drops the measurement, so each opening starts afresh.
  */
 const useOpenMeasurement = (
   open: boolean,
@@ -78,9 +92,19 @@ const useOpenMeasurement = (
       const box = anchorBoxRef.current;
       if (box) setMeasurement((stored) => remeasure(box, stored));
     };
+    let frame: number | undefined;
+    const follow = () => {
+      // Rendered before the frame paints, so the list does not trail the field by a frame.
+      flushSync(update);
+      const box = anchorBoxRef.current;
+      frame = box && isMoving(box) ? requestAnimationFrame(follow) : undefined;
+    };
     update();
+    const box = anchorBoxRef.current;
+    if (box && isMoving(box)) frame = requestAnimationFrame(follow);
     for (const type of FIELD_MOVES) window.addEventListener(type, update, true);
     return () => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
       for (const type of FIELD_MOVES) window.removeEventListener(type, update, true);
       setMeasurement(undefined);
     };
@@ -157,7 +181,7 @@ const useDismissTrapOptions = (
 /**
  * The floating list of people under the invite search field. It opens below the field, or above
  * it when only that side has room, as wide as the field and no taller than the room on that side,
- * and follows the field when the page scrolls or resizes and when the dialog around it settles.
+ * and follows the field when the page scrolls or resizes and while the dialog around it moves.
  * The caller owns the rows, their order and the keyboard; this frame only reports when the reader
  * dismisses the list.
  */

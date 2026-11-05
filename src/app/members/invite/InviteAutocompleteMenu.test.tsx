@@ -224,6 +224,67 @@ describe('InviteAutocompleteMenu', () => {
     dialog.remove();
   });
 
+  it('moves with the dialog on every frame while the dialog slides in', () => {
+    // The dialog's slide is a running animation on an element around the field.
+    const dialog = document.body.appendChild(document.createElement('div'));
+    const slide = { playState: 'running', effect: { target: dialog } };
+    const getAnimations = vi.fn(() => [slide]);
+    Object.assign(document, { getAnimations });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      frames.push(callback)
+    );
+    const cancelAnimationFrame = vi.fn();
+    vi.stubGlobal('cancelAnimationFrame', cancelAnimationFrame);
+    const nextFrame = () => act(() => frames.shift()?.(0));
+    try {
+      field = { ...field, y: 105 };
+      render(<People open />, { container: dialog.appendChild(document.createElement('div')) });
+      expect(anchor()).toMatchObject({ y: 105 });
+
+      // Each frame of the slide, without any event, the list lines up with the field again.
+      field = { ...field, y: 102 };
+      nextFrame();
+      expect(anchor()).toMatchObject({ y: 102 });
+      field = { ...field, y: 100 };
+      slide.playState = 'finished';
+      nextFrame();
+      expect(anchor()).toMatchObject({ y: 100 });
+      // Once nothing moves, it asks for no more frames.
+      expect(frames).toHaveLength(0);
+
+      // Closing during a slide cancels the frame it asked for.
+      slide.playState = 'running';
+      cleanup();
+      render(<People open />, { container: dialog.appendChild(document.createElement('div')) });
+      expect(frames).toHaveLength(1);
+      cleanup();
+      expect(cancelAnimationFrame).toHaveBeenCalledTimes(1);
+    } finally {
+      cleanup();
+      Reflect.deleteProperty(document, 'getAnimations');
+      vi.unstubAllGlobals();
+      dialog.remove();
+    }
+  });
+
+  it('asks for no frames when nothing around the field moves', () => {
+    const elsewhere = document.createElement('div');
+    Object.assign(document, {
+      getAnimations: () => [{ playState: 'running', effect: { target: elsewhere } }],
+    });
+    const requestAnimationFrame = vi.fn();
+    vi.stubGlobal('requestAnimationFrame', requestAnimationFrame);
+    try {
+      render(<People open />);
+      expect(requestAnimationFrame).not.toHaveBeenCalled();
+    } finally {
+      cleanup();
+      Reflect.deleteProperty(document, 'getAnimations');
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('stops listening when unmounted while open', () => {
     const { unmount } = render(<People open />);
     unmount();

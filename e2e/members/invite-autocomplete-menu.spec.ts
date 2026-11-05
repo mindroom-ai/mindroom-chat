@@ -4,7 +4,8 @@ import { createPrivateRoom, joinRoom, matrixFetch } from '../helpers/matrix';
 
 // The people suggestions under the invite dialog's search field: the floating layer lets the
 // pointer through to the dialog, a row is 56 px until its text wraps and keeps its avatar beside
-// the first line, a long Matrix ID wraps inside a 320 px menu, and the menu mirrors right to left.
+// the first line, a long Matrix ID wraps inside a 320 px menu, the menu mirrors right to left, and
+// a list opened while the dialog slides in moves with it.
 // Checked with classic scrollbars in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set INVITE_MENU_SHOTS=<directory> to also save screenshots of the
 // open menu in the light and dark themes, on a phone and on a desktop.
@@ -296,6 +297,8 @@ const exercise = async (page: Page, engine: string) => {
     password: PASSWORD,
   });
 
+  await checkSlide(page, seeded, engine);
+
   for (const theme of THEMES) {
     await switchTheme(page, theme);
     await page.setViewportSize(PHONE);
@@ -330,6 +333,93 @@ const exercise = async (page: Page, engine: string) => {
   }
   // The avatar sits as far from the row's start edge either way.
   expect(inset[1]).toBeCloseTo(inset[0] ?? Number.NaN, 0);
+};
+
+type SlideSample = { field: number; list: number | undefined };
+
+/**
+ * Opens the invite dialog and types into its search field on the first frame it shows, while the
+ * dialog still slides in. After each frame it records the bottom of the field and the top of the
+ * list, for as long as the list shows in the first 600 ms; then it closes the dialog.
+ */
+const slideSamples = async (page: Page, seeded: Seed) => {
+  const entry = page.locator('a[href^="/home/"]').filter({ hasText: seeded.roomName }).first();
+  await expect(entry).toBeVisible({ timeout: 60_000 });
+  await entry.click({ button: 'right' });
+  const invite = page.getByRole('button', { name: 'Invite', exact: true }).first();
+  await expect(invite).toBeVisible();
+  await page.evaluate(() => {
+    const samples: SlideSample[] = [];
+    Object.assign(window, { slideSamples: samples });
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    let typedAt: number | undefined;
+    const tick = (now: number) => {
+      const field = document.querySelector<HTMLInputElement>('[role="dialog"] [role="combobox"]');
+      if (field && typedAt === undefined) {
+        typedAt = now;
+        field.focus();
+        setValue?.call(field, 't');
+        field.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      // After the frame's own callbacks, the list's included.
+      setTimeout(() => {
+        if (!field) return;
+        const list = document.querySelector(
+          '[role="listbox"][aria-label="Invite user suggestions"]'
+        );
+        samples.push({
+          field: field.getBoundingClientRect().bottom,
+          list: list?.getBoundingClientRect().top,
+        });
+      }, 0);
+      if (typedAt === undefined || now - typedAt < 600) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await invite.click();
+  const dialog = page.getByRole('dialog', { name: 'Invite', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('combobox')).toHaveValue('t');
+  await page.waitForTimeout(1_000);
+  const samples = await page.evaluate(
+    () => (window as unknown as { slideSamples: SlideSample[] }).slideSamples
+  );
+  await page.keyboard.press('Escape');
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  return samples.filter(
+    (sample): sample is { field: number; list: number } => sample.list !== undefined
+  );
+};
+
+/**
+ * The list keeps one distance from the field while the dialog slides in: it moves with the
+ * dialog instead of staying where it opened and snapping into place when the slide ends.
+ */
+const checkSlide = async (page: Page, seeded: Seed, engine: string) => {
+  await page.setViewportSize(PHONE);
+  let shown: Array<{ field: number; list: number }> = [];
+  // The check needs a list that opened with at least 2 px of the slide left. A loaded machine
+  // may draw the dialog's first frames late, so it tries up to four openings.
+  for (let attempt = 1; attempt <= 4; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    shown = await slideSamples(page, seeded);
+    const fields = shown.map((sample) => sample.field);
+    console.log(`${engine} slide ${attempt}: ${JSON.stringify(shown)}`);
+    if (shown.length > 1 && Math.max(...fields) - Math.min(...fields) > 2) break;
+  }
+  const fields = shown.map((sample) => sample.field);
+  expect(
+    Math.max(...fields) - Math.min(...fields),
+    `${engine}: the list opened while the field still slid`
+  ).toBeGreaterThan(2);
+  // A sample reads the field a moment after the list last measured it, so the distance may
+  // differ by part of a frame's motion. A list left behind by the slide is 2 to 5 px off.
+  const gaps = shown.map((sample) => sample.list - sample.field);
+  expect(
+    Math.max(...gaps) - Math.min(...gaps),
+    `${engine}: the list keeps its distance from the field (${gaps.join(', ')})`
+  ).toBeLessThan(1.5);
 };
 
 test('the invite suggestions float over the dialog and keep long identities whole (Chromium)', async ({
