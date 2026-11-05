@@ -172,7 +172,7 @@ for (const direction of ['ltr', 'rtl'] as const) {
       const card = await cardBox(page);
       const navBox = await box(nav);
       const membersCard = await box(members.locator(':scope > :first-child'));
-      const splitters = [
+      const splitters: { name: string; panel: Locator; gap: [number, number] }[] = [
         {
           name: 'nav',
           panel: nav,
