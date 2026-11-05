@@ -16,9 +16,9 @@ describe('resolveEffectiveRoomViewMode', () => {
     expect(resolveEffectiveRoomViewMode('threaded', false)).toBe('threaded');
   });
 
-  it('shows a direct message between people in Classic', () => {
-    expect(resolveEffectiveRoomViewMode('compact', true)).toBe('classic');
-    expect(resolveEffectiveRoomViewMode('threaded', true)).toBe('classic');
+  it('shows a direct message between people in Threads', () => {
+    expect(resolveEffectiveRoomViewMode('compact', true)).toBe('threaded');
+    expect(resolveEffectiveRoomViewMode('classic', true)).toBe('threaded');
   });
 });
 
@@ -120,45 +120,45 @@ describe('useRoomViewMode', () => {
     vi.unstubAllGlobals();
   });
 
-  it('shows a direct message between people in Classic and offers no other mode', () => {
+  it('shows a direct message between people in Threads and offers no other mode', () => {
     const roomId = '!people-dm:example.org';
     addRoom(roomId, [userId, '@bob:example.org']);
-    storeMode(roomId, 'threaded');
+    storeMode(roomId, 'compact');
 
     render([roomId], [roomId]);
 
-    expect(results.get(roomId)?.viewMode).toBe('classic');
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
     expect(results.get(roomId)?.availableViewModes).toEqual([]);
-    expect(results.get(roomId)?.storedViewMode).toBe('threaded');
-    expect(storedMode(roomId)).toBe('"threaded"');
+    expect(results.get(roomId)?.storedViewMode).toBe('compact');
+    expect(storedMode(roomId)).toBe('"compact"');
   });
 
   it('returns to the stored mode once an agent is invited to the direct message', () => {
     const roomId = '!people-dm-invite:example.org';
     addRoom(roomId, [userId, '@bob:example.org']);
-    storeMode(roomId, 'threaded');
+    storeMode(roomId, 'compact');
     render([roomId], [roomId]);
-    expect(results.get(roomId)?.viewMode).toBe('classic');
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
 
     setMembership(roomId, agentId, 'invite');
 
-    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.viewMode).toBe('compact');
     expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
-    expect(storedMode(roomId)).toBe('"threaded"');
+    expect(storedMode(roomId)).toBe('"compact"');
   });
 
   it('keeps the stored mode in a direct message with an agent until the agent leaves', () => {
     const roomId = '!agent-dm:example.org';
     addRoom(roomId, [userId, agentId]);
-    storeMode(roomId, 'threaded');
+    storeMode(roomId, 'compact');
     render([roomId], [roomId]);
-    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.viewMode).toBe('compact');
     expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
 
     setMembership(roomId, agentId, 'leave');
 
-    expect(results.get(roomId)?.viewMode).toBe('classic');
-    expect(storedMode(roomId)).toBe('"threaded"');
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(storedMode(roomId)).toBe('"compact"');
   });
 
   it('keeps the stored mode in a room of people that is not a direct message', () => {
@@ -184,47 +184,47 @@ describe('useRoomViewMode', () => {
     setMembership(firstRoomId, agentId, 'join');
 
     expect(results.get(firstRoomId)?.viewMode).toBe('compact');
-    expect(results.get(secondRoomId)?.viewMode).toBe('classic');
+    expect(results.get(secondRoomId)?.viewMode).toBe('threaded');
   });
 
   it('keeps the stored mode in a direct message whose m.direct partner is an agent not loaded yet', () => {
     const roomId = '!cold-agent-dm:example.org';
     addRoom(roomId, [userId]);
     directContent = { [agentId]: [roomId] };
-    storeMode(roomId, 'threaded');
+    storeMode(roomId, 'compact');
 
     render([roomId], [roomId]);
 
-    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.viewMode).toBe('compact');
     expect(results.get(roomId)?.availableViewModes).toEqual(['compact', 'threaded', 'classic']);
   });
 
-  it('shows Classic once the m.direct agent partner has left or is banned', () => {
+  it('shows Threads once the m.direct agent partner has left or is banned', () => {
     const roomId = '!agent-dm-ended:example.org';
     addRoom(roomId, [userId]);
     directContent = { [agentId]: [roomId], '@bob:example.org': ['!other-dm:example.org'] };
-    storeMode(roomId, 'threaded');
+    storeMode(roomId, 'compact');
     render([roomId], [roomId]);
 
     setMembership(roomId, agentId, 'leave');
-    expect(results.get(roomId)?.viewMode).toBe('classic');
-
-    setMembership(roomId, agentId, 'invite');
     expect(results.get(roomId)?.viewMode).toBe('threaded');
 
+    setMembership(roomId, agentId, 'invite');
+    expect(results.get(roomId)?.viewMode).toBe('compact');
+
     setMembership(roomId, agentId, 'ban');
-    expect(results.get(roomId)?.viewMode).toBe('classic');
-    expect(storedMode(roomId)).toBe('"threaded"');
+    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(storedMode(roomId)).toBe('"compact"');
   });
 
   it("keeps updating a room's other hook after one of its hooks unmounts", () => {
     const roomId = '!people-dm-unmount:example.org';
     addRoom(roomId, [userId, '@bob:example.org']);
-    storeMode(roomId, 'threaded');
+    storeMode(roomId, 'compact');
     render([roomId, `${roomId}#second`], [roomId]);
 
     rerender([roomId]);
     setMembership(roomId, agentId, 'invite');
-    expect(results.get(roomId)?.viewMode).toBe('threaded');
+    expect(results.get(roomId)?.viewMode).toBe('compact');
   });
 });

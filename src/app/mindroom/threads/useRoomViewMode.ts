@@ -20,7 +20,7 @@ export const resolveEffectiveRoomViewMode = (
   storedViewMode: RoomViewMode,
   humanDirectRoom: boolean
 ): RoomViewMode => {
-  if (humanDirectRoom) return 'classic';
+  if (humanDirectRoom) return 'threaded';
   return storedViewMode;
 };
 
@@ -94,7 +94,7 @@ const hasMindroomAgent = (mx: MatrixClient, roomId: string): boolean => {
 
 /**
  * Whether a MindRoom agent is in the room, watched only while `watch` holds: in a direct room
- * (a direct room of people shows Classic), and while a room without a chosen view needs it for
+ * (a direct room of people shows Threads), and while a room without a chosen view needs it for
  * its default and the caller does not know.
  */
 const useRoomHasMindroomAgent = (roomId: string, watch: boolean): boolean => {

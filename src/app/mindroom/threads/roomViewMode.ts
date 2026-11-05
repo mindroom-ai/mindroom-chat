@@ -18,7 +18,7 @@ export type RoomViewMode = 'compact' | 'threaded' | 'classic';
 export const DEFAULT_ROOM_VIEW_MODE: RoomViewMode = 'compact';
 export const ROOM_VIEW_MODES: readonly RoomViewMode[] = ['compact', 'threaded', 'classic'];
 
-/** A direct message between people offers no modes: it always shows the Classic timeline. */
+/** A direct message between people offers no modes: it always shows Threads. */
 export const getAvailableRoomViewModes = (humanDirectRoom: boolean): readonly RoomViewMode[] => {
   if (humanDirectRoom) return [];
   return ROOM_VIEW_MODES;

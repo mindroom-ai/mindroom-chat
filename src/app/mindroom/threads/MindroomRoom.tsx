@@ -173,8 +173,7 @@ export function Room() {
     availableViewModes,
   } = useRoomViewMode(roomId, hasMindroomAgents);
   // The Full view shows no thread routes, so a link to a thread brings the threads back, as an
-  // action from a thread does. A direct chat between people offers no modes and keeps the guard's
-  // redirect to the room timeline.
+  // action from a thread does. A direct chat between people always shows Threads.
   const threadLinkInFullView =
     !!routedThreadId && chosenViewMode === 'classic' && !!availableViewModes?.includes('threaded');
   const viewMode = threadLinkInFullView ? 'threaded' : chosenViewMode;

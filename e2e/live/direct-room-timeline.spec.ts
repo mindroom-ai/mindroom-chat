@@ -21,7 +21,7 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 test.describe('live issue-034 direct room timeline', () => {
   test.skip(!hasCredentials, 'E2E_USERNAME / E2E_PASSWORD not set');
 
-  test('a direct message between people shows the classic timeline over a stored compact mode', async ({
+  test('a direct message between people shows Threads over a stored compact mode', async ({
     page,
   }) => {
     test.slow();
@@ -98,6 +98,6 @@ test.describe('live issue-034 direct room timeline', () => {
       0
     );
 
-    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-034-direct-room-classic');
+    await expectNoUnexpectedBrowserDiagnostics(diagnostics, 'issue-034-direct-room-threads');
   });
 });
