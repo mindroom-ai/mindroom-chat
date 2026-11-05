@@ -70,7 +70,7 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
         [rimReflection]: 'rgb(255 255 255 / 32%)',
       },
     },
-    'button&&:hover, button&&:focus-visible': {
+    'button&&:focus-visible': {
       vars: { [surfaceContainer]: surfaceHover },
     },
     'button&&:active, button&&[aria-pressed="true"]': {
@@ -117,6 +117,14 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
     },
   },
   '@media': {
+    // A touch screen keeps :hover on the button tapped last; only a pointer that can hover tints it.
+    '(hover: hover)': {
+      selectors: {
+        'button&&:hover:not(:active):not([aria-pressed="true"])': {
+          vars: { [surfaceContainer]: surfaceHover },
+        },
+      },
+    },
     '(prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active)': {
       selectors: {
         '&&::before': { display: 'none' },
@@ -184,10 +192,12 @@ export const glassSurface = recipe({
     boxShadow: glassShadow,
     selectors: {
       'button&': { transition: 'scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1)' },
-      'button&:hover:not(:disabled)': { scale: '1.025' },
       'button&:active:not(:disabled)': { scale: '0.98' },
     },
     '@media': {
+      '(hover: hover)': {
+        selectors: { 'button&:hover:not(:disabled):not(:active)': { scale: '1.025' } },
+      },
       '(prefers-reduced-motion: reduce)': {
         selectors: { 'button&&': { scale: 'none', transition: 'none' } },
       },
