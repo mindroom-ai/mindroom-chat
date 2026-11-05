@@ -9,6 +9,7 @@ import { RenderMessageContent } from '../../../components/RenderMessageContent';
 import { MINDROOM_ROOM_TIMELINE_APPROVAL_EVENT } from '../roomTimelineMessageExtensions';
 import { MessageEvent } from '../../../../types/matrix/room';
 import { defined } from '../../../test-utils/defined';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const reactionMocks = vi.hoisted(() => ({ toggleReaction: vi.fn(async () => undefined) }));
 vi.mock('../../messages/reactionToggle', () => ({ toggleReaction: reactionMocks.toggleReaction }));
@@ -77,6 +78,8 @@ const renderRow = async (event: MatrixEvent, threadId?: string) => {
 
 const renderApproval = async (event: MatrixEvent, threadId?: string) =>
   (await renderRow(event, threadId)).content();
+
+importBeforeTests(() => import('./useTimelineMessageFeature'));
 
 describe('timeline approval cards', () => {
   it('get the room and the thread of a reply shown in the room timeline', async () => {

@@ -7,6 +7,7 @@ import { create, makeEvent, makeRoom } from '../test-utils/RoomTimeline.test.sha
 import { MessageLayout, type MessageSpacing } from '../../../state/settings';
 import type { IPowerLevels } from '../../../hooks/usePowerLevels';
 import type { TimelineMessageRow } from './types';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 const ME = '@alice:example.org';
 const OTHER = '@bob:example.org';
@@ -91,6 +92,8 @@ const message = (id: string, opts: { sender?: string; isRedacted?: boolean } = {
     sender: opts.sender ?? ME,
     isRedacted: opts.isRedacted,
   }) as unknown as MatrixEvent;
+
+importBeforeTests(() => import('./useTimelineMessageFeature'));
 
 describe('timeline message permissions', () => {
   beforeEach(() => {

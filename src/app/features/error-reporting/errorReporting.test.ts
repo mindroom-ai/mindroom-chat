@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../../test-utils/importBeforeTests';
 
 type Gate = typeof import('./errorReporting');
 
@@ -22,6 +23,9 @@ afterEach(async () => {
   await gate.configureErrorReporting(undefined, false);
   vi.unstubAllGlobals();
 });
+
+// The reporter chunk loads on the first configuration; load it before that test's timeout runs.
+importBeforeTests(() => import('./reporter'));
 
 describe('parseDsn', () => {
   it('turns a DSN into its store endpoint', () => {

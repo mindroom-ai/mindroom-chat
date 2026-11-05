@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { importBeforeTests } from '../test-utils/importBeforeTests';
 
 const { downloadMediaMock, downloadSidecarMock, saveFileMock } = vi.hoisted(() => ({
   downloadMediaMock: vi.fn(),
@@ -151,6 +152,15 @@ const flushAsyncState = async () => {
   await Promise.resolve();
   await Promise.resolve();
 };
+
+// One after the other: modules of an import cycle loaded side by side can read a binding too early.
+importBeforeTests(async () => {
+  await import('./image-viewer/ImageViewer');
+  await import('./Pdf-viewer/PdfViewer');
+  await import('./message/content/FileContent');
+  await import('./message/FileHeader');
+  await import('../mindroom/messages/MindroomMessageControls');
+});
 
 describe('attachment viewer downloads', () => {
   beforeEach(() => {

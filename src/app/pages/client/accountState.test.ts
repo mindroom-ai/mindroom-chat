@@ -75,6 +75,8 @@ type Loaded = {
 
 let loaded: Loaded;
 
+// Loads every app module one at a time: about a minute on a busy machine, and over two at a load
+// of 700, so the hook gets ten.
 beforeAll(async () => {
   // Style modules register their classes under a file scope, which the build plugin sets.
   setFileScope('src/app/pages/client/accountState.test.ts', 'mindroom-client');
@@ -105,7 +107,7 @@ beforeAll(async () => {
     membersDrawer: await import('../../mindroom/sidebar/useMembersDrawer'),
     spaceTabs: await import('./sidebar/SpaceTabs'),
   };
-}, 120_000);
+}, 600_000);
 
 /**
  * Atoms of a module that holds account state too, kept on purpose one by one, and why; any other

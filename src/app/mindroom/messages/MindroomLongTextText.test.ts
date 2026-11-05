@@ -380,9 +380,11 @@ const toolCountLabel = (count: number, flags = '') => {
 const reportVersions = (versions: string[]) =>
   Object.assign(hookMocks.mx, { getVersions: async () => ({ versions, unstable_features: {} }) });
 
-importBeforeTests(() =>
-  Promise.all([import('../threads/CollapsibleMessage'), import('./renderMindroomMessageContent')])
-);
+// One after the other: modules of an import cycle loaded side by side can read a binding too early.
+importBeforeTests(async () => {
+  await import('../threads/CollapsibleMessage');
+  await import('./renderMindroomMessageContent');
+});
 
 describe('downloadMindroomLongTextSidecarText', () => {
   beforeEach(() => {

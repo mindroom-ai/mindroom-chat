@@ -7,6 +7,7 @@ import { create, makeRoom } from '../test-utils/RoomTimeline.test.shared';
 import { useKeyDown } from '../../../hooks/useKeyDown';
 import { MessageLayout, MessageSpacing } from '../../../state/settings';
 import { BlockType } from '../../../components/editor/types';
+import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
 // Keep timeline presentation fixtures, but exercise real message selection and editor guards.
 vi.doUnmock('../../../utils/room');
@@ -87,6 +88,8 @@ const mountKeyboard = async (
     },
   };
 };
+
+importBeforeTests(() => import('./useTimelineMessageFeature'));
 
 describe('Up-arrow message editing', () => {
   it('edits the latest own message in the active thread, skipping ineligible events', async () => {
