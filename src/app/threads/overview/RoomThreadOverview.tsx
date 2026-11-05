@@ -23,6 +23,7 @@ import { settingsAtom } from '../../preferences/settings';
 import * as css from './RoomThreadOverview.css';
 import * as threadIndicatorCss from '../../messages/ThreadIndicator.css';
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
+import { ThreadTagFilter } from './ThreadTagFilter';
 import type {
   ThreadFilterState,
   ThreadFilterKey,
@@ -81,17 +82,6 @@ const getAriaValueText = (t: TFunction, state: TriState): string => {
   }
 };
 
-const getTagTooltipText = (t: TFunction, tag: string, state: TriState): string => {
-  switch (state) {
-    case 'include':
-      return t('thread.filterTooltip.tagInclude', { tag });
-    case 'exclude':
-      return t('thread.filterTooltip.tagExclude', { tag });
-    default:
-      return t('thread.filterTooltip.tagAny', { tag });
-  }
-};
-
 // ─── TriStateIconToggle ──────────────────────────────────────────────────────
 
 function TriStateIconToggle({
@@ -140,192 +130,6 @@ function TriStateIconToggle({
         </button>
       )}
     </TooltipProvider>
-  );
-}
-
-// ─── TagPill ─────────────────────────────────────────────────────────────────
-
-function TagPill({
-  tag,
-  state,
-  onCycle,
-  onRemove,
-}: {
-  tag: string;
-  state: TriState;
-  onCycle: (tag: string) => void;
-  onRemove: (tag: string) => void;
-}) {
-  const { t } = useTranslation();
-  const tooltipText = getTagTooltipText(t, tag, state);
-
-  return (
-    <TooltipProvider
-      position="Bottom"
-      align="Center"
-      tooltip={
-        <Tooltip style={{ maxWidth: toRem(280) }}>
-          <Text size="T200">{tooltipText}</Text>
-        </Tooltip>
-      }
-    >
-      {(pillAnchor) => (
-        <span
-          ref={pillAnchor}
-          className={classNames(
-            css.TagPill,
-            state === 'include' && css.TagPillInclude,
-            state === 'exclude' && css.TagPillExclude
-          )}
-          data-tag-name={tag}
-          data-tag-state={state}
-        >
-          <button
-            type="button"
-            className={css.TagPillLabel}
-            onClick={() => onCycle(tag)}
-            aria-roledescription="tri-state toggle"
-            aria-valuetext={getAriaValueText(t, state)}
-            aria-label={tooltipText}
-          >
-            <Text size="T200">{tag}</Text>
-          </button>
-          <button
-            type="button"
-            className={css.TagPillRemove}
-            onClick={() => onRemove(tag)}
-            aria-label={t('thread.aria.removeTagFilter', { tag })}
-          >
-            <Text size="T200">&times;</Text>
-          </button>
-        </span>
-      )}
-    </TooltipProvider>
-  );
-}
-
-// ─── AddTagDropdown ──────────────────────────────────────────────────────────
-
-function AddTagDropdown({
-  availableTags,
-  activeTags,
-  onAddTag,
-}: {
-  availableTags: string[];
-  activeTags: Map<string, TriState>;
-  onAddTag: (tag: string) => void;
-}) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [focusedIndex, setFocusedIndex] = useState(-1);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  const unselectedTags = availableTags.filter((tag) => !activeTags.has(tag));
-
-  const handleToggle = useCallback(() => {
-    setOpen((prev) => {
-      if (!prev) setFocusedIndex(0);
-      return !prev;
-    });
-  }, []);
-
-  const handleSelect = useCallback(
-    (tag: string) => {
-      onAddTag(tag);
-      setOpen(false);
-      setFocusedIndex(-1);
-    },
-    [onAddTag]
-  );
-
-  const handleBlur = useCallback((e: React.FocusEvent) => {
-    if (containerRef.current && !containerRef.current.contains(e.relatedTarget as Node)) {
-      setOpen(false);
-      setFocusedIndex(-1);
-    }
-  }, []);
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (!open) return;
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          setFocusedIndex((prev) => (prev + 1) % unselectedTags.length);
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          setFocusedIndex((prev) => (prev - 1 + unselectedTags.length) % unselectedTags.length);
-          break;
-        case 'Enter': {
-          e.preventDefault();
-          const tag = unselectedTags[focusedIndex];
-          if (tag) handleSelect(tag);
-          break;
-        }
-        case 'Escape':
-          e.preventDefault();
-          setOpen(false);
-          setFocusedIndex(-1);
-          break;
-        default:
-          break;
-      }
-    },
-    [open, unselectedTags, focusedIndex, handleSelect]
-  );
-
-  if (unselectedTags.length === 0) return null;
-
-  return (
-    <div
-      ref={containerRef}
-      className={css.AddTagContainer}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
-    >
-      <button
-        type="button"
-        className={css.AddTagButton}
-        onClick={handleToggle}
-        aria-label={t('mindroomUi.threads.roomThreadOverview.addTagFilter')}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        data-add-tag-button="true"
-      >
-        <Text size="T200">{t('mindroomUi.threads.roomThreadOverview.tag')}</Text>
-      </button>
-      {open && (
-        <Surface
-          level="overlay"
-          variant="SurfaceVariant"
-          className={css.AddTagDropdown}
-          role="listbox"
-          aria-label={t('mindroomUi.threads.roomThreadOverview.availableTags')}
-        >
-          {unselectedTags.map((tag, index) => (
-            <button
-              key={tag}
-              type="button"
-              className={css.AddTagOption}
-              role="option"
-              aria-selected={index === focusedIndex}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                handleSelect(tag);
-              }}
-              data-tag-option={tag}
-              data-focused={index === focusedIndex || undefined}
-              ref={(el) => {
-                if (index === focusedIndex) el?.focus();
-              }}
-            >
-              <Text size="T200">{tag}</Text>
-            </button>
-          ))}
-        </Surface>
-      )}
-    </div>
   );
 }
 
@@ -705,9 +509,10 @@ export type RoomThreadOverviewProps = {
   /** Simple mode's one filter: hide resolved threads or show them all. */
   onToggleUnresolvedOnly?: () => void;
   onReset: () => void;
-  onCycleTag: (tag: string) => void;
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
+  /** The Tags dropdown's Clear: drops every tag filter. */
+  onClearTags: () => void;
   onApplyPreset: (preset: FilterPreset) => void;
   onSearchQueryChange: (query: string) => void;
   /** The People dropdown (ThreadPeopleFilter), shown with the advanced filters. */
@@ -781,9 +586,9 @@ export function RoomThreadOverview({
   onToggleThreadSortFreeze,
   onToggleUnresolvedOnly,
   onReset,
-  onCycleTag,
   onAddTag,
   onRemoveTag,
+  onClearTags,
   onApplyPreset,
   onSearchQueryChange,
   peopleFilter,
@@ -840,14 +645,6 @@ export function RoomThreadOverview({
     [hasMindroomAgents, onSearchQueryChange, state]
   );
 
-  const handleCycleTagWithPresetClear = useCallback(
-    (tag: string) => {
-      setLastAppliedPreset(null);
-      onCycleTag(tag);
-    },
-    [onCycleTag]
-  );
-
   const handleAddTagWithPresetClear = useCallback(
     (tag: string) => {
       setLastAppliedPreset(null);
@@ -864,7 +661,10 @@ export function RoomThreadOverview({
     [onRemoveTag]
   );
 
-  const activeTagEntries = [...state.tags.entries()];
+  const handleClearTagsWithPresetClear = useCallback(() => {
+    setLastAppliedPreset(null);
+    onClearTags();
+  }, [onClearTags]);
 
   const filterSummary = filtersActive
     ? t('mindroomUi.threads.roomThreadOverview.showingFilteredThreads', {
@@ -1117,6 +917,16 @@ export function RoomThreadOverview({
           />
         )}
         {peopleFilter}
+        {hasMindroomAgents && (state.tags.size > 0 || availableTags.length > 0) && (
+          <ThreadTagFilter
+            tags={availableTags}
+            counts={tagCounts}
+            selected={state.tags}
+            onAdd={handleAddTagWithPresetClear}
+            onRemove={handleRemoveTagWithPresetClear}
+            onClear={handleClearTagsWithPresetClear}
+          />
+        )}
 
         {/* Info + Search */}
         {hasMindroomAgents && (
@@ -1170,33 +980,6 @@ export function RoomThreadOverview({
           </TooltipProvider>
         )}
         {filterModeSwitch}
-
-        {/* Tag filters (right-aligned) */}
-        {hasMindroomAgents && (activeTagEntries.length > 0 || availableTags.length > 0) && (
-          <div
-            className={css.TagRow}
-            role="group"
-            aria-label={t('mindroomUi.threads.roomThreadOverview.tagFilters')}
-            data-tag-filter-row="true"
-          >
-            <div className={css.TagList}>
-              {activeTagEntries.map(([tag, tagState]) => (
-                <TagPill
-                  key={tag}
-                  tag={tag}
-                  state={tagState}
-                  onCycle={handleCycleTagWithPresetClear}
-                  onRemove={handleRemoveTagWithPresetClear}
-                />
-              ))}
-            </div>
-            <AddTagDropdown
-              availableTags={availableTags}
-              activeTags={state.tags}
-              onAddTag={handleAddTagWithPresetClear}
-            />
-          </div>
-        )}
       </div>
 
       {emptyFilteredState}

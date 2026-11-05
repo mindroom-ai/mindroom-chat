@@ -419,6 +419,14 @@
         "ariaLabelActive": "Filtrar tópicos por pessoas (selecionadas: {{number}})",
         "search": "Pesquisar pessoas",
         "noMatch": "Ninguém corresponde"
+      },
+      "threadTagFilter": {
+        "label": "Etiquetas",
+        "ariaLabel": "Filtrar tópicos por etiquetas",
+        "ariaLabelActive": "Filtrar tópicos por etiquetas (selecionadas: {{number}})",
+        "search": "Pesquisar etiquetas",
+        "noMatch": "Nenhuma etiqueta corresponde",
+        "excluded": "Excluída"
       }
     },
     "computer": {

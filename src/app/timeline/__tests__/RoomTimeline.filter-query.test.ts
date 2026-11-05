@@ -98,7 +98,6 @@ const setup = async () => {
           setThreadFilterState((prev) => updateThreadFilterKey(prev, key)),
         onSortDirectionChange: vi.fn(),
         onToggleThreadSortFreeze: vi.fn(),
-        onCycleTag: vi.fn(),
         onAddTag: vi.fn(),
         onRemoveTag: vi.fn(),
         onReset: vi.fn(),

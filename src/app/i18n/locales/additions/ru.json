@@ -426,6 +426,14 @@
         "ariaLabelActive": "Фильтровать ветки по участникам (выбрано: {{number}})",
         "search": "Поиск участников",
         "noMatch": "Никого не найдено"
+      },
+      "threadTagFilter": {
+        "label": "Теги",
+        "ariaLabel": "Фильтровать ветки по тегам",
+        "ariaLabelActive": "Фильтровать ветки по тегам (выбрано: {{number}})",
+        "search": "Поиск тегов",
+        "noMatch": "Нет подходящих тегов",
+        "excluded": "Исключён"
       }
     },
     "computer": {

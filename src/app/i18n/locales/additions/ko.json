@@ -405,6 +405,14 @@
         "ariaLabelActive": "참여자로 스레드 필터링 ({{number}}명 선택됨)",
         "search": "참여자 검색",
         "noMatch": "일치하는 참여자가 없습니다"
+      },
+      "threadTagFilter": {
+        "label": "태그",
+        "ariaLabel": "태그로 스레드 필터링",
+        "ariaLabelActive": "태그로 스레드 필터링 ({{number}}개 선택됨)",
+        "search": "태그 검색",
+        "noMatch": "일치하는 태그가 없습니다",
+        "excluded": "제외됨"
       }
     },
     "computer": {

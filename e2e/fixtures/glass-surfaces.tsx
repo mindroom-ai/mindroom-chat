@@ -215,7 +215,7 @@ function Fixture() {
             onSortDirectionChange={() => {}}
             onToggleThreadSortFreeze={() => {}}
             onReset={() => {}}
-            onCycleTag={() => {}}
+            onClearTags={() => {}}
             onRemoveTag={() => {}}
             onAddTag={(tag) => setThreadAction(`Tag: ${tag}`)}
             onApplyPreset={(preset) => setThreadAction(`Preset: ${preset.id}`)}

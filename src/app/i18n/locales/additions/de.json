@@ -412,6 +412,14 @@
         "ariaLabelActive": "Threads nach Personen filtern ({{number}} ausgewählt)",
         "search": "Personen suchen",
         "noMatch": "Niemand passt"
+      },
+      "threadTagFilter": {
+        "label": "Tags",
+        "ariaLabel": "Threads nach Tags filtern",
+        "ariaLabelActive": "Threads nach Tags filtern ({{number}} ausgewählt)",
+        "search": "Tags suchen",
+        "noMatch": "Kein Tag passt",
+        "excluded": "Ausgeschlossen"
       }
     },
     "computer": {

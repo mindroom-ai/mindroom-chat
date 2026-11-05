@@ -405,6 +405,14 @@
         "ariaLabelActive": "按参与者过滤讨论串（已选 {{number}} 位）",
         "search": "搜索参与者",
         "noMatch": "没有匹配的参与者"
+      },
+      "threadTagFilter": {
+        "label": "标签",
+        "ariaLabel": "按标签过滤讨论串",
+        "ariaLabelActive": "按标签过滤讨论串（已选 {{number}} 个）",
+        "search": "搜索标签",
+        "noMatch": "没有匹配的标签",
+        "excluded": "已排除"
       }
     },
     "computer": {

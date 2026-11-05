@@ -412,6 +412,14 @@
         "ariaLabelActive": "Threads filteren op personen ({{number}} geselecteerd)",
         "search": "Personen zoeken",
         "noMatch": "Niemand komt overeen"
+      },
+      "threadTagFilter": {
+        "label": "Tags",
+        "ariaLabel": "Threads filteren op tags",
+        "ariaLabelActive": "Threads filteren op tags ({{number}} geselecteerd)",
+        "search": "Tags zoeken",
+        "noMatch": "Geen tag komt overeen",
+        "excluded": "Uitgesloten"
       }
     },
     "computer": {

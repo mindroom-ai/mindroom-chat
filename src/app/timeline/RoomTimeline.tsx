@@ -175,10 +175,11 @@ export type RoomTimelineProps = {
   onToggleThreadSortFreeze?: () => void;
   onToggleUnresolvedOnly?: () => void;
   onTogglePerson?: (userId: string) => void;
+  onClearPeople?: () => void;
   onReset?: () => void;
-  onCycleTag?: (tag: string) => void;
   onAddTag?: (tag: string) => void;
   onRemoveTag?: (tag: string) => void;
+  onClearTags?: () => void;
   onApplyPreset?: (preset: FilterPreset) => void;
   onSearchQueryChange?: (query: string) => void;
   viewMode: RoomViewMode;
@@ -1197,9 +1198,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
         onToggleThreadSortFreeze={props.onToggleThreadSortFreeze ?? ignoreFilterChange}
         onToggleUnresolvedOnly={props.onToggleUnresolvedOnly ?? ignoreFilterChange}
         onReset={props.onReset ?? ignoreFilterChange}
-        onCycleTag={props.onCycleTag ?? ignoreFilterChange}
         onAddTag={props.onAddTag ?? ignoreFilterChange}
         onRemoveTag={props.onRemoveTag ?? ignoreFilterChange}
+        onClearTags={props.onClearTags ?? ignoreFilterChange}
         onApplyPreset={props.onApplyPreset ?? ignoreFilterChange}
         onSearchQueryChange={props.onSearchQueryChange ?? ignoreFilterChange}
         peopleFilter={
@@ -1213,6 +1214,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
               }
               selected={threadFilterState.people}
               onToggle={props.onTogglePerson}
+              onClear={props.onClearPeople ?? ignoreFilterChange}
             />
           )
         }

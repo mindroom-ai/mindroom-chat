@@ -351,18 +351,6 @@ export const simplifyAgentlessThreadFilterState = (
 
 // ─── Tag filter helpers ──────────────────────────────────────────────────────
 
-export const cycleTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
-  const newTags = new Map(state.tags);
-  const current = newTags.get(tagName) ?? 'any';
-  const next = cycleTriState(current);
-  if (next === 'any') {
-    newTags.delete(tagName);
-  } else {
-    newTags.set(tagName, next);
-  }
-  return { ...state, tags: newTags };
-};
-
 export const addTagFilter = (state: ThreadFilterState, tagName: string): ThreadFilterState => {
   if (state.tags.has(tagName)) return state;
   const newTags = new Map(state.tags);

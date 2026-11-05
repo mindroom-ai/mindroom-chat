@@ -44,17 +44,6 @@ vi.mock('./RoomThreadOverview.css', () => ({
   PauseButtonActive: 'PauseButtonActive',
   EmptyState: 'EmptyState',
   ResetLink: 'ResetLink',
-  TagRow: 'TagRow',
-  TagList: 'TagList',
-  TagPill: 'TagPill',
-  TagPillInclude: 'TagPillInclude',
-  TagPillExclude: 'TagPillExclude',
-  TagPillLabel: 'TagPillLabel',
-  TagPillRemove: 'TagPillRemove',
-  AddTagContainer: 'AddTagContainer',
-  AddTagButton: 'AddTagButton',
-  AddTagDropdown: 'AddTagDropdown',
-  AddTagOption: 'AddTagOption',
   PresetContainer: 'PresetContainer',
   PresetButton: 'PresetButton',
   PresetDropdown: 'PresetDropdown',
@@ -131,7 +120,7 @@ const defaultProps = {
   onSortDirectionChange: vi.fn(),
   onToggleThreadSortFreeze: vi.fn(),
   onReset: vi.fn(),
-  onCycleTag: vi.fn(),
+  onClearTags: vi.fn(),
   onAddTag: vi.fn(),
   onRemoveTag: vi.fn(),
   onApplyPreset: vi.fn(),
@@ -175,7 +164,7 @@ describe('RoomThreadOverview', () => {
       renderer.root.findAll((node) => node.props['data-thread-sort-freeze'] === 'true')
     ).toHaveLength(0);
     expect(
-      renderer.root.findAll((node) => node.props['data-tag-filter-row'] === 'true')
+      renderer.root.findAll((node) => node.props['data-tag-filter-button'] === 'true')
     ).toHaveLength(0);
 
     renderer.unmount();
@@ -767,13 +756,25 @@ describe('RoomThreadOverview', () => {
     renderer.unmount();
   });
 
-  // ═══ Tag pills ═════════════════════════════════════════════════════════
+  // ═══ Tags dropdown ═══════════════════════════════════════════════════
 
-  it('renders tag pills with correct state', () => {
+  const openTags = (renderer: ReturnType<typeof create>) => {
+    const button = renderer.root.find((node) => node.props['data-tag-filter-button'] === 'true');
+    act(() => {
+      button.props.onClick();
+    });
+  };
+  const tagRow = (renderer: ReturnType<typeof create>, tag: string) =>
+    renderer.root.find((node) => node.type === 'label' && node.props['data-tag-option'] === tag);
+  const tagBox = (renderer: ReturnType<typeof create>, tag: string) =>
+    tagRow(renderer, tag).find((node) => node.type === 'input');
+
+  it('lists the room tags in the Tags dropdown, checked as the tag filters have them', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        availableTags: ['resolved', 'blocked', 'priority'],
+        availableTags: ['blocked', 'priority', 'resolved'],
+        tagCounts: { blocked: 2, priority: 4, resolved: 1 },
         state: makeDefaultState({
           tags: new Map([
             ['resolved', 'include'],
@@ -783,208 +784,121 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const resolvedPill = renderer.root.find((node) => node.props['data-tag-name'] === 'resolved');
-    expect(resolvedPill.props['data-tag-state']).toBe('include');
-    expect(resolvedPill.props.className).toContain('TagPillInclude');
+    const button = renderer.root.find((node) => node.props['data-tag-filter-button'] === 'true');
+    expect(button.props['data-tag-filter-count']).toBe(2);
+    expect(button.props['aria-label']).toBe('Filter threads by tags (2 selected)');
 
-    const blockedPill = renderer.root.find((node) => node.props['data-tag-name'] === 'blocked');
-    expect(blockedPill.props['data-tag-state']).toBe('exclude');
-    expect(blockedPill.props.className).toContain('TagPillExclude');
+    openTags(renderer);
+    const rows = renderer.root.findAll(
+      (node) => node.type === 'label' && node.props['data-tag-option'] !== undefined
+    );
+    expect(rows.map((row) => row.props['data-tag-option'])).toEqual([
+      'priority',
+      'blocked',
+      'resolved',
+    ]);
+    expect(tagBox(renderer, 'resolved').props.checked).toBe(true);
+    expect(tagBox(renderer, 'blocked').props.checked).toBe(true);
+    expect(tagBox(renderer, 'priority').props.checked).toBe(false);
+    expect(tagRow(renderer, 'blocked').findAllByProps({ children: 'Excluded' })).not.toHaveLength(
+      0
+    );
+    expect(tagRow(renderer, 'resolved').findAllByProps({ children: 'Excluded' })).toHaveLength(0);
 
     renderer.unmount();
   });
 
-  it('calls onCycleTag when tag pill label is clicked', () => {
-    const onCycleTag = vi.fn();
-
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onCycleTag,
-        availableTags: ['resolved'],
-        state: makeDefaultState({
-          tags: new Map([['resolved', 'include']]),
-        }),
-      })
-    );
-
-    const labelBtn = renderer.root.find(
-      (node) => node.type === 'button' && node.props.className === 'TagPillLabel'
-    );
-
-    act(() => {
-      labelBtn.props.onClick();
-    });
-
-    expect(onCycleTag).toHaveBeenCalledWith('resolved');
-
-    renderer.unmount();
-  });
-
-  it('calls onRemoveTag when tag pill remove button is clicked', () => {
+  it('checks a tag with onAddTag and unchecks one with onRemoveTag, staying open', () => {
+    const onAddTag = vi.fn();
     const onRemoveTag = vi.fn();
 
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
+        onAddTag,
         onRemoveTag,
-        availableTags: ['resolved'],
+        availableTags: ['blocked', 'resolved'],
         state: makeDefaultState({
           tags: new Map([['resolved', 'include']]),
         }),
       })
     );
 
-    const removeBtn = renderer.root.find(
-      (node) => node.type === 'button' && node.props['aria-label'] === 'Remove resolved filter'
-    );
-
+    openTags(renderer);
     act(() => {
-      removeBtn.props.onClick();
+      tagBox(renderer, 'blocked').props.onClick();
     });
-
-    expect(onRemoveTag).toHaveBeenCalledWith('resolved');
-
-    renderer.unmount();
-  });
-
-  // ═══ AddTagDropdown ════════════════════════════════════════════════════
-
-  it('shows add-tag button when unselected tags are available', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: ['resolved', 'blocked'],
-      })
-    );
-
-    const addBtn = renderer.root.findAll((node) => node.props['data-add-tag-button'] === 'true');
-    expect(addBtn).toHaveLength(1);
-
-    renderer.unmount();
-  });
-
-  it('hides add-tag button when all tags are already selected', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: ['resolved'],
-        state: makeDefaultState({
-          tags: new Map([['resolved', 'include']]),
-        }),
-      })
-    );
-
-    const addBtns = renderer.root.findAll((node) => node.props['data-add-tag-button'] === 'true');
-    expect(addBtns).toHaveLength(0);
-
-    renderer.unmount();
-  });
-
-  it('opens dropdown on click and shows unselected tags', () => {
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        availableTags: ['resolved', 'blocked', 'priority'],
-        state: makeDefaultState({
-          tags: new Map([['resolved', 'include']]),
-        }),
-      })
-    );
-
-    // Dropdown should not be visible initially
-    let options = renderer.root.findAll((node) => node.props['data-tag-option'] !== undefined);
-    expect(options).toHaveLength(0);
-
-    // Click the add-tag button
-    const addBtn = renderer.root.find((node) => node.props['data-add-tag-button'] === 'true');
-    act(() => {
-      addBtn.props.onClick();
-    });
-
-    // Now dropdown should show unselected tags
-    options = renderer.root.findAll((node) => node.props['data-tag-option'] !== undefined);
-    expect(options).toHaveLength(2);
-    expect(options.map((o) => o.props['data-tag-option'])).toEqual(['blocked', 'priority']);
-
-    renderer.unmount();
-  });
-
-  it('calls onAddTag via onMouseDown (pointer path) exactly once', () => {
-    const onAddTag = vi.fn();
-
-    const renderer = create(
-      React.createElement(RoomThreadOverview, {
-        ...defaultProps,
-        onAddTag,
-        availableTags: ['resolved', 'blocked'],
-      })
-    );
-
-    // Open dropdown
-    const addBtn = renderer.root.find((node) => node.props['data-add-tag-button'] === 'true');
-    act(() => {
-      addBtn.props.onClick();
-    });
-
-    // Verify no onClick handler exists on the option (check before selecting,
-    // since selection closes the dropdown and unmounts the node)
-    const blockedOption = renderer.root.find((node) => node.props['data-tag-option'] === 'blocked');
-    expect(blockedOption.props.onClick).toBeUndefined();
-
-    // Select via onMouseDown (the only pointer handler)
-    act(() => {
-      blockedOption.props.onMouseDown({ preventDefault: vi.fn() });
-    });
-
-    expect(onAddTag).toHaveBeenCalledTimes(1);
     expect(onAddTag).toHaveBeenCalledWith('blocked');
+    act(() => {
+      tagBox(renderer, 'resolved').props.onClick();
+    });
+    expect(onRemoveTag).toHaveBeenCalledWith('resolved');
+    expect(
+      renderer.root.findAll((node) => node.props['data-tag-filter-panel'] === 'true')
+    ).toHaveLength(1);
 
     renderer.unmount();
   });
 
-  it('supports arrow key navigation in dropdown', () => {
-    const onAddTag = vi.fn();
+  it('drops every tag filter with the Clear of the Tags dropdown', () => {
+    const onClearTags = vi.fn();
 
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
-        onAddTag,
-        availableTags: ['alpha', 'beta', 'gamma'],
+        onClearTags,
+        availableTags: ['blocked', 'resolved'],
+        state: makeDefaultState({
+          tags: new Map([
+            ['resolved', 'include'],
+            ['blocked', 'include'],
+          ]),
+        }),
       })
     );
 
-    // Open dropdown
-    const addBtn = renderer.root.find((node) => node.props['data-add-tag-button'] === 'true');
+    openTags(renderer);
+    const clear = renderer.root.find((node) => node.props['data-tag-filter-clear'] === 'true');
     act(() => {
-      addBtn.props.onClick();
+      clear.props.onClick();
     });
-
-    // Find the container that has onKeyDown
-    const container = renderer.root.find((node) => node.props.className === 'AddTagContainer');
-
-    // Press ArrowDown to move to second option
-    act(() => {
-      container.props.onKeyDown({
-        key: 'ArrowDown',
-        preventDefault: vi.fn(),
-      });
-    });
-
-    // Press Enter to select
-    act(() => {
-      container.props.onKeyDown({
-        key: 'Enter',
-        preventDefault: vi.fn(),
-      });
-    });
-
-    expect(onAddTag).toHaveBeenCalledWith('beta');
+    expect(onClearTags).toHaveBeenCalledTimes(1);
 
     renderer.unmount();
   });
 
-  it('renders tag filter row when tags are available', () => {
+  it('forgets the applied preset when a tag is checked', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        availableTags: ['blocked'],
+      })
+    );
+    const presetButton = () =>
+      renderer.root.find((node) => node.props['data-preset-button'] === 'true');
+
+    act(() => {
+      presetButton().props.onClick();
+    });
+    const option = renderer.root.find(
+      (node) => node.props['data-preset-option'] === 'needs-attention'
+    );
+    act(() => {
+      option.props.onMouseDown({ preventDefault: vi.fn() });
+    });
+    expect(presetButton().findAllByProps({ children: 'Needs attention' })).not.toHaveLength(0);
+
+    openTags(renderer);
+    act(() => {
+      tagBox(renderer, 'blocked').props.onClick();
+    });
+    expect(presetButton().findAllByProps({ children: 'Needs attention' })).toHaveLength(0);
+    expect(presetButton().findAllByProps({ children: 'Preset' })).not.toHaveLength(0);
+
+    renderer.unmount();
+  });
+
+  it('shows the Tags dropdown when the room has tags', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
@@ -992,13 +906,36 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const tagRow = renderer.root.findAll((node) => node.props['data-tag-filter-row'] === 'true');
-    expect(tagRow).toHaveLength(1);
+    const buttons = renderer.root.findAll(
+      (node) => node.props['data-tag-filter-button'] === 'true'
+    );
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.props['aria-label']).toBe('Filter threads by tags');
 
     renderer.unmount();
   });
 
-  it('hides tag filter row when no tags available and none active', () => {
+  it('keeps the Tags dropdown while a tag filter is active, even with no tags left', () => {
+    const renderer = create(
+      React.createElement(RoomThreadOverview, {
+        ...defaultProps,
+        availableTags: [],
+        state: makeDefaultState({
+          tags: new Map([['gone', 'include']]),
+        }),
+      })
+    );
+
+    expect(
+      renderer.root.findAll((node) => node.props['data-tag-filter-button'] === 'true')
+    ).toHaveLength(1);
+    openTags(renderer);
+    expect(tagBox(renderer, 'gone').props.checked).toBe(true);
+
+    renderer.unmount();
+  });
+
+  it('hides the Tags dropdown when the room has no tags and none are filtered', () => {
     const renderer = create(
       React.createElement(RoomThreadOverview, {
         ...defaultProps,
@@ -1006,8 +943,9 @@ describe('RoomThreadOverview', () => {
       })
     );
 
-    const tagRows = renderer.root.findAll((node) => node.props['data-tag-filter-row'] === 'true');
-    expect(tagRows).toHaveLength(0);
+    expect(
+      renderer.root.findAll((node) => node.props['data-tag-filter-button'] === 'true')
+    ).toHaveLength(0);
 
     renderer.unmount();
   });

@@ -412,6 +412,14 @@
         "ariaLabelActive": "Konuları kişilere göre filtrele ({{number}} seçili)",
         "search": "Kişi ara",
         "noMatch": "Eşleşen kimse yok"
+      },
+      "threadTagFilter": {
+        "label": "Etiketler",
+        "ariaLabel": "Konuları etiketlere göre filtrele",
+        "ariaLabelActive": "Konuları etiketlere göre filtrele ({{number}} seçili)",
+        "search": "Etiket ara",
+        "noMatch": "Eşleşen etiket yok",
+        "excluded": "Hariç tutuldu"
       }
     },
     "computer": {

@@ -412,6 +412,14 @@
         "ariaLabelActive": "Filter threads by people ({{number}} selected)",
         "search": "Search people",
         "noMatch": "No one matches"
+      },
+      "threadTagFilter": {
+        "label": "Tags",
+        "ariaLabel": "Filter threads by tags",
+        "ariaLabelActive": "Filter threads by tags ({{number}} selected)",
+        "search": "Search tags",
+        "noMatch": "No tags match",
+        "excluded": "Excluded"
       }
     },
     "computer": {

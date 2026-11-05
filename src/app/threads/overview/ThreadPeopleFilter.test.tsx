@@ -50,7 +50,9 @@ afterEach(() => {
   vi.mocked(peopleFilter.buildThreadPeopleActivity).mockClear();
 });
 
-const render = (props: { selected?: string[]; onToggle?: (userId: string) => void } = {}) => {
+const render = (
+  props: { selected?: string[]; onToggle?: (userId: string) => void; onClear?: () => void } = {}
+) => {
   const element = (
     selected: string[] | undefined,
     map: ReadonlyMap<string, ThreadRecord> = records
@@ -60,6 +62,7 @@ const render = (props: { selected?: string[]; onToggle?: (userId: string) => voi
       records={map}
       selected={selected}
       onToggle={props.onToggle ?? vi.fn()}
+      onClear={props.onClear ?? vi.fn()}
     />
   );
   act(() => {
@@ -138,6 +141,18 @@ describe('the People dropdown', () => {
     expect(one('data-people-filter-button').props['aria-label']).toBe(
       'Filter threads by people (2 selected)'
     );
+  });
+
+  it('clears everyone at once, with a Clear button only while someone is chosen', () => {
+    const onClear = vi.fn();
+    const rerender = render({ onClear });
+    open();
+    expect(byData('data-people-filter-clear')).toHaveLength(0);
+    rerender(['@bob:example.org', '@carol:example.org']);
+    act(() => {
+      one('data-people-filter-clear').props.onClick();
+    });
+    expect(onClear).toHaveBeenCalledTimes(1);
   });
 
   it('keeps a chosen person listed after their threads are gone', () => {

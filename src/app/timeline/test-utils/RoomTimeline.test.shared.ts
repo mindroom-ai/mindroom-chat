@@ -1779,7 +1779,6 @@ const createControlledRoomTimelineHarness = (
         onSortDirectionChange,
         onToggleThreadSortFreeze,
         setThreadSortFreezeState,
-        onCycleTag: vi.fn(),
         onAddTag: vi.fn(),
         onRemoveTag: vi.fn(),
         onReset,

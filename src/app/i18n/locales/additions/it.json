@@ -419,6 +419,14 @@
         "ariaLabelActive": "Filtra i thread per persone (selezionate: {{number}})",
         "search": "Cerca persone",
         "noMatch": "Nessuno corrisponde"
+      },
+      "threadTagFilter": {
+        "label": "Tag",
+        "ariaLabel": "Filtra i thread per tag",
+        "ariaLabelActive": "Filtra i thread per tag (selezionati: {{number}})",
+        "search": "Cerca tag",
+        "noMatch": "Nessun tag corrisponde",
+        "excluded": "Escluso"
       }
     },
     "computer": {

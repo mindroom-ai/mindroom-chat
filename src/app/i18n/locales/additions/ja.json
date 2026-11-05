@@ -405,6 +405,14 @@
         "ariaLabelActive": "参加者でスレッドを絞り込む（{{number}} 人を選択中）",
         "search": "参加者を検索",
         "noMatch": "一致する参加者はいません"
+      },
+      "threadTagFilter": {
+        "label": "タグ",
+        "ariaLabel": "タグでスレッドを絞り込む",
+        "ariaLabelActive": "タグでスレッドを絞り込む（{{number}} 件を選択中）",
+        "search": "タグを検索",
+        "noMatch": "一致するタグはありません",
+        "excluded": "除外"
       }
     },
     "computer": {

@@ -133,6 +133,40 @@ describe('useRoomViewThreadState', () => {
     expect(current().threadSortFreezeState).toBeNull();
   });
 
+  it('clears every tag filter or every chosen person in one change, keeping the rest', () => {
+    storeFilter({
+      ...createDefaultThreadFilterState(),
+      resolved: 'exclude',
+      tags: new Map([
+        ['bug', 'include'],
+        ['docs', 'exclude'],
+      ]),
+      people: ['@bob:example.org', '@carol:example.org'],
+    });
+    const { store, current } = mountThreadState({ advancedFilters: true });
+
+    act(() => current().handleClearTags());
+    expect(current().threadFilterState.tags.size).toBe(0);
+    expect(current().threadFilterState.people).toEqual(['@bob:example.org', '@carol:example.org']);
+
+    act(() => current().handleClearPeople());
+    expect(current().threadFilterState.people).toEqual([]);
+    expect(store.get(roomThreadFilterAtomFamily(USER_ID, ROOM_ID))).toMatchObject({
+      resolved: 'exclude',
+      people: [],
+    });
+  });
+
+  it('applies a typed query that is still waiting before it clears the tags', () => {
+    const { current } = mountThreadState({ advancedFilters: true });
+
+    act(() => current().handleSearchQueryChange('tag:bug launch'));
+    act(() => current().handleClearTags());
+
+    expect(current().threadFilterState.tags.size).toBe(0);
+    expect(current().threadFilterState.freeText).toBe('launch');
+  });
+
   it('starts with the simple filters, which keep no sort lock', () => {
     const { current } = mountThreadState();
 

@@ -18,7 +18,7 @@ const props = (overrides: Partial<RoomThreadOverviewProps> = {}): RoomThreadOver
   onToggleThreadSortFreeze: noop,
   onToggleUnresolvedOnly: noop,
   onReset: noop,
-  onCycleTag: noop,
+  onClearTags: noop,
   onAddTag: noop,
   onRemoveTag: noop,
   onApplyPreset: noop,

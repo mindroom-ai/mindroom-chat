@@ -1,18 +1,15 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import classNames from 'classnames';
-import { IconChevronDown } from '@tabler/icons-react';
-import { Avatar, Checkbox, Icon, Icons, Text } from 'folds';
-import { Surface } from '../../ui/glass/GlassPrimitives';
+import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { isMindroomAgentUserId } from '../../matrix/protocol/agentIdentity';
-import * as overviewCss from './RoomThreadOverview.css';
-import * as css from './ThreadPeopleFilter.css';
+import { ThreadFilterDropdown, ThreadFilterPanel } from './ThreadFilterDropdown';
+import * as css from './ThreadFilterDropdown.css';
 import { buildThreadPeopleActivity, matchesThreadPersonSearch } from '../../event-store/threads/threadPeopleFilter';
 import type { ThreadRecord } from '../../event-store/threads/types';
 
@@ -22,6 +19,8 @@ export type ThreadPeopleFilterProps = {
   records: ReadonlyMap<string, ThreadRecord>;
   selected: readonly string[] | undefined;
   onToggle: (userId: string) => void;
+  /** Unchecks everyone. */
+  onClear: () => void;
 };
 
 type PersonOption = {
@@ -32,15 +31,10 @@ type PersonOption = {
   threadCount: number;
 };
 
-function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterProps) {
+function PeoplePanel({ room, records, selected, onToggle, onClear }: ThreadPeopleFilterProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
-  const [query, setQuery] = useState('');
-  const searchRef = useRef<HTMLInputElement>(null);
-  // The panel opens to search; the trigger takes focus back when it closes. Without scrolling:
-  // a panel wider than the room's free space would shift the room sideways.
-  useEffect(() => searchRef.current?.focus({ preventScroll: true }), []);
 
   // One pass over the room's threads while the panel is open, again only when they change.
   const activity = useMemo(() => buildThreadPeopleActivity(records.values()), [records]);
@@ -64,84 +58,51 @@ function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterPr
   );
   // A chosen person no thread shows any more stays listed, so the choice can be undone.
   const listedIds = new Set(listed.map((person) => person.userId));
-  const options = [
+  const people = [
     ...listed,
     ...(selected ?? []).filter((userId) => !listedIds.has(userId)).map((id) => toOption(id, 0)),
-  ].filter((person) => matchesThreadPersonSearch(person, query));
+  ];
   const chosen = new Set(selected);
 
   return (
-    <Surface
-      level="overlay"
-      variant="SurfaceVariant"
-      className={classNames(overviewCss.PresetDropdown, css.Panel)}
-      role="dialog"
-      aria-label={t('mindroomUi.threads.threadPeopleFilter.ariaLabel')}
-      data-people-filter-panel="true"
-    >
-      <input
-        ref={searchRef}
-        className={css.Search}
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        onKeyDown={(event) => {
-          // Escape first clears the search, then closes the panel.
-          if (event.key === 'Escape' && query) {
-            event.stopPropagation();
-            setQuery('');
-          }
-        }}
-        placeholder={t('mindroomUi.threads.threadPeopleFilter.search')}
-        aria-label={t('mindroomUi.threads.threadPeopleFilter.search')}
-        data-people-filter-search="true"
-      />
-      <div
-        className={css.List}
-        // A press on a person keeps the focus where it is, so the panel does not close on blur.
-        onMouseDown={(event) => event.preventDefault()}
-        data-people-filter-list="true"
-      >
-        {options.map((person) => (
-          <label key={person.userId} className={css.Person} data-person-option={person.userId}>
-            <Checkbox
-              variant="Primary"
-              size="200"
-              checked={chosen.has(person.userId)}
-              // folds leaves onChange out of its Checkbox type; the click toggles the choice.
-              readOnly
-              onClick={() => onToggle(person.userId)}
-            />
-            <Avatar size="200" radii="Pill">
-              <UserAvatar
-                userId={person.userId}
-                src={person.avatarUrl}
-                alt=""
-                renderFallback={() => <Icon size="50" src={Icons.User} filled />}
-              />
-            </Avatar>
-            <Text as="span" size="T300" truncate className={css.Name}>
-              {person.displayName}
-            </Text>
-            {person.agent && (
-              <Text as="span" size="L400" className={css.AgentLabel}>
-                {t('threadActions.agent')}
-              </Text>
-            )}
-            {person.threadCount > 0 && (
-              <Text as="span" size="T200" className={css.ThreadCount} aria-hidden="true">
-                {person.threadCount}
-              </Text>
-            )}
-          </label>
-        ))}
-        {options.length === 0 && (
-          <Text size="T200" className={css.Empty}>
-            {t('mindroomUi.threads.threadPeopleFilter.noMatch')}
-          </Text>
-        )}
-      </div>
-    </Surface>
+    <ThreadFilterPanel
+      name="people"
+      optionAttribute="data-person-option"
+      label={t('mindroomUi.threads.threadPeopleFilter.ariaLabel')}
+      searchLabel={t('mindroomUi.threads.threadPeopleFilter.search')}
+      noMatchLabel={t('mindroomUi.threads.threadPeopleFilter.noMatch')}
+      options={(query) =>
+        people
+          .filter((person) => matchesThreadPersonSearch(person, query))
+          .map((person) => ({
+            id: person.userId,
+            checked: chosen.has(person.userId),
+            count: person.threadCount,
+            content: (
+              <>
+                <Avatar size="200" radii="Pill">
+                  <UserAvatar
+                    userId={person.userId}
+                    src={person.avatarUrl}
+                    alt=""
+                    renderFallback={() => <Icon size="50" src={Icons.User} filled />}
+                  />
+                </Avatar>
+                <Text as="span" size="T300" truncate className={css.Name}>
+                  {person.displayName}
+                </Text>
+                {person.agent && (
+                  <Text as="span" size="L400" className={css.Marker}>
+                    {t('threadActions.agent')}
+                  </Text>
+                )}
+              </>
+            ),
+          }))
+      }
+      onToggle={onToggle}
+      onClear={chosen.size > 0 ? onClear : undefined}
+    />
   );
 }
 
@@ -150,56 +111,21 @@ function PeoplePanel({ room, records, selected, onToggle }: ThreadPeopleFilterPr
  * the room's threads. A thread stays when any checked person took part in it.
  */
 export function ThreadPeopleFilter(props: ThreadPeopleFilterProps) {
-  const { selected } = props;
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const count = selected?.length ?? 0;
-
-  const handleBlur = (event: FocusEvent) => {
-    if (!containerRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false);
-  };
-  const handleKeyDown = (event: KeyboardEvent) => {
-    if (open && event.key === 'Escape') {
-      event.preventDefault();
-      event.stopPropagation();
-      setOpen(false);
-      triggerRef.current?.focus();
-    }
-  };
+  const count = props.selected?.length ?? 0;
 
   return (
-    <div
-      ref={containerRef}
-      className={overviewCss.PresetContainer}
-      onBlur={handleBlur}
-      onKeyDown={handleKeyDown}
+    <ThreadFilterDropdown
+      name="people"
+      label={t('mindroomUi.threads.threadPeopleFilter.label')}
+      count={count}
+      ariaLabel={
+        count > 0
+          ? t('mindroomUi.threads.threadPeopleFilter.ariaLabelActive', { number: count })
+          : t('mindroomUi.threads.threadPeopleFilter.ariaLabel')
+      }
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        className={classNames(overviewCss.PresetButton, count > 0 && css.TriggerActive)}
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
-        aria-label={
-          count > 0
-            ? t('mindroomUi.threads.threadPeopleFilter.ariaLabelActive', { number: count })
-            : t('mindroomUi.threads.threadPeopleFilter.ariaLabel')
-        }
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        data-people-filter-button="true"
-        data-people-filter-count={count}
-      >
-        <Text size="T200">{t('mindroomUi.threads.threadPeopleFilter.label')}</Text>
-        {count > 0 && (
-          <Text size="T200" className={css.Count}>
-            {count}
-          </Text>
-        )}
-        <IconChevronDown size={14} stroke={1.8} aria-hidden="true" />
-      </button>
-      {open && <PeoplePanel {...props} />}
-    </div>
+      <PeoplePanel {...props} />
+    </ThreadFilterDropdown>
   );
 }

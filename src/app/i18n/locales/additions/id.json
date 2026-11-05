@@ -405,6 +405,14 @@
         "ariaLabelActive": "Filter utas menurut orang ({{number}} dipilih)",
         "search": "Cari orang",
         "noMatch": "Tidak ada yang cocok"
+      },
+      "threadTagFilter": {
+        "label": "Tag",
+        "ariaLabel": "Filter utas menurut tag",
+        "ariaLabelActive": "Filter utas menurut tag ({{number}} dipilih)",
+        "search": "Cari tag",
+        "noMatch": "Tidak ada tag yang cocok",
+        "excluded": "Dikecualikan"
       }
     },
     "computer": {

@@ -405,6 +405,14 @@
         "ariaLabelActive": "依參與者篩選討論串（已選 {{number}} 位）",
         "search": "搜尋參與者",
         "noMatch": "沒有符合的參與者"
+      },
+      "threadTagFilter": {
+        "label": "標籤",
+        "ariaLabel": "依標籤篩選討論串",
+        "ariaLabelActive": "依標籤篩選討論串（已選 {{number}} 個）",
+        "search": "搜尋標籤",
+        "noMatch": "沒有符合的標籤",
+        "excluded": "已排除"
       }
     },
     "computer": {

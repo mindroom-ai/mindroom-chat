@@ -30,7 +30,6 @@ import {
   addTagFilter,
   applyPreset,
   cycleSortMode,
-  cycleTagFilter,
   type FilterPreset,
   normalizeThreadSearchText,
   removeTagFilter,
@@ -63,7 +62,8 @@ export type RoomViewThreadState = {
   effectiveThreadId?: string;
   handleAddTag: (tag: string) => void;
   handleApplyPreset: (preset: FilterPreset) => void;
-  handleCycleTag: (tag: string) => void;
+  handleClearPeople: () => void;
+  handleClearTags: () => void;
   handleExitThread: () => void;
   handleThreadRootDeleted: () => void;
   handleRemoveTag: (tag: string) => void;
@@ -291,6 +291,15 @@ export const useRoomViewThreadState = ({
     [flushPendingSearchQuery, setThreadFilterState]
   );
 
+  // The Clear buttons of the People and Tags dropdowns: one change, so no choice survives.
+  const handleClearPeople = useCallback(() => {
+    setThreadFilterState({ ...flushPendingSearchQuery(), people: [] });
+  }, [flushPendingSearchQuery, setThreadFilterState]);
+
+  const handleClearTags = useCallback(() => {
+    setThreadFilterState({ ...flushPendingSearchQuery(), tags: new Map() });
+  }, [flushPendingSearchQuery, setThreadFilterState]);
+
   const handleSortDirectionChange = useCallback(() => {
     const base = flushPendingSearchQuery();
     setThreadFilterState({
@@ -318,13 +327,6 @@ export const useRoomViewThreadState = ({
     pendingSearchQueryRef.current = undefined;
     setThreadFilterState(resetThreadFilterState());
   }, [setThreadFilterState]);
-
-  const handleCycleTag = useCallback(
-    (tag: string) => {
-      setThreadFilterState(cycleTagFilter(flushPendingSearchQuery(), tag));
-    },
-    [flushPendingSearchQuery, setThreadFilterState]
-  );
 
   const handleAddTag = useCallback(
     (tag: string) => {
@@ -425,7 +427,8 @@ export const useRoomViewThreadState = ({
     effectiveThreadId,
     handleAddTag,
     handleApplyPreset,
-    handleCycleTag,
+    handleClearPeople,
+    handleClearTags,
     handleExitThread,
     handleThreadRootDeleted,
     handleRemoveTag,

@@ -19,6 +19,11 @@ export const Count = style({
   fontVariantNumeric: 'tabular-nums',
 });
 
+// The one chosen value the trigger names in place of its label.
+export const TriggerValue = style({
+  maxWidth: toRem(140),
+});
+
 export const Panel = style({
   selectors: { '&&&': { minWidth: toRem(240), maxWidth: toRem(300) } },
   display: 'flex',
@@ -26,13 +31,14 @@ export const Panel = style({
   rowGap: config.space.S100,
 });
 
-// The search field's and the agent label's colors.
+// The search field's colors, and the tones of the labels after an option's name.
 const searchField = {
   line: color.SurfaceVariant.ContainerLine,
   surface: color.Background.Container,
   text: color.Background.OnContainer,
 };
-const agentTone = { surface: color.Secondary.Container, text: color.Secondary.OnContainer };
+const markerTone = { surface: color.Secondary.Container, text: color.Secondary.OnContainer };
+const excludedTone = { surface: color.Critical.Container, text: color.Critical.OnContainer };
 
 export const Search = style({
   height: toRem(32),
@@ -58,7 +64,7 @@ export const List = style({
   flexDirection: 'column',
 });
 
-export const Person = style({
+export const Option = style({
   display: 'flex',
   alignItems: 'center',
   columnGap: config.space.S200,
@@ -77,15 +83,28 @@ export const Name = style({
   minWidth: 0,
 });
 
-export const AgentLabel = style({
+export const Marker = style({
   flexShrink: 0,
   paddingInline: config.space.S100,
   borderRadius: config.radii.R300,
-  backgroundColor: agentTone.surface,
-  color: agentTone.text,
+  backgroundColor: markerTone.surface,
+  color: markerTone.text,
 });
 
-export const ThreadCount = style({
+export const MarkerExcluded = style({
+  backgroundColor: excludedTone.surface,
+  color: excludedTone.text,
+});
+
+// A tag's color, in place of the avatar a person has.
+export const Swatch = style({
+  flexShrink: 0,
+  width: toRem(12),
+  height: toRem(12),
+  borderRadius: config.radii.Pill,
+});
+
+export const OptionCount = style({
   flexShrink: 0,
   opacity: 0.6,
   fontVariantNumeric: 'tabular-nums',
@@ -95,4 +114,27 @@ export const Empty = style({
   paddingBlock: config.space.S200,
   paddingInline: config.space.S200,
   opacity: 0.7,
+});
+
+export const Footer = style({
+  display: 'flex',
+  justifyContent: 'flex-end',
+  paddingBlockStart: config.space.S100,
+  borderBlockStart: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
+});
+
+export const Clear = style({
+  paddingBlock: config.space.S100,
+  paddingInline: config.space.S200,
+  border: 'none',
+  borderRadius: config.radii.R300,
+  background: 'none',
+  color: color.Primary.Main,
+  font: 'inherit',
+  fontSize: toRem(13),
+  cursor: 'pointer',
+  selectors: {
+    '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
+    '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: '-2px' },
+  },
 });

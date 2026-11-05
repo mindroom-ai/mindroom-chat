@@ -175,18 +175,11 @@ describe('roomThreadOverviewModel', () => {
   });
 
   describe('tag filter helpers', () => {
-    it('cycles, adds, removes, and counts tag filters', async () => {
-      const { addTagFilter, collectAvailableRoomTags, cycleTagFilter, removeTagFilter } =
+    it('adds, removes, and counts tag filters', async () => {
+      const { addTagFilter, collectAvailableRoomTags, removeTagFilter } =
         await import('./roomThreadOverviewModel');
 
       const defaultState = makeDefaultState();
-      const included = cycleTagFilter(defaultState, 'priority');
-      expect(included.tags.get('priority')).toBe('include');
-      const excluded = cycleTagFilter(included, 'priority');
-      expect(excluded.tags.get('priority')).toBe('exclude');
-      const cleared = cycleTagFilter(excluded, 'priority');
-      expect(cleared.tags.has('priority')).toBe(false);
-
       const added = addTagFilter(defaultState, 'blocked');
       expect(added.tags.get('blocked')).toBe('include');
       expect(removeTagFilter(added, 'blocked').tags.has('blocked')).toBe(false);

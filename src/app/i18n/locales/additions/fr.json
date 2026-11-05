@@ -419,6 +419,14 @@
         "ariaLabelActive": "Filtrer les fils par personne (sélection : {{number}})",
         "search": "Rechercher des personnes",
         "noMatch": "Personne ne correspond"
+      },
+      "threadTagFilter": {
+        "label": "Étiquettes",
+        "ariaLabel": "Filtrer les fils par étiquette",
+        "ariaLabelActive": "Filtrer les fils par étiquette (sélection : {{number}})",
+        "search": "Rechercher des étiquettes",
+        "noMatch": "Aucune étiquette ne correspond",
+        "excluded": "Exclue"
       }
     },
     "computer": {

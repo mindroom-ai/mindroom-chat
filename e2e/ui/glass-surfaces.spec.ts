@@ -697,16 +697,16 @@ test('custom thread popups receive shared material and retain keyboard actions',
   await overview.locator('[data-info-button]').click();
   await expect(stats).toHaveCount(0);
 
-  await overview.locator('[data-add-tag-button]').click();
+  await overview.locator('[data-tag-filter-button]').click();
+  const tags = overview.locator('[data-tag-filter-panel]');
   expect(
-    await overview
-      .getByRole('listbox')
-      .evaluate((element) => getComputedStyle(element).backdropFilter)
+    await tags.evaluate((element) => getComputedStyle(element).backdropFilter)
   ).not.toBe('none');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(overview.locator('output')).toHaveText('Tag: priority');
-  await expect(overview.getByRole('listbox')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(tags).toHaveCount(0);
 
   await overview.locator('[data-preset-button]').click();
   expect(
