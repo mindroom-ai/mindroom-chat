@@ -1,5 +1,18 @@
-import { useMemo, useState } from 'react';
-import { Avatar, Badge, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
+import { useId, useMemo, useState } from 'react';
+import {
+  Avatar,
+  Badge,
+  Box,
+  Button,
+  Icon,
+  Icons,
+  Spinner,
+  Text,
+  color,
+  config,
+  toRem,
+} from 'folds';
+import classNames from 'classnames';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
@@ -7,14 +20,22 @@ import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { SequenceCard } from '../../../components/sequence-card';
 import { RoomAvatar } from '../../../components/room-avatar';
-import { Page } from '../../../components/page';
+import {
+  Page,
+  PageContent,
+  PageContentCenter,
+  PageHeader,
+  PageScroll,
+} from '../../../components/page';
 import { PhoneBackButton } from '../../../components/page/PhoneBackButton';
 import { useMatrixClient } from '../../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../../hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../../hooks/useRoomNavigate';
+import { ScreenSize, useScreenSizeContext } from '../../../hooks/useScreenSize';
 import { allInvitesAtom } from '../../../state/room-list/inviteList';
 import { useSetting } from '../../../state/hooks/settings';
 import { settingsAtom } from '../../../state/settings';
+import { glassOutline, glassSurface } from '../../../styles/Glass.css';
 import { getRoomAvatarUrl } from '../../../utils/room';
 import { mxcUrlToHttp } from '../../../utils/mediaUrl';
 import { nameInitials } from '../../../utils/common';
@@ -22,6 +43,7 @@ import { acceptInvite, acceptInvites } from './acceptInvite';
 import { declineInvite } from './declineInvite';
 import {
   INVITE_CATEGORIES,
+  INVITE_CATEGORY_LABEL_KEYS,
   InviteFilterChips,
   categorizeInvite,
   type InviteCategory,
@@ -133,21 +155,25 @@ export const makeInviteData = (mx: MatrixClient, room: Room, isSpace: boolean): 
   };
 };
 
-/** The labels under an invite's name: direct chat or space, encrypted, public. */
+/** Each label's quiet tint: the person and the lock stand out a little, the rest stays grey. */
+type InviteLabel = { text: string; tint: 'Primary' | 'Secondary' | 'Success' };
+
+/** The small chips over an invite's name: encrypted, direct chat or space, public. */
 function InviteBadges({ invite }: { invite: InviteData }) {
   const { t } = useTranslation();
-  const labels = [
-    invite.isDirect && t('sharedUi.invites.directMessage'),
-    invite.isSpace && t('sharedUi.invites.space'),
-    invite.isEncrypted && t('sharedUi.invites.encrypted'),
-    invite.isPublic && t('sharedUi.invites.public'),
-  ].filter((label): label is string => Boolean(label));
+  const labels: InviteLabel[] = [];
+  if (invite.isEncrypted) labels.push({ text: t('sharedUi.invites.encrypted'), tint: 'Success' });
+  if (invite.isDirect) labels.push({ text: t('sharedUi.invites.directMessage'), tint: 'Primary' });
+  if (invite.isSpace) labels.push({ text: t('sharedUi.invites.space'), tint: 'Secondary' });
+  if (invite.isPublic) labels.push({ text: t('sharedUi.invites.public'), tint: 'Secondary' });
   if (labels.length === 0) return null;
   return (
     <Box gap="100" wrap="Wrap" data-invite-badges="">
-      {labels.map((label) => (
-        <Badge key={label} variant="Secondary" fill="Soft" radii="Pill">
-          <Text size="T200">{label}</Text>
+      {labels.map(({ text, tint }) => (
+        <Badge key={text} variant={tint} fill="Soft" radii="300" size="400">
+          <Text as="span" size="L400">
+            {text}
+          </Text>
         </Badge>
       ))}
     </Box>
@@ -169,6 +195,19 @@ const useInviteTimeFormat = (): InviteTimeFormat => {
   return { dateFormatString, hour24Clock };
 };
 
+// Decline and Accept All: quiet glass controls with a hairline, so Accept is the one tinted button.
+const QUIET_BUTTON = classNames(
+  glassSurface({ level: 'control', variant: 'Surface' }),
+  glassOutline
+);
+const CARD_STYLE = { padding: config.space.S400 } as const;
+// The picture and name keep at least 16rem; narrower than that and the buttons, the card's
+// trailing column, wrap onto a line of their own at its end.
+const IDENTITY_STYLE = { flex: `1 1 ${toRem(256)}`, minWidth: 0 } as const;
+const ACTIONS_STYLE = { marginInlineStart: 'auto' } as const;
+const NAME_STYLE = { fontWeight: config.fontWeight.W500 } as const;
+const SENDER_STYLE = { fontWeight: config.fontWeight.W500 } as const;
+
 type InviteCardProps = InviteTimeFormat & {
   invite: InviteData;
   onNavigate: (roomId: string, isSpace: boolean, isDirect?: boolean) => void;
@@ -189,6 +228,7 @@ export function InviteCard({
   const client = useMatrixClient();
   const { room, roomId, roomName, roomTopic, isSpace } = invite;
   const [state, setState] = useState<'idle' | 'joining' | 'leaving' | 'error'>('idle');
+  const nameId = useId();
   // A direct chat has no picture of its own; it shows the person who started it.
   const directAvatar =
     invite.isDirect && invite.senderAvatar
@@ -218,7 +258,6 @@ export function InviteCard({
   };
 
   const busy = state === 'joining' || state === 'leaving';
-  const fallbackIcon = isSpace ? Icons.Space : Icons.Hash;
   const time = invite.inviteTs
     ? dayjs(invite.inviteTs).format(`${dateFormatString} ${hour24Clock ? 'HH:mm' : 'hh:mm A'}`)
     : undefined;
@@ -226,84 +265,104 @@ export function InviteCard({
   return (
     <SequenceCard
       direction="Column"
-      gap="200"
+      gap="300"
       variant="SurfaceVariant"
-      style={{ padding: config.space.S400 }}
+      role="group"
+      aria-labelledby={nameId}
+      data-invite-room-id={roomId}
+      style={CARD_STYLE}
     >
-      <Box alignItems="Center" gap="300">
-        <Avatar size="300" radii={isSpace ? '300' : 'Pill'}>
-          <RoomAvatar
-            src={avatar}
-            roomId={roomId}
-            fallbackId={invite.isDirect ? invite.senderId : undefined}
-            alt={roomName}
-            renderFallback={() =>
-              invite.isDirect ? (
-                <Text size="H6">{nameInitials(roomName)}</Text>
-              ) : (
-                <Icon size="200" src={fallbackIcon} />
-              )
-            }
-          />
-        </Avatar>
-        <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-          <Text size="T400" truncate>
-            {roomName}
-          </Text>
-          <InviteBadges invite={invite} />
-          {roomTopic ? (
-            <Text size="T200" priority="300" truncate>
-              {roomTopic}
+      <Box alignItems="Center" gap="300" wrap="Wrap">
+        <Box alignItems="Center" gap="300" style={IDENTITY_STYLE}>
+          <Avatar size="300" radii={isSpace ? '300' : 'Pill'}>
+            <RoomAvatar
+              src={avatar}
+              roomId={roomId}
+              fallbackId={invite.isDirect ? invite.senderId : undefined}
+              alt={roomName}
+              renderFallback={() => <Text size="H6">{nameInitials(roomName)}</Text>}
+            />
+          </Avatar>
+          <Box grow="Yes" direction="Column" gap="100" style={{ minWidth: 0 }}>
+            <InviteBadges invite={invite} />
+            <Box direction="Column">
+              <Text as="h3" id={nameId} size="T400" truncate style={NAME_STYLE}>
+                {roomName}
+              </Text>
+              {roomTopic ? (
+                <Text size="T200" priority="300" truncate>
+                  {roomTopic}
+                </Text>
+              ) : null}
+            </Box>
+          </Box>
+        </Box>
+        <Box gap="200" shrink="No" style={ACTIONS_STYLE}>
+          <Button
+            size="300"
+            variant="Secondary"
+            fill="Soft"
+            className={QUIET_BUTTON}
+            radii="300"
+            disabled={busy}
+            aria-describedby={nameId}
+            onClick={() => void handleDecline()}
+            before={state === 'leaving' ? <Spinner size="100" variant="Secondary" /> : undefined}
+          >
+            <Text size="B300">{t('sharedUi.invites.decline')}</Text>
+          </Button>
+          <Button
+            size="300"
+            variant="Success"
+            fill="Soft"
+            outlined
+            radii="300"
+            disabled={busy}
+            aria-describedby={nameId}
+            onClick={() => void handleAccept()}
+            before={state === 'joining' ? <Spinner size="100" variant="Success" /> : undefined}
+          >
+            <Text size="B300">{t('sharedUi.invites.accept')}</Text>
+          </Button>
+        </Box>
+      </Box>
+      {(invite.senderName || time) && (
+        <Box alignItems="Baseline" justifyContent="SpaceBetween" gap="200" wrap="Wrap">
+          {invite.senderName ? (
+            <Text size="T200" priority="300" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              <Trans
+                i18nKey="sharedUi.invites.from"
+                values={{ sender: invite.senderName }}
+                components={{ b: <b title={invite.senderId} style={SENDER_STYLE} /> }}
+              />
             </Text>
           ) : null}
+          {time && (
+            <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
+              {time}
+            </Text>
+          )}
         </Box>
-        {time && (
-          <Text size="T200" priority="300">
-            {time}
-          </Text>
-        )}
-      </Box>
-      {invite.senderName && (
-        <Text size="T200">
-          <Trans
-            i18nKey="sharedUi.invites.from"
-            values={{ sender: invite.senderName }}
-            components={{ b: <b title={invite.senderId} /> }}
-          />
-        </Text>
       )}
       {state === 'error' && (
-        <Text size="T200" style={{ color: color.Critical.Main }}>
+        <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
           {t('sharedUi.invites.actionFailed')}
         </Text>
       )}
-      <Box gap="200">
-        <Button
-          size="300"
-          variant="Success"
-          fill="Soft"
-          radii="300"
-          disabled={busy}
-          onClick={() => void handleAccept()}
-          before={state === 'joining' ? <Spinner size="100" variant="Success" /> : undefined}
-        >
-          <Text size="B300">{t('sharedUi.invites.accept')}</Text>
-        </Button>
-        <Button
-          size="300"
-          variant="Critical"
-          fill="None"
-          radii="300"
-          disabled={busy}
-          onClick={() => void handleDecline()}
-          before={state === 'leaving' ? <Spinner size="100" variant="Critical" /> : undefined}
-        >
-          <Text size="B300">{t('sharedUi.invites.decline')}</Text>
-        </Button>
-      </Box>
     </SequenceCard>
   );
 }
+
+// The heading keeps the height of the Accept All button beside it, so the cards stay put when the
+// button comes and goes.
+const SECTION_HEADER_STYLE = { minHeight: toRem(32) } as const;
+
+/** What an empty list holds once invites arrive. */
+const EMPTY_HINT_KEYS = {
+  primary: 'sharedUi.invites.whenSomeoneYouShareARoomWithSendsYouAnInviteIt',
+  public: 'sharedUi.invites.invitesFromPeopleOutsideYourRoomsWillAppearHere',
+  spam: 'sharedUi.invites.invitesDetectedAsSpamAppearHere',
+} as const;
 
 /**
  * Pending invites, in three lists: from people the user knows, from anyone else, and spam. A spam
@@ -318,6 +377,9 @@ export function Invites() {
   const { navigateSpace, navigateRoom } = useRoomNavigate();
   const navigate = useNavigate();
   const [acceptingAll, setAcceptingAll] = useState(false);
+  const headingId = useId();
+  // Phones lead with the way back to the Inbox, so the title starts beside it.
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
   const invites = useMemo(
     () =>
@@ -364,46 +426,76 @@ export function Invites() {
     }
   };
 
+  const acceptAllShown = category !== 'spam' && shownInvites.length > 1;
+  const header = (
+    <PageHeader balance>
+      <PhoneBackButton to={INBOX_PATH} />
+      <Box grow="Yes" justifyContent={phone ? 'Start' : 'Center'} alignItems="Center" gap="200">
+        <Icon size="400" src={Icons.Mail} />
+        <Text as="h1" size="H4" truncate>
+          {t('sharedUi.invites.invites')}
+        </Text>
+      </Box>
+    </PageHeader>
+  );
+
   return (
     <Page>
-      <Box direction="Column" gap="400" style={{ padding: config.space.S400 }}>
-        <Box alignItems="Center" gap="200">
-          <PhoneBackButton to={INBOX_PATH} />
-          <Text as="h1" size="H4" style={{ flexGrow: 1 }}>
-            {t('sharedUi.invites.invites')}
-          </Text>
-          {category !== 'spam' && shownInvites.length > 1 && (
-            <Button
-              size="300"
-              radii="300"
-              variant="Success"
-              fill="Soft"
-              disabled={acceptingAll}
-              onClick={() => void handleAcceptAll()}
-            >
-              <Text size="B300">{t('sharedUi.invites.acceptAll')}</Text>
-            </Button>
-          )}
-        </Box>
-        <InviteFilterChips counts={counts} selected={category} onSelect={setPickedCategory} />
-        {shownInvites.length === 0 && (
-          <Text size="T300">
-            {category === 'spam'
-              ? t('sharedUi.invites.noSpamInvites')
-              : t('sharedUi.invites.noInvites')}
-          </Text>
-        )}
-        {shownInvites.map((invite) => (
-          <InviteCard
-            {...timeFormat}
-            key={invite.roomId}
-            invite={invite}
-            onNavigate={handleNavigate}
-            hideAvatar={hasBadWords(invite)}
-            useAuthentication={useAuthentication}
-          />
-        ))}
-      </Box>
+      <PageScroll header={header}>
+        <PageContent>
+          <PageContentCenter>
+            <Box direction="Column" gap="500">
+              <InviteFilterChips counts={counts} selected={category} onSelect={setPickedCategory} />
+              <Box as="section" direction="Column" gap="300" aria-labelledby={headingId}>
+                <Box alignItems="Center" gap="200" style={SECTION_HEADER_STYLE}>
+                  <Text as="h2" id={headingId} size="H5" truncate style={{ flexGrow: 1 }}>
+                    {t(INVITE_CATEGORY_LABEL_KEYS[category])}
+                  </Text>
+                  {acceptAllShown && (
+                    <Button
+                      size="300"
+                      radii="300"
+                      variant="Secondary"
+                      fill="Soft"
+                      className={QUIET_BUTTON}
+                      disabled={acceptingAll}
+                      onClick={() => void handleAcceptAll()}
+                      before={acceptingAll ? <Spinner size="100" variant="Secondary" /> : undefined}
+                    >
+                      <Text size="B300">{t('sharedUi.invites.acceptAll')}</Text>
+                    </Button>
+                  )}
+                </Box>
+                {shownInvites.length === 0 ? (
+                  <Box direction="Column" gap="100">
+                    <Text size="T400">
+                      {category === 'spam'
+                        ? t('sharedUi.invites.noSpamInvites')
+                        : t('sharedUi.invites.noInvites')}
+                    </Text>
+                    <Text size="T300" priority="300">
+                      {t(EMPTY_HINT_KEYS[category])}
+                    </Text>
+                  </Box>
+                ) : (
+                  <Box direction="Column">
+                    {shownInvites.map((invite) => (
+                      <InviteCard
+                        {...timeFormat}
+                        key={invite.roomId}
+                        invite={invite}
+                        onNavigate={handleNavigate}
+                        hideAvatar={hasBadWords(invite)}
+                        useAuthentication={useAuthentication}
+                      />
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            </Box>
+          </PageContentCenter>
+        </PageContent>
+      </PageScroll>
     </Page>
   );
 }

@@ -1,4 +1,5 @@
-import { Box, Chip, Text } from 'folds';
+import { useId } from 'react';
+import { Badge, Box, Chip, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { EventType, type MatrixClient } from 'matrix-js-sdk';
 
@@ -33,7 +34,8 @@ export const categorizeInvite = (
   return isKnownInviter(mx, invite.senderId) ? 'primary' : 'public';
 };
 
-const LABEL_KEYS = {
+/** The name of each list, which its chip and the heading over its invites show. */
+export const INVITE_CATEGORY_LABEL_KEYS = {
   primary: 'sharedUi.invites.primary',
   public: 'sharedUi.invites.public',
   spam: 'sharedUi.invites.spam',
@@ -45,25 +47,51 @@ type InviteFilterChipsProps = {
   onSelect: (category: InviteCategory) => void;
 };
 
-/** One chip per list with its size; the pressed one is the list shown. */
+/**
+ * A small "Filter" label over one chip per list. The pressed chip, the list shown, carries a
+ * check mark; a list holding invites shows their number in a badge, an empty one shows none.
+ */
 export function InviteFilterChips({ counts, selected, onSelect }: InviteFilterChipsProps) {
   const { t } = useTranslation();
+  const labelId = useId();
   return (
-    <Box gap="200" wrap="Wrap" role="group" aria-label={t('sharedUi.invites.filter')}>
-      {INVITE_CATEGORIES.map((category) => {
-        const pressed = category === selected;
-        return (
-          <Chip
-            key={category}
-            radii="Pill"
-            variant={pressed ? 'Primary' : 'SurfaceVariant'}
-            aria-pressed={pressed}
-            onClick={() => onSelect(category)}
-          >
-            <Text size="T200">{`${t(LABEL_KEYS[category])} ${counts[category]}`}</Text>
-          </Chip>
-        );
-      })}
+    <Box direction="Column" gap="200">
+      <Text id={labelId} size="L400" priority="300">
+        {t('sharedUi.invites.filter')}
+      </Text>
+      <Box gap="200" wrap="Wrap" role="group" aria-labelledby={labelId}>
+        {INVITE_CATEGORIES.map((category) => {
+          const pressed = category === selected;
+          const count = counts[category];
+          return (
+            <Chip
+              key={category}
+              radii="Pill"
+              variant={pressed ? 'Primary' : 'SurfaceVariant'}
+              outlined={!pressed}
+              aria-pressed={pressed}
+              onClick={() => onSelect(category)}
+              before={pressed ? <Icon size="50" src={Icons.Check} /> : undefined}
+              after={
+                count > 0 ? (
+                  <Badge
+                    variant={pressed ? 'Primary' : 'Secondary'}
+                    fill={pressed ? 'Solid' : 'Soft'}
+                    radii="Pill"
+                    size="400"
+                  >
+                    <Text as="span" size="L400">
+                      {count}
+                    </Text>
+                  </Badge>
+                ) : undefined
+              }
+            >
+              <Text size="T200">{t(INVITE_CATEGORY_LABEL_KEYS[category])}</Text>
+            </Chip>
+          );
+        })}
+      </Box>
     </Box>
   );
 }
