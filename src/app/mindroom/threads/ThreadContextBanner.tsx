@@ -37,6 +37,8 @@ import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
+import { PhoneBackButton } from '../../components/page/PhoneBackButton';
+import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -97,6 +99,7 @@ export function ThreadContextBanner({
   onExitThread,
 }: ThreadContextBannerProps) {
   const { t, i18n } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const bannerRef = useRef<HTMLDivElement>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>(bannerRef);
   const [collapsed, setCollapsed] = useSetting(settingsAtom, 'threadBannerCollapsed');
@@ -261,7 +264,9 @@ export function ThreadContextBanner({
   // which hide it.
   const resolverBylineId = useId();
 
-  const backButton = (
+  const backButton = phone ? (
+    <PhoneBackButton label={t('thread.backToRoom')} onBack={onExitThread} />
+  ) : (
     // At the banner's start, so its tooltip opens toward the banner, not past it.
     // folds aligns to physical edges, and right-to-left puts the button on the right.
     <IconTooltip label={t('thread.backToRoom')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>

@@ -19,6 +19,7 @@ import {
 } from 'folds';
 import { PopOut, TooltipProvider, ownDirectionLine } from '../../components/directional';
 import { PageHeader } from '../../components/page';
+import { PhoneBackButton } from '../../components/page/PhoneBackButton';
 import { RoomTopicViewer } from '../../components/room-topic-viewer';
 import { RoomAvatar, RoomIcon } from '../../components/room-avatar';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
@@ -110,8 +111,6 @@ type HeaderActionProps = {
   active?: boolean;
   /** Drawn over the button's corner, such as a count. */
   badge?: ReactNode;
-  /** The icon points along the reading direction, so right-to-left languages mirror it. */
-  directional?: boolean;
   buttonProps?: Record<`data-${string}` | `aria-${string}`, string | boolean | undefined>;
   /** The keyboard shortcut for the same action, shown in the tooltip. */
   shortcut?: ShortcutId;
@@ -125,7 +124,6 @@ function HeaderAction({
   pressed,
   active,
   badge,
-  directional,
   buttonProps,
   shortcut,
 }: HeaderActionProps) {
@@ -153,7 +151,7 @@ function HeaderAction({
           {...shortcutAttributes(shortcut)}
           {...buttonProps}
         >
-          <Icon size="400" src={icon} data-directional={directional || undefined} />
+          <Icon size="400" src={icon} />
           {badge}
         </IconButton>
       )}
@@ -326,14 +324,10 @@ export function RoomViewHeader({
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
     // the landmark that names the open room.
     <PageHeader role="banner" className={css.Header} balance={mobile}>
-      <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
+      {/* On phones the title follows the back chevron's touch target directly. */}
+      <Box grow="Yes" alignItems="Center" gap={mobile ? '0' : '300'} style={{ minWidth: 0 }}>
         {mobile ? (
-          <HeaderAction
-            label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
-            icon={Icons.ArrowLeft}
-            directional
-            onClick={() => navigate(sectionPath)}
-          />
+          <PhoneBackButton to={sectionPath} />
         ) : (
           <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
             <RoomAvatar

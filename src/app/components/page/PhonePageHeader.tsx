@@ -1,13 +1,13 @@
 import { Text } from 'folds';
 import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { PageHeader } from './Page';
-import { PhoneBackButton, type PhoneBackButtonProps } from './PhoneBackButton';
+import { PhoneBackButton } from './PhoneBackButton';
 
 /**
  * The title bar of a page that has none beside its section's list (room creation, message
  * search): on phones, where the page fills the screen, it names the page and leads back.
  */
-export function PhonePageHeader({ to, title }: PhoneBackButtonProps & { title: string }) {
+export function PhonePageHeader({ to, title }: { to: string; title: string }) {
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   if (!phone) return null;
   return (

@@ -19,6 +19,7 @@ import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useTranslation } from 'react-i18next';
 import { PageHeader } from '../../components/page';
+import { PhoneBackButton } from '../../components/page/PhoneBackButton';
 import { RoomAvatar } from '../../components/room-avatar';
 import { InviteUserPrompt } from '../../components/invite-user-prompt';
 import { LeaveSpacePrompt } from '../../components/leave-space-prompt';
@@ -146,14 +147,7 @@ export function LobbyHeader({
   return (
     <PageHeader balance={screenSize === ScreenSize.Mobile}>
       <Box grow="Yes" alignItems="Center" gap="200">
-        {screenSize === ScreenSize.Mobile && onBack && (
-          <IconButton
-            onClick={onBack}
-            aria-label={t('mindroomUi.threads.mindroomRoomViewHeader.back')}
-          >
-            <Icon size="400" src={Icons.ArrowLeft} data-directional />
-          </IconButton>
-        )}
+        {onBack && <PhoneBackButton onBack={onBack} />}
         <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
           {showProfile && (
             <>
