@@ -146,6 +146,7 @@ export function KeyBackupTile() {
   if (state === undefined) {
     return (
       <SettingTile
+        focusId="keyBackup"
         title={t(`${KEY}.encryptionBackup`)}
         after={<Spinner size="200" variant="Secondary" />}
       />
@@ -155,6 +156,7 @@ export function KeyBackupTile() {
   if (state === CHECK_FAILED) {
     return (
       <SettingTile
+        focusId="keyBackup"
         title={t(`${KEY}.encryptionBackup`)}
         description={
           <span role="alert" style={{ color: color.Warning.Main }}>
@@ -174,6 +176,7 @@ export function KeyBackupTile() {
   if (!info) {
     return (
       <SettingTile
+        focusId="keyBackup"
         title={t(`${KEY}.encryptionBackup`)}
         description={
           <span style={{ color: color.Critical.Main }}>{t(`${KEY}.noBackupPresentOnServer`)}</span>
@@ -218,6 +221,7 @@ export function KeyBackupTile() {
 
   return (
     <SettingTile
+      focusId="keyBackup"
       title={t(`${KEY}.encryptionBackup`)}
       description={
         <span style={{ color: state.activeVersion ? undefined : color.Warning.Main }}>

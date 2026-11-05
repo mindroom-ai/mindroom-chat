@@ -170,6 +170,8 @@ function TrustBadge({ verified }: { verified: boolean }) {
 }
 
 type DeviceRowProps = {
+  /** The row's setting in the settings registry. */
+  focusId: string;
   device: IMyDevice;
   current: boolean;
   /** Signs the device out; missing for this device, which signs out with Logout. */
@@ -184,8 +186,17 @@ type DeviceRowProps = {
 };
 
 function DeviceRow(props: DeviceRowProps) {
-  const { device, current, onSignOut, signingOut, onRenamed, verified, onVerify, verifying } =
-    props;
+  const {
+    focusId,
+    device,
+    current,
+    onSignOut,
+    signingOut,
+    onRenamed,
+    verified,
+    onVerify,
+    verifying,
+  } = props;
   const { t, i18n } = useTranslation();
   const [renaming, setRenaming] = useState(false);
   const lastSeen = formatLastSeen(device, i18n.language);
@@ -242,6 +253,7 @@ function DeviceRow(props: DeviceRowProps) {
 
   return (
     <SettingTile
+      focusId={focusId}
       title={
         <>
           {name}
@@ -343,6 +355,7 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
             <Text size="L400">{t('featureUi.settings.devices.current')}</Text>
             <SettingsCard>
               <DeviceRow
+                focusId="currentSession"
                 device={thisDevice}
                 current
                 onRenamed={() => void reload()}
@@ -372,6 +385,7 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
                 return (
                   <DeviceRow
                     key={device.device_id}
+                    focusId="otherSessions"
                     device={device}
                     current={false}
                     // Delegated accounts sign devices out at their identity provider.

@@ -82,6 +82,7 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
 
   const packTiles = shownPacks.map((pack) => (
     <SettingTile
+      focusId="serverEmoji"
       key={pack.address?.stateKey ?? pack.id}
       title={packName(pack, sectionTitle)}
       after={
@@ -102,6 +103,7 @@ function ServerPackSection({ room, onViewPack }: ServerPackSectionProps) {
         direction="Column"
       >
         <SettingTile
+          focusId="serverEmoji"
           title={sectionTitle}
           description={t(`${SERVER_PACK_KEY}.description`, {
             server: getMxIdServer(userId) ?? '',

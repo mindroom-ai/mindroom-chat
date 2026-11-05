@@ -41,6 +41,8 @@ function OutcomeLine({ outcome }: { outcome?: Outcome }) {
 }
 
 type ToggleTileProps = {
+  /** The tile's setting in the settings registry. */
+  focusId: string;
   title: string;
   description: string;
   open: boolean;
@@ -49,12 +51,13 @@ type ToggleTileProps = {
 };
 
 /** A tile whose form unfolds under it, so the toggle keeps its place beside the title. */
-function ToggleTile({ title, description, open, onToggle, children }: ToggleTileProps) {
+function ToggleTile({ focusId, title, description, open, onToggle, children }: ToggleTileProps) {
   const { t } = useTranslation();
   const label = open ? t(`${KEY}.collapse`) : t(`${KEY}.expand`);
   return (
     <Box direction="Column" gap="300">
       <SettingTile
+        focusId={focusId}
         title={title}
         description={description}
         after={
@@ -119,6 +122,7 @@ function ExportKeys() {
 
   return (
     <ToggleTile
+      focusId="exportKeys"
       title={t(`${KEY}.exportMessagesData`)}
       description={t(`${KEY}.savePasswordProtectedCopyOfEncryptionData`)}
       open={open}
@@ -251,6 +255,7 @@ function ImportKeys() {
 
   return (
     <ToggleTile
+      focusId="importKeys"
       title={t(`${KEY}.importMessagesData`)}
       description={t(`${KEY}.loadPasswordProtectedCopyOfEncryptionData`)}
       open={open}

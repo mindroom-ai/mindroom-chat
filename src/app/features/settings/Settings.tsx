@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Avatar,
   Box,
@@ -36,7 +36,13 @@ import {
   resolveSettingsInitialPage,
   type SettingsMenuItem,
 } from './settingsMenu';
-import { SETTINGS_GROUPS, type SettingsPageId } from './settingsRegistry';
+import { SETTINGS_GROUPS, getShownSettings, type SettingsPageId } from './settingsRegistry';
+import { searchSettings, type SettingsSearchResult } from './settingsSearch';
+import { SettingsTargetContext, type SettingsTarget } from './settingsTarget';
+import { revealSetting } from './revealSetting';
+import { SettingsSearch } from './SettingsSearch';
+import { isMacOS } from '../../utils/user-agent';
+import { getCommandPaletteShortcutLabel } from '../../mindroom/command-palette/commandPaletteShortcut';
 import type { SettingsPage } from './settingsPages';
 import { useSettingsContext } from './useSettingsContext';
 import { About } from './about';
@@ -96,6 +102,20 @@ function SettingsPageContent({ page, requestClose, closeDialog }: PageContentPro
       return <About requestClose={requestClose} />;
   }
 }
+
+/** The values some labels and descriptions fill in, so search reads them as the page does. */
+const useSearchValues = () => {
+  const userId = useMatrixClient().getUserId() ?? '';
+  return useMemo(
+    () => ({
+      userId,
+      username: getMxIdLocalPart(userId) ?? userId,
+      sendKey: isMacOS() ? 'Cmd' : 'Ctrl',
+      shortcut: getCommandPaletteShortcutLabel(),
+    }),
+    [userId]
+  );
+};
 
 const AVATAR_PX = 96;
 
@@ -218,6 +238,27 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
   const [activePage, setActivePage] = useState<SettingsPageId | undefined>(() =>
     resolveSettingsInitialPage(initialPage, viewport, context.localMindroom, context.native)
   );
+  const [query, setQuery] = useState('');
+  const [target, setTarget] = useState<SettingsTarget>();
+  const pageRef = useRef<HTMLDivElement>(null);
+  const searchValues = useSearchValues();
+  const results = searchSettings(
+    query,
+    getShownSettings(context),
+    (key, values) => t(key, values),
+    searchValues
+  );
+
+  const selectPage = useCallback((page: SettingsPageId) => {
+    setActivePage(page);
+    setTarget(undefined);
+  }, []);
+  const openResult = useCallback((result: SettingsSearchResult) => {
+    setActivePage(result.setting.page);
+    setTarget((previous) => ({ id: result.setting.id, seq: (previous?.seq ?? 0) + 1 }));
+  }, []);
+
+  useEffect(() => (target ? revealSetting(pageRef.current, target.id) : undefined), [target]);
 
   const menuItems = useMemo(
     () => getSettingsMenuItems(context.localMindroom, t, context.native),
@@ -262,7 +303,14 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
     <PageNav size="300" label={t('settings.title')}>
       <Box grow="Yes" direction="Column" style={{ minHeight: 0 }}>
         <PageNavContent header={title}>
-          <SettingsMenuList items={menuItems} activePage={activePage} onSelect={setActivePage} />
+          <SettingsSearch
+            query={query}
+            onQueryChange={setQuery}
+            results={results}
+            onChoose={openResult}
+          >
+            <SettingsMenuList items={menuItems} activePage={activePage} onSelect={selectPage} />
+          </SettingsSearch>
         </PageNavContent>
         <LogoutButton />
       </Box>
@@ -272,11 +320,16 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
   return (
     <PageRoot nav={(!isMobile || activePage === undefined) && nav}>
       {activePage !== undefined && (
-        <SettingsPageContent
-          page={activePage}
-          requestClose={handlePageRequestClose}
-          closeDialog={requestClose}
-        />
+        // `display: contents` keeps the page in the dialog's row; search looks for settings here.
+        <div ref={pageRef} style={{ display: 'contents' }}>
+          <SettingsTargetContext.Provider value={target}>
+            <SettingsPageContent
+              page={activePage}
+              requestClose={handlePageRequestClose}
+              closeDialog={requestClose}
+            />
+          </SettingsTargetContext.Provider>
+        </div>
       )}
     </PageRoot>
   );

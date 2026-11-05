@@ -76,7 +76,11 @@ export function MindroomComputerSettings({ className }: { className?: string }) 
     <Box gap="100" direction="Column">
       <Text size="L400">{t('settings.general.computers.sectionTitle')}</Text>
       <SequenceCard direction="Column" gap="400" variant="SurfaceVariant" className={className}>
-        <SettingTile title={fieldLabel} description={t('settings.general.computers.description')}>
+        <SettingTile
+          focusId="computerServer"
+          title={fieldLabel}
+          description={t('settings.general.computers.description')}
+        >
           <Box gap="200" direction="Column">
             <Input
               aria-label={fieldLabel}

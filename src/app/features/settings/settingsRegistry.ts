@@ -139,13 +139,22 @@ const LOCAL = 'mindroomUi.local-mindroom.localMindroom';
 const ABOUT = 'featureUi.settings.about';
 const DEV = 'featureUi.settings.developerTools';
 
+/** The setting of each sidebar button's switch. */
+export const SIDEBAR_SWITCH_SETTINGS = {
+  threads: 'sidebarThreads',
+  canvases: 'sidebarCanvases',
+  explore: 'sidebarExplore',
+  createSpace: 'sidebarCreateSpace',
+  search: 'sidebarSearch',
+  localMindroom: 'sidebarLocalMindroom',
+} as const;
+
 const sidebarSwitch = (
-  id: string,
-  button: string,
+  button: keyof typeof SIDEBAR_SWITCH_SETTINGS,
   labelKey: TranslationKey,
   descriptionKey: TranslationKey
 ): SettingDefinition => ({
-  id,
+  id: SIDEBAR_SWITCH_SETTINGS[button],
   page: 'sidebar',
   group: `${SIDEBAR}.title`,
   labelKey,
@@ -526,27 +535,16 @@ export const SETTINGS = [
     scope: 'room-shared',
   },
   // This app: Sidebar
-  sidebarSwitch('sidebarThreads', 'threads', `${SIDEBAR}.threads`, `${SIDEBAR}.threadsDescription`),
+  sidebarSwitch('threads', `${SIDEBAR}.threads`, `${SIDEBAR}.threadsDescription`),
   sidebarSwitch(
-    'sidebarCanvases',
     'canvases',
     'settings.general.interface.showCanvasesInSidebar',
     'settings.general.interface.showCanvasesInSidebarDescription'
   ),
-  sidebarSwitch('sidebarExplore', 'explore', `${SIDEBAR}.explore`, `${SIDEBAR}.exploreDescription`),
-  sidebarSwitch(
-    'sidebarCreateSpace',
-    'createSpace',
-    `${SIDEBAR}.createSpace`,
-    `${SIDEBAR}.createSpaceDescription`
-  ),
-  sidebarSwitch('sidebarSearch', 'search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),
-  sidebarSwitch(
-    'sidebarLocalMindroom',
-    'localMindroom',
-    `${SIDEBAR}.localMindroom`,
-    `${SIDEBAR}.localMindroomDescription`
-  ),
+  sidebarSwitch('explore', `${SIDEBAR}.explore`, `${SIDEBAR}.exploreDescription`),
+  sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),
+  sidebarSwitch('search', `${SIDEBAR}.search`, `${SIDEBAR}.searchDescription`),
+  sidebarSwitch('localMindroom', `${SIDEBAR}.localMindroom`, `${SIDEBAR}.localMindroomDescription`),
   // This app: Language & region
   {
     id: 'language',

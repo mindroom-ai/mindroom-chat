@@ -25,30 +25,39 @@ export function Chats({ requestClose }: SettingsPageProps) {
     <SettingsPageFrame title={t('nav.chats')} requestClose={requestClose}>
       <SettingsSection title={t('settings.general.editor.sectionTitle')}>
         <SettingSwitchTile
+          focusId="enterForNewline"
           setting="enterForNewline"
           title={t('settings.general.editor.enterForNewline')}
           description={t('settings.general.editor.enterForNewlineDescription', { sendKey })}
         />
         <SettingSwitchTile
+          focusId="markdown"
           setting="isMarkdown"
           title={t('settings.general.editor.markdownFormatting')}
         />
       </SettingsSection>
       <SettingsSection title={t('settings.general.messages.sectionTitle')}>
         <SettingSwitchTile
+          focusId="hideMembershipEvents"
           setting="hideMembershipEvents"
           title={t('settings.general.messages.hideMembershipChange')}
         />
         <SettingSwitchTile
+          focusId="hideNickAvatarEvents"
           setting="hideNickAvatarEvents"
           title={t('settings.general.messages.hideProfileChange')}
         />
         <SettingSwitchTile
+          focusId="mediaAutoLoad"
           setting="mediaAutoLoad"
           inverted
           title={t('settings.general.messages.disableMediaAutoLoad')}
         />
-        <SettingSwitchTile setting="urlPreview" title={t('settings.general.messages.urlPreview')} />
+        <SettingSwitchTile
+          focusId="urlPreview"
+          setting="urlPreview"
+          title={t('settings.general.messages.urlPreview')}
+        />
       </SettingsSection>
       <UserPack onViewPack={setViewPack} />
       <GlobalPacks onViewPack={setViewPack} />

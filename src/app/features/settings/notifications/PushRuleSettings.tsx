@@ -79,10 +79,19 @@ function FailedNote({ shown }: { shown: boolean }) {
 }
 
 /** One rule with its loudness picker. */
-function RuleTile({ title, ruleRef }: { title: string; ruleRef: RuleRef }) {
+function RuleTile({
+  focusId,
+  title,
+  ruleRef,
+}: {
+  focusId: string;
+  title: string;
+  ruleRef: RuleRef;
+}) {
   const { shown, choose, failed } = useLoudnessSetter(ruleRef);
   return (
     <SettingTile
+      focusId={focusId}
       title={title}
       after={<LoudnessChoice label={title} value={shown} onChoose={choose} />}
     >
@@ -91,7 +100,14 @@ function RuleTile({ title, ruleRef }: { title: string; ruleRef: RuleRef }) {
   );
 }
 
-type RuleRow = { id: string; kind: PushRuleKind; title: string; highlight: boolean };
+/** A push rule's row; `focusId` names its setting in the settings registry. */
+type RuleRow = {
+  id: string;
+  focusId: string;
+  kind: PushRuleKind;
+  title: string;
+  highlight: boolean;
+};
 
 /** The rows whose rule the server has; a server may leave out some default rules. */
 const presentRows = (global: IPushRules['global'] | undefined, rows: RuleRow[]) =>
@@ -112,6 +128,7 @@ function RuleSection({ title, rows }: { title: string; rows: RuleRow[] }) {
         {present.map(({ row, rule }) => (
           <RuleTile
             key={row.id}
+            focusId={row.focusId}
             title={row.title}
             ruleRef={{ kind: row.kind, rule, highlight: row.highlight }}
           />
@@ -125,14 +142,15 @@ function RuleSection({ title, rows }: { title: string; rows: RuleRow[] }) {
 export function AllMessagesNotifications() {
   const { t } = useTranslation();
   const key = `${NOTIFY}.allMessages`;
-  const defaults: [id: string, title: string][] = [
-    ['.m.rule.room_one_to_one', t(`${key}.1To1Chats`)],
-    ['.m.rule.encrypted_room_one_to_one', t(`${key}.1To1ChatsEncrypted`)],
-    ['.m.rule.message', t(`${key}.rooms`)],
-    ['.m.rule.encrypted', t(`${key}.roomsEncrypted`)],
+  const defaults: [id: string, focusId: string, title: string][] = [
+    ['.m.rule.room_one_to_one', 'notifyDirect', t(`${key}.1To1Chats`)],
+    ['.m.rule.encrypted_room_one_to_one', 'notifyDirectEncrypted', t(`${key}.1To1ChatsEncrypted`)],
+    ['.m.rule.message', 'notifyRooms', t(`${key}.rooms`)],
+    ['.m.rule.encrypted', 'notifyRoomsEncrypted', t(`${key}.roomsEncrypted`)],
   ];
-  const rows: RuleRow[] = defaults.map(([id, title]) => ({
+  const rows: RuleRow[] = defaults.map(([id, focusId, title]) => ({
     id,
+    focusId,
     title,
     kind: PushRuleKind.Underride,
     highlight: false,
@@ -151,29 +169,39 @@ export function SpecialMessagesNotifications() {
   const rows: RuleRow[] = [
     {
       id: '.m.rule.is_user_mention',
+      focusId: 'notifyUserMention',
       kind: override,
       title: t(`${key}.mentionUserId`, { userId }),
       highlight: true,
     },
     {
       id: '.m.rule.contains_display_name',
+      focusId: 'notifyDisplayName',
       kind: override,
       title: t(`${key}.containsDisplayNameGeneric`),
       highlight: true,
     },
     {
       id: '.m.rule.contains_user_name',
+      focusId: 'notifyUsername',
       kind: PushRuleKind.ContentSpecific,
       title: t(`${key}.containsUsername`, { username: getMxIdLocalPart(userId) ?? userId }),
       highlight: true,
     },
     {
       id: '.m.rule.is_room_mention',
+      focusId: 'notifyRoomMention',
       kind: override,
       title: t(`${key}.mentionRoom`),
       highlight: true,
     },
-    { id: '.m.rule.roomnotif', kind: override, title: t(`${key}.containsRoom`), highlight: true },
+    {
+      id: '.m.rule.roomnotif',
+      focusId: 'notifyRoomText',
+      kind: override,
+      title: t(`${key}.containsRoom`),
+      highlight: true,
+    },
   ];
 
   return <RuleSection title={t(`${key}.specialMessages`)} rows={rows} />;
@@ -260,6 +288,7 @@ export function KeywordNotifications() {
       <Text size="L400">{t(`${key}.keywordMessages`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="notifyKeywords"
           title={t(`${key}.selectKeyword`)}
           description={t(`${key}.setANotificationPreferenceForMessageContaining`)}
         >

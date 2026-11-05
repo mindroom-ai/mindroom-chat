@@ -1,6 +1,8 @@
-import { ReactNode, useId, useState } from 'react';
+import { ReactNode, useEffect, useId, useState } from 'react';
 import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
+import { getSettingDefinition } from './settingsRegistry';
+import { useSettingsTarget } from './settingsTarget';
 
 type AdvancedFoldProps = {
   children: ReactNode;
@@ -8,12 +10,19 @@ type AdvancedFoldProps = {
 
 /**
  * The closed "Advanced" fold at the bottom of a settings page, for the settings the registry
- * marks `advanced`; the button opens and closes it.
+ * marks `advanced`; the button opens and closes it. A search result inside it opens it.
  */
 export function AdvancedFold({ children }: AdvancedFoldProps) {
   const { t } = useTranslation();
   const contentId = useId();
-  const [open, setOpen] = useState(false);
+  // Only the target's page is open, so an advanced target is in this fold.
+  const target = useSettingsTarget();
+  const targetInside = !!target && !!getSettingDefinition(target.id)?.advanced;
+  const [open, setOpen] = useState(targetInside);
+
+  useEffect(() => {
+    if (targetInside) setOpen(true);
+  }, [target, targetInside]);
 
   return (
     <Box direction="Column" gap="300">

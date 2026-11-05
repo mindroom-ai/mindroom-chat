@@ -26,6 +26,7 @@ export function MindroomConnectionsSettings({ className }: { className?: string 
       <Text size="L400">{t('settings.general.connections.sectionTitle')}</Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
         <SettingTile
+          focusId="connectedAccounts"
           title={t('settings.general.connections.title')}
           description={t('settings.general.connections.description')}
         >

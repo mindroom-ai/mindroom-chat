@@ -209,6 +209,7 @@ function LinkedInstallations({ provisioningBaseUrl }: { provisioningBaseUrl: str
   if (state.connections.length === 0) {
     return (
       <SettingTile
+        focusId="linkedInstallations"
         title={t('mindroomUi.local-mindroom.localMindroom.noLinkedLocalMindroomInstallationsYet')}
       />
     );
@@ -257,6 +258,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
         <Text size="L400">{t('mindroomUi.local-mindroom.localMindroom.localMindroom')}</Text>
         <SequenceCard className={SequenceCardStyle} direction="Column" gap="400">
           <SettingTile
+            focusId="pairLocalMindroom"
             title={t(
               'mindroomUi.local-mindroom.localMindroom.pairThisChatAccountWithYourLocalMindroomProcess'
             )}
@@ -289,6 +291,7 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
             <LinkedInstallations provisioningBaseUrl={provisioningBaseUrl} />
           ) : (
             <SettingTile
+              focusId="linkedInstallations"
               title={t('mindroomUi.local-mindroom.localMindroom.linkedInstallationsUnavailable', {
                 server: provisioningBaseUrl ? hostOf(provisioningBaseUrl) : '',
               })}

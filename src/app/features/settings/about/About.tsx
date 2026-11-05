@@ -62,6 +62,7 @@ function DiagnosticsExport() {
 
   return (
     <SettingTile
+      focusId="diagnosticsExport"
       title={t('featureUi.settings.about.onDeviceDiagnostics')}
       description={description}
       after={
@@ -149,6 +150,7 @@ function DeepTraceSetting() {
 
   return (
     <SettingTile
+      focusId="deepTrace"
       title={t('featureUi.settings.about.deepDiagnosticTracing')}
       description={description}
       after={

@@ -23,11 +23,13 @@ export function PrivacySecurity({ requestClose }: SettingsPageProps) {
     >
       <SettingsSection title={t('featureUi.settings.sections.privacy')}>
         <SettingSwitchTile
+          focusId="hideActivity"
           setting="hideActivity"
           title={t('settings.general.editor.hideActivity')}
           description={t('settings.general.editor.hideActivityDescription')}
         />
         <SettingSwitchTile
+          focusId="encUrlPreview"
           setting="encUrlPreview"
           title={t('settings.general.messages.urlPreviewEncrypted')}
         />

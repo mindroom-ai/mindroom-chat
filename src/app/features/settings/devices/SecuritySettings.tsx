@@ -45,6 +45,7 @@ function DeviceVerificationTile({ crossSigning }: { crossSigning: boolean }) {
 
   return (
     <SettingTile
+      focusId="deviceVerification"
       title={t('featureUi.settings.devices.deviceVerification')}
       description={t('featureUi.settings.devices.toVerifyDeviceIdentityAndGrantAccess')}
       after={

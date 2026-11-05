@@ -21,6 +21,7 @@ export function StorageOffline({ requestClose }: SettingsPageProps) {
       <MindroomPrefetchSettings className={SequenceCardStyle} />
       <SettingsSection>
         <SettingTile
+          focusId="clearCache"
           title={t('featureUi.settings.about.clearCacheAndReload')}
           description={t('featureUi.settings.about.clearCacheDescription')}
           after={

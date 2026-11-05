@@ -163,6 +163,7 @@ function AvatarTile() {
 
   return (
     <SettingTile
+      focusId="avatar"
       title={t('featureUi.settings.account.profile.avatar')}
       before={
         <Avatar size="500" radii="300">
@@ -213,7 +214,7 @@ function DisplayNameTile() {
   const label = t('featureUi.settings.account.profile.displayName');
 
   return (
-    <SettingTile title={label}>
+    <SettingTile focusId="displayName" title={label}>
       <Box as="form" alignItems="Center" gap="200" onSubmit={handleSubmit}>
         <Box grow="Yes" direction="Column">
           <Input

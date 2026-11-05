@@ -111,6 +111,7 @@ function IOSPushNotificationTile() {
   return (
     <SettingsCard>
       <SettingTile
+        focusId="pushNotifications"
         title={t('mindroomUi.native.iOSPushNotification.iosPushNotifications')}
         description={
           <PushDescription status={status} failed={toggleState.status === AsyncStatus.Error} />

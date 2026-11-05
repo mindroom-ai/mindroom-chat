@@ -24,6 +24,7 @@ function ArchivedRoomRow({ roomId, name, onOpen }: ArchivedRoomRowProps) {
 
   return (
     <SettingTile
+      focusId="archivedRooms"
       title={
         <Box
           as="button"
@@ -96,7 +97,7 @@ export function ArchivedRooms({ requestClose, onNavigate }: ArchivedRoomsProps) 
         </Text>
         <SequenceCard variant="SurfaceVariant" direction="Column" gap="400">
           {rooms.length === 0 ? (
-            <SettingTile title={t('archivedRooms.empty')} />
+            <SettingTile focusId="archivedRooms" title={t('archivedRooms.empty')} />
           ) : (
             rooms.map(({ roomId, name }) => (
               <ArchivedRoomRow

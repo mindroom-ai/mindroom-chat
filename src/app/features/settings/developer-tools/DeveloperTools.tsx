@@ -22,6 +22,7 @@ function AccessTokenTile() {
 
   return (
     <SettingTile
+      focusId="accessToken"
       title={t(`${TOOLS}.accessToken`)}
       description={t(`${TOOLS}.copyAccessTokenToClipboard`)}
       after={
@@ -73,6 +74,7 @@ function AccountDataViewer() {
       <Text size="L400">{t(`${DATA}.accountData`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="accountData"
           title={t(`${DATA}.global`)}
           description={t(`${DATA}.dataStoredInYourGlobalAccountData`)}
         >
@@ -136,6 +138,7 @@ export function DeveloperTools({ requestClose }: SettingsPageProps) {
         <Text size="L400">{t(`${TOOLS}.options`)}</Text>
         <SettingsCard>
           <SettingTile
+            focusId="developerTools"
             title={switchLabel}
             after={
               <Switch
@@ -147,6 +150,7 @@ export function DeveloperTools({ requestClose }: SettingsPageProps) {
             }
           />
           <SettingSwitchTile
+            focusId="showHiddenEvents"
             setting="showHiddenEvents"
             title={t('settings.general.messages.showHiddenEvents')}
           />

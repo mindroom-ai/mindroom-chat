@@ -15,6 +15,7 @@ function AppLanguageTile() {
 
   return (
     <SettingTile
+      focusId="language"
       title={label}
       description={t('settings.general.language.appLanguageDescription')}
       after={
@@ -49,6 +50,7 @@ export function LanguageRegion({ requestClose }: SettingsPageProps) {
       </SettingsSection>
       <SettingsSection title={t('settings.general.dateTime.sectionTitle')}>
         <SettingSwitchTile
+          focusId="hour24Clock"
           setting="hour24Clock"
           title={t('settings.general.dateTime.hour24Clock')}
         />

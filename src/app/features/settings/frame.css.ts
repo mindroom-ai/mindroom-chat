@@ -1,5 +1,5 @@
-import { globalStyle, style } from '@vanilla-extract/css';
-import { config } from 'folds';
+import { globalStyle, keyframes, style } from '@vanilla-extract/css';
+import { color, config, toRem } from 'folds';
 
 // Measured from docs/design/reference/settings.png (1440x900 at 1x), dialog from x = 320 to
 // 1120 with the divider at 542: menu rows end 20 px before the divider, the close button sits
@@ -36,4 +36,37 @@ export const SettingsMenuGroupLabel = style({
 // Each group after the first keeps a gap from the one above.
 globalStyle(`${SettingsMenu} > [role="group"] + [role="group"]`, {
   marginBlockStart: config.space.S300,
+});
+
+/** The search field over the menu, aligned with its rows. */
+export const SettingsSearchField = style({
+  display: 'flex',
+  paddingBlockEnd: config.space.S200,
+  paddingInlineEnd: config.space.S300,
+});
+
+/** The page (and group) a search result lives on, under its label. */
+export const SettingsSearchLocation = style({
+  display: 'block',
+});
+
+// A search result's setting glows once in the primary color when its page brings it into view.
+const settingFound = keyframes({
+  from: {
+    backgroundColor: color.Primary.Container,
+    boxShadow: `0 0 0 ${toRem(6)} ${color.Primary.Container}`,
+  },
+  to: { backgroundColor: 'transparent', boxShadow: `0 0 0 ${toRem(6)} transparent` },
+});
+
+globalStyle('[data-setting-id][data-settings-highlight]', {
+  borderRadius: config.radii.R300,
+  animation: `${settingFound} 2s ease-out`,
+  '@media': {
+    '(prefers-reduced-motion: reduce)': {
+      animation: 'none',
+      outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+      outlineOffset: toRem(4),
+    },
+  },
 });

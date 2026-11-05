@@ -47,6 +47,8 @@ const SPACING_CHOICES = [
 type ThemePick = {
   /** The setting that stores this pick. */
   key: 'themeId' | 'lightThemeId' | 'darkThemeId';
+  /** The pick in the settings registry. */
+  focusId: string;
   titleKey:
     | 'settings.general.appearance.theme'
     | 'settings.general.appearance.lightTheme'
@@ -58,17 +60,24 @@ type ThemePick = {
 
 // With the system theme off, one fixed theme; with it on, a pick for each system mode.
 const FIXED_PICKS: ThemePick[] = [
-  { key: 'themeId', titleKey: 'settings.general.appearance.theme', fallback: 'light-theme' },
+  {
+    key: 'themeId',
+    focusId: 'theme',
+    titleKey: 'settings.general.appearance.theme',
+    fallback: 'light-theme',
+  },
 ];
 const SYSTEM_PICKS: ThemePick[] = [
   {
     key: 'lightThemeId',
+    focusId: 'lightTheme',
     titleKey: 'settings.general.appearance.lightTheme',
     kind: ThemeKind.Light,
     fallback: 'light-theme',
   },
   {
     key: 'darkThemeId',
+    focusId: 'darkTheme',
     titleKey: 'settings.general.appearance.darkTheme',
     kind: ThemeKind.Dark,
     fallback: 'dark-theme',
@@ -84,6 +93,7 @@ function ThemePickTile({ pick }: { pick: ThemePick }) {
 
   return (
     <SettingTile
+      focusId={pick.focusId}
       title={title}
       description={
         pick.kind === undefined ? t('settings.general.appearance.themeDescription') : undefined
@@ -108,6 +118,7 @@ function ThemeSection() {
   return (
     <SettingsSection title={t('settings.general.appearance.theme')}>
       <SettingTile
+        focusId="systemTheme"
         title={systemTitle}
         description={t('settings.general.appearance.systemThemeDescription')}
         after={
@@ -137,6 +148,7 @@ function PageZoomTile() {
 
   return (
     <SettingTile
+      focusId="pageZoom"
       title={label}
       after={
         <ChoiceButton
@@ -157,6 +169,7 @@ function MessageLayoutTile() {
 
   return (
     <SettingTile
+      focusId="messageLayout"
       title={label}
       after={
         <ChoiceButton
@@ -177,6 +190,7 @@ function MessageSpacingTile() {
 
   return (
     <SettingTile
+      focusId="messageSpacing"
       title={label}
       after={
         <ChoiceButton

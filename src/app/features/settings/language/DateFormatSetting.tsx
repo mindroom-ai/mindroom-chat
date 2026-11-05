@@ -217,6 +217,7 @@ export function DateFormatSetting() {
 
   return (
     <SettingTile
+      focusId="dateFormat"
       title={label}
       after={
         <ChoiceButton

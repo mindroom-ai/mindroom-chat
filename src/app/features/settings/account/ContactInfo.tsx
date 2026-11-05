@@ -58,6 +58,7 @@ export function ContactInfo() {
       <Text size="L400">{t(`${KEY}.contactInformation`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="email"
           title={t(`${KEY}.emailAddress`)}
           description={t(`${KEY}.emailAddressAttachedToYourAccount`)}
         >

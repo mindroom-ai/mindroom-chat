@@ -37,6 +37,7 @@ export function ComputersSettingsPage({ requestClose }: SettingsPageProps) {
     >
       <SettingsSection>
         <SettingTile
+          focusId="computerServerInUse"
           title={t('featureUi.settings.computers.inUse')}
           description={
             urls.length > 0 ? urls.join(', ') : t('featureUi.settings.computers.inUseNone')

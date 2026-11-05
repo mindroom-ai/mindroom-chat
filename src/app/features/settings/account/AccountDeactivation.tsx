@@ -129,6 +129,7 @@ export function AccountDeactivation() {
       <Text size="L400">{t(`${KEY}.accountManagement`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="deactivateAccount"
           title={t(`${KEY}.deleteDeactivateAccount`)}
           description={t(
             providerUrl ? `${KEY}.descriptionWithProvider` : `${KEY}.descriptionWithoutProvider`

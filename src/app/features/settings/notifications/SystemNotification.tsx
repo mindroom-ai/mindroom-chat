@@ -74,6 +74,7 @@ function EmailNotification() {
 
   return (
     <SettingTile
+      focusId="emailNotifications"
       title={t('featureUi.settings.notifications.systemNotification.emailNotification')}
       description={description}
       after={
@@ -139,6 +140,7 @@ function DesktopNotificationTile({ permission }: { permission: PermissionState }
 
   return (
     <SettingTile
+      focusId="desktopNotifications"
       title={t('featureUi.settings.notifications.systemNotification.desktopNotifications')}
       description={description}
       after={control}
@@ -151,6 +153,7 @@ function NotificationSoundTile() {
   const [sounds, setSounds] = useSetting(settingsAtom, 'isNotificationSounds');
   return (
     <SettingTile
+      focusId="notificationSound"
       title={t('featureUi.settings.notifications.systemNotification.notificationSound')}
       description={t(
         'featureUi.settings.notifications.systemNotification.playSoundWhenNewMessageArrive'

@@ -119,6 +119,7 @@ export function MindroomPrefetchSettings({ className }: { className?: string }) 
   return (
     <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
       <SettingTile
+        focusId="prefetchScope"
         title={t('settings.general.messages.prefetchScope')}
         description={t('settings.general.messages.prefetchScopeDescription')}
         after={<SelectPrefetchScope />}

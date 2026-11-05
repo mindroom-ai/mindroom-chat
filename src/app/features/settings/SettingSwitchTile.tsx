@@ -8,6 +8,8 @@ type SwitchSetting = {
 }[keyof Settings];
 
 type SettingSwitchTileProps = {
+  /** The tile's setting in the settings registry. */
+  focusId: string;
   setting: SwitchSetting;
   title: string;
   description?: string;
@@ -17,6 +19,7 @@ type SettingSwitchTileProps = {
 
 /** A tile whose switch turns one of this device's on/off settings on or off. */
 export function SettingSwitchTile({
+  focusId,
   setting,
   title,
   description,
@@ -26,6 +29,7 @@ export function SettingSwitchTile({
 
   return (
     <SettingTile
+      focusId={focusId}
       title={title}
       description={description}
       after={

@@ -31,6 +31,7 @@ export function UserPack({ onViewPack }: { onViewPack: (pack: ImagePack) => void
       <Text size="L400">{t(`${USER_PACK}.title`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="personalPack"
           before={<PackAvatar mxc={avatar} name={name} size="300" />}
           title={name}
           description={t(`${USER_PACK}.imageCount`, { count: pack.images.collection.size })}

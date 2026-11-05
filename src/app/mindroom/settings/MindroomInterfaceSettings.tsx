@@ -14,6 +14,7 @@ import {
   useSetMindroomAccountSettings,
 } from './useMindroomAccountSettings';
 import type { MindroomAccountSettings } from './mindroomAccountSettings';
+import { SIDEBAR_SWITCH_SETTINGS } from '../../features/settings/settingsRegistry';
 
 type MindroomInterfaceSettingsProps = {
   className?: string;
@@ -22,12 +23,18 @@ type MindroomInterfaceSettingsProps = {
 type MindroomBooleanSetting = keyof MindroomAccountSettings;
 
 type MindroomAccountSwitchProps = {
+  focusId: string;
   setting: MindroomBooleanSetting;
   title: string;
   description: string;
 };
 
-function MindroomAccountSwitch({ setting, title, description }: MindroomAccountSwitchProps) {
+function MindroomAccountSwitch({
+  focusId,
+  setting,
+  title,
+  description,
+}: MindroomAccountSwitchProps) {
   const { t } = useTranslation();
   const settings = useMindroomAccountSettings();
   const setAccountSettings = useSetMindroomAccountSettings();
@@ -56,6 +63,7 @@ function MindroomAccountSwitch({ setting, title, description }: MindroomAccountS
 
   return (
     <SettingTile
+      focusId={focusId}
       title={title}
       description={description}
       after={
@@ -122,6 +130,7 @@ export function MindroomInterfaceSettings({ className }: MindroomInterfaceSettin
           .map(([button, title, description]) => (
             <MindroomAccountSwitch
               key={button}
+              focusId={SIDEBAR_SWITCH_SETTINGS[button]}
               setting={RAIL_BUTTON_SETTING[button]}
               title={title}
               description={description}

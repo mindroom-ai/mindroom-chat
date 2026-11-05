@@ -52,6 +52,7 @@ export function BlockedUsers() {
       <Text size="L400">{t(`${KEY}.blockedUsers`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="blockedUsers"
           title={t(`${KEY}.selectUser`)}
           description={t(`${KEY}.preventReceivingMessagesOrInvitesFromUser`)}
         >

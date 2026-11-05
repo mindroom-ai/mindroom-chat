@@ -261,6 +261,7 @@ export function GlobalPacks({ onViewPack }: { onViewPack: (pack: ImagePack) => v
       <Text size="L400">{t(`${GLOBAL}.favoritePacks`)}</Text>
       <SettingsCard>
         <SettingTile
+          focusId="favoritePacks"
           title={t(`${GLOBAL}.selectPack`)}
           description={t(`${GLOBAL}.pickEmojisAndStickersPackFromRooms`)}
           after={
@@ -277,6 +278,7 @@ export function GlobalPacks({ onViewPack }: { onViewPack: (pack: ImagePack) => v
         />
         {favorites.map((pack) => (
           <SettingTile
+            focusId="favoritePacks"
             key={pack.id}
             before={<PackAvatar mxc={packAvatar(pack)} name={pack.meta.name ?? ''} size="300" />}
             title={pack.meta.name ?? t(`${GLOBAL}.unknown`)}

@@ -10,7 +10,7 @@ type SettingTileProps = {
   after?: ReactNode;
   /** Extra content under the description. */
   children?: ReactNode;
-  /** Lets settings search scroll to this tile. */
+  /** The tile's setting in the settings registry, which search scrolls to. */
   focusId?: string;
 };
 
@@ -63,7 +63,7 @@ export function SettingTile(props: SettingTileProps) {
   ) : null;
 
   return (
-    <Box id={focusId} gap="300" alignItems="Center">
+    <Box data-setting-id={focusId} gap="300" alignItems="Center">
       <FixedSlot>{before}</FixedSlot>
       <Box style={{ minWidth: 0 }} gap="100" direction="Column" grow="Yes">
         {title ? (
