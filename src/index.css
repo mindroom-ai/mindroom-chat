@@ -235,3 +235,9 @@ html[dir='ltr'] [data-message-disclosure] {
 [role='listbox'] [role='option'] {
   text-align: start;
 }
+
+/* A shortcut's keys in a menu row (ShortcutHint) are generated content, so the row's text and
+   accessible name stay the action's name; aria-keyshortcuts names the keys. */
+kbd[data-keys]::after {
+  content: attr(data-keys);
+}
