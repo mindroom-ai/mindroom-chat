@@ -19,8 +19,10 @@ const CANVAS_MODULE = fileURLToPath(new URL('src/app/messages/canvas/canvasDocum
 export const CHART_JS_URL = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
 
 // Runs in the canvas frame, a sandboxed frame with an opaque origin inside the panel's wrapper
-// frame. It must not reach the Capacitor bridge, the app's Matrix sessions (storage of the app
-// origin, its own storage, cookies) or WebKit's native message handler. It tries all of them.
+// frame. It must not reach the Capacitor bridge, the app's Matrix sessions (the app origin's
+// localStorage and IndexedDB; with an opaque origin, any web storage at all) or WebKit's native
+// message handler. It tries all of them. Cookies are left to the subframe test: WebKit answers
+// document.cookie with "" in a srcdoc frame, which reaches nothing.
 const ATTACK_PAGE = `<p>Hostile canvas probe</p>
 <script>
 (async () => {
@@ -49,7 +51,6 @@ const ATTACK_PAGE = `<p>Hostile canvas probe</p>
     () => parent.parent.localStorage.getItem('routing-session'),
     () => localStorage.getItem('routing-session'),
     () => sessionStorage.getItem('routing-session'),
-    () => document.cookie,
   ].some(reads);
   let handler = 'unavailable';
   try {
