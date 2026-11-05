@@ -11,12 +11,11 @@ import { getEditedEvent, getMemberDisplayName } from '../../matrix/room';
 import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../html/react-custom-html-parser';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
+import { useRoomEvent } from '../../event-store/cache/useRoomEvent';
 import {
   isMindroomPinnedToolApprovalEvent,
-  renderMindroomPinnedEncryptedMessageEvent,
   renderMindroomPinnedToolApprovalEvent,
-  useMindroomPinnedEvent,
-} from './pinnedMessageExtensions';
+} from './pinnedToolApproval';
 
 export type RoomPinMenuProps = {
   room: Room;
@@ -33,7 +32,8 @@ const getLoadedDecryptedEvent = (room: Room, event: MatrixEvent) => {
 };
 
 function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
-  const event = useMindroomPinnedEvent(room, eventId);
+  // Undefined while the pin loads, null when it could not be loaded.
+  const event = useRoomEvent(room, eventId);
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   // Encrypted rooms have a URL preview setting of their own.
@@ -76,16 +76,19 @@ function PinnedEvent({ room, eventId }: { room: Room; eventId: string }) {
   if (event.getType() === 'm.room.encrypted') {
     const loaded = getLoadedDecryptedEvent(room, event);
     if (loaded) {
-      const resolveEditedEvent = (candidate: MatrixEvent) =>
-        getEditedEvent(eventId, candidate, loaded.timelineSet);
-      const approval = renderMindroomPinnedEncryptedMessageEvent(loaded.event, {
-        ...options,
-        displayName,
-        eventId,
-        resolveEditedEvent,
-      });
-      if (approval !== undefined) return <>{approval}</>;
-      const edited = resolveEditedEvent(loaded.event);
+      const edited = getEditedEvent(eventId, loaded.event, loaded.timelineSet);
+      if (isMindroomPinnedToolApprovalEvent(loaded.event.getType())) {
+        return (
+          <>
+            {renderMindroomPinnedToolApprovalEvent(loaded.event, {
+              ...options,
+              displayName,
+              eventId,
+              editedEvent: edited,
+            })}
+          </>
+        );
+      }
       return (
         <RenderMessageContent
           displayName={displayName}

@@ -82,3 +82,4 @@ src/app/mindroom/native/CloudflareAccessGate.test.tsx	1	restructure: unwired, mo
 src/app/mindroom/native/CloudflareAccessGate.tsx	1	restructure: unwired, mounted nowhere, decision 4 (restructure-p1-unwired)
 src/app/utils/pageZoom.test.ts	1	restructure: unwired, mounted nowhere, decision 4 (restructure-p1-unwired)
 src/app/utils/pageZoom.ts	1	restructure: unwired, mounted nowhere, decision 4 (restructure-p1-unwired)
+src/app/mindroom/messages/pinnedMessageExtensions.ts	1	merged into src/app/messages/pins/RoomPinMenu.tsx (restructure-p3-c4)
