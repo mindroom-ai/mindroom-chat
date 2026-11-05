@@ -26,9 +26,18 @@ export const EditorOptions = style({
   padding: config.space.S200,
 });
 
+// The text box scrolls only once its text is taller than it, so no scrollbar shows while the text
+// fits. Chromium ignores the ::-webkit-scrollbar styles while scrollbar-width or scrollbar-color
+// is set (index.css sets both everywhere) and draws its standard thin scrollbar, which has arrow
+// buttons where scrollbars are classic; unset, the thin rounded thumb of those styles shows.
 export const EditorTextareaScroll = style({
   flexGrow: 1,
   minWidth: 0,
+  // Over folds' Scroll, which always scrolls.
+  selectors: { '&&': { overflowY: 'auto' } },
+  '@supports': {
+    'selector(::-webkit-scrollbar)': { scrollbarWidth: 'auto', scrollbarColor: 'auto' },
+  },
 });
 
 export const EditorTextarea = style({
