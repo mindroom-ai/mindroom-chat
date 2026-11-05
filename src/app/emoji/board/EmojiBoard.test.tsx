@@ -40,7 +40,7 @@ vi.mock('../../lib/hooks/useFilePicker', () => ({
   useFilePicker: (onSelect: (file: File) => void) => () =>
     onSelect(new File(['png'], 'parrot.png', { type: 'image/png' })),
 }));
-vi.mock('../recent-emoji', () => recentEmoji);
+vi.mock('../recent-emoji-list', () => recentEmoji);
 
 let renderer: ReactTestRenderer | undefined;
 

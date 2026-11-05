@@ -7,7 +7,7 @@ import type { IEmoji } from './emoji';
 // Recently used emoji live in `io.element.recent_emoji` account data, which Element and other
 // clients share: `{ recent_emoji: [[emoji, count], ...] }`, most recent first. An emoji is its
 // Unicode text; a custom emoji is the mxc URL of its image. This file needs no emoji data, so the
-// composer and the message menu can use it before the data has loaded (`recent-emoji.ts`).
+// composer and the message menu can use it before the data has loaded.
 
 type RecentEntry = [string, number];
 

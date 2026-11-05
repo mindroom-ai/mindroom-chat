@@ -35,8 +35,7 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { useRelevantImagePacks } from '../useImagePacks';
 import { useRecentEmoji } from '../useRecentEmoji';
 import { useFilePicker } from '../../lib/hooks/useFilePicker';
-import { addRecentEmoji } from '../recent-emoji';
-import { isNamedEmoji } from '../recent-emoji-list';
+import { addRecentEmoji, isNamedEmoji } from '../recent-emoji-list';
 import { EmojiGroupId, type IEmoji, emojiGroups, withSkinTone } from '../emoji';
 import { type ImagePack, ImageUsage, PackImageReader } from '../custom';
 import { emojiSkinToneAtom } from '../emojiSkinTone';

@@ -1,8 +1,8 @@
 import { MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { ImagePack } from './custom';
-import { emojis } from './emoji';
-import { getRecentEmojis } from './recent-emoji';
+import { emojis, getEmojiByUnicode } from './emoji';
+import { resolveRecentEmoji } from './recent-emoji-list';
 
 /** A client whose `io.element.recent_emoji` account data holds these entries. */
 const clientWithRecent = (recentEmoji: Array<[string, number]>) =>
@@ -19,25 +19,26 @@ const pack = new ImagePack(
 const parrot = pack.images.collection.get('party-parrot');
 const unicodeEmoji = (unicode: string) => emojis.find((emoji) => emoji.unicode === unicode);
 
-describe('getRecentEmojis', () => {
+describe('resolveRecentEmoji', () => {
   it('lists Unicode emoji, most used first', () => {
-    const recent = getRecentEmojis(
+    const recent = resolveRecentEmoji(
       clientWithRecent([
         ['😀', 1],
         ['😂', 3],
-      ])
+      ]),
+      getEmojiByUnicode
     );
 
     expect(recent).toEqual([unicodeEmoji('😂'), unicodeEmoji('😀')]);
   });
 
   it('finds a custom emoji by its mxc URL in the packs', () => {
-    const recent = getRecentEmojis(
+    const recent = resolveRecentEmoji(
       clientWithRecent([
         ['😀', 1],
         ['mxc://example.org/parrot', 2],
       ]),
-      undefined,
+      getEmojiByUnicode,
       [pack]
     );
 
@@ -47,19 +48,22 @@ describe('getRecentEmojis', () => {
 
   it('drops a custom emoji no pack has', () => {
     expect(
-      getRecentEmojis(clientWithRecent([['mxc://example.org/gone', 5]]), undefined, [pack])
+      resolveRecentEmoji(clientWithRecent([['mxc://example.org/gone', 5]]), getEmojiByUnicode, [
+        pack,
+      ])
     ).toEqual([]);
   });
 
   it('applies the limit after dropping what no pack has', () => {
-    const recent = getRecentEmojis(
+    const recent = resolveRecentEmoji(
       clientWithRecent([
         ['mxc://example.org/gone', 9],
         ['mxc://example.org/parrot', 5],
         ['😀', 1],
       ]),
-      2,
-      [pack]
+      getEmojiByUnicode,
+      [pack],
+      2
     );
 
     expect(recent).toEqual([parrot, unicodeEmoji('😀')]);
