@@ -18,8 +18,12 @@ and the context lines of the dependency patches. They keep the licenses that
 their entries below give. Lines by any other author were blanked when copied
 (docs/provenance/holes.tsv and holes-wave2.tsv) and written fresh here, as
 were lines that matched the upstream client (docs/provenance/holes-overlap*.tsv).
-No grant is recorded for the images of the third import
-(docs/provenance/portable-wave3.tsv). docs/provenance/import.txt names the
+Per his instruction of 2026-11-05, he also licenses the images of the third
+import (docs/provenance/portable-wave3.tsv) that are his MindRoom artwork, and
+the Android icons and splash screens that scripts/generate-android-icons.sh
+draws from it, under the Apache License, Version 2.0 for this project. The
+Capacitor template images of that import were replaced and are not covered.
+docs/provenance/import.txt names the
 import commits; docs/provenance.md describes the process.
 
 App Store fixture avatars
