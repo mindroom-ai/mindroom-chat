@@ -76,7 +76,9 @@ export const Tabs = style({
   padding: '0 20px 12px',
   overflowX: 'auto',
   overscrollBehaviorInline: 'contain',
-  scrollbarWidth: 'thin',
+  // The row scrolls by swipe or by switching tabs; a scrollbar under it would read as a divider.
+  scrollbarWidth: 'none',
+  selectors: { '&::-webkit-scrollbar': { display: 'none' } },
   flexShrink: 0,
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
 });
