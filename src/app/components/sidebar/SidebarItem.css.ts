@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { createVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { motion } from '../../styles/Motion.css';
@@ -49,40 +49,54 @@ export const SidebarStackSeparator = style({
   flex: 'none',
 });
 
-/** Marks the rail entry, so its avatar can react to the entry being hovered or pressed. */
+/** Marks the rail entry, so its button can react to the entry being hovered or pressed. */
 const sidebarItemRoot = style({});
 
-/** How far a hovered rail button lifts. */
-const hoverLift = toRem(-2);
+/**
+ * How far a hovered or keyboard-focused rail button slides toward the inline end (right, or left
+ * in a right-to-left language): the indicator's width, which leaves room for the indicator.
+ */
+const hoverSlide = createVar();
 
-/** A rail entry: the avatar button with its selection pill and unread badge. */
+// The indicator's heights. home.png: 24 px when selected. A hovered entry's is 18 px: a clear
+// bar, still shorter than the selection's.
+const indicatorHeight = 24;
+const hoverIndicatorScale = 18 / indicatorHeight;
+
+/** A hovered entry, or one whose button has keyboard focus. */
+const entryEngaged = ['&:hover::before', '&:has(> :focus-visible)::before'].join(', ');
+
+/** A rail entry: the avatar button with its selection indicator and unread badge. */
 export const SidebarItem = recipe({
   base: [
     sidebarItemRoot,
     DefaultReset,
-    // Centring also places the absolutely positioned pill vertically.
+    // Centring also places the absolutely positioned indicator vertically.
     Centered,
     {
       position: 'relative',
+      vars: { [hoverSlide]: toRem(4) },
       selectors: {
-        // The selected tab's indicator: a pill on the rail's outer edge (the left one, or the
-        // right one in a right-to-left language). home.png: 4 px wide and 24 px tall when
-        // selected, flush with the edge (12 px before the 42 px avatar). Its inner end is round.
+        '[dir=rtl] &': { vars: { [hoverSlide]: toRem(-4) } },
+        // The indicator: a pill on the rail's outer edge (the left one, or the right one in a
+        // right-to-left language). home.png: 4 px wide, flush with the edge (12 px before the
+        // 42 px avatar). Its inner end is round. It grows from nothing to its hover height and
+        // back, and to its full height while the entry is selected.
         '&::before': {
           content: '',
           position: 'absolute',
           insetInlineStart: `calc(-1 * ${toRem(12)})`,
           inlineSize: toRem(4),
-          blockSize: toRem(16),
+          blockSize: toRem(indicatorHeight),
           borderStartStartRadius: 0,
           borderEndStartRadius: 0,
           borderStartEndRadius: config.radii.Pill,
           borderEndEndRadius: config.radii.Pill,
           backgroundColor: color.Background.OnContainer,
           transform: 'scaleY(0)',
-          transition: 'transform 200ms ease',
+          transition: `transform ${motion.duration.Slow} ${motion.easing.Standard}`,
         },
-        '&:hover::before': { transform: 'scaleY(0.6)' },
+        [entryEngaged]: { transform: `scaleY(${hoverIndicatorScale})` },
       },
     },
   ],
@@ -90,7 +104,8 @@ export const SidebarItem = recipe({
     active: {
       true: {
         selectors: {
-          '&::before, &:hover::before': { transform: 'scaleY(1.5)' },
+          // Listed with the hover selectors so that hovering never shrinks the selection's.
+          [`&::before, ${entryEngaged}`]: { transform: 'none' },
         },
       },
     },
@@ -119,11 +134,11 @@ export const SidebarAvatar = recipe({
       background: 'none',
       cursor: 'pointer',
       outline: 'none',
-      // The lift follows the entry, not the button: the entry keeps the pointer when the button
-      // has risen out from under it. Reduced motion keeps the indicator and drops the lift.
+      // The slide follows the entry, not the button: the entry keeps the pointer when the button
+      // has moved out from under it. Reduced motion keeps the indicator and drops the slide.
       '@media': {
         '(prefers-reduced-motion: reduce)': {
-          selectors: { [`${sidebarItemRoot}:hover &`]: { translate: 'none' } },
+          selectors: { [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: 'none' } },
         },
       },
       selectors: {
@@ -132,8 +147,9 @@ export const SidebarAvatar = recipe({
         '&&': {
           transition: `scale 180ms cubic-bezier(0.2, 0.8, 0.2, 1), translate ${motion.duration.Normal} ease-out`,
         },
-        [`${sidebarItemRoot}:hover &`]: { translate: `0 ${hoverLift}` },
-        // Pressing settles the button back down.
+        // Keyboard focus looks like hover.
+        [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: `${hoverSlide} 0` },
+        // Pressing settles the button back.
         [`${sidebarItemRoot}:hover &:active`]: { translate: 'none' },
         '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
         '&:active': { backgroundColor: color.SurfaceVariant.ContainerActive },

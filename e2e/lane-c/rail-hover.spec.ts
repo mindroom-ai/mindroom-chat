@@ -1,13 +1,21 @@
+import { generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
-import { matrixFetch } from '../helpers/matrix';
+import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
 
-// Hovering a rail button lifts it a little and shows the small indicator on the rail's outer
-// edge; a selected entry keeps its tall indicator; reduced motion keeps the indicator only.
-// Set RAIL_HOVER_SHOTS=<directory> to also save the rest, hover and selected screenshots.
+// Hovering any rail entry slides its button 4 px toward the inline end and grows the indicator
+// on the rail's outer edge to 18 px; a selected entry slides too and keeps its 24 px indicator.
+// Keyboard focus looks like hover, pressing settles the button back and reduced motion keeps the
+// indicator only. Set RAIL_HOVER_SHOTS=<directory> to also save the rest, hover and selected
+// screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'rail-hover-spec-password';
 const SHOTS = process.env.RAIL_HOVER_SHOTS;
+
+/** The slide and the indicator heights the rail promises. */
+const SLIDE = 4;
+const HOVER_HEIGHT = 18;
+const SELECTED_HEIGHT = 24;
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -20,11 +28,103 @@ const homeserverIsUp = async (): Promise<boolean> => {
   }
 };
 
-const register = async (username: string) => {
-  await matrixFetch(HOMESERVER, '/register', {
-    method: 'POST',
-    body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+type Account = { username: string; userId: string; accessToken: string };
+
+const register = async (prefix: string): Promise<Account> => {
+  const username = `${prefix}_${Date.now().toString(36)}`;
+  const body = await matrixFetch<{ user_id: string; access_token: string }>(
+    HOMESERVER,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+    }
+  );
+  return { username, userId: body.user_id, accessToken: body.access_token };
+};
+
+/** Matrix canonical JSON: sorted keys, no whitespace. */
+const canonical = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).sort(([a], [b]) => (a < b ? -1 : 1));
+    return `{${entries
+      .map(([key, entry]) => `${JSON.stringify(key)}:${canonical(entry)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value);
+};
+
+const unpaddedBase64 = (bytes: Buffer) => bytes.toString('base64').replace(/=+$/, '');
+
+type SigningKey = { id: string; privateKey: KeyObject };
+
+const signingKey = (): SigningKey => {
+  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
+  const raw = Buffer.from(publicKey.export({ format: 'jwk' }).x ?? '', 'base64url');
+  return { id: unpaddedBase64(raw), privateKey };
+};
+
+const crossSigningKey = (userId: string, usage: string, key: SigningKey, signer?: SigningKey) => {
+  const body = { user_id: userId, usage: [usage], keys: { [`ed25519:${key.id}`]: key.id } };
+  if (!signer) return body;
+  const signature = unpaddedBase64(sign(null, Buffer.from(canonical(body)), signer.privateKey));
+  return { ...body, signatures: { [userId]: { [`ed25519:${signer.id}`]: signature } } };
+};
+
+/**
+ * Publishes cross-signing keys for the account, so a browser session that signs in afterwards
+ * is not verified and the rail shows its Unverified Device button.
+ */
+const publishCrossSigning = async ({ username, userId, accessToken }: Account) => {
+  const master = signingKey();
+  const keys = {
+    master_key: crossSigningKey(userId, 'master', master),
+    self_signing_key: crossSigningKey(userId, 'self_signing', signingKey(), master),
+    user_signing_key: crossSigningKey(userId, 'user_signing', signingKey(), master),
+  };
+  const upload = (auth?: Record<string, unknown>) =>
+    fetch(`${HOMESERVER}/_matrix/client/v3/keys/device_signing/upload`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify(auth ? { ...keys, auth } : keys),
+    });
+  let response = await upload();
+  if (response.status === 401) {
+    const { session } = (await response.json()) as { session?: string };
+    response = await upload({
+      type: 'm.login.password',
+      identifier: { type: 'm.id.user', user: username },
+      password: PASSWORD,
+      session,
+    });
+  }
+  expect(response.ok, `device_signing/upload answered ${response.status}`).toBe(true);
+};
+
+/** A space at the top of the rail and a folder of two more. */
+const createRailSpaces = async ({ userId, accessToken }: Account) => {
+  const space = await createPrivateSpace(HOMESERVER, accessToken, {
+    name: 'Rail Space',
+    topic: '',
   });
+  const inFolder = [
+    await createPrivateSpace(HOMESERVER, accessToken, { name: 'Folder Alpha', topic: '' }),
+    await createPrivateSpace(HOMESERVER, accessToken, { name: 'Folder Beta', topic: '' }),
+  ];
+  await setAccountData(HOMESERVER, accessToken, userId, 'io.mindroom.spaces', {
+    sidebar: [space, { id: 'rail-hover-folder', name: 'Rail Folder', content: inFolder }],
+  });
+  return space;
+};
+
+const signIn = async (page: Page, account: Account) => {
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: account.username,
+    password: PASSWORD,
+  });
+  await page.setViewportSize({ width: 1440, height: 900 });
 };
 
 const rail = (page: Page) => page.getByRole('navigation', { name: 'Main', exact: true });
@@ -33,146 +133,212 @@ const rail = (page: Page) => page.getByRole('navigation', { name: 'Main', exact:
 const entryOf = (button: Locator) => button.locator('xpath=..');
 
 /**
- * The button's vertical centre: raised glass buttons also grow 2.5% on hover, which moves their
- * top edge by half a pixel but not their centre.
+ * The button's centre: raised glass buttons also grow 2.5% on hover, which moves their edges by
+ * half a pixel but not their centre.
  */
-const top = async (button: Locator) => {
+const centre = async (button: Locator) => {
   const box = await button.boundingBox();
-  return box ? box.y + box.height / 2 : Number.NaN;
+  return box
+    ? { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    : { x: Number.NaN, y: Number.NaN };
 };
 
-/** The entry's indicator: its computed transform matrix and its resting height. */
-const pill = (entry: Locator) =>
+/** The entry's indicator as drawn: its height after scaling, its edges, and its transition. */
+const indicator = (entry: Locator) =>
   entry.evaluate((element) => {
     const style = getComputedStyle(element, '::before');
     const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
+    const left = element.getBoundingClientRect().left + parseFloat(style.left);
     return {
-      scaleY: matrix.d,
-      height: parseFloat(style.height),
+      height: parseFloat(style.height) * matrix.d,
       width: parseFloat(style.width),
       // `left` resolves to the used offset in either direction.
-      left: element.getBoundingClientRect().left + parseFloat(style.left),
+      left,
+      right: left + parseFloat(style.width),
+      transitionProperty: style.transitionProperty,
+      transitionSeconds: parseFloat(style.transitionDuration),
     };
   });
 
-/** Waits for the lift's transition to land (the entry settles after 160 ms). */
+/** Waits for the slide and the indicator's transitions (160 and 200 ms) to land. */
 const settle = (page: Page) => page.waitForTimeout(400);
 
-const buttonNames = [
-  'Home',
-  'Direct Messages',
-  'Threads',
-  'Explore Community',
-  /Open account menu for /,
-];
+const pointerAway = async (page: Page) => {
+  await page.mouse.move(700, 450);
+  await settle(page);
+};
+
+/** Hovers the button and returns how its centre moved and how its indicator looked. */
+const hoverAndMeasure = async (page: Page, button: Locator) => {
+  const entry = entryOf(button);
+  await pointerAway(page);
+  const restCentre = await centre(button);
+  const rest = await indicator(entry);
+  const selected = (await entry.getAttribute('data-active')) !== null;
+  await button.hover();
+  await settle(page);
+  const hoverCentre = await centre(button);
+  const hover = await indicator(entry);
+  await pointerAway(page);
+  const after = await indicator(entry);
+  return {
+    selected,
+    dx: hoverCentre.x - restCentre.x,
+    dy: hoverCentre.y - restCentre.y,
+    rest,
+    hover,
+    after,
+  };
+};
+
+/** One hover's checks, for a selected entry or not. */
+const expectHover = (name: string, measured: Awaited<ReturnType<typeof hoverAndMeasure>>) => {
+  const { selected, dx, dy, rest, hover, after } = measured;
+  // A slide toward the inline end, no lift.
+  expect(dx, `${name} slide`).toBeCloseTo(SLIDE, 0);
+  expect(Math.abs(dy), `${name} vertical move`).toBeLessThan(0.6);
+  // The indicator grows and shrinks by a transition of its transform.
+  expect(hover.transitionProperty, `${name} indicator transition`).toContain('transform');
+  expect(hover.transitionSeconds, `${name} indicator transition`).toBeGreaterThanOrEqual(0.1);
+  if (selected) {
+    expect(rest.height, `${name} selected rest`).toBeCloseTo(SELECTED_HEIGHT, 0);
+    expect(hover.height, `${name} selected hover`).toBeCloseTo(SELECTED_HEIGHT, 0);
+    expect(after.height, `${name} selected after`).toBeCloseTo(SELECTED_HEIGHT, 0);
+  } else {
+    expect(rest.height, `${name} rest`).toBeCloseTo(0, 1);
+    expect(hover.height, `${name} hover`).toBeCloseTo(HOVER_HEIGHT, 0);
+    expect(after.height, `${name} after`).toBeCloseTo(0, 1);
+  }
+};
 
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
 });
 
-test('hovering a rail button lifts it and shows the small indicator', async ({ page }) => {
-  test.slow();
-  const username = `rail_hover_${Date.now().toString(36)}`;
-  await register(username);
-  await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.mouse.move(700, 450);
-
-  const buttons = rail(page).getByRole('button');
-  const count = await buttons.count();
-  expect(count).toBeGreaterThanOrEqual(5);
-
-  const seen: string[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const button = buttons.nth(index);
-    if (!(await button.isVisible())) continue;
-    const entry = entryOf(button);
-    await page.mouse.move(700, 450);
-    await settle(page);
-    const restTop = await top(button);
-    const restPill = await pill(entry);
-    const selected = (await entry.getAttribute('data-active')) !== null;
-    const name = (await button.getAttribute('aria-label')) ?? `button ${index}`;
-
-    await button.hover();
-    await settle(page);
-    const hoverTop = await top(button);
-    const hoverPill = await pill(entry);
-    seen.push(name);
-
-    // A 2 px lift, no sideways move, an indicator that is shorter than the selected one.
-    expect(restTop - hoverTop, `${name} lift`).toBeGreaterThanOrEqual(1.5);
-    expect(restTop - hoverTop, `${name} lift`).toBeLessThanOrEqual(2.5);
-    if (selected) {
-      expect(restPill.scaleY, `${name} selected rest`).toBeCloseTo(1.5, 1);
-      expect(hoverPill.scaleY, `${name} selected hover`).toBeCloseTo(1.5, 1);
-    } else {
-      expect(restPill.scaleY, `${name} rest`).toBeCloseTo(0, 2);
-      expect(hoverPill.scaleY, `${name} hover`).toBeGreaterThan(0.4);
-      expect(hoverPill.scaleY, `${name} hover`).toBeLessThan(1.5);
-    }
-  }
-  expect(seen.length).toBeGreaterThanOrEqual(5);
-  for (const name of buttonNames) {
-    await expect(rail(page).getByRole('button', { name })).toBeVisible();
-  }
-});
-
-test('the indicator stays on the rail edge and the lift obeys reduced motion and pressing', async ({
+test('every rail entry slides toward the inline end and grows its indicator on hover', async ({
   page,
 }) => {
   test.slow();
-  const username = `rail_hover_b_${Date.now().toString(36)}`;
-  await register(username);
-  await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await register('rail_hover');
+  await publishCrossSigning(account);
+  const spaceId = await createRailSpaces(account);
+  await signIn(page, account);
 
-  const explore = rail(page).getByRole('button', { name: 'Explore Community' });
-  const entry = entryOf(explore);
-  const railBox = await rail(page).boundingBox();
-  await page.mouse.move(700, 450);
-  await settle(page);
-  const restTop = await top(explore);
+  const space = rail(page).locator(`button[data-id="${spaceId}"]`);
+  const named: Record<string, Locator> = {
+    Home: rail(page).getByRole('button', { name: 'Home', exact: true }),
+    'Direct Messages': rail(page).getByRole('button', { name: 'Direct Messages' }),
+    Threads: rail(page).getByRole('button', { name: 'Threads', exact: true }),
+    'a space': space,
+    'a folder': rail(page).getByRole('button', { name: 'Rail Folder' }),
+    Explore: rail(page).getByRole('button', { name: 'Explore Community' }),
+    Create: rail(page).getByRole('button', { name: 'Create Space' }),
+    Search: rail(page).getByRole('button', { name: 'Open command palette' }),
+    'device verification': rail(page).getByRole('button', { name: 'Unverified Device' }),
+    Inbox: rail(page).getByRole('button', { name: 'Inbox' }),
+    account: rail(page).getByRole('button', { name: /Open account menu for / }),
+    collapse: rail(page).getByRole('button', { name: 'Collapse navigation panel' }),
+  };
+  for (const [name, button] of Object.entries(named)) {
+    await expect(button, `${name} on the rail`).toBeVisible({ timeout: 30_000 });
+  }
 
-  // The indicator sits flush with the rail's leading edge.
-  await explore.hover();
-  await settle(page);
-  expect((await pill(entry)).left).toBeCloseTo(railBox?.x ?? 0, 0);
+  // Every visible rail button, named above or not.
+  const buttons = rail(page).getByRole('button');
+  const count = await buttons.count();
+  let checked = 0;
+  let selectedChecked = 0;
+  for (let index = 0; index < count; index += 1) {
+    const button = buttons.nth(index);
+    if (!(await button.isVisible())) continue;
+    const name =
+      (await button.getAttribute('aria-label')) ??
+      (await button.getAttribute('data-id')) ??
+      `button ${index}`;
+    const measured = await hoverAndMeasure(page, button);
+    expectHover(name, measured);
+    checked += 1;
+    if (measured.selected) selectedChecked += 1;
+  }
+  expect(checked).toBeGreaterThanOrEqual(Object.keys(named).length);
+  // Home on the landing page and the account, which always carries the selection mark.
+  expect(selectedChecked).toBeGreaterThanOrEqual(2);
 
-  // Pressing settles the button back down.
-  await page.mouse.down();
-  await settle(page);
-  expect(await top(explore)).toBeCloseTo(restTop, 0);
-  await page.mouse.up();
-  await page.keyboard.press('Escape');
-
-  // Reduced motion: no lift, the indicator still shows.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.mouse.move(700, 450);
-  await settle(page);
-  await explore.hover();
-  await settle(page);
-  expect(await top(explore)).toBeCloseTo(restTop, 0);
-  expect((await pill(entry)).scaleY).toBeGreaterThan(0.4);
-
-  // Right to left: the indicator moves to the rail's trailing (right) edge.
-  await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
-  await settle(page);
-  const rtlRail = await rail(page).boundingBox();
-  const rtlEntry = await entry.boundingBox();
-  const rtlPill = await pill(entry);
-  expect(rtlPill.left + rtlPill.width).toBeCloseTo((rtlRail?.x ?? 0) + (rtlRail?.width ?? 0), 0);
-  expect(rtlEntry?.x).toBeGreaterThan(railBox?.x ?? 0);
+  // A selected space slides too and keeps its tall indicator.
+  await space.click();
+  await expect(entryOf(space)).toHaveAttribute('data-active', 'true');
+  const selectedSpace = await hoverAndMeasure(page, space);
+  expect(selectedSpace.selected).toBe(true);
+  expectHover('selected space', selectedSpace);
 });
 
-test('saves the rail at rest, hovered and selected, light and dark', async ({ page }) => {
+test('focus, pressing, reduced motion and right to left', async ({ page }) => {
+  test.slow();
+  const account = await register('rail_hover_b');
+  await signIn(page, account);
+
+  const explore = rail(page).getByRole('button', { name: 'Explore Community' });
+  const create = rail(page).getByRole('button', { name: 'Create Space' });
+  const entry = entryOf(explore);
+  const railBox = await rail(page).boundingBox();
+  await pointerAway(page);
+  const rest = await centre(explore);
+
+  // Keyboard focus looks like hover.
+  await create.focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(explore).toBeFocused();
+  expect(await explore.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+  await settle(page);
+  expect((await centre(explore)).x - rest.x, 'focus slide').toBeCloseTo(SLIDE, 0);
+  expect((await indicator(entry)).height, 'focus indicator').toBeCloseTo(HOVER_HEIGHT, 0);
+  await explore.blur();
+  await settle(page);
+  expect((await indicator(entry)).height).toBeCloseTo(0, 1);
+
+  // The indicator sits flush with the rail's leading edge; the button slides away from it.
+  await explore.hover();
+  await settle(page);
+  expect((await indicator(entry)).left).toBeCloseTo(railBox?.x ?? 0, 0);
+  expect((await centre(explore)).x - rest.x).toBeCloseTo(SLIDE, 0);
+
+  // Pressing settles the button back; releasing away from it does not click it.
+  await page.mouse.down();
+  await settle(page);
+  expect((await centre(explore)).x).toBeCloseTo(rest.x, 0);
+  await page.mouse.move(700, 450);
+  await page.mouse.up();
+
+  // Reduced motion: no slide, the indicator still shows.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await pointerAway(page);
+  await explore.hover();
+  await settle(page);
+  expect((await centre(explore)).x).toBeCloseTo(rest.x, 0);
+  expect((await indicator(entry)).height).toBeCloseTo(HOVER_HEIGHT, 0);
+
+  // Right to left: the indicator moves to the rail's trailing (right) edge and the button slides
+  // left, away from it.
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+  await pointerAway(page);
+  const rtlRail = await rail(page).boundingBox();
+  const rtlRest = await centre(explore);
+  await explore.hover();
+  await settle(page);
+  const rtlIndicator = await indicator(entry);
+  expect(rtlIndicator.right).toBeCloseTo((rtlRail?.x ?? 0) + (rtlRail?.width ?? 0), 0);
+  expect(rtlIndicator.height).toBeCloseTo(HOVER_HEIGHT, 0);
+  expect((await centre(explore)).x - rtlRest.x).toBeCloseTo(-SLIDE, 0);
+  expect(rtlRail?.x).toBeGreaterThan(railBox?.x ?? 0);
+});
+
+test('saves the rail at rest, hovered and selected-hovered, light and dark', async ({ page }) => {
   test.skip(!SHOTS, 'Set RAIL_HOVER_SHOTS=<directory> to save the screenshots');
   test.slow();
-  const username = `rail_hover_c_${Date.now().toString(36)}`;
-  await register(username);
-  await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-  await page.setViewportSize({ width: 1440, height: 900 });
+  const account = await register('rail_hover_c');
+  await createRailSpaces(account);
+  await signIn(page, account);
 
   const theme = async (themeId: string) => {
     await page.evaluate((id) => {
@@ -184,6 +350,8 @@ test('saves the rail at rest, hovered and selected, light and dark', async ({ pa
     }, themeId);
     await page.reload();
     await expect(rail(page)).toBeVisible({ timeout: 60_000 });
+    // The shell renders from the store with a catching-up bar above it until the first sync.
+    await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
   };
   const shot = async (name: string) => {
     const box = await rail(page).boundingBox();
@@ -198,15 +366,17 @@ test('saves the rail at rest, hovered and selected, light and dark', async ({ pa
     ['dark-theme', 'dark'],
   ] as const) {
     await theme(themeId);
-    const explore = rail(page).getByRole('button', { name: 'Explore Community' });
-    await page.mouse.move(700, 450);
-    await settle(page);
+    const home = rail(page).getByRole('button', { name: 'Home', exact: true });
+    await expect(entryOf(home)).toHaveAttribute('data-active', 'true');
+    await pointerAway(page);
     await shot(`rest-${label}`);
-    await explore.hover();
+    // Direct Messages is not selected: it slides and shows the hover indicator.
+    await rail(page).getByRole('button', { name: 'Direct Messages' }).hover();
     await settle(page);
     await shot(`hover-${label}`);
-    // The Home entry is selected on the landing page; its tall indicator shows at rest.
-    await page.mouse.move(700, 450);
+    // Home is selected on the landing page: it slides and keeps its tall indicator.
+    await pointerAway(page);
+    await home.hover();
     await settle(page);
     await shot(`selected-${label}`);
   }
