@@ -13,7 +13,7 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.INVITE_MENU_SHOTS;
 const PASSWORD = 'invite-autocomplete-menu-spec-password';
 /** Every suggested account's Matrix ID holds it, so one search lists them all. */
-const QUERY = 'studio';
+const QUERY = 'team';
 /**
  * The dialog keeps 16 px from each viewport edge, has a 1 px rim and pads its form by 16 px, so
  * the search field and the menu under it are 320 px wide.
@@ -86,7 +86,8 @@ const register = async (username: string, displayName: string) => {
  * Matrix ID is 60 characters long.
  */
 const seed = async (engine: string): Promise<Seed> => {
-  const run = `${engine.slice(0, 2)}${Date.now().toString(36)}`;
+  // Short, so that a short name's Matrix ID fits on one line whatever its letters' widths.
+  const run = `${engine.slice(0, 1)}${Date.now().toString(36).slice(-5)}`;
   const username = `invite_menu_${run}`;
   const reader = await register(username, 'Robin Reader');
   const server = reader.userId.slice(reader.userId.indexOf(':') + 1);
@@ -101,7 +102,7 @@ const seed = async (engine: string): Promise<Seed> => {
     register(longLocalpart, 'Helper agent'),
   ]);
   const shared = await createPrivateRoom(HOMESERVER, reader.accessToken, {
-    name: 'Studio people',
+    name: 'Team directory',
     topic: '',
     invite: people.map((person) => person.userId),
   });
@@ -197,13 +198,15 @@ const option = (menu: Locator, name: string) =>
 const checkRows = async (menu: Locator, seeded: Seed) => {
   expect(Math.round((await box(menu)).width)).toBe(320);
 
-  // A one-line name: 56 px, avatar at the top beside it.
-  const plain = option(menu, 'Alice Adams');
+  // A name and a Matrix ID of one line each: 56 px, avatar at the top beside them.
+  const plain = option(menu, 'Eli Brandt');
+  await plain.scrollIntoViewIfNeeded();
   const plainParts = rowParts(plain);
+  expect(await lines(plainParts.name)).toBe(1);
+  expect(await lines(plainParts.id)).toBe(1);
   const plainRow = await box(plain);
   expect(Math.round(plainRow.height)).toBe(56);
   expect(Math.round((await box(plainParts.avatar)).y - plainRow.y)).toBe(8);
-  expect(await lines(plainParts.name)).toBe(1);
 
   // A name that wraps makes the row taller; the avatar stays beside its first line.
   const wrapped = option(menu, WRAPPING_NAME);
