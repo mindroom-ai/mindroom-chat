@@ -185,17 +185,17 @@ const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): stri
 };
 
 /**
- * The room's view and its Compact and Full switch: Compact shows threads as cards, Full the
- * classic timeline. A room without agents opens in Threads, so its switch returns there instead.
+ * The room's view and its Compact and Threads switch: Compact shows threads as cards, Threads the
+ * room's roots with a chip for each thread. Classic stays a stored choice (or Jump to Time); from
+ * it the switch goes to Compact.
  */
 const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
   const { viewMode, setViewMode, availableViewModes } = useRoomViewMode(
     room.roomId,
     hasMindroomAgents
   );
-  const preferredFull: RoomViewMode = hasMindroomAgents === false ? 'threaded' : 'classic';
-  const fullMode: RoomViewMode | undefined = availableViewModes.includes(preferredFull)
-    ? preferredFull
+  const fullMode: RoomViewMode | undefined = availableViewModes.includes('threaded')
+    ? 'threaded'
     : availableViewModes.find((mode) => mode !== 'compact');
   if (!availableViewModes.includes('compact') || fullMode === undefined) {
     return { viewMode, viewSwitch: undefined };
@@ -208,9 +208,10 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 };
 
 /**
- * The room header: avatar (a back button on phones), name and topic, then the Compact and Full
- * switch, scheduled tasks, canvases, the computer, calls, pinned messages, members and the room
- * menu. Phones show a call button only while a call is on and offer the rest in the room menu.
+ * The room header: avatar (a back button on phones), name and topic, then the Compact and Threads
+ * switch, the filter bar button, scheduled tasks, canvases, the computer, calls, pinned messages,
+ * members and the room menu. Phones show a call button only while a call is on and offer the rest
+ * in the room menu.
  */
 export function RoomViewHeader({
   hasMindroomAgents,

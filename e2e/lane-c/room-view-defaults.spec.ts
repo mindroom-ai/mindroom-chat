@@ -226,5 +226,20 @@ test.describe('room view defaults', () => {
     await expect(modeSwitch).toHaveAttribute('aria-pressed', 'false');
     await expect(filterToggles).toHaveCount(0);
     await expect(unresolved).toBeVisible();
+
+    // With an agent too, the view switch goes from Compact to Threads (roots with their thread
+    // chips, the filter bar above them), not to Classic, which would show the reply in the room.
+    await viewSwitch.click();
+    await expect(viewSwitch).toHaveAttribute('aria-pressed', 'false');
+    await expect(compactView).toHaveCount(0);
+    await expect(rows.filter({ hasText: `Please check the logs ${stamp}` })).toHaveCount(1, {
+      timeout: 60_000,
+    });
+    await expect(rows.filter({ hasText: 'The logs look fine.' })).toHaveCount(0);
+    await expect(overview).toBeVisible();
+    await expect(filterButton).toHaveAttribute('aria-pressed', 'true');
+    await viewSwitch.click();
+    await expect(compactView).toBeVisible();
+    await expect(viewSwitch).toHaveAttribute('aria-pressed', 'true');
   });
 });

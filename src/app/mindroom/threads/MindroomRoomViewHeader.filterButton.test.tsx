@@ -7,7 +7,12 @@ import { RoomViewHeader } from './MindroomRoomViewHeader';
 import type { RoomViewMode } from './roomViewMode';
 import { createDefaultThreadFilterState, type ThreadFilterState } from './roomThreadOverviewModel';
 
-const { view } = vi.hoisted(() => ({ view: { mode: 'compact' as RoomViewMode } }));
+const { view } = vi.hoisted(() => ({
+  view: {
+    mode: 'compact' as RoomViewMode,
+    setViewMode: (() => undefined) as (mode: string) => void,
+  },
+}));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
 vi.mock('../../components/page', () => ({
@@ -45,7 +50,7 @@ vi.mock('../schedules/RoomSchedulesButton', () => ({ RoomSchedulesButton: () => 
 vi.mock('./useRoomViewMode', () => ({
   useRoomViewMode: () => ({
     viewMode: view.mode,
-    setViewMode: vi.fn(),
+    setViewMode: view.setViewMode,
     availableViewModes: ['compact', 'threaded', 'classic'],
   }),
 }));
@@ -136,5 +141,30 @@ describe('the room header filter button', () => {
     renderHeader({ hidden: true, threadFilterState: filtered });
     expect(byData('data-hidden-filters-dot')).toHaveLength(1);
     expect(filterButton().props['aria-label']).toBe('Thread filters (active)');
+  });
+});
+
+describe('the room header view switch', () => {
+  const switchTo = (mode: RoomViewMode, hasMindroomAgents: boolean) => {
+    const setViewMode = vi.fn();
+    view.setViewMode = setViewMode;
+    renderHeader({ mode, hasMindroomAgents });
+    const [viewSwitch] = byData('data-room-view-switch');
+    if (!viewSwitch) throw new Error('no view switch');
+    act(() => {
+      viewSwitch.props.onClick();
+    });
+    return { pressed: viewSwitch.props['aria-pressed'], next: setViewMode.mock.calls[0]?.[0] };
+  };
+
+  it('goes between Compact and Threads in rooms with and without agents', () => {
+    expect(switchTo('compact', true)).toEqual({ pressed: true, next: 'threaded' });
+    expect(switchTo('threaded', true)).toEqual({ pressed: false, next: 'compact' });
+    expect(switchTo('compact', false)).toEqual({ pressed: true, next: 'threaded' });
+    expect(switchTo('threaded', false)).toEqual({ pressed: false, next: 'compact' });
+  });
+
+  it('goes from a stored Classic view to Compact', () => {
+    expect(switchTo('classic', true)).toEqual({ pressed: false, next: 'compact' });
   });
 });

@@ -208,8 +208,8 @@ for (const width of [390, 1280]) {
       await sort.click();
       await expect(sort).not.toHaveAttribute('data-sort-direction', previousSort!);
 
-      // The header switch leads from Compact to Classic only.
-      for (const mode of ['classic']) {
+      // The header switch leads from Compact to Threads, which keeps the filter bar.
+      for (const mode of ['threaded']) {
         // eslint-disable-next-line no-await-in-loop
         await roomViewSwitch(page).click();
         const messages = page.getByTestId('room-virtual-inner');
@@ -217,11 +217,11 @@ for (const width of [390, 1280]) {
         // eslint-disable-next-line no-await-in-loop
         await expect(messages).toBeVisible();
         // eslint-disable-next-line no-await-in-loop
-        await expectInsetScrollbar(page, messageScroll, header, footer);
+        await expectInsetScrollbar(page, messageScroll, filters, footer);
         // eslint-disable-next-line no-await-in-loop
         expect((await messageScroll.boundingBox())!.y).toBeLessThanOrEqual(headerBox.y);
         // eslint-disable-next-line no-await-in-loop
-        await expect(filters).toHaveCount(0);
+        await expect(filters).toBeVisible();
         // eslint-disable-next-line no-await-in-loop
         await messageScroll.evaluate((element) => {
           element.scrollTop = 350;
@@ -246,7 +246,7 @@ for (const width of [390, 1280]) {
         // eslint-disable-next-line no-await-in-loop
         await expect
           .poll(async () => {
-            const top = header;
+            const top = filters;
             const topBox = (await top.boundingBox())!;
             const rowBox = await messages.locator('[data-message-item]').first().boundingBox();
             return rowBox ? rowBox.y - topBox.y - topBox.height : -1;
