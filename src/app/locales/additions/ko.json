@@ -210,6 +210,66 @@
         "searchDescription": "명령 팔레트를 여는 버튼입니다. 숨겨도 {{shortcut}}로 열 수 있습니다.",
         "localMindroom": "사이드바에 로컬 MindRoom 표시",
         "localMindroomDescription": "컴퓨터에서 실행 중인 MindRoom을 연결합니다. 숨겨도 이곳 설정의 로컬 MindRoom에 남아 있습니다."
+      },
+      "menu": {
+        "groups": {
+          "you": "나",
+          "app": "이 앱",
+          "agents": "에이전트 및 연결",
+          "help": "도움말 및 고급"
+        },
+        "pages": {
+          "privacy": "개인정보 및 보안",
+          "language": "언어 및 지역",
+          "storage": "저장공간 및 오프라인"
+        }
+      },
+      "search": {
+        "placeholder": "설정 검색"
+      },
+      "scope": {
+        "device": "이 기기",
+        "account": "내 계정(모든 기기)",
+        "roomPersonal": "이 방, 나에게만",
+        "roomShared": "방의 모든 사람"
+      },
+      "advanced": "고급",
+      "sections": {
+        "display": "표시",
+        "privacy": "개인정보"
+      },
+      "computers": {
+        "inUse": "사용 중인 서버",
+        "inUseNone": "설정된 서버가 없어 이 기기에서는 컴퓨터가 꺼져 있습니다."
+      },
+      "keywords": {
+        "theme": "다크 모드, 라이트 모드, 야간 모드, 색상",
+        "zoom": "글자 크기, 글꼴 크기, 배율, 크게, 작게",
+        "layout": "말풍선, 간결하게, 모던, 밀도",
+        "language": "번역, 로캘",
+        "time": "시계, 오전, 오후, 날짜, 시간",
+        "composer": "키보드, 단축키, 보내기, 줄바꿈, 서식",
+        "receipts": "읽음 확인, 입력 중 표시, 읽음, 개인정보",
+        "timeline": "참여, 나가기, 초대, 이름 변경, 아바타 변경",
+        "media": "이미지, 동영상, 데이터 사용량",
+        "links": "링크, 미리보기, 임베드",
+        "blocked": "무시, 차단, 사람 음소거",
+        "encryption": "복구 키, 보안 키, 암호화, 교차 서명, 인증",
+        "sessions": "기기, 세션, 로그아웃, 접속 종료",
+        "alerts": "알림, 푸시, 배지, 소리",
+        "email": "이메일, 메일",
+        "mentions": "멘션, 키워드, 강조, @room",
+        "background": "미리 가져오기, 오프라인, 캐시, 백그라운드 로딩",
+        "cache": "캐시, 새로고침, 초기화, 저장공간",
+        "computers": "서버, URL, 주소, 백엔드, 브라우저",
+        "connections": "Google, GitHub, Notion, 통합, OAuth",
+        "sidebar": "레일, 버튼, 탐색, 아이콘",
+        "archive": "보관, 숨긴 방",
+        "developer": "디버그, 개발자 모드, 액세스 토큰, 계정 데이터",
+        "profile": "프로필 사진, 사진, 이름, 닉네임",
+        "deactivate": "계정 삭제, 계정 해지",
+        "localMindroom": "페어링, 페어링 코드, 로컬, 데스크톱",
+        "emoji": "이모지, 스티커, 팩, 사용자 지정 이모지"
       }
     },
     "createChat": {

@@ -214,6 +214,66 @@
         "searchDescription": "The button that opens the command palette. When hidden, {{shortcut}} still opens it.",
         "localMindroom": "Show Local MindRoom in the sidebar",
         "localMindroomDescription": "Pairs MindRoom running on your computer. When hidden, it stays here in Settings under Local MindRoom."
+      },
+      "menu": {
+        "groups": {
+          "you": "You",
+          "app": "This app",
+          "agents": "Agents & connections",
+          "help": "Help & advanced"
+        },
+        "pages": {
+          "privacy": "Privacy & security",
+          "language": "Language & region",
+          "storage": "Storage & offline"
+        }
+      },
+      "search": {
+        "placeholder": "Search settings"
+      },
+      "scope": {
+        "device": "This device",
+        "account": "Your account (all devices)",
+        "roomPersonal": "This room, for you",
+        "roomShared": "Everyone in the room"
+      },
+      "advanced": "Advanced",
+      "sections": {
+        "display": "Display",
+        "privacy": "Privacy"
+      },
+      "computers": {
+        "inUse": "Server in use",
+        "inUseNone": "None set, so computers are off on this device."
+      },
+      "keywords": {
+        "theme": "dark mode, light mode, night mode, colors",
+        "zoom": "text size, font size, scale, bigger, smaller",
+        "layout": "bubbles, compact, modern, density",
+        "language": "translation, locale",
+        "time": "clock, AM, PM, date, time",
+        "composer": "keyboard, shortcut, send, line break, formatting",
+        "receipts": "read receipts, typing indicator, seen, privacy",
+        "timeline": "joins, leaves, invites, name changes, avatar changes",
+        "media": "images, videos, data usage",
+        "links": "links, preview, embeds",
+        "blocked": "ignore, block, mute people",
+        "encryption": "recovery key, security key, encryption, cross-signing, verify",
+        "sessions": "devices, sessions, sign out, log out",
+        "alerts": "alerts, push, badge, sound",
+        "email": "email, mail",
+        "mentions": "mention, keyword, highlight, @room",
+        "background": "prefetch, offline, cache, background loading",
+        "cache": "cache, reload, reset, storage",
+        "computers": "server, URL, address, backend, browser",
+        "connections": "Google, GitHub, Notion, integrations, OAuth",
+        "sidebar": "rail, buttons, navigation, icons",
+        "archive": "archive, hidden rooms",
+        "developer": "debug, developer mode, access token, account data",
+        "profile": "profile picture, photo, name, nickname",
+        "deactivate": "delete account, close account",
+        "localMindroom": "pair, pairing code, local, desktop",
+        "emoji": "emoji, stickers, packs, custom emoji"
       }
     },
     "createChat": {

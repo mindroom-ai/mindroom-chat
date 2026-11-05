@@ -214,6 +214,66 @@
         "searchDescription": "Komut paletini açan düğme. Gizlendiğinde de {{shortcut}} paleti açar.",
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
+      },
+      "menu": {
+        "groups": {
+          "you": "Siz",
+          "app": "Bu uygulama",
+          "agents": "Ajanlar ve bağlantılar",
+          "help": "Yardım ve gelişmiş"
+        },
+        "pages": {
+          "privacy": "Gizlilik ve güvenlik",
+          "language": "Dil ve bölge",
+          "storage": "Depolama ve çevrimdışı"
+        }
+      },
+      "search": {
+        "placeholder": "Ayarlarda ara"
+      },
+      "scope": {
+        "device": "Bu cihaz",
+        "account": "Hesabınız (tüm cihazlar)",
+        "roomPersonal": "Bu oda, sizin için",
+        "roomShared": "Odadaki herkes"
+      },
+      "advanced": "Gelişmiş",
+      "sections": {
+        "display": "Görünüm",
+        "privacy": "Gizlilik"
+      },
+      "computers": {
+        "inUse": "Kullanılan sunucu",
+        "inUseNone": "Ayarlanmadı, bu nedenle bu cihazda bilgisayarlar kapalı."
+      },
+      "keywords": {
+        "theme": "karanlık mod, aydınlık mod, gece modu, renkler",
+        "zoom": "metin boyutu, yazı tipi boyutu, ölçek, büyüt, küçült",
+        "layout": "baloncuk, sıkışık, modern, yoğunluk",
+        "language": "çeviri, yerel ayar",
+        "time": "saat, ÖÖ, ÖS, tarih, zaman",
+        "composer": "klavye, kısayol, gönder, satır sonu, biçimlendirme",
+        "receipts": "okundu bilgisi, yazıyor göstergesi, görüldü, gizlilik",
+        "timeline": "katılmalar, ayrılmalar, davetler, ad değişiklikleri, avatar değişiklikleri",
+        "media": "görseller, videolar, veri kullanımı",
+        "links": "bağlantılar, önizleme, yerleştirmeler",
+        "blocked": "yoksay, engelle, kişileri sessize al",
+        "encryption": "kurtarma anahtarı, güvenlik anahtarı, şifreleme, çapraz imzalama, doğrula",
+        "sessions": "cihazlar, oturumlar, çıkış yap, oturumu kapat",
+        "alerts": "uyarılar, anlık bildirim, rozet, ses",
+        "email": "e-posta, posta",
+        "mentions": "bahsetme, anahtar kelime, vurgu, @room",
+        "background": "önceden getirme, çevrimdışı, önbellek, arka planda yükleme",
+        "cache": "önbellek, yeniden yükle, sıfırla, depolama",
+        "computers": "sunucu, URL, adres, arka uç, tarayıcı",
+        "connections": "Google, GitHub, Notion, entegrasyonlar, OAuth",
+        "sidebar": "şerit, düğmeler, gezinme, simgeler",
+        "archive": "arşiv, gizli odalar",
+        "developer": "hata ayıklama, geliştirici modu, erişim belirteci, hesap verileri",
+        "profile": "profil fotoğrafı, fotoğraf, ad, takma ad",
+        "deactivate": "hesabı sil, hesabı kapat",
+        "localMindroom": "eşleştir, eşleştirme kodu, yerel, masaüstü",
+        "emoji": "emoji, çıkartmalar, paketler, özel emoji"
       }
     },
     "createChat": {

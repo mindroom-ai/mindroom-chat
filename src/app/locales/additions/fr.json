@@ -218,6 +218,66 @@
         "searchDescription": "Le bouton qui ouvre la palette de commandes. Masqué, {{shortcut}} l’ouvre toujours.",
         "localMindroom": "Afficher MindRoom local dans la barre latérale",
         "localMindroomDescription": "Associe MindRoom sur votre ordinateur. Masqué, il reste ici dans les paramètres, sous MindRoom local."
+      },
+      "menu": {
+        "groups": {
+          "you": "Vous",
+          "app": "Cette application",
+          "agents": "Agents et connexions",
+          "help": "Aide et options avancées"
+        },
+        "pages": {
+          "privacy": "Confidentialité et sécurité",
+          "language": "Langue et région",
+          "storage": "Stockage et hors ligne"
+        }
+      },
+      "search": {
+        "placeholder": "Rechercher dans les paramètres"
+      },
+      "scope": {
+        "device": "Cet appareil",
+        "account": "Votre compte (tous les appareils)",
+        "roomPersonal": "Ce salon, pour vous",
+        "roomShared": "Tout le monde dans le salon"
+      },
+      "advanced": "Avancé",
+      "sections": {
+        "display": "Affichage",
+        "privacy": "Confidentialité"
+      },
+      "computers": {
+        "inUse": "Serveur utilisé",
+        "inUseNone": "Aucun défini : les ordinateurs sont désactivés sur cet appareil."
+      },
+      "keywords": {
+        "theme": "mode sombre, mode clair, mode nuit, couleurs",
+        "zoom": "taille du texte, taille de police, échelle, plus grand, plus petit",
+        "layout": "bulles, compact, moderne, densité",
+        "language": "traduction, paramètres régionaux",
+        "time": "horloge, AM, PM, date, heure",
+        "composer": "clavier, raccourci, envoyer, saut de ligne, mise en forme",
+        "receipts": "accusés de lecture, indicateur de saisie, vu, confidentialité",
+        "timeline": "arrivées, départs, invitations, changements de nom, changements d’avatar",
+        "media": "images, vidéos, consommation de données",
+        "links": "liens, aperçu, intégrations",
+        "blocked": "ignorer, bloquer, masquer des personnes",
+        "encryption": "clé de récupération, clé de sécurité, chiffrement, signature croisée, vérifier",
+        "sessions": "appareils, sessions, se déconnecter, déconnexion",
+        "alerts": "alertes, push, badge, son",
+        "email": "e-mail, courriel",
+        "mentions": "mention, mot-clé, surbrillance, @room",
+        "background": "préchargement, hors ligne, cache, chargement en arrière-plan",
+        "cache": "cache, recharger, réinitialiser, stockage",
+        "computers": "serveur, URL, adresse, backend, navigateur",
+        "connections": "Google, GitHub, Notion, intégrations, OAuth",
+        "sidebar": "barre, boutons, navigation, icônes",
+        "archive": "archive, salons masqués",
+        "developer": "débogage, mode développeur, jeton d’accès, données du compte",
+        "profile": "photo de profil, photo, nom, pseudo",
+        "deactivate": "supprimer le compte, fermer le compte",
+        "localMindroom": "associer, code d’association, local, ordinateur",
+        "emoji": "emoji, autocollants, packs, emoji personnalisés"
       }
     },
     "createChat": {

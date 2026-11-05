@@ -210,6 +210,66 @@
         "searchDescription": "コマンドパレットを開くボタンです。非表示にしても {{shortcut}} で開けます。",
         "localMindroom": "サイドバーに Local MindRoom を表示する",
         "localMindroomDescription": "お使いのコンピューターで動く MindRoom をペアリングします。非表示にしても、この設定の Local MindRoom から使えます。"
+      },
+      "menu": {
+        "groups": {
+          "you": "あなた",
+          "app": "このアプリ",
+          "agents": "エージェントと接続",
+          "help": "ヘルプと詳細設定"
+        },
+        "pages": {
+          "privacy": "プライバシーとセキュリティ",
+          "language": "言語と地域",
+          "storage": "ストレージとオフライン"
+        }
+      },
+      "search": {
+        "placeholder": "設定を検索"
+      },
+      "scope": {
+        "device": "このデバイス",
+        "account": "あなたのアカウント（すべてのデバイス）",
+        "roomPersonal": "このルーム（あなただけ）",
+        "roomShared": "ルームの全員"
+      },
+      "advanced": "詳細設定",
+      "sections": {
+        "display": "表示",
+        "privacy": "プライバシー"
+      },
+      "computers": {
+        "inUse": "使用中のサーバー",
+        "inUseNone": "未設定のため、このデバイスではコンピューターはオフです。"
+      },
+      "keywords": {
+        "theme": "ダークモード, ライトモード, ナイトモード, 色, テーマ",
+        "zoom": "文字サイズ, フォントサイズ, 拡大, 縮小",
+        "layout": "バブル, コンパクト, モダン, 密度",
+        "language": "翻訳, ロケール",
+        "time": "時計, 午前, 午後, 日付, 時刻",
+        "composer": "キーボード, ショートカット, 送信, 改行, 書式",
+        "receipts": "既読通知, 入力中の表示, 既読, プライバシー",
+        "timeline": "参加, 退出, 招待, 名前の変更, アバターの変更",
+        "media": "画像, 動画, データ使用量",
+        "links": "リンク, プレビュー, 埋め込み",
+        "blocked": "無視, ブロック, ミュート",
+        "encryption": "リカバリーキー, セキュリティキー, 暗号化, クロス署名, 検証",
+        "sessions": "デバイス, セッション, サインアウト, ログアウト",
+        "alerts": "アラート, プッシュ, バッジ, サウンド",
+        "email": "メール, Eメール",
+        "mentions": "メンション, キーワード, ハイライト, @room",
+        "background": "プリフェッチ, オフライン, キャッシュ, バックグラウンド読み込み",
+        "cache": "キャッシュ, 再読み込み, リセット, ストレージ",
+        "computers": "サーバー, URL, アドレス, バックエンド, ブラウザー",
+        "connections": "Google, GitHub, Notion, 連携, OAuth",
+        "sidebar": "レール, ボタン, ナビゲーション, アイコン",
+        "archive": "アーカイブ, 非表示のルーム",
+        "developer": "デバッグ, 開発者モード, アクセストークン, アカウントデータ",
+        "profile": "プロフィール画像, 写真, 名前, ニックネーム",
+        "deactivate": "アカウント削除, アカウントの解約",
+        "localMindroom": "ペアリング, ペアリングコード, ローカル, デスクトップ",
+        "emoji": "絵文字, ステッカー, パック, カスタム絵文字"
       }
     },
     "createChat": {

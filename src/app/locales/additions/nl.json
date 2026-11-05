@@ -214,6 +214,66 @@
         "searchDescription": "De knop die het commandopalet opent. Verborgen opent {{shortcut}} het nog steeds.",
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
         "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom."
+      },
+      "menu": {
+        "groups": {
+          "you": "Jij",
+          "app": "Deze app",
+          "agents": "Agents & verbindingen",
+          "help": "Hulp & geavanceerd"
+        },
+        "pages": {
+          "privacy": "Privacy & beveiliging",
+          "language": "Taal & regio",
+          "storage": "Opslag & offline"
+        }
+      },
+      "search": {
+        "placeholder": "Instellingen zoeken"
+      },
+      "scope": {
+        "device": "Dit apparaat",
+        "account": "Je account (alle apparaten)",
+        "roomPersonal": "Deze kamer, voor jou",
+        "roomShared": "Iedereen in de kamer"
+      },
+      "advanced": "Geavanceerd",
+      "sections": {
+        "display": "Weergave",
+        "privacy": "Privacy"
+      },
+      "computers": {
+        "inUse": "Server in gebruik",
+        "inUseNone": "Niets ingesteld, dus computers staan uit op dit apparaat."
+      },
+      "keywords": {
+        "theme": "donkere modus, lichte modus, nachtmodus, kleuren",
+        "zoom": "tekstgrootte, lettergrootte, schaal, groter, kleiner",
+        "layout": "bubbels, compact, modern, dichtheid",
+        "language": "vertaling, landinstelling",
+        "time": "klok, AM, PM, datum, tijd",
+        "composer": "toetsenbord, sneltoets, verzenden, nieuwe regel, opmaak",
+        "receipts": "leesbevestigingen, typindicator, gezien, privacy",
+        "timeline": "deelnames, vertrekken, uitnodigingen, naamwijzigingen, avatarwijzigingen",
+        "media": "afbeeldingen, video’s, dataverbruik",
+        "links": "links, voorbeeld, insluitingen",
+        "blocked": "negeren, blokkeren, mensen dempen",
+        "encryption": "herstelsleutel, beveiligingssleutel, versleuteling, cross-signing, verifiëren",
+        "sessions": "apparaten, sessies, afmelden, uitloggen",
+        "alerts": "meldingen, push, badge, geluid",
+        "email": "e-mail, mail",
+        "mentions": "vermelding, trefwoord, markering, @room",
+        "background": "vooraf laden, offline, cache, laden op de achtergrond",
+        "cache": "cache, herladen, resetten, opslag",
+        "computers": "server, URL, adres, backend, browser",
+        "connections": "Google, GitHub, Notion, integraties, OAuth",
+        "sidebar": "balk, knoppen, navigatie, pictogrammen",
+        "archive": "archief, verborgen kamers",
+        "developer": "debug, ontwikkelaarsmodus, toegangstoken, accountgegevens",
+        "profile": "profielfoto, foto, naam, bijnaam",
+        "deactivate": "account verwijderen, account opheffen",
+        "localMindroom": "koppelen, koppelcode, lokaal, desktop",
+        "emoji": "emoji, stickers, pakketten, eigen emoji"
       }
     },
     "createChat": {

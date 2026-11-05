@@ -210,6 +210,66 @@
         "searchDescription": "用於開啟命令面板的按鈕。隱藏後，仍可按 {{shortcut}} 開啟。",
         "localMindroom": "在側邊欄顯示 Local MindRoom",
         "localMindroomDescription": "配對在您電腦上執行的 MindRoom。隱藏後，仍可在此設定中的 Local MindRoom 找到。"
+      },
+      "menu": {
+        "groups": {
+          "you": "你",
+          "app": "此應用程式",
+          "agents": "代理程式與連線",
+          "help": "說明與進階"
+        },
+        "pages": {
+          "privacy": "隱私權與安全性",
+          "language": "語言與地區",
+          "storage": "儲存空間與離線"
+        }
+      },
+      "search": {
+        "placeholder": "搜尋設定"
+      },
+      "scope": {
+        "device": "此裝置",
+        "account": "你的帳號（所有裝置）",
+        "roomPersonal": "此聊天室，僅對你",
+        "roomShared": "聊天室內的所有人"
+      },
+      "advanced": "進階",
+      "sections": {
+        "display": "顯示",
+        "privacy": "隱私權"
+      },
+      "computers": {
+        "inUse": "使用中的伺服器",
+        "inUseNone": "未設定，因此此裝置上的電腦已關閉。"
+      },
+      "keywords": {
+        "theme": "深色模式, 淺色模式, 夜間模式, 顏色",
+        "zoom": "文字大小, 字型大小, 縮放, 放大, 縮小",
+        "layout": "氣泡, 緊湊, 現代, 密度",
+        "language": "翻譯, 地區設定",
+        "time": "時鐘, 上午, 下午, 日期, 時間",
+        "composer": "鍵盤, 快速鍵, 傳送, 換行, 格式",
+        "receipts": "已讀回條, 正在輸入提示, 已讀, 隱私權",
+        "timeline": "加入, 離開, 邀請, 名稱變更, 頭像變更",
+        "media": "圖片, 影片, 數據用量",
+        "links": "連結, 預覽, 嵌入",
+        "blocked": "忽略, 封鎖, 靜音使用者",
+        "encryption": "復原金鑰, 安全金鑰, 加密, 交叉簽署, 驗證",
+        "sessions": "裝置, 工作階段, 登出, 退出",
+        "alerts": "提醒, 推播, 標記, 聲音",
+        "email": "郵件, 電子郵件",
+        "mentions": "提及, 關鍵字, 醒目提示, @room",
+        "background": "預先擷取, 離線, 快取, 背景載入",
+        "cache": "快取, 重新載入, 重設, 儲存空間",
+        "computers": "伺服器, URL, 位址, 後端, 瀏覽器",
+        "connections": "Google, GitHub, Notion, 整合, OAuth",
+        "sidebar": "側欄, 按鈕, 導覽, 圖示",
+        "archive": "封存, 隱藏的聊天室",
+        "developer": "偵錯, 開發者模式, 存取權杖, 帳號資料",
+        "profile": "大頭貼, 照片, 名稱, 暱稱",
+        "deactivate": "刪除帳號, 關閉帳號",
+        "localMindroom": "配對, 配對碼, 本機, 桌面",
+        "emoji": "表情符號, 貼圖, 表情包, 自訂表情符號"
       }
     },
     "createChat": {

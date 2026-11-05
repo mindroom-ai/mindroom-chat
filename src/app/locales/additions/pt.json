@@ -218,6 +218,66 @@
         "searchDescription": "O botão que abre a paleta de comandos. Se o ocultar, {{shortcut}} continua a abri-la.",
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local."
+      },
+      "menu": {
+        "groups": {
+          "you": "Você",
+          "app": "Esta aplicação",
+          "agents": "Agentes e ligações",
+          "help": "Ajuda e avançado"
+        },
+        "pages": {
+          "privacy": "Privacidade e segurança",
+          "language": "Idioma e região",
+          "storage": "Armazenamento e offline"
+        }
+      },
+      "search": {
+        "placeholder": "Pesquisar definições"
+      },
+      "scope": {
+        "device": "Este dispositivo",
+        "account": "A sua conta (todos os dispositivos)",
+        "roomPersonal": "Esta sala, para si",
+        "roomShared": "Todos na sala"
+      },
+      "advanced": "Avançado",
+      "sections": {
+        "display": "Apresentação",
+        "privacy": "Privacidade"
+      },
+      "computers": {
+        "inUse": "Servidor em utilização",
+        "inUseNone": "Nenhum definido, por isso os computadores estão desativados neste dispositivo."
+      },
+      "keywords": {
+        "theme": "modo escuro, modo claro, modo noturno, cores",
+        "zoom": "tamanho do texto, tamanho da letra, escala, maior, menor",
+        "layout": "balões, compacto, moderno, densidade",
+        "language": "tradução, localização",
+        "time": "relógio, AM, PM, data, hora",
+        "composer": "teclado, atalho, enviar, quebra de linha, formatação",
+        "receipts": "recibos de leitura, indicador de escrita, visto, privacidade",
+        "timeline": "entradas, saídas, convites, alterações de nome, alterações de avatar",
+        "media": "imagens, vídeos, consumo de dados",
+        "links": "ligações, pré-visualização, incorporações",
+        "blocked": "ignorar, bloquear, silenciar pessoas",
+        "encryption": "chave de recuperação, chave de segurança, encriptação, assinatura cruzada, verificar",
+        "sessions": "dispositivos, sessões, terminar sessão, sair",
+        "alerts": "alertas, push, emblema, som",
+        "email": "email, correio",
+        "mentions": "menção, palavra-chave, destaque, @room",
+        "background": "pré-carregamento, offline, cache, carregamento em segundo plano",
+        "cache": "cache, recarregar, repor, armazenamento",
+        "computers": "servidor, URL, endereço, backend, navegador",
+        "connections": "Google, GitHub, Notion, integrações, OAuth",
+        "sidebar": "barra, botões, navegação, ícones",
+        "archive": "arquivo, salas ocultas",
+        "developer": "depuração, modo de programador, token de acesso, dados da conta",
+        "profile": "fotografia de perfil, fotografia, nome, alcunha",
+        "deactivate": "eliminar conta, encerrar conta",
+        "localMindroom": "emparelhar, código de emparelhamento, local, computador",
+        "emoji": "emoji, autocolantes, pacotes, emoji personalizados"
       }
     },
     "createChat": {

@@ -210,6 +210,66 @@
         "searchDescription": "用于打开命令面板的按钮。隐藏后，仍可按 {{shortcut}} 打开。",
         "localMindroom": "在侧边栏显示 Local MindRoom",
         "localMindroomDescription": "配对在您电脑上运行的 MindRoom。隐藏后，仍可在此设置中的 Local MindRoom 找到。"
+      },
+      "menu": {
+        "groups": {
+          "you": "你",
+          "app": "此应用",
+          "agents": "智能体与连接",
+          "help": "帮助与高级"
+        },
+        "pages": {
+          "privacy": "隐私与安全",
+          "language": "语言与地区",
+          "storage": "存储与离线"
+        }
+      },
+      "search": {
+        "placeholder": "搜索设置"
+      },
+      "scope": {
+        "device": "此设备",
+        "account": "你的账号（所有设备）",
+        "roomPersonal": "此房间，仅对你",
+        "roomShared": "房间内的所有人"
+      },
+      "advanced": "高级",
+      "sections": {
+        "display": "显示",
+        "privacy": "隐私"
+      },
+      "computers": {
+        "inUse": "正在使用的服务器",
+        "inUseNone": "未设置，因此此设备上的计算机已关闭。"
+      },
+      "keywords": {
+        "theme": "深色模式, 浅色模式, 夜间模式, 颜色",
+        "zoom": "文字大小, 字体大小, 缩放, 放大, 缩小",
+        "layout": "气泡, 紧凑, 现代, 密度",
+        "language": "翻译, 区域设置",
+        "time": "时钟, 上午, 下午, 日期, 时间",
+        "composer": "键盘, 快捷键, 发送, 换行, 格式",
+        "receipts": "已读回执, 正在输入提示, 已读, 隐私",
+        "timeline": "加入, 离开, 邀请, 名称变更, 头像变更",
+        "media": "图片, 视频, 流量",
+        "links": "链接, 预览, 嵌入",
+        "blocked": "忽略, 屏蔽, 静音用户",
+        "encryption": "恢复密钥, 安全密钥, 加密, 交叉签名, 验证",
+        "sessions": "设备, 会话, 退出, 登出",
+        "alerts": "提醒, 推送, 角标, 声音",
+        "email": "邮件, 电子邮箱",
+        "mentions": "提及, 关键词, 高亮, @room",
+        "background": "预取, 离线, 缓存, 后台加载",
+        "cache": "缓存, 重新加载, 重置, 存储",
+        "computers": "服务器, URL, 地址, 后端, 浏览器",
+        "connections": "Google, GitHub, Notion, 集成, OAuth",
+        "sidebar": "侧栏, 按钮, 导航, 图标",
+        "archive": "归档, 隐藏的房间",
+        "developer": "调试, 开发者模式, 访问令牌, 账号数据",
+        "profile": "头像, 照片, 名称, 昵称",
+        "deactivate": "删除账号, 注销账号",
+        "localMindroom": "配对, 配对码, 本地, 桌面",
+        "emoji": "表情, 贴纸, 表情包, 自定义表情"
       }
     },
     "createChat": {

@@ -218,6 +218,66 @@
         "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, {{shortcut}} la apre comunque.",
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
+      },
+      "menu": {
+        "groups": {
+          "you": "Tu",
+          "app": "Questa app",
+          "agents": "Agenti e connessioni",
+          "help": "Aiuto e avanzate"
+        },
+        "pages": {
+          "privacy": "Privacy e sicurezza",
+          "language": "Lingua e area geografica",
+          "storage": "Archiviazione e offline"
+        }
+      },
+      "search": {
+        "placeholder": "Cerca nelle impostazioni"
+      },
+      "scope": {
+        "device": "Questo dispositivo",
+        "account": "Il tuo account (tutti i dispositivi)",
+        "roomPersonal": "Questa stanza, per te",
+        "roomShared": "Tutti nella stanza"
+      },
+      "advanced": "Avanzate",
+      "sections": {
+        "display": "Visualizzazione",
+        "privacy": "Privacy"
+      },
+      "computers": {
+        "inUse": "Server in uso",
+        "inUseNone": "Nessuno impostato, quindi i computer sono disattivati su questo dispositivo."
+      },
+      "keywords": {
+        "theme": "modalità scura, modalità chiara, modalità notte, colori",
+        "zoom": "dimensione del testo, dimensione carattere, scala, più grande, più piccolo",
+        "layout": "fumetti, compatto, moderno, densità",
+        "language": "traduzione, impostazioni locali",
+        "time": "orologio, AM, PM, data, ora",
+        "composer": "tastiera, scorciatoia, invia, a capo, formattazione",
+        "receipts": "conferme di lettura, indicatore di scrittura, visto, privacy",
+        "timeline": "ingressi, uscite, inviti, cambi di nome, cambi di avatar",
+        "media": "immagini, video, consumo di dati",
+        "links": "link, anteprima, incorporamenti",
+        "blocked": "ignora, blocca, silenzia persone",
+        "encryption": "chiave di recupero, chiave di sicurezza, crittografia, firma incrociata, verifica",
+        "sessions": "dispositivi, sessioni, esci, disconnetti",
+        "alerts": "avvisi, push, badge, suono",
+        "email": "email, posta",
+        "mentions": "menzione, parola chiave, evidenziazione, @room",
+        "background": "precaricamento, offline, cache, caricamento in background",
+        "cache": "cache, ricarica, ripristina, archiviazione",
+        "computers": "server, URL, indirizzo, backend, browser",
+        "connections": "Google, GitHub, Notion, integrazioni, OAuth",
+        "sidebar": "barra, pulsanti, navigazione, icone",
+        "archive": "archivio, stanze nascoste",
+        "developer": "debug, modalità sviluppatore, token di accesso, dati dell’account",
+        "profile": "immagine del profilo, foto, nome, soprannome",
+        "deactivate": "elimina account, chiudi account",
+        "localMindroom": "associa, codice di associazione, locale, desktop",
+        "emoji": "emoji, sticker, pacchetti, emoji personalizzate"
       }
     },
     "createChat": {

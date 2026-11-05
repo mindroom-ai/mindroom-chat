@@ -210,6 +210,66 @@
         "searchDescription": "Tombol yang membuka palet perintah. Saat disembunyikan, {{shortcut}} tetap membukanya.",
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
         "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal."
+      },
+      "menu": {
+        "groups": {
+          "you": "Anda",
+          "app": "Aplikasi ini",
+          "agents": "Agen & koneksi",
+          "help": "Bantuan & lanjutan"
+        },
+        "pages": {
+          "privacy": "Privasi & keamanan",
+          "language": "Bahasa & wilayah",
+          "storage": "Penyimpanan & luring"
+        }
+      },
+      "search": {
+        "placeholder": "Cari pengaturan"
+      },
+      "scope": {
+        "device": "Perangkat ini",
+        "account": "Akun Anda (semua perangkat)",
+        "roomPersonal": "Ruangan ini, untuk Anda",
+        "roomShared": "Semua orang di ruangan"
+      },
+      "advanced": "Lanjutan",
+      "sections": {
+        "display": "Tampilan",
+        "privacy": "Privasi"
+      },
+      "computers": {
+        "inUse": "Server yang digunakan",
+        "inUseNone": "Belum diatur, jadi komputer nonaktif di perangkat ini."
+      },
+      "keywords": {
+        "theme": "mode gelap, mode terang, mode malam, warna",
+        "zoom": "ukuran teks, ukuran huruf, skala, lebih besar, lebih kecil",
+        "layout": "gelembung, ringkas, modern, kerapatan",
+        "language": "terjemahan, lokal",
+        "time": "jam, AM, PM, tanggal, waktu",
+        "composer": "keyboard, pintasan, kirim, baris baru, format",
+        "receipts": "tanda dibaca, indikator mengetik, dilihat, privasi",
+        "timeline": "bergabung, keluar, undangan, perubahan nama, perubahan avatar",
+        "media": "gambar, video, penggunaan data",
+        "links": "tautan, pratinjau, sematan",
+        "blocked": "abaikan, blokir, bisukan orang",
+        "encryption": "kunci pemulihan, kunci keamanan, enkripsi, penandatanganan silang, verifikasi",
+        "sessions": "perangkat, sesi, keluar, log keluar",
+        "alerts": "peringatan, push, lencana, suara",
+        "email": "email, surel",
+        "mentions": "sebutan, kata kunci, sorotan, @room",
+        "background": "prefetch, luring, cache, pemuatan latar belakang",
+        "cache": "cache, muat ulang, setel ulang, penyimpanan",
+        "computers": "server, URL, alamat, backend, peramban",
+        "connections": "Google, GitHub, Notion, integrasi, OAuth",
+        "sidebar": "rel, tombol, navigasi, ikon",
+        "archive": "arsip, ruangan tersembunyi",
+        "developer": "debug, mode pengembang, token akses, data akun",
+        "profile": "foto profil, foto, nama, nama panggilan",
+        "deactivate": "hapus akun, tutup akun",
+        "localMindroom": "pasangkan, kode pemasangan, lokal, desktop",
+        "emoji": "emoji, stiker, paket, emoji kustom"
       }
     },
     "createChat": {

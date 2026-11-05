@@ -214,6 +214,66 @@
         "searchDescription": "Die Schaltfläche, die die Befehlspalette öffnet. Ausgeblendet öffnet {{shortcut}} sie weiterhin.",
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“."
+      },
+      "menu": {
+        "groups": {
+          "you": "Du",
+          "app": "Diese App",
+          "agents": "Agenten & Verbindungen",
+          "help": "Hilfe & Erweitert"
+        },
+        "pages": {
+          "privacy": "Datenschutz & Sicherheit",
+          "language": "Sprache & Region",
+          "storage": "Speicher & Offline"
+        }
+      },
+      "search": {
+        "placeholder": "Einstellungen durchsuchen"
+      },
+      "scope": {
+        "device": "Dieses Gerät",
+        "account": "Dein Konto (alle Geräte)",
+        "roomPersonal": "Dieser Raum, für dich",
+        "roomShared": "Alle im Raum"
+      },
+      "advanced": "Erweitert",
+      "sections": {
+        "display": "Anzeige",
+        "privacy": "Datenschutz"
+      },
+      "computers": {
+        "inUse": "Verwendeter Server",
+        "inUseNone": "Keiner festgelegt, daher sind Computer auf diesem Gerät aus."
+      },
+      "keywords": {
+        "theme": "Dunkelmodus, Hellmodus, Nachtmodus, Farben, dark mode",
+        "zoom": "Textgröße, Schriftgröße, Skalierung, größer, kleiner",
+        "layout": "Blasen, kompakt, modern, Dichte",
+        "language": "Übersetzung, Gebietsschema",
+        "time": "Uhr, AM, PM, Datum, Uhrzeit",
+        "composer": "Tastatur, Tastenkürzel, senden, Zeilenumbruch, Formatierung",
+        "receipts": "Lesebestätigungen, Tippanzeige, gesehen, Privatsphäre",
+        "timeline": "Beitritte, Austritte, Einladungen, Namensänderungen, Avataränderungen",
+        "media": "Bilder, Videos, Datenverbrauch",
+        "links": "Links, Vorschau, Einbettungen",
+        "blocked": "ignorieren, blockieren, Personen stummschalten",
+        "encryption": "Wiederherstellungsschlüssel, Sicherheitsschlüssel, Verschlüsselung, Cross-Signing, verifizieren",
+        "sessions": "Geräte, Sitzungen, abmelden, ausloggen",
+        "alerts": "Hinweise, Push, Badge, Ton",
+        "email": "E-Mail, Mail",
+        "mentions": "Erwähnung, Stichwort, Hervorhebung, @room",
+        "background": "Vorabladen, offline, Cache, Laden im Hintergrund",
+        "cache": "Cache, neu laden, zurücksetzen, Speicher",
+        "computers": "Server, URL, Adresse, Backend, Browser",
+        "connections": "Google, GitHub, Notion, Integrationen, OAuth",
+        "sidebar": "Leiste, Schaltflächen, Navigation, Symbole",
+        "archive": "Archiv, ausgeblendete Räume",
+        "developer": "Debug, Entwicklermodus, Zugriffstoken, Kontodaten",
+        "profile": "Profilbild, Foto, Name, Spitzname",
+        "deactivate": "Konto löschen, Konto schließen",
+        "localMindroom": "koppeln, Kopplungscode, lokal, Desktop",
+        "emoji": "Emoji, Sticker, Pakete, eigene Emoji"
       }
     },
     "createChat": {
