@@ -11,8 +11,8 @@ import {
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   voiceAutoSendPendingAtom,
-  type TUploadItem,
 } from '../../state/room/roomInputDrafts';
+import type { TUploadItem } from '../../state/upload';
 import { agentCallFailureAtom } from '../../mindroom/calls/agentCaller';
 import {
   initClient,

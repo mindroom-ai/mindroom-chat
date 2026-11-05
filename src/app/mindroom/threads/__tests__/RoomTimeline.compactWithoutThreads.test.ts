@@ -19,7 +19,7 @@ const renderRoom = async (
   room: ReturnType<typeof makeRoom>,
   initialViewMode: 'compact' | 'threaded'
 ) => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
   await act(async () => {
@@ -34,7 +34,7 @@ const renderRoom = async (
 const nodesOf = (renderer: ReturnType<typeof create>, type: unknown) =>
   renderer.root.findAll((node) => node.type === type);
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline Compact room without threads', () => {
   // The header names the room, so its start says there is no thread instead of repeating the

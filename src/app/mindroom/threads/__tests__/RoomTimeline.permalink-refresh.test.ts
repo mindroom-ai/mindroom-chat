@@ -27,7 +27,7 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline', () => {
   describe('permalink focus and timeline refresh', () => {
@@ -242,7 +242,7 @@ describe('RoomTimeline', () => {
       });
 
       it('redirects compact-room permalinks into thread view', async () => {
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
         const room = makeRoom({
@@ -270,7 +270,7 @@ describe('RoomTimeline', () => {
       });
 
       it('redirects a permalink to a thread reply the client has not loaded into its thread', async () => {
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
         const room = makeRoom({ liveEvents: [threadRoot] });
@@ -316,7 +316,7 @@ describe('RoomTimeline', () => {
         // The open that came back already handled the event; the first answer must not redo it.
         ['drops its event and comes back', [undefined, '$unloaded-reply'], {}],
       ])('drops a late lookup when the route %s', async (_case, nextEventIds, lateAnswer) => {
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
         const laterMessage = makeEvent('$later-message');
@@ -382,7 +382,7 @@ describe('RoomTimeline', () => {
       });
 
       it('keeps synthetic room-focus permalinks in compact room view', async () => {
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
         const room = makeRoom({
@@ -410,7 +410,7 @@ describe('RoomTimeline', () => {
       });
 
       it('bypasses room overview filters for synthetic room-focus routes when the focused root is hidden', async () => {
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const threadRoot = makeEvent('$thread-root', { isThreadRoot: true });
         const room = makeRoom({
@@ -443,7 +443,7 @@ describe('RoomTimeline', () => {
       });
 
       it('keeps synthetic room-focus permalinks in room-overview order for visible roots in natural mode', async () => {
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         const filler = makeEvent('$filler');
         const firstThreadRoot = makeEvent('$thread-root-1', { isThreadRoot: true });
@@ -813,7 +813,7 @@ describe('RoomTimeline', () => {
 
       it('shows Jump to Latest when timeline is not at live end (non-live navigation)', async () => {
         isTimelineAtLiveEndMock.mockReturnValue(false);
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const room = makeRoom({ liveEvents: [makeEvent('$1')] });
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         let renderer: ReturnType<typeof create> | undefined;
@@ -842,7 +842,7 @@ describe('RoomTimeline', () => {
 
       it('recovery effect hides Jump to Latest when anchor is visible and timelineAtLiveEnd flips to true', async () => {
         isTimelineAtLiveEndMock.mockReturnValue(false);
-        const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+        const { RoomTimeline } = await import('../MindroomRoomTimeline');
         const room = makeRoom({ liveEvents: [makeEvent('$1')] });
         const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
         let renderer: ReturnType<typeof create> | undefined;

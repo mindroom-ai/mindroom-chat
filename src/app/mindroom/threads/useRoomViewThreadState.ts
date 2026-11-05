@@ -46,7 +46,7 @@ import {
 import { roomThreadFilterAtomFamily } from './roomThreadFilterState';
 import type { RoomViewMode } from './roomViewMode';
 import { applyParsedThreadFilterQuery, parseThreadFilterQuery } from './threadFilterDsl';
-import { useRoomThreadSummaryState } from './threadSummaryStore';
+import { useRoomThreadSummaryState } from './useRoomThreadSummaryState';
 import { toggleThreadPerson } from './threadPeopleFilter';
 import { useThreadRootEvent } from './useThreadRootEvent';
 import { isConfirmedMatrixEventId, isLocalEchoEventId } from './threadRouteUtils';

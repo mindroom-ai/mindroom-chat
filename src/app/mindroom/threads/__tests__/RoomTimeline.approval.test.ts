@@ -25,11 +25,11 @@ const findElementInNode = (
     .find((child): child is ReactElement => child !== undefined);
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline approval rendering', () => {
   it('renders thread summary and thread metadata for approval events', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const approvalEvent = makeEvent('$approval', {
       type: 'io.mindroom.tool_approval',
@@ -107,7 +107,7 @@ describe('RoomTimeline approval rendering', () => {
   });
 
   it('renders no thread badge for approval roots with empty thread metadata', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const approvalEvent = makeEvent('$approval', {
       type: 'io.mindroom.tool_approval',
@@ -164,7 +164,7 @@ describe('RoomTimeline approval rendering', () => {
   });
 
   it('routes decrypted encrypted approval events through the approval renderer', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const encryptedApprovalEvent = makeEvent('$encrypted-approval', {
       type: MessageEvent.RoomMessageEncrypted,

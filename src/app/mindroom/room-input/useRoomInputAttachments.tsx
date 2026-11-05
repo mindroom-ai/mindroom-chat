@@ -20,10 +20,14 @@ import {
   roomIdToMsgDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
+} from '../../state/room/roomInputDrafts';
+import {
+  createUploadFamilyObserverAtom,
   type TUploadItem,
   type TUploadMetadata,
-} from '../../state/room/roomInputDrafts';
-import { createUploadFamilyObserverAtom, type Upload, UploadStatus } from '../../state/upload';
+  type Upload,
+  UploadStatus,
+} from '../../state/upload';
 import { getDataTransferFiles } from '../../utils/dom';
 import type { TUploadContent } from '../../utils/matrix';
 import {

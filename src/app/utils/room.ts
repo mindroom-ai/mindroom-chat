@@ -14,7 +14,7 @@ import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { MessageEvent, MsgType, RoomType, StateEvent } from '../../types/matrix/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
-import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editResolution';
+import { copyMindroomResolvedEditMetadata } from '../mindroom/messages/editMetadata';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../mindroom/messages/toolApproval';
 import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';

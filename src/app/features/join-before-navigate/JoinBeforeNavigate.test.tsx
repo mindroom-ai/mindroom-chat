@@ -95,11 +95,6 @@ vi.mock('../../hooks/useScreenSize', () => ({
   useScreenSizeContext: () => 'Desktop',
 }));
 
-vi.mock('../../mindroom/native/MindroomBackRouteHandler', () => ({
-  MindroomBackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
-    children(vi.fn()),
-}));
-
 vi.mock('jotai', async () => {
   const actual = await vi.importActual<typeof import('jotai')>('jotai');
   return {

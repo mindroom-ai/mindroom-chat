@@ -4,7 +4,7 @@ import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
 import { Menu } from '../../components/glass/GlassPrimitives';
 import { RenderMessageContent } from '../../components/RenderMessageContent';
-import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
+import { usePinnedEventIds as useRoomPinnedEvents } from '../threads/useThreadPinning';
 import { useSetting } from '../../state/hooks/settings';
 import { settingsAtom } from '../../state/settings';
 import { getEditedEvent, getMemberDisplayName } from '../../utils/room';

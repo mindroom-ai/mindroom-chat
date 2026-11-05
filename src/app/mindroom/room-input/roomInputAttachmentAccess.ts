@@ -1,5 +1,4 @@
-import type { TUploadItem } from '../../state/room/roomInputDrafts';
-import type { Upload } from '../../state/upload';
+import type { TUploadItem, Upload } from '../../state/upload';
 import type { TUploadContent } from '../../utils/matrix';
 
 export type AttachmentSnapshot = {

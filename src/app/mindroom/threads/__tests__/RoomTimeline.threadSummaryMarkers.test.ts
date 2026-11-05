@@ -26,11 +26,11 @@ const summary = (id: string, text: string, ts: number) =>
     },
   });
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('thread summary markers', () => {
   it('hides a repeated summary and marks the others in an open thread', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const { MindroomThreadSummaryMarker } = await import(
       '../../messages/MindroomThreadSummaryMarker'
     );
@@ -82,7 +82,7 @@ describe('thread summary markers', () => {
   });
 
   it('keeps a repeated summary visible after the route that opened it moves on', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });
     const events = [
       rootEvent,
@@ -127,7 +127,7 @@ describe('thread summary markers', () => {
   });
 
   it('compares a summary by its latest edit, as its row shows it', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const { MindroomThreadSummaryMarker } = await import(
       '../../messages/MindroomThreadSummaryMarker'
     );

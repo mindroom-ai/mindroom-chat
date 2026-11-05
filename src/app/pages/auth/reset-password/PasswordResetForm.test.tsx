@@ -36,10 +36,6 @@ vi.mock('../../../hooks/useAutoDiscoveryInfo', () => ({
   useAutoDiscoveryInfo: () => ({ 'm.homeserver': { base_url: 'https://example.test' } }),
 }));
 vi.mock('../../../hooks/useAuthServer', () => ({ useAuthServer: () => 'example.test' }));
-vi.mock('../../../hooks/usePasswordEmail', async () => {
-  const { AsyncStatus } = await import('../../../hooks/useAsyncCallback');
-  return { usePasswordEmail: () => [{ status: AsyncStatus.Idle }, vi.fn()] };
-});
 vi.mock('../../../hooks/useAsyncCallback', async () => {
   const actual = await vi.importActual<typeof import('../../../hooks/useAsyncCallback')>(
     '../../../hooks/useAsyncCallback'
@@ -55,15 +51,9 @@ vi.mock('../../../hooks/useAsyncCallback', async () => {
 vi.mock('../../../components/password-input', () => ({
   PasswordInput: React.forwardRef((props, ref) => <input ref={ref} {...props} />),
 }));
-vi.mock('../../../components/ConfirmPasswordMatch', () => ({
-  ConfirmPasswordMatch: ({ children }: { children: (...args: unknown[]) => React.ReactNode }) =>
-    children(true, vi.fn(), React.createRef(), React.createRef()),
-}));
 vi.mock('../FiledError', () => ({
   FieldError: ({ message }: { message: string }) => <div data-field-error={message} />,
 }));
-vi.mock('../../../components/UIAFlowOverlay', () => ({ UIAFlowOverlay: () => null }));
-vi.mock('../../../components/uia-stages', () => ({ EmailStageDialog: () => null }));
 
 describe('PasswordResetForm', () => {
   it('updates the generic reset failure after a language change', async () => {

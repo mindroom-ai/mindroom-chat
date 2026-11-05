@@ -15,7 +15,7 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('new thread history', () => {
   it.each(['empty terminal page', 'older reply', 'request failure'])(
@@ -28,7 +28,7 @@ describe('new thread history', () => {
       vi.mocked(reconcileThreadBackwardPagination).mockImplementation(
         paginationUtils.reconcileThreadBackwardPagination
       );
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const { RoomTimeline } = await import('../MindroomRoomTimeline');
       const threadId = '$new-root';
       const root = makeEvent(threadId, { ts: 1 });
       const reply = makeEvent('$older-reply', {

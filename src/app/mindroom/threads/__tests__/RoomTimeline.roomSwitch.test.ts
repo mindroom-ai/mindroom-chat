@@ -44,7 +44,7 @@ const findJumpToUnread = (renderer: ReturnType<typeof create>) => {
 };
 
 const renderTimeline = async (room: TestRoom, threadId?: string) => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
   await act(async () => {
@@ -60,7 +60,7 @@ const renderTimeline = async (room: TestRoom, threadId?: string) => {
   return { renderer: renderer!, show };
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline across room switches', () => {
   it("does not carry one room's Jump to Unread into the next room", async () => {

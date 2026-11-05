@@ -129,11 +129,6 @@ vi.mock('./SyncStatus', () => ({
   SyncStatus: () => React.createElement('div', null, 'sync'),
 }));
 
-vi.mock('../../hooks/useAuthMetadata', () => ({
-  AuthMetadataProvider: ({ children }: { children: React.ReactNode }) =>
-    React.createElement('div', null, children),
-}));
-
 vi.mock('../../hooks/useSessionStore', () => ({
   useActiveSession: vi.fn(),
 }));

@@ -10,7 +10,7 @@ import { clearThreadSidebarPreferencesStore } from '../recent-threads/threadSide
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../threads/roomViewMode';
-import { clearThreadSummarySharedState } from '../threads/threadSummaryStore';
+import { clearThreadSummarySharedState } from '../threads/threadSummaryState';
 import {
   deleteCacheStoreDb,
   getCacheStoreDbName,
@@ -92,7 +92,7 @@ vi.mock('../threads/roomViewMode', () => ({
   clearRoomViewModeStore: vi.fn(),
 }));
 
-vi.mock('../threads/threadSummaryStore', () => ({
+vi.mock('../threads/threadSummaryState', () => ({
   clearThreadSummarySharedState: vi.fn(),
 }));
 

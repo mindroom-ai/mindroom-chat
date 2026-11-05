@@ -81,7 +81,7 @@ const makeThreadRoom = () => {
 };
 
 const setup = async () => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const Harness = ({ room }: { room: ReturnType<typeof makeRoom> }) => {
     const [threadFilterState, setThreadFilterState] = React.useState(
       createDefaultThreadFilterState()
@@ -145,7 +145,7 @@ const setup = async () => {
   return { ...roomState, renderer: renderer!, overview, type, toggle, preset, settle };
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline filter query wiring', () => {
   beforeEach(() => {

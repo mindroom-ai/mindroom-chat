@@ -6,8 +6,8 @@ import {
   resetEditorHistory,
   restoreEditorContent,
 } from '../../components/editor/utils';
-import { IReplyDraft, TUploadItem } from '../../state/room/roomInputDrafts';
-import { Upload } from '../../state/upload';
+import { IReplyDraft } from '../../state/room/roomInputDrafts';
+import { TUploadItem, Upload } from '../../state/upload';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 import { TUploadContent } from '../../utils/matrix';
 import { isSignalBridgeRoom } from '../bridges/bridgeDetection';

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { MINDROOM_SCHEDULED_TASK_EVENT } from './scheduledTaskContract';
-import { useThreadScheduledTasks } from './useThreadScheduledTasks';
+import { useThreadScheduledStatus } from './useThreadScheduledStatus';
 import { useStateEvents } from './useStateEvents';
 
 vi.mock('./useStateEvents', () => ({
@@ -53,7 +53,7 @@ type HarnessProps = {
 };
 
 function Harness({ room, threadRootId, onRender }: HarnessProps) {
-  onRender(useThreadScheduledTasks(room, threadRootId));
+  onRender(useThreadScheduledStatus(room, threadRootId).scheduledTaskCount);
   return null;
 }
 

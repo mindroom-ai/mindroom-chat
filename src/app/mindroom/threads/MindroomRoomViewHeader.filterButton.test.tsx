@@ -39,7 +39,7 @@ vi.mock('../../hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set()
 vi.mock('../../hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ action: () => false, event: () => false }),
 }));
-vi.mock('../../hooks/useRoomPinnedEvents', () => ({ useRoomPinnedEvents: () => [] }));
+vi.mock('./useThreadPinning', () => ({ usePinnedEventIds: () => [] }));
 vi.mock('../../hooks/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));

@@ -102,14 +102,6 @@ vi.mock('../../utils/common', () => ({
   nameInitials: () => 'ES',
 }));
 
-vi.mock('../../components/UseStateProvider', () => ({
-  UseStateProvider: ({
-    children,
-  }: {
-    children: (state: boolean, setState: (value: boolean) => void) => React.ReactNode;
-  }) => React.createElement(React.Fragment, null, children(false, vi.fn())),
-}));
-
 vi.mock('../../components/leave-space-prompt', () => ({
   LeaveSpacePrompt: () => React.createElement('div'),
 }));
@@ -125,11 +117,6 @@ vi.mock('../../hooks/useScreenSize', () => ({
     Mobile: 'Mobile',
   },
   useScreenSizeContext: () => screenSizeState.value,
-}));
-
-vi.mock('../../mindroom/native/MindroomBackRouteHandler', () => ({
-  MindroomBackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children(vi.fn())),
 }));
 
 vi.mock('../../utils/matrix', () => ({

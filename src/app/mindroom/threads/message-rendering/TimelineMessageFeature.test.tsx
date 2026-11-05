@@ -114,7 +114,7 @@ const mountFeature = async (rows: TimelineMessageRow[], threadId?: string) => {
   };
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('timeline message feature', () => {
   it('shares framing while retaining message, approval and sticker edit/reply policy', async () => {
@@ -203,7 +203,7 @@ describe('timeline message feature', () => {
   });
 
   it('keeps predecessor capture in the real timeline render batch', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const root = makeEvent('$root');
     const first = makeEvent('$first', { threadRootId: '$root' });

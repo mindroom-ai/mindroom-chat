@@ -47,7 +47,6 @@ vi.mock('folds', () => ({
 }));
 
 vi.mock('jotai', () => ({ useAtomValue: () => new Map() }));
-vi.mock('react-colorful', () => ({ HexColorPicker: () => null }));
 vi.mock('../../../components/page', () => ({
   PageScroll: ({ header, children }: React.PropsWithChildren<{ header?: React.ReactNode }>) =>
     React.createElement('div', null, header, children),
@@ -74,35 +73,8 @@ vi.mock('../../../components/setting-tile', () => ({
     after?: React.ReactNode;
   }) => React.createElement('section', null, before, title, description, after),
 }));
-vi.mock('../../../components/HexColorPickerPopOut', () => ({
-  HexColorPickerPopOut: ({
-    children,
-  }: {
-    children: (open: () => void, opened: boolean) => React.ReactNode;
-  }) => children(() => undefined, false),
-}));
-vi.mock('../../../components/power', () => ({
-  PowerColorBadge: () => null,
-  PowerIcon: () => null,
-}));
-vi.mock('../../../components/UseStateProvider', () => ({
-  UseStateProvider: ({
-    initial,
-    children,
-  }: {
-    initial: unknown;
-    children: (
-      value: unknown,
-      setValue: React.Dispatch<React.SetStateAction<unknown>>
-    ) => React.ReactNode;
-  }) => {
-    const [value, setValue] = React.useState(initial);
-    return children(value, setValue);
-  },
-}));
 vi.mock('../../../components/emoji-board', () => ({ EmojiBoard: () => null }));
 vi.mock('../../../components/upload-card', () => ({ CompactUploadCardRenderer: () => null }));
-vi.mock('../../../components/BetaNoticeBadge', () => ({ BetaNoticeBadge: () => null }));
 vi.mock('../../../hooks/useImagePackRooms', () => ({ useImagePackRooms: () => [] }));
 vi.mock('../../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));
 vi.mock('../../../hooks/useFilePicker', () => ({ useFilePicker: () => vi.fn() }));

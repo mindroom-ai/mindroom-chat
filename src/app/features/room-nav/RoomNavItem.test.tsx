@@ -97,13 +97,6 @@ vi.mock('../../components/unread-badge', async () => {
   };
 });
 
-vi.mock('../../components/typing-indicator', async () => {
-  const reactModule = await import('react');
-  return {
-    TypingIndicator: () => reactModule.createElement('span'),
-  };
-});
-
 vi.mock('../../components/RoomNotificationSwitcher', () => ({
   RoomNotificationModeSwitcher: () => null,
 }));
@@ -114,10 +107,6 @@ vi.mock('../../components/invite-user-prompt', () => ({
 
 vi.mock('../../components/leave-room-prompt', () => ({
   LeaveRoomPrompt: () => null,
-}));
-
-vi.mock('../../components/UseStateProvider', () => ({
-  UseStateProvider: () => null,
 }));
 
 vi.mock('../../mindroom/notifications/MindroomMarkRoomReadMenuItem', () => ({

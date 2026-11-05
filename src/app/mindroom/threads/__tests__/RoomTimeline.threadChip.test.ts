@@ -47,7 +47,7 @@ const reply = (eventId: string, rootId: string) =>
   });
 
 const renderTimeline = async (room: ReturnType<typeof makeRoom>) => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: Renderer | undefined;
   await act(async () => {
@@ -58,7 +58,7 @@ const renderTimeline = async (room: ReturnType<typeof makeRoom>) => {
   return renderer;
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline thread chip', () => {
   it('shows a chip under a root with replies and none under a message without any', async () => {

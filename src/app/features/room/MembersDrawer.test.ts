@@ -110,11 +110,6 @@ vi.mock('../../components/page/style.css', () => ({
   PageScrollToTop: 'scroll-to-top',
 }));
 
-// The live browser spec exercises real layout/ResizeObserver behavior.
-vi.mock('../../hooks/useElementSizeObserver', () => ({
-  useElementSizeObserver: () => undefined,
-}));
-
 vi.mock('./MembersDrawer.css', () => ({
   DrawerVirtualItem: 'DrawerVirtualItem',
   MemberDrawerContentBase: 'MemberDrawerContentBase',
@@ -202,10 +197,6 @@ vi.mock('../../hooks/useRoomPermissions', () => ({
   }),
 }));
 
-vi.mock('../../hooks/useMemberPowerCompare', () => ({
-  useMemberPowerCompare: () => ({ hasMorePower: () => true }),
-}));
-
 vi.mock('../../state/hooks/settings', () => ({
   useSetting: () => [0, vi.fn()],
 }));
@@ -230,10 +221,6 @@ vi.mock('../../hooks/useSpace', () => ({
 vi.mock('../../components/scroll-top-container', () => ({
   ScrollTopContainer: ({ children }: { children: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
-}));
-
-vi.mock('../../components/typing-indicator', () => ({
-  TypingIndicator: () => React.createElement('div'),
 }));
 
 vi.mock('../../components/user-avatar', () => ({
@@ -288,10 +275,6 @@ vi.mock('../../utils/room', () => ({
 vi.mock('../../utils/matrix', () => ({
   getMxIdLocalPart: (mxId: string) => mxId.split(':')[0]?.replace('@', '') ?? mxId,
   mxcUrlToHttp: () => undefined,
-}));
-
-vi.mock('../../plugins/millify', () => ({
-  millify: (value: number) => String(value),
 }));
 
 const createRoom = (invitedCount = 0): Room =>

@@ -10,7 +10,7 @@ import { useMatrixClient } from '../../hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../hooks/useMediaAuthentication';
 import { useRelativeTime } from '../../hooks/useRelativeTime';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
-import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
+import { usePinnedEventIds as useRoomPinnedEvents } from '../threads/useThreadPinning';
 import type { CrossRoomThreadIndexEntry } from '../cross-room-threads/crossRoomThreadIndex';
 import { buildCompactThreadCardViewModelFromRecord } from '../threads/compactThreadCardViewModel';
 import { useInitializeShownThread } from '../threads/useInitializeShownThread';

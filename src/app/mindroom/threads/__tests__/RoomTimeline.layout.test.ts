@@ -19,11 +19,11 @@ const findTimelineContentBox = (renderer: ReturnType<typeof create>) => {
   return matches[0];
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline layout', () => {
   it('top-aligns short active thread timelines', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const threadRoot = makeEvent('$thread-root');
     threadRenderStateMock.threadEvents = [threadRoot];
@@ -45,7 +45,7 @@ describe('RoomTimeline layout', () => {
   });
 
   it('keeps normal room timelines bottom-aligned', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const room = makeRoom({ liveEvents: [makeEvent('$message')] });
 

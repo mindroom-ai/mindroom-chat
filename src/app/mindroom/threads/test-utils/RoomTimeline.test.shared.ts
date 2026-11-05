@@ -294,10 +294,6 @@ vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => new Set(),
 }));
 
-vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
-  useRoomCreatorsTag: () => [],
-}));
-
 vi.mock('../../../hooks/usePowerLevelTags', () => ({
   usePowerLevelTags: () => [],
 }));
@@ -332,10 +328,6 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
 
 vi.mock('../../../hooks/useMentionClickHandler', () => ({
   useMentionClickHandler: () => vi.fn(),
-}));
-
-vi.mock('../../../hooks/useSpoilerClickHandler', () => ({
-  useSpoilerClickHandler: () => vi.fn(),
 }));
 
 vi.mock('../../../state/hooks/userRoomProfile', () => ({
@@ -661,45 +653,6 @@ vi.mock('../../messages/MindroomThreadSummaryMarker.css', () => ({
   Marker: 'Marker',
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
-}));
-
-vi.mock('../../../features/room/message', () => ({
-  Reactions: passthrough,
-  Message: ({ children, ...props }: { children?: React.ReactNode; [key: string]: unknown }) =>
-    React.createElement(
-      passthrough,
-      {
-        ...props,
-        eventId:
-          typeof props['data-message-id'] === 'string' ? props['data-message-id'] : props.eventId,
-      },
-      children
-    ),
-  Event: passthrough,
-  EncryptedContent: ({
-    mEvent,
-    children,
-  }: {
-    mEvent: {
-      __renderInsideEncryptedContentAs?: string;
-      getType: () => string;
-    };
-    children: (() => React.ReactNode) | React.ReactNode;
-  }) => {
-    if (typeof children !== 'function') return React.createElement(React.Fragment, null, children);
-
-    const renderType = mEvent.__renderInsideEncryptedContentAs;
-    if (!renderType) return React.createElement(React.Fragment, null, children());
-
-    const getType = mEvent.getType;
-    mEvent.getType = () => renderType;
-
-    try {
-      return React.createElement(React.Fragment, null, children());
-    } finally {
-      mEvent.getType = getType;
-    }
-  },
 }));
 
 vi.mock('../../../features/room/message/Reactions', () => ({

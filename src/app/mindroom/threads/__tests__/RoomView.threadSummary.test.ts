@@ -107,10 +107,6 @@ vi.mock('../../../components/editor', () => ({
   useEditor: () => ({}),
 }));
 
-vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
-  RoomInputPlaceholder: passthrough,
-}));
-
 vi.mock('../MindroomRoomTimeline', () => ({
   RoomTimeline: (props: MockRoomTimelineProps) => {
     const { threadHeader } = props;
@@ -138,10 +134,6 @@ vi.mock('../../../features/room/RoomViewFollowing', () => ({
 
 vi.mock('../../../components/page', () => ({
   Page: passthrough,
-}));
-
-vi.mock('../../../features/room/RoomViewHeader', () => ({
-  RoomViewHeader: passthrough,
 }));
 
 vi.mock('../MindroomRoomViewHeader', () => ({
@@ -235,7 +227,7 @@ describe('RoomView thread summary sharing', () => {
   });
 
   it('shows cached summary first and upgrades banner and room state when a newer live summary arrives', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = {
       roomId: '!room:example.org',
       getThread: () => undefined,

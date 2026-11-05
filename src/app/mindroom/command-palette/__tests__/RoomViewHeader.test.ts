@@ -131,21 +131,8 @@ vi.mock('../../../components/room-avatar', () => ({
   RoomIcon: () => React.createElement('div'),
 }));
 
-vi.mock('../../../components/UseStateProvider', () => ({
-  UseStateProvider: ({
-    children,
-  }: {
-    children: (state: boolean, setState: (value: boolean) => void) => React.ReactNode;
-  }) => React.createElement(React.Fragment, null, children(false, vi.fn())),
-}));
-
 vi.mock('../../../components/room-topic-viewer', () => ({
   RoomTopicViewer: () => React.createElement('div'),
-}));
-
-vi.mock('../../native/MindroomBackRouteHandler', () => ({
-  MindroomBackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children(vi.fn())),
 }));
 
 vi.mock('../../../components/leave-room-prompt', () => ({
@@ -281,12 +268,8 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
-  useRoomPinnedEvents: () => [],
-}));
-
-vi.mock('../../../features/room/room-pin-menu', () => ({
-  RoomPinMenu: () => React.createElement('div'),
+vi.mock('../../threads/useThreadPinning', () => ({
+  usePinnedEventIds: () => [],
 }));
 
 vi.mock('../../messages/MindroomRoomPinMenu', () => ({
@@ -350,7 +333,7 @@ const renderHeader = async (
   } = {}
 ) => {
   const store = createStore();
-  const { RoomViewHeader } = await import('../../../features/room/RoomViewHeader');
+  const { RoomViewHeader } = await import('../../threads/MindroomRoomViewHeader');
   const renderer = create(
     React.createElement(
       Provider,
@@ -375,7 +358,7 @@ afterEach(() => {
   permissionState.canKick = true;
 });
 
-importBeforeTests(() => import('../../../features/room/RoomViewHeader'));
+importBeforeTests(() => import('../../threads/MindroomRoomViewHeader'));
 
 describe('RoomViewHeader', () => {
   it('hides schedules without agents', async () => {

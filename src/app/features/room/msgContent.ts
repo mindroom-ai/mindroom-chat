@@ -9,7 +9,7 @@ import {
   MATRIX_VOICE_MESSAGE_PROPERTY_NAME,
   MATRIX_VOICE_MESSAGE_UNSTABLE_PROPERTY_NAME,
 } from '../../../types/matrix/common';
-import type { TUploadItem } from '../../state/room/roomInputDrafts';
+import type { TUploadItem } from '../../state/upload';
 import { normalizeOptionalMatrixWaveform } from '../../utils/audioWaveform';
 import { encodeBlurHash } from '../../utils/blurHash';
 import { getThumbnail, loadImageElement, loadVideoElement } from '../../utils/dom';

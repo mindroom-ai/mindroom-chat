@@ -49,7 +49,7 @@ const makeEvents = (count: number, prefix = '$e') =>
 const renderRoom = async (liveTimeline: TestTimeline) => {
   const room = makeRoom({ liveTimeline });
   const emit = keepEveryListener(room);
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
   await act(async () => {
@@ -73,7 +73,7 @@ const removeFromTimeline = (
 
 const windowRange = () => virtualPaginatorState.lastOptions?.range;
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('getRangeWithoutRow', () => {
   it('moves the window up one row when a row above it leaves', () => {

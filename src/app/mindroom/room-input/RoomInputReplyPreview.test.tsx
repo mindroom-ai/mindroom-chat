@@ -33,7 +33,6 @@ vi.mock('../../hooks/useMemberPowerTag', () => ({
 vi.mock('../../hooks/usePowerLevels', () => ({ usePowerLevelsContext: () => ({}) }));
 vi.mock('../../hooks/useRoom', () => ({ useIsDirectRoom: () => false }));
 vi.mock('../../hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
-vi.mock('../../hooks/useRoomCreatorsTag', () => ({ useRoomCreatorsTag: () => ({}) }));
 vi.mock('../../hooks/usePowerLevelTags', () => ({ usePowerLevelTags: () => ({}) }));
 vi.mock('../../hooks/useTheme', () => ({ useTheme: () => ({ kind: 'light' }) }));
 vi.mock('../../state/hooks/settings', () => ({ useSetting: () => [false] }));

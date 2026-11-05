@@ -7,14 +7,13 @@ import { createMindroomRoomUploadItems, RoomInput } from '../MindroomRoomInput';
 import { MATRIX_AUDIO_DETAILS_PROPERTY_NAME } from '../../../../types/matrix/common';
 import {
   IReplyDraft,
-  TUploadItem,
   pendingVoiceSendDraftAtom,
   roomIdToReplyDraftAtomFamily,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../../state/room/roomInputDrafts';
-import { Upload, UploadStatus } from '../../../state/upload';
+import { TUploadItem, Upload, UploadStatus } from '../../../state/upload';
 import { VOICE_WAVEFORM_BAR_COUNT } from '../../../utils/audioWaveform';
 import {
   getMatrixUploadErrorMessage,
@@ -289,16 +288,6 @@ vi.mock('../../../components/emoji-board', () => ({
   EmojiBoardTab: {},
 }));
 
-vi.mock('../../../components/UseStateProvider', () => ({
-  UseStateProvider: ({
-    children,
-    initial,
-  }: {
-    children: (state: undefined, setState: (value: undefined) => void) => React.ReactNode;
-    initial: undefined;
-  }) => children(initial, vi.fn()),
-}));
-
 vi.mock('../../../components/upload-card', () => ({
   UploadCardRenderer: ({
     fileItem,
@@ -363,10 +352,6 @@ vi.mock('../../../hooks/useFilePicker', () => ({
   useFilePicker: () => vi.fn(),
 }));
 
-vi.mock('../../../hooks/useFilePasteHandler', () => ({
-  useFilePasteHandler: () => vi.fn(),
-}));
-
 vi.mock('../../../hooks/useFileDrop', () => ({
   useFileDropZone: () => false,
 }));
@@ -422,20 +407,12 @@ vi.mock('../../../hooks/useTheme', () => ({
   useTheme: () => ({ kind: 'light' }),
 }));
 
-vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
-  useRoomCreatorsTag: () => undefined,
-}));
-
 vi.mock('../../../hooks/usePowerLevelTags', () => ({
   usePowerLevelTags: () => [],
 }));
 
 vi.mock('../../../hooks/useComposingCheck', () => ({
   useComposingCheck: () => () => false,
-}));
-
-vi.mock('../../../hooks/useElementSizeObserver', () => ({
-  useElementSizeObserver: vi.fn(),
 }));
 
 vi.mock('../../../features/room/CommandAutocomplete', () => ({

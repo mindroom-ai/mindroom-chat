@@ -55,8 +55,8 @@ import {
   type IReplyDraft,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
-  type TUploadItem,
 } from '../../state/room/roomInputDrafts';
+import type { TUploadItem } from '../../state/upload';
 import { roomToParentsAtom } from '../../state/room/roomToParents';
 import { settingsAtom } from '../../state/settings';
 import { mobileOrTablet } from '../../utils/user-agent';

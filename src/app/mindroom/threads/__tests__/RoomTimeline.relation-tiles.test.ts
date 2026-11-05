@@ -17,13 +17,13 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('thread relation tiles', () => {
   it.each([0, 86_400_000])(
     'omits relation tiles while preserving context across a %ims day offset',
     async (dayOffset) => {
-      const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+      const { RoomTimeline } = await import('../MindroomRoomTimeline');
       const threadId = '$root';
       const day = 86_400_000;
       const rootEvent = makeEvent(threadId, { isThreadRoot: true, ts: 1_000 });

@@ -6,13 +6,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Room } from 'matrix-js-sdk';
 import { resetEditor } from '../../components/editor/utils';
 import {
-  TUploadItem,
   roomUploadAtomFamily,
   getRoomInputDraftKey,
   clearRoomInputDrafts,
   roomIdToMsgDraftAtomFamily,
 } from '../../state/room/roomInputDrafts';
-import { UploadStatus } from '../../state/upload';
+import { TUploadItem, UploadStatus } from '../../state/upload';
 import { toMatrixUploadError } from '../../utils/matrix';
 import { UploadBoardHeader } from '../../components/upload-board';
 import { UploadCardRenderer } from '../../components/upload-card';

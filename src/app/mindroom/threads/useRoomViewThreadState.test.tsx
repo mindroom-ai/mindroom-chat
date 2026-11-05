@@ -33,7 +33,7 @@ vi.mock('../../hooks/useRoomNavigate', () => ({
 vi.mock('../native/useEdgeSwipeBack', () => ({ useEdgeSwipeBack: vi.fn() }));
 vi.mock('../native/useEdgeSwipeForward', () => ({ useEdgeSwipeForward: vi.fn() }));
 vi.mock('../recent-threads/recentThreads', () => ({ bumpRecentThread: vi.fn() }));
-vi.mock('./threadSummaryStore', () => ({
+vi.mock('./useRoomThreadSummaryState', () => ({
   useRoomThreadSummaryState: () => ({ summaryMap: new Map(), storeThreadSummary: vi.fn() }),
 }));
 vi.mock('./useThreadRootEvent', () => ({ useThreadRootEvent: () => undefined }));

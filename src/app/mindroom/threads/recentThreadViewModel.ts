@@ -13,7 +13,7 @@ import {
   truncateRecentThreadSummaryText,
 } from '../recent-threads/recentThreadSummaryUtils';
 import { getThreadPrimarySummaryText } from './threadPresentation';
-import { clearThreadSummarySharedState, useThreadSummaryStateMap } from './threadSummaryStore';
+import { clearThreadSummarySharedState, useThreadSummaryStateMap } from './threadSummaryState';
 import { buildThreadRecord } from './threadRecord';
 import type { RecentThreadViewModel, ThreadRecord } from './types';
 

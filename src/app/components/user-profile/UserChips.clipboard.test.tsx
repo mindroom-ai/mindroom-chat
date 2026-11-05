@@ -61,11 +61,6 @@ vi.mock('../room-avatar', () => ({
   RoomIcon: () => React.createElement('span'),
 }));
 
-vi.mock('../cutout-card', () => ({
-  CutoutCard: ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children),
-}));
-
 vi.mock('../setting-tile', () => ({
   SettingTile: ({ children }: { children?: React.ReactNode }) =>
     React.createElement('div', null, children),

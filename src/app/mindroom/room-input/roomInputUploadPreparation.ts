@@ -1,5 +1,5 @@
 import type { Room } from 'matrix-js-sdk';
-import type { TUploadItem, TUploadMetadata } from '../../state/room/roomInputDrafts';
+import type { TUploadItem, TUploadMetadata } from '../../state/upload';
 import { encryptFile, toMatrixUploadError } from '../../utils/matrix';
 
 const defaultMetadata = (): TUploadMetadata => ({ markedAsSpoiler: false });

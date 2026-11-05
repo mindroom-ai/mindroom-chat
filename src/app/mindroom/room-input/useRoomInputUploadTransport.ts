@@ -5,9 +5,8 @@ import { getAudioMsgContent } from '../../features/room/msgContent';
 import {
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
-  type TUploadItem,
 } from '../../state/room/roomInputDrafts';
-import { UploadStatus } from '../../state/upload';
+import { type TUploadItem, UploadStatus } from '../../state/upload';
 import { toMatrixUploadError, uploadContent } from '../../utils/matrix';
 import {
   getMindroomRoomInputVoiceUploadRelation,

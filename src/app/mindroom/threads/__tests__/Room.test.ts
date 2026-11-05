@@ -150,13 +150,6 @@ vi.mock('react-router-dom', () => ({
   useSearchParams: () => [new URLSearchParams(roomState.search)],
 }));
 
-vi.mock('../../../features/room/RoomView', () => ({
-  RoomView: (props: MockRoomViewProps) => {
-    roomState.roomViewProps = props;
-    return React.createElement('mock-room-view');
-  },
-}));
-
 vi.mock('../MindroomRoomView', () => ({
   RoomView: (props: MockRoomViewProps) => {
     roomState.roomViewProps = props;
@@ -293,10 +286,6 @@ vi.mock('../../recent-threads/recentThreads', () => ({
   removeRecentThread: removeRecentThreadMock,
 }));
 
-vi.mock('../../../features/room/RoomViewHeader', () => ({
-  RoomViewHeader: () => React.createElement('mock-room-view-header'),
-}));
-
 vi.mock('../MindroomRoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
@@ -306,7 +295,7 @@ vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn(
 const computerWrapper = (renderer: ReturnType<typeof create>) =>
   renderer.root.findByProps({ 'data-testid': 'resizable-computer-panel' });
 
-importBeforeTests(() => import('../../../features/room/Room'));
+importBeforeTests(() => import('../MindroomRoom'));
 
 // Every test resets the module registry and imports Room again, which evaluates its whole
 // module graph: well under a second, but over 5 s on a loaded machine, so each test gets 30 s.
@@ -349,7 +338,7 @@ describe('Room', { timeout: 30_000 }, () => {
   });
 
   it('stays on the room timeline on bare room entry', async () => {
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -364,7 +353,7 @@ describe('Room', { timeout: 30_000 }, () => {
     async (size) => {
       roomState.screenSize = size;
       roomState.drawer = true;
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       let renderer: ReturnType<typeof create>;
       await act(async () => {
         renderer = create(React.createElement(Room));
@@ -375,7 +364,7 @@ describe('Room', { timeout: 30_000 }, () => {
   );
 
   it('passes live agent membership to the room toolbar surface', async () => {
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
 
     await act(async () => {
@@ -406,7 +395,7 @@ describe('Room', { timeout: 30_000 }, () => {
         { membership: 'join', userId: helper },
         { membership: 'join', userId: '@alice:example.org' },
       ];
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       await act(async () => {
         create(React.createElement(Room));
       });
@@ -452,7 +441,7 @@ describe('Room', { timeout: 30_000 }, () => {
         { membership: 'join', userId: other },
         { membership: 'join', userId: '@alice:example.org' },
       ];
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       await act(async () => {
         create(React.createElement(Room));
       });
@@ -471,7 +460,7 @@ describe('Room', { timeout: 30_000 }, () => {
         { membership: 'join', userId: helper },
         { membership: 'join', userId: '@alice:example.org' },
       ];
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       await act(async () => {
         create(React.createElement(Room));
       });
@@ -491,7 +480,7 @@ describe('Room', { timeout: 30_000 }, () => {
         { membership: 'join', userId: silent },
         { membership: 'join', userId: '@alice:example.org' },
       ];
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       await act(async () => {
         create(React.createElement(Room));
       });
@@ -512,7 +501,7 @@ describe('Room', { timeout: 30_000 }, () => {
       { membership: 'join', userId: '@bob:example.org' },
       { membership: 'knock', userId: '@carol:example.org' },
     ];
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -535,7 +524,7 @@ describe('Room', { timeout: 30_000 }, () => {
     ];
     roomState.search = '?threadId=%24thread';
     roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     const { getDefaultStore } = await import('jotai');
     const { settingsModalAtom } = await import('../../../state/settingsModal');
     const { SettingsPages } = await import('../../../features/settings/settingsPages');
@@ -618,7 +607,7 @@ describe('Room', { timeout: 30_000 }, () => {
     ];
     roomState.search = '?threadId=%24thread';
     roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -728,7 +717,7 @@ describe('Room', { timeout: 30_000 }, () => {
     ];
     roomState.search = '?threadId=%24thread';
     roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -970,7 +959,7 @@ describe('Room', { timeout: 30_000 }, () => {
 
     it('lists no canvases when the deployment has not enabled them', async () => {
       roomState.conversationCanvases = [entry('$listed')];
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       let renderer: ReturnType<typeof create>;
       await act(async () => {
         renderer = create(React.createElement(Room));
@@ -988,7 +977,7 @@ describe('Room', { timeout: 30_000 }, () => {
     ] as never;
     roomState.search = '?threadId=%24thread';
     roomState.computerShown = true;
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
 
     await act(async () => {
@@ -1054,7 +1043,7 @@ describe('Room', { timeout: 30_000 }, () => {
     ];
     roomState.search = '?threadId=%24thread';
     roomState.routedEvent = { getId: () => '$thread', isSending: () => false };
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -1104,7 +1093,7 @@ describe('Room', { timeout: 30_000 }, () => {
       { membership: 'join', userId: '@alice:example.org', name: 'Alice' },
     ] as never;
     roomState.search = '?threadId=%24thread';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
 
     await act(async () => {
@@ -1130,7 +1119,7 @@ describe('Room', { timeout: 30_000 }, () => {
     };
     roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
     roomState.search = '?threadId=%24thread';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -1181,7 +1170,7 @@ describe('Room', { timeout: 30_000 }, () => {
       setItem: (key: string, value: string) => stored.set(key, value),
     });
     try {
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       let renderer: ReturnType<typeof create>;
       await act(async () => {
         renderer = create(React.createElement(Room));
@@ -1201,7 +1190,7 @@ describe('Room', { timeout: 30_000 }, () => {
     };
     roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
     roomState.search = '?threadId=%24thread';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -1252,7 +1241,7 @@ describe('Room', { timeout: 30_000 }, () => {
     roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
     roomState.search = '?threadId=%24thread';
     roomState.screenSize = 'Mobile';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -1312,7 +1301,7 @@ describe('Room', { timeout: 30_000 }, () => {
       };
       roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
       roomState.search = '?threadId=%24reply';
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       let renderer: ReturnType<typeof create>;
       await act(async () => {
         renderer = create(React.createElement(Room));
@@ -1343,7 +1332,7 @@ describe('Room', { timeout: 30_000 }, () => {
       };
       const members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
       roomState.members = members;
-      const { Room } = await import('../../../features/room/Room');
+      const { Room } = await import('../MindroomRoom');
       let renderer: ReturnType<typeof create>;
       await act(async () => {
         renderer = create(React.createElement(Room));
@@ -1374,7 +1363,7 @@ describe('Room', { timeout: 30_000 }, () => {
       mindroom: { computers: { apiUrl: 'https://computer.example.org' } },
     };
     roomState.members = [{ membership: 'join', userId: '@mindroom_helper:example.org' }];
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(React.createElement(Room));
@@ -1407,7 +1396,7 @@ describe('Room', { timeout: 30_000 }, () => {
     roomState.members = [
       { membership: 'join', userId: '@mindroom_helper:example.org', name: 'Helper' },
     ] as never;
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
 
     await act(async () => {
@@ -1434,7 +1423,7 @@ describe('Room', { timeout: 30_000 }, () => {
       { membership: 'join', userId: '@alice:example.org' },
       { membership: 'join', userId: '@mindroom_helper:example.org' },
     ];
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     const { makeUiEvent } = await import('../../ui-actions/testUtils');
     const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
     roomState.uiProbe = function UiProbe() {
@@ -1473,7 +1462,7 @@ describe('Room', { timeout: 30_000 }, () => {
       { membership: 'join', userId: '@alice:example.org' },
       { membership: 'join', userId: '@mindroom_helper:example.org' },
     ];
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     const { makeUiEvent } = await import('../../ui-actions/testUtils');
     const { ChatUiActionContext } = await import('../../ui-actions/ChatUiActionProvider');
     roomState.uiProbe = function UiProbe() {
@@ -1500,7 +1489,7 @@ describe('Room', { timeout: 30_000 }, () => {
 
   it('leaves an explicit thread in the URL untouched', async () => {
     roomState.search = '?threadId=%24explicit';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -1512,7 +1501,7 @@ describe('Room', { timeout: 30_000 }, () => {
 
   it('does not navigate when returning to a room after leaving a thread', async () => {
     roomState.search = '?threadId=%24opened';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
 
     let renderer: ReturnType<typeof create>;
     await act(async () => {
@@ -1531,7 +1520,7 @@ describe('Room', { timeout: 30_000 }, () => {
 
   it('drops a thread from recent threads when it fails to load', async () => {
     roomState.search = '?threadId=%24saved';
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
 
     await act(async () => {
       create(React.createElement(Room));
@@ -1546,7 +1535,7 @@ describe('Room', { timeout: 30_000 }, () => {
   });
 
   it('does not render a duplicate room header around RoomView in non-call rooms', async () => {
-    const { Room } = await import('../../../features/room/Room');
+    const { Room } = await import('../MindroomRoom');
     let renderer: ReturnType<typeof create>;
 
     await act(async () => {

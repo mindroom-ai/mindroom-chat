@@ -42,7 +42,7 @@ const makeScroll = () => {
 };
 
 const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<string, unknown>) => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
   const root = makeEvent('$root', { isThreadRoot: true, ts: 1 });
   const reply1 = makeEvent('$reply1', { threadRootId: '$root', ts: 2 });
@@ -70,7 +70,7 @@ const setup = async (initialViewMode: 'classic' | 'threaded', extra: Record<stri
   return { renderer: renderer!, scroll, room, ControlledRoomTimeline, root };
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline scroll-to-bottom request', () => {
   it('lands on the latest row after a view switch, even once the reader scrolled', async () => {
@@ -119,7 +119,7 @@ describe('RoomTimeline scroll-to-bottom request', () => {
   });
 
   it('does not move a reader who scrolled when the window is rebuilt', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const room = makeRoom({ liveEvents: [makeEvent('$a', { ts: 1 }), makeEvent('$b', { ts: 2 })] });
     const scroll = makeScroll();
@@ -154,7 +154,7 @@ describe('RoomTimeline scroll-to-bottom request', () => {
   });
 
   it('keeps the reader where they scrolled after a view switch that never commits', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     // A sibling suspends the threaded view, so React renders it but never commits.
     function SuspendThreaded({ viewMode }: { viewMode: string }) {
       if (viewMode === 'threaded') throw new Promise(() => {});

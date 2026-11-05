@@ -197,19 +197,11 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
-vi.mock('react-blurhash', () => ({
-  BlurhashCanvas: (props: Record<string, unknown>) => React.createElement('canvas', props),
-}));
-
 vi.mock('./style.css', () => ({
   AbsoluteContainer: 'AbsoluteContainer',
   AbsoluteFooter: 'AbsoluteFooter',
   Blur: 'Blur',
   RelativeBase: 'RelativeBase',
-}));
-
-vi.mock('../../../styles/Modal.css', () => ({
-  ModalWide: 'ModalWide',
 }));
 
 vi.mock('focus-trap-react', () => ({

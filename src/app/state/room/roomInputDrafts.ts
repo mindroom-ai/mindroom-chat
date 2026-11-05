@@ -5,9 +5,7 @@
 import { atom, type createStore, type WritableAtom } from 'jotai';
 import { atomFamily } from 'jotai/utils';
 import type { Descendant } from 'slate';
-import type { IEventRelation, MatrixError, Room } from 'matrix-js-sdk';
-import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
-import type { MindroomPasteMarker } from '../../mindroom/messages/pasteAttachmentMarker';
+import type { IEventRelation, Room } from 'matrix-js-sdk';
 import type { TUploadContent } from '../../utils/matrix';
 import { isRecord } from '../../utils/isRecord';
 import {
@@ -17,35 +15,10 @@ import {
   removeStorageItemSafe,
   setStorageItemSafe,
 } from '../../utils/safeLocalStorage';
-import { createUploadAtom, type TUploadAtom } from '../upload';
+import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../upload';
 
-export type TUploadMetadata = {
-  markedAsSpoiler: boolean;
-  /** Set when the file holds text the composer turned into an attachment. */
-  mindroomPasteAttachment?: Pick<MindroomPasteMarker, 'id' | 'chars' | 'fileName'>;
-  /** Set when the file is a recorded voice message. */
-  voiceMessage?: {
-    /** Length in milliseconds. */
-    duration: number;
-    waveform?: number[];
-  };
-};
-
-/** What is sent for a staged file: the bytes and, when they are encrypted, how to decrypt them. */
-type UploadPayload = {
-  /** The bytes sent to the media repository: `originalFile` or its encrypted copy. */
-  file: TUploadContent;
-  /** Present when `file` is the encrypted form of `originalFile`. */
-  encInfo: EncryptedAttachmentInfo | undefined;
-};
-
-/** A file staged in the composer: what the user chose, what is uploaded for it, and how. */
-export type TUploadItem = UploadPayload & {
-  originalFile: TUploadContent;
-  metadata: TUploadMetadata;
-  /** Preparing the file (for example encrypting it) failed; it cannot be uploaded. */
-  prepError?: MatrixError;
-};
+// TUploadItem is declared with the upload state; this seam keeps exporting it (seams.tsv).
+export type { TUploadItem } from '../upload';
 
 export type IReplyDraft = {
   userId: string;

@@ -6,7 +6,7 @@ import { createEditor } from 'slate';
 import { expect, it, vi } from 'vitest';
 import { RoomView } from './MindroomRoomView';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
-import type { TUploadItem } from '../../state/room/roomInputDrafts';
+import type { TUploadItem } from '../../state/upload';
 import { Upload, UploadStatus } from '../../state/upload';
 import type { RoomInputAttachmentAccess } from '../room-input/roomInputAttachmentAccess';
 
@@ -73,7 +73,6 @@ vi.mock('../../features/room/RoomViewFollowing', () => ({
   RoomViewFollowing: () => null,
   RoomViewFollowingPlaceholder: () => null,
 }));
-vi.mock('../../features/room/RoomInputPlaceholder', () => ({ RoomInputPlaceholder: 'div' }));
 vi.mock('../../features/room/RoomTombstone', () => ({ RoomTombstone: () => null }));
 vi.mock('./MindroomRoomViewHeader', () => ({ RoomViewHeader: () => null }));
 vi.mock('./ThreadContextBanner', () => ({ ThreadContextBanner: () => null }));

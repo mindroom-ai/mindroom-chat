@@ -93,10 +93,6 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../../state/hooks/roomList', () => ({
-  useOrphanRooms: () => [],
-}));
-
 vi.mock('../../../hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({}),
 }));

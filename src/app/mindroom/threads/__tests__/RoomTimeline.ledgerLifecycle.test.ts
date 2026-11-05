@@ -166,11 +166,11 @@ beforeEach(() => {
   settleWaits.length = 0;
 });
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline ledger lifecycle', () => {
   it('consumes room prepend debt once and drops it when the surface changes', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadId = '$room-ledger-reset-thread';
     const thread = buildThread(threadId, '$room-ledger-reset-', 0);
     const roomEvents = Array.from({ length: 300 }, (_value, index) =>
@@ -268,7 +268,7 @@ describe('RoomTimeline ledger lifecycle', () => {
   });
 
   it('a settle wait armed in a previous thread never settles the next thread ledger', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadA = '$ledger-gen-a';
     const threadB = '$ledger-gen-b';
     const a = buildThread(threadA, '$ga-', 100);
@@ -389,7 +389,7 @@ describe('RoomTimeline ledger lifecycle', () => {
   });
 
   it('preserves a tile measurement correction emitted during a thread switch commit', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadA = '$ledger-switch-measure-a';
     const threadB = '$ledger-switch-measure-b';
     const a = buildThread(threadA, '$switch-a-', 0);
@@ -488,7 +488,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     // shouldAdjustScrollPositionOnItemSizeChange hook directly, outside
     // any React commit, exactly as virtual-core's ResizeObserver does.
     mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadA = '$ledger-tick-a';
     const a = buildThread(threadA, '$tick-', 5);
     const room = makeRoom({ liveEvents: [] });
@@ -572,7 +572,7 @@ describe('RoomTimeline ledger lifecycle', () => {
 
   it('coasts through positive-ledger top runway and settles at physical exhaustion', async () => {
     mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadId = '$ledger-positive-top-runway';
     const thread = buildThread(threadId, '$top-runway-', 5);
     const room = makeRoom({ liveEvents: [] });
@@ -662,7 +662,7 @@ describe('RoomTimeline ledger lifecycle', () => {
 
   it('settles only toward a ledger boundary and survives a coalesced write event', async () => {
     mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadId = '$ledger-boundary-cause';
     const thread = buildThread(threadId, '$boundary-', 5);
     const room = makeRoom({ liveEvents: [] });
@@ -880,7 +880,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     // ledger without writing scrollTop, and let the pending true-rest
     // wait refold it.
     mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadId = '$ledger-discard-watchdog';
     const thread = buildThread(threadId, '$discard-', 5);
     const room = makeRoom({ liveEvents: [] });
@@ -975,7 +975,7 @@ describe('RoomTimeline ledger lifecycle', () => {
 
   it('watchdog stands down when motion resumes from the settled offset or a finger arrives', async () => {
     mockIsIOSWebKit = true;
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadId = '$ledger-discard-standdown';
     const thread = buildThread(threadId, '$standdown-', 5);
     const room = makeRoom({ liveEvents: [] });
@@ -1119,7 +1119,7 @@ describe('RoomTimeline ledger lifecycle', () => {
   };
 
   it('keeps the first user wheel movement after focus and session opening pins queue', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const { loadLatestCachedThreadEvents } = await import('../cacheStore');
     const threadId = '$opening-input-ownership';
     const thread = buildThread(threadId, '$opening-input-', 0);
@@ -1213,7 +1213,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     // thread A legitimately latched open-at-latest; switching to thread B
     // (opened to a FOCUSED EVENT, so B must NOT pin) must drop the latch
     // in the SAME render — B never gets bottom-pinned.
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadA = '$latch-key-a';
     const threadB = '$latch-key-b';
     const a = buildThread(threadA, '$ka-', 0);
@@ -1290,7 +1290,7 @@ describe('RoomTimeline ledger lifecycle', () => {
     // threadLatestOpenPending stale-true on the switch render (A's
     // finally skips the clear once threadIdRef moved on). That stale flag
     // must not latch open-at-latest for B.
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const threadA = '$latch-pend-a';
     const threadB = '$latch-pend-b';
     const a = buildThread(threadA, '$pa-', 0);

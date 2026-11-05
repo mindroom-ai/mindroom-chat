@@ -218,10 +218,6 @@ vi.mock('../../../components/editor', () => ({
   useEditor: () => ({}),
 }));
 
-vi.mock('../../../features/room/RoomInputPlaceholder', () => ({
-  RoomInputPlaceholder: passthrough,
-}));
-
 vi.mock('../compactThreadCardViewModel', () => ({
   useCompactThreadCardViewModels: ({
     room,
@@ -323,10 +319,6 @@ vi.mock('../../../components/page', () => ({
     pageState.props = props;
     return React.createElement('div', { ...props, ref });
   }),
-}));
-
-vi.mock('../../../features/room/RoomViewHeader', () => ({
-  RoomViewHeader: passthrough,
 }));
 
 vi.mock('../MindroomRoomViewHeader', () => ({
@@ -491,7 +483,7 @@ const createCompactScrollElement = () => ({
   removeEventListener: () => {},
 });
 
-importBeforeTests(() => import('../../../features/room/RoomView'));
+importBeforeTests(() => import('../MindroomRoomView'));
 
 // Every test resets the module registry and imports RoomView again, which evaluates its whole
 // module graph: well under a second, but over 5 s on a loaded machine, so each test gets 30 s.
@@ -548,7 +540,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     const { createRoomOfflineController } = await import('../../engine/roomOffline');
     const { createBackfillScheduler } = await import('../../engine/backfillScheduler');
     const { resolvePrefetchConfig } = await import('../../engine/prefetchPolicy');
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('offline-focus'));
     const scheduler = createBackfillScheduler();
     const offline = createRoomOfflineController({
@@ -605,7 +597,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('persists the thread filter state across thread enter/exit', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -636,7 +628,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('restores compact scroll after a card open and history-back thread exit', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     compactRoomTimelineState.enabled = true;
     compactRoomTimelineState.onThreadClick.mockImplementation((threadRootId: string) => {
@@ -693,7 +685,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   it('restores compact scroll after a native-iOS replacement thread exit', async () => {
     isNativeIOSMock.mockReturnValue(true);
     compactRoomTimelineState.enabled = true;
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
     let scrollElement = createCompactScrollElement();
@@ -742,7 +734,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('does not restore one room compact scroll position into another room', async () => {
     compactRoomTimelineState.enabled = true;
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
     let scrollElement = createCompactScrollElement();
@@ -774,7 +766,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('keeps thread filter state isolated per room when switching rooms', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -823,7 +815,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('persists the freeze state across thread enter/exit in the same room', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -851,7 +843,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('ignores agent filters and sort freeze as soon as the room becomes agentless', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -888,7 +880,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
 
   it('preserves hidden agent filters when searching in an agentless room', async () => {
     vi.useFakeTimers();
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -939,7 +931,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('resets the freeze state when switching rooms', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const roomA = makeRoom(nextRoomId('room-a'));
     const roomB = makeRoom(nextRoomId('room-b'));
     let renderer: ReturnType<typeof create> | undefined;
@@ -962,7 +954,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('clears the freeze state when sort cycles back to natural', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -990,7 +982,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('resets all filters on onReset', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     let renderer: ReturnType<typeof create> | undefined;
 
@@ -1024,7 +1016,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       },
     };
 
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -1050,7 +1042,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       threadId: '$thread',
     });
 
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -1135,7 +1127,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       useHistoryBack: true,
     });
 
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -1225,7 +1217,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       useHistoryBack: false,
     });
 
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
 
     await act(async () => {
       create(React.createElement(RoomView, { room: room as never, threadId: '$thread' }));
@@ -1245,7 +1237,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('falls back to the focused room event route for deep-linked threads', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
 
     await act(async () => {
@@ -1491,7 +1483,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('lets the app shell own the viewport height (ISSUE-132)', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom('!room-a:example.org');
 
     await act(async () => {
@@ -1504,7 +1496,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('marks the room header for replacement by the thread banner only inside a thread', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('short-screen'));
     let renderer: ReturnType<typeof create> | undefined;
     const headerClass = () =>
@@ -1525,7 +1517,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('forwards the computer and canvas state to the room header', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('header-panels'));
     const onComputerToggle = vi.fn();
     const onCanvasOpen = vi.fn();
@@ -1569,7 +1561,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('does not move computer keyboard input into the room composer', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom('!computer-focus:example.org');
 
     await act(async () => {
@@ -1599,7 +1591,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('canonicalizes resolved thread ids and passes them through the thread view', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
@@ -1625,7 +1617,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('replaces a local route while translating its browser-back exit target', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     const localThreadId = `~${room.roomId}:txn-local`;
     const exitPath = `/home/${encodeURIComponent(room.roomId)}`;
@@ -1688,7 +1680,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('bumps the recent-thread list from the canonical open thread id', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('$confirmed-thread');
 
@@ -1813,7 +1805,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('hides the composer until a local-echo thread root is confirmed', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('~pending-thread');
 
@@ -1834,7 +1826,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   const renderFailedLocalRoot = async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const roomId = nextRoomId('room-a');
     const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
     const room = new Room(roomId, mx, '@alice:example.org', {
@@ -1936,7 +1928,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
   });
 
   it('does not persist unresolved local-echo ids in the recent-thread list', async () => {
-    const { RoomView } = await import('../../../features/room/RoomView');
+    const { RoomView } = await import('../MindroomRoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('~pending-thread');
 

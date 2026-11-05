@@ -3,7 +3,7 @@ export * from './DirectTab';
 export * from './ExploreTab';
 export * from './HomeTab';
 export * from './InboxTab';
-export * from './SearchTab';
+export { SearchTab } from '../../../mindroom/command-palette/MindroomCommandPaletteSidebarTab';
 export * from './SettingsTab';
 export * from './SpaceTabs';
 export * from './ThreadsTab';

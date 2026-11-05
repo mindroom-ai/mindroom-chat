@@ -7,9 +7,8 @@ import type { Room } from 'matrix-js-sdk';
 import {
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
-  type TUploadItem,
 } from '../../state/room/roomInputDrafts';
-import { UploadStatus } from '../../state/upload';
+import { type TUploadItem, UploadStatus } from '../../state/upload';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 
 // The editor's index brings its style sheets, which unit tests do not compile.

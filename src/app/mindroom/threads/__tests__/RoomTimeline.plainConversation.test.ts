@@ -26,7 +26,7 @@ const makeThreadRoom = () => {
 };
 
 const renderThreadedView = async (hasMindroomAgents: boolean) => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   let renderer: ReturnType<typeof create> | undefined;
   await act(async () => {
     renderer = create(
@@ -49,7 +49,7 @@ const renderThreadedView = async (hasMindroomAgents: boolean) => {
   return renderer!;
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline threaded view and the filter bar', () => {
   it('sorts the threads by their latest reply under the bar in a room with agents', async () => {

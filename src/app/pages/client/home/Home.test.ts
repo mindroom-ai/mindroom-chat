@@ -72,11 +72,6 @@ vi.mock('focus-trap-react', () => ({
     React.createElement(React.Fragment, null, children),
 }));
 
-vi.mock('../../../utils/sort', () => ({
-  factoryRoomIdByActivity: () => () => 0,
-  factoryRoomIdByAtoZ: () => () => 0,
-}));
-
 vi.mock('../../../components/nav', async () => {
   const reactModule = await import('react');
   const passthrough = ({ children }: { children?: React.ReactNode }) =>

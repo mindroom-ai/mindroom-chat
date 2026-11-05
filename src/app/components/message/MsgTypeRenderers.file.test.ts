@@ -21,18 +21,6 @@ vi.mock('./content/VoiceAudioContent', () => ({
     React.createElement('div', null, filename),
 }));
 
-vi.mock('./attachment', () => {
-  const Wrapper = ({ children }: { children?: React.ReactNode }) =>
-    React.createElement('div', null, children);
-
-  return {
-    Attachment: Wrapper,
-    AttachmentBox: Wrapper,
-    AttachmentContent: Wrapper,
-    AttachmentHeader: Wrapper,
-  };
-});
-
 vi.mock('./FileRow.css', () => ({
   FileRow: 'FileRow',
   FileTile: 'FileTile',
@@ -41,7 +29,6 @@ vi.mock('./FileRow.css', () => ({
 }));
 
 vi.mock('../glass/GlassPrimitives', () => ({ Modal: () => null }));
-vi.mock('../../styles/Modal.css', () => ({ ModalWide: 'modal-wide' }));
 vi.mock('./layout', () => ({ MessageTextBody: () => null }));
 vi.mock('../../hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
 vi.mock('../../hooks/useMediaAuthentication', () => ({ useMediaAuthentication: () => false }));

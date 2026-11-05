@@ -1,6 +1,6 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { TUploadItem } from '../../state/room/roomInputDrafts';
+import type { TUploadItem } from '../../state/upload';
 import { getImageMsgContent } from './msgContent';
 
 const mocks = vi.hoisted(() => ({

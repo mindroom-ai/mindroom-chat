@@ -36,18 +36,6 @@ vi.mock('./content/VoiceAudioContent', () => ({
     React.createElement('div', { 'data-renderer': 'voice-audio', ...props }),
 }));
 
-vi.mock('./attachment', () => {
-  const Wrapper = ({ children, ...props }: { children?: React.ReactNode }) =>
-    React.createElement('div', props, children);
-
-  return {
-    Attachment: Wrapper,
-    AttachmentBox: Wrapper,
-    AttachmentContent: Wrapper,
-    AttachmentHeader: Wrapper,
-  };
-});
-
 vi.mock('./FileRow.css', () => ({
   FileRow: 'FileRow',
   FileTile: 'FileTile',
@@ -70,28 +58,12 @@ vi.mock('./layout', () => ({
     React.createElement('div', null, children),
 }));
 
-vi.mock('../streaming-indicator/StreamingIndicator', () => ({
-  StreamingIndicator: () => null,
-}));
-
 vi.mock('../../state/hooks/settings', () => ({
   useSetting: () => [false],
 }));
 
 vi.mock('../../state/settings', () => ({
   settingsAtom: {},
-}));
-
-vi.mock('./mindroomThreadSummary', () => ({
-  formatMindroomThreadSummaryMessageCount: () => '',
-}));
-
-vi.mock('./mindroomThreadSummaryCard.css', () => ({
-  ThreadSummaryBody: 'ThreadSummaryBody',
-  ThreadSummaryBodyCompact: 'ThreadSummaryBodyCompact',
-  ThreadSummaryCard: 'ThreadSummaryCard',
-  ThreadSummaryLabel: 'ThreadSummaryLabel',
-  ThreadSummaryMeta: 'ThreadSummaryMeta',
 }));
 
 describe('MAudio voice branch', () => {

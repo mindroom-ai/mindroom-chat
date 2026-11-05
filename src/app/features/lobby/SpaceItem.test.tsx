@@ -90,10 +90,6 @@ vi.mock('../../state/hooks/createSpaceModal', () => ({
   useOpenCreateSpaceModal: () => vi.fn(),
 }));
 
-vi.mock('../../components/BetaNoticeBadge', () => ({
-  BetaNoticeBadge: () => null,
-}));
-
 vi.mock('./SpaceItem.css', () => ({
   HeaderChip: 'HeaderChip',
   HeaderChipPlaceholder: 'HeaderChipPlaceholder',

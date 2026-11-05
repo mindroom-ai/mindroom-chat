@@ -11,11 +11,11 @@ import {
 } from '../test-utils/RoomTimeline.test.shared';
 import { importBeforeTests } from '../../../test-utils/importBeforeTests';
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline pending-send wiring', () => {
   it('passes local-echo status into rendered message content and failed-send actions', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const { FailedSendActions } = await import('../../messages/FailedSendActions');
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     const pendingEvent = makeEvent('$pending', { content: { body: 'pending' } }) as ReturnType<

@@ -5,7 +5,6 @@ import { act, create } from 'react-test-renderer';
 import { StateEvent } from '../../../types/matrix/room';
 import { canPinRoomEvents, isThreadPinned, setRoomEventPinned } from './threadPinning';
 import { usePinnedEventIds } from './useThreadPinning';
-import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
 
 const admin = '@admin:example.org';
 const syncPins = (room: Room, id: string, pinned: string[]) =>
@@ -141,7 +140,7 @@ describe('room thread pins', () => {
     let menuPins: string[] = [];
     function Probe() {
       threadPins = usePinnedEventIds(room);
-      menuPins = useRoomPinnedEvents(room);
+      menuPins = usePinnedEventIds(room);
       return null;
     }
     let renderer!: ReturnType<typeof create>;

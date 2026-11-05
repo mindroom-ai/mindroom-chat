@@ -1,11 +1,14 @@
 /**
  * Upload state for one file: an atom that moves from idle through loading to success or error.
  * Setting `{ promise }` starts tracking an upload request and settles the atom when the request
- * does; `{ progress }`, `{ mxc }`, and `{ error }` report the outcome directly.
+ * does; `{ progress }`, `{ mxc }`, and `{ error }` report the outcome directly. `TUploadItem` is a
+ * file staged for upload with what is sent for it.
  */
 import { useCallback, useEffect, useRef } from 'react';
 import { atom, useAtomValue, useStore, type Atom, type WritableAtom } from 'jotai';
 import type { MatrixClient, MatrixError, UploadProgress, UploadResponse } from 'matrix-js-sdk';
+import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
+import type { MindroomPasteMarker } from '../mindroom/messages/pasteAttachmentMarker';
 import { toMatrixUploadError, uploadContent, type TUploadContent } from '../utils/matrix';
 
 /** Where one file's upload stands. String values keep logged and stored states readable. */
@@ -40,6 +43,34 @@ export type TUploadAtom = WritableAtom<Upload, [UploadAtomAction], void>;
 
 /** A read-only list of the uploads of several files, as the upload board shows them. */
 export type TUploadFamilyObserverAtom = Atom<Upload[]>;
+
+export type TUploadMetadata = {
+  markedAsSpoiler: boolean;
+  /** Set when the file holds text the composer turned into an attachment. */
+  mindroomPasteAttachment?: Pick<MindroomPasteMarker, 'id' | 'chars' | 'fileName'>;
+  /** Set when the file is a recorded voice message. */
+  voiceMessage?: {
+    /** Length in milliseconds. */
+    duration: number;
+    waveform?: number[];
+  };
+};
+
+/** What is sent for a staged file: the bytes and, when they are encrypted, how to decrypt them. */
+type UploadPayload = {
+  /** The bytes sent to the media repository: `originalFile` or its encrypted copy. */
+  file: TUploadContent;
+  /** Present when `file` is the encrypted form of `originalFile`. */
+  encInfo: EncryptedAttachmentInfo | undefined;
+};
+
+/** A file staged in the composer: what the user chose, what is uploaded for it, and how. */
+export type TUploadItem = UploadPayload & {
+  originalFile: TUploadContent;
+  metadata: TUploadMetadata;
+  /** Preparing the file (for example encrypting it) failed; it cannot be uploaded. */
+  prepError?: MatrixError;
+};
 
 export const createUploadAtom = (file: TUploadContent): TUploadAtom => {
   const uploadAtom = atom<Upload>({ file, status: UploadStatus.Idle });

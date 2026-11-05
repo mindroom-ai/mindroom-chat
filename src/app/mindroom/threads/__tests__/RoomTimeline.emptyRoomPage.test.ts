@@ -29,7 +29,7 @@ const loadRetryPaginationMock = async (): Promise<Mock> => {
 };
 
 const renderRoom = async (liveTimeline: TestTimeline) => {
-  const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+  const { RoomTimeline } = await import('../MindroomRoomTimeline');
   const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
   let renderer: ReturnType<typeof create> | undefined;
   await act(async () => {
@@ -49,7 +49,7 @@ const paginateBack = async () => {
   });
 };
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline room pages without rows', () => {
   it('shows the room start when the last page brings no events', async () => {

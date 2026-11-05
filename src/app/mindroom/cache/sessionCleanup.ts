@@ -8,7 +8,7 @@ import { clearThreadSidebarPreferencesStore } from '../recent-threads/threadSide
 import { clearCrossRoomThreadFiltersStore } from '../cross-room-threads/crossRoomThreadFilters';
 import { clearRoomThreadFiltersStore } from '../threads/roomThreadFilterState';
 import { clearRoomViewModeStore } from '../threads/roomViewMode';
-import { clearThreadSummarySharedState } from '../threads/threadSummaryStore';
+import { clearThreadSummarySharedState } from '../threads/threadSummaryState';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../utils/safeLocalStorage';
 import { clearSeenThreadRoots } from '../../utils/seenThreadRoots';
 import {

@@ -326,10 +326,8 @@ vi.mock('../../../hooks/useMediaAuthentication', () => ({
   useMediaAuthentication: () => false,
 }));
 
-vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
-  useRoomPinnedEvents: () => [],
-}));
 vi.mock('../../threads/useThreadPinning', () => ({
+  usePinnedEventIds: () => [],
   useThreadPinning: () => ({
     pinnedEventIds: [],
     canPin: true,
@@ -343,14 +341,6 @@ vi.mock('../../../../types/matrix/room', () => ({
   StateEvent: {
     RoomPinnedEvents: 'm.room.pinned_events',
   },
-}));
-
-vi.mock('../../../components/power', () => ({
-  PowerIcon: () => null,
-}));
-
-vi.mock('../../../../util/colorMXID', () => ({
-  default: () => '#333',
 }));
 
 vi.mock('../../../hooks/useMemberPowerTag', () => ({
@@ -384,7 +374,7 @@ vi.mock('../../../state/settings', () => ({
 }));
 
 const getMessageComponent = async () =>
-  (await import('../../../features/room/message/Message')).Message;
+  (await import('../MindroomMessage')).Message;
 
 beforeEach(() => {
   lastMessageBaseNode = undefined;
@@ -574,7 +564,7 @@ const mindroomAiRunContent = {
   },
 } as const;
 
-importBeforeTests(() => import('../../../features/room/message/Message'));
+importBeforeTests(() => import('../MindroomMessage'));
 
 describe('Message local-echo actions', () => {
   it('hides every action that needs a confirmed server event id', async () => {

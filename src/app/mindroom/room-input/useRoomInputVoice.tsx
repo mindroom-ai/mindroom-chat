@@ -8,12 +8,11 @@ import { IconButton } from '../../components/glass/GlassPrimitives';
 import { IconTooltip } from '../tooltip/IconTooltip';
 import { useMediaConfig } from '../../hooks/useMediaConfig';
 import {
-  TUploadItem,
   pendingVoiceSendDraftAtom,
   roomUploadAtomFamily,
   voiceAutoSendPendingAtom,
 } from '../../state/room/roomInputDrafts';
-import { UploadStatus } from '../../state/upload';
+import { TUploadItem, UploadStatus } from '../../state/upload';
 import { pauseAllMediaElements } from '../../utils/dom';
 import {
   MatrixUploadErrorStage,

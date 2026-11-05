@@ -132,7 +132,6 @@ describe('CacheStore boundary architecture (ISSUE-207 P2.3)', () => {
     const ALLOWED_CONSUMERS = new Set(
       [
         path.resolve(THREADS_DIR, 'eventRepository.ts'),
-        path.resolve(THREADS_DIR, 'threadSummaryStore.ts'),
         path.resolve(THREADS_DIR, 'threadSummaryState.ts'),
         path.resolve(MINDROOM_ROOT, 'cache', 'sessionCleanup.ts'),
         ATTACHMENT_REPOSITORY_FILE,

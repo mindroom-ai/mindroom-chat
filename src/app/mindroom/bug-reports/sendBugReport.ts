@@ -2,7 +2,7 @@ import { MsgType, type MatrixClient, type Room } from 'matrix-js-sdk';
 import type { RoomMessageEventContent } from 'matrix-js-sdk/lib/@types/events';
 import { getFileMsgContent } from '../../features/room/msgContent';
 import { getMatrixToRoomEvent } from '../../plugins/matrix-to';
-import type { TUploadItem } from '../../state/room/roomInputDrafts';
+import type { TUploadItem } from '../../state/upload';
 import { encryptFile } from '../../utils/matrix';
 import { getMessageRelation } from '../threads/composeMessageRelation';
 import {

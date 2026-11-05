@@ -175,11 +175,6 @@ vi.mock('../../../hooks/useScreenSize', () => ({
   useScreenSizeContext: () => 'Desktop',
 }));
 
-vi.mock('../../../mindroom/native/MindroomBackRouteHandler', () => ({
-  MindroomBackRouteHandler: ({ children }: { children: (onBack: () => void) => React.ReactNode }) =>
-    children(vi.fn()),
-}));
-
 vi.mock('./style.css', () => ({
   PublicRoomsError: 'PublicRoomsError',
   RoomsInfoCard: 'RoomsInfoCard',

@@ -179,10 +179,6 @@ vi.mock('../../../hooks/useRoomCreators', () => ({
   useRoomCreators: () => new Set(),
 }));
 
-vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
-  useRoomCreatorsTag: () => [],
-}));
-
 vi.mock('../../../hooks/usePowerLevelTags', () => ({
   usePowerLevelTags: () => [],
 }));
@@ -217,10 +213,6 @@ vi.mock('../../../hooks/useRoomNavigate', () => ({
 
 vi.mock('../../../hooks/useMentionClickHandler', () => ({
   useMentionClickHandler: () => vi.fn(),
-}));
-
-vi.mock('../../../hooks/useSpoilerClickHandler', () => ({
-  useSpoilerClickHandler: () => vi.fn(),
 }));
 
 vi.mock('../../../state/hooks/userRoomProfile', () => ({
@@ -456,49 +448,6 @@ vi.mock('../../messages/MindroomThreadSummaryMarker.css', () => ({
   MarkerTrigger: 'MarkerTrigger',
   MarkerDetails: 'MarkerDetails',
 }));
-
-vi.mock('../../../features/room/message', async () => {
-  const ReactImport = await import('react');
-
-  return {
-    Reactions: passthrough,
-    Message: ({ children, reactions, reply, ...props }: Record<string, unknown>) =>
-      ReactImport.createElement(
-        messageType,
-        {
-          ...props,
-          'data-testid': messageTestId,
-        },
-        reply as never,
-        children as never,
-        reactions as never
-      ),
-    Event: passthrough,
-    EncryptedContent: ({
-      mEvent,
-      children,
-    }: {
-      mEvent: {
-        __renderInsideEncryptedContentAs?: string;
-        getType: () => string;
-      };
-      children: (() => React.ReactNode) | React.ReactNode;
-    }) => {
-      if (typeof children !== 'function') return children;
-
-      const renderType = mEvent.__renderInsideEncryptedContentAs;
-      if (!renderType) return children();
-
-      const getType = mEvent.getType;
-      mEvent.getType = () => renderType;
-      try {
-        return children();
-      } finally {
-        mEvent.getType = getType;
-      }
-    },
-  };
-});
 
 vi.mock('../../../features/room/message/Reactions', () => ({
   Reactions: passthrough,
@@ -1128,11 +1077,11 @@ afterEach(() => {
   mountedRenderers.clear();
 });
 
-importBeforeTests(() => import('../../../features/room/RoomTimeline'));
+importBeforeTests(() => import('../MindroomRoomTimeline'));
 
 describe('RoomTimeline collapsible wiring', () => {
   it('uses always-expanded mode for thread summary messages resolved from edits', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const summaryEvent = makeEvent('$summary', {
       content: {
         body: 'Original summary',
@@ -1164,7 +1113,7 @@ describe('RoomTimeline collapsible wiring', () => {
   }, 10000);
 
   it('uses always-expanded mode for legacy boolean thread summaries', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const summaryEvent = makeEvent('$legacy-summary', {
       content: {
         body: 'Legacy summary',
@@ -1189,7 +1138,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('uses default mode for historical messages', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const historicalEvent = makeEvent('$historical', {
       content: {
         body: 'Historical message',
@@ -1214,7 +1163,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('starts every timeline with long messages folded', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const room = makeRoom({ liveEvents: [makeEvent('$historical')] });
     const ControlledRoomTimeline = createControlledRoomTimelineHarness(RoomTimeline as never);
     let renderer!: ReactTestRenderer;
@@ -1230,7 +1179,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it("shows agent replies in full and folds people's long messages", async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const room = makeRoom({
       liveEvents: [
         makeEvent('$person'),
@@ -1256,7 +1205,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('clears remembered per-message choices before applying an expand-all baseline', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const historicalEvent = makeEvent('$historical', {
       content: {
         body: 'Historical message',
@@ -1300,7 +1249,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('hydrates rich long-text content while a default room message row stays collapsed', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const longTextEvent = makeEvent('$long-text', {
       content: {
         body: 'Long output.txt',
@@ -1333,7 +1282,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('hydrates rich long-text content in a collapsed decrypted message row', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const encryptedLongTextEvent = makeEvent('$encrypted-long-text', {
       type: MessageEvent.RoomMessageEncrypted,
       renderInsideEncryptedContentAs: MessageEvent.RoomMessage,
@@ -1370,7 +1319,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('forces overflow for very long plain text without measuring the collapsed row', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const longPlainTextEvent = makeEvent('$long-plain-text', {
       content: {
         body: Array.from({ length: 120 }, (_value, index) => `long line ${index}`).join('\n'),
@@ -1395,7 +1344,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('uses initially-expanded mode for visible live messages and consumes it after mount', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const historicalEvent = makeEvent('$historical');
     const liveEvent = makeEvent('$live', {
       content: {
@@ -1436,7 +1385,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it("keeps the viewer's own live message in default mode", async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const ownLiveEvent = makeEvent('$own-live', {
       content: {
         body: 'Own live message',
@@ -1464,7 +1413,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it("keeps the viewer's own message in default mode when its live edit arrives", async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const liveEvents = [
       makeEvent('$own-target', {
         content: {
@@ -1511,7 +1460,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('marks live edit targets for initially-expanded mode and consumes the flag after rerender', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const targetEvent = makeEvent('$target', {
       content: {
         body: 'Original message',
@@ -1571,7 +1520,7 @@ describe('RoomTimeline collapsible wiring', () => {
   });
 
   it('uses always-expanded mode through the encrypted room-message render path', async () => {
-    const { RoomTimeline } = await import('../../../features/room/RoomTimeline');
+    const { RoomTimeline } = await import('../MindroomRoomTimeline');
     const encryptedSummaryEvent = makeEvent('$encrypted-summary', {
       type: MessageEvent.RoomMessageEncrypted,
       renderInsideEncryptedContentAs: MessageEvent.RoomMessage,

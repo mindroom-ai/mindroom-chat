@@ -35,7 +35,7 @@ import { ScreenSize, useScreenSizeContext } from '../../hooks/useScreenSize';
 import { usePowerLevelsContext } from '../../hooks/usePowerLevels';
 import { useRoomCreators } from '../../hooks/useRoomCreators';
 import { useRoomPermissions } from '../../hooks/useRoomPermissions';
-import { useRoomPinnedEvents } from '../../hooks/useRoomPinnedEvents';
+import { usePinnedEventIds as useRoomPinnedEvents } from './useThreadPinning';
 import { useRoomNavigate } from '../../hooks/useRoomNavigate';
 import { useOpenRoomSettings } from '../../state/hooks/roomSettings';
 import { useSetting } from '../../state/hooks/settings';

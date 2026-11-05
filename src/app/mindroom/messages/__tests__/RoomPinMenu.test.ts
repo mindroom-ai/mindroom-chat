@@ -9,10 +9,6 @@ vi.mock('../../../components/page', () => ({
 
 const APPROVAL_EVENT_TYPE = 'io.mindroom.tool_approval';
 
-vi.mock('../../../hooks/useVirtualListScrollMargin', () => ({
-  useVirtualListScrollMargin: () => 0,
-}));
-
 const {
   getEditedEventMock,
   navigateRoomMock,
@@ -132,12 +128,6 @@ vi.mock('../../../components/sequence-card', () => ({
     React.createElement('div', props, children),
 }));
 
-vi.mock('../MindroomRoomPinMenu.css', () => ({
-  PinMenu: 'PinMenu',
-  PinMenuHeader: 'PinMenuHeader',
-  PinMenuContent: 'PinMenuContent',
-}));
-
 vi.mock('../../../components/message', () => ({
   AvatarBase: ({ children }: { children?: React.ReactNode }) =>
     React.createElement(React.Fragment, null, children),
@@ -182,10 +172,6 @@ vi.mock('../../../utils/room', () => ({
 
 vi.mock('../../../hooks/useMentionClickHandler', () => ({
   useMentionClickHandler: () => vi.fn(),
-}));
-
-vi.mock('../../../hooks/useSpoilerClickHandler', () => ({
-  useSpoilerClickHandler: () => vi.fn(),
 }));
 
 vi.mock('../../../plugins/react-custom-html-parser', () => ({
@@ -237,11 +223,6 @@ vi.mock('../../../state/settings', () => ({
 
 vi.mock('../../../styles/CustomHtml.css', () => ({
   Code: 'Code',
-}));
-
-vi.mock('../../../features/room/message', () => ({
-  EncryptedContent: ({ children }: { children: () => React.ReactNode }) =>
-    React.createElement(React.Fragment, null, children()),
 }));
 
 vi.mock('../../../features/room/message/EncryptedContent', () => ({
@@ -300,14 +281,6 @@ vi.mock('../../../hooks/useTheme', () => ({
   }),
 }));
 
-vi.mock('../../../components/power', () => ({
-  PowerIcon: () => null,
-}));
-
-vi.mock('../../../../util/colorMXID', () => ({
-  default: () => '#123456',
-}));
-
 vi.mock('../../../hooks/useRoom', () => ({
   useIsDirectRoom: () => false,
 }));
@@ -328,12 +301,8 @@ vi.mock('../../../hooks/useMemberPowerTag', () => ({
   useGetMemberPowerTag: () => () => undefined,
 }));
 
-vi.mock('../../../hooks/useRoomCreatorsTag', () => ({
-  useRoomCreatorsTag: () => undefined,
-}));
-
-vi.mock('../../../hooks/useRoomPinnedEvents', () => ({
-  useRoomPinnedEvents: () => new Set(['$approval']),
+vi.mock('../../threads/useThreadPinning', () => ({
+  usePinnedEventIds: () => new Set(['$approval']),
 }));
 
 vi.mock('../../threads/useRoomEvent', () => ({

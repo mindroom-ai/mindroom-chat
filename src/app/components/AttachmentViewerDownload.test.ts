@@ -72,10 +72,6 @@ vi.mock('./Pdf-viewer/PdfViewer.css', () => ({
   PdfViewerHeader: 'PdfViewerHeader',
 }));
 
-vi.mock('../styles/Modal.css', () => ({
-  ModalWide: 'ModalWide',
-}));
-
 vi.mock('./page', async () => {
   const { createElement } = await import('react');
   return {
@@ -106,12 +102,6 @@ vi.mock('../hooks/usePan', () => ({
     cursor: 'default',
     isPanning: false,
   }),
-}));
-
-vi.mock('../plugins/pdfjs-dist', () => ({
-  createPage: vi.fn(),
-  usePdfDocumentLoader: () => [{ status: 'idle' }, vi.fn()],
-  usePdfJSLoader: () => [{ status: 'idle' }, vi.fn()],
 }));
 
 vi.mock('../mindroom/messages/attachmentRepository', () => ({
