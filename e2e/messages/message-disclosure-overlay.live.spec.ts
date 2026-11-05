@@ -75,9 +75,11 @@ for (const surface of ['room', 'thread'] as const) {
         // Real wheel input releases the timeline's follow-latest state in both engines.
         // Reaching the top can prepend earlier room events and restore an anchor.
         // Continue real input until that pagination has also reached the top.
+        // Wheel only as far as the top: on macOS a wheel past it stretches the edge, and the
+        // next wheel down then only takes the stretch back instead of scrolling.
         await expect
           .poll(async () => {
-            await page.mouse.wheel(0, -(await scroll.evaluate((el) => el.scrollHeight)));
+            await page.mouse.wheel(0, -(await scroll.evaluate((el) => el.scrollTop)));
             return scroll.evaluate((el) => el.scrollTop);
           })
           .toBeLessThan(2);
