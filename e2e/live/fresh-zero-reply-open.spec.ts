@@ -20,9 +20,9 @@ const getMessageComposer = (page: import('@playwright/test').Page) =>
   page.getByRole('textbox').first();
 
 const getZeroReplyThreadButton = (page: import('@playwright/test').Page, rootBody: string) =>
-  page.getByRole('button', {
-    name: new RegExp(`${escapeRegex(rootBody)}[\\s\\S]*0 replies`, 'i'),
-  });
+  page
+    .getByRole('button', { name: new RegExp(escapeRegex(rootBody), 'i') })
+    .filter({ hasNot: page.locator('[data-compact-card-reply-count]') });
 
 const clickThreadExitButton = async (page: import('@playwright/test').Page) => {
   await page.evaluate(() => {

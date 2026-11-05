@@ -214,7 +214,7 @@ test.describe('live threads', () => {
       .locator('[data-thread-root-id="' + canonicalRootId + '"]');
     await expect(compactThreadButton).toBeVisible({ timeout: 30_000 });
     await expect(compactThreadButton).toContainText(rootBody);
-    await expect(compactThreadButton).toHaveAccessibleName(/\b0 replies\b/);
+    await expect(compactThreadButton.locator('[data-compact-card-reply-count]')).toHaveCount(0);
 
     await compactThreadButton.click();
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
@@ -247,9 +247,12 @@ test.describe('live threads', () => {
 
     const hiddenRelationThreadButton = getNewestMatchingThreadButton(
       page,
-      new RegExp(`${escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER)}[\\s\\S]*0 replies`, 'i')
+      new RegExp(escapeRegex(HIDDEN_THREAD_RELATION_ROOT_MARKER), 'i')
     );
     await expect(hiddenRelationThreadButton).toBeVisible({ timeout: 30_000 });
+    await expect(hiddenRelationThreadButton.locator('[data-compact-card-reply-count]')).toHaveCount(
+      0
+    );
 
     await hiddenRelationThreadButton.click();
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });

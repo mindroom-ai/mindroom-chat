@@ -23,6 +23,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     titleText,
     displayTitleText,
     previewText,
+    messageCount,
     messageCountLabel,
     messageCountText,
     attentionState,
@@ -42,6 +43,8 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     primarySummaryText,
   } = viewModel;
   const relativeTime = useRelativeTime(lastActivityTs, 'compact');
+  // A thread nobody has replied to shows no count, as the Threads view shows no chip under it.
+  const hasReplies = messageCount > 0;
   const resolvedByLabel =
     isResolved && resolvedByDisplayName
       ? t('thread.resolvedBy', { name: resolvedByDisplayName })
@@ -50,7 +53,7 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     t('thread.aria.openThread', { title: titleText }),
     attentionStatusText,
     previewText,
-    messageCountLabel,
+    hasReplies ? messageCountLabel : undefined,
     isResolved
       ? resolvedByLabel ?? t('thread.aria.resolvedThread')
       : t('thread.aria.unresolvedThread'),
@@ -177,17 +180,19 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
               </Text>
             </Box>
           )}
-          <Text
-            as="span"
-            className={css.ReplyCount}
-            size="T200"
-            priority="300"
-            title={messageCountLabel}
-            data-compact-card-reply-count="true"
-          >
-            <Icon size="50" src={Icons.Thread} aria-hidden="true" />
-            {messageCountText}
-          </Text>
+          {hasReplies && (
+            <Text
+              as="span"
+              className={css.ReplyCount}
+              size="T200"
+              priority="300"
+              title={messageCountLabel}
+              data-compact-card-reply-count="true"
+            >
+              <Icon size="50" src={Icons.Thread} aria-hidden="true" />
+              {messageCountText}
+            </Text>
+          )}
         </span>
       </Box>
     </button>

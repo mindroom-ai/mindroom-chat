@@ -214,6 +214,40 @@ describe('CompactThreadCard', () => {
     renderer.unmount();
   });
 
+  it('shows no count on a thread without replies and the count on one with two', () => {
+    const unanswered = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({
+          messageCount: 0,
+          messageCountLabel: '0 replies',
+          messageCountText: '0',
+        })}
+        onClick={vi.fn()}
+      />
+    );
+    expect(
+      unanswered.root.findAllByProps({ 'data-compact-card-reply-count': 'true' })
+    ).toHaveLength(0);
+    expect(unanswered.root.findByType('button').props['aria-label']).not.toContain('0 replies');
+    unanswered.unmount();
+
+    const answered = create(
+      <CompactThreadCard
+        viewModel={makeViewModel({
+          messageCount: 2,
+          messageCountLabel: '2 msgs',
+          messageCountText: '2',
+        })}
+        onClick={vi.fn()}
+      />
+    );
+    const replyCount = answered.root.findByProps({ 'data-compact-card-reply-count': 'true' });
+    expect(replyCount.props.children).toContain('2');
+    expect(replyCount.props.title).toBe('2 msgs');
+    expect(answered.root.findByType('button').props['aria-label']).toContain('2 msgs');
+    answered.unmount();
+  });
+
   it('keeps the attention state on the card for the accessible label and test hooks', () => {
     const viewModel = makeViewModel({
       attentionState: 'resolved',
