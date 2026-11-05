@@ -170,7 +170,17 @@ export const CodeBlockActionIcon = style(square(toRem(16)));
 
 export const CodeBlockScroll = style({
   overflow: 'auto',
-  maxHeight: toRem(480),
+  // At its top or bottom the block hands the scroll on to the timeline. Sideways it keeps the
+  // scroll, since the timeline does not scroll sideways and a trackpad swipe past the edge would
+  // otherwise go back in the browser history.
+  overscrollBehaviorInline: 'contain',
+  selectors: {
+    // Inside the box: the block clips anything drawn outside it.
+    '&:focus-visible': {
+      outline: 'none',
+      boxShadow: ring(config.borderWidth.B600, color.Other.FocusRing, true),
+    },
+  },
 });
 
 export const CodeBlockInternal = style({
