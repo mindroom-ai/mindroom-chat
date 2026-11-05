@@ -1,23 +1,43 @@
-import { MatrixClient, Room } from 'matrix-js-sdk';
-import { isDirectInvite } from '../../../utils/room';
-import { addRoomIdToMDirect, guessDmRoomUserId, rateLimitedActions } from '../../../utils/matrix';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { Membership } from '../../../../types/matrix/room';
+import { matchesEnum } from '../../../utils/matchesEnum';
+import { addRoomIdToMDirect, guessDmRoomUserId, rateLimitedActions } from '../../../utils/matrix';
+import { isDirectInvite } from '../../../utils/room';
 
-export const acceptInvite = async (mx: MatrixClient, room: Room): Promise<void> => {
-  const userId = mx.getSafeUserId();
-  // Read is_direct and the DM partner before joining; the join replaces our invite member event.
-  const partnerId = isDirectInvite(room, userId) ? guessDmRoomUserId(room, userId) : undefined;
-
-  await mx.joinRoom(room.roomId);
-  if (!partnerId) return;
-  // A direct invite is also recorded in the m.direct account data, now that we joined.
-  await addRoomIdToMDirect(mx, room.roomId, partnerId);
+/**
+ * Who a direct-chat invite is with: undefined when the invite is not marked `is_direct`, or when
+ * nobody fits. Call it before joining, because the join replaces our member event and the flag is
+ * gone afterwards.
+ */
+const personOfDirectInvite = (mx: MatrixClient, room: Room): string | undefined => {
+  const me = mx.getSafeUserId();
+  return isDirectInvite(room, me) ? guessDmRoomUserId(room, me) : undefined;
 };
 
-// One failed join leaves that invite in the list and does not stop the rest.
+/**
+ * Accepts one invite (a card's Accept button): joins the room, then files a direct chat under its
+ * person in `m.direct`, which puts it under Direct Messages. Rejects when the join fails, leaving
+ * `m.direct` as it was, and when the `m.direct` write fails after a successful join.
+ */
+export const acceptInvite = async (mx: MatrixClient, room: Room): Promise<void> => {
+  const person = personOfDirectInvite(mx, room);
+  await mx.joinRoom(room.roomId);
+  if (person !== undefined) await addRoomIdToMDirect(mx, room.roomId, person);
+};
+
+/**
+ * Accept All: accepts the invites one at a time, in the given order. An invite the reader accepted
+ * or declined in the meantime (on a card, or on another device) is left alone. A failure leaves its
+ * invite pending and the next one goes ahead; a rate-limited request waits for the delay the server
+ * asks and runs again (`rateLimitedActions`). Resolves once every room had its turn, never rejects.
+ */
 export const acceptInvites = (mx: MatrixClient, rooms: Room[]): Promise<void> =>
   rateLimitedActions(rooms, async (room) => {
-    // Skip invites accepted or declined since the batch started (card buttons, other devices).
-    if (room.getMyMembership() !== Membership.Invite) return;
-    await acceptInvite(mx, room);
+    if (!matchesEnum(room.getMyMembership(), Membership.Invite)) return;
+    const person = personOfDirectInvite(mx, room);
+    await mx.joinRoom(room.roomId);
+    if (person === undefined) return;
+    // Retrying this whole room after a rate-limited write would find it joined and skip it, so
+    // the write retries on its own, for the person read before the join.
+    await rateLimitedActions([person], (userId) => addRoomIdToMDirect(mx, room.roomId, userId));
   });
