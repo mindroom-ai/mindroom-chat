@@ -248,6 +248,14 @@ function ThreadPresetDropdown({
       <button
         type="button"
         className={css.PresetButton}
+        onMouseDown={(e) => {
+          // Safari focuses no button on a press: the open list would lose the focus to nothing
+          // and close, and the click would open it again. The button takes the focus instead.
+          if (open) {
+            e.preventDefault();
+            e.currentTarget.focus();
+          }
+        }}
         onClick={handleToggle}
         aria-label={t('mindroomUi.threads.roomThreadOverview.filterPresets')}
         aria-expanded={open}

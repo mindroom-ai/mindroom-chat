@@ -17,7 +17,8 @@ import {
 // keyboard keep the threads that carry both (tag filters combine with AND, as they did before
 // the dropdown); the button names a lone tag; the choice survives a reload; Clear brings every
 // thread back; a tag the search excludes shows checked and marked; and on a phone with touch the
-// People and Tags panels open inside the screen and close on a second tap of their button.
+// People and Tags panels open inside the screen and close on a second tap of their button. A
+// second press or tap on the Preset button closes its list too.
 // Classic scrollbars are shown, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit.
 // Set L28_SHOTS=<directory> to save the L28 screenshots (Chromium only).
@@ -179,6 +180,26 @@ const tagFilterOf = (page: Page) => {
   };
 };
 
+/**
+ * The Preset button opens its list, and a second press closes it and keeps it closed. Safari
+ * focuses no button on a press, so the press took the focus from the open list to nothing, the
+ * list closed on that blur, and the click opened it again.
+ */
+const checkPresetToggle = async (page: Page, press: (target: Locator) => Promise<void>) => {
+  const overview = page.locator('[data-room-thread-overview]');
+  const button = overview.locator('[data-preset-button]');
+  const list = overview.locator('[data-preset-dropdown]');
+  await press(button);
+  await expect(list).toBeVisible();
+  await expect(button).toHaveAttribute('aria-expanded', 'true');
+  await press(button);
+  await expect(list).toHaveCount(0);
+  // Not opened again a moment later either.
+  await page.waitForTimeout(300);
+  await expect(list).toHaveCount(0);
+  await expect(button).toHaveAttribute('aria-expanded', 'false');
+};
+
 /** Everything the dropdown does, on a signed-in page that shows the seeded room. */
 const checkTagFilter = async (page: Page, engine: string) => {
   const { cards, overview, button, panel, search, options, option, box } = tagFilterOf(page);
@@ -189,6 +210,7 @@ const checkTagFilter = async (page: Page, engine: string) => {
   await expect(button).toHaveAttribute('data-tag-filter-count', '0');
   await expect(button).toHaveText('Tags');
   await expect(overview.locator('[data-add-tag-button]')).toHaveCount(0);
+  await checkPresetToggle(page, (target) => target.click());
   if (engine === 'chromium') {
     await page.mouse.move(1, 1);
     await shot(page, 'L28-thread-tags-closed');
@@ -307,6 +329,7 @@ const checkPhone = async (
     const { cards, overview, button, panel, option } = tagFilterOf(page);
     await expect(cards).toHaveCount(TOPICS.length, { timeout: 120_000 });
     await overview.locator('[data-thread-filter-mode-switch]').tap();
+    await checkPresetToggle(page, (target) => target.tap());
     for (const name of ['people', 'tag']) {
       const trigger = overview.locator(`[data-${name}-filter-button]`);
       // eslint-disable-next-line no-await-in-loop
