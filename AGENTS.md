@@ -1,17 +1,17 @@
 # AGENTS.md
 
-mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files authored by Bas Nijholt are ported from MindRoom Chat, and everything else is written fresh without access to the upstream client or MindRoom Chat source.
+mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from MindRoom Chat, and everything else is written fresh without access to the upstream client or MindRoom Chat source.
 
 ## The two lanes
 
-- **Lane P (ported):** files listed in `docs/provenance/portable.tsv` (first import), `docs/provenance/portable-wave2.tsv` (second import) and `docs/provenance/portable-wave3.tsv` (third import: binary assets, verified by blob hash), copied from MindRoom Chat `fc3a5905`; the lists keep the paths the files had when they were imported. Bas authored at least 95% of each text file's lines; every other line was blanked (`docs/provenance/holes.tsv`, `docs/provenance/holes-wave2.tsv`). `docs/provenance/import.txt` names each wave's import commit, one line per wave. Per Bas Nijholt's instruction of 2026-11-02, he licenses the lines he wrote in the files of both imports under Apache-2.0 for this project (`NOTICE`).
+- **Lane P (ported):** files listed in `docs/provenance/portable.tsv` (first import), `docs/provenance/portable-wave2.tsv` (second import) and `docs/provenance/portable-wave3.tsv` (third import: binary assets, verified by blob hash), copied from MindRoom Chat `fc3a5905`; the lists keep the paths the files had when they were imported. `git blame` credited Bas with at least 95% of each text file's lines; every other line was blanked (`docs/provenance/holes.tsv`, `docs/provenance/holes-wave2.tsv`). `docs/provenance/import.txt` names each wave's import commit, one line per wave. Per Bas Nijholt's instruction of 2026-11-02, he licenses the lines he wrote in the files of the first and second imports under Apache-2.0 for this project; third-party material in those files keeps its own license, and no grant is recorded for the third import (`NOTICE`, `docs/provenance.md`).
 - **Dropped:** `docs/provenance/dropped.tsv` lists Lane P files deleted since their import, at their import-time paths: with a dropped feature, as dead code, or merged into another file. MindRoom Chat repository tooling and `FORK_CHANGES.md` were removed from every commit; `FORK_CHANGES.md` is not an input, and no session may read it from any copy.
 - **No upstream code, in any commit:** `scripts/upstream-overlap/check.py` (`just upstream-overlap <upstream clone>`) must report 0 findings for every new commit before it is pushed (`--history` checks all of them). Only the orchestrator holds the upstream clone; other sessions may run the check on their own files when told the corpus path, and may never open the corpus.
 - **Lane C (clean):** everything else, including the seams (modules that Lane P files import but that were not ported; `docs/provenance/seams.tsv`, by import-time path) and the app shell.
 
 A file keeps its lane when it moves: the lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch) maps each moved file to its current path; a later move appends its rows the same way (`docs/provenance.md` "Moves"). `node scripts/provenance-paths.cjs lane <path>` prints a file's lane.
 
-`docs/provenance.md` describes both lanes, and every session that works in this repository logs itself there.
+`docs/provenance.md` describes both lanes, and every session that works in this repository adds a row to its session log (the appendix at its end).
 
 ### Lane C rules
 

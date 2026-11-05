@@ -5,14 +5,21 @@ Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 Ported files
 ------------
-Bas Nijholt authored the files listed in docs/provenance/portable.tsv (first
-import) and docs/provenance/portable-wave2.tsv (second import), both copied
-from MindRoom Chat (mindroom-ai/mindroom-chat) at commit fc3a5905. Per his
-instruction of 2026-11-02, he licenses the lines he wrote in the files of both
-imports under the Apache License, Version 2.0 for this project. Lines by any
-other author were blanked when copied (docs/provenance/holes.tsv and
-holes-wave2.tsv) and written fresh here, as were lines that matched the upstream client
-(docs/provenance/holes-overlap*.tsv). docs/provenance/import.txt names the
+The files listed in docs/provenance/portable.tsv (first import) and
+docs/provenance/portable-wave2.tsv (second import) were copied from MindRoom
+Chat (mindroom-ai/mindroom-chat) at commit fc3a5905; git blame credited at
+least 95% of each file's lines to Bas Nijholt. Per his instruction of
+2026-11-02, he licenses the lines he wrote in those files under the Apache
+License, Version 2.0 for this project. The grant covers only the lines he
+wrote. Blame credits the committer, so some lines it gave him are third-party
+material that he committed: the Capacitor templates and the Gradle wrapper
+scripts, the T3 Code minimap port, the sign-in marks, the code block icons
+and the context lines of the dependency patches. They keep the licenses that
+their entries below give. Lines by any other author were blanked when copied
+(docs/provenance/holes.tsv and holes-wave2.tsv) and written fresh here, as
+were lines that matched the upstream client (docs/provenance/holes-overlap*.tsv).
+No grant is recorded for the images of the third import
+(docs/provenance/portable-wave3.tsv). docs/provenance/import.txt names the
 import commits; docs/provenance.md describes the process.
 
 App Store fixture avatars

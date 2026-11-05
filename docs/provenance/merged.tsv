@@ -1,0 +1,17 @@
+old_path	old_lane	new_path	new_lane	commit	reason
+src/app/mindroom/threads/__tests__/featureOwnership.architecture.test.ts	P	src/app/composer/voice/__tests__/voiceOwnership.architecture.test.ts	C	a045afd2	only its voice case moved here; restructure P3
+src/app/mindroom/messages/pinnedMessageExtensions.ts	P	src/app/messages/pins/RoomPinMenu.tsx	C (seam)	a9731bf4	decision 2: inline adapter glue; dead export and re-exports dropped
+src/app/mindroom/messages/replyExtensions.tsx	P	src/app/messages/reply/Reply.tsx	C (seam)	e95feaa1	decision 2: inline adapter glue
+src/app/mindroom/messages/messageExtensions.tsx	P	src/app/messages/Message.tsx	C (seam)	eb902ab3	decision 2: inline adapter glue
+src/app/mindroom/client/MindroomClientNonUIFeatures.tsx	C (seam)	src/app/notifications/InviteNotifications.tsx	C	23c40c63	restructure P3: each feature with its domain
+src/app/mindroom/client/MindroomClientNonUIFeatures.tsx	C (seam)	src/app/notifications/push/IOSPushFeature.tsx	C	23c40c63	restructure P3: each feature with its domain
+src/app/mindroom/client/MindroomClientNonUIFeatures.tsx	C (seam)	src/app/canvas/CanvasIndexFeature.tsx	C	23c40c63	restructure P3: each feature with its domain
+src/app/mindroom/client/MindroomClientNonUIFeatures.tsx	C (seam)	src/app/threads/cross-room/CrossRoomThreadIndexFeature.tsx	C	23c40c63	restructure P3: each feature with its domain
+src/app/mindroom/threads/roomTimelineMessageExtensions.tsx	P	src/app/timeline/ThreadBadge.tsx	P	79eb371e	decision 2; its approval content call inlined into src/app/timeline/message-rendering/useTimelineMessageFeature.tsx
+src/app/mindroom/threads/roomTimelineMessageExtensions.test.ts	P	src/app/timeline/ThreadBadge.test.ts	P	79eb371e	decision 2
+src/app/mindroom/message-search/searchResultBodyRenderer.tsx	P	src/app/search/SearchResultGroup.tsx	C (seam)	91ead81e	restructure P3 C6: SearchResultItem renders SearchResultBody directly
+src/app/mindroom/notifications/SystemNotificationMindroomExtensions.tsx	P	src/app/notifications/settings/SystemNotification.tsx	C (seam)	791c9ea9	restructure P3 C6: glue inlined into its only host
+src/app/mindroom/html/customHtmlPolicy.ts	C (seam)	src/app/rich-text/sanitize.ts	C (seam)	d81f39c1	restructure P3 C6: seam; both files Lane C, one sanitizer module
+src/app/mindroom/commands/MindroomCommandAutocomplete.tsx	C (seam)	src/app/composer/commands/CommandAutocomplete.tsx	C	d3ca2bd5	seam; second copy of the command menu
+src/app/mindroom/commands/mindroomCommandSuggestions.ts	C	src/app/composer/slashCommandQuery.ts	C	d3ca2bd5	Lane C; one suggestions helper
+src/app/mindroom/threads/threadBootstrap.test.ts	P	src/app/threads/open/threadBootstrap.test.ts	C	7fa9446b	only its shouldRefreshOverviewForTimelineEvent case moved here; restructure P4a; the rest of the file is src/app/event-store/engine/threadRelationsFetcher.test.ts
