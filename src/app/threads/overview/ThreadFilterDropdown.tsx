@@ -1,6 +1,5 @@
 import {
   useEffect,
-  useLayoutEffect,
   useRef,
   useState,
   type FocusEvent,
@@ -14,6 +13,7 @@ import { Checkbox, Text } from 'folds';
 import { Surface } from '../../ui/glass/GlassPrimitives';
 import * as overviewCss from './RoomThreadOverview.css';
 import * as css from './ThreadFilterDropdown.css';
+import { useKeepInsideToolbar } from './useKeepInsideToolbar';
 
 /** The data attribute of one part of the `name` dropdown: `data-<name>-filter-<part>`. */
 const dataPart = (name: string, part: string, value: string | number = 'true') => ({
@@ -67,26 +67,10 @@ export function ThreadFilterPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
-  const shiftRef = useRef(0);
   // The panel opens to search; the trigger takes focus back when it closes. Without scrolling:
   // a panel wider than the room's free space would shift the room sideways.
   useEffect(() => searchRef.current?.focus({ preventScroll: true }), []);
-
-  // A panel that would overhang the filter bar (on a phone, or under a trigger near the bar's
-  // end) moves back inside it, as far as the bar's left edge allows.
-  useLayoutEffect(() => {
-    const panel = panelRef.current;
-    const bar = panel?.parentElement?.closest('[role="toolbar"]')?.getBoundingClientRect();
-    if (!panel || !bar) return;
-    const box = panel.getBoundingClientRect();
-    const start = box.left - shiftRef.current;
-    const end = box.right - shiftRef.current;
-    let shift = end > bar.right ? bar.right - end : 0;
-    if (start + shift < bar.left) shift = bar.left - start;
-    if (shift === shiftRef.current) return;
-    shiftRef.current = shift;
-    panel.style.translate = shift ? `${shift}px` : '';
-  });
+  useKeepInsideToolbar(panelRef);
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const target = event.target as HTMLElement;

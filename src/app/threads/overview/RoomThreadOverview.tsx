@@ -24,6 +24,7 @@ import * as css from './RoomThreadOverview.css';
 import * as threadIndicatorCss from '../../messages/ThreadIndicator.css';
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagFilter } from './ThreadTagFilter';
+import { useKeepInsideToolbar } from './useKeepInsideToolbar';
 import type {
   ThreadFilterState,
   ThreadFilterKey,
@@ -184,6 +185,8 @@ function ThreadPresetDropdown({
   const [open, setOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useKeepInsideToolbar(panelRef);
 
   const handleToggle = useCallback(() => {
     setOpen((prev) => {
@@ -269,6 +272,7 @@ function ThreadPresetDropdown({
       </button>
       {open && (
         <Surface
+          ref={panelRef}
           level="overlay"
           variant="SurfaceVariant"
           className={css.PresetDropdown}
@@ -339,6 +343,8 @@ function ThreadInfoPopover({
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  useKeepInsideToolbar(panelRef);
 
   const tooltipText = statusCounts
     ? (Object.keys(STATUS_LABEL_KEYS) as ThreadFilterKey[])
@@ -385,6 +391,7 @@ function ThreadInfoPopover({
       </TooltipProvider>
       {open && (
         <Surface
+          ref={panelRef}
           level="overlay"
           variant="SurfaceVariant"
           className={css.InfoPopover}
