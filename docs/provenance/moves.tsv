@@ -2829,3 +2829,4 @@ src/app/ui/unread-badge/UnreadBadge.tsx	src/app/ui/UnreadBadge.tsx	restructure-p
 src/app/ui/virtualizer/VirtualTile.tsx	src/app/ui/VirtualTile.tsx	restructure-p4b-barrels
 src/app/ui/virtualizer/style.css.ts	src/app/ui/VirtualTile.css.ts	restructure-p4b-barrels
 src/app/navigation/clientRouteRestore.ts		clean-rewrite
+src/app/messages/content/useAudioContentSource.ts		clean-rewrite
