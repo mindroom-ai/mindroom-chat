@@ -22,4 +22,4 @@ export type TimelineMessageData = {
   handleOpenReply: MouseEventHandler;
 };
 
-export type TimelineMessageKind = 'message' | 'approval' | 'encrypted' | 'sticker';
+export type { TimelineMessageKind } from '../timelineRowTypes';

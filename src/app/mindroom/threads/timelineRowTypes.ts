@@ -1,10 +1,12 @@
 import { MINDROOM_TOOL_APPROVAL_EVENT } from '../messages/toolApproval';
-import type { TimelineMessageKind } from './message-rendering/types';
 
 /**
  * Which events get a row in the timeline, and how big media rows get. The renderer, the row
  * grouping and the height estimates all read these, so what is estimated is what renders.
  */
+
+/** The kinds of message row the timeline draws. */
+export type TimelineMessageKind = 'message' | 'approval' | 'encrypted' | 'sticker';
 
 /** State events the timeline shows as a one-line notice; other state events get no row. */
 export const NOTICE_STATE_EVENT_TYPES: ReadonlySet<string> = new Set([
