@@ -17,6 +17,7 @@ import { MINDROOM_TOOL_APPROVAL_EVENT } from '../mindroom/messages/toolApproval'
 import { isRecord } from './isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from './matchesEnum';
+import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimelineRead';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -277,24 +278,27 @@ const isUnreadWorthy = (mEvent: MatrixEvent): boolean =>
   !isHiddenReferenceEvent(mEvent);
 
 /**
- * Whether the room has a message we have not read: walking back from the newest event, a
- * message by someone else before our read position or our own last message.
+ * Whether the room has a message we have not read: walking back from the newest event, an
+ * unread message (see `isMainTimelineMessageUnread`) before our read position or our own last
+ * message.
  */
 export const roomHaveUnread = (client: MatrixClient, room: Room): boolean => {
   const selfId = client.getUserId();
   if (!selfId) return false;
   const timeline = room.getLiveTimeline().getEvents();
   const readUpToId = room.getEventReadUpTo(selfId);
+  let readTs: number | undefined;
 
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const event = timeline[index];
     if (!event) continue;
     if (readUpToId && event.getId() === readUpToId) return false;
-    if (event.getSender() === selfId) {
-      if (isUnreadWorthy(event)) return false;
-    } else if (isUnreadWorthy(event)) {
-      return true;
-    }
+    if (!isUnreadWorthy(event)) continue;
+    if (event.getSender() === selfId) return false;
+    readTs ??= getMainTimelineReadTs(room, selfId);
+    // The timeline is in order, so everything older was read too.
+    if (event.getTs() <= readTs) return false;
+    if (isMainTimelineMessageUnread(room, event, selfId, readTs)) return true;
   }
   return false;
 };

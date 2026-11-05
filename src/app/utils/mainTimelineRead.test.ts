@@ -1,0 +1,125 @@
+import {
+  MatrixEvent,
+  ReceiptType,
+  RelationType,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
+import { describe, expect, it } from 'vitest';
+import { roomHaveUnread } from './room';
+import { isMainTimelineMessageUnread } from './mainTimelineRead';
+
+// The room list's dot and the unread thread filter answer one question for a message in the main
+// timeline, usually a thread root: has the reader seen it?
+const ME = '@me:example.org';
+const AGENT = '@agent:example.org';
+
+const message = (eventId: string, ts: number, sender: string, threadRootId?: string) =>
+  new MatrixEvent({
+    content: {
+      body: eventId,
+      msgtype: 'm.text',
+      ...(threadRootId
+        ? {
+            'm.relates_to': {
+              rel_type: RelationType.Thread,
+              event_id: threadRootId,
+              is_falling_back: true,
+              'm.in_reply_to': { event_id: threadRootId },
+            },
+          }
+        : {}),
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender,
+    type: 'm.room.message',
+  });
+
+type Receipt = { eventId: string; ts: number; threadId?: string };
+
+const makeRoom = ({
+  main,
+  receipt,
+  threads = {},
+}: {
+  main: MatrixEvent[];
+  /** The reader's receipt for the room: main timeline or unthreaded. */
+  receipt?: Receipt;
+  threads?: Record<string, MatrixEvent[]>;
+}): Room => {
+  const all = [...main, ...Object.values(threads).flat()];
+  const findEventById = (eventId: string) => all.find((event) => event.getId() === eventId);
+  return {
+    roomId: '!room:example.org',
+    getLiveTimeline: () => ({ getEvents: () => main }),
+    findEventById,
+    // The SDK answers a receipt's event wherever it is, a thread reply included.
+    getEventReadUpTo: () => (receipt && findEventById(receipt.eventId) ? receipt.eventId : null),
+    getReadReceiptForUserId: (_userId: string, _ignore: boolean, type: ReceiptType) =>
+      receipt && type === ReceiptType.Read
+        ? { eventId: receipt.eventId, data: { ts: receipt.ts, thread_id: receipt.threadId } }
+        : null,
+    getLastUnthreadedReceiptFor: () =>
+      receipt && !receipt.threadId ? { ts: receipt.ts } : undefined,
+    getThread: (rootId: string) => {
+      const events = threads[rootId];
+      return events
+        ? { id: rootId, events, replyToEvent: events.at(-1), hasCurrentUserParticipated: false }
+        : null;
+    },
+  } as unknown as Room;
+};
+
+const client = { getUserId: () => ME } as unknown as MatrixClient;
+
+describe('main timeline read state', () => {
+  it('counts an unthreaded receipt on a thread reply as reading the roots before it', () => {
+    // Mark as Read and Escape send one unthreaded receipt on the newest event, often a reply.
+    const root = message('$root', 1000, AGENT);
+    const reply = message('$reply', 2000, AGENT, '$root');
+    const room = makeRoom({
+      main: [root],
+      threads: { $root: [reply] },
+      receipt: { eventId: '$reply', ts: 3000 },
+    });
+
+    expect(roomHaveUnread(client, room)).toBe(false);
+    expect(isMainTimelineMessageUnread(room, root, ME)).toBe(false);
+  });
+
+  it("counts another member's root as read once the reader answered in its thread", () => {
+    const root = message('$root', 1000, AGENT);
+    const room = makeRoom({
+      main: [root],
+      threads: {
+        $root: [message('$answer', 2000, AGENT, '$root'), message('$mine', 3000, ME, '$root')],
+      },
+    });
+
+    expect(roomHaveUnread(client, room)).toBe(false);
+    expect(isMainTimelineMessageUnread(room, root, ME)).toBe(false);
+  });
+
+  it("keeps another member's root unread when it came after the reader's receipt", () => {
+    // A root by an agent, such as a welcome or a scheduled post, with no visible reply yet.
+    const older = message('$older', 1000, ME);
+    const root = message('$root', 4000, AGENT);
+    const room = makeRoom({
+      main: [older, root],
+      receipt: { eventId: '$older', ts: 2000, threadId: 'main' },
+    });
+
+    expect(roomHaveUnread(client, room)).toBe(true);
+    expect(isMainTimelineMessageUnread(room, root, ME)).toBe(true);
+    expect(isMainTimelineMessageUnread(room, older, ME)).toBe(false);
+  });
+
+  it('finds a root outside the loaded timeline unread by its time alone', () => {
+    const root = message('$old-root', 4000, AGENT);
+    const room = makeRoom({ main: [], receipt: { eventId: '$gone', ts: 2000 } });
+
+    expect(isMainTimelineMessageUnread(room, root, ME)).toBe(true);
+  });
+});

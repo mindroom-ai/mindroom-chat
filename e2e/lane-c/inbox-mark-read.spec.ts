@@ -157,8 +157,13 @@ test('Mark as Read in the Inbox clears the thread notifications of its room', as
   await expect(unreadDots).toHaveCount(0);
   await expect(mentions).toHaveCount(3);
   await expect(page.getByRole('button', { name: 'Mark as Read', exact: true })).toHaveCount(0);
-  // The sidebar no longer counts the room's messages or thread replies.
+  // The sidebar shows the room read: no count, and no unread mark for its roots by another
+  // account, which the receipt on the newest thread reply read too.
   await openPath(page, '/home/');
   await expect(roomLink).toBeVisible();
   await expect(roomLink).not.toContainText(/\d/);
+  await expect(page.locator('[data-highlight]').filter({ has: roomLink })).toHaveAttribute(
+    'data-highlight',
+    'false'
+  );
 });
