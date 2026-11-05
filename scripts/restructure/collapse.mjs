@@ -205,6 +205,16 @@ function reExportedModules(file, depth = 0) {
   return [...new Set(out)];
 }
 
+// Whether a module provides a name at run time: a value, not re-exported through `export type`.
+function isRuntimeExport(file, name) {
+  const symbol = checker.tryGetMemberInModuleExports(name, moduleSymbolOf(file));
+  if (!symbol) return false;
+  // Resolving the alias first records whether a type-only re-export is on its way.
+  const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol;
+  if (checker.getTypeOnlyAliasDeclaration(symbol)) return false;
+  return Boolean(target.flags & ts.SymbolFlags.Value);
+}
+
 const compareOrder = (a, b) => {
   for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
     if (a[i] === undefined) return -1;
@@ -248,7 +258,7 @@ const indentOf = (sf, node) => {
 // ---------------------------------------------------------------------------------------------
 
 const warnings = [];
-const report = { files: [], warnings };
+const report = { files: [], warnings, droppedKeys: [], noOpMocks: [] };
 const at = (sf, node) =>
   `${rel(sf.fileName)}:${sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1}`;
 const warn = (sf, node, text) => warnings.push(`${at(sf, node)}: ${text}`);
@@ -261,38 +271,56 @@ const isVi = (expression, names) =>
   expression.expression.text === 'vi' &&
   names.includes(expression.name.text);
 
-// The object literal a mock factory returns, with its shape, or a reason it has none.
-function factoryObject(factory) {
-  if (!ts.isArrowFunction(factory) && !ts.isFunctionExpression(factory))
+// What a mock factory returns: the object literal, the statements before its `return` (a block
+// body), and where the body starts; or a reason it has no such shape.
+function factoryShape(factory) {
+  if (!ts.isArrowFunction(factory) && !ts.isFunctionExpression(factory)) {
     return { reason: 'factory is not a function' };
+  }
   let body = factory.body;
+  let prelude = [];
   if (ts.isBlock(body)) {
-    if (body.statements.length !== 1 || !ts.isReturnStatement(body.statements[0])) {
-      return { reason: 'factory body has statements besides one return' };
+    const last = body.statements[body.statements.length - 1];
+    if (!last || !ts.isReturnStatement(last))
+      return { reason: 'factory body does not end in a return' };
+    prelude = body.statements.slice(0, -1);
+    if (prelude.some((statement) => ts.isReturnStatement(statement))) {
+      return { reason: 'factory body returns early' };
     }
-    body = body.statements[0].expression;
+    body = last.expression;
   }
   while (body && ts.isParenthesizedExpression(body)) body = body.expression;
-  if (!body || !ts.isObjectLiteralExpression(body))
+  if (!body || !ts.isObjectLiteralExpression(body)) {
     return { reason: 'factory does not return an object literal' };
-  return { object: body };
+  }
+  return { object: body, prelude };
 }
 
-// `...(await importOriginal())`, `...(await importOriginal<typeof import('x')>())`,
-// `...(await vi.importActual('x'))`: the spread of the real module.
-function actualSpread(property, factory) {
-  if (!ts.isSpreadAssignment(property)) return false;
+// The module whose real exports a spread property copies: `...(await importOriginal())` (the
+// mocked module itself, returned as null), `...(await vi.importActual('x'))`, `...(await
+// import('x'))`; undefined for any other spread.
+function spreadModule(property, factory, fromFile) {
   let expression = property.expression;
   while (ts.isParenthesizedExpression(expression)) expression = expression.expression;
-  if (!ts.isAwaitExpression(expression)) return false;
+  if (!ts.isAwaitExpression(expression)) return undefined;
   let call = expression.expression;
   while (ts.isParenthesizedExpression(call)) call = call.expression;
-  if (!ts.isCallExpression(call)) return false;
+  if (!ts.isCallExpression(call)) return undefined;
   const parameter = factory.parameters[0]?.name;
   if (ts.isIdentifier(call.expression) && parameter && ts.isIdentifier(parameter)) {
-    return call.expression.text === parameter.text && call.arguments.length === 0;
+    return call.expression.text === parameter.text && call.arguments.length === 0
+      ? null
+      : undefined;
   }
-  return isVi(call.expression, ['importActual']) && call.arguments.length === 1;
+  const argument = call.arguments[0];
+  if (call.arguments.length !== 1 || !ts.isStringLiteralLike(argument)) return undefined;
+  if (
+    !isVi(call.expression, ['importActual']) &&
+    call.expression.kind !== ts.SyntaxKind.ImportKeyword
+  ) {
+    return undefined;
+  }
+  return resolveSpecifier(argument.text, fromFile) ?? undefined;
 }
 
 const propertyName = (property) => {
@@ -308,9 +336,27 @@ const propertyName = (property) => {
   return undefined;
 };
 
-// Replaces the module named in the spread of the real module (type argument and importActual).
-const retargetSpread = (text, listedSpec, spec) =>
-  text.split(`'${listedSpec}'`).join(`'${spec}'`).split(`"${listedSpec}"`).join(`'${spec}'`);
+// The names a statement declares (variables, functions, classes).
+function declaredNames(statement) {
+  const names = [];
+  const collect = (name) => {
+    if (ts.isIdentifier(name)) names.push(name.text);
+    else
+      for (const element of name.elements)
+        if (!ts.isOmittedExpression(element)) collect(element.name);
+  };
+  if (ts.isVariableStatement(statement)) {
+    for (const declaration of statement.declarationList.declarations) collect(declaration.name);
+  } else if (
+    (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+    statement.name
+  ) {
+    names.push(statement.name.text);
+  }
+  return names;
+}
+
+const identifiersIn = (text) => new Set(text.match(/[A-Za-z_$][\w$]*/g) ?? []);
 
 for (const sf of program.getSourceFiles()) {
   const file = path.resolve(sf.fileName);
@@ -447,6 +493,90 @@ for (const sf of program.getSourceFiles()) {
     });
   }
 
+  // Every string literal under a node that names the listed module, for re-pointing.
+  const literalsNaming = (node, listedFile) => {
+    const found = [];
+    const walk = (child) => {
+      if (ts.isStringLiteralLike(child) && resolveSpecifier(child.text, file) === listedFile) {
+        found.push(child);
+      }
+      ts.forEachChild(child, walk);
+    };
+    walk(node);
+    return found;
+  };
+  const repointLiterals = (literals, target) => {
+    for (const literal of literals) {
+      edits.push({
+        start: literal.getStart(sf),
+        end: literal.getEnd(),
+        text: `'${specifierFor(file, target)}'`,
+      });
+    }
+  };
+
+  // The one module a set of names of the listed module comes from, or undefined.
+  const singleTarget = (listedFile, names) => {
+    const targets = new Set();
+    for (const name of names) {
+      const resolved = resolveName(listedFile, name);
+      if (!resolved || resolved.unresolved || resolved.name !== name) return undefined;
+      targets.add(resolved.file);
+    }
+    return targets.size === 1 ? [...targets][0] : undefined;
+  };
+
+  // `const { a } = await import('<listed>')` or `await vi.importActual<typeof import('<listed>')>(...)`,
+  // and `import('<listed>').then((module) => ... module.a ...)`, when the names come from one module.
+  const repointDynamicImport = (call, listedFile) => {
+    let names;
+    const awaited = call.parent;
+    const declaration = awaited && ts.isAwaitExpression(awaited) ? awaited.parent : undefined;
+    if (
+      declaration &&
+      ts.isVariableDeclaration(declaration) &&
+      ts.isObjectBindingPattern(declaration.name)
+    ) {
+      names = [];
+      for (const element of declaration.name.elements) {
+        const name = element.propertyName ?? element.name;
+        if (element.dotDotDotToken || !ts.isIdentifier(name)) return false;
+        names.push(name.text);
+      }
+    } else if (
+      ts.isPropertyAccessExpression(call.parent) &&
+      call.parent.name.text === 'then' &&
+      ts.isCallExpression(call.parent.parent) &&
+      call.parent.parent.arguments.length === 1
+    ) {
+      const callback = call.parent.parent.arguments[0];
+      const parameter =
+        (ts.isArrowFunction(callback) || ts.isFunctionExpression(callback)) &&
+        callback.parameters[0]?.name;
+      if (!parameter || !ts.isIdentifier(parameter) || callback.parameters.length !== 1)
+        return false;
+      names = [];
+      let other = false;
+      const walk = (node) => {
+        if (ts.isIdentifier(node) && node.text === parameter.text && node !== parameter) {
+          if (ts.isPropertyAccessExpression(node.parent) && node.parent.expression === node)
+            names.push(node.parent.name.text);
+          else other = true;
+        }
+        ts.forEachChild(node, walk);
+      };
+      walk(callback.body);
+      if (other || !names.length) return false;
+    } else {
+      return false;
+    }
+    const target = singleTarget(listedFile, names);
+    if (!target) return false;
+    if (target !== listedFile) repointLiterals(literalsNaming(call, listedFile), target);
+    importCount += 1;
+    return true;
+  };
+
   const visit = (node) => {
     if (
       ts.isImportTypeNode(node) &&
@@ -459,17 +589,27 @@ for (const sf of program.getSourceFiles()) {
     if (ts.isCallExpression(node)) {
       const first = node.arguments[0];
       const spec = first && ts.isStringLiteralLike(first) ? first.text : undefined;
-      const target = spec && resolveSpecifier(spec, file);
+      const isImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isViCall = isVi(node.expression, [
+        'mock',
+        'doMock',
+        'unmock',
+        'doUnmock',
+        'importActual',
+        'importMock',
+      ]);
+      const isRequire = ts.isIdentifier(node.expression) && node.expression.text === 'require';
+      const target = spec && (isImport || isViCall || isRequire) && resolveSpecifier(spec, file);
       if (target && listed.has(target)) {
         if (isVi(node.expression, ['mock', 'doMock']) && ts.isExpressionStatement(node.parent)) {
-          const done = splitMock(node, target, spec);
-          if (done) return;
-        } else if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
-          if (!repointDynamicImport(node, target)) warn(sf, node, `import() of ${rel(target)}`);
-        } else if (
-          ts.isPropertyAccessExpression(node.expression) ||
-          ts.isIdentifier(node.expression)
-        ) {
+          const outcome = splitMock(node, target, spec);
+          // A factory re-pointed in place may still name other listed modules.
+          if (outcome === 'in place' || outcome === 'unchanged') ts.forEachChild(node, visit);
+          if (outcome) return;
+        } else if (isImport || isVi(node.expression, ['importActual'])) {
+          if (repointDynamicImport(node, target)) return;
+          warn(sf, node, `${node.expression.getText(sf)}() of ${rel(target)}`);
+        } else {
           warn(sf, node, `${node.expression.getText(sf)}() of ${rel(target)}`);
         }
       }
@@ -477,136 +617,189 @@ for (const sf of program.getSourceFiles()) {
     ts.forEachChild(node, visit);
   };
 
-  // `const { a, b } = await import('<listed>')` whose names all come from one module.
-  const repointDynamicImport = (call, listedFile) => {
-    const awaited = call.parent;
-    const declaration = awaited && ts.isAwaitExpression(awaited) ? awaited.parent : undefined;
-    if (
-      !declaration ||
-      !ts.isVariableDeclaration(declaration) ||
-      !ts.isObjectBindingPattern(declaration.name)
-    ) {
-      return false;
-    }
-    const targets = new Set();
-    for (const element of declaration.name.elements) {
-      const name = element.propertyName ?? element.name;
-      if (element.dotDotDotToken || !ts.isIdentifier(name)) return false;
-      const resolved = resolveName(listedFile, name.text);
-      if (!resolved || resolved.unresolved || resolved.name !== name.text) return false;
-      targets.add(resolved.file);
-    }
-    if (targets.size !== 1) return false;
-    const [target] = targets;
-    if (target === listedFile) return true;
-    const literal = call.arguments[0];
-    edits.push({
-      start: literal.getStart(sf),
-      end: literal.getEnd(),
-      text: `'${specifierFor(file, target)}'`,
-    });
-    importCount += 1;
-    return true;
-  };
-
   const splitMock = (call, listedFile, listedSpec) => {
     const factory = call.arguments[1];
     const statement = call.parent;
     const indent = indentOf(sf, statement);
     const callee = call.expression.getText(sf);
+    const where = `${callee} of ${rel(listedFile)}`;
     if (call.arguments.length > 2) {
-      warn(sf, call, `${callee} of ${rel(listedFile)} with options`);
+      warn(sf, call, `${where} with options`);
       return false;
     }
-    if (!factory) {
-      const targets = reExportedModules(listedFile);
-      const lines = targets.map((target) => `${callee}('${specifierFor(file, target)}');`);
-      if (targets.some((target) => mockedModules.has(target))) {
-        warn(sf, call, `automock of ${rel(listedFile)}: the file already mocks one of its modules`);
-        return false;
-      }
+    const modules = reExportedModules(listedFile);
+    const replaceWith = (lines) => {
       edits.push({
         start: statement.getStart(sf),
         end: statement.getEnd(),
         text: format(lines.join('\n'), indent),
       });
       mockCount += 1;
-      return true;
+      return 'reprinted';
+    };
+    if (!factory) {
+      if (modules.some((target) => mockedModules.has(target))) {
+        warn(sf, call, `automock ${where}: the file already mocks one of its modules`);
+        return false;
+      }
+      return replaceWith(modules.map((target) => `${callee}('${specifierFor(file, target)}');`));
     }
-    const { object, reason } = factoryObject(factory);
+    const { object, prelude, reason } = factoryShape(factory);
     if (!object) {
-      warn(sf, call, `${callee} of ${rel(listedFile)}: ${reason}`);
+      warn(sf, call, `${where}: ${reason}`);
       return false;
     }
-    const properties = [...object.properties];
-    const spread =
-      properties[0] && actualSpread(properties[0], factory) ? properties.shift() : undefined;
     const groups = new Map();
-    for (const property of properties) {
+    const groupFor = (target) => {
+      if (!groups.has(target))
+        groups.set(target, { target, members: [], real: false, order: undefined });
+      return groups.get(target);
+    };
+    let realListed = false;
+    let realListedByImport = false;
+    const dropped = [];
+    for (const property of object.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        const real = spreadModule(property, factory, file);
+        if (real === null || real === listedFile) {
+          realListed = true;
+          // `await import()` of the module inside its own factory would load the mock.
+          if (/\bimport\(/.test(property.getText(sf))) realListedByImport = true;
+        } else if (real && modules.includes(real)) {
+          groupFor(real).real = true;
+        } else {
+          warn(
+            sf,
+            property,
+            `${where}: spread ${property.getText(sf).slice(0, 60)} is not understood`
+          );
+          return false;
+        }
+        continue;
+      }
       const name = propertyName(property);
-      const resolved = name && resolveName(listedFile, name);
-      if (!resolved || resolved.unresolved) {
+      if (!name) {
         warn(
           sf,
           property,
-          `${callee} of ${rel(listedFile)}: property ${
-            name ?? property.getText(sf).slice(0, 40)
-          } is not an export it resolves`
+          `${where}: property ${property.getText(sf).slice(0, 40)} has no plain name`
         );
         return false;
       }
-      const ownName = resolved.file === listedFile;
-      const group = groups.get(resolved.file) ?? {
-        target: resolved.file,
-        properties: [],
-        order: ownName ? [-1] : resolved.order,
-      };
-      if (resolved.name !== name) {
+      if (!isRuntimeExport(listedFile, name)) {
+        dropped.push(name);
+        continue;
+      }
+      const resolved = resolveName(listedFile, name);
+      if (!resolved || resolved.unresolved || resolved.name !== name) {
         warn(
           sf,
           property,
-          `${callee} of ${rel(listedFile)}: property ${name} is ${resolved.name} in its module`
+          `${where}: property ${name} does not resolve to a name of the same spelling`
         );
         return false;
       }
-      const text = sf.text
-        .slice(property.getFullStart(), property.getEnd())
-        .replace(/^\s*\n/, '')
-        .trim();
-      group.properties.push(text);
-      if (!ownName && compareOrder(resolved.order, group.order) < 0) group.order = resolved.order;
-      groups.set(resolved.file, group);
+      const group = groupFor(resolved.file);
+      const order = resolved.file === listedFile ? [-1] : resolved.order;
+      if (!group.order || compareOrder(order, group.order) < 0) group.order = order;
+      group.members.push(
+        sf.text
+          .slice(property.getFullStart(), property.getEnd())
+          .replace(/^\s*\n/, '')
+          .trim()
+      );
+    }
+    for (const name of dropped)
+      report.droppedKeys.push(`${at(sf, call)}: ${where}: ${name} (not exported at run time)`);
+    for (const group of groups.values()) {
+      if (!group.order) group.order = [1000 + modules.indexOf(group.target)];
     }
     if (!groups.size) {
-      warn(sf, call, `${callee} of ${rel(listedFile)} overrides nothing`);
-      return false;
+      if (realListed || object.properties.length) {
+        warn(sf, call, `${where} keeps the real module only`);
+        return false;
+      }
+      // `() => ({})`: none of the listed module's modules loads.
+      if (modules.some((target) => mockedModules.has(target))) {
+        warn(sf, call, `${where} (empty): the file already mocks one of its modules`);
+        return false;
+      }
+      return replaceWith(
+        modules.map((target) => `${callee}('${specifierFor(file, target)}', () => ({}));`)
+      );
     }
     const sorted = [...groups.values()].sort((a, b) => compareOrder(a.order, b.order));
-    if (sorted.length === 1 && sorted[0].target === listedFile) return true;
+    if (sorted.length === 1 && sorted[0].target === listedFile && !dropped.length)
+      return 'unchanged';
     if (sorted.some((group) => group.target !== listedFile && mockedModules.has(group.target))) {
-      warn(sf, call, `${callee} of ${rel(listedFile)}: the file already mocks a declaring module`);
+      warn(sf, call, `${where}: the file already mocks a declaring module`);
       return false;
     }
-    const before = sf.text.slice(factory.getStart(sf), object.getStart(sf));
-    const after = sf.text.slice(object.getEnd(), factory.getEnd());
-    // Prettier keeps an object expanded when its first property starts on a new line.
+    // One declaring module and nothing to drop or copy: only the module names change.
+    if (sorted.length === 1 && !dropped.length && !sorted[0].real && !realListedByImport) {
+      const [only] = sorted;
+      repointLiterals(literalsNaming(call, listedFile), only.target);
+      mockCount += 1;
+      return 'in place';
+    }
+    const others = [...listed].filter(
+      (other) => other !== listedFile && literalsNaming(factory, other).length
+    );
+    if (others.length) {
+      warn(sf, call, `${where}: its factory also names ${others.map(rel).join(', ')}`);
+      return false;
+    }
+    // A hoisted mock that only copies the real module changes nothing: it goes.
+    const kept = sorted.filter((group) => {
+      const noOp = callee === 'vi.mock' && !group.members.length && (group.real || realListed);
+      if (noOp) report.noOpMocks.push(`${at(sf, call)}: ${where}: ${rel(group.target)}`);
+      return !noOp;
+    });
+    if (!kept.length) {
+      const end =
+        sf.text[statement.getEnd()] === '\n' ? statement.getEnd() + 1 : statement.getEnd();
+      edits.push({ start: statement.getStart(sf), end, text: '' });
+      mockCount += 1;
+      return 'removed';
+    }
+    const arrowEnd = ts.isArrowFunction(factory)
+      ? factory.equalsGreaterThanToken.getEnd()
+      : factory.body.getStart(sf);
+    const head = sf.text.slice(factory.getStart(sf), arrowEnd).trim();
     const multiline = /^\{[ \t]*\n/.test(object.getText(sf));
-    const lines = sorted.map((group) => {
+    const lines = kept.map((group) => {
       const spec = group.target === listedFile ? listedSpec : specifierFor(file, group.target);
+      const real = group.real || realListed;
       const members = [
-        ...(spread ? [retargetSpread(spread.getText(sf), listedSpec, spec)] : []),
-        ...group.properties,
+        ...(real ? [`...(await importOriginal<typeof import('${spec}')>())`] : []),
+        ...group.members,
       ];
-      const body = multiline ? `{\n${members.join(',\n')},\n}` : `{ ${members.join(', ')} }`;
-      return `${callee}('${spec}', ${retargetSpread(before, listedSpec, spec)}${body}${after});`;
+      const objectText = multiline ? `{\n${members.join(',\n')},\n}` : `{ ${members.join(', ')} }`;
+      // The statements before the return that this group's properties need, in their order.
+      const needed = new Set();
+      let used = identifiersIn(group.members.join('\n'));
+      for (let changed = true; changed; ) {
+        changed = false;
+        for (const statementBefore of prelude) {
+          if (needed.has(statementBefore)) continue;
+          const names = declaredNames(statementBefore);
+          if (!names.length || names.some((name) => used.has(name))) {
+            needed.add(statementBefore);
+            used = new Set([...used, ...identifiersIn(statementBefore.getText(sf))]);
+            changed = true;
+          }
+        }
+      }
+      const kept = prelude.filter((statementBefore) => needed.has(statementBefore));
+      const factoryHead = real ? 'async (importOriginal) =>' : head;
+      const body = ts.isBlock(factory.body)
+        ? `{\n${kept
+            .map((statementBefore) => statementBefore.getText(sf))
+            .join('\n')}\nreturn ${objectText};\n}`
+        : `(${objectText})`;
+      return `${callee}('${spec}', ${factoryHead} ${body});`;
     });
-    edits.push({
-      start: statement.getStart(sf),
-      end: statement.getEnd(),
-      text: format(lines.join('\n'), indent),
-    });
-    mockCount += 1;
-    return true;
+    return replaceWith(lines);
   };
 
   ts.forEachChild(sf, visit);
@@ -629,5 +822,7 @@ console.log(
     opts.dryRun ? ' (dry run)' : ''
   }`
 );
+for (const line of report.droppedKeys) console.log(`collapse: dropped mock key: ${line}`);
+for (const line of report.noOpMocks) console.log(`collapse: dropped no-op mock: ${line}`);
 for (const line of warnings) console.log(`collapse: warning: ${line}`);
 if (opts.report) fs.writeFileSync(opts.report, `${JSON.stringify(report, null, 2)}\n`);
