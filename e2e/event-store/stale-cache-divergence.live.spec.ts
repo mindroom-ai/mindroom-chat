@@ -98,7 +98,7 @@ const hasCredentials = !!process.env.E2E_USERNAME;
 //      virtualised window, so repair-induced displacement is not
 //      measurable in this flow. The anchor invariant under live
 //      streaming edits is canonically covered by
-//      thread-virtualization-behaviors.spec.ts ("streaming edits do
+//      thread-virtualization-behaviors.live.spec.ts ("streaming edits do
 //      not yank a scrolled-up reader"). See the inline note at the
 //      former assertion site and follow-up task #119 for the
 //      programmatic-scroll intent question that measurement surfaced.
