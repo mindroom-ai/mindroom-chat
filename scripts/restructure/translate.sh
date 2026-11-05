@@ -13,10 +13,11 @@
 # replaced by its module) stays a deletion. Then:
 #   1. two throwaway worktrees at base and tip;
 #   2. in each, scripts/restructure/move.mjs --no-tsc with the rows of the files present there,
-#      plus rows for files without one under a folder the moves emptied: beside their subject
-#      (X.test.ts, X.css.ts, X.<aspect>.test.ts next to X), else where most files of their folder
-#      went. Those rows are printed for review; a file with neither stops the run until the extra
-#      rows place it. The provenance rows move.mjs appends there are discarded;
+#      plus rows for files the work changes that have none and sit under a folder the moves
+#      emptied: beside their subject (X.test.ts, X.css.ts, X.<aspect>.test.ts next to X), else
+#      where most files of their folder went. Those rows are printed for review; a file with
+#      neither stops the run until the extra rows place it. The provenance rows move.mjs appends
+#      there are discarded;
 #   3. the diff between the two moved trees is the work in the new layout, with every import,
 #      vi.mock, import() and path string rewritten by the same code as the move itself;
 #   4. `git apply --3way` of that diff here, then the app type-check, the count of vi.mock-style
@@ -55,6 +56,8 @@ git show "HEAD:docs/provenance/moves.tsv" >"$tmp/moves-here.tsv" 2>/dev/null || 
 git show "$base:docs/provenance/moves.tsv" >"$tmp/moves-base.tsv" 2>/dev/null || : >"$tmp/moves-base.tsv"
 git ls-tree -r --name-only "$base" >"$tmp/files-base.txt"
 git ls-tree -r --name-only "$tip" >"$tmp/files-tip.txt"
+git ls-tree -r --name-only HEAD >"$tmp/files-here.txt"
+git diff --name-only --no-renames "$base" "$tip" >"$tmp/files-changed.txt"
 
 # The rows for each side (map-base.tsv, map-tip.tsv); placements of unmapped files go to stdout.
 node --input-type=module - "$tmp" "$extra" <<'NODE'
@@ -80,37 +83,35 @@ const destinations = new Set([...finalOf.values()].filter(Boolean));
 
 const baseFiles = lines('files-base.txt');
 const tipFiles = lines('files-tip.txt');
-const all = [...new Set([...baseFiles, ...tipFiles])];
+// Only files the work changes need a place: the others are the same on both sides, so they add
+// nothing to the diff wherever they sit.
+const changed = lines('files-changed.txt');
 
-// A folder is emptied when every file base has under it is moved or deleted.
-const kept = new Map(); // folder -> [files base has under it, how many of them have no row]
-for (const file of baseFiles) {
-  for (let folder = posix.dirname(file); folder !== '.'; folder = posix.dirname(folder)) {
-    const count = kept.get(folder) ?? [0, 0];
-    count[0] += 1;
-    if (!finalOf.has(file)) count[1] += 1;
-    kept.set(folder, count);
-  }
-}
-const emptied = (folder) => kept.has(folder) && kept.get(folder)[1] === 0;
-const moved = (file) => finalOf.has(file) && finalOf.get(file) !== null;
+// A folder is emptied when the moves took files out of it and nothing is left under it here.
+const folders = (file) => {
+  const list = [];
+  for (let folder = posix.dirname(file); folder !== '.'; folder = posix.dirname(folder)) list.push(folder);
+  return list;
+};
+const left = new Set(lines('files-here.txt').flatMap(folders));
+const sources = new Set([...finalOf.keys()].flatMap(folders));
+const emptied = (folder) => sources.has(folder) && !left.has(folder);
 const placed = new Map();
 const unplaced = [];
-for (const file of all) {
+const targetOf = (file) => (finalOf.has(file) ? finalOf.get(file) : placed.get(file));
+// Subjects first, so a test or stylesheet can follow a subject that was placed itself.
+const isCompanion = (file) => /\.(test|css)\.|\.test\.shared\./.test(posix.basename(file));
+for (const file of [...changed.filter((f) => !isCompanion(f)), ...changed.filter(isCompanion)]) {
   if (finalOf.has(file)) continue;
-  let inEmptied = false;
-  for (let folder = posix.dirname(file); folder !== '.'; folder = posix.dirname(folder)) {
-    if (emptied(folder)) inEmptied = true;
-  }
-  if (!inEmptied) continue;
+  if (!folders(file).some(emptied)) continue;
   const folder = posix.dirname(file);
   const base = posix.basename(file);
   const stem = base.split('.')[0];
   const subject = ['.ts', '.tsx', '.mjs', '.js']
     .map((ext) => `${folder}/${stem}${ext}`)
-    .find((candidate) => candidate !== file && moved(candidate));
+    .find((candidate) => candidate !== file && targetOf(candidate));
   if (subject) {
-    const target = finalOf.get(subject);
+    const target = targetOf(subject);
     const newStem = posix.basename(target).split('.')[0];
     placed.set(file, `${posix.dirname(target)}/${newStem}${base.slice(stem.length)}`);
     continue;
@@ -158,7 +159,10 @@ for side in base tip; do
   if [ -s "$tmp/map-$side.tsv" ]; then
     node "$here/move.mjs" --repo "$tmp/$side" --map "$tmp/map-$side.tsv" --batch translate --no-tsc \
       --report "$tmp/report-$side.json" >"$tmp/move-$side.log"
-    grep -E '^move: (warning|\{)' "$tmp/move-$side.log" | sed "s/^/translate: $side: /" || true
+    grep -E '^move: \{' "$tmp/move-$side.log" | sed "s/^/translate: $side: /" || true
+    # Warnings about the files the work changes; the log has the rest.
+    sed 's|^|move: warning: |; s|$|:|' "$tmp/files-changed.txt" >"$tmp/warning-prefixes.txt"
+    grep -F -f "$tmp/warning-prefixes.txt" "$tmp/move-$side.log" | sed "s/^/translate: $side: /" || true
   fi
   for file in docs/provenance/moves.tsv docs/provenance/dropped.tsv; do
     if git -C "$tmp/$side" cat-file -e "HEAD:$file" 2>/dev/null; then
