@@ -48,7 +48,7 @@ test('following glass appears only while another reader follows the latest messa
   // Hiding activity on this device at the end roams to the account when the account has no
   // value of its own (src/app/preferences/roamingSettings.ts), and the next run would start with
   // it: start without one, and put the account's roaming settings back afterwards.
-  const roamingSettings = await matrixFetch<Record<string, unknown>>(
+  const roamingSettings: Record<string, unknown> = await matrixFetch<Record<string, unknown>>(
     homeserver,
     `/user/${encodeURIComponent(author.userId)}/account_data/io.mindroom.client.settings`,
     { accessToken: author.accessToken }
