@@ -112,4 +112,38 @@ describe('thread filter bar modes', () => {
     expect(byData('data-sort-by')).toHaveLength(1);
     expect(byData('data-thread-filter-mode-switch')).toHaveLength(1);
   });
+
+  it('speaks the summary when the filters change, not when a message moves the count', () => {
+    const store = renderBar(true);
+    const rerender = (overrides: Partial<RoomThreadOverviewProps>) =>
+      act(() => {
+        renderer?.update(
+          <Provider store={store}>
+            <RoomThreadOverview {...props(overrides)} />
+          </Provider>
+        );
+      });
+    const text = (node: ReactTestInstance) =>
+      node.children.filter((child) => typeof child === 'string').join('');
+    const live = () => {
+      const [node] = renderer?.root.findAll((n) => n.props['aria-live'] === 'polite') ?? [];
+      if (!node) throw new Error('no live region');
+      return text(node);
+    };
+    const summary = () =>
+      renderer?.root
+        .findAll((n) => n.type === 'div' && n.props['aria-live'] === undefined)
+        .map(text)
+        .find((value) => value.startsWith('Showing'));
+
+    expect(live()).toBe('');
+    rerender({ threadCount: 4, totalThreadCount: 4 });
+    expect(live()).toBe('');
+    expect(summary()).toBe('Showing 4 threads');
+
+    const unresolved = { ...createDefaultThreadFilterState(), resolved: 'exclude' as const };
+    rerender({ threadCount: 2, totalThreadCount: 4, state: unresolved });
+    expect(live()).toBe(summary());
+    expect(live()).toContain('2');
+  });
 });

@@ -284,6 +284,15 @@ describe('RoomMessageAnnouncer', () => {
     expect(announcementBody({ body: '   ' })).toBeUndefined();
   });
 
+  it('reads a mention as the name its pill shows, and an unknown user ID as written', () => {
+    const names: Record<string, string> = { '@mindroom_helper_t1:example.org': 'Helper' };
+    const body = announcementBody(
+      { body: '@mindroom_helper_t1:example.org could you help? Ask @someone:example.org too.' },
+      (userId) => names[userId]
+    );
+    expect(body).toBe('@Helper could you help? Ask @someone:example.org too.');
+  });
+
   it('reads a canvas notice as its title, not the fallback body for other clients', () => {
     const notice = {
       msgtype: 'm.notice',

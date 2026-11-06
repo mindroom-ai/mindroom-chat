@@ -53,14 +53,27 @@ const shownContent = (event: MatrixEvent): Content => {
   return replacement && typeof replacement === 'object' ? (replacement as Content) : content;
 };
 
+/** A Matrix user ID written into a message's text, such as a mention in its plain body. */
+const MATRIX_USER_ID = /@[\w.=/+-]+:(?:[\w-]+\.)*[\w-]+(?::\d+)?/g;
+
 /**
  * One line of plain text, cut to a length a screen reader can read out. A canvas notice reads
  * as its title, which the timeline shows; its body only tells other clients to open this one.
+ * A mention reads as the name the timeline's pill shows (`nameOf`), not as the raw user ID.
  */
-export const announcementBody = (content: Content): string | undefined => {
+export const announcementBody = (
+  content: Content,
+  nameOf: (userId: string) => string | undefined = () => undefined
+): string | undefined => {
   const shown = readCanvasNoticeTitle(content) ?? content.body;
   if (typeof shown !== 'string') return undefined;
-  const text = shown.replace(/\s+/g, ' ').trim();
+  const text = shown
+    .replace(MATRIX_USER_ID, (userId) => {
+      const name = nameOf(userId);
+      return name ? `@${name}` : userId;
+    })
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!text) return undefined;
   return text.length > MAX_BODY ? `${text.slice(0, MAX_BODY - 1).trimEnd()}…` : text;
 };
@@ -109,7 +122,7 @@ export function RoomMessageAnnouncer({
 
     const announce = (event: MatrixEvent, content: Content) => {
       const id = event.getId();
-      const body = announcementBody(content);
+      const body = announcementBody(content, (userId) => room.getMember(userId)?.name);
       if (!id || !body || announced.has(id)) return;
       announced.add(id);
       const sender = room.getMember(event.getSender() ?? '')?.name ?? event.getSender() ?? '';

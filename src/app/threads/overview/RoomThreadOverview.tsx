@@ -45,6 +45,16 @@ import {
   serializeThreadFilterQuery,
 } from '../../event-store/threads/threadFilterDsl';
 
+// How long a filter change's summary stays in the live region.
+const SPOKEN_SUMMARY_MS = 5_000;
+const VISUALLY_HIDDEN = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clip: 'rect(0,0,0,0)',
+} as const;
+
 export type { ThreadFilterState, ThreadFilterKey };
 
 // ─── Tooltip text helpers ────────────────────────────────────────────────────
@@ -725,6 +735,21 @@ export function RoomThreadOverview({
         summary: loadedSummary,
       })
     : loadedSummary;
+  // The live region speaks when the person changes the filters or the sort, not each time a
+  // message moves the count, and empties again after a while; the summary itself stays readable.
+  const filterKey = JSON.stringify([state, isThreadSortFrozen, simpleMode]);
+  const spokenFilterKey = useRef(filterKey);
+  const [spokenSummary, setSpokenSummary] = useState('');
+  useEffect(() => {
+    if (spokenFilterKey.current === filterKey) return;
+    spokenFilterKey.current = filterKey;
+    setSpokenSummary(liveSummary);
+  }, [filterKey, liveSummary]);
+  useEffect(() => {
+    if (!spokenSummary) return undefined;
+    const timer = setTimeout(() => setSpokenSummary(''), SPOKEN_SUMMARY_MS);
+    return () => clearTimeout(timer);
+  }, [spokenSummary]);
   const freezeLabel = isThreadSortFrozen
     ? t('mindroomUi.threads.roomThreadOverview.unlockSortOrder', {
         sort:
@@ -740,19 +765,12 @@ export function RoomThreadOverview({
       });
 
   const liveRegion = (
-    <div
-      aria-live="polite"
-      aria-atomic="true"
-      style={{
-        position: 'absolute',
-        width: 1,
-        height: 1,
-        overflow: 'hidden',
-        clip: 'rect(0,0,0,0)',
-      }}
-    >
-      {liveSummary}
-    </div>
+    <>
+      <div style={VISUALLY_HIDDEN}>{liveSummary}</div>
+      <div aria-live="polite" aria-atomic="true" style={VISUALLY_HIDDEN}>
+        {spokenSummary}
+      </div>
+    </>
   );
 
   const countBadge = (
