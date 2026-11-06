@@ -1,4 +1,10 @@
-import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
+import {
+  useRef,
+  type Dispatch,
+  type MutableRefObject,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 import {
   EventStatus,
   MatrixEventEvent,
@@ -53,6 +59,11 @@ type LiveRenderOptions = {
   markLiveExpansionCandidate: (eventId: string) => void;
   /** Whether the room's newest row is its first, so a live row is followed at the top. */
   latestAtTopRef?: MutableRefObject<boolean>;
+  /**
+   * Brings the view to a row the reader just sent, from wherever they are (Jump to Latest when
+   * the window has left the live end). Without it, the row asks for a bottom pin.
+   */
+  onOwnSend?: () => void;
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: ThreadSummaryWriter;
@@ -155,6 +166,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     ignoredUsersSet,
     markLiveExpansionCandidate,
     latestAtTopRef,
+    onOwnSend,
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
@@ -323,29 +335,39 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     if (followsLiveEnd) requestBottomPin(true);
   };
 
+  // The rows the reader sends here, not their reactions, edits or deletions.
+  const isOwnRow = (event: MatrixEvent) =>
+    (!threadId || isThreadActivity(event, threadId)) &&
+    isRenderableEvent(
+      event,
+      room,
+      threadId,
+      ignoredUsersSet,
+      showHiddenEvents,
+      hideMembershipEvents,
+      hideNickAvatarEvents
+    );
+  const followedSendsRef = useRef(new WeakSet<MatrixEvent>());
+
   useRoomLocalEchoRefresh(room, (event, { initial }) => {
     repaint();
-    // A message the reader sends reads the room up to it. Its server echo replaces the pending
-    // row instead of arriving live, so the arrival above never sends that receipt, and a message
-    // that came while the reader then scrolled away would get the New Messages line above their
-    // own.
-    const sent = event.status === null || event.status === EventStatus.SENT;
-    if (!initial && sent && !threadId && atBottomRef.current && documentHasFocus()) {
-      void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+    // A message the reader sends shows at once, wherever they were in the room or the thread:
+    // its first report, before its row renders, takes the view to it, so the pin follows the
+    // growth. Status changes (sent, failed, cancelled) only repaint.
+    if (initial && event.isSending() && isOwnRow(event)) {
+      followedSendsRef.current.add(event);
+      if (onOwnSend) onOwnSend();
+      else requestBottomPin(true);
+      return;
     }
-    // Only the first report of a pending thread reply pins, before its row renders, so the pin
-    // follows the growth. Status changes (sent, failed, cancelled) only repaint.
-    if (!initial || !threadId || !event.isSending() || !isThreadActivity(event, threadId)) return;
-    const area = scrollRef.current;
-    if (!area) return;
-    if (
-      shouldAutoScrollThreadOnLiveEvent({
-        relationType: event.getRelation()?.rel_type,
-        isNearBottom: isNearBottomNow(area),
-        isTimelineAtLiveEnd: atLiveEndRef.current,
-      })
-    ) {
-      requestBottomPin(true);
+    // It also reads the room up to it, the messages that came while the reader was away
+    // included, now in view above it. Its server echo replaces the pending row instead of
+    // arriving live, so the arrival above never sends that receipt, and a message that came
+    // while the reader then scrolled away would get the New Messages line above their own.
+    const sent = event.status === null || event.status === EventStatus.SENT;
+    const followed = followedSendsRef.current.has(event);
+    if (!initial && sent && !threadId && (followed || atBottomRef.current) && documentHasFocus()) {
+      void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     }
   });
 

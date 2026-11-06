@@ -936,6 +936,18 @@ export function RoomTimeline(props: RoomTimelineProps) {
       readUptoEventId: unreadInfo?.readUptoEventId,
     });
 
+  // A message the reader sends shows at once: the view goes to the rows' latest end, through the
+  // live window when it has left it, as Jump to Latest does. Compact opens the sent thread instead.
+  const followOwnSend = useCallback(() => {
+    if (compactViewRequested) return;
+    if (!atLiveEndRef.current) {
+      handleJumpToLatest();
+      return;
+    }
+    const { count } = scrollToBottomRef.current;
+    scrollToBottomRef.current = { count: count + 1, smooth: false };
+  }, [atLiveEndRef, compactViewRequested, handleJumpToLatest]);
+
   const { handleMarkAsRead } = useTimelineReadReceiptController({
     atBottom,
     atBottomAnchorRef,
@@ -1135,6 +1147,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     ignoredUsersSet,
     markLiveExpansionCandidate: feature.markLiveExpansionCandidate,
     latestAtTopRef,
+    onOwnSend: followOwnSend,
     mx,
     normalThreadRecordMap: threadIndex.normalThreadRecordMap,
     onStoreThreadSummary,
