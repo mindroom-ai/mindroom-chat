@@ -1,7 +1,18 @@
 import { EventEmitter } from 'events';
-import { ClientEvent, EventStatus, MatrixEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  EventStatus,
+  MatrixEvent,
+  RoomEvent,
+  SyncState,
+  type MatrixClient,
+} from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { keepRedactionsInSavedSync, REDACTION_SAVE_GAP_MS } from './savedSyncRedactions';
+import {
+  CHANGE_SAVE_GAP_MS,
+  keepRedactionsInSavedSync,
+  REDACTION_SAVE_GAP_MS,
+} from './savedSyncRedactions';
 
 type Deferred = { resolve: () => void };
 
@@ -187,5 +198,84 @@ describe('keepRedactionsInSavedSync', () => {
     expect(store.save).toHaveBeenCalledTimes(1);
     expect(emitter.listenerCount(ClientEvent.Event)).toBe(0);
     expect(emitter.listenerCount(ClientEvent.Sync)).toBe(0);
+  });
+
+  const stateEvent = (eventId: string) =>
+    new MatrixEvent({
+      type: 'm.room.member',
+      event_id: eventId,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      state_key: '@alice:example.org',
+      origin_server_ts: 1,
+      content: { membership: 'join', displayname: 'Alice Renamed' },
+    });
+  const accountData = (type: string) => new MatrixEvent({ type, content: {} });
+
+  it('saves a batch that changed room state, and keeps later changes for one save after a gap', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
+    keepRedactionsInSavedSync(mx);
+
+    batch(emitter, [stateEvent('$rename')]);
+    expect(store.save).toHaveBeenCalledTimes(1);
+    await finishSaves();
+
+    batch(emitter, [stateEvent('$avatar')]);
+    batch(emitter, [stateEvent('$topic')]);
+    await vi.advanceTimersByTimeAsync(CHANGE_SAVE_GAP_MS - 1);
+    expect(store.save).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(store.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('saves account settings, but not a moved read marker', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
+    keepRedactionsInSavedSync(mx);
+
+    emitter.emit(RoomEvent.AccountData, accountData('m.fully_read'));
+    batch(emitter, []);
+    expect(store.save).not.toHaveBeenCalled();
+
+    emitter.emit(ClientEvent.AccountData, accountData('io.mindroom.client.settings'));
+    batch(emitter, []);
+    expect(store.save).toHaveBeenCalledTimes(1);
+    await finishSaves();
+
+    emitter.emit(RoomEvent.AccountData, accountData('m.tag'));
+    batch(emitter, []);
+    await vi.advanceTimersByTimeAsync(CHANGE_SAVE_GAP_MS);
+    expect(store.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('lets a redaction cut short the wait of other changes', async () => {
+    const { mx, emitter, store, finishSaves } = makeClient();
+    keepRedactionsInSavedSync(mx);
+    batch(emitter, [stateEvent('$first')]);
+    await finishSaves();
+
+    batch(emitter, [stateEvent('$second')]);
+    batch(emitter, [synced('m.room.redaction', '$redaction')]);
+    await waitForGap();
+    expect(store.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('saves a waiting change at once when the page is hidden', async () => {
+    const page = Object.assign(new EventTarget(), { visibilityState: 'visible' });
+    vi.stubGlobal('document', page);
+    try {
+      const { mx, emitter, store, finishSaves } = makeClient();
+      const stop = keepRedactionsInSavedSync(mx);
+      batch(emitter, [stateEvent('$first')]);
+      await finishSaves();
+      batch(emitter, [stateEvent('$second')]);
+      expect(store.save).toHaveBeenCalledTimes(1);
+
+      page.visibilityState = 'hidden';
+      page.dispatchEvent(new Event('visibilitychange'));
+      expect(store.save).toHaveBeenCalledTimes(2);
+      stop();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
