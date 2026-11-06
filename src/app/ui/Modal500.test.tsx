@@ -11,7 +11,7 @@ vi.mock('./Modal500.css', () => ({
   PhoneOverlayCenter: 'center-phone-fill',
   PhoneModal: 'modal-phone-fill',
 }));
-vi.mock('./styles/Glass.css', () => ({ glassOverBackdrop: 'glass-over-backdrop' }));
+vi.mock('./styles/Glass.css', () => ({ glassDenseOverBackdrop: 'glass-dense-over-backdrop' }));
 // jsdom lays nothing out, so focus-trap finds no tabbable node; the trap is not under test here.
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
@@ -37,7 +37,7 @@ describe('Modal500 on phones', () => {
     const { dialog, center } = open(ScreenSize.Mobile);
     expect(center.className).toContain('center-phone-inset');
     expect(center.className).not.toContain('center-phone-fill');
-    expect(dialog.className).toContain('glass-over-backdrop');
+    expect(dialog.className).toContain('glass-dense-over-backdrop');
     expect(dialog.className).not.toContain('modal-phone-fill');
   });
 

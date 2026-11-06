@@ -3,7 +3,7 @@ import classNames from 'classnames';
 import FocusTrap from 'focus-trap-react';
 import { Overlay, OverlayBackdrop, OverlayCenter } from 'folds';
 import { Modal } from './glass/GlassPrimitives';
-import { glassOverBackdrop } from './styles/Glass.css';
+import { glassDenseOverBackdrop } from './styles/Glass.css';
 import { stopPropagation } from '../lib/keyboard';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import * as css from './Modal500.css';
@@ -72,7 +72,8 @@ export function Modal500({
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const fullScreen = phone && fillPhoneScreen;
   const modalRef = useNamedByHeading();
-  // The backdrop already dims the page, so the glass takes a lighter tint over it.
+  // The glass is tinted nearly opaque: settings and the other large dialogs hold dense text, and
+  // the page behind them would otherwise read through their menus and lower their contrast.
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter className={centerClass(phone, fillPhoneScreen)}>
@@ -83,7 +84,7 @@ export function Modal500({
             aria-modal="true"
             variant="Background"
             size="500"
-            className={classNames(glassOverBackdrop, fullScreen && css.PhoneModal, className)}
+            className={classNames(glassDenseOverBackdrop, fullScreen && css.PhoneModal, className)}
           >
             {children}
           </Modal>

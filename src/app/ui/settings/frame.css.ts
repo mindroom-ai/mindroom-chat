@@ -16,10 +16,12 @@ export const SettingsDialog = style({
   },
 });
 
-/** The menu column leaves 20 px between its rows and the divider (8 px come from the scroll). */
+/**
+ * The menu column's rows keep 8 px from the dialog's edge and 8 px from the divider, both from
+ * the scrolling list's own padding, so the open page's fill sits evenly in the column.
+ */
 export const SettingsMenu = style({
   flexGrow: 1,
-  paddingInlineEnd: config.space.S300,
 });
 
 // The pages the menu does not show read quieter; the one under the pointer or the keyboard's
@@ -57,15 +59,14 @@ export const SettingsMenuGroupLabel = style({
 });
 
 /**
- * The search field on top of the menu, aligned with its rows (8 px in, 20 px from the divider)
- * and as tall as the page's title bar beside it.
+ * The search field on top of the menu, aligned with its rows (8 px from either side) and as tall
+ * as the page's title bar beside it.
  */
 export const SettingsSearchHeader = style({
   selectors: {
     '&&': {
       height: toRem(48),
-      paddingInlineStart: config.space.S200,
-      paddingInlineEnd: config.space.S500,
+      paddingInline: config.space.S200,
     },
   },
 });
@@ -87,10 +88,8 @@ export const SettingsSearchKey = style({
   opacity: 0.8,
 });
 
-/** The list of search results that takes the menu's place, ending where the menu's rows do. */
-export const SettingsSearchResults = style({
-  paddingInlineEnd: config.space.S300,
-});
+/** The list of search results that takes the menu's place, as wide as the menu's rows. */
+export const SettingsSearchResults = style({});
 
 // The result Enter would open looks like the menu's current page.
 globalStyle(`${SettingsSearchResults} > [aria-selected="true"]`, {
@@ -106,8 +105,7 @@ export const SettingsSearchLocation = style({
 export const SettingsMenuFooter = style({
   flexShrink: 0,
   paddingBlock: config.space.S200,
-  paddingInlineStart: config.space.S200,
-  paddingInlineEnd: config.space.S500,
+  paddingInline: config.space.S200,
 });
 globalStyle(`${SettingsMenuFooter} > button`, { color: color.Critical.Main });
 

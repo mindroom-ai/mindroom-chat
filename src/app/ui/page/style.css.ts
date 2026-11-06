@@ -12,7 +12,7 @@ import { SCROLL_HEADER_HEIGHT_PROPERTY, scrollHeaderHeight } from './scrollHeade
 /**
  * How far list rows stop short of the column's end edge, leaving the inset scrollbar its lane:
  * 28 px in the room lists (the selected room of room-light.png spans 74 to 294 in a column that
- * ends at 322). Dense columns, the settings dialogs, keep 8 px and inset their menu themselves.
+ * ends at 322). Dense columns, the settings dialogs, keep 8 px, as at their start.
  */
 const pageNavRowInset = createVar();
 
@@ -60,7 +60,7 @@ globalStyle(`:has(> [role="separator"][aria-orientation="vertical"]) > * ${PageN
 /** The inset scrollbar of a navigation column, between its 54 px header and the bottom edge. */
 export const PageNavScrollbar = style({ top: toRem(58), bottom: toRem(4), zIndex: 2 });
 
-/** A dense navigation column (settings.png: menu rows end 20 px before the divider). */
+/** A dense navigation column: its rows end 8 px before the divider, as far as they start in. */
 export const PageNavDense = style({ vars: { [pageNavRowInset]: config.space.S200 } });
 
 // Top S200, room at the bottom, rows S200 from the rail and short of the scrollbar at the end.
