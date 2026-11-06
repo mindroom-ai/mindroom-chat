@@ -510,7 +510,8 @@ const checkCopyAndSearch = async (page: Page, data: Seed, info: TestInfo) => {
 
   // A search for a word of a turn shows the card open, the word marked.
   await page.goto(`/home/search/?${new URLSearchParams({ term: SEARCH_WORD, global: 'true' })}`);
-  const hit = page.locator('article [data-event-id]').filter({ hasText: 'Voice call' }).first();
+  // The hit's body, beside its Open button.
+  const hit = page.locator('article').filter({ has: page.locator('[data-call-transcript]') });
   await expect(hit).toBeVisible({ timeout: 30_000 });
   await expect(toggle(hit)).toHaveAttribute('aria-expanded', 'true');
   await expect(
