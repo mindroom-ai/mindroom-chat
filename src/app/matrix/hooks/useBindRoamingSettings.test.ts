@@ -36,7 +36,13 @@ const homeserver = ({ lag = false } = {}) => {
   const clients = new Set<{ connected: boolean; receive: (next: Content) => void }>();
   const deliver = () => clients.forEach((client) => client.connected && client.receive(content));
   return {
+    /** The stored settings, without the revision bookkeeping of each write. */
     get content() {
+      if (!content) return content;
+      const { rev, base_rev: baseRev, ...settings } = content;
+      return settings;
+    },
+    get raw() {
       return content;
     },
     put(next: Content) {
@@ -63,7 +69,7 @@ const login = (
   start: { state: SyncState; fromCache?: boolean } = { state: SyncState.Syncing }
 ) => {
   const emitter = new EventEmitter();
-  let held = server.content;
+  let held = server.raw;
   let state: SyncState | null = start.state;
   let data: { fromCache?: boolean } = start.fromCache ? { fromCache: true } : {};
   const sync = (next: SyncState, nextData: { fromCache?: boolean } = {}) => {
@@ -99,7 +105,7 @@ const login = (
     setAccountData,
     getAccountDataFromServer: vi.fn(async () => {
       if (!client.connected) throw new Error('ConnectionError: offline');
-      return server.content ?? null;
+      return server.raw ?? null;
     }),
     getSyncState: () => state,
     getSyncStateData: () => data,
@@ -119,7 +125,7 @@ const login = (
     },
     goOnline() {
       client.connected = true;
-      client.receive(server.content);
+      client.receive(server.raw);
       sync(SyncState.Syncing);
     },
   };
@@ -340,6 +346,8 @@ describe('bindRoamingSettings', () => {
     await vi.waitFor(() =>
       expect(server.content).toEqual({ version: 1, hour24Clock: true, isMarkdown: false })
     );
+    // The repair names the write it patched: the laptop's.
+    expect(server.raw?.base_rev).toEqual(expect.any(String));
     server.deliver();
     for (const app of [phone, laptop]) {
       expect(app.shown().hour24Clock).toBe(true);

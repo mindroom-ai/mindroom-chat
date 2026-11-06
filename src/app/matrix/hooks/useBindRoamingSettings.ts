@@ -8,6 +8,7 @@ import {
   type SyncStateData,
 } from 'matrix-js-sdk';
 import { listSessions } from '../session/sessions';
+import { isRecord } from '../../lib/isRecord';
 import { DEFAULT_SETTINGS, getSettings } from '../../preferences/settings';
 import {
   ROAMING_SETTINGS_EVENT_TYPE,
@@ -30,31 +31,45 @@ type Store = ReturnType<typeof useStore>;
 const contentOf = (mx: MatrixClient): unknown =>
   mx.getAccountData(ROAMING_SETTINGS_EVENT_TYPE as never)?.getContent();
 
-const writes = new WeakMap<MatrixClient, Promise<boolean>>();
+/** A write of this client: the content it stored, and the content it patched. */
+type Write = { stored: Record<string, unknown>; base: Record<string, unknown> };
+
+const writes = new WeakMap<MatrixClient, Promise<Write | null | undefined>>();
 
 /**
  * Stores the patch `makePatch` computes from the account's content right before the write, over
- * that content, after any earlier write of this client. An empty patch writes nothing. Resolves
- * `false` without writing when the stored content has a later version.
+ * that content, after any earlier write of this client. The content is read from the homeserver,
+ * not from sync, so a change another device stored a moment ago stays. The stored content gets a
+ * new `rev` and names the one it patched in `base_rev`. Resolves the write, `null` for an empty
+ * patch (nothing written), and `undefined` without writing when the stored content has a later
+ * version.
  */
 const writeRoamingSettings = (
   mx: MatrixClient,
   makePatch: (content: unknown) => Partial<RoamingSettings>
-): Promise<boolean> => {
-  const task = (writes.get(mx) ?? Promise.resolve(true))
-    .catch(() => false)
+): Promise<Write | null | undefined> => {
+  const task = (writes.get(mx) ?? Promise.resolve(null))
+    .catch(() => undefined)
     .then(async () => {
-      const content = contentOf(mx);
+      const content: unknown = await mx.getAccountDataFromServer(
+        ROAMING_SETTINGS_EVENT_TYPE as never
+      );
       const patch = makePatch(content);
-      if (Object.keys(patch).length === 0) return true;
+      if (Object.keys(patch).length === 0) return null;
       const next = mergeRoamingSettings(content, patch);
-      if (!next) return false;
-      await mx.setAccountData(ROAMING_SETTINGS_EVENT_TYPE as never, next as never);
-      return true;
+      if (!next) return undefined;
+      const base = isRecord(content) ? content : {};
+      const stored = { ...next, rev: globalThis.crypto.randomUUID(), base_rev: base.rev ?? null };
+      await mx.setAccountData(ROAMING_SETTINGS_EVENT_TYPE as never, stored as never);
+      return { stored, base };
     });
   writes.set(mx, task);
   return task;
 };
+
+/** How long a write is watched for a write from an older copy of the content that undoes it. */
+const GUARD_MS = 30_000;
+const MAX_REDOS = 3;
 
 /** A sync the homeserver answered just now, not one replayed from this device's cache. */
 const isLive = (state: SyncState | null, data: SyncStateData | null | undefined): boolean =>
@@ -69,7 +84,14 @@ const isLive = (state: SyncState | null, data: SyncStateData | null | undefined)
  *   Each write patches over the content of that moment. It holds the pending edits the account
  *   lacks and, once per session, the device values the account lacks (`roamingMigration`).
  * - A sent edit leaves pending once written, unless it changed meanwhile. A failed write keeps
- *   everything for the next reconnect or edit. Incoming account data never causes a write.
+ *   everything for the next reconnect or edit.
+ * - Account data has no compare-and-swap: two devices that write at the same moment both patch
+ *   the content from before either write, and the later write undoes the earlier one's edits.
+ *   For half a minute after a write, incoming content whose writer read the content this write
+ *   replaced (its `base_rev`, or an older client's copied `rev`, is that content's) puts this
+ *   write's edits that it set back to their old value into pending again, and they are sent
+ *   again. A writer that saw this write changed what it changed on purpose. Other incoming
+ *   account data never causes a write.
  */
 export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void) => {
   const userId = mx.getUserId();
@@ -90,6 +112,9 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
   let migrated = false;
   let flushing = false;
   let again = false;
+  /** This device's writes of the last half minute, newest last. */
+  let recent: (Write & { patch: Partial<RoamingSettings>; at: number })[] = [];
+  const redos = new Map<string, number>();
 
   /** This login's pending edits; undefined once the store holds another account's or none. */
   const ownPending = (): Partial<RoamingSettings> | undefined => {
@@ -119,6 +144,7 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
     if (migrated && Object.keys(pending).length === 0) return;
     flushing = true;
     let sent: Partial<RoamingSettings> = {};
+    let patch: Partial<RoamingSettings> = {};
     void writeRoamingSettings(mx, (content) => {
       if (!bound) return {};
       // What happens from here on may be missing from this write, so it asks for another.
@@ -126,11 +152,13 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
       const account = readRoamingSettings(content);
       sent = ownPending() ?? {};
       const migration = migrated ? {} : roamingMigration(account, getSettings(), DEFAULT_SETTINGS);
-      return { ...migration, ...unconfirmedRoamingEdits(sent, account) };
+      patch = { ...migration, ...unconfirmedRoamingEdits(sent, account) };
+      return patch;
     })
       .then((written) => {
-        if (!written || !bound) return;
+        if (written === undefined || !bound) return;
         migrated = true;
+        if (written) recent = [...recent, { ...written, patch, at: Date.now() }];
         confirm(sent);
       })
       .catch(() => undefined)
@@ -146,8 +174,37 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
     online = live;
     if (reconnected) flush();
   };
+  /** Sends again the edits of this device that `content`, written from an older copy, undid. */
+  const redoUndoneEdits = (content: unknown): void => {
+    const now = Date.now();
+    recent = recent.filter((write) => now - write.at <= GUARD_MS);
+    if (recent.length === 0) redos.clear();
+    const incoming = isRecord(content) ? content : {};
+    const undone: Record<string, unknown> = {};
+    recent.forEach(({ stored, base, patch }) => {
+      const sawThisWrite = incoming.rev === stored.rev || incoming.base_rev === stored.rev;
+      const readItsBase =
+        incoming.base_rev === stored.base_rev || incoming.rev === stored.base_rev;
+      if (sawThisWrite || !readItsBase) return;
+      Object.entries(patch).forEach(([key, value]) => {
+        const count = redos.get(key) ?? 0;
+        if (Object.is(incoming[key], value) || !Object.is(incoming[key], base[key])) return;
+        if (count >= MAX_REDOS) return;
+        redos.set(key, count + 1);
+        undone[key] = value;
+      });
+    });
+    const pending = ownPending();
+    if (!pending || storageKey === undefined || Object.keys(undone).length === 0) return;
+    // A newer edit of the same setting on this device wins over the one sent again.
+    const values = { ...(undone as Partial<RoamingSettings>), ...pending };
+    store.set(pendingRoamingSettingsAtom, { storageKey, values });
+    savePendingRoamingSettings(storageKey, values);
+  };
+
   const onAccountData = (event: MatrixEvent): void => {
     if (event.getType() === ROAMING_SETTINGS_EVENT_TYPE) {
+      redoUndoneEdits(event.getContent());
       store.set(roamingAccountContentAtom, event.getContent());
     }
   };
