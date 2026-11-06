@@ -1,0 +1,375 @@
+import {
+  expect,
+  test,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
+import {
+  activeAccountButtonNamePattern,
+  chooseFromAccountMenu,
+  loginWithPassword,
+} from '../helpers/auth';
+import {
+  CHROMIUM_WITH_SCROLLBARS,
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  type DisposableUser,
+} from '../helpers/disposableAccounts';
+import { createPrivateRoom, sendRoomMessage, setAccountData } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+
+// A fresh account's sidebar (Bas, 2026-11-06): the six rail buttons a person can hide in
+// Settings > Sidebar (Threads, Canvases, Explore Community, Create Space, Search, Local MindRoom)
+// are off until the account turns them on, and the THREADS category starts collapsed until the
+// person opens it. Each hidden page stays reachable the way its switch's description says:
+// Threads, Canvases and Explore Community from Home's options menu, Search and Create Space from
+// the command palette (its shortcut on a desktop, Message Search on a phone), Local MindRoom in
+// Settings. Checked with 26 rooms and three threads, classic scrollbars, on a 1280 by 800 desktop
+// and a 390 by 844 touch phone, in Chromium and WebKit. Set SIDEBAR_DEFAULTS_SHOTS=<directory>
+// to save the fresh sidebar's screenshots.
+
+const PASSWORD = 'fresh-account-sidebar-password';
+const RUN = Date.now().toString(36);
+const SHOTS = process.env.SIDEBAR_DEFAULTS_SHOTS;
+const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+const PHONE: BrowserContextOptions = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+type Layout = 'desktop' | 'phone';
+const LAYOUTS: Record<Layout, BrowserContextOptions> = { desktop: DESKTOP, phone: PHONE };
+
+const FIRST_ROOM = 'Budget Review';
+const ROOM_NAMES = [
+  FIRST_ROOM,
+  'Design Critique',
+  'Field Notes',
+  'Hiring Loop',
+  'Incident Review',
+  'Launch Checklist',
+  'Market Research',
+  'Office Logistics',
+  'Onboarding',
+  'Partner Updates',
+  'Press Kit',
+  'Quarterly Goals',
+  'Release Train',
+  'Research Digest',
+  'Roadmap',
+  'Sales Pipeline',
+  'Security Review',
+  'Support Escalations',
+  'Team Retro',
+  'Travel Planning',
+  'User Interviews',
+  'Vendor Contracts',
+  'Weekly Sync',
+  'Writing Desk',
+  'Yearly Planning',
+  'Zoning Permits',
+];
+const FIRST_THREAD = 'Shortlist for the venue';
+const THREAD_TITLES = [
+  FIRST_THREAD,
+  'Draft agenda for Thursday',
+  'Questions from the partner call',
+];
+
+/** The six switches, by the rail button each one shows. */
+const RAIL_BUTTONS = [
+  'Threads',
+  'Canvases',
+  'Explore Community',
+  'Create Space',
+  'Open command palette',
+  'MindRoom',
+];
+const THREADS_SWITCH = 'Show Threads in the sidebar';
+const SWITCHES = [
+  THREADS_SWITCH,
+  'Show Canvases in the sidebar',
+  'Show Explore Community in the sidebar',
+  'Show Create Space in the sidebar',
+  'Show Search in the sidebar',
+  'Show Local MindRoom in the sidebar',
+];
+
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
+
+test.beforeEach(async () => {
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+});
+
+/**
+ * A new account with 26 rooms, three threads in the first one and a pinned canvas, so the
+ * Canvases button has something to list; `settings` is stored as its `io.mindroom.settings`.
+ */
+const seedAccount = async (
+  name: string,
+  settings?: Record<string, boolean>
+): Promise<DisposableUser> => {
+  const user = await registerDisposableUser(`fresh_${name}_${RUN}`, PASSWORD);
+  const rooms: string[] = [];
+  for (let start = 0; start < ROOM_NAMES.length; start += 6) {
+    // eslint-disable-next-line no-await-in-loop
+    const batch = await Promise.all(
+      ROOM_NAMES.slice(start, start + 6).map((roomName) =>
+        createPrivateRoom(HOMESERVER, user.accessToken, { name: roomName, topic: '' })
+      )
+    );
+    rooms.push(...batch);
+  }
+  const [threadRoom] = rooms;
+  if (!threadRoom) throw new Error('No room was created');
+  for (const title of THREAD_TITLES) {
+    // eslint-disable-next-line no-await-in-loop
+    const rootId = await sendRoomMessage(HOMESERVER, user.accessToken, threadRoom, {
+      msgtype: 'm.text',
+      body: title,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, user.accessToken, threadRoom, {
+      msgtype: 'm.text',
+      body: `Notes on ${title.toLowerCase()} are in the shared folder.`,
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: rootId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: rootId },
+      },
+    });
+  }
+  await setAccountData(HOMESERVER, user.accessToken, user.userId, 'io.mindroom.pinned_canvases', {
+    canvases: [{ room_id: threadRoom, event_id: '$fresh-account-canvas' }],
+  });
+  if (settings) {
+    await setAccountData(
+      HOMESERVER,
+      user.accessToken,
+      user.userId,
+      'io.mindroom.settings',
+      settings
+    );
+  }
+  return user;
+};
+
+/** The deployment offers canvases and Local MindRoom; the slot has no provisioning service. */
+const routeDeployment = async (context: BrowserContext) => {
+  await context.route('**/config.json', async (route) => {
+    const response = await route.fetch();
+    const config = (await response.json()) as Record<string, Record<string, unknown>>;
+    await route.fulfill({
+      response,
+      json: {
+        ...config,
+        // Local MindRoom pairs only accounts on the provisioning service's own homeserver.
+        sidebar: { ...config.sidebar, mindRoomProvisioningUrl: HOMESERVER },
+        mindroom: { ...config.mindroom, canvas: { enabled: true } },
+      },
+    });
+  });
+  await context.route('**/v1/local-mindroom/connections', (route) =>
+    route.fulfill({ json: { connections: [] } })
+  );
+};
+
+const rail = (page: Page) => page.getByRole('navigation', { name: 'Main', exact: true });
+const threadsCategory = (page: Page) =>
+  page.getByTestId('thread-nav-category').getByRole('button', { name: 'Threads', exact: true });
+
+/** Home with every seeded room listed. */
+const openHome = async (page: Page) => {
+  // Pressing Home while Home shows folds a desktop's list away instead.
+  if (new URL(page.url()).pathname !== '/home/') {
+    await rail(page).getByRole('button', { name: 'Home', exact: true }).click();
+  }
+  await expect(page).toHaveURL(/\/home\/$/);
+  await expect(page.getByText(FIRST_ROOM, { exact: true }).first()).toBeVisible({
+    timeout: 60_000,
+  });
+};
+
+const signIn = async (page: Page, user: DisposableUser) => {
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: user.username,
+    password: PASSWORD,
+  });
+  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+    timeout: 120_000,
+  });
+  await openHome(page);
+};
+
+/** Chooses an entry of Home's options menu. */
+const chooseFromHomeMenu = async (page: Page, entry: string) => {
+  await page.getByRole('button', { name: 'Home Options', exact: true }).click();
+  await page.getByRole('menuitem', { name: entry, exact: true }).click();
+};
+
+/** Opens Settings at one of its pages. */
+const openSettingsPage = async (page: Page, name: string) => {
+  await chooseFromAccountMenu(page, 'Settings');
+  await page.getByRole('button', { name, exact: true }).click();
+};
+
+/** Everything a fresh account should find, on one signed-in page. */
+const checkFreshAccount = async (page: Page, layout: Layout) => {
+  // The rail shows none of the six buttons, though the deployment offers all of them.
+  for (const name of RAIL_BUTTONS) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect(rail(page).getByRole('button', { name, exact: true })).toHaveCount(0);
+  }
+  await openSettingsPage(page, 'Sidebar');
+  for (const name of SWITCHES) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.getByRole('switch', { name })).toHaveAttribute('aria-checked', 'false');
+  }
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('switch', { name: THREADS_SWITCH })).toHaveCount(0);
+
+  // THREADS starts collapsed; once opened it stays open, after a reload too.
+  await expect(threadsCategory(page)).toHaveAttribute('aria-expanded', 'false', {
+    timeout: 60_000,
+  });
+  await expect(page.getByTestId('thread-nav-list')).toHaveCount(0);
+  await threadsCategory(page).click();
+  await expect(threadsCategory(page)).toHaveAttribute('aria-expanded', 'true');
+  await expect(
+    page.getByTestId('thread-nav-list').getByText(FIRST_THREAD, { exact: true })
+  ).toBeVisible({ timeout: 60_000 });
+  await page.reload();
+  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+    timeout: 120_000,
+  });
+  await expect(threadsCategory(page)).toHaveAttribute('aria-expanded', 'true', {
+    timeout: 60_000,
+  });
+  await expect(page.getByTestId('thread-nav-list')).toBeVisible();
+
+  // Threads, Canvases and Explore Community: Home's options menu.
+  await chooseFromHomeMenu(page, 'Threads');
+  await expect(page).toHaveURL(/\/threads\/$/);
+  await openHome(page);
+  await chooseFromHomeMenu(page, 'Canvases');
+  await expect(page).toHaveURL(/\/canvases\/$/);
+  await expect(page.getByTestId('canvases-view')).toBeVisible();
+  await openHome(page);
+  await chooseFromHomeMenu(page, 'Explore Community');
+  await expect(page).toHaveURL(/\/explore\//);
+  await openHome(page);
+
+  // Search and Create Space: the command palette.
+  const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
+  if (layout === 'desktop') {
+    await pressPaletteShortcut(page);
+  } else {
+    // A phone has no shortcut; Home's Message Search opens the palette.
+    await page.locator('[data-home-room-action="search"]').click();
+  }
+  await expect(palette).toBeVisible();
+  await palette.getByRole('tablist').getByRole('tab', { name: 'Actions', exact: true }).click();
+  await palette.getByRole('combobox').fill('Create Space');
+  await palette.getByRole('option').filter({ hasText: 'Create Space' }).first().click();
+  await expect(page.getByRole('dialog', { name: 'Create Space' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Create Space' })).toHaveCount(0);
+
+  // Local MindRoom: its Settings page.
+  await openSettingsPage(page, 'Local MindRoom');
+  await expect(
+    page.getByText('Pair this chat account with your local MindRoom process', { exact: true })
+  ).toBeVisible();
+};
+
+for (const layout of ['desktop', 'phone'] as const) {
+  test(`a fresh account's hidden rail pages stay reachable (Chromium, ${layout})`, async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(360_000);
+    const user = await seedAccount(`c${layout[0]}`);
+    const context = await browser.newContext({ ...LAYOUTS[layout], baseURL });
+    await routeDeployment(context);
+    const page = await context.newPage();
+    await signIn(page, user);
+    await checkFreshAccount(page, layout);
+    await context.close();
+  });
+
+  test(`a fresh account's hidden rail pages stay reachable (WebKit, ${layout})`, async ({
+    baseURL,
+  }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(360_000);
+    const user = await seedAccount(`w${layout[0]}`);
+    const webkitBrowser = await launchWebKit();
+    try {
+      const context = await webkitBrowser.newContext({ ...LAYOUTS[layout], baseURL });
+      await routeDeployment(context);
+      const page = await context.newPage();
+      await signIn(page, user);
+      await checkFreshAccount(page, layout);
+    } finally {
+      await webkitBrowser.close();
+    }
+  });
+}
+
+test('an account that stored its switches keeps them', async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  const user = await seedAccount('stored', {
+    showThreadsInSidebar: true,
+    showSearchInSidebar: true,
+  });
+  const context = await browser.newContext({ ...DESKTOP, baseURL });
+  await routeDeployment(context);
+  const page = await context.newPage();
+  await signIn(page, user);
+  for (const name of RAIL_BUTTONS) {
+    const shown = name === 'Threads' || name === 'Open command palette';
+    // eslint-disable-next-line no-await-in-loop
+    await expect(rail(page).getByRole('button', { name, exact: true })).toHaveCount(shown ? 1 : 0);
+  }
+  // Home's menu lists only the pages whose buttons are hidden.
+  await page.getByRole('button', { name: 'Home Options', exact: true }).click();
+  const menu = page.getByRole('menu');
+  await expect(menu.getByRole('menuitem', { name: 'Canvases', exact: true })).toBeVisible();
+  await expect(
+    menu.getByRole('menuitem', { name: 'Explore Community', exact: true })
+  ).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Threads', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await context.close();
+});
+
+test('screenshots of a fresh account sidebar', async ({ browser, baseURL }) => {
+  test.skip(!SHOTS, 'Set SIDEBAR_DEFAULTS_SHOTS to a directory');
+  test.setTimeout(360_000);
+  for (const layout of ['desktop', 'phone'] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    const user = await seedAccount(`s${layout[0]}`);
+    // eslint-disable-next-line no-await-in-loop
+    const context = await browser.newContext({ ...LAYOUTS[layout], baseURL, colorScheme: 'light' });
+    // eslint-disable-next-line no-await-in-loop
+    await routeDeployment(context);
+    // eslint-disable-next-line no-await-in-loop
+    const page = await context.newPage();
+    // eslint-disable-next-line no-await-in-loop
+    await signIn(page, user);
+    // eslint-disable-next-line no-await-in-loop
+    await page.getByTestId('thread-nav-category').scrollIntoViewIfNeeded({ timeout: 60_000 });
+    // Let the thread index and the rail settle before the picture.
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(3_000);
+    // eslint-disable-next-line no-await-in-loop
+    await page.screenshot({ path: `${SHOTS}/fresh-sidebar-${layout}.png` });
+    // eslint-disable-next-line no-await-in-loop
+    await context.close();
+  }
+});
