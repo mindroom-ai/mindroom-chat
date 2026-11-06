@@ -371,7 +371,7 @@ test('screenshots of the Settings dialog over a busy room', async ({ page }) => 
       .getByRole('button')
       .last()
       .click();
-    await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
     await settle(page);
     await page.screenshot({ path: `${SHOTS}/room-settings-${theme}.png` });
