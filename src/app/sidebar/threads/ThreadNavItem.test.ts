@@ -111,6 +111,12 @@ vi.mock('../../navigation/useRoomNavigate', () => ({
 vi.mock('../../threads/useInitializeShownThread', () => ({
   useInitializeShownThread: () => undefined,
 }));
+vi.mock('../../threads/ThreadStreamingDot', async () => {
+  const reactModule = await import('react');
+  return {
+    ThreadStreamingDot: () => reactModule.createElement('span', { 'data-streaming-dot': true }),
+  };
+});
 vi.mock('../../i18n/useRelativeTime', () => ({ useRelativeTime: () => '1m ago' }));
 vi.mock('../../threads/overview/compactThreadCardViewModel', () => ({
   buildCompactThreadCardViewModelFromRecord: buildViewModelMock,
@@ -233,6 +239,18 @@ describe('ThreadNavItem', () => {
     act(() => getOpenButton().props.onClick());
 
     expect(navigateRoomMock).toHaveBeenCalledWith(entry.roomId, entry.threadRootId);
+  });
+
+  it('shows that an agent streams in the thread, as its card does', () => {
+    renderItem();
+    expect(renderer!.root.findAllByProps({ 'data-streaming-dot': true })).toHaveLength(0);
+    expect(getOpenButton().props['aria-label']).not.toContain('Agent streaming');
+
+    act(() => renderer?.unmount());
+    buildViewModelMock.mockReturnValue({ ...viewModel, attentionState: 'streaming' });
+    renderItem();
+    expect(renderer!.root.findAllByProps({ 'data-streaming-dot': true })).toHaveLength(1);
+    expect(getOpenButton().props['aria-label']).toContain('Agent streaming');
   });
 
   it('opens the hover details without a delay', () => {

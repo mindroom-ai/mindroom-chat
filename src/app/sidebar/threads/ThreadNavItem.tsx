@@ -80,7 +80,7 @@ export const ThreadNavItem = memo(
         entry={entry}
         room={room}
         title={viewModel?.displayTitleText ?? entry.summaryText}
-        streaming={entry.threadRecord.status.isStreaming}
+        streaming={viewModel?.attentionState === 'streaming'}
         agentNames={
           viewModel?.participants
             .filter((participant) => participant.userId !== mx.getUserId())
