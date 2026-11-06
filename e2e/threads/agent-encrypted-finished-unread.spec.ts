@@ -42,7 +42,10 @@ const badgeCount = async (page: Page, roomId: string): Promise<number> => {
   return match ? Number(match[1]) : 0;
 };
 
-/** Waits until the badge shows unread messages, no more than the server counts. */
+/**
+ * Waits until the badge shows unread messages, no more than the server counts, on three polls in
+ * a row: the counts move while the session decrypts.
+ */
 const expectBadgeShowsUnread = async (
   page: Page,
   stack: AgentStack,
@@ -50,13 +53,15 @@ const expectBadgeShowsUnread = async (
   log: string[],
   who: string
 ): Promise<void> => {
+  let held = 0;
   await expect
     .poll(
       async () => {
         const server = await serverUnreadCounts(stack, roomId);
         const shown = await badgeCount(page, roomId);
         log.push(`${who}: badge ${shown}, server ${JSON.stringify(server)}`);
-        return shown > 0 && shown <= total(server);
+        held = shown > 0 && shown <= total(server) ? held + 1 : 0;
+        return held >= 3;
       },
       {
         timeout: 60_000,
@@ -106,9 +111,40 @@ const describeRoom = async (stack: AgentStack, roomId: string): Promise<string> 
   return `${events}\nreceipts: ${JSON.stringify(sync.rooms?.join?.[roomId]?.ephemeral?.events)}`;
 };
 
+/**
+ * Reads the router's welcome thread in a new room with an unthreaded receipt, so the counts
+ * below are the reply's alone. A session that cannot decrypt the welcome counts it otherwise:
+ * the server takes the reader's own message after it as reading it, the SDK does not.
+ */
+const readRouterWelcome = async (stack: AgentStack, roomId: string): Promise<void> => {
+  type Raw = { event_id: string; sender: string };
+  let latest: string | undefined;
+  await expect
+    .poll(
+      async () => {
+        const { chunk } = await matrixFetch<{ chunk: Raw[] }>(
+          stack.homeserver,
+          `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=20`,
+          { accessToken: stack.tester.accessToken }
+        );
+        const fromRouter = chunk.filter((event) => event.sender === stack.agents.router);
+        latest = fromRouter[0]?.event_id;
+        return fromRouter.length;
+      },
+      { timeout: 30_000, intervals: [500, 1000], message: "the router's welcome thread" }
+    )
+    .toBeGreaterThanOrEqual(2);
+  await matrixFetch(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(latest ?? '')}`,
+    { method: 'POST', accessToken: stack.tester.accessToken, body: JSON.stringify({}) }
+  );
+};
+
 const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[]) => {
   // Home lists the room; the room is in no space.
   const roomId = await createEncryptedAgentRoom(stack, 'Secure desk');
+  await readRouterWelcome(stack, roomId);
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   // 30 words, one every quarter second.
