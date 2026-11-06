@@ -72,7 +72,9 @@ const expectBadgeShowsUnread = async (
     .toBe(true);
   if (SHOTS) {
     const engine = page.context().browser()?.browserType().name() ?? 'browser';
-    await page.screenshot({ path: `${SHOTS}/finished-unread-${who.replace(/ /g, '-')}-${engine}.png` });
+    await page.screenshot({
+      path: `${SHOTS}/finished-unread-${who.replace(/ /g, '-')}-${engine}.png`,
+    });
   }
 };
 
