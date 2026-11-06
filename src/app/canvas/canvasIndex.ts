@@ -50,8 +50,9 @@ export const recordCanvasEvent = (
   const eventId = event.getId();
   if (!sender || !eventId?.startsWith('$')) return undefined;
   // Only deletions that may be of a canvas reach the store: agents delete a reaction after every reply.
+  // A deleted encrypted event has lost its decrypted type, also by the time its deletion arrives.
   const maybeCanvas = (deleted: MatrixEvent) =>
-    deleted.getType() === EventType.RoomMessage &&
+    (deleted.getType() === EventType.RoomMessage || deleted.isEncrypted()) &&
     isMindroomAgentUserIdForViewer(deleted.getSender() ?? '', mx.getSafeUserId());
   // A canvas can also turn up already deleted, in history loaded after a missed deletion.
   if (event.isRedacted()) return maybeCanvas(event) ? forgetDeleted(mx, eventId) : undefined;
