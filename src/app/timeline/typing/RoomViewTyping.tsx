@@ -79,14 +79,16 @@ const ON_SCREEN_CHECK_MS = 250;
 
 /**
  * The senders whose streaming reply shows on screen in the open thread or, outside one, in the
- * room's timeline: the reply's dots and Stop button already say that they write. Read after each
- * render and, while `watch` holds, a few times a second.
+ * room's timeline: the reply's dots and Stop button already say that they write. Read while
+ * `agentsTyping` (the typing agents' IDs, joined) names any, when it changes and a few times a
+ * second.
  */
 const useStreamingRepliesOnScreen = (
   room: Room,
   threadId: string | undefined,
-  watch: boolean
+  agentsTyping: string
 ): ReadonlySet<string> => {
+  const watch = agentsTyping !== '';
   const [onScreen, setOnScreen] = useState(NOBODY);
   const read = useCallback(() => {
     const timelineSet =
@@ -109,12 +111,12 @@ const useStreamingRepliesOnScreen = (
     );
     setOnScreen((previous) => (sameMembers(previous, senders) ? previous : senders));
   }, [room, threadId]);
-  // After every render, before the paint: a reply that just started streaming hides the strip
-  // in the same frame.
+  // Before the paint: an agent that the strip would name as its reply starts streaming in the
+  // thread stays out of it from that frame on.
   useLayoutEffect(() => {
     if (watch) read();
     else setOnScreen(NOBODY);
-  });
+  }, [agentsTyping, read, watch]);
   useEffect(() => {
     if (!watch) return undefined;
     const timer = window.setInterval(read, ON_SCREEN_CHECK_MS);
@@ -188,7 +190,10 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const onScreen = useStreamingRepliesOnScreen(
     room,
     threadId,
-    members.some(({ userId }) => isAgent(userId))
+    members
+      .map(({ userId }) => userId)
+      .filter(isAgent)
+      .join(' ')
   );
   const typing = members.filter(({ userId }) => !onScreen.has(userId));
 
