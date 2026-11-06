@@ -7,6 +7,8 @@ type MessageAsideProps = {
   [attribute: `data-${string}`]: string | undefined;
   /** A row of its own, such as a summary marker: a little space above and below it. */
   spaced?: boolean;
+  /** Under the reader's own bubble, which sits on the end side: lined up with its end instead. */
+  end?: boolean;
   children: ReactNode;
 };
 
@@ -15,16 +17,23 @@ type MessageAsideProps = {
  * chip or an "AI titled this thread" marker: lined up with the message bodies, past the avatar
  * column. Inline styles, so the timeline tests can render it without the stylesheet build.
  */
-export function MessageAside({ spaced = false, children, ...attributes }: MessageAsideProps) {
+export function MessageAside({
+  spaced = false,
+  end = false,
+  children,
+  ...attributes
+}: MessageAsideProps) {
+  const pastAvatar = `calc(${config.space.S400} + ${toRem(MESSAGE_AVATAR_WIDTH_PX)} + ${
+    config.space[MESSAGE_LAYOUT_GAP_SPACE_KEY]
+  })`;
   return (
     <div
       {...attributes}
       style={{
         paddingBlock: spaced ? config.space.S100 : undefined,
-        paddingInlineStart: `calc(${config.space.S400} + ${toRem(MESSAGE_AVATAR_WIDTH_PX)} + ${
-          config.space[MESSAGE_LAYOUT_GAP_SPACE_KEY]
-        })`,
-        paddingInlineEnd: config.space.S400,
+        paddingInlineStart: end ? config.space.S400 : pastAvatar,
+        paddingInlineEnd: end ? pastAvatar : config.space.S400,
+        ...(end && { display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }),
       }}
     >
       {children}

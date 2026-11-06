@@ -45,7 +45,7 @@ import {
 import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
-import { settingsAtom, type Settings } from '../../preferences/settings';
+import { MessageLayout, settingsAtom, type Settings } from '../../preferences/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../composer/roomInputDrafts';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import {
@@ -644,8 +644,9 @@ export const useTimelineMessageFeature = ({
             </MessageAside>
           )}
           {showFailedActions && (
-            // Lined up with the message body it belongs to, past the avatar column.
-            <MessageAside>
+            // Lined up with the message body it belongs to, past the avatar column; under an own
+            // bubble, which sits on the end side, with the bubble's end.
+            <MessageAside end={messageLayout === MessageLayout.Bubble}>
               <FailedSendActions room={room} event={sendState} />
             </MessageAside>
           )}
