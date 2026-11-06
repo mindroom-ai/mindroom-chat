@@ -53,15 +53,19 @@ const logoutRestoresAndClears = async (page: Page, browserName: string) => {
   await loginWithPassword(page, { homeserver: HOMESERVER, ...second, addAccount: true });
   await expectActiveStoredUsername(page, second.username);
 
-  // The remaining account opens in its last room.
+  // The remaining account opens in its last room, after the page loads again.
+  const reloaded = page.waitForEvent('load', { timeout: 60_000 });
   await logoutActiveAccount(page);
+  await reloaded;
   await expectActiveStoredUsername(page, first.username);
   await expect.poll(() => decodeURIComponent(page.url()), { timeout: 60_000 }).toContain(room);
   await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({ timeout: 60_000 });
   await accountSessionShot(page, `logout-remaining-account-${browserName}`);
 
   // After the last logout no entry names either account.
+  const reloadedAgain = page.waitForEvent('load', { timeout: 60_000 });
   await logoutActiveAccount(page);
+  await reloadedAgain;
   await expect(page.locator('input[name="serverInput"]')).toBeVisible({ timeout: 60_000 });
   expect(await storageNaming(page, [first.userId, second.userId])).toEqual([]);
 };

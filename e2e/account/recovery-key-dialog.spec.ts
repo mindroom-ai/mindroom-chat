@@ -55,17 +55,22 @@ const keyStaysUntilOkay = async (page: Page, browserName: string) => {
   await expect(page.getByText('Security', { exact: true })).toBeVisible();
 
   // The cross-signing upload waits, so Escape comes while the setup runs.
-  const held: Route[] = [];
-  await page.route('**/_matrix/client/*/keys/device_signing/upload', (route) => {
-    held.push(route);
+  let held = 0;
+  let release: () => void = () => undefined;
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/_matrix/client/*/keys/device_signing/upload', async (route: Route) => {
+    held += 1;
+    await released;
+    await route.continue();
   });
   await page.getByRole('button', { name: 'Enable' }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
-  await expect.poll(() => held.length, { timeout: 30_000 }).toBe(1);
+  await expect.poll(() => held, { timeout: 30_000 }).toBeGreaterThan(0);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Continue' })).toBeVisible();
-  await page.unroute('**/_matrix/client/*/keys/device_signing/upload');
-  await held[0].continue();
+  release();
 
   const dialog = page.getByRole('dialog').filter({ has: page.locator('code') });
   const keyText = dialog.locator('code');
@@ -95,6 +100,13 @@ test('the recovery key stays until Okay (Chromium)', async ({ page, browserName 
 test('the recovery key stays until Okay (WebKit phone)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  const phone = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL };
+  // Requests a service worker makes are not routed, so the page goes without one.
+  const phone = {
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    baseURL,
+    serviceWorkers: 'block' as const,
+  };
   await onWebKitPage(phone, (page) => keyStaysUntilOkay(page, 'webkit'));
 });

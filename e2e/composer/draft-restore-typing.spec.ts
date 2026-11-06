@@ -33,7 +33,7 @@ const recordTypingNotices = (page: Page): TypingNotice[] => {
   page.on('request', (request) => {
     if (request.method() !== 'PUT') return;
     const match = /\/rooms\/([^/]+)\/typing\//.exec(request.url());
-    if (!match) return;
+    if (!match?.[1]) return;
     const body = request.postDataJSON() as { typing?: boolean } | null;
     notices.push({ roomId: decodeURIComponent(match[1]), typing: body?.typing === true });
   });
