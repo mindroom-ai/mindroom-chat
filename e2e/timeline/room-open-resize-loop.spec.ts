@@ -27,7 +27,7 @@ import {
 // came together, that render moved the list's top and kept its height, so the scroll content, which
 // the inset scrollbar and the follow-growth observer watch, shrank after they had been reported,
 // and the loop ended with their observations undelivered. An agent room opens in its Threads view
-// and in the Full view, three times each, on a phone (390 by 844, touch) and a desktop (1280 by
+// and in the Full view, four times each from a fresh page load, on a phone (390 by 844, touch) and a desktop (1280 by
 // 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit,
 // against the disposable homeserver of a slot (scripts/e2e-slot.sh).
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -37,7 +37,7 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ROOM_NAME = 'Tide Station';
 const FILLER_ROOMS = 24;
 const HISTORY = 24;
-const OPENS = 3;
+const OPENS = 4;
 const LOOP_ERROR = /ResizeObserver loop/;
 
 const PHONE: BrowserContextOptions = {
@@ -150,14 +150,18 @@ const navigate = async (page: Page, route: string) => {
 
 const roomRoute = (roomId: string) => `/home/${encodeURIComponent(roomId)}/`;
 
-/** Opens the room from another room OPENS times and gives its rows time to settle each time. */
-const openRepeatedly = async (page: Page, world: World) => {
+/**
+ * Opens the room OPENS times, each time from another room of a fresh page load (the client starts
+ * again and the room's rows measure from their estimates), and collects the loop errors of each.
+ */
+const openRepeatedly = async (page: Page, world: World, pageErrors: string[]) => {
+  const loops: string[] = [];
   for (let open = 0; open < OPENS; open += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await navigate(page, roomRoute(world.otherRoomId));
+    await page.goto(roomRoute(world.otherRoomId));
     // eslint-disable-next-line no-await-in-loop
     await expect(page.getByRole('heading', { name: `Gauge ${FILLER_ROOMS}` }).first()).toBeVisible({
-      timeout: 30_000,
+      timeout: 60_000,
     });
     // eslint-disable-next-line no-await-in-loop
     await navigate(page, roomRoute(world.roomId));
@@ -169,7 +173,12 @@ const openRepeatedly = async (page: Page, world: World) => {
     await expect(page.locator('[data-message-id]').first()).toBeVisible({ timeout: 30_000 });
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(1_500);
+    // eslint-disable-next-line no-await-in-loop
+    loops.push(
+      ...(await page.evaluate(() => (window as unknown as { resizeLoops: string[] }).resizeLoops))
+    );
   }
+  return [...loops, ...pageErrors.filter((message) => LOOP_ERROR.test(message))];
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
@@ -209,16 +218,12 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
           viewMode,
           filterState: createDefaultThreadFilterState(),
         });
+        pageErrors.length = 0;
         // eslint-disable-next-line no-await-in-loop
-        await openRepeatedly(page, world);
-        // eslint-disable-next-line no-await-in-loop
-        const loops = await page.evaluate(
-          () => (window as unknown as { resizeLoops: string[] }).resizeLoops
+        const loops = await openRepeatedly(page, world, pageErrors);
+        expect(loops, `ResizeObserver loop errors in ${engine} ${viewport} ${viewMode}`).toEqual(
+          []
         );
-        expect(
-          [...loops, ...pageErrors.filter((message) => LOOP_ERROR.test(message))],
-          `ResizeObserver loop errors in ${engine} ${viewport} ${viewMode}`
-        ).toEqual([]);
       }
     } finally {
       // eslint-disable-next-line no-await-in-loop
