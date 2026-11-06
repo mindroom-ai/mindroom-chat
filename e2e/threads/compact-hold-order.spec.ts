@@ -15,8 +15,8 @@ import {
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Compact cards sorted by last reply keep their order while the reader points at a card, has a
-// card's menu open, or has keyboard focus on a card: replies to threads further down do not move
-// the card under the pointer; the new order applies once the reader lets go (THR-04).
+// card's menu open, or has keyboard focus on a card (Chromium): replies to threads further down do
+// not move the card under the pointer; the new order applies once the reader lets go (THR-04).
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit; 1280x800,
 // classic scrollbars shown.
 const DESKTOP = { width: 1280, height: 800 };
@@ -85,6 +85,21 @@ const cardOf = (page: Page, rootId: string) =>
 
 const topOf = (card: Locator) => card.evaluate((element) => element.getBoundingClientRect().top);
 
+/** Scrolls the card to the middle of the list, clear of the filter bar and the composer. */
+const centerCard = (card: Locator) =>
+  card.evaluate((element) => element.scrollIntoView({ block: 'center' }));
+
+/** The root ID of the card under a point. */
+const cardAt = (page: Page, point: { x: number; y: number }) =>
+  page.evaluate(
+    ({ x, y }) =>
+      document
+        .elementFromPoint(x, y)
+        ?.closest('[data-thread-root-id]')
+        ?.getAttribute('data-thread-root-id'),
+    point
+  );
+
 /** The root IDs of the cards, top to bottom. */
 const cardOrder = (page: Page) =>
   page
@@ -137,24 +152,17 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   // 1. Hover: the card twelve from the top stays under the pointer.
   const order = await cardOrder(page);
   const held = cardOf(page, order[12]!);
-  await held.scrollIntoViewIfNeeded();
+  await centerCard(held);
   const box = (await held.boundingBox())!;
   const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
+  expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(order[12]);
   const before = await topOf(held);
   let targets = await replyBelow(page, room);
   expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);
-  expect(
-    await page.evaluate(
-      ({ x, y }) =>
-        document
-          .elementFromPoint(x, y)
-          ?.closest('[data-thread-root-id]')
-          ?.getAttribute('data-thread-root-id'),
-      pointer
-    ),
-    `${engine}: the card under the pointer`
-  ).toBe(order[12]);
+  expect(await cardAt(page, pointer), `${engine}: the card still under the pointer`).toBe(
+    order[12]
+  );
   // Leaving the list lets the new order in.
   await page.mouse.move(DESKTOP.width - 5, 5);
   await expectCaughtUp(page, targets);
@@ -162,7 +170,7 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   // 2. A card's menu: open from its More button, then the pointer leaves the list.
   const menuOrder = await cardOrder(page);
   const menuCard = cardOf(page, menuOrder[12]!);
-  await menuCard.scrollIntoViewIfNeeded();
+  await centerCard(menuCard);
   const shell = page.locator(`[data-scroll-anchor="${menuOrder[12]}"]`);
   await shell.hover();
   await shell.getByRole('button', { name: 'Thread options' }).click();
@@ -180,10 +188,12 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await expectCaughtUp(page, targets);
 
-  // 3. Keyboard focus on a card, with the pointer away.
+  // 3. Keyboard focus on a card, with the pointer away. WebKit, like Safari by default, moves
+  // Tab only between fields and links, not buttons, so this runs in Chromium.
+  if (engine !== 'chromium') return;
   const focusOrder = await cardOrder(page);
   const focusCard = cardOf(page, focusOrder[12]!);
-  await focusCard.scrollIntoViewIfNeeded();
+  await centerCard(focusCard);
   // Tab from the card above: keyboard focus, as a keyboard user reaches the card.
   await cardOf(page, focusOrder[11]!).focus();
   for (let step = 0; step < 8; step += 1) {
