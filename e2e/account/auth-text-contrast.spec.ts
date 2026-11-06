@@ -166,9 +166,18 @@ const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, brow
 
     await page.setViewportSize(SIZES.desktop);
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-    // Each look starts in a new context with the session but none of its stored rooms or
-    // /versions answer, so the client waits for /versions, which never comes.
-    const session = await page.context().storageState();
+    // Each look starts in a new context with the session and its encryption storage but none of
+    // its stored rooms or /versions answer, so the client waits for /versions, which never comes.
+    const state = await page.context().storageState({ indexedDB: true });
+    const session = {
+      ...state,
+      origins: state.origins.map((origin) => ({
+        ...origin,
+        indexedDB: origin.indexedDB?.filter(
+          ({ name }) => !/mindroom-(cache|room|thread)/.test(name)
+        ),
+      })),
+    };
     for (const [sizeName, size] of Object.entries(SIZES)) {
       for (const theme of THEMES) {
         /* eslint-disable no-await-in-loop -- one screen after the other. */

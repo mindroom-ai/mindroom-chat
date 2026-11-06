@@ -31,6 +31,7 @@ vi.mock('./SplashScreen.css', () => ({
   SplashScreen: 'splash-screen',
   SplashScreenContent: 'splash-screen-content',
   SplashScreenFooter: 'splash-screen-footer',
+  SplashScreenName: 'splash-screen-name',
   SplashScreenParticle: 'splash-screen-particle',
   SplashScreenPersistentParticle: 'splash-screen-persistent-particle',
 }));
