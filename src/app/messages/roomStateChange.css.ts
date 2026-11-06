@@ -14,14 +14,11 @@ export const OneLine = style({
   whiteSpace: 'pre',
 });
 
-globalStyle(`${OneLine} > b, ${OneLine} > bdi`, {
+// Only the value shrinks: the sentence's words and the sender's name keep their width, and a
+// name cut by even a fraction of a pixel would show an ellipsis.
+globalStyle(`${OneLine} > bdi`, {
   minWidth: 0,
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-});
-
-// The value gives way first; the sender's name is cut only once the value is gone.
-globalStyle(`${OneLine} > bdi`, {
-  flexShrink: 1000,
 });
