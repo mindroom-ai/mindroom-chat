@@ -6,7 +6,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { launchWebKit } from '../helpers/webkit';
+import { onWebKitPage } from '../helpers/webkit';
 
 // Signing up with a username someone already has: the server's answer belongs to the Username
 // field. It shows under that field, the field is marked invalid and described by it, and focus
@@ -60,11 +60,7 @@ test('a taken username is the Username field’s error (Chromium)', async ({ pag
 test('a taken username is the Username field’s error (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(120_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, baseURL });
-    await takenUsernameIsTheUsernameFieldsError(await context.newPage(), 'webkit');
-  } finally {
-    await browser.close();
-  }
+  await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
+    takenUsernameIsTheUsernameFieldsError(page, 'webkit')
+  );
 });

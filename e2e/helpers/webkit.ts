@@ -1,4 +1,10 @@
-import { webkit, type Browser, type BrowserContextOptions } from '@playwright/test';
+import {
+  test,
+  webkit,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
 
 /** Playwright's WebKit, which the test runners name; the WebKit tests skip without it. */
 export const WEBKIT_EXECUTABLE = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -20,4 +26,28 @@ export const launchWebKit = async (): Promise<Browser> => {
   browser.newContext = (options?: BrowserContextOptions) =>
     newContext({ userAgent: undefined, ...options });
   return browser;
+};
+
+/**
+ * Runs `check` on a page of a new WebKit context, saving a screenshot of the page into the test's
+ * output when it fails: the test's own trace records only its Chromium page.
+ */
+export const onWebKitPage = async (
+  contextOptions: BrowserContextOptions,
+  check: (page: Page) => Promise<void>
+): Promise<void> => {
+  const browser = await launchWebKit();
+  try {
+    const page = await (await browser.newContext(contextOptions)).newPage();
+    try {
+      await check(page);
+    } catch (error) {
+      await page
+        .screenshot({ path: test.info().outputPath('webkit-failure.png') })
+        .catch(() => undefined);
+      throw error;
+    }
+  } finally {
+    await browser.close();
+  }
 };

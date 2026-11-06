@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { launchWebKit } from '../helpers/webkit';
+import { onWebKitPage } from '../helpers/webkit';
 
 // A saved draft comes back when its room opens again, in the app or after a reload. That is not
 // typing: the room hears "typing" only once the person presses a key. Runs in Chromium and, when
@@ -94,11 +94,7 @@ test('a restored draft announces no typing (Chromium)', async ({ page, browserNa
 test('a restored draft announces no typing (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, baseURL });
-    await restoringDraftSendsNoTyping(await context.newPage(), 'webkit');
-  } finally {
-    await browser.close();
-  }
+  await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
+    restoringDraftSendsNoTyping(page, 'webkit')
+  );
 });

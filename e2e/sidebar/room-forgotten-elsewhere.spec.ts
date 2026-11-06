@@ -8,7 +8,7 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { matrixFetch } from '../helpers/matrix';
-import { launchWebKit } from '../helpers/webkit';
+import { onWebKitPage } from '../helpers/webkit';
 
 // A room left and forgotten on another device while this one was closed: the homeserver leaves a
 // forgotten room out of /sync, so the leave never arrives here. The room still goes from the list
@@ -115,11 +115,7 @@ test('a room forgotten on another device leaves the list (Chromium)', async ({
 test('a room forgotten on another device leaves the list (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, baseURL });
-    await forgottenRoomLeavesTheList(await context.newPage(), 'webkit');
-  } finally {
-    await browser.close();
-  }
+  await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
+    forgottenRoomLeavesTheList(page, 'webkit')
+  );
 });

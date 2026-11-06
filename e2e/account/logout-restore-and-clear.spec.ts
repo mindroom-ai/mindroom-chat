@@ -8,7 +8,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { launchWebKit } from '../helpers/webkit';
+import { onWebKitPage } from '../helpers/webkit';
 
 // Two accounts in one browser. Logging out the active one opens the other where it was, in its
 // last room. Logging out the last one leaves nothing in localStorage that names either account,
@@ -77,11 +77,7 @@ test('logout opens the other account where it was and leaves no account behind (
 }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, baseURL });
-    await logoutRestoresAndClears(await context.newPage(), 'webkit');
-  } finally {
-    await browser.close();
-  }
+  await onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL }, (page) =>
+    logoutRestoresAndClears(page, 'webkit')
+  );
 });

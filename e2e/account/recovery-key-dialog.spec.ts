@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { launchWebKit } from '../helpers/webkit';
+import { onWebKitPage } from '../helpers/webkit';
 
 // The recovery key is shown once, when device verification is set up. Neither Escape nor a click
 // outside closes the dialog while the setup runs or while the key is on screen: only Okay does.
@@ -92,16 +92,6 @@ test('the recovery key stays until Okay (Chromium)', async ({ page, browserName 
 test('the recovery key stays until Okay (WebKit phone)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  const browser = await launchWebKit();
-  try {
-    const context = await browser.newContext({
-      viewport: { width: 390, height: 844 },
-      hasTouch: true,
-      isMobile: true,
-      baseURL,
-    });
-    await keyStaysUntilOkay(await context.newPage(), 'webkit');
-  } finally {
-    await browser.close();
-  }
+  const phone = { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL };
+  await onWebKitPage(phone, (page) => keyStaysUntilOkay(page, 'webkit'));
 });
