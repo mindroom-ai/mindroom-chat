@@ -175,6 +175,9 @@
     },
     "login": {
       "noAccountLink": "Don't have an account? <authLink>Register</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "The passwords do not match."
     }
   },
   "featureUi": {

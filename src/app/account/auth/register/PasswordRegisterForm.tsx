@@ -47,8 +47,10 @@ const STAGE_ERROR_KEYS = {
 
 type FormError = { account: RegisterError } | { stage: keyof typeof STAGE_ERROR_KEYS };
 
+type Field = 'username' | 'password' | 'confirm';
+
 /** The field an account error is about; the others show under the form. */
-const FIELD_OF_ERROR: Partial<Record<RegisterError, 'username' | 'password'>> = {
+const FIELD_OF_ERROR: Partial<Record<RegisterError, Field>> = {
   [RegisterError.UserTaken]: 'username',
   [RegisterError.UserInvalid]: 'username',
   [RegisterError.UserExclusive]: 'username',
@@ -199,24 +201,30 @@ export function PasswordRegisterForm(props: {
   const resumeRef = useRef<(proceed: boolean) => void>();
   const usernameRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
   const storeFailed = useRegisterComplete(result);
   const errorField = error && 'account' in error ? FIELD_OF_ERROR[error.account] : undefined;
   const errorMessage =
     error &&
     t('account' in error ? REGISTER_ERROR_KEYS[error.account] : STAGE_ERROR_KEYS[error.stage]);
-  // The field the server refused is marked invalid, described by its error, and focused again.
-  const fieldErrorProps = (field: 'username' | 'password') =>
-    errorField === field ? { 'aria-invalid': true, 'aria-describedby': errorId } : {};
-  const fieldError = (field: 'username' | 'password') =>
-    errorField === field && errorMessage ? (
-      <FieldError id={errorId} message={errorMessage} />
+  // The field in error, a mismatched confirmation or one the server refused, is marked invalid,
+  // described by its error, and focused again.
+  const invalidField = mismatch ? 'confirm' : errorField;
+  const fieldMessage = mismatch
+    ? t('sharedUi.passwordRegisterForm.passwordsDoNotMatch')
+    : errorMessage;
+  const fieldErrorProps = (field: Field) =>
+    invalidField === field ? { 'aria-invalid': true, 'aria-describedby': errorId } : {};
+  const fieldError = (field: Field) =>
+    invalidField === field && fieldMessage ? (
+      <FieldError id={errorId} message={fieldMessage} />
     ) : null;
 
   useEffect(() => {
-    if (errorField === 'username') usernameRef.current?.focus();
-    if (errorField === 'password') passwordRef.current?.focus();
-  }, [error, errorField]);
+    const refs = { username: usernameRef, password: passwordRef, confirm: confirmRef };
+    if (invalidField) refs[invalidField].current?.focus();
+  }, [error, invalidField]);
 
   const waitForUser = (step: WaitingStep) =>
     new Promise<boolean>((resolve) => {
@@ -311,7 +319,7 @@ export function PasswordRegisterForm(props: {
           outlined
           required
           size="500"
-          variant={errorField === 'username' ? 'Critical' : 'Background'}
+          variant={invalidField === 'username' ? 'Critical' : 'Background'}
         />
         {fieldError('username')}
       </AuthField>
@@ -324,20 +332,22 @@ export function PasswordRegisterForm(props: {
           outlined
           required
           size="500"
-          variant={errorField === 'password' ? 'Critical' : 'Background'}
+          variant={invalidField === 'password' ? 'Critical' : 'Background'}
         />
         {fieldError('password')}
       </AuthField>
       <AuthField caption={t('sharedUi.passwordRegisterForm.confirmPassword')}>
         <PasswordInput
-          aria-invalid={mismatch || undefined}
+          ref={confirmRef}
+          {...fieldErrorProps('confirm')}
           autoComplete="new-password"
           name="confirmPasswordInput"
           outlined
           required
           size="500"
-          variant={mismatch ? 'Critical' : 'Background'}
+          variant={invalidField === 'confirm' ? 'Critical' : 'Background'}
         />
+        {fieldError('confirm')}
       </AuthField>
       {plan?.token && (
         <AuthField

@@ -178,6 +178,9 @@
     },
     "login": {
       "noAccountLink": "Não tem uma conta? <authLink>Registe-se</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "As palavras-passe não coincidem."
     }
   },
   "featureUi": {

@@ -172,6 +172,9 @@
     },
     "login": {
       "noAccountLink": "계정이 없나요? <authLink>가입</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "비밀번호가 일치하지 않습니다."
     }
   },
   "featureUi": {

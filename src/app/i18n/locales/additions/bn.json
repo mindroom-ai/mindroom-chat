@@ -175,6 +175,9 @@
     },
     "login": {
       "noAccountLink": "অ্যাকাউন্ট নেই? <authLink>নিবন্ধন করুন</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "পাসওয়ার্ড দুটি মিলছে না।"
     }
   },
   "featureUi": {

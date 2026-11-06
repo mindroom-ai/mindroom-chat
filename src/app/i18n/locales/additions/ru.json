@@ -181,6 +181,9 @@
     },
     "login": {
       "noAccountLink": "Нет учётной записи? <authLink>Зарегистрируйтесь</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "Пароли не совпадают."
     }
   },
   "featureUi": {

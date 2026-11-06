@@ -187,6 +187,9 @@
     },
     "login": {
       "noAccountLink": "ليس لديك حساب؟ <authLink>سجّل حسابًا</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "كلمتا المرور غير متطابقتين."
     }
   },
   "featureUi": {

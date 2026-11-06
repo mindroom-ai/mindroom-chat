@@ -175,6 +175,9 @@
     },
     "login": {
       "noAccountLink": "खाता नहीं है? <authLink>पंजीकरण करें</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "पासवर्ड मेल नहीं खाते।"
     }
   },
   "featureUi": {

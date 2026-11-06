@@ -175,6 +175,9 @@
     },
     "login": {
       "noAccountLink": "Heb je geen account? <authLink>Registreren</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "De wachtwoorden komen niet overeen."
     }
   },
   "featureUi": {

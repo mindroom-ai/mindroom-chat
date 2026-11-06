@@ -178,6 +178,9 @@
     },
     "login": {
       "noAccountLink": "Non hai un account? <authLink>Registrati</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "Le password non corrispondono."
     }
   },
   "featureUi": {

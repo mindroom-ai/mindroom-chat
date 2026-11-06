@@ -172,6 +172,9 @@
     },
     "login": {
       "noAccountLink": "アカウントをお持ちではありませんか? <authLink>登録</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "パスワードが一致しません。"
     }
   },
   "featureUi": {

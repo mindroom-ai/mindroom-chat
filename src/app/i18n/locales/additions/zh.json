@@ -172,6 +172,9 @@
     },
     "login": {
       "noAccountLink": "没有账户？ <authLink>注册</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "两次输入的密码不一致。"
     }
   },
   "featureUi": {

@@ -172,6 +172,9 @@
     },
     "login": {
       "noAccountLink": "沒有帳戶？ <authLink>註冊</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "兩次輸入的密碼不一致。"
     }
   },
   "featureUi": {

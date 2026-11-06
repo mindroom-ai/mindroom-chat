@@ -172,6 +172,9 @@
     },
     "login": {
       "noAccountLink": "Belum punya akun? <authLink>Daftar</authLink>"
+    },
+    "passwordRegisterForm": {
+      "passwordsDoNotMatch": "Kata sandi tidak cocok."
     }
   },
   "featureUi": {
