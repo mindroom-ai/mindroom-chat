@@ -23,6 +23,7 @@ import { AgentCallButton } from '../../calls/agent/AgentCallButton';
 import { nameInitials } from '../../lib/common';
 import { getMxIdLocalPart, getMxIdServer } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
+import { getMemberRawDisplayName } from '../../matrix/room';
 import { StateEvent } from '../../matrix/types/room';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { MutualRoomsChip } from './MutualRoomsChip';
@@ -130,7 +131,7 @@ export function UserRoomProfile({
   // their profile still has the name.
   // The ID shows under the name, so the name goes without it.
   const name =
-    (member?.rawDisplayName !== userId ? member?.rawDisplayName : undefined) ||
+    getMemberRawDisplayName(room, userId) ||
     profile.displayName ||
     (user?.displayName !== userId ? user?.displayName : undefined) ||
     getMxIdLocalPart(userId) ||

@@ -80,6 +80,15 @@ export const getRoomMemberName = (member: RoomMember | null | undefined): string
   return member.disambiguate || name !== raw ? `${name} (\u2066${member.userId}\u2069)` : name;
 };
 
+/**
+ * A member's own display name, without the user ID `getMemberDisplayName` may add: for text the
+ * user sends, such as a mention's label, and for places that show the user ID beside it.
+ */
+export const getMemberRawDisplayName = (room: Room, userId: string): string | undefined => {
+  const name = room.getMember(userId)?.rawDisplayName;
+  return name && name !== userId ? name : undefined;
+};
+
 /** `getRoomMemberName` of the room's current member `userId`. */
 export const getMemberDisplayName = (room: Room, userId: string): string | undefined =>
   getRoomMemberName(room.getMember(userId));

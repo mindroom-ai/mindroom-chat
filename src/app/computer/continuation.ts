@@ -1,6 +1,6 @@
 import { MsgType, type MatrixClient } from 'matrix-js-sdk';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { getMemberDisplayName } from '../matrix/room';
+import { getMemberRawDisplayName } from '../matrix/room';
 import { sanitizeText } from '../rich-text/sanitize';
 import { getMessageRelation } from '../matrix/send/composeMessageRelation';
 
@@ -16,7 +16,7 @@ export const sendComputerContinuation = async (
   // The HTML mention renders as the agent's pill, labelled like a mention typed in the composer.
   const room = mx.getRoom(roomId);
   const agentName =
-    (room && getMemberDisplayName(room, agentUserId)) ??
+    (room && getMemberRawDisplayName(room, agentUserId)) ??
     getMxIdLocalPart(agentUserId) ??
     agentUserId;
   await mx.sendMessage(roomId, {
