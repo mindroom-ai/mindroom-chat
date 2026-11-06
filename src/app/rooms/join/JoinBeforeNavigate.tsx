@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -8,6 +8,7 @@ import {
   RoomEvent,
   RoomType,
   type RoomSummary,
+  SyncState,
 } from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../ui/page/Page';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
@@ -16,6 +17,7 @@ import { useLocalRoomSummary } from '../useLocalRoomSummary';
 import { RoomAccessControl } from '../RoomAccessControl';
 import * as roomCardCss from '../RoomCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useSyncState } from '../../matrix/hooks/useSyncState';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
@@ -34,7 +36,7 @@ type JoinBeforeNavigateProps = {
   viaServers?: string[];
 };
 
-type SummaryData = Partial<RoomSummary> & {
+type SummaryData = Omit<Partial<RoomSummary>, 'join_rule'> & {
   room_id: string;
   canonical_alias?: string;
   join_rule?: string;
@@ -416,6 +418,21 @@ type JoinPageProps = JoinBeforeNavigateProps & {
 function JoinPage({ state, retry, roomId, ...props }: JoinPageProps) {
   const { roomIdOrAlias } = props;
   const { t } = useTranslation();
+  const mx = useMatrixClient();
+  // A summary that failed while the homeserver was out of reach is asked again once sync is back.
+  const failed = state.status === AsyncStatus.Error;
+  useSyncState(
+    mx,
+    useCallback(
+      (syncState: SyncState, previous: SyncState | null) => {
+        const reconnected =
+          syncState === SyncState.Prepared ||
+          (syncState === SyncState.Syncing && previous !== SyncState.Syncing);
+        if (reconnected && failed) retry();
+      },
+      [failed, retry]
+    )
+  );
   const summary = state.status === AsyncStatus.Success ? (state.data as SummaryData) : undefined;
   const { room, membership } = useMyMembership(summary?.room_id ?? roomId ?? roomIdOrAlias);
   const title = summary?.name || summary?.canonical_alias || knownRoomName(room) || roomIdOrAlias;

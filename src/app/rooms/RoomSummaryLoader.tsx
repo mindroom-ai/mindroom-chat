@@ -1,11 +1,10 @@
-import { ReactNode, useCallback, useRef } from 'react';
+import { ReactNode, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { type MatrixClient, type Room, type RoomSummary, SyncState } from 'matrix-js-sdk';
+import type { MatrixClient, Room, RoomSummary } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { AsyncState, AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { type LocalRoomSummary, useLocalRoomSummary } from './useLocalRoomSummary';
 import { isRoomAlias } from '../matrix/matrix';
-import { useSyncState } from '../matrix/hooks/useSyncState';
 
 export type RoomSummaryState = AsyncState<RoomSummary, unknown>;
 
@@ -30,8 +29,7 @@ const resolveAlias = (mx: MatrixClient, alias: string) => () => mx.getRoomIdForA
 /**
  * Loads a room's summary (MSC3266) for a room the user may not have joined. An alias resolves to
  * a room ID first; its routing servers are used when the caller passed none. The resolved ID and
- * servers stay available when the summary itself fails, and a failed summary is requested again
- * when the client's sync recovers.
+ * servers stay available when the summary itself fails.
  */
 export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomSummaryLoaderProps) {
   const mx = useMatrixClient();
@@ -73,22 +71,6 @@ export function RoomSummaryLoader({ roomIdOrAlias, viaServers, children }: RoomS
   const retry = useCallback(() => {
     void refetch();
   }, [refetch]);
-
-  // A summary that failed while the homeserver was out of reach is asked again once sync is back.
-  const failedRef = useRef(false);
-  failedRef.current = summaryQuery.isError;
-  useSyncState(
-    mx,
-    useCallback(
-      (syncState: SyncState, previous: SyncState | null) => {
-        const reconnected =
-          syncState === SyncState.Prepared ||
-          (syncState === SyncState.Syncing && previous !== SyncState.Syncing);
-        if (reconnected && failedRef.current) void refetch();
-      },
-      [refetch]
-    )
-  );
 
   let state: RoomSummaryState;
   if (summaryQuery.isError) {

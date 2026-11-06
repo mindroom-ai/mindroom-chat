@@ -192,3 +192,29 @@ test('after an unban the person keeps their name and is not called kicked @webki
   await expect(unbanned).toContainText('Banned Person');
   await expect(unbanned).not.toContainText(member.username);
 });
+
+test('a space opened by link is titled by its name before joining @webkit', async ({ page }) => {
+  test.setTimeout(90_000);
+  const owner = await register('identity_space_owner', 'Space Keeper');
+  const visitor = await register('identity_space_visitor', 'Space Visitor');
+  const spaceName = `Linked space ${Date.now().toString(36)}`;
+  const spaceId = (
+    await matrixFetch<{ room_id: string }>(getHomeserver(), '/createRoom', {
+      method: 'POST',
+      accessToken: owner.accessToken,
+      body: JSON.stringify({
+        name: spaceName,
+        preset: 'public_chat',
+        creation_content: { type: 'm.space' },
+      }),
+    })
+  ).room_id;
+
+  await signIn(page, visitor);
+  await page.goto(`/${encodeURIComponent(spaceId)}/lobby/`);
+  await expect(page.getByRole('button', { name: 'Join', exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await expect(page.getByRole('heading', { level: 1, name: spaceName, exact: true })).toBeVisible();
+  await expect(page.getByText(spaceId)).toHaveCount(0);
+});

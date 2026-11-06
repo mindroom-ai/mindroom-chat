@@ -1,5 +1,5 @@
 import React from 'react';
-import { JoinRule, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, JoinRule, SyncState, type MatrixClient } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -194,5 +194,19 @@ describe('JoinBeforeNavigate names the room it knows', () => {
   it('keeps the ID for a room the client does not know', () => {
     summaryLoaderMock.state = { status: AsyncStatus.Error, error: new Error('offline') };
     expect(headerText(renderPage('!unknown:example.org', roomClient))).toBe('!unknown:example.org');
+  });
+
+  it('asks for a failed summary again once sync recovers', () => {
+    summaryLoaderMock.state = { status: AsyncStatus.Error, error: new Error('offline') };
+    renderPage(invitedRoom.roomId, roomClient);
+    const onSync = vi
+      .mocked(roomClient.on)
+      .mock.calls.filter(([event]) => event === ClientEvent.Sync)
+      .at(-1)?.[1] as unknown as (state: SyncState, previous: SyncState | null) => void;
+
+    act(() => onSync(SyncState.Error, SyncState.Syncing));
+    expect(summaryLoaderMock.retry).not.toHaveBeenCalled();
+    act(() => onSync(SyncState.Syncing, SyncState.Error));
+    expect(summaryLoaderMock.retry).toHaveBeenCalledOnce();
   });
 });
