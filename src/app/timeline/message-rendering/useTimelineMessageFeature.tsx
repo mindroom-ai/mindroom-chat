@@ -496,6 +496,12 @@ export const useTimelineMessageFeature = ({
         !!content['io.mindroom.ai_run'] || !!content['io.mindroom.stream_status'];
       const replyEventId =
         kind !== 'sticker' && shouldShowReply(row) ? event.replyEventId : undefined;
+      // The classic view shows thread replies in the room; each quotes its thread's root, and the
+      // quote opens the thread.
+      const threadQuoteRootId =
+        !threadId && showThreadRepliesInRoom && !replyEventId && event.threadRootId !== eventId
+          ? event.threadRootId
+          : undefined;
       const contentProps = {
         mEvent: event,
         eventId,
@@ -563,6 +569,13 @@ export const useTimelineMessageFeature = ({
                   hideThreadIndicator={!!threadId}
                   data-event-id={replyEventId}
                   onClick={data.handleOpenReply}
+                />
+              ) : threadQuoteRootId ? (
+                <Reply
+                  room={room}
+                  replyEventId={threadQuoteRootId}
+                  timelineSet={row.timelineSet}
+                  onClick={() => navigateRoomThread(room.roomId, threadQuoteRootId)}
                 />
               ) : undefined
             }
@@ -658,6 +671,7 @@ export const useTimelineMessageFeature = ({
       mediaAutoLoad,
       messageLayout,
       messageSpacing,
+      navigateRoomThread,
       reactionFailedEventId,
       room,
       showThreadRepliesInRoom,
