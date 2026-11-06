@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { atom, createStore, Provider, useAtomValue, useSetAtom } from 'jotai';
