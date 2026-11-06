@@ -157,6 +157,7 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   const pointer = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(pointer.x, pointer.y);
   expect(await cardAt(page, pointer), `${engine}: the card under the pointer`).toBe(order[12]);
+  await expect(page.locator('[data-order-held]')).toHaveCount(1);
   const before = await topOf(held);
   let targets = await replyBelow(page, room);
   expect(Math.abs((await topOf(held)) - before), `${engine}: hovered card moved`).toBeLessThan(1);

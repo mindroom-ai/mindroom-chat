@@ -229,7 +229,8 @@ export function CompactRoomView({
   const [pointerInside, setPointerInside] = useState(false);
   const [focusInside, setFocusInside] = useState(false);
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
-  const shownRootIds = useHeldThreadOrder(threadRootIds, pointerInside || focusHeld || !!menu);
+  const orderHeld = pointerInside || focusHeld || !!menu;
+  const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld);
   const cardViewModels = useCompactThreadCardViewModels({
     room,
     threadRootIds: shownRootIds,
@@ -362,6 +363,7 @@ export function CompactRoomView({
         direction="Column"
         gap="100"
         shrink="No"
+        data-order-held={orderHeld || undefined}
         onPointerEnter={() => setPointerInside(true)}
         onPointerLeave={() => setPointerInside(false)}
         // Keyboard focus only: a card a mouse click left focused does not hold the order.
