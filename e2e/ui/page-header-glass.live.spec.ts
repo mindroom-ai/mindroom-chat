@@ -146,7 +146,10 @@ for (const [themeId, width] of [
         await scroller.evaluate((element) => {
           element.scrollTop = 390;
         });
-        const interior = scroller.locator('button[data-room-id], button:has-text("View")').first();
+        // A room's Open Room button, a phone's lobby card opener, or a directory card's View.
+        const interior = scroller
+          .locator('button[data-room-id], button[data-card-opener], button:has-text("View")')
+          .first();
         await expect(interior).toHaveCount(1);
         await interior.evaluate((element) => element.scrollIntoView({ block: 'start' }));
         const top = (await header.boundingBox())!;
