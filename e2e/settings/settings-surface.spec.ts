@@ -118,8 +118,9 @@ const menuInsets = (dialog: Locator) =>
   dialog.evaluate((element): Inset[] => {
     const nav = element.querySelector('nav')!;
     const next = nav.nextElementSibling?.getBoundingClientRect();
-    const dialogBox = element.getBoundingClientRect();
-    const end = next && next.width <= 2 ? next.left : dialogBox.right;
+    // Inside the dialog's 1 px border.
+    const start = element.getBoundingClientRect().left + element.clientLeft;
+    const end = next && next.width <= 2 ? next.left : start + element.clientWidth;
     const field = nav.querySelector('[role="combobox"]')!.parentElement!;
     const headings = [...nav.querySelectorAll('[role="group"] > :first-child')];
     const rows = [...nav.querySelectorAll('button:not([aria-label])')];
@@ -127,7 +128,7 @@ const menuInsets = (dialog: Locator) =>
       const box = part.getBoundingClientRect();
       return {
         part: part === field ? 'search' : part.textContent ?? '',
-        start: box.left - dialogBox.left,
+        start: box.left - start,
         end: end - box.right,
       };
     });
@@ -137,22 +138,26 @@ const expectEvenInsets = (insets: Inset[]) => {
   expect(insets.length).toBeGreaterThan(10);
   for (const { part, start, end } of insets) {
     expect.soft(Math.abs(start - end), `${part}: ${start} vs ${end}`).toBeLessThanOrEqual(1);
-    // 8 px from the column's edge, plus the dialog's 1 px rim where it has one.
-    expect.soft(start, part).toBeGreaterThanOrEqual(7.5);
-    expect.soft(start, part).toBeLessThanOrEqual(9.5);
+    expect.soft(start, part).toBeCloseTo(8, 0);
   }
 };
 
-/** The dialog's own background: its alpha and its backdrop filters. */
+/**
+ * The dialog's own background: its color, alpha and backdrop filters, and the search field's
+ * fill, which must not be the surface's own color.
+ */
 const surfaceOf = (dialog: Locator) =>
   dialog.evaluate((element) => {
     const style = getComputedStyle(element);
+    const field = element.querySelector('[role="combobox"]')!.parentElement!;
     const numbers = style.backgroundColor.match(/[\d.]+/g)!.map(Number);
     let alpha = 1;
     if (style.backgroundColor.includes('/')) alpha = numbers[numbers.length - 1]!;
     else if (style.backgroundColor.startsWith('rgba')) alpha = numbers[3]!;
     return {
       background: style.backgroundColor,
+      rgb: numbers.slice(0, 3).map((channel) => Math.round(channel <= 1 ? channel * 255 : channel)),
+      field: getComputedStyle(field).backgroundColor,
       alpha,
       // A dialog with a flat title bar blurs the page in its ::after layer instead.
       filter: [style, getComputedStyle(element, '::after')]
@@ -190,7 +195,7 @@ const menuBackdrop = async (page: Page, dialog: Locator, account: Locator) => {
     }
     pixels = await sampleScreenshot(page, points);
   } finally {
-    await hide.evaluate((element) => element.remove());
+    await hide.evaluate((element) => (element as HTMLStyleElement).remove());
     await dialog.evaluate((element) => element.removeAttribute('data-surface-probe'));
   }
   const brightness = pixels.map(([red, green, blue]) => (red + green + blue) / 3);
@@ -223,8 +228,10 @@ const checkSurface = async (
       /* eslint-enable no-await-in-loop */
       measured[theme] = { insets, surface, backdrop };
       expectEvenInsets(insets);
-      expect.soft(surface.filter, theme).toContain('blur(');
+      // A blur, or the liquid glass filter where the browser draws it.
+      expect.soft(surface.filter, theme).toMatch(/blur\(|url\(/);
       expect.soft(surface.alpha, theme).toBeGreaterThanOrEqual(0.9);
+      expect.soft(surface.field, theme).not.toBe(`rgb(${surface.rgb.join(', ')})`);
       expect.soft(backdrop.contrast, theme).toBeGreaterThanOrEqual(4.5);
       expect.soft(backdrop.spread, theme).toBeLessThanOrEqual(16);
     }

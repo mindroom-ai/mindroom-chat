@@ -168,7 +168,8 @@ export function SettingsSearch({
       {formatShortcut('settingsSearch')}
     </kbd>
   );
-  // Under a phone's title bar the field is that bar's second row, not a header of its own.
+  // Under a phone's title bar the field is that bar's second row, not a header of its own. Its
+  // fill is the cards' color, which stands apart from the dialog's own nearly opaque surface.
   const field = (
     <PageNavHeader as={title ? 'div' : 'header'} outlined={false} className={SettingsSearchHeader}>
       <Input
@@ -187,7 +188,7 @@ export function SettingsSearch({
         type="search"
         autoComplete="off"
         spellCheck={false}
-        variant="Background"
+        variant="Surface"
         size="300"
         radii="400"
         before={<Icon size="50" src={Icons.Search} />}
