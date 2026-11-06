@@ -16,8 +16,9 @@ const whenCompact = (compact: CSSProperties) => ({
   '@media': { [shortViewport]: { selectors: { '&&': compact } } },
 });
 
+// Flush under the room header: a strip between them would show the scrolled messages, cut in half.
 const BannerLayout = style({
-  margin: `${config.space.S200} ${config.space.S300}`,
+  margin: `0 ${config.space.S300} ${config.space.S200}`,
   padding: config.space.S300,
   borderRadius: config.radii.R500,
   position: 'relative',

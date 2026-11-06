@@ -23,12 +23,12 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Text behind a glass surface never competes with the text on it. Over a room of long messages,
 // with the surface's own content hidden, the screen is sampled across the surface: what shows
 // through varies only faintly, and the surface's title keeps 4.5:1 against every sample. Measured
-// on the room header and the thread filter bar, the composer over the Compact view's cards, the
-// thread banner and the room header above it,
-// the Leave Room dialog and the sticky title of a settings page, on a desktop (1440 by 900) and a
-// phone (390 by 844, touch), in light and dark themes, in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
-// GLASS_LEGIBILITY_SHOTS=<directory> to also save each surface.
+// on the room header, the thread filter bar, the composer over the Compact view's cards, the Leave
+// Room dialog, the thread banner (which sits flush under the room header) and the room header
+// above it, and the sticky title of a settings page, on a desktop (1440 by 900) and a phone (390
+// by 844, touch), in light and dark themes, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
+// names Playwright's WebKit, in WebKit. Set GLASS_LEGIBILITY_SHOTS=<directory> to also save each
+// surface.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'glass-legibility-spec-password';
 const RUN = Date.now().toString(36);
@@ -236,6 +236,7 @@ const checkSurfaces = async (
   const world = await seed(`${engine}_${size}`);
   await signIn(page, world);
   const results: Record<string, Measured> = {};
+  const gaps: Record<string, number> = {};
   try {
     for (const theme of ['light', 'dark']) {
       /* eslint-disable no-await-in-loop -- one surface after the other on one page. */
@@ -305,6 +306,11 @@ const checkSurfaces = async (
         banner,
         banner.locator('[data-thread-context-summary]')
       );
+      // The banner sits flush under the room header: no strip between them where scrolled text
+      // shows sharp and cut in half.
+      const headerBox = (await roomHeader(page).boundingBox())!;
+      const bannerBox = (await banner.boundingBox())!;
+      gaps[`${prefix}-banner-gap`] = Math.round(bannerBox.y - (headerBox.y + headerBox.height));
       if (size === 'desktop') {
         await measure(
           page,
@@ -346,7 +352,7 @@ const checkSurfaces = async (
       /* eslint-enable no-await-in-loop */
     }
   } finally {
-    const body = JSON.stringify(results, null, 2);
+    const body = JSON.stringify({ ...results, ...gaps }, null, 2);
     await writeFile(testInfo.outputPath(`legibility-${engine}-${size}.json`), body);
     await testInfo.attach(`legibility-${engine}-${size}.json`, { body });
   }
@@ -355,6 +361,9 @@ const checkSurfaces = async (
   // Chromium blurs it; a colored avatar passing under a dark header still reaches 17. Before the
   // dense tint these surfaces measured 15 to 127 in Chromium and 28 to 168 in WebKit.
   const limit = engine === 'webkit' ? 24 : 20;
+  for (const [name, gap] of Object.entries(gaps)) {
+    expect.soft(Math.abs(gap), `${name}: banner under the header`).toBeLessThanOrEqual(1);
+  }
   for (const [name, { spread, contrast }] of Object.entries(results)) {
     expect.soft(spread, `${name}: the page behind shows only faintly`).toBeLessThanOrEqual(limit);
     expect
