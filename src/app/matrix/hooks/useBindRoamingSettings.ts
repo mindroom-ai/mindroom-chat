@@ -183,8 +183,7 @@ export const bindRoamingSettings = (mx: MatrixClient, store: Store): (() => void
     const undone: Record<string, unknown> = {};
     recent.forEach(({ stored, base, patch }) => {
       const sawThisWrite = incoming.rev === stored.rev || incoming.base_rev === stored.rev;
-      const readItsBase =
-        incoming.base_rev === stored.base_rev || incoming.rev === stored.base_rev;
+      const readItsBase = incoming.base_rev === stored.base_rev || incoming.rev === stored.base_rev;
       if (sawThisWrite || !readItsBase) return;
       Object.entries(patch).forEach(([key, value]) => {
         const count = redos.get(key) ?? 0;
