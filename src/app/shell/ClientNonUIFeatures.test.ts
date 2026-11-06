@@ -31,11 +31,17 @@ const createInviteRoom = (roomId: string): MockRoom => ({
   getMyMembership: () => Membership.Invite,
 });
 
-const createMatrixClient = (inviteRoomIds: string[]): MatrixClient =>
-  ({
+let accounts = 0;
+
+const createMatrixClient = (inviteRoomIds: string[]): MatrixClient => {
+  accounts += 1;
+  const userId = `@reader${accounts}:server`;
+  return {
     getRooms: vi.fn(() => inviteRoomIds.map(createInviteRoom)),
     getSyncState: vi.fn(() => 'SYNCING'),
-  } as unknown as MatrixClient);
+    getUserId: vi.fn(() => userId),
+  } as unknown as MatrixClient;
+};
 
 const setInvites = (store: Store, roomIds: string[]) => {
   store.set(allInvitesAtom, { type: 'INITIALIZE', rooms: roomIds });
