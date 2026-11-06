@@ -126,6 +126,29 @@ const createFilter = (document: Document, width: number, height: number, radius:
   };
 };
 
+let drawsOnGpu: boolean | undefined;
+
+/**
+ * Whether the page draws on a GPU. Without one, Chromium runs the SVG filter on the CPU for
+ * every frame that changes anything inside the glass, tens of milliseconds a frame (each key
+ * typed in a glass dialog), so the page keeps the native blur. WebGL names the renderer: no
+ * WebGL, or a software one such as SwiftShader or llvmpipe, means no GPU.
+ */
+const hasGpu = (document: Document): boolean => {
+  if (drawsOnGpu !== undefined) return drawsOnGpu;
+  const gl = document.createElement('canvas').getContext('webgl');
+  let renderer = '';
+  try {
+    const info = gl?.getExtension('WEBGL_debug_renderer_info');
+    if (gl && info) renderer = String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL));
+    gl?.getExtension('WEBGL_lose_context')?.loseContext();
+  } catch {
+    // Without the extensions the renderer stays unknown, and the effect stays on.
+  }
+  drawsOnGpu = !!gl && !/swiftshader|llvmpipe|softpipe|software/i.test(renderer);
+  return drawsOnGpu;
+};
+
 /** Owns only the optical effect. Layout, tint, borders and states stay in CSS. */
 export const attachLiquidGlass = (
   element: HTMLElement,
@@ -154,7 +177,8 @@ export const attachLiquidGlass = (
     typeof ResizeObserver === 'function' &&
     typeof IntersectionObserver === 'function' &&
     typeof CSS !== 'undefined' &&
-    CSS.supports('backdrop-filter', 'url("#liquid-glass")');
+    CSS.supports('backdrop-filter', 'url("#liquid-glass")') &&
+    hasGpu(document);
   let disposed = false;
   let visible = false;
   let filter: ReturnType<typeof createFilter>;

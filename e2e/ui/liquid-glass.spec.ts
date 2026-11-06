@@ -1,6 +1,27 @@
 import { expect, test } from '@playwright/test';
 import { pixelDifference, sampleScreenshot } from '../helpers/glassVisual';
 
+// The effect is drawn only on a GPU; headless runners have none, so the page is told it has one.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function getContextOnGpu(
+      this: HTMLCanvasElement,
+      type: string,
+      ...rest: unknown[]
+    ) {
+      if (type !== 'webgl') {
+        return getContext.apply(this, [type, ...rest] as Parameters<typeof getContext>);
+      }
+      return {
+        getExtension: (name: string) =>
+          name === 'WEBGL_debug_renderer_info' ? { UNMASKED_RENDERER_WEBGL: 37446 } : null,
+        getParameter: () => 'Test GPU',
+      };
+    } as typeof getContext;
+  });
+});
+
 test('bends the backdrop at the curved rim while keeping the center steady', async ({ page }) => {
   await page.setViewportSize({ width: 600, height: 400 });
   await page.goto('/e2e/fixtures/liquid-glass.html?optics');

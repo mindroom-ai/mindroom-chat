@@ -121,6 +121,36 @@ describe('liquid glass rendering lifecycle', () => {
     expect(preferenceListeners.size).toBe(0);
   });
 
+  it('keeps the native blur when the page draws without a GPU', async () => {
+    const renderers = [
+      'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)',
+      'llvmpipe (LLVM 17.0.6, 256 bits)',
+    ];
+    const canvasContext = HTMLCanvasElement.prototype.getContext;
+    for (const renderer of [...renderers, undefined]) {
+      vi.resetModules();
+      // A fresh module, so the renderer is read again.
+      const fresh = await import('./liquidGlass');
+      const twoD = canvasContext.call(document.createElement('canvas'), '2d');
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(((type: string) => {
+        if (type !== 'webgl') return twoD;
+        if (renderer === undefined) return null;
+        return {
+          getExtension: (name: string) =>
+            name === 'WEBGL_debug_renderer_info' ? { UNMASKED_RENDERER_WEBGL: 37446 } : null,
+          getParameter: () => renderer,
+        };
+      }) as unknown as typeof HTMLCanvasElement.prototype.getContext);
+      const resize = vi.fn(() => ({ observe() {}, disconnect() {} }));
+      vi.stubGlobal('ResizeObserver', resize);
+      cleanup = fresh.attachLiquidGlass(element);
+      vi.runAllTimers();
+      expect(resize, renderer ?? 'no WebGL').not.toHaveBeenCalled();
+      expect(element.hasAttribute('data-liquid-glass')).toBe(false);
+      cleanup();
+    }
+  });
+
   it('defers hidden surfaces, resizes their optical field, and releases hidden filters', () => {
     cleanup = attachLiquidGlass(element);
     notifyResize([], {} as ResizeObserver);
