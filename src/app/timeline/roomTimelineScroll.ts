@@ -223,6 +223,17 @@ const useLatestRowRequest = ({
 };
 
 /**
+ * Ends the scroll the virtual list still reconciles. virtual-core (3.17.3) keeps the row or offset
+ * it was last asked to scroll to (`scrollState`) and, until it lands there or 5 s pass, scrolls
+ * there again whenever that target moves (`reconcileScroll`): a row that arrives or changes size
+ * in that time would pull a reader who has scrolled away back to it. It has no public way to drop
+ * that scroll; its `cleanup` clears the same field.
+ */
+const endVirtualListScroll = (virtualizer: object) => {
+  (virtualizer as { scrollState?: unknown }).scrollState = null;
+};
+
+/**
  * Keeps the newest row at the bottom while a request for it holds: after every commit, the room's
  * virtual list scrolls to its last row (to its top when its newest row is first), and an open
  * thread to the end of its scroll area. A pin
@@ -246,11 +257,15 @@ export const useLatestRowPin = ({
   virtualizer: Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>;
 }) => {
   const surfaceRef = useLatestRef(surface);
-  // A thread's gestures have their own rule (useGestureBottomPins' onThreadGesture).
-  const onRoomGesture = useCallback(() => {
+  const virtualizerRef = useLatestRef(virtualizer);
+  // The reader's gesture takes the position over: the virtual list stops scrolling to the row it
+  // was last sent to. A thread's gestures have their own rule for the pins (useGestureBottomPins'
+  // onThreadGesture).
+  const onGesture = useCallback(() => {
+    endVirtualListScroll(virtualizerRef.current);
     if (surfaceRef.current === 'room') onReaderGesture();
-  }, [onReaderGesture, surfaceRef]);
-  const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onRoomGesture });
+  }, [onReaderGesture, surfaceRef, virtualizerRef]);
+  const latestRowRequestRef = useLatestRowRequest({ ...request, onReaderGesture: onGesture });
   // A thread's request starts with the reader's own scrolling: what was asked before belongs to
   // the pin the thread opened with.
   const surfaceAtLastCommitRef = useRef(surface);
