@@ -119,7 +119,10 @@ export function AccountSwitcher({
   const { t } = useTranslation();
   return (
     <Box direction="Column" gap="200" style={{ padding: config.space.S400 }}>
-      <Text size="H4">{t('accountSwitcher.title')}</Text>
+      {/* The heading names the dialog. */}
+      <Text as="h2" size="H4" style={{ margin: 0 }}>
+        {t('accountSwitcher.title')}
+      </Text>
       <Text size="T300" priority="300">
         {t('accountSwitcher.description')}
       </Text>

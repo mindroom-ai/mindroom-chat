@@ -17,6 +17,11 @@ interface Modal500Props {
    * room or space, "Seen by") fill the screen.
    */
   fillPhoneScreen?: boolean;
+  /**
+   * Ends below its content instead of keeping the full height that settings use to hold their
+   * place between pages (the account switcher). A phone that fills its screen still fills it.
+   */
+  fitContent?: boolean;
   /** Sizes the dialog, such as the wider settings dialog. */
   className?: string;
   children: ReactNode;
@@ -66,6 +71,7 @@ const centerClass = (phone: boolean, fillPhoneScreen: boolean): string => {
 export function Modal500({
   requestClose,
   fillPhoneScreen = false,
+  fitContent = false,
   className,
   children,
 }: Modal500Props) {
@@ -84,6 +90,7 @@ export function Modal500({
             aria-modal="true"
             variant="Background"
             size="500"
+            flexHeight={fitContent}
             className={classNames(glassDenseOverBackdrop, fullScreen && css.PhoneModal, className)}
           >
             {children}
