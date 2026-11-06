@@ -34,8 +34,12 @@ type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 // Inline and in plain units, because the shared page header and content set their own padding
 // and the unit tests of the pages load this frame with folds and styles mocked. The close button
 // sits 24 px from the dialog's end edge (the right, or the left in a right-to-left language), in
-// a 48 px title bar; the page's sections form a centered column of at most 680 px.
-const HEADER_STYLE = { height: '3rem', paddingInlineEnd: '1.5rem' };
+// a title bar as tall as the search field's beside it (`SettingsDialog` in frame.css.ts sets the
+// height, 48 px elsewhere); the page's sections form a centered column of at most 680 px.
+const HEADER_STYLE = {
+  height: 'var(--mr-settings-bar-height, 3rem)',
+  paddingInlineEnd: '1.5rem',
+};
 // On phones the breadcrumb keeps clear of the back button's focus ring, which shows as the page
 // opens.
 const PHONE_HEADER_STYLE = { gap: '0.5rem' };

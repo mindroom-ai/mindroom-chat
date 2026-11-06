@@ -6,8 +6,19 @@ import { color, config, toRem } from 'folds';
 // and a centered column of sections whose settings are rows of one card, apart by their padding.
 // Right-to-left languages mirror all of it.
 
-/** About 1000 by 700 px, and a margin smaller than that where the window is. */
+/**
+ * The height of the desktop dialog's two title bars, the search field's on top of the menu and the
+ * page's beside it, so the field, the page's title and the close button share one line. Only the
+ * dialog sets it; a phone's menu and pages and a room's settings pages keep 48 px.
+ */
+const BAR_HEIGHT = '--mr-settings-bar-height';
+
+/**
+ * About 1000 by 700 px, and a margin smaller than that where the window is. Its title bars are
+ * 56 px tall, so the 32 px search field keeps 12 px from the dialog's top edge, as from its side.
+ */
 export const SettingsDialog = style({
+  vars: { [BAR_HEIGHT]: toRem(56) },
   selectors: {
     '&&': {
       maxWidth: `min(${toRem(1000)}, calc(100% - 2 * ${config.space.S400}))`,
@@ -66,7 +77,7 @@ export const SettingsMenuGroupLabel = style({
 export const SettingsSearchHeader = style({
   selectors: {
     '&&': {
-      height: toRem(48),
+      height: `var(${BAR_HEIGHT}, ${toRem(48)})`,
       paddingInline: config.space.S300,
     },
   },
