@@ -20,7 +20,9 @@ body {
   /* Only the bundled Inter (@fontsource/inter in src/index.tsx): a locally installed 'Inter' may
      be another version with other letterforms and spacing. */
   font-family: 'InterVariable', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  font-feature-settings: 'cv11' 1;
+  /* Inter's contextual alternates change what people typed: "1x2" showed as "1×2" and "->" as an
+     arrow. Text shows the characters it has. */
+  font-feature-settings: 'cv11' 1, 'calt' 0;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   -webkit-tap-highlight-color: transparent;

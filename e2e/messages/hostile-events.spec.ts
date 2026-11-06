@@ -46,7 +46,7 @@ const PHONE: BrowserContextOptions = {
 };
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 
-const NOTE = 'Field note: the north gate sensor reads four degrees low after the rain.';
+const NOTE = 'Field note: the north gate sensor reads four degrees low after the rain (grid 1x2).';
 const QUESTION = 'Which sensors need recalibration before the survey starts on Monday?';
 const MEMBER_REPLY = 'The north gate and the river station both drift after a heavy rain.';
 const AGENT_REPLY = 'Recalibrate the north gate first; the river station can wait a day.';
@@ -305,6 +305,11 @@ const checkRoomView = async (page: Page, world: World, label: string) => {
   // The edit with unusable content is ignored: the note keeps its text.
   await expect(row(page, world.noteId)).toContainText(NOTE, { timeout: 30_000 });
   await expect(row(page, world.noteId)).not.toContainText('(edited)');
+  // Text shows the characters people typed: no contextual alternate turns "1x2" into "1×2".
+  const features = await row(page, world.noteId)
+    .getByText(NOTE)
+    .evaluate((node) => getComputedStyle(node).fontFeatureSettings);
+  expect(features).toContain('"calt" 0');
   await expect(page.getByText(QUESTION, { exact: true }).first()).toBeVisible();
   await expectNoCrash(page);
   await shot(page, `${label}-room`);
