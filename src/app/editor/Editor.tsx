@@ -23,7 +23,7 @@ import {
 import { BlockType } from './types';
 import type { BlockElement, CustomElement, HeadingElement, InlineElement } from './slate';
 import { withWordUndo } from './history';
-import { createParagraphElement, withInlineElements } from './utils';
+import { createParagraphElement, isAfterMentionSpace, withInlineElements } from './utils';
 import * as css from './Editor.css';
 import { useOptionalMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
@@ -270,6 +270,16 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
     [onKeyDown]
   );
 
+  // The space a picked mention brings stands in for the one typed after the name. Android's
+  // input events cannot be cancelled; that space stays there.
+  const handleBeforeInput = useCallback(
+    (event: InputEvent) => {
+      if (event.inputType !== 'insertText' || event.data !== ' ' || !event.cancelable) return;
+      if (isAfterMentionSpace(editor)) event.preventDefault();
+    },
+    [editor]
+  );
+
   const textBox = (
     <Editable
       className={css.EditorTextarea}
@@ -285,6 +295,7 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
       onPaste={onPaste}
       onKeyUp={onKeyUp}
       onKeyDown={handleKeyDown}
+      onDOMBeforeInput={handleBeforeInput}
     />
   );
 

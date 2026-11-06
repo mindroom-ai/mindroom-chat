@@ -1,4 +1,4 @@
-import { BaseRange, Descendant, Editor, Element, Range, Text, Transforms } from 'slate';
+import { BaseRange, Descendant, Editor, Element, Node, Path, Range, Text, Transforms } from 'slate';
 import { HistoryEditor } from 'slate-history';
 import { BlockType } from './types';
 import type {
@@ -139,13 +139,39 @@ export const replaceWithElement = (editor: Editor, range: BaseRange, element: Cu
   stepOutOfAtom(editor);
 };
 
+/** The character right after a collapsed caret; empty at the end of a line. */
+const charAfterCaret = (editor: Editor): string => {
+  const { selection } = editor;
+  if (!selection || !Range.isCollapsed(selection)) return '';
+  const after = Editor.after(editor, selection.focus);
+  return after ? Editor.string(editor, { anchor: selection.focus, focus: after }) : '';
+};
+
 /**
  * Leaves the caret where typing continues after an insertion: past an atom it sits in, and
- * after a space with `withSpace`.
+ * after a space with `withSpace`; a space already there is stepped over rather than doubled.
  */
 export const moveCursor = (editor: Editor, withSpace?: boolean) => {
   stepOutOfAtom(editor);
-  if (withSpace) Editor.insertText(editor, ' ');
+  if (!withSpace) return;
+  if (charAfterCaret(editor) === ' ') Transforms.move(editor, { unit: 'offset' });
+  else Editor.insertText(editor, ' ');
+};
+
+/**
+ * Whether the caret sits right after the space that follows a mention pill. A picked mention
+ * brings that space with it, so a space typed there, as people do after a name, adds nothing.
+ */
+export const isAfterMentionSpace = (editor: Editor): boolean => {
+  const { selection } = editor;
+  if (!selection || !Range.isCollapsed(selection)) return false;
+  const { path, offset } = selection.focus;
+  const index = path.at(-1);
+  if (offset !== 1 || !index || !Node.has(editor, path)) return false;
+  const leaf = Node.get(editor, path);
+  if (!Text.isText(leaf) || !leaf.text.startsWith(' ')) return false;
+  const previous = Node.get(editor, [...Path.parent(path), index - 1]);
+  return Element.isElement(previous) && previous.type === BlockType.Mention;
 };
 
 /** The run of non-space characters right before a collapsed caret, for autocomplete queries. */
