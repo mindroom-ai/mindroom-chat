@@ -16,30 +16,45 @@ type AsyncSearchOptions = {
   limit?: number;
 };
 
-type SearchItemStrGetter<T> = (item: T) => string | string[];
+/** How well an item matches the normalized query: lower is better, undefined is no match. */
+export type SearchRank<T> = (item: T, needle: string) => number | undefined;
 
-const normalizeSearchString = (value: string): string =>
+/** Queries and the strings they are matched against compare in this form. */
+export const normalizeSearchString = (value: string): string =>
   value.normalize('NFKC').toLocaleLowerCase().trim();
 
-const toStrings = (value: string | string[]): string[] => (Array.isArray(value) ? value : [value]);
+type Ranked<T> = { item: T; rank: number };
+
+const rankEach = <T>(items: readonly T[], rank: SearchRank<T>, needle: string): Ranked<T>[] =>
+  items.flatMap((item) => {
+    const itemRank = rank(item, needle);
+    return itemRank === undefined ? [] : [{ item, rank: itemRank }];
+  });
+
+// Array sort is stable, so items of equal rank keep the order they were given in.
+const byRank = <T>(ranked: Ranked<T>[]): T[] =>
+  ranked.sort((left, right) => left.rank - right.rank).map(({ item }) => item);
+
+/** The items `rank` matches to the normalized `needle`, best first; equal ranks keep their order. */
+export const rankMatches = <T>(items: readonly T[], rank: SearchRank<T>, needle: string): T[] =>
+  byRank(rankEach(items, rank, needle));
 
 /**
- * Searches `items` by the strings `getItemStr` returns, in slices so long lists do not block
- * typing. Items whose string starts with the query come first; others that contain it follow.
- * A new query or a reset cancels the search in progress; a new item list runs the last query
- * again over it.
+ * Searches `items` with `rank`, in slices so long lists do not block typing, and answers the
+ * matches best first, as `rankMatches` does. A new query or a reset cancels the search in
+ * progress; a new item list runs the last query again over it.
  */
 export const useAsyncSearch = <T>(
   items: T[],
-  getItemStr: SearchItemStrGetter<T>,
+  rank: SearchRank<T>,
   options?: AsyncSearchOptions
 ): [AsyncSearchResult<T> | undefined, (query: string) => void, () => void] => {
   const [result, setResult] = useState<AsyncSearchResult<T>>();
   const timerRef = useRef<ReturnType<typeof setTimeout>>();
   const itemsRef = useRef(items);
   itemsRef.current = items;
-  const getItemStrRef = useRef(getItemStr);
-  getItemStrRef.current = getItemStr;
+  const rankRef = useRef(rank);
+  rankRef.current = rank;
   const limit = options?.limit;
   const queryRef = useRef<string>();
 
@@ -55,25 +70,19 @@ export const useAsyncSearch = <T>(
       queryRef.current = query;
       const needle = normalizeSearchString(query);
       const source = itemsRef.current;
-      const prefixMatches: T[] = [];
-      const otherMatches: T[] = [];
+      const ranked: Ranked<T>[] = [];
       let index = 0;
 
       const runSlice = () => {
         const end = Math.min(index + SEARCH_SLICE_SIZE, source.length);
-        const slice = source.slice(index, end);
+        ranked.push(...rankEach(source.slice(index, end), rankRef.current, needle));
         index = end;
-        for (const item of slice) {
-          const strings = toStrings(getItemStrRef.current(item)).map(normalizeSearchString);
-          if (strings.some((value) => value.startsWith(needle))) prefixMatches.push(item);
-          else if (strings.some((value) => value.includes(needle))) otherMatches.push(item);
-        }
         if (index < source.length) {
           timerRef.current = setTimeout(runSlice, 0);
           return;
         }
         timerRef.current = undefined;
-        const matches = [...prefixMatches, ...otherMatches];
+        const matches = byRank(ranked);
         setResult({ query, items: limit === undefined ? matches : matches.slice(0, limit) });
       };
 

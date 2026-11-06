@@ -12,37 +12,30 @@ import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
-import { SEARCH_NOW_SCAN_LIMIT, useAsyncSearch } from '../../lib/hooks/useAsyncSearch';
-import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
+import {
+  normalizeSearchString,
+  rankMatches,
+  SEARCH_NOW_SCAN_LIMIT,
+  useAsyncSearch,
+} from '../../lib/hooks/useAsyncSearch';
+import { mxcUrlToHttp } from '../../matrix/matrix';
+import {
+  memberName,
+  mentionRank,
+  orderMentionCandidates,
+  recentSenders,
+  type SenderTimelines,
+} from './mentionRanking';
 
 const MAX_SUGGESTIONS = 20;
-
-const memberName = (member: RoomMember): string =>
-  member.rawDisplayName || member.name || getMxIdLocalPart(member.userId) || member.userId;
-
-/**
- * The strings a member is found by: display name and the user name in their ID. The server
- * name is left out, since most members share it and every query would match it.
- */
-const getMemberSearchStrings = (member: RoomMember): string[] => [
-  memberName(member),
-  getMxIdLocalPart(member.userId) ?? member.userId,
-];
-
-const normalize = (value: string): string => value.normalize('NFKC').toLocaleLowerCase();
-
-const memberMatches = (member: RoomMember, query: string): boolean => {
-  const needle = normalize(query);
-  return getMemberSearchStrings(member).some((value) => normalize(value).includes(needle));
-};
 
 // Joined and invited members can be mentioned; people who left or were banned are not offered.
 const isMentionable = (member: RoomMember): boolean =>
   member.membership === 'join' || member.membership === 'invite';
 
 type UserMentionAutocompleteProps = {
-  /** Only the room ID is read. */
-  room: Pick<Room, 'roomId'>;
+  /** The room; its timelines, when given, put the members who spoke last first. */
+  room: Pick<Room, 'roomId'> & SenderTimelines;
   editor: Editor;
   query: AutocompleteQuery<string>;
   /** Closes the menu, after a pick or when the host dismisses it. */
@@ -111,9 +104,12 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
   const client = useMatrixClient();
   const [t] = useTranslation();
   const roomMembers = useRoomMembers(client, room.roomId);
-  const members = useMemo(() => roomMembers.filter(isMentionable), [roomMembers]);
+  const members = useMemo(
+    () => orderMentionCandidates(roomMembers.filter(isMentionable), recentSenders(room)),
+    [roomMembers, room]
+  );
 
-  const [result, search, resetSearch] = useAsyncSearch(members, getMemberSearchStrings);
+  const [result, search, resetSearch] = useAsyncSearch(members, mentionRank);
 
   const queryText = query.text;
   useEffect(() => {
@@ -121,16 +117,17 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
     else resetSearch();
   }, [queryText, search, resetSearch]);
 
-  // The search runs in slices; until it answers, the first members are scanned right away so
-  // Tab can take an obvious match while the user is still typing.
+  // The search runs in slices; until it answers, the first members (the last to speak) are
+  // ranked right away so Tab can take an obvious match while the user is still typing.
   const suggestions = useMemo(() => {
     if (!queryText) return members.slice(0, MAX_SUGGESTIONS);
     const searched = result && result.query === queryText ? result.items : undefined;
     if (searched && searched.length > 0) return searched.slice(0, MAX_SUGGESTIONS);
-    return members
-      .slice(0, SEARCH_NOW_SCAN_LIMIT)
-      .filter((member) => memberMatches(member, queryText))
-      .slice(0, MAX_SUGGESTIONS);
+    const needle = normalizeSearchString(queryText);
+    return rankMatches(members.slice(0, SEARCH_NOW_SCAN_LIMIT), mentionRank, needle).slice(
+      0,
+      MAX_SUGGESTIONS
+    );
   }, [members, queryText, result]);
 
   const handleSelect = useCallback(
