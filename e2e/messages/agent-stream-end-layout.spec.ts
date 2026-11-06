@@ -328,6 +328,10 @@ const watchReplyFinish = async (
   const findings = judge(samples, baseline);
   writeFileSync(testInfo.outputPath('frames.json'), JSON.stringify({ baseline, samples }));
   writeFileSync(testInfo.outputPath('findings.json'), JSON.stringify(findings, null, 2));
+  writeFileSync(
+    testInfo.outputPath('anchor-reports.json'),
+    JSON.stringify(await page.evaluate(() => Reflect.get(window, 'anchorReports') ?? []))
+  );
   expect(findings.blank, 'painted frames with a blank band under the newest row').toEqual([]);
   expect(findings.barReturns, 'the jobs bar left and came back during one reply').toEqual([]);
   expect(Math.abs(findings.finalGap - baseline)).toBeLessThanOrEqual(2);
@@ -380,6 +384,34 @@ const withChromiumPhone = async (
   try {
     context = await browser.newContext({ viewport: PHONE, hasTouch: true, storageState, baseURL });
     const page = await context.newPage();
+    await page.addInitScript(() => {
+      const NativeObserver = window.IntersectionObserver;
+      const reports: unknown[] = [];
+      Reflect.set(window, 'anchorReports', reports);
+      window.IntersectionObserver = class extends NativeObserver {
+        constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+          super((entries, observer) => {
+            const anchors = entries.filter(
+              (entry) => entry.target instanceof HTMLElement && entry.target.style.height === '0px'
+            );
+            if (anchors.length) {
+              reports.push({
+                at: performance.now(),
+                entries: anchors.map((entry) => ({
+                  time: entry.time,
+                  intersecting: entry.isIntersecting,
+                  top: entry.boundingClientRect.top,
+                  bottom: entry.boundingClientRect.bottom,
+                  rootBottom: entry.rootBounds?.bottom,
+                  nowTop: entry.target.getBoundingClientRect().top,
+                })),
+              });
+            }
+            callback(entries, observer);
+          }, options);
+        }
+      };
+    });
     await routeClientConfig(page, stack);
     await run(page);
   } finally {
