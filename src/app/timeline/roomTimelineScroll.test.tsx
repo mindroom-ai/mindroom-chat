@@ -414,6 +414,19 @@ describe('useLatestRowPin and the virtual list', () => {
     act(() => room.fire('scroll'));
     expect(room.list.scrollState).toBeNull();
   });
+
+  it('counts no less than no room below when the shrink it is told about is already rendered', () => {
+    // macOS Chromium: React has rendered the list 120 px shorter, but its rows still measure a
+    // 120 px shrink for a scroll event; the next correction then moves the position up by 120.
+    let shrinkNotRendered = 120;
+    const room = pinnedList(() => shrinkNotRendered);
+    act(() => room.fire('scroll'));
+    shrinkNotRendered = 0;
+    room.element.scrollTop -= 120;
+    room.element.scrollHeight -= 120;
+    act(() => room.fire('scroll'));
+    expect(room.list.scrollState).toEqual({ index: 19 });
+  });
 });
 
 describe('useLatestRowPin in room rows that run newest first', () => {
