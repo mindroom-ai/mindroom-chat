@@ -477,6 +477,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> heeft de kamernaam verwijderd",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> heeft het onderwerp gewijzigd in “<value>{{value}}</value>”",
         "removedRoomTopic": "<sender>{{sender}}</sender> heeft het onderwerp verwijderd"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "Alle lange berichten uitklappen",
+        "collapseAllLong": "Alle lange berichten inklappen"
       }
     },
     "computer": {

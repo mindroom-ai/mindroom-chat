@@ -470,6 +470,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> menghapus nama ruang",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> mengubah topik menjadi “<value>{{value}}</value>”",
         "removedRoomTopic": "<sender>{{sender}}</sender> menghapus topik"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "Bentangkan semua pesan panjang",
+        "collapseAllLong": "Ciutkan semua pesan panjang"
       }
     },
     "computer": {

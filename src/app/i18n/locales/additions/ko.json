@@ -470,6 +470,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> 님이 방 이름을 삭제했습니다",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> 님이 주제를 “<value>{{value}}</value>”(으)로 변경했습니다",
         "removedRoomTopic": "<sender>{{sender}}</sender> 님이 주제를 삭제했습니다"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "긴 메시지 모두 펼치기",
+        "collapseAllLong": "긴 메시지 모두 접기"
       }
     },
     "computer": {

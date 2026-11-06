@@ -62,7 +62,7 @@ describe('ThreadTimelineHeader', () => {
     act(() =>
       root.render(
         <div ref={scrollRef}>
-          <ThreadTimelineHeader scrollRef={scrollRef} expansionControl={null} onResize={onResize}>
+          <ThreadTimelineHeader scrollRef={scrollRef} onResize={onResize}>
             <div />
           </ThreadTimelineHeader>
         </div>

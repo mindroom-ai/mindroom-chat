@@ -477,6 +477,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> oda adını kaldırdı",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> konuyu “<value>{{value}}</value>” olarak değiştirdi",
         "removedRoomTopic": "<sender>{{sender}}</sender> konuyu kaldırdı"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "Tüm uzun mesajları genişlet",
+        "collapseAllLong": "Tüm uzun mesajları daralt"
       }
     },
     "computer": {

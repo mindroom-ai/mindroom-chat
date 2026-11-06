@@ -484,6 +484,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> a supprimé le nom du salon",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> a modifié le sujet en « <value>{{value}}</value> »",
         "removedRoomTopic": "<sender>{{sender}}</sender> a supprimé le sujet"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "Déplier tous les messages longs",
+        "collapseAllLong": "Replier tous les messages longs"
       }
     },
     "computer": {

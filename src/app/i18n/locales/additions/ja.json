@@ -470,6 +470,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> がルーム名を削除しました",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> がトピックを「<value>{{value}}</value>」に変更しました",
         "removedRoomTopic": "<sender>{{sender}}</sender> がトピックを削除しました"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "長いメッセージをすべて展開",
+        "collapseAllLong": "長いメッセージをすべて折りたたむ"
       }
     },
     "computer": {

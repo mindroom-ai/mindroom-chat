@@ -142,10 +142,7 @@ const expandAllToggleStyle: CSSProperties = {
   borderRadius: config.radii.Pill,
   border: `1px solid ${color.SurfaceVariant.ContainerLine}`,
   color: color.Primary.Main,
-  // Rows scroll beneath it under the thread banner, so it frosts them like the banner does.
   backgroundColor: `color-mix(in srgb, ${color.Surface.Container} 72%, transparent)`,
-  backdropFilter: 'blur(3px)',
-  WebkitBackdropFilter: 'blur(3px)',
 };
 
 type ExpandAllProps = {
@@ -156,6 +153,10 @@ type ExpandAllProps = {
 
 function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
   const { t } = useTranslation();
+  // The token reads as code; its name says what it does.
+  const label = expanded
+    ? t('mindroomUi.threads.mindroomRoomTimeline.collapseAllLong')
+    : t('mindroomUi.threads.mindroomRoomTimeline.expandAllLong');
   return (
     // A token such as [+all], not a sentence: it keeps its order in a right-to-left interface.
     <button
@@ -163,6 +164,8 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
       className={css.ExpandAllToggle}
       style={expandAllToggleStyle}
       onClick={onToggle}
+      aria-label={label}
+      title={label}
       dir="ltr"
     >
       {expanded
@@ -172,7 +175,10 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
   );
 }
 
-/** In the room, and in a thread without a banner, the toggle takes a line above the rows. */
+/**
+ * The toggle takes a line of its own above the rows, in the room and in a thread, where it sits
+ * under the banner at the top and scrolls away with the rows, so it never covers one.
+ */
 export function ExpandAllLine(props: ExpandAllProps) {
   return (
     <div
@@ -182,7 +188,10 @@ export function ExpandAllLine(props: ExpandAllProps) {
         padding: `${config.space.S100} ${config.space.S700} 0`,
       }}
     >
-      <ExpandAllButton {...props} />
+      {/* The hover toolbar of the row below keeps clear of it (hoverToolbarPlacement). */}
+      <div data-timeline-overlay="" style={{ display: 'flex' }}>
+        <ExpandAllButton {...props} />
+      </div>
     </div>
   );
 }
@@ -193,28 +202,6 @@ export function ExpandAllLine(props: ExpandAllProps) {
  * original.
  */
 export const threadBannerSlotStyle: CSSProperties = { paddingInlineEnd: config.space.S200 };
-
-/**
- * Under a thread's banner the toggle hangs in the gap above the first row, 12 px below the
- * banner's edge (the banner's own 8 px margin plus 4), and ends above the first row, which a
- * reader at the top sees unobstructed. Its end is 4 px inside the banner's.
- */
-export function BannerExpandAllToggle(props: ExpandAllProps) {
-  return (
-    <div
-      // Hover toolbars of the rows under it keep clear of it (hoverToolbarPlacement).
-      data-timeline-overlay=""
-      style={{
-        position: 'absolute',
-        top: config.space.S100,
-        insetInlineEnd: config.space.S600,
-        display: 'flex',
-      }}
-    >
-      <ExpandAllButton {...props} />
-    </div>
-  );
-}
 
 /** What a thread shows above its rows while they load: a failure, Load older, or a spinner. */
 export function ThreadLoadingLines({

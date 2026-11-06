@@ -505,6 +505,10 @@
         "removedRoomName": "أزال <sender>⁨{{sender}}⁩</sender> اسم الغرفة",
         "changedRoomTopicTo": "غيّر <sender>⁨{{sender}}⁩</sender> موضوع الغرفة إلى «<value>⁨{{value}}⁩</value>»",
         "removedRoomTopic": "أزال <sender>⁨{{sender}}⁩</sender> موضوع الغرفة"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "توسيع كل الرسائل الطويلة",
+        "collapseAllLong": "طي كل الرسائل الطويلة"
       }
     },
     "computer": {

@@ -491,6 +491,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> удалил(а) название комнаты",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> изменил(а) тему на «<value>{{value}}</value>»",
         "removedRoomTopic": "<sender>{{sender}}</sender> удалил(а) тему"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "Развернуть все длинные сообщения",
+        "collapseAllLong": "Свернуть все длинные сообщения"
       }
     },
     "computer": {

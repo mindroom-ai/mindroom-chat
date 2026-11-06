@@ -470,6 +470,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> 移除了房间名称",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> 将主题更改为“<value>{{value}}</value>”",
         "removedRoomTopic": "<sender>{{sender}}</sender> 移除了主题"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "展开所有长消息",
+        "collapseAllLong": "折叠所有长消息"
       }
     },
     "computer": {

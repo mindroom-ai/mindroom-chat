@@ -6,12 +6,10 @@ import * as css from './ThreadTimelineHeader.css';
 /** Keep the banner in the scrollable content so messages can pass behind its glass. */
 export function ThreadTimelineHeader({
   children,
-  expansionControl,
   onResize,
   scrollRef,
 }: {
   children: ReactNode;
-  expansionControl: ReactNode;
   /** Gets each height change, and the offset before it, ahead of the layout that moves the rows. */
   onResize: (deltaPx: number, scrollTop: number) => void;
   scrollRef: RefObject<HTMLDivElement>;
@@ -73,7 +71,6 @@ export function ThreadTimelineHeader({
     >
       <div ref={contentRef} style={{ display: 'flow-root', paddingBottom: config.space.S600 }}>
         {children}
-        <div style={{ position: 'relative', pointerEvents: 'auto' }}>{expansionControl}</div>
       </div>
     </div>
   );

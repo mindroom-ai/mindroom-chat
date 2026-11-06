@@ -27,7 +27,7 @@ const findScroller = (row: HTMLElement): HTMLElement | undefined => {
   return undefined;
 };
 
-/** Marks a control that floats over the top rows of a timeline, such as the `[+all]` toggle. */
+/** Marks a control right above a timeline's first row, such as the `[+all]` toggle. */
 export const TIMELINE_OVERLAY_ATTRIBUTE = 'data-timeline-overlay';
 /**
  * The Show full message / Show less button of a long message (CollapsibleMessage). It sits at the
@@ -43,8 +43,8 @@ const ROW_END_GAP_PX = 4;
 /**
  * The lowest point of what floats over the top of a scroller where a toolbar spanning `left` to
  * `right` would sit: the scroller's `scroll-padding-top`, which the timeline sets to the height
- * of the floating room header and the sticky thread banner, and the controls that float below
- * them.
+ * of the floating room header and the sticky thread banner, and the controls right above the
+ * rows.
  */
 const coveredUntilY = (scroller: HTMLElement, left: number, right: number): number => {
   const inset = Number.parseFloat(getComputedStyle(scroller).scrollPaddingTop);
@@ -90,8 +90,8 @@ export const toolbarOffset = (
 /**
  * How far below the top of its row the hover toolbar sits, in pixels, or `undefined` in its usual
  * place above the row. It moves to stay clear of what floats over the top of the timeline (the
- * first row of a thread starts right under the banner and its `[+all]` toggle, so its toolbar
- * moves down into the row instead of covering them) and of the fold buttons of long messages, so
+ * first row starts right under the `[+all]` toggle and a thread's banner, so its toolbar moves
+ * down into the row instead of covering them) and of the fold buttons of long messages, so
  * it never draws over a Show less button. Measured while the toolbar shows, and again as the
  * timeline scrolls under it or the row changes size.
  */

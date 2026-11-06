@@ -149,7 +149,6 @@ import { collectThreadWriterIds, recordThreadWriters } from '../event-store/thre
 import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
 import type { FetchedRelationOverviewUpdateOptions } from '../threads/overview/threadOverviewCacheHydration';
 import {
-  BannerExpandAllToggle,
   ExpandAllLine,
   FilterBarSlot,
   JumpToLatestAction,
@@ -1416,13 +1415,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomUnread,
     unreadMarkerShown,
   });
-  // Under a thread's banner the toggle hangs in the gap above the first row; in the room it
-  // takes a line of its own above the rows.
+  // In the room and in a thread the toggle takes a line of its own above the rows.
   const expandAllToggle = itemCount > 0 && (
     <ExpandAllLine expanded={expandAll} onToggle={handleToggleExpandAll} />
-  );
-  const bannerExpandAllToggle = itemCount > 0 && (
-    <BannerExpandAllToggle expanded={expandAll} onToggle={handleToggleExpandAll} />
   );
   // The room's start (its intro and the sentinel that loads older history) and newer history
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
@@ -1462,7 +1457,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
             <>
               {threadHeader && (
                 <ThreadTimelineHeader
-                  expansionControl={bannerExpandAllToggle}
                   onResize={ledger.holdThreadBannerResize}
                   scrollRef={scrollRef}
                 >
@@ -1477,7 +1471,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   loading={threadLoading}
                   onLoadOlder={handleLoadOlderThread}
                 />
-                {!threadHeader && expandAllToggle}
+                {expandAllToggle}
               </div>
             </>
           ) : (

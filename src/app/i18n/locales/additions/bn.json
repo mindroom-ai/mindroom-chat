@@ -477,6 +477,10 @@
         "removedRoomName": "<sender>{{sender}}</sender> রুমের নাম সরিয়েছেন",
         "changedRoomTopicTo": "<sender>{{sender}}</sender> রুমের বিষয় বদলে “<value>{{value}}</value>” করেছেন",
         "removedRoomTopic": "<sender>{{sender}}</sender> রুমের বিষয় সরিয়েছেন"
+      },
+      "mindroomRoomTimeline": {
+        "expandAllLong": "সব দীর্ঘ বার্তা প্রসারিত করুন",
+        "collapseAllLong": "সব দীর্ঘ বার্তা সংকুচিত করুন"
       }
     },
     "computer": {
