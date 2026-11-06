@@ -315,7 +315,8 @@ function EncryptionKeysLost({ session }: { session: StoredSession }) {
             <Text as="h2" size="H4">
               {t('sharedUi.clientRoot.keysLostTitle')}
             </Text>
-            <Text role="alert" size="T300">
+            {/* A user ID has no spaces, and a long one must still wrap on a phone. */}
+            <Text role="alert" size="T300" style={{ overflowWrap: 'anywhere' }}>
               {t('sharedUi.clientRoot.keysLost', { userId: session.userId })}
             </Text>
             <Button

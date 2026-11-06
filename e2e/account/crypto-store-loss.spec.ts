@@ -30,8 +30,14 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 // Set CRYPTO_STORE_LOSS_SHOTS=<directory> to save the screen on a desktop and a phone, light and dark.
 const SHOTS = process.env.CRYPTO_STORE_LOSS_SHOTS;
 // A same-origin page that runs no app code: the deletion happens there, as a person clearing
-// one database in the browser's site data would.
-const NO_APP_PAGE = '/runtime-config.js';
+// one database in the browser's site data would. The service worker answers other navigations
+// with the app, but never this static page, which shows nothing without a PDF named after `#`.
+const NO_APP_PAGE = '/pdf-frame.html';
+
+const openNoAppPage = async (page: Page) => {
+  await page.goto(NO_APP_PAGE);
+  await expect(page).toHaveTitle('PDF');
+};
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -156,12 +162,13 @@ const saveScreens = async (page: Page, engine: string) => {
 
 const lostStoreAtLoad = async (context: BrowserContext, engine: string) => {
   const other = await register('kept', engine);
-  const account = await register('lost', engine);
+  // A long user ID, which must wrap inside the screen on a phone.
+  const account = await register('lostaccountwithalongnamethathasnospaces', engine);
   const page = await context.newPage();
   await signIn(page, other);
   const session = await signIn(page, account, true);
 
-  await page.goto(NO_APP_PAGE);
+  await openNoAppPage(page);
   await deleteDatabase(page, session.cryptoDb);
   const uploads = watchKeyUploads(context);
   await page.goto('/home/');
@@ -173,6 +180,14 @@ const lostStoreAtLoad = async (context: BrowserContext, engine: string) => {
   await page.waitForTimeout(3_000);
   expect(uploads).toEqual([]);
   expect(await serverDeviceKey(account, session.deviceId)).toBe(session.serverKey);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const text = await page.getByRole('alert').evaluate((node) => ({
+    right: node.getBoundingClientRect().right,
+    overflow: node.scrollWidth - node.clientWidth,
+  }));
+  expect(text.overflow).toBeLessThanOrEqual(0);
+  expect(text.right).toBeLessThanOrEqual(390);
+  await page.setViewportSize(DESKTOP);
   await saveScreens(page, engine);
 
   // Signing in again logs the old device out, keeps the other account, and starts a new device.
@@ -207,7 +222,7 @@ const storeRecreatedBehindTheCheck = async (context: BrowserContext, engine: str
   // Another tab holds the store open, so the deletion waits; the page reloads meanwhile and still
   // finds the store, then the other tab lets go and the deletion goes through.
   const holder = await context.newPage();
-  await holder.goto(NO_APP_PAGE);
+  await openNoAppPage(holder);
   await holder.evaluate(async (dbName) => {
     const held = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(dbName);
