@@ -130,6 +130,8 @@ const setTheme = (page: Page, themeId: string) =>
     );
   }, themeId);
 
+type StoredOrigin = { origin: string; indexedDB?: Array<{ name: string }> };
+
 type Measured = Record<string, Array<{ text: string; large: boolean; contrast: number }>>;
 
 /** The origin `page` was opened at, for a new context of the same app. */
@@ -171,7 +173,8 @@ const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, brow
     const state = await page.context().storageState({ indexedDB: true });
     const session = {
       ...state,
-      origins: state.origins.map((origin) => ({
+      // The installed type definitions predate storageState's `indexedDB` list.
+      origins: state.origins.map((origin: StoredOrigin) => ({
         ...origin,
         indexedDB: origin.indexedDB?.filter(
           ({ name }) => !/mindroom-(cache|room|thread)/.test(name)
