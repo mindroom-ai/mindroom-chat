@@ -109,7 +109,14 @@ export const resolveThreadPresentationSnapshot = ({
   visibleReplyEvents,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
-  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  const loadedPreviewCandidate = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  // A title can arrive without its reply timeline. Keep the cached reply preview in that case.
+  const loadedPreviewEvent =
+    loadedPreviewCandidate &&
+    isThreadSummaryEvent(loadedPreviewCandidate) &&
+    fallbackLatestReplyPreviewText
+      ? undefined
+      : loadedPreviewCandidate;
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count.
   const bundledReply = thread?.replyToEvent;
