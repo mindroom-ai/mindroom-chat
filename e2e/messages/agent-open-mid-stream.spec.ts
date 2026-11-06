@@ -1,11 +1,7 @@
 import {
   bodyOf,
   expect,
-  inThread,
-  lobbyEvents,
   messageRow,
-  openLobby,
-  showThread,
   startThread,
   streamStatus,
   test,
@@ -16,7 +12,7 @@ import {
 
 // Opening a thread while its reply streams shows the reply at least as far as its last edit, then
 // live: never first an older, shorter version of it (the live test saw "word1" for a moment where the
-// last edit had 142 words).
+// last edit had 142 words, in a browser that had not seen the thread before).
 test.describe.configure({ timeout: 300_000 });
 
 const wordCount = (text: string): number => text.match(/\bword\d+\b/g)?.length ?? 0;
@@ -25,22 +21,20 @@ test(
   'a thread opened mid-stream never first shows an older version of the reply',
   { tag: '@webkit' },
   async ({ page, stack }) => {
-    await openLobby(page, stack);
     const rootId = await startThread(stack, `${uniqueWord('midstream')} #stopme`);
-    await showThread(page, stack, rootId);
-    const pending = await waitForThreadEvent(
+    // The reply grows over a few edits before this browser, which has not seen the thread, opens it.
+    const editedEvent = await waitForThreadEvent(
       stack,
       rootId,
-      (event) => event.sender === stack.agents.helper && event.type === 'm.room.message',
-      { description: "the helper's reply" }
+      (event) =>
+        event.sender === stack.agents.helper &&
+        streamStatus(event) === 'streaming' &&
+        wordCount(bodyOf(event)) > 40,
+      { description: 'the helper reply after a few edits' }
     );
-    const reply = messageRow(page, pending.event_id);
-    // Let the reply grow over a few edits while this page keeps it.
-    await expect
-      .poll(async () => wordCount(await reply.innerText()), { timeout: 60_000 })
-      .toBeGreaterThan(40);
+    const editedWords = wordCount(bodyOf(editedEvent));
 
-    // From the next page load on, record the reply row's word count at every change.
+    // Record the reply row's word count at every change, from the page load on.
     await page.addInitScript((replyId) => {
       const samples: { at: number; words: number }[] = [];
       (window as unknown as { replySamples: typeof samples }).replySamples = samples;
@@ -56,16 +50,10 @@ test(
         subtree: true,
         characterData: true,
       });
-    }, pending.event_id);
-
-    const lastEdit = (await lobbyEvents(stack)).find(
-      (event) => event.event_id === pending.event_id && inThread(event, rootId)
-    );
-    expect(streamStatus(lastEdit!)).toBe('streaming');
-    const editedWords = wordCount(bodyOf(lastEdit!));
-    expect(editedWords).toBeGreaterThan(20);
+    }, editedEvent.event_id);
 
     await page.goto(threadUrl(stack, rootId), { timeout: 180_000 });
+    const reply = messageRow(page, editedEvent.event_id);
     await expect(reply).toBeVisible({ timeout: 90_000 });
     await expect
       .poll(async () => wordCount(await reply.innerText()), { timeout: 60_000 })
@@ -74,10 +62,10 @@ test(
       () => (window as unknown as { replySamples: { words: number }[] }).replySamples
     );
     const shown = samples.map(({ words }) => words).filter((words) => words > 0);
-    // The page may first show an edit one interval (5 s, 20 words) older than the one read above.
+    // Nothing older than the edit the server had before the page loaded.
     expect(
       Math.min(...shown),
       `word counts after the load: ${shown.join(' ')}`
-    ).toBeGreaterThanOrEqual(editedWords - 25);
+    ).toBeGreaterThanOrEqual(editedWords);
   }
 );
