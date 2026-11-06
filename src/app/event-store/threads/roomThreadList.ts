@@ -8,6 +8,7 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 import { getFinishingEdit, threadReceiptNamesEvent } from './streamFinish';
+import { holdStreamingChecks } from '../../matrix/client/streamingReplies';
 
 /** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
 export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
@@ -165,6 +166,8 @@ const loadRoomThreadsOnce = async (
   onSettled: () => void,
   shouldContinue: () => boolean
 ): Promise<void> => {
+  // The list answers for the streaming replies of the threads it lists.
+  const releaseStreamingChecks = holdStreamingChecks(room);
   try {
     await room.client?.threadSupportPending;
     if (!shouldContinue()) return;
@@ -200,6 +203,7 @@ const loadRoomThreadsOnce = async (
       }
     }
   } finally {
+    releaseStreamingChecks();
     onSettled();
   }
 };

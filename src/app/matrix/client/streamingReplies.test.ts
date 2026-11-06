@@ -18,6 +18,7 @@ import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { startClient } from './clientSyncPolicy';
+import { CHECK_DELAY_MS } from './streamingReplies';
 import { defined } from '../../../test/utils/defined';
 
 // A streamed reply shows as streaming on its thread's card only while the client can trust that it
@@ -98,7 +99,7 @@ const settle = async () => {
 /** A check asks the server only after a moment, so the room's thread list can answer first. */
 const afterCheckDelay = async () => {
   await new Promise((resolve) => {
-    setTimeout(resolve, 2_000);
+    setTimeout(resolve, CHECK_DELAY_MS);
   });
   await settle();
 };
@@ -255,7 +256,7 @@ describe('streaming replies on thread cards', () => {
     ]);
     expect(f.card().streaming).toBe(false);
 
-    await settle();
+    await afterCheckDelay();
     expect(f.card()).toEqual({ preview: finished, streaming: false });
     expect(f.replyRequests()).toBe(1);
   });
@@ -273,7 +274,7 @@ describe('streaming replies on thread cards', () => {
 
     // The page fell behind: the finishing edit is in the gap before this answer.
     await f.deliver([chat('$chat-1', now - 2_000)], true);
-    await settle();
+    await afterCheckDelay();
     expect(f.card()).toEqual({ preview: finished, streaming: false });
     expect(f.replyRequests()).toBe(1);
   });
@@ -286,10 +287,10 @@ describe('streaming replies on thread cards', () => {
     await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
     expect(f.card().streaming).toBe(false);
 
-    await settle();
+    await afterCheckDelay();
     expect(f.card()).toEqual({ preview: 'The notes', streaming: true });
     f.card();
-    await settle();
+    await afterCheckDelay();
     expect(f.replyRequests()).toBe(1);
 
     // Its next edits come through /sync as usual.
@@ -305,8 +306,10 @@ describe('streaming replies on thread cards', () => {
     await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
     await settle();
     f.card();
-    await settle();
+    await afterCheckDelay();
     expect(f.card().streaming).toBe(false);
+    f.card();
+    await afterCheckDelay();
     expect(f.replyRequests()).toBe(1);
   });
 
@@ -317,7 +320,7 @@ describe('streaming replies on thread cards', () => {
     await f.start();
     await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
     expect(f.card().streaming).toBe(false);
-    await settle();
+    await afterCheckDelay();
     expect(f.card()).toEqual({ preview: finished, streaming: false });
 
     // An older summary of the thread comes again, with a fresh copy of the reply's placeholder.
@@ -369,6 +372,7 @@ describe('streaming replies on thread cards', () => {
     await f.deliver([edit('The notes list the export fix', now, 'streaming')]);
     expect(f.card().streaming).toBe(true);
   });
+
   describe('while the room’s thread list is read', () => {
     /** A reload: the cache restores the thread with the summary a mid-stream list read saved. */
     const reload = async (now: number) => {

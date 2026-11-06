@@ -31,11 +31,24 @@ import { getLatestEdit, isEventOrderedAfter } from '../room';
 // Until the answer, a reply seen before a gap still streams and one never seen does not. As a
 // last resort, a reply without an edit for STREAM_IDLE_LIMIT_MS no longer streams, whatever it
 // says: its writer is gone.
+//
+// A room's thread list answers for 30 threads per request: each listed root bundles its thread's
+// newest event with that event's newest edit. So a check waits a moment before it asks (a room's
+// cards ask before its list starts reading) and then while the room's thread list is read (a
+// reload of a room with hundreds of threads asked once per finished thread before), a listed
+// reply counts as the server's answer, and a reply that its listed thread no longer names as the
+// newest event needs no answer: the card shows the newer event. What the list leaves open is
+// checked when the read ends.
 
 /** A reply whose newest revision is older than this is not streaming. */
 export const STREAM_IDLE_LIMIT_MS = 30 * 60_000;
 /** Server checks in flight at once. */
 const CHECKS_AT_ONCE = 4;
+/**
+ * How long a check waits before it may ask: the thread list of a room being opened starts reading
+ * meanwhile (its cards ask before the list's loader runs) and answers for many replies at once.
+ */
+export const CHECK_DELAY_MS = 2_000;
 /** Waits before a failed check is tried again; the last one repeats. */
 const RETRY_DELAYS_MS = [15_000, 60_000, 300_000];
 /** Replies the client remembers seeing; the oldest are forgotten first. */
@@ -47,12 +60,18 @@ type Seen = { roomId: string; gap: number; edit?: MatrixEvent };
 type Check = {
   roomId: string;
   eventId: string;
+  threadId?: string;
   /** The copies of the reply that records showed, which get the server's newest edit. */
   targets: Set<MatrixEvent>;
   attempts: number;
+  /** Asking the server now; such a check runs to its end. */
+  running?: boolean;
 };
 
-type Checker = { isCurrent: (room: Room, event: MatrixEvent) => boolean };
+type Checker = {
+  isCurrent: (room: Room, event: MatrixEvent) => boolean;
+  hold: (roomId: string) => () => void;
+};
 
 const checkers = new WeakMap<MatrixClient, Checker>();
 
@@ -117,6 +136,16 @@ export const isStreamingReplyCurrent = (room: Room, event: MatrixEvent): boolean
   checkers.get(room.client)?.isCurrent(room, event) ?? true;
 
 /**
+ * Holds the room's checks while its thread list is read, which answers for many replies at once.
+ * Call the returned function when the read ends, however it ends.
+ */
+export const holdStreamingChecks = (room: Room): (() => void) =>
+  checkers.get(room.client)?.hold(room.roomId) ?? (() => undefined);
+
+const threadOf = (event: MatrixEvent): string | undefined =>
+  event.threadRootId ?? event.getRelation()?.event_id;
+
+/**
  * Follows the client's sync for the whole client life to vouch for streaming replies, and checks
  * the others with the server; call it before the client starts. Returns a function that stops it.
  */
@@ -131,6 +160,8 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   const checks = new Map<string, Check>();
   const queue: Check[] = [];
   let running = 0;
+  /** Per room, the thread list reads in progress, which hold its checks. */
+  const holds = new Map<string, number>();
   /** Replies shown as streaming: checked after a gap, and re-shown once they went idle. */
   const shown = new Map<string, { roomId: string; targets: Set<MatrixEvent> }>();
   const timers = new Set<ReturnType<typeof setTimeout>>();
@@ -166,7 +197,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   const announce = (room: Room, targets: Iterable<MatrixEvent>) => {
     const threadIds = new Set<string>();
     [...targets].forEach((target) => {
-      const threadId = target.threadRootId ?? target.getRelation()?.event_id;
+      const threadId = threadOf(target);
       if (threadId) threadIds.add(threadId);
     });
     threadIds.forEach((threadId) => {
@@ -180,11 +211,38 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     if (newer) target.makeReplaced(newer);
   };
 
+  /** The newest edit the server bundled with a reply, decrypted. */
+  const bundledEdit = async (
+    roomId: string,
+    rawReply: Partial<IEvent>
+  ): Promise<MatrixEvent | undefined> => {
+    const rawEdit = rawReply.unsigned?.['m.relations']?.[RelationType.Replace] as
+      | Partial<IEvent>
+      | undefined;
+    const edit = rawEdit && mx.getEventMapper()({ ...rawEdit, room_id: roomId });
+    if (edit) await mx.decryptEventIfNeeded(edit);
+    return edit;
+  };
+
+  /** The server's answer about a reply: its newest edit goes on every copy the check holds. */
+  const answer = (room: Room, check: Check, edit: MatrixEvent | undefined) => {
+    if (edit) check.targets.forEach((target) => putEdit(target, edit));
+    // Only now: a card built before the edit is on the reply would still say it streams.
+    vouch(check.roomId, check.eventId, edit);
+    announce(room, check.targets);
+  };
+
   /** Asks the server about one reply; false when it should be asked again later. */
   const run = async (check: Check): Promise<boolean> => {
     const room = mx.getRoom(check.roomId);
     // A reply that finished through /sync meanwhile needs no answer.
     if (!room || [...check.targets].every(isFinished)) return true;
+    // The thread list or /sync told about the reply since it was asked.
+    const known = seen.get(check.eventId);
+    if (known && known.gap === gapsOf(check.roomId)) {
+      answer(room, check, known.edit);
+      return true;
+    }
     let rawReply: Partial<IEvent>;
     try {
       rawReply = await mx.fetchRoomEvent(check.roomId, check.eventId);
@@ -196,16 +254,8 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       announce(room, check.targets);
       return true;
     }
-    const rawEdit = rawReply.unsigned?.['m.relations']?.[RelationType.Replace] as
-      | Partial<IEvent>
-      | undefined;
-    const edit = rawEdit && mx.getEventMapper()({ ...rawEdit, room_id: check.roomId });
-    if (edit) await mx.decryptEventIfNeeded(edit);
-    if (stopped) return true;
-    if (edit) check.targets.forEach((target) => putEdit(target, edit));
-    // Only now: a card built before the edit is on the reply would still say it streams.
-    vouch(check.roomId, check.eventId, edit);
-    announce(room, check.targets);
+    const edit = await bundledEdit(check.roomId, rawReply);
+    if (!stopped) answer(room, check, edit);
     return true;
   };
 
@@ -213,6 +263,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     check.attempts += 1;
     const delay = RETRY_DELAYS_MS[Math.min(check.attempts, RETRY_DELAYS_MS.length) - 1];
     later(delay ?? STREAM_IDLE_LIMIT_MS, () => {
+      if (checks.get(check.eventId) !== check) return;
       queue.push(check);
       drain();
     });
@@ -220,13 +271,20 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
 
   const drain = () => {
     if (stopped || firstBatch) return;
-    while (running < CHECKS_AT_ONCE && queue.length > 0) {
-      const check = queue.shift();
-      if (!check) break;
+    let index = 0;
+    while (running < CHECKS_AT_ONCE && index < queue.length) {
+      const check = queue[index];
+      if (!check || holds.has(check.roomId)) {
+        index += 1;
+        continue;
+      }
+      queue.splice(index, 1);
       running += 1;
+      check.running = true;
       void run(check)
         .catch(() => false)
         .then((done) => {
+          check.running = false;
           if (stopped) return;
           if (done) checks.delete(check.eventId);
           else retryLater(check);
@@ -244,15 +302,21 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       [...targets].forEach((target) => existing.targets.add(target));
       return;
     }
+    const targetSet = new Set(targets);
+    const [first] = targetSet;
     const check: Check = {
       roomId,
       eventId,
-      targets: new Set(targets),
+      threadId: first && threadOf(first),
+      targets: targetSet,
       attempts: 0,
     };
     checks.set(eventId, check);
-    queue.push(check);
-    drain();
+    later(CHECK_DELAY_MS, () => {
+      if (checks.get(eventId) !== check) return;
+      queue.push(check);
+      drain();
+    });
   };
 
   /** Shows the reply again when it goes idle, so its card stops streaming without other news. */
@@ -297,6 +361,81 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     return true;
   };
 
+  const hold = (roomId: string) => {
+    holds.set(roomId, (holds.get(roomId) ?? 0) + 1);
+    let held = true;
+    return () => {
+      if (!held) return;
+      held = false;
+      const count = (holds.get(roomId) ?? 1) - 1;
+      if (count > 0) holds.set(roomId, count);
+      else holds.delete(roomId);
+      drain();
+    };
+  };
+
+  /** Drops a check that is not asking the server yet; false for one that is. */
+  const drop = (check: Check) => {
+    if (check.running) return false;
+    checks.delete(check.eventId);
+    const index = queue.indexOf(check);
+    if (index !== -1) queue.splice(index, 1);
+    return true;
+  };
+
+  /** A thread list page: each root bundles its thread's newest event, with that event's newest edit. */
+  const onListed = async (roomId: string, roots: Partial<IEvent>[]) => {
+    const room = mx.getRoom(roomId);
+    if (!room) return;
+    await Promise.all(
+      roots.map(async (root) => {
+        const latest = root.unsigned?.['m.relations']?.['m.thread']?.latest_event as
+          | Partial<IEvent>
+          | undefined;
+        const latestId = latest?.event_id;
+        if (!root.event_id || !latestId) return;
+        const stale = [...checks.values()].filter(
+          (check) =>
+            check.roomId === roomId &&
+            check.threadId === root.event_id &&
+            check.eventId !== latestId
+        );
+        // The thread's card shows its newer event; one that still shows the reply asks again.
+        stale.forEach((check) => {
+          if (drop(check)) announce(room, check.targets);
+        });
+        const rawEdit = latest.unsigned?.['m.relations']?.[RelationType.Replace] as
+          | Partial<IEvent>
+          | undefined;
+        const listedMayStream = [latest, rawEdit].some(
+          (event) =>
+            event?.type === 'm.room.encrypted' ||
+            getStreamStatusFromContent(event?.content ?? {}) !== undefined ||
+            event?.content?.[AI_RUN_METADATA_KEY] !== undefined
+        );
+        if (!listedMayStream) return;
+        const edit = await bundledEdit(roomId, latest);
+        if (stopped) return;
+        vouch(roomId, latestId, edit);
+        const check = checks.get(latestId);
+        if (check && drop(check)) answer(room, check, edit);
+      })
+    );
+  };
+
+  const listThreads = mx.createThreadListMessagesRequest.bind(mx);
+  const listThreadsAnswering: MatrixClient['createThreadListMessagesRequest'] = async (
+    roomId,
+    ...rest
+  ) => {
+    const page = await listThreads(roomId, ...rest);
+    // Before the SDK takes the page, so its cards find the replies answered. A page the checks
+    // cannot read leaves them as they were.
+    if (!stopped) await onListed(roomId, page.chunk as Partial<IEvent>[]).catch(() => undefined);
+    return page;
+  };
+  mx.createThreadListMessagesRequest = listThreadsAnswering;
+
   const onEvent = (event: MatrixEvent) => {
     const roomId = event.getRoomId();
     if (!roomId || !mayStream(event)) return;
@@ -336,7 +475,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   mx.on(ClientEvent.Event, onEvent);
   mx.on(ClientEvent.Sync, onSync);
   mx.on(RoomEvent.TimelineReset, onReset);
-  checkers.set(mx, { isCurrent });
+  checkers.set(mx, { isCurrent, hold });
 
   return () => {
     stopped = true;
@@ -348,6 +487,9 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     idleTimers.clear();
     queue.splice(0);
     checks.clear();
+    holds.clear();
+    if (mx.createThreadListMessagesRequest === listThreadsAnswering)
+      mx.createThreadListMessagesRequest = listThreads;
     if (checkers.get(mx)?.isCurrent === isCurrent) checkers.delete(mx);
   };
 };
