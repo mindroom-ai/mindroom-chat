@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import en from '../../i18n/locales/en.json';
+import { englishCatalog } from '../../i18n/englishResources';
 import { MINDROOM_COMMANDS } from './agentCommands';
 
 describe('MINDROOM_COMMANDS', () => {
@@ -20,6 +20,7 @@ describe('MINDROOM_COMMANDS', () => {
       'model',
       'room_model',
       'thread_mode',
+      'reply_mode',
       'auto_approve',
       'encrypt',
       'e2ee',
@@ -34,7 +35,7 @@ describe('MINDROOM_COMMANDS', () => {
   });
 
   it('has a translated description for every command', () => {
-    const descriptions: Record<string, string> = en.mindroomUi.commands.descriptions;
+    const descriptions: Record<string, string> = englishCatalog.mindroomUi.commands.descriptions;
     MINDROOM_COMMANDS.forEach((command) => {
       expect(descriptions[command.name]).toBe(command.description);
     });
