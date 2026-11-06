@@ -88,6 +88,7 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 
 export { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 
@@ -346,6 +347,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       ]
     );
 
+    // A voice message whose send failed survives a reload, as the dialog promises.
+    useSavedVoiceDraft(mx);
     const voice = useRoomInputVoice({
       mx,
       roomId,
