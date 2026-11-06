@@ -19,6 +19,7 @@ import { mxcUrlToHttp } from '../../matrix/matrix';
 import { getDirectPartnerId, getRoomAvatarUrl } from '../../matrix/room';
 import { nameInitials } from '../../lib/common';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
+import { useLongPress } from '../../lib/hooks/useLongPress';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
 import type { RoomActionDialog } from '../../room/roomActions';
@@ -38,6 +39,8 @@ type RoomNavItemProps = {
   showAvatar: boolean;
   /** The space whose list shows the row, which the room's settings and search stay in. */
   spaceId: string;
+  /** A finger drags the row: its menu, which the finger's long press opened, closes. */
+  dragging: boolean;
 }>;
 
 /**
@@ -302,6 +305,14 @@ function RoomNavLink({
   );
 }
 
+// A finger resting on the row opens its menu, so the browser selects nothing and shows no link
+// preview.
+const pressableRow: React.CSSProperties = {
+  userSelect: 'none',
+  WebkitUserSelect: 'none',
+  WebkitTouchCallout: 'none',
+};
+
 /** The menu opens where the pointer was right-clicked, like a context menu. */
 const pointerAnchor = (event: React.MouseEvent): RectCords => ({
   x: event.clientX,
@@ -312,10 +323,12 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
 
 /**
  * One room in the sidebar: avatar or privacy icon, name, unread badge, a mark
- * while agents run background jobs in it, and a menu on hover or focus or by right-click.
+ * while agents run background jobs in it, and a menu on hover or focus, by right-click or by a
+ * long press, which phones need: they show no options button and iOS fires no contextmenu.
  */
 export function RoomNavItem(props: RoomNavItemProps) {
-  const { room, selected, linkPath, notificationMode, direct, showAvatar, spaceId } = props;
+  const { room, selected, linkPath, notificationMode, direct, showAvatar, spaceId, dragging } =
+    props;
   const { t } = useTranslation();
   const [engaged, engagementProps] = useRowEngagement();
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
@@ -343,15 +356,32 @@ export function RoomNavItem(props: RoomNavItemProps) {
     );
   }
 
+  // A long press opens the menu at the row, below or above it; touches inside the menu, which
+  // React passes up through its portal, are not the row's.
+  const openAtRow = () => {
+    const rowElement = rowRef.current;
+    if (rowElement) setOptionsAnchor(rowElement.getBoundingClientRect());
+  };
+  const longPress = useLongPress(openAtRow, (evt) =>
+    evt.currentTarget.contains(evt.target as Node)
+  );
+  useEffect(() => {
+    if (dragging) setOptionsAnchor(undefined);
+  }, [dragging]);
+
   const openContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
-    setOptionsAnchor(pointerAnchor(event));
+    // Android fires contextmenu for the same long press: the menu stays at the row.
+    if ((event.nativeEvent as Partial<PointerEvent>).pointerType === 'touch') openAtRow();
+    else setOptionsAnchor(pointerAnchor(event));
   };
 
   const row = (
     <NavItem
       ref={rowRef}
       {...engagementProps}
+      {...longPress}
+      style={pressableRow}
       onContextMenu={openContextMenu}
       highlight={Boolean(unread)}
       aria-selected={selected}

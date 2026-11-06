@@ -38,7 +38,7 @@ export function useLongPress(
     press.current = undefined;
   };
 
-  // A row that leaves the timeline mid-press stops its timer.
+  // An element that unmounts mid-press stops its timer.
   useEffect(
     () => () => {
       if (press.current) clearTimeout(press.current.timer);

@@ -12,6 +12,7 @@ import {
   type DragStartEvent,
   MouseSensor,
   type MouseSensorOptions,
+  type PointerSensorProps,
   TouchSensor,
   type TouchSensorOptions,
   type UniqueIdentifier,
@@ -21,6 +22,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
+import { LONG_PRESS_MS, LONG_PRESS_SLOP } from '../../lib/hooks/useLongPress';
 import {
   makeRoomSortableId,
   parseRoomSortableId,
@@ -72,12 +74,36 @@ class RowMouseSensor extends MouseSensor {
   }));
 }
 
+/**
+ * A finger drags a row only when it moves on after a long press: one that moves sooner scrolls the
+ * list, and one that stays put has opened the row's menu (`RoomNavItem`). The drag library starts
+ * at the end of the long press, as its delay says; this sensor holds that start back until the
+ * finger has moved more than the long press's slop, and from then on passes every move.
+ */
 class RowTouchSensor extends TouchSensor {
   static override activators = TouchSensor.activators.map((activator) => ({
     ...activator,
     handler: (event: React.TouchEvent, options: TouchSensorOptions) =>
       pressedOnRow(event) && activator.handler(event, options),
   }));
+
+  constructor(props: PointerSensorProps) {
+    let held: { x: number; y: number } | undefined;
+    let dragging = false;
+    super({
+      ...props,
+      onStart: (at) => {
+        held = at;
+      },
+      onMove: (to) => {
+        if (!dragging && held && Math.hypot(to.x - held.x, to.y - held.y) > LONG_PRESS_SLOP) {
+          dragging = true;
+          props.onStart(held);
+        }
+        if (dragging) props.onMove(to);
+      },
+    });
+  }
 }
 
 /** Rows stay in place while a room is dragged; a line marks where it lands. */
@@ -105,15 +131,17 @@ type SortableRoomListProps = {
 
 /**
  * A room section whose rows (`SortableRoomRow`) move by drag and drop, the mouse after a short
- * move and a finger after a long press, or one place at a time with ⌘ or Ctrl, Shift and the up
- * or down arrow key on a row's link.
+ * move and a finger that moves on after a long press, or one place at a time with ⌘ or Ctrl, Shift
+ * and the up or down arrow key on a row's link.
  */
 export function SortableRoomList({ listId, roomIds, onReorder, children }: SortableRoomListProps) {
   const [dragged, setDragged] = useState<string>();
   const [hint, setHint] = useState<RoomListDrag['hint']>();
   const sensors = useSensors(
     useSensor(RowMouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(RowTouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
+    useSensor(RowTouchSensor, {
+      activationConstraint: { delay: LONG_PRESS_MS, tolerance: LONG_PRESS_SLOP },
+    })
   );
 
   const roomOf = (id: UniqueIdentifier | undefined): string | undefined => {
@@ -198,7 +226,11 @@ export function SortableRoomRow(props: SortableRoomRowProps) {
       data-drop-at={at}
       onKeyDown={handleKeyDown}
     >
-      <SortableRoomNavItem parentSpaceId={drag.listId} {...props} />
+      <SortableRoomNavItem
+        parentSpaceId={drag.listId}
+        dragging={drag.dragged === roomId}
+        {...props}
+      />
     </div>
   );
 }
