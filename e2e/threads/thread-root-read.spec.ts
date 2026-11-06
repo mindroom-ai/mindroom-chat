@@ -290,7 +290,14 @@ test('opening a thread reads its root, and the room once every root is read', as
   await expect(page.getByRole('heading', { name }).first()).toBeVisible({ timeout: 30_000 });
   await expectCards(await showUnreadOnly(page), [second, first]);
 
+  // A thread is read once its opening scroll comes to rest: leave it only after its receipt.
+  const secondReceipt = page.waitForRequest(
+    (request) =>
+      request.url().includes('/receipt/') && request.postDataJSON()?.thread_id === second,
+    { timeout: 30_000 }
+  );
   await openThread(page, second, lastReply(1));
+  await secondReceipt;
   await page.goBack();
   await expectCards(await showUnreadOnly(page), [first]);
   expect(mainReceipts(receipts)).toEqual([]);
