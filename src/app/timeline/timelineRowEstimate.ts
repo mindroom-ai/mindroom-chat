@@ -69,9 +69,12 @@ const richHeights = new WeakMap<object, number | undefined>();
  * headings), before any folding; undefined for plain text and inline-only HTML, which the text
  * estimate prices well.
  */
-export const estimateFormattedBodyPx = (content: Record<string, unknown>): number | undefined => {
+export const estimateFormattedBodyPx = (content: unknown): number | undefined => {
+  // Content comes from the network; only an object can key the cache.
+  if (!content || typeof content !== 'object') return undefined;
   if (richHeights.has(content)) return richHeights.get(content);
-  const html = content.format === 'org.matrix.custom.html' ? content.formatted_body : undefined;
+  const fields = content as Record<string, unknown>;
+  const html = fields.format === 'org.matrix.custom.html' ? fields.formatted_body : undefined;
   let height: number | undefined;
   if (typeof html === 'string' && BLOCK_MARKUP.test(html)) {
     let codePx = 0;

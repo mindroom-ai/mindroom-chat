@@ -5,6 +5,10 @@ import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-c
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
 
 import { createMatrixClient } from '../../matrix/client/matrixClientFactory';
+import {
+  installEventContentGuard,
+  trustAgentsOfViewer,
+} from '../../matrix/protocol/untrustedContent';
 import * as sessionLifecycle from './sessionLifecycle';
 import { clearFetchedAvatars } from '../../avatars/avatarMedia';
 import { LARGE_SYNC_ARCHIVE_TIMELINE_LIMIT } from '../../matrix/client/clientSyncPolicy';
@@ -266,6 +270,9 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   const legacyCryptoStore = new LegacyCryptoStore(globalThis.indexedDB, storeNames.crypto);
 
   const { userId, deviceId } = session;
+  // Every event's content is read through the shape and trust checks, with this account's agents.
+  installEventContentGuard();
+  trustAgentsOfViewer(userId);
   const mx = createMatrixClient({
     baseUrl: session.baseUrl,
     accessToken: session.accessToken,

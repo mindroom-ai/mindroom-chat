@@ -985,7 +985,9 @@ export const loadCachedThreadRootsForRoom = async (
       );
     request.onsuccess = () => {
       (request.result as CachedMetaRecord[]).forEach((meta) => {
-        if (meta.roomId !== roomId || !meta.scope.startsWith('$')) return;
+        // Rows written before relations were checked can hold a scope of any type.
+        if (meta.roomId !== roomId || typeof meta.scope !== 'string') return;
+        if (!meta.scope.startsWith('$')) return;
         // A downloaded reply can precede its root. The root may then exist
         // only in room scope; merge copies using the normal revision rules.
         const copies = transaction
