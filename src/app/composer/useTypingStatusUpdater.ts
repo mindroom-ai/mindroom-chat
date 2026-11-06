@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import type { MatrixClient } from 'matrix-js-sdk';
+import { Method, type MatrixClient } from 'matrix-js-sdk';
 import { TYPING_TIMEOUT_MS } from '../matrix/state/typingMembers';
 
 /**
@@ -41,6 +41,31 @@ export const useTypingStatusUpdater = (
     },
     [clearExpiry, send]
   );
+
+  // Leaving the page (a reload, a link, a closed tab) unmounts nothing, so the effect above
+  // does not run. The stop goes out as the page goes, in a request that outlives it.
+  useEffect(() => {
+    const stopOnPageHide = () => {
+      clearExpiry();
+      if (!typingRef.current) return;
+      typingRef.current = false;
+      const userId = mx.getUserId();
+      if (!userId || mx.isGuest()) return;
+      mx.http
+        .authedRequest(
+          Method.Put,
+          `/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(userId)}`,
+          undefined,
+          { typing: false },
+          { keepAlive: true }
+        )
+        .catch(() => undefined);
+    };
+    // No page, no pagehide (a test renderer without a DOM).
+    if (typeof window === 'undefined') return undefined;
+    window.addEventListener('pagehide', stopOnPageHide);
+    return () => window.removeEventListener('pagehide', stopOnPageHide);
+  }, [clearExpiry, mx, roomId]);
 
   return useCallback(
     (typing: boolean) => {

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
@@ -6,12 +7,22 @@ import { useTypingStatusUpdater } from './useTypingStatusUpdater';
 
 const recordingClient = () => {
   const calls: unknown[][] = [];
+  const requests: unknown[][] = [];
   return {
     calls,
+    requests,
     client: {
       sendTyping: (...args: unknown[]) => {
         calls.push(args);
         return Promise.resolve({});
+      },
+      getUserId: () => '@ash:example.org',
+      isGuest: () => false,
+      http: {
+        authedRequest: (...args: unknown[]) => {
+          requests.push(args);
+          return Promise.resolve({});
+        },
       },
     } as never,
   };
@@ -55,6 +66,53 @@ describe('useTypingStatusUpdater when the composer goes away', () => {
     });
     act(() => renderer.unmount());
 
+    expect(calls).toEqual([]);
+  });
+
+  it('ends the typing notice in a request that outlives the page when the page goes', () => {
+    const { calls, requests, client } = recordingClient();
+    let update!: (typing: boolean) => void;
+    const Harness = () => {
+      update = useTypingStatusUpdater(client, '!garden:example.org');
+      return null;
+    };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
+
+    update(true);
+    window.dispatchEvent(new Event('pagehide'));
+    // A second pagehide (the page kept for back and forward, then left again) sends nothing.
+    window.dispatchEvent(new Event('pagehide'));
+    act(() => renderer.unmount());
+
+    expect(requests).toEqual([
+      [
+        'PUT',
+        '/rooms/!garden%3Aexample.org/typing/%40ash%3Aexample.org',
+        undefined,
+        { typing: false },
+        { keepAlive: true },
+      ],
+    ]);
+    expect(calls).toEqual([['!garden:example.org', true, TYPING_TIMEOUT_MS]]);
+  });
+
+  it('sends nothing when the page goes and the person was not typing', () => {
+    const { calls, requests, client } = recordingClient();
+    const Harness = () => {
+      useTypingStatusUpdater(client, '!garden:example.org');
+      return null;
+    };
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(React.createElement(Harness));
+    });
+    window.dispatchEvent(new Event('pagehide'));
+    act(() => renderer.unmount());
+
+    expect(requests).toEqual([]);
     expect(calls).toEqual([]);
   });
 });
