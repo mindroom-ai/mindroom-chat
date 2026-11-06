@@ -12,7 +12,6 @@ import {
   type DragStartEvent,
   MouseSensor,
   type MouseSensorOptions,
-  type PointerSensorProps,
   TouchSensor,
   type TouchSensorOptions,
   type UniqueIdentifier,
@@ -22,7 +21,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext } from '@dnd-kit/sortable';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
-import { LONG_PRESS_MS, LONG_PRESS_SLOP } from '../../lib/hooks/useLongPress';
+import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
 import {
   makeRoomSortableId,
   parseRoomSortableId,
@@ -74,36 +73,13 @@ class RowMouseSensor extends MouseSensor {
   }));
 }
 
-/**
- * A finger drags a row only when it moves on after a long press: one that moves sooner scrolls the
- * list, and one that stays put has opened the row's menu (`RoomNavItem`). The drag library starts
- * at the end of the long press, as its delay says; this sensor holds that start back until the
- * finger has moved more than the long press's slop, and from then on passes every move.
- */
-class RowTouchSensor extends TouchSensor {
+/** A finger drags a row only when it moves on after a long press, which opens the row's menu. */
+class RowTouchSensor extends LongPressTouchSensor {
   static override activators = TouchSensor.activators.map((activator) => ({
     ...activator,
     handler: (event: React.TouchEvent, options: TouchSensorOptions) =>
       pressedOnRow(event) && activator.handler(event, options),
   }));
-
-  constructor(props: PointerSensorProps) {
-    let held: { x: number; y: number } | undefined;
-    let dragging = false;
-    super({
-      ...props,
-      onStart: (at) => {
-        held = at;
-      },
-      onMove: (to) => {
-        if (!dragging && held && Math.hypot(to.x - held.x, to.y - held.y) > LONG_PRESS_SLOP) {
-          dragging = true;
-          props.onStart(held);
-        }
-        if (dragging) props.onMove(to);
-      },
-    });
-  }
 }
 
 /** Rows stay in place while a room is dragged; a line marks where it lands. */
@@ -139,9 +115,7 @@ export function SortableRoomList({ listId, roomIds, onReorder, children }: Sorta
   const [hint, setHint] = useState<RoomListDrag['hint']>();
   const sensors = useSensors(
     useSensor(RowMouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(RowTouchSensor, {
-      activationConstraint: { delay: LONG_PRESS_MS, tolerance: LONG_PRESS_SLOP },
-    })
+    useSensor(RowTouchSensor)
   );
 
   const roomOf = (id: UniqueIdentifier | undefined): string | undefined => {

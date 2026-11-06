@@ -14,8 +14,8 @@ type Press = {
 };
 
 /**
- * Touch handlers that call `onLongPress` with the finger's viewport point once one finger has
- * rested `LONG_PRESS_MS` on the element. Moving more than `LONG_PRESS_SLOP`, a second finger,
+ * Touch handlers that call `onLongPress` with the finger's viewport point and the element they are
+ * on once one finger has rested `LONG_PRESS_MS` on it. Moving more than `LONG_PRESS_SLOP`, a second finger,
  * any scroll on the page, lifting the finger or the browser cancelling the touch ends the press
  * first. iOS Safari fires no `contextmenu` on a long press, so this is how a finger opens a menu
  * there. Nothing prevents the browser's own handling while the finger rests, so scrolling and text
@@ -23,7 +23,7 @@ type Press = {
  * decides per touch whether a press may begin.
  */
 export function useLongPress(
-  onLongPress: (x: number, y: number) => void,
+  onLongPress: (x: number, y: number, element: HTMLElement) => void,
   canStart: (evt: TouchEvent<HTMLElement>) => boolean
 ) {
   const press = useRef<Press>();
@@ -52,6 +52,7 @@ export function useLongPress(
     const touch = evt.touches[0];
     if (evt.touches.length !== 1 || !touch || !canStart(evt)) return;
     const { clientX: x, clientY: y } = touch;
+    const element = evt.currentTarget;
     // Any scroll during the press, the timeline's included, means the finger is scrolling.
     const onScroll = () => cancel();
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
@@ -60,7 +61,7 @@ export function useLongPress(
       if (!current) return;
       current.fired = true;
       current.stopWatchingScroll();
-      latest.current(x, y);
+      latest.current(x, y, element);
     }, LONG_PRESS_MS);
     press.current = {
       timer,
