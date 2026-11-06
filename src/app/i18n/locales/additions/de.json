@@ -253,9 +253,9 @@
         "explore": "„Community erkunden“ in der Seitenleiste anzeigen",
         "exploreDescription": "Öffentliche Räume und Spaces zum Beitreten. Ausgeblendet öffnest du es über das ⋮-Menü auf der Startseite.",
         "createSpace": "„Space erstellen“ in der Seitenleiste anzeigen",
-        "createSpaceDescription": "Ausgeblendet erstellst du einen Space über die Befehlspalette ({{shortcut}}).",
+        "createSpaceDescription": "Ausgeblendet erstellst du einen Space über das ⋮-Menü auf der Startseite oder die Befehlspalette ({{shortcut}}).",
         "search": "Suche in der Seitenleiste anzeigen",
-        "searchDescription": "Die Schaltfläche, die die Befehlspalette öffnet. Ausgeblendet öffnet {{shortcut}} sie weiterhin.",
+        "searchDescription": "Die Schaltfläche, die die Befehlspalette öffnet. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite oder mit {{shortcut}}.",
         "localMindroom": "Lokales MindRoom in der Seitenleiste anzeigen",
         "localMindroomDescription": "Koppelt MindRoom auf deinem Computer. Ausgeblendet bleibt es hier in den Einstellungen unter „Lokales MindRoom“."
       },
@@ -334,7 +334,8 @@
       "failed": "Der Chat konnte nicht gestartet werden. Versuche es erneut."
     },
     "homeNav": {
-      "options": "Optionen für die Startseite"
+      "options": "Optionen für die Startseite",
+      "search": "Suche"
     },
     "directNav": {
       "options": "Optionen für Direktnachrichten"

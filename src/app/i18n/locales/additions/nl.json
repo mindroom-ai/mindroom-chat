@@ -253,9 +253,9 @@
         "explore": "Community verkennen in de zijbalk tonen",
         "exploreDescription": "Openbare kamers en spaces om lid van te worden. Verborgen open je het via het ⋮-menu in Home.",
         "createSpace": "Space aanmaken in de zijbalk tonen",
-        "createSpaceDescription": "Verborgen maak je een space aan via het commandopalet ({{shortcut}}).",
+        "createSpaceDescription": "Verborgen maak je een space aan via het ⋮-menu in Home of het commandopalet ({{shortcut}}).",
         "search": "Zoeken in de zijbalk tonen",
-        "searchDescription": "De knop die het commandopalet opent. Verborgen opent {{shortcut}} het nog steeds.",
+        "searchDescription": "De knop die het commandopalet opent. Verborgen open je het via het ⋮-menu in Home of met {{shortcut}}.",
         "localMindroom": "Lokale MindRoom in de zijbalk tonen",
         "localMindroomDescription": "Koppelt MindRoom op je computer. Verborgen blijft het hier in Instellingen onder Lokale MindRoom."
       },
@@ -334,7 +334,8 @@
       "failed": "De chat kon niet worden gestart. Probeer het opnieuw."
     },
     "homeNav": {
-      "options": "Opties voor Home"
+      "options": "Opties voor Home",
+      "search": "Zoeken"
     },
     "directNav": {
       "options": "Opties voor directe berichten"

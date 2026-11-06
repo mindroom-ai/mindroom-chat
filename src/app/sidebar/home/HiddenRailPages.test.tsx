@@ -2,6 +2,8 @@ import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RailButtons } from '../../settings/railButtons';
+import { getDefaultStore } from 'jotai';
+import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
 import { HiddenRailPages } from './HiddenRailPages';
 
 const ALL: RailButtons = {
@@ -16,8 +18,10 @@ const ALL: RailButtons = {
 const state = vi.hoisted(() => ({
   offered: {} as RailButtons,
   shown: {} as RailButtons,
+  hasCanvases: true,
   navigate: vi.fn(),
   openExplore: vi.fn(),
+  openCreateSpace: vi.fn(),
 }));
 
 vi.mock('../../settings/railButtons', () => ({
@@ -25,13 +29,23 @@ vi.mock('../../settings/railButtons', () => ({
   useRailButtons: () => state.shown,
 }));
 vi.mock('../rail/useOpenExplore', () => ({ useOpenExplore: () => state.openExplore }));
+vi.mock('../rail/CanvasesTab', () => ({ useHasCanvases: () => state.hasCanvases }));
+vi.mock('../../navigation/useCreateSpaceModal', () => ({
+  useOpenCreateSpaceModal: () => state.openCreateSpace,
+}));
 vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
 vi.mock('folds', () => ({
-  Icons: { Thread: 'Thread', Category: 'Category', Explore: 'Explore' },
+  Icons: {
+    Thread: 'Thread',
+    Category: 'Category',
+    Explore: 'Explore',
+    Plus: 'Plus',
+    Search: 'Search',
+  },
   Line: () => null,
 }));
 vi.mock('../../ui/MenuEntry', () => ({
@@ -49,22 +63,30 @@ const entries = (onClose = vi.fn()) => {
 describe('HiddenRailPages', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    state.hasCanvases = true;
+    getDefaultStore().set(commandPaletteOpenAtom, undefined);
   });
 
-  it('adds nothing while the rail shows Threads, Canvases and Explore', () => {
+  it('adds nothing while the rail shows every button', () => {
     state.offered = ALL;
     state.shown = ALL;
     expect(entries()).toHaveLength(0);
   });
 
-  it('opens Threads, Canvases and Explore Community from the menu once their buttons are hidden', () => {
+  it('lists every hidden button in rail order, and each one opens its page', () => {
     state.offered = ALL;
     state.shown = { ...ALL, threads: false, canvases: false, explore: false };
+    state.shown = { ...state.shown, createSpace: false, search: false };
     const onClose = vi.fn();
-    const [threads, canvases, explore] = entries(onClose);
-    expect(threads?.children).toEqual(['Threads']);
-    expect(canvases?.children).toEqual(['Canvases']);
-    expect(explore?.children).toEqual(['Explore Community']);
+    const buttons = entries(onClose);
+    expect(buttons.map((entry) => entry.children)).toEqual([
+      ['Threads'],
+      ['Canvases'],
+      ['Explore Community'],
+      ['Create Space'],
+      ['Search'],
+    ]);
+    const [threads, canvases, explore, createSpace, search] = buttons;
 
     act(() => {
       threads?.props.onClick();
@@ -74,23 +96,43 @@ describe('HiddenRailPages', () => {
     act(() => {
       canvases?.props.onClick();
     });
-    expect(onClose).toHaveBeenCalledTimes(2);
     expect(state.navigate).toHaveBeenLastCalledWith('/canvases/');
     act(() => {
       explore?.props.onClick();
     });
     expect(state.openExplore).toHaveBeenCalledTimes(1);
+    act(() => {
+      createSpace?.props.onClick();
+    });
+    expect(state.openCreateSpace).toHaveBeenCalledTimes(1);
+    expect(getDefaultStore().get(commandPaletteOpenAtom)).toBeUndefined();
+    act(() => {
+      search?.props.onClick();
+    });
+    expect(getDefaultStore().get(commandPaletteOpenAtom)).toBe('all');
+    expect(onClose).toHaveBeenCalledTimes(5);
   });
 
   it('lists only the hidden buttons', () => {
     state.offered = ALL;
     state.shown = { ...ALL, canvases: false };
     expect(entries().map((entry) => entry.children)).toEqual([['Canvases']]);
+    state.shown = { ...ALL, search: false };
+    expect(entries().map((entry) => entry.children)).toEqual([['Search']]);
+  });
+
+  it('lists Canvases only once the account has a canvas, as the rail button does', () => {
+    state.offered = ALL;
+    state.shown = { ...ALL, canvases: false };
+    state.hasCanvases = false;
+    expect(entries()).toHaveLength(0);
+    state.hasCanvases = true;
+    expect(entries().map((entry) => entry.children)).toEqual([['Canvases']]);
   });
 
   it('offers nothing the deployment leaves out', () => {
-    state.offered = { ...ALL, threads: false, canvases: false, explore: false };
-    state.shown = { ...state.offered };
+    state.offered = { ...ALL, threads: false, canvases: false, explore: false, createSpace: false };
+    state.shown = { ...state.offered, search: true };
     expect(entries()).toHaveLength(0);
   });
 });

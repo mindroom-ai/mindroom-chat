@@ -258,9 +258,9 @@
         "explore": "Mostra Esplora la comunità nella barra laterale",
         "exploreDescription": "Stanze e spazi pubblici a cui unirti. Se nascosto, aprilo dal menu ⋮ della Home.",
         "createSpace": "Mostra Crea spazio nella barra laterale",
-        "createSpaceDescription": "Se nascosto, crea uno spazio dalla tavolozza dei comandi ({{shortcut}}).",
+        "createSpaceDescription": "Se nascosto, crea uno spazio dal menu ⋮ della Home o dalla tavolozza dei comandi ({{shortcut}}).",
         "search": "Mostra Cerca nella barra laterale",
-        "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, {{shortcut}} la apre comunque.",
+        "searchDescription": "Il pulsante che apre la tavolozza dei comandi. Se nascosto, aprila dal menu ⋮ della Home o con {{shortcut}}.",
         "localMindroom": "Mostra MindRoom locale nella barra laterale",
         "localMindroomDescription": "Associa MindRoom in esecuzione sul tuo computer. Se nascosto, resta qui nelle Impostazioni, in MindRoom locale."
       },
@@ -339,7 +339,8 @@
       "failed": "Impossibile avviare la chat. Riprova."
     },
     "homeNav": {
-      "options": "Opzioni della Home"
+      "options": "Opzioni della Home",
+      "search": "Cerca"
     },
     "directNav": {
       "options": "Opzioni dei messaggi diretti"

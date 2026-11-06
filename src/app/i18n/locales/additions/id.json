@@ -248,9 +248,9 @@
         "explore": "Tampilkan Jelajahi komunitas di bilah sisi",
         "exploreDescription": "Ruang dan space publik untuk diikuti. Saat disembunyikan, buka dari menu ⋮ di Beranda.",
         "createSpace": "Tampilkan Buat space di bilah sisi",
-        "createSpaceDescription": "Saat disembunyikan, buat space dari palet perintah ({{shortcut}}).",
+        "createSpaceDescription": "Saat disembunyikan, buat space dari menu ⋮ di Beranda atau palet perintah ({{shortcut}}).",
         "search": "Tampilkan Cari di bilah sisi",
-        "searchDescription": "Tombol yang membuka palet perintah. Saat disembunyikan, {{shortcut}} tetap membukanya.",
+        "searchDescription": "Tombol yang membuka palet perintah. Saat disembunyikan, buka palet dari menu ⋮ di Beranda atau dengan {{shortcut}}.",
         "localMindroom": "Tampilkan MindRoom lokal di bilah sisi",
         "localMindroomDescription": "Memasangkan MindRoom di komputer Anda. Saat disembunyikan, tetap ada di sini di Pengaturan, di bawah MindRoom lokal."
       },
@@ -329,7 +329,8 @@
       "failed": "Obrolan tidak dapat dimulai. Coba lagi."
     },
     "homeNav": {
-      "options": "Opsi Beranda"
+      "options": "Opsi Beranda",
+      "search": "Cari"
     },
     "directNav": {
       "options": "Opsi pesan langsung"

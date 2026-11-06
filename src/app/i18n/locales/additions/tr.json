@@ -253,9 +253,9 @@
         "explore": "Toplulukları keşfet düğmesini kenar çubuğunda göster",
         "exploreDescription": "Katılabileceğiniz herkese açık odalar ve alanlar. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "createSpace": "Alan oluştur düğmesini kenar çubuğunda göster",
-        "createSpaceDescription": "Gizlendiğinde, komut paletinden ({{shortcut}}) alan oluşturun.",
+        "createSpaceDescription": "Gizlendiğinde, Ana sayfadaki ⋮ menüsünden veya komut paletinden ({{shortcut}}) alan oluşturun.",
         "search": "Aramayı kenar çubuğunda göster",
-        "searchDescription": "Komut paletini açan düğme. Gizlendiğinde de {{shortcut}} paleti açar.",
+        "searchDescription": "Komut paletini açan düğme. Gizlendiğinde, paleti Ana sayfadaki ⋮ menüsünden veya {{shortcut}} ile açın.",
         "localMindroom": "Yerel MindRoom'u kenar çubuğunda göster",
         "localMindroomDescription": "Bilgisayarınızda çalışan MindRoom'u eşleştirir. Gizlendiğinde, burada Ayarlar'da Yerel MindRoom altında kalır."
       },
@@ -334,7 +334,8 @@
       "failed": "Sohbet başlatılamadı. Tekrar deneyin."
     },
     "homeNav": {
-      "options": "Ana sayfa seçenekleri"
+      "options": "Ana sayfa seçenekleri",
+      "search": "Arama"
     },
     "directNav": {
       "options": "Doğrudan mesaj seçenekleri"

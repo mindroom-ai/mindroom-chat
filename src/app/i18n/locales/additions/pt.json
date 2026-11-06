@@ -258,9 +258,9 @@
         "explore": "Mostrar Explorar a comunidade na barra lateral",
         "exploreDescription": "Salas e espaços públicos a que pode aderir. Se o ocultar, abra-o no menu ⋮ do Início.",
         "createSpace": "Mostrar Criar espaço na barra lateral",
-        "createSpaceDescription": "Se o ocultar, crie um espaço na paleta de comandos ({{shortcut}}).",
+        "createSpaceDescription": "Se o ocultar, crie um espaço no menu ⋮ do Início ou na paleta de comandos ({{shortcut}}).",
         "search": "Mostrar Pesquisar na barra lateral",
-        "searchDescription": "O botão que abre a paleta de comandos. Se o ocultar, {{shortcut}} continua a abri-la.",
+        "searchDescription": "O botão que abre a paleta de comandos. Se o ocultar, abra-a no menu ⋮ do Início ou com {{shortcut}}.",
         "localMindroom": "Mostrar MindRoom local na barra lateral",
         "localMindroomDescription": "Emparelha o MindRoom no seu computador. Se o ocultar, continua aqui nas Definições, em MindRoom local."
       },
@@ -339,7 +339,8 @@
       "failed": "Não foi possível iniciar a conversa. Tente novamente."
     },
     "homeNav": {
-      "options": "Opções do Início"
+      "options": "Opções do Início",
+      "search": "Pesquisar"
     },
     "directNav": {
       "options": "Opções das mensagens diretas"

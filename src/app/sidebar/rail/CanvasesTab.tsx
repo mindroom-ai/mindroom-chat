@@ -46,19 +46,25 @@ const useSessionHasCanvases = (sessionId: string): boolean => {
   return listed;
 };
 
-/** The Canvases button of the icon rail, shown once there is a canvas to list. */
-export function CanvasesTab() {
+/** Whether the account has a canvas to list: one in this session's index, or a pinned one. */
+export function useHasCanvases(): boolean {
   const mx = useMatrixClient();
-  const navigate = useNavigate();
-  const active = useCanvasesSelected();
-  const { t } = useTranslation();
   const listed = useSessionHasCanvases(createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId()));
   const pinEvent = useAccountData(PINNED_CANVASES_TYPE);
   const pinned = useMemo(() => readPinnedCanvases(pinEvent?.getContent()).length > 0, [pinEvent]);
+  return listed || pinned;
+}
+
+/** The Canvases button of the icon rail, shown once there is a canvas to list. */
+export function CanvasesTab() {
+  const navigate = useNavigate();
+  const active = useCanvasesSelected();
+  const { t } = useTranslation();
+  const hasCanvases = useHasCanvases();
   const label = t('mindroomUi.canvases.title');
 
   // Stays visible while the Canvases page is open, even after its last canvas went away.
-  const visible = listed || pinned || active;
+  const visible = hasCanvases || active;
   if (!visible) return null;
 
   const renderButton = (tooltipAnchor: RefCallback<HTMLElement>) => (
