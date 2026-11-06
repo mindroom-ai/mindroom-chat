@@ -280,6 +280,48 @@ export const markThreadAsRead = async (
   );
 };
 
+/**
+ * Reads the threads of replies the reader saw outside them (the classic view shows replies among
+ * the room's rows): each thread up to its newest reply in `shown`, or the edit that finished that
+ * reply, with a receipt scoped to the thread, unless the reader's receipt there already reads it.
+ * An edit in `shown` that finished a reply counts as that reply read to its end. The roots are
+ * main timeline rows and are read with the main timeline.
+ */
+export const markShownThreadRepliesAsRead = async (
+  mx: MatrixClient,
+  roomId: string,
+  shown: MatrixEvent[],
+  hideActivity: boolean
+): Promise<void> => {
+  const room = mx.getRoom(roomId);
+  if (!room) return;
+  const newestByThread = new Map<string, MatrixEvent>();
+  shown.forEach((event) => {
+    const rootId = event.threadRootId;
+    if (!rootId || !isConfirmedMatrixEventId(rootId)) return;
+    if (!isConfirmedReply(event) && !isConfirmedFinishingEdit(event)) return;
+    newestByThread.set(rootId, newer(newestByThread.get(rootId), event) ?? event);
+  });
+  const userId = mx.getUserId() ?? undefined;
+  await Promise.all(
+    [...newestByThread].map(async ([rootId, seen]) => {
+      const thread = room.getThread(rootId);
+      const target =
+        thread && !seen.isRelation(RelationType.Replace)
+          ? newer(seen, finishingEditOf(seen, thread))
+          : seen;
+      if (!target || (thread && threadReceiptReads(thread, userId, target))) return;
+      await send(
+        sendOwnReceipt(() =>
+          mx.sendReceipt(forThreadReceipt(target, roomId, rootId), receiptTypeFor(hideActivity), {
+            thread_id: rootId,
+          })
+        )
+      );
+    })
+  );
+};
+
 const latestRoomEvent = (room: Room): MatrixEvent | undefined => {
   let latest: MatrixEvent | undefined = room.getLiveTimeline().getEvents().findLast(isConfirmed);
   room.getThreads().forEach((thread) => {

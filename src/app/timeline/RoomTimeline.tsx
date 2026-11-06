@@ -494,6 +494,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
     () => roomRows.slice(activeTimelineRange.start, activeTimelineRange.end),
     [activeTimelineRange.end, activeTimelineRange.start, roomRows]
   );
+  // The classic view's mounted rows hold thread replies: reading the room reads their threads.
+  const roomWindowRowsRef = useLatestRef(roomWindowRows);
+  const classicRows = useMemo(
+    () => (showThreadRepliesInRoom ? () => roomWindowRowsRef.current : undefined),
+    [roomWindowRowsRef, showThreadRepliesInRoom]
+  );
 
   useWindowKeepsNewestRow({
     activeTimelineRange,
@@ -1010,6 +1016,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     readUptoEventIdRef,
     room,
     setAtBottom,
+    classicRows,
     threadEventsLength: threadEvents.length,
     threadId,
     threadInitialRenderMode,
@@ -1248,6 +1255,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     setTimeline,
     setUnreadInfo,
     showHiddenEvents,
+    classicRows,
     threadEventIndexMapRef,
     threadId,
     threadResolutionMap,

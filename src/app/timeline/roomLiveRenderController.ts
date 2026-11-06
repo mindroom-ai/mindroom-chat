@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useRef,
   type Dispatch,
   type MutableRefObject,
@@ -39,7 +40,11 @@ import {
 } from '../matrix/protocol/threadSummary';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { hasTerminalStreamMetadata } from '../matrix/protocol/aiRun';
-import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
+import {
+  markMainTimelineAsRead,
+  markShownThreadRepliesAsRead,
+  markThreadAsRead,
+} from '../notifications/readReceipts';
 import type { ScrollToBottomState } from './roomFocusScrollController';
 import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
 import { isNearLatestEnd } from './roomTimelineScroll';
@@ -80,6 +85,8 @@ type LiveRenderOptions = {
   setTimeline: Dispatch<SetStateAction<Timeline>>;
   setUnreadInfo: Dispatch<SetStateAction<RoomUnreadInfo | undefined>>;
   showHiddenEvents: boolean;
+  /** The room's mounted rows, when they hold its threads' replies (the classic view). */
+  classicRows?: () => MatrixEvent[];
   /** Event ID to row index, for the open thread's rows. */
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   /** The open thread's root, or `undefined` in the room view. */
@@ -181,6 +188,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     setTimeline,
     setUnreadInfo,
     showHiddenEvents,
+    classicRows,
     threadEventIndexMapRef,
     threadId,
     threadResolutionMap,
@@ -303,6 +311,48 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     );
   };
 
+  // The classic view shows a thread's replies among the room's rows: a reader who follows its
+  // live end there reads a reply that arrives, or one whose stream finishes, as they would in the
+  // open thread, measured when the reply can be read.
+  const readClassicReply = (reply: MatrixEvent) => {
+    if (!classicRows) return;
+    whenDecrypted(reply, () => {
+      const area = scrollRef.current;
+      if (!reply.threadRootId || openThreadIdRef.current || !area || !atLiveEndRef.current) return;
+      if (!atBottomRef.current || !documentHasFocus()) return;
+      if (!isNearLatestEnd(area, !!latestAtTopRef?.current)) return;
+      const shown = isRenderableEvent(
+        reply,
+        room,
+        undefined,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents,
+        true
+      );
+      if (shown) void markShownThreadRepliesAsRead(mx, room.roomId, [reply], hideActivity);
+    });
+  };
+
+  // A thread nobody opened keeps its replies' edits out of its timeline until it loads, so no
+  // edit arrives here: the SDK only applies it to the reply. A mounted reply whose stream it
+  // finishes is read up to that edit.
+  const readClassicFinishedReply = useLatestRef((reply: MatrixEvent) => {
+    const edit = reply.replacingEvent();
+    if (reply.getRoomId() !== room.roomId || !edit) return;
+    if (!hasTerminalStreamMetadata(edit.getContent())) return;
+    if (classicRows?.().includes(reply)) readClassicReply(reply);
+  });
+  useEffect(() => {
+    if (!classicRows) return undefined;
+    const onReplaced = (reply: MatrixEvent) => readClassicFinishedReply.current(reply);
+    mx.on(MatrixEventEvent.Replaced, onReplaced);
+    return () => {
+      mx.removeListener(MatrixEventEvent.Replaced, onReplaced);
+    };
+  }, [classicRows, mx, readClassicFinishedReply]);
+
   const paintRoomArrival = (event: MatrixEvent, timeline: EventTimeline | undefined) => {
     if (isThreadOnlyRoomActivity(room, event)) {
       // A thread's card changes, but no room row comes in (the classic view's thread reply rows
@@ -310,6 +360,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
       storeThreadSummary(event);
       repaint();
       if (atBottomRef.current && atLiveEndRef.current) requestBottomPin(true);
+      if (!isEdit(event)) readClassicReply(event);
       return;
     }
 

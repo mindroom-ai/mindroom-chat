@@ -17,6 +17,7 @@ import { useLatestRef } from '../lib/hooks/useLatestRef';
 import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
+  markShownThreadRepliesAsRead,
   markThreadAsRead,
 } from '../notifications/readReceipts';
 import type { ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
@@ -68,6 +69,11 @@ type ReadReceiptControllerOptions = {
   readUptoEventIdRef: MutableRefObject<string | undefined>;
   room: Room;
   setAtBottom: Dispatch<SetStateAction<boolean>>;
+  /**
+   * The room's mounted rows, when they hold its threads' replies (the classic view): reading the
+   * room reads the threads of those replies too.
+   */
+  classicRows?: () => MatrixEvent[];
   threadEventsLength: number;
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
@@ -88,6 +94,7 @@ type ReadContext = Pick<
   | 'hideActivity'
   | 'mx'
   | 'room'
+  | 'classicRows'
   | 'threadEventsLength'
   | 'threadId'
   | 'threadInitialRenderMode'
@@ -116,7 +123,10 @@ const markerReachesLiveTimeline = (room: Room, markerEventId: string | undefined
  */
 type StillReading = (roomId: string, threadId: string | undefined) => boolean;
 
-/** Reads the main timeline on the next frame, when the reader has seen its newest rows. */
+/**
+ * Reads the main timeline on the next frame, when the reader has seen its newest rows, and the
+ * threads of the replies among them, each up to its newest reply there, as the open thread is.
+ */
 const readRoomOnNextFrame = (
   context: ReadContext,
   markerEventId: string | undefined,
@@ -128,6 +138,8 @@ const readRoomOnNextFrame = (
   requestAnimationFrame(() => {
     if (!stillReading(roomId, undefined)) return;
     void markMainTimelineAsRead(mx, roomId, hideActivity);
+    const rows = context.classicRows?.() ?? [];
+    if (rows.length > 0) void markShownThreadRepliesAsRead(mx, roomId, rows, hideActivity);
   });
 };
 
@@ -166,6 +178,7 @@ export const useTimelineReadReceiptController = ({
   readUptoEventIdRef,
   room,
   setAtBottom,
+  classicRows,
   threadEventsLength,
   threadId,
   threadEvents,
@@ -179,6 +192,7 @@ export const useTimelineReadReceiptController = ({
     hideActivity,
     mx,
     room,
+    classicRows,
     threadEventsLength,
     threadId,
     threadEvents,
