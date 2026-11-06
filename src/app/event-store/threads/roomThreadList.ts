@@ -8,7 +8,7 @@ import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
 import { getFinishingEdit, threadReceiptNamesEvent } from './streamFinish';
-import { holdStreamingChecks } from '../../matrix/client/streamingReplies';
+import { createThreadListRetry, type ThreadListRetry } from './threadListRetry';
 
 /** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
 export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
@@ -119,6 +119,7 @@ const getAllThreadsLiveTimeline = (room: Room) => room.threadsTimelineSets[0]?.g
 type RoomThreadListLoad = {
   consumers: Map<symbol, (() => void) | undefined>;
   promise: Promise<void>;
+  wake: () => void;
 };
 
 const roomThreadListLoads = new WeakMap<Room, RoomThreadListLoad>();
@@ -164,17 +165,18 @@ const loadRoomThreadsOnce = async (
   room: Room,
   onProgress: () => void,
   onSettled: () => void,
-  shouldContinue: () => boolean
+  shouldContinue: () => boolean,
+  retry: ThreadListRetry
 ): Promise<void> => {
   // The list answers for the streaming replies of the threads it lists.
-  const releaseStreamingChecks = holdStreamingChecks(room);
+  const releaseStreamingChecks = retry.holdStreamingChecks();
   try {
     await room.client?.threadSupportPending;
     if (!shouldContinue()) return;
     await ensureThreadTimelineSets(room);
     if (!shouldContinue()) return;
     try {
-      await room.fetchRoomThreads();
+      if (!(await retry.read(() => room.fetchRoomThreads()))) return;
     } catch (err) {
       console.warn('[threadList] fetchRoomThreads failed:', err);
       return;
@@ -192,9 +194,13 @@ const loadRoomThreadsOnce = async (
       const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
       if (currentToken === null) return;
 
-      const hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
-        backwards: true,
-      });
+      const page = await retry.read(() =>
+        room.client.paginateEventTimeline(allThreadsLiveTimeline, {
+          backwards: true,
+        })
+      );
+      if (!page) return;
+      const hasMore = page.value;
       onProgress?.();
 
       const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
@@ -218,6 +224,7 @@ export const loadRoomThreads = (
   let load = roomThreadListLoads.get(room);
   if (!load) {
     const consumers = new Map<symbol, (() => void) | undefined>();
+    const retry = createThreadListRetry(room, () => consumers.size > 0);
     let activeLoad: RoomThreadListLoad;
     const promise = Promise.resolve().then(() =>
       loadRoomThreadsOnce(
@@ -237,12 +244,14 @@ export const loadRoomThreads = (
             roomThreadListLoads.delete(room);
           }
         },
-        () => consumers.size > 0
+        () => consumers.size > 0,
+        retry
       )
     );
     activeLoad = {
       consumers,
       promise,
+      wake: retry.wake,
     };
     load = activeLoad;
     roomThreadListLoads.set(room, activeLoad);
@@ -250,8 +259,10 @@ export const loadRoomThreads = (
 
   const consumerId = Symbol('room-thread-list-consumer');
   load.consumers.set(consumerId, onProgress);
+  load.wake();
   const removeConsumer = () => {
     load.consumers.delete(consumerId);
+    if (load.consumers.size === 0) load.wake();
   };
   signal?.addEventListener('abort', removeConsumer, { once: true });
 
