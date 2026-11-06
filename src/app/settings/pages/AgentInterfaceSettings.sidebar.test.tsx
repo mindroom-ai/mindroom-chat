@@ -103,9 +103,10 @@ describe('Settings > General > Sidebar', () => {
   });
 
   it('says where each hidden page stays reachable', () => {
-    const renderer = render();
+    const renderer = render({ mindroom: { canvas: { enabled: true } } });
     const description = (title: string) => tile(renderer, title).props['data-description'];
     expect(description('Show Threads in the sidebar')).toContain('⋮ menu in Home');
+    expect(description('Show Canvases in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Explore Community in the sidebar')).toContain('⋮ menu in Home');
     expect(description('Show Create Space in the sidebar')).toContain('command palette (Ctrl + K)');
     expect(description('Show Search in the sidebar')).toContain('Ctrl + K still opens it');

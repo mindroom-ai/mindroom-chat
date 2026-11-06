@@ -541,7 +541,7 @@ export const SETTINGS = [
   sidebarSwitch(
     'canvases',
     'settings.general.interface.showCanvasesInSidebar',
-    'settings.general.interface.showCanvasesInSidebarDescription'
+    `${SIDEBAR}.canvasesDescription`
   ),
   sidebarSwitch('explore', `${SIDEBAR}.explore`, `${SIDEBAR}.exploreDescription`),
   sidebarSwitch('createSpace', `${SIDEBAR}.createSpace`, `${SIDEBAR}.createSpaceDescription`),

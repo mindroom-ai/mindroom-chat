@@ -254,6 +254,7 @@
         "title": "Barra lateral",
         "threads": "Mostrar Tópicos na barra lateral",
         "threadsDescription": "Os tópicos de todas as salas numa só lista. Se os ocultar, abra-os no menu ⋮ do Início.",
+        "canvasesDescription": "Mostra um botão para os painéis interativos dos seus agentes assim que tiver um. Se o ocultar, abra-os no menu ⋮ do Início.",
         "explore": "Mostrar Explorar a comunidade na barra lateral",
         "exploreDescription": "Salas e espaços públicos a que pode aderir. Se o ocultar, abra-o no menu ⋮ do Início.",
         "createSpace": "Mostrar Criar espaço na barra lateral",

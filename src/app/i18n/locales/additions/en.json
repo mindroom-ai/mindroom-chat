@@ -249,6 +249,7 @@
         "title": "Sidebar",
         "threads": "Show Threads in the sidebar",
         "threadsDescription": "Threads from every room in one list. When hidden, open them from the ⋮ menu in Home.",
+        "canvasesDescription": "Show a Canvases button for the pages your agents made, once you have one. When hidden, open them from the ⋮ menu in Home.",
         "explore": "Show Explore Community in the sidebar",
         "exploreDescription": "Public rooms and spaces to join. When hidden, open it from the ⋮ menu in Home.",
         "createSpace": "Show Create Space in the sidebar",

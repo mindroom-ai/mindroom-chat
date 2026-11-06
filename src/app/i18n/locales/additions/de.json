@@ -249,6 +249,7 @@
         "title": "Seitenleiste",
         "threads": "Threads in der Seitenleiste anzeigen",
         "threadsDescription": "Threads aus allen Räumen in einer Liste. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
+        "canvasesDescription": "Zeigt eine Schaltfläche für die interaktiven Panels deiner Agenten, sobald es eines gibt. Ausgeblendet öffnest du sie über das ⋮-Menü auf der Startseite.",
         "explore": "„Community erkunden“ in der Seitenleiste anzeigen",
         "exploreDescription": "Öffentliche Räume und Spaces zum Beitreten. Ausgeblendet öffnest du es über das ⋮-Menü auf der Startseite.",
         "createSpace": "„Space erstellen“ in der Seitenleiste anzeigen",

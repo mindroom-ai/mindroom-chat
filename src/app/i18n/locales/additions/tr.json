@@ -249,6 +249,7 @@
         "title": "Kenar çubuğu",
         "threads": "Konuları kenar çubuğunda göster",
         "threadsDescription": "Tüm odalardaki konular tek listede. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
+        "canvasesDescription": "Ajanlarınızın oluşturduğu etkileşimli paneller için, en az bir tane olduğunda bir düğme gösterir. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "explore": "Toplulukları keşfet düğmesini kenar çubuğunda göster",
         "exploreDescription": "Katılabileceğiniz herkese açık odalar ve alanlar. Gizlendiğinde, Ana sayfadaki ⋮ menüsünden açın.",
         "createSpace": "Alan oluştur düğmesini kenar çubuğunda göster",

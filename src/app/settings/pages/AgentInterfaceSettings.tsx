@@ -97,7 +97,7 @@ export function AgentInterfaceSettings({ className }: AgentInterfaceSettingsProp
     [
       'canvases',
       t('settings.general.interface.showCanvasesInSidebar'),
-      t('settings.general.interface.showCanvasesInSidebarDescription'),
+      t('featureUi.settings.sidebar.canvasesDescription'),
     ],
     [
       'explore',

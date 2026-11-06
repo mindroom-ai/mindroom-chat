@@ -249,6 +249,7 @@
         "title": "Zijbalk",
         "threads": "Threads in de zijbalk tonen",
         "threadsDescription": "Threads uit alle kamers in één lijst. Verborgen open je ze via het ⋮-menu in Home.",
+        "canvasesDescription": "Toont een knop voor de interactieve panelen van je agents zodra je er een hebt. Verborgen open je ze via het ⋮-menu in Home.",
         "explore": "Community verkennen in de zijbalk tonen",
         "exploreDescription": "Openbare kamers en spaces om lid van te worden. Verborgen open je het via het ⋮-menu in Home.",
         "createSpace": "Space aanmaken in de zijbalk tonen",

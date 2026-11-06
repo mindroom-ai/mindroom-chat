@@ -254,6 +254,7 @@
         "title": "Barre latérale",
         "threads": "Afficher Fils dans la barre latérale",
         "threadsDescription": "Les fils de toutes les salles dans une seule liste. Masqués, ouvrez-les depuis le menu ⋮ de l’accueil.",
+        "canvasesDescription": "Affichez un bouton pour les panneaux interactifs de vos agents dès que vous en avez un. Masqué, ouvrez-les depuis le menu ⋮ de l’accueil.",
         "explore": "Afficher Explorer la communauté dans la barre latérale",
         "exploreDescription": "Des salles et espaces publics à rejoindre. Masqué, ouvrez-le depuis le menu ⋮ de l’accueil.",
         "createSpace": "Afficher Créer un espace dans la barre latérale",

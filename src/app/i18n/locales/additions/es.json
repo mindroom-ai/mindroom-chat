@@ -254,6 +254,7 @@
         "title": "Barra lateral",
         "threads": "Mostrar Hilos en la barra lateral",
         "threadsDescription": "Los hilos de todas las salas en una lista. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
+        "canvasesDescription": "Muestra un botón para los paneles interactivos de tus agentes en cuanto tengas uno. Si lo ocultas, ábrelos desde el menú ⋮ de Inicio.",
         "explore": "Mostrar Explorar la comunidad en la barra lateral",
         "exploreDescription": "Salas y espacios públicos a los que unirte. Si lo ocultas, ábrelo desde el menú ⋮ de Inicio.",
         "createSpace": "Mostrar Crear espacio en la barra lateral",

@@ -30,7 +30,10 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
-vi.mock('folds', () => ({ Icons: { Thread: 'Thread', Explore: 'Explore' }, Line: () => null }));
+vi.mock('folds', () => ({
+  Icons: { Thread: 'Thread', Category: 'Category', Explore: 'Explore' },
+  Line: () => null,
+}));
 vi.mock('../../ui/MenuEntry', () => ({
   MenuGroup: ({ children }: { children: React.ReactNode }) =>
     React.createElement('div', null, children),
@@ -48,18 +51,19 @@ describe('HiddenRailPages', () => {
     vi.clearAllMocks();
   });
 
-  it('adds nothing while the rail shows Threads and Explore', () => {
+  it('adds nothing while the rail shows Threads, Canvases and Explore', () => {
     state.offered = ALL;
     state.shown = ALL;
     expect(entries()).toHaveLength(0);
   });
 
-  it('opens Threads and Explore Community from the menu once the person hides their buttons', () => {
+  it('opens Threads, Canvases and Explore Community from the menu once their buttons are hidden', () => {
     state.offered = ALL;
-    state.shown = { ...ALL, threads: false, explore: false };
+    state.shown = { ...ALL, threads: false, canvases: false, explore: false };
     const onClose = vi.fn();
-    const [threads, explore] = entries(onClose);
+    const [threads, canvases, explore] = entries(onClose);
     expect(threads?.children).toEqual(['Threads']);
+    expect(canvases?.children).toEqual(['Canvases']);
     expect(explore?.children).toEqual(['Explore Community']);
 
     act(() => {
@@ -68,13 +72,24 @@ describe('HiddenRailPages', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(state.navigate).toHaveBeenCalledWith('/threads/');
     act(() => {
+      canvases?.props.onClick();
+    });
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(state.navigate).toHaveBeenLastCalledWith('/canvases/');
+    act(() => {
       explore?.props.onClick();
     });
     expect(state.openExplore).toHaveBeenCalledTimes(1);
   });
 
+  it('lists only the hidden buttons', () => {
+    state.offered = ALL;
+    state.shown = { ...ALL, canvases: false };
+    expect(entries().map((entry) => entry.children)).toEqual([['Canvases']]);
+  });
+
   it('offers nothing the deployment leaves out', () => {
-    state.offered = { ...ALL, threads: false, explore: false };
+    state.offered = { ...ALL, threads: false, canvases: false, explore: false };
     state.shown = { ...state.offered };
     expect(entries()).toHaveLength(0);
   });

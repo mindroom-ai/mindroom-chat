@@ -254,6 +254,7 @@
         "title": "Barra laterale",
         "threads": "Mostra Thread nella barra laterale",
         "threadsDescription": "I thread di tutte le stanze in un unico elenco. Se nascosti, aprili dal menu ⋮ della Home.",
+        "canvasesDescription": "Mostra un pulsante per i pannelli interattivi dei tuoi agenti non appena ne hai uno. Se lo nascondi, aprili dal menu ⋮ della Home.",
         "explore": "Mostra Esplora la comunità nella barra laterale",
         "exploreDescription": "Stanze e spazi pubblici a cui unirti. Se nascosto, aprilo dal menu ⋮ della Home.",
         "createSpace": "Mostra Crea spazio nella barra laterale",

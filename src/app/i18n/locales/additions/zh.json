@@ -244,6 +244,7 @@
         "title": "侧边栏",
         "threads": "在侧边栏显示讨论串",
         "threadsDescription": "所有房间的讨论串集中在一个列表中。隐藏后，可从首页的 ⋮ 菜单打开。",
+        "canvasesDescription": "有交互式面板后，显示一个按钮来查看智能体为您创建的面板。隐藏后，可从首页的 ⋮ 菜单打开。",
         "explore": "在侧边栏显示“探索社区”",
         "exploreDescription": "可加入的公开房间和空间。隐藏后，可从首页的 ⋮ 菜单打开。",
         "createSpace": "在侧边栏显示“创建空间”",
