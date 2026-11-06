@@ -48,6 +48,12 @@ dev *args:
 build:
     npx vite build
 
+# Cut a release by hand: tag GitHub main (or the commit of main you name) with the next calendar version vYYYY.M.N and publish its GitHub release, with notes from the commits since the last release. Shows the plan and asks before it creates anything; --dry-run only shows it, --yes does not ask. Needs `gh` signed in with write access. docs/ios-release.md describes the scheme; .github/workflows/release.yml does the same after CI once release.config.json says "autoRelease": true.
+release *args:
+    git fetch --quiet --tags https://github.com/mindroom-ai/mindroom-client.git
+    git fetch --quiet https://github.com/mindroom-ai/mindroom-client.git main
+    node scripts/calver.mjs release --main FETCH_HEAD {{args}}
+
 # The full local check. CI (.github/workflows/ci.yml) runs typecheck, strict, lint and test; scripts/push-gate.sh runs the overlap history check before each push.
 check: typecheck strict lint test script-tests license-check verify-ported check-holes identifier-renames upstream-overlap
 
