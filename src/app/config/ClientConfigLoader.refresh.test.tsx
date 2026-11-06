@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMemoryRouter, RouterProvider } from 'react-router-dom';
@@ -47,19 +46,17 @@ const refreshWith = async (fresh: ClientConfig) => {
         finish = resolve;
       })
   );
-  const router = createMemoryRouter([
-    { path: '*', element: React.createElement('span', null, 'Chats') },
-  ]);
+  const router = createMemoryRouter([{ path: '*', element: <span>Chats</span> }]);
   const rendered: ClientConfig[] = [];
   let renderer!: ReturnType<typeof create>;
   await act(async () => {
     renderer = create(
-      React.createElement(ClientConfigLoader, {
-        children: (config: ClientConfig) => {
+      <ClientConfigLoader>
+        {(config) => {
           rendered.push(config);
-          return React.createElement(RouterProvider, { router });
-        },
-      })
+          return <RouterProvider router={router} />;
+        }}
+      </ClientConfigLoader>
     );
   });
   await act(async () => {
