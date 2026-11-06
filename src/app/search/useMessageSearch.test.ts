@@ -1,6 +1,6 @@
 import { IEventWithRoomId, IResultContext, ISearchResult } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { deduplicateResults } from './useMessageSearch';
+import { deduplicateResults, dropEditedAwayResults } from './useMessageSearch';
 
 type SearchResultOptions = {
   eventId: string;
@@ -141,5 +141,79 @@ describe('deduplicateResults', () => {
     ];
 
     expect(getEventIds(deduplicateResults(results))).toEqual(['$other', '$edit', '$last']);
+  });
+});
+
+/** An original as servers return it with its latest edit bundled (spec v1.7 and later). */
+const withLatestEdit = (result: ISearchResult, editId: string, body: string): ISearchResult =>
+  ({
+    ...result,
+    result: {
+      ...result.result,
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            event_id: editId,
+            content: {
+              body: `* ${body}`,
+              msgtype: 'm.text',
+              'm.new_content': { body, msgtype: 'm.text' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: result.result.event_id },
+            },
+          },
+        },
+      },
+    },
+  } as ISearchResult);
+
+describe('deduplicateResults with a bundled latest edit', () => {
+  it('keeps the original that carries the latest edit over an older edit that matched', () => {
+    const original = withLatestEdit(
+      makeSearchResult({ eventId: '$original', ts: 100 }),
+      '$edit-2',
+      'final text'
+    );
+    const olderEdit = makeSearchResult({ eventId: '$edit-1', ts: 200, editTargetId: '$original' });
+
+    expect(getEventIds(deduplicateResults([olderEdit, original]))).toEqual(['$original']);
+  });
+});
+
+describe('dropEditedAwayResults', () => {
+  const placeholder = (eventId: string, latest: string) =>
+    withLatestEdit(
+      makeSearchResult({ eventId, ts: 100, content: { body: 'Thinking...', msgtype: 'm.text' } }),
+      `${eventId}-edit`,
+      latest
+    );
+
+  it('drops a hit whose latest edit no longer has the searched word', () => {
+    const results = [
+      placeholder('$answered', 'Hello from **Helper**. The plan has three steps.'),
+      placeholder('$still', 'I was thinking about the launch plan.'),
+      makeSearchResult({ eventId: '$plain', ts: 300, content: { body: 'Thinking about lunch' } }),
+    ];
+
+    expect(getEventIds(dropEditedAwayResults(results, 'Thinking'))).toEqual(['$still', '$plain']);
+  });
+
+  it('keeps hits it cannot compare: edits, unedited messages and stemmed matches', () => {
+    const results = [
+      makeSearchResult({ eventId: '$edit', ts: 200, editTargetId: '$original' }),
+      makeSearchResult({ eventId: '$unedited', ts: 300, content: { body: 'Thinking...' } }),
+      // The server matched "think" in "thought"; neither text has the word as typed.
+      withLatestEdit(
+        makeSearchResult({ eventId: '$stemmed', ts: 400, content: { body: 'I thought so' } }),
+        '$stemmed-edit',
+        'Never mind'
+      ),
+    ];
+
+    expect(getEventIds(dropEditedAwayResults(results, 'think'))).toEqual([
+      '$edit',
+      '$unedited',
+      '$stemmed',
+    ]);
+    expect(getEventIds(dropEditedAwayResults(results, '  '))).toHaveLength(3);
   });
 });

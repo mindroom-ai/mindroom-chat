@@ -46,10 +46,28 @@ const editTarget = (result: ISearchResult): string | undefined => {
     : undefined;
 };
 
+/** The latest edit the server bundled with a message (spec v1.7 and later), if any. */
+const bundledEdit = (result: ISearchResult): Record<string, unknown> | undefined => {
+  const relations: unknown = result.result.unsigned?.['m.relations'];
+  if (typeof relations !== 'object' || relations === null) return undefined;
+  const edit: unknown = (relations as Record<string, unknown>)[RelationType.Replace];
+  return typeof edit === 'object' && edit !== null ? (edit as Record<string, unknown>) : undefined;
+};
+
 /**
- * One result per message: a message and the edits its sender made to it collapse into the
- * latest of them, kept where the server ranked it. An edit by someone else is not that
- * message's text, so it stays a result of its own.
+ * How well a hit shows its message's latest text: the original with its latest edit bundled
+ * knows it for sure, an edit is at least newer than the original, and a bare original may be
+ * outdated.
+ */
+const freshness = (result: ISearchResult): number => {
+  if (editTarget(result) !== undefined) return 1;
+  return bundledEdit(result) ? 2 : 0;
+};
+
+/**
+ * One result per message: a message and the edits its sender made to it collapse into the hit
+ * that shows its latest text, kept where the server ranked it. An edit by someone else is not
+ * that message's text, so it stays a result of its own.
  */
 export const deduplicateResults = (results: ISearchResult[]): ISearchResult[] => {
   const keyOf = (result: ISearchResult) =>
@@ -62,22 +80,48 @@ export const deduplicateResults = (results: ISearchResult[]): ISearchResult[] =>
   results.forEach((result) => {
     const key = keyOf(result);
     const current = winners.get(key);
-    if (!current) {
-      winners.set(key, result);
-      return;
-    }
-    const resultIsEdit = editTarget(result) !== undefined;
-    const currentIsEdit = editTarget(current) !== undefined;
-    if (resultIsEdit !== currentIsEdit) {
-      if (resultIsEdit) winners.set(key, result);
-      return;
-    }
-    if (result.result.origin_server_ts > current.result.origin_server_ts) {
+    if (
+      !current ||
+      freshness(result) > freshness(current) ||
+      (freshness(result) === freshness(current) &&
+        result.result.origin_server_ts > current.result.origin_server_ts)
+    ) {
       winners.set(key, result);
     }
   });
   const kept = new Set(winners.values());
   return results.filter((result) => kept.has(result));
+};
+
+const bodyOf = (content: unknown): string => {
+  const body = (content as { body?: unknown } | undefined)?.body;
+  return typeof body === 'string' ? body.toLocaleLowerCase() : '';
+};
+
+/** The words of a search term, as the server splits them, in lower case. */
+const searchTermWords = (term: string): string[] =>
+  term
+    .toLocaleLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+
+/**
+ * Drops hits the server found in a message's first text that its latest edit no longer has.
+ * Servers index each event as it was sent, so an agent's reply that began as "Thinking..." stays a
+ * hit for "Thinking" after it was edited to its answer. A hit whose own text does not show the
+ * term (the server may stem words) is kept, since there is nothing to compare.
+ */
+export const dropEditedAwayResults = (results: ISearchResult[], term: string): ISearchResult[] => {
+  const words = searchTermWords(term);
+  if (words.length === 0) return results;
+  const has = (text: string) => words.some((word) => text.includes(word));
+  return results.filter((result) => {
+    const edit = bundledEdit(result);
+    if (!edit || editTarget(result) !== undefined) return true;
+    const editContent = edit.content as Record<string, unknown> | undefined;
+    const latest = bodyOf(editContent?.['m.new_content'] ?? editContent);
+    return !has(bodyOf(result.result.content)) || has(latest);
+  });
 };
 
 /** Starts a new group whenever the room changes, so the order of the results is kept. */
@@ -125,9 +169,10 @@ export const useMessageSearch = ({
       };
       const response = await mx.search({ body, next_batch: pageParam }, signal);
       const roomEvents = response.search_categories.room_events;
+      const results = roomEvents.results ?? [];
       return {
         highlights: roomEvents.highlights ?? [],
-        groups: groupByRoom(deduplicateResults(roomEvents.results ?? [])),
+        groups: groupByRoom(dropEditedAwayResults(deduplicateResults(results), searchTerm)),
         count: roomEvents.count,
         nextToken: roomEvents.next_batch,
       };
