@@ -33,6 +33,7 @@ export type ThreadPresentationSnapshot = {
   summaryText: string | undefined;
   rootPreviewText: string | undefined;
   latestReplyPreviewText: string | undefined;
+  latestReplyTs?: number;
   rootPreviewLocalization?: ThreadPreviewLocalization;
   latestReplyPreviewLocalization?: ThreadPreviewLocalization;
   lastSenderId: string | undefined;
@@ -186,6 +187,7 @@ export const resolveThreadPresentationSnapshot = ({
     summaryText: summaryInfo?.summaryText,
     rootPreviewText,
     latestReplyPreviewText,
+    latestReplyTs: latestPreviewEvent ? getThreadPreviewRevisionTs(latestPreviewEvent) : fallbackLatestReplyTs,
     ...(rootPreviewLocalization ? { rootPreviewLocalization } : {}),
     ...(latestReplyPreviewLocalization ? { latestReplyPreviewLocalization } : {}),
     lastSenderId,

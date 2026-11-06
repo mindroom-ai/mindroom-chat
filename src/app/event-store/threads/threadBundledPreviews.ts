@@ -12,7 +12,7 @@ export const getBundledThreadPreviews = (
   if (!root || root.getType?.() === 'm.room.encrypted' || room.hasEncryptionStateEvent?.())
     return {};
   const rootId = root.getId();
-  const relations: unknown = root.getUnsigned?.()['m.relations'];
+  const relations: unknown = root.getUnsigned?.()?.['m.relations'];
   const bundle = object(relations) ? relations['m.thread'] : undefined;
   if (!rootId || !object(bundle)) return {};
 
