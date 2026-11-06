@@ -1,5 +1,5 @@
 import { writeFileSync } from 'node:fs';
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page, type Request } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -19,7 +19,7 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // homeserver; the service worker needs the production build (scripts/e2e-slot.sh --preview).
 const PASSWORD = 'clear-cache-restart-password';
 const RUN = Date.now().toString(36);
-const ROUNDS = 4;
+const ROUNDS = 6;
 
 test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
@@ -29,6 +29,17 @@ test.beforeEach(async () => {
 
 const recordConsole = (page: Page, lines: string[]) => {
   const started = Date.now();
+  // Who downloads the crypto wasm and when: the page, or the service worker's precache.
+  const context = page.context();
+  const wasm = (event: string) => (request: Request) => {
+    if (!request.url().endsWith('.wasm')) return;
+    const from = request.serviceWorker() ? 'worker' : 'page';
+    const failure = request.failure()?.errorText ?? '';
+    lines.push(`${Date.now() - started} ms wasm ${event} by ${from} ${failure}`);
+  };
+  context.on('request', wasm('request'));
+  context.on('requestfinished', wasm('finished'));
+  context.on('requestfailed', wasm('failed'));
   page.on('console', (message) => {
     lines.push(`${Date.now() - started} ms ${message.type()}: ${message.text().slice(0, 400)}`);
   });

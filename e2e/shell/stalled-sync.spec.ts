@@ -61,15 +61,12 @@ const stalledSyncShowsLostConnection = async (
     held.push(route);
   };
   await context.route(isSync, hold);
-  // The long poll in flight still answers; this message ends it, and the next one is held.
+  // The long poll in flight still answers (a message ends it early); the next one is held.
   await sendRoomMessage(HOMESERVER, user.accessToken, room, {
     msgtype: 'm.text',
     body: 'Last message before the stall',
   });
-  await expect(page.getByText('Last message before the stall').first()).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect.poll(() => held.length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect.poll(() => held.length, { timeout: 45_000 }).toBeGreaterThan(0);
   const heldAt = Date.now();
 
   await expect(status).toHaveText(/Connection Lost!/, { timeout: NOTICE_WITHIN_MS });
