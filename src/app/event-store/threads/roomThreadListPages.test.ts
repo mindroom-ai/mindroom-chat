@@ -218,13 +218,17 @@ describe('room thread list pages', () => {
       return outcome;
     };
 
-    /** Runs the clock 5 ms at a time until `done` or `limitMs`; returns the time that passed. */
-    const runClockUntil = async (done: () => boolean, limitMs: number): Promise<number> => {
+    /** Runs the clock `step` ms at a time until `done` or `limitMs`; returns the time passed. */
+    const runClockUntil = async (
+      done: () => boolean,
+      limitMs: number,
+      step = 5
+    ): Promise<number> => {
       let passed = 0;
       while (!done() && passed < limitMs) {
         // eslint-disable-next-line no-await-in-loop
-        await vi.advanceTimersByTimeAsync(5);
-        passed += 5;
+        await vi.advanceTimersByTimeAsync(step);
+        passed += step;
       }
       return passed;
     };
@@ -364,6 +368,37 @@ describe('room thread list pages', () => {
       expect(second).toEqual({ settled: true });
       expect(roomThreadListIsComplete(room)).toBe(true);
       expect(roomPages(requests)).toEqual(pagesWith('90', 2));
+    });
+
+    it('ends after six tries of a page the server keeps failing while the sync gets through', async () => {
+      // As before, so a room whose list the server cannot serve does not hold the others back.
+      const { room, requests } = serve(undefined, ({ include, from }) =>
+        include === 'all' && from === '90' ? 502 : undefined
+      );
+
+      const load = watch(loadRoomThreads(room));
+      await runClockUntil(() => load.settled, 120_000, 100);
+
+      expect(load.settled).toBe(true);
+      expect(load.error).toMatchObject({ httpStatus: 502 });
+      expect(roomPages(requests)).toEqual([null, '30', '60', '90', '90', '90', '90', '90', '90']);
+    });
+
+    it('keeps trying while the sync cannot get through either', async () => {
+      let failures = 0;
+      const { room, requests } = serve(undefined, ({ include, from }) => {
+        if (include !== 'all' || from !== '90' || failures === 10) return undefined;
+        failures += 1;
+        return 'dropped';
+      });
+      vi.spyOn(room.client, 'getSyncState').mockReturnValue(SyncState.Reconnecting);
+
+      const load = watch(loadRoomThreads(room));
+      await runClockUntil(() => load.settled, 300_000, 100);
+
+      expect(load).toEqual({ settled: true });
+      expect(roomThreadListIsComplete(room)).toBe(true);
+      expect(roomPages(requests)).toEqual(pagesWith('90', 11));
     });
 
     it('does not try again when the server refuses the page', async () => {
