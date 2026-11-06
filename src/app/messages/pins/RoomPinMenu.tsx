@@ -197,7 +197,8 @@ type PinnedEntryProps = {
   room: Room;
   eventId: string;
   timeFormat: TimeFormat;
-  onOpen: (eventId: string) => void;
+  /** Opens the message; a thread reply opens in its thread. */
+  onOpen: (eventId: string, threadRootId?: string) => void;
   /** Present when the reader may unpin. */
   unpin?: { busy: boolean; failed: boolean; onUnpin: (eventId: string, from: HTMLElement) => void };
 };
@@ -213,6 +214,7 @@ function PinnedEntry({ room, eventId, timeFormat, onOpen, unpin }: PinnedEntryPr
   const timeId = useId();
   const contentId = useId();
   const { t } = useTranslation();
+  const open = () => onOpen(eventId, event?.threadRootId);
 
   let row;
   let content;
@@ -231,7 +233,7 @@ function PinnedEntry({ room, eventId, timeFormat, onOpen, unpin }: PinnedEntryPr
     // The message may still load in the timeline.
     row = (
       <Box grow="Yes">
-        <Chip variant="Secondary" radii="Pill" data-pin-jump onClick={() => onOpen(eventId)}>
+        <Chip variant="Secondary" radii="Pill" data-pin-jump onClick={open}>
           <Text size="B300">{t('mindroomUi.messages.mindroomRoomPinMenu.open')}</Text>
         </Chip>
       </Box>
@@ -244,7 +246,7 @@ function PinnedEntry({ room, eventId, timeFormat, onOpen, unpin }: PinnedEntryPr
         timeFormat={timeFormat}
         timeId={timeId}
         contentId={contentId}
-        onOpen={() => onOpen(eventId)}
+        onOpen={open}
       />
     );
     content = <PinnedContent room={room} eventId={eventId} event={event} />;
@@ -255,11 +257,13 @@ function PinnedEntry({ room, eventId, timeFormat, onOpen, unpin }: PinnedEntryPr
     : t('mindroomUi.messages.messageModerationActions.unpinMessage');
 
   return (
+    // The row button is the keyboard path; a click on the rest of the entry is a pointer shortcut.
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events
     <div
       className={css.PinnedEntry}
       data-pinned-event-id={eventId}
       onClick={(evt) => {
-        if (!isClickForSomethingElse(evt)) onOpen(eventId);
+        if (!isClickForSomethingElse(evt)) open();
       }}
     >
       {(row || unpin) && (
@@ -296,7 +300,7 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
   ({ requestClose, room }, ref) => {
     const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
     const [clock24] = useSetting(settingsAtom, 'hour24Clock');
-    const { navigateRoom } = useRoomNavigate();
+    const { navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
     const [datePattern] = useSetting(settingsAtom, 'dateFormatString');
     const { t } = useTranslation();
     const timeFormat = useMemo(
@@ -309,11 +313,16 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
 
     const title = t('mindroomUi.messages.mindroomRoomPinMenu.pinnedMessages');
 
-    // The same route as a permalink: it loads the history around the message when needed,
-    // opens its thread in the thread views, and highlights it.
-    const openMessage = (eventId: string) => {
+    // A permalink route, which loads the history around the message when needed and highlights
+    // it. A message of the room is focused in the room, also in the thread views (as leaving a
+    // thread focuses its root); a thread reply opens in its thread, as a search hit does.
+    const openMessage = (eventId: string, threadRootId?: string) => {
       requestClose();
-      navigateRoom(room.roomId, eventId);
+      if (threadRootId && threadRootId !== eventId) {
+        navigateRoomThread(room.roomId, threadRootId, eventId);
+      } else {
+        navigateRoomFocusEvent(room.roomId, eventId);
+      }
     };
 
     const unpinMessage = (eventId: string, from: HTMLElement) => {

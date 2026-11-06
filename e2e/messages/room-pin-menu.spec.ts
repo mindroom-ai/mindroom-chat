@@ -607,7 +607,9 @@ const checkEncrypted = async (page: Page, engine: string, form: string, testInfo
   const send = async (body: string) => {
     await composer.click();
     await page.keyboard.type(body);
-    await page.keyboard.press('Enter');
+    // On a phone Enter starts a new line; the Send button sends.
+    if (form === 'phone') await page.getByRole('button', { name: 'Send message' }).click();
+    else await page.keyboard.press('Enter');
   };
   await send(secret);
   const row = page.locator('[data-message-id^="$"]').filter({ hasText: secret });
