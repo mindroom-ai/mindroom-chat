@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
+import type { PointerEvent } from 'react';
 import { describe, expect, it } from 'vitest';
-import { useHeldThreadOrder } from './useHeldThreadOrder';
+import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 
 describe('useHeldThreadOrder', () => {
   it('follows the live order while nothing holds it', () => {
@@ -52,5 +53,45 @@ describe('useHeldThreadOrder', () => {
     // An older page brought $x, whose last reply falls between $b and $c.
     rerender({ ids: ['$a', '$b', '$x', '$c'], held: true });
     expect(result.current).toEqual(['$a', '$b', '$x', '$c']);
+  });
+});
+
+describe('usePointerOverCards', () => {
+  const pointer = (pointerType: string) => ({ pointerType } as PointerEvent<HTMLElement>);
+
+  it('lets a mouse go when it leaves', () => {
+    const { result } = renderHook(() => usePointerOverCards());
+    act(() => result.current.onPointerEnter());
+    expect(result.current.pointerInside).toBe(true);
+    act(() => result.current.onPointerLeave(pointer('mouse')));
+    expect(result.current.pointerInside).toBe(false);
+  });
+
+  it("holds a finger that lifted until its tap's click", () => {
+    // A finger's pointer leaves as it lifts; the tap's mousedown, mouseup and click come after.
+    const { result } = renderHook(() => usePointerOverCards());
+    act(() => result.current.onPointerEnter());
+    act(() => result.current.onPointerLeave(pointer('touch')));
+    expect(result.current.pointerInside).toBe(true);
+    act(() => {
+      document.body.click();
+    });
+    expect(result.current.pointerInside).toBe(false);
+  });
+
+  it('lets a finger go at once when it scrolled instead of tapping', () => {
+    const { result } = renderHook(() => usePointerOverCards());
+    act(() => result.current.onPointerEnter());
+    act(() => result.current.onPointerCancel());
+    act(() => result.current.onPointerLeave(pointer('touch')));
+    expect(result.current.pointerInside).toBe(false);
+  });
+
+  it('stops waiting for a click once unmounted', () => {
+    const { result, unmount } = renderHook(() => usePointerOverCards());
+    act(() => result.current.onPointerEnter());
+    act(() => result.current.onPointerLeave(pointer('touch')));
+    unmount();
+    expect(() => document.body.click()).not.toThrow();
   });
 });
