@@ -17,11 +17,12 @@ export const SettingsDialog = style({
 });
 
 /**
- * The menu column's rows keep 8 px from the dialog's edge and 8 px from the divider, both from
- * the scrolling list's own padding, so the open page's fill sits evenly in the column.
+ * The menu column's rows keep 12 px from the dialog's edge and 12 px from the divider: 8 px from
+ * the scrolling list's own padding and these 4 px, so the open page's fill sits evenly in the column.
  */
 export const SettingsMenu = style({
   flexGrow: 1,
+  paddingInline: config.space.S100,
 });
 
 // The pages the menu does not show read quieter; the one under the pointer or the keyboard's
@@ -59,14 +60,14 @@ export const SettingsMenuGroupLabel = style({
 });
 
 /**
- * The search field on top of the menu, aligned with its rows (8 px from either side) and as tall
+ * The search field on top of the menu, aligned with its rows (12 px from either side) and as tall
  * as the page's title bar beside it.
  */
 export const SettingsSearchHeader = style({
   selectors: {
     '&&': {
       height: toRem(48),
-      paddingInline: config.space.S200,
+      paddingInline: config.space.S300,
     },
   },
 });
@@ -89,7 +90,9 @@ export const SettingsSearchKey = style({
 });
 
 /** The list of search results that takes the menu's place, as wide as the menu's rows. */
-export const SettingsSearchResults = style({});
+export const SettingsSearchResults = style({
+  paddingInline: config.space.S100,
+});
 
 // The result Enter would open looks like the menu's current page.
 globalStyle(`${SettingsSearchResults} > [aria-selected="true"]`, {
@@ -105,7 +108,7 @@ export const SettingsSearchLocation = style({
 export const SettingsMenuFooter = style({
   flexShrink: 0,
   paddingBlock: config.space.S200,
-  paddingInline: config.space.S200,
+  paddingInline: config.space.S300,
 });
 globalStyle(`${SettingsMenuFooter} > button`, { color: color.Critical.Main });
 
