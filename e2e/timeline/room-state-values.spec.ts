@@ -114,8 +114,13 @@ const endsVisible = (row: Locator) =>
     const all = texts(line);
     const last = all[all.length - 1];
     const sender = line.querySelector('b');
+    // Even a fraction of a pixel narrower than its text shows an ellipsis.
+    const senderText = document.createRange();
+    if (sender) senderText.selectNodeContents(sender);
     return {
-      senderWhole: !!sender && sender.scrollWidth <= sender.clientWidth,
+      senderWhole:
+        !!sender &&
+        sender.getBoundingClientRect().width >= senderText.getBoundingClientRect().width - 0.01,
       valueStart: inside(value, value?.data.search(/[^\u2068\u2069\s]/) ?? -1),
       sentenceEnd: inside(last, (last?.data.replace(/[\u2068\u2069\s]+$/, '').length ?? 0) - 1),
     };
