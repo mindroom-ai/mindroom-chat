@@ -99,7 +99,7 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, username: reader.username, password: PASSWORD });
     await seedRoomOverviewState({
-      page, roomId, userId: reader.userId, viewMode: 'classic',
+      page, roomId, userId: reader.userId, viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
