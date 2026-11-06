@@ -314,7 +314,7 @@ describe('calver.mjs in a repository', () => {
         notes: expect.stringContaining('Changes since v2026.10.4:'),
       },
     ]);
-    const [{ notes }] = ghCalls() as [{ notes: string }];
+    const notes = ghCalls()[0]?.notes ?? '';
     expect(notes).toContain('- test(e2e): a project for the `@webkit` tests (');
     expect(notes).toContain('compare/v2026.10.4...v2026.11.0');
   });
