@@ -319,20 +319,37 @@ const checkScroll = async (page: Page, nav: Locator, roomId: string, tag: string
   expect(page.url(), `${tag}: a scroll opens no room`).toBe(url);
 };
 
+/**
+ * A phone page. Chromium on macOS now and then starts a touch context without its touch emulation
+ * (a pointer that hovers); such a context is replaced, twice at most.
+ */
+const phonePage = async (owner: Browser) => {
+  for (let attempt = 1; ; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const context = await owner.newContext(PHONE);
+    // eslint-disable-next-line no-await-in-loop
+    const page = await context.newPage();
+    const touchScreen = () =>
+      page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches);
+    // eslint-disable-next-line no-await-in-loop
+    if (attempt === 3 || (await touchScreen())) return { context, page, touchScreen };
+    console.log(`context ${attempt} started without touch emulation; replacing it`);
+    // eslint-disable-next-line no-await-in-loop
+    await context.close();
+  }
+};
+
 const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
   const data = await seed(engine);
   const owner = engine === 'webkit' ? await launchWebKit() : browser;
-  const context = await owner.newContext(PHONE);
+  const { context, page, touchScreen } = await phonePage(owner);
   try {
-    const page = await context.newPage();
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: data.tester.username,
       password: PASSWORD,
     });
-    await expect
-      .poll(() => page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches))
-      .toBe(true);
+    await expect.poll(touchScreen).toBe(true);
     const lists = [
       { key: 'home', route: '/home/', name: 'Home', sortable: true },
       {
