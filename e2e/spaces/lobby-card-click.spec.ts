@@ -22,7 +22,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // A click on a card of a room the person is not in does what the card's button does, never
 // nothing and never an error: in a space's lobby (a room the person left while signed in, one
 // left before, one never joined, one they were removed from, an invite, a room that takes join
-// requests, and a subspace) and in the server's room directory. The space holds 28 rooms; desktop
+// requests, and a subspace) and in the server's room directory; also a room left on another device
+// just as the app starts, which reaches the client with no state. The space holds 28 rooms; desktop
 // (1280 by 800, classic scrollbars) and phone (390 by 844, touch), Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set LOBBY_CARD_SHOTS=<directory>
 // for screenshots.
@@ -113,12 +114,7 @@ const post = (account: Account, path: string, body: Record<string, unknown> = {}
 const roomPath = (roomId: string, action: string) =>
   `/rooms/${encodeURIComponent(roomId)}/${action}`;
 
-type Seed = {
-  viewer: Account;
-  space: string;
-  rooms: Record<string, string>;
-  directoryRoom: { id: string; name: string };
-};
+type Seed = { owner: Account; viewer: Account; space: string; rooms: Record<string, string> };
 
 /** A space of 28 rooms: 20 the viewer is in, the rest each a different way of not being in. */
 const seed = async (label: string): Promise<Seed> => {
@@ -180,35 +176,28 @@ const seed = async (label: string): Promise<Seed> => {
   await addRoomToSpace(HOMESERVER, owner.accessToken, space, guild);
   rooms[SUBSPACE] = guild;
   await add('Color studies', publicRule, guild);
-  // A public room in the server's directory, for Explore.
-  const directoryName = label.includes('webkit')
-    ? 'Weekend Painting Club'
-    : 'Weekend Sketching Club';
-  const directoryId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
-    name: directoryName,
-    topic: 'Bring a pencil and a friend',
-  });
-  await sendStateEvent(
-    HOMESERVER,
-    owner.accessToken,
-    directoryId,
-    'm.room.join_rules',
-    '',
-    publicRule
-  );
-  await matrixFetch<unknown>(
-    HOMESERVER,
-    `/directory/list/room/${encodeURIComponent(directoryId)}`,
-    {
-      method: 'PUT',
-      accessToken: owner.accessToken,
-      body: JSON.stringify({ visibility: 'public' }),
-    }
-  );
   await setAccountData(HOMESERVER, viewer.accessToken, viewer.userId, 'io.mindroom.spaces', {
     sidebar: [space],
   });
-  return { viewer, space, rooms, directoryRoom: { id: directoryId, name: directoryName } };
+  return { owner, viewer, space, rooms };
+};
+
+/** A public room in the server's directory, for Explore; one name per browser engine. */
+const publishDirectoryRoom = async (owner: Account, label: string) => {
+  const name = label.includes('webkit') ? 'Weekend Painting Club' : 'Weekend Sketching Club';
+  const roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
+    name,
+    topic: 'Bring a pencil and a friend',
+  });
+  await sendStateEvent(HOMESERVER, owner.accessToken, roomId, 'm.room.join_rules', '', {
+    join_rule: 'public',
+  });
+  await matrixFetch<unknown>(HOMESERVER, `/directory/list/room/${encodeURIComponent(roomId)}`, {
+    method: 'PUT',
+    accessToken: owner.accessToken,
+    body: JSON.stringify({ visibility: 'public' }),
+  });
+  return { roomId, name };
 };
 
 const joinedRooms = async (viewer: Account): Promise<string[]> =>
@@ -248,6 +237,7 @@ const signIn = async (browser: Browser, label: string, options: BrowserContextOp
     password: PASSWORD,
   });
   await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
+  await expect(page.locator(`[data-id="${seeded.space}"]`).first()).toBeVisible();
   return { page, seeded, problems } satisfies Session;
 };
 
@@ -256,8 +246,15 @@ const entry = (page: Page, roomId: string): Locator =>
 
 const escaped = (value: string) => encodeURIComponent(value).replace(/[!$.]/g, '\\$&');
 
+/** Opens the space's lobby from the rail, in the running app (a reload would start it again). */
 const openLobby = async ({ page, seeded }: Session, touch: boolean) => {
-  await page.goto(`/${encodeURIComponent(seeded.space)}/lobby/`);
+  const rail = page.locator(`[data-id="${seeded.space}"]`).first();
+  if (touch) await rail.tap();
+  else await rail.click();
+  const lobbyLink = page.getByTestId('resizable-page-nav').locator('a[href*="/lobby"]');
+  if (touch) await lobbyLink.tap();
+  else await lobbyLink.click();
+  await expect(page).toHaveURL(new RegExp(`/${escaped(seeded.space)}/lobby/?$`));
   await expect(entry(page, seeded.rooms[KNOCK]!)).toBeVisible({ timeout: 30_000 });
   // The viewer leaves one room from another device while this one is signed in, so the client
   // keeps that room with the membership "leave".
@@ -272,7 +269,7 @@ const openLobby = async ({ page, seeded }: Session, touch: boolean) => {
 };
 
 /** Clicks (or taps) the card's topic, away from its button. */
-const pressCard = async (page: Page, card: Locator, touch: boolean) => {
+const pressCard = async (card: Locator, touch: boolean) => {
   const topic = card.getByText(TOPIC);
   await topic.scrollIntoViewIfNeeded();
   if (touch) await topic.tap();
@@ -297,7 +294,7 @@ const checkLobby = async (browser: Browser, label: string, options: BrowserConte
     const roomId = rooms[name]!;
     const card = entry(page, roomId);
     await expect(card.getByRole('button', { name: 'Join', exact: true })).toBeVisible();
-    await pressCard(page, card, touch);
+    await pressCard(card, touch);
     await expectJoined(viewer, roomId);
     await expect(card.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
     if (touch) {
@@ -313,7 +310,7 @@ const checkLobby = async (browser: Browser, label: string, options: BrowserConte
 
   // A room that takes requests opens the request, as Request to join does.
   const knock = entry(page, rooms[KNOCK]!);
-  await pressCard(page, knock, touch);
+  await pressCard(knock, touch);
   const request = page.getByRole('dialog', { name: `Request to join ${KNOCK}` });
   await expect(request).toBeVisible();
   await shot(page, `${label}-request`);
@@ -331,9 +328,63 @@ const checkLobby = async (browser: Browser, label: string, options: BrowserConte
 
   // On a phone a joined card then opens its room with the next tap.
   if (touch) {
-    await pressCard(page, entry(page, rooms[LEFT_LIVE]!), touch);
+    await pressCard(entry(page, rooms[LEFT_LIVE]!), touch);
     await expect(page).toHaveURL(new RegExp(`/${escaped(rooms[LEFT_LIVE]!)}/?$`));
   }
+  expect(problems).toEqual([]);
+  await page.context().close();
+};
+
+/**
+ * A room left on another device just as the app starts: the start's check of the joined rooms
+ * drops it from the client, and it then arrives from the server as a room already left, with no
+ * state of its own. Its lobby card still names it and joins it.
+ */
+const checkLeftAtStart = async (browser: Browser, label: string) => {
+  const { page, seeded, problems } = await signIn(browser, label, DESKTOP);
+  const garden = seeded.rooms[LEFT_LIVE]!;
+  let release = () => undefined as void;
+  let held: Promise<void> | undefined;
+  await page.route(
+    (url) => url.pathname.endsWith('/v3/joined_rooms'),
+    async (route) => {
+      if (!held) {
+        held = new Promise((resolve) => {
+          release = resolve;
+        });
+        await post(seeded.viewer, roomPath(garden, 'leave'));
+      }
+      await route.fulfill({ response: await route.fetch() });
+      // The client drops the room before the leave reaches it through sync.
+      setTimeout(() => release(), 1_000);
+    }
+  );
+  await page.route(
+    (url) => url.pathname.endsWith('/v3/sync'),
+    async (route) => {
+      try {
+        // A long poll may take its full 30 seconds.
+        const response = await route.fetch({ timeout: 0 });
+        if (held) await held;
+        await route.fulfill({ response });
+      } catch {
+        // The page closed while the long poll waited.
+        await route.abort().catch(() => undefined);
+      }
+    }
+  );
+  await page.goto(`/${encodeURIComponent(seeded.space)}/lobby/`);
+  await expect.poll(() => held !== undefined, { timeout: 30_000 }).toBe(true);
+  const card = entry(page, garden);
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await card.scrollIntoViewIfNeeded();
+  // Long enough for the leave to arrive after the drop.
+  await page.waitForTimeout(3_000);
+  await shot(page, `${label}-left-at-start`);
+  await expect(card.getByText(LEFT_LIVE, { exact: true })).toBeVisible();
+  await expect(card.getByRole('button', { name: 'Join', exact: true })).toBeVisible();
+  await pressCard(card, false);
+  await expectJoined(seeded.viewer, garden);
   expect(problems).toEqual([]);
   await page.context().close();
 };
@@ -342,7 +393,7 @@ const checkExplore = async (browser: Browser, label: string) => {
   const session = await signIn(browser, label, DESKTOP);
   const { page, seeded, problems } = session;
   const server = seeded.viewer.userId.split(':').slice(1).join(':');
-  const { id, name } = seeded.directoryRoom;
+  const { roomId: id, name } = await publishDirectoryRoom(seeded.owner, label);
   await page.goto(`/explore/${encodeURIComponent(server)}/?term=${encodeURIComponent(name)}`);
   // The search finds this one room, so the page has one card and one Join button.
   const join = page.locator('main').getByRole('button', { name: 'Join', exact: true });
@@ -372,6 +423,12 @@ test('a phone lobby card of a room the person is not in joins it with a tap', as
   browser,
 }) => {
   await checkLobby(browser, 'chromium-phone', PHONE);
+});
+
+test('a room left elsewhere as the app starts keeps its name and Join in the lobby', async ({
+  browser,
+}) => {
+  await checkLeftAtStart(browser, 'chromium-left-at-start');
 });
 
 test('an Explore card of a room the person is not in joins it, as its button does', async ({
