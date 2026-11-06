@@ -3,6 +3,7 @@ import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/li
 import { readCachedSpecVersions } from '../cachedSpecVersions';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
+import { keepBundledEditsInTheirRoom } from './bundledEditRoom';
 import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { relistThreadsAfterGaps } from './threadListGaps';
@@ -80,11 +81,12 @@ export const startClient = async (
 ): Promise<void> => {
   await seedCachedServerVersions(mx);
   // Before the saved sync is replayed, which brings thread roots together with their replies
-  // and edits. Only an SDK client has rooms whose threads count replies and hold edits. A deleted
-  // message is saved at once, so the next replay does not bring it back. Messages the last page
-  // left unsent come back as Not sent rows once the rooms are known.
+  // and edits, bundled ones among them. Only an SDK client has rooms whose threads count replies
+  // and hold edits. A deleted message is saved at once, so the next replay does not bring it back.
+  // Messages the last page left unsent come back as Not sent rows once the rooms are known.
   if (mx instanceof MatrixClient && !countedClients.has(mx)) {
     countedClients.add(mx);
+    keepBundledEditsInTheirRoom(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     relistThreadsAfterGaps(mx);

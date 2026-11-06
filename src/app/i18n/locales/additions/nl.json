@@ -186,6 +186,9 @@
     },
     "threadPreviews": {
       "encrypted": "Versleuteld bericht"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "Een nieuwere bewerking kon niet worden ontsleuteld"
     }
   },
   "featureUi": {

@@ -183,6 +183,9 @@
     },
     "threadPreviews": {
       "encrypted": "Pesan terenkripsi"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "Suntingan yang lebih baru tidak dapat didekripsi"
     }
   },
   "featureUi": {

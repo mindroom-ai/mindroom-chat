@@ -5,6 +5,7 @@ import {
   getEditedEvent,
   getLatestEdit,
   getLatestMessageContent,
+  hasUndecryptedNewerEdit,
   isEmojiRoom,
   isRoom,
   roomHaveUnread,
@@ -490,6 +491,117 @@ describe('room edit helpers', () => {
     expect(resolvedContent.body).toBe('$agent-edit');
     expect(resolvedContent['com.mindroom.message_extras']).toBeUndefined();
     expect(agentEdit.getContent()['m.new_content']['com.mindroom.message_extras']).toBeUndefined();
+  });
+});
+
+/** An encrypted edit of `targetEventId` whose decryption failed, as a missing key leaves it. */
+const makeUndecryptableEdit = async (eventId: string, ts: number, targetEventId: string) => {
+  const edit = new MatrixEvent({
+    content: {
+      algorithm: 'm.megolm.v1.aes-sha2',
+      ciphertext: 'unreadable',
+      'm.relates_to': { event_id: targetEventId, rel_type: 'm.replace' },
+    },
+    event_id: eventId,
+    origin_server_ts: ts,
+    room_id: '!room:example.org',
+    sender: '@alice:example.org',
+    type: 'm.room.encrypted',
+  });
+  await edit.attemptDecryption({
+    decryptEvent: async () => {
+      throw new Error('missing key');
+    },
+  } as never);
+  return edit;
+};
+
+const relationsOf = (...edits: MatrixEvent[]) =>
+  ({
+    relations: { getChildEventsForEvent: vi.fn().mockReturnValue({ getRelations: () => edits }) },
+  } as any);
+
+describe('undecryptable edits', () => {
+  it('keeps the last readable edit shown when a newer edit cannot be decrypted', async () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const readable = makeEditEvent('$readable', 2000, '$target');
+    const undecryptable = await makeUndecryptableEdit('$undecryptable', 3000, '$target');
+    // The SDK applies the newest edit whatever its decryption gave.
+    targetEvent.makeReplaced(undecryptable);
+    const timelineSet = relationsOf(readable, undecryptable);
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+
+    expect(editedEvent).toBe(readable);
+    expect(getLatestMessageContent(targetEvent, editedEvent).body).toBe('$readable');
+    expect(hasUndecryptedNewerEdit('$target', targetEvent, timelineSet, editedEvent)).toBe(true);
+  });
+
+  it('shows the original when the only edit cannot be decrypted', async () => {
+    const targetEvent = makeMessageEvent('$target', 1000, '@alice:example.org', 'first words');
+    const undecryptable = await makeUndecryptableEdit('$undecryptable', 2000, '$target');
+    targetEvent.makeReplaced(undecryptable);
+
+    const editedEvent = getEditedEvent('$target', targetEvent, undefined);
+
+    expect(editedEvent).toBeUndefined();
+    expect(getLatestMessageContent(targetEvent, editedEvent)).toMatchObject({
+      msgtype: 'm.text',
+      body: 'first words',
+    });
+    expect(hasUndecryptedNewerEdit('$target', targetEvent, undefined, editedEvent)).toBe(true);
+  });
+
+  it('applies the edit once its key arrives', async () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const edit = await makeUndecryptableEdit('$late', 2000, '$target');
+    targetEvent.makeReplaced(edit);
+    expect(getEditedEvent('$target', targetEvent, undefined)).toBeUndefined();
+
+    await edit.attemptDecryption(
+      {
+        decryptEvent: async () => ({
+          clearEvent: {
+            type: 'm.room.message',
+            content: {
+              msgtype: 'm.text',
+              body: '* now readable',
+              'm.new_content': { msgtype: 'm.text', body: 'now readable' },
+              'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+            },
+          },
+        }),
+      } as never,
+      { isRetry: true }
+    );
+
+    const editedEvent = getEditedEvent('$target', targetEvent, undefined);
+    expect(editedEvent).toBe(edit);
+    expect(getLatestMessageContent(targetEvent, editedEvent).body).toBe('now readable');
+    expect(hasUndecryptedNewerEdit('$target', targetEvent, undefined, editedEvent)).toBe(false);
+  });
+
+  it('notes no undecryptable edit for an older one or one still being decrypted', async () => {
+    const targetEvent = makeMessageEvent('$target', 1000);
+    const older = await makeUndecryptableEdit('$older', 2000, '$target');
+    const newer = makeEditEvent('$newer', 3000, '$target');
+    const pending = new MatrixEvent({
+      content: {
+        ciphertext: 'not tried yet',
+        'm.relates_to': { event_id: '$target', rel_type: 'm.replace' },
+      },
+      event_id: '$pending',
+      origin_server_ts: 4000,
+      room_id: '!room:example.org',
+      sender: '@alice:example.org',
+      type: 'm.room.encrypted',
+    });
+    const timelineSet = relationsOf(older, newer, pending);
+
+    const editedEvent = getEditedEvent('$target', targetEvent, timelineSet);
+
+    expect(editedEvent).toBe(newer);
+    expect(hasUndecryptedNewerEdit('$target', targetEvent, timelineSet, editedEvent)).toBe(false);
   });
 });
 

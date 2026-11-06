@@ -186,6 +186,9 @@
     },
     "threadPreviews": {
       "encrypted": "Şifreli mesaj"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "Daha yeni bir düzenlemenin şifresi çözülemedi"
     }
   },
   "featureUi": {

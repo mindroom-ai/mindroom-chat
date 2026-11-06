@@ -103,3 +103,13 @@ export function MessageEditedContent() {
     </Text>
   );
 }
+
+/** Under a message whose newest edit could not be decrypted: it shows an earlier version. */
+export function MessageEditNotDecryptedContent() {
+  const { t } = useTranslation();
+  return (
+    <FallbackLine icon={Icons.Lock} data-edit-not-decrypted>
+      {t('sharedUi.fallbackContent.newerEditNotDecrypted')}
+    </FallbackLine>
+  );
+}

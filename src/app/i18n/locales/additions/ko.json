@@ -183,6 +183,9 @@
     },
     "threadPreviews": {
       "encrypted": "암호화된 메시지"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "최신 수정 내용을 복호화할 수 없습니다"
     }
   },
   "featureUi": {

@@ -185,10 +185,32 @@ const getRelationEdits = (
   );
 };
 
+/** The edits by `mEvent`'s sender: the SDK's applied one, the relation edits, the bundled one. */
+const getEditCandidates = (
+  eventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
+  serializedReplacementCandidate?: MatrixEvent
+): MatrixEvent[] =>
+  [
+    mEvent.replacingEvent() ?? undefined,
+    ...getRelationEdits(eventId, mEvent, timelineSet),
+    serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
+  ].filter(
+    (candidate): candidate is MatrixEvent =>
+      isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()
+  );
+
+/** An edit whose new content is unknown: still encrypted, or it could not be decrypted. */
+const isUnreadableEdit = (edit: MatrixEvent): boolean =>
+  edit.isDecryptionFailure() || edit.getType() === EventType.RoomMessageEncrypted;
+
 /**
- * The edit to show for `mEvent`: the newest replacement by its sender among the SDK's applied
- * replacement, the relation edits in `timelineSet`, and the replacement bundled by the server.
- * Pass `serializedReplacementCandidate` to reuse a bundle already read from the event.
+ * The edit to show for `mEvent`: the newest readable replacement by its sender among the SDK's
+ * applied replacement, the relation edits in `timelineSet`, and the replacement bundled by the
+ * server. An edit that is not decrypted (yet) leaves the last readable version shown; it counts
+ * once its key arrives. Pass `serializedReplacementCandidate` to reuse a bundle already read from
+ * the event.
  */
 export const getEditedEvent = (
   eventId: string,
@@ -196,17 +218,14 @@ export const getEditedEvent = (
   timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
   serializedReplacementCandidate?: MatrixEvent
 ): MatrixEvent | undefined => {
-  const candidates = [
-    mEvent.replacingEvent() ?? undefined,
-    ...getRelationEdits(eventId, mEvent, timelineSet),
-    serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
-  ].filter(
-    (candidate): candidate is MatrixEvent =>
-      isSameSenderEditEvent(mEvent, candidate) &&
-      !candidate.isRedacted() &&
-      // An edit the client cannot read yet shows once it decrypts; until then the newest one it can.
-      !isUnreadableYet(candidate) &&
-      isUsableEdit(candidate)
+  const candidates = getEditCandidates(
+    eventId,
+    mEvent,
+    timelineSet,
+    serializedReplacementCandidate
+  ).filter(
+    // An edit the client cannot read yet shows once it decrypts; until then the newest one it can.
+    (candidate) => !isUnreadableEdit(candidate) && isUsableEdit(candidate)
   );
 
   const latest = getLatestEdit(mEvent, candidates);
@@ -232,18 +251,40 @@ export const getReadableContent = (event: MatrixEvent): IContent => {
 };
 
 /**
+ * Whether `mEvent` has an edit by its sender that could not be decrypted and is newer than the
+ * edit it shows (`shownEdit`, from `getEditedEvent`), or than the event itself without one.
+ */
+export const hasUndecryptedNewerEdit = (
+  eventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined,
+  shownEdit: MatrixEvent | undefined
+): boolean =>
+  getEditCandidates(eventId, mEvent, timelineSet).some(
+    (candidate) =>
+      candidate.isDecryptionFailure() && (!shownEdit || isEventOrderedAfter(candidate, shownEdit))
+  );
+
+/**
+ * The event's own content. The SDK's `getContent` gives the `m.new_content` of the edit it
+ * applied, and nothing when that edit has none, as one that could not be decrypted.
+ */
+const getOwnContent = (event: MatrixEvent): IContent =>
+  event.replacingEvent() ? event.getOriginalContent() : event.getContent();
+
+/**
  * The content to render: the edit's `m.new_content` with the MindRoom metadata the edit carries
- * at its top level, or the event's own content without an edit by its sender.
+ * at its top level, or the event's own content without a readable edit by its sender.
  */
 export const getLatestMessageContent = (
   targetEvent: MatrixEvent,
   editedEvent: MatrixEvent | undefined
 ): IContent => {
   if (!editedEvent || !isSameSenderEditEvent(targetEvent, editedEvent)) {
-    return getReadableContent(targetEvent);
+    return getOwnContent(targetEvent);
   }
   const newContent = getNewContent(editedEvent);
-  if (!newContent) return getReadableContent(targetEvent);
+  if (!newContent) return getOwnContent(targetEvent);
 
   const content: IContent = { ...newContent };
   // MindRoom metadata the edit carries beside `m.new_content` belongs to the shown content too.

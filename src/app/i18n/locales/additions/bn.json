@@ -186,6 +186,9 @@
     },
     "threadPreviews": {
       "encrypted": "এনক্রিপ্ট করা মেসেজ"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "একটি নতুন সম্পাদনা ডিক্রিপ্ট করা যায়নি"
     }
   },
   "featureUi": {

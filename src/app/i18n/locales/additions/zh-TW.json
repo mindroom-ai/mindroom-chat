@@ -183,6 +183,9 @@
     },
     "threadPreviews": {
       "encrypted": "加密訊息"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "無法解密較新的編輯"
     }
   },
   "featureUi": {

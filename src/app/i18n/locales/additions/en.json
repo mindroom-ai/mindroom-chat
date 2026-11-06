@@ -186,6 +186,9 @@
     },
     "threadPreviews": {
       "encrypted": "Encrypted message"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "A newer edit couldn't be decrypted"
     }
   },
   "featureUi": {

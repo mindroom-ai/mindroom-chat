@@ -198,6 +198,9 @@
     },
     "threadPreviews": {
       "encrypted": "رسالة مشفرة"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "تعذّر فك تشفير تعديل أحدث"
     }
   },
   "featureUi": {

@@ -183,6 +183,9 @@
     },
     "threadPreviews": {
       "encrypted": "暗号化されたメッセージ"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "新しい編集を復号できませんでした"
     }
   },
   "featureUi": {

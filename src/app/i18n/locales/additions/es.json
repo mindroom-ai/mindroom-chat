@@ -189,6 +189,9 @@
     },
     "threadPreviews": {
       "encrypted": "Mensaje cifrado"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "No se pudo descifrar una edición más reciente"
     }
   },
   "featureUi": {

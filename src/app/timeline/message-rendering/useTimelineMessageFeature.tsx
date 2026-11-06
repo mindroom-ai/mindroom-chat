@@ -52,9 +52,11 @@ import {
   getEditedEvent,
   getEventReactions,
   getLatestMessageContent,
+  hasUndecryptedNewerEdit,
 } from '../../matrix/room';
 import { MessageEvent } from '../../matrix/types/room';
 import { EncryptedContent } from '../../messages/content/EncryptedContent';
+import { MessageEditNotDecryptedContent } from '../../messages/content/FallbackContent';
 import { Event, Message } from '../../messages/Message';
 import { CollapsibleMessage, CollapsibleMessageStateProvider } from '../CollapsibleMessage';
 import {
@@ -433,6 +435,9 @@ export const useTimelineMessageFeature = ({
       if (!kind) return null;
 
       const editedEvent = getEditedEvent(eventId, event, row.timelineSet);
+      // A newer edit that could not be decrypted leaves this version shown, with a note.
+      const editNotDecrypted =
+        kind === 'message' && hasUndecryptedNewerEdit(eventId, event, row.timelineSet, editedEvent);
       const content = (
         kind === 'approval'
           ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
@@ -610,6 +615,11 @@ export const useTimelineMessageFeature = ({
                   )
                 }
               </CollapsibleMessage>
+              {editNotDecrypted && (
+                <div>
+                  <MessageEditNotDecryptedContent />
+                </div>
+              )}
             </div>
           </Message>
           {historyRecords && historyRecords.length > 0 && (

@@ -192,6 +192,9 @@
     },
     "threadPreviews": {
       "encrypted": "Зашифрованное сообщение"
+    },
+    "fallbackContent": {
+      "newerEditNotDecrypted": "Не удалось расшифровать более новую правку"
     }
   },
   "featureUi": {
