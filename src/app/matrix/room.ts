@@ -201,9 +201,12 @@ const getEditCandidates = (
       isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()
   );
 
+// Optional call: thread tests pass edit stand-ins without decryption state.
+const isUndecryptable = (edit: MatrixEvent): boolean => !!edit.isDecryptionFailure?.();
+
 /** An edit whose new content is unknown: still encrypted, or it could not be decrypted. */
 const isUnreadableEdit = (edit: MatrixEvent): boolean =>
-  edit.isDecryptionFailure() || edit.getType() === EventType.RoomMessageEncrypted;
+  isUndecryptable(edit) || edit.getType() === EventType.RoomMessageEncrypted;
 
 /**
  * The edit to show for `mEvent`: the newest readable replacement by its sender among the SDK's
@@ -262,7 +265,7 @@ export const hasUndecryptedNewerEdit = (
 ): boolean =>
   getEditCandidates(eventId, mEvent, timelineSet).some(
     (candidate) =>
-      candidate.isDecryptionFailure() && (!shownEdit || isEventOrderedAfter(candidate, shownEdit))
+      isUndecryptable(candidate) && (!shownEdit || isEventOrderedAfter(candidate, shownEdit))
   );
 
 /**

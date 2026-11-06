@@ -12,7 +12,7 @@ import {
 import { ThreadIndicator } from '../ThreadIndicator';
 import { useRoomEvent } from '../../event-store/cache/useRoomEvent';
 import { getReplyPreviewText } from '../../event-store/threads/threadMessagePreview';
-import { getMemberDisplayName } from '../../matrix/room';
+import { getEditedEvent, getLatestMessageContent, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import * as css from './Reply.css';
 
@@ -36,9 +36,10 @@ function ReplyPlaceholder() {
 type ReplyBodyProps = {
   room: Room;
   replyEvent: MatrixEvent | null | undefined;
+  timelineSet?: EventTimelineSet;
 };
 
-function ReplyBody({ room, replyEvent }: ReplyBodyProps) {
+function ReplyBody({ room, replyEvent, timelineSet }: ReplyBodyProps) {
   const { t } = useTranslation();
 
   if (replyEvent === undefined) return <ReplyPlaceholder />;
@@ -55,7 +56,9 @@ function ReplyBody({ room, replyEvent }: ReplyBodyProps) {
   } else if (replyEvent.isDecryptionFailure()) {
     body = <MessageBadEncryptedContent />;
   } else {
-    body = getReplyPreviewText(room, replyEvent.getContent(), t) ?? '';
+    // The newest readable edit, as the message's own row shows it.
+    const edit = getEditedEvent(replyEvent.getId() ?? '', replyEvent, timelineSet);
+    body = getReplyPreviewText(room, getLatestMessageContent(replyEvent, edit), t) ?? '';
   }
 
   return (
@@ -136,11 +139,11 @@ export const Reply = as<'div', ReplyProps>(
             className={classNames(css.Reply, className)}
             onClick={onClick}
           >
-            <ReplyBody room={room} replyEvent={replyEvent} />
+            <ReplyBody room={room} replyEvent={replyEvent} timelineSet={timelineSet} />
           </Box>
         ) : (
           <Box className={classNames(css.Reply, className)} data-event-id={replyEventId}>
-            <ReplyBody room={room} replyEvent={replyEvent} />
+            <ReplyBody room={room} replyEvent={replyEvent} timelineSet={timelineSet} />
           </Box>
         )}
       </Box>
