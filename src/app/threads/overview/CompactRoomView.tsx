@@ -364,7 +364,9 @@ export function CompactRoomView({
         gap="100"
         shrink="No"
         data-order-held={orderHeld || undefined}
+        // A list drawn under a resting pointer gets no enter, only moves between its cards.
         onPointerEnter={() => setPointerInside(true)}
+        onPointerMove={() => setPointerInside(true)}
         onPointerLeave={() => setPointerInside(false)}
         // Keyboard focus only: a card a mouse click left focused does not hold the order.
         onFocus={(event: React.FocusEvent<HTMLDivElement>) =>
