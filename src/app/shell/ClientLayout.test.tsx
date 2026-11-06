@@ -49,14 +49,15 @@ describe('ClientLayout', () => {
       deviceId: 'DEVICE',
       accessToken: 'fake',
     });
-    const page = (
+    // A new element each time, so the layout renders again; the router keeps its location.
+    const page = () => (
       <MemoryRouter initialEntries={[ROOM_PATH]}>
         <ClientLayout nav={null}>{null}</ClientLayout>
       </MemoryRouter>
     );
     let renderer: ReturnType<typeof create> | undefined;
     await act(async () => {
-      renderer = create(page);
+      renderer = create(page());
     });
     // Alice logs out elsewhere in the page and Bob, already signed in, becomes active on her route.
     const bob = putSession({
@@ -67,7 +68,7 @@ describe('ClientLayout', () => {
       lastKnownPath: '/home/!bobs-room%3Aexample.org',
     });
     await act(async () => {
-      renderer?.update(page);
+      renderer?.update(page());
     });
     expect(getActiveSession()?.sessionId).toBe(bob.sessionId);
     expect(getActiveSession()?.lastKnownPath).toBe('/home/!bobs-room%3Aexample.org');
