@@ -201,8 +201,7 @@ const checkKeyboard = async (browser: Browser, engine: string) => {
   await page.keyboard.press('Enter');
   await expect(menu(page)).toBeVisible();
   await expect(subspacesButton(page)).toHaveAttribute('aria-expanded', 'true');
-  // The arrow keys move into the menu and between its entries.
-  await page.keyboard.press('ArrowDown');
+  // The first entry takes focus, and the arrow keys move between the entries.
   await expect(entry(page, DESIGN)).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(entry(page, RESEARCH)).toBeFocused();
@@ -213,8 +212,7 @@ const checkKeyboard = async (browser: Browser, engine: string) => {
   await expect(menu(page)).toHaveCount(0);
   await expect(subspacesButton(page)).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(menu(page)).toBeVisible();
-  await page.keyboard.press('ArrowDown');
+  await expect(entry(page, DESIGN)).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(entry(page, RESEARCH)).toBeFocused();
   await page.keyboard.press('Enter');

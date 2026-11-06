@@ -1,4 +1,4 @@
-import { type MouseEvent, useState } from 'react';
+import { type MouseEvent, useEffect, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text, type RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import isHotkey from 'is-hotkey';
@@ -83,6 +83,16 @@ export function SubspacesMenu({ subspaceIds }: { subspaceIds: string[] }) {
   const navigate = useNavigate();
   const unreads = useAtomValue(navigationRoomToUnreadAtom);
   const [anchor, setAnchor] = useState<RectCords>();
+  const menuRef = useRef<HTMLDivElement>(null);
+  // The first sub-space takes focus once the pop-out has placed the menu (WebKit focuses nothing
+  // it has not laid out), so the arrow keys move between the entries at once.
+  useEffect(() => {
+    if (!anchor) return undefined;
+    const frame = requestAnimationFrame(() =>
+      menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus()
+    );
+    return () => cancelAnimationFrame(frame);
+  }, [anchor]);
   const close = () => setAnchor(undefined);
   const open = (event: MouseEvent<HTMLButtonElement>) =>
     setAnchor(event.currentTarget.getBoundingClientRect());
@@ -103,12 +113,11 @@ export function SubspacesMenu({ subspaceIds }: { subspaceIds: string[] }) {
         isKeyForward: arrowKey('arrowdown'),
         escapeDeactivates: stopPropagation,
         clickOutsideDeactivates: true,
-        // As in the app's other menus, focus stays on the row as the menu opens (the row says
-        // it is expanded) and the arrow keys move it into the menu.
+        // The effect above places focus; focus-trap's own first focus raced it.
         initialFocus: false,
       }}
     >
-      <Menu role="menu" aria-label={label} style={{ width: '100vw', maxWidth: 280 }}>
+      <Menu ref={menuRef} role="menu" aria-label={label} style={{ width: '100vw', maxWidth: 280 }}>
         <Box direction="Column" gap="100" style={{ padding: 4 }}>
           {rooms.map((room) => (
             <SubspaceEntry
