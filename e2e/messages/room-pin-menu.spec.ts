@@ -494,13 +494,19 @@ const highlighted = (page: Page, eventId: string) =>
 /** The timeline's row of a message (the menu renders no such rows). */
 const timelineRow = (page: Page, eventId: string) => page.locator(`[data-message-id="${eventId}"]`);
 
-/** Tabs forward until `target` has focus; fails after 40 presses. */
+/**
+ * Tabs forward until `target` has focus; fails after 40 presses. WebKit on macOS moves Tab only
+ * between text fields and lists unless Option is held, as Safari does, so it presses Option+Tab there.
+ */
 const tabTo = async (page: Page, target: Locator) => {
+  const macWebKit =
+    process.platform === 'darwin' && page.context().browser()?.browserType().name() === 'webkit';
+  const key = macWebKit ? 'Alt+Tab' : 'Tab';
   for (let presses = 0; presses < 40; presses += 1) {
     // eslint-disable-next-line no-await-in-loop
     if (await target.evaluate((element) => element === document.activeElement)) return;
     // eslint-disable-next-line no-await-in-loop
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(key);
   }
   throw new Error('Tab never reached the target');
 };
