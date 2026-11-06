@@ -25,17 +25,18 @@ export const TimelineFloat = recipe({
   defaultVariants: { position: 'Top' },
 });
 
-const expandAllTouchTarget = style(touchTarget('22px'));
-
 /** A floating pill (Jump to Latest, Jump to Unread, Mark as Read): 44 px tall to a finger. */
 export const FloatingAction = style(touchTarget('4px'));
 
 /**
- * "[+all]", 18 px of text with nothing beside it: 44 px tall to a finger. Its hit area reaches into
- * the top of the row below, which paints later, so on a touch screen it is lifted above the rows
- * (important, since the button's inline `all: unset` resets z-index).
+ * "[+all]" reserves its touch area in layout instead of raising a layer into floating controls.
+ * The inline `all: unset` requires important sizing rules.
  */
-export const ExpandAllToggle = style([
-  expandAllTouchTarget,
-  { '@media': { '(pointer: coarse)': { zIndex: '1 !important' } } },
-]);
+export const ExpandAllToggle = style({
+  '@media': {
+    '(pointer: coarse)': {
+      minBlockSize: '44px !important',
+      minInlineSize: '44px !important',
+    },
+  },
+});

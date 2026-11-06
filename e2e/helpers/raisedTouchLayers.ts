@@ -5,17 +5,17 @@ export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
   page.evaluate(() => {
     const selector =
       'button, a[href], summary, input, select, textarea, [role="button"], [contenteditable="true"]';
+    const modal = document.querySelector('[role="dialog"][aria-modal="true"]');
     const controls = Array.from(
       document.querySelectorAll<HTMLElement>(selector)
     ).filter((element) => {
       if (element.closest('[aria-hidden="true"], [inert]')) return false;
+      // A modal backdrop blocks the background even when it has no aria-hidden attribute.
+      if (modal && !modal.contains(element)) return false;
       const box = element.getBoundingClientRect();
       return (
         box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < innerHeight &&
-        getComputedStyle(element).visibility === 'visible' &&
-        // A modal backdrop makes the background noninteractive even without aria-hidden.
-        document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
-          ?.closest(selector) === element
+        getComputedStyle(element).visibility === 'visible'
       );
     });
     const describe = (element: HTMLElement) =>
