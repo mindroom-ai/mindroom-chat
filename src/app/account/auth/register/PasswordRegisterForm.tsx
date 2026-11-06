@@ -1,4 +1,4 @@
-import { FormEvent, ReactNode, useMemo, useRef, useState } from 'react';
+import { FormEvent, ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { Box, Button, Checkbox, Input, Spinner, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import type { AuthDict, IAuthData, MatrixClient } from 'matrix-js-sdk';
@@ -46,6 +46,15 @@ const STAGE_ERROR_KEYS = {
 } as const;
 
 type FormError = { account: RegisterError } | { stage: keyof typeof STAGE_ERROR_KEYS };
+
+/** The field an account error is about; the others show under the form. */
+const FIELD_OF_ERROR: Partial<Record<RegisterError, 'username' | 'password'>> = {
+  [RegisterError.UserTaken]: 'username',
+  [RegisterError.UserInvalid]: 'username',
+  [RegisterError.UserExclusive]: 'username',
+  [RegisterError.PasswordWeak]: 'password',
+  [RegisterError.PasswordShort]: 'password',
+};
 
 /** Whether this form can complete one of the server's sign-up flows. */
 export const canRegisterWithPassword = (authData: IAuthData): boolean =>
@@ -188,7 +197,26 @@ export function PasswordRegisterForm(props: {
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState<WaitingStep>();
   const resumeRef = useRef<(proceed: boolean) => void>();
+  const usernameRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
   const storeFailed = useRegisterComplete(result);
+  const errorField = error && 'account' in error ? FIELD_OF_ERROR[error.account] : undefined;
+  const errorMessage =
+    error &&
+    t('account' in error ? REGISTER_ERROR_KEYS[error.account] : STAGE_ERROR_KEYS[error.stage]);
+  // The field the server refused is marked invalid, described by its error, and focused again.
+  const fieldErrorProps = (field: 'username' | 'password') =>
+    errorField === field ? { 'aria-invalid': true, 'aria-describedby': errorId } : {};
+  const fieldError = (field: 'username' | 'password') =>
+    errorField === field && errorMessage ? (
+      <FieldError id={errorId} message={errorMessage} />
+    ) : null;
+
+  useEffect(() => {
+    if (errorField === 'username') usernameRef.current?.focus();
+    if (errorField === 'password') passwordRef.current?.focus();
+  }, [error, errorField]);
 
   const waitForUser = (step: WaitingStep) =>
     new Promise<boolean>((resolve) => {
@@ -276,23 +304,29 @@ export function PasswordRegisterForm(props: {
     >
       <AuthField caption={t('sharedUi.passwordRegisterForm.username')}>
         <Input
+          ref={usernameRef}
+          {...fieldErrorProps('username')}
           autoComplete="username"
           name="usernameInput"
           outlined
           required
           size="500"
-          variant="Background"
+          variant={errorField === 'username' ? 'Critical' : 'Background'}
         />
+        {fieldError('username')}
       </AuthField>
       <AuthField caption={t('sharedUi.passwordRegisterForm.password')}>
         <PasswordInput
+          ref={passwordRef}
+          {...fieldErrorProps('password')}
           autoComplete="new-password"
           name="passwordInput"
           outlined
           required
           size="500"
-          variant="Background"
+          variant={errorField === 'password' ? 'Critical' : 'Background'}
         />
+        {fieldError('password')}
       </AuthField>
       <AuthField caption={t('sharedUi.passwordRegisterForm.confirmPassword')}>
         <PasswordInput
@@ -361,13 +395,7 @@ export function PasswordRegisterForm(props: {
           ))}
         </Box>
       )}
-      {error && (
-        <FieldError
-          message={t(
-            'account' in error ? REGISTER_ERROR_KEYS[error.account] : STAGE_ERROR_KEYS[error.stage]
-          )}
-        />
-      )}
+      {errorMessage && !errorField && <FieldError message={errorMessage} />}
       {storeFailed && (
         <FieldError
           message={t(
