@@ -214,3 +214,89 @@ test('the composer shows no scrollbar while its text fits, and a thin one after 
     await browser.close();
   }
 });
+
+// A long draft: its scrollbar shows with the pointer away from the text box, as when the person
+// typed, pasted or attached last, and on a touch screen, where nothing hovers; it is the only sign
+// that lines are out of view.
+const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true };
+
+const checkLongDraft = async (page: Page, where: string, touch: boolean) => {
+  const editable = page.locator('[data-editable-name="RoomInput"]');
+  await expect(editable).toBeVisible({ timeout: 60_000 });
+  const scroll = editable.locator('xpath=..');
+  if (touch) await editable.tap();
+  else await editable.click();
+  await page.keyboard.type('Draft line 1');
+  for (let line = 2; line <= 60; line += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press('Shift+Enter');
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.type(`Draft line ${line}`);
+  }
+  // The pointer rests at the far corner of the page, away from the composer; a touch screen keeps
+  // :hover where it was last tapped, so the finger taps the empty timeline instead. Without
+  // focus, only the scrollbar can draw in the strip.
+  if (touch) await page.touchscreen.tap(195, 150);
+  else await page.mouse.move(2, 2);
+  await editable.evaluate((element) => element.blur());
+  for (const scheme of SCHEMES) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.emulateMedia({ colorScheme: scheme });
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(300);
+    // eslint-disable-next-line no-await-in-loop
+    const strip = await readStrip(page, scroll);
+    console.log(
+      `${where} ${scheme} long draft: height ${Math.round(strip.height)}, gutter ${
+        strip.gutter
+      }, ink rows ${strip.inkRows.length}`
+    );
+    expect.soft(strip.overflows, `${where} ${scheme}: 60 lines overflow`).toBe(true);
+    expect
+      .soft(strip.inkRows.length, `${where} ${scheme}: the thumb shows without a pointer over it`)
+      .toBeGreaterThan(20);
+  }
+  if (process.env.COMPOSER_SCROLLBAR_SHOTS) {
+    await page.screenshot({
+      path: `${process.env.COMPOSER_SCROLLBAR_SHOTS}/long-draft-${where.replace(/ /g, '-')}.png`,
+    });
+  }
+};
+
+for (const form of ['desktop', 'phone'] as const) {
+  const options = form === 'phone' ? PHONE : DESKTOP;
+  test(`a long draft shows its scrollbar with no pointer over it (Chromium, ${form})`, async ({
+    browser,
+    baseURL,
+  }) => {
+    test.setTimeout(180_000);
+    const { homeserver, credentials, roomId } = await seedRoom();
+    const context = await browser.newContext({ ...options, baseURL });
+    try {
+      const page = await context.newPage();
+      await loginWithPassword(page, { homeserver, ...credentials });
+      await openRoute(page, `/home/${encodeURIComponent(roomId)}/`);
+      await checkLongDraft(page, `chromium ${form}`, form === 'phone');
+    } finally {
+      await context.close();
+    }
+  });
+
+  test(`a long draft shows its scrollbar with no pointer over it (WebKit, ${form})`, async ({
+    baseURL,
+  }) => {
+    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.setTimeout(180_000);
+    const { homeserver, credentials, roomId } = await seedRoom();
+    const browser = await launchWebKit();
+    try {
+      const context = await browser.newContext({ ...options, baseURL });
+      const page = await context.newPage();
+      await loginWithPassword(page, { homeserver, ...credentials });
+      await openRoute(page, `/home/${encodeURIComponent(roomId)}/`);
+      await checkLongDraft(page, `webkit ${form}`, form === 'phone');
+    } finally {
+      await browser.close();
+    }
+  });
+}

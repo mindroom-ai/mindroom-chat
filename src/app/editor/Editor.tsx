@@ -305,9 +305,11 @@ export const CustomEditor = React.forwardRef<HTMLDivElement, CustomEditorProps>(
         {top}
         <Box alignItems="Start">
           <EditorControls>{before}</EditorControls>
+          {/* The thumb shows whenever the text overflows, not only under a pointer: on a touch
+              screen, or with the pointer elsewhere, it is the only sign of the lines out of view. */}
           <Scroll
             hideTrack
-            visibility="Hover"
+            visibility="Always"
             size="300"
             variant="SurfaceVariant"
             style={{ maxHeight }}
