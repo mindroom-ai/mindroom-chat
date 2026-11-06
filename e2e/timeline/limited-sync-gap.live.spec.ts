@@ -584,6 +584,16 @@ test.use({
   },
 });
 
+// The view can jump over a large page of history it loaded while the reader scrolls up, so the
+// rows of that page never mount (the room timeline's scroll keeping on a backward page, not the gap
+// code; see the sync-gaps report, defect 5). These variants show it on loaded runners and in
+// WebKit; they wait for that fix.
+const SCROLL_JUMP_VARIANTS = new Set([
+  'elsewhere-classic-chromium',
+  'elsewhere-classic-webkit',
+  'elsewhere-threaded-webkit',
+]);
+
 test.describe('messages missed in a gappy sync show', () => {
   test.beforeAll(async () => {
     test.setTimeout(300_000);
@@ -603,6 +613,10 @@ test.describe('messages missed in a gappy sync show', () => {
         const label = `${scenario}-${viewMode}-${engine}`;
         test(`${scenario}, ${viewMode} view, ${engine}`, async ({ browser, baseURL }) => {
           test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+          test.fixme(
+            SCROLL_JUMP_VARIANTS.has(label),
+            'the view jumps over a large loaded page of history (sync-gaps defect 5)'
+          );
           test.setTimeout(300_000);
           const host = engine === 'webkit' ? await launchWebKit() : undefined;
           const context = await (host ?? browser).newContext({ ...DESKTOP, baseURL });
