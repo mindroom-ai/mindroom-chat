@@ -1,4 +1,3 @@
-import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
@@ -78,7 +77,7 @@ describe('membership rows name the member the client knows', () => {
         </I18nextProvider>
       );
     });
-    expect(renderer!.root.findAllByType('b')[1].children).toEqual(['Guest Person']);
+    expect(renderer!.root.findAllByType('b')[1]?.children).toEqual(['Guest Person']);
     act(() => renderer!.unmount());
 
     // Without the room the row can only fall back to the localpart.
@@ -89,7 +88,7 @@ describe('membership rows name the member the client knows', () => {
         </I18nextProvider>
       );
     });
-    expect(renderer!.root.findAllByType('b')[1].children).toEqual(['guest']);
+    expect(renderer!.root.findAllByType('b')[1]?.children).toEqual(['guest']);
     act(() => renderer!.unmount());
   });
 });

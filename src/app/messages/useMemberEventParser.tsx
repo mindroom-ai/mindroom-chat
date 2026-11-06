@@ -155,7 +155,7 @@ const nameBefore = (room: Room, event: MatrixEvent, userId: string): string | un
   while (timeline) {
     for (let i = index - 1; i >= 0; i -= 1) {
       const earlier = events[i];
-      if (earlier.getType() === 'm.room.member' && earlier.getStateKey() === userId) {
+      if (earlier?.getType() === 'm.room.member' && earlier.getStateKey() === userId) {
         const name =
           readMemberContent(earlier.getContent()).displayname ??
           readMemberContent(earlier.getPrevContent()).displayname;
