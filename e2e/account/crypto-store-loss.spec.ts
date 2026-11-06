@@ -60,8 +60,8 @@ const api = async <T>(path: string, token?: string, body?: unknown): Promise<T> 
 type Account = { username: string; userId: string; token: string };
 
 /** A new account, with a session of its own (no crypto) for the checks on the server. */
-const register = async (name: string): Promise<Account> => {
-  const username = `${name}${RUN}${test.info().project.name.slice(0, 2)}`;
+const register = async (name: string, engine: string): Promise<Account> => {
+  const username = `${name}${RUN}${engine}`;
   const { access_token: token, user_id: userId } = await api<{
     access_token: string;
     user_id: string;
@@ -136,10 +136,8 @@ const deleteDatabase = (page: Page, name: string) =>
     name
   );
 
-const SIZES = [
-  { name: 'desktop', width: 1280, height: 800 },
-  { name: 'phone', width: 390, height: 844 },
-];
+const DESKTOP = { name: 'desktop', width: 1280, height: 800 };
+const SIZES = [DESKTOP, { name: 'phone', width: 390, height: 844 }];
 
 const saveScreens = async (page: Page, engine: string) => {
   if (!SHOTS) return;
@@ -152,13 +150,13 @@ const saveScreens = async (page: Page, engine: string) => {
       });
     }
   }
-  await page.setViewportSize(SIZES[0]);
+  await page.setViewportSize(DESKTOP);
   await page.emulateMedia({ colorScheme: null });
 };
 
 const lostStoreAtLoad = async (context: BrowserContext, engine: string) => {
-  const other = await register('kept');
-  const account = await register('lost');
+  const other = await register('kept', engine);
+  const account = await register('lost', engine);
   const page = await context.newPage();
   await signIn(page, other);
   const session = await signIn(page, account, true);
@@ -201,8 +199,8 @@ const lostStoreAtLoad = async (context: BrowserContext, engine: string) => {
   );
 };
 
-const storeRecreatedBehindTheCheck = async (context: BrowserContext) => {
-  const account = await register('raced');
+const storeRecreatedBehindTheCheck = async (context: BrowserContext, engine: string) => {
+  const account = await register('raced', engine);
   const page = await context.newPage();
   const session = await signIn(page, account);
 
@@ -276,7 +274,7 @@ test('a store lost before the page loads asks to sign in again (WebKit)', async 
 });
 
 test('a store deleted after the check makes no new device keys (Chromium)', async ({ context }) => {
-  await storeRecreatedBehindTheCheck(context);
+  await storeRecreatedBehindTheCheck(context, 'chromium');
 });
 
 test('a store deleted after the check makes no new device keys (WebKit)', async ({ baseURL }) => {

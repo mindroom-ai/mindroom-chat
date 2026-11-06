@@ -71,6 +71,6 @@ describe('a crypto store that vanishes after the startup check', () => {
     // Nothing syncs and no key goes to the homeserver (a key backup lookup may).
     const paths = request.mock.calls.map(([input]) => new URL(String(input)).pathname);
     expect(paths.filter((path) => /\/(sync|keys\/upload)$/.test(path))).toEqual([]);
-    expect(getSessionStore().sessions[0].deviceIdentityKey).toBe(identity);
+    expect(getSessionStore().sessions[0]?.deviceIdentityKey).toBe(identity);
   });
 });

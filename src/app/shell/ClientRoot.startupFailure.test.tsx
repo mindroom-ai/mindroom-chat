@@ -157,12 +157,13 @@ describe('ClientRoot when an account cannot start', () => {
 
       // Signing in again ends in a reload, so it never settles here.
       vi.mocked(logoutSessionWithoutStores).mockReturnValue(new Promise(() => undefined));
+      const [signInAgain] = buttons;
       await act(async () => {
-        buttons[0].props.onClick();
+        signInAgain?.props.onClick();
       });
 
       expect(logoutSessionWithoutStores).toHaveBeenCalledTimes(1);
-      const [ended, href] = vi.mocked(logoutSessionWithoutStores).mock.calls[0];
+      const [ended, href] = vi.mocked(logoutSessionWithoutStores).mock.calls[0] ?? [];
       expect(ended).toEqual({
         sessionId: SESSION.sessionId,
         baseUrl: SESSION.baseUrl,
@@ -171,7 +172,7 @@ describe('ClientRoot when an account cannot start', () => {
         accessToken: SESSION.accessToken,
         refreshToken: undefined,
       });
-      expect(href.endsWith(login)).toBe(true);
+      expect(href?.endsWith(login)).toBe(true);
       expect(screen!.findAllByType('button').every((button) => button.props.disabled)).toBe(true);
     }
   );

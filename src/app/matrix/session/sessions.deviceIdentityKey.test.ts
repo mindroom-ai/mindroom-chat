@@ -39,7 +39,7 @@ describe('the recorded device identity key', () => {
 
     putSession({ ...LOGIN, deviceId: 'DEVICE_B', accessToken: 'token-c' }, undefined, storage);
     expect(getRecordedDeviceIdentityKey(sessionId, storage)).toBeUndefined();
-    expect(getSessionStore(storage).sessions[0].cryptoStoreInitialized).toBeUndefined();
+    expect(getSessionStore(storage).sessions[0]?.cryptoStoreInitialized).toBeUndefined();
   });
 
   it('records the key of a store marked before keys were recorded', () => {
@@ -62,9 +62,10 @@ describe('the recorded device identity key', () => {
     const raw = JSON.parse(storage.getItem(SESSION_STORE_KEY) ?? '{}') as {
       sessions: { deviceIdentityKey?: unknown }[];
     };
-    expect(raw.sessions[0].deviceIdentityKey).toBe('key-a');
+    const [stored] = raw.sessions;
+    expect(stored?.deviceIdentityKey).toBe('key-a');
 
-    raw.sessions[0].deviceIdentityKey = 42;
+    raw.sessions = [{ ...stored, deviceIdentityKey: 42 }];
     storage.setItem(SESSION_STORE_KEY, JSON.stringify(raw));
 
     expect(getRecordedDeviceIdentityKey(sessionId, storage)).toBeUndefined();

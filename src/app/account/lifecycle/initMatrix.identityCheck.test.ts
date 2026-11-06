@@ -102,7 +102,7 @@ describe('initClient checks the identity key of the store it opens', () => {
     expect(destroy).toHaveBeenCalledTimes(1);
     expect(setMaxListeners).not.toHaveBeenCalled();
     expect(authedRequest).not.toHaveBeenCalled();
-    expect(getSessionStore(storage).sessions[0].deviceIdentityKey).toBe('lost-device-key');
+    expect(getSessionStore(storage).sessions[0]?.deviceIdentityKey).toBe('lost-device-key');
   });
 
   it.each([
@@ -171,7 +171,7 @@ describe('initClient checks the identity key of the store it opens', () => {
         { localTimeoutMs: 10_000 }
       );
       expect(setMaxListeners).toHaveBeenCalledTimes(starts ? 1 : 0);
-      expect(getSessionStore(storage).sessions[0].deviceIdentityKey).toBe(recorded);
+      expect(getSessionStore(storage).sessions[0]?.deviceIdentityKey).toBe(recorded);
 
       // Once recorded, the key decides without asking the homeserver again.
       if (recorded) {
@@ -212,7 +212,7 @@ describe('initClient checks the identity key of the store it opens', () => {
     await initClient(session);
 
     expect(authedRequest).not.toHaveBeenCalled();
-    expect(getSessionStore(storage).sessions[0].deviceIdentityKey).toBe(OWN_KEY);
-    expect(getSessionStore(storage).sessions[0].cryptoStoreInitialized).toBe(true);
+    expect(getSessionStore(storage).sessions[0]?.deviceIdentityKey).toBe(OWN_KEY);
+    expect(getSessionStore(storage).sessions[0]?.cryptoStoreInitialized).toBe(true);
   });
 });
