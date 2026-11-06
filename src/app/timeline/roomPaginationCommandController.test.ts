@@ -464,6 +464,73 @@ describe('useRoomPaginationCommandController', () => {
     );
     expect(timelineEvents).toEqual([olderRoot, olderReply, root]);
   });
+
+  it('pages from the server when the room timeline takes none of a cached page', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    const room = new Room('!room:example.org', mx, '@alice:example.org');
+    const addEventsToTimeline = vi
+      .spyOn(room, 'addEventsToTimeline')
+      .mockImplementation(() => undefined);
+    // An edit of a thread reply, cached in the room scope while its reply was unknown: the room
+    // timeline drops it, so a page of it alone adds no row and leaves the earliest event in place.
+    const orphanEdit = new MatrixEvent({
+      event_id: '$edit',
+      room_id: room.roomId,
+      sender: '@agent:example.org',
+      type: 'm.room.message',
+      origin_server_ts: 1,
+      content: {
+        msgtype: 'm.text',
+        body: '* final answer',
+        'm.new_content': { msgtype: 'm.text', body: 'final answer' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+      },
+    });
+    loadRoomCachedPaginationSnapshotMock.mockResolvedValue({
+      status: 'cache-hit',
+      events: [orphanEdit],
+      beforeToken: 'token-before-the-edit',
+      hasMoreCachedBack: false,
+    });
+    const handleTimelinePagination = vi.fn(async () => undefined);
+    const timeline = makeTimeline([makeRoomEvent('$loaded')]);
+    let callback!: (backwards: boolean) => Promise<void>;
+    let renderer!: ReactTestRenderer;
+    function Harness() {
+      callback = useRoomPaginationCommandController({
+        alive: () => true,
+        handleTimelinePagination,
+        mx,
+        beginRoomCacheWrite: () => vi.fn(),
+        recalibrateFilterOptsRef: { current: undefined },
+        room,
+        roomIdRef: { current: room.roomId },
+        roomPaginatingBackRef: { current: false },
+        prefetchDepthRef: { current: 50 },
+        sessionId: 'session',
+        setRoomHasMoreCachedBack: vi.fn(),
+        setTimeline: vi.fn(),
+        threadId: undefined,
+        threadIdRef: { current: undefined },
+        timeline: { linkedTimelines: [timeline], range: { start: 0, end: 1 } },
+      });
+      return null;
+    }
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+
+    await act(async () => {
+      await callback(true);
+    });
+    act(() => renderer.unmount());
+
+    // Prepending it would only move the timeline's back token to the cached one, before the
+    // edit, and every later page would read the same edit again.
+    expect(addEventsToTimeline).not.toHaveBeenCalled();
+    expect(handleTimelinePagination).toHaveBeenCalledWith(true);
+  });
 });
 
 // ISSUE-207 P3.3 review (PR #69): the explicit persist point for network
