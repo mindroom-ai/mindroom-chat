@@ -91,7 +91,7 @@ const runJumps = async (
   const press = (locator: ReturnType<Page['locator']>) => (phone ? locator.tap() : locator.click());
   const openDialog = async () => {
     await press(page.getByRole('button', { name: 'More Options' }).first());
-    await press(page.getByRole('button', { name: 'Jump to Time' }));
+    await press(page.getByRole('menuitem', { name: 'Jump to Time' }));
     const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
     await expect(dialog).toBeVisible();
     return dialog;
