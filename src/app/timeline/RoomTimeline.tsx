@@ -810,15 +810,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
   }, [virtualInnerRef, virtualizerRef]);
   // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
   // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
-  // list's height and the next one takes the new height: resizing the list there would resize the
-  // scroll content, which the scrollbar, the minimap and the follow-growth observer watch, after the
-  // rows inside it were reported, and WebKit then reports "ResizeObserver loop completed with
-  // undelivered notifications".
+  // list's bottom edge where it is and the next one takes the new height: moving it there would
+  // resize the scroll content, which the scrollbar, the minimap and the follow-growth observer
+  // watch, after the rows inside it were reported, and WebKit then reports "ResizeObserver loop
+  // completed with undelivered notifications". A correction the ledger took in the same pass moves
+  // the list's top (its negative top margin) in that render, so the held height takes the
+  // difference; the rows paint where they belong either way.
   // A row that changed size in place renders the rows after it the same way.
-  const renderedListHeight = ledger.virtualInnerRef.current?.style.height;
+  const renderedList = ledger.virtualInnerRef.current?.style;
   const listHeight =
-    (ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove()) && renderedListHeight
-      ? renderedListHeight
+    (ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove()) && renderedList?.height
+      ? Number.parseFloat(renderedList.height) +
+        (Number.parseFloat(renderedList.marginTop) || 0) +
+        ledger.ledgerPxAtRender
       : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
