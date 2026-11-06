@@ -44,6 +44,7 @@ type BuildThreadRecordOptions = {
   fallbackReplyCount?: number;
   rootPreviewText?: string;
   fallbackLatestReplyPreviewText?: string;
+  fallbackLatestReplyTs?: number;
   fallbackLastSenderId?: string;
   fallbackLastSenderDisplayName?: string;
   fallbackMessageCount?: number;
@@ -65,6 +66,7 @@ type BuildThreadRecordMapOptions = {
   fallbackReplyCountMap?: ReadonlyMap<string, number>;
   rootPreviewTextMap?: ReadonlyMap<string, string>;
   fallbackLatestReplyPreviewMap?: ReadonlyMap<string, string>;
+  fallbackLatestReplyTsMap?: ReadonlyMap<string, number>;
   fallbackLastSenderIdMap?: ReadonlyMap<string, string>;
   fallbackLastSenderDisplayNameMap?: ReadonlyMap<string, string>;
   fallbackMessageCountMap?: ReadonlyMap<string, number>;
@@ -221,6 +223,7 @@ export const buildThreadRecord = ({
   fallbackReplyCount,
   rootPreviewText,
   fallbackLatestReplyPreviewText,
+  fallbackLatestReplyTs,
   fallbackLastSenderId,
   fallbackLastSenderDisplayName,
   fallbackMessageCount,
@@ -281,7 +284,7 @@ export const buildThreadRecord = ({
     preferredSummaryInfo,
     preferredRootPreviewText: rootPreviewText,
     fallbackLatestReplyPreviewText,
-    fallbackLatestReplyTs: fallbackLastActivityTs,
+    fallbackLatestReplyTs: fallbackLatestReplyTs ?? fallbackLastActivityTs,
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
     fallbackMessageCount: serverCounted
@@ -380,6 +383,7 @@ export const buildThreadRecordMap = ({
   fallbackReplyCountMap,
   rootPreviewTextMap,
   fallbackLatestReplyPreviewMap,
+  fallbackLatestReplyTsMap,
   fallbackLastSenderIdMap,
   fallbackLastSenderDisplayNameMap,
   fallbackMessageCountMap,
@@ -405,6 +409,7 @@ export const buildThreadRecordMap = ({
         fallbackReplyCount: fallbackReplyCountMap?.get(threadRootId),
         rootPreviewText: rootPreviewTextMap?.get(threadRootId),
         fallbackLatestReplyPreviewText: fallbackLatestReplyPreviewMap?.get(threadRootId),
+        fallbackLatestReplyTs: fallbackLatestReplyTsMap?.get(threadRootId),
         fallbackLastSenderId: fallbackLastSenderIdMap?.get(threadRootId),
         fallbackLastSenderDisplayName: fallbackLastSenderDisplayNameMap?.get(threadRootId),
         fallbackMessageCount: fallbackMessageCountMap?.get(threadRootId),

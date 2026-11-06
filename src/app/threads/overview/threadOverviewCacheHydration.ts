@@ -144,7 +144,8 @@ export const resolveFetchedRelationOverviewUpdate = ({
   });
   const currentPresentation = currentRecord?.presentation;
   const shouldUseFetchedReplyMetadata =
-    (newestTs !== undefined && newestTs >= liveActivityTs) ||
+    (cachedPresentation.latestReplyTs !== undefined &&
+      cachedPresentation.latestReplyTs >= (currentPresentation?.latestReplyTs ?? liveActivityTs)) ||
     !currentPresentation?.latestReplyPreviewText;
   const nextReplyPreviewText =
     shouldUseFetchedReplyMetadata &&
@@ -196,6 +197,7 @@ export const resolveFetchedRelationOverviewUpdate = ({
     rootId,
     nextActivityTs,
     nextReplyPreviewText,
+    nextReplyTs: shouldUseFetchedReplyMetadata ? cachedPresentation.latestReplyTs : undefined,
     nextLastSenderId,
     nextMessageCount,
     nextSummaryInfo,
@@ -251,7 +253,8 @@ export const resolveCachedOverviewUpdate = ({
   });
   const currentPresentation = currentRecord?.presentation;
   const shouldUseCachedReplyMetadata =
-    (cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
+    (cachedPresentation.latestReplyTs !== undefined &&
+      cachedPresentation.latestReplyTs >= (currentPresentation?.latestReplyTs ?? liveActivityTs)) ||
     !currentPresentation?.latestReplyPreviewText;
   const nextReplyPreviewText =
     shouldUseCachedReplyMetadata &&
@@ -318,6 +321,7 @@ export const resolveCachedOverviewUpdate = ({
     nextPreview,
     nextPreviewSourceTs,
     nextReplyPreviewText,
+    nextReplyTs: shouldUseCachedReplyMetadata ? cachedPresentation.latestReplyTs : undefined,
     nextLastSenderId,
     nextMessageCount,
     nextSummaryInfo,

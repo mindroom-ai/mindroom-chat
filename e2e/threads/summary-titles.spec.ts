@@ -72,7 +72,7 @@ const summariesOnly = async (page: Page) => {
   });
 };
 
-test.beforeAll(async () => {
+test.beforeEach(async ({}, testInfo) => {
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
@@ -105,7 +105,7 @@ test.beforeAll(async () => {
     is_falling_back: true,
     'm.in_reply_to': { event_id: rootId },
   };
-  const replyId = await sendRoomMessage(homeserver, helper.accessToken, roomId, {
+  let replyId = await sendRoomMessage(homeserver, helper.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Preparing the release checklist...',
     'm.relates_to': relation,
@@ -121,6 +121,13 @@ test.beforeAll(async () => {
       message_count: 1,
     },
   });
+  if (testInfo.title.includes('continued')) {
+    replyId = await sendRoomMessage(homeserver, helper.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: 'Checking the final launch dates...',
+      'm.relates_to': relation,
+    });
+  }
   await sendRoomMessage(homeserver, helper.accessToken, roomId, {
     msgtype: 'm.text',
     body: `* ${ANSWER}`,
@@ -150,90 +157,99 @@ test.beforeAll(async () => {
 
 for (const engine of ['chromium', 'webkit'] as const) {
   for (const phone of [false, true]) {
-    test(`${engine} ${
-      phone ? 'phone' : 'desktop'
-    } fresh login shows bundled title and edited preview`, async ({
-      browser,
-      baseURL,
-    }, testInfo) => {
-      test.setTimeout(180_000);
-      test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'WebKit executable required');
-      let ownBrowser: Browser | undefined;
-      if (engine === 'webkit') ownBrowser = await launchWebKit();
-      const context = await (ownBrowser ?? browser).newContext({
+    for (const continued of [false, true]) {
+      test(`${engine} ${phone ? 'phone' : 'desktop'} ${
+        continued ? 'continued' : 'title-last'
+      } fresh login shows bundled title and edited preview`, async ({
+        browser,
         baseURL,
-        viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
-        hasTouch: phone,
-        isMobile: phone,
-      });
-      const page = await context.newPage();
-      try {
-        await page.addInitScript(() => {
-          if (!localStorage.getItem('settings'))
+      }, testInfo) => {
+        test.setTimeout(180_000);
+        test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'WebKit executable required');
+        let ownBrowser: Browser | undefined;
+        if (engine === 'webkit') ownBrowser = await launchWebKit();
+        const context = await (ownBrowser ?? browser).newContext({
+          baseURL,
+          viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+          hasTouch: phone,
+          isMobile: phone,
+        });
+        const page = await context.newPage();
+        try {
+          await page.addInitScript(() => {
+            if (!localStorage.getItem('settings'))
+              localStorage.setItem(
+                'settings',
+                JSON.stringify({
+                  useSystemTheme: false,
+                  themeId: 'light-theme',
+                  isPeopleDrawer: false,
+                })
+              );
+          });
+          await summariesOnly(page);
+          await loginWithPassword(page, {
+            homeserver: getHomeserver(),
+            ...getPrimaryCredentials(),
+          });
+          await seedRoomOverviewState({
+            page,
+            roomId,
+            userId,
+            viewMode: 'compact',
+            filterState: createDefaultThreadFilterState(),
+          });
+          await page.goto(`/home/${encodeURIComponent(roomId)}`);
+          const card = page.locator(`button[data-thread-root-id="${rootId}"]`).first();
+          await expect(card).toBeVisible({ timeout: 30_000 });
+          // The same capture point on the failing baseline and fixed build.
+          await page.screenshot({ path: testInfo.outputPath('compact-light.png') });
+          await expect(card).toContainText(TITLE);
+          await expect(card).toContainText('Helper: The release checklist is ready.');
+          await page.reload();
+          await expect(card).toContainText(TITLE);
+          await expect(card).toContainText('Helper: The release checklist is ready.');
+          await card.click();
+          await expect(page.locator('[data-thread-context-summary="true"]').first()).toContainText(
+            TITLE
+          );
+          await page.screenshot({ path: testInfo.outputPath('header-light.png') });
+          await seedRoomOverviewState({
+            page,
+            roomId,
+            userId,
+            viewMode: 'threaded',
+            filterState: createDefaultThreadFilterState(),
+          });
+          await page.goto(`/home/${encodeURIComponent(roomId)}`);
+          await expect(page.locator(`[data-thread-root-id="${rootId}"]`).first()).toContainText(
+            TITLE
+          );
+          await page.screenshot({ path: testInfo.outputPath('threads-light.png') });
+          await page.evaluate(() => {
+            const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
             localStorage.setItem(
               'settings',
-              JSON.stringify({
-                useSystemTheme: false,
-                themeId: 'light-theme',
-                isPeopleDrawer: false,
-              })
+              JSON.stringify({ ...settings, themeId: 'dark-theme' })
             );
-        });
-        await summariesOnly(page);
-        await loginWithPassword(page, { homeserver: getHomeserver(), ...getPrimaryCredentials() });
-        await seedRoomOverviewState({
-          page,
-          roomId,
-          userId,
-          viewMode: 'compact',
-          filterState: createDefaultThreadFilterState(),
-        });
-        await page.goto(`/home/${encodeURIComponent(roomId)}`);
-        const card = page.locator(`button[data-thread-root-id="${rootId}"]`).first();
-        await expect(card).toBeVisible({ timeout: 30_000 });
-        // The same capture point on the failing baseline and fixed build.
-        await page.screenshot({ path: testInfo.outputPath('compact-light.png') });
-        await expect(card).toContainText(TITLE);
-        await expect(card).toContainText('Helper: The release checklist is ready.');
-        await page.reload();
-        await expect(card).toContainText(TITLE);
-        await expect(card).toContainText('Helper: The release checklist is ready.');
-        await card.click();
-        await expect(page.locator('[data-thread-context-summary="true"]').first()).toContainText(
-          TITLE
-        );
-        await page.screenshot({ path: testInfo.outputPath('header-light.png') });
-        await seedRoomOverviewState({
-          page,
-          roomId,
-          userId,
-          viewMode: 'threaded',
-          filterState: createDefaultThreadFilterState(),
-        });
-        await page.goto(`/home/${encodeURIComponent(roomId)}`);
-        await expect(page.locator(`[data-thread-root-id="${rootId}"]`).first()).toContainText(
-          TITLE
-        );
-        await page.screenshot({ path: testInfo.outputPath('threads-light.png') });
-        await page.evaluate(() => {
-          const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
-          localStorage.setItem('settings', JSON.stringify({ ...settings, themeId: 'dark-theme' }));
-        });
-        await seedRoomOverviewState({
-          page,
-          roomId,
-          userId,
-          viewMode: 'compact',
-          filterState: createDefaultThreadFilterState(),
-        });
-        await page.reload();
-        await expect(card).toContainText(TITLE);
-        await expect(card).toContainText('Helper: The release checklist is ready.');
-        await page.screenshot({ path: testInfo.outputPath('compact-dark.png') });
-      } finally {
-        await context.close();
-        await ownBrowser?.close();
-      }
-    });
+          });
+          await seedRoomOverviewState({
+            page,
+            roomId,
+            userId,
+            viewMode: 'compact',
+            filterState: createDefaultThreadFilterState(),
+          });
+          await page.reload();
+          await expect(card).toContainText(TITLE);
+          await expect(card).toContainText('Helper: The release checklist is ready.');
+          await page.screenshot({ path: testInfo.outputPath('compact-dark.png') });
+        } finally {
+          await page.unrouteAll({ behavior: 'ignoreErrors' });
+          await context.close();
+          await ownBrowser?.close();
+        }
+      });
+    }
   }
 }

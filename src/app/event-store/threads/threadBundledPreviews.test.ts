@@ -15,6 +15,7 @@ const reply = (id: string, body: string, ts: number, title = false): IEvent => (
   sender: author,
   type: 'm.room.message',
   origin_server_ts: ts,
+  unsigned: {},
   content: {
     msgtype: title ? 'm.notice' : 'm.text',
     body,
@@ -80,7 +81,7 @@ describe('fresh-device bundled thread presentation', () => {
     expect(record.presentation.summaryText).toBe('Launch checklist');
     expect(record.presentation.latestReplyPreviewText).toBe('Final answer with dates');
     expect(record.presentation.lastSenderId).toBe(author);
-    expect(room.getThread(rootId)).toBeUndefined();
+    expect(room.getThread(rootId)).toBeNull();
     const card = buildCompactThreadCardViewModelFromRecord({
       record,
       room,
@@ -147,6 +148,28 @@ describe('fresh-device bundled thread presentation', () => {
     expect(record.presentation.summaryText).toBe('Cached checklist');
     expect(record.presentation.latestReplyPreviewText).toBe('Cached answer');
     expect(record.presentation.lastSenderId).toBe('@writer:example.org');
+  });
+
+  it('gets the title even when latest_event has moved on to a reply', () => {
+    const shape = summaryShape();
+    shape.latest_event = reply('$continued', 'Later conversation', 5000);
+    const { room, root } = fixture(shape);
+    expect(presentation(room, root).summaryText).toBe('Launch checklist');
+  });
+
+  it('does not let a later cached title make an older cached reply win', () => {
+    const { room, root } = fixture();
+    const record = buildThreadRecord({
+      room,
+      threadRootId: rootId,
+      threadRootEvent: root,
+      fallbackLatestReplyPreviewText: 'Old cached answer',
+      fallbackLastSenderId: '@old:example.org',
+      fallbackLastActivityTs: 9000,
+      fallbackLatestReplyTs: 1500,
+    });
+    expect(record.presentation.latestReplyPreviewText).toBe('Final answer with dates');
+    expect(record.presentation.lastSenderId).toBe(author);
   });
 
   it('uses a newer bundle over an older loaded reply and cached title', () => {

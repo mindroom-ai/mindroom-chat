@@ -26,6 +26,7 @@ export type BuildThreadIndexRecordMapsOptions = {
   cachedMetadata: Pick<
     ThreadOverviewCachedMetadataSnapshot,
     | 'latestReplyPreviewMap'
+    | 'latestReplyTsMap'
     | 'lastSenderIdMap'
     | 'messageCountMap'
     | 'lastActivityTsMap'
@@ -74,6 +75,7 @@ export const buildThreadIndexRecordMaps = ({
     fallbackSummaryMap,
     fallbackReplyCountMap,
     fallbackLatestReplyPreviewMap: cachedMetadata.latestReplyPreviewMap,
+    fallbackLatestReplyTsMap: cachedMetadata.latestReplyTsMap,
     fallbackLastSenderIdMap: cachedMetadata.lastSenderIdMap,
     fallbackMessageCountMap: cachedMetadata.messageCountMap,
     fallbackLastActivityTsMap: cachedMetadata.lastActivityTsMap,
