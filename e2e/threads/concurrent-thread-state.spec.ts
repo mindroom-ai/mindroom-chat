@@ -191,7 +191,9 @@ const seed = async (name: string, guestPower: number) => {
       );
     }
   }
-  return { owner, guest, roomId, roots };
+  const [first, second] = roots;
+  if (!first || !second) throw new Error('Both threads must exist');
+  return { owner, guest, roomId, roots: [first, second] as const };
 };
 
 const banner = (page: Page) => page.locator('[data-thread-context-banner]');
