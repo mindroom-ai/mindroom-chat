@@ -193,6 +193,9 @@
     },
     "spaceTabs": {
       "nameUnread_other": "{{name}}, {{count}} pesan belum dibaca"
+    },
+    "approvalDurations": {
+      "name": "{{short}}, {{long}}"
     }
   },
   "featureUi": {

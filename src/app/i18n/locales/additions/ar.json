@@ -208,11 +208,14 @@
     },
     "spaceTabs": {
       "nameUnread_zero": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة",
-      "nameUnread_one": "⁨{{name}}⁩، رسالة واحدة غير مقروءة",
-      "nameUnread_two": "⁨{{name}}⁩، رسالتان غير مقروءتين",
+      "nameUnread_one": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة",
+      "nameUnread_two": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالتان غير مقروءتين",
       "nameUnread_few": "⁨{{name}}⁩، ⁨{{count}}⁩ رسائل غير مقروءة",
       "nameUnread_many": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة",
       "nameUnread_other": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة"
+    },
+    "approvalDurations": {
+      "name": "⁨{{short}}⁩، ⁨{{long}}⁩"
     }
   },
   "featureUi": {

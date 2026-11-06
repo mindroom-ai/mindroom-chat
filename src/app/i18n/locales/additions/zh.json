@@ -193,6 +193,9 @@
     },
     "spaceTabs": {
       "nameUnread_other": "{{name}}，{{count}} 条未读消息"
+    },
+    "approvalDurations": {
+      "name": "{{short}}，{{long}}"
     }
   },
   "featureUi": {

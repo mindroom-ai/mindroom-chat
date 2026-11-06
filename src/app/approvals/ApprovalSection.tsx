@@ -177,7 +177,13 @@ export function ApprovalDurations({
               key={duration}
               type="button"
               className={css.Segment}
-              aria-label={accessibleLabel(duration)}
+              // The name starts with the words on the button, so speech control finds it.
+              aria-label={t('sharedUi.approvalDurations.name', {
+                short: t('mindroomUi.messages.threadApprovalControls.minutesShort', {
+                  count: duration / 60,
+                }),
+                long: accessibleLabel(duration),
+              })}
               disabled={disabled}
               onClick={() => onPick(duration)}
             >

@@ -197,6 +197,9 @@
     "spaceTabs": {
       "nameUnread_one": "{{name}}, {{count}} okunmamış mesaj",
       "nameUnread_other": "{{name}}, {{count}} okunmamış mesaj"
+    },
+    "approvalDurations": {
+      "name": "{{short}}, {{long}}"
     }
   },
   "featureUi": {

@@ -381,7 +381,7 @@ it('presents one pending call with its status, people, and decisions', async () 
     expect(container.textContent).toContain('Waiting for you');
     expect(container.textContent).toContain('assistant · requested by you · expires in 24 hours');
     const fiveMinutes = buttonsIn(container).find(
-      (button) => button.getAttribute('aria-label') === 'Allow for 5 minutes'
+      (button) => button.getAttribute('aria-label') === '5 min, Allow for 5 minutes'
     );
     expect(fiveMinutes?.textContent).toBe('5 min');
     // What a timed approval allows stays on screen, not behind a tooltip.
@@ -421,7 +421,7 @@ it('asks for a reason only after Deny all, then denies every call with it', asyn
   try {
     const fiveMinutes = () =>
       buttonsIn(container).find(
-        (candidate) => candidate.getAttribute('aria-label') === 'Allow for 5 minutes'
+        (candidate) => candidate.getAttribute('aria-label') === '5 min, Allow for 5 minutes'
       );
     expect(fiveMinutes()).toBeDefined();
     await act(async () => button('Deny all 2')?.click());

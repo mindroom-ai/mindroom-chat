@@ -197,6 +197,9 @@
     "spaceTabs": {
       "nameUnread_one": "{{name}}, {{count}} ungelesene Nachricht",
       "nameUnread_other": "{{name}}, {{count}} ungelesene Nachrichten"
+    },
+    "approvalDurations": {
+      "name": "{{short}}, {{long}}"
     }
   },
   "featureUi": {

@@ -205,6 +205,9 @@
       "nameUnread_few": "{{name}}, {{count}} непрочитанных сообщения",
       "nameUnread_many": "{{name}}, {{count}} непрочитанных сообщений",
       "nameUnread_other": "{{name}}, {{count}} непрочитанного сообщения"
+    },
+    "approvalDurations": {
+      "name": "{{short}}, {{long}}"
     }
   },
   "featureUi": {

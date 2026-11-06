@@ -201,6 +201,9 @@
       "nameUnread_one": "{{name}}, {{count}} messaggio non letto",
       "nameUnread_many": "{{name}}, {{count}} messaggi non letti",
       "nameUnread_other": "{{name}}, {{count}} messaggi non letti"
+    },
+    "approvalDurations": {
+      "name": "{{short}}, {{long}}"
     }
   },
   "featureUi": {

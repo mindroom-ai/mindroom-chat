@@ -197,6 +197,9 @@
     "spaceTabs": {
       "nameUnread_one": "{{name}}, {{count}}টি অপঠিত বার্তা",
       "nameUnread_other": "{{name}}, {{count}}টি অপঠিত বার্তা"
+    },
+    "approvalDurations": {
+      "name": "{{short}}, {{long}}"
     }
   },
   "featureUi": {
