@@ -8,7 +8,6 @@ import {
   matrixFetch,
   seedRoomOverviewState,
   sendRoomMessage,
-  sendStateEvent,
 } from '../helpers/matrix';
 
 // An offline start shows what the client showed online, from its caches: the sidebar's THREADS
@@ -264,4 +263,63 @@ test('an offline start keeps thread titles, thread participants and the space pi
   await goOnline(context, offline, browserName);
   await expect.poll(() => imageLoaded(offline, spaceImage), { timeout: 30_000 }).toBe(true);
   await expect(offlineSidebar.getByText(otherTitle, { exact: true })).toBeVisible();
+});
+
+test('an offline start shows a rename and a roaming setting made shortly before @webkit', async ({
+  page,
+  context,
+  baseURL,
+  browserName,
+}) => {
+  test.setTimeout(150_000);
+  const homeserver = getHomeserver();
+  const viewer = await register('offline_renamer', 'Name Before');
+  const helper = await register('offline_member', 'Room Member');
+  const run = Date.now().toString(36);
+  const roomId = await createRoom(viewer, {
+    name: `Offline rename ${run}`,
+    invite: [helper.userId],
+  });
+  await joinRoom(homeserver, helper.accessToken, roomId);
+  const messageId = await sendRoomMessage(homeserver, viewer.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: `Signed message ${run}`,
+  });
+
+  await loginWithPassword(page, { homeserver, username: viewer.username, password: PASSWORD });
+  await seedRoomOverviewState({ page, roomId, userId: viewer.userId, viewMode: 'threaded' });
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+  const message = page.locator(`[data-message-id="${messageId}"]`);
+  await expect(message).toContainText('Name Before', { timeout: 20_000 });
+  await expect(page.getByText(/Room Member joined the room/)).toBeVisible();
+  await waitForSavedSync(page, roomId);
+
+  // A rename and a roaming setting, both made well within the SDK's five minutes between saves.
+  await matrixFetch(homeserver, `/profile/${encodeURIComponent(viewer.userId)}/displayname`, {
+    method: 'PUT',
+    accessToken: viewer.accessToken,
+    body: JSON.stringify({ displayname: 'Name After' }),
+  });
+  await matrixFetch(
+    homeserver,
+    `/user/${encodeURIComponent(viewer.userId)}/account_data/io.mindroom.client.settings`,
+    {
+      method: 'PUT',
+      accessToken: viewer.accessToken,
+      body: JSON.stringify({ version: 1, hideMembershipEvents: true }),
+    }
+  );
+  await expect(message).toContainText('Name After', { timeout: 20_000 });
+  await expect(page.getByText(/Room Member joined the room/)).toHaveCount(0);
+  await waitForSavedSync(page, 'Name After');
+  await waitForSavedSync(page, 'hideMembershipEvents');
+
+  await page.close();
+  await goOffline(context, baseURL!, browserName);
+  const offline = await context.newPage();
+  await offline.goto(`/home/${encodeURIComponent(roomId)}`);
+  expect(await offline.evaluate(() => navigator.onLine)).toBe(false);
+  const offlineMessage = offline.locator(`[data-message-id="${messageId}"]`);
+  await expect(offlineMessage).toContainText('Name After', { timeout: 15_000 });
+  await expect(offline.getByText(/Room Member joined the room/)).toHaveCount(0);
 });
