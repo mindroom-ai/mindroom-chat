@@ -24,12 +24,14 @@ const TYPES: Record<string, string> = {
  * for a year and sent uncompressed, everything else revalidated, app routes answered with
  * index.html. `vite preview` compresses every response, which changes how the browser's HTTP
  * cache stores a large file such as the 7.8 MB crypto wasm. `publishedVersion`, when it answers,
- * replaces the build's version.json, as a deployment of another build would.
+ * replaces the build's version.json, as a deployment of another build would. `directory` may be a
+ * function, asked on every request, so a test can deploy another build in its place.
  */
 export const serveBuild = async (
-  directory: string,
+  directory: string | (() => string),
   { publishedVersion }: { publishedVersion?: () => string | undefined } = {}
 ): Promise<{ origin: string; close: () => Promise<void> }> => {
+  const servedDirectory = typeof directory === 'string' ? () => directory : directory;
   const server = createServer((request, response) => {
     const { pathname } = new URL(request.url ?? '/', 'http://127.0.0.1');
     const path = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
@@ -40,14 +42,15 @@ export const serveBuild = async (
       response.end(JSON.stringify({ version: deployed }));
       return;
     }
+    const root = servedDirectory();
     const answer = async () => {
-      let file = join(directory, path);
+      let file = join(root, path);
       if (!(await stat(file).catch(() => undefined))?.isFile()) {
         if (asset) {
           response.writeHead(404).end();
           return;
         }
-        file = join(directory, 'index.html');
+        file = join(root, 'index.html');
       }
       const body = await readFile(file);
       response.writeHead(200, {
