@@ -11,19 +11,18 @@ import { StateEvent } from '../../matrix/types/room';
 import { getRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import {
   getPowersLevelFromMatrixEvent,
-  readPowerLevel,
   type IPowerLevels,
 } from '../../matrix/hooks/usePowerLevels';
 import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
 import { getStateEvent } from '../../matrix/room';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
 
+/** Whether the room's power levels let `userId` write its pins, as the server decides it. */
 export const canPinRoomEvents = (
   creators: Set<string>,
   powerLevels: Readonly<IPowerLevels>,
   userId: string
 ): boolean =>
-  (creators.has(userId) || readPowerLevel.user(powerLevels, userId) >= 100) &&
   getRoomPermissionsAPI(creators, powerLevels).stateEvent(StateEvent.RoomPinnedEvents, userId);
 
 export const getPinnedEventIds = (content: unknown): string[] => {
@@ -186,7 +185,7 @@ export const setRoomEventPinned = async (
       getStateEvent(room, StateEvent.RoomPowerLevels)
     );
     if (!canPinRoomEvents(creators, powerLevels, mx.getSafeUserId())) {
-      throw new Error('Only room admins can pin or unpin messages.');
+      throw new Error('The room does not let you pin or unpin messages.');
     }
   };
   assertCanPin();

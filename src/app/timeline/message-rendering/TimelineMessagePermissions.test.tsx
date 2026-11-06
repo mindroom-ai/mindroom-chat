@@ -113,9 +113,24 @@ describe('timeline message permissions', () => {
   });
 
   it("lets a user at the redact level delete other people's messages", async () => {
-    permissionState.powerLevels = { redact: 50, users: { [ME]: 50 } };
+    permissionState.powerLevels = { redact: 50, users: { [ME]: 50 }, state_default: 100 };
     const result = await renderPermissions([message('$theirs', { sender: OTHER })]);
     expect(result.$theirs).toEqual({ canDelete: true, canPinEvent: false });
+  });
+
+  it('lets a moderator pin when the room leaves pins at the state default', async () => {
+    permissionState.powerLevels = { users: { [ME]: 50 }, state_default: 50 };
+    const result = await renderPermissions([message('$theirs', { sender: OTHER })]);
+    expect(result.$theirs.canPinEvent).toBe(true);
+  });
+
+  it('lets a user at a custom pin level below the moderators pin', async () => {
+    permissionState.powerLevels = {
+      users: { [ME]: 40 },
+      events: { 'm.room.pinned_events': 40 },
+    };
+    const result = await renderPermissions([message('$mine')]);
+    expect(result.$mine.canPinEvent).toBe(true);
   });
 
   it('keeps delete off when sending m.room.redaction is above the user', async () => {

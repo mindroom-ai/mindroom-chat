@@ -35,15 +35,20 @@ test.describe('pinned announcement threads', () => {
       accessToken: moderator.accessToken,
       body: '{}',
     });
-    const powers = await matrixFetch<{ users: Record<string, number> }>(
-      homeserver,
-      `${roomPath}/state/m.room.power_levels`,
-      { accessToken: owner.accessToken }
-    );
+    const powers = await matrixFetch<{
+      users: Record<string, number>;
+      events?: Record<string, number>;
+    }>(homeserver, `${roomPath}/state/m.room.power_levels`, { accessToken: owner.accessToken });
+    // Pins follow the room's pin level; this room keeps them for admins.
+    const managed = {
+      ...powers,
+      users: { ...powers.users, [moderator.userId]: 50 },
+      events: { ...powers.events, 'm.room.pinned_events': 100 },
+    };
     await matrixFetch(homeserver, `${roomPath}/state/m.room.power_levels`, {
       method: 'PUT',
       accessToken: owner.accessToken,
-      body: JSON.stringify({ ...powers, users: { ...powers.users, [moderator.userId]: 50 } }),
+      body: JSON.stringify(managed),
     });
     const first = await sendRoomMessage(homeserver, owner.accessToken, roomId, {
       msgtype: 'm.text',
@@ -150,7 +155,7 @@ test.describe('pinned announcement threads', () => {
     const afterPowers = await matrixFetch(homeserver, `${roomPath}/state/m.room.power_levels`, {
       accessToken: owner.accessToken,
     });
-    expect(afterPowers).toEqual({ ...powers, users: { ...powers.users, [moderator.userId]: 50 } });
+    expect(afterPowers).toEqual(managed);
   });
 
   test('finds an old zero-reply pin outside the initial room timeline', async ({
