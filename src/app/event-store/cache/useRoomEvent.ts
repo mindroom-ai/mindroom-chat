@@ -105,20 +105,24 @@ export const useRoomEvent = (
     retry: (failureCount: number, error: unknown) => !isNotFound(error) && failureCount < 3,
   });
 
-  // Events decrypt and get edited after they are found or loaded; repaint when they do. A local
-  // copy may still be decrypting, such as a thread reply that arrived with the first sync.
+  // Events and their newest edits decrypt after they are found or loaded, and edits arrive later;
+  // repaint when they do. A local copy may still be decrypting, such as a thread reply that
+  // arrived with the first sync.
   const shownEvent = localEvent ?? query.data;
+  const shownEdit = shownEvent?.replacingEvent() ?? undefined;
   const [, setRevision] = useState(0);
   useEffect(() => {
     if (!shownEvent) return undefined;
     const repaint = () => setRevision((revision) => revision + 1);
     shownEvent.on(MatrixEventEvent.Decrypted, repaint);
     shownEvent.on(MatrixEventEvent.Replaced, repaint);
+    shownEdit?.on(MatrixEventEvent.Decrypted, repaint);
     return () => {
       shownEvent.removeListener(MatrixEventEvent.Decrypted, repaint);
       shownEvent.removeListener(MatrixEventEvent.Replaced, repaint);
+      shownEdit?.removeListener(MatrixEventEvent.Decrypted, repaint);
     };
-  }, [shownEvent]);
+  }, [shownEvent, shownEdit]);
 
   if (localEvent) return localEvent;
   if (query.isError) return null;

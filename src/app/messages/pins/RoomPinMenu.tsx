@@ -23,6 +23,8 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { Time } from '../Time';
 import { isPinnedToolApprovalEvent, renderPinnedToolApprovalEvent } from './pinnedToolApproval';
+import { getPinContent } from './pinContent';
+import { isRecord } from '../../lib/isRecord';
 import * as css from './RoomPinMenu.css';
 
 export type RoomPinMenuProps = {
@@ -102,15 +104,18 @@ function PinnedContent({
           </>
         );
       }
+      // An edit found by relation shows its new content; else what the copy says.
+      const editedContent: unknown = edited?.getContent()['m.new_content'];
+      const shown = isRecord(editedContent)
+        ? { content: editedContent, edited: true }
+        : getPinContent(loaded.event);
       return (
         <RenderMessageContent
           displayName={displayName}
-          msgType={(loaded.event.getContent().msgtype as string) ?? ''}
+          msgType={typeof shown.content.msgtype === 'string' ? shown.content.msgtype : ''}
           ts={loaded.event.getTs()}
-          edited={!!edited}
-          getContent={
-            (() => edited?.getContent()['m.new_content'] ?? loaded.event.getContent()) as <T>() => T
-          }
+          edited={shown.edited}
+          getContent={(() => shown.content) as <T>() => T}
           {...options}
           mEvent={loaded.event}
         />
@@ -128,13 +133,14 @@ function PinnedContent({
     return <>{renderPinnedToolApprovalEvent(event, { ...options, displayName })}</>;
   }
 
+  const { content, edited } = getPinContent(event);
   return (
     <RenderMessageContent
       displayName={displayName}
-      msgType={(event.getContent().msgtype as string) ?? ''}
+      msgType={typeof content.msgtype === 'string' ? content.msgtype : ''}
       ts={event.getTs()}
-      edited={!!event.replacingEvent()}
-      getContent={(() => event.getContent()) as <T>() => T}
+      edited={edited}
+      getContent={(() => content) as <T>() => T}
       {...options}
       mEvent={event}
     />
