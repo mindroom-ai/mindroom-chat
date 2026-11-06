@@ -152,10 +152,17 @@ const fetchThreadTail = async (
 };
 
 /**
- * `event` as the SDK needs it for a receipt in thread `rootId` of room `roomId`: the SDK sets the
- * receipt's `thread_id` from the event's own thread and builds the request path from its room. An
- * edit fetched from the server or bundled with its reply can lack both; its receipt would go to
- * the main timeline, which the server refuses for an edit of a thread reply, or to no room.
+ * `event` as the SDK needs it for a receipt in room `roomId`: the SDK builds the request path from
+ * the event's room, and an edit the server bundles with its reply carries none.
+ */
+const inRoom = (event: MatrixEvent, roomId: string): MatrixEvent =>
+  event.getRoomId() === roomId ? event : new MatrixEvent({ ...event.event, room_id: roomId });
+
+/**
+ * `event` as the SDK needs it for a receipt in thread `rootId` of room `roomId` (`inRoom`): the
+ * SDK also sets the receipt's `thread_id` from the event's own thread. An edit fetched from the
+ * server or bundled with its reply has none, so its receipt would go to the main timeline, which
+ * the server refuses for an edit of a thread reply.
  */
 const forThreadReceipt = (event: MatrixEvent, roomId: string, rootId: string): MatrixEvent => {
   if (event.threadRootId === rootId && event.getRoomId() === roomId) return event;
@@ -275,5 +282,5 @@ export const markRoomAndThreadsAsRead = async (
   if (!room) return;
   const target = latestRoomEvent(room);
   if (!target) return;
-  await send(mx.sendReadReceipt(target, receiptTypeFor(hideActivity), true));
+  await send(mx.sendReadReceipt(inRoom(target, roomId), receiptTypeFor(hideActivity), true));
 };
