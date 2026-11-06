@@ -1,3 +1,4 @@
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
@@ -27,6 +28,7 @@ const PASSWORD = 'unread-thread-open-landing-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.THREAD_READ_RELOAD_SHOTS;
+const THEME = process.env.THREAD_READ_RELOAD_THEME ?? 'light-theme';
 const REPLIES = 12;
 /** How far from the bottom a landed view may stay: subpixel rounding only. */
 const LANDED_PX = 4;
@@ -161,17 +163,15 @@ const recordReceipts = (newestKey: string) => {
   };
   win.receiptRecords = [];
   const frames: unknown[] = [];
-  const writes: unknown[] = [];
-  Object.assign(window, { landingFrames: frames, landingWrites: writes });
-  const sample = (write?: string) => {
+  Object.assign(window, { landingFrames: frames });
+  const sample = () => {
     const inner = document.querySelector<HTMLElement>('[data-thread-count]');
     let scroll = inner?.parentElement ?? null;
     while (scroll && !/^(auto|scroll)$/.test(getComputedStyle(scroll).overflowY)) {
       scroll = scroll.parentElement;
     }
     if (inner && scroll && frames.length < 1200) {
-      const record = {
-        write,
+      frames.push({
         t: performance.now(),
         top: scroll.scrollTop,
         height: scroll.scrollHeight,
@@ -188,30 +188,11 @@ const recordReceipts = (newestKey: string) => {
             height: tile.offsetHeight,
           })
         ),
-      };
-      if (write) writes.push(record);
-      else frames.push(record);
+      });
     }
+    requestAnimationFrame(sample);
   };
-  const frame = () => { sample(); requestAnimationFrame(frame); };
-  requestAnimationFrame(frame);
-  const top = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
-  if (top?.set) {
-    const set = top.set;
-    Object.defineProperty(Element.prototype, 'scrollTop', {
-      ...top,
-      set(value: number) {
-        sample(`scrollTop ${value}`);
-        set.call(this, value);
-      },
-    });
-  }
-  const scrollTo = Element.prototype.scrollTo;
-  Element.prototype.scrollTo = function (...args: [ScrollToOptions] | [number, number]) {
-    sample(`scrollTo ${JSON.stringify(args)}`);
-    // Apply both overloads without changing the browser's scroll behavior.
-    Reflect.apply(scrollTo, this, args);
-  };
+  requestAnimationFrame(sample);
   win.readThreadView = () => {
     const inner = document.querySelector<HTMLElement>('[data-thread-count]');
     let scroller = inner?.parentElement ?? null;
@@ -267,6 +248,11 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
     name: roomName,
     invite: [...people.map((person) => person.userId), agent.userId],
   });
+  for (let index = 0; index < 24; index += 1) {
+    // Exercise the real sidebar alongside the thread, with 25 rooms in the account.
+    // eslint-disable-next-line no-await-in-loop
+    await createRoom(HOMESERVER, reader.accessToken, { name: `Workspace ${index + 1}` });
+  }
   for (const member of [...people, agent]) {
     // eslint-disable-next-line no-await-in-loop
     await joinRoom(HOMESERVER, member.accessToken, roomId);
@@ -278,6 +264,9 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
   }
 
   await page.addInitScript(recordReceipts, NEWEST_KEY);
+  await page.addInitScript((themeId) => {
+    localStorage.setItem('settings', JSON.stringify({ useSystemTheme: false, themeId }));
+  }, THEME);
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
   await expect(page.getByRole('link', { name: roomName }).first()).toBeVisible({
     timeout: 60_000,
@@ -306,12 +295,13 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
       body: JSON.stringify(await page.evaluate(() => Reflect.get(window, 'landingFrames'))),
       contentType: 'application/json',
     });
-    // eslint-disable-next-line no-await-in-loop
-    await test.info().attach(`writes-${browserName}-${index + 1}.json`, {
-      body: JSON.stringify(await page.evaluate(() => Reflect.get(window, 'landingWrites'))),
-      contentType: 'application/json',
-    });
     if (SHOTS) {
+      mkdirSync(SHOTS, { recursive: true });
+      writeFileSync(
+        `${SHOTS}/landing-${browserName}-${index + 1}.json`,
+        // eslint-disable-next-line no-await-in-loop
+        JSON.stringify(await page.evaluate(() => Reflect.get(window, 'landingFrames')))
+      );
       // eslint-disable-next-line no-await-in-loop
       await page.screenshot({
         path: `${SHOTS}/unread-thread-open-${browserName}-${index + 1}.png`,
@@ -370,7 +360,10 @@ test('an unread thread opened from a link lands at its newest reply (phone, Chro
 }) => {
   test.setTimeout(300_000);
   const context = await browser.newContext({
-    viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL,
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    baseURL,
   });
   try {
     await unreadThreadOpensAtItsNewestReply(await context.newPage(), 'chromium-phone');

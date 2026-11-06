@@ -704,39 +704,42 @@ describe('bottom-pin requests', () => {
   it.each([
     { extraScroll: 0, shouldPin: true },
     { extraScroll: -20, shouldPin: false },
-  ])('keeps opening ownership after measurement corrections, extra scroll $extraScroll', ({ extraScroll, shouldPin }) => {
-    const { options, renderer, scrollTo } = openThread();
-    const area = options.scrollRef.current;
-    if (!area) throw new Error('Expected the scroll area');
-    let correction = 0;
-    const settled = {
-      ...options,
-      threadLatestOpenPending: false,
-      threadOpenedAtLatest: true,
-      readMeasurementCorrectionPx: () => correction,
-    };
-    Object.defineProperties(area, {
-      scrollHeight: { configurable: true, value: 1300 },
-      clientHeight: { configurable: true, value: 860 },
-      scrollTop: { configurable: true, value: 440 },
-    });
-    act(() => renderer.update(<Harness options={settled} />));
-    scrollTo.mockClear();
+  ])(
+    'keeps opening ownership after measurement corrections, extra scroll $extraScroll',
+    ({ extraScroll, shouldPin }) => {
+      const { options, renderer, scrollTo } = openThread();
+      const area = options.scrollRef.current;
+      if (!area) throw new Error('Expected the scroll area');
+      let correction = 0;
+      const settled = {
+        ...options,
+        threadLatestOpenPending: false,
+        threadOpenedAtLatest: true,
+        readMeasurementCorrectionPx: () => correction,
+      };
+      Object.defineProperties(area, {
+        scrollHeight: { configurable: true, value: 1300 },
+        clientHeight: { configurable: true, value: 860 },
+        scrollTop: { configurable: true, value: 440 },
+      });
+      act(() => renderer.update(<Harness options={settled} />));
+      scrollTo.mockClear();
 
-    // The same measurement pass grows some rows and shrinks six others by 10 px each.
-    // The list corrects the scroll upward by 60 px before rendering its larger height.
-    correction = -60;
-    Object.defineProperties(area, {
-      scrollHeight: { configurable: true, value: 1402 },
-      scrollTop: { configurable: true, value: 380 + extraScroll },
-    });
-    act(() => renderer.update(<Harness options={settled} />));
-    if (shouldPin) {
-      expect(scrollTo).toHaveBeenLastCalledWith({ top: 542, behavior: 'instant' });
-    } else {
-      expect(scrollTo).not.toHaveBeenCalled();
+      // The same measurement pass grows some rows and shrinks six others by 10 px each.
+      // The list corrects the scroll upward by 60 px before rendering its larger height.
+      correction = -60;
+      Object.defineProperties(area, {
+        scrollHeight: { configurable: true, value: 1402 },
+        scrollTop: { configurable: true, value: 380 + extraScroll },
+      });
+      act(() => renderer.update(<Harness options={settled} />));
+      if (shouldPin) {
+        expect(scrollTo).toHaveBeenLastCalledWith({ top: 542, behavior: 'instant' });
+      } else {
+        expect(scrollTo).not.toHaveBeenCalled();
+      }
     }
-  });
+  );
 
   it('applies a later request once, smoothly when it asks so', () => {
     const { options, pins, renderer, scrollTo } = openThread();
