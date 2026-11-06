@@ -1,10 +1,14 @@
 import { createElement, useLayoutEffect, useRef, useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import type { EventTimeline, MatrixEvent } from 'matrix-js-sdk';
+import { Direction, type EventTimeline, type MatrixEvent } from 'matrix-js-sdk';
 import type { ItemRange } from './useVirtualPaginator';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
-import { useRoomWindowPaginator, useWindowKeepsNewestRow } from './roomTimelinePaginationWindow';
+import {
+  useRetryAfterEmptyBackPage,
+  useRoomWindowPaginator,
+  useWindowKeepsNewestRow,
+} from './roomTimelinePaginationWindow';
 import { getVisibleTimelineRange, type Timeline } from '../event-store/timeline/timelinePagination';
 
 const ROW_PX = 40;
@@ -267,4 +271,148 @@ describe('the room window paginator', () => {
       [0, 20, 61],
     ]);
   });
+});
+
+/** A loaded stretch of the room with a back token and no neighbours. */
+const fakeTimeline = (token: string | null) => {
+  let backToken = token;
+  return {
+    getPaginationToken: (direction: Direction) =>
+      direction === Direction.Backward ? backToken : null,
+    setBackToken: (next: string | null) => {
+      backToken = next;
+    },
+    getNeighbouringTimeline: () => null,
+    getEvents: () => [],
+  };
+};
+
+/** A scroll area whose back sentinel is in view: a short room, or one showing no rows. */
+const roomScrollerWithBackSentinel = () =>
+  ({
+    scrollTop: 0,
+    clientTop: 0,
+    offsetHeight: VIEW_PX,
+    getBoundingClientRect: () => rectAt(0, VIEW_PX),
+    scrollBy: () => undefined,
+    querySelector: (selector: string) =>
+      selector.includes('data-paginator-anchor="B"')
+        ? { getBoundingClientRect: () => rectAt(VIEW_PX - 100, 1) }
+        : null,
+  } as unknown as HTMLElement);
+
+type ChainProps = {
+  chain: EventTimeline[];
+  rows: MatrixEvent[];
+  paginateRoom: (back: boolean) => Promise<void>;
+  handles: Handles;
+};
+
+/** The room's window as the room timeline wires it, with its retry after a page. */
+function RoomChainWindow({ chain, rows, paginateRoom, handles }: ChainProps) {
+  const [scroller] = useState(roomScrollerWithBackSentinel);
+  const [timeline, setTimeline] = useState<Timeline>({
+    linkedTimelines: chain,
+    range: { start: 0, end: rows.length },
+  });
+  const activeTimelineRange = getVisibleTimelineRange(timeline.range, rows.length, 200);
+  const roomRowsRef = useLatestRef(rows);
+  const activeRangeRef = useLatestRef(activeTimelineRange);
+  const threadIdRef = useRef<string>();
+  const firstRoomTimelineRef = useLatestRef(chain[0]);
+  const scrollRef = useRef<HTMLElement | null>(scroller);
+  const suppressFocusPaginationRef = useRef(false);
+  const { paginator, roomBackPage } = useRoomWindowPaginator({
+    alive: () => true,
+    roomRows: rows,
+    roomRowsRef,
+    activeTimelineRange,
+    activeRangeRef,
+    threadIdRef,
+    firstRoomTimelineRef,
+    scrollRef,
+    setTimeline,
+    paginateRoom,
+    suppressFocusPaginationRef,
+    windowLimit: 200,
+    getScrollElement: () => scroller,
+    deferAutomaticPagination: () => false,
+  });
+  useRetryAfterEmptyBackPage(roomBackPage, roomRowsRef, paginator.retryPagination);
+  handles.paginator = paginator;
+  return null;
+}
+
+describe('a back page while a limited sync replaces the room chain', () => {
+  it.each([true, false])(
+    'asks again for the new chain once the old page lands (token moved: %s)',
+    async (tokenMoved) => {
+      const oldChain = fakeTimeline('old-1');
+      const newChain = fakeTimeline('new-1');
+      // Back pages run one at a time, as the room's pagination command runs them: a page asked for
+      // while one runs waits for that one.
+      const pagedChains: unknown[] = [];
+      const startedChains: unknown[] = [];
+      const pending: (() => void)[] = [];
+      let running: Promise<void> | undefined;
+      let shownChain: unknown = oldChain;
+      const paginateRoom = () => {
+        pagedChains.push(shownChain);
+        if (!running) {
+          startedChains.push(shownChain);
+          running = new Promise<void>((resolve) => {
+            pending.push(resolve);
+          }).finally(() => {
+            running = undefined;
+          });
+        }
+        return running;
+      };
+      const handles: Handles = {};
+      const element = (chain: unknown, rowCount: number) =>
+        createElement(RoomChainWindow, {
+          chain: [chain as EventTimeline],
+          rows: makeRows(rowCount),
+          paginateRoom,
+          handles,
+        });
+      let renderer: ReactTestRenderer | undefined;
+      act(() => {
+        renderer = create(element(oldChain, 5));
+      });
+
+      // The sentinel of the short room asks for older history.
+      act(() => handles.paginator?.retryPagination());
+      expect(pagedChains).toEqual([oldChain]);
+
+      // The rename arrives in a limited sync: the room's chain is now a new one, whose only event
+      // the timeline hides. The emptied window asks for older history while the old page runs.
+      shownChain = newChain;
+      act(() => {
+        renderer?.update(element(newChain, 0));
+      });
+      expect(pagedChains).toEqual([oldChain, newChain]);
+
+      // The page lands in the old chain, which the room no longer shows.
+      if (tokenMoved) oldChain.setBackToken('old-0');
+      await act(async () => {
+        pending.shift()?.();
+        await running;
+      });
+
+      // The new chain is asked for again, so its older events load and the room shows its rows.
+      expect(pagedChains).toEqual([oldChain, newChain, newChain]);
+      expect(startedChains).toEqual([oldChain, newChain]);
+
+      // A completion without progress in the current chain must stop, even though rows still
+      // number zero. The two callers that waited on the old page must not duplicate this request.
+      await act(async () => {
+        pending.shift()?.();
+        await running;
+      });
+      expect(pagedChains).toEqual([oldChain, newChain, newChain]);
+      expect(startedChains).toEqual([oldChain, newChain]);
+      act(() => renderer?.unmount());
+    }
+  );
 });
