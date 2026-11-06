@@ -30,6 +30,17 @@ const makeEvent = (
   } = {}
 ) =>
   ({
+    event: {
+      event_id: eventId,
+      room_id: '!room:example.org',
+      type: opts.type ?? 'm.room.message',
+      origin_server_ts: opts.ts ?? 0,
+      sender: opts.sender ?? '@alice:example.org',
+      content: {
+        ...(opts.content ?? { body: eventId, msgtype: 'm.text' }),
+        ...(opts.relation ? { 'm.relates_to': opts.relation } : {}),
+      },
+    },
     isThreadRoot: opts.isThreadRoot ?? false,
     threadRootId: opts.threadRootId,
     getContent: () => opts.content ?? { body: eventId, msgtype: 'm.text' },
