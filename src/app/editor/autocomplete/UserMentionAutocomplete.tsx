@@ -133,10 +133,13 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
   const handleSelect = useCallback(
     (member: RoomMember) => {
       const ownUserId = client.getUserId();
+      // "@" and the name, as the timeline shows a mention; the plain body carries it as typed
+      // text, which is how MindRoom reads a mention when the message has no mention metadata.
+      const label = `@${memberName(member)}`;
       replaceWithElement(
         editor,
         query.range,
-        createMentionElement(member.userId, memberName(member), member.userId === ownUserId)
+        createMentionElement(member.userId, label, member.userId === ownUserId)
       );
       moveCursor(editor, true);
       requestClose();
