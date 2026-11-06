@@ -232,13 +232,21 @@ export const SummaryTextChanged = style({
   },
 });
 
+// A narrow title column gives the schedule a line of its own, as it does the byline: beside the
+// title it took all but a letter of the title's room. Short screens keep the one line.
 export const ScheduledWrap = style({
   display: 'inline-flex',
   alignItems: 'center',
   minInlineSize: 0,
   flexShrink: 0,
   whiteSpace: 'nowrap',
-  ...whenCompact({ flexShrink: 1 }),
+  '@container': { [narrowTitle]: { flexBasis: '100%' } },
+  ...whenCompact({ flexShrink: 1, flexBasis: 'auto' }),
+});
+
+export const ScheduledDot = style({
+  '@container': { [narrowTitle]: { display: 'none' } },
+  ...whenCompact({ display: 'inline' }),
 });
 
 export const MetadataDot = style({

@@ -404,7 +404,7 @@ export function ThreadContextBanner({
                       {(headerModel.summaryText || rootTitle) && (
                         <Text
                           as="span"
-                          className={css.MetadataDot}
+                          className={classNames(css.MetadataDot, css.ScheduledDot)}
                           size="T200"
                           priority="300"
                           aria-hidden="true"
