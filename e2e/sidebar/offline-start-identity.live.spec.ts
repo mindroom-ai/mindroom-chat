@@ -246,6 +246,11 @@ test('an offline start keeps thread titles, thread participants and the space pi
   // Let the cache writes of the thread lists settle before the page goes away.
   await page.waitForTimeout(1_000);
 
+  // Playwright's WebKit contexts keep cache storage in memory and drop it once no page of the
+  // origin is open (Safari keeps it); a plain file of the app holds the origin while the app
+  // restarts.
+  const keeper = await context.newPage();
+  await keeper.goto('/version.json');
   await page.close();
   await goOffline(context, baseURL!, browserName);
   const offline = await context.newPage();
