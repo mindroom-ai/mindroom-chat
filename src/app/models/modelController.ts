@@ -57,6 +57,8 @@ type Scope = {
   needsRefresh: boolean;
   chosenRuntimeId?: string;
   refreshScheduled?: boolean;
+  /** A `!model` typed in the thread, whose answer changes the selection without a result. */
+  typedCommand?: boolean;
   query?: Query;
   command?: Command;
   send?: Command;
@@ -377,6 +379,12 @@ export class ModelController {
       return;
     query.replies.set(runtime.id, { runtime, response });
     // Keep collecting: another signed device may represent a distinct runtime.
+    // The shown runtime's answer is the thread's selection now, so show it at once.
+    const { scope } = query;
+    if (scope.snapshot.runtime?.id === runtime.id && scope.catalogs.has(runtime.id)) {
+      scope.catalogs.set(runtime.id, { runtime, response });
+      this.showRuntime(scope, runtime);
+    }
   }
 
   chooseRuntime = (room: Room, threadId: string | undefined, runtimeId: string): void => {
@@ -506,8 +514,34 @@ export class ModelController {
   }
 
   private onEvent = (event: MatrixEvent): void => {
+    this.receiveTypedCommand(event);
     void this.receiveResult(event).catch(() => undefined);
   };
+
+  /** After a `!model` typed in a thread, the runtime's next message there asks for its selection again. */
+  private receiveTypedCommand(event: MatrixEvent): void {
+    const relation = event.getRelation();
+    if (
+      !this.active() ||
+      event.getType() !== 'm.room.message' ||
+      relation?.rel_type !== 'm.thread' ||
+      !relation.event_id
+    )
+      return;
+    const scope = this.scopes.get(JSON.stringify([event.getRoomId(), relation.event_id]));
+    if (!scope?.listeners.size || scope.command) return;
+    const { body } = event.getContent();
+    if (typeof body === 'string' && /^!model(\s|$)/i.test(body.trim())) {
+      scope.typedCommand = true;
+    } else if (
+      scope.typedCommand &&
+      scope.snapshot.runtimes.some((runtime) => runtime.userId === event.getSender())
+    ) {
+      scope.typedCommand = false;
+      this.cancelQuery(scope);
+      this.refresh(scope.room, scope.threadId);
+    }
+  }
 
   private async receiveResult(event: MatrixEvent): Promise<void> {
     if (!this.active() || event.getType() !== 'm.room.message' || event.isRedacted()) return;
