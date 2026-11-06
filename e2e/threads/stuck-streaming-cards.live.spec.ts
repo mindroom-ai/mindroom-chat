@@ -139,6 +139,13 @@ const busyThread = async (world: World, label: string) => {
     });
 };
 
+/** The agent that answers item `index`: the agents take turns. */
+const agentFor = (agents: MatrixSession[], index: number): MatrixSession => {
+  const agent = agents[index % agents.length];
+  if (!agent) throw new Error('The room has no agents');
+  return agent;
+};
+
 const seed = async (engine: string): Promise<World> => {
   const reader = await registerAndLogin(engine);
   const peer = await registerAndLogin(`${engine}_peer`);
@@ -162,7 +169,7 @@ const seed = async (engine: string): Promise<World> => {
     await createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${index}` });
   const world: World = { reader, peer, agents, roomId, historyRootId: '' };
   for (let index = 1; index <= HISTORY; index += 1) {
-    const agent = agents[index % agents.length];
+    const agent = agentFor(agents, index);
     const rootId = await send(world, reader, {
       msgtype: 'm.text',
       body: `Earlier item ${index}: what is still open before we tag the release?`,
@@ -335,7 +342,7 @@ const check = async (page: Page, world: World, engine: string, quietRoomId: stri
   // The reader watches the room while every agent starts replies in many threads.
   const streams: Stream[] = [];
   for (let index = 1; index <= STREAMS; index += 1) {
-    const agent = world.agents[index % world.agents.length];
+    const agent = agentFor(world.agents, index);
     const rootId = await send(world, world.reader, {
       msgtype: 'm.text',
       body: `Item ${index}: which fixes go into the release notes, and what is still missing?`,
@@ -348,7 +355,8 @@ const check = async (page: Page, world: World, engine: string, quietRoomId: stri
     });
     streams.push({ index, rootId, replyId, agent });
   }
-  await expect(threadCard(page, streams[STREAMS - 1].rootId)).toBeAttached({ timeout: 60_000 });
+  for (const stream of streams)
+    await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
 
   // The reader reloads before the first words: the room's thread list is read while every reply
   // is still its placeholder.
