@@ -71,6 +71,7 @@ import {
   getCommandSuggestions,
   isSlashCommandQuery,
   readActingCommand,
+  readUnknownCommand,
 } from './slashCommandQuery';
 import { sendComposerSticker } from './composerSticker';
 import {
@@ -392,6 +393,14 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const submit = useCallback(async () => {
       if (voice.blocksSubmit()) return;
+      // A `/word` that is no command, such as a typo of one, stays in the composer unsent.
+      const unknownCommand = readUnknownCommand(editor.children, commands);
+      if (unknownCommand !== undefined) {
+        setCommandProblem(
+          t('featureUi.room.commandAutocomplete.unknown', { command: `/${unknownCommand}` })
+        );
+        return;
+      }
       const acting = readActingCommand(editor.children, commands);
       if (acting) {
         await runActingCommand(acting);
@@ -408,7 +417,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       } finally {
         if (mountedRef.current) setSubmitPending(false);
       }
-    }, [buildTextContent, commands, editor, runActingCommand, sendTypingStatus, sessions, voice]);
+    }, [
+      buildTextContent,
+      commands,
+      editor,
+      runActingCommand,
+      sendTypingStatus,
+      sessions,
+      t,
+      voice,
+    ]);
 
     // Every send path goes through here: failures are logged once, and the promise still
     // rejects for a caller that awaits it.

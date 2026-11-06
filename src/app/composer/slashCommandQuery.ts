@@ -66,6 +66,24 @@ export const readActingCommand = (
   return { command, run: command.run, args: match[2] ?? '' };
 };
 
+/**
+ * The name of a `/word` the message starts with that is no command, such as `/foobar` or a typo
+ * of one; undefined when the message starts with a command or with anything else. As with the
+ * commands themselves, only plain text at the start of the first line counts, and a slash
+ * followed by more of a path (`/usr/bin`) is no command at all.
+ */
+export const readUnknownCommand = (
+  document: Descendant[],
+  commands: Record<string, SlashCommand>
+): string | undefined => {
+  const [first] = document;
+  if (!first || !('type' in first) || first.type !== BlockType.Paragraph) return undefined;
+  const [run] = first.children;
+  if (!run || !Text.isText(run)) return undefined;
+  const name = /^\/([a-z]+)(?:\s|$)/i.exec(run.text)?.[1];
+  return name !== undefined && !Object.hasOwn(commands, name) ? name : undefined;
+};
+
 /** What the composer says when a command did not run: its usage, or the server's reason. */
 export const describeCommandFailure = (
   t: TFunction,
