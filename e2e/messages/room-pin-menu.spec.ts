@@ -698,8 +698,6 @@ const THREAD_PINS = [
 ];
 const THREAD_PIN_EDITED = 'Straddle carrier 12 is back in service, the hydraulic hose was replaced.';
 const OLD_PIN = 'The harbour master asks every vessel agent to confirm arrival times by noon.';
-// More than the room's first page after a reload, so the oldest pin is not in the timeline.
-const OLD_PIN_FILLERS = 40;
 
 /**
  * Pins that are not in the room's loaded timeline after a reload, in an encrypted or a plain room:
@@ -749,7 +747,7 @@ const checkUnloadedPins =
     };
 
     const oldPin = await sendMessage(OLD_PIN);
-    for (let index = 0; index < OLD_PIN_FILLERS; index += 1) {
+    for (let index = 0; index < FILLER_COUNT; index += 1) {
       // eslint-disable-next-line no-await-in-loop
       await sendRoomMessage(HOMESERVER, owner.accessToken, roomId, {
         msgtype: 'm.text',
@@ -764,12 +762,16 @@ const checkUnloadedPins =
       // eslint-disable-next-line no-await-in-loop
       replies.push(await sendMessage(body));
     }
-    // Up edits the newest own reply of the thread.
-    await composer.click();
-    await composer.press('ArrowUp');
-    const editBox = page.locator('[contenteditable="true"]').filter({ hasText: THREAD_PINS[2] });
-    await expect(editBox).toBeFocused();
-    await editBox.fill(THREAD_PIN_EDITED);
+    // Up in the empty composer edits the newest own reply of the thread, once it is sent.
+    const editor = page.getByRole('textbox', { name: 'Edit Message' });
+    await expect(async () => {
+      await composer.click();
+      await page.keyboard.press('ArrowUp');
+      await expect(editor).toBeFocused({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
+    await expect(editor).toHaveText(THREAD_PINS[2]);
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.insertText(THREAD_PIN_EDITED);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect(page.getByText(THREAD_PIN_EDITED)).toBeVisible({ timeout: 30_000 });
     await pinEvents(owner, roomId, [oldPin, ...replies]);
