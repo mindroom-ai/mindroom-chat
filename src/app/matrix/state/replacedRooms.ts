@@ -59,7 +59,7 @@ export const useBindReplacedRoomsAtom = (mx: MatrixClient): void => {
       });
     };
     const onState = (event: MatrixEvent) => {
-      if (event.getType() === StateEvent.RoomTombstone) refresh();
+      if (matchesEnum(event.getType(), StateEvent.RoomTombstone)) refresh();
     };
     refresh();
     mx.on(ClientEvent.Room, refresh);
