@@ -251,12 +251,18 @@ const openFrom = async (page: Page, room: Case, entry: Entry, phone: boolean) =>
     if (entry === 'row-context') {
       if (phone) {
         // A long press on Android fires contextmenu at the finger; WebKit and Playwright's touch
-        // emulation do not, so the test fires it.
-        const box = await link.boundingBox();
-        await link.dispatchEvent('contextmenu', {
-          clientX: (box?.x ?? 0) + 40,
-          clientY: (box?.y ?? 0) + (box?.height ?? 0) / 2,
-          button: 2,
+        // emulation do not, so the test fires it, where a finger would rest on the name.
+        await link.evaluate((element) => {
+          const { left, top, height } = element.getBoundingClientRect();
+          element.dispatchEvent(
+            new MouseEvent('contextmenu', {
+              bubbles: true,
+              cancelable: true,
+              button: 2,
+              clientX: left + 60,
+              clientY: top + height / 2,
+            })
+          );
         });
       } else {
         await link.click({ button: 'right' });
