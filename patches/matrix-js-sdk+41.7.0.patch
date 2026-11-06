@@ -1491,7 +1491,7 @@ index 871875d..5c586ee 100644
          if (recursionSupport === ServerSupport.Unsupported) {
              return Promise.all(
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
-index 217e159..c5bc3dd 100644
+index 217e159..469de8f 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 +++ b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 @@ -31,7 +31,7 @@ import { OutgoingRequestProcessor } from "./OutgoingRequestProcessor.js";
@@ -1556,7 +1556,31 @@ index 217e159..c5bc3dd 100644
        }
        return deviceMapByUserId;
      })();
-@@ -1619,7 +1628,14 @@ export class RustCrypto extends TypedEventEmitter {
+@@ -1562,12 +1571,20 @@ export class RustCrypto extends TypedEventEmitter {
+     var _this59 = this;
+     return _asyncToGenerator(function* () {
+       var events = _ref7.events,
+-        _ref7$oneTimeKeysCoun = _ref7.oneTimeKeysCounts,
+-        oneTimeKeysCounts = _ref7$oneTimeKeysCoun === void 0 ? new Map() : _ref7$oneTimeKeysCoun,
++        oneTimeKeysCounts = _ref7.oneTimeKeysCounts,
+         unusedFallbackKeys = _ref7.unusedFallbackKeys,
+         _ref7$devices = _ref7.devices,
+         devices = _ref7$devices === void 0 ? new RustSdkCryptoJs.DeviceLists() : _ref7$devices;
+-      return yield _this59.olmMachine.receiveSyncChanges(events ? JSON.stringify(events) : "[]", devices, oneTimeKeysCounts, unusedFallbackKeys);
++      var toDeviceEvents = events ? JSON.stringify(events) : "[]";
++      // MindRoom: the fix of matrix-js-sdk #5503 (v42.4.0) for this version. Since
++      // matrix-sdk-crypto-wasm 18.5.0, `receiveSyncChanges` reads a missing one-time key count as
++      // "no keys on the server" (sync v2), so every call with only to-device messages or device
++      // list changes made the machine upload 50 more keys. The MSC4186 variant reads a missing
++      // count as unchanged and is otherwise the same.
++      if (oneTimeKeysCounts === undefined) {
++        return yield _this59.olmMachine.receiveSyncChangesMsc4186(toDeviceEvents, devices, new Map(), unusedFallbackKeys);
++      }
++      return yield _this59.olmMachine.receiveSyncChanges(toDeviceEvents, devices, oneTimeKeysCounts, unusedFallbackKeys);
+     })();
+   }
+ 
+@@ -1619,7 +1636,14 @@ export class RustCrypto extends TypedEventEmitter {
                // received a new room key bundle that we might be able to download.
                if (isRoomKeyBundleMessage(parsedMessage)) {
                  var roomId = parsedMessage.content.room_id;
@@ -1572,7 +1596,17 @@ index 217e159..c5bc3dd 100644
                  // Only accept the key bundle if we joined the room less than 24 hours ago.
                  if (!pendingDetails) {
                    _this60.logger.debug("Not yet accepting key bundle for room where we are not awaiting a bundle: ".concat(roomId));
-@@ -2128,6 +2144,13 @@ export class RustCrypto extends TypedEventEmitter {
+@@ -1671,7 +1695,8 @@ export class RustCrypto extends TypedEventEmitter {
+       var setUnusedFallbackKeys = unusedFallbackKeys && new Set(unusedFallbackKeys);
+       if (mapOneTimeKeysCount !== undefined || setUnusedFallbackKeys !== undefined) {
+         yield _this61.receiveSyncChanges({
+-          oneTimeKeysCounts: mapOneTimeKeysCount,
++          // MindRoom: a sync without counts has none of these keys on the server (sync v2).
++          oneTimeKeysCounts: mapOneTimeKeysCount !== null && mapOneTimeKeysCount !== void 0 ? mapOneTimeKeysCount : new Map(),
+           unusedFallbackKeys: setUnusedFallbackKeys
+         });
+       }
+@@ -2128,6 +2153,13 @@ export class RustCrypto extends TypedEventEmitter {
      })();
    }
  }
@@ -1586,7 +1620,7 @@ index 217e159..c5bc3dd 100644
  class EventDecryptor {
    constructor(logger, olmMachine, perSessionBackupDownloader) {
      this.logger = logger;
-@@ -2147,7 +2170,9 @@ class EventDecryptor {
+@@ -2147,7 +2179,9 @@ class EventDecryptor {
        // then, if the key turns up while decryption is in progress (and
        // decryption fails), we will schedule a retry.
        // (fixes https://github.com/vector-im/element-web/issues/5001)
@@ -1597,7 +1631,7 @@ index 217e159..c5bc3dd 100644
        var trustRequirement;
        switch (isolationMode.kind) {
          case DeviceIsolationModeKind.AllDevicesIsolationMode:
-@@ -2199,7 +2224,9 @@ class EventDecryptor {
+@@ -2199,7 +2233,9 @@ class EventDecryptor {
  
      // If the error looks like it might be recoverable from backup, queue up a request to try that.
      if (err.code === RustSdkCryptoJs.DecryptionErrorCode.MissingRoomKey || err.code === RustSdkCryptoJs.DecryptionErrorCode.UnknownMessageIndex) {
@@ -1609,7 +1643,7 @@ index 217e159..c5bc3dd 100644
        // If the server is telling us our membership at the time the event
        // was sent, and it isn't "join", we use a different error code.
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
-index fa3b8f0..a0a5f11 100644
+index fa3b8f0..e19bf45 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 +++ b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 @@ -72,7 +72,7 @@ import {
@@ -1674,7 +1708,40 @@ index fa3b8f0..a0a5f11 100644
          }
  
          return deviceMapByUserId;
-@@ -1741,9 +1756,16 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+@@ -1679,7 +1694,7 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+      */
+     private async receiveSyncChanges({
+         events,
+-        oneTimeKeysCounts = new Map<string, number>(),
++        oneTimeKeysCounts,
+         unusedFallbackKeys,
+         devices = new RustSdkCryptoJs.DeviceLists(),
+     }: {
+@@ -1688,8 +1703,22 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+         unusedFallbackKeys?: Set<string>;
+         devices?: RustSdkCryptoJs.DeviceLists;
+     }): Promise<RustSdkCryptoJs.ProcessedToDeviceEvent[]> {
++        const toDeviceEvents = events ? JSON.stringify(events) : "[]";
++        // MindRoom: the fix of matrix-js-sdk #5503 (v42.4.0) for this version. Since
++        // matrix-sdk-crypto-wasm 18.5.0, `receiveSyncChanges` reads a missing one-time key count as
++        // "no keys on the server" (sync v2), so every call with only to-device messages or device
++        // list changes made the machine upload 50 more keys. The MSC4186 variant reads a missing
++        // count as unchanged and is otherwise the same.
++        if (oneTimeKeysCounts === undefined) {
++            return await this.olmMachine.receiveSyncChangesMsc4186(
++                toDeviceEvents,
++                devices,
++                new Map<string, number>(),
++                unusedFallbackKeys,
++            );
++        }
+         return await this.olmMachine.receiveSyncChanges(
+-            events ? JSON.stringify(events) : "[]",
++            toDeviceEvents,
+             devices,
+             oneTimeKeysCounts,
+             unusedFallbackKeys,
+@@ -1741,9 +1770,16 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
                      // received a new room key bundle that we might be able to download.
                      if (isRoomKeyBundleMessage(parsedMessage)) {
                          const roomId = parsedMessage.content.room_id;
@@ -1694,7 +1761,17 @@ index fa3b8f0..a0a5f11 100644
                          // Only accept the key bundle if we joined the room less than 24 hours ago.
                          if (!pendingDetails) {
                              this.logger.debug(
-@@ -2270,6 +2292,12 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+@@ -1801,7 +1837,8 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+ 
+         if (mapOneTimeKeysCount !== undefined || setUnusedFallbackKeys !== undefined) {
+             await this.receiveSyncChanges({
+-                oneTimeKeysCounts: mapOneTimeKeysCount,
++                // MindRoom: a sync without counts has none of these keys on the server (sync v2).
++                oneTimeKeysCounts: mapOneTimeKeysCount ?? new Map<string, number>(),
+                 unusedFallbackKeys: setUnusedFallbackKeys,
+             });
+         }
+@@ -2270,6 +2307,12 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
      }
  }
  
@@ -1707,7 +1784,7 @@ index fa3b8f0..a0a5f11 100644
  class EventDecryptor {
      /**
       * Events which we couldn't decrypt due to unknown sessions / indexes.
-@@ -2294,7 +2322,9 @@ class EventDecryptor {
+@@ -2294,7 +2337,9 @@ class EventDecryptor {
          // then, if the key turns up while decryption is in progress (and
          // decryption fails), we will schedule a retry.
          // (fixes https://github.com/vector-im/element-web/issues/5001)
@@ -1718,7 +1795,7 @@ index fa3b8f0..a0a5f11 100644
  
          let trustRequirement;
  
-@@ -2356,7 +2386,9 @@ class EventDecryptor {
+@@ -2356,7 +2401,9 @@ class EventDecryptor {
              err.code === RustSdkCryptoJs.DecryptionErrorCode.MissingRoomKey ||
              err.code === RustSdkCryptoJs.DecryptionErrorCode.UnknownMessageIndex
          ) {
