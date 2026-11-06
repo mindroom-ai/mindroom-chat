@@ -762,6 +762,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
+  // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
+  // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
+  // list's height and the next one takes the new height: resizing the list there would resize the
+  // scroll content, which the scrollbar, the minimap and the follow-growth observer watch, after the
+  // rows inside it were reported, and WebKit then reports "ResizeObserver loop completed with
+  // undelivered notifications".
+  const renderedListHeight = ledger.virtualInnerRef.current?.style.height;
+  const listHeight =
+    ledger.unrenderedCorrectionPx() !== 0 && renderedListHeight
+      ? renderedListHeight
+      : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
     threadEvents,
@@ -1369,7 +1380,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                 data-testid={threadId ? undefined : 'room-virtual-inner'}
                 style={{
                   position: 'relative',
-                  height: virtualizer.getTotalSize(),
+                  height: listHeight,
                   visibility: automaticFill.hideInitialRows ? 'hidden' : undefined,
                 }}
               >

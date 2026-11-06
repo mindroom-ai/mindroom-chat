@@ -75,6 +75,8 @@ export type TimelineScrollLedgerController = {
   ledgerPxAtRender: number;
   measureElement: (node: Element | null) => void;
   threadLeadingRef: RefObject<HTMLDivElement>;
+  /** The correction virtual-core applied that the rows do not show yet, in px. */
+  unrenderedCorrectionPx: () => number;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -739,6 +741,7 @@ export const useTimelineScrollLedgerController = ({
     ledgerPxAtRender,
     measureElement,
     threadLeadingRef,
+    unrenderedCorrectionPx,
     virtualInnerRef,
     virtualizer,
   };
