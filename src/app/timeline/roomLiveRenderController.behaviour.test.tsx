@@ -554,6 +554,23 @@ describe('useRoomLiveRenderController, thread open', () => {
     expect(view.pin()).toEqual(NO_PIN);
   });
 
+  it('hands the open thread the redacted copy of a row a live redaction removed', () => {
+    const view = renderController({ threadId: THREAD_ID, threadRows: [THREAD_ID, THREAD_ROW] });
+    const redaction = redactionOf('$redaction', THREAD_ROW);
+    // The SDK's copy of the row, redacted and moved to the room's timeline.
+    const redacted = makeEvent(THREAD_ROW, {
+      content: {},
+      unsigned: { redacted_because: redaction.event as IEvent },
+    });
+    view.liveEvents.push(redacted);
+
+    view.arrive(redaction, true);
+
+    expect(view.setSupplementalThreadEvents).toHaveBeenCalledTimes(1);
+    expect(view.setSupplementalThreadEvents).toHaveBeenCalledWith(THREAD_ID, [redacted]);
+    expect(view.notifyThreadEventsChanged).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the reader at the bottom while a reply streams in as edits, without a new row', () => {
     const view = renderController({ threadId: THREAD_ID, threadRows: [THREAD_ID, THREAD_ROW] });
 

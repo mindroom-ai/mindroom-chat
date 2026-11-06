@@ -280,6 +280,16 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     void markThreadAsRead(mx, room.roomId, openThreadId, hideActivity, event);
   };
 
+  // The SDK redacts its own copy of a thread's row and moves it out of the thread, but the rows
+  // can hold another copy of it (a page the open fetched again, with its edit applied), which
+  // kept its text. The redacted copy replaces it.
+  const showThreadRedaction = (redaction: MatrixEvent, openThreadId: string) => {
+    const targetId = redaction.getAssociatedId();
+    if (!targetId || !threadEventIndexMapRef.current.has(targetId)) return;
+    const target = room.findEventById(targetId);
+    if (target?.isRedacted()) setSupplementalThreadEvents(openThreadId, [target]);
+  };
+
   const storeThreadSummary = (event: MatrixEvent) => {
     const rootId = event.threadRootId;
     if (!rootId || !isThreadSummaryEvent(event)) return;
@@ -404,8 +414,10 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     }
     markExpandOnce(event);
     if (event.isRedaction()) {
-      if (threadId) notifyThreadEventsChanged();
-      else repaint();
+      if (threadId) {
+        showThreadRedaction(event, threadId);
+        notifyThreadEventsChanged();
+      } else repaint();
       return;
     }
     if (threadId) paintThreadArrival(event, threadId);
