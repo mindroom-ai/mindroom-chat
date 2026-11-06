@@ -115,33 +115,62 @@ describe('new version without a failed part', () => {
     stop();
   });
 
+  it('asks as soon as the page starts, so a page the old worker served after a deployment says so', async () => {
+    const fetchMock = publishes('build-2');
+    vi.stubGlobal('fetch', fetchMock);
+    const { getNewVersion, watchForNewVersion } = await loadAppUpdate();
+    const stop = watchForNewVersion();
+    await vi.waitFor(() => expect(getNewVersion()).toBe('build-2'));
+    expect(fetchMock).toHaveBeenCalledOnce();
+    stop();
+  });
+
+  it('asks at the start only when the page is shown', async () => {
+    const fetchMock = publishes('build-2');
+    vi.stubGlobal('fetch', fetchMock);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    const { getNewVersion, watchForNewVersion } = await loadAppUpdate();
+    const stop = watchForNewVersion();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    setVisibility('visible');
+    await vi.waitFor(() => expect(getNewVersion()).toBe('build-2'));
+    stop();
+  });
+
   it('asks every five minutes while the page is shown, and when it comes back online', async () => {
     vi.useFakeTimers();
     const fetchMock = publishes(BUILD);
     vi.stubGlobal('fetch', fetchMock);
     const { watchForNewVersion } = await loadAppUpdate();
     const stop = watchForNewVersion();
+    // The start asks once.
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledOnce();
 
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     setVisibility('hidden');
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
-    expect(fetchMock).toHaveBeenCalledOnce();
-    window.dispatchEvent(new Event('online'));
-    await vi.advanceTimersByTimeAsync(0);
-    expect(fetchMock).toHaveBeenCalledOnce();
-
-    setVisibility('visible');
-    await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(2);
     window.dispatchEvent(new Event('online'));
     await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    setVisibility('visible');
+    await vi.advanceTimersByTimeAsync(0);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
 
     stop();
     await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
     setVisibility('visible');
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 });
 
