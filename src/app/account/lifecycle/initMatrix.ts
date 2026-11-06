@@ -73,14 +73,8 @@ export const logoutSessionWithoutStores = async (
   } catch {
     // The server may already have dropped this device; local cleanup still runs.
   }
-  // The removal ends in a reload of the current address, so that address becomes `nextHref`.
-  const { href, state } = { href: window.location.href, state: window.history.state as unknown };
-  window.history.replaceState(null, '', nextHref);
   try {
-    await sessionLifecycle.removeSessionAndReload(session);
-  } catch (error) {
-    window.history.replaceState(state, '', href);
-    throw error;
+    await sessionLifecycle.removeSessionAndReload(session, undefined, nextHref);
   } finally {
     clearFetchedAvatars(session.userId);
   }

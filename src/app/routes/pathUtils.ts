@@ -103,14 +103,14 @@ export const getAppPathFromHref = (baseUrl: string, href: string): string => {
 };
 
 /**
- * Loads the app again at its root, which opens the active account where it last was, or login
- * when no account is left. A plain reload after the active account went away would open the next
- * account on the route the removed one showed.
+ * Loads the app again at `href`, by default its root, which opens the active account where it
+ * last was, or login when no account is left. A plain reload after the active account went away
+ * would open the next account on the route the removed one showed.
  */
-export const reloadAtAppRoot = (): void => {
+export const reloadAppAt = (href?: string): void => {
   const basePath = trimSlashes(getAppBasePath());
   try {
-    window.history.replaceState(null, '', basePath ? `/${basePath}/` : '/');
+    window.history.replaceState(null, '', href ?? (basePath ? `/${basePath}/` : '/'));
   } catch {
     // Without history the page reloads where it is.
   }
