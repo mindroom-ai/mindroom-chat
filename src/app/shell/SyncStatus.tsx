@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient, type SyncStateData } from 'matrix-js-sdk';
 import { ContainerColor } from '../ui/styles/ContainerColor.css';
 import { useHomeserverUnreachable } from '../matrix/client/homeserverReachability';
+import { useSyncStalled } from '../matrix/client/syncStall';
 import { useCloudflareAccessSignInRequired } from '../native/cloudflareAccess';
 import { hostOf } from '../lib/httpUrl';
 
@@ -39,13 +40,15 @@ const readInitialSnapshot = (mx: MatrixClient): SyncSnapshot => {
 };
 
 /**
- * A thin banner for a lost connection, a needed organization sign-in, or catching up. The client
- * root keeps it in a polite live region, which stays mounted while the banner comes and goes.
+ * A thin banner for a lost connection (failed requests, an unanswered /sync, or the sync loop's
+ * error), a needed organization sign-in, or catching up. The client root keeps it in a polite
+ * live region, which stays mounted while the banner comes and goes.
  */
 export function SyncStatus({ mx }: SyncStatusProps) {
   const { t } = useTranslation();
   const [snapshot, setSnapshot] = useState<SyncSnapshot>(() => readInitialSnapshot(mx));
   const unreachable = useHomeserverUnreachable(mx);
+  const stalled = useSyncStalled(mx);
   const baseUrl = mx.getHomeserverUrl();
   const signInRequired = useCloudflareAccessSignInRequired(baseUrl);
 
@@ -65,7 +68,7 @@ export function SyncStatus({ mx }: SyncStatusProps) {
   if (signInRequired && syncFailed) {
     message = t('mindroomUi.native.cloudflareAccess.signInRequired', { value1: hostOf(baseUrl) });
     critical = true;
-  } else if (unreachable || syncFailed) {
+  } else if (unreachable || stalled || syncFailed) {
     message =
       snapshot.current === SyncState.Reconnecting
         ? t('sharedUi.syncStatus.connectionLostReconnecting')

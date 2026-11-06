@@ -90,6 +90,18 @@ const stalledSyncShowsLostConnection = async (
     timeout: 30_000,
   });
   await expect(status).toHaveCount(0, { timeout: 15_000 });
+
+  // A start from the saved sync on a stalled network: its first /sync asks for an answer at once
+  // (timeout 0), so the notice replaces "Catching up..." after the margin alone.
+  held.length = 0;
+  await context.route(isSync, hold);
+  await page.reload();
+  await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({ timeout: 30_000 });
+  await expect.poll(() => held.length, { timeout: 30_000 }).toBeGreaterThan(0);
+  await expect(status).toHaveText(/Connection Lost!/, { timeout: 45_000 });
+  await context.unroute(isSync, hold);
+  await Promise.all(held.map((route) => route.continue().catch(() => undefined)));
+  await expect(status).toHaveCount(0, { timeout: 30_000 });
 };
 
 test('a /sync request that never answers shows the lost connection until the next answer (Chromium)', async ({

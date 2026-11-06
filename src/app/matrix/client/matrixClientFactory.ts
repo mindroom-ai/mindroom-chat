@@ -8,6 +8,7 @@ import {
 } from 'matrix-js-sdk';
 import { traceDeepDiagnosticFetch } from '../../diagnostics/deepTrace';
 import { bindHomeserverReachability, createHomeserverReachability } from './homeserverReachability';
+import { bindSyncStallWatch, createSyncStallWatch } from './syncStall';
 import { getCloudflareAccessToken } from '../../native/cloudflareAccess';
 
 type CreateClientOpts = ICreateClientOpts & {
@@ -124,15 +125,14 @@ class MessageSendScheduler extends MatrixScheduler {
 }
 
 export const createMatrixClient = (options: CreateClientOpts) => {
-  const reachability = createHomeserverReachability(
-    createMatrixFetchFn(options.fetchFn ?? globalThis.fetch),
-    options.baseUrl
-  );
+  const syncStall = createSyncStallWatch(createMatrixFetchFn(options.fetchFn ?? globalThis.fetch));
+  const reachability = createHomeserverReachability(syncStall.fetchFn, options.baseUrl);
   const mx = createClient({
     ...options,
     fetchFn: reachability.fetchFn,
     scheduler: options.scheduler ?? new MessageSendScheduler(),
   } as ICreateClientOpts);
   bindHomeserverReachability(mx, reachability);
+  bindSyncStallWatch(mx, syncStall);
   return mx;
 };
