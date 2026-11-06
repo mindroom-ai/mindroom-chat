@@ -7,6 +7,98 @@ import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import type { CanvasListEntry } from './canvasIndexStore';
 
+type CanvasMenuProps = {
+  /** Where the menu opens; it is closed while undefined. */
+  anchor?: RectCords;
+  /** The conversation's canvases, in the order the menu lists them. */
+  canvases: CanvasListEntry[];
+  /** The canvas the panel shows, which may belong to another conversation. */
+  openCanvasId?: string;
+  /** A canvas was chosen: the shown one closes its panel, another opens it. */
+  onChoose: (canvasId: string) => void;
+  requestClose: () => void;
+};
+
+/** A menu of the conversation's canvases by title, with the update time to tell same-named ones apart. */
+export function CanvasMenu({
+  anchor,
+  canvases,
+  openCanvasId,
+  onChoose,
+  requestClose,
+}: CanvasMenuProps) {
+  const { t } = useTranslation();
+  const language = useAppLanguageCode();
+  const time = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' });
+  // Escape or a click elsewhere dismisses the list; focus stays where the click put it.
+  const dismiss = () => {
+    requestClose();
+    return true;
+  };
+  const trap = {
+    initialFocus: false as const,
+    returnFocusOnDeactivate: false,
+    escapeDeactivates: dismiss,
+    clickOutsideDeactivates: dismiss,
+  };
+  return (
+    <PopOut
+      anchor={anchor}
+      position="Bottom"
+      align="End"
+      offset={4}
+      content={
+        <FocusTrap focusTrapOptions={trap}>
+          <Menu
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              maxHeight: `calc(100vh - ${config.space.S700} * 2)`,
+              maxWidth: 'min(22rem, calc(100vw - 2rem))',
+            }}
+          >
+            <Box
+              shrink="No"
+              style={{
+                padding: `${config.space.S300} ${config.space.S300} ${config.space.S100}`,
+              }}
+            >
+              <Text size="L400">{t('mindroomUi.threads.mindroomRoomViewHeader.canvases')}</Text>
+            </Box>
+            <Scroll size="300" hideTrack visibility="Hover">
+              <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
+                {canvases.map((canvas) => {
+                  const current = canvas.canvasId === openCanvasId;
+                  return (
+                    <MenuItem
+                      key={canvas.canvasId}
+                      size="400"
+                      radii="300"
+                      aria-current={current ? 'true' : undefined}
+                      variant={current ? 'Primary' : 'Surface'}
+                      fill={current ? 'Soft' : 'None'}
+                      onClick={() => onChoose(canvas.canvasId)}
+                    >
+                      <Box direction="Column" style={{ minWidth: 0 }}>
+                        <Text size="T300" truncate>
+                          {canvas.title}
+                        </Text>
+                        <Text size="T200" priority="300" truncate>
+                          {time.format(canvas.updatedTs)}
+                        </Text>
+                      </Box>
+                    </MenuItem>
+                  );
+                })}
+              </Box>
+            </Scroll>
+          </Menu>
+        </FocusTrap>
+      }
+    />
+  );
+}
+
 type CanvasHeaderButtonProps = {
   /** The conversation's canvases, in the order the menu lists them. */
   canvases: CanvasListEntry[];
@@ -27,7 +119,6 @@ export function CanvasHeaderButton({
   onClose,
 }: CanvasHeaderButtonProps) {
   const { t } = useTranslation();
-  const language = useAppLanguageCode();
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const several = canvases.length > 1;
 
@@ -62,11 +153,6 @@ export function CanvasHeaderButton({
     else onOpen(canvasId);
   };
 
-  const time = new Intl.DateTimeFormat(language, { dateStyle: 'medium', timeStyle: 'short' });
-  const closeMenu = () => {
-    setMenuAnchor(undefined);
-    return true;
-  };
   const tooltip = (
     <Tooltip>
       <Text size="T200">{label}</Text>
@@ -93,66 +179,12 @@ export function CanvasHeaderButton({
           </IconButton>
         )}
       </TooltipProvider>
-      <PopOut
-        offset={4}
-        align="End"
-        position="Bottom"
+      <CanvasMenu
         anchor={menuAnchor}
-        content={
-          <FocusTrap
-            focusTrapOptions={{
-              initialFocus: false,
-              returnFocusOnDeactivate: false,
-              escapeDeactivates: closeMenu,
-              clickOutsideDeactivates: closeMenu,
-            }}
-          >
-            <Menu
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                maxHeight: `calc(100vh - ${config.space.S700} * 2)`,
-                maxWidth: 'min(22rem, calc(100vw - 2rem))',
-              }}
-            >
-              <Box
-                shrink="No"
-                style={{
-                  padding: `${config.space.S300} ${config.space.S300} ${config.space.S100}`,
-                }}
-              >
-                <Text size="L400">{t('mindroomUi.threads.mindroomRoomViewHeader.canvases')}</Text>
-              </Box>
-              <Scroll size="300" hideTrack visibility="Hover">
-                <Box direction="Column" gap="100" style={{ padding: config.space.S100 }}>
-                  {canvases.map((canvas) => {
-                    const current = canvas.canvasId === openCanvasId;
-                    return (
-                      <MenuItem
-                        key={canvas.canvasId}
-                        size="400"
-                        radii="300"
-                        aria-current={current ? 'true' : undefined}
-                        variant={current ? 'Primary' : 'Surface'}
-                        fill={current ? 'Soft' : 'None'}
-                        onClick={() => choose(canvas.canvasId)}
-                      >
-                        <Box direction="Column" style={{ minWidth: 0 }}>
-                          <Text size="T300" truncate>
-                            {canvas.title}
-                          </Text>
-                          <Text size="T200" priority="300" truncate>
-                            {time.format(canvas.updatedTs)}
-                          </Text>
-                        </Box>
-                      </MenuItem>
-                    );
-                  })}
-                </Box>
-              </Scroll>
-            </Menu>
-          </FocusTrap>
-        }
+        canvases={canvases}
+        openCanvasId={openCanvasId}
+        onChoose={choose}
+        requestClose={() => setMenuAnchor(undefined)}
       />
     </>
   );

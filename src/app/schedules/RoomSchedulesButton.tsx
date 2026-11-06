@@ -20,6 +20,7 @@ import {
   Tooltip,
 } from 'folds';
 import { TooltipProvider } from '../ui/directional';
+import { MenuEntry } from '../ui/MenuEntry';
 import { useScheduledTaskEvents } from './useScheduledTaskEvents';
 import { getPendingRoomSchedules } from './roomSchedules';
 import { RoomSchedulesDialog } from './RoomSchedulesDialog';
@@ -44,6 +45,75 @@ function useCenterX(element: Element | null, active: boolean): number | undefine
     };
   }, [active, element]);
   return active ? centerX : undefined;
+}
+
+type RoomSchedulesOverlayProps = {
+  room: Room;
+  /** The room view's horizontal center in viewport pixels, which the list sits over. */
+  centerX?: number;
+  onClose: () => void;
+  onOpenThread: (threadId: string) => void;
+};
+
+/** The room's pending scheduled tasks over the room view; it follows the room state while open. */
+export function RoomSchedulesOverlay({
+  room,
+  centerX,
+  onClose,
+  onOpenThread,
+}: RoomSchedulesOverlayProps) {
+  const events = useScheduledTaskEvents(room);
+  const tasks = useMemo(() => getPendingRoomSchedules(events), [events]);
+  return (
+    <Overlay open backdrop={<OverlayBackdrop />}>
+      <OverlayCenter
+        style={
+          centerX === undefined
+            ? undefined
+            : ({ [css.ROOM_VIEW_CENTER]: `${centerX}px` } as CSSProperties)
+        }
+      >
+        <FocusTrap
+          focusTrapOptions={{
+            initialFocus: false,
+            returnFocusOnDeactivate: true,
+            clickOutsideDeactivates: true,
+            onDeactivate: onClose,
+            // Escape closes the list only; the room's own Escape (mark as read) must not see it.
+            escapeDeactivates: (event: KeyboardEvent) => {
+              event.stopPropagation();
+              return true;
+            },
+          }}
+        >
+          <RoomSchedulesDialog
+            roomId={room.roomId}
+            tasks={tasks}
+            onClose={onClose}
+            onOpenThread={(threadId) => {
+              onClose();
+              onOpenThread(threadId);
+            }}
+          />
+        </FocusTrap>
+      </OverlayCenter>
+    </Overlay>
+  );
+}
+
+/** The room menu's entry for the scheduled tasks, with their count, on phones. */
+export function RoomSchedulesMenuEntry({ room, onSelect }: { room: Room; onSelect: () => void }) {
+  const { t } = useTranslation();
+  const events = useScheduledTaskEvents(room);
+  const total = useMemo(() => getPendingRoomSchedules(events), [events]).length;
+  return (
+    <MenuEntry
+      icon={Icons.Clock}
+      label={t('roomSchedules.openLabel', { total })}
+      aria-haspopup="dialog"
+      onSelect={onSelect}
+    />
+  );
 }
 
 type RoomSchedulesButtonProps = {
@@ -106,39 +176,12 @@ export function RoomSchedulesButton({ room, onOpenThread }: RoomSchedulesButtonP
         )}
       </TooltipProvider>
       {open && (
-        <Overlay open backdrop={<OverlayBackdrop />}>
-          <OverlayCenter
-            style={
-              roomViewCenter === undefined
-                ? undefined
-                : ({ [css.ROOM_VIEW_CENTER]: `${roomViewCenter}px` } as CSSProperties)
-            }
-          >
-            <FocusTrap
-              focusTrapOptions={{
-                initialFocus: false,
-                returnFocusOnDeactivate: true,
-                clickOutsideDeactivates: true,
-                onDeactivate: close,
-                // Escape closes the list only; the room's own Escape (mark as read) must not see it.
-                escapeDeactivates: (event: KeyboardEvent) => {
-                  event.stopPropagation();
-                  return true;
-                },
-              }}
-            >
-              <RoomSchedulesDialog
-                roomId={room.roomId}
-                tasks={tasks}
-                onClose={close}
-                onOpenThread={(threadId) => {
-                  close();
-                  onOpenThread(threadId);
-                }}
-              />
-            </FocusTrap>
-          </OverlayCenter>
-        </Overlay>
+        <RoomSchedulesOverlay
+          room={room}
+          centerX={roomViewCenter}
+          onClose={close}
+          onOpenThread={onOpenThread}
+        />
       )}
     </>
   );

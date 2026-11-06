@@ -12,9 +12,12 @@ import {
 } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
 import { ArchiveRoomMenuItem } from '../rooms/archive/ArchiveRoomMenuItem';
+import * as css from './RoomHeaderMenu.css';
 
 /** What the room header's options menu offers; an action left out hides its entry. */
 type RoomHeaderMenuActions = {
+  /** On phones, the actions their header leaves out (view, filters, members and the like), first. */
+  roomEntries?: ReactNode;
   onInvite?: () => void;
   onCopyLink: () => void;
   onOpenSettings: () => void;
@@ -56,7 +59,7 @@ function NotificationModeEntry({ room, onChosen }: { room: Room; onChosen: () =>
 }
 
 /**
- * The room header's options menu: read state, notification mode, sharing, settings, search, Jump
+ * The room header's options menu: on phones first what their header leaves out, then read state, notification mode, sharing, settings, search, Jump
  * to Time, the computer and calls when the header does not show them, then archiving and leaving
  * the room.
  * The ref reaches the menu element, which the focus trap around it needs to close on Escape and
@@ -75,6 +78,7 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
       onShowComputer,
       calls,
       onLeave,
+      roomEntries,
     },
     ref
   ) {
@@ -85,7 +89,17 @@ export const RoomHeaderMenu = forwardRef<HTMLDivElement, RoomHeaderMenuProps>(
     };
 
     return (
-      <Menu ref={ref} style={{ minWidth: toRem(200), maxWidth: toRem(280) }}>
+      <Menu
+        ref={ref}
+        className={css.RoomMenu}
+        style={{ minWidth: toRem(200), maxWidth: toRem(280) }}
+      >
+        {roomEntries && (
+          <>
+            <MenuGroup>{roomEntries}</MenuGroup>
+            <Line variant="Surface" size="300" />
+          </>
+        )}
         <MenuGroup>
           <MarkRoomReadMenuItem room={room} onClose={requestClose} />
           <NotificationModeEntry room={room} onChosen={requestClose} />
