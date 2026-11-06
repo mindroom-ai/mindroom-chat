@@ -180,6 +180,7 @@ export const installEventContentGuard = (): void => {
   const sdkGetOriginalContent = proto.getOriginalContent;
   const sdkGetContent = proto.getContent;
   const sdkReplacing = proto.replacingEvent;
+  const sdkMakeReplaced = proto.makeReplaced;
   sdkReplacingEvent = sdkReplacing;
 
   proto.getWireContent = function getWireContent(this: MatrixEvent): IContent {
@@ -204,6 +205,22 @@ export const installEventContentGuard = (): void => {
   proto.replacingEvent = function replacingEvent(this: MatrixEvent): MatrixEvent | null {
     const replacement = sdkReplacing.call(this);
     return replacement && isUsableEdit(replacement) ? replacement : null;
+  };
+
+  // `replacingEvent` hides an edit that could not be decrypted, so code that applies the newest
+  // edit it sees (the event cache, history loads) puts back a fresh copy of that same edit from the
+  // message's bundle, and nothing decrypts the copy: the message would never learn that its edit
+  // failed, and its note would go. A copy of the applied edit replaces it once the copy is decrypted.
+  proto.makeReplaced = function makeReplaced(this: MatrixEvent, newEvent?: MatrixEvent): void {
+    const applied = sdkReplacing.call(this);
+    const undecryptedCopy =
+      !!applied &&
+      !!newEvent &&
+      newEvent !== applied &&
+      newEvent.getId?.() === applied.getId() &&
+      !!newEvent.shouldAttemptDecryption?.() &&
+      !applied.shouldAttemptDecryption();
+    if (!undecryptedCopy) sdkMakeReplaced.call(this, newEvent);
   };
 
   proto.getContent = function getContent<T extends IContent = IContent>(this: MatrixEvent): T {
