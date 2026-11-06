@@ -1,5 +1,7 @@
 import {
+  ClientEvent,
   createClient,
+  MatrixEventEvent,
   MemoryStore,
   NotificationCountType,
   type IEvent,
@@ -165,6 +167,12 @@ const fixture = async (keep: boolean) => {
     },
   });
   clients.push(mx);
+  // The SDK's model of each event the server sent, as the client announced it.
+  const seen = new Map<string, MatrixEvent>();
+  mx.on(ClientEvent.Event, (event) => {
+    const id = event.getId();
+    if (id && !seen.has(id)) seen.set(id, event);
+  });
   (mx as MatrixClient & { serverVersionsPromise?: Promise<unknown> }).serverVersionsPromise =
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
   if (keep) keepEncryptedRoomCounts(mx);
@@ -196,8 +204,11 @@ const fixture = async (keep: boolean) => {
   await settle();
 
   const room = () => mx.getRoom(ROOM)!;
-  const find = (eventId: string): MatrixEvent =>
-    room().findEventById(eventId) ?? room().getThread(ROOT)!.findEventById(eventId)!;
+  const find = (eventId: string): MatrixEvent => {
+    const event = seen.get(eventId);
+    if (!event) throw new Error(`The client has no ${eventId}`);
+    return event;
+  };
   /** Decrypts an event as the crypto backend would; `undefined` content fails for want of a key. */
   const decrypt = async (event: MatrixEvent, content: Record<string, unknown> | undefined) => {
     const crypto = {
@@ -216,7 +227,8 @@ const fixture = async (keep: boolean) => {
   };
   const threadCount = () =>
     room().getThreadUnreadNotificationCount(ROOT, NotificationCountType.Total) ?? 0;
-  return { mx, deliver, room, find, decrypt, threadCount };
+  const totalCount = () => room().getUnreadNotificationCount(NotificationCountType.Total);
+  return { mx, deliver, room, find, decrypt, threadCount, totalCount };
 };
 
 /** The reader opened the thread and read the reply's start. */
@@ -250,22 +262,16 @@ describe('unread counts of an encrypted room', () => {
       encrypted('$edit-1', AGENT, 4, editsReply),
       encrypted('$edit-2', AGENT, 5, editsReply),
     ]);
-    const streaming = f.mx.getRoom(ROOM)!;
-    const edits = ['$edit-1', '$edit-2'].map(
-      (id) =>
-        streaming.findEventById(id) ??
-        streaming.getThread(ROOT)?.findEventById(id) ??
-        streaming
-          .getThread(ROOT)
-          ?.replayEvents?.find((event) => event.getId() === id) ??
-        streaming.getLiveTimeline().getEvents().find((event) => event.getId() === id)
-    );
-    expect(edits.every(Boolean)).toBe(true);
-    await f.decrypt(edits[0]!, editContent('streaming'));
+    await f.decrypt(f.find('$edit-1'), editContent('streaming'));
     expect(f.threadCount()).toBe(0);
 
-    await f.decrypt(edits[1]!, editContent('completed'));
+    await f.decrypt(f.find('$edit-2'), editContent('completed'));
     expect(f.threadCount()).toBe(1);
+    expect(f.totalCount()).toBe(1);
+
+    // Another copy of the same edit decrypting again counts nothing more.
+    f.mx.emit(MatrixEventEvent.Decrypted, f.find('$edit-2'));
+    expect(f.totalCount()).toBe(1);
   });
 
   it('do not count streaming edits a new session cannot decrypt', async () => {
@@ -280,15 +286,9 @@ describe('unread counts of an encrypted room', () => {
       ],
       [readUpToReply]
     );
-    const room = f.room();
-    const events = [
-      ...room.getLiveTimeline().getEvents(),
-      ...(room.getThread(ROOT)?.timeline ?? []),
-      ...(room.getThread(ROOT)?.replayEvents ?? []),
-    ];
-    const edits = events.filter((event) => event.getId()?.startsWith('$edit-'));
-    expect(edits.length).toBeGreaterThan(0);
+    const edits = Array.from({ length: 5 }, (_, index) => f.find(`$edit-${index}`));
+    await f.decrypt(f.find(REPLY), undefined);
     for (const edit of edits) await f.decrypt(edit, undefined);
-    expect(f.threadCount()).toBe(0);
+    expect(f.totalCount()).toBe(0);
   });
 });
