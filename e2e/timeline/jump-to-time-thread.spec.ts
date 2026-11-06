@@ -1,4 +1,4 @@
-import { devices, expect, test, type Page } from '@playwright/test';
+import { devices, expect, test, type Page, type Route } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
@@ -77,6 +77,7 @@ const seedThread = async (token: string) => {
 const runJumps = async (
   page: Page,
   phone: boolean,
+  scheme: 'light' | 'dark',
   username: string,
   outputPath: (name: string) => string
 ) => {
@@ -84,20 +85,26 @@ const runJumps = async (
   const { roomId, rootId } = await seedThread(token);
   for (let index = 0; index < 25; index += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await createPrivateRoom(HOMESERVER, token, { name: `Planning room ${index + 1}` });
+    await createPrivateRoom(HOMESERVER, token, {
+      name: `Planning room ${index + 1}`,
+      topic: 'Daily logistics planning',
+    });
   }
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+  await expect(page.locator('html')).toHaveClass(new RegExp(`${scheme}-theme`));
   const threadUrl = new RegExp(`threadId=${encodeURIComponent(rootId).replace(/\$/g, '\\$')}`);
   const newest = page.getByText(`Shift ${REPLIES - 1}:`, { exact: false });
   await expect(newest).toBeVisible({ timeout: 60_000 });
   // Only the explicit time search uses 100-reply pages. Leave SDK loading and navigation live.
   // A silent relation search must not block answers the open thread already knows.
   const lookups: string[] = [];
+  const stalled: Route[] = [];
   await page.route('**/_matrix/client/**/relations/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.searchParams.get('limit') === '100' && url.pathname.endsWith('/m.thread')) {
       lookups.push(url.pathname);
+      stalled.push(route);
       // Keep the request silent until page teardown, without touching the homeserver.
       return;
     }
@@ -114,33 +121,38 @@ const runJumps = async (
     return dialog;
   };
 
-  // The room's beginning comes before the thread: the thread's first message.
-  let dialog = await openDialog();
-  await press(dialog.getByRole('button', { name: 'Beginning' }));
-  await press(dialog.getByRole('button', { name: 'Open Timeline' }));
-  await expect(dialog).toBeHidden();
-  await expect(page).toHaveURL(threadUrl);
-  await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
-  await expect(rootRow).toBeInViewport({ timeout: 60_000 });
-  await expect(newest).not.toBeInViewport();
-  await page.screenshot({ path: outputPath('jump-thread-beginning.png') });
+  try {
+    // The room's beginning comes before the thread: the thread's first message.
+    let dialog = await openDialog();
+    await press(dialog.getByRole('button', { name: 'Beginning' }));
+    await press(dialog.getByRole('button', { name: 'Open Timeline' }));
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(threadUrl);
+    await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
+    await expect(rootRow).toBeInViewport({ timeout: 60_000 });
+    await expect(newest).not.toBeInViewport();
+    await page.screenshot({ path: outputPath('jump-thread-beginning.png') });
 
-  // A time after the newest reply: that reply, still in the thread.
-  dialog = await openDialog();
-  await press(dialog.getByRole('button', { name: 'Today' }));
-  // 23:59 today, on a 24-hour clock or as 11 PM.
-  const period = dialog.getByRole('combobox', { name: 'Period' });
-  const twelveHour = (await period.count()) > 0;
-  await dialog.getByRole('combobox', { name: 'Hour' }).selectOption(twelveHour ? '11' : '23');
-  if (twelveHour) await period.selectOption('1');
-  await dialog.getByRole('combobox', { name: 'Minutes' }).selectOption('59');
-  await press(dialog.getByRole('button', { name: 'Open Timeline' }));
-  await expect(dialog).toBeHidden();
-  await expect(page).toHaveURL(threadUrl);
-  await expect(newest).toBeInViewport({ timeout: 60_000 });
-  await expect(rootRow).not.toBeInViewport();
-  await page.screenshot({ path: outputPath('jump-thread-newest.png') });
-  expect(lookups, 'boundary jumps never query relations').toEqual([]);
+    // A time after the newest reply: that reply, still in the thread.
+    dialog = await openDialog();
+    await press(dialog.getByRole('button', { name: 'Today' }));
+    // 23:59 today, on a 24-hour clock or as 11 PM.
+    const period = dialog.getByRole('combobox', { name: 'Period' });
+    const twelveHour = (await period.count()) > 0;
+    await dialog.getByRole('combobox', { name: 'Hour' }).selectOption(twelveHour ? '11' : '23');
+    if (twelveHour) await period.selectOption('1');
+    await dialog.getByRole('combobox', { name: 'Minutes' }).selectOption('59');
+    await press(dialog.getByRole('button', { name: 'Open Timeline' }));
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(threadUrl);
+    await expect(newest).toBeInViewport({ timeout: 60_000 });
+    await expect(rootRow).not.toBeInViewport();
+    await page.screenshot({ path: outputPath('jump-thread-newest.png') });
+    expect(lookups, 'boundary jumps never query relations').toEqual([]);
+  } finally {
+    // Release only this test's stalled searches before WebKit closes its context.
+    await Promise.all(stalled.map((route) => route.abort().catch(() => undefined)));
+  }
 };
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -149,6 +161,7 @@ for (const scheme of ['light', 'dark'] as const) {
     test.describe(`${scheme} ${size}`, () => {
       test.use({
         viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+        deviceScaleFactor: phone ? 3 : 1,
         hasTouch: phone,
         isMobile: phone,
         colorScheme: scheme,
@@ -162,8 +175,12 @@ for (const scheme of ['light', 'dark'] as const) {
           new Date().getHours() === 23 && new Date().getMinutes() >= 55,
           'Too close to 23:59'
         );
-        await runJumps(page, phone, `jump_thread_chromium_${size}_${scheme}_${RUN}`, (name) =>
-          testInfo.outputPath(name)
+        await runJumps(
+          page,
+          phone,
+          scheme,
+          `jump_thread_chromium_${size}_${scheme}_${RUN}`,
+          (name) => testInfo.outputPath(name)
         );
       });
       test('Jump to Time in a thread stays in the thread (WebKit)', async ({
@@ -179,13 +196,18 @@ for (const scheme of ['light', 'dark'] as const) {
           {
             baseURL,
             viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+            deviceScaleFactor: phone ? 3 : 1,
             hasTouch: phone,
             isMobile: phone,
             colorScheme: scheme,
           },
           async (page) => {
-            await runJumps(page, phone, `jump_thread_webkit_${size}_${scheme}_${RUN}`, (name) =>
-              testInfo.outputPath(name)
+            await runJumps(
+              page,
+              phone,
+              scheme,
+              `jump_thread_webkit_${size}_${scheme}_${RUN}`,
+              (name) => testInfo.outputPath(name)
             );
           }
         );
