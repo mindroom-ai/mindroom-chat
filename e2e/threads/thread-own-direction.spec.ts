@@ -1,3 +1,5 @@
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
@@ -12,13 +14,16 @@ import {
 
 // A thread's title, its preview and the banner's summary are text people and agents wrote, so in
 // a right-to-left interface an English line keeps its own direction: it is cut at its end, not
-// at its start, and a closing question mark stays at its end. The [+all] toggle under the banner
+// at its start, and a closing question mark stays at its end. A card's title and preview line
+// up with their own start, so a wrapped English title's lines all start at the left. The [+all] toggle under the banner
 // reads as written, and so does an approval card's tool identifier. Checked on a phone and a
 // desktop, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-own-direction-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+// A directory for a screenshot of the cards, when set.
+const SHOTS = process.env.THREAD_DIRECTION_SHOTS;
 const TITLE =
   'Why does the nightly export job time out on large workspaces since the storage migration?';
 const REPLY =
@@ -169,6 +174,29 @@ const placement = (line: Locator): Promise<Placement> =>
     };
   });
 
+/** Whether each visible line of a text starts at its box's left edge (inside its padding). */
+const linesStartLeft = (line: Locator): Promise<boolean> =>
+  line.evaluate((element) => {
+    const text = element.firstChild;
+    if (text?.nodeType !== Node.TEXT_NODE || !text.textContent) {
+      throw new Error('The line has no text of its own');
+    }
+    const box = element.getBoundingClientRect();
+    const left = box.left + parseFloat(getComputedStyle(element).paddingLeft);
+    const range = document.createRange();
+    const lineStarts = new Map<number, number>();
+    for (let offset = 0; offset < text.textContent.length; offset += 1) {
+      range.setStart(text, offset);
+      range.setEnd(text, offset + 1);
+      const rect = range.getClientRects()[0];
+      // Lines a line clamp hides lie below the box.
+      if (!rect || rect.width === 0 || rect.top >= box.bottom - 1) continue;
+      const top = Math.round(rect.top);
+      lineStarts.set(top, Math.min(lineStarts.get(top) ?? Infinity, rect.left));
+    }
+    return lineStarts.size > 0 && [...lineStarts.values()].every((start) => start - left < 2);
+  });
+
 const check = async (browser: Browser, engine: string, phone: boolean, baseURL?: string) => {
   const world = await seed(`${engine}_${phone ? 'p' : 'd'}`);
   const context = await browser.newContext({
@@ -203,6 +231,14 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
   });
   expect((await placement(preview)).direction).toBe('ltr');
   expect((await placement(preview)).firstCharInside).toBe(true);
+  expect(await linesStartLeft(title), "the title's lines start at the left").toBe(true);
+  expect(await linesStartLeft(preview), 'the preview starts at the left').toBe(true);
+  if (SHOTS) {
+    mkdirSync(SHOTS, { recursive: true });
+    await page.screenshot({
+      path: join(SHOTS, `cards-${engine}-${phone ? 'phone' : 'desktop'}.png`),
+    });
+  }
 
   await page.goto(
     `/home/${encodeURIComponent(world.roomId)}?threadId=${encodeURIComponent(world.rootId)}`

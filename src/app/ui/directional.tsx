@@ -38,6 +38,13 @@ export const mirrorPlacement = (
  */
 export const ownDirectionLine = { dir: 'auto', 'data-own-direction': '' } as const;
 
+/**
+ * Props for text someone wrote that may wrap onto more lines, such as a thread card's title: it
+ * reads in its own direction and lines up with its own start (index.css), so in a right-to-left
+ * interface an English title's second line starts under its first instead of at the other edge.
+ */
+export const ownDirectionBlock = { dir: 'auto', 'data-own-direction': 'block' } as const;
+
 const LETTER = /\p{L}/u;
 const RIGHT_TO_LEFT_LETTER =
   /[\p{Script=Arabic}\p{Script=Hebrew}\p{Script=Syriac}\p{Script=Thaana}\p{Script=Nko}\p{Script=Samaritan}\p{Script=Mandaic}\p{Script=Adlam}]/u;

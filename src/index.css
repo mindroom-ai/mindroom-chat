@@ -256,6 +256,12 @@ html[dir='rtl'] [data-own-direction] {
   text-align: right;
 }
 
+/* Text that may wrap (ownDirectionBlock) lines up with its own start instead, so its lines start
+   under each other. */
+html [data-own-direction][data-own-direction='block'] {
+  text-align: start;
+}
+
 /* An agent's tool calls inside a message are the interface's, so they keep its direction when
    the message reads the other way. */
 html[dir='rtl'] [data-message-disclosure] {
