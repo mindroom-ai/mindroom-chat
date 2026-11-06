@@ -261,7 +261,6 @@ test.use({
 });
 
 test.describe('scrolling away right after the view went to the newest row', () => {
-  let world: World;
   test.beforeAll(async () => {
     test.setTimeout(180_000);
     let reachable = false;
@@ -271,7 +270,6 @@ test.describe('scrolling away right after the view went to the newest row', () =
       reachable = false;
     }
     test.skip(!reachable, `No homeserver at ${homeserver}`);
-    world = await seed();
   });
 
   (['chromium', 'webkit'] as const).forEach((engine) => {
@@ -286,6 +284,7 @@ test.describe('scrolling away right after the view went to the newest row', () =
         test(`${viewMode} view, ${engine}, ${form}`, async ({ browser, baseURL }) => {
           test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
           test.setTimeout(150_000);
+          const world = await seed();
           const host = engine === 'webkit' ? await launchWebKit() : undefined;
           const context = await (host ?? browser).newContext({ ...options, baseURL });
           try {
