@@ -96,10 +96,17 @@ export const GroupBody = style({
   gap: toRem(2),
 });
 
-export const Name = style({ fontWeight: 600 });
+// As wide as its words but never wider than the group: a long name ends in an ellipsis instead of
+// running out of the card.
+export const Name = style({ fontWeight: 600, maxWidth: '100%' });
 
 /** Spoken text keeps its line breaks and wraps anywhere rather than overflow the card. */
-export const Text = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
+export const Text = style({
+  maxWidth: '100%',
+  whiteSpace: 'pre-wrap',
+  margin: 0,
+  overflowWrap: 'anywhere',
+});
 
 /** Show more or less of a long turn: a quiet link-like button under its text. */
 export const More = style({
