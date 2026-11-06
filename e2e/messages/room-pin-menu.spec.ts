@@ -18,6 +18,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import { isPhoneLayout, openRoomPins, roomMoreOptions } from '../helpers/roomMenu';
 
 // The room header's Pinned Messages button opens the pin menu, a dialog named Pinned Messages (the
 // button announces a dialog): the room's pinned messages, the newest pin first, each rendered as a
@@ -230,6 +231,26 @@ type MenuBox = { left: number; right: number; top: number; bottom: number; sidew
 /** The pin menu, found the way assistive technology finds it: the dialog its button announces. */
 const pinMenu = (page: Page) => page.getByRole('dialog', { name: 'Pinned Messages', exact: true });
 
+/**
+ * The control that opens the pinned messages: the header's button, or on a phone, whose header
+ * leaves it to the room menu, More Options.
+ */
+const pinOpener = (page: Page) =>
+  isPhoneLayout(page)
+    ? roomMoreOptions(page)
+    : page.getByRole('button', { name: 'Pinned Messages', exact: true });
+
+/**
+ * Whether the pinned messages are open: the header button says so; on a phone the room menu has
+ * closed by then, so the list itself shows it.
+ */
+const expectPinsOpen = async (page: Page, open: boolean) => {
+  if (!isPhoneLayout(page)) {
+    await expect(pinOpener(page)).toHaveAttribute('aria-expanded', String(open));
+  } else if (open) await expect(pinMenu(page)).toBeVisible();
+  else await expect(pinMenu(page)).toHaveCount(0);
+};
+
 /** An entry's row button, named after what it does and who sent the message. */
 const jumpButton = (menu: Locator, sender: string) =>
   menu.getByRole('button', { name: `Jump to message from ${sender}`, exact: true });
@@ -340,7 +361,7 @@ const checkPinMenu = async (page: Page, engine: string, form: string, testInfo: 
   const { username, roomId, pins } = await seed(`${engine}_${form}`);
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
-  const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
+  const pinButton = pinOpener(page);
   await expect(pinButton).toBeVisible({ timeout: 60_000 });
 
   for (const [scheme, rtl] of [
@@ -356,7 +377,7 @@ const checkPinMenu = async (page: Page, engine: string, form: string, testInfo: 
       rtl ? 'rtl' : 'ltr'
     );
     // eslint-disable-next-line no-await-in-loop
-    await pinButton.click();
+    await openRoomPins(page);
     const menu = pinMenu(page);
     // eslint-disable-next-line no-await-in-loop
     await expect(menu.getByText('Pinned Messages', { exact: true })).toBeVisible();
@@ -373,7 +394,7 @@ const checkPinMenu = async (page: Page, engine: string, form: string, testInfo: 
     expect(order, 'newest pin first').toEqual([...order].sort((a, b) => a - b));
     expect(order.every((position) => position >= 0)).toBe(true);
     await expect(menu.getByText(UNPINNED, { exact: true })).toHaveCount(0);
-    await expect(pinButton).toHaveAttribute('aria-expanded', 'true');
+    await expectPinsOpen(page, true);
     const where = `${engine}, ${form}, ${scheme}${rtl ? ', rtl' : ''}`;
     // eslint-disable-next-line no-await-in-loop
     await checkSenderRows(menu, pins, rtl, where);
@@ -403,7 +424,7 @@ const checkPinMenu = async (page: Page, engine: string, form: string, testInfo: 
     // eslint-disable-next-line no-await-in-loop
     await expect(menu).toHaveCount(0);
     // eslint-disable-next-line no-await-in-loop
-    await expect(pinButton).toHaveAttribute('aria-expanded', 'false');
+    await expectPinsOpen(page, false);
   }
 };
 
@@ -526,13 +547,13 @@ const checkJump = async (
     password: PASSWORD,
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
-  const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
+  const pinButton = pinOpener(page);
   await expect(pinButton).toBeVisible({ timeout: 60_000 });
   await expect(page.getByText(RECENT_PIN, { exact: true })).toBeVisible({ timeout: 60_000 });
   // The oldest pin is far older than the loaded timeline.
   await expect(timelineRow(page, seeded.far)).toHaveCount(0);
 
-  await pinButton.click();
+  await openRoomPins(page);
   const menu = pinMenu(page);
   await expect(menu).toBeVisible();
   const entry = (eventId: string) => menu.locator(`[data-pinned-event-id="${eventId}"]`);
@@ -566,13 +587,13 @@ const checkJump = async (
   if (form === 'phone') await farText.tap();
   else await farText.click();
   await expect(menu).toHaveCount(0);
-  await expect(pinButton).toHaveAttribute('aria-expanded', 'false');
+  await expectPinsOpen(page, false);
   await expect(timelineRow(page, seeded.far)).toBeInViewport({ timeout: 60_000 });
   await expect.poll(() => highlighted(page, seeded.far), { timeout: 10_000 }).toBe(true);
   await shoot(page, testInfo, `jump-${engine}-${form}-far`);
 
   // Enter on a row opens that message: the newest pin, back at the end of the timeline.
-  await pinButton.click();
+  await openRoomPins(page);
   await expect(menu).toBeVisible();
   const recentRow = jumpButton(entry(seeded.recent), OWNER_NAME);
   await tabTo(page, recentRow);
@@ -593,7 +614,7 @@ const checkJump = async (
     });
     await expect(timelineRow(page, seeded.recent)).not.toBeInViewport({ timeout: 1_000 });
   }).toPass({ timeout: 20_000 });
-  await pinButton.click();
+  await openRoomPins(page);
   await expect(menu).toBeVisible();
   await watchHighlight(page, seeded.recent);
   if (form === 'phone') await recentRow.tap();
@@ -603,7 +624,7 @@ const checkJump = async (
   await expect.poll(() => highlighted(page, seeded.recent), { timeout: 10_000 }).toBe(true);
 
   // Unpin is reached with the keyboard; focus stays in the menu.
-  await pinButton.click();
+  await openRoomPins(page);
   await expect(menu).toBeVisible();
   const unpin = entry(seeded.picture).getByRole('button', { name: 'Unpin Message', exact: true });
   await tabTo(page, unpin);
@@ -670,10 +691,10 @@ const checkEncrypted = async (page: Page, engine: string, form: string, testInfo
   }
   // Pinned through the API: a phone has no right click, and the pin action is not under test.
   await pinEvents(owner, roomId, [eventId]);
-  const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
+  const pinButton = pinOpener(page);
   await expect(pinButton).toBeVisible({ timeout: 30_000 });
 
-  await pinButton.click();
+  await openRoomPins(page);
   const menu = pinMenu(page);
   const entry = menu.locator(`[data-pinned-event-id="${eventId}"]`);
   await expect(entry.getByText(secret, { exact: true })).toBeVisible({ timeout: 30_000 });
@@ -786,9 +807,9 @@ const checkUnloadedPins =
     // old message are in no loaded timeline.
     await seedRoomOverviewState({ page, roomId, userId: owner.userId, viewMode: 'compact' });
     await page.goto(roomPath);
-    const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
+    const pinButton = pinOpener(page);
     await expect(pinButton).toBeVisible({ timeout: 60_000 });
-    await pinButton.click();
+    await openRoomPins(page);
     const menu = pinMenu(page);
     await expect(menu).toBeVisible();
     const shown = [THREAD_PIN_EDITED, THREAD_PINS[1], THREAD_PINS[0], OLD_PIN];

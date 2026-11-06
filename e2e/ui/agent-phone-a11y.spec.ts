@@ -21,7 +21,7 @@ import {
   sendRoomMessage,
   sendStateEvent,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The main screens on a phone (390 by 844, touch), with a live MindRoom backend and its stub
@@ -201,12 +201,7 @@ const go = async (page: Page, route: string) => {
 };
 
 /** Puts the open room in Compact (true) or Threads (false) view. */
-const showCompact = async (page: Page, compact: boolean) => {
-  const toggle = roomViewSwitch(page);
-  await expect(toggle).toBeVisible({ timeout: 60_000 });
-  if ((await toggle.getAttribute('aria-pressed')) !== String(compact)) await toggle.click();
-  await expect(toggle).toHaveAttribute('aria-pressed', String(compact));
-};
+const showCompact = (page: Page, compact: boolean) => setRoomCompact(page, compact);
 
 type Screen = { name: string; open: (page: Page) => Promise<void> };
 

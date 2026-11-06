@@ -10,7 +10,7 @@ import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { leaveCompactView } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // What the composer sends and keeps, against the disposable homeserver of `just hs-up` or a slot
@@ -125,9 +125,7 @@ const openRoom = async (page: Page, roomId: string) => {
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await expect(composer(page)).toBeVisible({ timeout: 60_000 });
   // The Full view shows sent messages as rows, the plainest place to read what was sent.
-  const viewSwitch = roomViewSwitch(page);
-  await expect(viewSwitch).toBeVisible({ timeout: 60_000 });
-  if ((await viewSwitch.getAttribute('aria-pressed')) === 'true') await viewSwitch.click();
+  await leaveCompactView(page);
 };
 
 const latestMessages = async (token: string, roomId: string) => {

@@ -13,6 +13,7 @@ import {
 } from '../helpers/agentStack';
 import { createPrivateRoom, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { setRoomCompact } from '../helpers/roomViewSwitch';
 
 // MindRoom titles a thread with an `m.notice` thread event that carries `io.mindroom.thread_summary`.
 // The server's thread summary names that notice as the thread's latest event until someone writes
@@ -327,11 +328,9 @@ const newDeviceKnowsTitlesFromState = async (
   const device = await openNewSession(browser, stack, { baseURL, ...PHONE });
   try {
     await device.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
-    // A room without agents opens in its timeline; the switch moves it to Compact.
-    const toggle = device.locator('[data-room-view-switch]');
-    await expect(toggle).toBeVisible({ timeout: 90_000 });
-    if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    // A room without agents opens in its timeline; the switch (in a phone's room menu) moves it
+    // to Compact.
+    await setRoomCompact(device, true);
     await expect
       .poll(() => device.locator('button[data-thread-root-id][data-attention-state]').count(), {
         timeout: 60_000,

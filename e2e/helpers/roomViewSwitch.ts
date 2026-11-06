@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { isPhoneLayout, roomMoreOptions } from './roomMenu';
 
 /**
  * The room header's Compact and Threads switch. `aria-pressed` is true while the room shows
@@ -9,26 +10,17 @@ import { expect, type Locator, type Page } from '@playwright/test';
  */
 export const roomViewSwitch = (page: Page): Locator => page.locator('[data-room-view-switch]');
 
-const moreOptions = (page: Page) =>
-  page
-    .getByRole('banner')
-    .filter({ has: page.locator('h1') })
-    .getByRole('button', { name: 'More Options', exact: true });
-
-/** The widest window the app lays out as a phone (src/app/lib/hooks/useScreenSize.ts). */
-const PHONE_MAX_WIDTH = 750;
-
 /**
  * The switch the room offers: the header's button, or on a phone the room menu's entry, which
  * this opens; `inMenu` says which, so a caller that only reads it can close the menu again.
  */
 const reachSwitch = async (page: Page): Promise<{ control: Locator; inMenu: boolean }> => {
-  if ((page.viewportSize()?.width ?? Infinity) > PHONE_MAX_WIDTH) {
+  if (!isPhoneLayout(page)) {
     await expect(roomViewSwitch(page)).toBeVisible({ timeout: 60_000 });
     return { control: roomViewSwitch(page), inMenu: false };
   }
-  await expect(moreOptions(page)).toBeVisible({ timeout: 60_000 });
-  await moreOptions(page).click();
+  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
+  await roomMoreOptions(page).click();
   const entry = page.getByRole('menu').locator('[data-room-view-switch]');
   await expect(entry).toBeVisible();
   return { control: entry, inMenu: true };
@@ -62,8 +54,11 @@ export const expectRoomCompact = async (
     .toBe(compact);
 };
 
-/** Leaves the Compact view if the room shows it, on any screen. */
-export const leaveCompactView = async (page: Page): Promise<void> => {
-  if (await readCompact(page)) await toggleRoomView(page);
-  await expectRoomCompact(page, false);
+/** Puts the room in Compact (`true`) or its full view (`false`), on any screen. */
+export const setRoomCompact = async (page: Page, compact: boolean): Promise<void> => {
+  if ((await readCompact(page)) !== compact) await toggleRoomView(page);
+  await expectRoomCompact(page, compact);
 };
+
+/** Leaves the Compact view if the room shows it, on any screen. */
+export const leaveCompactView = (page: Page): Promise<void> => setRoomCompact(page, false);

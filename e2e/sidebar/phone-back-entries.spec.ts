@@ -11,6 +11,7 @@ import {
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { openRoomPins } from '../helpers/roomMenu';
 
 // On a phone, a thread's back chevron and a room's return to wherever the person opened them
 // from: the room list, a notification, the command palette, the search results, a link in
@@ -526,9 +527,9 @@ const FLOWS: Record<string, Flow> = {
     testInfo
   ) => {
     await openFromList(page, 'Garden Club', garden);
-    const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
     const openPin = async (eventId: string, words: string) => {
-      await pinButton.tap();
+      // A phone's room menu holds Pinned Messages.
+      await openRoomPins(page);
       const menu = page.getByRole('dialog', { name: 'Pinned Messages', exact: true });
       await menu.locator(`[data-pinned-event-id="${eventId}"]`).getByText(words).tap();
       await expect(menu).toHaveCount(0);
