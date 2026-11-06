@@ -209,7 +209,11 @@ const checkIcons = async (
     expect(iconRequests(external), `${engine}: no icon requests by default`).toEqual([]);
 
     // The deployment turns icons on: the unencrypted room shows one.
+    // The app starts from its stored config.json and stores the fresh one for the next start, so
+    // a changed deployment applies from the second load on.
     await routeConfig(context, true);
+    await page.reload();
+    await expect(plain).toHaveText('plain-link', { timeout: 30_000 });
     await page.reload();
     await expect(plain).toHaveText('plain-link', { timeout: 30_000 });
     await expect(plain.locator('img'), `${engine}: icon once the deployment allows it`).toHaveCount(

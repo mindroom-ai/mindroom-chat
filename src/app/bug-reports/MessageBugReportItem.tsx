@@ -98,7 +98,11 @@ export function MessageBugReportItem(props: {
           // The send keeps the report's promise as its result for the Lane P tests that await it.
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onSend={deliver}
-          onClose={() => setAsking(false)}
+          // Cancel closes the message menu too, as the menu's other dialogs do.
+          onClose={() => {
+            setAsking(false);
+            onClose();
+          }}
         />
       )}
     </>

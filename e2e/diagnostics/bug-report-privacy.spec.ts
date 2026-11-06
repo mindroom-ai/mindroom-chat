@@ -207,9 +207,10 @@ const check = async (
     await page.waitForTimeout(500);
     expect(uploads, `${engine}: nothing uploaded while the dialog is open`).toEqual([]);
 
-    // Cancel sends nothing and makes no report room.
+    // Cancel closes the dialog and the menu, sends nothing and makes no report room.
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Report a bug', exact: true })).toHaveCount(0);
     await page.waitForTimeout(500);
     expect(uploads, `${engine}: nothing uploaded after Cancel`).toEqual([]);
     await expect(
