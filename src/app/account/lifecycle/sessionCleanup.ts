@@ -15,6 +15,7 @@ import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalS
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
 import { clearClosedNavCategoriesStore } from '../../ui/nav/closedNavCategories';
 import { clearSyncFilterIds } from '../../matrix/client/clientSyncPolicy';
+import { clearNotified } from '../../notifications/notifiedOnce';
 import {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
@@ -95,6 +96,7 @@ export const clearUserUiState = (userId: string): void => {
   clearSeenThreadRoots(userId);
   clearClosedNavCategoriesStore(userId);
   clearSyncFilterIds(userId);
+  clearNotified(userId);
 };
 
 export const clearSessionUiState = (sessionId: string): void => {
