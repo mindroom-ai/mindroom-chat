@@ -393,6 +393,11 @@
       "access": {
         "membersCannotJoin": "此房间的成员无法加入其中的通话。",
         "allowMembers": "允许成员加入"
+      },
+      "transcript": {
+        "title": "语音通话",
+        "transcript": "文字记录",
+        "turns_other": "{{count}} 条发言"
       }
     },
     "room": {

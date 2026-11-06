@@ -407,6 +407,13 @@
       "access": {
         "membersCannotJoin": "Los miembros de esta sala no pueden unirse a sus llamadas.",
         "allowMembers": "Permitir que se unan"
+      },
+      "transcript": {
+        "title": "Llamada de voz",
+        "transcript": "Transcripción",
+        "turns_one": "{{count}} intervención",
+        "turns_many": "{{count}} de intervenciones",
+        "turns_other": "{{count}} intervenciones"
       }
     },
     "room": {

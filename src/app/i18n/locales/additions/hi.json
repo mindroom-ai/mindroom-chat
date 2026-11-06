@@ -400,6 +400,12 @@
       "access": {
         "membersCannotJoin": "इस रूम के सदस्य इसकी कॉल में शामिल नहीं हो सकते।",
         "allowMembers": "सदस्यों को शामिल होने दें"
+      },
+      "transcript": {
+        "title": "वॉइस कॉल",
+        "transcript": "ट्रांसक्रिप्ट",
+        "turns_one": "{{count}} कथन",
+        "turns_other": "{{count}} कथन"
       }
     },
     "room": {

@@ -414,6 +414,14 @@
       "access": {
         "membersCannotJoin": "Участники этой комнаты не могут присоединяться к её звонкам.",
         "allowMembers": "Разрешить участникам"
+      },
+      "transcript": {
+        "title": "Голосовой звонок",
+        "transcript": "Расшифровка",
+        "turns_one": "{{count}} реплика",
+        "turns_few": "{{count}} реплики",
+        "turns_many": "{{count}} реплик",
+        "turns_other": "{{count}} реплики"
       }
     },
     "room": {

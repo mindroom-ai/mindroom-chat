@@ -407,6 +407,13 @@
       "access": {
         "membersCannotJoin": "Les membres de ce salon ne peuvent pas rejoindre ses appels.",
         "allowMembers": "Autoriser les membres"
+      },
+      "transcript": {
+        "title": "Appel vocal",
+        "transcript": "Transcription",
+        "turns_one": "{{count}} prise de parole",
+        "turns_many": "{{count}} de prises de parole",
+        "turns_other": "{{count}} prises de parole"
       }
     },
     "room": {

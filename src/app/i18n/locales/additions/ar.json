@@ -428,6 +428,16 @@
       "access": {
         "membersCannotJoin": "لا يستطيع أعضاء هذه الغرفة الانضمام إلى مكالماتها.",
         "allowMembers": "السماح للأعضاء بالانضمام"
+      },
+      "transcript": {
+        "title": "مكالمة صوتية",
+        "transcript": "نص المكالمة",
+        "turns_zero": "⁨{{count}}⁩ مداخلة",
+        "turns_one": "⁨{{count}}⁩ مداخلة",
+        "turns_two": "مداخلتان (⁨{{count}}⁩)",
+        "turns_few": "⁨{{count}}⁩ مداخلات",
+        "turns_many": "⁨{{count}}⁩ مداخلةً",
+        "turns_other": "⁨{{count}}⁩ مداخلة"
       }
     },
     "room": {

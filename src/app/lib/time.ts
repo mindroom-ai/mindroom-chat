@@ -46,6 +46,29 @@ const relativeTimeFormat = (language: string, options: Intl.RelativeTimeFormatOp
 const numberFormat = (language: string, options: Intl.NumberFormatOptions) =>
   cachedFormatter('number', language, options, () => new Intl.NumberFormat(language, options));
 
+const unitFormat = (language: string, unit: 'second' | 'minute' | 'hour') =>
+  numberFormat(language, { style: 'unit', unit, unitDisplay: 'short' });
+
+/**
+ * How long a call lasted: seconds under a minute ("45 sec"), then whole minutes ("3 min"), then
+ * hours and minutes ("1 hr 5 min"), in the language's own units and digits.
+ */
+export const formatCallDuration = (seconds: number, language = 'en'): string => {
+  if (seconds < 60) return unitFormat(language, 'second').format(Math.max(0, Math.round(seconds)));
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return unitFormat(language, 'minute').format(minutes);
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  const parts = [unitFormat(language, 'hour').format(hours)];
+  if (rest > 0) parts.push(unitFormat(language, 'minute').format(rest));
+  return cachedFormatter(
+    'list',
+    language,
+    { type: 'unit', style: 'narrow' },
+    () => new Intl.ListFormat(language, { type: 'unit', style: 'narrow' })
+  ).format(parts);
+};
+
 /** Whether both timestamps fall on the same local calendar day. */
 export const inSameDay = (ts1: number, ts2: number): boolean => {
   const a = new Date(ts1);

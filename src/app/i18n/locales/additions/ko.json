@@ -393,6 +393,11 @@
       "access": {
         "membersCannotJoin": "이 방의 멤버는 통화에 참여할 수 없습니다.",
         "allowMembers": "멤버 참여 허용"
+      },
+      "transcript": {
+        "title": "음성 통화",
+        "transcript": "대화 기록",
+        "turns_other": "발언 {{count}}개"
       }
     },
     "room": {

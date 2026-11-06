@@ -393,6 +393,11 @@
       "access": {
         "membersCannotJoin": "此聊天室的成員無法加入其中的通話。",
         "allowMembers": "允許成員加入"
+      },
+      "transcript": {
+        "title": "語音通話",
+        "transcript": "逐字稿",
+        "turns_other": "{{count}} 則發言"
       }
     },
     "room": {

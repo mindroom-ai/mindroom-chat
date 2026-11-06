@@ -5,7 +5,8 @@ import { isRecord } from '../../lib/isRecord';
 /**
  * Message content keys only MindRoom's agents send: the run details (model chip, Reply details),
  * the streaming status (the streaming dots, the thinking placeholder, finished-reply
- * notifications), the tool trace, the reasoning and the live reply state. Any member can write
+ * notifications), the tool trace, the reasoning, the live reply state and a voice call's
+ * transcript, which shows other members' names and avatars beside its turns. Any member can write
  * them into a message, so they count only from an agent account.
  */
 export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
@@ -17,6 +18,7 @@ export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
   'io.mindroom.live_activity',
   'io.mindroom.live_checkpoint',
   'io.mindroom.warmup_suffix',
+  'io.mindroom.call_transcript',
 ];
 
 const isOptionalString = (value: unknown): boolean =>

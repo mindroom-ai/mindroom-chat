@@ -1,4 +1,4 @@
-import { ReactNode } from 'react';
+import { ReactNode, useMemo } from 'react';
 import { MatrixEvent, MsgType } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
@@ -39,6 +39,8 @@ import {
 import { MessageEvent } from '../../matrix/types/room';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
+import { readCallTranscript } from '../../matrix/protocol/callTranscript';
+import { CallTranscriptCard } from './CallTranscriptCard';
 
 const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
 
@@ -132,10 +134,26 @@ export function RenderMessageContent({
     fromMindroomAgent &&
     (hasMindroomAgentMessageMetadata(content) || isVisibleRouterVoiceEcho(content));
   const showEdited = !!edited && !agentManaged;
+  // A voice call's transcript from an agent shows as a call card; malformed, it renders as its HTML.
+  const callTranscript = useMemo(
+    () => (fromMindroomAgent ? readCallTranscript(content) : undefined),
+    [content, fromMindroomAgent]
+  );
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
     : undefined;
+
+  if (callTranscript) {
+    return (
+      <CallTranscriptCard
+        transcript={callTranscript}
+        roomId={roomId ?? mEvent?.getRoomId()}
+        highlightRegex={highlightRegex}
+        linkifyOpts={linkifyOpts}
+      />
+    );
+  }
 
   const agentContent = renderAgentMessageContent({
     mEvent,

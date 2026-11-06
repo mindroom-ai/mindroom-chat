@@ -400,6 +400,12 @@
       "access": {
         "membersCannotJoin": "Mitglieder dieses Raums können seinen Anrufen nicht beitreten.",
         "allowMembers": "Mitglieder beitreten lassen"
+      },
+      "transcript": {
+        "title": "Sprachanruf",
+        "transcript": "Transkript",
+        "turns_one": "{{count}} Redebeitrag",
+        "turns_other": "{{count}} Redebeiträge"
       }
     },
     "room": {

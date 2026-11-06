@@ -400,6 +400,12 @@
       "access": {
         "membersCannotJoin": "Leden van deze ruimte kunnen niet aan de gesprekken deelnemen.",
         "allowMembers": "Leden laten deelnemen"
+      },
+      "transcript": {
+        "title": "Spraakoproep",
+        "transcript": "Transcript",
+        "turns_one": "{{count}} beurt",
+        "turns_other": "{{count}} beurten"
       }
     },
     "room": {

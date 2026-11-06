@@ -393,6 +393,11 @@
       "access": {
         "membersCannotJoin": "このルームのメンバーは通話に参加できません。",
         "allowMembers": "メンバーの参加を許可"
+      },
+      "transcript": {
+        "title": "音声通話",
+        "transcript": "文字起こし",
+        "turns_other": "{{count}} 件の発言"
       }
     },
     "room": {

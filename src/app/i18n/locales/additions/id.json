@@ -393,6 +393,11 @@
       "access": {
         "membersCannotJoin": "Anggota ruangan ini tidak bisa bergabung ke panggilannya.",
         "allowMembers": "Izinkan anggota bergabung"
+      },
+      "transcript": {
+        "title": "Panggilan suara",
+        "transcript": "Transkrip",
+        "turns_other": "{{count}} giliran bicara"
       }
     },
     "room": {

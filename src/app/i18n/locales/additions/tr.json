@@ -400,6 +400,12 @@
       "access": {
         "membersCannotJoin": "Bu odanın üyeleri odanın aramalarına katılamıyor.",
         "allowMembers": "Üyelerin katılmasına izin ver"
+      },
+      "transcript": {
+        "title": "Sesli arama",
+        "transcript": "Konuşma metni",
+        "turns_one": "{{count}} konuşma",
+        "turns_other": "{{count}} konuşma"
       }
     },
     "room": {
