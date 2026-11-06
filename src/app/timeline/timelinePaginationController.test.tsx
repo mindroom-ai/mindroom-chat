@@ -11,11 +11,20 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decryptAllTimelineEvent } from '../matrix/room';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
+import { paginateRoomKeepingReplies } from '../event-store/sdk/roomHistoryPageSdk';
 import { useEventTimelineLoader, useTimelinePagination } from './timelinePaginationController';
 
 vi.mock('../matrix/room', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../matrix/room')>()),
   decryptAllTimelineEvent: vi.fn(),
+}));
+// The Classic view's pages keep their thread replies (roomHistoryPageSdk has its own tests).
+// Here such a page is the SDK's page, so the fake timelines take its events the same way.
+vi.mock('../event-store/sdk/roomHistoryPageSdk', () => ({
+  paginateRoomKeepingReplies: vi.fn(
+    (mx: MatrixClient, _room: Room, edge: EventTimeline, backwards: boolean, limit: number) =>
+      mx.paginateEventTimeline(edge, { backwards, limit })
+  ),
 }));
 
 const decryptMock = vi.mocked(decryptAllTimelineEvent);
@@ -357,7 +366,7 @@ describe('useTimelinePagination', () => {
     expect(paginateEventTimeline).toHaveBeenCalledTimes(2);
   });
 
-  it('moves the window by exactly the rows an older page added when thread replies show in the room', async () => {
+  it('leaves the window to the classic rows when thread replies show in the room', async () => {
     const live = makeTimeline(
       'live',
       [message('$root'), message('$reply', '$root'), message('$after')],
@@ -386,7 +395,10 @@ describe('useTimelinePagination', () => {
 
     await act(() => view.paginate(true));
 
-    expect(view.timeline.range).toEqual({ start: 2, end: 5 });
+    // The classic rows keep the window's first row (placeClassicWindow), replies of the page
+    // included, which these room rows do not count.
+    expect(view.timeline.linkedTimelines).toEqual([sdk(live)]);
+    expect(view.timeline.range).toEqual({ start: 0, end: 3 });
   });
 });
 
@@ -596,6 +608,8 @@ describe('useEventTimelineLoader', () => {
 
     await act(() => view.load('$create'));
 
+    // The Classic view's pages keep their thread replies.
+    expect(paginateRoomKeepingReplies).toHaveBeenCalledWith(client, room, sdk(holder), true, 200);
     expect(paginateEventTimeline).toHaveBeenCalledWith(sdk(holder), {
       backwards: true,
       limit: 200,

@@ -10,6 +10,10 @@ import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matri
 import { prependCachedRoomTimeline } from '../event-store/sdk/roomTimelineSdk';
 import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
 import {
+  keepCachedHistoryReplies,
+  keepCachedRepliesAboveServerPage,
+} from '../event-store/cache/cachedHistoryReplies';
+import {
   recalibrateTimelinePagination,
   timelineToEventsCount,
   type RecalibrateFilterOpts,
@@ -18,6 +22,7 @@ import {
 import {
   createPreferLiveEventMapper,
   getEarliestLoadedRoomEvent,
+  getRoomCursorAnchor,
   loadRoomCachedPaginationSnapshot,
 } from '../event-store/cache/eventRepository';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
@@ -129,6 +134,18 @@ export const useRoomPaginationCommandController = ({
           beforeToken: cachedPaginationSnapshot.beforeToken,
           showThreadRepliesInRoom: rFilterOpts?.showThreadRepliesInRoom ?? false,
         });
+        // The Classic view also shows the page's thread replies, which the cache keeps apart.
+        const oldestCached = getRoomCursorAnchor(cachedPaginationSnapshot.cachedPage?.events[0]);
+        if (rFilterOpts?.showThreadRepliesInRoom && oldestCached) {
+          await keepCachedHistoryReplies({
+            mx,
+            sessionId,
+            room,
+            timeline: firstTimeline,
+            from: oldestCached,
+            before: getRoomCursorAnchor(earliestLoadedEvent?.event),
+          });
+        }
 
         if (alive() && roomIdRef.current === room.roomId && !threadIdRef.current) {
           recalibrateTimelinePagination(
@@ -180,6 +197,19 @@ export const useRoomPaginationCommandController = ({
         // `null` is meaningful (room-start proof) and must flow through.
         const backwardToken = backfilledTimeline.getPaginationToken(Direction.Backward);
         persistRoomEventCache(eventsToPersist, backwardToken);
+      }
+      // The Classic view also shows the thread replies the cache holds just above this page.
+      const cachedAbove = getRoomCursorAnchor(earliestLoadedEvent?.event);
+      if (rFilterOpts?.showThreadRepliesInRoom && cachedAbove) {
+        await keepCachedRepliesAboveServerPage({
+          mx,
+          sessionId,
+          room,
+          edge: firstTimeline,
+          before: cachedAbove,
+          setTimeline,
+          isCurrent: () => alive() && roomIdRef.current === room.roomId && !threadIdRef.current,
+        });
       }
     } finally {
       roomPaginatingBackRef.current = false;

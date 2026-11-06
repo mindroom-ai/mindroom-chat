@@ -152,6 +152,7 @@ import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roo
 import { collectThreadWriterIds, recordThreadWriters } from '../event-store/threads/threadWriters';
 import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
 import type { FetchedRelationOverviewUpdateOptions } from '../threads/overview/threadOverviewCacheHydration';
+import { countsRoomRows } from './roomTimelineClassicRows';
 import {
   ExpandAllLine,
   FilterBarSlot,
@@ -362,7 +363,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // Reads the newest filters, so it changes identity only with the room.
   const buildInitialTimeline = useCallback((): Timeline => {
     const { room: filterRoom, ...filters } = filterOptsRef.current;
-    return getInitialTimeline(filterRoom, windowLimitRef.current, filters);
+    return countsRoomRows(getInitialTimeline(filterRoom, windowLimitRef.current, filters));
   }, [filterOptsRef, windowLimitRef]);
   const [timeline, setTimeline] = useState<Timeline>(buildInitialTimeline);
   const [roomHasMoreCachedBack, setRoomHasMoreCachedBack] = useState(false);
@@ -404,6 +405,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     room,
     threadId,
     timeline,
+    setTimeline,
     ignoredUsersSet,
     showHiddenEvents,
     hideMembershipEvents,
@@ -1024,6 +1026,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     buildInitialTimeline,
     eventId,
     mx,
+    recalibrateFilterOptsRef: filterOptsRef,
     room,
     roomDebugTraceId,
     roomIdRef,

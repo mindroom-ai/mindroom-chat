@@ -216,8 +216,11 @@ export const recalibrateTimelinePagination = (
       (total, timeline) => total + Math.max(rowsOf(timeline) - previousCountOf(timeline), 0),
       0
     );
-    // Rows added before the window shift it; rows added after it leave it in place.
-    const shift = backwards ? added : 0;
+    // Rows added before the window shift it; rows added after it leave it in place. The classic
+    // view's window keeps its first row itself (useRoomRowEntries): thread replies join its rows
+    // from outside the room's timeline, which these counts do not see.
+    const classic = !!filterOpts?.showThreadRepliesInRoom && !filterOpts.threadId;
+    const shift = backwards && !classic ? added : 0;
     return {
       linkedTimelines: nextLinkedTimelines,
       range: { start: current.range.start + shift, end: current.range.end + shift },

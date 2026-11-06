@@ -1,15 +1,28 @@
-import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from 'react';
+import {
+  useEffect,
+  type Dispatch,
+  type MutableRefObject,
+  type RefObject,
+  type SetStateAction,
+} from 'react';
 import { type MatrixClient, type Room } from 'matrix-js-sdk';
 import { insertCachedRoomTimeline, prependCachedRoomTimeline } from '../event-store/sdk/roomTimelineSdk';
 import { markCacheHydrateEnd, markCacheHydrateStart } from '../event-store/cache/cacheProbe';
 import { logTimelineDebug } from '../diagnostics/timelineDebug';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
-import { getLiveTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
+import {
+  getLiveTimeline,
+  type RecalibrateFilterOpts,
+  type Timeline,
+} from '../event-store/timeline/timelinePagination';
+import { keepCachedHistoryReplies } from '../event-store/cache/cachedHistoryReplies';
 import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import {
   createPreferLiveEventMapper,
   findEarliestLoadedRoomEventByCacheOrder,
+  getEarliestLoadedRoomEvent,
   getMainTimelineCacheEvents,
+  getRoomCursorAnchor,
   loadLatestRoomCacheHydrationSnapshot,
   shouldHydrateLatestRoomCache,
 } from '../event-store/cache/eventRepository';
@@ -24,6 +37,7 @@ export const useRoomCacheHydrationController = ({
   buildInitialTimeline,
   eventId,
   mx,
+  recalibrateFilterOptsRef,
   room,
   roomDebugTraceId,
   roomIdRef,
@@ -39,6 +53,7 @@ export const useRoomCacheHydrationController = ({
   buildInitialTimeline: () => Timeline;
   eventId?: string;
   mx: MatrixClient;
+  recalibrateFilterOptsRef: RefObject<RecalibrateFilterOpts | undefined>;
   room: Room;
   roomDebugTraceId: string;
   roomIdRef: MutableRefObject<string>;
@@ -153,6 +168,26 @@ export const useRoomCacheHydrationController = ({
       if (eventsToInsert.length > 0) {
         await insertCachedRoomTimeline({ mx, room, events: eventsToInsert });
       }
+      // The Classic view also shows the thread replies of what the room now holds, which the
+      // cache keeps apart: from the oldest saved event put before the room's events (the room's
+      // timeline may not take it, such as an edit of an older reply), else from its earliest.
+      const hydratedChain = getLinkedTimelines(getLiveTimeline(room));
+      const earliestHydrated = getRoomCursorAnchor(
+        (prependEvents[0] ?? getEarliestLoadedRoomEvent(room, hydratedChain))?.event
+      );
+      if (
+        recalibrateFilterOptsRef.current?.showThreadRepliesInRoom &&
+        earliestHydrated &&
+        hydratedChain[0]
+      ) {
+        await keepCachedHistoryReplies({
+          mx,
+          sessionId,
+          room,
+          timeline: hydratedChain[0],
+          from: earliestHydrated,
+        });
+      }
 
       if (cancelled || !alive() || roomIdRef.current !== room.roomId || threadIdRef.current) return;
       setTimeline(buildInitialTimeline());
@@ -190,6 +225,7 @@ export const useRoomCacheHydrationController = ({
     buildInitialTimeline,
     eventId,
     mx,
+    recalibrateFilterOptsRef,
     room,
     roomDebugTraceId,
     roomIdRef,

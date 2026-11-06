@@ -184,10 +184,11 @@ describe('feature ownership architecture', () => {
           'processThreadRoots',
         ])
       ).map((entry) => entry.file)
-    ).toEqual(['event-store/sdk/roomTimelineSdk.ts']);
+    ).toEqual(['event-store/sdk/roomHistoryPageSdk.ts', 'event-store/sdk/roomTimelineSdk.ts']);
     expect(
       memberOwnership(appSources, new Set(['addEventsToTimeline'])).map((entry) => entry.file)
     ).toEqual([
+      'event-store/sdk/roomHistoryPageSdk.ts',
       'event-store/sdk/roomTimelineSdk.ts',
       'event-store/sdk/threadBootstrapSdk.ts',
     ]);

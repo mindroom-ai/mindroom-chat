@@ -297,7 +297,7 @@ describe('useRoomPaginationCommandController', () => {
     );
   });
 
-  it('preserves classic thread-reply filtering when recalibrating cached prepend range', async () => {
+  it('leaves the classic window to the classic rows after a cached prepend', async () => {
     const root = makeRoomEvent('$root');
     const reply = makeRoomEvent('$reply', '$root');
     const older = makeRoomEvent('$older');
@@ -377,7 +377,10 @@ describe('useRoomPaginationCommandController', () => {
 
     renderer?.unmount();
 
-    expect(recalibratedTimeline?.range).toEqual({ start: 11, end: 21 });
+    // The classic rows keep the window's first row (placeClassicWindow): the page's thread
+    // replies, which the cache keeps apart, join above it too.
+    expect(recalibratedTimeline?.linkedTimelines).toEqual([timeline]);
+    expect(recalibratedTimeline?.range).toEqual({ start: 10, end: 20 });
   });
 
   it('keeps cached thread replies in the classic room timeline', async () => {

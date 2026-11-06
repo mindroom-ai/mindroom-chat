@@ -1,10 +1,14 @@
 import {
+  useLayoutEffect,
   useMemo,
+  useRef,
   type CSSProperties,
+  type Dispatch,
   type Key,
   type MutableRefObject,
   type ReactNode,
   type Ref,
+  type SetStateAction,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { EventTimelineSet, MatrixEvent } from 'matrix-js-sdk';
@@ -17,8 +21,16 @@ import { MessageRowBoundary } from '../messages/content/MessageRowBoundary';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { hasThreadReplies } from './message-rendering/useTimelineMessageFeature';
 import type { ThreadRecord } from '../event-store/threads/types';
-import { getRenderableEventEntries, type TimelineEventEntry } from '../event-store/timeline/roomTimelineEvents';
-import { buildClassicRoomRowEntries } from './roomTimelineClassicRows';
+import {
+  getRenderableEventEntries,
+  type TimelineEventEntry,
+} from '../event-store/timeline/roomTimelineEvents';
+import {
+  buildClassicRoomRowEntries,
+  placeClassicWindow,
+  type ClassicWindow,
+} from './roomTimelineClassicRows';
+import { getShownHistoryReplies } from '../event-store/timeline/classicHistoryReplies';
 import type { RoomTimelineFocusItem } from './roomFocusScrollController';
 import type { RecalibrateFilterOpts, Timeline } from '../event-store/timeline/timelinePagination';
 import { estimateMessageRowHeight, estimateRoomRowHeight } from './timelineRowEstimate';
@@ -32,14 +44,15 @@ import { foldTimelineRowContexts, isRowlessTimelineEvent } from './timelineRowFo
 const EMPTY_ENTRIES: TimelineEventEntry[] = [];
 
 /**
- * The room's rows: the room timeline's own, plus in the classic view the threads' replies. The
- * newest window counts the room timeline's rows; with merged replies the same window ends at the
- * newest merged row (`windowTimeline`). A thread shows none of them.
+ * The room's rows: the room timeline's own, plus in the classic view the thread replies, those its
+ * threads hold and those its history pages brought, from the start of the history it holds on
+ * (`placeClassicWindow` places its window). A thread shows none of them.
  */
 export const useRoomRowEntries = ({
   room,
   threadId,
   timeline,
+  setTimeline,
   ignoredUsersSet,
   showHiddenEvents,
   hideMembershipEvents,
@@ -47,10 +60,11 @@ export const useRoomRowEntries = ({
   showThreadRepliesInRoom,
 }: Omit<RecalibrateFilterOpts, 'showThreadRepliesInRoom'> & {
   timeline: Timeline;
+  setTimeline: Dispatch<SetStateAction<Timeline>>;
   showThreadRepliesInRoom: boolean;
 }) => {
-  const { roomEntries, renderableEventEntries } = useMemo(() => {
-    if (threadId) return { roomEntries: EMPTY_ENTRIES, renderableEventEntries: EMPTY_ENTRIES };
+  const { roomEntryCount, renderableEventEntries } = useMemo(() => {
+    if (threadId) return { roomEntryCount: 0, renderableEventEntries: EMPTY_ENTRIES };
     const entries = getRenderableEventEntries(
       timeline.linkedTimelines,
       room,
@@ -61,14 +75,29 @@ export const useRoomRowEntries = ({
       hideNickAvatarEvents,
       showThreadRepliesInRoom
     );
-    if (!showThreadRepliesInRoom) return { roomEntries: entries, renderableEventEntries: entries };
-    const merged = buildClassicRoomRowEntries(room, entries, {
+    if (!showThreadRepliesInRoom) {
+      return { roomEntryCount: entries.length, renderableEventEntries: entries };
+    }
+    const filters = {
       ignoredUsersSet,
       showHiddenEvents,
       hideMembershipEvents,
       hideNickAvatarEvents,
-    });
-    return { roomEntries: entries, renderableEventEntries: merged };
+    };
+    const historyReplies = getShownHistoryReplies(room, timeline.linkedTimelines, filters);
+    const historyStart = timeline.linkedTimelines
+      .find((part) => part.getEvents().length > 0)
+      ?.getEvents()[0];
+    return {
+      roomEntryCount: entries.length,
+      renderableEventEntries: buildClassicRoomRowEntries(
+        room,
+        entries,
+        historyReplies,
+        filters,
+        historyStart
+      ),
+    };
   }, [
     hideMembershipEvents,
     hideNickAvatarEvents,
@@ -79,17 +108,41 @@ export const useRoomRowEntries = ({
     threadId,
     timeline,
   ]);
-  const roomEntryCount = roomEntries.length;
-  const mergedEntryCount = renderableEventEntries.length;
+  const classicWindowRef = useRef<ClassicWindow>();
+  const classic = showThreadRepliesInRoom && !threadId;
+  const previousWindow = classic ? classicWindowRef.current : undefined;
   const windowTimeline = useMemo(() => {
-    const { start, end } = timeline.range;
-    if (mergedEntryCount === roomEntryCount || end !== roomEntryCount) return timeline;
-    const size = end - start;
-    return {
-      ...timeline,
-      range: { start: Math.max(mergedEntryCount - size, 0), end: mergedEntryCount },
-    };
-  }, [mergedEntryCount, roomEntryCount, timeline]);
+    const range = placeClassicWindow(
+      previousWindow,
+      timeline,
+      renderableEventEntries,
+      roomEntryCount
+    );
+    return range === timeline.range ? timeline : { ...timeline, range };
+  }, [previousWindow, renderableEventEntries, roomEntryCount, timeline]);
+  useLayoutEffect(() => {
+    const { range } = windowTimeline;
+    classicWindowRef.current = classic
+      ? {
+          source: timeline.range,
+          chain: timeline.linkedTimelines,
+          range,
+          firstRowId: renderableEventEntries[range.start]?.event.getId(),
+        }
+      : undefined;
+    // The state follows a window that kept its first row, so pages from it start where it is.
+    if (classic && range !== timeline.range) {
+      const shown = timeline.range;
+      setTimeline((current) => (current.range === shown ? { ...current, range } : current));
+    }
+  }, [
+    classic,
+    renderableEventEntries,
+    setTimeline,
+    timeline.linkedTimelines,
+    timeline.range,
+    windowTimeline,
+  ]);
   const renderableEvents = useMemo(
     () => renderableEventEntries.map(({ event }) => event),
     [renderableEventEntries]

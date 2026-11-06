@@ -4,6 +4,7 @@ import { useAlive } from '../lib/hooks/useAlive';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { decryptAllTimelineEvent } from '../matrix/room';
 import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
+import { paginateRoomKeepingReplies } from '../event-store/sdk/roomHistoryPageSdk';
 import {
   getEventIdAbsoluteIndex,
   getTimelinesEventsCount,
@@ -131,15 +132,23 @@ const timelinesFrom = (
   return backwards ? chain.slice(0, position + 1) : chain.slice(position);
 };
 
-/** Asks the server for one page at `edge`. False when the request failed. */
+/**
+ * Asks the server for one page at `edge`. The Classic view (`opts` showing thread replies in the
+ * room) keeps the page's thread replies, which the SDK drops. False when the request failed.
+ */
 const requestPage = async (
   mx: MatrixClient,
   edge: EventTimeline,
   backwards: boolean,
-  limit: number
+  limit: number,
+  opts: RecalibrateFilterOpts | undefined
 ): Promise<boolean> => {
   try {
-    await mx.paginateEventTimeline(edge, { backwards, limit });
+    if (opts?.showThreadRepliesInRoom && !opts.threadId) {
+      await paginateRoomKeepingReplies(mx, opts.room, edge, backwards, limit);
+    } else {
+      await mx.paginateEventTimeline(edge, { backwards, limit });
+    }
     return true;
   } catch {
     return false;
@@ -167,7 +176,7 @@ const loadRowsAround = async (
   await Promise.all(
     ends.map(({ edge, backwards }) =>
       edge?.getPaginationToken(backwards ? Direction.Backward : Direction.Forward)
-        ? requestPage(mx, edge, backwards, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE)
+        ? requestPage(mx, edge, backwards, ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE, opts)
         : false
     )
   );
@@ -223,7 +232,7 @@ export const useTimelinePagination = (
       pageInFlight = true;
       try {
         const eventsBefore = getTimelinesEventsCount(getLinkedTimelines(edge));
-        const answered = await requestPage(mx, edge, backwards, limit);
+        const answered = await requestPage(mx, edge, backwards, limit, start.filterOpts);
         if (!answered || !alive()) return;
         const chainAfter = getLinkedTimelines(edge);
         // A page without events (it only moved or cleared the token) leaves the window.

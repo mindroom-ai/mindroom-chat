@@ -69,6 +69,7 @@ import {
 // seam only — it does NOT wrap the save with its own health gate or
 // catch. Callers still import from here and see the same return shape.
 export { resolveHydratedRoomBeforeToken } from './eventCacheTokenUtils';
+export { loadCachedThreadEventsInSpan } from './db/cacheStoreThreadSpan';
 
 export {
   deleteRoomEventsFromCache,

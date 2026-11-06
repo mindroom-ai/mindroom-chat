@@ -55,6 +55,7 @@ describe('room cache hydration with a restored SDK tail', () => {
       alive: () => true,
       buildInitialTimeline: () => getInitialTimeline(room, 200),
       mx,
+      recalibrateFilterOptsRef: { current: undefined },
       room,
       roomDebugTraceId: 'cached-room-open',
       roomIdRef: { current: room.roomId },
