@@ -25,7 +25,6 @@ const scrolls = '&:is([data-more-start], [data-more-end])';
  */
 export const InlineScrollFade = style({
   vars: { [fadeStart]: '0px', [fadeEnd]: '0px' },
-  scrollPaddingInline: fadeLength,
   selectors: {
     '&[data-more-start]': { vars: { [fadeStart]: fadeLength } },
     '&[data-more-end]': { vars: { [fadeEnd]: fadeLength } },
