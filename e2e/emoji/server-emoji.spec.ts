@@ -225,7 +225,7 @@ test("an emoji one user adds is in everyone's picker without setup", async ({ br
     const row = secondaryPage.locator(`[data-message-id="${messageId}"]`);
     await row.hover();
     await row.getByRole('button', { name: 'More Options', exact: true }).click();
-    const quickReaction = secondaryPage.getByRole('button', { name: 'party-parrot', exact: true });
+    const quickReaction = secondaryPage.getByRole('menuitem', { name: 'party-parrot', exact: true });
     await expect(quickReaction).toBeVisible();
     await expect(quickReaction.locator('img')).toHaveAttribute('alt', 'party-parrot');
     await secondaryPage.keyboard.press('Escape');
