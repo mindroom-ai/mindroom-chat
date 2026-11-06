@@ -42,6 +42,7 @@ const seed = async (name: string) => {
     Array.from({ length: 26 }, async (_, index) => {
       const roomId = await createPrivateRoom(HOMESERVER, body.access_token, {
         name: `Planning room ${index + 1}`,
+        topic: 'Weekly planning',
       });
       await sendRoomMessage(HOMESERVER, body.access_token, roomId, {
         msgtype: 'm.text',

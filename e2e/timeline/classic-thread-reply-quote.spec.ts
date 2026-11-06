@@ -85,7 +85,9 @@ const seed = async (engine: string): Promise<Seed> => {
   });
   await joinRoom(HOMESERVER, reader.accessToken, roomId);
   await Promise.all(
-    OTHER_ROOMS.map((name) => createPrivateRoom(HOMESERVER, reader.accessToken, { name }))
+    OTHER_ROOMS.map((name) =>
+      createPrivateRoom(HOMESERVER, reader.accessToken, { name, topic: `${name} notes` })
+    )
   );
   const say = (account: Account, content: Record<string, unknown>) =>
     sendRoomMessage(HOMESERVER, account.accessToken, roomId, content);
