@@ -19,6 +19,7 @@ import type {
   ThreadOverviewCachedMetadataController,
   ThreadOverviewCachedMetadataUpdate,
 } from './threadOverviewCacheMetadata';
+import { readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
 
 type ThreadLikeRoot = {
   id: string;
@@ -213,7 +214,7 @@ const hasCachedOverviewCoverage = (cachedPage: CachedThreadEventPage): boolean =
 export const resolveCachedOverviewUpdate = ({
   rootId,
   room,
-  mapper,
+  mapper: sdkMapper,
   cachedPage,
   currentRecord,
   currentRootEvent,
@@ -221,6 +222,8 @@ export const resolveCachedOverviewUpdate = ({
   compactCachedThreadRootBodyMap,
   compactThreadRootBodyMap,
 }: ResolveCachedOverviewUpdateOptions): CachedOverviewUpdate | null => {
+  // The cached events are only read here; attached to their threads they would stay for good.
+  const mapper = readOnlyEventMapper(room, sdkMapper);
   // Capture the SDK revision before the cache mapper gets a chance to reuse
   // and update the same MatrixEvent instance.
   const livePreview = compactThreadRootBodyMap.get(rootId);

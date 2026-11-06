@@ -42,6 +42,7 @@ const makeEvent = (
     isRedacted: () => false,
     isRedaction: () => false,
     replacingEvent: () => undefined,
+    getThread: () => undefined,
   } as MatrixEvent);
 
 const makeRoom = (events: MatrixEvent[] = []): Room =>
