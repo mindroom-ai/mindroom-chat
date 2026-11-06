@@ -36,6 +36,9 @@ type FrameHeaderProps = Pick<SettingsPageFrameProps, 'title' | 'requestClose'>;
 // sits 24 px from the dialog's end edge (the right, or the left in a right-to-left language), in
 // a 48 px title bar; the page's sections form a centered column of at most 680 px.
 const HEADER_STYLE = { height: '3rem', paddingInlineEnd: '1.5rem' };
+// On phones the breadcrumb keeps clear of the back button's focus ring, which shows as the page
+// opens.
+const PHONE_HEADER_STYLE = { gap: '0.5rem' };
 const CONTENT_COLUMN = {
   width: '100%',
   maxWidth: '42.5rem',
@@ -90,7 +93,7 @@ function FrameHeader({ title, requestClose }: FrameHeaderProps) {
 
   if (phone) {
     return (
-      <PageHeader balance>
+      <PageHeader balance style={PHONE_HEADER_STYLE}>
         <PhoneBackButton onBack={requestClose} />
         <SettingsBreadcrumb title={title} />
       </PageHeader>
