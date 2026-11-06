@@ -17,7 +17,10 @@ vi.mock('../../event-store/cache/attachmentRepository', async (importOriginal) =
 const VIEWER = '@reader:example.org';
 const AGENT = '@mindroom_helper:example.org';
 const CALLER = '@robin:example.org';
+const COLLEAGUE = '@kai:example.org';
 const STRANGER = '@visitor_42:other.example';
+const LEFT = '@former:example.org';
+const OTHER_AGENT = '@mindroom_research:example.org';
 const PERSON = '@person:example.org';
 const ROOM_ID = '!room:example.org';
 
@@ -40,7 +43,7 @@ const VALID = {
     { sender: CALLER, text: 'Can you hear me?' },
     { sender: CALLER, text: 'The line was quiet for a second.' },
     { sender: AGENT, text: 'Yes, loud and clear.' },
-    { sender: STRANGER, text: 'Sorry, I joined late.' },
+    { sender: COLLEAGUE, text: 'Sorry, I joined late.' },
     { sender: CALLER, text: 'No problem.' },
   ],
 };
@@ -61,9 +64,13 @@ const sidecarPreview = (): IContent => ({
   },
 });
 
-const MEMBERS: Record<string, string> = {
-  [CALLER]: 'Robin Tester',
-  [AGENT]: 'Helper',
+// Members by ID: display name (none for the colleague) and membership.
+const MEMBERS: Record<string, { name?: string; membership: string }> = {
+  [CALLER]: { name: 'Robin Tester', membership: 'join' },
+  [AGENT]: { name: 'Helper', membership: 'join' },
+  [COLLEAGUE]: { membership: 'join' },
+  [OTHER_AGENT]: { name: 'Research', membership: 'join' },
+  [LEFT]: { name: 'Former Member', membership: 'leave' },
 };
 
 describe('a voice call transcript message', () => {
@@ -96,16 +103,29 @@ describe('a voice call transcript message', () => {
       origin_server_ts: 1,
       content,
     });
+    const member = (userId: string) => {
+      const known = MEMBERS[userId];
+      return known
+        ? {
+            userId,
+            roomId: ROOM_ID,
+            membership: known.membership,
+            rawDisplayName: known.name ?? userId,
+            getMxcAvatarUrl: () => undefined,
+          }
+        : null;
+    };
     const room = {
       roomId: ROOM_ID,
-      getMember: (userId: string) =>
-        MEMBERS[userId]
-          ? { userId, rawDisplayName: MEMBERS[userId], getMxcAvatarUrl: () => undefined }
-          : null,
+      getMember: member,
+      getMembers: () => Object.keys(MEMBERS).map(member),
+      loadMembersIfNeeded: async () => true,
     };
     const mx = {
       getUserId: () => VIEWER,
       getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
+      on: () => undefined,
+      removeListener: () => undefined,
     } as unknown as MatrixClient;
     act(() =>
       root.render(
@@ -175,8 +195,8 @@ describe('a voice call transcript message', () => {
         texts: ['Can you hear me?', 'The line was quiet for a second.'],
       },
       { sender: AGENT, name: 'Helper', avatar: AGENT, texts: ['Yes, loud and clear.'] },
-      // Someone the room does not know: the ID's localpart and a generated avatar.
-      { sender: STRANGER, name: 'visitor_42', avatar: STRANGER, texts: ['Sorry, I joined late.'] },
+      // A member without a display name: the ID's localpart and a generated avatar.
+      { sender: COLLEAGUE, name: 'kai', avatar: COLLEAGUE, texts: ['Sorry, I joined late.'] },
       { sender: CALLER, name: 'Robin Tester', avatar: CALLER, texts: ['No problem.'] },
     ]);
 
@@ -224,6 +244,26 @@ describe('a voice call transcript message', () => {
     expect(marked).toEqual(['loud']);
   });
 
+  // Anyone can write the key with any sender in a turn: the card names only speakers it may.
+  it.each([
+    ['another agent', OTHER_AGENT],
+    ['someone outside the room', STRANGER],
+    ['someone who left the room', LEFT],
+  ])('renders the HTML fallback when a turn is attributed to %s', (_, speaker) => {
+    render(
+      transcriptContent({
+        duration_seconds: 60,
+        turns: [
+          { sender: CALLER, text: 'Approve the transfer.' },
+          { sender: speaker, text: 'Approved.' },
+        ],
+      })
+    );
+
+    expect(card()).toBeNull();
+    expect(container.querySelector('details summary')?.textContent).toBe('Transcript');
+  });
+
   it('renders the HTML fallback for a malformed transcript', () => {
     render(transcriptContent({ duration_seconds: 'long', turns: VALID.turns }));
 
@@ -262,6 +302,24 @@ describe('a voice call transcript message', () => {
       expect(hydrateLongText).not.toHaveBeenCalled();
       expect(card()).toBeNull();
       expect(container.textContent).toContain('Voice call');
+    });
+
+    it('shows no card for a sidecar whose turns name another agent', async () => {
+      hydrateLongText.mockResolvedValue(
+        transcriptContent({
+          duration_seconds: 900,
+          turns: [
+            { sender: CALLER, text: 'Can you hear me?' },
+            { sender: OTHER_AGENT, text: 'Yes.' },
+          ],
+        })
+      );
+      render(sidecarPreview());
+      await flush();
+
+      expect(hydrateLongText).toHaveBeenCalled();
+      expect(card()).toBeNull();
+      expect(container.querySelector('details summary')?.textContent).toBe('Transcript');
     });
 
     it("shows no card for a person's sidecar", async () => {

@@ -3,6 +3,7 @@ import {
   CALL_TRANSCRIPT_KEY,
   CALL_TRANSCRIPT_MAX_TOTAL_LENGTH,
   CALL_TRANSCRIPT_MAX_TURNS,
+  callTranscriptSpeakersTrusted,
   clipTurnText,
   groupCallTranscriptTurns,
   readCallTranscript,
@@ -161,5 +162,42 @@ describe('groupCallTranscriptTurns', () => {
 
   it('answers no groups for no turns', () => {
     expect(groupCallTranscriptTurns([])).toEqual([]);
+  });
+});
+
+describe('callTranscriptSpeakersTrusted', () => {
+  const VIEWER = '@reader:example.org';
+  const COLLEAGUE = '@kai:example.org';
+  const OTHER_AGENT = '@mindroom_research:example.org';
+  const FOREIGN_AGENT = '@mindroom_helper:other.example';
+  const joined = new Set([PERSON, COLLEAGUE, AGENT, OTHER_AGENT, FOREIGN_AGENT]);
+  const isJoinedMember = (userId: string) => joined.has(userId);
+  const spoken = (...senders: string[]) => ({
+    durationSeconds: 60,
+    turns: senders.map((sender) => turn(sender, 'Words.')),
+  });
+  const trusted = (poster: string, ...senders: string[]) =>
+    callTranscriptSpeakersTrusted(spoken(...senders), poster, VIEWER, isJoinedMember);
+
+  it('trusts an agent that speaks as itself with joined people', () => {
+    expect(trusted(AGENT, PERSON, AGENT, COLLEAGUE, PERSON)).toBe(true);
+  });
+
+  it('distrusts a person who posts the key, even with the agent as a speaker', () => {
+    expect(trusted(PERSON, PERSON, AGENT)).toBe(false);
+  });
+
+  it('distrusts an agent of another homeserver as the poster', () => {
+    expect(trusted(FOREIGN_AGENT, PERSON)).toBe(false);
+  });
+
+  it('distrusts an agent that attributes turns to another agent', () => {
+    expect(trusted(AGENT, PERSON, OTHER_AGENT)).toBe(false);
+    // An agent account of another homeserver is an agent too, never a person.
+    expect(trusted(AGENT, PERSON, FOREIGN_AGENT)).toBe(false);
+  });
+
+  it('distrusts a person who is not a joined member of the room', () => {
+    expect(trusted(AGENT, PERSON, '@visitor:other.example')).toBe(false);
   });
 });

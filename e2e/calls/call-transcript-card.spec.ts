@@ -37,8 +37,8 @@ import { launchWebKit } from '../helpers/webkit';
 // structured form (`io.mindroom.call_transcript`) the message shows as a call card: a phone icon,
 // "Voice call" and the duration, then a transcript that starts closed and opens, by pointer,
 // keyboard or tap, into a compact chat: each run of turns by one speaker under that member's
-// avatar and name, someone the room does not know under the ID's localpart and a generated
-// avatar. Checked in the thread the call started from, in a room among 25 with realistic message
+// avatar and name (a generated avatar without a picture, a long name cut with an ellipsis).
+// Checked in the thread the call started from, in a room among 25 with realistic message
 // lengths, in the Modern, Compact and Bubble message layouts, light and dark, English and Arabic,
 // on a desktop (1440 by 900) and a phone (390 by 844, touch), and for a long call, whose
 // transcript is only in the large-message sidecar, in the Classic view; in Chromium and, when
@@ -49,6 +49,8 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Team chat';
 const LAYOUT = { modern: 0, compact: 1, bubble: 2 } as const;
+// Long enough to end in an ellipsis on a phone.
+const COLLEAGUE_NAME = 'Kai Colleague, Platform Infrastructure and Release Engineering';
 const LAST_WORDS = 'Thanks, I will read the transcript later.';
 const SEARCH_WORD = 'periwinkle';
 const LONG_TURN =
@@ -71,7 +73,7 @@ type Seed = {
   longCallRoomId: string;
   caller: Account;
   agent: Account;
-  absentId: string;
+  colleague: Account;
   body: string;
 };
 
@@ -162,7 +164,7 @@ const seed = async (label: string): Promise<Seed> => {
   const id = `${label}_${RUN}_${randomUUID().slice(0, 6)}`;
   const caller = await register(`ctc_${id}`, 'Robin Tester');
   const agent = await register(`mindroom_helper_${id}`, 'Helper');
-  const colleague = await register(`ctc_kai_${id}`, 'Kai Colleague');
+  const colleague = await register(`ctc_kai_${id}`, COLLEAGUE_NAME);
   await setAvatar(agent);
   await createOtherRooms(caller);
   const roomId = await withRetry(() =>
@@ -180,19 +182,20 @@ const seed = async (label: string): Promise<Seed> => {
     roomId,
     'I will call the helper about the staging numbers and post what we find here before lunch.'
   );
-  const server = caller.userId.slice(caller.userId.indexOf(':') + 1);
-  const absentId = `@guest_${id}:${server}`;
   const turns = [
     { sender: caller.userId, text: 'Hi, can you hear me?' },
     { sender: caller.userId, text: 'How do the staging numbers look today?' },
     { sender: agent.userId, text: LONG_TURN },
-    { sender: absentId, text: 'Sorry, I joined late. Is the release still on for Thursday?' },
+    {
+      sender: colleague.userId,
+      text: 'Sorry, I joined late. Is the release still on for Thursday?',
+    },
     { sender: caller.userId, text: 'Yes, Thursday.' },
     { sender: agent.userId, text: 'I will post the summary in this room.' },
   ];
   // The plain and HTML bodies MindRoom writes beside the structured transcript.
   const speakerLabel = (sender: string) =>
-    sender === caller.userId ? 'Robin Tester' : sender === agent.userId ? 'Helper' : sender;
+    sender === caller.userId ? 'Robin Tester' : sender === agent.userId ? 'Helper' : COLLEAGUE_NAME;
   const lines = turns.map((turn) => `${speakerLabel(turn.sender)}: ${turn.text}`);
   const body = ['📞 Voice call · 3 min', 'Transcript', ...lines].join('\n\n');
   const html = turns
@@ -212,7 +215,7 @@ const seed = async (label: string): Promise<Seed> => {
     longCallRoomId,
     caller,
     agent,
-    absentId,
+    colleague,
     body,
   };
 };
@@ -406,8 +409,8 @@ const checkCard = async (page: Page, data: Seed, touch: boolean, look: string, i
     },
     { sender: data.agent.userId, name: 'Helper', texts: [LONG_TURN], picture: true },
     {
-      sender: data.absentId,
-      name: data.absentId.slice(1, data.absentId.indexOf(':')),
+      sender: data.colleague.userId,
+      name: COLLEAGUE_NAME,
       texts: ['Sorry, I joined late. Is the release still on for Thursday?'],
       picture: false,
     },
@@ -431,7 +434,7 @@ const checkCard = async (page: Page, data: Seed, touch: boolean, look: string, i
     .toBe(true);
   await expect(
     groups(row).filter({ hasText: 'Sorry, I joined late' }).locator('[data-avatar-fallback-id]')
-  ).toHaveAttribute('data-avatar-fallback-id', data.absentId);
+  ).toHaveAttribute('data-avatar-fallback-id', data.colleague.userId);
   expect(await layoutProblem(row), look).toBeNull();
 };
 
