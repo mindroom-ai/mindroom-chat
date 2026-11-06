@@ -222,18 +222,12 @@ const serverThreadCount = async (world: World, rootId: string) => {
 const roomRow = (page: Page, name: string) =>
   page.locator('[data-highlight]').filter({ has: page.getByRole('link', { name }) });
 
-/** How long the virtual list keeps reconciling a scroll to the newest row (TanStack Virtual). */
-const PIN_RECONCILE_MS = 5_000;
-
 /**
  * Scrolls the room's timeline up as a reader does (the mouse wheel; a finger's touch on a phone
  * in WebKit, which has no wheel), away from its newest rows but short of its top (which would load
- * older history), until the view offers Jump to Latest. It waits out the virtual list's last
- * scroll to the newest row first: a row that changes while that scroll still reconciles brings
- * the reader back to the bottom, whatever they did meanwhile (a defect of its own).
+ * older history), until the view offers Jump to Latest.
  */
 const scrollUp = async (page: Page, olderBody: string) => {
-  await page.waitForTimeout(PIN_RECONCILE_MS + 500);
   const box = await text(page, olderBody).boundingBox();
   if (!box) throw new Error(`No row shows "${olderBody}"`);
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
