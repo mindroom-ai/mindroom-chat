@@ -80,8 +80,14 @@ export const getThreadUnread = (thread: Thread, userId: string): boolean => {
   const finish = getFinishingEdit(latestReply, thread);
   const finishId = finish?.getId();
   if (finishId && threadReceiptNamesEvent(thread, userId, finishId)) return false;
-  const readUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
-  return readUpToTs === undefined || (finish ?? latestReply).getTs() > readUpToTs;
+  const readState = getThreadReadState(thread, userId);
+  const readUpToTs = readState?.readUpToTs;
+  // The finishing edit comes after its reply, though both may carry the same timestamp.
+  const readUpToReply =
+    !!finish &&
+    readUpToTs === latestReply.getTs() &&
+    !!readState?.readEventIds.has(latestReply.getId() ?? '');
+  return readUpToTs === undefined || (finish ?? latestReply).getTs() > readUpToTs || readUpToReply;
 };
 
 /**

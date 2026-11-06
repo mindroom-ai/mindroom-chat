@@ -11,7 +11,7 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { inMainTimelineForReceipt } from 'matrix-js-sdk/lib/client';
 import { getThreadReadState } from '../event-store/threads/roomThreadList';
-import { getFinishingEdit, threadReceiptNamesEvent } from '../event-store/threads/streamFinish';
+import { getFinishingEdit } from '../event-store/threads/streamFinish';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { isVisibleThreadReplyEvent } from '../event-store/threads/threadUtils';
 import { getMainTimelineReadTs } from '../matrix/mainTimelineRead';
@@ -70,7 +70,12 @@ const latestThreadReply = (thread: Thread): MatrixEvent | undefined => {
     (event) => isConfirmedReply(event) || isConfirmedFinishingEdit(event)
   );
   const summary = thread.replyToEvent ?? undefined;
-  const tail = newer(loaded, summary && isConfirmedReply(summary) ? summary : undefined);
+  // A summary reply the thread holds is at or before the last loaded event in stream order,
+  // whatever the timestamps say.
+  const summaryLoaded = !!summary && !!thread.events?.some((e) => e.getId() === summary.getId());
+  const tail = summaryLoaded
+    ? loaded
+    : newer(loaded, summary && isConfirmedReply(summary) ? summary : undefined);
   return tail && !tail.isRelation(RelationType.Replace) ? newer(tail, finishingEditOf(tail, thread)) : tail;
 };
 
@@ -139,6 +144,9 @@ const fetchThreadTail = async (
   const reply = await fetchNewestRelation(mx, roomId, rootId, RelationType.Thread);
   const replyId = reply?.getId();
   if (!reply || !replyId) return reply;
+  // The server bundles the reply's newest edit with it; only without one is it asked for.
+  const bundled = getFinishingEdit(reply);
+  if (bundled) return bundled;
   const edit = await fetchNewestRelation(mx, roomId, replyId, RelationType.Replace);
   return edit && hasTerminalStreamMetadata(edit.getContent()) ? newer(reply, edit) : reply;
 };
@@ -156,10 +164,27 @@ const forThreadReceipt = (event: MatrixEvent, roomId: string, rootId: string): M
   return copy;
 };
 
-/** Whether the reader's receipt in the thread, public or private, already names `eventId`. */
-const threadReceiptNames = (thread: Thread, userId: string | undefined, eventId: string) =>
-  !!getThreadReadState(thread, userId)?.readEventIds.has(eventId) ||
-  (!!userId && threadReceiptNamesEvent(thread, userId, eventId));
+/**
+ * Whether the reader's receipt in the thread, public or private, already reads `target`: it names
+ * `target`, an event after it in the thread, or the edit that finished it. A receipt never moves
+ * back, so none is sent then, though timestamps may tie.
+ */
+const threadReceiptReads = (thread: Thread, userId: string | undefined, target: MatrixEvent) => {
+  const targetId = target.getId();
+  if (!targetId || getThreadReadState(thread, userId)?.readEventIds.has(targetId)) return true;
+  if (!userId) return false;
+  const events = thread.events ?? [];
+  const position = (eventId: string | undefined) =>
+    events.findIndex((event) => event.getId() === eventId);
+  const targetPosition = position(targetId);
+  const finishId = getFinishingEdit(target, thread)?.getId();
+  return [ReceiptType.Read, ReceiptType.ReadPrivate].some((type) => {
+    const receiptId = thread.getReadReceiptForUserId(userId, false, type)?.eventId;
+    if (!receiptId) return false;
+    if (receiptId === targetId || receiptId === finishId) return true;
+    return targetPosition >= 0 && position(receiptId) > targetPosition;
+  });
+};
 
 /**
  * Reads the root of an opened thread, which belongs to the main timeline: a main receipt once
@@ -202,11 +227,16 @@ export const markThreadAsRead = async (
   if (!isConfirmedMatrixEventId(rootId)) return;
   const room = mx.getRoom(roomId);
   if (!room) return;
+  // What the reader has seen is taken now: an edit that arrives while the root is read was not.
+  const thread = room.getThread(rootId);
+  const known = newer(
+    thread ? latestThreadReply(thread) : undefined,
+    isConfirmed(seen) ? seen : undefined
+  );
   // The root first, so views that update on the thread receipt find the root read too.
   await markThreadRootAsRead(mx, room, rootId, hideActivity);
-  const thread = room.getThread(rootId);
   const target =
-    newer(thread ? latestThreadReply(thread) : undefined, isConfirmed(seen) ? seen : undefined) ??
+    known ??
     (await fetchThreadTail(mx, roomId, rootId)) ??
     room
       .getLiveTimeline()
@@ -214,7 +244,7 @@ export const markThreadAsRead = async (
       .findLast((event) => isConfirmedReply(event) && event.threadRootId === rootId);
   const targetId = target?.getId();
   if (!target || !targetId || !isConfirmed(target)) return;
-  if (thread && threadReceiptNames(thread, mx.getUserId() ?? undefined, targetId)) return;
+  if (thread && threadReceiptReads(thread, mx.getUserId() ?? undefined, target)) return;
   await send(
     mx.sendReceipt(forThreadReceipt(target, roomId, rootId), receiptTypeFor(hideActivity), {
       thread_id: rootId,

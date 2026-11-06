@@ -1,6 +1,7 @@
 import {
   useCallback,
   useEffect,
+  useRef,
   type Dispatch,
   type MutableRefObject,
   type SetStateAction,
@@ -80,32 +81,39 @@ const markerReachesLiveTimeline = (room: Room, markerEventId: string | undefined
 };
 
 /**
- * Reads the main timeline on the next frame, when the reader has seen its newest rows. A frame
- * can come late on a busy machine: by then the window may have lost its focus, and what arrived
- * in between was not seen, so the read is dropped.
+ * Whether the reader is still where a read was decided when its frame comes: in the same room
+ * and thread, at the bottom of its live end, with the window focused. A frame can come late on a
+ * busy machine, and what arrived after the reader left, scrolled away or switched windows was
+ * not seen.
  */
-const readRoomOnNextFrame = (context: ReadContext, markerEventId: string | undefined): void => {
+type StillReading = (roomId: string, threadId: string | undefined) => boolean;
+
+/** Reads the main timeline on the next frame, when the reader has seen its newest rows. */
+const readRoomOnNextFrame = (
+  context: ReadContext,
+  markerEventId: string | undefined,
+  stillReading: StillReading
+): void => {
   const { hideActivity, mx, room } = context;
   if (!markerReachesLiveTimeline(room, markerEventId)) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
-    if (!document.hasFocus()) return;
+    if (!stillReading(roomId, undefined)) return;
     void markMainTimelineAsRead(mx, roomId, hideActivity);
   });
 };
 
 /**
  * Reads the open thread on the next frame, once its newest replies are loaded and rendered: its
- * tail is loaded, it is past its loading render, and it has a row. As for the room, a frame that
- * comes after the window lost its focus reads nothing.
+ * tail is loaded, it is past its loading render, and it has a row.
  */
-const readThreadOnNextFrame = (context: ReadContext): void => {
+const readThreadOnNextFrame = (context: ReadContext, stillReading: StillReading): void => {
   const { hideActivity, mx, room, threadId } = context;
   if (!threadId || !context.threadTailLoaded) return;
   if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
-    if (!document.hasFocus()) return;
+    if (!stillReading(roomId, threadId)) return;
     void markThreadAsRead(mx, roomId, threadId, hideActivity);
   });
 };
@@ -147,6 +155,29 @@ export const useTimelineReadReceiptController = ({
     unreadInfo,
   });
 
+  // The view is gone once it unmounts; a frame it scheduled then reads nothing.
+  const mountedRef = useRef(false);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+  // Measured when the frame comes, not taken from the "at bottom" state, which lags behind the
+  // reader's scroll: the anchor is within reach of the scroll area's lower edge.
+  const stillReading = useCallback<StillReading>(
+    (roomId, threadId) => {
+      const context = contextRef.current;
+      if (!mountedRef.current || context.room.roomId !== roomId || context.threadId !== threadId)
+        return false;
+      const anchor = atBottomAnchorRef.current;
+      if (!anchor || !atLiveEndRef.current || !document.hasFocus()) return false;
+      const lowerEdge = getScrollElement()?.getBoundingClientRect().bottom ?? window.innerHeight;
+      return anchor.getBoundingClientRect().top <= lowerEdge + TIMELINE_BOTTOM_THRESHOLD_PX;
+    },
+    [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement]
+  );
+
   const confirmScrolledAway = useCallback(
     (anchorInReach: boolean) => {
       if (!anchorInReach) setAtBottom(false);
@@ -175,8 +206,8 @@ export const useTimelineReadReceiptController = ({
     setAtBottom(true);
     if (!atLiveEndRef.current || !document.hasFocus()) return;
     const context = contextRef.current;
-    if (context.threadId) readThreadOnNextFrame(context);
-    else readRoomOnNextFrame(context, readUptoEventIdRef.current);
+    if (context.threadId) readThreadOnNextFrame(context, stillReading);
+    else readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
   };
   const observer = useIntersectionObserver(handleAnchorReports, getObserverOptions, getAnchor);
 
@@ -194,21 +225,22 @@ export const useTimelineReadReceiptController = ({
       if (!inFocus || !atBottomRef.current) return;
       const context = contextRef.current;
       if (context.threadId) {
-        if (atLiveEndRef.current) readThreadOnNextFrame(context);
+        if (atLiveEndRef.current) readThreadOnNextFrame(context, stillReading);
         return;
       }
       const marker = context.unreadInfo;
       if (!marker?.inLiveTimeline) {
-        readRoomOnNextFrame(context, readUptoEventIdRef.current);
+        readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
         return;
       }
       // Go to the read marker, without a highlight. When it was already in view nothing moved,
       // so the reader has seen the rows after it.
       void context.handleOpenEvent(marker.readUptoEventId, false, (scrolled) => {
-        if (!scrolled) readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current);
+        if (!scrolled)
+          readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current, stillReading);
       });
     },
-    [atBottomRef, atLiveEndRef, contextRef, readUptoEventIdRef]
+    [atBottomRef, atLiveEndRef, contextRef, readUptoEventIdRef, stillReading]
   );
   useDocumentFocusChange(handleWindowFocus);
 
@@ -216,10 +248,11 @@ export const useTimelineReadReceiptController = ({
   // bottom with the window focused, is read.
   useEffect(() => {
     if (!threadId || !atBottom || !timelineAtLiveEnd || !document.hasFocus()) return;
-    readThreadOnNextFrame(contextRef.current);
+    readThreadOnNextFrame(contextRef.current, stillReading);
   }, [
     atBottom,
     contextRef,
+    stillReading,
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
