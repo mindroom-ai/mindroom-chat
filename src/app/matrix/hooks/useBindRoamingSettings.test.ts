@@ -27,18 +27,23 @@ const BOB = '@bob:example.org';
 
 type Content = Record<string, unknown> | undefined;
 
-/** One account's `io.mindroom.client.settings` on the homeserver, echoed to its clients by sync. */
-const homeserver = () => {
+/**
+ * One account's `io.mindroom.client.settings` on the homeserver, echoed to its clients by sync:
+ * at once, or with `lag` only when `deliver` runs, as one sync carrying the latest content.
+ */
+const homeserver = ({ lag = false } = {}) => {
   let content: Content;
   const clients = new Set<{ connected: boolean; receive: (next: Content) => void }>();
+  const deliver = () => clients.forEach((client) => client.connected && client.receive(content));
   return {
     get content() {
       return content;
     },
     put(next: Content) {
       content = structuredClone(next);
-      clients.forEach((client) => client.connected && client.receive(content));
+      if (!lag) deliver();
     },
+    deliver,
     attach(client: { connected: boolean; receive: (next: Content) => void }) {
       clients.add(client);
     },
@@ -92,6 +97,10 @@ const login = (
         ? { getContent: () => held }
         : undefined,
     setAccountData,
+    getAccountDataFromServer: vi.fn(async () => {
+      if (!client.connected) throw new Error('ConnectionError: offline');
+      return server.content ?? null;
+    }),
     getSyncState: () => state,
     getSyncStateData: () => data,
     on: (event: string, listener: (...args: unknown[]) => void) => emitter.on(event, listener),
@@ -306,6 +315,55 @@ describe('bindRoamingSettings', () => {
       isMarkdown: false,
       dateFormatString: 'YYYY-MM-DD',
     });
+    phone.unbind();
+    laptop.unbind();
+  });
+
+  it('keeps both changes when two devices change different settings at the same moment', async () => {
+    logins.stored = [
+      { userId: ALICE, deviceId: 'PHONE' },
+      { userId: ALICE, deviceId: 'LAPTOP' },
+    ];
+    const server = homeserver({ lag: true });
+    const phone = open(login(server, ALICE, 'PHONE'));
+    const laptop = open(login(server, ALICE, 'LAPTOP'));
+    await settle();
+
+    // Both writes reach the homeserver before sync tells either device about the other.
+    phone.change('hour24Clock', true);
+    laptop.change('isMarkdown', false);
+    await settle();
+    server.deliver();
+    await settle();
+    server.deliver();
+
+    await vi.waitFor(() =>
+      expect(server.content).toEqual({ version: 1, hour24Clock: true, isMarkdown: false })
+    );
+    server.deliver();
+    for (const app of [phone, laptop]) {
+      expect(app.shown().hour24Clock).toBe(true);
+      expect(app.shown().isMarkdown).toBe(false);
+    }
+    phone.unbind();
+    laptop.unbind();
+  });
+
+  it('takes a change another device made after seeing this one', async () => {
+    logins.stored = [
+      { userId: ALICE, deviceId: 'PHONE' },
+      { userId: ALICE, deviceId: 'LAPTOP' },
+    ];
+    const server = homeserver();
+    const phone = open(login(server, ALICE, 'PHONE'));
+    const laptop = open(login(server, ALICE, 'LAPTOP'));
+
+    phone.change('hour24Clock', true);
+    await vi.waitFor(() => expect(laptop.shown().hour24Clock).toBe(true));
+    laptop.change('hour24Clock', false);
+    await vi.waitFor(() => expect(phone.shown().hour24Clock).toBe(false));
+    await settle();
+    expect(server.content).toEqual({ version: 1, hour24Clock: false });
     phone.unbind();
     laptop.unbind();
   });
