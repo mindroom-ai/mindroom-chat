@@ -7,10 +7,11 @@ const inlineRow = { display: 'inline-flex', alignItems: 'center' } as const;
 
 /**
  * The "N replies" chip under a message that starts a thread, and the composer's thread label.
- * To a finger the chip is 44 px tall.
+ * To a finger the chip is 44 px tall; its layer lies over the row that follows, which is
+ * positioned and would otherwise take the lower part of it.
  */
 export const ThreadIndicator = style([
-  touchTarget('22px'),
+  touchTarget('22px', '', { raise: true }),
   {
     ...inlineRow,
     alignSelf: 'flex-start',
