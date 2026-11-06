@@ -187,6 +187,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "新しい編集を復号できませんでした"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "ルームの全員に通知"
     }
   },
   "featureUi": {
@@ -385,7 +388,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} に失敗しました: {{reason}}",
         "usage": "{{command}} を実行できませんでした。{{usage}}",
-        "ownServer": "変更していません: 自分のサーバー ({{server}}) がルームから締め出されます。"
+        "ownServer": "変更していません: 自分のサーバー ({{server}}) がルームから締め出されます。",
+        "unknown": "{{command}} はコマンドではありません。テキストとして送るには、メッセージの先頭に /plain を付けてください。"
       },
       "jumpToTime": {
         "unsupported": "このサーバーは時刻でメッセージを検索できません。",
@@ -503,7 +507,9 @@
   "composer": {
     "emoji": "絵文字",
     "cancelReply": "返信をキャンセル",
-    "moreActions": "その他の操作"
+    "moreActions": "その他の操作",
+    "lostFiles": "この下書きでは保持されませんでした: {{files}}。送信する前にもう一度添付してください。",
+    "dismissLostFiles": "閉じる"
   },
   "commandPalette": {
     "people": "人物",

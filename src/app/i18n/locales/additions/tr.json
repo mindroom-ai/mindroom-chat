@@ -190,6 +190,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Daha yeni bir düzenlemenin şifresi çözülemedi"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Odadaki herkese bildir"
     }
   },
   "featureUi": {
@@ -391,7 +394,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} başarısız oldu: {{reason}}",
         "usage": "{{command}} çalıştırılamadı. {{usage}}",
-        "ownServer": "Hiçbir şey değişmedi: bu, kendi sunucunuzu ({{server}}) odanın dışında bırakırdı."
+        "ownServer": "Hiçbir şey değişmedi: bu, kendi sunucunuzu ({{server}}) odanın dışında bırakırdı.",
+        "unknown": "{{command}} bir komut değil. Metin olarak göndermek için mesajı /plain ile başlatın."
       },
       "jumpToTime": {
         "unsupported": "Bu sunucu mesajları zamana göre arayamıyor.",
@@ -510,7 +514,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Yanıtı iptal et",
-    "moreActions": "Diğer işlemler"
+    "moreActions": "Diğer işlemler",
+    "lostFiles": "Bu taslakla saklanmadı: {{files}}. Göndermeden önce yeniden ekleyin.",
+    "dismissLostFiles": "Kapat"
   },
   "commandPalette": {
     "people": "Kişiler",

@@ -193,6 +193,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Non è stato possibile decifrare una modifica più recente"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Avvisa tutti nella stanza"
     }
   },
   "featureUi": {
@@ -397,7 +400,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} non riuscito: {{reason}}",
         "usage": "Impossibile eseguire {{command}}. {{usage}}",
-        "ownServer": "Nessuna modifica: il tuo server ({{server}}) verrebbe escluso dalla stanza."
+        "ownServer": "Nessuna modifica: il tuo server ({{server}}) verrebbe escluso dalla stanza.",
+        "unknown": "{{command}} non è un comando. Per inviarlo come testo, inizia il messaggio con /plain."
       },
       "jumpToTime": {
         "unsupported": "Questo server non può cercare i messaggi per ora.",
@@ -517,7 +521,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Annulla risposta",
-    "moreActions": "Altre azioni"
+    "moreActions": "Altre azioni",
+    "lostFiles": "Non conservati con questa bozza: {{files}}. Allegali di nuovo prima di inviare.",
+    "dismissLostFiles": "Ignora"
   },
   "commandPalette": {
     "people": "Persone",

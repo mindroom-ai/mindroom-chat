@@ -202,6 +202,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "تعذّر فك تشفير تعديل أحدث"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "تنبيه كل من في الغرفة"
     }
   },
   "featureUi": {
@@ -415,7 +418,8 @@
       "commandAutocomplete": {
         "failed": "فشل ⁨{{command}}⁩: ⁨{{reason}}⁩",
         "usage": "تعذّر تنفيذ ⁨{{command}}⁩. ⁨{{usage}}⁩",
-        "ownServer": "لم يتغير شيء: هذا سيمنع خادمك (⁨{{server}}⁩) من الغرفة."
+        "ownServer": "لم يتغير شيء: هذا سيمنع خادمك (⁨{{server}}⁩) من الغرفة.",
+        "unknown": "⁨{{command}}⁩ ليس أمرًا. لإرساله نصًا، ابدأ الرسالة بـ /plain."
       },
       "jumpToTime": {
         "unsupported": "لا يستطيع هذا الخادم البحث عن الرسائل حسب الوقت.",
@@ -538,7 +542,9 @@
   "composer": {
     "emoji": "رمز تعبيري",
     "cancelReply": "إلغاء الرد",
-    "moreActions": "مزيد من الإجراءات"
+    "moreActions": "مزيد من الإجراءات",
+    "lostFiles": "لم يُحتفظ بها مع هذه المسودة: ⁨{{files}}⁩. أرفقها مرة أخرى قبل الإرسال.",
+    "dismissLostFiles": "إخفاء"
   },
   "commandPalette": {
     "people": "الأشخاص",

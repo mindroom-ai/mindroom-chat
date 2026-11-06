@@ -193,6 +193,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Não foi possível descriptografar uma edição mais recente"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Notificar todos na sala"
     }
   },
   "featureUi": {
@@ -397,7 +400,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} falhou: {{reason}}",
         "usage": "Não foi possível executar {{command}}. {{usage}}",
-        "ownServer": "Nada mudou: isto deixaria o seu próprio servidor ({{server}}) fora da sala."
+        "ownServer": "Nada mudou: isto deixaria o seu próprio servidor ({{server}}) fora da sala.",
+        "unknown": "{{command}} não é um comando. Para enviá-lo como texto, comece a mensagem com /plain."
       },
       "jumpToTime": {
         "unsupported": "Este servidor não consegue procurar mensagens por hora.",
@@ -517,7 +521,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Cancelar resposta",
-    "moreActions": "Mais ações"
+    "moreActions": "Mais ações",
+    "lostFiles": "Não mantidos com este rascunho: {{files}}. Anexe-os novamente antes de enviar.",
+    "dismissLostFiles": "Dispensar"
   },
   "commandPalette": {
     "people": "Pessoas",

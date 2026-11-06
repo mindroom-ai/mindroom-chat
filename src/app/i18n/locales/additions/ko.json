@@ -187,6 +187,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "최신 수정 내용을 복호화할 수 없습니다"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "방의 모든 사람에게 알림"
     }
   },
   "featureUi": {
@@ -385,7 +388,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} 실패: {{reason}}",
         "usage": "{{command}}을(를) 실행할 수 없습니다. {{usage}}",
-        "ownServer": "변경되지 않았습니다: 내 서버({{server}})가 방에서 차단됩니다."
+        "ownServer": "변경되지 않았습니다: 내 서버({{server}})가 방에서 차단됩니다.",
+        "unknown": "{{command}}은(는) 명령어가 아닙니다. 텍스트로 보내려면 메시지를 /plain으로 시작하세요."
       },
       "jumpToTime": {
         "unsupported": "이 서버는 시간으로 메시지를 찾을 수 없습니다.",
@@ -503,7 +507,9 @@
   "composer": {
     "emoji": "이모지",
     "cancelReply": "답장 취소",
-    "moreActions": "추가 작업"
+    "moreActions": "추가 작업",
+    "lostFiles": "이 초안에 보관되지 않음: {{files}}. 보내기 전에 다시 첨부하세요.",
+    "dismissLostFiles": "닫기"
   },
   "commandPalette": {
     "people": "사람",

@@ -190,6 +190,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Eine neuere Bearbeitung konnte nicht entschlüsselt werden"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Alle im Raum benachrichtigen"
     }
   },
   "featureUi": {
@@ -391,7 +394,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} fehlgeschlagen: {{reason}}",
         "usage": "{{command}} konnte nicht ausgeführt werden. {{usage}}",
-        "ownServer": "Nichts geändert: Dein eigener Server ({{server}}) würde aus dem Raum ausgeschlossen."
+        "ownServer": "Nichts geändert: Dein eigener Server ({{server}}) würde aus dem Raum ausgeschlossen.",
+        "unknown": "{{command}} ist kein Befehl. Um es als Text zu senden, beginne die Nachricht mit /plain."
       },
       "jumpToTime": {
         "unsupported": "Dieser Server kann Nachrichten nicht nach Zeit suchen.",
@@ -510,7 +514,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Antwort abbrechen",
-    "moreActions": "Weitere Aktionen"
+    "moreActions": "Weitere Aktionen",
+    "lostFiles": "Nicht mit diesem Entwurf behalten: {{files}}. Hänge sie vor dem Senden erneut an.",
+    "dismissLostFiles": "Ausblenden"
   },
   "commandPalette": {
     "people": "Personen",

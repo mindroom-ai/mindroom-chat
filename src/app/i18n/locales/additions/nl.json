@@ -190,6 +190,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Een nieuwere bewerking kon niet worden ontsleuteld"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Iedereen in de kamer melden"
     }
   },
   "featureUi": {
@@ -391,7 +394,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} mislukt: {{reason}}",
         "usage": "Kon {{command}} niet uitvoeren. {{usage}}",
-        "ownServer": "Niets gewijzigd: je eigen server ({{server}}) zou uit de ruimte worden gesloten."
+        "ownServer": "Niets gewijzigd: je eigen server ({{server}}) zou uit de ruimte worden gesloten.",
+        "unknown": "{{command}} is geen opdracht. Begin het bericht met /plain om het als tekst te versturen."
       },
       "jumpToTime": {
         "unsupported": "Deze server kan berichten niet op tijd opzoeken.",
@@ -510,7 +514,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Antwoord annuleren",
-    "moreActions": "Meer acties"
+    "moreActions": "Meer acties",
+    "lostFiles": "Niet bewaard bij dit concept: {{files}}. Voeg ze opnieuw toe voordat je verstuurt.",
+    "dismissLostFiles": "Sluiten"
   },
   "commandPalette": {
     "people": "Personen",

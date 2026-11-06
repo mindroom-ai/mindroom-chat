@@ -187,6 +187,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "無法解密較新的編輯"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "通知聊天室中的所有人"
     }
   },
   "featureUi": {
@@ -385,7 +388,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} 失敗：{{reason}}",
         "usage": "無法執行 {{command}}。{{usage}}",
-        "ownServer": "未做變更：這會把你自己的伺服器（{{server}}）擋在房間之外。"
+        "ownServer": "未做變更：這會把你自己的伺服器（{{server}}）擋在房間之外。",
+        "unknown": "{{command}} 不是指令。若要以文字傳送，請在訊息開頭加上 /plain。"
       },
       "jumpToTime": {
         "unsupported": "此伺服器無法依時間尋找訊息。",
@@ -503,7 +507,9 @@
   "composer": {
     "emoji": "表情符號",
     "cancelReply": "取消回覆",
-    "moreActions": "更多操作"
+    "moreActions": "更多操作",
+    "lostFiles": "未隨此草稿保留：{{files}}。傳送前請重新附加。",
+    "dismissLostFiles": "關閉"
   },
   "commandPalette": {
     "people": "人員",

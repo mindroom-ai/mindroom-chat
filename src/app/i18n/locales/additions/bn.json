@@ -190,6 +190,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "একটি নতুন সম্পাদনা ডিক্রিপ্ট করা যায়নি"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "রুমের সবাইকে জানান"
     }
   },
   "featureUi": {
@@ -391,7 +394,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} ব্যর্থ হয়েছে: {{reason}}",
         "usage": "{{command}} চালানো যায়নি। {{usage}}",
-        "ownServer": "কিছুই বদলায়নি: এতে আপনার নিজের সার্ভার ({{server}}) রুম থেকে বাদ পড়ত।"
+        "ownServer": "কিছুই বদলায়নি: এতে আপনার নিজের সার্ভার ({{server}}) রুম থেকে বাদ পড়ত।",
+        "unknown": "{{command}} কোনো কমান্ড নয়। এটি টেক্সট হিসেবে পাঠাতে বার্তাটি /plain দিয়ে শুরু করুন।"
       },
       "jumpToTime": {
         "unsupported": "এই সার্ভার সময় অনুযায়ী বার্তা খুঁজতে পারে না।",
@@ -510,7 +514,9 @@
   "composer": {
     "emoji": "ইমোজি",
     "cancelReply": "উত্তর বাতিল করুন",
-    "moreActions": "আরও অ্যাকশন"
+    "moreActions": "আরও অ্যাকশন",
+    "lostFiles": "এই খসড়ার সাথে রাখা হয়নি: {{files}}। পাঠানোর আগে আবার সংযুক্ত করুন।",
+    "dismissLostFiles": "সরিয়ে দিন"
   },
   "commandPalette": {
     "people": "মানুষ",

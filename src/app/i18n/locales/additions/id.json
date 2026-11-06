@@ -187,6 +187,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Suntingan yang lebih baru tidak dapat didekripsi"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Beri tahu semua orang di ruangan"
     }
   },
   "featureUi": {
@@ -385,7 +388,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} gagal: {{reason}}",
         "usage": "Tidak dapat menjalankan {{command}}. {{usage}}",
-        "ownServer": "Tidak ada yang berubah: ini akan mengeluarkan server Anda sendiri ({{server}}) dari ruangan."
+        "ownServer": "Tidak ada yang berubah: ini akan mengeluarkan server Anda sendiri ({{server}}) dari ruangan.",
+        "unknown": "{{command}} bukan perintah. Untuk mengirimnya sebagai teks, awali pesan dengan /plain."
       },
       "jumpToTime": {
         "unsupported": "Server ini tidak dapat mencari pesan berdasarkan waktu.",
@@ -503,7 +507,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Batalkan balasan",
-    "moreActions": "Tindakan lainnya"
+    "moreActions": "Tindakan lainnya",
+    "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
+    "dismissLostFiles": "Tutup"
   },
   "commandPalette": {
     "people": "Orang",

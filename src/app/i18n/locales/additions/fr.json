@@ -193,6 +193,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Une modification plus récente n'a pas pu être déchiffrée"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Notifier tout le monde dans le salon"
     }
   },
   "featureUi": {
@@ -397,7 +400,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} a échoué : {{reason}}",
         "usage": "Impossible d’exécuter {{command}}. {{usage}}",
-        "ownServer": "Rien n’a changé : votre propre serveur ({{server}}) serait exclu du salon."
+        "ownServer": "Rien n’a changé : votre propre serveur ({{server}}) serait exclu du salon.",
+        "unknown": "{{command}} n’est pas une commande. Pour l’envoyer comme texte, commencez le message par /plain."
       },
       "jumpToTime": {
         "unsupported": "Ce serveur ne peut pas rechercher les messages par date.",
@@ -517,7 +521,9 @@
   "composer": {
     "emoji": "Émoji",
     "cancelReply": "Annuler la réponse",
-    "moreActions": "Plus d’actions"
+    "moreActions": "Plus d’actions",
+    "lostFiles": "Non conservés avec ce brouillon : {{files}}. Joignez-les à nouveau avant l’envoi.",
+    "dismissLostFiles": "Ignorer"
   },
   "commandPalette": {
     "people": "Personnes",

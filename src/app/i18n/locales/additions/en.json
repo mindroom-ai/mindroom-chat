@@ -190,6 +190,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "A newer edit couldn't be decrypted"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Notify everyone in the room"
     }
   },
   "featureUi": {
@@ -391,7 +394,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} failed: {{reason}}",
         "usage": "Could not run {{command}}. {{usage}}",
-        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room."
+        "ownServer": "Nothing changed: this would shut your own server ({{server}}) out of the room.",
+        "unknown": "{{command}} is not a command. To send it as text, start the message with /plain."
       },
       "jumpToTime": {
         "unsupported": "This server cannot look up messages by time.",
@@ -510,7 +514,9 @@
   "composer": {
     "emoji": "Emoji",
     "cancelReply": "Cancel reply",
-    "moreActions": "More actions"
+    "moreActions": "More actions",
+    "lostFiles": "Not kept with this draft: {{files}}. Attach them again before sending.",
+    "dismissLostFiles": "Dismiss"
   },
   "commandPalette": {
     "people": "People",

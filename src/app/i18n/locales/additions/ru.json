@@ -196,6 +196,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "Не удалось расшифровать более новую правку"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "Уведомить всех в комнате"
     }
   },
   "featureUi": {
@@ -403,7 +406,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} не выполнена: {{reason}}",
         "usage": "Не удалось выполнить {{command}}. {{usage}}",
-        "ownServer": "Ничего не изменено: ваш собственный сервер ({{server}}) потерял бы доступ к комнате."
+        "ownServer": "Ничего не изменено: ваш собственный сервер ({{server}}) потерял бы доступ к комнате.",
+        "unknown": "{{command}} не является командой. Чтобы отправить это как текст, начните сообщение с /plain."
       },
       "jumpToTime": {
         "unsupported": "Этот сервер не умеет искать сообщения по времени.",
@@ -524,7 +528,9 @@
   "composer": {
     "emoji": "Эмодзи",
     "cancelReply": "Отменить ответ",
-    "moreActions": "Другие действия"
+    "moreActions": "Другие действия",
+    "lostFiles": "Не сохранены в этом черновике: {{files}}. Прикрепите их снова перед отправкой.",
+    "dismissLostFiles": "Скрыть"
   },
   "commandPalette": {
     "people": "Люди",

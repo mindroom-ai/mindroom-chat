@@ -190,6 +190,9 @@
     },
     "fallbackContent": {
       "newerEditNotDecrypted": "एक नया संपादन डिक्रिप्ट नहीं हो सका"
+    },
+    "userMentionAutocomplete": {
+      "notifyRoom": "रूम में सभी को सूचित करें"
     }
   },
   "featureUi": {
@@ -391,7 +394,8 @@
       "commandAutocomplete": {
         "failed": "{{command}} विफल रहा: {{reason}}",
         "usage": "{{command}} नहीं चल सका। {{usage}}",
-        "ownServer": "कुछ नहीं बदला: इससे आपका अपना सर्वर ({{server}}) रूम से बाहर हो जाता।"
+        "ownServer": "कुछ नहीं बदला: इससे आपका अपना सर्वर ({{server}}) रूम से बाहर हो जाता।",
+        "unknown": "{{command}} कोई कमांड नहीं है। इसे टेक्स्ट के रूप में भेजने के लिए संदेश को /plain से शुरू करें।"
       },
       "jumpToTime": {
         "unsupported": "यह सर्वर समय के अनुसार संदेश नहीं खोज सकता।",
@@ -510,7 +514,9 @@
   "composer": {
     "emoji": "इमोजी",
     "cancelReply": "जवाब रद्द करें",
-    "moreActions": "और कार्रवाइयाँ"
+    "moreActions": "और कार्रवाइयाँ",
+    "lostFiles": "इस ड्राफ़्ट के साथ नहीं रखे गए: {{files}}। भेजने से पहले उन्हें फिर से अटैच करें।",
+    "dismissLostFiles": "हटाएँ"
   },
   "commandPalette": {
     "people": "लोग",
