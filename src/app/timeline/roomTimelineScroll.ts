@@ -207,8 +207,9 @@ const useLatestRowRequest = ({
     // With the newest row first, the pins scroll up, and a scroll down away from the top is the
     // reader's. The room below the view that rows which shrank still take until React renders the
     // list does not count: the correction that keeps the end in place for them scrolls up as much.
+    // The rows can still measure a shrink that React has already rendered: never less than none.
     const roomBelow = () =>
-      distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0);
+      Math.max(0, distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0));
     let lastTop = scrollElement.scrollTop;
     let lastBelow = roomBelow();
     const followScroll = () => {

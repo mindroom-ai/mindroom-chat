@@ -415,7 +415,7 @@ describe('useLatestRowPin and the virtual list', () => {
     expect(room.list.scrollState).toBeNull();
   });
 
-  it('counts no less than no room below when the shrink it is told about is already rendered', () => {
+  it('never counts less than no room below when the list has rendered the shrink', () => {
     // macOS Chromium: React has rendered the list 120 px shorter, but its rows still measure a
     // 120 px shrink for a scroll event; the next correction then moves the position up by 120.
     let shrinkNotRendered = 120;
