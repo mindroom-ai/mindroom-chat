@@ -158,6 +158,13 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
   const label = expanded
     ? t('mindroomUi.threads.mindroomRoomTimeline.collapseAllLong')
     : t('mindroomUi.threads.mindroomRoomTimeline.expandAllLong');
+  const token = expanded
+    ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
+    : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2');
+  // The name holds the word on the button, so speech control finds the button by it; a language
+  // whose label does not use that word hears the token after the label.
+  const word = token.replace(/[^\p{L}\p{N}]/gu, '').toLocaleLowerCase();
+  const name = label.toLocaleLowerCase().includes(word) ? label : `${label} ${token}`;
   return (
     // A token such as [+all], not a sentence: it keeps its order in a right-to-left interface.
     <button
@@ -165,13 +172,11 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
       className={css.ExpandAllToggle}
       style={expandAllToggleStyle}
       onClick={onToggle}
-      aria-label={label}
+      aria-label={name}
       title={label}
       dir="ltr"
     >
-      {expanded
-        ? t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all')
-        : t('mindroomUi.threads.message-rendering.useTimelineMessageExpansion.all2')}
+      {token}
     </button>
   );
 }
