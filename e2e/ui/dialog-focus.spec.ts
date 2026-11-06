@@ -175,16 +175,9 @@ type Case = {
 const moreOptions = (page: Page) =>
   page.getByRole('button', { name: 'More Options', exact: true }).first();
 
-const fromHeaderMenu =
-  (entry: string) =>
-  async (page: Page, screen: Screen): Promise<Locator> => {
-    await press(moreOptions(page), screen);
-    await press(page.getByRole('button', { name: entry, exact: true }), screen);
-    return moreOptions(page);
-  };
-
-// On a phone the room menu holds what the header leaves out; focus goes back to its button.
-const fromPhoneRoomMenu =
+// An entry of the room menu; focus goes back to the menu's button. On a phone that menu also
+// holds what the header leaves out.
+const fromRoomMenu =
   (entry: string) =>
   async (page: Page, screen: Screen): Promise<Locator> => {
     await press(moreOptions(page), screen);
@@ -203,24 +196,24 @@ const byButton =
 const OWN_MESSAGE = 'Morning! I pushed the draft of the quarterly plan';
 
 const CASES: Case[] = [
-  { name: 'Invite', from: 'room', screens: ['desktop', 'phone'], open: fromHeaderMenu('Invite') },
+  { name: 'Invite', from: 'room', screens: ['desktop', 'phone'], open: fromRoomMenu('Invite') },
   {
     name: 'Leave Room',
     from: 'room',
     screens: ['desktop', 'phone'],
-    open: fromHeaderMenu('Leave Room'),
+    open: fromRoomMenu('Leave Room'),
   },
   {
     name: 'Jump to Time',
     from: 'room',
     screens: ['desktop', 'phone'],
-    open: fromHeaderMenu('Jump to Time'),
+    open: fromRoomMenu('Jump to Time'),
   },
   {
     name: 'Room Settings',
     from: 'room',
     screens: ['desktop', 'phone'],
-    open: fromHeaderMenu('Room Settings'),
+    open: fromRoomMenu('Room Settings'),
   },
   { name: 'room topic', from: 'room', screens: ['desktop'], open: byButton(TOPIC) },
   {
@@ -233,9 +226,9 @@ const CASES: Case[] = [
     name: 'Pinned Messages from the room menu',
     from: 'room',
     screens: ['phone'],
-    open: fromPhoneRoomMenu('Pinned Messages'),
+    open: fromRoomMenu('Pinned Messages'),
   },
-  { name: 'members', from: 'room', screens: ['phone'], open: fromPhoneRoomMenu('Show Members') },
+  { name: 'members', from: 'room', screens: ['phone'], open: fromRoomMenu('Show Members') },
   {
     name: 'member profile',
     from: 'room',
@@ -255,7 +248,7 @@ const CASES: Case[] = [
       await page.getByText(OWN_MESSAGE).hover();
       const options = page.getByRole('button', { name: 'More Options', exact: true }).last();
       await press(options, screen);
-      await press(page.getByRole('button', { name: 'Delete', exact: true }), screen);
+      await press(page.getByRole('menuitem', { name: 'Delete', exact: true }), screen);
       return options;
     },
   },
