@@ -1,7 +1,7 @@
 import { act, create } from 'react-test-renderer';
 import { createInstance } from 'i18next';
 import { I18nextProvider } from 'react-i18next';
-import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
 import { useMemberEventParser } from './useMemberEventParser';
 
@@ -89,6 +89,59 @@ describe('membership rows name the member the client knows', () => {
       );
     });
     expect(renderer!.root.findAllByType('b')[1]?.children).toEqual(['guest']);
+    act(() => renderer!.unmount());
+  });
+
+  it("names a moderator who took an agent's name with their user ID", async () => {
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      interpolation: { escapeValue: false },
+      resources: {
+        en: {
+          translation: {
+            sharedUi: {
+              memberEvents: { kicked: '<b>{{senderName}}</b> removed <b>{{userName}}</b>' },
+            },
+          },
+        },
+      },
+    });
+    const roomId = '!room:example.org';
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
+    const room = new Room(roomId, mx, '@me:example.org');
+    const joined = (userId: string, displayname: string) =>
+      new MatrixEvent({
+        event_id: `$join-${userId}`,
+        type: 'm.room.member',
+        room_id: roomId,
+        sender: userId,
+        state_key: userId,
+        content: { membership: 'join', displayname },
+      });
+    room.currentState.setStateEvents([
+      joined('@mindroom_helper:example.org', 'Helper'),
+      joined('@mod:example.org', 'Helper'),
+    ]);
+    const kicked = member(
+      '$kick',
+      '@mod:example.org',
+      { membership: 'leave' },
+      { membership: 'join', displayname: 'Guest Person' }
+    );
+    kicked.sender = room.currentState.getSentinelMember('@mod:example.org');
+
+    let renderer: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <MembershipMessage event={kicked} room={room} />
+        </I18nextProvider>
+      );
+    });
+    expect(renderer!.root.findAllByType('b')[0]?.children).toEqual([
+      'Helper (\u2066@mod:example.org\u2069)',
+    ]);
     act(() => renderer!.unmount());
   });
 });
