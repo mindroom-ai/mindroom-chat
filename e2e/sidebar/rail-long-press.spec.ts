@@ -22,9 +22,10 @@ import { launchWebKit } from '../helpers/webkit';
 import { touch, type Step } from '../helpers/touch';
 
 // On a phone (390 by 844, touch) the space rail works as the sidebar's room rows do: a finger
-// resting on a space opens the space's menu beside it (iOS fires no contextmenu for a long
-// press), a drag starts only when the finger moves on after the long press, a short tap opens the
-// space, and a finger that moves at once opens nothing. Three spaces and 24 rooms; light and
+// resting on a space, or on Home or Direct Messages, opens that button's menu beside it (iOS
+// fires no contextmenu for a long press), and the button looks pressed while its menu is open; a
+// drag of a space starts only when the finger moves on after the long press, a short tap opens
+// the space, and a finger that moves at once opens nothing. Three spaces and 24 rooms; light and
 // dark; Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The
 // spec sends the touch events itself (`e2e/helpers/touch.ts`). Set RAIL_LONG_PRESS_SHOTS to save
 // the screenshots.
@@ -90,36 +91,74 @@ const expectNoMenu = async (page: Page, where: string) => {
   await expect(spaceMenu(page), `${where}: no menu`).toHaveCount(0);
 };
 
-/** A long press opens the space's menu beside its tab; the lift opens nothing, nothing moves. */
-const checkLongPress = async (page: Page, spaceId: string, tag: string) => {
+/** A rail button with a menu: what a long press on it opens, and the entries it offers. */
+type RailButton = { name: string; button: Locator; menu: Locator; entries: string[] };
+
+const spaceButton = (page: Page, spaceId: string): RailButton => ({
+  name: 'space',
+  button: tab(page, spaceId),
+  menu: spaceMenu(page),
+  entries: ENTRIES,
+});
+
+/** Home and Direct Messages: their menus mark their rooms as read. */
+const sectionButton = (page: Page, label: string): RailButton => ({
+  name: label.toLowerCase().replace(/\s+/g, '-'),
+  button: page.getByRole('button', { name: label, exact: true }),
+  menu: page.getByRole('menu').filter({ hasText: 'Mark as Read' }),
+  entries: ['Mark as Read'],
+});
+
+/**
+ * How a rail button looks engaged (hovered, focused, or pressed with its menu open): its slide
+ * toward the content and its entry's indicator.
+ */
+const look = (button: Locator) =>
+  button.evaluate((element) => ({
+    slide: getComputedStyle(element).translate,
+    indicator: getComputedStyle(element.parentElement ?? element, '::before').transform,
+  }));
+
+/**
+ * A long press opens the button's menu beside it, and the button looks pressed while the menu is
+ * open; the lift opens nothing, and nothing moves.
+ */
+const checkLongPress = async (page: Page, target: RailButton, tag: string) => {
+  const { button, menu, entries } = target;
+  const where = `${tag} ${target.name}`;
   const before = await railOrder(page);
   const url = page.url();
-  const press = await touch(tab(page, spaceId), [
+  const rest = await look(button);
+  const press = await touch(button, [
     { type: 'start' },
     { type: 'wait', ms: 200 },
     { type: 'move', dx: 2, dy: 3 },
     { type: 'wait', ms: HOLD_MS },
     { type: 'end' },
   ]);
-  console.log(`${tag} long press: ${JSON.stringify(press)}`);
+  console.log(`${where} long press: ${JSON.stringify(press)}`);
   await page.waitForTimeout(300);
-  await save(page, `${tag}-long-press`);
-  const menu = spaceMenu(page);
-  await expect(menu, `${tag}: a long press opens the space menu`).toBeVisible();
-  expect(await menuEntries(menu), `${tag}: the space menu's entries`).toEqual(ENTRIES);
-  expect(press.liftAllowed, `${tag}: the lift after the menu opens does not click`).toBe(false);
-  expect(page.url(), `${tag}: the long press opens no space`).toBe(url);
-  expect(await railOrder(page), `${tag}: nothing moved`).toEqual(before);
-  // Beside the tab, from its top.
-  const at = (await tab(page, spaceId).boundingBox())!;
+  await save(page, `${tag}-${target.name}-long-press`);
+  await expect(menu, `${where}: a long press opens the menu`).toBeVisible();
+  expect(await menuEntries(menu), `${where}: the menu's entries`).toEqual(entries);
+  expect(press.liftAllowed, `${where}: the lift after the menu opens does not click`).toBe(false);
+  expect(page.url(), `${where}: the long press opens nothing`).toBe(url);
+  expect(await railOrder(page), `${where}: nothing moved`).toEqual(before);
+  // Beside the button, from its top.
+  const at = (await button.boundingBox())!;
   const box = (await menu.boundingBox())!;
-  expect(box.x, `${tag}: the menu opens beside the tab`).toBeGreaterThanOrEqual(
+  expect(box.x, `${where}: the menu opens beside the button`).toBeGreaterThanOrEqual(
     at.x + at.width - 2
   );
-  expect(box.x - (at.x + at.width), `${tag}: the menu meets the tab`).toBeLessThan(32);
-  expect(Math.abs(box.y - at.y), `${tag}: the menu starts at the tab's top`).toBeLessThan(24);
+  expect(box.x - (at.x + at.width), `${where}: the menu meets the button`).toBeLessThan(32);
+  expect(Math.abs(box.y - at.y), `${where}: the menu starts at the button's top`).toBeLessThan(24);
+  // Pressed while its menu is open: slid toward the content, with the indicator raised.
+  const open = await look(button);
+  expect(open.slide, `${where}: the button looks pressed (slide)`).not.toBe(rest.slide);
+  expect(open.indicator, `${where}: the button looks pressed (indicator)`).not.toBe(rest.indicator);
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
+  await expect.poll(() => look(button), `${where}: the button rests again`).toEqual(rest);
 };
 
 /** A finger that holds the second space and then moves it onto the first's top puts it first. */
@@ -207,7 +246,9 @@ const checkScheme = async (page: Page, tag: string) => {
   await page.goto('/home/');
   await expect.poll(async () => (await railOrder(page)).length, { timeout: 60_000 }).toBe(3);
   const [first, , third] = (await railOrder(page)) as [string, string, string];
-  await checkLongPress(page, first, tag);
+  await checkLongPress(page, spaceButton(page, first), tag);
+  await checkLongPress(page, sectionButton(page, 'Home'), tag);
+  await checkLongPress(page, sectionButton(page, 'Direct Messages'), tag);
   await checkDrag(page, tag);
   await checkSwipe(page, third, tag);
   await checkTap(page, third, tag);
