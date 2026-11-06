@@ -7,6 +7,7 @@ import {
   type BrowserContextOptions,
   type Locator,
   type Page,
+  type Route,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
@@ -173,13 +174,15 @@ const failedActionsOf = (row: Locator): Locator =>
 
 /** The texts of the rows that hold one of `markers`, in the order the page shows them. */
 const rowOrder = (page: Page, markers: string[]): Promise<string[]> =>
-  page.locator('[data-message-id]').evaluateAll(
-    (elements, wanted) =>
-      elements
-        .map((element) => wanted.find((marker) => element.textContent?.includes(marker)))
-        .filter((marker): marker is string => marker !== undefined),
-    markers
-  );
+  page
+    .locator('[data-message-id]')
+    .evaluateAll(
+      (elements, wanted) =>
+        elements
+          .map((element) => wanted.find((marker) => element.textContent?.includes(marker)))
+          .filter((marker): marker is string => marker !== undefined),
+      markers
+    );
 
 const shot = async (page: Page, name: string): Promise<void> => {
   if (!SHOTS) return;
@@ -226,10 +229,12 @@ const openPage = async (
   browser: Browser,
   layout: Layout,
   world: World,
-  threadId?: string
+  threadId?: string,
+  serviceWorkers: 'allow' | 'block' = 'block'
 ): Promise<{ context: BrowserContext; page: Page }> => {
-  // Without the service worker, the page's routes see the sends in WebKit too.
-  const context = await browser.newContext({ ...layout.options, serviceWorkers: 'block' });
+  // Without the service worker, the page's routes see the sends in WebKit too; with it, the page
+  // loads without a connection.
+  const context = await browser.newContext({ ...layout.options, serviceWorkers });
   const page = await context.newPage();
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -445,6 +450,219 @@ const unsentMessagesStayInTheirRows = async (browser: Browser, layout: Layout, l
   }
 };
 
+/**
+ * A message still going out when the page reloads, or when another URL loads, comes back after
+ * the new start as an unsent row with Retry and Delete; it is never sent again on its own. A
+ * message the server already had when the page went away comes back once, as sent.
+ */
+const pendingSendsSurviveReload = async (browser: Browser, layout: Layout, label: string) => {
+  const world = await seed(`reload_${label}`);
+  const { context, page } = await openPage(browser, layout, world);
+  // The page asks before it goes away while a message is on its way; the person leaves anyway.
+  const asked: string[] = [];
+  page.on('dialog', (dialog) => {
+    asked.push(dialog.type());
+    void dialog.accept();
+  });
+  try {
+    const roomPath = `/home/${encodeURIComponent(world.roomId)}`;
+    const reloaded = `Rl ${label} the tug is alongside, reloading now`;
+    const elsewhere = `Rl ${label} sent just before another page loaded`;
+    const arrived = `Rl ${label} this one reached the server in time`;
+    // The homeserver cannot be reached for these sends, as in an outage.
+    const refuseSends = (route: Route) => route.abort('connectionrefused');
+    await page.route('**/send/m.room.message/**', refuseSends);
+
+    await send(page, layout, reloaded);
+    await expect(rowOf(page, reloaded).locator('[data-pending-send-icon]')).toBeVisible();
+    await page.reload();
+    expect(asked).toEqual(['beforeunload']);
+    await expect(composerOf(page)).toBeVisible({ timeout: 60_000 });
+    const back = rowOf(page, reloaded);
+    await expect(failedActionsOf(back)).toBeVisible({ timeout: 30_000 });
+    await expectEmptyComposer(page);
+    await shot(page, `${label}-1-after-reload`);
+
+    await send(page, layout, elsewhere);
+    await expect(rowOf(page, elsewhere).locator('[data-pending-send-icon]')).toBeVisible();
+    await page.goto(`${roomPath}?threadId=${encodeURIComponent(world.rootId)}`);
+    expect(asked).toEqual(['beforeunload', 'beforeunload']);
+    await expect(page.getByText(REPLY_BODY).first()).toBeAttached({ timeout: 60_000 });
+    await page.goto(roomPath);
+    await expect(failedActionsOf(rowOf(page, elsewhere))).toBeVisible({ timeout: 60_000 });
+    // In the order they were written.
+    expect(await rowOrder(page, [reloaded, elsewhere])).toEqual([reloaded, elsewhere]);
+    await shot(page, `${label}-2-after-page-load`);
+    expect(await serverBodies(world)).not.toContain(reloaded);
+
+    // Retry sends one copy; Delete leaves nothing behind, after another reload too.
+    await page.unroute('**/send/m.room.message/**', refuseSends);
+    await press(
+      layout,
+      failedActionsOf(rowOf(page, reloaded)).getByRole('button', { name: 'Retry' })
+    );
+    await expect
+      .poll(async () => (await serverBodies(world)).filter((body) => body === reloaded).length, {
+        timeout: 30_000,
+      })
+      .toBe(1);
+    await expect(failedActionsOf(rowOf(page, reloaded))).toHaveCount(0, { timeout: 30_000 });
+    await press(
+      layout,
+      failedActionsOf(rowOf(page, elsewhere)).getByRole('button', { name: 'Delete' })
+    );
+    await expect(rowOf(page, elsewhere)).toHaveCount(0);
+    await page.reload();
+    // Nothing was on its way: no question.
+    expect(asked).toHaveLength(2);
+    await expect(page.getByText(reloaded).first()).toBeAttached({ timeout: 60_000 });
+    await expect(rowOf(page, elsewhere)).toHaveCount(0);
+    await expect(page.getByText('Not sent', { exact: true })).toHaveCount(0);
+
+    // The server takes this one, but its answer never reaches the page before it reloads.
+    let held = false;
+    await page.route('**/send/m.room.message/**', async (route) => {
+      const response = await route.fetch();
+      held = true;
+      await new Promise((resolve) => {
+        setTimeout(resolve, 10_000);
+      });
+      await route.fulfill({ response }).catch(() => undefined);
+    });
+    await send(page, layout, arrived);
+    await expect.poll(() => held, { timeout: 15_000 }).toBe(true);
+    await page.reload();
+    await expect(composerOf(page)).toBeVisible({ timeout: 60_000 });
+    await expect(rowOf(page, arrived)).toHaveCount(1, { timeout: 30_000 });
+    await expect(failedActionsOf(rowOf(page, arrived))).toHaveCount(0, { timeout: 30_000 });
+    await expect(rowOf(page, arrived).locator('[data-pending-send-icon]')).toHaveCount(0);
+    expect((await serverBodies(world)).filter((body) => body === arrived)).toHaveLength(1);
+    await shot(page, `${label}-3-arrived-once`);
+  } finally {
+    await context.close();
+  }
+};
+
+/**
+ * Offline, a message goes out and the page reloads before the connection returns: the page loads
+ * without the homeserver and the message is there as an unsent row. Back online, Retry sends it
+ * once. Chromium goes fully offline and loads the page from the service worker. Playwright's
+ * WebKit cannot load a page offline through the service worker (`page.reload: WebKit encountered
+ * an internal error`), so there only the homeserver goes away and the page loads from the app's
+ * server: the client sees the same outage.
+ */
+const offlineReloadKeepsMessage = async (browser: Browser, layout: Layout, label: string) => {
+  const world = await seed(`offreload_${label}`);
+  const fullyOffline = browser.browserType().name() === 'chromium';
+  const { context, page } = await openPage(
+    browser,
+    layout,
+    world,
+    undefined,
+    fullyOffline ? 'allow' : 'block'
+  );
+  page.on('dialog', (dialog) => {
+    void dialog.accept();
+  });
+  const unreachable = (route: Route) => route.abort('internetdisconnected');
+  const goOffline = async () => {
+    if (fullyOffline) await context.setOffline(true);
+    else await page.route(`${HOMESERVER}/**`, unreachable);
+  };
+  const goOnline = async () => {
+    if (fullyOffline) await context.setOffline(false);
+    else await page.unroute(`${HOMESERVER}/**`, unreachable);
+  };
+  try {
+    const text = `Or ${label} written offline right before a reload`;
+    if (fullyOffline) {
+      await expect
+        .poll(() => page.evaluate(() => !!navigator.serviceWorker.controller), {
+          timeout: 30_000,
+        })
+        .toBe(true);
+    }
+    await goOffline();
+    await send(page, layout, text);
+    await expect(rowOf(page, text).locator('[data-pending-send-icon]')).toBeVisible();
+    await page.reload();
+    await expect(composerOf(page)).toBeVisible({ timeout: 60_000 });
+    await expect(failedActionsOf(rowOf(page, text))).toBeVisible({ timeout: 30_000 });
+    await shot(page, `${label}-1-offline-reloaded`);
+    expect(await serverBodies(world)).not.toContain(text);
+
+    await goOnline();
+    await press(layout, failedActionsOf(rowOf(page, text)).getByRole('button', { name: 'Retry' }));
+    await expect
+      .poll(async () => (await serverBodies(world)).filter((body) => body === text).length, {
+        timeout: 45_000,
+      })
+      .toBe(1);
+    await expect(failedActionsOf(rowOf(page, text))).toHaveCount(0, { timeout: 30_000 });
+  } finally {
+    await context.setOffline(false);
+    await context.close();
+  }
+};
+
+/**
+ * In a thread, the server refuses a reply (403) and then rate-limits one (429, two minutes): each
+ * keeps its row, Not sent, with why in words and the server's own words below, and nothing comes
+ * back into the composer.
+ */
+const refusedRepliesSayWhy = async (browser: Browser, layout: Layout, label: string) => {
+  const world = await seed(`refused_${label}`);
+  const { context, page } = await openPage(browser, layout, world, world.rootId);
+  try {
+    const refused = `Rf ${label} reply the server does not allow`;
+    const limited = `Rf ${label} reply sent too fast`;
+    const next = `Rf ${label} typed after both`;
+    await page.route('**/send/m.room.message/**', async (route) => {
+      const body = (route.request().postDataJSON() ?? {}) as { body?: string };
+      if (body.body === refused) {
+        await route.fulfill({
+          status: 403,
+          contentType: 'application/json',
+          body: JSON.stringify({ errcode: 'M_FORBIDDEN', error: 'Posting is limited here' }),
+        });
+        return;
+      }
+      if (body.body === limited) {
+        await route.fulfill({
+          status: 429,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            errcode: 'M_LIMIT_EXCEEDED',
+            error: 'Too many requests',
+            retry_after_ms: 120_000,
+          }),
+        });
+        return;
+      }
+      await route.continue();
+    });
+
+    await send(page, layout, refused);
+    const refusedActions = failedActionsOf(rowOf(page, refused));
+    await expect(refusedActions).toBeVisible({ timeout: 15_000 });
+    await expect(refusedActions).toContainText("You don't have permission to do this.");
+    await expect(refusedActions).toContainText('Posting is limited here');
+
+    await send(page, layout, limited);
+    const limitedActions = failedActionsOf(rowOf(page, limited));
+    await expect(limitedActions).toBeVisible({ timeout: 15_000 });
+    await expect(limitedActions).toContainText('Too many requests. Try again in 2 minutes.');
+
+    await press(layout, composerOf(page));
+    await page.keyboard.type(next);
+    await expect(composerOf(page)).toHaveText(next);
+    expect(await rowOrder(page, [refused, limited])).toEqual([refused, limited]);
+    await shot(page, `${label}-1-refused`);
+  } finally {
+    await context.close();
+  }
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -453,6 +671,12 @@ const SCENARIOS = [
   ['a failed send keeps its row with Not sent, Retry and Delete', failedSendKeepsItsRow],
   ['messages sent offline each show a pending row and go out in order', offlineSendsQueueVisibly],
   ['messages unsent after the retries stay in their rows, in order', unsentMessagesStayInTheirRows],
+  [
+    'a message still sending when the page reloads comes back as Not sent',
+    pendingSendsSurviveReload,
+  ],
+  ['a message written offline is kept across an offline reload', offlineReloadKeepsMessage],
+  ['a thread reply the server refuses or rate-limits says why', refusedRepliesSayWhy],
 ] as const;
 
 for (const [title, scenario] of SCENARIOS) {
