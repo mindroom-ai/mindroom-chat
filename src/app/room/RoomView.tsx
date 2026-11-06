@@ -335,7 +335,7 @@ export function RoomView({
         </ThreadApprovalProvider>
         {/* Outside the approval provider: opening a thread must not remount the composer. */}
         <div ref={footerRef} className={overlay.Footer} data-room-footer="true">
-          <RoomViewTyping room={room} />
+          <RoomViewTyping room={room} threadId={effectiveThreadId} />
           {composerNotice}
           {composerShown && (
             <RoomInput

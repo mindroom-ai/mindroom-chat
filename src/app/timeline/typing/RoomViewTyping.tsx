@@ -1,18 +1,25 @@
 import { Icon, IconButton, Icons, Text } from 'folds';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomTypingMember } from './useRoomTypingMembers';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { roomIdToTypingMembersAtom } from '../../matrix/state/typingMembers';
 import { getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
+import { useAgentRoomState } from '../../matrix/protocol/agentRoomState';
+import {
+  MINDROOM_BACKGROUND_JOBS_EVENT,
+  parseBackgroundJobsStateEvent,
+} from '../../matrix/protocol/backgroundJobsContract';
 import { NamesSentence } from './NamesSentence';
 import * as css from './RoomViewTyping.css';
 
 type RoomViewTypingProps = {
   room: Room;
+  threadId?: string;
 };
 
 // Sentences for one to four typing members; five and more share the last one.
@@ -35,17 +42,39 @@ function TypingDots() {
   );
 }
 
+/** The agents whose job in the thread waits for its approval, from the jobs state they publish. */
+const useAgentsAwaitingApproval = (room: Room, threadId: string | undefined): Set<string> => {
+  const select = useCallback(
+    (events: MatrixEvent[]) =>
+      new Set(
+        events
+          .filter((event) =>
+            parseBackgroundJobsStateEvent(event).some(
+              (job) => !!threadId && job.threadId === threadId && job.status === 'awaiting_approval'
+            )
+          )
+          .flatMap((event) => event.getSender() ?? [])
+      ),
+    [threadId]
+  );
+  return useAgentRoomState(room, MINDROOM_BACKGROUND_JOBS_EVENT, select);
+};
+
 /**
  * Names the other members who are typing in the room, in a strip above the composer. Dropping
- * the status hides it until the next typing update arrives for that member.
+ * the status hides it until the next typing update arrives for that member. In a thread, an agent
+ * whose job there waits for approval is left out: MindRoom keeps its typing notice up while the
+ * reply waits for the decision, and the agent waits for a person rather than writing.
  */
-export function RoomViewTyping({ room }: RoomViewTypingProps) {
+export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const updateTyping = useSetAtom(roomIdToTypingMembersAtom);
   const myUserId = mx.getUserId();
+  const awaitingApproval = useAgentsAwaitingApproval(room, threadId);
   const typing = useRoomTypingMember(room.roomId).filter(
-    (receipt) => receipt.userId !== myUserId && receipt.isTyping()
+    (receipt) =>
+      receipt.userId !== myUserId && receipt.isTyping() && !awaitingApproval.has(receipt.userId)
   );
 
   if (typing.length === 0) return null;
