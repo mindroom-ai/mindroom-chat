@@ -275,9 +275,143 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
       : 0;
   test.info().annotations.push({
     type: 'thread list',
-    description: `${name}: ${THREADS} threads in ${listedAfterMs} ms, ${requests.length} /threads requests${
-      heap ? `, JS heap ${Math.round(heap / 2 ** 20)} MiB` : ''
-    }`,
+    description: `${name}: ${THREADS} threads in ${listedAfterMs} ms, ${
+      requests.length
+    } /threads requests${heap ? `, JS heap ${Math.round(heap / 2 ** 20)} MiB` : ''}`,
+  });
+};
+
+type QuestionsSeed = { reader: Account; roomId: string; questions: string[]; threads: string[] };
+
+/**
+ * A room whose oldest top-level messages have no replies: 39 questions, then 40 threads with 50
+ * replies each, then one more question. The history before the 39 questions is longer than the
+ * pages the Compact view loads by itself.
+ */
+const seedQuestions = async (): Promise<QuestionsSeed> => {
+  const homeserver = getHomeserver();
+  const reader = await register(homeserver, 'qreader');
+  const writer = await register(homeserver, 'qwriter');
+  const agent = await registerAgentAccount(homeserver, 'helper');
+  const roomId = await createRoom(homeserver, writer.accessToken, {
+    name: 'Support questions',
+    invite: [reader.userId, agent.userId],
+  });
+  await joinRoom(homeserver, reader.accessToken, roomId);
+  await joinRoom(homeserver, agent.accessToken, roomId);
+  const send = (account: Account | MatrixSession, content: Record<string, unknown>) =>
+    sendRoomMessage(homeserver, account.accessToken, roomId, content);
+  const question = (index: number) =>
+    send(writer, {
+      msgtype: 'm.text',
+      body: `Question ${index}: how do I move a scheduled report to another workspace?`,
+    });
+
+  const questions: string[] = [];
+  for (let index = 0; index < 39; index += 1) {
+    // One at a time, so they are the room's oldest messages in order.
+    // eslint-disable-next-line no-await-in-loop
+    questions.push(await question(index));
+  }
+  const threads = await Promise.all(
+    Array.from({ length: 40 }, (_, index) =>
+      send(writer, {
+        msgtype: 'm.text',
+        body: `${TOPICS[index % TOPICS.length]} (discussion ${index})`,
+      })
+    )
+  );
+  for (let reply = 0; reply < 50; reply += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await Promise.all(
+      threads.map((root, index) =>
+        send(reply % 2 === 0 ? agent : writer, {
+          msgtype: 'm.text',
+          body: `${REPLIES[(index + reply) % REPLIES.length]} (step ${reply})`,
+          'm.relates_to': {
+            rel_type: 'm.thread',
+            event_id: root,
+            is_falling_back: true,
+            'm.in_reply_to': { event_id: root },
+          },
+        })
+      )
+    );
+  }
+  questions.push(await question(39));
+  return { reader, roomId, questions, threads };
+};
+
+let seededQuestions: Promise<QuestionsSeed> | undefined;
+
+/** Scrolls the cards up a little and back to their end, as a reader reaching the end does. */
+const scrollToCardsEnd = (page: Page) =>
+  page.evaluate(async () => {
+    const view = document.querySelector<HTMLElement>('[data-compact-room-view]');
+    if (!view) return;
+    view.scrollTop = Math.max(0, view.scrollTop - 80);
+    await new Promise((resolve) => {
+      requestAnimationFrame(resolve);
+    });
+    view.scrollTop = view.scrollHeight;
+  });
+
+const checkOlderQuestions = async (page: Page, name: string) => {
+  seededQuestions ??= seedQuestions();
+  const { reader, roomId, questions, threads } = await seededQuestions;
+  const historyPages: number[] = [];
+  page.on('request', (request) => {
+    const url = new URL(request.url());
+    if (decodeURIComponent(url.pathname).endsWith(`/rooms/${roomId}/messages`)) {
+      historyPages.push(Date.now());
+    }
+  });
+  await loginWithPassword(page, {
+    homeserver: getHomeserver(),
+    username: reader.username,
+    password: PASSWORD,
+  });
+  await seedRoomOverviewState({
+    page,
+    roomId,
+    userId: reader.userId,
+    viewMode: 'compact',
+    filterState: createHiddenOverviewFilterState(),
+  });
+  await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+
+  const chip = page.locator('[data-thread-count="true"]');
+  const total = questions.length + threads.length;
+  // The threads and the newest question have cards; older history is not loaded, so the count
+  // says it may grow.
+  await expect(page.locator(`[data-thread-root-id="${questions.at(-1)}"]`)).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect
+    .poll(async () => (await listedRoots(page)).length, { timeout: 30_000 })
+    .toBe(threads.length + 1);
+  await page.waitForTimeout(3_000);
+  expect((await listedRoots(page)).length).toBe(threads.length + 1);
+  await expect(chip).toHaveText(`${threads.length + 1}+`);
+  const pagesBefore = historyPages.length;
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-questions-before.png` });
+
+  // Reaching the end of the cards loads older history until the oldest question has its card.
+  await expect
+    .poll(
+      async () => {
+        await scrollToCardsEnd(page);
+        return (await chip.textContent())?.trim();
+      },
+      { timeout: 60_000, intervals: [500] }
+    )
+    .toBe(String(total));
+  expect((await listedRoots(page)).sort()).toEqual([...questions, ...threads].sort());
+  await expect(page.locator(`[data-thread-root-id="${questions[0]}"]`)).toBeVisible();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-questions-after.png` });
+  test.info().annotations.push({
+    type: 'older history',
+    description: `${name}: ${pagesBefore} history pages before the end, ${historyPages.length} after`,
   });
 };
 
@@ -335,3 +469,28 @@ for (const [form, options] of [
     }
   });
 }
+
+test('older questions without replies get cards at the end of the list (Chromium, desktop)', async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(360_000);
+  await inContext(browser, { ...DESKTOP, baseURL, colorScheme: 'light' }, (page) =>
+    checkOlderQuestions(page, 'chromium-desktop')
+  );
+});
+
+test('older questions without replies get cards at the end of the list (WebKit, phone)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(360_000);
+  const browser = await launchWebKit();
+  try {
+    await inContext(browser, { ...PHONE, baseURL, colorScheme: 'light' }, (page) =>
+      checkOlderQuestions(page, 'webkit-phone')
+    );
+  } finally {
+    await browser.close();
+  }
+});

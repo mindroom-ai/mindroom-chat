@@ -83,6 +83,7 @@ import { useRoomTimelineMinimap } from './useRoomTimelineMinimap';
 import { useThreadAwareTimelineRefresh } from './useThreadAwareTimelineRefresh';
 import { useFollowContentGrowth } from './useFollowContentGrowth';
 import { useCompactCoverageBackfillController } from '../threads/overview/compactCoverageBackfillController';
+import { useCompactHistoryAtEnd } from '../threads/overview/useCompactHistoryAtEnd';
 import { useCompactRootEditBackfillController } from '../threads/overview/compactRootEditBackfillController';
 import { useThreadOverviewResumeController } from '../threads/overview/threadOverviewResumeController';
 import { getLiveReplyStore } from '../messages/live/liveReplyStore';
@@ -1189,6 +1190,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
   );
 
   const compactCards = compactViewRequested && !threadIndex.focusedRoomOverviewBypass;
+  // Older roots without replies are in older history: it loads as the reader nears the cards' end.
+  const compactHostRef = useRef<HTMLDivElement>(null);
+  useCompactHistoryAtEnd({
+    enabled: compactCards && threadIndex.showCompactRoomView && !eventId,
+    roomId: room.roomId,
+    hostRef: compactHostRef,
+    canPaginateBack: canPaginateRoomBack,
+    hasMoreCachedBack: roomHasMoreCachedBack,
+    paginateBack: paginateRoom,
+  });
   // The header's filter button hides the bar; the filters keep applying while it is hidden.
   const filterBarShown =
     showRoomThreadOverviewControls && !plainConversation && !hideThreadFilterBar;
@@ -1264,7 +1275,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   if (compactCards && threadIndex.showCompactRoomView) {
     const compactRootIds = threadIndex.compactOverviewOrdering.displayOrderedIds;
     return (
-      <Box grow="Yes" direction="Column" style={roomStyle}>
+      <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
         {filterBar}
         <CompactRoomView
           room={room}
