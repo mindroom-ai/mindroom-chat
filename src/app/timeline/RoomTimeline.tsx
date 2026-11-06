@@ -33,6 +33,7 @@ import { sanitizePrefetchDepth } from '../event-store/engine/prefetchPolicy';
 import { scheduleReconcile, useSyncEngine } from '../event-store/engine';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { CompactRoomView } from '../threads/overview/CompactRoomView';
 import { CompactRoomWithoutThreads } from './CompactRoomWithoutThreads';
 import * as overlay from '../ui/styles/RoomOverlay.css';
@@ -257,6 +258,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const engine = useSyncEngine();
   const { sessionId } = engine;
   const { t } = useTranslation();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const ignoredUsers = useIgnoredUsers();
   const ignoredUsersSet = useMemo(() => new Set(ignoredUsers), [ignoredUsers]);
@@ -1474,9 +1476,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomUnread,
     unreadMarkerShown,
   });
-  // In the room and in a thread the toggle takes a line of its own above the rows.
+  // In the room and in a thread the toggle takes a line of its own above the rows. A phone's
+  // unread pills, as wide as the line nearly, sit at its height: while they show, the toggle moves
+  // to the line's start and they keep clear of it there.
   const expandAllToggle = itemCount > 0 && (
-    <ExpandAllLine expanded={expandAll} onToggle={handleToggleExpandAll} />
+    <ExpandAllLine
+      expanded={expandAll}
+      onToggle={handleToggleExpandAll}
+      atStart={phone && showJumpToUnread}
+    />
   );
   // The room's start (its intro and the sentinel that loads older history) and newer history
   // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
@@ -1498,7 +1506,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
       <div ref={footerProbeRef} aria-hidden style={footerProbeStyle} />
       {filterBar}
       {showJumpToUnread && (
-        <UnreadActions onJumpToUnread={handleJumpToUnread} onMarkAsRead={markRoomAsRead} />
+        <UnreadActions
+          onJumpToUnread={handleJumpToUnread}
+          onMarkAsRead={markRoomAsRead}
+          clearStart={phone}
+        />
       )}
       <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
         {latestAtTop && latestEndAnchor}

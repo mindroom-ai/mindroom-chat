@@ -6,7 +6,7 @@ import * as css from './RoomTimeline.css';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import { getRoomUnreadInfo } from '../event-store/timeline/timelinePagination';
 import { useViewScopedState } from './roomTimelineViewScope';
-import { FloatingAction } from './RoomTimelineOverlays';
+import { EXPAND_ALL_START_COLUMN, FloatingAction } from './RoomTimelineOverlays';
 
 /**
  * The room's read marker as the timeline shows it: the "New messages" line, and the Jump to
@@ -84,19 +84,34 @@ export const useMarkRoomAsRead = (
     if (!threadId) setUnreadInfo(undefined);
   }, [handleMarkAsRead, setUnreadInfo, threadId]);
 
-/** The Jump to Unread and Mark as Read pills, under the room header. */
+/**
+ * The Jump to Unread and Mark as Read pills, under the room header, centered; `clearStart` centers
+ * them past the start column where "[+all]" sits meanwhile, at the same height (a phone).
+ */
 export function UnreadActions({
   onJumpToUnread,
   onMarkAsRead,
+  clearStart = false,
 }: {
   onJumpToUnread: () => void;
   onMarkAsRead: () => void;
+  clearStart?: boolean;
 }) {
   const { t } = useTranslation();
+  // The float keeps a margin of S400 on each side of the area it is centered in.
+  const startInset = `calc(${EXPAND_ALL_START_COLUMN} - ${config.space.S400})`;
   return (
     <div
       className={css.TimelineFloat({ position: 'Top' })}
-      style={{ top: `calc(${overlay.controlsTopInset} + ${config.space.S300})` }}
+      style={{
+        top: `calc(${overlay.controlsTopInset} + ${config.space.S300})`,
+        ...(clearStart
+          ? {
+              insetInlineStart: startInset,
+              maxWidth: `calc(100% - ${startInset} - ${config.space.S400} * 2)`,
+            }
+          : {}),
+      }}
     >
       <FloatingAction
         primary

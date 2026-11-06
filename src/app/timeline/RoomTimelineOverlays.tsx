@@ -182,15 +182,23 @@ function ExpandAllButton({ expanded, onToggle }: ExpandAllProps) {
 
 /**
  * The toggle takes a line of its own above the rows, in the room and in a thread, where it sits
- * under the banner at the top and scrolls away with the rows, so it never covers one.
+ * under the banner at the top and scrolls away with the rows, so it never covers one. It sits at
+ * the line's end; `atStart` moves it to the line's start, in the column a phone's unread pills
+ * keep clear (`EXPAND_ALL_START_COLUMN`), without changing the line's height.
  */
-export function ExpandAllLine(props: ExpandAllProps) {
+export function ExpandAllLine({
+  atStart = false,
+  ...props
+}: ExpandAllProps & { atStart?: boolean }) {
   return (
     <div
       style={{
         display: 'flex',
-        justifyContent: 'flex-end',
-        padding: `${config.space.S100} ${config.space.S700} 0`,
+        justifyContent: atStart ? 'flex-start' : 'flex-end',
+        paddingBlockStart: config.space.S100,
+        // At the start, in line with the avatars of the rows below.
+        paddingInlineStart: atStart ? config.space.S400 : config.space.S700,
+        paddingInlineEnd: config.space.S700,
       }}
     >
       {/* The hover toolbar of the row below keeps clear of it (hoverToolbarPlacement). */}
@@ -200,6 +208,15 @@ export function ExpandAllLine(props: ExpandAllProps) {
     </div>
   );
 }
+
+/**
+ * How far from the timeline's start edge "[+all]" reaches when it sits at its line's start: the
+ * line's inset, the toggle (62 px for "[+all]", a little more in scripts with wider letters), and
+ * a gap before the unread pills.
+ */
+export const EXPAND_ALL_START_COLUMN = `calc(${config.space.S400} + ${toRem(68)} + ${
+  config.space.S200
+})`;
 
 /**
  * Holds a thread's banner. The banner ends 20 px before the scroll area's content edge (its own
