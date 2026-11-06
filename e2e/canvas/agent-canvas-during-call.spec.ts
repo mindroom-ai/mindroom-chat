@@ -75,7 +75,10 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   await expect(
     page.getByRole('note').filter({ hasText: 'End the call to open interactive panels.' })
   ).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Canvases', exact: true })).toHaveCount(0);
+  const headerCanvases = page
+    .locator('header')
+    .getByRole('button', { name: /^(Show Canvas|Hide Canvas|Canvases)$/ });
+  await expect(headerCanvases).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('canvas-during-call.png') });
 
   // After the call, the canvas opens again. A page load would take the call up again, so the call
@@ -85,6 +88,7 @@ test('a canvas does not open during a call, and says why', async ({ page, stack 
   await expect(page.locator('[data-call-tab]')).toHaveCount(0, { timeout: 30_000 });
   await showThread(page, stack, rootId);
   await expect(open).toBeEnabled({ timeout: 30_000 });
+  await expect(headerCanvases).toHaveCount(1);
   await open.click();
   await expect(page.getByRole('complementary', { name: 'Canvas panel' })).toBeVisible();
   await page.screenshot({ path: test.info().outputPath('canvas-after-call.png') });
