@@ -6,6 +6,7 @@ import React, {
   ReactNode,
   SyntheticEvent,
   useEffect,
+  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -14,7 +15,14 @@ import { useTranslation } from 'react-i18next';
 import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
 import { isTag, isText } from 'domhandler';
 import type { ChildNode, Element } from 'domhandler';
-import type { MatrixClient } from 'matrix-js-sdk';
+import {
+  RoomStateEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type RoomMember,
+  type RoomState,
+} from 'matrix-js-sdk';
 import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs';
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -149,6 +157,44 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
 };
 
 /**
+ * The name of a mentioned user, as `@display name` once the room knows them, else their ID. A room
+ * that loads its members lazily may not know them yet (an agent that has not spoken): the name then
+ * follows as soon as the members arrive.
+ */
+function UserMentionName({
+  client,
+  room,
+  userId,
+}: {
+  client: MatrixClient;
+  room: Room | null;
+  userId: string;
+}) {
+  const [, refresh] = useReducer((count: number) => count + 1, 0);
+  const name = room ? getMemberDisplayName(room, userId) : undefined;
+  const known = name !== undefined;
+  useEffect(() => {
+    if (!room || known) return undefined;
+    let active = true;
+    const onMember = (_event: MatrixEvent, state: RoomState, member: RoomMember) => {
+      if (state.roomId === room.roomId && member.userId === userId) refresh();
+    };
+    client.on(RoomStateEvent.Members, onMember);
+    room
+      .loadMembersIfNeeded()
+      .then(() => {
+        if (active) refresh();
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+      client.removeListener(RoomStateEvent.Members, onMember);
+    };
+  }, [client, room, userId, known]);
+  return <>{name ? `@${name}` : userId}</>;
+}
+
+/**
  * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
  * room as `#room name`, and a link to an event as a link that keeps its text (`content`, else
  * the URL) but opens the event. Mentions carry the ID in `data-mention-id` and an event in
@@ -164,7 +210,6 @@ export const renderMatrixMention = (
   const userId = parseMatrixToUser(href);
   if (userId) {
     const room = viewedRoomId ? client.getRoom(viewedRoomId) : null;
-    const name = room ? getMemberDisplayName(room, userId) : undefined;
     return (
       <a
         {...customProps}
@@ -175,7 +220,7 @@ export const renderMatrixMention = (
         )}
         data-mention-id={userId}
       >
-        {name ? `@${name}` : userId}
+        <UserMentionName client={client} room={room} userId={userId} />
       </a>
     );
   }
