@@ -71,7 +71,7 @@ const relistSince = async (mx: MatrixClient, room: Room, knownTs: number): Promi
     const roots = page.chunk.map((event) => mapper({ ...event, room_id: room.roomId }));
     const news = roots.filter((root) => listedActivityTs(root) > knownTs);
     const loaded = news
-      .map((root) => room.getThread(root.getId()))
+      .map((root) => room.getThread(root.getId() ?? ''))
       .filter((thread): thread is Thread => !!thread?.initialEventsFetched);
     room.processListedThreadRoots(news, false);
     // eslint-disable-next-line no-await-in-loop
