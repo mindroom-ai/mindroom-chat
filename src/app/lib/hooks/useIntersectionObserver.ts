@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 
-/** What the observer last reported for `target`, when that batch of entries includes it. */
+/** The newest report for `target` in a batch, which can include several layout passes. */
 export function getIntersectionObserverEntry(
   target: Element | null | undefined,
   entries: readonly IntersectionObserverEntry[]
 ): IntersectionObserverEntry | undefined {
   if (!target) return undefined;
-  return entries.find((entry) => entry.target === target);
+  return entries.findLast((entry) => entry.target === target);
 }
 
 /**
