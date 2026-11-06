@@ -116,7 +116,7 @@ export function CallTranscriptCard({
   highlightRegex,
   linkifyOpts,
 }: CallTranscriptCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const language = useAppLanguageCode();
   const client = useMatrixClient();
   const headerId = useId();
@@ -134,7 +134,15 @@ export function CallTranscriptCard({
   const room = roomId ? client.getRoom(roomId) : null;
 
   return (
-    <div className={css.CallCard} role="group" aria-labelledby={headerId} data-call-transcript="">
+    // The card is the interface's, so it keeps the interface's direction inside a message body
+    // that reads the other way (a long transcript renders inside its preview's text).
+    <div
+      className={css.CallCard}
+      role="group"
+      aria-labelledby={headerId}
+      dir={i18n.dir()}
+      data-call-transcript=""
+    >
       <div id={headerId} className={css.Header} data-call-transcript-header="">
         <Icon size="100" src={Icons.Phone} aria-hidden />
         <Text as="span" size="T300" className={css.Title}>

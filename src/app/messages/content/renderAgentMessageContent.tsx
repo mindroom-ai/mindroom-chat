@@ -38,6 +38,8 @@ import { CHAT_UI_ACTION_KEY, readCanvasNoticeTitle } from '../../matrix/protocol
 import { CANVAS_RESPONSE_KEY, readCanvasResponse } from '../canvas/canvasMessages';
 import { CanvasResponseReceipt } from '../canvas/CanvasResponseReceipt';
 import { CanvasResponseSidecarReceipt } from '../canvas/CanvasResponseSidecarReceipt';
+import { readCallTranscript } from '../../matrix/protocol/callTranscript';
+import { CallTranscriptCard } from './CallTranscriptCard';
 
 export type RenderAgentMessageContentOptions = {
   mEvent?: MatrixEvent;
@@ -197,11 +199,25 @@ export const renderAgentMessageContent = ({
       );
     };
 
+  // A long call's transcript is only in the sidecar; until it is hydrated, the HTML shows.
+  const renderLongCallTranscript = (resolvedContent: Record<string, unknown>) => {
+    const transcript = fromMindroomAgent ? readCallTranscript(resolvedContent) : undefined;
+    return transcript ? (
+      <CallTranscriptCard
+        transcript={transcript}
+        roomId={roomId ?? mEvent?.getRoomId()}
+        highlightRegex={highlightRegex}
+        linkifyOpts={linkifyOpts}
+      />
+    ) : undefined;
+  };
+
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
     resolvedContent,
     props,
     metadataStatus
   ) =>
+    renderLongCallTranscript(resolvedContent) ??
     wrapWithReasoning(
       // The live reasoning rides on the outer content, not on the preview or the sidecar.
       content[LIVE_REASONING_KEY] === undefined
