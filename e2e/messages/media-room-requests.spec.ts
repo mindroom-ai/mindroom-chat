@@ -1,3 +1,4 @@
+import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
@@ -12,11 +13,39 @@ const RUN = Date.now().toString(36);
 const SHOTS = process.env.MEDIA_ROOM_SHOTS;
 const IMAGES = 40;
 const FILES = 40;
-// A 1x1 PNG; the events declare a photo's size, as a phone upload would.
-const PNG = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3f8AAAAASUVORK5CYII=',
-  'base64'
-);
+
+/** A small PNG of two colour bands, so each picture looks different in screenshots. */
+const png = (index: number): Buffer => {
+  const width = 160;
+  const height = 120;
+  const chunk = (type: string, data: Buffer) => {
+    const body = Buffer.concat([Buffer.from(type), data]);
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, crc]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8-bit RGB
+  const hue = (index * 47) % 256;
+  const rows = Array.from({ length: height }, (_, y) => {
+    const row = Buffer.alloc(1 + width * 3);
+    for (let x = 0; x < width; x += 1) {
+      const top = y < height / 2;
+      row.set(top ? [hue, 120, 255 - hue] : [40, hue, 160], 1 + x * 3);
+    }
+    return row;
+  });
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+};
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
@@ -69,13 +98,14 @@ const seedMediaRoom = async () => {
   const kinds = new Map<string, 'image' | 'file'>();
   for (let index = 0; index < IMAGES; index += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const url = await upload(writer.accessToken, PNG, 'image/png');
+    const url = await upload(writer.accessToken, png(index), 'image/png');
     kinds.set(url.split('/').pop()!, 'image');
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(HOMESERVER, writer.accessToken, roomId, {
       msgtype: 'm.image',
       body: `photo-${String(index).padStart(3, '0')}.png`,
       url,
+      // A phone photo's size, as the sender declares it.
       info: { mimetype: 'image/png', w: 1600, h: 1200, size: 2_400_000 },
     });
   }
@@ -187,6 +217,10 @@ test('a media room loads thumbnails near the viewport and files only on request 
   await page.getByRole('img', { name: 'photo-020.png' }).click();
   await expect(page.getByRole('dialog', { name: 'photo-020.png' })).toBeVisible();
   await expect
-    .poll(() => requests.slice(shown).filter((request) => request.kind === 'image'))
+    .poll(() =>
+      requests
+        .slice(shown)
+        .filter((request) => request.kind !== 'other' && request.endpoint === 'download')
+    )
     .toEqual([{ kind: 'image', endpoint: 'download' }]);
 });
