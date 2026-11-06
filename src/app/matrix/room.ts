@@ -204,9 +204,10 @@ const getEditCandidates = (
 // Optional call: thread tests pass edit stand-ins without decryption state.
 const isUndecryptable = (edit: MatrixEvent): boolean => !!edit.isDecryptionFailure?.();
 
-/** An edit whose new content is unknown: still encrypted, or it could not be decrypted. */
+/** An edit whose new content is unknown: it could not be decrypted, or it is still encrypted. */
 const isUnreadableEdit = (edit: MatrixEvent): boolean =>
-  isUndecryptable(edit) || edit.getType() === EventType.RoomMessageEncrypted;
+  isUndecryptable(edit) ||
+  (matchesEnum(edit.getType(), EventType.RoomMessageEncrypted) && !getNewContent(edit));
 
 /**
  * The edit to show for `mEvent`: the newest readable replacement by its sender among the SDK's
