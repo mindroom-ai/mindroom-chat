@@ -4,6 +4,7 @@
 Usage:
   check.py --corpus <bare or normal upstream git repo> [--paths FILE...] [--history] [--jscpd]
            [--snapshots DIR] [--out REPORT.tsv]
+  check.py --corpus <upstream git repo> --pre-push <remote URL>  < pre-push hook input
 
 Rules (spec: docs/provenance.md, "upstream overlap check"):
   1. Line runs: 3 or more consecutive non-trivial lines (8+ characters after trimming, not only
@@ -20,6 +21,10 @@ Rules (spec: docs/provenance.md, "upstream overlap check"):
 Output lists only paths and line ranges in this repository, never upstream text.
 Without --paths it checks every tracked text file at HEAD; with --history it checks every blob
 that any commit of this repository contains and prints "<blob> <path>:<start>-<end>".
+With --pre-push (the pre-push hook, scripts/git-hooks/pre-push) it reads the hook's input from the
+current repository and checks every commit the push adds: each text file the commit adds or
+modifies, as that commit has it. It prints "<commit> <path> <start>-<end> <kind>" and remembers
+blobs it found clean, so a routine push checks only new files.
 """
 
 import argparse
@@ -49,6 +54,28 @@ def git(repo, *args, text=True):
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=text, check=True).stdout
 
 
+def corpus_head(corpus):
+    try:
+        return git(corpus, "rev-parse", "--all").split()[0]
+    except (subprocess.CalledProcessError, IndexError):
+        sys.exit(f"upstream-overlap: {corpus} is not a git clone of the upstream client with commits; nothing was checked")
+
+
+def write_atomic(path, data):
+    """Replace a cache file whole, so that a run reading it at the same time never sees part of it."""
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    if isinstance(data, bytes):
+        tmp.write_bytes(data)
+    else:
+        tmp.write_text(data)
+    os.replace(tmp, path)
+
+
+def unchecked(path):
+    """Dependency names and versions, which no check reads."""
+    return "package-lock.json" in path or path.endswith("package.json")
+
+
 def all_blobs(repo):
     found = {}
     for line in git(repo, "rev-list", "--objects", "--all").splitlines():
@@ -72,6 +99,7 @@ def read_blobs(repo, oids):
         if header[1] == b"blob":
             out[oid] = body.decode("utf-8", "replace")
     proc.stdin.close()
+    proc.stdout.close()
     proc.wait()
     return out
 
@@ -109,7 +137,7 @@ def strip_imports(text):
 
 def corpus_lines(corpus):
     CACHE.mkdir(exist_ok=True)
-    head = git(corpus, "rev-parse", "--all").split()[0]
+    head = corpus_head(corpus)
     rules = hashlib.sha256((IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(MIN_LEN)).encode()).hexdigest()[:12]
     cached = CACHE / f"corpus-{head}-{rules}.json"
     if cached.exists():
@@ -120,16 +148,19 @@ def corpus_lines(corpus):
             c = candidate(line)
             if c:
                 lines.add(c)
-    cached.write_text(json.dumps(sorted(lines)))
+    write_atomic(cached, json.dumps(sorted(lines)))
     return lines
 
 
-def generic_lines(corpus_set):
+def generic_lines(corpus_set, repo=REPO):
     cached = CACHE / f"generic-{hashlib.sha256(chr(10).join(sorted(corpus_set)).encode()).hexdigest()[:12]}.json"
     if cached.exists():
         return set(json.loads(cached.read_text()))
+    if not (repo / "node_modules").is_dir():
+        # Without it every line would count as upstream-only, and the cache would keep that.
+        sys.exit(f"upstream-overlap: {repo / 'node_modules'} is missing; install the dependencies once to find generic lines")
     generic = set()
-    for root, _, files in os.walk(REPO / "node_modules"):
+    for root, _, files in os.walk(repo / "node_modules"):
         for name in files:
             if not TEXT.search(name):
                 continue
@@ -141,7 +172,7 @@ def generic_lines(corpus_set):
                             generic.add(s)
             except OSError:
                 pass
-    cached.write_text(json.dumps(sorted(generic)))
+    write_atomic(cached, json.dumps(sorted(generic)))
     return generic
 
 
@@ -216,7 +247,7 @@ def windows(ids):
 
 def corpus_windows(corpus):
     from array import array
-    head = git(corpus, "rev-parse", "--all").split()[0]
+    head = corpus_head(corpus)
     rules = hashlib.sha256((TOKEN.pattern + IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(WINDOW)).encode()).hexdigest()[:12]
     cached = CACHE / f"windows-{head}-{rules}.bin"
     data = array("Q")
@@ -230,8 +261,7 @@ def corpus_windows(corpus):
         found.update(windows([t for t, _, _ in tokens(text)]))
     data.extend(sorted(found))
     CACHE.mkdir(exist_ok=True)
-    with open(cached, "wb") as fh:
-        fh.write(data.tobytes())
+    write_atomic(cached, data.tobytes())
     return found
 
 
@@ -251,6 +281,110 @@ def token_runs(text, corpus_set):
             runs.append((toks[start][1], toks[i - 1][2]))
             start = None
     return runs
+
+
+ZERO = re.compile(r"0+")
+
+
+def push_updates(lines):
+    """(local commit, remote commit or None) for each ref in the pre-push hook's input; a deletion pushes nothing."""
+    updates = []
+    for line in lines:
+        if line.strip():
+            _, local, _, remote = line.split()
+            if not ZERO.fullmatch(local):
+                updates.append((local, None if ZERO.fullmatch(remote) else remote))
+    return updates
+
+
+def has_commit(repo, oid):
+    return subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{oid}^{{commit}}"], capture_output=True).returncode == 0
+
+
+def remote_main(url, cwd):
+    """The commit of the remote's main branch, or None when it has none or cannot be asked."""
+    listed = subprocess.run(["git", "ls-remote", url, "refs/heads/main"], cwd=cwd, capture_output=True, text=True,
+                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
+    for line in listed.stdout.splitlines():
+        oid, _, ref = line.partition("\t")
+        if ref == "refs/heads/main":
+            return oid
+    return None
+
+
+def pushed_commits(repo, updates, main):
+    """The commits a push adds, oldest first: reachable from a pushed tip but from neither the remote's tip of
+    that ref nor the remote's main. A base this repository does not have cannot be left out, so the commits
+    behind it are checked too: slower, never fewer."""
+    commits = []
+    for local, remote in updates:
+        bases = [f"^{oid}" for oid in (remote, main) if oid and has_commit(repo, oid)]
+        commits += git(repo, "rev-list", "--reverse", local, *bases).split()
+    return list(dict.fromkeys(commits))
+
+
+def changed_blobs(repo, commits):
+    """(commit, path, blob) for each text file a commit adds or modifies, as that commit has it: every file of a
+    root commit, and for a merge each file that differs from one of its parents. Deletions, symlinks and
+    submodules carry no file content."""
+    if not commits:
+        return []
+    out = subprocess.run(["git", "-C", str(repo), "diff-tree", "--stdin", "-r", "-m", "--root", "--no-renames", "-z"],
+                         input="\n".join(commits) + "\n", capture_output=True, text=True, errors="surrogateescape",
+                         check=True).stdout
+    fields = out.split("\0")
+    found, commit, i = [], None, 0
+    while i < len(fields):
+        field = fields[i]
+        i += 1
+        if field.startswith(":"):
+            _, mode, _, oid, status = field[1:].split()
+            path = fields[i]
+            i += 1
+            if status in ("A", "M", "T") and mode in ("100644", "100755") and TEXT.search(path) and not unchecked(path):
+                found.append((commit, path, oid))
+        elif field:
+            commit = field
+    return list(dict.fromkeys(found))
+
+
+def pre_push(corpus, url, lines, repo):
+    """Check every commit a push adds (scripts/git-hooks/pre-push); returns the exit status, 1 on any finding.
+    A blob found clean is remembered under the checker's own hash and the corpus head, so a routine push reads
+    the corpus only for files it has not seen."""
+    updates = push_updates(lines)
+    main = remote_main(url, repo / os.environ.get("GIT_PREFIX", "")) if updates else None
+    commits = pushed_commits(repo, updates, main)
+    changes = changed_blobs(repo, commits)
+    key = hashlib.sha256(Path(__file__).read_bytes() + corpus_head(corpus).encode()).hexdigest()[:16]
+    clean = CACHE / f"clean-{key}"
+
+    def marker(oid, path):
+        return clean / f"{oid}-{'code' if CODE.search(path) else 'text'}"
+
+    todo = {marker(oid, path): (oid, path) for _, path, oid in changes if not marker(oid, path).exists()}
+    found = {}
+    if todo:
+        cset = corpus_lines(corpus)
+        generic = generic_lines(cset, repo)
+        cwindows = corpus_windows(corpus)
+        texts = read_blobs(repo, sorted({oid for oid, _ in todo.values()}))
+        clean.mkdir(parents=True, exist_ok=True)
+        for done, (oid, path) in todo.items():
+            runs = [(start, end, "line-run") for start, end in line_runs(texts[oid], cset, generic)]
+            if CODE.search(path):
+                runs += [(start, end, "tokens") for start, end in token_runs(texts[oid], cwindows)]
+            if runs:
+                found[done] = runs
+            else:
+                done.touch()
+    rows = [(commit, path, start, end, kind) for commit, path, oid in changes
+            for start, end, kind in found.get(marker(oid, path), [])]
+    print(f"upstream-overlap: {len(rows)} findings in {len({(r[0], r[1]) for r in rows})} files of the "
+          f"{len(commits)} commits this push adds ({len(changes)} files they add or modify, {len(todo)} not seen before)")
+    for commit, path, start, end, kind in rows:
+        print(f"{commit}\t{path}\t{start}-{end}\t{kind}")
+    return 1 if rows else 0
 
 
 def snapshots(corpus, dest):
@@ -295,8 +429,13 @@ def main():
     ap.add_argument("--jscpd", action="store_true")
     ap.add_argument("--snapshots", default=str(CACHE / "snapshots"))
     ap.add_argument("--out")
+    ap.add_argument("--pre-push", metavar="URL", help="check the commits of the pre-push input on stdin (the hook)")
     args = ap.parse_args()
     corpus = Path(args.corpus)
+    corpus_head(corpus)
+    if args.pre_push is not None:
+        repo = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
+        sys.exit(pre_push(corpus, args.pre_push, sys.stdin.read().splitlines(), repo))
     cset = corpus_lines(corpus)
     generic = generic_lines(cset)
     if args.history:
@@ -313,7 +452,7 @@ def main():
     cwindows = corpus_windows(corpus)
     rows = []
     for oid, path, text in items:
-        if "package-lock.json" in path or path.endswith("package.json"):
+        if unchecked(path):
             continue
         for start, end in line_runs(text, cset, generic):
             rows.append((oid, path, start, end, "line-run"))

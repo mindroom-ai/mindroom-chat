@@ -84,6 +84,10 @@ upstream-overlap corpus='' *args:
     if [ -z "{{corpus}}" ]; then echo 'upstream-overlap: skipped (no upstream clone given)'; exit 0; fi
     python3 scripts/upstream-overlap/check.py --corpus "{{corpus}}" {{args}}
 
+# Install the pre-push hook that runs the upstream overlap check on every commit a push adds (scripts/git-hooks/install.sh): pass the upstream clone, then other clones to install it in (default: this one).
+install-hooks corpus *clones:
+    bash scripts/git-hooks/install.sh --corpus "{{corpus}}" {{clones}}
+
 # Compare Lane C code with each corpus directory given; writes docs/provenance/audit/<date>/.
 similarity-audit *corpora:
     bash scripts/similarity-audit.sh {{corpora}}
@@ -118,7 +122,7 @@ agent-stack slot *args:
 e2e-suite *args:
     bash scripts/e2e-suite.sh {{args}}
 
-# Tests of the e2e tooling, the notices generator and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs and scripts/ios-canvas-test-fixtures.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py and scripts/agent-stack/test_stack.py with unittest).
+# Tests of the e2e tooling, the notices generator and the iOS test fixture generators (scripts/e2e-results-tsv.test.mjs, scripts/third-party-notices.test.mjs, scripts/ios-routing-test-routes.test.mjs and scripts/ios-canvas-test-fixtures.test.mjs with Node's test runner, scripts/test_matrix_http.py, scripts/reference/test_seed.py, scripts/agent-stack/test_stack.py and scripts/upstream-overlap/test_check.py with unittest).
 script-tests:
     node --test scripts/e2e-results-tsv.test.mjs scripts/third-party-notices.test.mjs scripts/ios-routing-test-routes.test.mjs scripts/ios-canvas-test-fixtures.test.mjs
-    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py
+    python3 -m unittest scripts/test_matrix_http.py scripts/reference/test_seed.py scripts/agent-stack/test_stack.py scripts/upstream-overlap/test_check.py

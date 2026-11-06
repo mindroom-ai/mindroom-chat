@@ -94,6 +94,8 @@ Bas's requirement of 2026-11-03: no line of Cinny's (AGPL-3.0) code in this repo
 
 `--history` checks every blob of every commit. jscpd at 30 tokens against six Cinny release snapshots (`--jscpd`) was used in addition for the rewrite; its ranges are coarser.
 
+Since 2026-11-05 the pre-push hook `scripts/git-hooks/pre-push` (`just install-hooks <corpus>`, AGENTS.md) runs the check before each push on every commit the push adds, each file as that commit has it (`check.py --pre-push`), and refuses the push on any finding, a missing corpus or a checker error. A later commit that deletes the lines does not clear the commit that added them.
+
 History rewrite of 2026-11-03 (`scripts/upstream-overlap/rewrite_history.py`, git-filter-repo; the commits and their messages stay, one commit that became empty was pruned, and the history still starts at the repository's initial commit):
 
 - Every flagged range in every blob was replaced by empty lines (imports kept, line numbers unchanged), and each blob was checked again and blanked further until it passed. `docs/provenance/history-blanked.tsv` lists every blanked line by blob. The rewrite ran three times on 2026-11-03: once over the history up to the M1 branch, once to drop a removed file's row from `portable.tsv`, and once over the fill commits below after the check learned the name-only and comment rules.
