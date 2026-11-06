@@ -8,6 +8,7 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { createSessionId } from '../matrix/session/sessions';
 import { getAccountData } from '../matrix/room';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
+import { useRoomThreadMode } from '../matrix/hooks/useRoomThreadMode';
 import {
   getAvailableRoomViewModes,
   getDefaultRoomViewMode,
@@ -137,7 +138,8 @@ const roomViewChoicesAtom = atomFamily((roomId: string) => {
 
 /**
  * One account-scoped source for persisted and effective room view modes. A room without a chosen
- * view opens in its default, which follows `hasMindroomAgents` when the caller knows it.
+ * view opens in its default, which follows `hasMindroomAgents` when the caller knows it, or in
+ * Threads while the room's `io.mindroom.thread_mode` is `room`.
  */
 export const useRoomViewMode = (roomId: string, hasMindroomAgents?: boolean) => {
   const mx = useMatrixClient();
@@ -168,9 +170,12 @@ export const useRoomViewMode = (roomId: string, hasMindroomAgents?: boolean) => 
     direct || (!chosen && hasMindroomAgents === undefined)
   );
   const humanDirectRoom = direct && !detected;
-  const roomViewMode = chosen
-    ? storedViewMode
+  // A room whose agents answer in the main timeline opens in Threads, where watching a reply reads it.
+  const answersInRoom = useRoomThreadMode(roomId, !chosen) === 'room';
+  const defaultViewMode = answersInRoom
+    ? 'threaded'
     : getDefaultRoomViewMode(hasMindroomAgents ?? detected);
+  const roomViewMode = chosen ? storedViewMode : defaultViewMode;
   const viewMode = resolveEffectiveRoomViewMode(roomViewMode, humanDirectRoom);
   const availableViewModes = getAvailableRoomViewModes(humanDirectRoom);
 
