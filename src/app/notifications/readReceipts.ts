@@ -17,6 +17,7 @@ import { isVisibleThreadReplyEvent } from '../event-store/threads/threadUtils';
 import { getMainTimelineReadTs } from '../matrix/mainTimelineRead';
 import { hasTerminalStreamMetadata } from '../matrix/protocol/aiRun';
 import { getThreadRootReadAction } from '../matrix/room';
+import { sendOwnReceipt } from '../matrix/state/roomToUnread';
 import { forgetReadThreadRoots, rememberSeenThreadRoot } from '../matrix/seenThreadRoots';
 
 const receiptTypeFor = (hideActivity: boolean): ReceiptType =>
@@ -113,7 +114,9 @@ export const markMainTimelineAsRead = async (
   const userId = mx.getUserId();
   if (userId && room.getEventReadUpTo(userId) === target.getId()) return;
   await send(
-    mx.sendReceipt(target, receiptTypeFor(hideActivity), { thread_id: MAIN_ROOM_TIMELINE })
+    sendOwnReceipt(() =>
+      mx.sendReceipt(target, receiptTypeFor(hideActivity), { thread_id: MAIN_ROOM_TIMELINE })
+    )
   );
 };
 
@@ -253,9 +256,11 @@ export const markThreadAsRead = async (
   if (!target || !targetId || !isConfirmed(target)) return;
   if (thread && threadReceiptReads(thread, mx.getUserId() ?? undefined, target)) return;
   await send(
-    mx.sendReceipt(forThreadReceipt(target, roomId, rootId), receiptTypeFor(hideActivity), {
-      thread_id: rootId,
-    })
+    sendOwnReceipt(() =>
+      mx.sendReceipt(forThreadReceipt(target, roomId, rootId), receiptTypeFor(hideActivity), {
+        thread_id: rootId,
+      })
+    )
   );
 };
 
@@ -282,5 +287,9 @@ export const markRoomAndThreadsAsRead = async (
   if (!room) return;
   const target = latestRoomEvent(room);
   if (!target) return;
-  await send(mx.sendReadReceipt(inRoom(target, roomId), receiptTypeFor(hideActivity), true));
+  await send(
+    sendOwnReceipt(() =>
+      mx.sendReadReceipt(inRoom(target, roomId), receiptTypeFor(hideActivity), true)
+    )
+  );
 };

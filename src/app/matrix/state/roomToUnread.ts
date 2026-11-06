@@ -139,6 +139,26 @@ export const getOptimisticReceiptUnreadInfo = (
   return { roomId: room.roomId, highlight: Math.max(0, highlight), total: Math.max(0, total) };
 };
 
+/** Set while this client sends a read receipt; see `sendOwnReceipt`. */
+let sendingOwnReceipt = false;
+
+/**
+ * Runs `send`, which sends a read receipt of this client. The SDK adds the receipt's local echo
+ * while `send` runs, and that echo alone lowers the room's counts at once
+ * (`getOptimisticReceiptUnreadInfo`): it is ahead of the server. The user's other receipts are
+ * not. One from a sync comes after that sync's counts, which already include it, and the SDK
+ * also makes up a receipt for each message of the user's that it loads, though messages after it
+ * may still be unread.
+ */
+export const sendOwnReceipt = <T>(send: () => T): T => {
+  sendingOwnReceipt = true;
+  try {
+    return send();
+  } finally {
+    sendingOwnReceipt = false;
+  }
+};
+
 const READ_RECEIPT_TYPES = new Set(['m.read', 'm.read.private']);
 
 /** The user's own read receipts in an `m.receipt` event. */
@@ -205,7 +225,11 @@ export const useBindRoomToUnreadAtom = (
       const receipts = userId ? getOwnReadReceipts(event, userId) : [];
       // Other members' receipts do not change what this user has read.
       if (receipts.length === 0) return;
-      setUnread(toUnreadAction(mx, room, getOptimisticReceiptUnreadInfo(room, receipts)));
+      setUnread(
+        sendingOwnReceipt
+          ? toUnreadAction(mx, room, getOptimisticReceiptUnreadInfo(room, receipts))
+          : getRoomUnreadAction(mx, room)
+      );
     };
     const handleRoom = (room: Room) => {
       watchCounts(room);
