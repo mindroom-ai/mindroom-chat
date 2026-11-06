@@ -5,7 +5,6 @@ import {
   type Browser,
   type BrowserContextOptions,
   type Locator,
-  type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
@@ -60,6 +59,8 @@ const openPalette = async (browser: Browser, options: BrowserContextOptions, lan
   seeded ??= seed();
   const username = await seeded;
   const context = await browser.newContext(options);
+  // A missing control fails its step quickly instead of the whole test's timeout.
+  context.setDefaultTimeout(30_000);
   const page = await context.newPage();
   // The slot has no provisioning service.
   await page.route('**/v1/local-mindroom/connections', (route) =>

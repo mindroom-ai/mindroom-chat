@@ -14,6 +14,7 @@ import {
   joinRoom,
   matrixFetch,
   sendRoomMessage,
+  sendStateEvent,
   setAccountData,
 } from '../helpers/matrix';
 
@@ -94,7 +95,9 @@ const seed = async (engine: string): Promise<Seed> => {
   const open = await createPrivateRoom(HOMESERVER, owner.accessToken, {
     name: PUBLIC_ROOM,
     topic: 'Anyone may drop in',
-    preset: 'public_chat',
+  });
+  await sendStateEvent(HOMESERVER, owner.accessToken, open, 'm.room.join_rules', '', {
+    join_rule: 'public',
   });
   await addRoomToSpace(HOMESERVER, owner.accessToken, space, open);
   rooms[PUBLIC_ROOM] = open;
@@ -108,6 +111,8 @@ const signIn = async (browser: Browser, engine: string, options = PHONE, languag
   if (!seeds.has(engine)) seeds.set(engine, seed(engine));
   const seeded = await seeds.get(engine)!;
   const context = await browser.newContext(options);
+  // A missing control fails its step quickly instead of the whole test's timeout.
+  context.setDefaultTimeout(30_000);
   const page = await context.newPage();
   // The slot has no provisioning service.
   await page.route('**/v1/local-mindroom/connections', (route) =>

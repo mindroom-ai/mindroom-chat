@@ -117,6 +117,8 @@ const hoverShowsFullName = async (page: Page, shot: string) => {
 
 const checkDesktop = async (browser: Browser) => {
   const context = await browser.newContext(DESKTOP);
+  // A missing control fails its step quickly instead of the whole test's timeout.
+  context.setDefaultTimeout(30_000);
   const page = await context.newPage();
   await signIn(page);
   await hoverShowsFullName(page, 'room-name-tooltip-desktop');
@@ -131,6 +133,8 @@ const checkDesktop = async (browser: Browser) => {
 
 const checkRightToLeft = async (browser: Browser) => {
   const context = await browser.newContext(DESKTOP);
+  // A missing control fails its step quickly instead of the whole test's timeout.
+  context.setDefaultTimeout(30_000);
   const page = await context.newPage();
   await signIn(page, 'ar');
   await hoverShowsFullName(page, 'room-name-tooltip-arabic');
@@ -149,6 +153,8 @@ const checkRightToLeft = async (browser: Browser) => {
 const checkTaps = async (browser: Browser) => {
   // A touch tablet keeps the list beside the room, so a tooltip would stay on screen.
   const tablet = await browser.newContext(TABLET);
+  // A missing control fails its step quickly instead of the whole test's timeout.
+  tablet.setDefaultTimeout(30_000);
   const page = await tablet.newPage();
   await signIn(page);
   await expect(row(page, LONG)).toBeVisible({ timeout: 30_000 });
@@ -161,6 +167,8 @@ const checkTaps = async (browser: Browser) => {
   await tablet.close();
 
   const phone = await browser.newContext(PHONE);
+  // A missing control fails its step quickly instead of the whole test's timeout.
+  phone.setDefaultTimeout(30_000);
   const phonePage = await phone.newPage();
   await signIn(phonePage);
   await expect(row(phonePage, LONG)).toBeVisible({ timeout: 30_000 });
