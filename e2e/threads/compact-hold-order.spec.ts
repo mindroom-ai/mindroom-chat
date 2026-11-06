@@ -52,6 +52,7 @@ type SeededRoom = { roomId: string; rootIds: string[]; agent: MatrixSession; use
 const seedRoom = async (homeserver: string, me: MatrixSession): Promise<SeededRoom> => {
   const roomId = await createPrivateRoom(homeserver, me.accessToken, {
     name: `Held order ${Date.now()}`,
+    topic: 'Thirty threads sorted by last reply',
   });
   const agent = await registerAgentAccount(homeserver, 'helper');
   await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
@@ -183,9 +184,14 @@ const checkHeldOrder = async (page: Page, room: SeededRoom, engine: string) => {
   const focusOrder = await cardOrder(page);
   const focusCard = cardOf(page, focusOrder[12]!);
   await focusCard.scrollIntoViewIfNeeded();
-  // A key press first, so the focus that follows counts as keyboard focus.
-  await page.keyboard.press('Shift');
-  await focusCard.focus();
+  // Tab from the card above: keyboard focus, as a keyboard user reaches the card.
+  await cardOf(page, focusOrder[11]!).focus();
+  for (let step = 0; step < 8; step += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press('Tab');
+    // eslint-disable-next-line no-await-in-loop
+    if (await focusCard.evaluate((element) => element === document.activeElement)) break;
+  }
   await expect(focusCard).toBeFocused();
   expect(await focusCard.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
   const focusTop = await topOf(focusCard);

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MatrixEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import {
   collectThreadWriterIds,
@@ -63,17 +63,17 @@ describe('readRawThreadReplies', () => {
     sender: string,
     ts: number,
     extra: { rootId?: string; type?: string; redacted?: boolean } = {}
-  ) => ({
+  ): Partial<IEvent> => ({
     event_id: id,
     sender,
     origin_server_ts: ts,
     type: extra.type ?? 'm.room.encrypted',
     content: { 'm.relates_to': { rel_type: 'm.thread', event_id: extra.rootId ?? ROOT } },
-    unsigned: extra.redacted ? { redacted_because: {} } : {},
+    unsigned: extra.redacted ? { redacted_because: { event_id: '$redaction' } as IEvent } : {},
   });
 
   it('counts the visible replies and names their senders newest first', () => {
-    const events = [
+    const events: Partial<IEvent>[] = [
       { event_id: ROOT, sender: CY, origin_server_ts: 0, type: 'm.room.message', content: {} },
       raw('$1', ADA, 1),
       raw('$3', ADA, 3),
