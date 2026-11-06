@@ -130,7 +130,7 @@ const setTheme = (page: Page, themeId: string) =>
     );
   }, themeId);
 
-type StoredOrigin = { origin: string; indexedDB?: Array<{ name: string }> };
+type StoredDatabases = { indexedDB?: Array<{ name: string }> };
 
 type Measured = Record<string, Array<{ text: string; large: boolean; contrast: number }>>;
 
@@ -174,12 +174,15 @@ const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, brow
     const session = {
       ...state,
       // The installed type definitions predate storageState's `indexedDB` list.
-      origins: state.origins.map((origin: StoredOrigin) => ({
-        ...origin,
-        indexedDB: origin.indexedDB?.filter(
-          ({ name }) => !/mindroom-(cache|room|thread)/.test(name)
-        ),
-      })),
+      origins: state.origins.map((origin) => {
+        const stored = origin as typeof origin & StoredDatabases;
+        return {
+          ...stored,
+          indexedDB: stored.indexedDB?.filter(
+            ({ name }) => !/mindroom-(cache|room|thread)/.test(name)
+          ),
+        };
+      }),
     };
     for (const [sizeName, size] of Object.entries(SIZES)) {
       for (const theme of THEMES) {
