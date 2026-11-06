@@ -7,7 +7,11 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
-import { hasTerminalStreamMetadata } from '../protocol/aiRun';
+import {
+  STREAM_STATUS_KEY,
+  TERMINAL_STREAM_STATUSES,
+  hasTerminalStreamMetadata,
+} from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
 
 // The server cannot read an encrypted event, so in an encrypted room the SDK takes the server's
@@ -19,8 +23,14 @@ import { isRecord } from '../../lib/isRecord';
 //   finished meanwhile left the room read.
 // - Push rules see an event the SDK cannot decrypt without its relation, as a plain message. A
 //   new session counted every streaming edit it had no key for: 23 for one reply.
+// - MindRoom starts a reply with a message whose stream status ("pending", then "streaming") it
+//   keeps in the clear, and Tuwunel counts no event that still streams. The SDK counted that first
+//   message by its text, and again each time it decrypted it, so a reply that finished while the
+//   reader was away showed 3 unread after a reload where the server counted 1 (and the thread's
+//   title notice, which the client rightly leaves out).
 // This module counts the finished reply and takes back the SDK's count of an edit or reaction it
-// cannot decrypt. Its listener runs after the SDK's own, which the client adds when it is made.
+// cannot decrypt and of a message that still streams. Its listener runs after the SDK's own, which
+// the client adds when it is made.
 
 /** Relations that never count as unread messages of their own. */
 const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
@@ -68,12 +78,19 @@ const changeCounts = (
 };
 
 /**
- * Takes back what the SDK counted for an edit or reaction it could not decrypt, under the same
- * conditions it counts: the event is in the room, unread, and its push actions notify.
+ * Whether the event still streams, by the status MindRoom keeps in the clear. Tuwunel counts no
+ * such event, only the finished reply's terminal edit.
  */
-const uncountUndecryptableRelation = (mx: MatrixClient, room: Room, event: MatrixEvent): void => {
-  const relationType = relationOf(event)?.rel_type;
-  if (typeof relationType !== 'string' || !UNCOUNTED_RELATIONS.has(relationType)) return;
+const stillStreams = (event: MatrixEvent): boolean => {
+  const status: unknown = event.getWireContent()[STREAM_STATUS_KEY];
+  return typeof status === 'string' && !TERMINAL_STREAM_STATUSES.has(status.toLowerCase());
+};
+
+/**
+ * Takes back what the SDK counted for a decrypted event, under the same conditions it counts: the
+ * event is in the room, unread, and its push actions notify.
+ */
+const takeBackSdkCount = (mx: MatrixClient, room: Room, event: MatrixEvent): void => {
   const userId = mx.getUserId();
   const eventId = event.getId();
   if (!userId || !eventId || !room.findEventById(eventId)) return;
@@ -83,6 +100,14 @@ const uncountUndecryptableRelation = (mx: MatrixClient, room: Room, event: Matri
     if (!thread || thread.hasUserReadEvent(userId, eventId)) return;
   } else if (room.hasUserReadEvent(userId, eventId)) return;
   changeCounts(room, threadId, mx.getPushActionsForEvent(event), -1);
+};
+
+/** An edit or reaction the SDK could not decrypt counts as nothing. */
+const uncountUndecryptableRelation = (mx: MatrixClient, room: Room, event: MatrixEvent): void => {
+  const relationType = relationOf(event)?.rel_type;
+  if (typeof relationType === 'string' && UNCOUNTED_RELATIONS.has(relationType)) {
+    takeBackSdkCount(mx, room, event);
+  }
 };
 
 /** Whether the user's receipt in the reply's thread (or the room) reaches `edit`. */
@@ -153,6 +178,7 @@ export const keepEncryptedRoomCounts = (mx: MatrixClient): (() => void) => {
     const room = roomId ? mx.getRoom(roomId) : null;
     if (!room?.hasEncryptionStateEvent()) return;
     if (event.isDecryptionFailure()) uncountUndecryptableRelation(mx, room, event);
+    else if (stillStreams(event)) takeBackSdkCount(mx, room, event);
     else countFinishedReply(mx, room, event, counted);
   };
   mx.on(MatrixEventEvent.Decrypted, onDecrypted);
