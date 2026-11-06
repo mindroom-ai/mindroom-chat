@@ -13,16 +13,25 @@ import {
   EventType,
   ThreadEvent,
   type EventTimeline,
+  type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
 import type { Virtualizer } from '@tanstack/react-virtual';
 import { useVirtualPaginator, type ItemRange } from './useVirtualPaginator';
 import { useLiveEventRemove } from '../event-store/timeline/roomLiveEventArrive';
-import { getRangeWithoutRow, type Timeline } from '../event-store/timeline/timelinePagination';
+import {
+  getRangeWithoutRow,
+  type RecalibrateFilterOpts,
+  type Timeline,
+} from '../event-store/timeline/timelinePagination';
+import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
 import { shouldAutoPaginateThreadBack } from '../event-store/threads/threadRenderUtils';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
-import { THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS } from '../event-store/cache/preloadSettings';
+import {
+  ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+  THREAD_BACK_AUTO_PAGINATE_TRIGGER_ROWS,
+} from '../event-store/cache/preloadSettings';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 
 /**
@@ -61,6 +70,60 @@ export const useWindowKeepsNewestRow = ({
     setTimeline((current) => ({ ...current, range: { start, end: roomRowCount } }));
   }, [activeTimelineRange, eventId, roomRowCount, setTimeline, threadId]);
 };
+
+/**
+ * Shows the chain a limited sync's relink rebuilt, unless it holds no row: a server can mark a
+ * room's timeline limited for events the view hides (a member's new name while membership changes
+ * are hidden), and the new live timeline alone then shows nothing. The view keeps its rows while
+ * one page of history links the new live timeline to them, then shows the chain rebuilt again.
+ */
+export const useRelinkKeepingRows = ({
+  alive,
+  mx,
+  filterOptsRef,
+  rebuildTimeline,
+  setTimeline,
+}: {
+  alive: () => boolean;
+  mx: MatrixClient;
+  filterOptsRef: MutableRefObject<RecalibrateFilterOpts>;
+  rebuildTimeline: () => Timeline;
+  setTimeline: SetTimeline;
+}): SetTimeline =>
+  useCallback(
+    (next) => {
+      const first = typeof next === 'function' ? undefined : next.linkedTimelines[0];
+      if (typeof next === 'function' || !first?.getPaginationToken(Direction.Backward)) {
+        setTimeline(next);
+        return;
+      }
+      const { room, ...filters } = filterOptsRef.current;
+      const rows = getRenderableEvents(
+        next.linkedTimelines,
+        room,
+        undefined,
+        filters.ignoredUsersSet,
+        filters.showHiddenEvents,
+        filters.hideMembershipEvents,
+        filters.hideNickAvatarEvents,
+        filters.showThreadRepliesInRoom
+      );
+      if (rows.length > 0) {
+        setTimeline(next);
+        return;
+      }
+      void mx
+        .paginateEventTimeline(first, {
+          backwards: true,
+          limit: ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE,
+        })
+        .catch(() => false)
+        .then(() => {
+          if (alive()) setTimeline(rebuildTimeline());
+        });
+    },
+    [alive, filterOptsRef, mx, rebuildTimeline, setTimeline]
+  );
 
 /**
  * Calls `onDeleted` when one of the room's threads goes away while the room (not a thread) is

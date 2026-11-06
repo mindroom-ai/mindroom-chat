@@ -134,6 +134,7 @@ import {
   useViewportAtBottomNow,
 } from './roomTimelineScroll';
 import {
+  useRelinkKeepingRows,
   useRetryAfterEmptyBackPage,
   useRoomRowRemoval,
   useRoomThreadDeleted,
@@ -1078,13 +1079,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
   const isViewportAtBottomNow = useViewportAtBottomNow(scrollRef, atBottomRef);
   const isViewportAtLatestNow = useViewportAtBottomNow(scrollRef, atBottomRef, latestAtTopRef);
+  const setRelinkedTimeline = useRelinkKeepingRows({
+    alive,
+    mx,
+    filterOptsRef,
+    rebuildTimeline: buildInitialTimeline,
+    setTimeline,
+  });
   useRoomTimelineResetRelink({
     room,
     threadId,
     eventId,
     timeline,
     rebuildTimeline: buildInitialTimeline,
-    setTimeline,
+    setTimeline: setRelinkedTimeline,
     isViewportAtBottomNow: isViewportAtLatestNow,
     scrollToBottomRef,
   });
