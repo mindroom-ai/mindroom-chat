@@ -100,6 +100,13 @@ export { EVICTION_TARGET_UTILIZATION, EVICTION_RECENT_OPEN_WINDOW_MS } from './c
 export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStoreSummaries';
 
 export {
+  cachedHistoryJoinsBefore,
+  holdUnsavedRoomCacheGap,
+  loadRoomCacheGap,
+  type RoomCacheGap,
+} from './cacheStoreGap';
+
+export {
   markRoomTailDiscontinuity,
   checkpointRoomTailDiscontinuity,
   clearRoomTailDiscontinuity,

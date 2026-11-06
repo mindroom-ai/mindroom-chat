@@ -32,6 +32,7 @@ import {
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
   type CacheStoreWriteLease,
+  holdUnsavedRoomCacheGap,
 } from '../cache/db';
 
 export type GapFillReason = 'limited-sync' | 'startup';
@@ -141,6 +142,8 @@ type PendingGapMark = {
   failureCount: number;
   reported: boolean;
   retryTimer?: ReturnType<typeof globalThis.setTimeout>;
+  /** Keeps readers off the cache across this gap until its marker is durable. */
+  releaseUnsavedGap: () => void;
 };
 
 export const createEngineGapTracker = (options?: EngineGapTrackerOptions): EngineGapTracker => {
@@ -192,6 +195,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
       .then((durableMarker) => {
         if (!durableMarker || stopped || pendingMarks.get(roomId) !== pending) return;
         pendingMarks.delete(roomId);
+        pending.releaseUnsavedGap();
         scheduler.enqueueGapFill({
           roomId,
           reason: 'limited-sync',
@@ -264,6 +268,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
           // intact, if that read fails too).
           .catch(() => undefined);
       pendingMarks.set(room.roomId, {
+        releaseUnsavedGap: holdUnsavedRoomCacheGap(options.sessionId, room.roomId),
         writeLease: captureCacheStoreWriteLease(options.sessionId, room.roomId),
         job,
         marker: {
@@ -275,6 +280,7 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
         failureCount: 0,
         reported: false,
       });
+      previous?.releaseUnsavedGap();
       attemptPendingMark(room.roomId);
       return;
     }
@@ -310,8 +316,9 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
 
   const stop = () => {
     stopped = true;
-    pendingMarks.forEach(({ retryTimer }) => {
+    pendingMarks.forEach(({ retryTimer, releaseUnsavedGap }) => {
       if (retryTimer) globalThis.clearTimeout(retryTimer);
+      releaseUnsavedGap();
     });
     pendingMarks.clear();
   };

@@ -27,6 +27,8 @@ import {
   captureCacheStoreWriteLease,
   isCacheStoreWriteLeaseCurrent,
   type CacheStoreWriteLease,
+  cachedHistoryJoinsBefore,
+  loadRoomCacheGap,
 } from './db';
 import { compareCachedPaginationAnchors } from './eventCacheTokenUtils';
 import { hydrateCachedEvents, serializeEventsForCache } from './eventCacheEditUtils';
@@ -562,6 +564,7 @@ type LoadLatestRoomCacheHydrationSnapshotOptions = {
   loadedEvents: MatrixEvent[];
   mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
   loadLatest?: typeof loadLatestCachedRoomEventsFromCache;
+  loadGap?: typeof loadRoomCacheGap;
 };
 
 export type LatestRoomCacheHydrationSnapshot = {
@@ -579,18 +582,32 @@ export const loadLatestRoomCacheHydrationSnapshot = async ({
   loadedEvents,
   mapEvent,
   loadLatest = loadLatestCachedRoomEventsFromCache,
+  loadGap = loadRoomCacheGap,
 }: LoadLatestRoomCacheHydrationSnapshotOptions): Promise<LatestRoomCacheHydrationSnapshot> => {
-  const cachedPage = await loadLatest(sessionId, roomId, limit);
+  const [cachedPage, gap] = await Promise.all([
+    loadLatest(sessionId, roomId, limit),
+    loadGap(sessionId, roomId),
+  ]);
   const loadedLatestEvent = loadedEvents[loadedEvents.length - 1];
   const cachedLatestEvent = cachedPage.events[cachedPage.events.length - 1];
-  const cachedTailIsNewer = shouldHydrateLatestRoomCache(loadedLatestEvent, cachedLatestEvent);
+  // Newer cached events continue the loaded tail only when the page holds that tail (or nothing
+  // is loaded) and no limited sync left a hole in the cache: a page that starts after the tail,
+  // or runs written around a hole, would show as one conversation with messages missing.
+  const cachedPageHoldsLoadedTail =
+    !loadedLatestEvent ||
+    cachedPage.events.some((rawEvent) => rawEvent.event_id === loadedLatestEvent.getId());
+  const cachedTailIsNewer =
+    !gap &&
+    cachedPageHoldsLoadedTail &&
+    shouldHydrateLatestRoomCache(loadedLatestEvent, cachedLatestEvent);
   // A restored SDK tail can already contain the newest event while missing
   // the rest of the cached page. Overlap at its oldest event proves where
-  // cached history can be prepended without joining across an unknown gap.
+  // cached history can be prepended without joining across an unknown gap,
+  // unless that event lies after a hole the cache has not filled yet.
   const earliestLoadedId = findEarliestLoadedRoomEventByCacheOrder(loadedEvents)?.getId();
-  const overlapIndex = cachedPage.events.findIndex(
-    (rawEvent) => rawEvent.event_id === earliestLoadedId
-  );
+  const overlapIndex = cachedHistoryJoinsBefore(gap, earliestLoadedId)
+    ? cachedPage.events.findIndex((rawEvent) => rawEvent.event_id === earliestLoadedId)
+    : -1;
   const loadedIds = new Set(loadedEvents.map((event) => event.getId()));
   const rawPrependEvents =
     overlapIndex > 0
@@ -682,6 +699,7 @@ export const loadRoomCachedPaginationSnapshot = async ({
   mapEvent,
   loadBefore = loadCachedRoomEventsBeforeFromCache,
   loadPaginationToken = loadCachedRoomPaginationTokenFromCache,
+  loadGap = loadRoomCacheGap,
 }: {
   sessionId: string;
   roomId: string;
@@ -690,12 +708,12 @@ export const loadRoomCachedPaginationSnapshot = async ({
   mapEvent: (rawEvent: Partial<IEvent>) => MatrixEvent;
   loadBefore?: LoadCachedRoomEventsBefore;
   loadPaginationToken?: LoadCachedRoomPaginationToken;
+  loadGap?: typeof loadRoomCacheGap;
 }): Promise<RoomCachedPaginationSnapshot> => {
-  const cachedBeforeToken = await loadPaginationToken(
-    sessionId,
-    roomId,
-    earliestLoadedEvent?.getId()
-  );
+  const [cachedBeforeToken, gap] = await Promise.all([
+    loadPaginationToken(sessionId, roomId, earliestLoadedEvent?.getId()),
+    loadGap(sessionId, roomId),
+  ]);
 
   if (cachedBeforeToken === null) {
     return {
@@ -704,6 +722,12 @@ export const loadRoomCachedPaginationSnapshot = async ({
       hasMoreCachedBack: false,
       status: 'start-known',
     };
+  }
+
+  // The cached events just older than an event after a hole are older runs, not its neighbours:
+  // only the server can page across the hole.
+  if (!cachedHistoryJoinsBefore(gap, earliestLoadedEvent?.getId())) {
+    return { cachedBeforeToken, events: [], hasMoreCachedBack: false, status: 'cache-miss' };
   }
 
   const cachedPage = await loadBefore(

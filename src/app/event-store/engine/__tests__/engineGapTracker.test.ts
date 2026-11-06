@@ -18,6 +18,7 @@ import {
   type GapFillScheduler,
 } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
+import { loadRoomCacheGap } from '../../cache/db';
 
 const captureEnqueues = (scheduler: GapFillScheduler): GapFillJob[] => {
   const jobs: GapFillJob[] = [];
@@ -327,6 +328,56 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
       },
     ]);
     tracker.stop();
+  });
+
+  it('keeps cache readers off the gap from the reset until its marker is durable', async () => {
+    const noMarker = async () => undefined;
+    let commit: (() => void) | undefined;
+    markDiscontinuity.mockImplementationOnce(
+      (_sessionId, _roomId, marker) =>
+        new Promise((resolve) => {
+          commit = () => resolve(marker);
+        })
+    );
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'held-session',
+      scheduler: createInMemoryGapFillScheduler(),
+      markDiscontinuity,
+      loadCachedTail,
+      now: () => 1000,
+    });
+    const room = makeRoom({ roomId: '!held', paginationToken: 'batch-1' });
+
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+    expect(await loadRoomCacheGap('held-session', '!held', noMarker)).toBeDefined();
+    await vi.waitFor(() => expect(commit).toBeDefined());
+    expect(await loadRoomCacheGap('held-session', '!held', noMarker)).toBeDefined();
+
+    commit?.();
+    await vi.waitFor(async () =>
+      expect(await loadRoomCacheGap('held-session', '!held', noMarker)).toBeUndefined()
+    );
+    tracker.stop();
+  });
+
+  it('lets go of an unsaved gap when the tracker stops', async () => {
+    const noMarker = async () => undefined;
+    markDiscontinuity.mockImplementationOnce(() => new Promise(() => undefined));
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'stopped-session',
+      scheduler: createInMemoryGapFillScheduler(),
+      markDiscontinuity,
+      loadCachedTail,
+    });
+    const room = makeRoom({ roomId: '!stopped', paginationToken: 'batch-1' });
+
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+    expect(await loadRoomCacheGap('stopped-session', '!stopped', noMarker)).toBeDefined();
+    tracker.stop();
+    expect(await loadRoomCacheGap('stopped-session', '!stopped', noMarker)).toBeUndefined();
   });
 
   it('cancels an undurable marker retry when the tracker stops', async () => {

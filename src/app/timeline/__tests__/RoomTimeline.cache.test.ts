@@ -261,7 +261,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
       loadLatestCachedRoomEventsMock.mockResolvedValue({
         beforeToken: undefined,
-        events: [makeCachedRoomEvent('$cached', 200)],
+        // The cached page holds the loaded tail, so its newer events continue it.
+        events: [makeCachedRoomEvent('$loaded', 100), makeCachedRoomEvent('$cached', 200)],
         hasMoreBefore: false,
       });
 
@@ -1442,7 +1443,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
       loadLatestCachedRoomEventsMock.mockResolvedValue({
         beforeToken: undefined,
-        events: [makeCachedRoomEvent('$cached', 200)],
+        // The cached page holds the loaded tail, so its newer events continue it.
+        events: [makeCachedRoomEvent('$loaded', 100), makeCachedRoomEvent('$cached', 200)],
         hasMoreBefore: false,
       });
       room.addLiveEvents.mockRejectedValueOnce(hydrationError);

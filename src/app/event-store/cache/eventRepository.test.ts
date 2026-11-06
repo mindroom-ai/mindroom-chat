@@ -833,6 +833,79 @@ describe('eventRepository latest room cache hydration snapshots', () => {
     expect(snapshot.cachedPage.events).toHaveLength(2);
     expect(snapshot.loadedRoomCount).toBe(1);
   });
+
+  // A limited sync leaves a hole in the cache: runs of newer events around missing ones.
+  const mapByIdAndTs = (rawEvent: Partial<IEvent>) =>
+    makeEvent(rawEvent.event_id ?? '$missing', { ts: rawEvent.origin_server_ts });
+  const gapBefore = (...eventIds: string[]) => async () => ({
+    beforeGapEventIds: new Set(eventIds),
+  });
+
+  it('adds no cached events around a hole the cache has not filled', async () => {
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [makeEvent('$after-gap', { ts: 500 })] as never,
+      mapEvent: mapByIdAndTs,
+      loadGap: gapBefore('$before-gap'),
+      loadLatest: async () => ({
+        events: [
+          { event_id: '$before-gap', origin_server_ts: 100 },
+          { event_id: '$earlier-run', origin_server_ts: 300 },
+          { event_id: '$after-gap', origin_server_ts: 500 },
+          { event_id: '$cached-newer', origin_server_ts: 600 },
+        ],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('already-loaded');
+    expect(snapshot.events).toEqual([]);
+    expect(snapshot.prependEvents).toEqual([]);
+  });
+
+  it('prepends cached history before an event from before the hole', async () => {
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 32,
+      loadedEvents: [makeEvent('$before-gap', { ts: 200 })] as never,
+      mapEvent: mapByIdAndTs,
+      loadGap: gapBefore('$older', '$before-gap'),
+      loadLatest: async () => ({
+        events: [
+          { event_id: '$older', origin_server_ts: 100 },
+          { event_id: '$before-gap', origin_server_ts: 200 },
+        ],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.prependEvents.map((event) => event.getId())).toEqual(['$older']);
+    expect(snapshot.events).toEqual([]);
+  });
+
+  it('does not append a cached page that starts after the loaded tail', async () => {
+    const snapshot = await loadLatestRoomCacheHydrationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      limit: 2,
+      loadedEvents: [makeEvent('$loaded-tail', { ts: 100 })] as never,
+      mapEvent: mapByIdAndTs,
+      loadGap: async () => undefined,
+      loadLatest: async () => ({
+        events: [
+          { event_id: '$cached-later', origin_server_ts: 300 },
+          { event_id: '$cached-latest', origin_server_ts: 400 },
+        ],
+        hasMoreBefore: true,
+      }),
+    });
+
+    expect(snapshot.status).toBe('already-loaded');
+    expect(snapshot.events).toEqual([]);
+  });
 });
 
 describe('eventRepository room cached-back state snapshots', () => {
@@ -916,6 +989,51 @@ describe('eventRepository room cached pagination snapshots', () => {
     expect(snapshot.events.map((event) => event.getId())).toEqual(['$newer', '$older']);
     expect(snapshot.beforeToken).toBe('before-older');
     expect(snapshot.hasMoreCachedBack).toBe(true);
+  });
+
+  it('leaves history before an event after a hole to the server', async () => {
+    let beforeQueried = false;
+
+    const snapshot = await loadRoomCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      earliestLoadedEvent: makeEvent('$after-gap', { ts: 300 }) as never,
+      limit: 50,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
+      loadPaginationToken: async () => 'token-before-gap-run',
+      loadGap: async () => ({ beforeGapEventIds: new Set(['$before-gap']) }),
+      loadBefore: async () => {
+        beforeQueried = true;
+        return {
+          events: [{ event_id: '$before-gap', origin_server_ts: 100 }],
+          hasMoreBefore: false,
+        };
+      },
+    });
+
+    expect(beforeQueried).toBe(false);
+    expect(snapshot.status).toBe('cache-miss');
+    expect(snapshot.events).toEqual([]);
+    expect(snapshot.hasMoreCachedBack).toBe(false);
+  });
+
+  it('pages the cache before an event from before the hole', async () => {
+    const snapshot = await loadRoomCachedPaginationSnapshot({
+      sessionId: 'session',
+      roomId: '!room:example.org',
+      earliestLoadedEvent: makeEvent('$before-gap', { ts: 300 }) as never,
+      limit: 50,
+      mapEvent: (rawEvent) => makeEvent(rawEvent.event_id ?? '$missing'),
+      loadPaginationToken: async () => undefined,
+      loadGap: async () => ({ beforeGapEventIds: new Set(['$before-gap']) }),
+      loadBefore: async () => ({
+        events: [{ event_id: '$older', origin_server_ts: 100 }],
+        hasMoreBefore: false,
+      }),
+    });
+
+    expect(snapshot.status).toBe('cache-hit');
+    expect(snapshot.events.map((event) => event.getId())).toEqual(['$older']);
   });
 });
 
