@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css';
-import { color, config } from 'folds';
+import { color, config, toRem } from 'folds';
 
 // Larger screens center the dialog clear of the status bar and the home indicator, so it never
 // slides under a notch and its shadow stays off the strip the page shows there.
@@ -19,6 +19,16 @@ export const PhoneInsetOverlayCenter = style({
   paddingRight: phoneMargin('env(safe-area-inset-right, 0px)'),
   paddingBottom: phoneMargin('env(safe-area-inset-bottom, 0px)'),
   paddingLeft: phoneMargin('env(safe-area-inset-left, 0px)'),
+});
+
+// A list of a few accounts needs about 480 px, not the 800 px of the settings dialog. A phone's
+// dialog that fills its screen still fills it (PhoneModal wins).
+export const NarrowModal = style({
+  selectors: {
+    '&&': {
+      maxWidth: `min(${toRem(480)}, calc(100% - 2 * ${config.space.S400}))`,
+    },
+  },
 });
 
 // On phones a dialog that fills the screen is a screen of its own: no margin, rounded corners or

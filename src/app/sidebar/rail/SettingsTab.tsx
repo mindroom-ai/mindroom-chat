@@ -24,7 +24,6 @@ import { withAddAccountSearch } from '../../navigation/addAccount';
 import { resolveSessionRestorePath } from '../../routes/sessionRouteRestore';
 import { AccountMenu } from '../../account/switcher/AccountMenu';
 import { AccountSwitcher } from '../../account/switcher/AccountSwitcher';
-import { AccountsDialog } from '../../account/switcher/AccountSwitcher.css';
 import { useAccountRemoval } from '../../account/switcher/useAccountRemoval';
 import { useShortcut } from '../../shortcuts/useShortcut';
 
@@ -249,12 +248,7 @@ export function SettingsTab() {
         )}
       </SidebarItem>
       {switcherOpen && (
-        <Modal500
-          requestClose={() => setSwitcherOpen(false)}
-          fillPhoneScreen
-          fitContent
-          className={AccountsDialog}
-        >
+        <Modal500 requestClose={() => setSwitcherOpen(false)} fillPhoneScreen fitContent narrow>
           <AccountSwitcher
             accounts={sessions.map((session) => ({
               session,

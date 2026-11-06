@@ -22,6 +22,8 @@ interface Modal500Props {
    * place between pages (the account switcher). A phone that fills its screen still fills it.
    */
   fitContent?: boolean;
+  /** About 480 px wide instead of 800, for a short list such as the accounts. */
+  narrow?: boolean;
   /** Sizes the dialog, such as the wider settings dialog. */
   className?: string;
   children: ReactNode;
@@ -72,6 +74,7 @@ export function Modal500({
   requestClose,
   fillPhoneScreen = false,
   fitContent = false,
+  narrow = false,
   className,
   children,
 }: Modal500Props) {
@@ -91,7 +94,12 @@ export function Modal500({
             variant="Background"
             size="500"
             flexHeight={fitContent}
-            className={classNames(glassDenseOverBackdrop, fullScreen && css.PhoneModal, className)}
+            className={classNames(
+              glassDenseOverBackdrop,
+              narrow && css.NarrowModal,
+              fullScreen && css.PhoneModal,
+              className
+            )}
           >
             {children}
           </Modal>
