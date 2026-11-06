@@ -116,13 +116,24 @@ const roomModeOverride = (stack: AgentStack, roomId: string): string | undefined
   }
 };
 
-/** Moves the loaded client to a thread of `roomId`, as a link inside the app would. */
-const showRoomThread = async (page: Page, roomId: string, rootId: string) => {
-  await page.evaluate((url) => {
-    window.history.pushState(null, '', url);
+/** Moves the loaded client to `url`, as a link inside the app would. */
+const showInApp = (page: Page, url: string) =>
+  page.evaluate((target) => {
+    window.history.pushState(null, '', target);
     window.dispatchEvent(new PopStateEvent('popstate'));
-  }, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
+  }, url);
+
+/** Moves the loaded client to a thread of `roomId`. */
+const showRoomThread = async (page: Page, roomId: string, rootId: string) => {
+  await showInApp(page, `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
+};
+
+/** Moves the loaded client to the main conversation of `roomId` (sending from it opens a thread). */
+const showRoomMain = async (page: Page, roomId: string) => {
+  await showInApp(page, `/home/${encodeURIComponent(roomId)}`);
+  await expect(page.locator('[data-thread-context-banner]')).toHaveCount(0, { timeout: 30_000 });
+  await expect(composer(page)).toBeVisible({ timeout: 30_000 });
 };
 
 test('a canvas the agent shows in the open thread puts the canvas button in the header', async ({
@@ -215,11 +226,15 @@ const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scena
         message: 'the room answers in its main timeline',
       })
       .toBe('room');
+    await showRoomMain(page, roomId);
   }
 
   const word = uniqueWord('canvasroom');
   await mentionHelper(page, stack, `#canvas ${word}`);
-  if (scenario.conversation === 'thread') {
+  if (scenario.conversation === 'room') {
+    // The helper answers in the main timeline; its canvas belongs to the room's main conversation.
+    await showRoomMain(page, roomId);
+  } else {
     const root = page.locator('[data-message-id]').filter({ hasText: word }).first();
     // The row carries the local echo's ID until the server's answer arrives.
     await expect(root).toHaveAttribute('data-message-id', /^\$/, { timeout: 30_000 });
