@@ -2,7 +2,6 @@ import { useState, type MouseEvent, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
-import isHotkey from 'is-hotkey';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import {
@@ -105,9 +104,6 @@ export type RoomViewHeaderProps = {
 export type HeaderCallPlacement =
   | { at: 'header'; phone: boolean }
   | { at: 'menu'; requestClose: () => void };
-
-const menuForward = (event: KeyboardEvent) => isHotkey(['arrowdown', 'tab'], event);
-const menuBackward = (event: KeyboardEvent) => isHotkey(['arrowup', 'shift+tab'], event);
 
 type HeaderActionProps = {
   label: string;
@@ -538,9 +534,6 @@ export function RoomViewHeader({
                 setMenuAnchor(undefined);
                 return true;
               },
-              // The arrow keys move between the entries, as in the other menus.
-              isKeyForward: menuForward,
-              isKeyBackward: menuBackward,
             }}
           >
             <RoomHeaderMenu

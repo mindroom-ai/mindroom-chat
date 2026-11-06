@@ -89,7 +89,7 @@ const DESKTOP = { width: 1280, height: 800 };
 const openFromMenu = async (page: Page, entry: string): Promise<Locator> => {
   await page.getByRole('button', { name: 'More Options', exact: true }).focus();
   await page.keyboard.press('Enter');
-  const item = page.getByRole('button', { name: entry, exact: true });
+  const item = page.getByRole('menuitem', { name: entry, exact: true });
   await item.focus();
   await page.keyboard.press('Enter');
   const dialog = page.locator('[role=dialog], [role=alertdialog]').first();
@@ -114,8 +114,8 @@ const menuArrowKeys = async (page: Page) => {
   await openRoom(page, viewer, roomId);
   await page.getByRole('button', { name: 'More Options', exact: true }).focus();
   await page.keyboard.press('Enter');
-  const first = page.getByRole('button', { name: 'Mark as Read', exact: true });
-  const second = page.getByRole('button', { name: 'Notifications', exact: true });
+  const first = page.getByRole('menuitem', { name: 'Mark as Read', exact: true });
+  const second = page.getByRole('menuitem', { name: 'Notifications', exact: true });
   await expect(first).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(second).toBeFocused();
@@ -128,7 +128,7 @@ const leavePromptTakesFocus = async (page: Page) => {
   await openRoom(page, viewer, roomId);
   // With the pointer, as most people open it: the menu entry that had focus is gone then.
   await page.getByRole('button', { name: 'More Options', exact: true }).click();
-  await page.getByRole('button', { name: 'Leave Room', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Leave Room', exact: true }).click();
   const dialog = page.getByRole('alertdialog');
   await expect(dialog).toBeVisible();
   await expect

@@ -4,8 +4,8 @@ test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
 test('copy text omits tool markers and the side action includes tool calls', async ({ page }) => {
   await page.goto('/e2e/fixtures/message-copy.html');
-  const copyText = page.getByRole('button', { name: 'Copy Text', exact: true });
-  const copyWithToolCalls = page.getByRole('button', { name: 'Copy Text with Tool Calls' });
+  const copyText = page.getByRole('menuitem', { name: 'Copy Text', exact: true });
+  const copyWithToolCalls = page.getByRole('menuitem', { name: 'Copy Text with Tool Calls' });
   await expect(copyText).toBeVisible();
   await expect(copyWithToolCalls).toBeVisible();
 
@@ -48,8 +48,8 @@ test('copy text omits tool markers and the side action includes tool calls', asy
 
 test('copy text has no tool-call side action without tool markers', async ({ page }) => {
   await page.goto('/e2e/fixtures/message-copy.html?plain');
-  await expect(page.getByRole('button', { name: 'Copy Text', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Copy Text with Tool Calls' })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Copy Text', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Copy Text with Tool Calls' })).toHaveCount(0);
 });
 
 test.describe('on touch screens', () => {
@@ -58,8 +58,8 @@ test.describe('on touch screens', () => {
 
   test('the tool-call copy is a labelled row below Copy Text', async ({ page }) => {
     await page.goto('/e2e/fixtures/message-copy.html');
-    const copyText = page.getByRole('button', { name: 'Copy Text', exact: true });
-    const copyWithToolCalls = page.getByRole('button', { name: 'Copy Text with Tool Calls' });
+    const copyText = page.getByRole('menuitem', { name: 'Copy Text', exact: true });
+    const copyWithToolCalls = page.getByRole('menuitem', { name: 'Copy Text with Tool Calls' });
     await expect(copyWithToolCalls).toHaveText('Copy Text with Tool Calls');
 
     const primaryBox = (await copyText.boundingBox())!;

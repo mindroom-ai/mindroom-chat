@@ -115,11 +115,8 @@ test.describe('command palette', () => {
     await expect(trigger).toHaveCount(1);
     const header = page.getByRole('banner').filter({ hasText: currentName });
     await header.getByRole('button', { name: 'More Options' }).click();
-    // The sidebar's Message Search is a button too now; it opens the palette instead.
-    await page
-      .getByRole('button', { name: 'Message Search' })
-      .and(page.locator(':not([data-home-room-action])'))
-      .click();
+    // The sidebar's Message Search is a button, which opens the palette; the menu's is an entry.
+    await page.getByRole('menuitem', { name: 'Message Search' }).click();
     await expect(page).toHaveURL(
       new RegExp(`/search/\\?${new URLSearchParams({ rooms: currentId })}$`)
     );

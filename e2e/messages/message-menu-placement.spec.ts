@@ -126,7 +126,7 @@ const menusOpenAbove = async (
 
   // More Options.
   const toolbar = await openFromToolbar('More Options');
-  const copyLink = page.getByRole('button', { name: 'Copy Link' });
+  const copyLink = page.getByRole('menuitem', { name: 'Copy Link' });
   await expect(copyLink).toBeVisible();
   const menu = await popOutOf(copyLink);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/menu-${name}.png` });

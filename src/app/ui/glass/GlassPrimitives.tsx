@@ -28,6 +28,7 @@ import {
   useSurfaceContext,
 } from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
+import { MenuRoleProvider, useMenuBehaviour, useMenuItemRole } from './menuBehaviour';
 
 export type SurfaceAppearance = 'glass' | 'plain' | 'inherit';
 type AppearanceProps = { appearance?: SurfaceAppearance };
@@ -127,22 +128,30 @@ export const Surface = as<'div', SurfaceProps>(
 
 type MenuProps = Pick<ComponentProps<typeof FoldsMenu>, 'variant'> & AppearanceProps;
 export const Menu = as<'div', MenuProps>(
-  ({ className, variant = 'Surface', appearance = 'glass', ...props }, ref) => {
-    const surface = useSurface(ref, appearance, 'overlay', variant);
+  (
+    { className, variant = 'Surface', appearance = 'glass', role = 'menu', ...props },
+    ref
+  ) => {
+    const menu = useMenuBehaviour(role, ref, props.onKeyDown);
+    const surface = useSurface(menu.ref, appearance, 'overlay', variant);
     return (
       <ScrollHeaderProvider value={false}>
         <SurfaceProvider value={surface.context}>
-          <FoldsMenu
-            {...props}
-            ref={surface.ref}
-            variant={variant}
-            className={classNames(
-              surface.className,
-              appearance === 'glass' && glassScrollPanel,
-              appearance === 'glass' && glassFloating,
-              className
-            )}
-          />
+          <MenuRoleProvider value={role}>
+            <FoldsMenu
+              {...props}
+              role={role}
+              onKeyDown={menu.onKeyDown}
+              ref={surface.ref}
+              variant={variant}
+              className={classNames(
+                surface.className,
+                appearance === 'glass' && glassScrollPanel,
+                appearance === 'glass' && glassFloating,
+                className
+              )}
+            />
+          </MenuRoleProvider>
         </SurfaceProvider>
       </ScrollHeaderProvider>
     );
@@ -241,6 +250,6 @@ type MenuItemProps = Pick<
   ComponentProps<typeof FoldsMenuItem>,
   'variant' | 'fill' | 'size' | 'radii' | 'before' | 'after'
 >;
-export const MenuItem = as<'button', MenuItemProps>(({ fill = 'None', ...props }, ref) => (
-  <FoldsMenuItem {...props} fill={fill} ref={ref} />
+export const MenuItem = as<'button', MenuItemProps>(({ fill = 'None', role, ...props }, ref) => (
+  <FoldsMenuItem {...props} role={useMenuItemRole(role)} fill={fill} ref={ref} />
 ));

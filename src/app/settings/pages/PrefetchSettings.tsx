@@ -25,12 +25,6 @@ type ScopeLabelKey = (typeof SCOPE_CHOICES)[number]['labelKey'];
 const scopeLabelKey = (scope: PrefetchScope): ScopeLabelKey =>
   SCOPE_CHOICES.find((choice) => choice.value === scope)?.labelKey ?? SCOPE_CHOICES[0].labelKey;
 
-/** Moves focus between the menu items with the vertical arrow keys. */
-const pressed =
-  (key: 'ArrowDown' | 'ArrowUp') =>
-  (event: KeyboardEvent): boolean =>
-    event.key === key;
-
 type ScopeMenuProps = {
   current: PrefetchScope;
   onPick: (scope: PrefetchScope) => void;
@@ -44,8 +38,6 @@ function ScopeMenu({ current, onPick, onDismiss }: ScopeMenuProps) {
     clickOutsideDeactivates: true,
     escapeDeactivates: stopPropagation,
     onDeactivate: onDismiss,
-    isKeyForward: pressed('ArrowDown'),
-    isKeyBackward: pressed('ArrowUp'),
   };
 
   return (
@@ -58,7 +50,8 @@ function ScopeMenu({ current, onPick, onDismiss }: ScopeMenuProps) {
               variant="Surface"
               size="300"
               radii="300"
-              aria-pressed={value === current}
+              role="menuitemradio"
+              aria-checked={value === current}
               onClick={() => onPick(value)}
             >
               <Text size="T300">{t(labelKey)}</Text>

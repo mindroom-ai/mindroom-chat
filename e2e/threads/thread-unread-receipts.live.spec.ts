@@ -100,7 +100,7 @@ test('clears thread unread indicators through room mark-read and opening a threa
   await expect(roomLink.locator('..')).toHaveAttribute('data-highlight', 'false');
 
   await roomLink.click({ button: 'right' });
-  await page.getByRole('button', { name: 'Mark as Read', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Mark as Read', exact: true }).click();
   await expectUnread(firstCard, false);
   await expectUnread(secondCard, false);
 

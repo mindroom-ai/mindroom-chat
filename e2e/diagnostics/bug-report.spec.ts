@@ -113,7 +113,7 @@ test('one click sends a bug report the administrator receives without accepting 
       await reporterPage.goto(`/home/${encodeURIComponent(sourceRoomId)}`);
       const row = reporterPage.locator(`[data-message-id="${markerEventId}"]`);
       await row.getByText(marker).click({ button: 'right' });
-      await reporterPage.getByRole('button', { name: 'Report a bug', exact: true }).click();
+      await reporterPage.getByRole('menuitem', { name: 'Report a bug', exact: true }).click();
       // The reporter lands in the report thread with the summary and the attached JSON.
       await expect.poll(() => openedThreadId(reporterPage)).not.toBeNull();
       await expect(reporterPage.getByText(/Bug report from/).first()).toBeVisible();

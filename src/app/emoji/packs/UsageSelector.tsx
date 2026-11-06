@@ -67,7 +67,8 @@ export function UsageSelector<T extends UsageChoice>({
                   key={option}
                   size="300"
                   radii="300"
-                  aria-pressed={option === value}
+                  role="menuitemradio"
+                  aria-checked={option === value}
                   variant={option === value ? 'Primary' : 'Surface'}
                   fill={option === value ? 'Soft' : 'None'}
                   onClick={() => select(option)}

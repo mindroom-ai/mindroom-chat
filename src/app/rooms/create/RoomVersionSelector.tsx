@@ -54,7 +54,7 @@ function VersionMenu({ versions, selected, onPick, onDismiss }: VersionMenuProps
 
   return (
     <FocusTrap focusTrapOptions={trapOptions}>
-      <Menu>
+      <Menu role="none">
         <Box style={menuStyle} gap="200" direction="Column">
           <Text size="L400">{t('sharedUi.roomVersionSelector.versions')}</Text>
           <Box gap="100" wrap="Wrap">

@@ -145,7 +145,7 @@ const openInvite = async (page: Page, seeded: Seed) => {
   const entry = page.locator('a[href^="/home/"]').filter({ hasText: seeded.roomName }).first();
   await expect(entry).toBeVisible({ timeout: 60_000 });
   await entry.click({ button: 'right' });
-  await page.getByRole('button', { name: 'Invite', exact: true }).first().click();
+  await page.getByRole('menuitem', { name: 'Invite', exact: true }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Invite', exact: true });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -347,7 +347,7 @@ const slideSamples = async (page: Page, seeded: Seed) => {
   const entry = page.locator('a[href^="/home/"]').filter({ hasText: seeded.roomName }).first();
   await expect(entry).toBeVisible({ timeout: 60_000 });
   await entry.click({ button: 'right' });
-  const invite = page.getByRole('button', { name: 'Invite', exact: true }).first();
+  const invite = page.getByRole('menuitem', { name: 'Invite', exact: true }).first();
   await expect(invite).toBeVisible();
   await page.evaluate(() => {
     const samples: SlideSample[] = [];

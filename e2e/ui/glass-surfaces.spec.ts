@@ -674,7 +674,7 @@ test('nested page layouts share the outer material while portal menus own a surf
   await expect(menu).not.toHaveCSS('backdrop-filter', 'none');
   expect(await menu.evaluate((element) => element.parentElement === document.body)).toBe(true);
   await expect(page.getByTestId('settings-menu-header')).toHaveCSS('backdrop-filter', 'none');
-  await expect(page.getByRole('button', { name: 'Close nested menu' })).toBeFocused();
+  await expect(page.getByRole('menuitem', { name: 'Close nested menu' })).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
 });

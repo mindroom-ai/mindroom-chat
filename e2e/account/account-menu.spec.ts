@@ -138,13 +138,12 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   await page.reload();
   await waitForShell(page);
   await hidden();
-  // Threads stays one menu away, under Home's options; the menu renders last on the page, after
-  // the Home list's own THREADS heading.
+  // Threads stays one menu away, under Home's options.
   await page.goto('/home/');
   await waitForShell(page);
   await page.getByRole('button', { name: 'Home Options', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Mark as Read' })).toBeVisible();
-  await page.getByRole('button', { name: 'Threads', exact: true }).last().click();
+  await expect(page.getByRole('menuitem', { name: 'Mark as Read' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Threads', exact: true }).click();
   await expect(page).toHaveURL(/\/threads\/?$/);
 
   await chooseFromAccountMenu(page, 'Settings');

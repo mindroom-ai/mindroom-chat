@@ -1,5 +1,4 @@
 import FocusTrap from 'focus-trap-react';
-import isHotkey from 'is-hotkey';
 import { Box, Icon, Icons, Text, config } from 'folds';
 import { Menu, MenuItem } from './glass/GlassPrimitives';
 import { stopPropagation } from '../lib/keyboard';
@@ -18,8 +17,6 @@ type ChoiceMenuProps = {
   onDismiss(): void;
 };
 
-const arrowKey = (name: 'arrowdown' | 'arrowup') => (evt: KeyboardEvent) => isHotkey(name, evt);
-
 /**
  * A small menu of mutually exclusive options with a check at the chosen one, for a pop-out.
  * Arrow keys walk the options; Escape and clicks outside dismiss it.
@@ -29,8 +26,6 @@ export function ChoiceMenu({ label, choices, current, onChoose, onDismiss }: Cho
     <FocusTrap
       focusTrapOptions={{
         onDeactivate: onDismiss,
-        isKeyBackward: arrowKey('arrowup'),
-        isKeyForward: arrowKey('arrowdown'),
         escapeDeactivates: stopPropagation,
         clickOutsideDeactivates: true,
         initialFocus: false,

@@ -159,7 +159,7 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
       }, roomId);
       const roomHeader = page.locator('header').filter({ hasText: 'Design studio' });
       await roomHeader.getByRole('button').last().click();
-      await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
       for (const name of [
         'General',
         'Permissions',

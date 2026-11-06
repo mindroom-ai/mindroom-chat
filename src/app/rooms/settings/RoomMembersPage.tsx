@@ -81,7 +81,8 @@ function MembershipChoices({
               key={name}
               size="300"
               radii="300"
-              aria-pressed={index === current}
+              role="menuitemradio"
+              aria-checked={index === current}
               fill={index === current ? 'Soft' : 'None'}
               after={index === current ? <Icon size="50" src={Icons.Check} /> : undefined}
               onClick={() => onPick(index)}

@@ -54,11 +54,26 @@ export function SortableRoomNavItem({ parentSpaceId, room, ...props }: SortableR
     } satisfies SortableRoomNavItemData,
   });
 
+  // The room's menu renders elsewhere in the page but its events pass through this row: they are
+  // the menu's (its arrow keys, Enter on an entry), not the row's or a drag's.
+  const fromMenu = (evt: React.SyntheticEvent<HTMLElement>) =>
+    !evt.currentTarget.contains(evt.target as Node);
   const stopMenuActivation = (evt: React.SyntheticEvent<HTMLElement>) => {
+    if (fromMenu(evt)) return;
     if ((evt.target as HTMLElement).closest('button')) {
       evt.stopPropagation();
     }
   };
+  const rowListeners =
+    listeners &&
+    Object.fromEntries(
+      Object.entries(listeners).map(([name, listener]) => [
+        name,
+        (evt: React.SyntheticEvent<HTMLElement>) => {
+          if (!fromMenu(evt)) listener(evt);
+        },
+      ])
+    );
 
   return (
     <div
@@ -73,7 +88,7 @@ export function SortableRoomNavItem({ parentSpaceId, room, ...props }: SortableR
       onKeyDownCapture={stopMenuActivation}
       // No role, focus or ARIA of the drag library: the row's link and menu button stay its only
       // controls, and Alt with the up or down arrow key moves a room from the keyboard.
-      {...listeners}
+      {...rowListeners}
     >
       <RoomNavItem room={room} {...props} />
     </div>

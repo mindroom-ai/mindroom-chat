@@ -1,7 +1,6 @@
 import { MouseEventHandler, ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import isHotkey from 'is-hotkey';
 import { Chip, Icon, Icons, type RectCords, Text, config } from 'folds';
 import { PopOut } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
@@ -36,8 +35,6 @@ type TrapOptions = NonNullable<FocusTrap.Props['focusTrapOptions']>;
 // A click outside or Escape closes the menu; Escape does not reach handlers behind it.
 const DISMISSIBLE = { clickOutsideDeactivates: true, escapeDeactivates: stopPropagation };
 
-const arrowKey = (name: 'arrowdown' | 'arrowup') => (evt: KeyboardEvent) => isHotkey(name, evt);
-
 type ChipMenuProps = {
   anchor: RectCords | undefined;
   requestClose: () => void;
@@ -51,8 +48,6 @@ function ChipMenu({ anchor, requestClose, children, menu }: ChipMenuProps) {
     ...DISMISSIBLE,
     initialFocus: false,
     onDeactivate: requestClose,
-    isKeyForward: arrowKey('arrowdown'),
-    isKeyBackward: arrowKey('arrowup'),
   };
   return (
     <PopOut

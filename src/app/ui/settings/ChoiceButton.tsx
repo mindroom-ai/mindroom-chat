@@ -24,16 +24,12 @@ type ChoiceButtonProps<V> = {
   disabled?: boolean;
 };
 
-const isArrowKey = (key: string) => (event: KeyboardEvent) => event.key === key;
-
 /** Arrow keys move through the rows; Escape, Tab out or a click elsewhere dismiss the menu. */
 const menuTrap = (dismiss: () => void) => ({
   onDeactivate: dismiss,
   escapeDeactivates: stopPropagation,
   clickOutsideDeactivates: true,
   initialFocus: false as const,
-  isKeyBackward: isArrowKey('ArrowUp'),
-  isKeyForward: isArrowKey('ArrowDown'),
 });
 
 /**
@@ -62,7 +58,8 @@ export function ChoiceButton<V extends string | number>({
       size="300"
       radii="300"
       variant="Surface"
-      aria-pressed={choice.value === value}
+      role="menuitemradio"
+      aria-checked={choice.value === value}
       onClick={() => {
         onChoose(choice.value);
         close();

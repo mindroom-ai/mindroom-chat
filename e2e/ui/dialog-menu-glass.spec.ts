@@ -9,7 +9,7 @@ for (const theme of ['silver', 'dark']) {
     const title = page.locator('header');
     const scroll = title.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
     await page.getByRole('button', { name: 'Both', exact: true }).click();
-    await page.getByRole('button', { name: 'Emoji', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Emoji', exact: true }).click();
     const actions = page
       .getByRole('button', { name: 'Apply Changes', exact: true })
       .locator('xpath=../../..');

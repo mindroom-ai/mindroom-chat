@@ -95,7 +95,7 @@ test('a space is created from the rail and filled from its lobby', async ({ page
 
   // Add Room, Chat Room: the new room opens inside the space.
   await page.getByRole('button', { name: 'Add Room' }).first().click();
-  await page.getByRole('button', { name: 'Chat Room' }).click();
+  await page.getByRole('menuitem', { name: 'Chat Room' }).click();
   const roomDialog = page.getByRole('dialog', { name: 'Create Room' });
   await roomDialog.locator('input[name="nameInput"]').fill('Seedlings');
   await roomDialog.getByRole('button', { name: 'Create', exact: true }).click();
@@ -112,7 +112,7 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   await nav.getByRole('link', { name: 'Lobby', exact: true }).click();
   await expect(lobbyCard(page, 'Seedlings')).toBeVisible();
   await page.getByRole('button', { name: 'Add Room' }).first().click();
-  await page.getByRole('button', { name: 'Existing Room' }).click();
+  await page.getByRole('menuitem', { name: 'Existing Room' }).click();
   const picker = page.getByRole('dialog', { name: 'Add Existing' });
   await expect(picker.getByText('Seedlings', { exact: true })).toHaveCount(0);
   await picker.getByRole('textbox', { name: 'Search' }).fill('comp');
@@ -126,7 +126,7 @@ test('a space is created from the rail and filled from its lobby', async ({ page
 
   // Add Space, New Space: a subspace heading appears in the lobby.
   await page.getByRole('button', { name: 'Add Space' }).first().click();
-  await page.getByRole('button', { name: 'New Space' }).click();
+  await page.getByRole('menuitem', { name: 'New Space' }).click();
   const subspaceDialog = page.getByRole('dialog', { name: 'New Space' });
   await subspaceDialog.getByRole('textbox', { name: 'Name' }).fill('Orchard');
   await subspaceDialog.getByRole('button', { name: 'Create', exact: true }).click();
@@ -135,21 +135,21 @@ test('a space is created from the rail and filled from its lobby', async ({ page
 
   // A joined subspace can be pinned to the rail from its menu, and unpinned there again.
   await lobbyCard(page, 'Orchard').getByRole('button', { name: 'More Options' }).click();
-  await page.getByRole('button', { name: 'Pin to Sidebar' }).click();
+  await page.getByRole('menuitem', { name: 'Pin to Sidebar' }).click();
   const rail = page.getByRole('group', { name: 'Spaces' });
   await expect(rail.locator('button[data-id]')).toHaveCount(2);
   await rail.locator('button[data-id]').last().click({ button: 'right' });
-  await page.getByRole('button', { name: 'Unpin' }).click();
+  await page.getByRole('menuitem', { name: 'Unpin' }).click();
   await expect(rail.locator('button[data-id]')).toHaveCount(1);
 
   // A room's menu marks it suggested, then takes it out of the space.
   const compost = lobbyCard(page, 'Compost');
   await compost.getByRole('button', { name: 'More Options' }).click();
-  await page.getByRole('button', { name: 'Set Suggested' }).click();
+  await page.getByRole('menuitem', { name: 'Set Suggested' }).click();
   await expect(compost.getByText('Suggested', { exact: true })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('lobby-filled.png') });
   await compost.getByRole('button', { name: 'More Options' }).click();
-  await page.getByRole('button', { name: 'Remove' }).click();
+  await page.getByRole('menuitem', { name: 'Remove' }).click();
   await expect(lobbyCard(page, 'Compost')).toHaveCount(0);
   await expect(nav.getByRole('link', { name: 'Compost', exact: true })).toHaveCount(0);
   const children = await matrixFetch<{ content: Record<string, unknown> }[]>(

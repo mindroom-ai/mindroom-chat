@@ -131,7 +131,7 @@ test('the room header menu switches the room notification mode', async ({ page }
 
   await page.getByRole('link', { name: /Release Train/ }).click();
   await page.getByRole('button', { name: 'More Options', exact: true }).last().click();
-  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Notifications', exact: true }).click();
   const modes = page.getByRole('menu', { name: 'Notifications' });
   await expect(modes.getByRole('menuitemradio', { name: 'Default' })).toHaveAttribute(
     'aria-checked',
@@ -153,7 +153,7 @@ test('the room header menu switches the room notification mode', async ({ page }
   await expect(page.getByRole('link', { name: /Release Train/ }).getByLabel('Muted')).toBeVisible();
 
   await page.getByRole('button', { name: 'More Options', exact: true }).last().click();
-  await page.getByRole('button', { name: 'Notifications', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Notifications', exact: true }).click();
   await expect(modes.getByRole('menuitemradio', { name: 'Mute' })).toHaveAttribute(
     'aria-checked',
     'true'

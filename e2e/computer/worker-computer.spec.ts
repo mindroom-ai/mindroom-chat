@@ -76,10 +76,10 @@ test('watch, type, resume in the originating thread, and recover on desktop/mobi
   // Leave Room is always in the menu, so an absent entry is not just a menu that has not rendered.
   const expectNoShowComputerInMenu = async () => {
     await page.getByRole('button', { name: 'More Options', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Leave Room', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'Leave Room', exact: true })).toBeVisible();
     await expect(showComputer).toHaveCount(0);
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('button', { name: 'Leave Room', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'Leave Room', exact: true })).toHaveCount(0);
   };
   await expectNoShowComputerInMenu();
   await openSettingsFromAccountRail(page);

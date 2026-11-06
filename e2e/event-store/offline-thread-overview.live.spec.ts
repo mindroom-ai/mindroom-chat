@@ -96,7 +96,7 @@ test('restores all 400 downloaded threads behind a long room history while offli
   const header = page.locator('header').filter({ hasText: roomName });
   await header.getByRole('button').last().focus();
   await page.keyboard.press('Enter');
-  await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
   await page.getByRole('button', { name: 'General', exact: true }).click();
   await page.getByRole('button', { name: 'Download entire room', exact: true }).click();
   const { activeSessionId } = await readSessionStore(page);

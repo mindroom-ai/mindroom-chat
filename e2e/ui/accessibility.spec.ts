@@ -369,9 +369,9 @@ test.describe.serial('keyboard and accessibility', () => {
     const homeOptions = page.getByRole('button', { name: 'Home Options', exact: true });
     await homeOptions.focus();
     await page.keyboard.press('Enter');
-    await expect(page.getByRole('button', { name: 'Mark as Read' })).toBeFocused();
+    await expect(page.getByRole('menuitem', { name: 'Mark as Read' })).toBeFocused();
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('button', { name: 'Mark as Read' })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'Mark as Read' })).toHaveCount(0);
     await expect(homeOptions).toBeFocused();
 
     await openRoom(page);

@@ -42,7 +42,7 @@ test.describe('complete interface localization', () => {
       (window as Window & { localizationMarker?: string }).localizationMarker = 'same-document';
     });
     await page.getByRole('button', { name: 'English', exact: true }).click();
-    await page.getByRole('button', { name: 'Español', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Español', exact: true }).click();
     await expect(page.locator('html')).toHaveAttribute('lang', 'es');
     await expect(page.getByText('Idioma de la aplicación', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Español', exact: true })).toBeVisible();
@@ -64,8 +64,8 @@ test.describe('complete interface localization', () => {
         code === 'ar' ? { width: 390, height: 844 } : { width: 1280, height: 900 }
       );
       await page.getByRole('button', { name: selected, exact: true }).click();
-      await expect(page.getByRole('button', { name: 'বাংলা', exact: true })).toBeAttached();
-      await page.getByRole('button', { name: nativeName, exact: true }).click();
+      await expect(page.getByRole('menuitemradio', { name: 'বাংলা', exact: true })).toBeAttached();
+      await page.getByRole('menuitemradio', { name: nativeName, exact: true }).click();
       await expect(page.locator('html')).toHaveAttribute('lang', code);
       await expect(page.locator('html')).toHaveAttribute('dir', direction);
       await expect(page.getByText(label, { exact: true })).toBeVisible();

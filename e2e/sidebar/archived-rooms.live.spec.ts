@@ -63,9 +63,9 @@ for (const mobile of [false, true]) {
       } else {
         await page.getByRole('link', { name, exact: true }).click({ button: 'right' });
       }
-      await expect(page.getByRole('button', { name: 'Leave Room', exact: true })).toBeVisible();
-      await page.getByRole('button', { name: 'Archive Room', exact: true }).click();
-      await expect(page.getByRole('button', { name: 'Archive Room', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('menuitem', { name: 'Leave Room', exact: true })).toBeVisible();
+      await page.getByRole('menuitem', { name: 'Archive Room', exact: true }).click();
+      await expect(page.getByRole('menuitem', { name: 'Archive Room', exact: true })).toHaveCount(0);
       await page.goto('/home/');
       await waitForLoggedInShell(page);
       await expect(page.getByRole('link', { name, exact: true })).toHaveCount(0);

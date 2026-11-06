@@ -166,7 +166,7 @@ for (const [themeId, width] of [
       await scroller.getByRole('scrollbar').hover();
       await page.screenshot({ path: testInfo.outputPath('space-header-scrolled.png') });
       await header.getByRole('button').click();
-      await page.getByRole('button', { name: 'Space Settings', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Space Settings', exact: true }).click();
       await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
       const settingsHeader = page
         .getByRole('button', { name: 'General', exact: true })

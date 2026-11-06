@@ -263,8 +263,8 @@ const openRoomSettings = async (page: Page, roomName: string): Promise<void> => 
   // Keyboard activation avoids mobile WebKit consuming the first tap to reveal its tooltip.
   await roomHeader.getByRole('button').last().focus();
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('button', { name: 'Room Settings', exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Room Settings', exact: true })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
   const general = page.getByRole('button', { name: 'General', exact: true });
   await expect(general).toBeVisible();
   await general.click();

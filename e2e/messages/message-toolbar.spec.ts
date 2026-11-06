@@ -242,7 +242,7 @@ test.describe('message hover toolbar', () => {
 
     // The toolbar stays while its menu is open, and the open menu's button keeps a stronger tint.
     const more = plainRow.getByRole('button', { name: 'More Options', exact: true });
-    const copyLink = page.getByRole('button', { name: 'Copy Link', exact: true });
+    const copyLink = page.getByRole('menuitem', { name: 'Copy Link', exact: true });
     await more.click();
     await expect(more).toHaveAttribute('aria-pressed', 'true');
     await expect(copyLink).toBeVisible();

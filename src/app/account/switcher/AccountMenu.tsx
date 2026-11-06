@@ -1,10 +1,10 @@
 import { useId, useMemo } from 'react';
 import FocusTrap from 'focus-trap-react';
-import isHotkey from 'is-hotkey';
 import { Avatar, Box, Icons, Line, Text, config, toRem } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { PopOut, ownDirectionLine } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { useMenuBehaviour } from '../../ui/glass/menuBehaviour';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import type { StoredSession } from '../../matrix/session/sessions';
@@ -32,9 +32,6 @@ type AccountMenuProps = {
   onManageAccounts?: () => void;
   onClose: () => void;
 };
-
-const forward = (event: KeyboardEvent) => isHotkey(['arrowdown', 'tab'], event);
-const backward = (event: KeyboardEvent) => isHotkey(['arrowup', 'shift+tab'], event);
 
 const twoLineRow = { blockSize: 'auto', minBlockSize: toRem(44), paddingBlock: config.space.S100 };
 const textColumn = { minWidth: 0, flexGrow: 1, textAlign: 'start' } as const;
@@ -84,6 +81,8 @@ export function AccountMenu({
   const { t } = useTranslation();
   const nameId = useId();
   const userIdId = useId();
+  // The entries below the account's name are the menu; the name heads it.
+  const entries = useMenuBehaviour<HTMLDivElement>('menu', undefined, undefined);
   const anchorRect = useMemo(() => anchor.getBoundingClientRect(), [anchor]);
   const onAnchor = (target: EventTarget | null) =>
     target instanceof Node && anchor.contains(target);
@@ -102,11 +101,9 @@ export function AccountMenu({
         // The button toggles the menu itself, so its press passes through instead of closing.
         clickOutsideDeactivates: (event) => !onAnchor(event.target),
         allowOutsideClick: (event) => onAnchor(event.target),
-        isKeyForward: forward,
-        isKeyBackward: backward,
       }}
     >
-      <Menu style={{ inlineSize: toRem(272), maxInlineSize: 'calc(100vw - 5rem)' }}>
+      <Menu role="none" style={{ inlineSize: toRem(272), maxInlineSize: 'calc(100vw - 5rem)' }}>
         <Box alignItems="Center" gap="300" style={{ padding: config.space.S300 }}>
           <AccountAvatar
             userId={active.userId}
@@ -124,7 +121,13 @@ export function AccountMenu({
           </Box>
         </Box>
         <Line variant="Surface" size="300" />
-        <div role="menu" aria-labelledby={`${nameId} ${userIdId}`}>
+        <div
+          role="menu"
+          tabIndex={-1}
+          aria-labelledby={`${nameId} ${userIdId}`}
+          ref={entries.ref}
+          onKeyDown={entries.onKeyDown}
+        >
           <MenuGroup>
             <MenuEntry
               role="menuitem"

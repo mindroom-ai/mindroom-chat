@@ -68,7 +68,7 @@ export function VoiceVolumeButton({ className }: { className: string }) {
               escapeDeactivates: true,
             }}
           >
-            <Menu className={css.Menu}>
+            <Menu role="none" className={css.Menu}>
               <Range
                 min={0}
                 max={1}

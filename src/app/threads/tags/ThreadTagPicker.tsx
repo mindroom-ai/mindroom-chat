@@ -105,7 +105,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
               },
             }}
           >
-            <Menu style={{ minWidth: '12rem', maxWidth: '16rem' }}>
+            <Menu role="none" style={{ minWidth: '12rem', maxWidth: '16rem' }}>
               <div className={css.TagPickerInputContainer}>
                 <input
                   // The popover opens from a click; focus the field so typing works at once.

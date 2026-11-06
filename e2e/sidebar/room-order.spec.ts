@@ -175,7 +175,7 @@ test('a room dragged above another keeps its place after a reload and on a secon
 
   // Home's menu puts the rooms back in A to Z order and forgets the saved order.
   await page.getByRole('button', { name: 'Home Options' }).click();
-  await page.getByRole('button', { name: 'Sort Rooms A to Z' }).click();
+  await page.getByRole('menuitem', { name: 'Sort Rooms A to Z' }).click();
   await expect.poll(() => rowOrder(page, 'Home')).toEqual([alder, birch, cedar]);
   await expect.poll(() => savedLists(account)).toEqual({});
 });

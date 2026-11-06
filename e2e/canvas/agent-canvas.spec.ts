@@ -736,7 +736,7 @@ test("the room header brings back a conversation's canvases: a menu for several,
   await panel.getByRole('button', { name: 'Close canvas', exact: true }).click();
   await expect(panel).toHaveCount(0);
   await expect(canvasButton).toHaveAccessibleName('Canvases');
-  const choices = page.getByRole('button', { name: /^(Packing list|Travel plan)/ });
+  const choices = page.getByRole('menuitem', { name: /^(Packing list|Travel plan)/ });
   await canvasButton.click();
   await expect(choices).toHaveCount(2);
   await expect(choices.nth(0)).toContainText('Travel plan');
@@ -780,7 +780,7 @@ test("the room header brings back a conversation's canvases: a menu for several,
     await expect(panel.getByText(`Extra ${index}`, { exact: true })).toBeVisible();
   }
   await page.setViewportSize({ width: 1600, height: 480 });
-  const allChoices = page.getByRole('button', { name: /^(Packing list|Travel plan|Extra \d+)/ });
+  const allChoices = page.getByRole('menuitem', { name: /^(Packing list|Travel plan|Extra \d+)/ });
   await canvasButton.click();
   await expect(allChoices).toHaveCount(12);
   const menu = allChoices.first().locator('xpath=ancestor::*[contains(@style, "max-height")][1]');

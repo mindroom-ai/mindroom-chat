@@ -132,7 +132,7 @@ const sizes = async (
     const entry = page.locator('a[href^="/home/"]').filter({ hasText: ROOM }).first();
     await expect(entry).toBeVisible({ timeout: 60_000 });
     await entry.click({ button: 'right' });
-    await page.getByRole('button', { name: 'Invite', exact: true }).first().click();
+    await page.getByRole('menuitem', { name: 'Invite', exact: true }).first().click();
     const search = page.getByRole('dialog', { name: 'Invite', exact: true }).getByRole('combobox');
     await expect(search).toBeVisible();
     found.inviteSearch = await fontSize(search);

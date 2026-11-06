@@ -172,7 +172,8 @@ function LevelPicker({
               key={choice.level}
               size="300"
               radii="300"
-              aria-pressed={choice.level === level}
+              role="menuitemradio"
+              aria-checked={choice.level === level}
               fill={choice.level === level ? 'Soft' : 'None'}
               onClick={() => {
                 hide();

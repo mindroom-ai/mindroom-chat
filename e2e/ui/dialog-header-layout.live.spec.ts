@@ -97,14 +97,14 @@ for (const themeId of ['dark-theme', 'silver-theme']) {
         await header.getByRole('button').last().click();
       }
       await roomHeader.getByRole('button').last().click();
-      await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
       await page.getByRole('button', { name: 'Members', exact: true }).click();
       const header = page
         .locator('header')
         .filter({ has: page.getByText('1 Member', { exact: true }) });
       const scroll = header.locator('xpath=ancestor::*[@data-y-scrollbar-width][1]');
       await scroll.getByRole('button', { name: 'Joined', exact: true }).click();
-      await page.getByRole('button', { name: 'Invited', exact: true }).click();
+      await page.getByRole('menuitemradio', { name: 'Invited', exact: true }).click();
       await expect(scroll.getByRole('button', { name: /Studio guest 01/ })).toBeVisible();
       await scroll.evaluate((element) => {
         element.scrollTop = 500;

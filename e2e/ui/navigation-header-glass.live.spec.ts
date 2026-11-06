@@ -141,7 +141,7 @@ for (const [themeId, width] of [
           // eslint-disable-next-line no-await-in-loop
           await header.getByRole('button').click();
           // eslint-disable-next-line no-await-in-loop
-          await expect(page.getByRole('button', { name: /Mark.*read/i })).toBeVisible();
+          await expect(page.getByRole('menuitem', { name: /Mark.*read/i })).toBeVisible();
           // eslint-disable-next-line no-await-in-loop
           await page.keyboard.press('Escape');
           const row = panel
@@ -154,7 +154,7 @@ for (const [themeId, width] of [
           await row.getByRole('button', { name: 'More Options', exact: true }).click();
           // eslint-disable-next-line no-await-in-loop
           await expect(
-            page.getByRole('button', { name: 'Room Settings', exact: true })
+            page.getByRole('menuitem', { name: 'Room Settings', exact: true })
           ).toBeVisible();
           // eslint-disable-next-line no-await-in-loop
           await page.keyboard.press('Escape');
@@ -227,7 +227,7 @@ for (const [themeId, width] of [
       await navigate('/home/' + encodeURIComponent(rooms[0]));
       const roomHeader = page.locator('header').filter({ hasText: '01 · Design studio' });
       await roomHeader.getByRole('button').last().click();
-      await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
       await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
       const roomSettingsHeader = page
         .getByRole('button', { name: 'General', exact: true })

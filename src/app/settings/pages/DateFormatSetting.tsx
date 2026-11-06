@@ -93,7 +93,7 @@ function FormatHints() {
 
   // The tokens scroll beneath the title; the scrollbar is the focus trap's stop.
   return (
-    <Menu style={{ display: 'flex', width: toRem(280), maxHeight: '60vh' }}>
+    <Menu role="none" style={{ display: 'flex', width: toRem(280), maxHeight: '60vh' }}>
       <PageScroll
         header={
           <Header size="400" variant="Surface" style={{ padding: `0 ${config.space.S300}` }}>

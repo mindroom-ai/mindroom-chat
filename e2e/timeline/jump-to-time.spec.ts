@@ -60,7 +60,7 @@ const signIn = async (page: Page, username: string) => {
 
 const openJumpToTime = async (page: Page) => {
   await page.getByRole('button', { name: 'More Options' }).click();
-  await page.getByRole('button', { name: 'Jump to Time' }).click();
+  await page.getByRole('menuitem', { name: 'Jump to Time' }).click();
   const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -176,7 +176,7 @@ test.describe('on a phone', () => {
 
     const header = page.getByRole('banner').filter({ has: roomViewSwitch(page) });
     await header.getByRole('button', { name: 'More Options' }).tap();
-    await page.getByRole('button', { name: 'Jump to Time' }).tap();
+    await page.getByRole('menuitem', { name: 'Jump to Time' }).tap();
     const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Beginning' }).tap();

@@ -28,8 +28,6 @@ export function SidebarContextMenu({ anchor, onClose, children }: SidebarContext
             returnFocusOnDeactivate: false,
             onDeactivate: onClose,
             clickOutsideDeactivates: true,
-            isKeyForward: (event: KeyboardEvent) => event.key === 'ArrowDown',
-            isKeyBackward: (event: KeyboardEvent) => event.key === 'ArrowUp',
             escapeDeactivates: stopPropagation,
           }}
         >

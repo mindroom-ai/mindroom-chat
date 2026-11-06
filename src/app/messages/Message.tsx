@@ -290,6 +290,8 @@ export function MessageCopyTextItem({
         size="300"
       />
       <IconButton
+        // The second action of the row, a row of the message menu of its own.
+        role="menuitem"
         size="300"
         radii="300"
         variant="Surface"
@@ -886,7 +888,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
               : { insetBlockStart: `${toolbarClearance}px` }
           }
         >
-          <Menu variant="SurfaceVariant" className={css.MessageOptionsBar}>
+          <Menu role="none" variant="SurfaceVariant" className={css.MessageOptionsBar}>
             <Box className={css.MessageOptionsRow}>
               {canSendReaction && confirmed && onReactionToggle && (
                 <ToolbarAction

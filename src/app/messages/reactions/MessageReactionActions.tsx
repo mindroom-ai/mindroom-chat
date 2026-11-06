@@ -27,6 +27,8 @@ type QuickReactionProps = {
 function QuickReaction({ label, onSelect, children }: QuickReactionProps) {
   return (
     <IconButton
+      // One of the message menu's rows.
+      role="menuitem"
       className={css.MessageQuickReaction}
       size="300"
       radii="300"
@@ -161,7 +163,7 @@ export function MessageAllReactionItem({
         label={t('mindroomUi.messages.messageReactionActions.viewReactions')}
         icon={Icons.Smile}
         aria-haspopup="dialog"
-        aria-pressed={viewing}
+        aria-expanded={viewing}
         onSelect={() => setViewing(true)}
       />
     </>

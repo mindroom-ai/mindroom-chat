@@ -170,7 +170,7 @@ const shootFocusAndRoom = async (page: Page, theme: 'dark' | 'light', roomId: st
   await page.keyboard.press('Escape');
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   await page.locator('header').filter({ hasText: ROOMS[0] }).getByRole('button').last().click();
-  await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
   await expect(page.getByRole('button', { name: 'General', exact: true })).toBeVisible();
   await page.mouse.move(0, 0);
   await page.waitForTimeout(400);
@@ -363,7 +363,7 @@ const checkSpacing = async (page: Page, prefix: string, keyboard: boolean) => {
   // Room settings share the menu rows and the page frame.
   await page.goto(`/home/${encodeURIComponent(roomId!)}`);
   await page.locator('header').filter({ hasText: ROOMS[0] }).getByRole('button').last().click();
-  await page.getByRole('button', { name: 'Room Settings', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
   const general = page.getByRole('button', { name: 'General', exact: true });
   await expect(general).toBeVisible();
   await page.mouse.move(0, 0);

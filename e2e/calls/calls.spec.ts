@@ -361,7 +361,7 @@ test.describe('calls', () => {
       .filter({ hasText: 'Standup' })
       .getByRole('button', { name: 'More Options' })
       .click();
-    await alicePage.getByRole('button', { name: 'Room Settings', exact: true }).click();
+    await alicePage.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
     await alicePage.getByRole('button', { name: 'Permissions', exact: true }).click();
     await alicePage.getByRole('button', { name: 'Start or Join Call: Moderator' }).click();
     await alicePage

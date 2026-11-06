@@ -46,7 +46,7 @@ export function AutocompleteMenu({ requestClose, headerContent, children }: Auto
   );
   const menu = (
     <FocusTrap focusTrapOptions={trapOptions}>
-      <Menu className={css.AutocompleteMenu}>
+      <Menu role="none" className={css.AutocompleteMenu}>
         <PageScroll header={heading} onKeyDown={preventScrollWithArrowKey} scrollbarTabIndex={-1}>
           <div className={css.AutocompleteMenuItems}>{children}</div>
         </PageScroll>
