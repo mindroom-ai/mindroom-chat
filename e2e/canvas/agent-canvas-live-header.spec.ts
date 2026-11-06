@@ -6,6 +6,8 @@ import {
   lobbyEvents,
   mentionHelper,
   openLobby,
+  openNewSession,
+  sendFromComposer,
   showThread,
   startThread,
   test,
@@ -13,6 +15,8 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 import { matrixFetch, redactEvent } from '../helpers/matrix';
+import { isPhoneLayout, roomMoreOptions } from '../helpers/roomMenu';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The header's canvas button follows the conversation's canvases while the page stays open: it
 // appears when the agent shows a canvas and goes away when the last one is deleted, with no reload.
@@ -136,47 +140,118 @@ test('a canvas the agent shows in the open thread puts the canvas button in the 
   }
 });
 
-for (const encrypted of [false, true]) {
-  const kind = encrypted ? 'an encrypted' : 'a plain';
-  test(`in ${kind} room, the canvas button comes with the agent's canvas and goes with its deletion`, async ({
-    page,
-    stack,
-  }) => {
-    const roomId = await createAgentRoom(stack, `Canvas desk ${uniqueWord('r')}`, encrypted);
-    await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
-    await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+type Scenario = { conversation: 'thread' | 'room'; encrypted: boolean };
 
-    const word = uniqueWord('canvasroom');
-    await mentionHelper(page, stack, `#canvas ${word}`);
+const SCENARIOS: Scenario[] = [
+  { conversation: 'thread', encrypted: false },
+  { conversation: 'thread', encrypted: true },
+  { conversation: 'room', encrypted: false },
+  { conversation: 'room', encrypted: true },
+];
+
+const scenarioName = ({ conversation, encrypted }: Scenario) =>
+  `${encrypted ? 'an encrypted' : 'a plain'} room's ${
+    conversation === 'thread' ? 'thread' : 'main timeline'
+  }`;
+
+/**
+ * Whether the conversation offers a canvas: the header's button, or on a phone the room menu's
+ * entry (the menu opens for the look and closes again).
+ */
+const canvasOffered = async (page: Page): Promise<boolean> => {
+  if (!isPhoneLayout(page)) return (await headerCanvasButton(page).count()) > 0;
+  await roomMoreOptions(page).click();
+  const entry = page.getByRole('menuitem', { name: /^(Show Canvas|Hide Canvas|Canvases)$/ });
+  await expect(page.getByRole('menu')).toBeVisible();
+  const offered = (await entry.count()) > 0;
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  return offered;
+};
+
+const expectCanvasOffered = async (
+  page: Page,
+  offered: boolean,
+  shot: string,
+  timeout = 20_000
+) => {
+  try {
+    await expect.poll(() => canvasOffered(page), { timeout }).toBe(offered);
+  } finally {
+    await attachIndex(page, `${shot}.json`);
+    await page.screenshot({ path: test.info().outputPath(`${shot}.png`) });
+  }
+};
+
+/**
+ * The helper shows a canvas in the conversation while the page stays open, and the room's creator
+ * then deletes it: the canvas button (a phone's room menu entry) comes and goes with it.
+ */
+const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scenario) => {
+  const roomId = await createAgentRoom(stack, `Canvas desk ${uniqueWord('r')}`, scenario.encrypted);
+  await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
+  await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+  if (scenario.conversation === 'room') {
+    // The room's creator is its admin, and so may move its agents to the main timeline.
+    await sendFromComposer(page, '!thread_mode room');
+    await expect
+      .poll(
+        () =>
+          matrixFetch<{ mode?: string }>(
+            stack.homeserver,
+            `/rooms/${encodeURIComponent(roomId)}/state/io.mindroom.thread_mode/`,
+            { accessToken: stack.tester.accessToken }
+          ).then(
+            (content) => content.mode,
+            () => undefined
+          ),
+        { timeout: 60_000, message: 'the room answers in its main timeline' }
+      )
+      .toBe('room');
+  }
+
+  const word = uniqueWord('canvasroom');
+  await mentionHelper(page, stack, `#canvas ${word}`);
+  if (scenario.conversation === 'thread') {
     const root = page.locator('[data-message-id]').filter({ hasText: word }).first();
     // The row carries the local echo's ID until the server's answer arrives.
     await expect(root).toHaveAttribute('data-message-id', /^\$/, { timeout: 30_000 });
-    const rootId = (await root.getAttribute('data-message-id')) ?? '';
-    await showRoomThread(page, roomId, rootId);
+    await showRoomThread(page, roomId, (await root.getAttribute('data-message-id')) ?? '');
+  }
 
-    const open = page.getByRole('button', { name: 'Open canvas', exact: true }).first();
-    await expect(open).toBeVisible({ timeout: 120_000 });
-    try {
-      await expect(headerCanvasButton(page)).toBeVisible({ timeout: 20_000 });
-    } finally {
-      await attachIndex(page, 'canvas-index-shown.json');
-      await page.screenshot({ path: test.info().outputPath('canvas-shown.png') });
-    }
+  // The helper answers within seconds; the button must follow without a reload.
+  await expectCanvasOffered(page, true, 'canvas-shown', 120_000);
+  const listed = (await listedCanvases(page)) as { canvasId: string; roomId: string }[];
+  const canvasId = listed.find((entry) => entry.roomId === roomId)?.canvasId ?? '';
+  expect(canvasId).toMatch(/^\$/);
+  // The tester made the room, so it may delete the agent's message.
+  await redactEvent(stack.homeserver, stack.tester.accessToken, roomId, canvasId);
+  await expectCanvasOffered(page, false, 'canvas-deleted');
+};
 
-    const canvasRow = page
-      .locator('[data-message-id]')
-      .filter({ has: page.getByRole('button', { name: 'Open canvas', exact: true }) })
-      .last();
-    const canvasId = (await canvasRow.getAttribute('data-message-id')) ?? '';
-    expect(canvasId).toMatch(/^\$/);
-    // The tester made the room, so it may delete the agent's message.
-    await redactEvent(stack.homeserver, stack.tester.accessToken, roomId, canvasId);
-    await expect(open).toHaveCount(0, { timeout: 30_000 });
+for (const scenario of SCENARIOS) {
+  test(`in ${scenarioName(scenario)}, the canvas button comes with the agent's canvas and goes with its deletion`, async ({
+    page,
+    stack,
+  }) => {
+    await canvasComesAndGoes(page, stack, scenario);
+  });
+
+  test(`in ${scenarioName(scenario)}, the room menu's canvas entry comes and goes on a phone (WebKit)`, async ({
+    stack,
+    baseURL,
+  }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
+    const webkit = await launchWebKit();
     try {
-      await expect(headerCanvasButton(page)).toHaveCount(0, { timeout: 20_000 });
+      const page = await openNewSession(webkit, stack, {
+        baseURL,
+        viewport: { width: 390, height: 844 },
+        hasTouch: true,
+      });
+      await canvasComesAndGoes(page, stack, scenario);
     } finally {
-      await attachIndex(page, 'canvas-index-deleted.json');
-      await page.screenshot({ path: test.info().outputPath('canvas-deleted.png') });
+      await webkit.close();
     }
   });
 }
