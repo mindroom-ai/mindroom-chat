@@ -39,7 +39,10 @@ export const NavItem = recipe({
       color: 'var(--nav-item-on)',
       outline: 'none',
       selectors: {
-        '&:hover, &:focus-within': { backgroundColor: 'var(--nav-item-hover)' },
+        // A row whose menu is open keeps the tint it had under the pointer or the finger.
+        '&:hover, &:focus-within, &[data-menu-open=true]': {
+          backgroundColor: 'var(--nav-item-hover)',
+        },
         '&[data-selected=true]': { backgroundColor: 'var(--nav-item-active)' },
       },
     },

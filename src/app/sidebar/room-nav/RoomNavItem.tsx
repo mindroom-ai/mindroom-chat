@@ -382,6 +382,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
       {...engagementProps}
       {...longPress}
       style={pressableRow}
+      data-menu-open={optionsAnchor ? 'true' : undefined}
       onContextMenu={openContextMenu}
       highlight={Boolean(unread)}
       aria-selected={selected}
