@@ -60,9 +60,13 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
     // eslint-disable-next-line no-await-in-loop
     targetId = await sendRoomMessage(HOMESERVER, author.accessToken, roomId, {
       msgtype: 'm.text',
-      body: `example.org Route ${i + 1}: Review the route and confirm the handover before Thursday.`,
+      body: `example.org Route ${
+        i + 1
+      }: Review the route and confirm the handover before Thursday.`,
       format: 'org.matrix.custom.html',
-      formatted_body: `<a href="https://example.net/plan">example.org</a> Route ${i + 1}: Review the route and confirm the handover before Thursday.`,
+      formatted_body: `<a href="https://example.net/plan">example.org</a> Route ${
+        i + 1
+      }: Review the route and confirm the handover before Thursday.`,
     });
     // eslint-disable-next-line no-await-in-loop
     await matrixFetch(
@@ -97,9 +101,16 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
   });
   const page = await context.newPage();
   try {
-    await loginWithPassword(page, { homeserver: HOMESERVER, username: reader.username, password: PASSWORD });
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
     await seedRoomOverviewState({
-      page, roomId, userId: reader.userId, viewMode: 'threaded',
+      page,
+      roomId,
+      userId: reader.userId,
+      viewMode: 'threaded',
       filterState: createDefaultThreadFilterState(),
     });
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
@@ -117,13 +128,16 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
         await page.screenshot({ path: `${SHOTS}/timeline-${engine}-${scheme}.png` });
       }
       const audit = await page.evaluate(() => {
-        const controls = Array.from(document.querySelectorAll<HTMLElement>(
-          '[data-message-id] button, [data-message-id] a[href], [data-message-id] summary, [data-message-id] input'
-        )).filter((el) => {
+        const controls = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            '[data-message-id] button, [data-message-id] a[href], [data-message-id] summary, [data-message-id] input'
+          )
+        ).filter((el) => {
           const box = el.getBoundingClientRect();
           return box.width > 0 && box.height > 0 && box.top >= 0 && box.bottom <= innerHeight;
         });
-        const describe = (el: HTMLElement) => `${el.tagName} ${el.textContent?.trim().slice(0, 70)}`;
+        const describe = (el: HTMLElement) =>
+          `${el.tagName} ${el.textContent?.trim().slice(0, 70)}`;
         const conflicts: string[] = [];
         let layers = 0;
         controls.forEach((control) => {
@@ -140,8 +154,10 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
             controls.forEach((other) => {
               if (other === control || other.contains(control) || control.contains(other)) return;
               const neighbor = other.getBoundingClientRect();
-              if (Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
-                  Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5) {
+              if (
+                Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
+                Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5
+              ) {
                 conflicts.push(`${describe(control)} overlaps ${describe(other)}`);
               }
             });
@@ -151,10 +167,14 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
       });
       console.log(`${engine} ${scheme} raised-layer audit: ${JSON.stringify(audit)}`);
       expect(audit.checked).toBeGreaterThan(10);
-      expect.soft(audit.conflicts, `${scheme}: raised layers avoid every neighboring control`).toEqual([]);
+      expect
+        .soft(audit.conflicts, `${scheme}: raised layers avoid every neighboring control`)
+        .toEqual([]);
       const hit = await link.evaluate((element) => {
         const box = element.getBoundingClientRect();
-        return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+        return element.contains(
+          document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+        );
       });
       expect.soft(hit, `${scheme}: first-line link owns its tap`).toBe(true);
       // A real tap, without force or DOM click, must open this link's confirmation.
@@ -176,12 +196,18 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
       await expect(page.getByRole('dialog')).toHaveCount(0);
       // The sender's own layout box must reserve 44 px, so its target cannot invade the body.
       const senderBox = await sender.boundingBox();
-      expect.soft(senderBox?.height, 'sender reserves its 44 px touch height').toBeGreaterThanOrEqual(44);
-      expect.soft(senderBox?.width, 'sender reserves its 44 px touch width').toBeGreaterThanOrEqual(44);
+      expect
+        .soft(senderBox?.height, 'sender reserves its 44 px touch height')
+        .toBeGreaterThanOrEqual(44);
+      expect
+        .soft(senderBox?.width, 'sender reserves its 44 px touch width')
+        .toBeGreaterThanOrEqual(44);
       const replies = row.locator('button[data-thread-root-id]');
       await expect(replies).toBeVisible();
       const repliesBox = await replies.boundingBox();
-      expect.soft(repliesBox?.height, 'replies reserve their 44 px touch height').toBeGreaterThanOrEqual(44);
+      expect
+        .soft(repliesBox?.height, 'replies reserve their 44 px touch height')
+        .toBeGreaterThanOrEqual(44);
     }
   } finally {
     await context.close();
@@ -190,7 +216,10 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
 
 test.beforeEach(() => test.setTimeout(180_000));
 
-test('phone links, reactions and senders keep separate targets (Chromium)', async ({ browser, baseURL }) => {
+test('phone links, reactions and senders keep separate targets (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
   await checkPhone(browser, 'chromium', baseURL);
 });
 
@@ -206,7 +235,10 @@ test('phone links, reactions and senders keep separate targets (WebKit)', async 
 
 const checkNeighbors = async (browser: Browser, baseURL?: string) => {
   const context = await browser.newContext({
-    baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+    baseURL,
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
   });
   const page = await context.newPage();
   try {
@@ -214,6 +246,12 @@ const checkNeighbors = async (browser: Browser, baseURL?: string) => {
       await page.goto(`/e2e/fixtures/touch-neighbors.html${theme}`);
       const activity = page.getByRole('button', { name: 'Review details' });
       await expect(activity).toBeVisible();
+      if (SHOTS) {
+        mkdirSync(SHOTS, { recursive: true });
+        await page.screenshot({
+          path: `${SHOTS}/neighbors-${browser.browserType().name()}-${theme ? 'dark' : 'light'}.png`,
+        });
+      }
       const conflicts = await page.locator('main').evaluate((main) => {
         const controls = Array.from(main.querySelectorAll<HTMLElement>('button, a[href]'));
         const overlaps: string[] = [];
@@ -228,18 +266,25 @@ const checkNeighbors = async (browser: Browser, baseURL?: string) => {
           controls.forEach((other) => {
             if (control === other) return;
             const neighbor = other.getBoundingClientRect();
-            if (Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
-                Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5) {
+            if (
+              Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
+              Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5
+            ) {
               overlaps.push(`${control.textContent} overlaps ${other.textContent}`);
             }
           });
         });
         return overlaps;
       });
-      expect.soft(conflicts, 'activity and wrapped duration rows avoid their neighbors').toEqual([]);
+      expect
+        .soft(conflicts, 'activity and wrapped duration rows avoid their neighbors')
+        .toEqual([]);
       await activity.tap();
       await expect(activity).toHaveAttribute('aria-expanded', 'true');
-      const duration = page.getByRole('button', { name: '5 min, Allow for 5 minutes', exact: true });
+      const duration = page.getByRole('button', {
+        name: '5 min, Allow for 5 minutes',
+        exact: true,
+      });
       await duration.last().tap();
       await expect(page.getByLabel('Picked duration')).toHaveText('300');
     }
@@ -248,7 +293,10 @@ const checkNeighbors = async (browser: Browser, baseURL?: string) => {
   }
 };
 
-test('activity and duration touch layers avoid adjacent rows (Chromium)', async ({ browser, baseURL }) => {
+test('activity and duration touch layers avoid adjacent rows (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
   await checkNeighbors(browser, baseURL);
 });
 

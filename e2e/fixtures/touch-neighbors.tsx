@@ -18,13 +18,15 @@ function Neighbors() {
   const [picked, setPicked] = useState(0);
   return (
     <main style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <Box className={SenderLine}>
-        <button type="button">River Writer</button>
-      </Box>
-      <ThreadActivity icon={null} title="Review details">
-        Route checked.
-      </ThreadActivity>
-      <a href="#route">Route notes</a>
+      <section>
+        <Box className={SenderLine}>
+          <button type="button">River Writer</button>
+        </Box>
+        <ThreadActivity icon={null} title="Review details">
+          Route checked.
+        </ThreadActivity>
+        <a href="#route">Route notes</a>
+      </section>
       {[0, 1].map((row) => (
         <ApprovalDurations
           key={row}
