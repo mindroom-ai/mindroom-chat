@@ -8,8 +8,11 @@ import {
   type MatrixClient,
 } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { SyncAccumulator } from 'matrix-js-sdk/lib/sync-accumulator';
+import type { ISyncResponse } from 'matrix-js-sdk/lib/sync-accumulator';
 import {
   CHANGE_SAVE_GAP_MS,
+  dropRedactedContent,
   keepRedactionsInSavedSync,
   REDACTION_SAVE_GAP_MS,
 } from './savedSyncRedactions';
@@ -277,5 +280,152 @@ describe('keepRedactionsInSavedSync', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+const ROOM = '!room:example.org';
+const ALICE = '@alice:example.org';
+
+let ts = 0;
+const raw = (
+  id: string,
+  content: Record<string, unknown>,
+  extra: Record<string, unknown> = {}
+) => ({
+  event_id: id,
+  type: 'm.room.message',
+  sender: ALICE,
+  origin_server_ts: (ts += 1),
+  content,
+  ...extra,
+});
+const text = (body: string, extra: Record<string, unknown> = {}) => ({
+  msgtype: 'm.text',
+  body,
+  ...extra,
+});
+const editOf = (id: string, target: string, body: string) =>
+  raw(id, {
+    ...text(`* ${body}`),
+    'm.new_content': text(body),
+    'm.relates_to': { rel_type: 'm.replace', event_id: target },
+  });
+const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
+const redaction = (id: string, target: string) =>
+  raw(id, { redacts: target }, { type: 'm.room.redaction', redacts: target });
+
+/** One /sync response with `events` as the room's timeline. */
+const syncOf = (events: object[], prevBatch: string, nextBatch: string) =>
+  ({
+    next_batch: nextBatch,
+    rooms: {
+      join: {
+        [ROOM]: {
+          timeline: { events, prev_batch: prevBatch, limited: false },
+          state: { events: [] },
+          account_data: { events: [] },
+          ephemeral: { events: [] },
+          summary: {},
+          unread_notifications: {},
+        },
+      },
+    },
+  } as unknown as ISyncResponse);
+
+const savedTimeline = (accumulator: SyncAccumulator) =>
+  accumulator.getJSON(true).roomsData.join[ROOM]?.timeline;
+
+describe('dropRedactedContent', () => {
+  it('drops the text of deleted messages, their edits and the copies bundled with others', () => {
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    const editedEdit = editOf('$edited-edit', '$edited', 'edited v2');
+    const replyEdit = editOf('$reply-edit', '$reply', 'reply v2');
+    accumulator.accumulate(
+      syncOf(
+        [
+          raw('$plain', text('plain v1')),
+          raw('$edited', text('edited v1'), {
+            unsigned: { 'm.relations': { 'm.replace': editedEdit } },
+          }),
+          editedEdit,
+          raw('$root', text('root stays'), {
+            unsigned: {
+              'm.relations': {
+                'm.thread': {
+                  count: 1,
+                  latest_event: raw('$reply', text('reply v1', inThread), {
+                    unsigned: { 'm.relations': { 'm.replace': replyEdit } },
+                  }),
+                },
+              },
+            },
+          }),
+          raw('$reply', text('reply v1', inThread)),
+          replyEdit,
+          raw('$kept', text('kept stays')),
+          raw('$topic', { topic: 'topic stays' }, { type: 'm.room.topic', state_key: '' }),
+        ],
+        'token-1',
+        'batch-1'
+      )
+    );
+    accumulator.accumulate(
+      syncOf(
+        ['$plain', '$edited', '$reply', '$topic'].map((target) =>
+          redaction(`$redacts-${target.slice(1)}`, target)
+        ),
+        'token-2',
+        'batch-2'
+      )
+    );
+
+    dropRedactedContent(accumulator as never);
+
+    const timeline = savedTimeline(accumulator);
+    const json = JSON.stringify(timeline);
+    ['plain v1', 'edited v1', 'edited v2', 'reply v1', 'reply v2'].forEach((deleted) => {
+      expect(json).not.toContain(deleted);
+    });
+    ['root stays', 'kept stays', 'topic stays'].forEach((kept) => expect(json).toContain(kept));
+    const ids = timeline?.events.map((event) => event.event_id);
+    expect(ids).not.toContain('$edited-edit');
+    expect(ids).not.toContain('$reply-edit');
+    const saved = (id: string) => timeline?.events.find((event) => event.event_id === id);
+    expect(saved('$plain')?.content).toEqual({});
+    // A reply keeps its relation, so the replayed redaction still finds it in its thread.
+    expect(saved('$reply')?.content).toEqual(inThread);
+    expect(saved('$redacts-reply')).toBeDefined();
+    expect(timeline?.prev_batch).toBe('token-1');
+  });
+
+  it('gives the next event the pagination token of a dropped edit', () => {
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    accumulator.accumulate(
+      syncOf([editOf('$edit', '$gone', 'gone v2'), raw('$next', text('next'))], 'token-1', 'b1')
+    );
+    accumulator.accumulate(syncOf([redaction('$redaction', '$gone')], 'token-2', 'b2'));
+
+    dropRedactedContent(accumulator as never);
+
+    const timeline = savedTimeline(accumulator);
+    expect(timeline?.prev_batch).toBe('token-1');
+    expect(timeline?.events.map((event) => event.event_id)).toEqual(['$next', '$redaction']);
+  });
+
+  it('runs before the save that follows a redaction', () => {
+    const { mx, emitter, store } = makeClient();
+    const accumulator = new SyncAccumulator({ maxTimelineEntries: 500 });
+    accumulator.accumulate(syncOf([raw('$reply', text('reply v1'))], 'token-1', 'b1'));
+    Object.assign(store, { backend: { syncAccumulator: accumulator } });
+    store.save.mockImplementation(() => {
+      expect(JSON.stringify(savedTimeline(accumulator))).not.toContain('reply v1');
+      return Promise.resolve();
+    });
+    keepRedactionsInSavedSync(mx);
+
+    accumulator.accumulate(syncOf([redaction('$redaction', '$reply')], 'token-2', 'b2'));
+    batch(emitter, [synced('m.room.redaction', '$redaction')]);
+
+    expect(store.save).toHaveBeenCalledTimes(1);
   });
 });

@@ -19,6 +19,10 @@ import {
 // ended. Other changes wait CHANGE_SAVE_GAP_MS after the last save, so busy rooms do not save
 // with every batch; a page about to be hidden saves what is waiting at once. A batch the SDK
 // saves itself holds everything before it, so a save still waiting is dropped then.
+//
+// The saved sync keeps each event as the server sent it, so a deleted message kept its text there,
+// with its edits, for as long as the saved timeline held it. Before each save, the text of every
+// message a redaction in the saved timeline removes is dropped (`dropRedactedContent`).
 
 /** The least time between the end of one save and the start of the next, for a redaction. */
 export const REDACTION_SAVE_GAP_MS = 2_000;
@@ -29,6 +33,101 @@ export const CHANGE_SAVE_GAP_MS = 10_000;
 const UNSAVED_ROOM_ACCOUNT_DATA = new Set(['m.fully_read']);
 
 type SyncBatchState = SyncState | null;
+
+type SavedEvent = {
+  event_id?: string;
+  type?: string;
+  state_key?: string;
+  redacts?: string;
+  content?: Record<string, unknown>;
+  unsigned?: Record<string, unknown>;
+};
+
+/** The SDK's sync accumulator, the part of it that holds each joined room's saved timeline. */
+type SavedSync = {
+  joinRooms?: Record<string, { _timeline?: { event: SavedEvent; token: string | null }[] }>;
+};
+
+type Relations = { 'm.replace'?: unknown; 'm.thread'?: { latest_event?: SavedEvent } };
+
+const relationsOf = (event: SavedEvent): Relations | undefined =>
+  event.unsigned?.['m.relations'] as Relations | undefined;
+
+/**
+ * `event` without its text: no content but its relation, and no edit bundled with it. The
+ * relation stays, so the redaction replayed after it still finds the event where it was (a
+ * thread's reply count drops by it, as it did before).
+ */
+const withoutText = (event: SavedEvent): SavedEvent => {
+  const { 'm.replace': edit, ...relations } = relationsOf(event) ?? {};
+  const relation = event.content?.['m.relates_to'];
+  const keys = Object.keys(event.content ?? {});
+  if (!edit && keys.every((key) => key === 'm.relates_to')) return event;
+  return {
+    ...event,
+    content: relation ? { 'm.relates_to': relation } : {},
+    unsigned: {
+      ...event.unsigned,
+      ...(event.unsigned?.['m.relations'] ? { 'm.relations': relations } : {}),
+    },
+  };
+};
+
+/** `event` with its thread's latest reply, which the server bundles with it, without its text. */
+const withLatestReplyWithoutText = (event: SavedEvent, redacted: Set<string>): SavedEvent => {
+  const relations = relationsOf(event);
+  const thread = relations?.['m.thread'];
+  const latest = thread?.latest_event;
+  if (!thread || !latest || !redacted.has(latest.event_id ?? '')) return event;
+  const latestEvent = withoutText(latest);
+  if (latestEvent === latest) return event;
+  return {
+    ...event,
+    unsigned: {
+      ...event.unsigned,
+      'm.relations': { ...relations, 'm.thread': { ...thread, latest_event: latestEvent } },
+    },
+  };
+};
+
+/**
+ * Drops the text of every message that a redaction in the saved timeline removes: its content
+ * but its relation, the edit the server bundled with it (also as a thread's latest reply), and
+ * its edits. The redaction itself is kept and is replayed as before. State events are left
+ * alone. Events are replaced rather than changed: the SDK's own events may share their objects.
+ */
+export const dropRedactedContent = (sync: SavedSync): void => {
+  Object.values(sync.joinRooms ?? {}).forEach((room) => {
+    const timeline = room._timeline ?? [];
+    const redacted = new Set<string>();
+    timeline.forEach(({ event }) => {
+      const target = event.redacts ?? event.content?.redacts;
+      if (event.type === 'm.room.redaction' && typeof target === 'string') redacted.add(target);
+    });
+    if (redacted.size === 0) return;
+    // An edit of a redacted message is dropped; the next event kept takes its pagination token.
+    let token: string | null = null;
+    room._timeline = timeline.flatMap((entry) => {
+      const { event } = entry;
+      const relation = event.content?.['m.relates_to'] as
+        | { rel_type?: string; event_id?: string }
+        | undefined;
+      if (relation?.rel_type === 'm.replace' && redacted.has(relation.event_id ?? '')) {
+        token ??= entry.token;
+        return [];
+      }
+      const isRedacted = redacted.has(event.event_id ?? '') && event.state_key === undefined;
+      const kept = withLatestReplyWithoutText(isRedacted ? withoutText(event) : event, redacted);
+      const next = kept === event && !token ? entry : { event: kept, token: entry.token ?? token };
+      token = null;
+      return [next];
+    });
+  });
+};
+
+/** The sync the client's store saves; only the IndexedDB store has one. */
+const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
+  (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
 
 /**
  * Saves the client's sync store after sync batches that brought a redaction, a state event or
@@ -75,6 +174,8 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     }
     dropWaitingSave();
     saving = true;
+    const sync = savedSyncOf(mx);
+    if (sync) dropRedactedContent(sync);
     mx.store
       .save(true)
       .catch((error: unknown) => {
@@ -112,6 +213,8 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     // The session's first batch and the first after five minutes are saved by the SDK, with
     // every batch before them.
     if (mx.store.wantsSave()) {
+      const sync = savedSyncOf(mx);
+      if (sync) dropRedactedContent(sync);
       redactionSinceSave = false;
       changeSinceSave = false;
       dropWaitingSave();
