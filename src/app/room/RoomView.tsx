@@ -128,7 +128,8 @@ const focusOwnsTyping = (): boolean =>
 
 /**
  * Typing a letter or digit with nothing focused starts a message in the composer, and Escape
- * outside a field or menu goes back to it (the room's Escape handler marks it read as well).
+ * outside a field or menu goes back to it (the room's Escape handler reads its main timeline, or
+ * the open thread, as well).
  */
 const useTypeToCompose = (editor: ReturnType<typeof useEditor>, enabled: boolean) => {
   const handleKey = useCallback(

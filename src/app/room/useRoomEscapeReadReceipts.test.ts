@@ -3,9 +3,16 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 
-const { keyHotkeyMock, markRoomAndThreadsAsReadMock, markThreadAsReadMock, state } = vi.hoisted(
+const {
+  keyHotkeyMock,
+  markMainTimelineAsReadMock,
+  markRoomAndThreadsAsReadMock,
+  markThreadAsReadMock,
+  state,
+} = vi.hoisted(
   () => ({
     keyHotkeyMock: vi.fn(),
+    markMainTimelineAsReadMock: vi.fn(),
     markRoomAndThreadsAsReadMock: vi.fn(),
     markThreadAsReadMock: vi.fn(),
     state: {
@@ -30,6 +37,7 @@ vi.mock('../matrix/hooks/useMatrixClient', () => ({
 }));
 
 vi.mock('../notifications/readReceipts', () => ({
+  markMainTimelineAsRead: markMainTimelineAsReadMock,
   markRoomAndThreadsAsRead: markRoomAndThreadsAsReadMock,
   markThreadAsRead: markThreadAsReadMock,
 }));
@@ -56,6 +64,7 @@ describe('useRoomEscapeReadReceipts', () => {
   beforeEach(() => {
     vi.stubGlobal('window', {});
     keyHotkeyMock.mockReset();
+    markMainTimelineAsReadMock.mockReset();
     markRoomAndThreadsAsReadMock.mockReset();
     markThreadAsReadMock.mockReset();
     state.handler = undefined;
@@ -77,7 +86,7 @@ describe('useRoomEscapeReadReceipts', () => {
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
   });
 
-  it('marks the whole room read on Escape outside a thread', () => {
+  it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
     keyHotkeyMock.mockReturnValue(true);
     create(React.createElement(Harness));
 
@@ -85,7 +94,8 @@ describe('useRoomEscapeReadReceipts', () => {
       state.handler?.({} as KeyboardEvent);
     });
 
-    expect(markRoomAndThreadsAsReadMock).toHaveBeenCalledWith(state.mx, '!room:server', false);
+    expect(markMainTimelineAsReadMock).toHaveBeenCalledWith(state.mx, '!room:server', false);
+    expect(markRoomAndThreadsAsReadMock).not.toHaveBeenCalled();
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
   });
 
