@@ -55,28 +55,70 @@ const cardCount = (page: Page, rootId: string) =>
   page.locator(`[data-thread-root-id="${rootId}"] [data-compact-card-reply-count]`).first();
 
 /**
- * Every card shows its expected count from the moment it appears and keeps showing it, so a
- * count that is wrong at first and corrected later fails too.
+ * The counts each card shows, in order, from the moment it appears for `holdMs`, and with
+ * `settled`, on until every card shows its settled count (a minute at most).
  */
-const expectCountsHold = async (page: Page, expected: Record<string, number>, holdMs = 3_000) => {
-  const roots = Object.keys(expected);
+const sampleCounts = async (
+  page: Page,
+  roots: string[],
+  holdMs: number,
+  settled?: Record<string, number>
+): Promise<Map<string, string[]>> => {
   await Promise.all(
     roots.map((rootId) => expect(cardCount(page, rootId)).toBeVisible({ timeout: 120_000 }))
   );
-  const seen = new Map<string, Set<string>>(roots.map((rootId) => [rootId, new Set()]));
+  const shown = new Map<string, string[]>(roots.map((rootId) => [rootId, []]));
+  const isSettled = () =>
+    !settled || roots.every((rootId) => shown.get(rootId)?.at(-1) === `${settled[rootId]}`);
   const until = Date.now() + holdMs;
-  while (Date.now() < until) {
+  const giveUp = until + 60_000;
+  while (Date.now() < until || (!isSettled() && Date.now() < giveUp)) {
     // eslint-disable-next-line no-await-in-loop
     const texts = await Promise.all(
       roots.map((rootId) => cardCount(page, rootId).textContent({ timeout: 5_000 }))
     );
-    roots.forEach((rootId, index) => seen.get(rootId)?.add((texts[index] ?? '').trim()));
+    roots.forEach((rootId, index) => {
+      const sequence = shown.get(rootId)!;
+      const text = (texts[index] ?? '').trim();
+      if (sequence.at(-1) !== text) sequence.push(text);
+    });
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(150);
   }
-  roots.forEach((rootId) =>
-    expect([...seen.get(rootId)!], rootId).toEqual([`${expected[rootId]}`])
+  return shown;
+};
+
+/**
+ * Every card shows its expected count from the moment it appears and keeps showing it, so a
+ * count that is wrong at first and corrected later fails too.
+ */
+const expectCountsHold = async (page: Page, expected: Record<string, number>, holdMs = 3_000) => {
+  const shown = await sampleCounts(page, Object.keys(expected), holdMs);
+  Object.keys(expected).forEach((rootId) =>
+    expect(shown.get(rootId), rootId).toEqual([`${expected[rootId]}`])
   );
+};
+
+/**
+ * A reloaded page starts from the saved sync, which can be older than what the page showed: each
+ * card shows either the server's count from the start, or the saved count until the server's
+ * arrives, and never any other count.
+ */
+const expectSavedThenServerCounts = async (
+  page: Page,
+  expected: Record<string, { saved: number; server: number }>,
+  holdMs = 3_000
+) => {
+  const server = Object.fromEntries(
+    Object.entries(expected).map(([rootId, counts]) => [rootId, counts.server])
+  );
+  const shown = await sampleCounts(page, Object.keys(expected), holdMs, server);
+  Object.entries(expected).forEach(([rootId, counts]) => {
+    const allowed = [[`${counts.server}`], [`${counts.saved}`, `${counts.server}`]];
+    expect(allowed, `${rootId} showed ${JSON.stringify(shown.get(rootId))}`).toContainEqual(
+      shown.get(rootId)
+    );
+  });
 };
 
 /** Signs in through the login page; a loaded machine can take a minute to show the shell. */
@@ -194,7 +236,17 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
   await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 }, 1_500);
 
-  // The Threads page shows the same counts.
+  // The Threads page shows the same counts. Going there loads the page again, from the saved sync.
+  // The client saved it right after the redaction and not after the newest reply (only the first
+  // sync of a page and redactions save it), so a card may show the count from between the two
+  // until sync and the thread list bring the newest reply.
   await page.goto('/threads/');
+  await expectSavedThenServerCounts(page, {
+    [launch]: { saved: 2, server: 3 },
+    [retro]: { saved: 2, server: 2 },
+  });
+
+  // That page saved its first sync, so the next reload starts from the newest counts.
+  await page.reload();
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
 });
