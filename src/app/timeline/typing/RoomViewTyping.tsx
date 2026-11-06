@@ -1,5 +1,6 @@
 import { Icon, IconButton, Icons, Text } from 'folds';
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
@@ -119,8 +120,20 @@ const useStreamingRepliesOnScreen = (
   }, [agentsTyping, read, watch]);
   useEffect(() => {
     if (!watch) return undefined;
+    // A thread's rows can mount after the typing notice's layout effect. Read DOM changes
+    // before paint, so the polling fallback cannot leave a strip over an already visible reply.
+    const onChange = () => flushSync(read);
+    const observer = new MutationObserver(onChange);
+    observer.observe(document.body, { childList: true, subtree: true });
+    document.addEventListener('scroll', onChange, true);
+    window.addEventListener('resize', onChange);
     const timer = window.setInterval(read, ON_SCREEN_CHECK_MS);
-    return () => window.clearInterval(timer);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('scroll', onChange, true);
+      window.removeEventListener('resize', onChange);
+      window.clearInterval(timer);
+    };
   }, [read, watch]);
   return onScreen;
 };

@@ -1,4 +1,5 @@
 import type { Page } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import {
   expect,
   messageRow,
@@ -63,8 +64,10 @@ test(
 );
 
 type Frame = {
+  elapsed: number;
   /** The streaming reply's row shows on screen. */
   replyShown: boolean;
+  reply: { top: number; bottom: number } | null;
   strip: { top: number; bottom: number } | null;
   stop: { top: number; bottom: number } | null;
   clipping: { tag: string; overflow: string; top: number; bottom: number }[];
@@ -102,7 +105,9 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
             }
           }
           frames.push({
+            elapsed: performance.now() - started,
             replyShown: !!rowBox && rowBox.bottom > 0 && rowBox.top < window.innerHeight,
+            reply: box(row),
             strip: box(strip),
             stop: box(stop),
             clipping,
@@ -140,8 +145,10 @@ test.describe('on a phone', () => {
       await shot(page, `typing-stop-phone-${test.info().project.name}`);
 
       const frames = await recording;
+      const frameLog = test.info().outputPath('typing-frames.json');
+      await writeFile(frameLog, JSON.stringify(frames, null, 2));
       await test.info().attach('typing-frames', {
-        body: JSON.stringify(frames, null, 2),
+        path: frameLog,
         contentType: 'application/json',
       });
       await shot(page, `typing-stop-phone-streamed-${test.info().project.name}`);
