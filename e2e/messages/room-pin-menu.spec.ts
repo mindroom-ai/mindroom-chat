@@ -690,6 +690,131 @@ const checkEncrypted = async (page: Page, engine: string, form: string, testInfo
   await expect.poll(() => highlighted(page, eventId), { timeout: 10_000 }).toBe(true);
 };
 
+const THREAD_PIN_ROOT = 'Night shift handover for the container terminal, notes in this thread.';
+const THREAD_PINS = [
+  'Reefer row C lost power twice before midnight; the electrician reset both breakers.',
+  'Gate seven scanner is slow again, trucks queued for about twenty minutes around four.',
+  'Straddle carrier 12 is parked by the workshop with a hydraulic leak.',
+];
+const THREAD_PIN_EDITED = 'Straddle carrier 12 is back in service, the hydraulic hose was replaced.';
+const OLD_PIN = 'The harbour master asks every vessel agent to confirm arrival times by noon.';
+// More than the room's first page after a reload, so the oldest pin is not in the timeline.
+const OLD_PIN_FILLERS = 40;
+
+/**
+ * Pins that are not in the room's loaded timeline after a reload, in an encrypted or a plain room:
+ * three replies in a thread (the newest edited) and a message far back in the room. The browser
+ * sends them all, so an encrypted room's keys are in this device's store. The menu shows each one
+ * as its text, newest first, the edited reply with its edit.
+ */
+const checkUnloadedPins =
+  (encrypted: boolean): Check =>
+  async (page, engine, form, testInfo) => {
+    const username = `rpu_${encrypted ? 'e' : 'p'}_${engine}_${form}_${RUN}`;
+    const owner = await register(username, OWNER_NAME);
+    let roomId = await createRooms(owner);
+    if (encrypted) {
+      roomId = (
+        await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
+          method: 'POST',
+          accessToken: owner.accessToken,
+          body: JSON.stringify({
+            name: 'Encrypted terminal log',
+            preset: 'private_chat',
+            initial_state: [
+              {
+                type: 'm.room.encryption',
+                state_key: '',
+                content: { algorithm: 'm.megolm.v1.aes-sha2' },
+              },
+            ],
+          }),
+        })
+      ).room_id;
+    }
+    await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+    const roomPath = `/home/${encodeURIComponent(roomId)}`;
+    await page.goto(roomPath);
+    const composer = page.locator('[data-editable-name="RoomInput"]');
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+    const sendMessage = async (body: string): Promise<string> => {
+      await composer.click();
+      await page.keyboard.insertText(body);
+      // On a phone Enter starts a new line; the Send button sends.
+      if (form === 'phone') await page.getByRole('button', { name: 'Send message' }).click();
+      else await page.keyboard.press('Enter');
+      const row = page.locator('[data-message-id^="$"]').filter({ hasText: body });
+      await expect(row).toHaveCount(1, { timeout: 60_000 });
+      return (await row.getAttribute('data-message-id')) ?? '';
+    };
+
+    const oldPin = await sendMessage(OLD_PIN);
+    for (let index = 0; index < OLD_PIN_FILLERS; index += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await sendRoomMessage(HOMESERVER, owner.accessToken, roomId, {
+        msgtype: 'm.text',
+        body: `${FILLERS[index % FILLERS.length]} (${index + 1})`,
+      });
+    }
+    const root = await sendMessage(THREAD_PIN_ROOT);
+    await page.goto(`${roomPath}?threadId=${encodeURIComponent(root)}`);
+    await expect(composer).toBeVisible({ timeout: 60_000 });
+    const replies: string[] = [];
+    for (const body of THREAD_PINS) {
+      // eslint-disable-next-line no-await-in-loop
+      replies.push(await sendMessage(body));
+    }
+    // Up edits the newest own reply of the thread.
+    await composer.click();
+    await composer.press('ArrowUp');
+    const editBox = page.locator('[contenteditable="true"]').filter({ hasText: THREAD_PINS[2] });
+    await expect(editBox).toBeFocused();
+    await editBox.fill(THREAD_PIN_EDITED);
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(page.getByText(THREAD_PIN_EDITED)).toBeVisible({ timeout: 30_000 });
+    await pinEvents(owner, roomId, [oldPin, ...replies]);
+
+    // A new page load: the thread replies and the old message are in no loaded timeline.
+    await page.goto(roomPath);
+    const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
+    await expect(pinButton).toBeVisible({ timeout: 60_000 });
+    await expect(timelineRow(page, oldPin)).toHaveCount(0);
+    await pinButton.click();
+    const menu = pinMenu(page);
+    await expect(menu).toBeVisible();
+    const shown = [THREAD_PIN_EDITED, THREAD_PINS[1], THREAD_PINS[0], OLD_PIN];
+    const entries = [replies[2], replies[1], replies[0], oldPin];
+    const where = `${engine}, ${form}, ${encrypted ? 'encrypted' : 'plain'}`;
+    for (const [index, body] of shown.entries()) {
+      const entry = menu.locator(`[data-pinned-event-id="${entries[index]}"]`);
+      // eslint-disable-next-line no-await-in-loop
+      await expect(entry.getByText(body, { exact: true }), `${body} (${where})`).toBeVisible({
+        timeout: 30_000,
+      });
+      // eslint-disable-next-line no-await-in-loop
+      await expect(jumpButton(entry, OWNER_NAME)).toBeVisible();
+    }
+    await expect(menu.getByText(THREAD_PINS[2], { exact: true })).toHaveCount(0);
+    await expect(
+      menu.getByText(/Unsupported message|Unable to decrypt|Couldn.t decrypt|not decrypted yet/)
+    ).toHaveCount(0);
+    const order = await menu.evaluate(
+      (element, ids) =>
+        [...element.querySelectorAll('[data-pinned-event-id]')]
+          .map((entry) => entry.getAttribute('data-pinned-event-id'))
+          .filter((id) => ids.includes(id ?? '')),
+      entries
+    );
+    expect(order, `newest pin first (${where})`).toEqual(entries);
+    await shoot(page, testInfo, `unloaded-${encrypted ? 'encrypted' : 'plain'}-${engine}-${form}`);
+
+    // The newest reply opens in its thread.
+    await jumpButton(menu.locator(`[data-pinned-event-id="${replies[2]}"]`), OWNER_NAME).click();
+    await expect(menu).toHaveCount(0);
+    await expect(page).toHaveURL(/threadId=/);
+    await expect(timelineRow(page, replies[2])).toBeInViewport({ timeout: 30_000 });
+  };
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -704,6 +829,11 @@ const CHECKS: [string, Check][] = [
   ['the pin menu lists the pinned messages under their sender and time, and closes', checkPinMenu],
   ['an entry opens its message in the timeline, Unpin works from the keyboard', checkJump],
   ['an encrypted room’s pins show their sender and time and open their message', checkEncrypted],
+  [
+    'an encrypted room’s pins outside the loaded timeline show decrypted, with their edit',
+    checkUnloadedPins(true),
+  ],
+  ['a plain room’s pins outside the loaded timeline show with their edit', checkUnloadedPins(false)],
 ];
 
 for (const [form, options] of [
