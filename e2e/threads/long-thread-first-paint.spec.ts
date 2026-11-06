@@ -85,7 +85,7 @@ const send = (session: MatrixSession, roomId: string, content: Record<string, un
 
 type Frame = {
   t: number;
-  /** Rows of the thread's list in the DOM. */
+  /** Rows of the thread's list in the DOM, 0 while the list is hidden. */
   rows: number;
   /** Scroll distance below the view. */
   gap: number;
@@ -129,9 +129,11 @@ const installFrameSampler = (keys: { newest: string; root: string; sampleMs: num
       const rootId = window.localStorage.getItem(keys.root) ?? '';
       const newest = scroller.querySelector(`[data-message-id="${newestId}"]`);
       const newestBox = newest?.getBoundingClientRect();
+      // A hidden list paints no rows.
+      const painted = !!inner && window.getComputedStyle(inner).visibility !== 'hidden';
       win.threadFrames.push({
         t: Math.round(performance.now() - start),
-        rows: scroller.querySelectorAll('[data-message-id]').length,
+        rows: painted ? scroller.querySelectorAll('[data-message-id]').length : 0,
         gap: Math.round(scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop),
         rootShown: inView(scroller.querySelector(`[data-message-id="${rootId}"]`), box.top, bottom),
         newestShown: !!newestBox && newestBox.bottom <= bottom + 2 && newestBox.bottom > box.top,

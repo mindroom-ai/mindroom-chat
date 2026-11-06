@@ -175,7 +175,12 @@ const recordReceipts = (newestKey: string) => {
     const rowBox = row?.getBoundingClientRect();
     return {
       gap: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
-      newestShown: !!rowBox && rowBox.bottom <= visibleBottom + 2 && rowBox.bottom > box.top,
+      newestShown:
+        !!rowBox &&
+        !!inner &&
+        window.getComputedStyle(inner).visibility !== 'hidden' &&
+        rowBox.bottom <= visibleBottom + 2 &&
+        rowBox.bottom > box.top,
       newestBelow: rowBox ? Math.round(rowBox.bottom - visibleBottom) : null,
     };
   };
