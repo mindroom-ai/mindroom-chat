@@ -14,6 +14,9 @@ const ROUTER_AGENT = /^router(?:_[a-z0-9]{4,32})?$/;
 
 const WORD_BREAK = /[^\p{L}\p{N}]+/u;
 
+// An event's type is any string, so it is compared as one.
+const ROOM_MESSAGE: string = EventType.RoomMessage;
+
 type MentionCandidate = Pick<RoomMember, 'userId' | 'rawDisplayName' | 'name'>;
 
 /** The name a member is shown and mentioned by. */
@@ -67,7 +70,7 @@ export const recentSenders = (room: SenderTimelines): string[] => {
   const events = [
     ...(room.getLiveTimeline?.().getEvents() ?? []),
     ...(room.getThreads?.().flatMap((thread) => thread.liveTimeline.getEvents()) ?? []),
-  ].filter((event) => event.getType() === EventType.RoomMessage);
+  ].filter((event) => event.getType() === ROOM_MESSAGE);
   events.sort((left, right) => right.getTs() - left.getTs());
   const senders = events.flatMap((event) => event.getSender() ?? []);
   return [...new Set(senders)];
