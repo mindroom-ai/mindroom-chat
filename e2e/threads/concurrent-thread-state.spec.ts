@@ -4,6 +4,7 @@ import {
   type Browser,
   type BrowserContext,
   type BrowserContextOptions,
+  type Locator,
   type Page,
   type Route,
   type TestInfo,
@@ -243,6 +244,22 @@ const shoot = async (page: Page, testInfo: TestInfo, name: string) => {
 
 type Open = (options: BrowserContextOptions) => Promise<Page>;
 
+const field = (page: Page) => page.getByRole('textbox', { name: 'Filter or create tag' });
+
+/** Thread options, Edit tags, Add tag: the way a person adds the first tag to a thread. */
+const openTagField = async (page: Page) => {
+  await banner(page).getByRole('button', { name: 'Thread options' }).click();
+  await page
+    .getByRole('menu', { name: 'Thread options' })
+    .getByRole('menuitem', { name: 'Edit tags', exact: true })
+    .click();
+  const dialog = page.getByRole('dialog', { name: 'Edit tags', exact: true });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: 'Add tag', exact: true }).click();
+  await expect(field(page)).toBeVisible();
+  return dialog;
+};
+
 const tagTogether = async (open: Open, engine: string, testInfo: TestInfo) => {
   const { owner, guest, roomId, roots } = await seed(`tag_${engine}`, 50);
   const desk = await open(DESK);
@@ -250,30 +267,44 @@ const tagTogether = async (open: Open, engine: string, testInfo: TestInfo) => {
   await openThread(desk, owner, roomId, roots[0]);
   await openThread(laptop, guest, roomId, roots[0]);
   const writes = await holdFirstWrites([desk, laptop], 'com.mindroom.thread.tags');
-  const field = (page: Page) => page.getByRole('textbox', { name: 'Filter or create tag' });
+  const dialogs = new Map<Page, Locator>();
   for (const [page, tag] of [
     [desk, 'x-desk'],
     [laptop, 'y-laptop'],
   ] as const) {
     // eslint-disable-next-line no-await-in-loop
-    await banner(page).getByRole('button', { name: 'Add tag', exact: true }).click();
+    dialogs.set(page, await openTagField(page));
     // eslint-disable-next-line no-await-in-loop
     await field(page).fill(tag);
   }
   await Promise.all([desk, laptop].map((page) => field(page).press('Enter')));
   await writes.release();
+  const name = (page: Page) => (page === desk ? 'desk' : 'laptop');
   for (const page of [desk, laptop]) {
     for (const tag of ['x-desk', 'y-laptop']) {
       // Within a sync, not once a pending tag expires.
       // eslint-disable-next-line no-await-in-loop
       await expect(
-        banner(page).getByRole('button', { name: `Remove ${tag} tag`, exact: true }),
-        `${tag} on the ${page === desk ? 'desk' : 'laptop'}`
+        dialogs.get(page)!.getByRole('button', { name: `Remove ${tag} tag`, exact: true }),
+        `${tag} in Edit tags on the ${name(page)}`
       ).toBeVisible({ timeout: 5_000 });
     }
+    // eslint-disable-next-line no-await-in-loop
+    await dialogs.get(page)!.getByRole('button', { name: 'Done', exact: true }).click();
+    for (const tag of ['x-desk', 'y-laptop']) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(
+        banner(page).getByRole('button', { name: `Remove ${tag} tag`, exact: true }),
+        `${tag} in the thread header on the ${name(page)}`
+      ).toBeVisible();
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await shoot(page, testInfo, `tags-${engine}-${name(page)}`);
   }
-  await shoot(desk, testInfo, `tags-${engine}-desk`);
-  await shoot(laptop, testInfo, `tags-${engine}-laptop`);
+
+  // The field of Edit tags takes the focus, so the keyboard can type a tag at once.
+  await openTagField(desk);
+  await expect(field(desk)).toBeFocused();
 };
 
 const pinTogether = async (open: Open, engine: string, testInfo: TestInfo) => {
