@@ -69,10 +69,7 @@ export const PopOut = forwardRef<HTMLElement, Placement & Record<string, unknown
   }
 ) as unknown as typeof FoldsPopOut;
 
-/**
- * Whether the last press was a touch, with no mouse moved since. The mouseenter that WebKit replays
- * when the page under a tap changes comes with no pointermove.
- */
+/** Whether the last press was a touch, with no mouse moved since. */
 let touchedLast = false;
 let watchingPresses = false;
 
@@ -100,11 +97,16 @@ const watchPresses = () => {
 /**
  * A tap is no hover, so after one a trigger's mouseenter opens no tooltip. Browsers send one with
  * each tap, and WebKit sends another when the page under the tapped spot changes, such as a menu
- * closing from a hardware keyboard's Escape; nothing would close that tooltip again. Registered
- * before folds' own listener, it keeps that listener from seeing the event.
+ * closing from a hardware keyboard's Escape; nothing would close that tooltip again. A mouse that
+ * really moves in sends its pointermove right after the mouseenter (Chromium sends the mouseenter
+ * first); without one, a mouseleave cancels the tooltip before its delay runs out.
  */
 const skipHoverAfterTouch = (event: Event) => {
-  if (touchedLast) event.stopImmediatePropagation();
+  if (!touchedLast) return;
+  const trigger = event.currentTarget as Element;
+  setTimeout(() => {
+    if (touchedLast) trigger.dispatchEvent(new MouseEvent('mouseleave'));
+  }, 0);
 };
 
 type TriggerRef = RefCallback<HTMLElement | SVGElement>;

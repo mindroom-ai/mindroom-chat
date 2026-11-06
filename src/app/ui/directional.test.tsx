@@ -138,7 +138,8 @@ describe('TooltipProvider on a touch screen', () => {
     document.body.dispatchEvent(event);
   };
 
-  it('opens no tooltip from a hover that a tap set off, until a mouse moves', () => {
+  it('cancels a tooltip that a tap set off, unless a mouse moved in', () => {
+    vi.useFakeTimers();
     act(() => {
       create(<TooltipProvider tooltip={<span />}>{(ref) => <span ref={ref} />}</TooltipProvider>);
     });
@@ -149,15 +150,20 @@ describe('TooltipProvider on a touch screen', () => {
     const trigger = document.createElement('button');
     children(foldsRef).ref(trigger);
     expect(foldsRef.current).toBe(trigger);
-    const opened = vi.fn();
-    trigger.addEventListener('mouseenter', opened);
+    const cancelled = vi.fn();
+    trigger.addEventListener('mouseleave', cancelled);
 
+    // A tap, or WebKit replaying a mouseenter at the tapped spot: no pointermove follows.
     pointer('pointerdown', 'touch');
     trigger.dispatchEvent(new MouseEvent('mouseenter'));
-    expect(opened).not.toHaveBeenCalled();
+    vi.runAllTimers();
+    expect(cancelled).toHaveBeenCalledTimes(1);
 
-    pointer('pointermove', 'mouse');
+    // A mouse moving in, which Chromium reports as mouseenter and then pointermove.
     trigger.dispatchEvent(new MouseEvent('mouseenter'));
-    expect(opened).toHaveBeenCalledTimes(1);
+    pointer('pointermove', 'mouse');
+    vi.runAllTimers();
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 });
