@@ -236,10 +236,11 @@ const instrument = () => {
     };
     const completeNow = () =>
       expected.count === undefined ? true : cardIds().length === expected.count;
-    const start = (event: Event) => {
+    const start = () => {
       document.removeEventListener('pointerdown', start, true);
       document.removeEventListener('keydown', start, true);
-      const startedAt = event.timeStamp;
+      // Not the event's timeStamp: WebKit stamps synthesized pointer events from another clock.
+      const startedAt = performance.now();
       let shownSeen = false;
       const finish = () => {
         timing.complete = performance.now() - startedAt;
