@@ -116,6 +116,8 @@ describe('parseToolApproval', () => {
       scope: null,
       provenance: null,
       responseEventId: null,
+      jobId: null,
+      replyToEventId: null,
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
@@ -177,6 +179,8 @@ describe('parseToolApproval', () => {
       scope: null,
       provenance: null,
       responseEventId: null,
+      jobId: null,
+      replyToEventId: null,
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
@@ -257,6 +261,8 @@ describe('parseToolApproval', () => {
       scope: null,
       provenance: null,
       responseEventId: null,
+      jobId: null,
+      replyToEventId: null,
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
@@ -315,6 +321,8 @@ describe('parseToolApproval', () => {
       scope: null,
       provenance: null,
       responseEventId: null,
+      jobId: null,
+      replyToEventId: null,
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
@@ -428,11 +436,54 @@ describe('parseToolApproval', () => {
       scope: null,
       provenance: null,
       responseEventId: null,
+      jobId: null,
+      replyToEventId: '$TgMFGURQ4fakEK0OeY3-dxXaEjuMGPWqdfe2T4njWMs',
       argumentsTruncated: false,
       fullArguments: null,
       argumentSource: null,
       schedule: null,
     });
+  });
+
+  it("reads the job a background job's card belongs to and the event it replies to", () => {
+    const approval = parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+      agent_name: 'helper',
+      approval_id: 'script-approval:tool-job:48a15f11:call_2967',
+      approval_target: 'background_script',
+      background_call_id: 'call_2967',
+      background_run_id: 'tool-job:48a15f11',
+      arguments: { args: 'echo needs-approval' },
+      expires_at: '2026-11-13T02:43:53.072159+00:00',
+      'm.relates_to': {
+        event_id: '$root',
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: '$reply' },
+        rel_type: 'm.thread',
+      },
+      requested_at: '2026-11-06T02:43:53.102218+00:00',
+      status: 'pending',
+      thread_id: '$root',
+      tool_name: 'run_shell_command',
+      'm.new_content': { background_run_id: 'tool-job:other', status: 'denied' },
+    });
+    expect(approval).toMatchObject({
+      jobId: '48a15f11',
+      replyToEventId: '$reply',
+      responseEventId: null,
+      status: 'denied',
+    });
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        approval_id: 'script-approval:script-run:1:call',
+        background_run_id: 'script-run:1',
+        tool_name: 'run_shell_command',
+        arguments: {},
+        agent_name: 'helper',
+        status: 'pending',
+        requested_at: '2026-11-06T02:43:53Z',
+        expires_at: '2026-11-13T02:43:53Z',
+      })?.jobId
+    ).toBeNull();
   });
 
   it('builds Matrix approval response content with thread reply metadata', () => {

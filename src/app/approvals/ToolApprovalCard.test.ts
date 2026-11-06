@@ -143,6 +143,8 @@ const pendingApproval: ToolApprovalData = {
   scope: null,
   provenance: null,
   responseEventId: null,
+  jobId: null,
+  replyToEventId: null,
   argumentsTruncated: false,
   fullArguments: null,
   argumentSource: null,

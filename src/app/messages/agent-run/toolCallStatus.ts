@@ -1,5 +1,6 @@
 import { createContext } from 'react';
 import type { ToolApprovalStatus } from '../../matrix/protocol/toolApproval';
+import type { ToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 
 export type ToolCallState = 'running' | 'waiting' | 'done' | 'denied' | 'expired';
 
@@ -9,18 +10,25 @@ export const ToolCallMessageContext = createContext<string | undefined>(undefine
 /**
  * What happened to each call. The public trace only says started or completed, and a denied
  * call completes without a result, so calls that needed approval take their state from the
- * approval card MindRoom posted for this reply. Cards match calls by tool name, in order.
+ * approval card MindRoom posted for this reply. A call that went on as a background job takes
+ * the card of the job its handle names; other cards match calls by tool name, in order. A call
+ * whose card still waits has not run, even when the reply went on without it.
  */
 export const resolveToolCallStates = (
-  calls: readonly { toolName: string; pending: boolean }[],
-  approvals: readonly { toolName: string; status: ToolApprovalStatus }[]
+  calls: readonly { toolName: string; pending: boolean; job?: ToolJobHandle }[],
+  approvals: readonly { toolName: string; status: ToolApprovalStatus; jobId?: string | null }[]
 ): ToolCallState[] => {
   const unmatched = [...approvals];
-  return calls.map(({ toolName, pending }) => {
-    const index = unmatched.findIndex((approval) => approval.toolName === toolName);
-    const status = index >= 0 ? unmatched.splice(index, 1)[0].status : undefined;
+  const take = (index: number) => (index >= 0 ? unmatched.splice(index, 1)[0].status : undefined);
+  const byJob = calls.map(({ job }) =>
+    job ? take(unmatched.findIndex((approval) => approval.jobId === job.jobId)) : undefined
+  );
+  return calls.map(({ toolName, pending, job }, callIndex) => {
+    const status = job
+      ? byJob[callIndex]
+      : take(unmatched.findIndex((approval) => approval.toolName === toolName));
     if (status === 'denied' || status === 'expired') return status;
-    if (status === 'pending' && pending) return 'waiting';
+    if (status === 'pending' || (!status && job?.status === 'awaiting_approval')) return 'waiting';
     return pending ? 'running' : 'done';
   });
 };

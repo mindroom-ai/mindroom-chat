@@ -73,6 +73,10 @@ export interface ToolApprovalData {
   scope: ToolApprovalScope | null;
   provenance: ToolApprovalProvenance | null;
   responseEventId: string | null;
+  // A call that runs as a background job asks for its approval as the job's first phase; its card
+  // names the job instead of a reply, and replies to the event that was latest in the thread.
+  jobId: string | null;
+  replyToEventId: string | null;
   argumentsTruncated: boolean;
   fullArguments: Record<string, unknown> | null;
   argumentSource: ApprovalArgumentSource | null;
@@ -216,6 +220,7 @@ const immutableRequestFields = new Set([
   'thread_id',
   'approval_scope',
   'response_event_id',
+  'background_run_id',
   'arguments_truncated',
   'full_arguments',
   'full_arguments_file',
@@ -405,6 +410,21 @@ const asArgumentSource = (content: Record<string, unknown>): ApprovalArgumentSou
   return typeof url === 'string' && url.startsWith('mxc://') ? { mxcUri: url } : null;
 };
 
+const JOB_RUN_PREFIX = 'tool-job:';
+
+const asJobId = (value: unknown): string | null => {
+  const runId = asString(value);
+  return runId?.startsWith(JOB_RUN_PREFIX) && runId.length > JOB_RUN_PREFIX.length
+    ? runId.slice(JOB_RUN_PREFIX.length)
+    : null;
+};
+
+const asReplyToEventId = (content: Record<string, unknown>): string | null => {
+  const relation = content['m.relates_to'];
+  const reply = isRecord(relation) ? relation['m.in_reply_to'] : undefined;
+  return (isRecord(reply) && asString(reply.event_id)) || null;
+};
+
 export const getToolApprovalOperationLabel = (approval: ToolApprovalData): string => {
   const operation = approval.scope?.operation;
   return operation?.mcpServerId && operation.mcpToolName
@@ -473,6 +493,8 @@ export const parseToolApprovalContent = (
     scope: asScope(pickCandidateValue(content, 'approval_scope')),
     provenance: asProvenance(pickCandidateValue(content, 'approval_provenance')),
     responseEventId: asString(pickCandidateValue(content, 'response_event_id')) ?? null,
+    jobId: asJobId(pickCandidateValue(content, 'background_run_id')),
+    replyToEventId: asReplyToEventId(content),
     argumentsTruncated: pickCandidateValue(content, 'arguments_truncated') === true,
     fullArguments: asArguments(pickCandidateValue(content, 'full_arguments')) ?? null,
     argumentSource: asArgumentSource(content),

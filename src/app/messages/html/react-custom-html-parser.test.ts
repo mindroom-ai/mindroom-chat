@@ -562,6 +562,63 @@ describe('tool call status from approval cards', () => {
     );
   });
 
+  // A job's card names no reply: it names the job and replies to the thread's latest event.
+  const renderShellCall = (result?: string) => {
+    const html = '<p>🔧 <code>run_shell_command</code> [1]</p>';
+    const opts = markerParserOptions(createBaseOpts(), {
+      formatted_body: html,
+      'io.mindroom.tool_trace': {
+        version: 2,
+        events: [
+          {
+            type: 'tool_call_completed',
+            tool_name: 'run_shell_command',
+            ...(result ? { result_preview: result } : {}),
+          },
+        ],
+      },
+    });
+    let renderer: ReactTestRenderer | undefined;
+    act(() => {
+      renderer = create(
+        React.createElement(ToolCallMessageContext.Provider, { value: '$reply' }, parse(html, opts))
+      );
+    });
+    return collectTextContent((renderer as ReactTestRenderer).toJSON());
+  };
+  const jobCard = (status: string, link: { replyToEventId?: string; jobId?: string }) => ({
+    eventId: '$card',
+    sender: '@mindroom_router:example.org',
+    wireStatus: status,
+    approval: {
+      toolName: 'run_shell_command',
+      status,
+      responseEventId: null,
+      replyToEventId: link.replyToEventId ?? null,
+      jobId: link.jobId ?? null,
+      expiresAt: '2999-01-01T00:00:00Z',
+    },
+  });
+
+  it("gives a job's call the state of the card that replies to this message", () => {
+    approvals.current = { records: [jobCard('denied', { replyToEventId: '$reply' })], now: 0 };
+    expect(renderShellCall('not now')).toContain('Denied 1 tool call');
+    approvals.current = { records: [jobCard('pending', { replyToEventId: '$reply' })], now: 0 };
+    expect(renderShellCall()).toContain('1 tool call waiting for approval');
+    approvals.current = { records: [jobCard('denied', { replyToEventId: '$other' })], now: 0 };
+    expect(renderShellCall('not now')).toContain('Ran 1 tool call');
+  });
+
+  it("gives a detached call the state of the job's card its handle names", () => {
+    const handle = '{"job_id": "j1", "tool": "run_shell_command", "status": "awaiting_approval"}';
+    approvals.current = { records: [jobCard('expired', { jobId: 'j1' })], now: 0 };
+    expect(renderShellCall(handle)).toContain('1 tool call expired');
+    approvals.current = { records: [jobCard('approved', { jobId: 'j1' })], now: 0 };
+    expect(renderShellCall(handle)).toContain('Ran 1 tool call');
+    approvals.current = { records: [], now: 0 };
+    expect(renderShellCall(handle)).toContain('1 tool call waiting for approval');
+  });
+
   it('reads the trace alone outside a thread with approvals', () => {
     expect(collectTextContent(renderInMessage('$reply').toJSON())).toContain(
       'Running 2 tool calls'

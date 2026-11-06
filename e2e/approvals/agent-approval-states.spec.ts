@@ -50,7 +50,9 @@ const waitForShellReply = (stack: AgentStack, rootId: string): Promise<MatrixEve
 
 /** The title of a reply's tool row, as "Ran 1 tool call" or "Denied 1 tool call". */
 const toolRowTitle = (page: Page, replyId: string) =>
-  messageRow(page, replyId).getByText(/tool calls?/).first();
+  messageRow(page, replyId)
+    .getByText(/tool calls?/)
+    .first();
 
 const openReview = async (page: Page) => {
   const bar = page.getByRole('region', { name: 'Thread approvals' });
@@ -105,10 +107,9 @@ test('a call the reply stopped waiting for shows as waiting until it is approved
     { timeout: 120_000, description: 'the reply that went on without the decision' }
   );
   expect(bodyOf(finished)).toContain('awaiting_approval');
-  await expect(toolRowTitle(page, reply.event_id)).toHaveText(
-    '1 tool call waiting for approval',
-    { timeout: 30_000 }
-  );
+  await expect(toolRowTitle(page, reply.event_id)).toHaveText('1 tool call waiting for approval', {
+    timeout: 30_000,
+  });
 
   const dialog = await openReview(page);
   await dialog.getByRole('button', { name: 'Approve once' }).click();
@@ -142,12 +143,9 @@ test('Stop on a reply that waits for approval never says the call ran, and stopp
 
   // Stop ends only the reply: the job stays and still waits for the decision (MindRoom's
   // docs/architecture/background-tool-jobs.md). The row follows the card, whatever it says.
-  const card = await waitForThreadEvent(
-    stack,
-    rootId,
-    (event) => event.type === APPROVAL_EVENT,
-    { description: 'the approval card' }
-  );
+  const card = await waitForThreadEvent(stack, rootId, (event) => event.type === APPROVAL_EVENT, {
+    description: 'the approval card',
+  });
   const expected = {
     pending: '1 tool call waiting for approval',
     denied: 'Denied 1 tool call',

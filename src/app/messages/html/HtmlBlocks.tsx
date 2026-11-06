@@ -37,6 +37,7 @@ import {
 } from '../agent-run/toolCallStatus';
 import { useThreadApprovals } from '../../approvals/ThreadApprovalProvider';
 import { getEffectiveToolApprovalStatus, parseToolApprovalExpiryTimestamp } from '../../matrix/protocol/toolApproval';
+import { parseToolJobHandle } from '../../matrix/protocol/toolJobHandle';
 import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
@@ -301,15 +302,22 @@ function ToolRefGroupItem({
   );
 }
 
-// Calls that needed approval take their state from the cards MindRoom posted for this reply.
-const useToolCallApprovals = () => {
+// Calls that needed approval take their state from the cards MindRoom posted for this reply: a
+// paused reply's cards name it, and a job's card names the job or replies to this message.
+const useToolCallApprovals = (jobIds: readonly string[]) => {
   const eventId = useContext(ToolCallMessageContext);
   const context = useThreadApprovals();
   if (!eventId || !context) return [];
   return context.records
-    .filter(({ approval }) => approval.responseEventId === eventId)
+    .filter(({ approval }) =>
+      approval.responseEventId
+        ? approval.responseEventId === eventId
+        : approval.replyToEventId === eventId ||
+          (!!approval.jobId && jobIds.includes(approval.jobId))
+    )
     .map(({ approval }) => ({
       toolName: approval.toolName,
+      jobId: approval.jobId,
       status: getEffectiveToolApprovalStatus(
         approval.status,
         parseToolApprovalExpiryTimestamp(approval.expiresAt),
@@ -324,17 +332,19 @@ function ToolRefGroupBlock({
   parsedTools: ToolBlockRenderData[];
 }) {
   const { t } = useTranslation();
-  const approvals = useToolCallApprovals();
   const loadedTools = parsedTools.filter(
     (tool) => tool.status !== 'loading' && tool.status !== 'unavailable'
   );
+  const calls = loadedTools.map((tool) => ({
+    toolName: tool.toolName,
+    pending: tool.status === 'pending',
+    job: parseToolJobHandle(tool.result),
+  }));
+  const approvals = useToolCallApprovals(calls.flatMap(({ job }) => (job ? [job.jobId] : [])));
   const metadataStatus = parsedTools.find(
     (tool) => tool.status === 'loading' || tool.status === 'unavailable'
   )?.status;
-  const states = resolveToolCallStates(
-    loadedTools.map((tool) => ({ toolName: tool.toolName, pending: tool.status === 'pending' })),
-    approvals
-  );
+  const states = resolveToolCallStates(calls, approvals);
   const summary = summarizeToolCalls(parsedTools, states);
   const running = loadedTools.filter((tool, index) => states[index] === 'running');
   const outputTool = running.filter((tool) => tool.progress).at(-1);

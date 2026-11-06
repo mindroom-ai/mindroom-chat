@@ -37,6 +37,43 @@ describe('resolveToolCallStates', () => {
   });
 });
 
+describe('resolveToolCallStates with background jobs', () => {
+  const job = (jobId: string) => ({ jobId, status: 'awaiting_approval' });
+
+  it('keeps a call waiting while its card does, though the reply went on and completed it', () => {
+    expect(
+      resolveToolCallStates(
+        [{ toolName: 'run_shell_command', pending: false }],
+        [{ toolName: 'run_shell_command', status: 'pending' }]
+      )
+    ).toEqual(['waiting']);
+  });
+
+  it("gives a call the card of the job its handle names, whatever the cards' order", () => {
+    expect(
+      resolveToolCallStates(
+        [
+          { toolName: 'run_shell_command', pending: false },
+          { toolName: 'run_shell_command', pending: false, job: job('b') },
+        ],
+        [
+          { toolName: 'run_shell_command', status: 'denied', jobId: 'b' },
+          { toolName: 'run_shell_command', status: 'approved', jobId: 'a' },
+        ]
+      )
+    ).toEqual(['done', 'denied']);
+  });
+
+  it('reads a detached call from its handle until its card is known', () => {
+    expect(
+      resolveToolCallStates(
+        [{ toolName: 'run_shell_command', pending: false, job: job('a') }],
+        [{ toolName: 'run_shell_command', status: 'denied', jobId: 'c' }]
+      )
+    ).toEqual(['waiting']);
+  });
+});
+
 describe('summarizeToolCalls', () => {
   it('says what the group is doing, counting calls and repeated tools', () => {
     expect(
