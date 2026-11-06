@@ -144,7 +144,8 @@ const spacePath = (space: string) => new RegExp(`/${escaped(space)}/?$`);
 const lobbyPath = (space: string) => new RegExp(`/${escaped(space)}/lobby/?$`);
 
 const list = (page: Page) => page.getByTestId('resizable-page-nav');
-const roomRow = (page: Page, name: string) => list(page).getByRole('link', { name, exact: true });
+// A row's name also holds its unread count; the rooms' names share no words.
+const roomRow = (page: Page, name: string) => list(page).getByRole('link', { name });
 const subspacesButton = (page: Page) => list(page).locator('[data-subspaces-menu]');
 const menu = (page: Page) => page.getByRole('menu');
 const entry = (page: Page, name: string) =>
@@ -207,7 +208,9 @@ const checkKeyboard = async (browser: Browser, engine: string) => {
   await expect(menu(page)).toHaveCount(0);
   await expect(subspacesButton(page)).toBeFocused();
   await page.keyboard.press('Enter');
+  await expect(entry(page, DESIGN)).toBeFocused();
   await page.keyboard.press('ArrowDown');
+  await expect(entry(page, RESEARCH)).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(lobbyPath(seeded.research));
   await expectRooms(page, RESEARCH_ROOMS);
