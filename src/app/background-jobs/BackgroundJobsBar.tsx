@@ -19,6 +19,7 @@ import { type BackgroundJobsBarItem, presentBackgroundJobs } from './backgroundJ
 import { type BackgroundJobCancelRequest, cancelBackgroundJob } from './cancelBackgroundJob';
 import { forgetCancel, keepCancelsOf, markCancelSent, useSentCancels } from './sentCancels';
 import { useRoomBackgroundJobs } from './useRoomBackgroundJobs';
+import { useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
 
 type BackgroundJobsBarProps = {
   room: Room;
@@ -41,8 +42,9 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const roomJobs = useRoomBackgroundJobs(room);
-  const jobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
   const sent = useSentCancels(room.roomId);
+  const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
+  const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId));
   const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(new Map());
   const bar = useRef<HTMLDivElement>(null);
   const several = jobs.length > 1;
