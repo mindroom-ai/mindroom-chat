@@ -83,7 +83,7 @@ export type TimelineScrollLedgerController = {
   threadLeadingRef: RefObject<HTMLDivElement>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
   unrenderedCorrectionPx: () => number;
-  /** Applied measurement corrections, including those whose rows already rendered. */
+  /** Applied upward measurement corrections, including those whose rows already rendered. */
   readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
@@ -525,7 +525,9 @@ export const useTimelineScrollLedgerController = ({
   const unrenderedCorrectionPxRef = useRef(0);
   const measurementCorrectionPxRef = useRef(0);
   const handleAppliedCorrection = useCallback((deltaPx: number) => {
-    measurementCorrectionPxRef.current += deltaPx;
+    // Only upward movement can look like relinquished opening ownership. A downward growth
+    // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
+    measurementCorrectionPxRef.current += Math.min(0, deltaPx);
     if (unrenderedCorrectionPxRef.current === 0) {
       queueMicrotask(() => {
         if (unrenderedCorrectionPxRef.current === 0) return;
