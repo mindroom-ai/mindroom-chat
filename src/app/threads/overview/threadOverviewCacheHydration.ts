@@ -21,6 +21,7 @@ import type {
 } from './threadOverviewCacheMetadata';
 import { readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
 import { subscribeThreadCacheChanges } from '../../event-store/cache/threadCacheChanges';
+import { hydrateCachedEvents } from '../../event-store/cache/eventCacheEditUtils';
 
 type ThreadLikeRoot = {
   id: string;
@@ -241,6 +242,7 @@ export const resolveCachedOverviewUpdate = ({
   const nextActivityTs =
     cachedActivityTs && cachedActivityTs > liveActivityTs ? cachedActivityTs : undefined;
   const cachedEvents = cachedPage.events.map((rawEvent) => mapper(rawEvent as IEvent));
+  hydrateCachedEvents({ room, events: cachedEvents });
   const cachedPresentation = resolveThreadPresentationSnapshot({
     room,
     threadRootId: rootId,
