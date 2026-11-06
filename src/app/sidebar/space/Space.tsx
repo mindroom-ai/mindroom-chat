@@ -332,7 +332,12 @@ export function Space() {
   // Mark as Read covers the rooms of the sub-spaces too; the list shows only the space's own.
   const spaceRooms = useVisibleRooms(useSpaceNavigationRooms(space.roomId));
   const ownRooms = useVisibleRooms(useSpaceOwnRooms(space.roomId));
-  const subspaceIds = useJoinedSubspaces(space.roomId);
+  const joinedSubspaces = useJoinedSubspaces(space.roomId);
+  // A to Z, like the rooms: the joined-rooms order shifts while the client syncs.
+  const subspaceIds = useMemo(
+    () => sortRoomIdsByName(client, joinedSubspaces),
+    [client, joinedSubspaces]
+  );
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);
