@@ -1,5 +1,17 @@
-import React, { forwardRef, useState } from 'react';
-import { Avatar, Box, Icon, IconButton, Icons, Line, Spinner, Text, config, toRem } from 'folds';
+import React, { forwardRef, useEffect, useRef, useState } from 'react';
+import {
+  Avatar,
+  Box,
+  Icon,
+  IconButton,
+  Icons,
+  Line,
+  Spinner,
+  Text,
+  Tooltip,
+  config,
+  toRem,
+} from 'folds';
 import { PopOut, ownDirectionLine } from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuEntry } from '../../ui/MenuEntry';
@@ -156,6 +168,38 @@ const useRowEngagement = () => {
   return [engaged, { ...hoverProps, ...focusWithinProps }] as const;
 };
 
+/** How long the mouse rests on a row before a cut-off name shows in full, as on the rail. */
+const NAME_TOOLTIP_DELAY_MS = 400;
+
+/**
+ * The whole name of a row whose name is cut off, in a tooltip beside the row while a mouse rests
+ * on its link. Touch and pen leave it closed: a tap opens the room, and a tooltip would only
+ * cover the list. Pressing the link closes it.
+ */
+const useCutOffNameTooltip = (
+  rowRef: React.RefObject<HTMLElement>,
+  nameRef: React.RefObject<HTMLElement>
+) => {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const timer = useRef<number>();
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  const close = () => {
+    window.clearTimeout(timer.current);
+    setAnchor(undefined);
+  };
+  const onPointerEnter = (event: React.PointerEvent) => {
+    if (event.pointerType !== 'mouse') return;
+    const nameLine = nameRef.current;
+    if (!nameLine || nameLine.scrollWidth <= nameLine.clientWidth) return;
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      const row = rowRef.current;
+      if (row) setAnchor(row.getBoundingClientRect());
+    }, NAME_TOOLTIP_DELAY_MS);
+  };
+  return [anchor, { onPointerEnter, onPointerLeave: close, onPointerDown: close }] as const;
+};
+
 type RoomNavItemAvatarProps = {
   room: Room;
   name: string;
@@ -306,6 +350,10 @@ type RoomNavLinkProps = {
   hasUnread: boolean;
   /** Unread badge or muted mark at the end of the row. */
   status: React.ReactNode;
+  /** The line holding the name, to tell whether it is cut off. */
+  nameRef: React.Ref<HTMLSpanElement>;
+  /** Pointer handlers that show the cut-off name in full. */
+  pointerProps: React.HTMLAttributes<HTMLElement>;
 };
 
 /** The link of a room row: avatar, name (stronger with unread messages), job clock and status. */
@@ -317,9 +365,11 @@ function RoomNavLink({
   selected,
   hasUnread,
   status,
+  nameRef,
+  pointerProps,
 }: RoomNavLinkProps) {
   return (
-    <NavLink to={to}>
+    <NavLink to={to} {...pointerProps}>
       <NavItemContent>
         <Box as="span" grow="Yes" alignItems="Center" gap="200">
           <RoomNavItemAvatar
@@ -331,6 +381,7 @@ function RoomNavLink({
           />
           <Box as="span" grow="Yes">
             <Text
+              ref={nameRef}
               as="span"
               size="Inherit"
               priority={hasUnread ? '500' : '300'}
@@ -368,6 +419,9 @@ export function RoomNavItem(props: RoomNavItemProps) {
   const [prompt, setPrompt] = useState<RoomNavPrompt>();
   const name = useRoomName(room);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const [nameAnchor, namePointerProps] = useCutOffNameTooltip(rowRef, nameRef);
 
   const showOptions = engaged || optionsAnchor !== undefined;
   const mutedMark = notificationMode === RoomNotificationMode.Mute && !unread;
@@ -394,6 +448,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
 
   const row = (
     <NavItem
+      ref={rowRef}
       {...engagementProps}
       onContextMenu={openContextMenu}
       highlight={Boolean(unread)}
@@ -409,6 +464,8 @@ export function RoomNavItem(props: RoomNavItemProps) {
         selected={selected}
         hasUnread={Boolean(unread)}
         status={status}
+        nameRef={nameRef}
+        pointerProps={namePointerProps}
       />
       {/* Mounted while hidden too, so the button can leave as smoothly as it came. */}
       <RoomNavOptions
@@ -426,6 +483,22 @@ export function RoomNavItem(props: RoomNavItemProps) {
   return (
     <>
       {row}
+      {/* folds' PopOut layer covers the screen; as a tooltip it lets the pointer through. */}
+      <PopOut
+        role="tooltip"
+        style={{ pointerEvents: 'none' }}
+        anchor={nameAnchor}
+        position="Right"
+        align="Center"
+        offset={8}
+        content={
+          <Tooltip style={{ maxWidth: toRem(320) }}>
+            <Text size="T300" {...ownDirectionLine}>
+              {name}
+            </Text>
+          </Tooltip>
+        }
+      />
       {prompt === 'invite' && <InviteUserPrompt room={room} requestClose={closePrompt} />}
       {prompt === 'leave' && (
         <LeaveRoomPrompt roomId={room.roomId} requestClose={closePrompt} onLeft={closePrompt} />
