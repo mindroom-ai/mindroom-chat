@@ -24,6 +24,8 @@ import {
   type CommandPaletteListSection,
 } from './CommandPaletteList';
 import * as css from './CommandPalette.css';
+import { InlineScrollFade } from '../ui/inlineScrollFade.css';
+import { useInlineScrollFade } from '../ui/useInlineScrollFade';
 import {
   getCommandPaletteHighlightIndex,
   getCommandPaletteTabStep,
@@ -257,6 +259,7 @@ export function CommandPalette({
   const navigatingRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
+  useInlineScrollFade(tabListRef);
   const resultsRef = useRef<HTMLDivElement>(null);
   const listId = useId();
   const panelId = `${listId}-panel`;
@@ -465,7 +468,7 @@ export function CommandPalette({
       </div>
       <div
         ref={tabListRef}
-        className={css.Tabs}
+        className={`${css.Tabs} ${InlineScrollFade}`}
         role="tablist"
         aria-label={t('commandPalette.tabsLabel')}
       >
