@@ -1,5 +1,5 @@
-import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
-import { Membership } from '../types/room';
+import { ClientEvent, KnownMembership, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 // A room left and forgotten on another device in one go never arrives here as left: the
 // homeserver leaves forgotten rooms out of /sync, so the room stayed joined in this client and in
@@ -20,7 +20,7 @@ type SavedSyncStore = {
 const joinedRoomIds = (mx: MatrixClient): string[] =>
   mx
     .getRooms()
-    .filter((room) => room.getMyMembership() === Membership.Join)
+    .filter((room) => matchesEnum(room.getMyMembership(), KnownMembership.Join))
     .map((room) => room.roomId);
 
 /** Removes rooms that `/joined_rooms` no longer lists; call it before the client starts. */
