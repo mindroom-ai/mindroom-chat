@@ -17,7 +17,7 @@ describe('Mindroom model badge avatar layout', () => {
     expect(MESSAGE_AVATAR_WIDTH_PX).toBe(36);
     expect(MESSAGE_LAYOUT_GAP).toBe('300');
     expect(getModelBadgeMaxWidth(avatarWidth, messageLayoutGap)).toBe(
-      `calc(${avatarWidth} + ${messageLayoutGap} + ${messageLayoutGap})`
+      `calc(${avatarWidth} + ${messageLayoutGap})`
     );
   });
 });

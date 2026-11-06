@@ -28,8 +28,10 @@ describe('ModelBadge', () => {
       const renderer = create(<ModelBadge info={info!} />);
 
       expect(renderer.root.findByProps({ className: 'Label' }).children).toEqual([expectedLabel]);
-      const badge = renderer.root.findByProps({ title: details });
+      const badge = renderer.root.findByType('button');
       expect(badge.props['aria-label']).toBe(`Model: ${details}`);
+      // A hover, focus or tap shows the full name.
+      expect(renderer.root.findByProps({ tip: details })).toBeDefined();
     }
   );
 
@@ -44,9 +46,8 @@ describe('ModelBadge', () => {
       />
     );
 
-    const badge = renderer.root.findByProps({
-      'aria-label': 'Model: fable (vertexai / claude-fable-5)',
-    });
+    const badge = renderer.root.findByType('button');
+    expect(badge.props['aria-label']).toBe('Model: fable (vertexai / claude-fable-5)');
     const icon = badge.findByType('svg');
 
     expect(icon.props.viewBox).toBe('0 0 24 24');
