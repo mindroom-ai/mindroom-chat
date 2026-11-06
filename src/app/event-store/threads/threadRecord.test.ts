@@ -317,7 +317,8 @@ describe('buildThreadRecord', () => {
         latestReplyPreviewText: 'Latest reply',
         lastSenderId: '@agent-b:server',
         messageCount: 99,
-        participantIds: ['@agent-b:server', '@agent-a:server', '@me:server'],
+        // Known repliers before the root's sender, newest first.
+        participantIds: ['@agent-b:server', '@agent-a:server', '@fallback:server'],
       },
       status: {
         isResolved: true,

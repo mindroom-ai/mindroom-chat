@@ -46,6 +46,7 @@ const listedThread = ({ participated }: { participated: boolean }) => {
     length: 6,
     events: [root],
     timeline: [root],
+    lastReply: () => newest,
     getUnfilteredTimelineSet: () => ({
       getLiveTimeline: () => ({
         getEvents: () => [root],

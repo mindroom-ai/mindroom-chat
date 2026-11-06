@@ -71,7 +71,8 @@ describe('resolveThreadIndexSnapshot', () => {
       pinnedThreadRootIds: ['$compact'],
       normalThreadRecordMap: new Map([['$normal', normalRecord]]),
       compactThreadRecordMap: new Map([['$compact', compactRecord]]),
-      threadFilterState: makeFilterState({ resolved: 'include' }),
+      // The pin shows because it matches the filter, as any thread must.
+      threadFilterState: makeFilterState({ unread: 'include' }),
       liveThreadFilterState: makeFilterState(),
       fallbackThreadFilterState: makeFilterState(),
       searchQuery: '',

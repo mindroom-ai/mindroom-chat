@@ -83,8 +83,8 @@ const planThread = (index: number): ThreadPlan => {
   };
 };
 const PLANS = Array.from({ length: THREAD_COUNT }, (_unused, index) => planThread(index));
-// Pinned, in this order: three unresolved threads (0 and 2 with the planner) and three resolved
-// ones (4 with the planner).
+// Pinned, in this order: three unresolved threads (0 and 2 with the planner) and three that carry
+// the resolved tag (4 with the planner).
 const PINNED = [0, 2, 3, 1, 4, 7];
 
 // Display names as the room shows them; `me` is the primary test account's.
@@ -283,20 +283,19 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
     await expect(overview.locator('[data-preset-button]')).toBeVisible({ timeout: 2_000 });
   }).toPass({ timeout: 30_000 });
 
-  // Presets: the pinned threads follow the same rules as the others.
+  // Presets: the pinned threads follow the same rules as the others. A pinned thread stays open
+  // (THR-18), so its resolved tag does not count while it is pinned.
+  const pinnedIndexes = new Set(PINNED);
+  const isResolved = (plan: ThreadPlan, index: number) =>
+    plan.resolved && !pinnedIndexes.has(index);
   await applyPreset(page, 'archived');
-  await expectShown(
-    page,
-    room,
-    rootsWhere(room, (plan) => plan.resolved),
-    `${engine} archived`
-  );
+  await expectShown(page, room, rootsWhere(room, isResolved), `${engine} archived`);
   await shot(page, `${engine}-preset-archived`);
   await applyPreset(page, 'needs-attention');
   await expectShown(
     page,
     room,
-    rootsWhere(room, (plan) => !plan.resolved),
+    rootsWhere(room, (plan, index) => !isResolved(plan, index)),
     `${engine} needs attention`
   );
   await shot(page, `${engine}-preset-needs-attention`);
