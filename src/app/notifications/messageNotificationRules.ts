@@ -19,11 +19,10 @@ import { getCanonicalAliasRoomId, isRoomAlias } from '../matrix/matrix';
 import { decodeRouteParam } from '../routes/pathUtils';
 import { DIRECT_ROOM_PATH, HOME_ROOM_PATH, SPACE_ROOM_PATH } from '../routes/paths';
 import { matchesEnum } from '../lib/matchesEnum';
+import { STREAM_STATUS_KEY, TERMINAL_STREAM_STATUSES } from '../matrix/protocol/aiRun';
 
 /** Messages older than this when they arrive are a catch-up after time offline, not news. */
 export const MESSAGE_NOTIFY_MAX_AGE_MS = 2 * 60 * 1000;
-
-const STREAM_STATUS_KEY = 'io.mindroom.stream_status';
 
 /** A message that notifies, and what its push actions ask for. */
 export type MessageNotice = {
@@ -59,10 +58,20 @@ export const getEventThreadId = (event: MatrixEvent): string | undefined => {
 };
 
 /**
- * A MindRoom agent streams its reply as an `m.notice` (which push rules never notify for) and
- * edits it into an `m.text` once done, marked `io.mindroom.stream_status: completed`. Push rules
- * ignore edits too, so that last edit is where the finished reply notifies. Returns the reply it
- * completes and its final content; any other edit returns undefined.
+ * Whether a message's own content marks it as an agent reply still being written: a placeholder
+ * or a progress update (`io.mindroom.stream_status` other than a terminal one), whatever its
+ * msgtype. Such a message never notifies; its last edit does once it completes.
+ */
+const isUnfinishedReply = (content: IContent): boolean => {
+  const status: unknown = content[STREAM_STATUS_KEY];
+  return typeof status === 'string' && !TERMINAL_STREAM_STATUSES.has(status.toLowerCase());
+};
+
+/**
+ * A MindRoom agent sends its reply unfinished first (a placeholder, marked with a stream status
+ * that is not terminal) and edits it until an edit marks it `io.mindroom.stream_status:
+ * completed`. Push rules ignore edits, so that last edit is where the finished reply notifies.
+ * Returns the reply it completes and its final content; any other edit returns undefined.
  */
 export const getCompletedAgentReply = (
   room: Room,
@@ -77,7 +86,7 @@ export const getCompletedAgentReply = (
   if (finished.msgtype === MsgType.Notice) return undefined;
   const reply = room.findEventById(relation.event_id);
   // An edit of a message that was sent finished already (an approval, a correction) is no news.
-  if (!reply || reply.getOriginalContent().msgtype !== MsgType.Notice) return undefined;
+  if (!reply || !isUnfinishedReply(reply.getOriginalContent())) return undefined;
   if (reply.getSender() !== edit.getSender()) return undefined;
   return { reply, content: finished as IContent };
 };
@@ -122,6 +131,7 @@ export const readMessageNotice = (
   if (event.isRedacted() || event.isDecryptionFailure()) return undefined;
   if (!NOTIFYING_TYPES.has(event.getType())) return undefined;
   if (now - event.getTs() > MESSAGE_NOTIFY_MAX_AGE_MS) return undefined;
+  if (isUnfinishedReply(event.getContent())) return undefined;
 
   const completed = getCompletedAgentReply(room, event);
   if (relationOf(event)?.rel_type === RelationType.Replace && !completed) return undefined;
