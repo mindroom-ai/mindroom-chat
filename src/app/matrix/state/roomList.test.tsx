@@ -1,4 +1,3 @@
-import React from 'react';
 import { EventEmitter } from 'events';
 import { Provider, createStore } from 'jotai';
 import {
