@@ -65,7 +65,9 @@ const check = async (
   const page = await context.newPage();
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
-    await expect(page.getByTestId('page-nav').getByText('Planning room 26')).toBeVisible({
+    await expect(
+      page.getByTestId('page-nav').getByText('Planning room 1', { exact: true })
+    ).toBeVisible({
       timeout: 60_000,
     });
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
