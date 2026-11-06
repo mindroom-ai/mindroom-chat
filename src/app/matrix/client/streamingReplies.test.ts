@@ -436,6 +436,34 @@ describe('streaming replies on thread cards', () => {
       expect(f.replyRequests()).toBe(0);
     });
 
+    it('asks nothing when a card that still holds the reply is drawn again after the list', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      // The cache also restored the reply into the thread's loaded events, so the card keeps it
+      // after the list names the thread's newer event.
+      const thread = defined(f.room().getThread(rootId), 'the thread');
+      thread.timelineSet.addEventsToTimeline(
+        [f.mx.getEventMapper()(reply(now - 50_000))],
+        true,
+        false,
+        thread.liveTimeline
+      );
+      const openList = f.holdThreadList([withSummary(root(now - 60_000), title(now - 15_000), 2)]);
+      expect(f.card().streaming).toBe(false);
+      const listing = loadRoomThreads(f.room());
+      await afterCheckDelay();
+
+      openList();
+      await listing;
+      await settle();
+      // Anything can draw the card again: the list's word about the thread still holds.
+      expect(f.card().streaming).toBe(false);
+      await afterCheckDelay();
+      expect(f.card().streaming).toBe(false);
+      expect(f.replyRequests()).toBe(0);
+    });
+
     it('checks a reply the list did not answer once the list is read', async () => {
       const now = Date.now();
       const f = await reload(now);
