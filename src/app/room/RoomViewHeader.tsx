@@ -373,14 +373,16 @@ export function RoomViewHeader({
       ? t('mindroomUi.threads.mindroomRoomViewHeader.hideCanvas')
       : t('mindroomUi.threads.mindroomRoomViewHeader.showCanvas');
   }
+  // A menu checkbox that is on shows a check where its icon would be.
+  const checkMark = <Icon size="100" src={Icons.Check} />;
   const phoneEntries = mobile && (
     <>
       {viewSwitch && !threadId && (
         <MenuEntry
           role="menuitemcheckbox"
           aria-checked={viewSwitch.compact}
-          fill={viewSwitch.compact ? 'Soft' : 'None'}
           icon={CompactViewIcon}
+          after={viewSwitch.compact ? checkMark : undefined}
           label={t('mindroomUi.threads.mindroomRoomViewHeader.compactView')}
           data-room-view-switch=""
           onSelect={fromMenu(viewSwitch.toggle)}
@@ -391,6 +393,7 @@ export function RoomViewHeader({
           role="menuitemcheckbox"
           aria-checked={!filterBarHidden}
           icon={Icons.Filter}
+          after={filterBarHidden ? undefined : checkMark}
           label={
             hiddenFiltersActive
               ? t('mindroomUi.threads.mindroomRoomViewHeader.threadFiltersActive')
