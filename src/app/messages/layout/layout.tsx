@@ -51,13 +51,22 @@ export const CompactLayout = as<'div', LayoutProps>(({ before, children, ...prop
   </Box>
 ));
 
-/** Avatar beside a bubble holding the header and body. */
-export const BubbleLayout = as<'div', LayoutProps & { header?: ReactNode }>(
-  ({ before, header, children, ...props }, ref) => (
-    <Box gap={MESSAGE_LAYOUT_GAP} alignItems="Start" {...props} ref={ref}>
+/**
+ * Avatar beside a bubble holding the header and body. The reader's own messages (`own`) mirror it:
+ * the bubble on the end side with the avatar after it, its text still from the leading edge.
+ */
+export const BubbleLayout = as<'div', LayoutProps & { header?: ReactNode; own?: boolean }>(
+  ({ before, header, own = false, children, ...props }, ref) => (
+    <Box
+      gap={MESSAGE_LAYOUT_GAP}
+      direction={own ? 'RowReverse' : 'Row'}
+      alignItems="Start"
+      {...props}
+      ref={ref}
+    >
       <div className={css.AvatarColumn}>{before}</div>
       <div className={css.LayoutContent}>
-        <div className={css.BubbleContent}>
+        <div className={classNames(css.BubbleContent, own && css.OwnBubble)}>
           {header}
           {children}
         </div>

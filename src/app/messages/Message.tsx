@@ -950,7 +950,11 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         messageLayout === MessageLayout.Compact ? (
           <CompactLayout before={header}>{body}</CompactLayout>
         ) : messageLayout === MessageLayout.Bubble ? (
-          <BubbleLayout before={renderAvatar(true)} header={!collapse && header}>
+          <BubbleLayout
+            before={renderAvatar(true)}
+            header={!collapse && header}
+            own={senderId === client.getUserId()}
+          >
             {body}
           </BubbleLayout>
         ) : (

@@ -77,11 +77,13 @@ globalStyle('[data-message-fold="text"]:not(:has(> * > [data-message-disclosure]
 
 const bubbleColors = color.SurfaceVariant;
 
-// A bubble only as wide as its content, up to the content column.
+// A bubble only as wide as its content, up to the content column or a readable 40rem, whichever
+// is narrower: on a wide window the lines stay short enough to read and own and others' bubbles
+// stay apart.
 export const BubbleContent = style({
   width: 'fit-content',
   minWidth: 0,
-  maxWidth: '100%',
+  maxWidth: `min(100%, ${toRem(640)})`,
   display: 'flex',
   flexDirection: 'column',
   rowGap: config.space.S100,
@@ -91,6 +93,9 @@ export const BubbleContent = style({
   backgroundColor: bubbleColors.Container,
   color: bubbleColors.OnContainer,
 });
+
+// The reader's own bubble sits at the end of the content column.
+export const OwnBubble = style({ marginInlineStart: 'auto' });
 
 // Sender names take the colour of the sender's standing in the room: whoever leads it (creators
 // and administrators) in blue, moderators in violet, everyone else in teal. The dark themes use
