@@ -73,6 +73,34 @@ const listedRoot = (latest: IEvent, count: number): IEvent => ({
     },
   },
 });
+/** The title the room's state holds for the thread, as MindRoom would write it. */
+const titleState = (summary = TITLE): IEvent =>
+  ({
+    type: 'io.mindroom.thread_summary',
+    event_id: '$title-state',
+    room_id: roomId,
+    sender: agentId,
+    state_key: rootId,
+    origin_server_ts: 120,
+    content: {
+      version: 1,
+      summary,
+      message_count: 1,
+      generated_at: '2026-11-05T10:00:00Z',
+      model: 'default',
+      event_id: '$title',
+    },
+  } as IEvent);
+const encryption = (): IEvent =>
+  ({
+    type: 'm.room.encryption',
+    event_id: '$encryption',
+    room_id: roomId,
+    sender: personId,
+    state_key: '',
+    origin_server_ts: 0,
+    content: { algorithm: 'm.megolm.v1.aes-sha2' },
+  } as IEvent);
 const membership = (userId: string): IEvent =>
   ({
     type: 'm.room.member',
@@ -130,14 +158,14 @@ const fixture = (serverThread: () => IEvent[]) => {
   (mx as MatrixClient & { serverVersionsPromise?: Promise<unknown> }).serverVersionsPromise =
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
 
-  const deliver = async (events: IEvent[]) => {
+  const deliver = async (events: IEvent[], state: IEvent[] = []) => {
     batch += 1;
     const response = {
       next_batch: `batch-${batch}`,
       rooms: {
         join: {
           [roomId]: {
-            state: { events: [membership(agentId), membership(personId)] },
+            state: { events: [membership(agentId), membership(personId), ...state] },
             timeline: { events, prev_batch: 'before', limited: false },
             ephemeral: { events: [] },
             account_data: { events: [] },
@@ -220,5 +248,23 @@ describe('thread titles a device did not see arrive', () => {
     await f.room().getThread(rootId)?.initialize();
     await settle();
     expect(getThreadSummaryStateSnapshot(sessionId, roomId).get(rootId)?.summaryText).toBe(TITLE);
+  });
+
+  it("knows a title from the room's state, in a thread it never loaded", async () => {
+    const f = fixture(() => []);
+    await f.start();
+    // The title notice is history; the server's summary names a later question.
+    await f.deliver([listedRoot(laterQuestion(), 3)], [titleState()]);
+    expect(f.title()).toBe(TITLE);
+
+    await f.deliver([], [titleState('Release checklist and changelog')]);
+    expect(f.title()).toBe('Release checklist and changelog');
+  });
+
+  it("ignores titles in an encrypted room's state", async () => {
+    const f = fixture(() => []);
+    await f.start();
+    await f.deliver([listedRoot(laterQuestion(), 3)], [encryption(), titleState()]);
+    expect(f.title()).toBe('What goes into the release?');
   });
 });
