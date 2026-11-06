@@ -432,6 +432,11 @@
         "includeText": "Includi il testo dei messaggi",
         "includeTextWarning": "Il testo di questi messaggi verrà salvato senza crittografia nella stanza delle segnalazioni, leggibile dai suoi amministratori e dal server.",
         "send": "Invia segnalazione"
+      },
+      "linkCheck": {
+        "title": "Aprire questo link?",
+        "description": "Il testo del link mostra un indirizzo diverso da quello che apre. Apre:",
+        "open": "Apri link"
       }
     },
     "message-search": {

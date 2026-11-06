@@ -426,6 +426,11 @@
         "includeText": "Berichttekst meesturen",
         "includeTextWarning": "De tekst van deze berichten wordt onversleuteld opgeslagen in de rapportruimte, leesbaar voor de beheerders en de server.",
         "send": "Rapport versturen"
+      },
+      "linkCheck": {
+        "title": "Deze link openen?",
+        "description": "De tekst van de link toont een ander adres dan het adres dat hij opent. Hij opent:",
+        "open": "Link openen"
       }
     },
     "message-search": {

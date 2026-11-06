@@ -1,0 +1,91 @@
+import { type ComponentProps, type MouseEvent, type SyntheticEvent, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Box, Button, Text } from 'folds';
+import { ActionDialog } from '../ui/ActionDialog';
+import { MessageLink } from './MessageLink';
+import { linkTextMisleads } from './linkDestination';
+
+/** The address as the browser will open it, so an encoded or punycode host shows as such. */
+const displayAddress = (href: string): string => {
+  try {
+    return new URL(href).href;
+  } catch {
+    return href;
+  }
+};
+
+// The dialog renders in a portal, but React passes its events up through the link's ancestors,
+// such as a thread card that opens its thread on a click; they stop at the dialog.
+const stop = (evt: SyntheticEvent) => evt.stopPropagation();
+
+/**
+ * A message link that names its real address on hover (its title, whatever the message's HTML
+ * says) and, when its visible text reads as an address on another site, shows where it really
+ * goes and opens only on a second confirmation.
+ */
+export function CheckedMessageLink({ onClick, ...props }: ComponentProps<typeof MessageLink>) {
+  const { t } = useTranslation();
+  const { href } = props;
+  const [asking, setAsking] = useState(false);
+  const anchor = useRef<HTMLAnchorElement | null>(null);
+  const confirmed = useRef(false);
+
+  const handleClick = (evt: MouseEvent<HTMLAnchorElement>) => {
+    onClick?.(evt);
+    if (evt.defaultPrevented || !href) return;
+    if (confirmed.current) {
+      confirmed.current = false;
+      return;
+    }
+    if (!linkTextMisleads(evt.currentTarget.textContent ?? '', href)) return;
+    evt.preventDefault();
+    anchor.current = evt.currentTarget;
+    setAsking(true);
+  };
+
+  const open = () => {
+    setAsking(false);
+    // The link itself opens, with its own target and rel, as if clicked without the check.
+    confirmed.current = true;
+    anchor.current?.click();
+  };
+
+  return (
+    <>
+      <MessageLink {...props} title={href} onClick={handleClick} />
+      {asking && href && (
+        <span onClick={stop} onKeyDown={stop} role="presentation">
+          <ActionDialog
+            label={t('mindroomUi.messages.linkCheck.title')}
+            onClose={() => setAsking(false)}
+            busy={false}
+          >
+            <Text size="T300">{t('mindroomUi.messages.linkCheck.description')}</Text>
+            <Text
+              as="p"
+              size="T300"
+              dir="ltr"
+              style={{ overflowWrap: 'anywhere', fontFamily: 'monospace', marginBlock: 0 }}
+            >
+              {displayAddress(href)}
+            </Text>
+            <Box justifyContent="End" gap="200">
+              <Button
+                type="button"
+                size="300"
+                variant="Secondary"
+                fill="Soft"
+                onClick={() => setAsking(false)}
+              >
+                <Text size="B300">{t('threadActions.cancel')}</Text>
+              </Button>
+              <Button type="button" size="300" variant="Primary" onClick={open}>
+                <Text size="B300">{t('mindroomUi.messages.linkCheck.open')}</Text>
+              </Button>
+            </Box>
+          </ActionDialog>
+        </span>
+      )}
+    </>
+  );
+}

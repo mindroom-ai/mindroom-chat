@@ -432,6 +432,11 @@
         "includeText": "Inclure le texte des messages",
         "includeTextWarning": "Le texte de ces messages sera stocké sans chiffrement dans le salon des rapports, lisible par ses administrateurs et par le serveur.",
         "send": "Envoyer le rapport"
+      },
+      "linkCheck": {
+        "title": "Ouvrir ce lien ?",
+        "description": "Le texte du lien affiche une autre adresse que celle qu’il ouvre. Il ouvre :",
+        "open": "Ouvrir le lien"
       }
     },
     "message-search": {

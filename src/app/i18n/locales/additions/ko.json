@@ -420,6 +420,11 @@
         "includeText": "메시지 본문 포함",
         "includeTextWarning": "이 메시지들의 본문은 보고서 방에 암호화되지 않은 채 저장되며, 방 관리자와 서버가 읽을 수 있습니다.",
         "send": "보고서 보내기"
+      },
+      "linkCheck": {
+        "title": "이 링크를 열까요?",
+        "description": "링크 텍스트에 표시된 주소가 실제로 열리는 주소와 다릅니다. 열리는 주소:",
+        "open": "링크 열기"
       }
     },
     "message-search": {

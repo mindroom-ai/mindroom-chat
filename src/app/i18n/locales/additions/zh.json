@@ -420,6 +420,11 @@
         "includeText": "包含消息文字",
         "includeTextWarning": "这些消息的文字将以未加密的形式保存在报告房间中，其管理员和服务器都能读取。",
         "send": "发送报告"
+      },
+      "linkCheck": {
+        "title": "打开此链接？",
+        "description": "链接文字显示的地址与它实际打开的地址不同。它将打开：",
+        "open": "打开链接"
       }
     },
     "message-search": {

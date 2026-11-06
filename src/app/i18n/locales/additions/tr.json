@@ -426,6 +426,11 @@
         "includeText": "Mesaj metnini ekle",
         "includeTextWarning": "Bu mesajların metni rapor odasında şifrelenmeden saklanacak; odanın yöneticileri ve sunucu okuyabilecek.",
         "send": "Raporu gönder"
+      },
+      "linkCheck": {
+        "title": "Bu bağlantı açılsın mı?",
+        "description": "Bağlantının metni, açtığı adresten farklı bir adres gösteriyor. Açtığı adres:",
+        "open": "Bağlantıyı aç"
       }
     },
     "message-search": {

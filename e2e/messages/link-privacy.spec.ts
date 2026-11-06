@@ -1,3 +1,4 @@
+import { mkdirSync } from 'node:fs';
 import {
   expect,
   test,
@@ -21,10 +22,16 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // - Site icons. By default no link sends anything to a third party. A deployment that sets
 //   `messageRendering.linkFavicons` shows icons from icons.duckduckgo.com in unencrypted rooms,
 //   and never in encrypted ones, whatever the person's link preview settings say.
+// - Destinations. Bidirectional control characters in a link's text are removed, every link
+//   names its real address on hover (title), and a link whose text reads as an address on another
+//   host asks before it opens.
+// Set LINK_PRIVACY_SHOTS=<directory> to save the confirmation on each engine.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'link-privacy-spec-password';
 const RUN = Date.now().toString(36);
+const SHOTS = process.env.LINK_PRIVACY_SHOTS;
 const ICON_SERVICE = 'icons.duckduckgo.com';
+const BIDI = /[\u202A-\u202E\u2066-\u2069]/;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 const PHONE: BrowserContextOptions = {
@@ -238,6 +245,122 @@ const checkIcons = async (
   }
 };
 
+/** Real destinations: hover titles, bidi controls removed, a check before a misleading link. */
+const checkDestinations = async (
+  browser: Browser,
+  options: BrowserContextOptions,
+  engine: string,
+  baseURL?: string
+) => {
+  const reader = await register(`dest_reader_${engine}`);
+  const writer = await register(`dest_writer_${engine}`);
+  const roomId = await createRoom(writer, 'Link Review', {
+    encrypted: false,
+    invite: reader.userId,
+  });
+  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
+    method: 'POST',
+    accessToken: reader.accessToken,
+    body: '{}',
+  });
+  await sendLink(
+    writer,
+    roomId,
+    'Reversed',
+    '<a href="https://evil.example/">https://\u202Egro.elpmaxe\u202C</a>'
+  );
+  await sendLink(
+    writer,
+    roomId,
+    'Claimed',
+    '<a href="https://evil.example/login">https://example.org/login</a>'
+  );
+  await sendLink(writer, roomId, 'Honest', '<a href="https://example.org/docs">the docs</a>');
+  await sendLink(
+    writer,
+    roomId,
+    'Same',
+    '<a href="https://example.org/same">https://example.org/same</a>'
+  );
+
+  const { context, page, external } = await openContext(browser, options, baseURL);
+  const press = options.hasTouch
+    ? (locator: ReturnType<typeof linkIn>) => locator.tap()
+    : (locator: ReturnType<typeof linkIn>) => locator.click();
+  try {
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: reader.username,
+      password: PASSWORD,
+    });
+    await openRoom(page, roomId, reader.userId);
+    const reversed = linkIn(page, 'Reversed');
+    await expect(reversed).toBeVisible({ timeout: 30_000 });
+
+    // Every link names its real address, and no text keeps a direction override.
+    for (const [label, href] of [
+      ['Reversed', 'https://evil.example/'],
+      ['Claimed', 'https://evil.example/login'],
+      ['Honest', 'https://example.org/docs'],
+      ['Same', 'https://example.org/same'],
+    ] as const) {
+      const link = linkIn(page, label);
+      await expect(link, `${engine}: ${label} names its address`).toHaveAttribute('title', href);
+      expect(
+        BIDI.test((await link.textContent()) ?? ''),
+        `${engine}: ${label} has no bidi controls`
+      ).toBe(false);
+    }
+    await expect(reversed).toHaveText('https://gro.elpmaxe');
+
+    const pages: string[] = [];
+    context.on('page', (opened) => pages.push(opened.url()));
+    const dialog = page.getByRole('dialog', { name: 'Open this link?' });
+
+    // A link whose text names another host asks first, showing where it really goes.
+    for (const [label, href] of [
+      ['Reversed', 'https://evil.example/'],
+      ['Claimed', 'https://evil.example/login'],
+    ] as const) {
+      await press(linkIn(page, label));
+      await expect(dialog, `${engine}: ${label} asks before opening`).toBeVisible();
+      await expect(dialog.getByText(href, { exact: true })).toBeVisible();
+      if (SHOTS && label === 'Claimed') {
+        mkdirSync(SHOTS, { recursive: true });
+        await page.screenshot({ path: `${SHOTS}/link-confirm-${engine}.png` });
+      }
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      await page.waitForTimeout(500);
+      expect(pages, `${engine}: ${label} did not open after Cancel`).toEqual([]);
+    }
+
+    // Opening anyway goes to the real address.
+    await press(linkIn(page, 'Claimed'));
+    const opened = context.waitForEvent('page');
+    await dialog.getByRole('button', { name: 'Open link', exact: true }).click();
+    const target = await opened;
+    await expect.poll(() => target.url()).toBe('https://evil.example/login');
+    await target.close();
+
+    // Text that does not read as another address opens at once.
+    for (const [label, href] of [
+      ['Honest', 'https://example.org/docs'],
+      ['Same', 'https://example.org/same'],
+    ] as const) {
+      const next = context.waitForEvent('page');
+      await press(linkIn(page, label));
+      const direct = await next;
+      await expect.poll(() => direct.url()).toBe(href);
+      await expect(dialog).toHaveCount(0);
+      await direct.close();
+    }
+    expect(external.filter((url) => url.includes(ICON_SERVICE))).toEqual([]);
+  } finally {
+    await context.close();
+  }
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
   test.setTimeout(240_000);
@@ -257,6 +380,25 @@ test('link icons reach no third party unless the deployment allows it, never in 
   const webkit = await launchWebKit();
   try {
     await checkIcons(webkit, PHONE, 'webkit', baseURL);
+  } finally {
+    await webkit.close();
+  }
+});
+
+test('links show their real destination and ask before a misleading one opens (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
+  await checkDestinations(browser, DESKTOP, 'chromium', baseURL);
+});
+
+test('links show their real destination and ask before a misleading one opens (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  const webkit = await launchWebKit();
+  try {
+    await checkDestinations(webkit, PHONE, 'webkit', baseURL);
   } finally {
     await webkit.close();
   }

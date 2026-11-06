@@ -426,6 +426,11 @@
         "includeText": "Include message text",
         "includeTextWarning": "The text of these messages will be stored unencrypted in the report room, readable by its admins and the server.",
         "send": "Send report"
+      },
+      "linkCheck": {
+        "title": "Open this link?",
+        "description": "The link's text shows a different address from the one it opens. It opens:",
+        "open": "Open link"
       }
     },
     "message-search": {

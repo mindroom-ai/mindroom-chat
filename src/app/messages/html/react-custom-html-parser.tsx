@@ -33,7 +33,9 @@ import {
   getCodeBlockLanguage,
   getCodeBlockLanguageIconToken,
 } from '../../rich-text/code/codeBlockLanguage';
-import { LinkFaviconContext, MessageLink } from '../../rich-text/MessageLink';
+import { LinkFaviconContext } from '../../rich-text/MessageLink';
+import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
+import { stripBidiControls } from '../../rich-text/linkDestination';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
@@ -232,9 +234,9 @@ export const factoryRenderLinkifyWithMention =
       if (mention) return mention;
     }
     return (
-      <MessageLink {...attributesToProps(attributes)} showFavicon={showFavicons}>
-        {content}
-      </MessageLink>
+      <CheckedMessageLink {...attributesToProps(attributes)} showFavicon={showFavicons}>
+        {stripBidiControls(content)}
+      </CheckedMessageLink>
     );
   };
 
@@ -482,6 +484,17 @@ const HEADING_SIZES = {
 const isHeading = (name: string): name is keyof typeof HEADING_SIZES =>
   Object.prototype.hasOwnProperty.call(HEADING_SIZES, name);
 
+/**
+ * Removes bidirectional controls from the text inside a link, in the parsed tree, so a link's
+ * text cannot show an address in an order other than the one it holds.
+ */
+const stripLinkTextBidi = (nodes: ChildNode[]): void => {
+  nodes.forEach((node) => {
+    if (isText(node)) node.data = stripBidiControls(node.data);
+    else if (isTag(node)) stripLinkTextBidi(node.children);
+  });
+};
+
 const hasAncestor = (node: ChildNode, names: string[]): boolean => {
   for (let parent = node.parent; parent; parent = parent.parent) {
     if (isTag(parent) && names.includes(parent.name)) return true;
@@ -619,6 +632,7 @@ export const getReactCustomHtmlParser = (
           );
         case 'a': {
           const { href } = attribs;
+          stripLinkTextBidi(children);
           const content = domToReact(children, parserOptions);
           if (href && testMatrixTo(href)) {
             const mention = renderMatrixMention(
@@ -631,12 +645,12 @@ export const getReactCustomHtmlParser = (
             if (mention) return mention;
           }
           return (
-            <MessageLink
+            <CheckedMessageLink
               {...props}
               showFavicon={!!params.showLinkFavicons && !containsSpoiler(children)}
             >
               {content}
-            </MessageLink>
+            </CheckedMessageLink>
           );
         }
         case 'img': {

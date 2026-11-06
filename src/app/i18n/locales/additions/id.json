@@ -420,6 +420,11 @@
         "includeText": "Sertakan teks pesan",
         "includeTextWarning": "Teks pesan-pesan ini akan disimpan tanpa enkripsi di ruang laporan, dan dapat dibaca oleh adminnya dan server.",
         "send": "Kirim laporan"
+      },
+      "linkCheck": {
+        "title": "Buka tautan ini?",
+        "description": "Teks tautan menampilkan alamat yang berbeda dari alamat yang dibukanya. Tautan ini membuka:",
+        "open": "Buka tautan"
       }
     },
     "message-search": {

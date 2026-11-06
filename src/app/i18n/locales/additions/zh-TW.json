@@ -420,6 +420,11 @@
         "includeText": "包含訊息文字",
         "includeTextWarning": "這些訊息的文字將以未加密的形式儲存在報告聊天室中，其管理員和伺服器都能讀取。",
         "send": "傳送報告"
+      },
+      "linkCheck": {
+        "title": "要開啟此連結嗎？",
+        "description": "連結文字顯示的網址與實際開啟的網址不同。它會開啟：",
+        "open": "開啟連結"
       }
     },
     "message-search": {

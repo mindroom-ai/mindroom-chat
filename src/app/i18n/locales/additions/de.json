@@ -426,6 +426,11 @@
         "includeText": "Nachrichtentext einschließen",
         "includeTextWarning": "Der Text dieser Nachrichten wird unverschlüsselt im Berichtsraum gespeichert und ist für dessen Admins und den Server lesbar.",
         "send": "Bericht senden"
+      },
+      "linkCheck": {
+        "title": "Diesen Link öffnen?",
+        "description": "Der Text des Links zeigt eine andere Adresse als die, die er öffnet. Er öffnet:",
+        "open": "Link öffnen"
       }
     },
     "message-search": {

@@ -432,6 +432,11 @@
         "includeText": "Incluir el texto de los mensajes",
         "includeTextWarning": "El texto de estos mensajes se guardará sin cifrar en la sala de informes, y sus administradores y el servidor podrán leerlo.",
         "send": "Enviar informe"
+      },
+      "linkCheck": {
+        "title": "¿Abrir este enlace?",
+        "description": "El texto del enlace muestra una dirección distinta de la que abre. Abre:",
+        "open": "Abrir enlace"
       }
     },
     "message-search": {
