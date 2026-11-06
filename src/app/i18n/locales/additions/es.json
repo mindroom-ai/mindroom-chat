@@ -440,6 +440,12 @@
         "search": "Buscar etiquetas",
         "noMatch": "Ninguna etiqueta coincide",
         "excluded": "Excluida"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> cambió el nombre de la sala a «<value>{{value}}</value>»",
+        "removedRoomName": "<sender>{{sender}}</sender> quitó el nombre de la sala",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> cambió el tema a «<value>{{value}}</value>»",
+        "removedRoomTopic": "<sender>{{sender}}</sender> quitó el tema"
       }
     },
     "computer": {

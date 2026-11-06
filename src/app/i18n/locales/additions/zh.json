@@ -426,6 +426,12 @@
         "search": "搜索标签",
         "noMatch": "没有匹配的标签",
         "excluded": "已排除"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> 将房间名称更改为“<value>{{value}}</value>”",
+        "removedRoomName": "<sender>{{sender}}</sender> 移除了房间名称",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> 将主题更改为“<value>{{value}}</value>”",
+        "removedRoomTopic": "<sender>{{sender}}</sender> 移除了主题"
       }
     },
     "computer": {

@@ -426,6 +426,12 @@
         "search": "搜尋標籤",
         "noMatch": "沒有符合的標籤",
         "excluded": "已排除"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> 將房間名稱變更為「<value>{{value}}</value>」",
+        "removedRoomName": "<sender>{{sender}}</sender> 移除了房間名稱",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> 將主題變更為「<value>{{value}}</value>」",
+        "removedRoomTopic": "<sender>{{sender}}</sender> 移除了主題"
       }
     },
     "computer": {

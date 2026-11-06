@@ -10,7 +10,7 @@ import {
   type PointerEvent,
   type ReactNode,
 } from 'react';
-import { Trans, useTranslation } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 import { useFocusWithin, useHover } from 'react-aria';
 import FocusTrap from 'focus-trap-react';
 import type { MatrixEvent, Relations, Room } from 'matrix-js-sdk';
@@ -34,6 +34,7 @@ import { MenuEntry } from '../ui/MenuEntry';
 import { IconTooltip } from '../ui/IconTooltip';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
+import { describeRoomStateChange, RoomStateSentence } from './roomStateChange';
 import { Time } from './Time';
 import { useLongPress } from './useLongPress';
 import {
@@ -992,27 +993,35 @@ export type EventProps = Pick<
   messageSpacing: MessageSpacing;
 };
 
-const ROOM_STATE_LINES: Record<string, { key: string; icon: IconSrc }> = {
-  'm.room.name': {
-    key: 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomName',
-    icon: Icons.Hash,
-  },
-  'm.room.topic': {
-    key: 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomTopic',
-    icon: Icons.Text,
-  },
-  'm.room.avatar': {
-    key: 'mindroomUi.threads.roomTimelineStateEventRenderers.changedRoomAvatar',
-    icon: Icons.Photo,
-  },
+const ROOM_STATE_ICONS: Record<string, IconSrc> = {
+  'm.room.name': Icons.Hash,
+  'm.room.topic': Icons.Text,
+  'm.room.avatar': Icons.Photo,
 };
 
-/** A state row's icon and line, the icon in the column the membership rows keep theirs. */
-function StateLine({ icon, children }: { icon: IconSrc; children: ReactNode }) {
+/**
+ * A state row's icon and line, the icon in the column the membership rows keep theirs. A line
+ * with a `title` stays on one line, cut with an ellipsis, and shows the whole text on hover.
+ */
+function StateLine({
+  icon,
+  title,
+  children,
+}: {
+  icon: IconSrc;
+  title?: string;
+  children: ReactNode;
+}) {
   return (
     <Box alignItems="Center" gap="200">
       <Icon size="100" src={icon} />
-      <Text size="T300" priority="300">
+      <Text
+        size="T300"
+        priority="300"
+        truncate={title !== undefined}
+        title={title}
+        style={{ minWidth: 0 }}
+      >
         {children}
       </Text>
     </Box>
@@ -1027,13 +1036,14 @@ function StateEventLine({ room, mEvent }: { room: Room; mEvent: MatrixEvent }) {
     const parsed = parseMemberEvent(mEvent);
     return <StateLine icon={parsed.icon}>{parsed.body}</StateLine>;
   }
-  const line = ROOM_STATE_LINES[type];
-  if (!line) return null;
+  const icon = ROOM_STATE_ICONS[type];
+  const change = describeRoomStateChange(mEvent);
+  if (!icon || !change) return null;
   const senderId = mEvent.getSender() ?? '';
   const sender = getMemberDisplayName(room, senderId) ?? getMxIdLocalPart(senderId) ?? senderId;
   return (
-    <StateLine icon={line.icon}>
-      <Trans i18nKey={line.key as never} values={{ sender }} components={{ sender: <b /> }} />
+    <StateLine icon={icon} title={change.value}>
+      <RoomStateSentence change={change} sender={sender} />
     </StateLine>
   );
 }

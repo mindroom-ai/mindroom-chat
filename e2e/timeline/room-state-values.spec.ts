@@ -128,9 +128,7 @@ const checkRows = async (page: Page, screen: Screen, name: string) => {
 
   await expect(row('name')).toHaveText(`${SENDER} changed the room name to “${NAME}”`);
   await expect(row('topic')).toHaveText(`${SENDER} changed the topic to “${TOPIC}”`);
-  await expect(row('markupName')).toHaveText(
-    `${SENDER} changed the room name to “${MARKUP_NAME}”`
-  );
+  await expect(row('markupName')).toHaveText(`${SENDER} changed the room name to “${MARKUP_NAME}”`);
   await expect(row('noName')).toHaveText(`${SENDER} removed the room name`);
   await expect(row('noTopic')).toHaveText(`${SENDER} removed the topic`);
 

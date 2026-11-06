@@ -433,6 +433,12 @@
         "search": "टैग खोजें",
         "noMatch": "कोई टैग मेल नहीं खाता",
         "excluded": "बाहर रखा गया"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> ने रूम का नाम बदलकर “<value>{{value}}</value>” किया",
+        "removedRoomName": "<sender>{{sender}}</sender> ने रूम का नाम हटाया",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> ने विषय बदलकर “<value>{{value}}</value>” किया",
+        "removedRoomTopic": "<sender>{{sender}}</sender> ने विषय हटाया"
       }
     },
     "computer": {

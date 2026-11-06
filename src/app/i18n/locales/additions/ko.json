@@ -426,6 +426,12 @@
         "search": "태그 검색",
         "noMatch": "일치하는 태그가 없습니다",
         "excluded": "제외됨"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> 님이 방 이름을 “<value>{{value}}</value>”(으)로 변경했습니다",
+        "removedRoomName": "<sender>{{sender}}</sender> 님이 방 이름을 삭제했습니다",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> 님이 주제를 “<value>{{value}}</value>”(으)로 변경했습니다",
+        "removedRoomTopic": "<sender>{{sender}}</sender> 님이 주제를 삭제했습니다"
       }
     },
     "computer": {

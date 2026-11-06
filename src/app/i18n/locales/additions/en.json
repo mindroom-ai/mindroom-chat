@@ -433,6 +433,12 @@
         "search": "Search tags",
         "noMatch": "No tags match",
         "excluded": "Excluded"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> changed the room name to “<value>{{value}}</value>”",
+        "removedRoomName": "<sender>{{sender}}</sender> removed the room name",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> changed the topic to “<value>{{value}}</value>”",
+        "removedRoomTopic": "<sender>{{sender}}</sender> removed the topic"
       }
     },
     "computer": {

@@ -433,6 +433,12 @@
         "search": "Tags suchen",
         "noMatch": "Kein Tag passt",
         "excluded": "Ausgeschlossen"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> hat den Raumnamen in „<value>{{value}}</value>“ geändert",
+        "removedRoomName": "<sender>{{sender}}</sender> hat den Raumnamen entfernt",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> hat das Thema in „<value>{{value}}</value>“ geändert",
+        "removedRoomTopic": "<sender>{{sender}}</sender> hat das Thema entfernt"
       }
     },
     "computer": {

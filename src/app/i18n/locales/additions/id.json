@@ -426,6 +426,12 @@
         "search": "Cari tag",
         "noMatch": "Tidak ada tag yang cocok",
         "excluded": "Dikecualikan"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> mengubah nama ruang menjadi “<value>{{value}}</value>”",
+        "removedRoomName": "<sender>{{sender}}</sender> menghapus nama ruang",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> mengubah topik menjadi “<value>{{value}}</value>”",
+        "removedRoomTopic": "<sender>{{sender}}</sender> menghapus topik"
       }
     },
     "computer": {

@@ -77,8 +77,8 @@ const linesShareAColumn = async (page: Page, name: string) => {
 
   const rows = {
     joined: page.locator('[data-message-id]', { hasText: 'joined the room' }).first(),
-    name: page.locator('[data-message-id]', { hasText: 'changed room name' }).first(),
-    topic: page.locator('[data-message-id]', { hasText: 'changed room topic' }).first(),
+    name: page.locator('[data-message-id]', { hasText: 'changed the room name' }).first(),
+    topic: page.locator('[data-message-id]', { hasText: 'changed the topic' }).first(),
   };
   await expect(rows.name).toBeVisible({ timeout: 30_000 });
   await expect(rows.topic).toBeVisible();

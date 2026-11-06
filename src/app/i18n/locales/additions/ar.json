@@ -461,6 +461,12 @@
         "search": "البحث عن الوسوم",
         "noMatch": "لا توجد وسوم مطابقة",
         "excluded": "مستبعد"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "غيّر <sender>⁨{{sender}}⁩</sender> اسم الغرفة إلى «<value>⁨{{value}}⁩</value>»",
+        "removedRoomName": "أزال <sender>⁨{{sender}}⁩</sender> اسم الغرفة",
+        "changedRoomTopicTo": "غيّر <sender>⁨{{sender}}⁩</sender> موضوع الغرفة إلى «<value>⁨{{value}}⁩</value>»",
+        "removedRoomTopic": "أزال <sender>⁨{{sender}}⁩</sender> موضوع الغرفة"
       }
     },
     "computer": {

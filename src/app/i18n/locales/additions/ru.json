@@ -447,6 +447,12 @@
         "search": "Поиск тегов",
         "noMatch": "Нет подходящих тегов",
         "excluded": "Исключён"
+      },
+      "roomTimelineStateEventRenderers": {
+        "changedRoomNameTo": "<sender>{{sender}}</sender> изменил(а) название комнаты на «<value>{{value}}</value>»",
+        "removedRoomName": "<sender>{{sender}}</sender> удалил(а) название комнаты",
+        "changedRoomTopicTo": "<sender>{{sender}}</sender> изменил(а) тему на «<value>{{value}}</value>»",
+        "removedRoomTopic": "<sender>{{sender}}</sender> удалил(а) тему"
       }
     },
     "computer": {
