@@ -16,7 +16,7 @@ import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { createSessionId } from '../matrix/session/sessions';
 import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
-import { isIOSStandaloneWebApp } from '../native/nativeSso';
+import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
 import { useEdgeSwipeForward } from '../navigation/useEdgeSwipeForward';
 import { bumpRecentThread } from '../event-store/threads/recentThreads';
@@ -26,6 +26,8 @@ import {
   getRoomThreadExitTargetFromHistoryState,
   withRoomThreadExitTargetState,
 } from '../routes/roomNavigateState';
+import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
+import { getCanonicalAliasOrRoomId } from '../matrix/matrix';
 import {
   addTagFilter,
   applyPreset,
@@ -154,23 +156,35 @@ export const useRoomViewThreadState = ({
   const leaveThread = useCallback(
     (fallback: () => void) => {
       const historyExitTarget = getRoomThreadExitTargetFromHistoryState(window.history.state);
-      if (
-        historyExitTarget?.roomId === roomId &&
-        historyExitTarget.threadId === effectiveThreadId
-      ) {
-        const standaloneWebApp = isIOSStandaloneWebApp();
-        if (historyExitTarget.exitPath && (!historyExitTarget.useHistoryBack || standaloneWebApp)) {
-          navigatePath(historyExitTarget.exitPath, { replace: true });
-          return;
-        }
-        if (historyExitTarget.useHistoryBack && !standaloneWebApp) {
-          window.history.back();
-          return;
-        }
+      const exitTarget =
+        historyExitTarget?.roomId === roomId && historyExitTarget.threadId === effectiveThreadId
+          ? historyExitTarget
+          : undefined;
+      // The page the thread was opened from, wherever that was, when the app has shown it; a
+      // redirect to the thread may have replaced the entry that recorded it.
+      const origin = previousHistoryOrigin(
+        (page) =>
+          !showsRoom(
+            page,
+            [roomId, getCanonicalAliasOrRoomId(mx, roomId)],
+            [threadId, effectiveThreadId].filter((id): id is string => !!id)
+          )
+      );
+      const historyBack =
+        (exitTarget?.useHistoryBack ?? !isNativeIOS()) && !isIOSStandaloneWebApp();
+      if (historyBack && (origin || exitTarget)) {
+        if (!origin || origin.steps === 1) window.history.back();
+        else window.history.go(-origin.steps);
+        return;
+      }
+      const exitPath = origin?.path ?? exitTarget?.exitPath;
+      if (!historyBack && exitPath) {
+        navigatePath(exitPath, { replace: true });
+        return;
       }
       fallback();
     },
-    [effectiveThreadId, navigatePath, roomId]
+    [effectiveThreadId, mx, navigatePath, roomId, threadId]
   );
 
   const handleExitThread = useCallback(() => {
