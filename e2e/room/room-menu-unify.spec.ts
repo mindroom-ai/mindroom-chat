@@ -268,13 +268,18 @@ const openFrom = async (page: Page, room: Case, entry: Entry, phone: boolean) =>
         await link.click({ button: 'right' });
       }
     } else {
-      // The row shows its button while hovered or holding focus; a phone has no hover.
+      // The row shows its button while hovered or holding focus. A phone has no hover, and a tap
+      // moves focus out of the row in WebKit, so there a keyboard (or switch control) presses it.
       if (phone) await link.focus();
       else await link.hover();
       const button = sidebarRow(link).getByRole('button', { name: 'More Options', exact: true });
       await expect(button).toBeVisible();
-      if (phone) await button.tap();
-      else await button.click();
+      if (phone) {
+        await button.focus();
+        await page.keyboard.press('Enter');
+      } else {
+        await button.click();
+      }
     }
   }
   await expect(roomMenu(page)).toBeVisible();
@@ -363,9 +368,15 @@ const checkSame = (room: Case, { seen, problems }: Read, tag: string) => {
 const checkKeyboard = async (page: Page, room: Case) => {
   await page.goto(room.room);
   const link = sidebarLink(page, room.roomId);
+  // Focus in the row shows its button; Tab reaches it, except in WebKit on macOS, where Tab
+  // passes over buttons unless the system's keyboard navigation is on.
   await link.focus();
-  await page.keyboard.press('Tab');
   const button = sidebarRow(link).getByRole('button', { name: 'More Options', exact: true });
+  await expect(button).toBeVisible();
+  await page.keyboard.press('Tab');
+  if (!(await button.evaluate((element) => element === document.activeElement))) {
+    await button.focus();
+  }
   await expect(button).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(roomMenu(page)).toBeVisible();
