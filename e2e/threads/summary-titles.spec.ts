@@ -28,8 +28,16 @@ let replyEvent: Record<string, unknown>;
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 
+const inThread = (value: unknown): boolean => {
+  if (!record(value) || !record(value.content)) return false;
+  const relation = value.content['m.relates_to'];
+  return record(relation) && relation.event_id === rootId;
+};
+
 // A fresh device only knows the root and its bundle. Hold lazy history reads and keep direct
 // thread events out of sync/messages, so passing cannot depend on receiving the title itself.
+// A single thread event asked for by ID (an edit's target, say) is answered as not found. The
+// context blocks service workers: in WebKit a page they control skips this route altogether.
 const summariesOnly = async (page: Page) => {
   await page.route('**/_matrix/client/**', async (route) => {
     const url = new URL(route.request().url());
@@ -49,15 +57,15 @@ const summariesOnly = async (page: Page) => {
       return;
     }
     const data: unknown = await response.json();
+    if (inThread(data) || (record(data) && inThread(data.event))) {
+      await route.fulfill({
+        status: 404,
+        json: { errcode: 'M_NOT_FOUND', error: 'Event not found.' },
+      });
+      return;
+    }
     const visit = (value: unknown): unknown => {
-      if (Array.isArray(value))
-        return value
-          .filter((item: unknown) => {
-            if (!record(item) || !record(item.content)) return true;
-            const relation = item.content['m.relates_to'];
-            return !record(relation) || relation.event_id !== rootId;
-          })
-          .map(visit);
+      if (Array.isArray(value)) return value.filter((item: unknown) => !inThread(item)).map(visit);
       if (!record(value)) return value;
       if (value.event_id === rootId && record(value.unsigned)) {
         const relations = value.unsigned['m.relations'];
@@ -197,6 +205,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
           viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
           hasTouch: phone,
           isMobile: phone,
+          serviceWorkers: 'block',
         });
         const page = await context.newPage();
         try {
