@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { chromium, expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
@@ -163,8 +164,12 @@ test.beforeEach(async () => {
     expect(root.unsigned['m.relations']['m.thread']['io.mindroom.latest_reply'].event_id).toBe(
       replyId
     );
+    // Written beside the screenshots: the unit fixtures in src/app/event-store/threads/fixtures/
+    // are recorded from this file.
+    const recorded = testInfo.outputPath('server-thread-summary.json');
+    await writeFile(recorded, JSON.stringify(root, null, 2));
     await testInfo.attach('server-thread-summary.json', {
-      body: JSON.stringify(root, null, 2),
+      path: recorded,
       contentType: 'application/json',
     });
   }
