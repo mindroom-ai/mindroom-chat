@@ -276,7 +276,12 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
   const cards = page.locator('[data-compact-room-view] [data-thread-root-id]');
   const overview = page.locator('[data-room-thread-overview]');
   await expect(cards).toHaveCount(THREAD_COUNT, { timeout: 180_000 });
-  await overview.locator('[data-thread-filter-mode-switch]').click();
+  // The advanced filters, whichever mode the account's setting starts in.
+  const modeSwitch = overview.locator('[data-thread-filter-mode-switch]');
+  await expect(async () => {
+    if ((await modeSwitch.getAttribute('aria-pressed')) !== 'true') await modeSwitch.click();
+    await expect(overview.locator('[data-preset-button]')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
 
   // Presets: the pinned threads follow the same rules as the others.
   await applyPreset(page, 'archived');

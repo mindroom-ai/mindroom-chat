@@ -46,6 +46,13 @@ const listedThread = ({ participated }: { participated: boolean }) => {
     length: 6,
     events: [root],
     timeline: [root],
+    getUnfilteredTimelineSet: () => ({
+      getLiveTimeline: () => ({
+        getEvents: () => [root],
+        getNeighbouringTimeline: () => undefined,
+      }),
+      relations: { getChildEventsForEvent: () => undefined },
+    }),
   };
   const room = {
     roomId: '!room:server',
