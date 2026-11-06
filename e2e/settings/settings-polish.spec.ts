@@ -386,7 +386,7 @@ test('menu rows are spaced apart and no lines divide the page (WebKit)', async (
 }, testInfo) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.slow();
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: DESKTOP, baseURL });
     const measured = await checkSpacing(await context.newPage(), 'settings_spacing_webkit', false);

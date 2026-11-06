@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type BrowserContextOptions,
   type Page,
   type TestInfo,
@@ -9,6 +8,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // The room header's Pinned Messages button opens the pin menu, a dialog named Pinned Messages (the
 // button announces a dialog): the room's pinned messages, the newest pin first, each rendered as a
@@ -218,7 +218,7 @@ for (const [form, options] of [
       test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
       test.setTimeout(240_000);
       // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-      const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+      const browser = await launchWebKit();
       try {
         const context = await browser.newContext({ ...options, baseURL });
         await checkPinMenu(await context.newPage(), 'webkit', form, testInfo);

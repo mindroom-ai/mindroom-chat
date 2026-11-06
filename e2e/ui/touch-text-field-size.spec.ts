@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -13,6 +12,7 @@ import { buildLoginPath } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix } from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
 
 // iOS Safari zooms the page into a text field whose text is smaller than 16 px when the field
 // takes the focus, and leaves the page zoomed. The app's fields wrote at 15 px, so on an iPhone
@@ -171,7 +171,7 @@ test('text fields are large enough that iOS does not zoom into them (WebKit)', a
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {
