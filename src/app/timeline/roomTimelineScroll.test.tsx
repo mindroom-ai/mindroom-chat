@@ -406,7 +406,10 @@ describe('useLatestRowPin and the virtual list', () => {
     act(() => room.fire('scroll'));
     expect(room.list.scrollState).toEqual({ index: 19 });
 
-    // The reader's own scroll up past that still ends it.
+    // React renders the list at its new height, which fires no scroll; the reader's own scroll
+    // up from there still ends it.
+    room.element.scrollHeight -= 220;
+    shrinkNotRendered = 0;
     room.element.scrollTop -= 200;
     act(() => room.fire('scroll'));
     expect(room.list.scrollState).toBeNull();

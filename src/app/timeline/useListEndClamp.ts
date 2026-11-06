@@ -13,7 +13,8 @@ export const listShrinkNotRendered = (
   inner: HTMLElement | null,
   rows: readonly { index: number; size: number }[]
 ): number => {
-  if (!inner) return 0;
+  // Test renderers hand over stand-in nodes without the DOM's queries.
+  if (typeof inner?.querySelectorAll !== 'function') return 0;
   const tiles = Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]'));
   const indexOf = (tile: HTMLElement) => Number(tile.dataset.index);
   const newest = tiles
