@@ -187,7 +187,13 @@ describe('CommandPaletteList', () => {
     });
     const hit = renderer.root.findByProps({ 'data-kind': 'message' });
     expect(hit.findByProps({ className: 'RowTitle' }).children).toEqual(['Alice']);
-    expect(hit.findByProps({ className: 'RowPlace' }).children).toEqual(['Ops › Deploy plan']);
+    // Each name in its own isolate, so an Arabic room and thread keep the room first.
+    const place = hit.findByProps({ className: 'RowPlace' });
+    expect(place.findAllByType('bdi').map((name) => name.children)).toEqual([
+      ['Ops'],
+      ['Deploy plan'],
+    ]);
+    expect(place.props.dir).toBeUndefined();
     expect(hit.findByType('mark').children).toEqual(['walrus']);
     expect(hit.findByType('time').children).toEqual(['compact:1700000000000']);
     // The note sits under the title; the count leaves out See all results.
@@ -220,9 +226,8 @@ describe('CommandPaletteList', () => {
         },
       ],
     });
-    expect(renderer.root.findByProps({ className: 'RowPlace' }).children).toEqual([
-      'Ops › Thread',
-    ]);
+    const place = renderer.root.findByProps({ className: 'RowPlace' });
+    expect(place.findAllByType('bdi').map((name) => name.children)).toEqual([['Ops'], ['Thread']]);
     expect(renderer.root.findAllByType('mark')).toHaveLength(0);
   });
 });

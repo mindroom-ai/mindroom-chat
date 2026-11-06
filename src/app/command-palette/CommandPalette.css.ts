@@ -1,4 +1,4 @@
-import { style } from '@vanilla-extract/css';
+import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import { glassSurface } from '../ui/styles/Glass.css';
 
@@ -232,6 +232,9 @@ export const RowPlace = style({
   fontSize: 12,
   color: color.SurfaceVariant.OnContainer,
 });
+
+// A message's sender keeps its whole name, up to half the line; where it was said gives way first.
+globalStyle(`${RowTitle}:has(+ ${RowPlace})`, { flexShrink: 0, maxWidth: '50%' });
 
 export const RowTime = style({
   flex: 'none',

@@ -174,15 +174,19 @@ function MessageTime({ timestamp }: { timestamp: number }) {
 
 function MessageRowText({ item }: { item: CommandPaletteMessageItem }) {
   const { t } = useTranslation();
-  const place =
+  const thread =
     item.threadName === undefined
-      ? item.roomName
-      : `${item.roomName} › ${item.threadName || t('commandPalette.messageSearch.thread')}`;
+      ? undefined
+      : item.threadName || t('commandPalette.messageSearch.thread');
   return (
     <span className={css.RowText}>
       <span className={css.RowHeading}>
         <span className={css.RowTitle} {...ownDirectionLine}>{item.senderName}</span>
-        <span className={css.RowPlace} {...ownDirectionLine}>{place}</span>
+        {/* Room, then thread, in the interface's order; each name keeps its own direction. */}
+        <span className={css.RowPlace}>
+          <bdi>{item.roomName}</bdi>
+          {thread !== undefined && <> › <bdi>{thread}</bdi></>}
+        </span>
         <MessageTime timestamp={item.timestamp} />
       </span>
       <span className={css.RowDescription} {...ownDirectionLine}>{markMatches(item.snippet, item.highlights)}</span>
