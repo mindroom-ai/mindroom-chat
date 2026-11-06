@@ -169,7 +169,7 @@ const postings = (seeded: Seeded, origin: string) => [
     href: matrixTo(seeded.elsewhere.roomId, seeded.elsewhere.eventId),
     reads: 'Message in another room',
   },
-];
+] as const;
 
 const messageRow = (page: Page, text: string) =>
   page.locator('[data-message-id^="$"]').filter({ hasText: text }).last();

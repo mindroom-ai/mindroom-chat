@@ -696,7 +696,7 @@ const THREAD_PINS = [
   'Reefer row C lost power twice before midnight; the electrician reset both breakers.',
   'Gate seven scanner is slow again, trucks queued for about twenty minutes around four.',
   'Straddle carrier 12 is parked by the workshop with a hydraulic leak.',
-];
+] as const;
 const THREAD_PIN_EDITED = 'Straddle carrier 12 is back in service, the hydraulic hose was replaced.';
 const OLD_PIN = 'The harbour master asks every vessel agent to confirm arrival times by noon.';
 
@@ -758,11 +758,11 @@ const checkUnloadedPins =
     const root = await sendMessage(THREAD_PIN_ROOT);
     await page.goto(`${roomPath}?threadId=${encodeURIComponent(root)}`);
     await expect(composer).toBeVisible({ timeout: 60_000 });
-    const replies: string[] = [];
-    for (const body of THREAD_PINS) {
-      // eslint-disable-next-line no-await-in-loop
-      replies.push(await sendMessage(body));
-    }
+    const replies = [
+      await sendMessage(THREAD_PINS[0]),
+      await sendMessage(THREAD_PINS[1]),
+      await sendMessage(THREAD_PINS[2]),
+    ] as const;
     // Up in the empty composer edits the newest own reply of the thread, once it is sent.
     const editor = page.getByRole('textbox', { name: 'Edit Message' });
     await expect(async () => {
