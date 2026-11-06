@@ -147,6 +147,11 @@ export const formatRelativeTime = (
   }).format(-value, unit);
 };
 
+// Japanese has no narrow units of its own, so they come out in Latin letters ("17m"), and
+// Turkish's narrow minute and hour ("17d", "3s") read as days and seconds; both take their
+// short units ("17 分", "17 dk.").
+const SHORT_AGE_UNITS = new Set(['ja', 'tr']);
+
 /**
  * A short age without "ago" for lists: "now" under a minute, then minutes, hours and days for
  * the first week ("3m", "2h", "6d"), then the date, with the year only for an earlier year.
@@ -159,7 +164,7 @@ export const formatCompactRelativeTime = (ts: number, language = 'en'): string =
     return numberFormat(language, {
       style: 'unit',
       unit,
-      unitDisplay: 'narrow',
+      unitDisplay: SHORT_AGE_UNITS.has(language.split('-')[0] ?? language) ? 'short' : 'narrow',
     }).format(value);
   }
   const date = new Date(ts);
