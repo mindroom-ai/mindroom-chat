@@ -1,8 +1,18 @@
-import { MatrixEventEvent, type MatrixClient, type MatrixEvent, type Thread } from 'matrix-js-sdk';
+import {
+  MatrixEventEvent,
+  RoomStateEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+  type Thread,
+} from 'matrix-js-sdk';
 import { watchRoomThreads } from '../../matrix/watchRoomThreads';
 import {
+  getThreadSummaryInfo,
   getThreadSummaryInfosFromEventSources,
   isThreadSummaryEvent,
+  THREAD_SUMMARY_METADATA_KEY,
+  type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { storeThreadSummaryInState } from '../../event-store/threads/threadSummaryState';
 
@@ -14,6 +24,13 @@ import { storeThreadSummaryInState } from '../../event-store/threads/threadSumma
 // place, and every reload lost them again. This module saves each title it finds there to the
 // thread summary state, which keeps it on disk for the room's cards, the sidebar and the Threads
 // page.
+//
+// A room can also hold each thread's current title as state: an `io.mindroom.thread_summary` state
+// event whose key is the thread's root ID and whose content is the title notice's metadata plus its
+// `event_id`. Every device then knows every title from the room's state, also titles in a sync gap
+// and in threads it never loaded. Encrypted rooms keep titles in their encrypted notices only: a
+// title in plain state there would show the room's conversation to the server, so such state is
+// ignored.
 
 /** A shown card's first page holds 30 events; the newest title of a loaded thread is near its end. */
 const SCANNED_TAIL = 100;
@@ -59,14 +76,41 @@ const createThreadTitleReader = (sessionId: string) => {
   };
 };
 
+/** The title a room's state holds for one thread, dated by the state event. */
+const getStateTitle = (event: MatrixEvent): ThreadSummaryInfo | undefined => {
+  const content = event.getContent();
+  const info = getThreadSummaryInfo({ [THREAD_SUMMARY_METADATA_KEY]: content });
+  if (!info?.summaryText) return undefined;
+  const eventId = typeof content.event_id === 'string' ? content.event_id : undefined;
+  return { ...info, eventTs: event.getTs(), ...(eventId ? { eventId } : {}) };
+};
+
+/** Saves the titles a room holds as state, now and as they change. Returns what stops it. */
+const keepStateTitles = (sessionId: string, room: Room): (() => void) => {
+  const save = (event: MatrixEvent) => {
+    const threadRootId = event.getStateKey();
+    if (event.getType() !== THREAD_SUMMARY_METADATA_KEY || !threadRootId?.startsWith('$')) return;
+    if (room.hasEncryptionStateEvent()) return;
+    const info = getStateTitle(event);
+    if (info) storeThreadSummaryInState(sessionId, room.roomId, threadRootId, info);
+  };
+  room.currentState.getStateEvents(THREAD_SUMMARY_METADATA_KEY).forEach(save);
+  room.on(RoomStateEvent.Events, save);
+  return () => {
+    room.removeListener(RoomStateEvent.Events, save);
+  };
+};
+
 /**
- * Keeps the titles of every room's threads in the session's thread summary state, from the
- * events each thread holds whenever the SDK announces or updates it. Returns what stops it.
+ * Keeps the titles of every room's threads in the session's thread summary state: from the room's
+ * state, and from the events each thread holds whenever the SDK announces or updates it. Returns
+ * what stops it.
  */
 export const keepThreadTitles = (mx: MatrixClient, sessionId: string): (() => void) => {
   const reader = createThreadTitleReader(sessionId);
   const stopRooms = watchRoomThreads(mx, {
     onThread: (room, thread) => reader.read(room.roomId, thread),
+    onRoom: (room) => keepStateTitles(sessionId, room),
   });
   return () => {
     stopRooms();
