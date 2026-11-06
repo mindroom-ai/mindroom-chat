@@ -217,6 +217,9 @@ const useTimelineDisplaySettings = () => ({
   prefetchDepth: sanitizePrefetchDepth(useSettingValue(prefetchSettingsAtom, 'prefetchDepth')),
 });
 
+/** Where a focused Compact card without a saved place sits: its top this far below the list's. */
+const COMPACT_FOCUSED_CARD_OFFSET_PX = 160;
+
 /**
  * The room's message list. Compact mode shows the room's threads as cards; the threaded and
  * Full (classic) views show the room timeline, the threaded one with a thread badge under each
@@ -1306,6 +1309,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
   }
   if (compactCards && threadIndex.showCompactRoomView) {
     const compactRootIds = threadIndex.compactOverviewOrdering.displayOrderedIds;
+    // Leaving a thread comes back here focused on its root. One opened from its card finds the
+    // place the list saved with that card in view; one opened from a link has none, so its card
+    // takes a place below the bar, and the list's memory brings it there as cards render.
+    const savedPlace = compactRoomScrollStateRef.current.get(room.roomId);
+    if (
+      eventId &&
+      focusEventInRoom &&
+      !savedPlace?.anchors.some((anchor) => anchor.key === eventId)
+    ) {
+      compactRoomScrollStateRef.current.set(room.roomId, {
+        scrollTop: 1,
+        anchors: [{ key: eventId, offset: COMPACT_FOCUSED_CARD_OFFSET_PX }],
+      });
+    }
     return (
       <Box ref={compactHostRef} grow="Yes" direction="Column" style={roomStyle}>
         {filterBar}
