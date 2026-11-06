@@ -69,10 +69,11 @@ const sampleDomStates = (page: Page) =>
       const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
       // The splash names the app under its loading line.
       if (text.endsWith('MindRoom Chat')) return ['splash', ''];
-      return [
-        'empty',
-        `${text.slice(0, 60)} | html ${document.getElementById('root')?.innerHTML.length ?? 0}`,
-      ];
+      // What the page holds then, without generated class names.
+      const markup = (document.getElementById('root')?.innerHTML ?? '')
+        .replace(/ class="[^"]*"/g, '')
+        .slice(0, 400);
+      return ['empty', `${text.slice(0, 60)} | ${markup}`];
     };
     const sample = () => {
       frames.push(Math.round(performance.now()));
@@ -208,6 +209,10 @@ test('the start shows no black or empty frame, and saved rooms before the first 
         )
       );
     }
+  }
+  // STARTUP_REDUCED_MOTION=1: the particle background stays still.
+  if (process.env.STARTUP_REDUCED_MOTION === '1') {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
   }
   await sampleDomStates(page);
   let clickedAt = 0;
