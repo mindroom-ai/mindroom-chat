@@ -9,6 +9,7 @@ import {
   EventStatus,
   MatrixEventEvent,
   RelationType,
+  type EventTimeline,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -292,7 +293,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     );
   };
 
-  const paintRoomArrival = (event: MatrixEvent) => {
+  const paintRoomArrival = (event: MatrixEvent, timeline: EventTimeline | undefined) => {
     if (isThreadOnlyRoomActivity(room, event)) {
       // A thread's card changes, but no room row comes in (the classic view's thread reply rows
       // enter the window through the hook that keeps the newest row).
@@ -303,15 +304,22 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     }
 
     const atLiveEnd = atLiveEndRef.current;
-    const isRoomRow = isRenderableEvent(
-      event,
-      room,
-      threadId,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents
-    );
+    // A thread's own timeline takes its root too, when a thread list or a sync gap's catch-up
+    // loads the thread: the root's row came with the room's timeline, if at all, and must not
+    // count twice, or the window would end past the rows and fall back to the newest ones.
+    const onThreadTimeline =
+      !!timeline && timeline.getTimelineSet() !== room.getUnfilteredTimelineSet();
+    const isRoomRow =
+      !onThreadTimeline &&
+      isRenderableEvent(
+        event,
+        room,
+        threadId,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents
+      );
     // Measured at this moment, so that a streamed edit cannot hold a reader at the bottom who
     // has just scrolled away.
     const area = scrollRef.current;
@@ -389,7 +397,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     }
   });
 
-  useLiveEventArrive(room, (event, { liveEvent }) => {
+  useLiveEventArrive(room, (event, { liveEvent, timeline }) => {
     if (!liveEvent) {
       paintPendingSend(event);
       return;
@@ -401,6 +409,6 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
       return;
     }
     if (threadId) paintThreadArrival(event, threadId);
-    else paintRoomArrival(event);
+    else paintRoomArrival(event, timeline);
   });
 };
