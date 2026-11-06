@@ -155,6 +155,10 @@ export const roomThreadListIsComplete = (room: Room): boolean => {
   return allThreadsLiveTimeline.getPaginationToken(Direction.Backward) === null;
 };
 
+/** The room's whole thread list arrived this session, so its threads hold the server's summaries. */
+export const roomThreadListIsListed = (room: Room): boolean =>
+  listedRooms.has(room) && roomThreadListIsComplete(room);
+
 const loadRoomThreadsOnce = async (
   room: Room,
   onProgress: () => void,

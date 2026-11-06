@@ -4,6 +4,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord, buildThreadRecordMap } from './threadRecord';
 import * as threadUtils from './threadUtils';
+import * as roomThreadList from './roomThreadList';
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -189,6 +190,34 @@ describe('buildThreadRecord', () => {
 
     expect(record.presentation.messageCount).toBe(1);
     expect(record.status.replyCount).toBe(1);
+  });
+
+  it("takes a listed room's server count over the cache and older roots after a redaction", () => {
+    // The reader never loaded the redacted reply: the listing counts 11, the cache and an older
+    // copy of the root still count 12.
+    vi.spyOn(roomThreadList, 'roomThreadListIsListed').mockReturnValue(true);
+    const rootEvent = makeRootWithServerCount(12);
+    const thread = {
+      ...makeSdkThread(makeRootWithServerCount(11), makeReplies(3), 11),
+      initialEventsFetched: false,
+    } as ReturnType<Room['getThread']>;
+    const options = {
+      room: makeRoom({ rootEvent, thread }),
+      threadRootId: '$root',
+      threadRootEvent: rootEvent,
+      fallbackReplyCount: 12,
+      fallbackMessageCount: 12,
+    };
+
+    const record = buildThreadRecord(options);
+    expect(record.presentation.messageCount).toBe(11);
+    expect(record.status.replyCount).toBe(11);
+
+    // While the room's list is still loading, the larger count stands.
+    vi.mocked(roomThreadList.roomThreadListIsListed).mockReturnValue(false);
+    const loading = buildThreadRecord(options);
+    expect(loading.presentation.messageCount).toBe(12);
+    expect(loading.status.replyCount).toBe(12);
   });
 
   it('does not depend on legacy overview metadata compatibility inputs', () => {

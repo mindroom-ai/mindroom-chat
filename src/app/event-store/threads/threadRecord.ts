@@ -8,7 +8,7 @@ import { getThreadStreamingState } from './useThreadStreamingState';
 import { getThreadLastActivityTs } from './useThreadLastActivityTs';
 import { resolveRecentThreadSummaryText } from './recentThreadSummaryUtils';
 import { isZeroReplyStandaloneThreadRootEvent } from './compactThreadRootData';
-import { getThreadUnread } from './roomThreadList';
+import { getThreadUnread, roomThreadListIsListed } from './roomThreadList';
 import { isMainTimelineMessageUnread } from '../../matrix/mainTimelineRead';
 import { getEffectiveThreadRootActivityTs } from './threadRouteUtils';
 import {
@@ -241,19 +241,28 @@ export const buildThreadRecord = ({
   const zeroReplyThreadRoot = resolvedThreadRootEvent
     ? shouldRenderZeroReplyThreadBadge(room, resolvedThreadRootEvent)
     : false;
+  // Once the room's whole thread list is in, the SDK thread holds the server's count and every
+  // change since. The cache and older copies of the root may still count a reply redacted since.
+  const serverCounted = !!thread && roomThreadListIsListed(room);
   const resolvedFallbackReplyCount =
-    fallbackReplyCount === undefined && fallbackMessageCount === undefined
+    serverCounted || (fallbackReplyCount === undefined && fallbackMessageCount === undefined)
       ? undefined
       : Math.max(fallbackReplyCount ?? 0, fallbackMessageCount ?? 0);
-  const recordReplyCount =
-    (resolvedThreadRootEvent
-      ? getThreadReplyCount(
-          room,
-          resolvedThreadRootEvent,
-          resolvedFallbackReplyCount,
-          zeroReplyThreadRoot
-        )
-      : undefined) ?? resolvedFallbackReplyCount;
+  let recordReplyCount: number | undefined;
+  if (serverCounted) {
+    const serverReplyCount = getVisibleThreadMessageCount(thread, undefined, visibleReplyEvents);
+    recordReplyCount = serverReplyCount > 0 || zeroReplyThreadRoot ? serverReplyCount : undefined;
+  } else {
+    recordReplyCount =
+      (resolvedThreadRootEvent
+        ? getThreadReplyCount(
+            room,
+            resolvedThreadRootEvent,
+            resolvedFallbackReplyCount,
+            zeroReplyThreadRoot
+          )
+        : undefined) ?? resolvedFallbackReplyCount;
+  }
   const isKnownThreadRoot =
     (typeof recordReplyCount === 'number' && (recordReplyCount > 0 || zeroReplyThreadRoot)) ||
     typeof fallbackReplyCount === 'number' ||
@@ -280,7 +289,9 @@ export const buildThreadRecord = ({
     fallbackLatestReplyPreviewText,
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
-    fallbackMessageCount: Math.max(fallbackMessageCount ?? 0, recordReplyCount ?? 0),
+    fallbackMessageCount: serverCounted
+      ? recordReplyCount
+      : Math.max(fallbackMessageCount ?? 0, recordReplyCount ?? 0),
     fallbackParticipantIds,
     visibleReplyEvents,
   });
