@@ -40,7 +40,12 @@ const savedAndLoaded = (syncs: ReturnType<typeof receiptEvent>[][]) => {
   );
   const saved = live.getJSON();
   const loaded = new SyncAccumulator();
-  loaded.accumulate({ next_batch: saved.nextBatch, rooms: saved.roomsData }, true);
+  loaded.accumulate(
+    { next_batch: saved.nextBatch, rooms: saved.roomsData } as unknown as Parameters<
+      SyncAccumulator['accumulate']
+    >[0],
+    true
+  );
   const ephemeral = loaded.getJSON().roomsData.join[ROOM_ID]?.ephemeral.events ?? [];
   return ephemeral.map((event) => new MatrixEvent({ ...event, room_id: ROOM_ID }));
 };
@@ -67,22 +72,20 @@ const reloadedRoom = async (receipts: MatrixEvent[]) => {
   vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
   const room = new Room(ROOM_ID, mx, READER);
   mx.store.storeRoom(room);
-  const threads = [
-    ['$first', 1000, '$first-reply', 1100],
-    ['$second', 2000, '$second-reply', 2100],
-  ] as const;
-  const created = threads.map(([rootId, rootTs, replyId, replyTs]) => {
+  const addThread = (rootId: string, rootTs: number) => {
     const root = message(rootId, rootTs);
     room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
-    return room.createThread(rootId, root, [message(replyId, replyTs, rootId)], false);
+    const reply = message(`${rootId}-reply`, rootTs + 100, rootId);
+    return room.createThread(rootId, root, [reply], false);
+  };
+  const first = addThread('$first', 1000);
+  const second = addThread('$second', 2000);
+  await vi.waitFor(() => {
+    expect(first.events.at(-1)?.getId()).toBe('$first-reply');
+    expect(second.events.at(-1)?.getId()).toBe('$second-reply');
   });
-  await vi.waitFor(() =>
-    created.forEach((thread, index) =>
-      expect(thread.events.at(-1)?.getId()).toBe(threads[index][2])
-    )
-  );
   room.addEphemeralEvents(receipts);
-  return { room, first: created[0], second: created[1] };
+  return { room, first, second };
 };
 
 describe('keepEveryReceiptInSavedSync', () => {
