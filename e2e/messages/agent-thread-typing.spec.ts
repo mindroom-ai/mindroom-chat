@@ -67,6 +67,7 @@ type Frame = {
   replyShown: boolean;
   strip: { top: number; bottom: number } | null;
   stop: { top: number; bottom: number } | null;
+  clipping: { tag: string; overflow: string; top: number; bottom: number }[];
 };
 
 /** The strip, the reply and its Stop button on every animation frame for `ms`. */
@@ -92,10 +93,19 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
                 (button) => button.textContent?.trim() === 'Stop'
               )
             : undefined;
+          const clipping: Frame['clipping'] = [];
+          for (let parent = row?.parentElement; parent; parent = parent.parentElement) {
+            const overflow = getComputedStyle(parent).overflowY;
+            if (/auto|scroll|hidden|clip/.test(overflow)) {
+              const { top, bottom } = parent.getBoundingClientRect();
+              clipping.push({ tag: parent.tagName, overflow, top, bottom });
+            }
+          }
           frames.push({
             replyShown: !!rowBox && rowBox.bottom > 0 && rowBox.top < window.innerHeight,
             strip: box(strip),
             stop: box(stop),
+            clipping,
           });
           if (performance.now() - started < duration) requestAnimationFrame(read);
           else resolve(frames);
@@ -112,7 +122,6 @@ test.describe('on a phone', () => {
     'the Stop button of a streaming reply is never under a typing strip',
     { tag: '@webkit' },
     async ({ page, stack }) => {
-      test.fixme(true, 'design-choices vs earlier E, fix on wip/phone-typing-strip');
       await openLobby(page, stack);
       // 400 words, one every quarter second: the reply fills the screen and grows a line at a time.
       const rootId = await startThread(stack, `${uniqueWord('stopstrip')} #stopme`);
@@ -129,6 +138,10 @@ test.describe('on a phone', () => {
       await shot(page, `typing-stop-phone-${test.info().project.name}`);
 
       const frames = await recordFrames(page, streaming.event_id, 10_000);
+      await test.info().attach('typing-frames', {
+        body: JSON.stringify(frames, null, 2),
+        contentType: 'application/json',
+      });
       await shot(page, `typing-stop-phone-streamed-${test.info().project.name}`);
       const streamed = frames.filter((frame) => frame.replyShown && frame.stop);
       expect(streamed.length).toBeGreaterThan(100);
