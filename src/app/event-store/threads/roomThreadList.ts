@@ -175,11 +175,18 @@ const loadRoomThreadsOnce = async (
     if (!shouldContinue()) return;
     await ensureThreadTimelineSets(room);
     if (!shouldContinue()) return;
-    try {
-      if (!(await retry.read(() => room.fetchRoomThreads()))) return;
-    } catch (err) {
-      console.warn('[threadList] fetchRoomThreads failed:', err);
-      return;
+    for (;;) {
+      try {
+        await room.fetchRoomThreads();
+        break;
+      } catch (err) {
+        const retrying = retry.after(err, null);
+        if (!retrying) {
+          console.warn('[threadList] fetchRoomThreads failed:', err);
+          return;
+        }
+        if (!(await retrying)) return;
+      }
     }
     listedRooms.add(room);
     onProgress?.();
@@ -194,13 +201,17 @@ const loadRoomThreadsOnce = async (
       const currentToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);
       if (currentToken === null) return;
 
-      const page = await retry.read(() =>
-        room.client.paginateEventTimeline(allThreadsLiveTimeline, {
+      let hasMore: boolean;
+      try {
+        hasMore = await room.client.paginateEventTimeline(allThreadsLiveTimeline, {
           backwards: true,
-        })
-      );
-      if (!page) return;
-      const hasMore = page.value;
+        });
+      } catch (err) {
+        const retrying = retry.after(err, currentToken);
+        if (!retrying) throw err;
+        if (!(await retrying)) return;
+        continue;
+      }
       onProgress?.();
 
       const nextToken = allThreadsLiveTimeline.getPaginationToken(Direction.Backward);

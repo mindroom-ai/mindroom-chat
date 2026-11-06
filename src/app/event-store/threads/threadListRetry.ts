@@ -40,10 +40,11 @@ export type ThreadListRetry = {
   /** Holds the room's streaming checks for the read; returns the function that ends the hold. */
   holdStreamingChecks: () => () => void;
   /**
-   * Runs `read` until it succeeds, waiting between tries while the failure may pass. Answers
-   * `undefined` when `shouldContinue` turned false; throws any other failure.
+   * After `page` (its token; `null` for the first page) failed with `error`: a wait that answers
+   * true when the read should ask for the page again and false when its callers left, or
+   * `undefined` when asking again cannot help.
    */
-  read: <T>(read: () => Promise<T>) => Promise<{ value: T } | undefined>;
+  after: (error: unknown, page: string | null) => Promise<boolean> | undefined;
   /** Ends the current wait now: a caller came or went. */
   wake: () => void;
 };
@@ -54,6 +55,8 @@ export const createThreadListRetry = (
 ): ThreadListRetry => {
   let wakeWait: (() => void) | undefined;
   let releaseChecks: (() => void) | undefined;
+  /** The page that failed last, and how often in a row. */
+  let failing: { page: string | null; failures: number } | undefined;
 
   const wait = (delayMs: number) =>
     new Promise<void>((resolve) => {
@@ -71,6 +74,18 @@ export const createThreadListRetry = (
       };
     });
 
+  const waitToAskAgain = async (error: unknown, delayMs: number): Promise<boolean> => {
+    if (!shouldContinue()) return false;
+    // eslint-disable-next-line no-console
+    console.warn(`[threadList] a page failed, asking again within ${delayMs} ms:`, error);
+    const held = releaseChecks;
+    releaseChecks = undefined;
+    held?.();
+    await wait(delayMs);
+    if (held) releaseChecks = holdStreamingChecks(room);
+    return shouldContinue();
+  };
+
   return {
     holdStreamingChecks: () => {
       releaseChecks = holdStreamingChecks(room);
@@ -79,26 +94,12 @@ export const createThreadListRetry = (
         releaseChecks = undefined;
       };
     },
-    read: async <T>(read: () => Promise<T>) => {
-      for (let failures = 0; ; failures += 1) {
-        try {
-          // eslint-disable-next-line no-await-in-loop
-          return { value: await read() };
-        } catch (error) {
-          const delayMs = threadListRetryDelay(error, failures);
-          if (delayMs === undefined || delayMs < 0) throw error;
-          if (!shouldContinue()) return undefined;
-          // eslint-disable-next-line no-console
-          console.warn(`[threadList] a page failed, asking again within ${delayMs} ms:`, error);
-          const held = releaseChecks;
-          releaseChecks = undefined;
-          held?.();
-          // eslint-disable-next-line no-await-in-loop
-          await wait(delayMs);
-          if (held) releaseChecks = holdStreamingChecks(room);
-          if (!shouldContinue()) return undefined;
-        }
-      }
+    after: (error, page) => {
+      const failures = failing?.page === page ? failing.failures : 0;
+      const delayMs = threadListRetryDelay(error, failures);
+      if (delayMs === undefined || delayMs < 0) return undefined;
+      failing = { page, failures: failures + 1 };
+      return waitToAskAgain(error, delayMs);
     },
     wake: () => wakeWait?.(),
   };
