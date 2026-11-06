@@ -401,6 +401,10 @@ const draftAfterReload: Check = async (page, world, { form, tag, where }) => {
   });
   const notice = page.getByRole('status').filter({ hasText: 'notes01.txt' });
   await expect(notice, `${where}: the lost files are named`).toContainText('sample.png');
+  // A wrapped notice keeps its dismiss button at full size.
+  const dismiss = await notice.getByRole('button', { name: 'Dismiss' }).boundingBox();
+  expect(dismiss?.width, `${where}: dismiss button width`).toBeGreaterThanOrEqual(24);
+  expect(dismiss?.height, `${where}: dismiss button height`).toBeGreaterThanOrEqual(24);
   await shot(page, `draft-reloaded-${tag}`);
 
   await composer(page).click();

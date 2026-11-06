@@ -619,11 +619,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         )}
         {lostFileNames.length > 0 && (
           <Box role="status" alignItems="Center" gap="200" style={lostFilesStyle()}>
-            <Icon size="100" src={Icons.Warning} />
+            <Icon size="100" src={Icons.Warning} style={{ flexShrink: 0 }} />
             <Text size="T300" style={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
               {t('composer.lostFiles', { files: lostFileNames.join(', ') })}
             </Text>
+            {/* A long list of names wraps; the button keeps its size beside it. */}
             <IconButton
+              style={{ flexShrink: 0 }}
               size="300"
               radii="300"
               variant="SurfaceVariant"
