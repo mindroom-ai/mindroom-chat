@@ -8,7 +8,7 @@ describe('service worker app shell caching', () => {
 
     expect(swSource).toContain("from 'workbox-precaching'");
     expect(swSource).toContain('const precacheManifest = self.__WB_MANIFEST');
-    expect(swSource).toContain('new PrecacheController()');
+    expect(swSource).toContain('new PrecacheController({ plugins: [precacheFetchPlugin] })');
     expect(swSource).toContain('precacheController.addToCacheList(precacheManifest)');
     expect(swSource).toContain('new PrecacheRoute(precacheController)');
     expect(swSource).toContain("precacheController.matchPrecache('index.html')");

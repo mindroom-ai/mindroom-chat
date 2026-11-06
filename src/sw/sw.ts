@@ -35,6 +35,7 @@ import {
   RUNTIME_NAVIGATION_PATHS,
 } from '../boot/serviceWorkerNavigation';
 import { withPageFraming } from './serviceWorkerFraming';
+import { precacheFetchPlugin } from './swPrecacheFetch';
 
 // The DOM library has no service worker scope types; these are the parts this worker uses.
 type WorkerClient = { id: string; url: string; postMessage: (message: unknown) => void };
@@ -69,7 +70,7 @@ declare const self: ServiceWorkerScope;
 
 const precacheManifest = self.__WB_MANIFEST;
 const buildInventory = self.__MINDROOM_BUILD_INVENTORY;
-const precacheController = new PrecacheController();
+const precacheController = new PrecacheController({ plugins: [precacheFetchPlugin] });
 precacheController.addToCacheList(precacheManifest);
 cleanupOutdatedCaches();
 
