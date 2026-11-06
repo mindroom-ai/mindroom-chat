@@ -200,15 +200,21 @@ const checkKeyboard = async (browser: Browser, engine: string) => {
   await subspacesButton(page).focus();
   await page.keyboard.press('Enter');
   await expect(menu(page)).toBeVisible();
+  await expect(subspacesButton(page)).toHaveAttribute('aria-expanded', 'true');
+  // The arrow keys move into the menu and between its entries.
+  await page.keyboard.press('ArrowDown');
   await expect(entry(page, DESIGN)).toBeFocused();
   await page.keyboard.press('ArrowDown');
   await expect(entry(page, RESEARCH)).toBeFocused();
-  // Escape closes the menu and gives focus back to its button.
+  await page.keyboard.press('ArrowUp');
+  await expect(entry(page, DESIGN)).toBeFocused();
+  // Escape closes the menu and gives focus back to its row.
   await page.keyboard.press('Escape');
   await expect(menu(page)).toHaveCount(0);
   await expect(subspacesButton(page)).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(entry(page, DESIGN)).toBeFocused();
+  await expect(menu(page)).toBeVisible();
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await expect(entry(page, RESEARCH)).toBeFocused();
   await page.keyboard.press('Enter');

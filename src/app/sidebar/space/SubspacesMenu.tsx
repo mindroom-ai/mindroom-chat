@@ -103,9 +103,9 @@ export function SubspacesMenu({ subspaceIds }: { subspaceIds: string[] }) {
         isKeyForward: arrowKey('arrowdown'),
         escapeDeactivates: stopPropagation,
         clickOutsideDeactivates: true,
-        // The first sub-space takes focus as the menu opens, so the arrow keys work at once, even
-        // right after Escape closed it and handed focus back to the row.
-        delayInitialFocus: false,
+        // As in the app's other menus, focus stays on the row as the menu opens (the row says
+        // it is expanded) and the arrow keys move it into the menu.
+        initialFocus: false,
       }}
     >
       <Menu role="menu" aria-label={label} style={{ width: '100vw', maxWidth: 280 }}>
