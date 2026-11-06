@@ -277,10 +277,11 @@ describe('room thread list pages', () => {
     });
 
     it('tries again as soon as the connection is back', async () => {
+      // The connection drops as the fourth page is asked for, and stays down until it is back.
       let online = true;
       let failures = 0;
       const { room, requests } = serve(undefined, ({ include, from }) => {
-        if (include === 'all' && from === '90') online = false;
+        if (include === 'all' && from === '90' && failures === 0) online = false;
         if (online) return undefined;
         failures += 1;
         return 'dropped';
