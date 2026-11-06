@@ -69,7 +69,10 @@ export const PopOut = forwardRef<HTMLElement, Placement & Record<string, unknown
   }
 ) as unknown as typeof FoldsPopOut;
 
-/** Whether the last press was a touch, with no mouse moved since. */
+/**
+ * Whether the last press was a touch, with no mouse moved since. The mouseenter that WebKit replays
+ * when the page under a tap changes comes with no pointermove.
+ */
 let touchedLast = false;
 let watchingPresses = false;
 
@@ -88,8 +91,7 @@ const watchPresses = () => {
   document.addEventListener(
     'pointermove',
     (event) => {
-      if (event.pointerType === 'mouse' && (event.movementX || event.movementY))
-        touchedLast = false;
+      if (event.pointerType === 'mouse') touchedLast = false;
     },
     options
   );

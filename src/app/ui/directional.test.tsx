@@ -132,12 +132,9 @@ describe('PopOut and TooltipProvider', () => {
 });
 
 describe('TooltipProvider on a touch screen', () => {
-  const pointer = (type: string, pointerType: string, movement = 0) => {
+  const pointer = (type: string, pointerType: string) => {
     const event = new MouseEvent(type, { bubbles: true });
-    Object.defineProperties(event, {
-      pointerType: { value: pointerType },
-      movementX: { value: movement },
-    });
+    Object.defineProperty(event, 'pointerType', { value: pointerType });
     document.body.dispatchEvent(event);
   };
 
@@ -159,7 +156,7 @@ describe('TooltipProvider on a touch screen', () => {
     trigger.dispatchEvent(new MouseEvent('mouseenter'));
     expect(opened).not.toHaveBeenCalled();
 
-    pointer('pointermove', 'mouse', 3);
+    pointer('pointermove', 'mouse');
     trigger.dispatchEvent(new MouseEvent('mouseenter'));
     expect(opened).toHaveBeenCalledTimes(1);
   });
