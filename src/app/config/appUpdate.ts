@@ -2,8 +2,10 @@
 // a signed-in start (src/sw/sw.ts), so a page loads its other chunks from the server the first time it
 // needs them, and a deployment that removed the previous build's files leaves the page unable to
 // load them. When the server publishes another version than this page's (version.json), the page
-// says a new version is available (NewVersionNotice) and offers to reload. It asks when a part fails
-// to load, when the page is shown again or comes back online, and every five minutes while shown.
+// says a new version is available (NewVersionNotice) and offers to reload. It asks when the page
+// starts, when a part fails to load, when the page is shown again or comes back online, and every
+// five minutes while shown. The start matters most: the previous build's worker answers a reload
+// (and a discarded tab or a phone app that comes back) with the previous build.
 //
 // A failed chunk can also outlive a reload: Safari 26 (and so the iOS app) answers a module the
 // page failed to load from that failure again after the reload, without a request, until the file
@@ -69,9 +71,9 @@ export const checkForNewVersion = (): Promise<void> => {
  * Production builds load every on-demand chunk through Vite's preload helper, which adds a module
  * preload link for the chunk and each chunk it imports, and reports each failure on the window;
  * the importer still gets its error and handles it as before. A deployment is also noticed with
- * nothing failing, which a page that already loaded every part it uses never would: when the page
- * is shown again or comes back online, and every five minutes while it is shown. Returns a
- * function that stops it.
+ * nothing failing, which a page that already loaded every part it uses never would: once the page
+ * has started, when it is shown again or comes back online, and every five minutes while it is
+ * shown. Returns a function that stops it.
  */
 export const watchForNewVersion = (target: Window = window): (() => void) => {
   const check = () => {
@@ -92,7 +94,10 @@ export const watchForNewVersion = (target: Window = window): (() => void) => {
   target.document.addEventListener('visibilitychange', checkWhenShown);
   target.addEventListener('online', checkWhenShown);
   const timer = target.setInterval(checkWhenShown, APP_VERSION_POLL_INTERVAL_MS);
+  // After the start's own work: a page the previous build's worker served may be that build.
+  const start = target.setTimeout(checkWhenShown, 0);
   return () => {
+    target.clearTimeout(start);
     target.removeEventListener(PRELOAD_ERROR_EVENT, onPreloadError);
     target.removeEventListener('error', onResourceError, true);
     target.document.removeEventListener('visibilitychange', checkWhenShown);

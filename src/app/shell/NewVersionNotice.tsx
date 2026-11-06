@@ -11,8 +11,9 @@ export const useNewVersion = (): string | undefined =>
 /**
  * "A new version is available" with a Reload action, above every screen in the look of the
  * operator notices. It appears once the server publishes another build than this page's, found
- * when a part fails to load, when the page is shown again, or by a check every five minutes
- * (src/app/config/appUpdate.ts); dismissed, it stays away for the life of the page.
+ * when the page starts, when a part fails to load, when the page is shown again, or by a check
+ * every five minutes (src/app/config/appUpdate.ts); dismissed, it stays away for the life of the
+ * page.
  */
 export function NewVersionNotice() {
   const { t } = useTranslation();
