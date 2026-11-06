@@ -1,4 +1,11 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { buildLoginPath } from '../env';
@@ -117,7 +124,8 @@ const writeWhileAway = async (
   writerBrowser: Browser,
   readerBrowser: Browser,
   label: string,
-  run: (away: Away) => Promise<void>
+  run: (away: Away) => Promise<void>,
+  readerOptions: BrowserContextOptions = {}
 ) => {
   const id = `${Date.now().toString(36)}${label}`;
   const reader = `away_a_${id}`;
@@ -128,7 +136,7 @@ const writeWhileAway = async (
   const answer = `Answer to the edit ${id}`;
   const viewport = { width: 1280, height: 800 };
   const baseURL = test.info().project.use.baseURL;
-  const readerContext = await readerBrowser.newContext({ viewport, baseURL });
+  const readerContext = await readerBrowser.newContext({ viewport, baseURL, ...readerOptions });
   const writerContext = await writerBrowser.newContext({ viewport, baseURL });
   try {
     // Both have the room open once, so each holds the other's device keys.
@@ -171,6 +179,8 @@ const writeWhileAway = async (
     };
     await run({ roomId, original, edited, answer, readerContext, writerToken });
   } finally {
+    // A /sync held open by a route must not fail the test when the context closes.
+    await readerContext.unrouteAll({ behavior: 'ignoreErrors' });
     await readerContext.close();
     await writerContext.close();
   }
@@ -236,40 +246,47 @@ const withholdEditKey = async (context: BrowserContext, editId: string) => {
 };
 
 const readUndecryptableEdit = (writerBrowser: Browser, readerBrowser: Browser, label: string) =>
-  writeWhileAway(writerBrowser, readerBrowser, label, async (away) => {
-    const { token, done } = await away.writerToken();
-    const { chunk } = await call<{
-      chunk: Array<{ event_id: string; content: { 'm.relates_to'?: { rel_type?: string } } }>;
-    }>(`/rooms/${encodeURIComponent(away.roomId)}/messages?dir=b&limit=60`, token);
-    await done();
-    const editId = chunk.find(
-      (event) => event.content['m.relates_to']?.rel_type === 'm.replace'
-    )?.event_id;
-    expect(editId).toBeTruthy();
-    await withholdEditKey(away.readerContext, editId ?? '');
+  writeWhileAway(
+    writerBrowser,
+    readerBrowser,
+    label,
+    async (away) => {
+      const { token, done } = await away.writerToken();
+      const { chunk } = await call<{
+        chunk: Array<{ event_id: string; content: { 'm.relates_to'?: { rel_type?: string } } }>;
+      }>(`/rooms/${encodeURIComponent(away.roomId)}/messages?dir=b&limit=60`, token);
+      await done();
+      const editId = chunk.find(
+        (event) => event.content['m.relates_to']?.rel_type === 'm.replace'
+      )?.event_id;
+      expect(editId).toBeTruthy();
+      await withholdEditKey(away.readerContext, editId ?? '');
 
-    const back = await away.readerContext.newPage();
-    await openFullRoom(back, away.roomId);
-    const quote = quoteIn(back, away.answer);
-    await expect(quote).toContainText(away.original, { timeout: 30_000 });
-    await expect(quote).not.toContainText(away.edited);
-    await quote.click();
-    const row = rowWith(back, away.original).first();
-    await expect(row.locator('[data-edit-not-decrypted]')).toHaveText(
-      "A newer edit couldn't be decrypted",
-      { timeout: 30_000 }
-    );
-    await expect(row).not.toContainText(away.edited);
-    await expect(row).not.toContainText('Unsupported message');
-    if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-note-desktop.png` });
-    await back.setViewportSize({ width: 390, height: 844 });
-    await row.scrollIntoViewIfNeeded();
-    const note = row.locator('[data-edit-not-decrypted]');
-    await expect(note).toBeVisible();
-    const box = await note.boundingBox();
-    expect(box && box.x + box.width).toBeLessThanOrEqual(390);
-    if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-note-phone.png` });
-  });
+      const back = await away.readerContext.newPage();
+      await openFullRoom(back, away.roomId);
+      const quote = quoteIn(back, away.answer);
+      await expect(quote).toContainText(away.original, { timeout: 30_000 });
+      await expect(quote).not.toContainText(away.edited);
+      await quote.click();
+      const row = rowWith(back, away.original).first();
+      await expect(row.locator('[data-edit-not-decrypted]')).toHaveText(
+        "A newer edit couldn't be decrypted",
+        { timeout: 30_000 }
+      );
+      await expect(row).not.toContainText(away.edited);
+      await expect(row).not.toContainText('Unsupported message');
+      if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-note-desktop.png` });
+      await back.setViewportSize({ width: 390, height: 844 });
+      await row.scrollIntoViewIfNeeded();
+      const note = row.locator('[data-edit-not-decrypted]');
+      await expect(note).toBeVisible();
+      const box = await note.boundingBox();
+      expect(box && box.x + box.width).toBeLessThanOrEqual(390);
+      if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-note-phone.png` });
+    },
+    // WebKit sends a service worker's requests past routes, and the edit must not get through.
+    { serviceWorkers: 'block' }
+  );
 
 test.describe('an encrypted message edited while the reader was away', () => {
   test.beforeEach(async () => {
