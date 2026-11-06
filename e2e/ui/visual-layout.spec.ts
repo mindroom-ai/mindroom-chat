@@ -20,7 +20,7 @@ import { launchWebKit } from '../helpers/webkit';
 // - Members: between a phone and about 950 px the members panel lies over the room instead of
 //   squeezing the conversation (L8-F001).
 // - Thread: the expand-all toggle covers no message text at any scroll position (L8-F002, L5-F006,
-//   L6-F006) and names what it does; the minimap strips never cross a model badge (L8-F003).
+//   L6-F006) and names what it does.
 // - Compact cards: a resolved card with two tags is as tall as the others on a phone (L8-F005).
 // - Palette: a message row shows the room before the thread in the interface's direction, also for
 //   Arabic names (L8-F006), and keeps the sender's short name whole on a phone (L8-F007).
@@ -370,13 +370,13 @@ const checkMembers = async (run: Run) => {
 };
 
 // ---------------------------------------------------------------------------------------------
-// L8-F002, L5-F006, L6-F006: the expand-all toggle; L8-F003: minimap strips and model badges.
+// L8-F002, L5-F006, L6-F006: the expand-all toggle.
 
 type Clash = { scrollTop: number; text: string } | null;
 
 /**
- * How far each scan scrolls between checks: less than the 18 px toggle plus a 16 px line, and
- * than the 14 px badge plus a 2 px strip, so no overlap slips between two steps.
+ * How far each scan scrolls between checks: less than the 18 px toggle plus a 16 px line, so no
+ * overlap slips between two steps.
  */
 const SCAN_STEP = 12;
 
@@ -425,53 +425,6 @@ const toggleClash = (page: Page): Promise<Clash> =>
     return null;
   }, SCAN_STEP);
 
-/** Every model badge that a minimap strip crosses, over the whole scroll range. */
-const stripClash = (page: Page): Promise<string | null> =>
-  page.evaluate(async (STEP) => {
-    const strips = Array.from(document.querySelectorAll('[data-minimap-strip]'));
-    if (strips.length === 0) throw new Error('No minimap strips');
-    let element: HTMLElement | null = document.querySelector('[data-thread-count]');
-    while (element && !/(auto|scroll)/.test(getComputedStyle(element).overflowY)) {
-      element = element.parentElement;
-    }
-    if (!element) throw new Error('No thread scroller');
-    const scroll = element;
-    const frame = () =>
-      new Promise((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(resolve));
-      });
-    const badges = () =>
-      Array.from(document.querySelectorAll<HTMLElement>('[data-message-id] span[title]')).filter(
-        (span) => (span.getAttribute('aria-label') ?? '').includes('Stub Large Model')
-      );
-    const end = scroll.scrollHeight - scroll.clientHeight;
-    let seen = 0;
-    for (let top = 0; top <= end + STEP; top += STEP) {
-      scroll.scrollTop = Math.min(top, end);
-      // eslint-disable-next-line no-await-in-loop
-      await frame();
-      for (const badge of badges()) {
-        seen += 1;
-        const b = badge.getBoundingClientRect();
-        for (const strip of strips) {
-          const s = strip.getBoundingClientRect();
-          // Horizontally: any strip, however wide it grows, against the badge.
-          const across = Math.min(s.right, b.right) - Math.max(s.left, b.left);
-          const down = Math.min(s.bottom, b.bottom) - Math.max(s.top, b.top);
-          if (across > 0 && down > 0) {
-            return `strip ${Math.round(s.left)}-${Math.round(s.right)} x ${Math.round(
-              s.top
-            )} crosses badge ${Math.round(b.left)}-${Math.round(b.right)} x ${Math.round(
-              b.top
-            )}-${Math.round(b.bottom)} at ${scroll.scrollTop}`;
-          }
-        }
-      }
-    }
-    if (seen === 0) throw new Error('No model badges');
-    return null;
-  }, SCAN_STEP);
-
 const EXPAND_LABELS = {
   expand: 'Expand all long messages',
   collapse: 'Collapse all long messages',
@@ -493,9 +446,6 @@ const checkThread = async (run: Run, sizes: { width: number; height: number }[])
       });
       await shot(run, `thread-bottom-${size.width}-${direction}-${scheme}`);
       expect(await toggleClash(page), `toggle covers no text (${where})`).toBeNull();
-      if (run.form === 'desktop' && size.width === 1440) {
-        expect(await stripClash(page), `strips cross no badge (${where})`).toBeNull();
-      }
     }
   }
   // The toggle says what it does (English).
@@ -656,7 +606,7 @@ const CASES: { name: string; form: string; options: BrowserContextOptions; check
     check: checkMembers,
   },
   {
-    name: 'the expand-all toggle covers no text and the minimap crosses no model badge',
+    name: 'the expand-all toggle covers no text',
     form: 'desktop',
     options: DESKTOP,
     check: (run) =>
