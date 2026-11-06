@@ -9,8 +9,11 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
+import { roomMoreOptions } from '../helpers/roomMenu';
+import { expectRoomCompact, setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit } from '../helpers/webkit';
 import {
+  createDefaultThreadFilterState,
   joinRoom,
   loginToMatrix,
   matrixFetch,
@@ -401,14 +404,78 @@ const check = async (page: Page, world: World, label: string, desktop: boolean) 
   ).toEqual([]);
 };
 
+/**
+ * The live test's way into Classic (L4-F015): the room shows Compact, the reader picks Jump to
+ * Time, Beginning (which keeps Classic for the room), leaves for another room while a teammate
+ * starts a thread and answers in it, and comes back to the room's live end. The thread is read:
+ * its receipt, the server's count, and on a desktop the room's row, the thread's entry in the
+ * sidebar's THREADS list and its card once the room shows Compact again.
+ */
+const checkJumpEntered = async (page: Page, world: World, label: string, desktop: boolean) => {
+  await seedRoomOverviewState({
+    page,
+    roomId: world.roomId,
+    userId: world.reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  const receipts = recordReceipts(page);
+  await focusPage(page);
+  await page.goto(roomRoute(world.roomId));
+  await expect(page.getByRole('heading', { name: ROOM_NAME }).first()).toBeVisible({
+    timeout: 60_000,
+  });
+  await expectRoomCompact(page, true);
+
+  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
+  await roomMoreOptions(page).click();
+  await page.getByRole('menuitem', { name: 'Jump to Time' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
+  await dialog.getByRole('button', { name: 'Beginning' }).click();
+  await dialog.getByRole('button', { name: 'Open Timeline' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(
+    text(page, 'Ops item 1: anything we should look at before the weekend?')
+  ).toBeVisible({ timeout: 60_000 });
+  await expectRoomCompact(page, false);
+
+  await navigate(page, roomRoute(world.otherRoomId));
+  await expect(text(page, 'Mockups for the settings page are in the shared folder.')).toBeVisible({
+    timeout: 30_000,
+  });
+  const root = `Ops ${label}: who reviews the access list before the audit?`;
+  const rootId = await say(world, root);
+  const reply = `Ops ${label}: I review it on Thursday and send the changes to the team.`;
+  const replyId = await say(world, reply, inThread(rootId));
+  await expect.poll(() => serverThreadCount(world, rootId), { timeout: 15_000 }).toBe(1);
+
+  await navigate(page, roomRoute(world.roomId));
+  await expect(text(page, reply)).toBeVisible({ timeout: 30_000 });
+  await expectRoomCompact(page, false);
+  await expectRead(page, world, receipts, rootId, replyId, desktop);
+  await shot(page, `${label}-jump-entered-read`);
+  if (desktop) {
+    const entry = page.locator('[data-highlight]').filter({
+      has: page.getByRole('button', { name: `Open thread: ${root}` }),
+    });
+    await expect(entry).toHaveAttribute('data-highlight', 'false', { timeout: 15_000 });
+  }
+  await setRoomCompact(page, true);
+  const card = page.locator(`[data-thread-root-id="${rootId}"]`);
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(card).not.toHaveAttribute('data-thread-unread', 'true');
+  await shot(page, `${label}-jump-entered-compact`);
+};
+
 const run = async (
   browser: Browser,
   baseURL: string | undefined,
   engine: string,
   viewport: 'phone' | 'desktop',
-  theme: 'light' | 'dark'
+  theme: 'light' | 'dark',
+  checkRoom: typeof check = check
 ) => {
-  const world = await seed(`${engine}_${viewport}_${theme}`);
+  const world = await seed(`${engine}_${viewport}_${theme}${checkRoom === check ? '' : '_jump'}`);
   const context = await browser.newContext({
     ...(viewport === 'phone' ? PHONE : DESKTOP),
     baseURL,
@@ -440,7 +507,7 @@ const run = async (
       username: world.reader.username,
       password: PASSWORD,
     });
-    await check(page, world, `${engine}-${viewport}-${theme}`, viewport === 'desktop');
+    await checkRoom(page, world, `${engine}-${viewport}-${theme}`, viewport === 'desktop');
   } finally {
     await test.info().attach('timeline-log', {
       body: JSON.stringify(timeline, null, 2),
@@ -479,5 +546,20 @@ for (const engine of ['chromium', 'webkit'] as const) {
         }
       });
     }
+    // Light on a desktop, dark on a phone: the receipts do not depend on the theme.
+    const theme = viewport === 'desktop' ? 'light' : 'dark';
+    test(`Classic thread read after Jump to Time, ${engine}, ${viewport}, ${theme}`, async ({
+      browser,
+      baseURL,
+    }) => {
+      test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+      test.setTimeout(180_000);
+      const host = engine === 'webkit' ? await launchWebKit() : undefined;
+      try {
+        await run(host ?? browser, baseURL, engine, viewport, theme, checkJumpEntered);
+      } finally {
+        await host?.close();
+      }
+    });
   }
 }

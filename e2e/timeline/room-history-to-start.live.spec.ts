@@ -546,16 +546,57 @@ const openRoom = async (page: Page, fixture: Fixture) => {
   await page.waitForTimeout(1_000);
 };
 
+/**
+ * The room's own history pages the page asks the server for (`/messages` from a token), with the
+ * thread replies each brought, from now on.
+ */
+const watchServerPages = (page: Page, fixture: Fixture) => {
+  const pages: { from: string; events: number; replies: string[] }[] = [];
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    if (
+      !url.pathname.endsWith(`/rooms/${encodeURIComponent(fixture.roomId)}/messages`) ||
+      !url.searchParams.has('from') ||
+      !response.ok()
+    )
+      return;
+    void response
+      .json()
+      .then((body: { chunk?: RawEvent[] }) => {
+        const chunk = body.chunk ?? [];
+        pages.push({
+          from: url.searchParams.get('from') ?? '',
+          events: chunk.length,
+          replies: chunk
+            .filter((event) => event.content?.['m.relates_to']?.rel_type === 'm.thread')
+            .map((event) => event.event_id),
+        });
+      })
+      .catch(() => undefined);
+  });
+  return pages;
+};
+
+/**
+ * How the reader comes to the room: on its first open, after a reload, or after reading it to its
+ * start and a reload, when everything the first read loaded is saved and is read again from the
+ * cache: the thread replies of the pages it took from the server too, with their edits and
+ * reactions. A reply the cache lacks would show nowhere (a cached page's replies come from the
+ * cache only) or come from the server again.
+ */
+type Visit = 'open' | 'reload' | 'reread';
+
 const readToStart = async (
   context: BrowserContext,
   fixture: Fixture,
   device: Device,
   label: string,
-  reload: boolean
+  visit: Visit
 ) => {
   const page = await context.newPage();
   await openRoom(page, fixture);
-  if (reload) {
+  if (visit === 'reread') await scrollToStart(page, fixture, device, `${label}-first-read`);
+  if (visit !== 'open') {
     // The reload opens the room from what the first visit saved; its own visit saves the next
     // page, which starts with an edit whose answer is older than the page too.
     await page.reload();
@@ -564,7 +605,17 @@ const readToStart = async (
     });
     await page.waitForTimeout(2_000);
   }
+  const serverPages = watchServerPages(page, fixture);
   await scrollToStart(page, fixture, device, label);
+  if (visit !== 'reread') return;
+  await test.info().attach('server-pages', {
+    body: JSON.stringify(serverPages, null, 2),
+    contentType: 'application/json',
+  });
+  // The offline download may ask for its next page on this visit; the reader's scroll must not
+  // take any reply the first read already showed from the server again.
+  const fetchedAgain = serverPages.flatMap((served) => served.replies);
+  expect(fetchedAgain, `${label}: replies the first read loaded, fetched again`).toEqual([]);
 };
 
 let fixture: Fixture;
@@ -599,19 +650,18 @@ test.describe('scrolling up through a long room reaches its start', () => {
     { engine: 'webkit', device: 'phone' },
   ] as const;
   cases.forEach(({ engine, device }) => {
-    [false, true].forEach((reload) => {
-      const label = `classic-${engine}-${device}${reload ? '-reload' : ''}`;
-      test(`Classic view, ${engine}, ${device}${reload ? ', after a reload' : ''}`, async ({
-        browser,
-        baseURL,
-      }) => {
+    (['open', 'reload', 'reread'] as const).forEach((visit) => {
+      const suffix = { open: '', reload: '-reload', reread: '-reread' }[visit];
+      const title = { open: '', reload: ', after a reload', reread: ', read to the start again' };
+      const label = `classic-${engine}-${device}${suffix}`;
+      test(`Classic view, ${engine}, ${device}${title[visit]}`, async ({ browser, baseURL }) => {
         test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
-        test.setTimeout(300_000);
+        test.setTimeout(visit === 'reread' ? 600_000 : 300_000);
         const options = { ...(device === 'phone' ? PHONE : DESKTOP), baseURL };
         const host = engine === 'webkit' ? await launchWebKit() : undefined;
         const context = await (host ?? browser).newContext(options);
         try {
-          await readToStart(context, fixture, device, label, reload);
+          await readToStart(context, fixture, device, label, visit);
         } finally {
           await context.close();
           await host?.close();
