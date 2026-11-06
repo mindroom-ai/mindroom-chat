@@ -76,7 +76,12 @@ test.describe('live issue-033 message permalink open target', () => {
     });
 
     await page.goto(`/home/${encodeURIComponent(sourceRoomId)}`);
-    await expect(page.getByText(`Open this target thread: ${permalink}`)).toBeVisible({
+    // A link whose text is its own URL reads as a pill naming the room it leads to.
+    await expect(
+      page.getByText(
+        new RegExp(`^Open this target thread: (Thread|Message) in #ISSUE-033 Target ${stamp}$`)
+      )
+    ).toBeVisible({
       timeout: 30_000,
     });
 
