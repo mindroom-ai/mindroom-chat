@@ -7,10 +7,11 @@ import { type RefObject, useLayoutEffect } from 'react';
  */
 export const markInlineOverflow = (element: HTMLElement): void => {
   const { scrollLeft, scrollWidth, clientWidth } = element;
-  // A pixel of slack: fractional layout can leave a row at its start a fraction off zero.
+  // More than a pixel each way: fractional layout leaves a row at an edge up to a pixel short of
+  // it (Chromium stops a right-to-left row a pixel before its end).
   const fromStart = Math.abs(scrollLeft);
-  element.toggleAttribute('data-more-start', fromStart >= 1);
-  element.toggleAttribute('data-more-end', fromStart + clientWidth <= scrollWidth - 1);
+  element.toggleAttribute('data-more-start', fromStart > 1);
+  element.toggleAttribute('data-more-end', scrollWidth - clientWidth - fromStart > 1);
 };
 
 /** Keeps the marks of {@link markInlineOverflow} current as the row scrolls or changes size. */

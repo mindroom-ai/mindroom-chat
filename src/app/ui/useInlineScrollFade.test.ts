@@ -25,6 +25,9 @@ describe('markInlineOverflow', () => {
       // Right to left: 0 at the start, negative toward the end.
       [-100, { start: true, end: true }],
       [-200, { start: true, end: false }],
+      // A pixel short of either edge counts as there.
+      [1, { start: false, end: true }],
+      [-199, { start: true, end: false }],
     ];
     for (const [scrollLeft, expected] of cases) {
       const element = row(scrollLeft);
