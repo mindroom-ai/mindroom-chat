@@ -35,6 +35,24 @@ const reactionShortcode = (events: MatrixEvent[]): string | undefined => {
   return typeof shortcode === 'string' ? shortcode : undefined;
 };
 
+const firstUse = (events: Set<MatrixEvent>): number => {
+  let first = Infinity;
+  events.forEach((event) => {
+    first = Math.min(first, event.getTs());
+  });
+  return first;
+};
+
+/**
+ * The reactions in the order their emoji was first used. The SDK sorts them by count, which moved
+ * a pill as soon as the viewer clicked it, so a second click landed on another emoji.
+ */
+const byFirstUse = <T extends [string, Set<MatrixEvent>]>(annotations: T[]): T[] =>
+  annotations
+    .map((annotation) => ({ annotation, first: firstUse(annotation[1]) }))
+    .sort((a, b) => a.first - b.first)
+    .map(({ annotation }) => annotation);
+
 /** Follows reactions added, removed, or redacted on a message. */
 const useRelationsUpdates = (relations: Relations): void => {
   const [, forceUpdate] = useReducer((count: number) => count + 1, 0);
@@ -69,7 +87,7 @@ export function Reactions({
   useRelationsUpdates(relations);
 
   const myUserId = client.getUserId();
-  const annotations = getRenderableAnnotationsByKey(relations, targetEvent);
+  const annotations = byFirstUse(getRenderableAnnotationsByKey(relations, targetEvent));
   // Local echoes carry a transaction ID until the server confirms them; they cannot be reacted to.
   const canToggle = !!canSendReaction && isConfirmedMatrixEventId(mEventId);
 
