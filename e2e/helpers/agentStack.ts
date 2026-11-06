@@ -161,7 +161,9 @@ export const openNewSession = async (
   stack: AgentStack,
   options: BrowserContextOptions
 ): Promise<Page> => {
-  const page = await (await browser.newContext(options)).newPage();
+  // Playwright gives a new context the project's options it does not set, the tester's saved
+  // session among them; a key set to undefined counts as set.
+  const page = await (await browser.newContext({ storageState: undefined, ...options })).newPage();
   await routeClientConfig(page, stack);
   await signIn(page, stack);
   return page;

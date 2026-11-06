@@ -10,6 +10,7 @@ import {
   test,
   type AgentStack,
 } from '../helpers/agentStack';
+import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Regression (L5-F012): in an encrypted room, a reply the reader read half-way and then left
@@ -61,6 +62,41 @@ const expectBadgeMatchesServer = async (
     .toBe(true);
 };
 
+/** The room's events as the server has them (relation and sender only) and the tester's receipts. */
+const describeRoom = async (stack: AgentStack, roomId: string): Promise<string> => {
+  type Raw = {
+    event_id: string;
+    type: string;
+    sender: string;
+    origin_server_ts: number;
+    content: { 'm.relates_to'?: { rel_type?: string; event_id?: string } };
+  };
+  const { chunk } = await matrixFetch<{ chunk: Raw[] }>(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=100`,
+    { accessToken: stack.tester.accessToken }
+  );
+  const filter = JSON.stringify({
+    room: { rooms: [roomId], timeline: { limit: 1 }, ephemeral: { types: ['m.receipt'] } },
+  });
+  const sync = await matrixFetch<{
+    rooms?: { join?: Record<string, { ephemeral?: { events?: unknown[] } }> };
+  }>(stack.homeserver, `/sync?timeout=0&filter=${encodeURIComponent(filter)}`, {
+    accessToken: stack.tester.accessToken,
+  });
+  const events = [...chunk]
+    .reverse()
+    .map((event) => {
+      const relation = event.content['m.relates_to'];
+      const who = event.sender === stack.tester.userId ? 'tester' : event.sender.split(':')[0];
+      return `${event.origin_server_ts} ${event.event_id.slice(0, 8)} ${event.type} ${who} ${
+        relation ? `${relation.rel_type}->${relation.event_id?.slice(0, 8)}` : ''
+      }`;
+    })
+    .join('\n');
+  return `${events}\nreceipts: ${JSON.stringify(sync.rooms?.join?.[roomId]?.ephemeral?.events)}`;
+};
+
 const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[]) => {
   // Home lists the room; the room is in no space.
   const roomId = await createEncryptedAgentRoom(stack, 'Secure desk');
@@ -96,8 +132,9 @@ test('a reply that finishes in an encrypted room while the reader is away shows 
   baseURL,
 }) => {
   const log: string[] = [];
+  let roomId: string | undefined;
   try {
-    const roomId = await halfReadThenLeave(page, stack, log);
+    roomId = await halfReadThenLeave(page, stack, log);
     await expectBadgeMatchesServer(page, stack, roomId, log, 'reader');
 
     // A new session of the same account has no keys for the room yet.
@@ -108,6 +145,7 @@ test('a reply that finishes in an encrypted room while the reader is away shows 
       await fresh.context().close();
     }
   } finally {
+    if (roomId) log.push(await describeRoom(stack, roomId));
     writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
   }
 });
