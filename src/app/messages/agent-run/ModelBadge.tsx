@@ -4,6 +4,7 @@ import { AiRunInfo } from '../../matrix/protocol/aiRun';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from './aiRunDisplay';
 import { ProviderModelIcon } from '../../models/ProviderModelIcon';
 import { ownDirectionLine } from '../../ui/directional';
+import { TipButton } from '../../ui/TipButton';
 import * as css from './ModelBadge.css';
 
 export function ModelBadge({ info }: { info: AiRunInfo }) {
@@ -18,9 +19,9 @@ export function ModelBadge({ info }: { info: AiRunInfo }) {
       : modelDetails ?? label;
 
   return (
-    <span
+    <TipButton
       className={css.Badge}
-      title={fullModelLabel}
+      tip={fullModelLabel}
       aria-label={t('mindroomUi.messages.mindroomModelBadge.model', { model: fullModelLabel })}
     >
       <ProviderModelIcon
@@ -30,6 +31,6 @@ export function ModelBadge({ info }: { info: AiRunInfo }) {
         size={10}
       />
       <span className={css.Label} {...ownDirectionLine}>{label}</span>
-    </span>
+    </TipButton>
   );
 }

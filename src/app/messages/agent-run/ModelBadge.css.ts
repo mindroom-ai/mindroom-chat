@@ -1,13 +1,12 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import {
-  MESSAGE_AVATAR_WIDTH_PX,
-  MESSAGE_LAYOUT_GAP_SPACE_KEY,
-} from '../layout/config';
+import { MESSAGE_AVATAR_WIDTH_PX, MESSAGE_LAYOUT_GAP_SPACE_KEY } from '../layout/config';
 import { getModelBadgeMaxWidth } from './modelBadgeLayout';
 
-// Under the avatar the badge may use the avatar column plus the message gap on each side; a longer
-// model name is cut with an ellipsis (the full name is in the title).
+// Under the avatar the badge starts at the avatar's leading edge and may use the avatar column
+// plus the gap to the text, 48 px at 100 % zoom, leaving the gutter before the avatar (where a
+// thread's minimap draws its strips) alone; a longer model name is cut with an ellipsis, and the
+// badge shows the full name on hover, focus or a tap.
 const widestBadge = getModelBadgeMaxWidth(
   toRem(MESSAGE_AVATAR_WIDTH_PX),
   config.space[MESSAGE_LAYOUT_GAP_SPACE_KEY]
@@ -22,8 +21,10 @@ const badgeLinePx = 12;
 
 /** Small pill under an agent's avatar naming the model that wrote the message. */
 export const Badge = style({
-  // As wide as the name, at most the avatar column plus a gap on each side.
+  // As wide as the name, at most the avatar column plus the gap after it.
   boxSizing: 'border-box',
+  margin: 0,
+  fontFamily: 'inherit',
   width: 'max-content',
   maxWidth: widestBadge,
   minWidth: 0,
@@ -42,6 +43,10 @@ export const Badge = style({
   fontWeight: 500,
   whiteSpace: 'nowrap',
   cursor: 'default',
+  ':focus-visible': {
+    outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
+    outlineOffset: toRem(1),
+  },
 });
 
 export const Icon = style({

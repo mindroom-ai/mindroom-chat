@@ -23,13 +23,15 @@ globalTouchTarget(`${SenderLine}:has(~ * ${ActivityLine}) button`, '22px', {
 });
 
 /**
- * An agent's avatar with its model badge stacked underneath. The column keeps the avatar's width,
- * so a badge wider than the avatar hangs out evenly on both sides instead of pushing it aside.
+ * An agent's avatar with its model badge stacked underneath. The column keeps the avatar's width:
+ * the badge starts at the avatar's leading edge, and one wider than the avatar runs into the gap
+ * toward the text, never into the gutter before the avatar, where a thread's minimap draws its
+ * strips.
  */
 export const MessageAvatarWithModel = style({
   display: 'flex',
   flexDirection: 'column',
-  alignItems: 'center',
+  alignItems: 'flex-start',
   rowGap: toRem(3),
   width: '100%',
 });
