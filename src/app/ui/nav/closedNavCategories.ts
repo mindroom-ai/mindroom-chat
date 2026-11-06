@@ -8,6 +8,7 @@ import {
   getLocalStorageItem,
   setLocalStorageItem,
 } from '../../lib/state/atomWithLocalStorage';
+import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 
 const CLOSED_NAV_CATEGORIES = 'closedNavCategories';
 const INITIALIZED_NAV_CATEGORIES = 'initializedNavCategories';
@@ -65,4 +66,11 @@ export const makeClosedNavCategoriesAtom = (
       set(closedAtom, next);
     }
   );
+};
+
+/** Forgets a user's collapsed categories, for when the account leaves this browser. */
+export const clearClosedNavCategoriesStore = (userId: string): void => {
+  const storage = getSafeLocalStorage();
+  removeStorageItemSafe(storage, `${CLOSED_NAV_CATEGORIES}${userId}`);
+  removeStorageItemSafe(storage, `${INITIALIZED_NAV_CATEGORIES}${userId}`);
 };

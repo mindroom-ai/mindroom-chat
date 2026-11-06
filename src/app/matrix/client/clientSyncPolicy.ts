@@ -1,6 +1,7 @@
 import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
+import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
@@ -54,6 +55,17 @@ const buildSyncFilter = (mx: MatrixClient): Filter => {
     filter.setUnreadThreadNotifications(true);
   }
   return filter;
+};
+
+/**
+ * Forgets the IDs of an account's sync filters, which the SDK keeps in localStorage under the
+ * account's Matrix ID, for when the account leaves this browser.
+ */
+export const clearSyncFilterIds = (userId: string): void => {
+  const storage = getSafeLocalStorage();
+  [`FILTER_SYNC_${userId}`, `FILTER_SYNC_${userId}_LEFT_ROOMS`].forEach((filterName) =>
+    removeStorageItemSafe(storage, `mxjssdk_memory_filter_${filterName}`)
+  );
 };
 
 const countedClients = new WeakSet<MatrixClient>();

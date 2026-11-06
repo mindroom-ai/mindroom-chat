@@ -11,6 +11,8 @@ import { clearRoomViewModeStore } from '../../navigation/roomViewMode';
 import { clearThreadSummarySharedState } from '../../event-store/threads/threadSummaryState';
 import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalStorage';
 import { clearSeenThreadRoots } from '../../matrix/seenThreadRoots';
+import { clearClosedNavCategoriesStore } from '../../ui/nav/closedNavCategories';
+import { clearSyncFilterIds } from '../../matrix/client/clientSyncPolicy';
 import {
   LEGACY_MINDROOM_ROOM_EVENT_CACHE_DB_NAME,
   LEGACY_MINDROOM_THREAD_EVENT_CACHE_DB_NAME,
@@ -87,6 +89,8 @@ export const clearUserUiState = (userId: string): void => {
   clearRecentlyOpenedPanelHeightStore(userId);
   clearThreadSidebarPreferencesStore(userId);
   clearSeenThreadRoots(userId);
+  clearClosedNavCategoriesStore(userId);
+  clearSyncFilterIds(userId);
 };
 
 export const clearSessionUiState = (sessionId: string): void => {
