@@ -51,6 +51,8 @@ export type ScrollToBottomState = {
 };
 
 export type RoomFocusScrollControllerOptions = {
+  /** Scroll movement owned by row measurement, including already rendered corrections. */
+  readMeasurementCorrectionPx?: () => number;
   cancelThreadBottomSettle?: () => void;
   alive: () => boolean;
   atBottomAnchorRef: MutableRefObject<HTMLElement | null>;
@@ -360,6 +362,7 @@ const useRoomFocusJump = ({
  * reader's first gesture or a jump target suppresses the opening pin.
  */
 const useThreadOpeningPin = ({
+  readMeasurementCorrectionPx,
   isThreadOpenBottomPinSuppressed,
   requestThreadOpenBottomPin,
   scrollRef,
@@ -372,6 +375,7 @@ const useThreadOpeningPin = ({
   threadUserScrolled,
 }: Pick<
   Options,
+  | 'readMeasurementCorrectionPx'
   | 'isThreadOpenBottomPinSuppressed'
   | 'requestThreadOpenBottomPin'
   | 'scrollRef'
@@ -387,7 +391,7 @@ const useThreadOpeningPin = ({
   const pinnedInCommitRef = useRef(false);
   // Where the last pin, or the last commit that found the view at the bottom, left the scroll
   // position: a view above it was moved up by something else than the rows growing.
-  const pinnedTopRef = useRef<number>();
+  const pinnedPositionRef = useRef<{ top: number; correction: number }>();
   useLayoutEffect(() => {
     if (!threadId) return;
     const pinned = shouldPinThreadToBottomOnOpen({
@@ -404,8 +408,12 @@ const useThreadOpeningPin = ({
     scrollToBottom(scrollArea, 'instant');
     setAtBottom(true);
     pinnedInCommitRef.current = true;
-    pinnedTopRef.current = scrollArea.scrollTop;
+    pinnedPositionRef.current = {
+      top: scrollArea.scrollTop,
+      correction: readMeasurementCorrectionPx?.() ?? 0,
+    };
   }, [
+    readMeasurementCorrectionPx,
     isThreadOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
     scrollRef,
@@ -428,12 +436,18 @@ const useThreadOpeningPin = ({
     }
     const scrollArea = scrollRef.current;
     if (!threadId || !scrollArea) return;
+    const correction = readMeasurementCorrectionPx?.() ?? 0;
     if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
-      pinnedTopRef.current = scrollArea.scrollTop;
+      pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
       return;
     }
-    const pinnedTop = pinnedTopRef.current;
-    if (pinnedTop === undefined || scrollArea.scrollTop < pinnedTop - 1) return;
+    const pinnedPosition = pinnedPositionRef.current;
+    if (!pinnedPosition) return;
+    // A shrink correction moves the scroll up even while other rows grow in the same pass.
+    // Compare against the position after our own corrections, so only an additional upward
+    // scroll hands ownership away. The ledger keeps the sum across its pre-paint renders.
+    const correctedTop = pinnedPosition.top + correction - pinnedPosition.correction;
+    if (scrollArea.scrollTop < correctedTop - 1) return;
     const pinned = shouldPinThreadToBottomOnOpen({
       suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
       threadId,
@@ -445,7 +459,7 @@ const useThreadOpeningPin = ({
     });
     if (!pinned || !requestThreadOpenBottomPin()) return;
     scrollToBottom(scrollArea, 'instant');
-    pinnedTopRef.current = scrollArea.scrollTop;
+    pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
   });
 };
 

@@ -83,6 +83,8 @@ export type TimelineScrollLedgerController = {
   threadLeadingRef: RefObject<HTMLDivElement>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
   unrenderedCorrectionPx: () => number;
+  /** Applied measurement corrections, including those whose rows already rendered. */
+  readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
   virtualInnerRef: RefObject<HTMLDivElement>;
@@ -521,7 +523,9 @@ export const useTimelineScrollLedgerController = ({
   // correction for a frame. Render them in a microtask, before the paint, and
   // until then let the hook judge rows in the layout React rendered.
   const unrenderedCorrectionPxRef = useRef(0);
+  const measurementCorrectionPxRef = useRef(0);
   const handleAppliedCorrection = useCallback((deltaPx: number) => {
+    measurementCorrectionPxRef.current += deltaPx;
     if (unrenderedCorrectionPxRef.current === 0) {
       queueMicrotask(() => {
         if (unrenderedCorrectionPxRef.current === 0) return;
@@ -531,6 +535,7 @@ export const useTimelineScrollLedgerController = ({
     unrenderedCorrectionPxRef.current += deltaPx;
   }, []);
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
+  const readMeasurementCorrectionPx = useCallback(() => measurementCorrectionPxRef.current, []);
   // A row that changes size where the reader sees it moves the rows after it, which virtual-core
   // also renders in React's next task: for a frame the next row is drawn over a growing row, or
   // apart from a shrinking one. Render them in a microtask as well.
@@ -783,5 +788,6 @@ export const useTimelineScrollLedgerController = ({
     unrenderedRowMove,
     virtualInnerRef,
     virtualizer,
+    readMeasurementCorrectionPx,
   };
 };

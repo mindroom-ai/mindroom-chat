@@ -914,6 +914,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   useRoomFocusScrollController({
+    readMeasurementCorrectionPx: ledger.readMeasurementCorrectionPx,
     cancelThreadBottomSettle,
     alive,
     atBottomAnchorRef,
