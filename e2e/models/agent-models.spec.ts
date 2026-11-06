@@ -98,7 +98,9 @@ test(
     await expect(chip).toHaveText(second.displayName, { timeout: 10_000 });
 
     await sendFromComposer(page, '!model reset');
-    await expect(page.getByText('Thread model override removed')).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('Thread model override removed').last()).toBeVisible({
+      timeout: 60_000,
+    });
     await expect(chip).toHaveText('Room default', { timeout: 10_000 });
   }
 );
