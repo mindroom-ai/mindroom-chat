@@ -92,7 +92,8 @@ const openCanvases = async (page: Page, fixture: Fixture) => {
   await page.goto('/canvases/');
   const list = page.getByTestId('canvases-view');
   await expect(list.locator('tbody tr')).toHaveCount(2, { timeout: 30_000 });
-  await expect(list.locator('tbody tr').first()).toContainText(LONG_TOKEN);
+  // The newest canvas comes first; the one in the thread with the long title is second.
+  await expect(list.locator('tbody tr').nth(1)).toContainText(LONG_TOKEN);
   return list;
 };
 
@@ -122,7 +123,7 @@ const expectRowsInside = async (page: Page, fixture: Fixture, label: string) => 
     await expect(row.getByRole('button', { name: fixture.roomName })).toBeInViewport();
     await expect(row.getByText(fixture.agentName, { exact: true })).toBeInViewport();
   }
-  await expect(rows.first().getByText(LONG_TOKEN, { exact: false })).toBeInViewport({ ratio: 1 });
+  await expect(rows.nth(1).getByText(LONG_TOKEN, { exact: false })).toBeInViewport({ ratio: 1 });
 };
 
 const shot = async (page: Page, name: string) => {
