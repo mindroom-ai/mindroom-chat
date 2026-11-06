@@ -312,7 +312,10 @@ export const useThreadAutoPaginateBack = ({
       countCacheProbe('threadAutoPaginateBackFired');
       void current.paginateBack();
     };
-    scrollElement.addEventListener('scroll', checkTop, { passive: true });
-    return () => scrollElement.removeEventListener('scroll', checkTop);
+    // At the very top a turn of the wheel or a drag moves nothing and fires no scroll event, so
+    // those count as the reader's scrolling too.
+    const events = ['scroll', 'wheel', 'touchmove'] as const;
+    events.forEach((type) => scrollElement.addEventListener(type, checkTop, { passive: true }));
+    return () => events.forEach((type) => scrollElement.removeEventListener(type, checkTop));
   }, [autoPaginateRef, scrollElement, threadId, virtualizerRef]);
 };
