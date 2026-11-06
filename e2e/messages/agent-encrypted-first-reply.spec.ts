@@ -47,12 +47,14 @@ const createEncryptedRoom = async (stack: AgentStack): Promise<string> => {
   return roomId;
 };
 
-/** Sends "@Helper <text>" with the mention picked from the composer's suggestions. */
-const mentionHelper = async (page: Page, text: string): Promise<void> => {
+/** Sends "@Helper <text>" with the mention Tab takes from the composer's suggestions. */
+const mentionHelper = async (page: Page, stack: AgentStack, text: string): Promise<void> => {
   await composer(page).click();
   await page.keyboard.type('@Hel');
-  await expect(page.getByRole('option', { name: /Helper/ })).toBeVisible({ timeout: 20_000 });
-  await page.keyboard.press('Enter');
+  await expect(page.getByText(stack.agents.helper, { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.keyboard.press('Tab');
   await page.keyboard.type(` ${text}`);
   await page.keyboard.press('Enter');
 };
@@ -71,7 +73,7 @@ test('the first reply in a new encrypted room streams its text with a Stop butto
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
 
   // 400 words, one every quarter second: the stream runs long enough to watch it.
-  await mentionHelper(page, `#stopme ${uniqueWord('first')}`);
+  await mentionHelper(page, stack, `#stopme ${uniqueWord('first')}`);
 
   const unsupported = page.getByText('Unsupported message');
   const stop = page.getByRole('button', { name: 'Stop', exact: true });
