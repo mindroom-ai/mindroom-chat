@@ -36,9 +36,10 @@ import { getLatestEdit, isEventOrderedAfter } from '../room';
 // newest event with that event's newest edit. So a check waits a moment before it asks (a room's
 // cards ask before its list starts reading) and then while the room's thread list is read (a
 // reload of a room with hundreds of threads asked once per finished thread before), a listed
-// reply counts as the server's answer, and a reply that its listed thread no longer names as the
-// newest event needs no answer: the card shows the newer event. What the list leaves open is
-// checked when the read ends.
+// reply counts as the server's answer, and a reply older than the event its listed thread names
+// as the newest needs no answer, then or later: the client keeps that answer, because a card whose
+// loaded events still end with the reply (a reload restores them) would ask again whenever it is
+// drawn. What the list leaves open is checked when the read ends.
 
 /** A reply whose newest revision is older than this is not streaming. */
 export const STREAM_IDLE_LIMIT_MS = 30 * 60_000;
@@ -56,6 +57,9 @@ const SEEN_LIMIT = 5_000;
 
 /** A reply the client vouches for: its room's gap count then, and its newest edit known. */
 type Seen = { roomId: string; gap: number; edit?: MatrixEvent };
+
+/** The newest event of a thread, as the room's thread list named it. */
+type Listed = { roomId: string; eventId: string; ts: number };
 
 type Check = {
   roomId: string;
@@ -151,6 +155,8 @@ const threadOf = (event: MatrixEvent): string | undefined =>
  */
 export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   const seen = new Map<string, Seen>();
+  /** Per thread root, the newest event the room's thread list named; the oldest go first. */
+  const listed = new Map<string, Listed>();
   /** Per room, how many sync gaps it had. */
   const gaps = new Map<string, number>();
   /** The first batch's replies until the SDK says whether they came from its saved sync. */
@@ -178,6 +184,18 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
   };
 
   const gapsOf = (roomId: string) => gaps.get(roomId) ?? 0;
+
+  /** The room's thread list named a newer event of the reply's thread. */
+  const isOlderThanListed = (roomId: string, event: MatrixEvent): boolean => {
+    const threadId = threadOf(event);
+    const newest = threadId ? listed.get(threadId) : undefined;
+    return (
+      !!newest &&
+      newest.roomId === roomId &&
+      newest.eventId !== event.getId() &&
+      event.getTs() < newest.ts
+    );
+  };
 
   const vouch = (roomId: string, eventId: string, edit?: MatrixEvent) => {
     const known = seen.get(eventId)?.edit;
@@ -343,6 +361,8 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     if (Date.now() - newestRevisionTs(event) > STREAM_IDLE_LIMIT_MS) return false;
     if (unknown.has(eventId)) return false;
     const vouched = seen.get(eventId);
+    // A reply never vouched for does not stream, and the list's word about its thread answers it.
+    if (!vouched && isOlderThanListed(room.roomId, event)) return false;
     if (!vouched || vouched.gap !== gapsOf(room.roomId)) ask(room.roomId, eventId, [event]);
     if (!vouched) return false;
     // Another copy of the reply (a summary's, the cache's) may lack the edit the client knows.
@@ -394,13 +414,22 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
           | undefined;
         const latestId = latest?.event_id;
         if (!root.event_id || !latestId) return;
+        const latestTs = latest?.origin_server_ts;
+        if (typeof latestTs === 'number') {
+          listed.delete(root.event_id);
+          listed.set(root.event_id, { roomId, eventId: latestId, ts: latestTs });
+          if (listed.size > SEEN_LIMIT) {
+            const oldest = listed.keys().next().value;
+            if (oldest !== undefined) listed.delete(oldest);
+          }
+        }
         const stale = [...checks.values()].filter(
           (check) =>
             check.roomId === roomId &&
             check.threadId === root.event_id &&
             check.eventId !== latestId
         );
-        // The thread's card shows its newer event; one that still shows the reply asks again.
+        // The list names another event as the thread's newest: these checks need no answer.
         stale.forEach((check) => {
           if (drop(check)) announce(room, check.targets);
         });
