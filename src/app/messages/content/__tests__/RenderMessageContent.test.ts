@@ -74,6 +74,9 @@ vi.mock('../ThumbnailContent', () => ({
 vi.mock('../VideoContent', () => ({
   VideoContent: () => null,
 }));
+vi.mock('../CallTranscriptCard', () => ({
+  CallTranscriptCard: () => null,
+}));
 
 vi.mock('../../url-preview/UrlPreviewCard', () => ({
   UrlPreviewCard: () => null,
