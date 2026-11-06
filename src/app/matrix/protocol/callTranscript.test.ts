@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   CALL_TRANSCRIPT_KEY,
+  CALL_TRANSCRIPT_MAX_TOTAL_LENGTH,
   CALL_TRANSCRIPT_MAX_TURNS,
-  CALL_TRANSCRIPT_MAX_TEXT_LENGTH,
+  clipTurnText,
   groupCallTranscriptTurns,
   readCallTranscript,
 } from './callTranscript';
@@ -94,16 +95,49 @@ describe('readCallTranscript', () => {
     ).toBeUndefined();
   });
 
-  it('falls back for a turn longer than it renders', () => {
-    const longest = 'a'.repeat(CALL_TRANSCRIPT_MAX_TEXT_LENGTH);
+  it('keeps a long turn whole: one speaker can talk for many minutes', () => {
+    const dictation = 'word '.repeat(4000).trim();
     expect(
-      readCallTranscript(withTranscript({ duration_seconds: 10, turns: [turn(PERSON, longest)] }))
+      readCallTranscript(
+        withTranscript({ duration_seconds: 900, turns: [turn(PERSON, dictation)] })
+      )?.turns[0]?.text
+    ).toBe(dictation);
+  });
+
+  it('falls back past the total size it renders', () => {
+    const half = 'a'.repeat(CALL_TRANSCRIPT_MAX_TOTAL_LENGTH / 2);
+    expect(
+      readCallTranscript(
+        withTranscript({ duration_seconds: 10, turns: [turn(PERSON, half), turn(AGENT, half)] })
+      )
     ).toBeDefined();
     expect(
       readCallTranscript(
-        withTranscript({ duration_seconds: 10, turns: [turn(PERSON, `${longest}a`)] })
+        withTranscript({
+          duration_seconds: 10,
+          turns: [turn(PERSON, half), turn(AGENT, `${half}a`)],
+        })
       )
     ).toBeUndefined();
+  });
+});
+
+describe('clipTurnText', () => {
+  it('leaves a short text alone', () => {
+    expect(clipTurnText('Hello there.', 20)).toEqual({ text: 'Hello there.', clipped: false });
+  });
+
+  it('cuts a long text at the last space before the limit and adds an ellipsis', () => {
+    expect(clipTurnText('one two three four five', 15)).toEqual({
+      text: 'one two three…',
+      clipped: true,
+    });
+  });
+
+  it('cuts a text without spaces at the limit, never inside a character', () => {
+    expect(clipTurnText('abcdefghij', 4)).toEqual({ text: 'abcd…', clipped: true });
+    // An emoji is two UTF-16 code units: the cut keeps or drops it whole.
+    expect(clipTurnText('ab😀cdef', 3)).toEqual({ text: 'ab…', clipped: true });
   });
 });
 

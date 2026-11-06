@@ -185,6 +185,35 @@ describe('a voice call transcript message', () => {
     expect(groups()).toHaveLength(0);
   });
 
+  it('clips a long turn and shows the rest on request', () => {
+    const dictation = Array.from({ length: 600 }, (_, index) => `word${index}`).join(' ');
+    render(
+      transcriptContent({
+        duration_seconds: 900,
+        turns: [
+          { sender: CALLER, text: dictation },
+          { sender: AGENT, text: 'Noted.' },
+        ],
+      })
+    );
+    act(() => toggle()?.click());
+    const text = () => groups()[0]?.querySelector('[data-call-transcript-text]')?.textContent;
+    const more = () =>
+      groups()[0]?.querySelector<HTMLButtonElement>('button[data-call-transcript-more]') ?? null;
+
+    expect(text()?.endsWith('…')).toBe(true);
+    expect(text()?.length).toBeLessThan(1100);
+    expect(more()?.textContent).toBe('Show more');
+    expect(more()?.getAttribute('aria-expanded')).toBe('false');
+    // A short turn has no button.
+    expect(groups()[1]?.querySelector('button')).toBeNull();
+
+    act(() => more()?.click());
+    expect(text()).toBe(dictation);
+    expect(more()?.textContent).toBe('Show less');
+    expect(more()?.getAttribute('aria-expanded')).toBe('true');
+  });
+
   it('opens with the matches marked when a search matched a turn', () => {
     render(transcriptContent(VALID), AGENT, /loud/i);
 

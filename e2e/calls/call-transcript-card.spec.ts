@@ -91,6 +91,10 @@ const setAvatar = async (account: Account) => {
 };
 
 const LONG_CALL_TURNS = 120;
+const DICTATION = Array.from(
+  { length: 40 },
+  (_, index) => `Note ${index + 1}: ${LONG_TURN.replace(SEARCH_WORD, 'blue')}`
+).join(' ');
 
 /**
  * A room with a long call, sent as MindRoom sends a message over its size limit: the event holds
@@ -106,6 +110,8 @@ const seedLongCall = async (caller: Account, agent: Account): Promise<string> =>
     // Without the searched word, so the search below finds only the short call.
     text: `Point ${index + 1}: ${LONG_TURN.replace(SEARCH_WORD, 'blue')}`,
   }));
+  // One speaker's words merge into one turn: the first is a dictation of several minutes.
+  turns[0] = { sender: caller.userId, text: DICTATION };
   const name = (sender: string) => (sender === caller.userId ? 'Robin Tester' : 'Helper');
   const body = [
     '📞 Voice call · 48 min',
@@ -304,13 +310,40 @@ const layoutProblem = (row: Locator) =>
       const a = avatar.getBoundingClientRect();
       sizes.add(`${Math.round(a.width)}x${Math.round(a.height)}`);
       starts.add(Math.round(rtl ? a.right : a.left));
-      for (const text of Array.from(
-        group.querySelectorAll('[data-call-transcript-text], [data-call-transcript-name]')
-      )) {
+      const name = group.querySelector('[data-call-transcript-name]');
+      if (!name) return 'a group without a name';
+      // A long name may end in an ellipsis; it is never cut off without one.
+      if (
+        name.scrollWidth > name.clientWidth + 1 &&
+        getComputedStyle(name).textOverflow !== 'ellipsis'
+      ) {
+        return 'name cut off without an ellipsis';
+      }
+      const body = name.parentElement?.getBoundingClientRect();
+      if (!body) return 'a name outside a group body';
+      for (const text of [
+        name,
+        ...Array.from(group.querySelectorAll('[data-call-transcript-text]')),
+      ]) {
         const t = text.getBoundingClientRect();
         if (rtl ? t.right > a.left + 0.5 : t.left < a.right - 0.5) return 'text over its avatar';
         if (t.left < c.left - 0.5 || t.right > c.right + 0.5) return 'text outside the card';
-        if (text.scrollWidth > text.clientWidth + 1) return 'text cut off sideways';
+        if (text !== name && text.scrollWidth > text.clientWidth + 1)
+          return 'text cut off sideways';
+        // A one-line text starts beside the avatar, a short English line in Arabic too. Its line
+        // box, not its element, shows where the words are.
+        const range = document.createRange();
+        range.selectNodeContents(text);
+        const lines = Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
+        const cut = text.scrollWidth > text.clientWidth + 1;
+        if (!cut && new Set(lines.map((line) => Math.round(line.top))).size === 1) {
+          const edge = rtl
+            ? Math.max(...lines.map((line) => line.right))
+            : Math.min(...lines.map((line) => line.left));
+          if (Math.abs(rtl ? body.right - edge : edge - body.left) > 1) {
+            return `"${(text.textContent ?? '').slice(0, 20)}" not at the start of its group`;
+          }
+        }
       }
     }
     if (sizes.size !== 1) return `avatars of different sizes: ${[...sizes].join(', ')}`;
@@ -324,9 +357,24 @@ const layoutProblem = (row: Locator) =>
     return null;
   });
 
+/** A label of the closed card that wraps onto a second line, or null. */
+const closedProblem = (row: Locator) =>
+  row.evaluate((rowNode) => {
+    const cardNode = rowNode.querySelector('[data-call-transcript]');
+    if (!cardNode) return 'no call card';
+    const labels = Array.from(
+      cardNode.querySelectorAll(
+        '[data-call-transcript-header] > span, button[aria-expanded] > span'
+      )
+    );
+    const wrapped = labels.find((label) => label.getClientRects().length > 1);
+    return wrapped ? `"${wrapped.textContent ?? ''}" wraps` : null;
+  });
+
 const checkCard = async (page: Page, data: Seed, touch: boolean, look: string, info: TestInfo) => {
   const row = await callRow(page);
   await shot(page, info, `call-transcript-${look}-closed`);
+  const closed = await closedProblem(row);
   await openTranscript(row, touch);
   await (await callRow(page)).scrollIntoViewIfNeeded();
   await shot(page, info, `call-transcript-${look}-open`);
@@ -334,6 +382,7 @@ const checkCard = async (page: Page, data: Seed, touch: boolean, look: string, i
   // The card replaces the HTML: a header with the duration, a transcript that names its turns.
   await expect(card(row)).toBeVisible();
   await expect(row.locator('details')).toHaveCount(0);
+  expect(closed, `${look} closed`).toBeNull();
   const header = card(row).locator('[data-call-transcript-header]');
   if (look.includes('-rtl-')) await expect(header).toContainText(/[3٣]/);
   else await expect(header).toHaveText(/Voice call\s*3 min/);
@@ -430,6 +479,16 @@ const checkLongCall = async (page: Page, data: Seed, info: TestInfo) => {
   await toggle(row).click();
   await expect(groups(row)).toHaveCount(LONG_CALL_TURNS);
   await expect(groups(row).last()).toContainText(`Point ${LONG_CALL_TURNS}:`);
+  // The dictation shows its start; the rest follows on request.
+  const first = groups(row).first();
+  const more = first.locator('button[data-call-transcript-more]');
+  await expect(more).toHaveAttribute('aria-expanded', 'false');
+  const clipped = (await first.locator('[data-call-transcript-text]').textContent()) ?? '';
+  expect(clipped.length).toBeLessThan(DICTATION.length / 4);
+  expect(clipped.endsWith('…')).toBe(true);
+  await more.click();
+  await expect(first.locator('[data-call-transcript-text]')).toHaveText(DICTATION);
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
   expect(await layoutProblem(row), 'long call').toBeNull();
   await shot(page, info, 'call-transcript-long-call');
 };
