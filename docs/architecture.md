@@ -105,7 +105,7 @@ Outside `src/` and `e2e/`:
 
 | Path | What is there |
 |---|---|
-| `scripts/` | Vite plugins and build helpers, check scripts (`strict-check.mjs`, `license-check.mjs`), provenance tools, e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), iOS and App Store helpers |
+| `scripts/` | Vite plugins and build helpers, check scripts (`strict-check.mjs`, `license-check.mjs`), provenance tools, e2e tooling (`e2e-slot.sh`, `e2e-suite.sh`, `e2e-rtc.sh`, `agent-stack/`, `reference/seed.py`), release versions and tags (`calver.mjs`), iOS and App Store helpers |
 | `public/` | Files served at the root as they are: icons, sounds, `manifest.json` |
 | `ios/`, `android/` | The Capacitor native projects |
 | `docs/` | This page, `configuration.md`, provenance records, design reference screenshots, specs and plans |

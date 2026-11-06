@@ -96,7 +96,7 @@ To deploy, serve `dist/` from the root of an origin and answer every path that i
 
 Who may frame the app is a response header, not part of the build (values in `scripts/frame-headers.json`, rule in `scripts/frame-headers.mjs`): `Content-Security-Policy: frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` on every path, and `frame-ancestors 'none'` with `X-Frame-Options: DENY` on the pairing page, in every spelling the router renders it under (`/connect`, `/CONNECT/`, `/%63onnect`, under a base path). `vite preview`, `serve.py` and the nginx start script `docker-entrypoint.d/40-frame-headers.sh` send them, and the service worker gives the pairing page its own when it answers from the cached app shell. `netlify.toml` sends them too, but its rules name only `/connect` and `/connect/`, so other spellings may get `'self'` there on a first visit.
 
-- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git).
+- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`).
 - `cd dist && python3 ../serve.py 8090` serves a build with the `index.html` fallback. It generates its own `runtime-config.js` from `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER`.
 - The repository has no Dockerfile. `docker-entrypoint.d/` holds start scripts for an image based on the official `nginx` image, with `dist/` in `/usr/share/nginx/html` and the build's `runtime-config.js` copied to `/opt/mindroom/runtime-config.js`. `99-runtime-config.sh` writes `runtime-config.js` from `APP_BASE_PATH`, `APP_ENABLE_SERVICE_WORKER`, `APP_AUTHENTICATION_RECOVERY_PROBE_URL` and `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL`, then appends the build's own. `40-frame-headers.sh` writes `/etc/nginx/conf.d/mindroom-frame-headers.conf`, which sends the framing headers from the `http` block; a `server` or `location` with an `add_header` of its own must `include /etc/nginx/mindroom-frame-headers.inc`, because nginx then drops the inherited headers. The nginx site needs the same `index.html` fallback.
 
@@ -104,12 +104,13 @@ Who may frame the app is a response header, not part of the build (values in `sc
 
 `capacitor.config.ts` (app ID `chat.mindroom.app`) points both shells at `dist/`.
 
-- **iOS** (macOS with Xcode and CocoaPods): `npm run build:ios` builds and writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it (set `MINDROOM_COMPUTER_API_URL` to pin the computer API). Then `npx cap sync ios` and open `ios/App/App.xcworkspace` in Xcode. Xcode Cloud runs `ios/App/ci_scripts/`. `scripts/build-macos-app.sh [--sign]` builds the Mac Catalyst app; `ios/App/fastlane/screenshots/README.md` covers App Store screenshots.
+- **iOS** (macOS with Xcode and CocoaPods): `npm run build:ios` builds and writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it (set `MINDROOM_COMPUTER_API_URL` to pin the computer API). Then `npx cap sync ios` and open `ios/App/App.xcworkspace` in Xcode. Xcode Cloud runs `ios/App/ci_scripts/`, which version the app from the release tags. `scripts/build-macos-app.sh [--sign]` builds the Mac Catalyst app; `ios/App/fastlane/screenshots/README.md` covers App Store screenshots.
 - **Android**: `npm run build`, then `npx cap sync android`, then build `android/` with Android Studio or Gradle.
 
 ## Documentation
 
 - [`docs/configuration.md`](docs/configuration.md): `config.json`, `runtime-config.js` and build variables.
+- [`docs/ios-release.md`](docs/ios-release.md): calendar versions `vYYYY.M.N`, `just release`, the automatic release switch in `release.config.json`, Xcode Cloud builds, and moving the App Store app to this repository.
 - [`docs/architecture.md`](docs/architecture.md): folders, the two code lanes, and how the MindRoom event formats are handled.
 - [`AGENTS.md`](AGENTS.md): rules and the full recipe list.
 - [`docs/provenance.md`](docs/provenance.md): where the code came from.
