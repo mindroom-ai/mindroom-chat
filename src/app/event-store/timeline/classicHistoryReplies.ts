@@ -83,7 +83,11 @@ export const holdPageThreadEvents = (
       return true;
     });
   });
-  const events = [...threadedEvents, ...lateReactions];
+  // A thread's root is a room event as well, saved with the room's own.
+  const events = [
+    ...threadedEvents.filter((event) => event.threadRootId !== event.getId()),
+    ...lateReactions,
+  ];
   if (events.length === 0) return;
   unsavedByTimeline.set(timeline, [...(unsavedByTimeline.get(timeline) ?? []), ...events]);
 };
