@@ -345,6 +345,57 @@ describe('useGestureBottomPins in the room rows', () => {
   });
 });
 
+describe('useLatestRowPin and the virtual list', () => {
+  /**
+   * The room's rows at their newest row, with a virtual list that keeps the scroll it was last
+   * asked for (virtual-core's `scrollState`) until it lands there.
+   */
+  const pinnedList = () => {
+    const { element, fire } = fakeRoomScroller();
+    const list = {
+      scrollState: null as { index: number } | null,
+      scrollToIndex: (index: number) => {
+        list.scrollState = { index };
+      },
+    };
+    function Pin() {
+      useLatestRowPin({
+        surface: 'room',
+        itemCount: 20,
+        virtualizer: list,
+        opensAtLatest: true,
+        roomId: '!room',
+        scrollElement: element as unknown as HTMLElement,
+        scrollToBottomRef: { current: { count: 0, smooth: false } },
+        committedView: '!room||classic',
+        focusItem: undefined,
+        onReaderGesture: () => undefined,
+      });
+      return null;
+    }
+    act(() => {
+      create(createElement(Pin));
+    });
+    expect(list.scrollState).toEqual({ index: 19 });
+    return { element, fire, list };
+  };
+
+  it("ends the list's scroll to the newest row at the reader's wheel, touch or key", () => {
+    (['wheel', 'touchstart', 'keydown'] as const).forEach((gesture) => {
+      const room = pinnedList();
+      act(() => room.fire(gesture));
+      expect(room.list.scrollState).toBeNull();
+    });
+  });
+
+  it('ends it when the reader drags the scrollbar up', () => {
+    const room = pinnedList();
+    room.element.scrollTop -= 200;
+    act(() => room.fire('scroll'));
+    expect(room.list.scrollState).toBeNull();
+  });
+});
+
 describe('useLatestRowPin in room rows that run newest first', () => {
   /** The Threads view under a newest-first sort, opened at its top. */
   const roomNewestFirst = () => {
