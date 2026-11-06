@@ -504,16 +504,17 @@ test.describe('compact filter timing', () => {
           await wait(500);
         };
         const clickIn = (locator: Locator) => () => locator.click();
-        const pressOption = (id: string) => async () => {
-          // A preset option acts on its press.
-          await overview.locator(`[data-preset-option="${id}"]`).hover();
-          await page.mouse.down();
-          await page.mouse.up();
-        };
-        const openPresets = async () => {
+        // A preset is chosen with the keyboard (the list's own keys), in both engines alike.
+        const PRESET_POSITIONS = { working: 1, all: 4 };
+        const openPreset = async (id: keyof typeof PRESET_POSITIONS) => {
           await overview.locator('[data-preset-button]').click();
           await expect(overview.locator('[data-preset-option="all"]')).toBeVisible();
+          for (let step = 0; step < PRESET_POSITIONS[id]; step += 1) {
+            await page.keyboard.press('ArrowDown');
+          }
+          await expect(overview.locator(`[data-preset-option="${id}"]`)).toBeFocused();
         };
+        const choose = () => page.keyboard.press('Enter');
 
         for (let round = 0; round < ROUNDS; round += 1) {
           await record(
@@ -545,10 +546,10 @@ test.describe('compact filter timing', () => {
         await modeSwitch.click();
         await expect(overview.locator('[data-preset-button]')).toBeVisible();
         for (let round = 0; round < ROUNDS; round += 1) {
-          await openPresets();
-          await record('preset working', showing([]), pressOption('working'));
-          await openPresets();
-          await record('preset all', showing(everyThread), pressOption('all'));
+          await openPreset('working');
+          await record('preset working', showing([]), choose);
+          await openPreset('all');
+          await record('preset all', showing(everyThread), choose);
         }
         const search = overview.locator('[data-search-input]');
         if (!(await search.isVisible())) await overview.locator('[data-search-toggle]').click();
