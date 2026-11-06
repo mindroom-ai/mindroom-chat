@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import React from 'react';
 import { createStore } from 'jotai';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
