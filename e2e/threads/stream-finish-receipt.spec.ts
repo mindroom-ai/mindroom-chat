@@ -33,7 +33,9 @@ import {
 // - in another room: no receipt, until the reader opens the thread and sees the finished reply;
 // - on another device, both threads stay read;
 // - a reply in the main timeline: a main receipt on the finishing edit;
-// - the window without focus: no receipt until the window gets its focus back.
+// - the window without focus: no receipt until the window gets its focus back;
+// - read half-way, then finished while the reader is on the thread list: the card is unread
+//   until the reader opens the thread again.
 // Set STREAM_RECEIPT_SHOTS=<directory> to save the thread after each finished reply.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'stream-finish-receipt-spec-password';
@@ -398,6 +400,37 @@ const unfocused = async (page: Page, world: World, receipts: SentReceipt[], labe
     .toEqual([`${rootId} 200`]);
 };
 
+/**
+ * (e) The reader reads the reply half-way, goes back to the thread list, and the reply finishes
+ * there: its card is unread, as the server counts it, until the reader opens the thread again.
+ */
+const readHalfWay = async (page: Page, world: World, receipts: SentReceipt[], label: string) => {
+  const rootId = await askQuestion(world, `Which ${label} fixes go into the notes?`);
+  const replyId = await startStream(world, rootId);
+  await navigate(page, threadRoute(world.roomId, rootId));
+  await expect(text(page, STREAM_STEPS[0]!)).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(() => receiptsFor(receipts, replyId), { timeout: 30_000 })
+    .toContain(`${rootId} 200`);
+  await navigate(page, roomRoute(world.roomId));
+  await expectThreadRead(page, rootId);
+
+  const finishId = await finishStream(world, replyId, label);
+  await expect(threadCard(page, rootId)).toHaveAttribute('data-thread-unread', 'true', {
+    timeout: 30_000,
+  });
+  await shot(page, `${label}-card-unread`);
+  expect(receiptsFor(receipts, finishId)).toEqual([]);
+
+  await navigate(page, threadRoute(world.roomId, rootId));
+  await expect(text(page, finished(label))).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(() => receiptsFor(receipts, finishId), { timeout: 15_000 })
+    .toEqual([`${rootId} 200`]);
+  await navigate(page, roomRoute(world.roomId));
+  await expectThreadRead(page, rootId);
+};
+
 const check = async (page: Page, world: World, label: string) => {
   await seedRoomOverviewState({
     page,
@@ -425,6 +458,8 @@ const check = async (page: Page, world: World, label: string) => {
   const openedLater = await elsewhere(page, world, receipts, `${label} elsewhere`);
   await mainTimeline(page, world, receipts, `${label} main`);
   await unfocused(page, world, receipts, `${label} unfocused`);
+  await focusPage(page);
+  await readHalfWay(page, world, receipts, `${label} half-way`);
   return [watched, openedLater];
 };
 
