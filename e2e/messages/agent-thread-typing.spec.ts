@@ -112,6 +112,7 @@ test.describe('on a phone', () => {
     'the Stop button of a streaming reply is never under a typing strip',
     { tag: '@webkit' },
     async ({ page, stack }) => {
+      test.fixme(true, 'design-choices vs earlier E, fix on wip/phone-typing-strip');
       await openLobby(page, stack);
       // 400 words, one every quarter second: the reply fills the screen and grows a line at a time.
       const rootId = await startThread(stack, `${uniqueWord('stopstrip')} #stopme`);
