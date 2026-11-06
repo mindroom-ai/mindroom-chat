@@ -9,7 +9,9 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // earlier replies need server pagination. Runs against the disposable homeserver of `just hs-up`
 // (or a slot of scripts/e2e-slot.sh), on a desktop and on a phone.
 
+// WebKit does not route service-worker fetches, so fault injection must bypass the worker.
 test.use({
+  serviceWorkers: 'block',
   launchOptions: {
     // Scrollbars shown, as on Linux and Windows. The other options repeat playwright.config.ts.
     executablePath: process.env.CHROMIUM_PATH || undefined,
@@ -197,6 +199,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await onWebKitPage(
           {
             baseURL,
+            serviceWorkers: 'block',
             viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
             deviceScaleFactor: phone ? 3 : 1,
             hasTouch: phone,
