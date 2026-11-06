@@ -470,10 +470,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
 
     const handleChange = useCallback(() => {
+      // Only an edit changes the saved draft. A draft put back into the editor (opening its
+      // room, switching accounts, reloading) or a moved cursor leaves it as it was, and is
+      // not typing.
+      const draftAtom = roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(userId, roomId, threadId));
+      const draftBefore = store.get(draftAtom);
       saveDraft();
       attachments.onEditorChange();
-      sendTypingStatus(!isEmptyEditor(editor));
-    }, [attachments, editor, saveDraft, sendTypingStatus]);
+      if (store.get(draftAtom) !== draftBefore) sendTypingStatus(!isEmptyEditor(editor));
+    }, [attachments, editor, roomId, saveDraft, sendTypingStatus, store, threadId, userId]);
 
     const closeAutocomplete = useCallback(() => setAutocompleteQuery(undefined), []);
     const insertEmoji = useCallback(
