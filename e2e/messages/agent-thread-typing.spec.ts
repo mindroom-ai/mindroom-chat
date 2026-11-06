@@ -131,7 +131,10 @@ test.describe('on a phone', () => {
       const streamed = frames.filter((frame) => frame.replyShown && frame.stop);
       expect(streamed.length).toBeGreaterThan(100);
       // No strip while the reply shows, so nothing ever covers Stop.
-      expect(streamed.filter((frame) => frame.strip)).toEqual([]);
+      const withStrip = streamed.filter((frame) => frame.strip);
+      expect(withStrip.length, `frames with a strip, first: ${JSON.stringify(withStrip[0])}`).toBe(
+        0
+      );
     }
   );
 });
