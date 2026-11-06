@@ -177,3 +177,17 @@ it('leaves out an agent whose streaming reply shows on screen, and names it once
   });
   expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery and Helper are typing...');
 });
+
+it('hides the typing agent when its reply mounts after the typing notice, before the next poll', async () => {
+  vi.useFakeTimers();
+  streamingReplyId = '$late';
+  const store = createStore();
+  typing(store, HELPER);
+  const view = render(store, '$thread');
+  expect(view.querySelector('[role="status"]')?.textContent).toBe('Helper is typing...');
+
+  await act(async () => {
+    addRow('$late', { top: 120, bottom: 600 });
+  });
+  expect(view.querySelector('[role="status"]')).toBeNull();
+});

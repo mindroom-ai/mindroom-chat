@@ -131,13 +131,15 @@ test.describe('on a phone', () => {
         (event) => event.sender === stack.agents.helper && streamStatus(event) === 'streaming',
         { description: 'the long reply streaming' }
       );
+      // Start before navigation: waiting for Stop or a screenshot can hide the first few frames.
+      const recording = recordFrames(page, streaming.event_id, 10_000);
       await showThread(page, stack, rootId);
       await expect(
         messageRow(page, streaming.event_id).getByRole('button', { name: 'Stop', exact: true })
       ).toBeVisible({ timeout: 30_000 });
       await shot(page, `typing-stop-phone-${test.info().project.name}`);
 
-      const frames = await recordFrames(page, streaming.event_id, 10_000);
+      const frames = await recording;
       await test.info().attach('typing-frames', {
         body: JSON.stringify(frames, null, 2),
         contentType: 'application/json',
