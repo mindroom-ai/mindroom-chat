@@ -234,10 +234,8 @@ describe('overlay focus', () => {
     };
 
     // Safari does not focus a button it clicks, so focus stays on <body>.
-    const click = (target: Element, pointerType = 'mouse') => {
-      const down = new MouseEvent('pointerdown', { bubbles: true });
-      Object.defineProperty(down, 'pointerType', { value: pointerType });
-      target.dispatchEvent(down);
+    const click = (target: Element) => {
+      target.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
       target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     };
 
@@ -264,8 +262,8 @@ describe('overlay focus', () => {
       expect(dialog.tabIndex).toBe(-1);
     });
 
-    it('focuses the dialog itself when a tap opened it and its first control is a text field', async () => {
-      click(trigger, 'touch');
+    it('focuses the dialog itself when its first control is a text field', async () => {
+      click(trigger);
       const { layer, dialog, close } = dialogLayer('dialog');
       close.remove();
       document.body.append(layer);

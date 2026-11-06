@@ -7,9 +7,10 @@
  *   control, as a menu button should.
  * - A dialog or alert dialog takes focus as it opens, however it was opened, so a screen reader
  *   announces it and Tab starts inside it: an alert dialog on itself (its name and question are
- *   read, and Enter confirms nothing by accident), any other dialog on its first control. Opened by
- *   a tap, a dialog whose first control is a text field takes focus itself instead, so the
- *   on-screen keyboard does not cover it.
+ *   read, and Enter confirms nothing by accident), any other dialog on its first control. When that
+ *   control is a text field, the dialog takes focus itself instead: no on-screen keyboard covers
+ *   it, and a key such as Settings' `/` still finds no text field focused. A dialog that wants its
+ *   field focused (Invite, Join a Room) focuses it itself.
  * - Tab never leaves an open dialog: when it would (Safari's Option+Tab, which some focus scopes let
  *   through, or plain Tab skipping the buttons with Safari's default setting), focus wraps around to
  *   the dialog's other end.
@@ -99,10 +100,10 @@ const dialogOf = (layer: Element): HTMLElement | undefined => {
 };
 
 /** Where a dialog's focus starts; see the module comment. */
-const dialogFocusTarget = (dialog: HTMLElement, tapped: boolean): HTMLElement => {
+const dialogFocusTarget = (dialog: HTMLElement): HTMLElement => {
   if (dialog.getAttribute('role') === 'alertdialog') return dialog;
   const first = firstTabbable(dialog);
-  if (!first || (tapped && isTextEntry(first))) return dialog;
+  if (!first || isTextEntry(first)) return dialog;
   return first;
 };
 
@@ -111,7 +112,6 @@ type Press = {
   opener: HTMLElement;
   openerLayer: Element | undefined;
   at: number;
-  tapped: boolean;
 };
 
 /** Starts the behavior on `doc`; returns a function that stops it. */
@@ -167,9 +167,9 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     if (target instanceof win.HTMLElement) lastFocused = target;
   };
 
-  const pressOn = (opener: Element | null | undefined, tapped: boolean): Press | undefined =>
+  const pressOn = (opener: Element | null | undefined): Press | undefined =>
     opener instanceof win.HTMLElement
-      ? { opener, openerLayer: layerOf(doc, opener), at: win.performance.now(), tapped }
+      ? { opener, openerLayer: layerOf(doc, opener), at: win.performance.now() }
       : undefined;
 
   /** After Tab has moved focus out of the dialog it was in, puts it back at the other end. */
@@ -196,7 +196,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     const target = event.target as Element | null;
     keyOpen =
       plain && (event.key === 'Enter' || event.key === ' ')
-        ? pressOn(target?.closest?.(OPENER_SELECTOR), false)
+        ? pressOn(target?.closest?.(OPENER_SELECTOR))
         : undefined;
     pointerPress = undefined;
   };
@@ -205,11 +205,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     lastInput = 'pointer';
     keyOpen = undefined;
     const target = event.target as Element | null;
-    const tapped = (event as PointerEvent).pointerType === 'touch';
-    // A touch also sends a compatibility mousedown after its pointerdown; keep the tap.
-    if (event.type === 'mousedown' && pointerPress?.tapped && pointerPress.opener.contains(target))
-      return;
-    pointerPress = pressOn(target?.closest?.(OPENER_SELECTOR), tapped);
+    pointerPress = pressOn(target?.closest?.(OPENER_SELECTOR));
   };
 
   /** The press that opened a layer appearing now, if one was that recent. */
@@ -262,7 +258,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
     // A focus trap that moves focus itself does so in a timeout of its own, which runs first.
     win.setTimeout(() => {
       if (!layer.isConnected || layer.contains(doc.activeElement)) return;
-      const target = dialogFocusTarget(dialog, !!press?.tapped);
+      const target = dialogFocusTarget(dialog);
       if (target === dialog && !dialog.hasAttribute('tabindex')) dialog.tabIndex = -1;
       target.focus({ preventScroll: true });
     }, 0);
