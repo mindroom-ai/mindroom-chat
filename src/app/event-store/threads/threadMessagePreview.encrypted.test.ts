@@ -20,7 +20,10 @@ const SDK_ERROR =
   'DecryptionError: This message was sent before this device logged in, and key backup is not working.';
 
 const t = ((key: string) => `translated:${key}`) as unknown as TFunction;
-const room = { getMember: () => null } as unknown as Room;
+const room = {
+  getMember: () => null,
+  getUnfilteredTimelineSet: () => ({ relations: { getChildEventsForEvent: () => undefined } }),
+} as unknown as Room;
 
 /** An encrypted event whose decryption failed, as the SDK leaves it. */
 const undecryptable = (eventId: string): MatrixEvent => {
@@ -48,7 +51,7 @@ describe('the preview of a message the client cannot decrypt', () => {
     );
   });
 
-  it("titles a thread whose root it cannot decrypt with the placeholder", () => {
+  it('titles a thread whose root it cannot decrypt with the placeholder', () => {
     const root = undecryptable('$root');
     const presentation = resolveThreadPresentationSnapshot({
       room,
