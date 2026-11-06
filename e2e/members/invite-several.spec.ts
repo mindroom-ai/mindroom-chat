@@ -76,7 +76,8 @@ const inviteTwoInOneDialog = async (page: Page, name: string) => {
 
   const invite = async (userId: string) => {
     await field.fill(userId);
-    await dialog.getByRole('button', { name: 'Invite', exact: true }).click();
+    // Enter submits the typed ID; a click on Invite can miss while directory suggestions open.
+    await field.press('Enter');
     await expect(dialog.getByRole('status')).toContainText(userId, { timeout: 15_000 });
   };
   await invite(first.userId);
