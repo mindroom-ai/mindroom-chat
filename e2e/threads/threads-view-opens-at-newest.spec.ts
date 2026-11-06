@@ -1,4 +1,10 @@
-import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -125,16 +131,15 @@ const seed = async (label: string): Promise<Seeded> => {
   });
   await joinRoom(HOMESERVER, colleague.accessToken, roomId);
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
-  const senders = [reader, colleague, agent];
+  const senders = [reader, colleague, agent] as const;
   const eventIds: string[] = [];
   for (let index = 1; index <= MESSAGE_COUNT; index += 1) {
+    const sender = senders[index % senders.length] ?? reader;
     // eslint-disable-next-line no-await-in-loop
-    const eventId = await sendRoomMessage(
-      HOMESERVER,
-      senders[index % senders.length].accessToken,
-      roomId,
-      { msgtype: 'm.text', body: messageBody(index) }
-    );
+    const eventId = await sendRoomMessage(HOMESERVER, sender.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: messageBody(index),
+    });
     eventIds.push(eventId);
     if (THREAD_ROOTS.has(index)) {
       // eslint-disable-next-line no-await-in-loop
@@ -210,6 +215,24 @@ const expectShown = async (page: Page, text: string, where: string) => {
   );
 };
 
+/** Scrolls the room timeline down, as a reader does, until a virtualized row is mounted. */
+const scrollUntilMounted = async (page: Page, row: Locator) => {
+  for (let step = 0; step < 40 && (await row.count()) === 0; step += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.evaluate(() => {
+      const inner = document.querySelector('[data-testid="room-virtual-inner"]');
+      let scroller = inner?.parentElement ?? null;
+      while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
+        scroller = scroller.parentElement;
+      }
+      scroller?.scrollBy({ top: scroller.clientHeight * 0.7 });
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(150);
+  }
+  await row.first().scrollIntoViewIfNeeded();
+};
+
 const shot = async (page: Page, name: string) => {
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
@@ -241,7 +264,9 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   const composer = page.locator('[data-room-footer="true"] [contenteditable="true"]');
   await composer.click();
   await page.keyboard.type(sent);
-  await page.keyboard.press('Enter');
+  // A phone's Enter starts a new line; its send button sends.
+  if (phone) await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  else await page.keyboard.press('Enter');
   await expectShown(page, `Draft agenda ${RUN}`, `after sending (${label})`);
   await shot(page, `${label}-2-sent`);
 
@@ -260,18 +285,10 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expectShown(page, `Draft agenda ${RUN}`, `after the room list (${label})`);
   await shot(page, `${label}-4-room-list`);
 
-  // Into a thread and back.
-  await page
-    .locator('[data-message-id]')
-    .filter({ hasText: 'Status update 45:' })
-    .first()
-    .scrollIntoViewIfNeeded();
-  await page
-    .locator('[data-message-id]')
-    .filter({ hasText: 'Status update 45:' })
-    .getByRole('button', { name: /1 reply/ })
-    .first()
-    .click();
+  // Into a thread further down and back.
+  const threadRow = page.locator('[data-message-id]').filter({ hasText: 'Status update 45:' });
+  await scrollUntilMounted(page, threadRow);
+  await threadRow.getByRole('button', { name: /1 reply/ }).first().click();
   await expect(page.getByText('Checked build 1245').first()).toBeVisible({ timeout: 20_000 });
   await page.goBack();
   await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
@@ -287,9 +304,8 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await shot(page, `${label}-6-compact-and-back`);
 
   // A permalink still lands on its own message, even an old one.
-  await page.goto(
-    `/home/${encodeURIComponent(seeded.roomId)}/${encodeURIComponent(seeded.eventIds[29])}`
-  );
+  const oldEventId = seeded.eventIds[29] ?? '';
+  await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/${encodeURIComponent(oldEventId)}`);
   await expectShown(page, 'Status update 30:', `at its permalink (${label})`);
   await shot(page, `${label}-7-permalink`);
 };

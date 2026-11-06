@@ -52,7 +52,7 @@ type LiveRenderOptions = {
   /** A long message marked here opens expanded once. */
   markLiveExpansionCandidate: (eventId: string) => void;
   /** Whether the room's newest row is its first, so a live row is followed at the top. */
-  latestAtTopRef: MutableRefObject<boolean>;
+  latestAtTopRef?: MutableRefObject<boolean>;
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: ThreadSummaryWriter;
@@ -303,7 +303,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     // Measured at this moment, so that a streamed edit cannot hold a reader at the bottom who
     // has just scrolled away.
     const area = scrollRef.current;
-    const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, latestAtTopRef.current);
+    const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, !!latestAtTopRef?.current);
     if (followsLiveEnd && atBottomRef.current && documentHasFocus()) {
       void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     } else if (!unreadInfo && isRoomRow) {

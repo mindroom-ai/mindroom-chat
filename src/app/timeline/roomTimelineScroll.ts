@@ -114,7 +114,7 @@ type LatestRowRequestOptions = {
   /** Whether opening this room shows its newest row (not its unread marker or an event). */
   opensAtLatest: boolean;
   /** Whether the room's newest row is its first (`scrollToLatestEnd`). */
-  latestAtTop: boolean;
+  latestAtTop?: boolean;
   roomId: string;
   scrollElement: HTMLElement | null;
   /** The bottom pins asked for: each new `count` that a commit sees asks for the newest row. */
@@ -148,7 +148,7 @@ const useLatestRowRequest = ({
   const viewRef = useRef(committedView);
   const roomRef = useRef(roomId);
   const onReaderGestureRef = useLatestRef(onReaderGesture);
-  const latestAtTopRef = useLatestRef(latestAtTop);
+  const latestAtTopRef = useLatestRef(!!latestAtTop);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;

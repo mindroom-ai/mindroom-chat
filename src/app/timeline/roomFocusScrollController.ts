@@ -57,7 +57,7 @@ export type RoomFocusScrollControllerOptions = {
   focusItem?: RoomTimelineFocusItem;
   focusScrollResetToken: unknown;
   /** Whether the room's newest row is its first, so its latest end is the top (`scrollToLatestEnd`). */
-  latestAtTopRef: MutableRefObject<boolean>;
+  latestAtTopRef?: MutableRefObject<boolean>;
   threadTargets: ThreadTargetCommands;
   pendingThreadOpenTick: number;
   retryPagination: (opts?: RetryPaginationOptions) => void;
@@ -499,7 +499,7 @@ const useBottomPinRequests = ({
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
     const behavior = scrollToBottomRef.current.smooth ? 'smooth' : 'instant';
-    scrollToLatestEnd(scrollArea, latestAtTopRef.current, behavior);
+    scrollToLatestEnd(scrollArea, !!latestAtTopRef?.current, behavior);
   });
 };
 
