@@ -9,6 +9,12 @@ import { useRoomInputSendSessionController } from '../composer/useRoomInputSendS
 import type { TUploadItem } from '../matrix/state/upload';
 import { Upload, UploadStatus } from '../matrix/state/upload';
 import type { RoomInputAttachmentAccess } from '../composer/roomInputAttachmentAccess';
+import { useThreadApprovals } from '../approvals/ThreadApprovalProvider';
+
+const approvalHistory = vi.hoisted(() => ({
+  load: vi.fn(async (..._args: unknown[]) => ({ events: [], repairedEventIds: [] })),
+}));
+let approvalState: ReturnType<typeof useThreadApprovals>;
 
 const jobsBar = vi.hoisted(() => ({
   canCancel: true,
@@ -47,7 +53,7 @@ vi.mock('folds', async (original) => ({
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/useIgnoredUsers', () => ({ useIgnoredUsers: () => ignored }));
 vi.mock('../event-store/engine', () => ({
-  enqueueThreadApprovalBackfill: async () => ({ events: [], repairedEventIds: [] }),
+  enqueueThreadApprovalBackfill: approvalHistory.load,
   useSyncEngine: () => ({ scheduler }),
 }));
 vi.mock('../event-store/timeline/roomLiveEventArrive', () => ({ useLiveEventArrive: () => undefined }));
@@ -77,7 +83,12 @@ vi.mock('../room/RoomTombstone', () => ({ RoomTombstone: () => null }));
 vi.mock('../room/RoomViewHeader', () => ({ RoomViewHeader: () => null }));
 vi.mock('./ThreadContextBanner', () => ({ ThreadContextBanner: () => null }));
 vi.mock('../timeline/RoomTimeline', () => ({ RoomTimeline: () => null }));
-vi.mock('../approvals/ThreadApprovalControls', () => ({ ThreadApprovalQueue: () => null }));
+vi.mock('../approvals/ThreadApprovalControls', () => ({
+  ThreadApprovalQueue: () => {
+    approvalState = useThreadApprovals();
+    return null;
+  },
+}));
 vi.mock('../background-jobs/BackgroundJobsBar', () => ({
   BackgroundJobsBar: (props: { threadId: string | null; canCancel: boolean }) => {
     jobsBar.props.push({ threadId: props.threadId, canCancel: props.canCancel });
@@ -251,3 +262,28 @@ vi.mock('../event-store/engine/engineContext', () => ({
     clearRoomFocus: () => undefined,
   }),
 }));
+
+it('loads approval history only after a local thread root gets its server ID', async () => {
+  approvalHistory.load.mockClear();
+  let renderer!: ReturnType<typeof create>;
+  try {
+    await act(async () => {
+      renderer = create(<RoomView room={room} threadId="~!room:example.org:pending-root" />);
+    });
+    expect(approvalHistory.load).not.toHaveBeenCalled();
+    expect(approvalState).toBeUndefined();
+    await act(async () => {
+      renderer.update(<RoomView room={room} threadId="$confirmed-root" />);
+    });
+    expect(approvalHistory.load).toHaveBeenCalledTimes(1);
+    expect(approvalHistory.load.mock.calls[0]?.slice(2, 4)).toEqual([
+      '!room:example.org',
+      '$confirmed-root',
+    ]);
+    expect(approvalState?.loading).toBe(false);
+    expect(approvalState?.error).toBeUndefined();
+    expect(approvalState?.threadId).toBe('$confirmed-root');
+  } finally {
+    act(() => renderer?.unmount());
+  }
+});
