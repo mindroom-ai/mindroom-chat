@@ -17,9 +17,11 @@ const recordingClient = () => {
         return Promise.resolve({});
       },
       getUserId: () => '@ash:example.org',
-      isGuest: () => false,
+      getAccessToken: () => 'secret-token',
       http: {
-        authedRequest: (...args: unknown[]) => {
+        getUrl: (path: string) => new URL(`https://matrix.example.org/_matrix/client/v3${path}`),
+        // Synchronous up to its fetch: the request must start before the page goes.
+        requestOtherUrl: (...args: unknown[]) => {
           requests.push(args);
           return Promise.resolve({});
         },
@@ -90,10 +92,11 @@ describe('useTypingStatusUpdater when the composer goes away', () => {
     expect(requests).toEqual([
       [
         'PUT',
-        '/rooms/!garden%3Aexample.org/typing/%40ash%3Aexample.org',
-        undefined,
+        new URL(
+          'https://matrix.example.org/_matrix/client/v3/rooms/!garden%3Aexample.org/typing/%40ash%3Aexample.org'
+        ),
         { typing: false },
-        { keepAlive: true },
+        { keepAlive: true, headers: { Authorization: 'Bearer secret-token' } },
       ],
     ]);
     expect(calls).toEqual([['!garden:example.org', true, TYPING_TIMEOUT_MS]]);

@@ -43,21 +43,24 @@ export const useTypingStatusUpdater = (
   );
 
   // Leaving the page (a reload, a link, a closed tab) unmounts nothing, so the effect above
-  // does not run. The stop goes out as the page goes, in a request that outlives it.
+  // does not run. The stop goes out as the page goes, in a request that outlives it. It must
+  // start before the handler returns: `authedRequest` first awaits the token refresher, and by
+  // then the page can be gone, so this builds the authorized request itself.
   useEffect(() => {
     const stopOnPageHide = () => {
       clearExpiry();
       if (!typingRef.current) return;
       typingRef.current = false;
       const userId = mx.getUserId();
-      if (!userId || mx.isGuest()) return;
+      const accessToken = mx.getAccessToken();
+      if (!userId || !accessToken) return;
+      const path = `/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(userId)}`;
       mx.http
-        .authedRequest(
+        .requestOtherUrl(
           Method.Put,
-          `/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(userId)}`,
-          undefined,
+          mx.http.getUrl(path),
           { typing: false },
-          { keepAlive: true }
+          { keepAlive: true, headers: { Authorization: `Bearer ${accessToken}` } }
         )
         .catch(() => undefined);
     };
