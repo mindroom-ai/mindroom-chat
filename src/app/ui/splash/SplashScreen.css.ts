@@ -53,5 +53,5 @@ export const SplashScreenFooter = style([
 
 /** The app name, quieter than the loading line; its clearing in the art stays opaque. */
 export const SplashScreenName = style({
-  color: `color-mix(in srgb, currentColor 75%, transparent)`,
+  color: `color-mix(in srgb, currentColor 90%, transparent)`,
 });

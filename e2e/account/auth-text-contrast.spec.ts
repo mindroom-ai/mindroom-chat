@@ -132,6 +132,9 @@ const setTheme = (page: Page, themeId: string) =>
 
 type Measured = Record<string, Array<{ text: string; large: boolean; contrast: number }>>;
 
+/** The origin `page` was opened at, for a new context of the same app. */
+const baseURLOf = (page: Page) => new URL(page.url()).origin;
+
 const record = async (page: Page, measured: Measured, name: string, browser: string) => {
   await page.mouse.move(0, 0);
   await page.waitForTimeout(600);
@@ -163,22 +166,40 @@ const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, brow
 
     await page.setViewportSize(SIZES.desktop);
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+    // Each look starts in a new context with the session but none of its stored rooms or
+    // /versions answer, so the client waits for /versions, which never comes.
+    const session = await page.context().storageState();
     for (const [sizeName, size] of Object.entries(SIZES)) {
       for (const theme of THEMES) {
-        /* eslint-disable no-await-in-loop -- one screen after the other on one page. */
-        await page.setViewportSize(size);
-        await setTheme(page, theme);
-        // Without a cached answer the client waits for /versions, which never comes.
-        await page.evaluate(() =>
-          Object.keys(localStorage)
-            .filter((key) => key.startsWith('mindroom_client_spec_versions::'))
-            .forEach((key) => localStorage.removeItem(key))
-        );
-        await page.route('**/_matrix/client/versions', () => undefined);
-        await page.goto('/home/');
-        await expect(page.getByText('Connecting to server')).toBeVisible();
-        await record(page, measured, `connecting-${sizeName}-${theme}`, browser);
-        await page.unroute('**/_matrix/client/versions');
+        /* eslint-disable no-await-in-loop -- one screen after the other. */
+        const context = await page
+          .context()
+          .browser()!
+          .newContext({
+            baseURL: baseURLOf(page),
+            viewport: size,
+            serviceWorkers: 'block',
+            storageState: session,
+          });
+        try {
+          await context.addInitScript((id) => {
+            Object.keys(localStorage)
+              .filter((key) => key.startsWith('mindroom_client_spec_versions::'))
+              .forEach((key) => localStorage.removeItem(key));
+            const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+            localStorage.setItem(
+              'settings',
+              JSON.stringify({ ...settings, useSystemTheme: false, themeId: id })
+            );
+          }, theme);
+          await context.route('**/_matrix/client/versions', () => undefined);
+          const fresh = await context.newPage();
+          await fresh.goto('/home/');
+          await expect(fresh.getByText('Connecting to server')).toBeVisible();
+          await record(fresh, measured, `connecting-${sizeName}-${theme}`, browser);
+        } finally {
+          await context.close();
+        }
         /* eslint-enable no-await-in-loop */
       }
     }
