@@ -250,10 +250,22 @@ const inWebKit = async (
 ) => {
   const browser: Browser = await launchWebKit();
   try {
-    await run(
-      await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } }),
-      'webkit'
+    const context = await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } });
+    // This browser is not the runner's, so a failure attaches its pages and console itself.
+    const log: string[] = [];
+    context.on('page', (page) =>
+      page.on('console', (message) => log.push(`${message.type()} ${message.text()}`))
     );
+    try {
+      await run(context, 'webkit');
+    } catch (error) {
+      for (const [index, page] of context.pages().entries()) {
+        const body = await page.screenshot().catch(() => undefined);
+        if (body) await test.info().attach(`page-${index}`, { body, contentType: 'image/png' });
+      }
+      await test.info().attach('console', { body: log.join('\n'), contentType: 'text/plain' });
+      throw error;
+    }
   } finally {
     await browser.close();
   }
