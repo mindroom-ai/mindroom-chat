@@ -2,7 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test as base, expect, type Locator, type Page } from '@playwright/test';
+import {
+  test as base,
+  expect,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { activeAccountButtonNamePattern } from './auth';
 import { matrixFetch, sendRoomMessage } from './matrix';
 
@@ -143,6 +150,21 @@ const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
     page.getByRole('button', { name: activeAccountButtonNamePattern }).first()
   ).toBeVisible({ timeout: 240_000 });
   await expect(page.getByText('Unexpected Application Error!')).toHaveCount(0);
+};
+
+/**
+ * A page signed in to the tester's account on a device of its own: a new session that has not been
+ * verified and holds no room keys, so it cannot read encrypted rooms yet.
+ */
+export const openNewSession = async (
+  browser: Browser,
+  stack: AgentStack,
+  options: BrowserContextOptions
+): Promise<Page> => {
+  const page = await (await browser.newContext(options)).newPage();
+  await routeClientConfig(page, stack);
+  await signIn(page, stack);
+  return page;
 };
 
 type WorkerFixtures = {
@@ -367,3 +389,84 @@ export const waitForAgentReply = (
       }`,
     }
   );
+
+/** A new encrypted room of the tester with the helper and the router, once both joined it. */
+export const createEncryptedAgentRoom = async (stack: AgentStack, name: string): Promise<string> => {
+  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
+    stack.homeserver,
+    '/createRoom',
+    {
+      method: 'POST',
+      accessToken: stack.tester.accessToken,
+      body: JSON.stringify({
+        name,
+        preset: 'private_chat',
+        invite: [stack.agents.helper, stack.agents.router],
+        initial_state: [
+          {
+            type: 'm.room.encryption',
+            state_key: '',
+            content: { algorithm: 'm.megolm.v1.aes-sha2' },
+          },
+        ],
+      }),
+    }
+  );
+  await expect
+    .poll(
+      async () => {
+        const { joined } = await matrixFetch<{ joined: Record<string, unknown> }>(
+          stack.homeserver,
+          `/rooms/${encodeURIComponent(roomId)}/joined_members`,
+          { accessToken: stack.tester.accessToken }
+        );
+        return !!joined[stack.agents.helper] && !!joined[stack.agents.router];
+      },
+      { timeout: 90_000, intervals: [500, 1000], message: 'the agents join the encrypted room' }
+    )
+    .toBe(true);
+  return roomId;
+};
+
+/** Sends "@Helper <text>" from the composer, with the mention Tab takes from its suggestions. */
+export const mentionHelper = async (page: Page, stack: AgentStack, text: string): Promise<void> => {
+  await composer(page).click();
+  await page.keyboard.type('@Hel');
+  await expect(page.getByText(stack.agents.helper, { exact: true })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.keyboard.press('Tab');
+  await page.keyboard.type(` ${text}`);
+  await page.keyboard.press('Enter');
+};
+
+/** The tester's unread counts in a room as the server has them: its main timeline's and each thread's. */
+export const serverUnreadCounts = async (
+  stack: AgentStack,
+  roomId: string
+): Promise<{ room: number; threads: Record<string, number> }> => {
+  const filter = JSON.stringify({
+    room: { rooms: [roomId], timeline: { limit: 1, unread_thread_notifications: true } },
+  });
+  type Counts = { notification_count?: number };
+  const sync = await matrixFetch<{
+    rooms?: {
+      join?: Record<
+        string,
+        { unread_notifications?: Counts; unread_thread_notifications?: Record<string, Counts> }
+      >;
+    };
+  }>(stack.homeserver, `/sync?timeout=0&filter=${encodeURIComponent(filter)}`, {
+    accessToken: stack.tester.accessToken,
+  });
+  const joined = sync.rooms?.join?.[roomId];
+  return {
+    room: joined?.unread_notifications?.notification_count ?? 0,
+    threads: Object.fromEntries(
+      Object.entries(joined?.unread_thread_notifications ?? {}).map(([id, counts]) => [
+        id,
+        counts.notification_count ?? 0,
+      ])
+    ),
+  };
+};

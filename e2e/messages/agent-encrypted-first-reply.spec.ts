@@ -1,7 +1,16 @@
 import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
-import { composer, expect, test, uniqueWord, type AgentStack } from '../helpers/agentStack';
-import { matrixFetch } from '../helpers/matrix';
+import {
+  composer,
+  createEncryptedAgentRoom,
+  expect,
+  mentionHelper,
+  openNewSession,
+  test,
+  uniqueWord,
+  type AgentStack,
+} from '../helpers/agentStack';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Regression (L5-F009): the first agent reply in a new encrypted room. The agent shares the room's
 // key with the reader's device in the same moment it sends the reply, so the reply often arrives
@@ -9,66 +18,13 @@ import { matrixFetch } from '../helpers/matrix';
 // Stop button, never "Unsupported message" with the agent's 🛑 as a plain reaction chip.
 test.describe.configure({ timeout: 300_000 });
 
-/** An encrypted room of the tester with the helper and the router, once both joined it. */
-const createEncryptedRoom = async (stack: AgentStack): Promise<string> => {
-  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
-    stack.homeserver,
-    '/createRoom',
-    {
-      method: 'POST',
-      accessToken: stack.tester.accessToken,
-      body: JSON.stringify({
-        name: uniqueWord('Secure '),
-        preset: 'private_chat',
-        invite: [stack.agents.helper, stack.agents.router],
-        initial_state: [
-          {
-            type: 'm.room.encryption',
-            state_key: '',
-            content: { algorithm: 'm.megolm.v1.aes-sha2' },
-          },
-        ],
-      }),
-    }
-  );
-  await expect
-    .poll(
-      async () => {
-        const { joined } = await matrixFetch<{ joined: Record<string, unknown> }>(
-          stack.homeserver,
-          `/rooms/${encodeURIComponent(roomId)}/joined_members`,
-          { accessToken: stack.tester.accessToken }
-        );
-        return !!joined[stack.agents.helper] && !!joined[stack.agents.router];
-      },
-      { timeout: 90_000, intervals: [500, 1000], message: 'the agents join the encrypted room' }
-    )
-    .toBe(true);
-  return roomId;
-};
-
-/** Sends "@Helper <text>" with the mention Tab takes from the composer's suggestions. */
-const mentionHelper = async (page: Page, stack: AgentStack, text: string): Promise<void> => {
-  await composer(page).click();
-  await page.keyboard.type('@Hel');
-  await expect(page.getByText(stack.agents.helper, { exact: true })).toBeVisible({
-    timeout: 20_000,
-  });
-  await page.keyboard.press('Tab');
-  await page.keyboard.type(` ${text}`);
-  await page.keyboard.press('Enter');
-};
-
-test('the first reply in a new encrypted room streams its text with a Stop button', async ({
-  page,
-  stack,
-}) => {
+const firstReplyStreams = async (page: Page, stack: AgentStack): Promise<void> => {
   const decryptLog: string[] = [];
   page.on('console', (message) => {
     const text = message.text();
     if (/decrypt|room key|to-device/i.test(text)) decryptLog.push(text.slice(0, 400));
   });
-  const roomId = await createEncryptedRoom(stack);
+  const roomId = await createEncryptedAgentRoom(stack, 'Secure desk');
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
 
@@ -107,4 +63,20 @@ test('the first reply in a new encrypted room streams its text with a Stop butto
     timeout: 60_000,
   });
   await expect(unsupported).toHaveCount(0);
+};
+
+const TITLE = 'the first reply in a new encrypted room streams its text with a Stop button';
+
+test(TITLE, async ({ page, stack }) => {
+  await firstReplyStreams(page, stack);
+});
+
+test(`${TITLE} (WebKit)`, async ({ stack, baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
+  const webkit = await launchWebKit();
+  try {
+    await firstReplyStreams(await openNewSession(webkit, stack, { baseURL }), stack);
+  } finally {
+    await webkit.close();
+  }
 });
