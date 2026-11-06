@@ -23,6 +23,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // so a badge can be below the server's count, never above it.
 test.describe.configure({ timeout: 420_000 });
 
+// Set E2EE_SHOTS=<directory> to save each session's sidebar once its badge shows.
+const SHOTS = process.env.E2EE_SHOTS;
+
 type Counts = Awaited<ReturnType<typeof serverUnreadCounts>>;
 
 const total = (counts: Counts): number =>
@@ -62,6 +65,10 @@ const expectBadgeShowsUnread = async (
       }
     )
     .toBe(true);
+  if (SHOTS) {
+    const engine = page.context().browser()?.browserType().name() ?? 'browser';
+    await page.screenshot({ path: `${SHOTS}/finished-unread-${who.replace(/ /g, '-')}-${engine}.png` });
+  }
 };
 
 /** The room's events as the server has them (relation and sender only) and the tester's receipts. */

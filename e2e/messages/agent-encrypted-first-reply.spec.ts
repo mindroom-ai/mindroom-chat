@@ -12,6 +12,9 @@ import {
 } from '../helpers/agentStack';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
+// Set E2EE_SHOTS=<directory> to save the streaming reply.
+const SHOTS = process.env.E2EE_SHOTS;
+
 // Regression (L5-F009): the first agent reply in a new encrypted room. The agent shares the room's
 // key with the reader's device in the same moment it sends the reply, so the reply often arrives
 // before its key and decrypts a moment later. The reply must then show its streamed text and the
@@ -51,6 +54,10 @@ const firstReplyStreams = async (page: Page, stack: AgentStack): Promise<void> =
     await expect(stop).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/\bword5\b/).first()).toBeVisible({ timeout: 30_000 });
     await expect(unsupported).toHaveCount(0);
+    if (SHOTS) {
+      const engine = page.context().browser()?.browserType().name() ?? 'browser';
+      await page.screenshot({ path: `${SHOTS}/first-reply-${engine}.png` });
+    }
   } finally {
     writeFileSync(
       test.info().outputPath('reader.log'),
