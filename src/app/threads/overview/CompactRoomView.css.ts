@@ -192,15 +192,17 @@ export const MessageText = style({
   flex: 1,
 });
 
+// One line, so every card keeps one height: the byline and tags end in an ellipsis instead of
+// wrapping.
 export const MetadataRow = style({
   display: 'flex',
   alignItems: 'center',
   gap: config.space.S200,
-  rowGap: config.space.S100,
   minWidth: 0,
   minHeight: toRem(24),
-  flexWrap: 'wrap',
 });
+
+globalStyle(`${MetadataRow} > .thread-tag-pill`, { minWidth: 0 });
 
 // Room for the menu button that sits at the end of this row on touch; only
 // the compact view's card shell has that button.
