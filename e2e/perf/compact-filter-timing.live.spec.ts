@@ -147,13 +147,15 @@ const startAgents = (
         'm.relates_to': threadRelation(rootId, rootId, false),
       });
       const words: string[] = [];
-      for (let edit = 1; edit <= 12 && running; edit += 1) {
-        await wait(1000);
+      for (let edit = 1; edit <= 12; edit += 1) {
+        // A stop ends the reply with its final edit, so no thread stays streaming afterwards.
+        const last = edit === 12 || !running;
+        if (running) await wait(1000);
         words.push(...Array.from({ length: 4 }, (_u, word) => `word${words.length + word + 1}`));
         const content = {
           msgtype: 'm.notice',
           body: words.join(' '),
-          'io.mindroom.stream_status': edit === 12 ? 'completed' : 'streaming',
+          'io.mindroom.stream_status': last ? 'completed' : 'streaming',
         };
         await send(homeserver, agent, roomId, 'm.room.message', {
           ...content,
@@ -161,6 +163,7 @@ const startAgents = (
           'm.new_content': content,
           'm.relates_to': { rel_type: 'm.replace', event_id: replyId },
         });
+        if (last) break;
       }
     }
   };
