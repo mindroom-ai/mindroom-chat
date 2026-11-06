@@ -462,11 +462,15 @@ test.describe('compact filter timing', () => {
           elements.map((element) => ({
             id: element.getAttribute('data-thread-root-id') ?? '',
             resolved: element.getAttribute('data-attention-state') === 'resolved',
+            streaming: element.getAttribute('data-attention-state') === 'streaming',
           }))
         );
         expect(order.filter((card) => card.resolved)).toHaveLength(RESOLVED);
         const everyThread = order.map((card) => card.id);
         const unresolvedThreads = order.filter((card) => !card.resolved).map((card) => card.id);
+        // Working lists the threads the list shows as streaming: none, though a fresh client can
+        // still count the finished agent replies of an earlier engine's run.
+        const workingThreads = order.filter((card) => card.streaming).map((card) => card.id);
         // A screenful of cards at 1280x800 is about eight.
         const showing = (ids: string[]): Expect => ({ first: ids.slice(0, 10), count: ids.length });
 
@@ -550,7 +554,7 @@ test.describe('compact filter timing', () => {
         await expect(overview.locator('[data-preset-button]')).toBeVisible();
         for (let round = 0; round < ROUNDS; round += 1) {
           await openPreset('working');
-          await record('preset working', showing([]), choose);
+          await record('preset working', showing(workingThreads), choose);
           await openPreset('all');
           await record('preset all', showing(everyThread), choose);
         }
