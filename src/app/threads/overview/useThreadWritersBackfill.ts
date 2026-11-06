@@ -5,13 +5,14 @@
  * newest reply, so without this the People filter misses everyone who wrote only in the middle.
  */
 import { useEffect, useRef } from 'react';
-import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { loadLatestCachedThreadEventsBatch } from '../../event-store/cache/eventRepository';
 import { useSyncEngine } from '../../event-store/engine';
 import type { PersistThreadEventCache } from '../../event-store/engine/enginePersistFacade';
 import { getPreferredVisibleThreadReplyEvents } from '../../event-store/threads/threadUtils';
 import {
   getThreadWriters,
+  readRawThreadReplies,
   recordThreadWriters,
   type ThreadWriters,
 } from '../../event-store/threads/threadWriters';
@@ -24,10 +25,6 @@ import type { FetchedRelationOverviewUpdateOptions } from './threadOverviewCache
 const CACHE_BATCH_SIZE = 64;
 /** The newest cached events read per thread: whole threads up to this size. */
 const CACHE_EVENT_LIMIT = 200;
-
-/** The visible replies of `rootId` among `events`. */
-const countThreadReplies = (events: MatrixEvent[], rootId: string): number =>
-  getPreferredVisibleThreadReplyEvents({ id: rootId, events }).length;
 
 /**
  * The threads whose writers are not all known: replies the client has not read. A thread whose
@@ -140,8 +137,7 @@ export const useThreadWritersBackfill = (options: UseThreadWritersBackfillOption
     if (ids.length === 0) return;
     ids.forEach((rootId) => state.cacheRead.add(rootId));
     const readCache = async () => {
-      const { mx, sessionId } = latestRef.current;
-      const mapper = mx.getEventMapper();
+      const { sessionId } = latestRef.current;
       for (let offset = 0; offset < ids.length && state.alive; offset += CACHE_BATCH_SIZE) {
         const batch = ids.slice(offset, offset + CACHE_BATCH_SIZE);
         // eslint-disable-next-line no-await-in-loop
@@ -154,17 +150,12 @@ export const useThreadWritersBackfill = (options: UseThreadWritersBackfillOption
         if (!state.alive) break;
         pages?.forEach((page, rootId) => {
           if (page.events.length === 0) return;
-          try {
-            const events = page.events.map((raw) => mapper(raw as IEvent));
-            const replyCount = latestRef.current.records.get(rootId)?.status.replyCount ?? 0;
-            const complete =
-              page.relationSnapshotComplete === true ||
-              countThreadReplies(events, rootId) >= replyCount;
-            recordThreadWriters(room, rootId, events, complete);
-            if (complete) state.cacheComplete.add(rootId);
-          } catch {
-            // One unreadable page leaves only its thread to the server.
-          }
+          const { replyCount, writerIds } = readRawThreadReplies(page.events, rootId);
+          const complete =
+            page.relationSnapshotComplete === true ||
+            replyCount >= (latestRef.current.records.get(rootId)?.status.replyCount ?? 0);
+          recordThreadWriters(room, rootId, writerIds, complete);
+          if (complete) state.cacheComplete.add(rootId);
         });
         batch.forEach((rootId) => state.cacheDone.add(rootId));
         fetchThreads(batch.filter((rootId) => !state.cacheComplete.has(rootId)));

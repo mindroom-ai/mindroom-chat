@@ -362,7 +362,7 @@ const checkFilters = async (page: Page, room: SeededRoom, engine: string) => {
       .poll(
         () =>
           card
-            .locator('[data-compact-card-metadata] [title]')
+            .locator('[data-compact-card-metadata] > :first-child > [title]')
             .evaluateAll((avatars) => avatars.map((avatar) => avatar.getAttribute('title'))),
         { message: `${engine} avatars of thread ${index}` }
       )

@@ -5,6 +5,7 @@ import {
   collectThreadWriterIds,
   getThreadWriters,
   mergeThreadWriterIds,
+  readRawThreadReplies,
   recordThreadWriters,
   THREAD_WRITERS_PUBLISH_DELAY_MS,
 } from './threadWriters';
@@ -56,6 +57,35 @@ describe('collectThreadWriterIds', () => {
   });
 });
 
+describe('readRawThreadReplies', () => {
+  const raw = (
+    id: string,
+    sender: string,
+    ts: number,
+    extra: { rootId?: string; type?: string; redacted?: boolean } = {}
+  ) => ({
+    event_id: id,
+    sender,
+    origin_server_ts: ts,
+    type: extra.type ?? 'm.room.encrypted',
+    content: { 'm.relates_to': { rel_type: 'm.thread', event_id: extra.rootId ?? ROOT } },
+    unsigned: extra.redacted ? { redacted_because: {} } : {},
+  });
+
+  it('counts the visible replies and names their senders newest first', () => {
+    const events = [
+      { event_id: ROOT, sender: CY, origin_server_ts: 0, type: 'm.room.message', content: {} },
+      raw('$1', ADA, 1),
+      raw('$3', ADA, 3),
+      raw('$2', BEN, 2),
+      raw('$4', CY, 4, { redacted: true }),
+      raw('$5', CY, 5, { rootId: '$other' }),
+      raw('$6', CY, 6, { type: 'm.reaction' }),
+    ];
+    expect(readRawThreadReplies(events, ROOT)).toEqual({ replyCount: 3, writerIds: [ADA, BEN] });
+  });
+});
+
 describe('recordThreadWriters', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -66,8 +96,8 @@ describe('recordThreadWriters', () => {
 
   it('publishes a run of reads once, after the delay', () => {
     const room = fakeRoom();
-    recordThreadWriters(room, ROOT, [reply(ADA), reply(BEN)], false);
-    recordThreadWriters(room, '$two', [reply(CY, '$two')], true);
+    recordThreadWriters(room, ROOT, [BEN, ADA], false);
+    recordThreadWriters(room, '$two', [CY], true);
     expect(getThreadWriters(room).size).toBe(0);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     const writers = getThreadWriters(room);
@@ -77,18 +107,18 @@ describe('recordThreadWriters', () => {
 
   it('adds the writers of a part, and lets every reply replace them', () => {
     const room = fakeRoom();
-    recordThreadWriters(room, ROOT, [reply(ADA)], false);
-    recordThreadWriters(room, ROOT, [reply(BEN)], false);
+    recordThreadWriters(room, ROOT, [ADA], false);
+    recordThreadWriters(room, ROOT, [BEN], false);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     expect(getThreadWriters(room).get(ROOT)).toEqual({ senderIds: [BEN, ADA], complete: false });
 
     // A whole thread is the truth: a writer whose reply is gone drops out.
-    recordThreadWriters(room, ROOT, [reply(CY), reply(BEN)], true);
+    recordThreadWriters(room, ROOT, [BEN, CY], true);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     expect(getThreadWriters(room).get(ROOT)).toEqual({ senderIds: [BEN, CY], complete: true });
 
     // A later part (new replies) keeps it complete and puts its writers first.
-    recordThreadWriters(room, ROOT, [reply(ADA)], false);
+    recordThreadWriters(room, ROOT, [ADA], false);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     expect(getThreadWriters(room).get(ROOT)).toEqual({
       senderIds: [ADA, BEN, CY],
@@ -98,10 +128,10 @@ describe('recordThreadWriters', () => {
 
   it('publishes nothing when a read changes nothing', () => {
     const room = fakeRoom();
-    recordThreadWriters(room, ROOT, [reply(ADA)], true);
+    recordThreadWriters(room, ROOT, [ADA], true);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     const before = getThreadWriters(room);
-    recordThreadWriters(room, ROOT, [reply(ADA)], true);
+    recordThreadWriters(room, ROOT, [ADA], true);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     expect(getThreadWriters(room)).toBe(before);
   });
@@ -109,7 +139,7 @@ describe('recordThreadWriters', () => {
   it('keeps each room apart', () => {
     const first = fakeRoom();
     const second = fakeRoom();
-    recordThreadWriters(first, ROOT, [reply(ADA)], true);
+    recordThreadWriters(first, ROOT, [ADA], true);
     vi.advanceTimersByTime(THREAD_WRITERS_PUBLISH_DELAY_MS);
     expect(getThreadWriters(second).size).toBe(0);
   });

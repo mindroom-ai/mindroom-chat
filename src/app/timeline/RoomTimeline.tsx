@@ -145,7 +145,7 @@ import {
   useShownInScrollArea,
 } from './roomTimelineUnread';
 import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roomTimelineRows';
-import { recordThreadWriters } from '../event-store/threads/threadWriters';
+import { collectThreadWriterIds, recordThreadWriters } from '../event-store/threads/threadWriters';
 import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
 import type { FetchedRelationOverviewUpdateOptions } from '../threads/overview/threadOverviewCacheHydration';
 import {
@@ -1111,7 +1111,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       recordThreadWriters(
         options.room,
         options.rootId,
-        options.events,
+        collectThreadWriterIds(options.events, options.rootId),
         options.relationSnapshotComplete === true
       );
       applyThreadOverviewRelationEvents(options);

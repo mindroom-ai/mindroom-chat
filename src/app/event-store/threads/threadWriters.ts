@@ -7,9 +7,10 @@
  * the cards and the People filter still know them when the thread's replies are not loaded.
  */
 import { useCallback, useSyncExternalStore } from 'react';
+import type { IEvent } from 'matrix-js-sdk';
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
-import { buildVisibleThreadParticipantMap } from './threadUtils';
+import { buildVisibleThreadParticipantMap, isVisibleThreadReplyEventType } from './threadUtils';
 
 export type ThreadWriters = {
   /** The distinct senders of the thread's replies, newest first. */
@@ -53,26 +54,52 @@ const publish = (entry: RoomThreadWriters) => {
 export const collectThreadWriterIds = (events: readonly MatrixEvent[], rootId: string): string[] =>
   buildVisibleThreadParticipantMap([...events], Infinity).get(rootId) ?? [];
 
+/**
+ * The same from raw events, such as the event cache holds, without building SDK events: the
+ * visible replies of `rootId` that are not redacted, and their distinct senders newest first.
+ */
+export const readRawThreadReplies = (
+  events: readonly Partial<IEvent>[],
+  rootId: string
+): { replyCount: number; writerIds: string[] } => {
+  const replies = events
+    .filter((event) => {
+      const relation = event.content?.['m.relates_to'] as
+        | { rel_type?: unknown; event_id?: unknown }
+        | undefined;
+      return (
+        relation?.rel_type === 'm.thread' &&
+        relation.event_id === rootId &&
+        event.event_id !== rootId &&
+        !event.unsigned?.redacted_because &&
+        isVisibleThreadReplyEventType(event.type)
+      );
+    })
+    .sort((a, b) => (b.origin_server_ts ?? 0) - (a.origin_server_ts ?? 0));
+  const writerIds = [...new Set(replies.flatMap((event) => (event.sender ? [event.sender] : [])))];
+  return { replyCount: new Set(replies.map((event) => event.event_id)).size, writerIds };
+};
+
 const sameIds = (a: readonly string[], b: readonly string[]) =>
   a.length === b.length && a.every((id, index) => id === b[index]);
 
 /**
- * Notes the writers of `rootId` that `events` (some or all of its replies) show. Every reply of
- * the thread (`complete`) replaces what was known; a part adds its writers, newest first. Readers
- * see the change after `THREAD_WRITERS_PUBLISH_DELAY_MS`.
+ * Notes the writers of `rootId` that some or all of its replies show (`seen`, newest first, as
+ * `collectThreadWriterIds` or `readRawThreadReplies` give them). Every reply of the thread
+ * (`complete`) replaces what was known; a part adds its writers first. Readers see the change
+ * after `THREAD_WRITERS_PUBLISH_DELAY_MS`.
  */
 export const recordThreadWriters = (
   room: Room,
   rootId: string,
-  events: readonly MatrixEvent[],
+  seen: readonly string[],
   complete: boolean
 ): void => {
   const entry = roomWriters(room);
   const current = entry.pending ?? entry.published;
   const known = current.get(rootId);
-  const seen = collectThreadWriterIds(events, rootId);
   const next: ThreadWriters = complete
-    ? { senderIds: seen, complete: true }
+    ? { senderIds: [...seen], complete: true }
     : {
         senderIds: [...seen, ...(known?.senderIds ?? []).filter((id) => !seen.includes(id))],
         complete: known?.complete ?? false,
