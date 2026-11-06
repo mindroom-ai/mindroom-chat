@@ -41,6 +41,12 @@ export function ApprovalArguments({ approval }: { approval: ToolApprovalData }) 
   }, [mx, open, complete, sourceKey, retry]);
   const shown = complete ?? approval.arguments;
   const total = countArgumentFields(shown);
+  if (total === 0 && approval.argumentsTruncated && !approval.argumentSource)
+    return (
+      <div className={css.Arguments}>
+        <p>{t('mindroomUi.messages.approvalArguments.tooLargeToPreview')}</p>
+      </div>
+    );
   return (
     <div className={css.Arguments}>
       {!open && <ApprovalArgumentFields value={approval.arguments} limit={PREVIEW_FIELDS} />}

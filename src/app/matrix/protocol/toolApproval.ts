@@ -266,6 +266,12 @@ const asArguments = (value: unknown): Record<string, unknown> | undefined => {
   return value;
 };
 
+// When no argument fits the preview, the backend sends one English sentence under this key
+// instead; it describes the omission and is no argument of the tool.
+const OMISSION_SUMMARY_KEY = '_summary';
+const withoutOmissionSummary = (args: Record<string, unknown>): Record<string, unknown> =>
+  Object.keys(args).length === 1 && typeof args[OMISSION_SUMMARY_KEY] === 'string' ? {} : args;
+
 const asApprovable = (value: unknown): boolean => {
   if (value === undefined) return true;
   return typeof value === 'boolean' ? value : false;
@@ -472,11 +478,12 @@ export const parseToolApprovalContent = (
     return null;
   }
 
+  const argumentsTruncated = pickCandidateValue(content, 'arguments_truncated') === true;
   return {
     approvalId,
     toolName,
     toolCallId: toolCallId ?? null,
-    arguments: toolArguments,
+    arguments: argumentsTruncated ? withoutOmissionSummary(toolArguments) : toolArguments,
     agentName,
     requesterId: requesterId ?? null,
     approverUserId: approverUserId ?? null,
@@ -495,7 +502,7 @@ export const parseToolApprovalContent = (
     responseEventId: asString(pickCandidateValue(content, 'response_event_id')) ?? null,
     jobId: asJobId(pickCandidateValue(content, 'background_run_id')),
     replyToEventId: asReplyToEventId(content),
-    argumentsTruncated: pickCandidateValue(content, 'arguments_truncated') === true,
+    argumentsTruncated,
     fullArguments: asArguments(pickCandidateValue(content, 'full_arguments')) ?? null,
     argumentSource: asArgumentSource(content),
     schedule: asSchedule(content),

@@ -50,7 +50,11 @@ export function ApprovalDecisionControls({
   return (
     <>
       {!record.approval.approvable && (
-        <p>{t('mindroomUi.messages.approvalDecisionControls.thisRequestCannotBeApprovedHere')}</p>
+        <p>
+          {record.approval.argumentsTruncated
+            ? t('mindroomUi.messages.approvalDecisionControls.tooLargeToApprove')
+            : t('mindroomUi.messages.approvalDecisionControls.thisRequestCannotBeApprovedHere')}
+        </p>
       )}
       {submitted && (
         <p role="status">

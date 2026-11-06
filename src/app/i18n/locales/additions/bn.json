@@ -441,6 +441,12 @@
           "undecryptable": "অনুমোদনের ইতিহাসের কিছু অংশ ডিক্রিপ্ট করা যায়নি।",
           "unloadable": "অনুমোদনের ইতিহাসের কিছু অংশ লোড করা যায়নি।"
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "আর্গুমেন্টগুলো প্রিভিউ করার জন্য খুব বড়।"
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "আর্গুমেন্টগুলো পর্যালোচনা করার জন্য খুব বড়, তাই এই অনুরোধ শুধু প্রত্যাখ্যান করা যাবে।"
       }
     },
     "message-search": {

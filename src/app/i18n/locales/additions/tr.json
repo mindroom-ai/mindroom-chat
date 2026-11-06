@@ -441,6 +441,12 @@
           "undecryptable": "Onay geçmişinin bir kısmının şifresi çözülemedi.",
           "unloadable": "Onay geçmişinin bir kısmı yüklenemedi."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "Argümanlar önizleme için çok büyük."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "Argümanlar incelenemeyecek kadar büyük, bu yüzden bu istek yalnızca reddedilebilir."
       }
     },
     "message-search": {

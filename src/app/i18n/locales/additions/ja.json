@@ -435,6 +435,12 @@
           "undecryptable": "承認履歴の一部を復号できませんでした。",
           "unloadable": "承認履歴の一部を読み込めませんでした。"
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "引数が大きすぎてプレビューできません。"
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "引数が大きすぎて確認できないため、このリクエストは拒否のみできます。"
       }
     },
     "message-search": {

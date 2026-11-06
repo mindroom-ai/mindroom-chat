@@ -441,6 +441,12 @@
           "undecryptable": "अनुमोदन इतिहास का कुछ हिस्सा डिक्रिप्ट नहीं हो सका।",
           "unloadable": "अनुमोदन इतिहास का कुछ हिस्सा लोड नहीं हो सका।"
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "आर्ग्युमेंट पूर्वावलोकन के लिए बहुत बड़े हैं।"
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "आर्ग्युमेंट समीक्षा के लिए बहुत बड़े हैं, इसलिए यह अनुरोध केवल अस्वीकार किया जा सकता है।"
       }
     },
     "message-search": {

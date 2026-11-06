@@ -441,6 +441,12 @@
           "undecryptable": "Ein Teil des Genehmigungsverlaufs konnte nicht entschlüsselt werden.",
           "unloadable": "Ein Teil des Genehmigungsverlaufs konnte nicht geladen werden."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "Die Argumente sind zu groß für eine Vorschau."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "Die Argumente sind zu groß zum Prüfen, daher kann diese Anfrage nur abgelehnt werden."
       }
     },
     "message-search": {

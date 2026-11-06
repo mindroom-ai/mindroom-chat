@@ -447,6 +447,12 @@
           "undecryptable": "Une partie de l’historique des approbations n’a pas pu être déchiffrée.",
           "unloadable": "Une partie de l’historique des approbations n’a pas pu être chargée."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "Les arguments sont trop volumineux pour être prévisualisés."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "Les arguments sont trop volumineux pour être examinés : cette demande ne peut qu’être refusée."
       }
     },
     "message-search": {

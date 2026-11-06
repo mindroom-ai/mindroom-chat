@@ -447,6 +447,12 @@
           "undecryptable": "Non è stato possibile decifrare parte della cronologia delle approvazioni.",
           "unloadable": "Non è stato possibile caricare parte della cronologia delle approvazioni."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "Gli argomenti sono troppo grandi per l’anteprima."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "Gli argomenti sono troppo grandi per essere esaminati, quindi questa richiesta può solo essere rifiutata."
       }
     },
     "message-search": {

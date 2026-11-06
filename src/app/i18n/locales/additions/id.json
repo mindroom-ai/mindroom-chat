@@ -435,6 +435,12 @@
           "undecryptable": "Sebagian riwayat persetujuan tidak dapat didekripsi.",
           "unloadable": "Sebagian riwayat persetujuan tidak dapat dimuat."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "Argumen terlalu besar untuk dipratinjau."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "Argumen terlalu besar untuk ditinjau, jadi permintaan ini hanya dapat ditolak."
       }
     },
     "message-search": {

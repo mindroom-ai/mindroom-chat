@@ -441,6 +441,12 @@
           "undecryptable": "Een deel van de goedkeuringsgeschiedenis kon niet worden ontsleuteld.",
           "unloadable": "Een deel van de goedkeuringsgeschiedenis kon niet worden geladen."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "De argumenten zijn te groot voor een voorbeeld."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "De argumenten zijn te groot om te beoordelen, dus dit verzoek kan alleen worden geweigerd."
       }
     },
     "message-search": {

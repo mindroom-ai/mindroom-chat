@@ -435,6 +435,12 @@
           "undecryptable": "部分批准記錄無法解密。",
           "unloadable": "部分批准記錄無法載入。"
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "參數太大，無法預覽。"
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "參數太大，無法審閱，因此此請求只能拒絕。"
       }
     },
     "message-search": {

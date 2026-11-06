@@ -465,6 +465,12 @@
           "undecryptable": "تعذّر فك تشفير جزء من سجل الموافقات.",
           "unloadable": "تعذّر تحميل جزء من سجل الموافقات."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "الوسيطات أكبر من أن تُعرض معاينتها."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "الوسيطات أكبر من أن تُراجَع، لذا لا يمكن إلا رفض هذا الطلب."
       }
     },
     "message-search": {

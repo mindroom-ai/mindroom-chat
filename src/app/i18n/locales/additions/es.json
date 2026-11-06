@@ -447,6 +447,12 @@
           "undecryptable": "No se pudo descifrar parte del historial de aprobaciones.",
           "unloadable": "No se pudo cargar parte del historial de aprobaciones."
         }
+      },
+      "approvalArguments": {
+        "tooLargeToPreview": "Los argumentos son demasiado grandes para previsualizarlos."
+      },
+      "approvalDecisionControls": {
+        "tooLargeToApprove": "Los argumentos son demasiado grandes para revisarlos, así que esta solicitud solo se puede rechazar."
       }
     },
     "message-search": {
