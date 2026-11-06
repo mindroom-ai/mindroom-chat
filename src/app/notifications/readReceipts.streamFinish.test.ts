@@ -289,6 +289,25 @@ describe('markRoomAndThreadsAsRead, streamed replies', () => {
 
     expect(mx.sendReadReceipt).toHaveBeenCalledWith(finish, ReceiptType.Read, true);
   });
+
+  it('sends the receipt for a bundled finishing edit to the room, which the bundle leaves out', async () => {
+    const mx = setup([replyWithBundledEdit('completed')]);
+
+    await markRoomAndThreadsAsRead(mx as never, ROOM_ID, false);
+
+    expect(mx.sendReadReceipt).toHaveBeenCalledTimes(1);
+    const [event, type, unthreaded] = mx.sendReadReceipt.mock.calls[0] as [
+      MatrixEvent,
+      ReceiptType,
+      boolean,
+    ];
+    expect([event.getId(), event.getRoomId(), type, unthreaded]).toEqual([
+      '$finish',
+      ROOM_ID,
+      ReceiptType.Read,
+      true,
+    ]);
+  });
 });
 
 describe('markMainTimelineAsRead, streamed thread replies', () => {
