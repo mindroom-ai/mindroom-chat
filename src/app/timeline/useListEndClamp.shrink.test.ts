@@ -1,0 +1,62 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest';
+import { listShrinkNotRendered } from './useListEndClamp';
+
+// A thread's newest reply finished and shrank by 62 px; the list keeps its rendered height until
+// React renders it again. Rows after the reply (hidden events, edits) take no height.
+
+const box = (element: HTMLElement, top: number, height: number) => {
+  Object.defineProperty(element, 'offsetHeight', { configurable: true, value: height });
+  element.getBoundingClientRect = () =>
+    ({ top, bottom: top + height, height, left: 0, right: 0, width: 0 } as DOMRect);
+};
+
+/** The list, its bottom at `listBottom`, with the tiles virtual-core mounts. */
+const list = (listBottom: number, tiles: { index: number; top: number; height: number }[]) => {
+  const inner = document.createElement('div');
+  box(inner, listBottom - 4166, 4166);
+  tiles.forEach(({ index, top, height }) => {
+    const tile = document.createElement('div');
+    tile.dataset.index = String(index);
+    box(tile, top, height);
+    inner.append(tile);
+  });
+  return inner;
+};
+
+const rows = (sizes: number[]) => sizes.map((size, index) => ({ index, size }));
+
+describe('listShrinkNotRendered', () => {
+  it('counts a reply that shrank when the rows after it are not mounted', () => {
+    // The reply (index 2) ends at 622; its old 308 px still reach to 684.
+    const inner = list(684, [
+      { index: 0, top: -3482, height: 68 },
+      { index: 1, top: -3414, height: 3626 },
+      { index: 2, top: 376, height: 246 },
+    ]);
+    expect(listShrinkNotRendered(inner, rows([68, 3626, 308, 0, 0, 0]))).toBe(62);
+  });
+
+  it('leaves out the room unmounted rows after the newest one still hold', () => {
+    const inner = list(714, [
+      { index: 0, top: -3452, height: 68 },
+      { index: 1, top: -3384, height: 3626 },
+      { index: 2, top: 376, height: 246 },
+    ]);
+    expect(listShrinkNotRendered(inner, rows([68, 3626, 308, 30, 0]))).toBe(62);
+  });
+
+  it('counts a reply that shrank above mounted rows without a height', () => {
+    const inner = list(684, [
+      { index: 1, top: -3414, height: 3626 },
+      { index: 2, top: 376, height: 246 },
+      { index: 3, top: 684, height: 0 },
+    ]);
+    expect(listShrinkNotRendered(inner, rows([68, 3626, 308, 0]))).toBe(62);
+  });
+
+  it('finds nothing pending when the list ends at its newest row', () => {
+    const inner = list(622, [{ index: 2, top: 376, height: 246 }]);
+    expect(listShrinkNotRendered(inner, rows([68, 3626, 246, 0]))).toBe(0);
+  });
+});
