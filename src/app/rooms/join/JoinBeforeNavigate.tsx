@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import {
@@ -11,7 +11,8 @@ import {
 } from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../ui/page/Page';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
-import { RoomSummaryLoader } from '../RoomSummaryLoader';
+import { RoomSummaryLoader, type RoomSummaryState } from '../RoomSummaryLoader';
+import { useLocalRoomSummary } from '../useLocalRoomSummary';
 import { RoomAccessControl } from '../RoomAccessControl';
 import * as roomCardCss from '../RoomCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -367,61 +368,109 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   );
 }
 
-/** The page header: a link icon and the room alias or ID the link was opened with. */
-function LinkHeader({ target }: { target: string }) {
+/** The page header: a link icon and the room's name, or the alias or ID it was opened with. */
+function LinkHeader({ title }: { title: string }) {
   return (
     <PageHeader balance>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
         <Icon size="200" src={Icons.Link} />
         <Text as="h1" size="H4" truncate>
-          {target}
+          {title}
         </Text>
       </Box>
     </PageHeader>
   );
 }
 
+/** The name the client knows for a room it was invited to or removed from, from its own state. */
+const knownRoomName = (room: Room | null): string | undefined =>
+  room?.name && room.name !== room.roomId ? room.name : undefined;
+
 /**
- * Shown for a room link the user has not joined: the room's summary and the
- * way in its join rule allows (join, request to join, or none), before the
- * room itself opens.
+ * An invite the server's summary has not described (yet): the card built from the invite's own
+ * state, which the client keeps across offline starts, so its name, inviter and buttons show while
+ * the homeserver cannot be reached.
  */
-export function JoinBeforeNavigate(props: JoinBeforeNavigateProps) {
-  const { roomIdOrAlias, viaServers } = props;
+function LocalInviteCard({ room, ...props }: JoinBeforeNavigateProps & { room: Room }) {
+  const local = useLocalRoomSummary(room);
+  const summary: SummaryData = {
+    room_id: room.roomId,
+    name: knownRoomName(room),
+    topic: local.topic,
+    avatar_url: local.avatarUrl,
+    canonical_alias: local.canonicalAlias,
+    join_rule: local.joinRule,
+    room_type: local.roomType,
+    membership: Membership.Invite,
+  };
+  return <SummaryCard {...props} summary={summary} />;
+}
+
+type JoinPageProps = JoinBeforeNavigateProps & {
+  state: RoomSummaryState;
+  retry: () => void;
+  /** The room ID, once an alias resolved to one. */
+  roomId?: string;
+};
+
+function JoinPage({ state, retry, roomId, ...props }: JoinPageProps) {
+  const { roomIdOrAlias } = props;
   const { t } = useTranslation();
+  const summary = state.status === AsyncStatus.Success ? (state.data as SummaryData) : undefined;
+  const { room, membership } = useMyMembership(summary?.room_id ?? roomId ?? roomIdOrAlias);
+  const title = summary?.name || summary?.canonical_alias || knownRoomName(room) || roomIdOrAlias;
+
+  let body: ReactNode;
+  if (summary) {
+    body = <SummaryCard {...props} summary={summary} />;
+  } else if (room && membership === Membership.Invite) {
+    body = <LocalInviteCard {...props} room={room} />;
+  } else if (state.status === AsyncStatus.Error) {
+    body = <UnreachableRoom roomIdOrAlias={room?.roomId ?? roomIdOrAlias} retry={retry} />;
+  } else {
+    body = (
+      <Box direction="Column" alignItems="Center" gap="300">
+        <Spinner variant="Secondary" size="400" />
+        <Text size="T300">{t('sharedUi.roomCard.checkingAccess')}</Text>
+      </Box>
+    );
+  }
 
   return (
     <Page>
-      <LinkHeader target={roomIdOrAlias} />
+      <LinkHeader title={title} />
       <Box
         grow="Yes"
         direction="Column"
         justifyContent="Center"
         style={{ padding: config.space.S400, overflowY: 'auto' }}
       >
-        <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
-          {(state, retry, resolvedViaServers) => {
-            if (state.status === AsyncStatus.Success) {
-              return (
-                <SummaryCard
-                  {...props}
-                  summary={state.data as SummaryData}
-                  viaServers={resolvedViaServers ?? viaServers}
-                />
-              );
-            }
-            if (state.status === AsyncStatus.Error) {
-              return <UnreachableRoom roomIdOrAlias={roomIdOrAlias} retry={retry} />;
-            }
-            return (
-              <Box direction="Column" alignItems="Center" gap="300">
-                <Spinner variant="Secondary" size="400" />
-                <Text size="T300">{t('sharedUi.roomCard.checkingAccess')}</Text>
-              </Box>
-            );
-          }}
-        </RoomSummaryLoader>
+        {body}
       </Box>
     </Page>
+  );
+}
+
+/**
+ * Shown for a room link the user has not joined: the room's summary and the
+ * way in its join rule allows (join, request to join, or none), before the
+ * room itself opens. An invite shows from the client's own copy until the
+ * server's summary arrives.
+ */
+export function JoinBeforeNavigate(props: JoinBeforeNavigateProps) {
+  const { roomIdOrAlias, viaServers } = props;
+
+  return (
+    <RoomSummaryLoader roomIdOrAlias={roomIdOrAlias} viaServers={viaServers}>
+      {(state, retry, resolvedViaServers, roomId) => (
+        <JoinPage
+          {...props}
+          viaServers={resolvedViaServers ?? viaServers}
+          state={state}
+          retry={retry}
+          roomId={roomId}
+        />
+      )}
+    </RoomSummaryLoader>
   );
 }
