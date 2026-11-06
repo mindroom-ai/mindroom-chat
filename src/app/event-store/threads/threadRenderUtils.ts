@@ -159,6 +159,26 @@ type MeasurementScrollCorrectionHookDeps = {
   unrenderedCorrectionPx?: () => number;
 };
 
+/**
+ * Whether a row's shrink leaves the reader past the end of the list. The list keeps its height
+ * until React renders the new one, so the shrink first opens a blank band under the newest row,
+ * and the browser then clamps the scroll position a frame later, moving the whole timeline. A
+ * correction applied now keeps the end where it is in the same frame: the rows above move down
+ * by the shrink, which is where the clamp would have put them. `renderedOffset` is the scroll
+ * offset in the rendered layout, whose scroll height the list's old height still sets.
+ * iOS keeps the clamp: virtual-core banks a correction made while a finger is down and replays it
+ * after the browser has clamped.
+ */
+const shrinksPastEnd = (
+  delta: number,
+  renderedOffset: number,
+  scrollElement: { scrollHeight?: number; clientHeight?: number } | null | undefined
+): boolean => {
+  const { scrollHeight, clientHeight } = scrollElement ?? {};
+  if (delta >= 0 || scrollHeight === undefined || clientHeight === undefined) return false;
+  return scrollHeight - clientHeight - renderedOffset < -delta;
+};
+
 // virtual-core takes a scroll event within this of its own last write as
 // that write (a zoomed page rounds fractional offsets).
 const VIRTUAL_CORE_WRITE_TOLERANCE_PX = 1.5;
@@ -183,7 +203,7 @@ export const buildMeasurementScrollCorrectionHook =
     instance: {
       scrollOffset: number | null;
       scrollDirection: 'forward' | 'backward' | null;
-      scrollElement?: { scrollTop: number } | null;
+      scrollElement?: { scrollTop: number; scrollHeight?: number; clientHeight?: number } | null;
     }
   ): boolean => {
     // A programmatic scroll writes the element before its scroll event
@@ -212,13 +232,15 @@ export const buildMeasurementScrollCorrectionHook =
     const apply =
       !automaticFillPredecessor &&
       scrollOffset + delta >= 0 &&
-      shouldApplyMeasurementScrollCorrection({
+      (shouldApplyMeasurementScrollCorrection({
         itemFullyAboveViewport,
         isIOSWebKitDevice: isIOSWebKitDevice(),
         isScrollingBackward:
           instance.scrollDirection === 'backward' ||
           scrollOffset < cachedOffset - VIRTUAL_CORE_WRITE_TOLERANCE_PX,
-      });
+      }) ||
+        (!isIOSWebKitDevice() &&
+          shrinksPastEnd(delta, renderedOffset, instance.scrollElement)));
     // During latest-open fill, visible predecessors also move the retained
     // latest anchor. Its own height cannot move its start and is excluded by
     // the owner. Ordinary visible rows keep their natural reflow policy.

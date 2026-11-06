@@ -1,5 +1,5 @@
 import { type MutableRefObject, type RefObject, useEffect } from 'react';
-import { scrollToBottom } from '../lib/dom';
+import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
 import type { LiveReplyStore } from '../messages/live/liveReplyStore';
 
 /**
@@ -19,7 +19,10 @@ export const useFollowContentGrowth = (
   isViewportAtBottomNow: () => boolean,
   atLiveEndRef: MutableRefObject<boolean>,
   liveReplies: LiveReplyStore,
-  roomId: string
+  roomId: string,
+  // Rows that shrank in the frame the growth shows, which the list still holds room for until
+  // React renders it: the end it follows to is that much higher.
+  pendingListShrinkPx: () => number = () => 0
 ): void => {
   useEffect(() => {
     const scrollElement = getScrollElement();
@@ -28,7 +31,20 @@ export const useFollowContentGrowth = (
     let pinned = isViewportAtBottomNow();
     let height: number | undefined;
     let frames = liveReplies.frameCount(roomId);
+    let seenScrollHeight = scrollElement.scrollHeight;
     const onScroll = () => {
+      // The browser's own scroll when the end shrinks (the composer's typing line going) can be
+      // reported after the content grew again, before this observed the growth: judge the reader
+      // against the content as last observed, or the growth would leave them behind.
+      if (scrollElement.scrollHeight > seenScrollHeight) {
+        pinned = isScrollNearBottom({
+          scrollHeight: seenScrollHeight,
+          scrollTop: scrollElement.scrollTop,
+          clientHeight: scrollElement.clientHeight,
+        });
+        return;
+      }
+      seenScrollHeight = scrollElement.scrollHeight;
       pinned = isViewportAtBottomNow();
     };
     const observer = new ResizeObserver((entries) => {
@@ -37,8 +53,12 @@ export const useFollowContentGrowth = (
       const grew = height !== undefined && entry.contentRect.height > height;
       const framed = liveReplies.frameCount(roomId) !== frames;
       height = entry.contentRect.height;
+      seenScrollHeight = scrollElement.scrollHeight;
       frames = liveReplies.frameCount(roomId);
-      if (grew && framed && pinned && atLiveEndRef.current) scrollToBottom(scrollElement);
+      if (grew && framed && pinned && atLiveEndRef.current) {
+        const end = scrollElement.scrollHeight - scrollElement.clientHeight - pendingListShrinkPx();
+        scrollElement.scrollTo({ top: Math.max(0, end), behavior: 'instant' });
+      }
     });
     scrollElement.addEventListener('scroll', onScroll, { passive: true });
     observer.observe(content);
@@ -46,5 +66,13 @@ export const useFollowContentGrowth = (
       observer.disconnect();
       scrollElement.removeEventListener('scroll', onScroll);
     };
-  }, [atLiveEndRef, contentRef, getScrollElement, isViewportAtBottomNow, liveReplies, roomId]);
+  }, [
+    atLiveEndRef,
+    contentRef,
+    getScrollElement,
+    isViewportAtBottomNow,
+    liveReplies,
+    pendingListShrinkPx,
+    roomId,
+  ]);
 };

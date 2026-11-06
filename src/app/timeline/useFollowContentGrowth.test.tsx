@@ -35,6 +35,7 @@ describe('useFollowContentGrowth', () => {
   let liveReplies: LiveReplyStore;
   let seq: number;
   const atLiveEndRef = { current: true };
+  let pendingShrink = 0;
 
   beforeEach(() => {
     vi.stubGlobal(
@@ -52,6 +53,7 @@ describe('useFollowContentGrowth', () => {
     scroller = createScroller();
     liveReplies = new LiveReplyStore();
     seq = 0;
+    pendingShrink = 0;
     atLiveEndRef.current = true;
     const getScrollElement = () => scroller as unknown as HTMLElement;
     // The timeline's live reading of its viewport bottom.
@@ -64,7 +66,8 @@ describe('useFollowContentGrowth', () => {
         isViewportAtBottomNow,
         atLiveEndRef,
         liveReplies,
-        ROOM
+        ROOM,
+        () => pendingShrink
       );
       return null;
     }
@@ -118,6 +121,29 @@ describe('useFollowContentGrowth', () => {
     grow(80);
 
     expect(scroller.scrollTop).toBe(800);
+  });
+
+  it('keeps following when the scroll a shrinking composer causes is reported after the content grew', () => {
+    applyFrame();
+    // The list grows by a finished reply while the composer's typing line goes: the browser
+    // clamps the position up by the line's height, and reports that scroll after the growth.
+    scroller.scrollHeight += 150;
+    scroller.scrollTop -= 36;
+    scroller.scroll();
+    act(() =>
+      resize?.([{ target: content, contentRect: { height: scroller.scrollHeight } } as never])
+    );
+
+    expect(scroller.scrollTop).toBe(750);
+  });
+
+  it('follows to where the list will end when a row shrank in the same frame', () => {
+    // The finished reply grew the list, and its Stop button went in the same frame: the list
+    // still holds those 62 px until React renders it.
+    pendingShrink = 62;
+    grow(150);
+
+    expect(scroller.scrollTop).toBe(688);
   });
 
   it('leaves a reader who scrolled up where they are', () => {

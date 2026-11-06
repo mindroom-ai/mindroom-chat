@@ -118,6 +118,7 @@ import {
 } from '../approvals/useThreadApprovalTimeline';
 import { isTimelineAtLiveEnd } from '../event-store/timeline/timelineScrollUtils';
 import { useFooterBottomPin } from './useFooterBottomPin';
+import { useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { useViewScopedFlag } from './roomTimelineViewScope';
@@ -780,6 +781,31 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
+  // How far the list still reaches below its newest row: the height of rows that shrank since
+  // React last rendered the list, which its next render takes off the scroll content. Only the
+  // rendered end of the list tells: its last row with a height (hidden events after it take
+  // none, and keep their old places until that render). The offset ledger places the rows its
+  // margin moves the list away from, so the list ends that margin past its newest row, and rows
+  // it moves keep their places.
+  const { virtualInnerRef } = ledger;
+  const pendingListShrinkPx = useCallback(() => {
+    const inner = virtualInnerRef.current;
+    if (!inner) return 0;
+    const tiles = Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]'));
+    const indexOf = (tile: HTMLElement) => Number(tile.dataset.index);
+    const last = virtualizerRef.current.options.count - 1;
+    if (!tiles.some((tile) => indexOf(tile) === last)) return 0;
+    const newest = tiles
+      .filter((tile) => tile.offsetHeight > 0)
+      .reduce<HTMLElement | undefined>(
+        (found, tile) => (!found || indexOf(tile) > indexOf(found) ? tile : found),
+        undefined
+      );
+    if (!newest) return 0;
+    const ledgerMargin = parseFloat(inner.style.marginTop) || 0;
+    const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
+    return Math.max(0, reach - ledgerMargin);
+  }, [virtualInnerRef, virtualizerRef]);
   // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
   // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the
   // list's height and the next one takes the new height: resizing the list there would resize the
@@ -1076,8 +1102,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
     isViewportAtBottomNow,
     atLiveEndRef,
     getLiveReplyStore(mx),
-    room.roomId
+    room.roomId,
+    pendingListShrinkPx
   );
+  // After the follow above and every other observer of the timeline (it is created last).
+  useListEndClamp(scrollElement, contentRef, footerProbeRef, pendingListShrinkPx);
 
   // The compact overview: older history until zero-reply roots show up, root edits it lacks,
   // and a refresh of its threads when the page comes back.
