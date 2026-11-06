@@ -9,6 +9,7 @@ import { useThreadBackPaginationController } from './threadBackPaginationControl
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import type { EventTimeline } from 'matrix-js-sdk';
 import {
+  heldListHeight,
   useGestureBottomPins,
   useLatestRowPin,
   useRowsGeneration,
@@ -623,5 +624,24 @@ describe('useRowsGeneration', () => {
     show([context]);
     show([context, live]);
     expect(counts).toEqual([0, 0, 1, 2, 2]);
+  });
+});
+
+describe('heldListHeight', () => {
+  // A scroll correction renders inside the browser's ResizeObserver loop: the scroll content, which
+  // the scrollbar and the follow-growth observer watch, must keep its size there. The list's box
+  // ends at its top margin plus its height.
+  it('keeps the list bottom edge when the ledger moves the list top', () => {
+    // As traced in WebKit: a 2273 px list without margin, and the ledger takes 285 px.
+    const height = heldListHeight({ height: '2273px', marginTop: '' }, 285);
+    expect(-285 + height).toBe(2273);
+  });
+
+  it('keeps the height when the ledger stays', () => {
+    expect(heldListHeight({ height: '2000.5px', marginTop: '-100px' }, 100)).toBe(2000.5);
+  });
+
+  it('keeps the bottom edge when the ledger gives pixels back', () => {
+    expect(0 + heldListHeight({ height: '2000px', marginTop: '-100px' }, 0)).toBe(-100 + 2000);
   });
 });

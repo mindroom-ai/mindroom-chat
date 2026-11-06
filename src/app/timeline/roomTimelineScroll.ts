@@ -26,6 +26,18 @@ import { scrollToBottom } from '../lib/dom';
  */
 
 /**
+ * The list's height in a render that corrects the scroll position inside the browser's
+ * ResizeObserver loop: the list keeps its bottom edge where the screen has it, so the scroll content
+ * keeps its size until the next render. `rendered` is the list's style on screen; the ledger's
+ * pixels set its top margin to `-ledgerPx` in that render, and the height takes the difference.
+ */
+export const heldListHeight = (
+  rendered: { height: string; marginTop: string },
+  ledgerPx: number
+): number =>
+  Number.parseFloat(rendered.height) + (Number.parseFloat(rendered.marginTop) || 0) + ledgerPx;
+
+/**
  * The timeline's scroll element, as a ref for reads during events and as state for effects that
  * attach to it. folds' Scroll hands React a new ref callback on every render, so each commit
  * detaches the element (null) and attaches it again. Only a different element, or none left after

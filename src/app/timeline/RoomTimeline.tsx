@@ -125,6 +125,7 @@ import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
+  heldListHeight,
   useGestureBottomPins,
   useLatestRowPin,
   useRowsGeneration,
@@ -820,9 +821,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const renderedList = ledger.virtualInnerRef.current?.style;
   const listHeight =
     (ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove()) && renderedList?.height
-      ? Number.parseFloat(renderedList.height) +
-        (Number.parseFloat(renderedList.marginTop) || 0) +
-        ledger.ledgerPxAtRender
+      ? heldListHeight(renderedList, ledger.ledgerPxAtRender)
       : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(
     virtualizer,
