@@ -5,8 +5,9 @@ import {
   RequestType,
   UserId,
 } from '@matrix-org/matrix-sdk-crypto-wasm';
+import { createClient, MemoryStore, type MatrixClient } from 'matrix-js-sdk';
 import { RustCrypto } from 'matrix-js-sdk/lib/rust-crypto/rust-crypto';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 // The SDK hands each /sync to the Rust crypto machine in up to three calls: the to-device
 // messages, the device list changes and the one-time key counts. These tests drive the real
@@ -117,6 +118,78 @@ describe('one-time key counts in the SDK hand-over to the Rust crypto machine', 
 
     // Every key was claimed; the server then sends no `device_one_time_keys_count` at all.
     await crypto.processKeyCounts(undefined, ['signed_curve25519']);
+    await server.flush();
+
+    expect(server.uploads.slice(uploadsAtStart)).toEqual([50]);
+    machine.free();
+  });
+});
+
+describe('one-time key counts of a sync that reports neither counts nor fallback keys', () => {
+  const clients: MatrixClient[] = [];
+  afterEach(() => {
+    clients.splice(0).forEach((client) => client.stopClient());
+  });
+
+  const json = (body: unknown) =>
+    new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+  it('reads a live sync as no keys left, and the saved sync replay as no report', async () => {
+    // A server without fallback keys (Matrix 1.1) leaves out both fields once every key was
+    // claimed. The first /sync answers like that; later ones wait, as a long poll does.
+    let syncs = 0;
+    const fetchFn = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith('/versions')) return json({ versions: ['v1.1'] });
+      if (url.pathname.endsWith('/filter')) return json({ filter_id: 'filter' });
+      if (!url.pathname.endsWith('/sync')) return json({});
+      syncs += 1;
+      if (syncs === 1) return json({ next_batch: 'live' });
+      return new Promise<Response>(() => {
+        // Nothing new: the long poll stays open.
+      });
+    });
+    const store = new MemoryStore();
+    store.getSavedSync = async () => ({
+      nextBatch: 'saved',
+      roomsData: { join: {}, invite: {}, leave: {}, knock: {} },
+      accountData: [],
+    });
+    const client = createClient({
+      baseUrl: 'https://matrix.example',
+      userId: OWNER,
+      deviceId: DEVICE,
+      accessToken: 'token',
+      store,
+      fetchFn,
+    });
+    clients.push(client);
+    const processKeyCounts = vi.fn(async (_counts?: object, _fallbackKeys?: string[]) => undefined);
+    // Only the sync callbacks of the crypto backend matter here.
+    (client as unknown as { cryptoBackend: unknown }).cryptoBackend = {
+      preprocessToDeviceMessages: vi.fn(async () => []),
+      processKeyCounts,
+      processDeviceLists: vi.fn(async () => undefined),
+      onCryptoEvent: vi.fn(async () => undefined),
+      onSyncCompleted: vi.fn(),
+      stop: vi.fn(),
+    };
+
+    await client.startClient();
+    await vi.waitFor(() => expect(processKeyCounts).toHaveBeenCalledTimes(2), { timeout: 5_000 });
+
+    // The replay brings no counts and so changes nothing; the live sync says none are left.
+    expect(processKeyCounts.mock.calls).toContainEqual([undefined, undefined]);
+    expect(processKeyCounts.mock.calls).toContainEqual([{}, undefined]);
+  });
+
+  it('makes the crypto machine refill the server', async () => {
+    const { machine, server, crypto, uploadsAtStart } = await deviceWithKeysOnServer();
+
+    await crypto.processKeyCounts({}, undefined);
     await server.flush();
 
     expect(server.uploads.slice(uploadsAtStart)).toEqual([50]);
