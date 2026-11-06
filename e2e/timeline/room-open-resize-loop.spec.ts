@@ -1,0 +1,251 @@
+import {
+  expect,
+  test,
+  webkit,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import {
+  createDefaultThreadFilterState,
+  joinRoom,
+  loginToMatrix,
+  registerAgentAccount,
+  seedRoomOverviewState,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
+
+// Opening a room raises no "ResizeObserver loop completed with undelivered notifications." While a
+// room opens, its rows settle (each row's estimate gives way to its height) and virtual-core reports
+// that from its ResizeObserver callback. For a row above the reader it corrects the scroll position
+// at once, and the ledger renders the moved rows in a microtask, before the paint, inside the
+// browser's ResizeObserver loop; a correction it leaves to the ledger (a row above the newest one
+// while the room fills the screen) moves the list up with a negative top margin instead. When both
+// came together, that render moved the list's top and kept its height, so the scroll content, which
+// the inset scrollbar and the follow-growth observer watch, shrank after they had been reported,
+// and the loop ended with their observations undelivered. An agent room opens in its Threads view
+// and in the Full view, three times each, on a phone (390 by 844, touch) and a desktop (1280 by
+// 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit,
+// against the disposable homeserver of a slot (scripts/e2e-slot.sh).
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'room-open-resize-loop-spec-password';
+const RUN = Date.now().toString(36);
+const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+const ROOM_NAME = 'Tide Station';
+const FILLER_ROOMS = 24;
+const HISTORY = 24;
+const OPENS = 3;
+const LOOP_ERROR = /ResizeObserver loop/;
+
+const PHONE: BrowserContextOptions = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+
+test.use({
+  launchOptions: {
+    // The other launch options repeat playwright.config.ts; scrollbars show as they do for people.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+type Account = MatrixSession & { username: string };
+
+// Accounts stay unique when a run repeats a test in the same worker.
+let accounts = 0;
+const register = async (name: string): Promise<Account> => {
+  accounts += 1;
+  const username = `rol_open_${name}_${RUN}_${accounts}`;
+  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: PASSWORD,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(response.ok, `registering ${username}`).toBe(true);
+  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+};
+
+type World = { reader: Account; roomId: string; otherRoomId: string };
+
+/** An agent room with an hour-by-hour log, a thread with an agent reply, and 24 other rooms. */
+const seed = async (name: string): Promise<World> => {
+  const reader = await register(`${name}_reader`);
+  const member = await register(`${name}_member`);
+  const agent = await registerAgentAccount(HOMESERVER, `tide_${name}`);
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: ROOM_NAME,
+    invite: [member.userId, agent.userId],
+  });
+  await joinRoom(HOMESERVER, member.accessToken, roomId);
+  await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  let otherRoomId = '';
+  for (let index = 1; index <= FILLER_ROOMS; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    otherRoomId = await createRoom(HOMESERVER, reader.accessToken, { name: `Gauge ${index}` });
+  }
+  for (let index = 1; index <= HISTORY; index += 1) {
+    const fromMember = index % 2 === 0;
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, (fromMember ? member : reader).accessToken, roomId, {
+      msgtype: 'm.text',
+      body: fromMember
+        ? `Reading ${index}: the gauge logged its hourly level and the battery holds at ninety percent.`
+        : `Reading ${index}: anything unusual at the gauge this hour?`,
+    });
+  }
+  const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Which gauges need a new battery before the spring tide on Monday?',
+  });
+  const thread = (replyTo: string) => ({
+    'm.relates_to': {
+      rel_type: 'm.thread',
+      event_id: rootId,
+      is_falling_back: true,
+      'm.in_reply_to': { event_id: replyTo },
+    },
+  });
+  const memberReply = await sendRoomMessage(HOMESERVER, member.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'The harbor gauge and the river mouth gauge both run low after a cold night.',
+    ...thread(rootId),
+  });
+  await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Replace the harbor gauge battery first; the river mouth one lasts until Wednesday.',
+    ...thread(memberReply),
+  });
+  return { reader, roomId, otherRoomId };
+};
+
+const navigate = async (page: Page, route: string) => {
+  await page.evaluate((target) => {
+    window.history.pushState(null, '', target);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, route);
+};
+
+const roomRoute = (roomId: string) => `/home/${encodeURIComponent(roomId)}/`;
+
+/** Opens the room from another room OPENS times and gives its rows time to settle each time. */
+const openRepeatedly = async (page: Page, world: World) => {
+  for (let open = 0; open < OPENS; open += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await navigate(page, roomRoute(world.otherRoomId));
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.getByRole('heading', { name: `Gauge ${FILLER_ROOMS}` }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await navigate(page, roomRoute(world.roomId));
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.getByRole('heading', { name: ROOM_NAME }).first()).toBeVisible({
+      timeout: 60_000,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.locator('[data-message-id]').first()).toBeVisible({ timeout: 30_000 });
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(1_500);
+  }
+};
+
+const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
+  const world = await seed(engine);
+  for (const [viewport, options] of [
+    ['phone', PHONE],
+    ['desktop', DESKTOP],
+  ] as const) {
+    // eslint-disable-next-line no-await-in-loop
+    const context = await browser.newContext({ ...options, baseURL });
+    try {
+      // Chromium reports the loop only to the page's error listeners, WebKit as a page error too.
+      // eslint-disable-next-line no-await-in-loop
+      await context.addInitScript(() => {
+        const loops: string[] = [];
+        Object.assign(window, { resizeLoops: loops });
+        window.addEventListener('error', (event) => {
+          if (/ResizeObserver loop/.test(event.message)) loops.push(event.message);
+        });
+      });
+      // eslint-disable-next-line no-await-in-loop
+      const page = await context.newPage();
+      const pageErrors: string[] = [];
+      page.on('pageerror', (error) => pageErrors.push(error.message));
+      // eslint-disable-next-line no-await-in-loop
+      await loginWithPassword(page, {
+        homeserver: HOMESERVER,
+        username: world.reader.username,
+        password: PASSWORD,
+      });
+      for (const viewMode of ['threaded', 'classic'] as const) {
+        // eslint-disable-next-line no-await-in-loop
+        await seedRoomOverviewState({
+          page,
+          roomId: world.roomId,
+          userId: world.reader.userId,
+          viewMode,
+          filterState: createDefaultThreadFilterState(),
+        });
+        // eslint-disable-next-line no-await-in-loop
+        await openRepeatedly(page, world);
+        // eslint-disable-next-line no-await-in-loop
+        const loops = await page.evaluate(
+          () => (window as unknown as { resizeLoops: string[] }).resizeLoops
+        );
+        expect(
+          [...loops, ...pageErrors.filter((message) => LOOP_ERROR.test(message))],
+          `ResizeObserver loop errors in ${engine} ${viewport} ${viewMode}`
+        ).toEqual([]);
+      }
+    } finally {
+      // eslint-disable-next-line no-await-in-loop
+      await context.close();
+    }
+  }
+};
+
+test.beforeEach(async () => {
+  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+});
+
+const TITLE = 'opening a room raises no ResizeObserver loop error';
+
+test(`${TITLE} (Chromium)`, async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  await run(browser, baseURL, 'chromium');
+});
+
+test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
+  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(300_000);
+  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
+  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  try {
+    await run(browser, baseURL, 'webkit');
+  } finally {
+    await browser.close();
+  }
+});
