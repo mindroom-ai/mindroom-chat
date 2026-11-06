@@ -39,9 +39,11 @@ const openThread = async (page: Page, { tagged = false } = {}): Promise<Fixture>
   const roomId = await createPrivateRoom(homeserver, session.accessToken, {
     name: `Banner anchor ${Date.now()}`,
   });
+  // A first message without text leaves the banner untitled ("Thread View"), so the
+  // summary and the resolved byline below add a row of their own.
   const rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
     msgtype: 'm.text',
-    body: 'Banner anchor root',
+    body: '',
   });
   for (let index = 1; index <= REPLY_COUNT; index += 1) {
     // eslint-disable-next-line no-await-in-loop
