@@ -4,6 +4,7 @@ import {
   createPrivateRoom,
   joinRoom,
   matrixFetch,
+  registerAgentAccount,
   sendRoomMessage,
   sendStateEvent,
   type MatrixSession,
@@ -113,12 +114,14 @@ const seed = async (engine: Engine): Promise<Seed> => {
   const word = `heron${RUN.replace(/[0-9]/g, (digit) => 'abcdefghij'[Number(digit)]!)}${engine[0]}`;
   const create = (name: string, invite?: string[]) =>
     createPrivateRoom(HOMESERVER, reader.accessToken, { name, topic: `${name} notes`, invite });
+  // The rooms the flows use have an agent, as MindRoom rooms do, so they open in Compact.
+  const agent = await registerAgentAccount(HOMESERVER, `pbe${engine[0]}`);
   const say = (roomId: string, content: Record<string, unknown>, session: MatrixSession = reader) =>
     sendRoomMessage(HOMESERVER, session.accessToken, roomId, content, 'phone-back-entries');
 
   await Promise.all(OTHER_ROOMS.map((name) => create(name)));
 
-  const garden = await create('Garden Club');
+  const garden = await create('Garden Club', [agent.userId]);
   const gardenNote = await say(
     garden,
     text(`The planting rota for ${word} is pinned by the shed door; swap a turn with anyone on it.`)
@@ -142,7 +145,7 @@ const seed = async (engine: Engine): Promise<Seed> => {
     pinned: [gardenNote, gardenReply],
   });
 
-  const harbor = await create('Harbor Plans');
+  const harbor = await create('Harbor Plans', [agent.userId]);
   const harborRoot = await say(
     harbor,
     text('Crane schedule for the north pier next week: who still needs a slot?')
@@ -159,7 +162,7 @@ const seed = async (engine: Engine): Promise<Seed> => {
     )
   );
 
-  const books = await create('Book Swap', [writer.userId]);
+  const books = await create('Book Swap', [writer.userId, agent.userId]);
   await joinRoom(HOMESERVER, writer.accessToken, books);
   const booksRoot = await say(
     books,
