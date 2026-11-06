@@ -185,6 +185,11 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
     event: () => true,
     stateEvent: () => true,
   }),
+  getRoomPermissionsAPI: () => ({
+    action: () => true,
+    event: () => true,
+    stateEvent: () => true,
+  }),
 }));
 
 vi.mock('../../matrix/state/useUnread', () => ({
