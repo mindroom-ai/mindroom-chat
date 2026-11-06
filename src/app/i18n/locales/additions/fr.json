@@ -29,7 +29,8 @@
     "storageBlocked": "Ce navigateur n’a pas pu enregistrer la liste des comptes. Vérifiez les autorisations de stockage du site et réessayez.",
     "unknown": "Une erreur s’est produite.",
     "deviceIdentityUnverified": "MindRoom n’a pas pu vérifier en toute sécurité le stockage de chiffrement et l’identité de l’appareil de ce compte. Vérifiez votre connexion et l’accès du navigateur au stockage, puis réessayez. Aucune clé de chiffrement n’a été modifiée.",
-    "notKeyExport": "Ce fichier n’est pas un export de clés de salon."
+    "notKeyExport": "Ce fichier n’est pas un export de clés de salon.",
+    "cryptoStoreMissing": "Le stockage de chiffrement de ce compte est manquant, mais la connexion de l’appareil est toujours là. Continuer remplacerait l’identité de cet appareil et rendrait les messages et appels chiffrés illisibles sur les autres appareils. Supprimez ce compte, puis reconnectez-vous."
   },
   "sharedUi": {
     "pageScroll": {
@@ -185,6 +186,9 @@
       "keysLostTitle": "Clés de chiffrement perdues",
       "keysLost": "Ce navigateur a perdu les clés de chiffrement de {{userId}}. Les messages chiffrés ne peuvent pas être lus ici, et le serveur n’accepte pas de nouvelles clés pour cette connexion. Reconnectez-vous pour continuer en tant que nouvel appareil ; vos autres comptes restent connectés. Vérifiez ensuite le nouvel appareil ou utilisez votre clé de récupération pour lire les messages précédents.",
       "signInAgain": "Se reconnecter"
+    },
+    "threadPreviews": {
+      "encrypted": "Message chiffré"
     }
   },
   "featureUi": {

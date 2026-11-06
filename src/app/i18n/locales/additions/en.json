@@ -27,7 +27,8 @@
     "storageBlocked": "This browser couldn't save the account list. Check the site's storage permissions and try again.",
     "unknown": "Something went wrong.",
     "deviceIdentityUnverified": "MindRoom couldn't safely check this account's encryption storage and device identity. Check your connection and the browser's storage access, then try again. No encryption keys were changed.",
-    "notKeyExport": "This file isn't a room key export."
+    "notKeyExport": "This file isn't a room key export.",
+    "cryptoStoreMissing": "This account's encryption storage is missing, but its device sign-in is still here. Continuing would replace this device's identity and make encrypted messages and calls unreadable on other devices. Remove this account, then sign in again."
   },
   "sharedUi": {
     "pageScroll": {
@@ -182,6 +183,9 @@
       "keysLostTitle": "Encryption keys lost",
       "keysLost": "This browser lost the encryption keys of {{userId}}. Encrypted messages can't be read here, and the server won't accept new keys for this sign-in. Sign in again to continue as a new device; your other accounts stay signed in. Then verify the new device or use your recovery key to read earlier messages.",
       "signInAgain": "Sign in again"
+    },
+    "threadPreviews": {
+      "encrypted": "Encrypted message"
     }
   },
   "featureUi": {

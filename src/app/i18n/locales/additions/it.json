@@ -29,7 +29,8 @@
     "storageBlocked": "Questo browser non è riuscito a salvare l’elenco degli account. Controlla le autorizzazioni di archiviazione del sito e riprova.",
     "unknown": "Qualcosa è andato storto.",
     "deviceIdentityUnverified": "MindRoom non è riuscito a verificare in modo sicuro l’archivio di crittografia e l’identità del dispositivo di questo account. Controlla la connessione e l’accesso del browser all’archiviazione, poi riprova. Nessuna chiave di crittografia è stata modificata.",
-    "notKeyExport": "Questo file non è un’esportazione di chiavi delle stanze."
+    "notKeyExport": "Questo file non è un’esportazione di chiavi delle stanze.",
+    "cryptoStoreMissing": "Manca l’archivio di crittografia di questo account, ma l’accesso del dispositivo è ancora presente. Continuare sostituirebbe l’identità di questo dispositivo e renderebbe illeggibili i messaggi e le chiamate crittografati sugli altri dispositivi. Rimuovi questo account, poi accedi di nuovo."
   },
   "sharedUi": {
     "pageScroll": {
@@ -185,6 +186,9 @@
       "keysLostTitle": "Chiavi di crittografia perse",
       "keysLost": "Questo browser ha perso le chiavi di crittografia di {{userId}}. Qui non è possibile leggere i messaggi crittografati, e il server non accetta nuove chiavi per questo accesso. Accedi di nuovo per continuare come nuovo dispositivo; gli altri tuoi account restano connessi. Poi verifica il nuovo dispositivo o usa la tua chiave di ripristino per leggere i messaggi precedenti.",
       "signInAgain": "Accedi di nuovo"
+    },
+    "threadPreviews": {
+      "encrypted": "Messaggio crittografato"
     }
   },
   "featureUi": {

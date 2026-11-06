@@ -27,7 +27,8 @@
     "storageBlocked": "Bu tarayıcı hesap listesini kaydedemedi. Sitenin depolama izinlerini kontrol edip tekrar deneyin.",
     "unknown": "Bir şeyler ters gitti.",
     "deviceIdentityUnverified": "MindRoom bu hesabın şifreleme deposunu ve cihaz kimliğini güvenli şekilde doğrulayamadı. Bağlantınızı ve tarayıcının depolama erişimini kontrol edin, ardından tekrar deneyin. Hiçbir şifreleme anahtarı değiştirilmedi.",
-    "notKeyExport": "Bu dosya bir oda anahtarı dışa aktarımı değil."
+    "notKeyExport": "Bu dosya bir oda anahtarı dışa aktarımı değil.",
+    "cryptoStoreMissing": "Bu hesabın şifreleme deposu eksik, ancak cihazdaki girişi hâlâ duruyor. Devam etmek bu cihazın kimliğini değiştirir ve şifreli mesajları ve aramaları diğer cihazlarda okunamaz hale getirir. Bu hesabı kaldırın, ardından tekrar giriş yapın."
   },
   "sharedUi": {
     "pageScroll": {
@@ -182,6 +183,9 @@
       "keysLostTitle": "Şifreleme anahtarları kayboldu",
       "keysLost": "Bu tarayıcı {{userId}} hesabının şifreleme anahtarlarını kaybetti. Şifreli mesajlar burada okunamaz ve sunucu bu giriş için yeni anahtarları kabul etmez. Yeni bir cihaz olarak devam etmek için tekrar giriş yapın; diğer hesaplarınız oturum açık kalır. Ardından önceki mesajları okumak için yeni cihazı doğrulayın veya kurtarma anahtarınızı kullanın.",
       "signInAgain": "Tekrar giriş yap"
+    },
+    "threadPreviews": {
+      "encrypted": "Şifreli mesaj"
     }
   },
   "featureUi": {

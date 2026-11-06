@@ -29,7 +29,8 @@
     "storageBlocked": "Este navegador no pudo guardar la lista de cuentas. Comprueba los permisos de almacenamiento del sitio e inténtalo de nuevo.",
     "unknown": "Algo salió mal.",
     "deviceIdentityUnverified": "MindRoom no pudo comprobar de forma segura el almacenamiento de cifrado y la identidad del dispositivo de esta cuenta. Comprueba tu conexión y el acceso del navegador al almacenamiento, y vuelve a intentarlo. No se cambió ninguna clave de cifrado.",
-    "notKeyExport": "Este archivo no es una exportación de claves de sala."
+    "notKeyExport": "Este archivo no es una exportación de claves de sala.",
+    "cryptoStoreMissing": "Falta el almacenamiento de cifrado de esta cuenta, pero el inicio de sesión del dispositivo sigue aquí. Continuar reemplazaría la identidad de este dispositivo y haría ilegibles los mensajes y las llamadas cifrados en otros dispositivos. Elimina esta cuenta y vuelve a iniciar sesión."
   },
   "sharedUi": {
     "pageScroll": {
@@ -185,6 +186,9 @@
       "keysLostTitle": "Claves de cifrado perdidas",
       "keysLost": "Este navegador perdió las claves de cifrado de {{userId}}. Los mensajes cifrados no se pueden leer aquí, y el servidor no acepta claves nuevas para este inicio de sesión. Vuelve a iniciar sesión para continuar como un dispositivo nuevo; tus otras cuentas siguen con la sesión iniciada. Después, verifica el dispositivo nuevo o usa tu clave de recuperación para leer los mensajes anteriores.",
       "signInAgain": "Volver a iniciar sesión"
+    },
+    "threadPreviews": {
+      "encrypted": "Mensaje cifrado"
     }
   },
   "featureUi": {

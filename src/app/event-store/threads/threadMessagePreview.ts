@@ -7,6 +7,8 @@ import { readCanvasNoticeTitle } from '../../matrix/protocol/chatUiProtocol';
 import { hasLikelyIncompleteStreamingBody } from './threadEditBackfill';
 
 export const VOICE_MESSAGE_PREVIEW_TEXT = 'Voice message';
+const ENCRYPTED_MESSAGE_PREVIEW_TEXT = 'Encrypted message';
+const ENCRYPTED_MSGTYPE = 'm.bad.encrypted';
 
 // MindRoom serializes each tool call into the plain-text body as a
 // standalone "🔧 `tool_name` [n]" line, with a trailing ⏳ while the call is
@@ -132,7 +134,7 @@ export const stripPreviewMarkdown = (value: string): string =>
     .replace(/^\s*(?:[-*_]\s*){3,}\s*$/gm, ' ');
 
 export type ThreadPreviewLocalization =
-  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' }
+  | { kind: 'voice' | 'audio' | 'image' | 'video' | 'file' | 'encrypted' }
   | { kind: 'tools'; count: number; prose: string };
 
 /** Preview text and, for generated copy such as the tool badge, where it came from. */
@@ -235,6 +237,11 @@ const resolveThreadPreview = (
     : undefined;
   const previewContent = newContent ? { ...content, ...newContent } : content;
 
+  // The SDK leaves its error text as the body of an event it cannot decrypt.
+  if (previewContent.msgtype === ENCRYPTED_MSGTYPE) {
+    return { text: ENCRYPTED_MESSAGE_PREVIEW_TEXT, localization: { kind: 'encrypted' } };
+  }
+
   if (previewContent.msgtype === MsgType.Audio && isVoiceMessageContent(previewContent)) {
     return { text: VOICE_MESSAGE_PREVIEW_TEXT, localization: { kind: 'voice' } };
   }
@@ -273,6 +280,8 @@ export const localizeThreadPreview = (
   switch (localization.kind) {
     case 'voice':
       return t('sharedUi.threadPreviews.voiceMessage');
+    case 'encrypted':
+      return t('sharedUi.threadPreviews.encrypted');
     case 'audio':
       return t('mindroomUi.message-search.searchResultPreview.audio');
     case 'image':
