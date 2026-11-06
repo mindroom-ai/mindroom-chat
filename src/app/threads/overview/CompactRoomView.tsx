@@ -25,6 +25,7 @@ import { useInitializeShownThread } from '../useInitializeShownThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
+import { useHeldThreadOrder } from './useHeldThreadOrder';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -204,6 +205,14 @@ const CompactThreadCardRow = React.memo(
   }
 );
 
+const isKeyboardFocus = (element: Element): boolean => {
+  try {
+    return element.matches(':focus-visible');
+  } catch {
+    return true;
+  }
+};
+
 export function CompactRoomView({
   room,
   threadRootIds,
@@ -214,14 +223,20 @@ export function CompactRoomView({
   const { t } = useTranslation();
   const viewRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState<ThreadActionsMenuState>();
+  // While the reader points at or focuses a card, or has a card's menu open, the cards keep
+  // their order so none moves under the pointer; the new order applies afterwards.
+  const [pointerInside, setPointerInside] = useState(false);
+  const [focusInside, setFocusInside] = useState(false);
+  const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
+  const shownRootIds = useHeldThreadOrder(threadRootIds, pointerInside || focusHeld || !!menu);
   const cardViewModels = useCompactThreadCardViewModels({
     room,
-    threadRootIds,
+    threadRootIds: shownRootIds,
     threadRecordMap,
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
   const pinning = useThreadPinning(room);
-  const [menu, setMenu] = useState<ThreadActionsMenuState>();
   const menuRef = useRef<ThreadActionsMenuState>();
   const openMenu = useCallback((nextMenu: ThreadActionsMenuState) => {
     menuRef.current = nextMenu;
@@ -342,7 +357,23 @@ export function CompactRoomView({
 
   return (
     <Box ref={viewRef} className={css.View} data-compact-room-view="true" tabIndex={-1}>
-      <Box ref={contentRef} direction="Column" gap="100" shrink="No">
+      <Box
+        ref={contentRef}
+        direction="Column"
+        gap="100"
+        shrink="No"
+        onPointerEnter={() => setPointerInside(true)}
+        onPointerLeave={() => setPointerInside(false)}
+        // Keyboard focus only: a card a mouse click left focused does not hold the order.
+        onFocus={(event: React.FocusEvent<HTMLDivElement>) =>
+          setFocusInside(isKeyboardFocus(event.target))
+        }
+        onBlur={(event: React.FocusEvent<HTMLDivElement>) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+            setFocusInside(false);
+          }
+        }}
+      >
         {!!pinning.error && (
           <Text role="alert" size="T200">
             {t('thread.pinFailed')}
