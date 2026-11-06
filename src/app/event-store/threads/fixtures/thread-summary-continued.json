@@ -4,7 +4,7 @@
     "msgtype": "m.text"
   },
   "event_id": "$question",
-  "origin_server_ts": 1793981349081,
+  "origin_server_ts": 1794005185164,
   "room_id": "!board:example.org",
   "sender": "@reader:example.org",
   "type": "m.room.message",
@@ -27,7 +27,7 @@
             "msgtype": "m.text"
           },
           "event_id": "$reply",
-          "origin_server_ts": 1793981349108,
+          "origin_server_ts": 1794005185168,
           "sender": "@helper:example.org",
           "type": "m.room.message",
           "unsigned": {
@@ -54,7 +54,7 @@
                   "msgtype": "m.text"
                 },
                 "event_id": "$edit",
-                "origin_server_ts": 1793981349117,
+                "origin_server_ts": 1794005185169,
                 "sender": "@helper:example.org",
                 "type": "m.room.message",
                 "unsigned": {}
@@ -66,7 +66,7 @@
           "content": {
             "body": "Release checklist and launch dates",
             "io.mindroom.thread_summary": {
-              "generated_at": "2026-11-06T16:09:09.096Z",
+              "generated_at": "2026-11-06T22:46:25.166Z",
               "message_count": 1,
               "summary": "Release checklist and launch dates",
               "version": 1
@@ -82,8 +82,8 @@
             "msgtype": "m.notice"
           },
           "event_id": "$title",
-          "origin_server_ts": 1793981349099,
-          "sender": "@reader:example.org",
+          "origin_server_ts": 1794005185167,
+          "sender": "@reviewer:example.org",
           "type": "m.room.message",
           "unsigned": {}
         },
@@ -101,7 +101,7 @@
             "msgtype": "m.text"
           },
           "event_id": "$reply",
-          "origin_server_ts": 1793981349108,
+          "origin_server_ts": 1794005185168,
           "sender": "@helper:example.org",
           "type": "m.room.message",
           "unsigned": {
@@ -128,7 +128,7 @@
                   "msgtype": "m.text"
                 },
                 "event_id": "$edit",
-                "origin_server_ts": 1793981349117,
+                "origin_server_ts": 1794005185169,
                 "sender": "@helper:example.org",
                 "type": "m.room.message",
                 "unsigned": {}
