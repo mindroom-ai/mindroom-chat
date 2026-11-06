@@ -48,7 +48,7 @@ const serveBugReportWellKnown = async (
 const openedRoomId = (page: Page) => decodeURIComponent(new URL(page.url()).pathname);
 const openedThreadId = (page: Page) => new URL(page.url()).searchParams.get('threadId');
 
-test('one click sends a bug report the administrator receives without accepting an invite', async ({
+test('a sent bug report reaches the administrator without accepting an invite', async ({
   browser,
 }) => {
   const adminCredentials = getSecondaryCredentials();
@@ -74,7 +74,7 @@ test('one click sends a bug report the administrator receives without accepting 
   const marker = `bug report e2e ${Date.now()}`;
   const sourceRoomId = await createPrivateRoom(homeserver, reporter.accessToken, {
     name: `Bug report source ${Date.now()}`,
-    topic: 'Live fixture for one-click bug reports.',
+    topic: 'Live fixture for bug reports.',
   });
   const markerEventId = await sendRoomMessage(
     homeserver,
@@ -114,6 +114,11 @@ test('one click sends a bug report the administrator receives without accepting 
       const row = reporterPage.locator(`[data-message-id="${markerEventId}"]`);
       await row.getByText(marker).click({ button: 'right' });
       await reporterPage.getByRole('menuitem', { name: 'Report a bug', exact: true }).click();
+      // The report says what it holds before anything is sent.
+      await reporterPage
+        .getByRole('dialog', { name: 'Send a bug report?' })
+        .getByRole('button', { name: 'Send report', exact: true })
+        .click();
       // The reporter lands in the report thread with the summary and the attached JSON.
       await expect.poll(() => openedThreadId(reporterPage)).not.toBeNull();
       await expect(reporterPage.getByText(/Bug report from/).first()).toBeVisible();

@@ -408,6 +408,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "跳至 {{name}} 的訊息"
+      },
+      "bugReport": {
+        "consentTitle": "要傳送問題報告嗎？",
+        "consentIntro": "報告會傳送給此伺服器的問題報告管理員，所在的聊天室沒有端對端加密：他們和伺服器都能讀取。報告包含：",
+        "contentsMessages": "這則訊息及其之前最多 50 則訊息（在討論串中：其第一則訊息和最多 200 則回覆），以及它們的回應和最新編輯",
+        "contentsAccount": "聊天室的名稱和 ID，以及你的使用者 ID、裝置 ID 和主伺服器",
+        "contentsDevice": "應用程式版本、平台、瀏覽器、語言、時區、視窗大小和頁面網址",
+        "contentsDiagnostics": "應用程式近期活動的診斷記錄：耗時和錯誤類型，不含訊息文字",
+        "encryptedTextLeftOut": "此加密聊天室中的訊息文字不會包含在內：報告保留每則訊息的傳送者、時間和類型。",
+        "includeText": "包含訊息文字",
+        "includeTextWarning": "這些訊息的文字將以未加密的形式儲存在報告聊天室中，其管理員和伺服器都能讀取。",
+        "send": "傳送報告"
       }
     },
     "message-search": {

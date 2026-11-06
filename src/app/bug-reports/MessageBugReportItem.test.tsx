@@ -8,10 +8,16 @@ const mocks = vi.hoisted(() => ({
   discovery: {} as Record<string, unknown>,
   developerTools: true,
   navigateRoomThread: vi.fn(),
-  buildBugReport: vi.fn(async () => ({ reportedAt: '2026-10-03T12:00:00.000Z' })),
+  buildBugReport: vi.fn(async () => ({ reportedAt: '2026-10-03T12:00:00.000Z', events: [] })),
   ensureBugReportRoom: vi.fn(async () => ({ roomId: '!reports:example.com' })),
   sendBugReport: vi.fn(async () => ({ roomId: '!reports:example.com', threadRootId: '$summary' })),
   saveFile: vi.fn(async () => true),
+  // The consent dialog renders nothing here; the tests call its props.
+  consentDialog: (_props: {
+    encrypted: boolean;
+    onSend: (includeText: boolean) => Promise<void>;
+    onClose: () => void;
+  }) => null,
 }));
 
 vi.mock('folds', () => ({
@@ -55,6 +61,7 @@ vi.mock('./bugReportPayload', () => ({
 }));
 vi.mock('./bugReportRoom', () => ({ ensureBugReportRoom: mocks.ensureBugReportRoom }));
 vi.mock('./sendBugReport', () => ({ sendBugReport: mocks.sendBugReport }));
+vi.mock('./BugReportConsentDialog', () => ({ BugReportConsentDialog: mocks.consentDialog }));
 
 import { MessageBugReportItem } from './MessageBugReportItem';
 
@@ -71,7 +78,7 @@ const strings = {
   },
 };
 
-const render = async (onClose = vi.fn()) => {
+const render = async (onClose = vi.fn(), encrypted = false) => {
   const i18n = createInstance();
   await i18n.init({
     lng: 'en',
@@ -82,7 +89,11 @@ const render = async (onClose = vi.fn()) => {
   await act(async () => {
     renderer = create(
       <I18nextProvider i18n={i18n}>
-        <MessageBugReportItem room={{} as never} mEvent={{} as never} onClose={onClose} />
+        <MessageBugReportItem
+          room={{ hasEncryptionStateEvent: () => encrypted } as never}
+          mEvent={{} as never}
+          onClose={onClose}
+        />
       </I18nextProvider>
     );
   });
@@ -91,6 +102,16 @@ const render = async (onClose = vi.fn()) => {
 
 const text = (renderer: ReturnType<typeof create>) =>
   renderer.root.findByType('button').findByType('span').props.children;
+
+/** Opens the item's consent dialog and sends the report from it. */
+const sendFromDialog = async (renderer: ReturnType<typeof create>, includeText = false) => {
+  await act(async () => {
+    renderer.root.findByType('button').props.onClick();
+  });
+  await act(async () => {
+    await renderer.root.findByType(mocks.consentDialog as never).props.onSend(includeText);
+  });
+};
 
 describe('MessageBugReportItem', () => {
   beforeEach(() => {
@@ -119,7 +140,12 @@ describe('MessageBugReportItem', () => {
     const renderer = await render(onClose);
     expect(text(renderer)).toBe('Report a bug');
     await act(async () => {
-      await renderer.root.findByType('button').props.onClick();
+      renderer.root.findByType('button').props.onClick();
+    });
+    expect(mocks.buildBugReport).not.toHaveBeenCalled();
+    expect(mocks.sendBugReport).not.toHaveBeenCalled();
+    await act(async () => {
+      await renderer.root.findByType(mocks.consentDialog as never).props.onSend(false);
     });
     expect(mocks.ensureBugReportRoom).toHaveBeenCalledWith({}, ['@admin:example.com']);
     expect(mocks.sendBugReport).toHaveBeenCalled();
@@ -143,9 +169,7 @@ describe('MessageBugReportItem', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const onClose = vi.fn();
     const renderer = await render(onClose);
-    await act(async () => {
-      await renderer.root.findByType('button').props.onClick();
-    });
+    await sendFromDialog(renderer);
     expect(text(renderer)).toBe("Couldn't send the report. Try again.");
     expect(renderer.root.findByType('button').props.disabled).toBe(false);
     expect(onClose).not.toHaveBeenCalled();
@@ -164,15 +188,37 @@ describe('MessageBugReportItem', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const onClose = vi.fn();
     const renderer = await render(onClose);
-    await act(async () => {
-      await expect(renderer.root.findByType('button').props.onClick()).rejects.toThrow(
-        'navigation failed'
-      );
-    });
+    await expect(sendFromDialog(renderer)).rejects.toThrow('navigation failed');
     expect(mocks.sendBugReport).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalled();
     expect(text(renderer)).not.toBe("Couldn't send the report. Try again.");
     expect(renderer.root.findByType('button').props.disabled).toBe(true);
     expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('leaves message text out of a report from an encrypted room unless it is included', async () => {
+    mocks.discovery = { 'io.mindroom.bug_reports': { admins: ['@admin:example.com'] } };
+    const renderer = await render(vi.fn(), true);
+    expect(renderer.root.findAllByType(mocks.consentDialog as never)).toHaveLength(0);
+    await act(async () => {
+      renderer.root.findByType('button').props.onClick();
+    });
+    expect(renderer.root.findByType(mocks.consentDialog as never).props.encrypted).toBe(true);
+    await act(async () => {
+      await renderer.root.findByType(mocks.consentDialog as never).props.onSend(false);
+    });
+    expect(mocks.sendBugReport).toHaveBeenLastCalledWith(
+      {},
+      { roomId: '!reports:example.com' },
+      expect.objectContaining({ messageTextOmitted: true })
+    );
+
+    const included = await render(vi.fn(), true);
+    await sendFromDialog(included, true);
+    expect(mocks.sendBugReport).toHaveBeenLastCalledWith(
+      {},
+      { roomId: '!reports:example.com' },
+      expect.not.objectContaining({ messageTextOmitted: true })
+    );
   });
 });

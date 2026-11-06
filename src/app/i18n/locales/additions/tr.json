@@ -414,6 +414,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "{{name}} kişisinin mesajına git"
+      },
+      "bugReport": {
+        "consentTitle": "Hata raporu gönderilsin mi?",
+        "consentIntro": "Rapor, bu sunucunun hata raporu yöneticilerine, uçtan uca şifrelenmemiş bir odada gider: onlar ve sunucu okuyabilir. İçeriği:",
+        "contentsMessages": "Bu mesaj ve ondan önceki en fazla 50 mesaj (bir ileti dizisinde: ilk mesajı ve en fazla 200 yanıt), tepkileri ve son düzenlemeleriyle",
+        "contentsAccount": "Odanın adı ve kimliği; kullanıcı kimliğiniz, cihaz kimliğiniz ve ana sunucunuz",
+        "contentsDevice": "Uygulama sürümü, platform, tarayıcı, dil, saat dilimi, pencere boyutu ve sayfa adresi",
+        "contentsDiagnostics": "Uygulamanın son etkinliğine ait tanılama kayıtları: süreler ve hata türleri, mesaj metni yok",
+        "encryptedTextLeftOut": "Bu şifreli odadaki mesaj metni rapora eklenmez: rapor her mesajın göndereni, zamanı ve türünü tutar.",
+        "includeText": "Mesaj metnini ekle",
+        "includeTextWarning": "Bu mesajların metni rapor odasında şifrelenmeden saklanacak; odanın yöneticileri ve sunucu okuyabilecek.",
+        "send": "Raporu gönder"
       }
     },
     "message-search": {

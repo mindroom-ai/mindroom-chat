@@ -414,6 +414,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Naar bericht van {{name}} springen"
+      },
+      "bugReport": {
+        "consentTitle": "Een bugrapport versturen?",
+        "consentIntro": "Het rapport gaat naar de bugrapportbeheerders van deze server, in een ruimte zonder end-to-endversleuteling: zij en de server kunnen het lezen. Het bevat:",
+        "contentsMessages": "Dit bericht en tot 50 berichten ervoor (in een thread: het eerste bericht en tot 200 antwoorden), met hun reacties en laatste bewerkingen",
+        "contentsAccount": "De naam en ID van de ruimte, en je gebruikers-ID, apparaat-ID en homeserver",
+        "contentsDevice": "De appversie, het platform, de browser, de taal, de tijdzone, de venstergrootte en het paginaadres",
+        "contentsDiagnostics": "Diagnostische gegevens over de recente activiteit van de app: tijden en soorten fouten, geen berichttekst",
+        "encryptedTextLeftOut": "Berichttekst uit deze versleutelde ruimte wordt weggelaten: het rapport bewaart de afzender, de tijd en het type van elk bericht.",
+        "includeText": "Berichttekst meesturen",
+        "includeTextWarning": "De tekst van deze berichten wordt onversleuteld opgeslagen in de rapportruimte, leesbaar voor de beheerders en de server.",
+        "send": "Rapport versturen"
       }
     },
     "message-search": {

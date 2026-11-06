@@ -408,6 +408,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Lompat ke pesan dari {{name}}"
+      },
+      "bugReport": {
+        "consentTitle": "Kirim laporan bug?",
+        "consentIntro": "Laporan dikirim ke admin laporan bug server ini, di ruang yang tidak dienkripsi ujung ke ujung: mereka dan server dapat membacanya. Isinya:",
+        "contentsMessages": "Pesan ini dan hingga 50 pesan sebelumnya (dalam utas: pesan pertamanya dan hingga 200 balasan), beserta reaksi dan suntingan terakhirnya",
+        "contentsAccount": "Nama dan ID ruang, serta ID pengguna, ID perangkat, dan homeserver Anda",
+        "contentsDevice": "Versi aplikasi, platform, browser, bahasa, zona waktu, ukuran jendela, dan alamat halaman",
+        "contentsDiagnostics": "Catatan diagnostik aktivitas terbaru aplikasi: waktu dan jenis kesalahan, tanpa teks pesan",
+        "encryptedTextLeftOut": "Teks pesan dari ruang terenkripsi ini tidak disertakan: laporan menyimpan pengirim, waktu, dan jenis setiap pesan.",
+        "includeText": "Sertakan teks pesan",
+        "includeTextWarning": "Teks pesan-pesan ini akan disimpan tanpa enkripsi di ruang laporan, dan dapat dibaca oleh adminnya dan server.",
+        "send": "Kirim laporan"
       }
     },
     "message-search": {

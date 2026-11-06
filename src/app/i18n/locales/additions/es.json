@@ -420,6 +420,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Ir al mensaje de {{name}}"
+      },
+      "bugReport": {
+        "consentTitle": "¿Enviar un informe de error?",
+        "consentIntro": "El informe va a los administradores de informes de errores de este servidor, en una sala sin cifrado de extremo a extremo: ellos y el servidor pueden leerlo. Contiene:",
+        "contentsMessages": "Este mensaje y hasta 50 mensajes anteriores (en un hilo: su primer mensaje y hasta 200 respuestas), con sus reacciones y últimas ediciones",
+        "contentsAccount": "El nombre y el ID de la sala, y tu ID de usuario, ID de dispositivo y servidor",
+        "contentsDevice": "La versión de la app, la plataforma, el navegador, el idioma, la zona horaria, el tamaño de la ventana y la dirección de la página",
+        "contentsDiagnostics": "Registros de diagnóstico de la actividad reciente de la app: tiempos y tipos de error, sin texto de mensajes",
+        "encryptedTextLeftOut": "El texto de los mensajes de esta sala cifrada se omite: el informe conserva el remitente, la hora y el tipo de cada mensaje.",
+        "includeText": "Incluir el texto de los mensajes",
+        "includeTextWarning": "El texto de estos mensajes se guardará sin cifrar en la sala de informes, y sus administradores y el servidor podrán leerlo.",
+        "send": "Enviar informe"
       }
     },
     "message-search": {

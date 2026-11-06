@@ -408,6 +408,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "{{name}}님의 메시지로 이동"
+      },
+      "bugReport": {
+        "consentTitle": "버그 보고서를 보낼까요?",
+        "consentIntro": "보고서는 이 서버의 버그 보고 관리자에게, 종단 간 암호화되지 않은 방으로 전송됩니다. 관리자와 서버가 읽을 수 있습니다. 포함 내용:",
+        "contentsMessages": "이 메시지와 그 이전의 최대 50개 메시지(스레드인 경우: 첫 메시지와 최대 200개의 답글), 반응과 최근 수정 내용 포함",
+        "contentsAccount": "방 이름과 ID, 그리고 내 사용자 ID, 기기 ID, 홈서버",
+        "contentsDevice": "앱 버전, 플랫폼, 브라우저, 언어, 시간대, 창 크기, 페이지 주소",
+        "contentsDiagnostics": "앱의 최근 활동에 대한 진단 기록: 소요 시간과 오류 유형, 메시지 본문은 제외",
+        "encryptedTextLeftOut": "이 암호화된 방의 메시지 본문은 제외됩니다. 보고서에는 각 메시지의 발신자, 시간, 유형이 남습니다.",
+        "includeText": "메시지 본문 포함",
+        "includeTextWarning": "이 메시지들의 본문은 보고서 방에 암호화되지 않은 채 저장되며, 방 관리자와 서버가 읽을 수 있습니다.",
+        "send": "보고서 보내기"
       }
     },
     "message-search": {

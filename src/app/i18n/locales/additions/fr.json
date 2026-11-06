@@ -420,6 +420,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Aller au message de {{name}}"
+      },
+      "bugReport": {
+        "consentTitle": "Envoyer un rapport de bug ?",
+        "consentIntro": "Le rapport est envoyé aux administrateurs des rapports de bug de ce serveur, dans un salon sans chiffrement de bout en bout : eux et le serveur peuvent le lire. Il contient :",
+        "contentsMessages": "Ce message et jusqu’à 50 messages qui le précèdent (dans un fil : son premier message et jusqu’à 200 réponses), avec leurs réactions et leurs dernières modifications",
+        "contentsAccount": "Le nom et l’identifiant du salon, ainsi que votre identifiant d’utilisateur, votre identifiant d’appareil et votre serveur d’accueil",
+        "contentsDevice": "La version de l’app, la plateforme, le navigateur, la langue, le fuseau horaire, la taille de la fenêtre et l’adresse de la page",
+        "contentsDiagnostics": "Des données de diagnostic sur l’activité récente de l’app : durées et types d’erreurs, sans texte de message",
+        "encryptedTextLeftOut": "Le texte des messages de ce salon chiffré est omis : le rapport garde l’expéditeur, l’heure et le type de chaque message.",
+        "includeText": "Inclure le texte des messages",
+        "includeTextWarning": "Le texte de ces messages sera stocké sans chiffrement dans le salon des rapports, lisible par ses administrateurs et par le serveur.",
+        "send": "Envoyer le rapport"
       }
     },
     "message-search": {

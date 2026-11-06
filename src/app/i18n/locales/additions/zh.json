@@ -408,6 +408,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "跳转到 {{name}} 的消息"
+      },
+      "bugReport": {
+        "consentTitle": "发送问题报告？",
+        "consentIntro": "报告会发送给此服务器的问题报告管理员，所在的房间没有端到端加密：他们和服务器都能读取。报告包含：",
+        "contentsMessages": "这条消息及其之前最多 50 条消息（在话题中：其第一条消息和最多 200 条回复），以及它们的回应和最新编辑",
+        "contentsAccount": "房间的名称和 ID，以及你的用户 ID、设备 ID 和主服务器",
+        "contentsDevice": "应用版本、平台、浏览器、语言、时区、窗口大小和页面地址",
+        "contentsDiagnostics": "应用近期活动的诊断记录：耗时和错误类型，不含消息文字",
+        "encryptedTextLeftOut": "此加密房间中的消息文字不会包含在内：报告保留每条消息的发送者、时间和类型。",
+        "includeText": "包含消息文字",
+        "includeTextWarning": "这些消息的文字将以未加密的形式保存在报告房间中，其管理员和服务器都能读取。",
+        "send": "发送报告"
       }
     },
     "message-search": {

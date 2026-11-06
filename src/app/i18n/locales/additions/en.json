@@ -414,6 +414,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Jump to message from {{name}}"
+      },
+      "bugReport": {
+        "consentTitle": "Send a bug report?",
+        "consentIntro": "The report goes to this server's bug report admins, in a room that is not end-to-end encrypted: they and the server can read it. It holds:",
+        "contentsMessages": "This message and up to 50 messages before it (in a thread: its first message and up to 200 replies), with their reactions and latest edits",
+        "contentsAccount": "The room's name and ID, and your user ID, device ID and homeserver",
+        "contentsDevice": "The app version, platform, browser, language, time zone, window size and page address",
+        "contentsDiagnostics": "Diagnostic records of the app's recent activity: timings and error types, no message text",
+        "encryptedTextLeftOut": "Message text from this encrypted room is left out: the report keeps each message's sender, time and type.",
+        "includeText": "Include message text",
+        "includeTextWarning": "The text of these messages will be stored unencrypted in the report room, readable by its admins and the server.",
+        "send": "Send report"
       }
     },
     "message-search": {

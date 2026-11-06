@@ -420,6 +420,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Vai al messaggio di {{name}}"
+      },
+      "bugReport": {
+        "consentTitle": "Inviare una segnalazione di bug?",
+        "consentIntro": "La segnalazione va agli amministratori delle segnalazioni di bug di questo server, in una stanza senza crittografia end-to-end: loro e il server possono leggerla. Contiene:",
+        "contentsMessages": "Questo messaggio e fino a 50 messaggi precedenti (in un thread: il suo primo messaggio e fino a 200 risposte), con le loro reazioni e ultime modifiche",
+        "contentsAccount": "Il nome e l’ID della stanza, e il tuo ID utente, ID dispositivo e homeserver",
+        "contentsDevice": "La versione dell’app, la piattaforma, il browser, la lingua, il fuso orario, le dimensioni della finestra e l’indirizzo della pagina",
+        "contentsDiagnostics": "Dati diagnostici sull’attività recente dell’app: tempi e tipi di errore, nessun testo dei messaggi",
+        "encryptedTextLeftOut": "Il testo dei messaggi di questa stanza crittografata viene omesso: la segnalazione conserva mittente, ora e tipo di ogni messaggio.",
+        "includeText": "Includi il testo dei messaggi",
+        "includeTextWarning": "Il testo di questi messaggi verrà salvato senza crittografia nella stanza delle segnalazioni, leggibile dai suoi amministratori e dal server.",
+        "send": "Invia segnalazione"
       }
     },
     "message-search": {

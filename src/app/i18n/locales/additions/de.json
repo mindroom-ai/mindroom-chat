@@ -414,6 +414,18 @@
       },
       "mindroomRoomPinMenu": {
         "jumpToMessageFrom": "Zur Nachricht von {{name}} springen"
+      },
+      "bugReport": {
+        "consentTitle": "Fehlerbericht senden?",
+        "consentIntro": "Der Bericht geht an die Fehlerbericht-Admins dieses Servers, in einen Raum ohne Ende-zu-Ende-Verschlüsselung: Sie und der Server können ihn lesen. Er enthält:",
+        "contentsMessages": "Diese Nachricht und bis zu 50 Nachrichten davor (in einem Thread: seine erste Nachricht und bis zu 200 Antworten), mit ihren Reaktionen und letzten Bearbeitungen",
+        "contentsAccount": "Name und ID des Raums sowie deine Benutzer-ID, Geräte-ID und deinen Homeserver",
+        "contentsDevice": "App-Version, Plattform, Browser, Sprache, Zeitzone, Fenstergröße und Seitenadresse",
+        "contentsDiagnostics": "Diagnosedaten zur letzten Aktivität der App: Zeiten und Fehlerarten, kein Nachrichtentext",
+        "encryptedTextLeftOut": "Nachrichtentext aus diesem verschlüsselten Raum wird weggelassen: Der Bericht behält Absender, Zeit und Art jeder Nachricht.",
+        "includeText": "Nachrichtentext einschließen",
+        "includeTextWarning": "Der Text dieser Nachrichten wird unverschlüsselt im Berichtsraum gespeichert und ist für dessen Admins und den Server lesbar.",
+        "send": "Bericht senden"
       }
     },
     "message-search": {
