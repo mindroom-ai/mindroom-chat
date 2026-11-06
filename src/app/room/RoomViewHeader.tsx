@@ -51,6 +51,7 @@ import {
   getDirectPath,
   getHomePath,
   getHomeSearchPath,
+  getSpaceLobbyPath,
   getSpacePath,
   getSpaceSearchPath,
   withSearchParam,
@@ -269,6 +270,11 @@ export function RoomViewHeader({
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
   const sectionPath = sectionPathOf(spacePathId, direct);
+  // A room opened from its space's lobby goes back there, by whichever address the lobby had.
+  const lobbyPaths = space && [
+    getSpaceLobbyPath(space.roomId),
+    getSpaceLobbyPath(spacePathId ?? space.roomId),
+  ];
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
@@ -338,7 +344,7 @@ export function RoomViewHeader({
       {/* On phones the title follows the back chevron's touch target directly. */}
       <Box grow="Yes" alignItems="Center" gap={mobile ? '0' : '300'} style={{ minWidth: 0 }}>
         {mobile ? (
-          <PhoneBackButton to={sectionPath} />
+          <PhoneBackButton to={sectionPath} openedFrom={lobbyPaths} />
         ) : (
           <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
             <RoomAvatar

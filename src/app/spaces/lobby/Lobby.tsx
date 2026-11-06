@@ -17,7 +17,7 @@ import { PowerLevelsContextProvider, usePowerLevels } from '../../matrix/hooks/u
 import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useSpace } from '../../matrix/hooks/useSpace';
 import { type HierarchyItem, useSpaceHierarchy } from '../useSpaceHierarchy';
-import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getSpacePath, getSpaceRoomPath } from '../../routes/pathUtils';
 import { MembersDrawer } from '../../members/MembersDrawer';
 import { ResizableMembersPanel } from '../../members/ResizableMembersPanel';
@@ -167,7 +167,6 @@ function EmptyLobby() {
 export function Lobby() {
   const space = useSpace();
   const client = useMatrixClient();
-  const screenSize = useScreenSizeContext();
   const navigate = useNavigate();
   const powerLevels = usePowerLevels(space);
   const members = useRoomMembers(client, space.roomId);
@@ -295,9 +294,7 @@ export function Lobby() {
     <LobbyHeader
       powerLevels={powerLevels}
       showProfile={heroPassed}
-      onBack={
-        screenSize === ScreenSize.Mobile ? () => navigate(getSpacePath(space.roomId)) : undefined
-      }
+      backTo={getSpacePath(getCanonicalAliasOrRoomId(client, space.roomId))}
     />
   );
 

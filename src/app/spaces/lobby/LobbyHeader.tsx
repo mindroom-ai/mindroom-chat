@@ -43,8 +43,8 @@ type LobbyHeaderProps = {
   powerLevels: IPowerLevels;
   /** Pending join requests (knocks) in the space. */
   joinRequestCount?: number;
-  /** Back to the sidebar on mobile. */
-  onBack?: () => void;
+  /** The space's room list, where a phone's back chevron leads. */
+  backTo?: string;
   /** The space's picture and name; the lobby hides them while its own title is in view. */
   showProfile?: boolean;
 };
@@ -93,7 +93,7 @@ function LeaveSpaceDialog({ spaceId, onClose }: { spaceId: string; onClose: () =
 export function LobbyHeader({
   powerLevels,
   joinRequestCount = 0,
-  onBack,
+  backTo,
   showProfile = true,
 }: LobbyHeaderProps) {
   const space = useSpace();
@@ -147,7 +147,7 @@ export function LobbyHeader({
   return (
     <PageHeader balance={screenSize === ScreenSize.Mobile}>
       <Box grow="Yes" alignItems="Center" gap="200">
-        {onBack && <PhoneBackButton onBack={onBack} />}
+        {backTo && <PhoneBackButton to={backTo} />}
         <Box grow="Yes" alignItems="Center" gap="300" style={{ minWidth: 0 }}>
           {showProfile && (
             <>

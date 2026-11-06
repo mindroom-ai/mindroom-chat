@@ -9,6 +9,11 @@ export type PhoneBackButtonProps = (
   | {
       /** The section list this page was opened from. */
       to: string;
+      /**
+       * Other pages this page may have been opened from, such as a space's lobby: when the page
+       * before this one is one of them, the chevron steps back to it instead of the list.
+       */
+      openedFrom?: string[];
     }
   | {
       /** Leaves the page another way, such as closing a thread. */
@@ -82,14 +87,18 @@ const samePath = (left: string, right: string): boolean => {
   return normal(left) === normal(right);
 };
 
-function NavigateBack({ to, label }: { to: string; label: string }) {
+type NavigateBackProps = { to: string; openedFrom?: string[]; label: string };
+
+function NavigateBack({ to, openedFrom = [], label }: NavigateBackProps) {
   const navigate = useNavigate();
-  // Back to the list the page was opened from steps back in history, so the browser's own back
-  // then leaves the list instead of reopening the page. Opened from elsewhere, the list takes
-  // the page's place in history.
+  // Back to the list, or to another page the page was opened from, steps back in history, so
+  // the browser's own back then goes on from there instead of reopening the page. Opened from
+  // elsewhere, the list takes the page's place in history.
   const onBack = () => {
     const previous = previousHistoryPathname();
-    if (previous !== undefined && samePath(previous, to)) navigate(-1);
+    const cameFrom =
+      previous !== undefined && [to, ...openedFrom].some((path) => samePath(previous, path));
+    if (cameFrom) navigate(-1);
     else navigate(to, { replace: true });
   };
   return <BackChevron label={label} onBack={onBack} />;
@@ -106,7 +115,7 @@ export function PhoneBackButton(props: PhoneBackButtonProps) {
   if (!phone) return null;
   const label = props.label ?? t('mindroomUi.threads.mindroomRoomViewHeader.back');
   return 'to' in props ? (
-    <NavigateBack to={props.to} label={label} />
+    <NavigateBack to={props.to} openedFrom={props.openedFrom} label={label} />
   ) : (
     <BackChevron label={label} onBack={props.onBack} />
   );
