@@ -233,12 +233,18 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       const setAtBottom = vi.fn();
       mount(optionsWith({ setAtBottom }));
       const observer = observers.at(-1);
+      const bounds = new DOMRect(0, 0, 100, 100);
       act(() => {
         observer?.report(
-          reports.map((isIntersecting) => ({
+          reports.map((isIntersecting, time) => ({
             target: anchor,
             isIntersecting,
-          })) as IntersectionObserverEntry[],
+            time,
+            boundingClientRect: bounds,
+            intersectionRect: bounds,
+            rootBounds: bounds,
+            intersectionRatio: isIntersecting ? 1 : 0,
+          })),
           observer as unknown as IntersectionObserver
         );
         vi.advanceTimersByTime(500);
