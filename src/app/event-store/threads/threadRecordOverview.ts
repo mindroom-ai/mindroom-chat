@@ -143,15 +143,14 @@ export const resolveThreadRecordOverviewRootIds = ({
   liveOrderedIds: string[];
   displayOrderedIds: string[];
 } => {
-  const pins = [...new Set(pinnedThreadRootIds)].filter((id) => threadRootIds.includes(id));
-  const prependPins = (ids: string[]) => [...pins, ...ids.filter((id) => !pins.includes(id))];
-  const filteredIds = prependPins(
-    filterThreadRecordsBySearch(
-      filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap),
-      searchQuery,
-      recordMap
-    )
+  const matchingIds = filterThreadRecordsBySearch(
+    filterThreadRecordRootIds(threadRootIds, threadFilterState, recordMap),
+    searchQuery,
+    recordMap
   );
+  const pins = [...new Set(pinnedThreadRootIds)].filter((id) => matchingIds.includes(id));
+  const prependPins = (ids: string[]) => [...pins, ...ids.filter((id) => !pins.includes(id))];
+  const filteredIds = prependPins(matchingIds);
   const liveOrderedIds = prependPins(
     sortThreadRecordRootIds(
       filteredIds,
