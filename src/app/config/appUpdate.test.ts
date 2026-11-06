@@ -210,3 +210,44 @@ describe('reloadForNewVersion', () => {
     expect(worker.postMessage).not.toHaveBeenCalled();
   });
 });
+
+describe('failed modules', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.head.replaceChildren();
+  });
+
+  /** A module preload link of Vite's helper that failed to load. */
+  const failPreload = (href: string, rel = 'modulepreload') => {
+    const link = document.createElement('link');
+    link.rel = rel;
+    link.href = href;
+    document.head.append(link);
+    link.dispatchEvent(new Event('error'));
+  };
+
+  it('fetches each module whose preload failed before the reload, once', async () => {
+    const fetchMock = vi.fn(async (_url: RequestInfo | URL) => new Response('', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const { reloadForNewVersion, watchForNewVersion } = await loadAppUpdate();
+    const stop = watchForNewVersion();
+    failPreload('/assets/Board-a1.js');
+    failPreload('/assets/board-data-b2.js');
+    failPreload('/assets/Board-c3.css', 'stylesheet');
+    stop();
+    failPreload('/assets/Later-d4.js');
+    const reload = vi.fn(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    await reloadForNewVersion({ reload });
+
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/assets/Board-a1.js',
+      '/assets/board-data-b2.js',
+    ]);
+    expect(reload).toHaveBeenCalledOnce();
+    await reloadForNewVersion({ reload: vi.fn() });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
