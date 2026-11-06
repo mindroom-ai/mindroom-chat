@@ -306,10 +306,10 @@ for (const theme of ['light', 'silver', 'dark', 'midnight', 'butter']) {
       await expectRenderedContrast(page, theme, color, samples);
       backgrounds.push((await renderedBackgrounds(page, samples))[0]);
     }
-    expect(
-      pixelDifference(backgrounds[0], backgrounds[1]),
-      'visible backdrop response through the settings sheet'
-    ).toBeGreaterThan(120);
+    // Nearly opaque (Bas, 2026-11-05): the backdrop still moves the glass, but only faintly.
+    const response = pixelDifference(backgrounds[0], backgrounds[1]);
+    expect(response, 'visible backdrop response through the settings sheet').toBeGreaterThan(12);
+    expect(response, 'faint backdrop response through the settings sheet').toBeLessThan(60);
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('settings-sheet')).toHaveCount(0);
   });
