@@ -1304,6 +1304,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     committedView: `${viewKey}|${effectiveViewMode}`,
     focusItem,
     onReaderGesture: gesturePins.onRoomGesture,
+    pendingListShrinkPx,
   });
 
   const minimap = useRoomTimelineMinimap({

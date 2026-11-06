@@ -139,6 +139,12 @@ type LatestRowRequestOptions = {
   focusItem: RoomTimelineFocusItem | undefined;
   /** Runs at each gesture or scroll that hands the position to the reader. */
   onReaderGesture: () => void;
+  /**
+   * The room that rows which shrank still take in the list until React renders it
+   * (`listShrinkNotRendered`). The correction that keeps the end in place for them moves the
+   * position up by as much, and that scroll is not the reader's.
+   */
+  pendingListShrinkPx?: () => number;
 };
 
 /**
@@ -158,6 +164,7 @@ const useLatestRowRequest = ({
   committedView,
   focusItem,
   onReaderGesture,
+  pendingListShrinkPx,
 }: LatestRowRequestOptions) => {
   const requestRef = useRef(opensAtLatest);
   const seenCountRef = useRef(scrollToBottomRef.current.count);
@@ -165,6 +172,7 @@ const useLatestRowRequest = ({
   const roomRef = useRef(roomId);
   const onReaderGestureRef = useLatestRef(onReaderGesture);
   const latestAtTopRef = useLatestRef(!!latestAtTop);
+  const pendingListShrinkPxRef = useLatestRef(pendingListShrinkPx);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
@@ -197,12 +205,15 @@ const useLatestRowRequest = ({
     // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
     // synchronously and so would pin the newest row again before this saw the reader's position.
     // With the newest row first, the pins scroll up, and a scroll down away from the top is the
-    // reader's.
+    // reader's. The room below the view that rows which shrank still take until React renders the
+    // list does not count: the correction that keeps the end in place for them scrolls up as much.
+    const roomBelow = () =>
+      distanceBelowView(scrollElement) - (pendingListShrinkPxRef.current?.() ?? 0);
     let lastTop = scrollElement.scrollTop;
-    let lastBelow = distanceBelowView(scrollElement);
+    let lastBelow = roomBelow();
     const followScroll = () => {
       const top = scrollElement.scrollTop;
-      const below = distanceBelowView(scrollElement);
+      const below = roomBelow();
       const leftLatest = latestAtTopRef.current
         ? top > lastTop + LEFT_LATEST_ROW_PX
         : top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX;
@@ -218,7 +229,13 @@ const useLatestRowRequest = ({
       READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
       scrollElement.removeEventListener('scroll', followScroll, { capture: true });
     };
-  }, [latestAtTopRef, onReaderGestureRef, scrollElement, scrollToBottomRef]);
+  }, [
+    latestAtTopRef,
+    onReaderGestureRef,
+    pendingListShrinkPxRef,
+    scrollElement,
+    scrollToBottomRef,
+  ]);
   return requestRef;
 };
 
