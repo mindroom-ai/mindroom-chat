@@ -12,6 +12,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 const TITLE = 'Release checklist and launch dates';
 const ANSWER =
@@ -213,6 +214,14 @@ for (const engine of ['chromium', 'webkit'] as const) {
           await page.screenshot({ path: testInfo.outputPath('compact-light.png') });
           await expect(card).toContainText(TITLE);
           await expect(card).toContainText('Helper: The release checklist is ready.');
+          await pressPaletteShortcut(page);
+          const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
+          await palette.getByRole('tab', { name: 'Threads', exact: true }).click();
+          await palette.getByRole('combobox').fill(TITLE);
+          await expect(
+            palette.locator(`[data-kind="thread"][data-item-id$="${rootId}"]`)
+          ).toContainText(TITLE);
+          await page.keyboard.press('Escape');
           await page.reload();
           await expect(card).toContainText(TITLE);
           await expect(card).toContainText('Helper: The release checklist is ready.');

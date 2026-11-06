@@ -5,6 +5,8 @@ import { resolveThreadPresentationSnapshot } from './threadPresentation';
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { buildThreadHeaderViewModelFromRecord } from '../../threads/threadHeaderViewModel';
 import { buildCrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
+import titleLastSummary from './fixtures/thread-summary-title-last.json';
+import continuedSummary from './fixtures/thread-summary-continued.json';
 
 const roomId = '!board:example.org';
 const userId = '@reader:example.org';
@@ -84,6 +86,17 @@ const presentation = (room: Room, root: MatrixEvent, events: MatrixEvent[] = [])
   });
 
 describe('fresh-device bundled thread presentation', () => {
+  // Real PR #143 responses, with disposable IDs normalized and age/transaction IDs removed.
+  it.each([titleLastSummary, continuedSummary])('reads a recorded server bundle', (rawRoot) => {
+    const { room } = fixture();
+    const value = presentation(room, new MatrixEvent(rawRoot));
+    expect(value.summaryText).toBe('Release checklist and launch dates');
+    expect(value.latestReplyPreviewText).toBe(
+      'The release checklist is ready. Review the dates, confirm the rollout window, and share the final plan.'
+    );
+    expect(value.lastSenderId).toBe(author);
+    expect(room.getThread(rootId)).toBeNull();
+  });
   it('shows a title and edited conversational preview without loading the thread', () => {
     const { room, root, mx } = fixture();
     const record = buildThreadRecord({ room, threadRootId: rootId, threadRootEvent: root });
