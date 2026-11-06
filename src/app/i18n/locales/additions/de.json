@@ -493,6 +493,11 @@
     "computer": {
       "resize": "Größe des Computerbereichs ändern",
       "close": "Computer schließen"
+    },
+    "commands": {
+      "descriptions": {
+        "reply_mode": "Zeige oder wechsle, ob Agenten hier eine Erwähnung brauchen, um ein Gespräch zu beginnen (Setzen/Zurücksetzen nur Raumadministratoren)."
+      }
     }
   },
   "composer": {

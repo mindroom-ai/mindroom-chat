@@ -486,6 +486,11 @@
     "computer": {
       "resize": "調整電腦面板大小",
       "close": "關閉電腦"
+    },
+    "commands": {
+      "descriptions": {
+        "reply_mode": "顯示或切換代理程式在此開始對話是否需要被提及（設定/重設僅限房間管理員）。"
+      }
     }
   },
   "composer": {

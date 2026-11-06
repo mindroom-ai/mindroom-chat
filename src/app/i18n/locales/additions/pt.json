@@ -500,6 +500,11 @@
     "computer": {
       "resize": "Redimensionar o painel do computador",
       "close": "Fechar o computador"
+    },
+    "commands": {
+      "descriptions": {
+        "reply_mode": "Mostrar ou mudar se os agentes precisam de uma menção para iniciar uma conversa aqui (definir/repor requer um administrador da sala)."
+      }
     }
   },
   "composer": {

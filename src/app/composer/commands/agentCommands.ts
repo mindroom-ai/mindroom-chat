@@ -78,6 +78,12 @@ export const MINDROOM_COMMANDS: AgentCommandItem[] = [
     description: 'Show or switch the thread mode used in the current room (room admin only).',
   },
   {
+    name: 'reply_mode',
+    syntax: '!reply_mode [auto|mentions|reset|show]',
+    description:
+      'Show or switch whether agents need a mention to start a conversation here (set/reset require a room admin).',
+  },
+  {
     name: 'auto_approve',
     syntax: '!auto_approve [<minutes>|<hours>h|off]',
     description:

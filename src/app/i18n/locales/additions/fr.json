@@ -500,6 +500,11 @@
     "computer": {
       "resize": "Redimensionner le panneau de l’ordinateur",
       "close": "Fermer l’ordinateur"
+    },
+    "commands": {
+      "descriptions": {
+        "reply_mode": "Afficher ou changer si les agents ont besoin d’une mention pour lancer une conversation ici (définir/réinitialiser réservé aux administrateurs du salon)."
+      }
     }
   },
   "composer": {

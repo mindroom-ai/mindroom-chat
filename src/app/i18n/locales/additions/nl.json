@@ -493,6 +493,11 @@
     "computer": {
       "resize": "Grootte van het computerpaneel wijzigen",
       "close": "Computer sluiten"
+    },
+    "commands": {
+      "descriptions": {
+        "reply_mode": "Toon of wijzig of agents hier een vermelding nodig hebben om een gesprek te beginnen (instellen/herstellen alleen kamerbeheerders)."
+      }
     }
   },
   "composer": {
