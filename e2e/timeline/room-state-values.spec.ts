@@ -161,7 +161,8 @@ const checkRows = async (page: Page, screen: Screen, name: string) => {
   await page.evaluate(() => localStorage.setItem('i18nextLng', 'ar'));
   await page.reload();
   await expect(page.locator(`[data-message-id="${newest}"]`)).toBeVisible({ timeout: 60_000 });
-  await expect(row('name').locator('bdi')).toHaveText(NAME);
+  // The Arabic sentence also wraps the value in isolate marks (U+2068, U+2069).
+  await expect(row('name').locator('bdi')).toHaveText(`\u2068${NAME}\u2069`);
   await expect(row('name')).not.toContainText('changed the room name');
   expect(await isolation(row('name').locator('bdi'))).toBe('isolate');
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/state-values-${name}-ar.png` });
