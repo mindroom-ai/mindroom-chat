@@ -24,6 +24,7 @@ import { getEventTimeline } from '../event-store/timeline/timelinePagination';
 import { getFirstLinkedTimeline } from '../event-store/timeline/linkedTimelines';
 import { TIMELINE_BOTTOM_THRESHOLD_PX } from '../event-store/timeline/timelineScrollUtils';
 import { isLatestAnchorInReach } from './roomTimelineScroll';
+import { waitForScrollQuiescence } from './scrollQuiescence';
 
 /**
  * How long the bottom anchor must stay out of reach before the view counts as scrolled away, so a
@@ -242,13 +243,17 @@ export const useTimelineReadReceiptController = ({
         return;
       }
       // Go to the read marker, without a highlight. When it was already in view nothing moved,
-      // so the reader has seen the rows after it.
+      // so the reader has seen the rows after it. A scroll to it is measured where it stops: the
+      // newest rows are seen when they are still within reach, and read by the observer once
+      // the reader scrolls down to them when they are not.
+      const read = () =>
+        readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current, stillReading);
       void context.handleOpenEvent(marker.readUptoEventId, false, (scrolled) => {
-        if (!scrolled)
-          readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current, stillReading);
+        if (!scrolled) read();
+        else void waitForScrollQuiescence(getScrollElement() ?? null).then(read);
       });
     },
-    [atBottomRef, atLiveEndRef, contextRef, readUptoEventIdRef, stillReading]
+    [atBottomRef, atLiveEndRef, contextRef, getScrollElement, readUptoEventIdRef, stillReading]
   );
   useDocumentFocusChange(handleWindowFocus);
 

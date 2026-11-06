@@ -318,11 +318,13 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, !!latestAtTopRef?.current);
     if (followsLiveEnd && atBottomRef.current && documentHasFocus()) {
       void markMainTimelineAsRead(mx, room.roomId, hideActivity);
-    } else if (!unreadInfo && isRoomRow) {
+    } else if (isRoomRow) {
       // The "New messages" line goes above the first message the reader has not seen. Only a
       // new row sets where it goes: a reaction, an edit or a hidden event the reader did not
       // see would put the line above the next message, though they may watch that one arrive.
-      setUnreadInfo(getRoomUnreadInfo(room));
+      // A line the reader has read past since it was set moves there; one they have not stays.
+      const marker = getRoomUnreadInfo(room);
+      if (marker && marker.readUptoEventId !== unreadInfo?.readUptoEventId) setUnreadInfo(marker);
     }
 
     if (!atLiveEnd || !isRoomRow) {

@@ -473,7 +473,8 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
   describe('coming back to the window', () => {
     const marker = { inLiveTimeline: true, readUptoEventId: '$linked' };
 
-    it('goes to a read marker in the live timeline and reads the room only when nothing scrolled', () => {
+    /** Mounts the room with its read marker, focuses the window, and answers its scroll callback. */
+    const focusAtMarker = () => {
       const handleOpenEvent = vi.fn();
       mount(
         optionsWith({
@@ -483,18 +484,41 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
           unreadInfo: marker,
         })
       );
-
       focusWindow();
       expect(handleOpenEvent).toHaveBeenCalledWith('$linked', false, expect.any(Function));
-      const onScroll = handleOpenEvent.mock.calls[0]?.[2] as (scrolled: boolean) => void;
+      return handleOpenEvent.mock.calls[0]?.[2] as (scrolled: boolean) => void;
+    };
+    /** Lets a scroll that has stopped be measured. */
+    const scrollStops = () => act(async () => undefined);
+
+    it('goes to a read marker in the live timeline and reads the room when nothing scrolled', () => {
+      focusAtMarker()(false);
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads the room once a scroll to the read marker stops with the newest rows in reach', async () => {
+      const onScroll = focusAtMarker();
 
       onScroll(true);
       runFrames();
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
 
-      onScroll(false);
+      await scrollStops();
       runFrames();
       expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads nothing when the scroll to the read marker leaves the newest rows below the view', async () => {
+      vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
+        top: window.innerHeight + 1_000,
+      } as DOMRect);
+      const onScroll = focusAtMarker();
+
+      onScroll(true);
+      await scrollStops();
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });
 
     it('reads the room directly without a read marker in the live timeline', () => {

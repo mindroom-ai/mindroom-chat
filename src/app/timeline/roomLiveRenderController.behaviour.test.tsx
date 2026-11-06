@@ -300,15 +300,31 @@ describe('useRoomLiveRenderController, room view', () => {
     expect(view.setUnreadInfo).toHaveBeenCalledTimes(1);
   });
 
-  it('never replaces existing unread info', () => {
+  it('keeps a line the reader has not read past', () => {
     const view = renderController({
-      unreadInfo: { readUptoEventId: '$older', inLiveTimeline: true, scrollTo: false },
+      unreadInfo: { readUptoEventId: READ_UP_TO, inLiveTimeline: true, scrollTo: true },
     });
 
     view.arrive(makeEvent('$news'), true);
 
     expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     expect(view.setUnreadInfo).not.toHaveBeenCalled();
+  });
+
+  it('moves a line the reader has read past above the first message they have not seen', () => {
+    // The line stood above the messages the room opened with; the reader has read them since.
+    const view = renderController({
+      unreadInfo: { readUptoEventId: '$older', inLiveTimeline: true, scrollTo: true },
+    });
+
+    view.arrive(makeEvent('$news'), true);
+
+    expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    expect(view.setUnreadInfo).toHaveBeenCalledWith({
+      readUptoEventId: READ_UP_TO,
+      inLiveTimeline: true,
+      scrollTo: false,
+    });
   });
 
   it('stores a live thread summary with the summaries the room knows for that thread', () => {
