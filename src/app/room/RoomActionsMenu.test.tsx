@@ -4,6 +4,7 @@ import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MenuEntry } from '../ui/MenuEntry';
+import { getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
 import { ROOM_ACTIONS } from './roomActions';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
@@ -14,7 +15,10 @@ const state = vi.hoisted(() => ({
   openSettings: vi.fn(),
 }));
 
-vi.mock('react-router-dom', () => ({ useNavigate: () => state.navigate }));
+vi.mock('react-router-dom', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('react-router-dom')>()),
+  useNavigate: () => state.navigate,
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
 }));
@@ -196,7 +200,7 @@ describe('the shared room actions', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Message Search' }));
     expect(close).toHaveBeenCalledOnce();
     expect(state.navigate).toHaveBeenCalledWith(
-      expect.stringMatching(/^\/!space:example\.org\/search\/\?rooms=!room(%3A|:)example\.org$/)
+      withSearchParam(getSpaceSearchPath('!space:example.org'), { rooms: '!room:example.org' })
     );
     fireEvent.click(screen.getByRole('menuitem', { name: 'Room Settings' }));
     expect(state.openSettings).toHaveBeenCalledWith('!room:example.org', '!space:example.org');
