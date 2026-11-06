@@ -426,7 +426,7 @@
         "reactionFailed": "تعذر تغيير تفاعلك. حاول مرة أخرى."
       },
       "mindroomRoomPinMenu": {
-        "jumpToMessageFrom": "الانتقال إلى رسالة {{name}}"
+        "jumpToMessageFrom": "الانتقال إلى رسالة ⁨{{name}}⁩"
       }
     },
     "message-search": {

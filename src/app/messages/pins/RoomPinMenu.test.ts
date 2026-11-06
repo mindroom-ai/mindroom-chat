@@ -229,6 +229,11 @@ vi.mock('../../preferences/settings', () => ({
   settingsAtom: {},
 }));
 
+vi.mock('./RoomPinMenu.css', () => ({
+  PinnedEntry: 'PinnedEntry',
+  PinnedJump: 'PinnedJump',
+}));
+
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   Code: 'Code',
 }));
