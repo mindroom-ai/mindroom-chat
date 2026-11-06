@@ -229,9 +229,19 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await expect(more).toBeFocused();
   await expect(more).toHaveAttribute('aria-expanded', 'false');
 
-  // A second tap on More actions closes the menu it opened.
+  // A second tap on More actions closes the menu it opened, and it stays closed; so does a tap at
+  // the top of the button's 44 px touch area, past the button's own box. The next tap opens it.
   menu = await openMenu(page);
   await tap(page, more);
+  await expect(menu).toBeHidden();
+  await page.waitForTimeout(500);
+  await expect(menu).toBeHidden();
+  menu = await openMenu(page);
+  const at = await more.boundingBox();
+  if (!at) throw new Error('nothing to tap');
+  await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2 - (TARGET / 2 - 1));
+  await expect(menu).toBeHidden();
+  await page.waitForTimeout(500);
   await expect(menu).toBeHidden();
 
   // Formatting shows the toolbar and, chosen again, hides it.

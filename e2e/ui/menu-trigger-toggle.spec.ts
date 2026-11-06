@@ -90,6 +90,17 @@ const pressTwice = async (page: Page, name: string, touch: boolean) => {
   // The next press opens it again.
   await press();
   await expect(menu).toBeVisible();
+  if (!touch) return;
+
+  // A finger reaches the button 2 px past its box (44 px touch area): a tap there closes the menu
+  // and leaves it closed as well, and the next one opens it.
+  const edge = () => page.touchscreen.tap(x, box.y - 1);
+  await edge();
+  await expect(menu).toHaveCount(0);
+  await page.waitForTimeout(500);
+  await expect(menu).toHaveCount(0);
+  await edge();
+  await expect(menu).toBeVisible();
 };
 
 test.beforeEach(async () => {
