@@ -367,7 +367,14 @@ const closedProblem = (row: Locator) =>
         '[data-call-transcript-header] > span, button[aria-expanded] > span'
       )
     );
-    const wrapped = labels.find((label) => label.getClientRects().length > 1);
+    // A label is a flex item with one box; its text's line boxes show whether it wraps.
+    const lineCount = (label: Element) => {
+      const range = document.createRange();
+      range.selectNodeContents(label);
+      const rects = Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
+      return new Set(rects.map((rect) => Math.round(rect.top))).size;
+    };
+    const wrapped = labels.find((label) => lineCount(label) > 1);
     return wrapped ? `"${wrapped.textContent ?? ''}" wraps` : null;
   });
 
