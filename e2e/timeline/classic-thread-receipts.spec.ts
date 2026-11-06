@@ -340,26 +340,33 @@ const check = async (page: Page, world: World, label: string, desktop: boolean) 
   expect(receiptsFor(receipts, replyDId)).toEqual([]);
   // Observe the mounted window and scroll position while the explicit jump settles. A range
   // counted in room rows must expand to include the Classic view's newest thread reply.
-  const frames = page.evaluate(() => new Promise<unknown[]>((resolve) => {
-    const samples: unknown[] = [];
-    const start = performance.now();
-    const sample = () => {
-      const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]'));
-      let area = rows.at(-1)?.parentElement ?? null;
-      while (area && !/(auto|scroll)/.test(getComputedStyle(area).overflowY)) area = area.parentElement;
-      samples.push({
-        ms: Math.round(performance.now() - start),
-        ids: rows.map((row) => row.dataset.messageId),
-        scrollTop: area?.scrollTop, scrollHeight: area?.scrollHeight, clientHeight: area?.clientHeight,
-      });
-      if (performance.now() - start < 1_500) requestAnimationFrame(sample);
-      else resolve(samples);
-    };
-    sample();
-  }));
+  const frames = page.evaluate(
+    () =>
+      new Promise<unknown[]>((resolve) => {
+        const samples: unknown[] = [];
+        const start = performance.now();
+        const sample = () => {
+          const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]'));
+          let area = rows.at(-1)?.parentElement ?? null;
+          while (area && !/(auto|scroll)/.test(getComputedStyle(area).overflowY))
+            area = area.parentElement;
+          samples.push({
+            ms: Math.round(performance.now() - start),
+            ids: rows.map((row) => row.dataset.messageId),
+            scrollTop: area?.scrollTop,
+            scrollHeight: area?.scrollHeight,
+            clientHeight: area?.clientHeight,
+          });
+          if (performance.now() - start < 1_500) requestAnimationFrame(sample);
+          else resolve(samples);
+        };
+        sample();
+      })
+  );
   await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
   await test.info().attach('jump-frames', {
-    body: JSON.stringify({ replyDId, frames: await frames }, null, 2), contentType: 'application/json',
+    body: JSON.stringify({ replyDId, frames: await frames }, null, 2),
+    contentType: 'application/json',
   });
   if (SHOTS) {
     await page.waitForTimeout(1_000);
@@ -401,35 +408,46 @@ const run = async (
   viewport: 'phone' | 'desktop',
   theme: 'light' | 'dark'
 ) => {
-    const world = await seed(`${engine}_${viewport}_${theme}`);
-    const context = await browser.newContext({ ...(viewport === 'phone' ? PHONE : DESKTOP), baseURL });
-    const timeline: unknown[] = [];
-    try {
-      const page = await context.newPage();
-      await page.addInitScript((mode) => {
-        localStorage.setItem('mindroom.debug.timeline', '1');
-        const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
-        localStorage.setItem('settings', JSON.stringify({
-          ...settings, useSystemTheme: false, themeId: `${mode}-theme`,
-        }));
-      }, theme);
-      page.on('console', (message) => {
-        if (message.text().startsWith('[timeline-debug]')) {
-          void Promise.all(message.args().map((arg) => arg.jsonValue())).then((args) => timeline.push(args));
-        }
-      });
-      await loginWithPassword(page, {
-        homeserver: HOMESERVER,
-        username: world.reader.username,
-        password: PASSWORD,
-      });
-      await check(page, world, `${engine}-${viewport}-${theme}`, viewport === 'desktop');
-    } finally {
-      await test.info().attach('timeline-log', {
-        body: JSON.stringify(timeline, null, 2), contentType: 'application/json',
-      });
-      await context.close();
-    }
+  const world = await seed(`${engine}_${viewport}_${theme}`);
+  const context = await browser.newContext({
+    ...(viewport === 'phone' ? PHONE : DESKTOP),
+    baseURL,
+  });
+  const timeline: unknown[] = [];
+  try {
+    const page = await context.newPage();
+    await page.addInitScript((mode) => {
+      localStorage.setItem('mindroom.debug.timeline', '1');
+      const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
+      localStorage.setItem(
+        'settings',
+        JSON.stringify({
+          ...settings,
+          useSystemTheme: false,
+          themeId: `${mode}-theme`,
+        })
+      );
+    }, theme);
+    page.on('console', (message) => {
+      if (message.text().startsWith('[timeline-debug]')) {
+        void Promise.all(message.args().map((arg) => arg.jsonValue())).then((args) =>
+          timeline.push(args)
+        );
+      }
+    });
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: world.reader.username,
+      password: PASSWORD,
+    });
+    await check(page, world, `${engine}-${viewport}-${theme}`, viewport === 'desktop');
+  } finally {
+    await test.info().attach('timeline-log', {
+      body: JSON.stringify(timeline, null, 2),
+      contentType: 'application/json',
+    });
+    await context.close();
+  }
 };
 
 test.beforeEach(async () => {
@@ -447,7 +465,10 @@ test.use({
 for (const engine of ['chromium', 'webkit'] as const) {
   for (const viewport of ['phone', 'desktop'] as const) {
     for (const theme of ['light', 'dark'] as const) {
-      test(`Classic thread reads, ${engine}, ${viewport}, ${theme}`, async ({ browser, baseURL }) => {
+      test(`Classic thread reads, ${engine}, ${viewport}, ${theme}`, async ({
+        browser,
+        baseURL,
+      }) => {
         test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
         test.setTimeout(180_000);
         const host = engine === 'webkit' ? await launchWebKit() : undefined;

@@ -102,7 +102,7 @@ const sameRange = (a: TimelineRange, b: TimelineRange) => a.start === b.start &&
 
 /**
  * Windows that count the room timeline's rows, not the classic view's (`getInitialTimeline`): the
- * window a room opens with, at its newest row.
+ * window a room opens with or returns to through Jump to Latest or failed-event recovery.
  */
 const roomRowWindows = new WeakSet<Timeline>();
 

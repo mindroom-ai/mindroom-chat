@@ -37,6 +37,7 @@ import { buildVisibleThreadReplyCountMap, eventBelongsToThread } from '../event-
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 import type { ThreadScheduledStatus } from '../event-store/threads/threadScheduledStatus';
 import type { ThreadResolutionState } from '../threads/tags/useRoomThreadTags';
+import { countsRoomRows } from './roomTimelineClassicRows';
 
 type FocusItemState = {
   eventId?: string;
@@ -301,7 +302,7 @@ export const useRoomEventOpenController = ({
       if (!alive()) return;
       const filterOpts = recalibrateFilterOptsRef.current;
       setTimeline(
-        getInitialTimeline(room, prefetchDepth, {
+        countsRoomRows(getInitialTimeline(room, prefetchDepth, {
           threadId,
           ignoredUsersSet: filterOpts?.ignoredUsersSet ?? ignoredUsersSet,
           showHiddenEvents: filterOpts?.showHiddenEvents ?? showHiddenEvents,
@@ -309,7 +310,7 @@ export const useRoomEventOpenController = ({
           hideNickAvatarEvents: filterOpts?.hideNickAvatarEvents ?? hideNickAvatarEvents,
           showThreadRepliesInRoom:
             filterOpts?.showThreadRepliesInRoom ?? effectiveViewMode === 'classic',
-        })
+        }))
       );
       scrollToBottomRef.current.count += 1;
       scrollToBottomRef.current.smooth = false;

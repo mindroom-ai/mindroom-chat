@@ -8,6 +8,7 @@ import {
 import type { Room } from 'matrix-js-sdk';
 import type { NavigateOptions } from 'react-router-dom';
 import { getInitialTimeline, type Timeline } from '../event-store/timeline/timelinePagination';
+import { countsRoomRows } from './roomTimelineClassicRows';
 
 type ScrollToBottomState = {
   count: number;
@@ -90,7 +91,7 @@ export const useRoomTimelineNavigationController = ({
         showThreadRepliesInRoom,
         threadId: undefined,
       };
-      setTimeline(getInitialTimeline(room, prefetchDepth, filters));
+      setTimeline(countsRoomRows(getInitialTimeline(room, prefetchDepth, filters)));
     } else if (leavePermalink) {
       navigateRoomThread(room.roomId, threadId, undefined, { replace: true });
     }
