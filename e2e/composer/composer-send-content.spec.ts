@@ -167,11 +167,11 @@ const sendComposer = async (page: Page, form: Form) => {
 const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * A row of the mention menu: its name and what it names, a Matrix ID or what `@room` does. The
- * timeline's sender names are buttons as well, without that second part.
+ * A row of the mention menu (an option of its list box): its name and what it names, a Matrix ID
+ * or what `@room` does.
  */
 const suggestionRow = (page: Page, label: string, detail: string) =>
-  page.getByRole('button', { name: new RegExp(`${escapeRegex(label)}.*${escapeRegex(detail)}`) });
+  page.getByRole('option', { name: new RegExp(`${escapeRegex(label)}.*${escapeRegex(detail)}`) });
 
 /** Picks a suggestion of the open mention menu: Enter on a desktop, a tap on a phone. */
 const pickSuggestion = async (page: Page, form: Form, suggestion: Locator) => {
@@ -258,7 +258,7 @@ const roomMention: Check = async (page, world, { browser, options, form, tag, wh
   }
 };
 
-// A member pill, then a typed space: one space after the name in the plain body.
+// A member pill, then a typed space: one space after `@` and the name in the plain body.
 const spaceAfterPill: Check = async (page, world, { form, tag, where }) => {
   const marker = `U${tag}`;
   await page.keyboard.type(`${marker} hello @Wren`);
@@ -268,7 +268,7 @@ const spaceAfterPill: Check = async (page, world, { form, tag, where }) => {
   await sendComposer(page, form);
   const event = await sentEvent(world.admin.accessToken, world.roomId, marker);
   expect(event.content.body, `${where}: one space after a pill`).toBe(
-    `${marker} hello Wren Member and thanks`
+    `${marker} hello @Wren Member and thanks`
   );
   expect(event.content['m.mentions'], `${where}: user mentions`).toEqual({
     user_ids: [world.member.userId],
