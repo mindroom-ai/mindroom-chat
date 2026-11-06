@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
@@ -90,6 +91,12 @@ type Frame = {
   gap: number;
   rootShown: boolean;
   newestShown: boolean;
+  /** The newest reply's bottom below the visible area's bottom, or null when not mounted. */
+  newestBelow: number | null;
+  /** Thread rows the list holds (`data-thread-count`). */
+  count: number;
+  /** The last mounted row's event ID. */
+  lastRow: string;
 };
 
 const NEWEST_KEY = 'e2e-long-thread-newest';
@@ -128,6 +135,12 @@ const installFrameSampler = (keys: { newest: string; root: string; sampleMs: num
         gap: Math.round(scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop),
         rootShown: inView(scroller.querySelector(`[data-message-id="${rootId}"]`), box.top, bottom),
         newestShown: !!newestBox && newestBox.bottom <= bottom + 2 && newestBox.bottom > box.top,
+        newestBelow: newestBox ? Math.round(newestBox.bottom - bottom) : null,
+        count: Number(inner?.dataset.threadCount ?? 0),
+        lastRow:
+          [...scroller.querySelectorAll('[data-message-id]')]
+            .at(-1)
+            ?.getAttribute('data-message-id') ?? '',
       });
     }
     if (performance.now() - start < keys.sampleMs) {
@@ -207,10 +220,10 @@ const longThreadOpensAtItsNewestReplies = async (page: Page, browserName: string
   await page.waitForTimeout(SAMPLE_MS);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/long-thread-card-${browserName}.png` });
   const fromCard = await readFrames(page);
-  await test.info().attach(`frames-card-${browserName}.json`, {
-    body: JSON.stringify(fromCard),
-    contentType: 'application/json',
-  });
+  writeFileSync(
+    test.info().outputPath(`frames-card-${browserName}.json`),
+    JSON.stringify(fromCard)
+  );
 
   // From a link: the app starts with the thread open.
   await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
@@ -218,10 +231,10 @@ const longThreadOpensAtItsNewestReplies = async (page: Page, browserName: string
   await page.waitForTimeout(SAMPLE_MS);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/long-thread-link-${browserName}.png` });
   const fromLink = await readFrames(page);
-  await test.info().attach(`frames-link-${browserName}.json`, {
-    body: JSON.stringify(fromLink),
-    contentType: 'application/json',
-  });
+  writeFileSync(
+    test.info().outputPath(`frames-link-${browserName}.json`),
+    JSON.stringify(fromLink)
+  );
 
   expectNoFrameAwayFromNewest(fromCard, 'opened from its card');
   expectNoFrameAwayFromNewest(fromLink, 'opened from a link');
