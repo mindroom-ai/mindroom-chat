@@ -46,8 +46,8 @@ const register = async (name: string) => {
 type DomState = { t: number; state: string; detail: string };
 
 /**
- * Records, in every animation frame, what the page shows: the sign-in form, the splash (busy, no
- * rooms), the shell (room rows) or none of them (an empty page).
+ * Records, in every animation frame, what the page shows: the document before the app renders, the
+ * sign-in form, the splash, the shell (room rows) or none of them (an empty page).
  */
 const sampleDomStates = (page: Page) =>
   page.addInitScript(() => {
@@ -57,6 +57,8 @@ const sampleDomStates = (page: Page) =>
       const rows = document.querySelectorAll('[data-room-id]').length;
       if (rows) return ['shell', `${rows} rows`];
       if (document.querySelector('input[name="passwordInput"]')) return ['login', ''];
+      // The document before the app's first render.
+      if (!document.getElementById('root')?.childElementCount) return ['loading', ''];
       const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
       // The splash names the app under its loading line.
       if (text.endsWith('MindRoom Chat')) return ['splash', ''];
