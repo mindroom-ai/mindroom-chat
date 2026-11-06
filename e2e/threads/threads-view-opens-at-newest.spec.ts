@@ -23,8 +23,8 @@ import { launchWebKit } from '../helpers/webkit';
 // with 80 messages from two people and an agent, three of them threads, among 25 rooms, with
 // classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The ways in: the
-// view switch from Compact, a reload, the room list (unread), back from a thread, Compact and back;
-// a permalink still lands on its own message, and Jump to Latest from there goes back up. Set
+// view switch from Compact, a reload, the room list (unread), back from a thread, Compact and back,
+// and Jump to Latest from further down; a permalink still lands on its own message. Set
 // THREADS_VIEW_SHOTS=<directory> to save each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'threads-view-opens-at-newest-password';
@@ -146,7 +146,9 @@ const seed = async (label: string): Promise<Seeded> => {
       // eslint-disable-next-line no-await-in-loop
       await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
         msgtype: 'm.text',
-        body: `Checked build ${1200 + index}: no regressions in the dashboards, I will watch the error rate.`,
+        body: `Checked build ${
+          1200 + index
+        }: no regressions in the dashboards, I will watch the error rate.`,
         'm.relates_to': {
           rel_type: 'm.thread',
           event_id: eventId,
@@ -294,7 +296,10 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   // Into a thread further down and back.
   const threadRow = page.locator('[data-message-id]').filter({ hasText: 'Status update 45:' });
   await scrollUntilMounted(page, threadRow);
-  await threadRow.getByRole('button', { name: /1 reply/ }).first().click();
+  await threadRow
+    .getByRole('button', { name: /1 reply/ })
+    .first()
+    .click();
   await expect(page.getByText('Checked build 1245').first()).toBeVisible({ timeout: 20_000 });
   await page.goBack();
   await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
@@ -309,16 +314,20 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expectShown(page, 'Status update 81:', `after Compact and back (${label})`);
   await shot(page, `${label}-6-compact-and-back`);
 
+  // Away from the newest thread, Jump to Latest leads back up to it.
+  await scrollUntilMounted(
+    page,
+    page.locator('[data-message-id]').filter({ hasText: 'Status update 45:' })
+  );
+  await page.getByRole('button', { name: 'Jump to Latest' }).click();
+  await expectShown(page, 'Status update 81:', `after Jump to Latest (${label})`);
+  await shot(page, `${label}-7-jump-to-latest`);
+
   // A permalink still lands on its own message, even an old one.
   const oldEventId = seeded.eventIds[29] ?? '';
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/${encodeURIComponent(oldEventId)}`);
   await expectShown(page, 'Status update 30:', `at its permalink (${label})`);
-  await shot(page, `${label}-7-permalink`);
-
-  // From there, Jump to Latest leads back up to the newest thread.
-  await page.getByRole('button', { name: 'Jump to Latest' }).click();
-  await expectShown(page, 'Status update 81:', `after Jump to Latest (${label})`);
-  await shot(page, `${label}-8-jump-to-latest`);
+  await shot(page, `${label}-8-permalink`);
 };
 
 test.beforeEach(async () => {
