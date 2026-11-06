@@ -25,6 +25,17 @@ vi.mock('folds', async (importOriginal) => ({
   PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
     anchor ? content : null,
 }));
+// The room menu's own rows, which need the app's providers, stay out of it.
+vi.mock('../notifications/MarkRoomReadMenuItem', () => ({ MarkRoomReadMenuItem: () => null }));
+vi.mock('../rooms/archive/ArchiveRoomMenuItem', () => ({ ArchiveRoomMenuItem: () => null }));
+vi.mock('../notifications/RoomNotificationSwitcher', () => ({
+  RoomNotificationModeSwitcher: () => null,
+}));
+vi.mock('../matrix/hooks/useRoomsNotificationPreferences', () => ({
+  getRoomNotificationMode: () => 'all_messages',
+  getRoomNotificationModeIcon: () => undefined,
+  useRoomsNotificationPreferencesContext: () => ({}),
+}));
 vi.mock('focus-trap-react', () => ({
   default: ({ children }: { children: React.ReactNode }) => children,
 }));
