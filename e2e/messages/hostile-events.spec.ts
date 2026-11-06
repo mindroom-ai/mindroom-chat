@@ -307,8 +307,9 @@ const checkRoomView = async (page: Page, world: World, label: string) => {
   await expect(row(page, world.noteId)).not.toContainText('(edited)');
   const question = page.getByText(QUESTION, { exact: true }).first();
   await expect(question).toBeVisible();
-  // Text shows the characters people typed: no contextual alternate turns "1x2" into "1×2".
-  const features = await question.evaluate((node) => getComputedStyle(node).fontFeatureSettings);
+  // Text shows the characters people typed: no contextual alternate turns "1x2" into "1×2". The
+  // setting is the page's (body); no component sets its own.
+  const features = await page.evaluate(() => getComputedStyle(document.body).fontFeatureSettings);
   expect(features).toContain('"calt" 0');
   await expectNoCrash(page);
   await shot(page, `${label}-room`);
