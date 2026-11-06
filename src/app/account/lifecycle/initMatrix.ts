@@ -30,6 +30,7 @@ import {
 import { createStoredSessionTokenRefresh } from '../../matrix/client/sessionTokenRefresh';
 import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
 import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
+import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
 
 // Account removal, logout and cache clearing live in sessionLifecycle.ts. The three below end an
 // account's session and also drop the avatars that account fetched (avatarMedia keeps them per
@@ -262,6 +263,8 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   const tokenRefreshFunction = createStoredSessionTokenRefresh(session);
   // The SDK store names; IndexedDB databases get the SDK's own prefix on top.
   const storeNames = getSessionStoreName(session);
+  // Before the store starts: starting replays the receipts it saved.
+  keepEveryReceiptInSavedSync();
   const store: SyncArchiveStore = new IndexedDBStore({
     indexedDB: globalThis.indexedDB,
     localStorage: globalThis.localStorage,
