@@ -71,8 +71,17 @@ export function FloatingAction({
   );
 }
 
-/** Jump to Latest, above the composer, while the reader is away from the bottom. */
-export function JumpToLatestAction({ onSelect }: { onSelect: () => void }) {
+/**
+ * Jump to Latest, above the composer, while the reader is away from the rows' latest end; its
+ * arrow points there: down, or `up` when the newest row is the first.
+ */
+export function JumpToLatestAction({
+  onSelect,
+  up = false,
+}: {
+  onSelect: () => void;
+  up?: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <div
@@ -80,7 +89,7 @@ export function JumpToLatestAction({ onSelect }: { onSelect: () => void }) {
       style={{ bottom: `calc(${overlay.footerInset} + ${config.space.S400})` }}
     >
       <FloatingAction
-        icon={Icons.ArrowBottom}
+        icon={up ? Icons.ArrowTop : Icons.ArrowBottom}
         label={t('mindroomUi.threads.mindroomRoomTimeline.jumpToLatest')}
         onSelect={onSelect}
       />

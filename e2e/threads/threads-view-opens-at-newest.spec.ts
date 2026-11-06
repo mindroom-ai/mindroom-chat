@@ -24,8 +24,8 @@ import { launchWebKit } from '../helpers/webkit';
 // classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The ways in: the
 // view switch from Compact, a reload, the room list, back from a thread, Compact and back again;
-// a permalink still lands on its own message. Set THREADS_VIEW_SHOTS=<directory> to save each
-// step.
+// a permalink still lands on its own message, and Jump to Latest from there goes back up. Set
+// THREADS_VIEW_SHOTS=<directory> to save each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'threads-view-opens-at-newest-password';
 const RUN = Date.now().toString(36);
@@ -308,6 +308,11 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/${encodeURIComponent(oldEventId)}`);
   await expectShown(page, 'Status update 30:', `at its permalink (${label})`);
   await shot(page, `${label}-7-permalink`);
+
+  // From there, Jump to Latest leads back up to the newest thread.
+  await page.getByRole('button', { name: 'Jump to Latest' }).click();
+  await expectShown(page, `Draft agenda ${RUN}`, `after Jump to Latest (${label})`);
+  await shot(page, `${label}-8-jump-to-latest`);
 };
 
 test.beforeEach(async () => {

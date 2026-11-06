@@ -37,6 +37,8 @@ type ReadReceiptControllerOptions = {
   atBottomRef: MutableRefObject<boolean>;
   atLiveEndRef: MutableRefObject<boolean>;
   getScrollElement: () => HTMLElement | null | undefined;
+  /** Whether the latest-end anchor sits at the top: the room's newest row is its first. */
+  latestAtTop?: boolean;
   handleOpenEvent: (
     eventId: string,
     highlight?: boolean,
@@ -131,6 +133,7 @@ export const useTimelineReadReceiptController = ({
   atBottomRef,
   atLiveEndRef,
   getScrollElement,
+  latestAtTop = false,
   handleOpenEvent,
   hideActivity,
   mx,
@@ -165,8 +168,9 @@ export const useTimelineReadReceiptController = ({
     };
   }, []);
   // Measured when the frame comes, not taken from the "at bottom" state, which lags behind the
-  // reader's scroll: the anchor is within reach of the scroll area's edges (it marks the rows'
-  // latest end, the top when the newest row is first).
+  // reader's scroll: the anchor is within reach of the scroll area's lower edge (its upper edge
+  // when the newest row is first).
+  const latestAtTopRef = useLatestRef(latestAtTop);
   const stillReading = useCallback<StillReading>(
     (roomId, threadId) => {
       const context = contextRef.current;
@@ -174,11 +178,9 @@ export const useTimelineReadReceiptController = ({
         return false;
       const anchor = atBottomAnchorRef.current;
       if (!anchor || !atLiveEndRef.current || !document.hasFocus()) return false;
-      const scrollArea = getScrollElement();
-      if (scrollArea) return isLatestAnchorInReach(anchor, scrollArea);
-      return anchor.getBoundingClientRect().top <= window.innerHeight + TIMELINE_BOTTOM_THRESHOLD_PX;
+      return isLatestAnchorInReach(anchor, getScrollElement(), latestAtTopRef.current);
     },
-    [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement]
+    [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement, latestAtTopRef]
   );
 
   const confirmScrolledAway = useCallback(
@@ -189,14 +191,17 @@ export const useTimelineReadReceiptController = ({
   );
   const settleScrolledAway = useDebounce(confirmScrolledAway, { wait: SCROLLED_AWAY_DELAY_MS });
 
-  // The scroll area is the root, grown by the threshold beyond its edges, so the anchor counts as
-  // reached while it is at most that far below (or, at the top, above) the visible rows.
+  // The scroll area is the root, grown by the bottom threshold below its lower edge only (above
+  // its upper edge when the anchor is at the top), so the anchor counts as reached while it is at
+  // most that far beyond the visible rows.
   const getObserverOptions = useCallback(
     (): IntersectionObserverInit => ({
       root: getScrollElement() ?? null,
-      rootMargin: `${TIMELINE_BOTTOM_THRESHOLD_PX}px 0px`,
+      rootMargin: latestAtTop
+        ? `${TIMELINE_BOTTOM_THRESHOLD_PX}px 0px 0px`
+        : `0px 0px ${TIMELINE_BOTTOM_THRESHOLD_PX}px`,
     }),
-    [getScrollElement]
+    [getScrollElement, latestAtTop]
   );
   const getAnchor = useCallback(() => atBottomAnchorRef.current, [atBottomAnchorRef]);
 

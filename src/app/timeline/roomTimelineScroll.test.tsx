@@ -209,11 +209,15 @@ type RoomProps = {
   pins: { current: ScrollToBottomState };
   rows: number;
   scrollToIndex: (index: number) => void;
+  /** The rows run newest first (the Threads view under a newest-first sort). */
+  latestAtTop?: boolean;
 };
 
 /** The pieces of the room's Full view that decide its bottom pins, wired as the room timeline does. */
-function RoomRows({ scroller, pins, rows, scrollToIndex }: RoomProps) {
+function RoomRows({ scroller, pins, rows, scrollToIndex, latestAtTop = false }: RoomProps) {
   const scrollRef = useRef(scroller as unknown as HTMLDivElement);
+  const latestAtTopRef = useRef(latestAtTop);
+  latestAtTopRef.current = latestAtTop;
   const backController = useThreadBackPaginationController();
   const readerScrolledRef = useViewScopedFlag('!room|');
   const gesturePins = useGestureBottomPins({
@@ -226,6 +230,7 @@ function RoomRows({ scroller, pins, rows, scrollToIndex }: RoomProps) {
     alive: () => true,
     atBottomAnchorRef: { current: null },
     focusScrollResetToken: '!room',
+    latestAtTopRef,
     threadTargets: noTargets,
     pendingThreadOpenTick: 0,
     retryPagination: () => undefined,
@@ -257,6 +262,7 @@ function RoomRows({ scroller, pins, rows, scrollToIndex }: RoomProps) {
     itemCount: rows,
     virtualizer: { scrollToIndex },
     opensAtLatest: true,
+    latestAtTop,
     roomId: '!room',
     scrollElement: scroller as unknown as HTMLElement,
     scrollToBottomRef: pins,
@@ -335,6 +341,57 @@ describe('useGestureBottomPins in the room rows', () => {
 
     expect(room.scrollToIndex).toHaveBeenCalledWith(20, { align: 'end' });
     expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 2400, behavior: 'smooth' });
+  });
+});
+
+describe('useLatestRowPin in room rows that run newest first', () => {
+  /** The Threads view under a newest-first sort, opened at its top. */
+  const roomNewestFirst = () => {
+    const { element, fire } = fakeRoomScroller();
+    element.scrollTop = 0;
+    const pins = { current: { count: 0, smooth: false } };
+    const scrollToIndex = vi.fn();
+    let renderer: ReactTestRenderer | undefined;
+    const props = { scroller: element, pins, scrollToIndex, latestAtTop: true };
+    act(() => {
+      renderer = create(createElement(RoomRows, { ...props, rows: 20 }));
+    });
+    if (!renderer) throw new Error('Expected a renderer');
+    const shown = renderer;
+    const showRows = (rows: number) =>
+      act(() => {
+        shown.update(createElement(RoomRows, { ...props, rows }));
+      });
+    return { element, fire, pins, scrollToIndex, showRows };
+  };
+
+  it('opens at the top and keeps it while rows land there, until the reader scrolls down', () => {
+    const room = roomNewestFirst();
+    expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 0 });
+    room.element.scrollTo.mockClear();
+
+    room.showRows(21);
+    expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 0 });
+    expect(room.scrollToIndex).not.toHaveBeenCalled();
+
+    // The scrollbar or a script takes the reader down, with no touch or wheel event.
+    room.element.scrollTop = 120;
+    act(() => room.fire('scroll'));
+    room.element.scrollTo.mockClear();
+    room.showRows(22);
+    expect(room.element.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('follows a new row at the top, and Jump to Latest goes there', () => {
+    const room = roomNewestFirst();
+    act(() => room.fire('touchstart'));
+    room.element.scrollTo.mockClear();
+
+    room.pins.current = { count: room.pins.current.count + 1, smooth: true };
+    room.showRows(21);
+
+    expect(room.element.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    expect(room.scrollToIndex).not.toHaveBeenCalled();
   });
 });
 

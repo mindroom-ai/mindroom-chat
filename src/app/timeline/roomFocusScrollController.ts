@@ -597,10 +597,14 @@ const useEditedRowInView = ({
  */
 const useLiveEndAtBottom = ({
   atBottomAnchorRef,
+  latestAtTopRef,
   scrollRef,
   setAtBottom,
   timelineAtLiveEnd,
-}: Pick<Options, 'atBottomAnchorRef' | 'scrollRef' | 'setAtBottom' | 'timelineAtLiveEnd'>) => {
+}: Pick<
+  Options,
+  'atBottomAnchorRef' | 'latestAtTopRef' | 'scrollRef' | 'setAtBottom' | 'timelineAtLiveEnd'
+>) => {
   useEffect(() => {
     if (!timelineAtLiveEnd) {
       setAtBottom(false);
@@ -608,8 +612,9 @@ const useLiveEndAtBottom = ({
     }
     const anchor = atBottomAnchorRef.current;
     const scrollArea = scrollRef.current;
-    if (anchor && scrollArea && isLatestAnchorInReach(anchor, scrollArea)) setAtBottom(true);
-  }, [atBottomAnchorRef, scrollRef, setAtBottom, timelineAtLiveEnd]);
+    if (!anchor || !scrollArea) return;
+    if (isLatestAnchorInReach(anchor, scrollArea, !!latestAtTopRef?.current)) setAtBottom(true);
+  }, [atBottomAnchorRef, latestAtTopRef, scrollRef, setAtBottom, timelineAtLiveEnd]);
 };
 
 /**

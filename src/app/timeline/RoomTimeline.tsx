@@ -942,6 +942,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     atBottomRef,
     atLiveEndRef,
     getScrollElement,
+    latestAtTop,
     handleOpenEvent,
     hideActivity,
     mx,
@@ -1453,7 +1454,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
           onSelect={minimap.handleMinimapSelect}
         />
       )}
-      {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatest} />}
+      {!atBottom && <JumpToLatestAction onSelect={handleJumpToLatest} up={latestAtTop} />}
     </Box>
   );
 }
