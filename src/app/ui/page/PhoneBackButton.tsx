@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { TooltipProvider } from '../directional';
 import { previousHistoryPathname } from '../../routes/historyStack';
+import { BackTarget } from './PhoneBackButton.css';
 
 export type PhoneBackButtonProps = (
   | {
@@ -61,6 +62,7 @@ function BackChevron({ label, onBack }: { label: string; onBack: () => void }) {
           fill="None"
           aria-label={label}
           onClick={onBack}
+          className={BackTarget}
           style={targetStyle}
         >
           <Icon
