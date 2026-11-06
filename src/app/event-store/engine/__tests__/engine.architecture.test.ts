@@ -186,6 +186,9 @@ describe('ISSUE-207 P3.3 engine boundary architecture', () => {
       'event-store/sdk/threadBootstrapSdk.ts': 1,
       // The receipts limit-1 probe noted in the fetchAllThreadRelations guard above.
       'notifications/readReceipts.ts': 1,
+      // Jump to Time in a thread: a lookup of one reply by time, which pages back only until a
+      // reply is older than the time and keeps no events; not thread-history backfill.
+      'timeline/jump-to-time/findEventAtTime.ts': 1,
     });
     const callers: Record<string, number> = {};
     for (const file of files) {

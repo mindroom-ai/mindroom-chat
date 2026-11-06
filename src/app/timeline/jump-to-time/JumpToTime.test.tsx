@@ -124,7 +124,7 @@ const relations = (newestFirst: ReturnType<typeof reply>[], pageSize = 2) =>
   );
 
 const thread = (fetchRelations: unknown) =>
-  thread(fetchRelations) as unknown as Pick<MatrixClient, 'fetchRelations'>;
+  ({ fetchRelations } as unknown as Pick<MatrixClient, 'fetchRelations'>);
 
 describe('findThreadEventAtTime', () => {
   // Root at 100; replies at 200, 300, 400 and 500, with a deleted one and a reaction between.
