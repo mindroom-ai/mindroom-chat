@@ -6,6 +6,7 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, setDirectAccountData } from '../helpers/matrix';
 import {
+  DESKTOP,
   HOMESERVER,
   LAUNCH,
   PASSWORD,
@@ -21,6 +22,7 @@ import {
   withRetry,
 } from '../helpers/designChoices';
 import { launchWebKit } from '../helpers/webkit';
+import { touch, type Step } from '../helpers/touch';
 
 // On a phone (390 by 844, touch) a finger resting on a sidebar room row opens the row's room
 // menu, below or above the row, as the row's More Options button does on a desktop: that button
@@ -29,8 +31,9 @@ import { launchWebKit } from '../helpers/webkit';
 // room, and a finger that scrolls the list opens nothing. Home (27 rooms), a space and the direct
 // messages; light and dark; Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, WebKit. Playwright has no long press, so the spec sends the touch events itself, as real
-// TouchEvents where the engine can build them. Set PHONE_ROW_MENU_SHOTS=<directory> to save the
-// screenshots.
+// TouchEvents where the engine can build them. The row keeps its pressed tint while its menu is
+// open, on a phone and after a right-click on a desktop (1440 by 900). Set
+// PHONE_ROW_MENU_SHOTS=<directory> to save the screenshots.
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.PHONE_ROW_MENU_SHOTS;
 /** Longer than the 500 ms long press. */
@@ -87,93 +90,6 @@ const seed = async (engine: string) => {
   return { tester, space, direct };
 };
 
-type Step =
-  | { type: 'start' | 'end' }
-  | { type: 'move'; dx: number; dy: number }
-  | { type: 'wait'; ms: number }
-  | { type: 'scroll'; by: number };
-
-/**
- * One finger on the middle of `target`, driven through `steps`; `scroll` scrolls the nearest
- * scrolling ancestor, as the browser would under a moving finger. Answers whether the lift's
- * default was prevented and whether the engine built real TouchEvents.
- */
-const touch = async (target: Locator, steps: Step[]) => {
-  const box = await target.boundingBox();
-  if (!box) throw new Error('nothing to touch');
-  return target.evaluate(
-    async (element, { x, y, plan }) => {
-      let real = true;
-      const fire = (type: string, dx: number, dy: number, lifted: boolean) => {
-        const point = { clientX: x + dx, clientY: y + dy };
-        let event: Event;
-        try {
-          const finger = new Touch({
-            identifier: 1,
-            target: element,
-            ...point,
-            pageX: point.clientX + window.scrollX,
-            pageY: point.clientY + window.scrollY,
-            screenX: point.clientX,
-            screenY: point.clientY,
-          });
-          event = new TouchEvent(type, {
-            touches: lifted ? [] : [finger],
-            targetTouches: lifted ? [] : [finger],
-            changedTouches: [finger],
-            bubbles: true,
-            cancelable: true,
-            composed: true,
-          });
-        } catch {
-          // An engine that cannot build a Touch gets an event that carries the same fields, and
-          // the point itself, where a drag library looks when the event is no TouchEvent.
-          real = false;
-          event = new Event(type, { bubbles: true, cancelable: true, composed: true });
-          const finger = { identifier: 1, target: element, ...point };
-          const list = lifted ? [] : [finger];
-          Object.defineProperties(event, {
-            touches: { value: list },
-            targetTouches: { value: list },
-            changedTouches: { value: [finger] },
-            clientX: { value: point.clientX },
-            clientY: { value: point.clientY },
-          });
-        }
-        return element.dispatchEvent(event);
-      };
-      let liftAllowed = true;
-      let at = { dx: 0, dy: 0 };
-      for (const step of plan) {
-        if (step.type === 'wait') {
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise((resolve) => {
-            setTimeout(resolve, step.ms);
-          });
-        } else if (step.type === 'scroll') {
-          let scroller: Element | null = element;
-          while (scroller && scroller.scrollHeight <= scroller.clientHeight + 1) {
-            scroller = scroller.parentElement;
-          }
-          scroller?.scrollBy(0, step.by);
-        } else if (step.type === 'move') {
-          at = { dx: step.dx, dy: step.dy };
-          fire('touchmove', at.dx, at.dy, false);
-          // One move per frame, as a finger reports them.
-          // eslint-disable-next-line no-await-in-loop
-          await new Promise(requestAnimationFrame);
-        } else if (step.type === 'start') {
-          fire('touchstart', 0, 0, false);
-        } else {
-          liftAllowed = fire('touchend', at.dx, at.dy, true);
-        }
-      }
-      return { liftAllowed, real };
-    },
-    { x: box.x + box.width / 2, y: box.y + box.height / 2, plan: steps }
-  );
-};
-
 /** The room menu while it is open: the menu that ends with Leave Room. */
 const roomMenu = (page: Page) => page.getByRole('menu').filter({ hasText: 'Leave Room' });
 
@@ -210,6 +126,15 @@ const save = async (page: Page, name: string) => {
     await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
   }
 };
+
+/** A row without hover, focus, selection or an open menu has no background of its own. */
+const UNTINTED = 'rgba(0, 0, 0, 0)';
+
+/** The background of the row that holds a room's link. */
+const rowTint = (roomLink: Locator) =>
+  roomLink.evaluate(
+    (element) => getComputedStyle(element.parentElement ?? element).backgroundColor
+  );
 
 const expectNoMenu = async (page: Page, where: string) => {
   await page.waitForTimeout(300);
@@ -251,10 +176,13 @@ const checkLongPress = async (page: Page, nav: Locator, roomId: string, tag: str
   const gap = Math.min(Math.abs(box.y - row.bottom), Math.abs(box.y + box.height - row.top));
   expect(gap, `${tag}: the menu meets the row (row ${JSON.stringify(row)})`).toBeLessThan(16);
   expect(Math.abs(box.x - row.left), `${tag}: the menu starts at the row's start`).toBeLessThan(24);
+  // The row keeps its pressed tint while its menu is open, and loses it when the menu closes.
+  expect(await rowTint(target), `${tag}: the pressed row keeps its tint`).not.toBe(UNTINTED);
   // The menu stays open after the lift, and Escape closes it.
   await expect(menu).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(menu).toHaveCount(0);
+  await expect.poll(() => rowTint(target), `${tag}: the closed menu's row rests`).toBe(UNTINTED);
 };
 
 /** A finger that holds the second row and then moves it onto the first moves the room up. */
@@ -396,6 +324,48 @@ const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
   }
 };
 
+/** Desktop: a right-clicked row keeps its tint while the pointer is on its menu. */
+const checkRightClickTint = async (page: Page, tag: string) => {
+  await page.goto('/home/');
+  const nav = list(page, 'Home');
+  await expect
+    .poll(async () => (await rowOrder(nav)).length, { timeout: 60_000 })
+    .toBeGreaterThan(2);
+  const [, second] = await rowOrder(nav);
+  const target = link(nav, second!);
+  await target.click({ button: 'right' });
+  const menu = roomMenu(page);
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: 'Copy Link', exact: true }).hover();
+  await save(page, `${tag}-right-click`);
+  expect(await rowTint(target), `${tag}: the right-clicked row keeps its tint`).not.toBe(UNTINTED);
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+};
+
+const runDesktop = async (browser: Browser, engine: 'chromium' | 'webkit') => {
+  const data = await seed(`d${engine}`);
+  const owner = engine === 'webkit' ? await launchWebKit() : browser;
+  const context = await owner.newContext(DESKTOP);
+  try {
+    const page = await context.newPage();
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: data.tester.username,
+      password: PASSWORD,
+    });
+    for (const scheme of SCHEMES) {
+      // eslint-disable-next-line no-await-in-loop
+      await setLook(page, scheme);
+      // eslint-disable-next-line no-await-in-loop
+      await checkRightClickTint(page, `desktop-${engine}-${scheme}-home`);
+    }
+  } finally {
+    await context.close();
+    if (owner !== browser) await owner.close();
+  }
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -409,4 +379,19 @@ test('a long press opens a sidebar row menu on a phone (WebKit)', async ({ brows
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(420_000);
   await run(browser, 'webkit');
+});
+
+test('a right-clicked row keeps its tint while its menu is open (desktop, Chromium)', async ({
+  browser,
+}) => {
+  test.setTimeout(300_000);
+  await runDesktop(browser, 'chromium');
+});
+
+test('a right-clicked row keeps its tint while its menu is open (desktop, WebKit)', async ({
+  browser,
+}) => {
+  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(300_000);
+  await runDesktop(browser, 'webkit');
 });
