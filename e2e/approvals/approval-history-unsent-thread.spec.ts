@@ -87,7 +87,7 @@ const unsentThreadHasNoApprovalError = async (page: Page, name: string) => {
   await page.keyboard.press('Enter');
 
   // The Compact view opens the new message's thread under its local ID.
-  await expect(page).toHaveURL(/threadId=~/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/threadId=(~|%7E)/, { timeout: 30_000 });
   await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(TEXT).first()).toBeVisible();
   // The approval history request would have failed within a second or two.
