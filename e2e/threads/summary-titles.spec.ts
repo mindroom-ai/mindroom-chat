@@ -40,7 +40,9 @@ const summariesOnly = async (page: Page) => {
       return;
     }
     if (url.pathname.includes(`/relations/${encodeURIComponent(rootId)}`)) return;
-    const response = await route.fetch();
+    // Shorten long polls so the next sync can confirm catch-up before screenshots.
+    if (url.pathname.endsWith('/sync')) url.searchParams.set('timeout', '1000');
+    const response = await route.fetch({ url: url.href, timeout: 60_000 });
     if (!response.ok()) {
       await route.fulfill({ response });
       return;
@@ -210,6 +212,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
           await page.goto(`/home/${encodeURIComponent(roomId)}`);
           const card = page.locator(`button[data-thread-root-id="${rootId}"]`).first();
           await expect(card).toBeVisible({ timeout: 30_000 });
+          await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
           // The same capture point on the failing baseline and fixed build.
           await page.screenshot({ path: testInfo.outputPath('compact-light.png') });
           await expect(card).toContainText(TITLE);
