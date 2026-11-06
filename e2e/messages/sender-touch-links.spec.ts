@@ -60,9 +60,9 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
     // eslint-disable-next-line no-await-in-loop
     targetId = await sendRoomMessage(HOMESERVER, author.accessToken, roomId, {
       msgtype: 'm.text',
-      body: `Plan ${i + 1}: https://example.org/plan`,
+      body: `example.org Route ${i + 1}: Review the route and confirm the handover before Thursday.`,
       format: 'org.matrix.custom.html',
-      formatted_body: `Plan ${i + 1}: <a href="https://example.net/plan">https://example.org/plan</a><br>Review the route and confirm the handover before Thursday.`,
+      formatted_body: `<a href="https://example.net/plan">example.org</a> Route ${i + 1}: Review the route and confirm the handover before Thursday.`,
     });
     // eslint-disable-next-line no-await-in-loop
     await matrixFetch(
@@ -105,7 +105,7 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
     await page.goto(`/home/${encodeURIComponent(roomId)}/`);
     const row = page.locator(`[data-message-id="${targetId}"]`);
     await expect(row).toBeVisible({ timeout: 30_000 });
-    const link = row.getByRole('link', { name: 'https://example.org/plan', exact: true });
+    const link = row.getByRole('link', { name: 'example.org', exact: true });
     await link.scrollIntoViewIfNeeded();
     const sender = row.locator(`button[data-user-id="${writer.userId}"]`).last();
     const reaction = row.getByRole('button', { name: /👍/ });
@@ -130,7 +130,7 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
           if (Number(getComputedStyle(control).zIndex) < 1) return;
           for (const pseudo of ['::before', '::after']) {
             const css = getComputedStyle(control, pseudo);
-            if (css.content !== '\"\"' || css.position !== 'absolute') continue;
+            if (css.content !== '""' || css.position !== 'absolute') continue;
             layers += 1;
             const box = control.getBoundingClientRect();
             const left = box.left + control.clientLeft + parseFloat(css.left);
@@ -158,11 +158,13 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
       });
       expect.soft(hit, `${scheme}: first-line link owns its tap`).toBe(true);
       // A real tap, without force or DOM click, must open this link's confirmation.
-      if (hit) {
-        await link.tap();
+      try {
+        await link.tap({ timeout: 3_000 });
         const dialog = page.getByRole('dialog', { name: 'Open this link?' });
         await expect(dialog).toBeVisible();
         await dialog.getByRole('button', { name: 'Cancel', exact: true }).tap();
+      } catch (error) {
+        expect.soft(error, `${scheme}: first-line link receives a real phone tap`).toBeUndefined();
       }
       await reaction.tap();
       await expect(reaction).toHaveAttribute('aria-pressed', 'true');
@@ -175,6 +177,11 @@ const checkPhone = async (browser: Browser, engine: string, baseURL?: string) =>
       // The sender's own layout box must reserve 44 px, so its target cannot invade the body.
       const senderBox = await sender.boundingBox();
       expect.soft(senderBox?.height, 'sender reserves its 44 px touch height').toBeGreaterThanOrEqual(44);
+      expect.soft(senderBox?.width, 'sender reserves its 44 px touch width').toBeGreaterThanOrEqual(44);
+      const replies = row.locator('button[data-thread-root-id]');
+      await expect(replies).toBeVisible();
+      const repliesBox = await replies.boundingBox();
+      expect.soft(repliesBox?.height, 'replies reserve their 44 px touch height').toBeGreaterThanOrEqual(44);
     }
   } finally {
     await context.close();
