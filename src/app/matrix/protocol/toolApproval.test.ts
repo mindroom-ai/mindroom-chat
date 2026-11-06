@@ -232,11 +232,10 @@ describe('parseToolApproval', () => {
         _summary: '1 arguments omitted because the preview exceeded the size limit.',
       },
     };
-    expect(parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, content)).toMatchObject({
-      arguments: {},
-      argumentsTruncated: true,
-      approvable: false,
-    });
+    const parsed = parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, content);
+    expect(parsed).toMatchObject({ argumentsTruncated: true, approvable: false });
+    // toMatchObject would accept any object for `arguments`.
+    expect(parsed?.arguments).toEqual({});
     // A tool's own argument of that name stays when the preview is complete.
     expect(
       parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
