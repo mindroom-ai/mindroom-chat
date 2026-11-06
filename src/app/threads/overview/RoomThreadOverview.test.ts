@@ -89,7 +89,7 @@ vi.mock('classnames', () => ({
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
-    useTranslation: () => ({ t: translateFromEn }),
+    useTranslation: () => ({ t: translateFromEn, i18n: { language: 'en' } }),
   };
 });
 

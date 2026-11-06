@@ -15,6 +15,7 @@ import {
   toSupportedLanguageCode,
 } from './i18nLanguages';
 import { appUrl } from '../lib/basePath';
+import { formatNumber, localDigits } from '../lib/localDigits';
 
 // The language choice persists under the key i18next's browser detector
 // uses, so existing installs keep their language.
@@ -116,7 +117,19 @@ void i18n
     // English ships in the bundle; i18next loads only missing languages from the backend.
     resources: { en: { translation: en } },
     partialBundledLanguages: true,
-    interpolation: { escapeValue: false },
+    interpolation: {
+      escapeValue: false,
+      // A number reads in the language's own digits wherever a translation puts it, as the dates
+      // and times Intl formats do (Bengali writes ০ to ৯); `{{count, number}}` also groups
+      // thousands. Other values (names, typed as strings here) pass through unchanged.
+      alwaysFormat: true,
+      format: (value: string | number, format?: string, language?: string): string => {
+        if (typeof value !== 'number') return value;
+        return format === 'number'
+          ? formatNumber(value, language)
+          : localDigits(String(value), language);
+      },
+    },
     react: { useSuspense: false },
     returnNull: false,
   });

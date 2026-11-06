@@ -25,6 +25,7 @@ import * as threadIndicatorCss from '../../messages/ThreadIndicator.css';
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagFilter } from './ThreadTagFilter';
 import { useKeepInsideToolbar } from './useKeepInsideToolbar';
+import { localDigits } from '../../lib/localDigits';
 import type {
   ThreadFilterState,
   ThreadFilterKey,
@@ -346,7 +347,8 @@ function ThreadInfoPopover({
   totalThreadCount: number;
   countComplete: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const digits = (count: number) => localDigits(String(count), i18n.language);
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -356,7 +358,7 @@ function ThreadInfoPopover({
     ? (Object.keys(STATUS_LABEL_KEYS) as ThreadFilterKey[])
         // Lowercasing works for en/de/nl alike here: the labels read as
         // adjectives in the count summary ("3 gel\u00F6st"), not as nouns.
-        .map((key) => `${statusCounts[key]} ${t(STATUS_LABEL_KEYS[key]).toLowerCase()}`)
+        .map((key) => `${digits(statusCounts[key])} ${t(STATUS_LABEL_KEYS[key]).toLowerCase()}`)
         .join(' \u00B7 ')
     : t('thread.stats.threadCount', { count: totalThreadCount });
 
@@ -431,7 +433,7 @@ function ThreadInfoPopover({
             (Object.keys(STATUS_LABEL_KEYS) as ThreadFilterKey[]).map((key) => (
               <div key={key} className={css.InfoStatRow}>
                 <Text size="T200">{t(STATUS_LABEL_KEYS[key])}</Text>
-                <Text size="T200">{statusCounts[key]}</Text>
+                <Text size="T200">{digits(statusCounts[key])}</Text>
               </div>
             ))}
           {tagEntries.length > 0 && (
@@ -443,7 +445,7 @@ function ThreadInfoPopover({
               {tagEntries.map(([tag, count]) => (
                 <div key={tag} className={css.InfoStatRow}>
                   <Text size="T200">{tag}</Text>
-                  <Text size="T200">{count}</Text>
+                  <Text size="T200">{digits(count)}</Text>
                 </div>
               ))}
             </>
@@ -636,7 +638,7 @@ export function RoomThreadOverview({
 }: RoomThreadOverviewProps) {
   const [lastAppliedPreset, setLastAppliedPreset] = useState<string | null>(null);
   const glassRef = useLiquidGlass<HTMLDivElement>();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [simpleMode, setSimpleMode] = useSetting(settingsAtom, 'simpleThreadFilters');
   const filtersActive = hasActiveThreadFilters(state);
   const canonicalSearchQuery = serializeThreadFilterQuery(state);
@@ -773,7 +775,9 @@ export function RoomThreadOverview({
       {(triggerRef) => (
         <span ref={triggerRef} className={css.CompactCount} data-thread-count="true">
           <IconMessages size={14} stroke={1.8} aria-hidden="true" />
-          <Text size="T200">{countComplete ? threadCount : `${threadCount}+`}</Text>
+          <Text size="T200">
+            {`${localDigits(String(threadCount), i18n.language)}${countComplete ? '' : '+'}`}
+          </Text>
         </span>
       )}
     </TooltipProvider>

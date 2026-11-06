@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import { Text, as } from 'folds';
 import { timeHourMinute, timeHourMinuteSecond, today, yesterday } from '../lib/time';
+import { localDigits } from '../lib/localDigits';
 
 type TimeProps = {
   ts: number;
@@ -14,13 +15,13 @@ type TimeProps = {
 
 /**
  * When a message was sent: the time today, "Yesterday", or the date before that. Times and their
- * day period come from Intl; the date takes the user's dayjs format.
+ * day period come from Intl; the date takes the user's dayjs format in the language's digits.
  */
 export const Time = as<'time', TimeProps>(
   ({ ts, compact, hour24Clock = false, dateFormatString = 'D MMM YYYY', ...props }, ref) => {
     const { t, i18n } = useTranslation();
     const time = timeHourMinute(ts, hour24Clock, i18n.language);
-    const date = dayjs(ts).format(dateFormatString);
+    const date = localDigits(dayjs(ts).format(dateFormatString), i18n.language);
     let label = time;
     if (!compact && !today(ts)) {
       label = yesterday(ts)

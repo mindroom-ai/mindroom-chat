@@ -32,6 +32,7 @@ import { allInvitesAtom } from '../../matrix/state/inviteList';
 import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
+import { localDigits } from '../../lib/localDigits';
 import { timeHourMinute } from '../../lib/time';
 import { glassOutline, glassSurface } from '../../ui/styles/Glass.css';
 import { getRoomAvatarUrl } from '../../matrix/room';
@@ -259,7 +260,7 @@ export function InviteCard({
   // The date in the user's format, the time and its day period as the language writes them.
   const time = invite.inviteTs
     ? [
-        dayjs(invite.inviteTs).format(dateFormatString),
+        localDigits(dayjs(invite.inviteTs).format(dateFormatString), i18n.language),
         timeHourMinute(invite.inviteTs, hour24Clock, i18n.language),
       ].join(' ')
     : undefined;

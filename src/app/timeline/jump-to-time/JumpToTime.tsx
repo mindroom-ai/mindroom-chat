@@ -24,6 +24,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
+import { localDigits } from '../../lib/localDigits';
 import { readableReason } from '../../lib/errorReason';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
@@ -86,6 +87,7 @@ type PickerProps = {
 };
 
 function Picker({ label, value, options, onPick, className }: PickerProps) {
+  const { i18n } = useTranslation();
   return (
     <select
       className={classNames(css.Picker, className)}
@@ -95,7 +97,7 @@ function Picker({ label, value, options, onPick, className }: PickerProps) {
     >
       {options.map(([optionValue, text]) => (
         <option key={optionValue} value={optionValue}>
-          {text}
+          {localDigits(text, i18n.language)}
         </option>
       ))}
     </select>
