@@ -5,6 +5,7 @@ import type { EncryptedAttachmentInfo } from 'browser-encrypt-attachment';
 import { Box, Icon, Icons, Text, color, config, toRem } from 'folds';
 import {
   MessageBadEncryptedContent,
+  MessageNotDecryptedContent,
   MessageEditedContent,
   MessageUnsupportedContent,
 } from './FallbackContent';
@@ -149,6 +150,14 @@ export function MBadEncrypted() {
   return (
     <Text as="div" size="T400">
       <MessageBadEncryptedContent />
+    </Text>
+  );
+}
+
+export function MNotDecrypted() {
+  return (
+    <Text as="div" size="T400">
+      <MessageNotDecryptedContent />
     </Text>
   );
 }

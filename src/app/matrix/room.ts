@@ -21,6 +21,7 @@ import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from '../lib/matchesEnum';
 import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimelineRead';
 import { countSeenThreadRootsAfter } from './seenThreadRoots';
+import { isAwaitingDecryption } from './decryptionWaits';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -169,6 +170,13 @@ const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): 
   });
 };
 
+/**
+ * Whether `event` is encrypted and the client cannot read it yet. Stand-ins that only look like
+ * events, as some rows hold, count as readable.
+ */
+export const isUnreadableYet = (event: MatrixEvent): boolean =>
+  !!event.isEncrypted?.() && isAwaitingDecryption(event);
+
 const getRelationEdits = (
   eventId: string,
   mEvent: MatrixEvent,
@@ -200,7 +208,10 @@ export const getEditedEvent = (
     serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
   ].filter(
     (candidate): candidate is MatrixEvent =>
-      isSameSenderEditEvent(mEvent, candidate) && !candidate.isRedacted()
+      isSameSenderEditEvent(mEvent, candidate) &&
+      !candidate.isRedacted() &&
+      // An edit the client cannot read yet shows once it decrypts; until then the newest one it can.
+      !isUnreadableYet(candidate)
   );
 
   const latest = getLatestEdit(mEvent, candidates);
@@ -214,6 +225,18 @@ export const getEditedEvent = (
 };
 
 /**
+ * What `event` says now. The SDK can put an edit on an event before it decrypts the edit (one the
+ * server bundles with the event), and then reads the event as empty; until that edit decrypts,
+ * this is the event's content from before it.
+ */
+export const getReadableContent = (event: MatrixEvent): IContent => {
+  const replacement = event.replacingEvent?.();
+  return replacement && isUnreadableYet(replacement)
+    ? event.getOriginalContent()
+    : event.getContent();
+};
+
+/**
  * The content to render: the edit's `m.new_content` with the MindRoom metadata the edit carries
  * at its top level, or the event's own content without an edit by its sender.
  */
@@ -222,10 +245,10 @@ export const getLatestMessageContent = (
   editedEvent: MatrixEvent | undefined
 ): IContent => {
   if (!editedEvent || !isSameSenderEditEvent(targetEvent, editedEvent)) {
-    return targetEvent.getContent();
+    return getReadableContent(targetEvent);
   }
   const newContent = getNewContent(editedEvent);
-  if (!newContent) return targetEvent.getContent();
+  if (!newContent) return getReadableContent(targetEvent);
 
   const content: IContent = { ...newContent };
   // MindRoom metadata the edit carries beside `m.new_content` belongs to the shown content too.

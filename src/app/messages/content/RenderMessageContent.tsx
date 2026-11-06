@@ -6,6 +6,7 @@ import { Box } from 'folds';
 import {
   MAudio,
   MBadEncrypted,
+  MNotDecrypted,
   MFile,
   MImage,
   MLocation,
@@ -306,7 +307,9 @@ export function RenderMessageContent({
     case MsgType.Location:
       return <MLocation content={content} />;
     default:
-      // Matrix 1.x leaves events the client cannot decrypt as `m.bad.encrypted` placeholders.
-      return msgType === 'm.bad.encrypted' ? <MBadEncrypted /> : <UnsupportedContent />;
+      // Matrix 1.x leaves events the client cannot decrypt as `m.bad.encrypted` placeholders; an
+      // event still of the encrypted type has not been decrypted yet.
+      if (msgType === 'm.bad.encrypted') return <MBadEncrypted />;
+      return eventType === 'm.room.encrypted' ? <MNotDecrypted /> : <UnsupportedContent />;
   }
 }

@@ -2,6 +2,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { hasTerminalStreamMetadata, isAiRunStreaming } from './aiRun';
 import { type AnnotationEntry, getActiveAnnotationsByKey } from './reactionAnnotations';
+import { getReadableContent, isUnreadableYet } from '../room';
 
 /**
  * Stop-button reaction keys the MindRoom backend attaches to streaming
@@ -26,7 +27,9 @@ export const isStaleStopReactionKey = (
 ): boolean =>
   STOP_REACTION_KEYS.has(key) &&
   !!targetEvent &&
-  hasTerminalStreamMetadata((targetEvent.getContent() as Record<string, unknown>) ?? {});
+  // A reply not decrypted yet may have finished; its Stop button shows once it decrypts.
+  (isUnreadableYet(targetEvent) ||
+    hasTerminalStreamMetadata((getReadableContent(targetEvent) as Record<string, unknown>) ?? {}));
 
 export const getRenderableAnnotationsByKey = (
   relations: Relations | undefined,
@@ -46,5 +49,5 @@ export const isAgentStopButton = (
 ): boolean =>
   key === '🛑' &&
   !!targetEvent &&
-  isAiRunStreaming((targetEvent.getContent() as Record<string, unknown>) ?? {}) &&
+  isAiRunStreaming((getReadableContent(targetEvent) as Record<string, unknown>) ?? {}) &&
   events.some((event) => event.getSender() === targetEvent.getSender());
