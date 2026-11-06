@@ -204,7 +204,7 @@ const seed = async (label: string): Promise<Seed> => {
   await say(
     research,
     roomId,
-    'Subject: your workspace just got agents, launch notes inside.',
+    'Subject: your workspace just got agents, zephyr notes inside.',
     email,
     {
       'io.mindroom.ai_run': MODEL,
@@ -249,7 +249,7 @@ const seed = async (label: string): Promise<Seed> => {
   await say(
     research,
     arabicRoomId,
-    'بالتأكيد. ارتفع معدل الاستخدام بنسبة 12% بعد launch وتم إصلاح الخطأ.',
+    'بالتأكيد. ارتفع معدل الاستخدام بنسبة 12% بعد zephyr وتم إصلاح الخطأ.',
     arabicThread,
     { 'io.mindroom.ai_run': MODEL }
   );
@@ -585,7 +585,8 @@ const checkPalette = async (run: Run) => {
     await expect(page.getByText(LATIN_THREAD).first()).toBeVisible({ timeout: 60_000 });
     await page.keyboard.press('ControlOrMeta+k');
     const dialog = page.getByRole('dialog').last();
-    await dialog.locator('input').first().fill('launch');
+    // A word only the two thread replies hold, so both are in the palette's few message results.
+    await dialog.locator('input').first().fill('zephyr');
     await expect
       .poll(async () => (await messageRows(page, ARABIC_ROOM, 'تقرير')).length, { timeout: 30_000 })
       .toBeGreaterThan(0);
