@@ -971,25 +971,34 @@ export function RoomTimeline(props: RoomTimelineProps) {
       readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
   });
 
-  const { handleJumpToLatest, handleJumpToUnread, handleOpenReply } =
-    useRoomTimelineNavigationController({
-      eventId,
-      handleOpenEvent,
-      hideMembershipEvents,
-      hideNickAvatarEvents,
-      ignoredUsersSet,
-      navigateRoom,
-      navigateRoomThread,
-      room,
-      prefetchDepth: windowLimit,
-      scrollToBottomRef,
-      setAtBottom,
-      setTimeline,
-      showHiddenEvents,
-      showThreadRepliesInRoom,
-      threadId,
-      readUptoEventId: unreadInfo?.readUptoEventId,
-    });
+  const {
+    handleJumpToLatest: showLatestRows,
+    handleJumpToUnread,
+    handleOpenReply,
+  } = useRoomTimelineNavigationController({
+    eventId,
+    handleOpenEvent,
+    hideMembershipEvents,
+    hideNickAvatarEvents,
+    ignoredUsersSet,
+    navigateRoom,
+    navigateRoomThread,
+    room,
+    prefetchDepth: windowLimit,
+    scrollToBottomRef,
+    setAtBottom,
+    setTimeline,
+    showHiddenEvents,
+    showThreadRepliesInRoom,
+    threadId,
+    readUptoEventId: unreadInfo?.readUptoEventId,
+  });
+  // Jump to Latest also ends the jump to a linked message: until its row rests, that jump scrolls
+  // back to it whenever the row or the scroll area resizes, as the latest rows do when they render.
+  const handleJumpToLatest = useCallback(() => {
+    setFocusItem(undefined);
+    showLatestRows();
+  }, [showLatestRows]);
 
   // A message the reader sends shows at once: the view goes to the rows' latest end, through the
   // live window when it has left it, as Jump to Latest does. Compact opens the sent thread instead.
