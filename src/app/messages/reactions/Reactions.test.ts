@@ -94,6 +94,7 @@ class MockRelations {
           new Set([
             {
               getSender: () => '@bas:mindroom.chat',
+              getTs: () => 0,
               getRelation: () => ({ rel_type: 'm.annotation' }),
               isRedacted: () => false,
             } as MatrixEvent,
@@ -181,11 +182,13 @@ describe('Reactions', () => {
         new Set([
           {
             getSender: () => '@bas:mindroom.chat',
+            getTs: () => 0,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => true,
           } as MatrixEvent,
           {
             getSender: () => '@someone:mindroom.chat',
+            getTs: () => 0,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
           } as MatrixEvent,
@@ -219,6 +222,7 @@ describe('Reactions', () => {
         new Set([
           {
             getSender: () => '@agent:mindroom.chat',
+            getTs: () => 0,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
           } as MatrixEvent,
@@ -229,6 +233,7 @@ describe('Reactions', () => {
         new Set([
           {
             getSender: () => '@bas:mindroom.chat',
+            getTs: () => 0,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
           } as MatrixEvent,
@@ -266,6 +271,7 @@ describe('Reactions', () => {
         new Set([
           {
             getSender: () => sender,
+            getTs: () => 0,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
           } as MatrixEvent,
@@ -305,6 +311,7 @@ describe('Reactions', () => {
         new Set([
           {
             getSender: () => '@agent:mindroom.chat',
+            getTs: () => 0,
             getRelation: () => ({ rel_type: 'm.annotation' }),
             isRedacted: () => false,
           } as MatrixEvent,
