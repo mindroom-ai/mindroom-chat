@@ -4,6 +4,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { onWebKitPage } from '../helpers/webkit';
@@ -36,6 +37,7 @@ const takenUsernameIsTheUsernameFieldsError = async (page: Page, browserName: st
 
   const error = page.getByRole('alert').filter({ hasText: TAKEN });
   await expect(error).toBeVisible({ timeout: 20_000 });
+  await accountSessionShot(page, `register-taken-${browserName}`);
   await expect(username).toHaveAttribute('aria-invalid', 'true');
   const describedBy = (await username.getAttribute('aria-describedby')) ?? '';
   expect(describedBy, 'the username field names its error').not.toBe('');

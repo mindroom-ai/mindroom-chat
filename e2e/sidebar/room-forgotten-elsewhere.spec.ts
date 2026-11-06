@@ -5,6 +5,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { matrixFetch } from '../helpers/matrix';
@@ -101,6 +102,7 @@ const forgottenRoomLeavesTheList = async (page: Page, browserName: string) => {
   });
   await page.waitForTimeout(QUIET_MS);
   await expect(page.getByRole('link', { name: new RegExp(oldName) })).toHaveCount(0);
+  await accountSessionShot(page, `forgotten-room-gone-${browserName}`);
   expect(asked, 'requests about the forgotten room').toEqual([]);
 };
 

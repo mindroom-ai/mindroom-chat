@@ -1,4 +1,4 @@
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { loginToMatrix, type MatrixSession } from './matrix';
 
 /**
@@ -45,4 +45,10 @@ export const registerDisposableUser = async (
   expect(response.ok, `registering ${username}`).toBe(true);
   const session = await loginToMatrix(DISPOSABLE_HOMESERVER, username, password);
   return { ...session, username, password };
+};
+
+/** Saves a screenshot as `<name>.png` when ACCOUNT_SESSION_SHOTS names a directory. */
+export const accountSessionShot = async (page: Page, name: string): Promise<void> => {
+  const directory = process.env.ACCOUNT_SESSION_SHOTS;
+  if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };

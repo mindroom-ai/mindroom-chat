@@ -6,6 +6,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { onWebKitPage } from '../helpers/webkit';
@@ -57,6 +58,7 @@ const logoutRestoresAndClears = async (page: Page, browserName: string) => {
   await expectActiveStoredUsername(page, first.username);
   await expect.poll(() => decodeURIComponent(page.url()), { timeout: 60_000 }).toContain(room);
   await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({ timeout: 60_000 });
+  await accountSessionShot(page, `logout-remaining-account-${browserName}`);
 
   // After the last logout no entry names either account.
   await logoutActiveAccount(page);

@@ -5,6 +5,7 @@ import {
   CHROMIUM_WITH_SCROLLBARS,
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
+  accountSessionShot,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 import { onWebKitPage } from '../helpers/webkit';
@@ -70,6 +71,7 @@ const keyStaysUntilOkay = async (page: Page, browserName: string) => {
   const keyText = dialog.locator('code');
   await expect(keyText).toHaveText(KEY_PATTERN, { timeout: 60_000 });
   const shownKey = await keyText.textContent();
+  await accountSessionShot(page, `recovery-key-${browserName}`);
 
   await page.keyboard.press('Escape');
   await expect(keyText).toHaveText(shownKey ?? '');
@@ -82,6 +84,7 @@ const keyStaysUntilOkay = async (page: Page, browserName: string) => {
   const reset = page.getByRole('button', { name: 'Reset' });
   await expect(reset).toBeVisible({ timeout: 30_000 });
   await expect(reset).not.toBeFocused();
+  await accountSessionShot(page, `recovery-key-closed-${browserName}`);
 };
 
 test('the recovery key stays until Okay (Chromium)', async ({ page, browserName }) => {
