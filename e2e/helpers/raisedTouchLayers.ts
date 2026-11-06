@@ -8,6 +8,7 @@ export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
         'button, a[href], summary, input, select, textarea, [role="button"], [contenteditable="true"]'
       )
     ).filter((element) => {
+      if (element.closest('[aria-hidden="true"], [inert]')) return false;
       const box = element.getBoundingClientRect();
       return (
         box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < innerHeight &&
@@ -21,7 +22,7 @@ export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
       if (!(Number(getComputedStyle(control).zIndex) >= 1)) return;
       for (const pseudo of ['::before', '::after']) {
         const css = getComputedStyle(control, pseudo);
-        if (css.content !== '""' || css.position !== 'absolute') continue;
+        if (css.content !== '""' || css.position !== 'absolute' || css.pointerEvents === 'none') continue;
         const box = control.getBoundingClientRect();
         const left = box.left + control.clientLeft + parseFloat(css.left);
         const top = box.top + control.clientTop + parseFloat(css.top);

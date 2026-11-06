@@ -272,7 +272,8 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       name: 'badge-back',
       open: async (page) => {
         await go(page, threadUrl(stack, seeded.thread));
-        const badge = page.getByRole('button', { name: /^Model: / }).last();
+        // An early reply leaves enough content below it to scroll its badge up to the banner.
+        const badge = page.getByRole('button', { name: /^Model: / }).first();
         await badge.scrollIntoViewIfNeeded();
         await badge.evaluate((element) => {
           const banner = document.querySelector('[data-thread-context-banner]');
