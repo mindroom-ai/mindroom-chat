@@ -21,7 +21,8 @@ import {
 enableMapSet();
 
 const ROOM_ID = '!room:example.org';
-const AGENT = '@agent:example.org';
+const AGENT = '@mindroom_agent:example.org';
+const PERSON = '@person:example.org';
 let renderer: ReactTestRenderer | undefined;
 
 beforeEach(() => {
@@ -43,18 +44,23 @@ const setup = () => {
   const room = new Room(ROOM_ID, mx, '@me:example.org', { timelineSupport: true });
   mx.store.storeRoom(room);
   room.updateMyMembership(KnownMembership.Join);
-  room.currentState.setStateEvents([
-    new MatrixEvent({
-      type: 'm.room.member',
-      state_key: AGENT,
-      sender: AGENT,
-      room_id: ROOM_ID,
-      event_id: '$member',
-      content: { membership: 'join' },
-    }),
-  ]);
+  room.currentState.setStateEvents(
+    [AGENT, PERSON].map(
+      (userId) =>
+        new MatrixEvent({
+          type: 'm.room.member',
+          state_key: userId,
+          sender: userId,
+          room_id: ROOM_ID,
+          event_id: `$member-${userId}`,
+          content: { membership: 'join' },
+        })
+    )
+  );
   // Sync re-emits member events on the client.
-  mx.reEmitter.reEmit(room.getMember(AGENT)!, [RoomMemberEvent.Typing]);
+  [AGENT, PERSON].forEach((userId) =>
+    mx.reEmitter.reEmit(room.getMember(userId)!, [RoomMemberEvent.Typing])
+  );
   const store = createStore();
   const Binder = () => {
     useBindRoomIdToTypingMembersAtom(mx, roomIdToTypingMembersAtom);
@@ -143,17 +149,17 @@ it('stops checking once the binder unmounts', async () => {
   expect(vi.getTimerCount()).toBe(timers);
 });
 
-it('drops a notice when the member’s message arrives, but not for a reply that still streams', async () => {
+it('drops a person’s notice when their message arrives, but not an agent’s', async () => {
   const { mx, room, serverTyping, shown } = setup();
   // Sync re-emits room timeline events on the client.
   mx.reEmitter.reEmit(room, [RoomEvent.Timeline]);
-  const message = (eventId: string, content: Record<string, unknown>) =>
+  const message = (sender: string, eventId: string, content: Record<string, unknown>) =>
     act(async () => {
       await room.addLiveEvents(
         [
           new MatrixEvent({
             type: 'm.room.message',
-            sender: AGENT,
+            sender,
             room_id: ROOM_ID,
             event_id: eventId,
             origin_server_ts: Date.now(),
@@ -163,13 +169,14 @@ it('drops a notice when the member’s message arrives, but not for a reply that
         { addToState: false }
       );
     });
-  serverTyping([AGENT]);
+  serverTyping([AGENT, PERSON]);
 
-  // An agent's reply carries its stream status; its notice stays while it writes.
-  await message('$placeholder', { body: 'Thinking...', 'io.mindroom.stream_status': 'pending' });
+  // An agent keeps one notice for all its replies in the room, also through its other messages.
+  await message(AGENT, '$placeholder', { body: 'Thinking...', 'io.mindroom.stream_status': 'pending' });
+  await message(AGENT, '$title', { msgtype: 'm.notice', body: 'Harbor report' });
+  expect(shown()).toEqual([AGENT, PERSON]);
+
+  // The server keeps listing the person, but their message ends the notice.
+  await message(PERSON, '$message', { body: 'Here is the report.' });
   expect(shown()).toEqual([AGENT]);
-
-  // The server keeps listing the member, but their message ends the notice.
-  await message('$message', { body: 'Here is the report.' });
-  expect(shown()).toEqual([]);
 });

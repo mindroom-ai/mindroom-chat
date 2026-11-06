@@ -18,7 +18,7 @@ import {
   RoomMemberEvent,
 } from 'matrix-js-sdk';
 import { matchesEnum } from '../../lib/matchesEnum';
-import { getAiRunInfo, getStreamStatusFromContent } from '../protocol/aiRun';
+import { isMindroomAgentUserId } from '../protocol/agentIdentity';
 
 /** How long a typing notice lasts; also the interval of the stale-member check. */
 export const TYPING_TIMEOUT_MS = 30_000;
@@ -140,8 +140,8 @@ export const useBindRoomIdToTypingMembersAtom = (
       if (store.get(typingAtom).size === 0) stopChecking();
     };
 
-    // A person's message ends their notice. An agent's reply carries its run status instead: the
-    // agent keeps one notice for every reply it writes in the room and ends it after the last one.
+    // A person's message ends their notice. An agent keeps one notice for every reply it writes in
+    // the room, while it also posts other messages there (titles, notices), and ends it itself.
     const handleTimeline = (
       event: MatrixEvent,
       room: Room | undefined,
@@ -150,7 +150,8 @@ export const useBindRoomIdToTypingMembersAtom = (
       data: { liveEvent?: boolean }
     ) => {
       const sender = event.getSender();
-      if (!room || toStartOfTimeline || !data.liveEvent || !sender) return;
+      if (!room || toStartOfTimeline || !data.liveEvent || !sender || isMindroomAgentUserId(sender))
+        return;
       const listed = () =>
         store
           .get(typingAtom)
@@ -159,14 +160,7 @@ export const useBindRoomIdToTypingMembersAtom = (
       if (!listed()) return;
       mx.decryptEventIfNeeded(event)
         .then(() => {
-          const content = event.getContent();
-          if (
-            event.getType() !== EventType.RoomMessage ||
-            getStreamStatusFromContent(content) !== undefined ||
-            getAiRunInfo(content) !== undefined ||
-            !listed()
-          )
-            return;
+          if (event.getType() !== EventType.RoomMessage || !listed()) return;
           store.set(typingAtom, { type: 'DELETE', roomId: room.roomId, userId: sender });
           if (store.get(typingAtom).size === 0) stopChecking();
         })
