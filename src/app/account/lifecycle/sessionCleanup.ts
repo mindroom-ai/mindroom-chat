@@ -1,6 +1,7 @@
 import { clearLongTextHydrationCache } from '../../matrix/protocol/longText';
 import { clearAttachmentRepositoryMemory } from '../../event-store/cache/attachmentRepository';
 import { clearRoomInputDrafts } from '../../composer/roomInputDrafts';
+import { clearUnsentMessages } from '../../matrix/client/unsentMessages';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
@@ -82,6 +83,7 @@ const LEGACY_LAST_OPEN_THREAD_STORE_PREFIX = 'lastOpenThread';
 
 export const clearUserUiState = (userId: string): void => {
   clearRoomInputDrafts(userId);
+  clearUnsentMessages(userId);
   removeStorageItemSafe(getSafeLocalStorage(), `${LEGACY_LAST_OPEN_THREAD_STORE_PREFIX}${userId}`);
   clearRoomThreadFiltersStore(userId);
   clearCrossRoomThreadFiltersStore(userId);

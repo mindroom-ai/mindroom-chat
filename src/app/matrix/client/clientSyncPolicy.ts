@@ -8,6 +8,7 @@ import { keepThreadReplyCounts } from './threadReplyCounts';
 import { relistThreadsAfterGaps } from './threadListGaps';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
+import { keepUnsentMessages } from './unsentMessages';
 
 // How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates
 // the client and its stores; the app shell (src/app/shell/ClientRoot.tsx) then calls `startClient`
@@ -80,7 +81,8 @@ export const startClient = async (
   await seedCachedServerVersions(mx);
   // Before the saved sync is replayed, which brings thread roots together with their replies
   // and edits. Only an SDK client has rooms whose threads count replies and hold edits. A deleted
-  // message is saved at once, so the next replay does not bring it back.
+  // message is saved at once, so the next replay does not bring it back. Messages the last page
+  // left unsent come back as Not sent rows once the rooms are known.
   if (mx instanceof MatrixClient && !countedClients.has(mx)) {
     countedClients.add(mx);
     keepThreadReplyCounts(mx);
@@ -89,6 +91,7 @@ export const startClient = async (
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);
     keepEncryptedRoomCounts(mx);
+    keepUnsentMessages(mx);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
