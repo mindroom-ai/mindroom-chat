@@ -552,3 +552,19 @@ it('says a submitted decision waits for the room once after the folded calls are
     cleanup();
   }
 });
+
+it.each([
+  ['unloadable', 'Some approval history could not be loaded.'],
+  ['undecryptable', 'Some approval history could not be decrypted.'],
+  ['unavailable', 'This room’s approval history is unavailable.'],
+] as const)('names an approval history that is %s in the app language', async (error, text) => {
+  reviewContext([]);
+  current = { ...current, error };
+  const { container, cleanup } = await renderInto(<ThreadApprovalQueue />);
+  try {
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(text);
+    expect(buttonsIn(container).map((button) => button.textContent)).toContain('Retry history');
+  } finally {
+    cleanup();
+  }
+});
