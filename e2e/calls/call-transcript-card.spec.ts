@@ -38,9 +38,10 @@ import { launchWebKit } from '../helpers/webkit';
 // "Voice call" and the duration, then a transcript that starts closed and opens, by pointer,
 // keyboard or tap, into a compact chat: each run of turns by one speaker under that member's
 // avatar and name, someone the room does not know under the ID's localpart and a generated
-// avatar. Checked in a room among 25 with realistic message lengths, in the Modern, Compact and
-// Bubble message layouts and the Classic view, light and dark, English and Arabic, on a desktop
-// (1440 by 900) and a phone (390 by 844, touch), in Chromium and, when
+// avatar. Checked in the thread the call started from, in a room among 25 with realistic message
+// lengths, in the Modern, Compact and Bubble message layouts, light and dark, English and Arabic,
+// on a desktop (1440 by 900) and a phone (390 by 844, touch), and for a long call, whose
+// transcript is only in the large-message sidecar, in the Classic view; in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Copy Text copies the plain
 // transcript, and a message search that matches a turn opens the transcript with the match marked.
 // Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
@@ -66,6 +67,7 @@ test.use({ launchOptions: LAUNCH });
 type Seed = {
   username: string;
   roomId: string;
+  root: string;
   longCallRoomId: string;
   caller: Account;
   agent: Account;
@@ -166,7 +168,8 @@ const seed = async (label: string): Promise<Seed> => {
   await join(agent, roomId);
   await join(colleague, roomId);
   await say(colleague, roomId, 'Can someone own the release notes this week?');
-  await say(
+  // The call starts from this thread, and MindRoom posts the transcript into it.
+  const root = await say(
     caller,
     roomId,
     'I will call the helper about the staging numbers and post what we find here before lunch.'
@@ -189,14 +192,23 @@ const seed = async (label: string): Promise<Seed> => {
   const html = turns
     .map((turn) => `<p><strong>${speakerLabel(turn.sender)}</strong>: ${turn.text}</p>`)
     .join('');
-  await say(agent, roomId, body, undefined, {
+  await say(agent, roomId, body, root, {
     format: 'org.matrix.custom.html',
     formatted_body: `<p>📞 Voice call · 3 min</p><details><summary>Transcript</summary>${html}</details>`,
     'io.mindroom.call_transcript': { duration_seconds: 187, turns },
   });
-  await say(caller, roomId, LAST_WORDS);
+  await say(caller, roomId, LAST_WORDS, root);
   const longCallRoomId = await seedLongCall(caller, agent);
-  return { username: caller.username, roomId, longCallRoomId, caller, agent, absentId, body };
+  return {
+    username: caller.username,
+    roomId,
+    root,
+    longCallRoomId,
+    caller,
+    agent,
+    absentId,
+    body,
+  };
 };
 
 const newPage = async (
@@ -217,8 +229,10 @@ const newPage = async (
   };
 };
 
-const openRoom = async (page: Page, data: Seed) => {
-  await page.goto(`/home/${encodeURIComponent(data.roomId)}`);
+const openThread = async (page: Page, data: Seed) => {
+  await page.goto(
+    `/home/${encodeURIComponent(data.roomId)}?threadId=${encodeURIComponent(data.root)}`
+  );
   await expect(page.getByText(LAST_WORDS).first()).toBeVisible({ timeout: 30_000 });
 };
 
@@ -228,6 +242,7 @@ const callRow = async (page: Page) => {
     .locator('[data-message-id]')
     .filter({ has: page.locator('[data-call-transcript], summary') })
     .last();
+  await expect(row).toBeVisible({ timeout: 30_000 });
   await row.scrollIntoViewIfNeeded();
   return row;
 };
@@ -384,27 +399,24 @@ const look = async (
   data: Seed,
   scheme: Scheme,
   direction: 'ltr' | 'rtl',
-  settings: { layout?: number; classic?: boolean } = {}
+  layout: number = LAYOUT.modern
 ) => {
-  await page.evaluate(
-    ({ layout, classic, roomId }) => {
-      const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
-      localStorage.setItem('settings', JSON.stringify({ ...stored, messageLayout: layout }));
-      Object.keys(localStorage)
-        .filter((key) => key.startsWith('roomViewMode:') && key.endsWith(`:${roomId}`))
-        .forEach((key) => localStorage.removeItem(key));
-      if (classic) localStorage.setItem(`roomViewMode:${roomId}`, JSON.stringify('classic'));
-      else localStorage.removeItem(`roomViewMode:${roomId}`);
-    },
-    { layout: settings.layout ?? LAYOUT.modern, classic: !!settings.classic, roomId: data.roomId }
-  );
+  await page.evaluate((messageLayout) => {
+    const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+    localStorage.setItem('settings', JSON.stringify({ ...stored, messageLayout }));
+  }, layout);
   await setLook(page, scheme, direction);
   await page.reload();
-  await openRoom(page, data);
+  await openThread(page, data);
 };
 
 /** The long call's card comes from its hydrated sidecar, with every turn. */
 const checkLongCall = async (page: Page, data: Seed, info: TestInfo) => {
+  // A message in the room itself, outside any thread, which the Classic view shows in full.
+  await page.evaluate(
+    (roomId) => localStorage.setItem(`roomViewMode:${roomId}`, JSON.stringify('classic')),
+    data.longCallRoomId
+  );
   await page.goto(`/home/${encodeURIComponent(data.longCallRoomId)}`);
   const row = page
     .locator('[data-message-id]')
@@ -418,12 +430,13 @@ const checkLongCall = async (page: Page, data: Seed, info: TestInfo) => {
   await toggle(row).click();
   await expect(groups(row)).toHaveCount(LONG_CALL_TURNS);
   await expect(groups(row).last()).toContainText(`Point ${LONG_CALL_TURNS}:`);
+  expect(await layoutProblem(row), 'long call').toBeNull();
   await shot(page, info, 'call-transcript-long-call');
 };
 
 const checkCopyAndSearch = async (page: Page, data: Seed, info: TestInfo) => {
   // Copy Text copies the plain transcript MindRoom wrote.
-  await openRoom(page, data);
+  await openThread(page, data);
   const row = await callRow(page);
   await card(row).locator('[data-call-transcript-header]').click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Copy Text', exact: true }).click();
@@ -458,13 +471,11 @@ for (const engine of ENGINES) {
       for (const [name, layout] of Object.entries(LAYOUT)) {
         for (const scheme of SCHEMES) {
           // eslint-disable-next-line no-await-in-loop
-          await look(page, data, scheme, 'ltr', { layout });
+          await look(page, data, scheme, 'ltr', layout);
           // eslint-disable-next-line no-await-in-loop
           await checkCard(page, data, false, `${engine}-desktop-ltr-${scheme}-${name}`, testInfo);
         }
       }
-      await look(page, data, 'light', 'ltr', { classic: true });
-      await checkCard(page, data, false, `${engine}-desktop-ltr-light-classic`, testInfo);
       await look(page, data, 'dark', 'rtl');
       await checkCard(page, data, false, `${engine}-desktop-rtl-dark-modern`, testInfo);
       await look(page, data, 'light', 'ltr');
@@ -496,7 +507,7 @@ for (const engine of ENGINES) {
       for (const scheme of SCHEMES) {
         for (const name of ['modern', 'bubble'] as const) {
           // eslint-disable-next-line no-await-in-loop
-          await look(page, data, scheme, 'ltr', { layout: LAYOUT[name] });
+          await look(page, data, scheme, 'ltr', LAYOUT[name]);
           // eslint-disable-next-line no-await-in-loop
           await checkCard(page, data, true, `${engine}-phone-ltr-${scheme}-${name}`, testInfo);
         }
