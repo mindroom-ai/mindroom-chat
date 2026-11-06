@@ -29,6 +29,17 @@ const isValidEdit = (target: MatrixEvent, edit: MatrixEvent): boolean => {
   );
 };
 
+/**
+ * A reply of an unopened thread: in its timeline, or, for a thread listed with the room, the
+ * latest event of the root's summary, which is in no timeline.
+ */
+const findReply = (thread: Thread, eventId: string): MatrixEvent | undefined => {
+  const summarized = thread.replyToEvent;
+  return (
+    thread.findEventById(eventId) ?? (summarized?.getId() === eventId ? summarized : undefined)
+  );
+};
+
 /** The edits waiting in an unopened thread for the given reply. */
 const waitingEditsFor = (thread: Thread, targetId: string): MatrixEvent[] =>
   (thread.replayEvents ?? []).filter(
@@ -122,7 +133,7 @@ const createEditWatcher = (): EditWatcher => {
     (thread.replayEvents ?? []).forEach((edit) => {
       if (!edit.isRelation(RelationType.Replace)) return;
       const targetId = edit.getAssociatedId();
-      const target = targetId ? thread.findEventById(targetId) : undefined;
+      const target = targetId ? findReply(thread, targetId) : undefined;
       if (!target) return;
       if (edit.shouldAttemptDecryption() || edit.isBeingDecrypted() || edit.isDecryptionFailure()) {
         awaitDecryption(thread, edit);
