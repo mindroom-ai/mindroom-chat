@@ -26,7 +26,7 @@ import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { localDigits } from '../../lib/localDigits';
 import { readableReason } from '../../lib/errorReason';
-import { isVisibleThreadReplyEventType } from '../../event-store/threads/threadUtils';
+import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
 import * as css from './JumpToTime.css';
@@ -183,8 +183,7 @@ export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
             !event ||
             !isConfirmedMatrixEventId(eventId) ||
             eventId === threadId ||
-            !isVisibleThreadReplyEventType(event.getType()) ||
-            event.isRedacted()
+            !isVisibleThreadReplyEvent(event)
           )
             continue;
           const ts = event.getTs();
