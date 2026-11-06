@@ -766,12 +766,16 @@ const checkUnloadedPins =
     ] as const;
     // Up in the empty composer edits the newest own reply of the thread, once it is sent.
     const editor = page.getByRole('textbox', { name: 'Edit Message' });
+    // Right after a send, Up can still reach the reply before it; close that editor and retry.
     await expect(async () => {
+      if (await editor.count()) {
+        await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+      }
       await composer.click();
       await page.keyboard.press('ArrowUp');
       await expect(editor).toBeFocused({ timeout: 2_000 });
+      await expect(editor).toHaveText(THREAD_PINS[2], { timeout: 2_000 });
     }).toPass({ timeout: 30_000 });
-    await expect(editor).toHaveText(THREAD_PINS[2]);
     await page.keyboard.press('ControlOrMeta+a');
     await page.keyboard.insertText(THREAD_PIN_EDITED);
     await page.getByRole('button', { name: 'Save', exact: true }).click();
