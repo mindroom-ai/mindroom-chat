@@ -136,7 +136,8 @@ export const resolveRoomInputSendStep = (
   activeFiles: TUploadContent[]
 ): RoomInputSendStep => {
   if (session.blockedRoot) {
-    return { kind: 'wait' };
+    // The caption does not wait with a root that has to be sent again: it goes out on its own.
+    return session.textPending ? { kind: 'send-text' } : { kind: 'wait' };
   }
 
   const pendingFiles = getPendingFiles(session, activeFiles);
@@ -152,6 +153,11 @@ export const resolveRoomInputSendStep = (
 
     if (isUploadSuccess(upload)) {
       return { kind: 'send-upload', file: rootFile, mxc: upload.mxc, isRoot: true };
+    }
+    // Nor with a root whose upload failed and waits for its Retry; the caption then has no thread
+    // to join and goes to the room.
+    if (upload?.status === UploadStatus.Error && session.textPending) {
+      return { kind: 'send-text' };
     }
 
     return { kind: 'wait' };
@@ -191,6 +197,25 @@ export const resolveRoomInputSendStep = (
 
 export const hasRoomInputSendFailures = (session: RoomInputSendSessionState): boolean =>
   session.blockedRoot || session.failedFiles.size > 0;
+
+/**
+ * True when the session can only go on once the person retries or removes an attachment: it
+ * waits, and every file it waits for has a failed upload or a failed send. Texts sent meanwhile
+ * do not wait for it.
+ */
+export const isRoomInputSendSessionStalled = (
+  session: RoomInputSendSessionState,
+  uploads: Upload[],
+  activeFiles: TUploadContent[]
+): boolean => {
+  if (resolveRoomInputSendStep(session, uploads, activeFiles).kind !== 'wait') return false;
+  if (session.blockedRoot) return true;
+  const uploadMap = new Map(uploads.map((upload) => [upload.file, upload]));
+  return getPendingFiles(session, activeFiles).every(
+    (file) =>
+      session.failedFiles.has(file) || uploadMap.get(file)?.status === UploadStatus.Error
+  );
+};
 
 type RelationSession = Pick<RoomInputSendSessionState, 'mode' | 'rootEventId'> & {
   replyDraft?: IReplyDraft;

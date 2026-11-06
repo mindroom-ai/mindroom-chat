@@ -24,6 +24,7 @@ import {
   getTextRelationForSendSession,
   getUploadRelationForSendSession,
   hasRoomInputSendFailures,
+  isRoomInputSendSessionStalled,
   resolveRoomInputSendStep,
   RoomInputSendSessionState,
 } from './roomInputSendSession';
@@ -38,7 +39,6 @@ type SendSession = RoomInputSendSessionState & {
   textContent?: IContent;
   composerFallback?: Descendant[];
   composerContext: Pick<RoomInputSendContext, 'roomId' | 'threadId'>;
-  textTimelineOwned?: boolean;
   replyCleared: boolean;
   signalBridgedRoom: boolean;
   failFast: boolean;
@@ -131,6 +131,31 @@ export const hasFailedPasteMarkerInText = (
   });
 };
 
+const createSendSession = (
+  context: RoomInputSendContext,
+  files: TUploadContent[],
+  fields: Pick<
+    SendSession,
+    'textContent' | 'composerFallback' | 'composerContext' | 'failFast' | 'uploads' | 'onUploadSent'
+  >
+): SendSession => ({
+  ...fields,
+  room: context.room,
+  roomId: context.roomId,
+  threadId: context.threadId,
+  replyDraft: context.replyDraft,
+  threadingEnabled: context.threadingEnabled,
+  signalBridgedRoom: context.signalBridgedRoom,
+  replyCleared: false,
+  ...createRoomInputSendSessionState({
+    files,
+    hasText: Boolean(fields.textContent),
+    threadId: context.threadId,
+    replyDraft: context.replyDraft,
+    threadingEnabled: context.threadingEnabled,
+  }),
+});
+
 export const useRoomInputSendSessionController = ({
   mx,
   room,
@@ -155,6 +180,8 @@ export const useRoomInputSendSessionController = ({
   const processingSendSessionRef = useRef(false);
   // Messages sent while another is still going out, each started once the one before is done.
   const queuedSendsRef = useRef<(() => void)[]>([]);
+  // Texts sent beside a session that waits for the person, one after the other.
+  const textsBesideRef = useRef<Promise<void>>(Promise.resolve());
   const startSendSessionRef =
     useRef<(options?: StartRoomInputSendSessionOptions) => Promise<void>>();
   const composerContextRef = useRef({ roomId, threadId });
@@ -197,7 +224,8 @@ export const useRoomInputSendSessionController = ({
             );
       const txnId = mx.makeTxnId();
       const sendPromise = mx.sendMessage(session.roomId, eventContent as any, txnId);
-      const localEventId = session.room.getEventForTxnId(txnId)?.getId();
+      const localEvent = session.room.getEventForTxnId(txnId);
+      const localEventId = localEvent?.getId();
       let roomMessageSentNotified = false;
 
       const notifyRoomMessageSent = (eventId: string | undefined) => {
@@ -212,22 +240,23 @@ export const useRoomInputSendSessionController = ({
         if (!sentEventIdToNotify) return;
 
         roomMessageSentNotified = true;
-        session.textTimelineOwned = onRoomMessageSent(sentEventIdToNotify) === true;
+        onRoomMessageSent(sentEventIdToNotify);
       };
 
       if (localEventId === `~${session.roomId}:${txnId}`) {
         notifyRoomMessageSent(localEventId);
       }
 
-      const response = await sendPromise.catch((error: unknown) => {
-        // Unless the timeline owns the failed message, its text goes back into the
-        // composer; drop the unsent echo so the message cannot be sent twice.
-        if (!session.textTimelineOwned) {
-          discardFailedLocalEcho(mx, session.room.getEventForTxnId(txnId));
-        }
-        throw error;
-      });
-      notifyRoomMessageSent(response.event_id);
+      const sent = sendPromise.then((response) => notifyRoomMessageSent(response.event_id));
+      if (localEvent) {
+        // The message has its own row from here on: pending, then sent, or "Not sent" with Retry
+        // and Delete. So the session does not wait for the server, and the client's queue sends
+        // the next message after this one.
+        sent.catch(() => undefined);
+      } else {
+        // Without a row of its own, a failed text goes back to the composer.
+        await sent;
+      }
 
       session.textPending = false;
       clearReplyDraftForSession(session);
@@ -284,9 +313,10 @@ export const useRoomInputSendSessionController = ({
 
   const restoreComposerFallback = useCallback(
     (session: SendSession) => {
-      // A failed caption goes back into the composer instead of parking in the session: by the
-      // time the caption sends, the uploads have left the board, so the board's Send-again
-      // affordance that resumes a blocked session no longer exists.
+      // A caption that failed before it had a row of its own (its long-text file did not
+      // upload, or an earlier upload of a lifecycle-complete send failed) goes back into the
+      // composer instead of parking in the session: by then the uploads have left the board, so
+      // the board's Send-again affordance that resumes a blocked session no longer exists.
       session.textPending = false;
       const fragment = session.composerFallback;
       session.composerFallback = undefined;
@@ -311,6 +341,31 @@ export const useRoomInputSendSessionController = ({
     attachments.clearEnrollment();
   }, [attachments]);
 
+  const getSessionUploads = useCallback(
+    (session: SendSession): [Upload[], TUploadContent[]] => {
+      const { staged, enrolled, uploads } = attachments.snapshot(session.roomId);
+      const activeFiles = new Set([...staged, ...enrolled].map((fileItem) => fileItem.file));
+      return [session.uploads ?? uploads, Array.from(activeFiles)];
+    },
+    [attachments]
+  );
+
+  const isSessionStalled = useCallback(
+    (session: SendSession) => isRoomInputSendSessionStalled(session, ...getSessionUploads(session)),
+    [getSessionUploads]
+  );
+
+  // Queued texts go out one at a time once the session is done, and all of them at once when it
+  // can only go on after the person retries an attachment: they never wait for that.
+  const releaseQueuedSends = useCallback(() => {
+    const session = sendSessionRef.current;
+    if (!session) {
+      queuedSendsRef.current.shift()?.();
+    } else if (isSessionStalled(session)) {
+      queuedSendsRef.current.splice(0).forEach((startQueued) => startQueued());
+    }
+  }, [isSessionStalled]);
+
   const processSendSession = useCallback(async () => {
     if (processingSendSessionRef.current) return;
 
@@ -319,17 +374,7 @@ export const useRoomInputSendSessionController = ({
       while (sendSessionRef.current) {
         const session = sendSessionRef.current;
 
-        const { staged, enrolled, uploads } = attachments.snapshot(session.roomId);
-        const step = resolveRoomInputSendStep(
-          session,
-          session.uploads ?? uploads,
-          Array.from(
-            new Set([
-              ...staged.map((fileItem) => fileItem.file),
-              ...enrolled.map((fileItem) => fileItem.file),
-            ])
-          )
-        );
+        const step = resolveRoomInputSendStep(session, ...getSessionUploads(session));
 
         if (step.kind === 'wait') {
           return;
@@ -343,12 +388,8 @@ export const useRoomInputSendSessionController = ({
           try {
             await sendSessionText(session);
           } catch (error) {
-            if (session.textTimelineOwned) {
-              session.textPending = false;
-              session.composerFallback = undefined;
-            } else {
-              restoreComposerFallback(session);
-            }
+            // Only a text that never got a row of its own fails here.
+            restoreComposerFallback(session);
             if (session.failFast) {
               throw error;
             }
@@ -371,9 +412,16 @@ export const useRoomInputSendSessionController = ({
       }
     } finally {
       processingSendSessionRef.current = false;
-      if (!sendSessionRef.current) queuedSendsRef.current.shift()?.();
+      releaseQueuedSends();
     }
-  }, [attachments, sendSessionText, sendSessionUpload, restoreComposerFallback, clearSendSession]);
+  }, [
+    getSessionUploads,
+    sendSessionText,
+    sendSessionUpload,
+    restoreComposerFallback,
+    clearSendSession,
+    releaseQueuedSends,
+  ]);
 
   const startSendSession = useCallback(
     async ({
@@ -393,45 +441,67 @@ export const useRoomInputSendSessionController = ({
             'Cannot start a lifecycle-complete send while another session is active.'
           );
         }
-        if (!hasRoomInputSendFailures(existingSession)) {
-          // Repeated sends while uploads are still resolving should not create duplicate events.
-          if (!textContent) return;
-          // A new message follows the one still going out, in order. The composer takes it now,
-          // as it does any message; the reply draft the earlier message took stays with that one.
-          const queuedFallback = composerFallback ?? structuredClone(editor.children);
-          if (!composerAlreadyReset) {
-            resetEditor(editor); resetEditorHistory(editor);
-            sendTypingStatus(false);
-          }
-          const queuedContext: RoomInputSendContext = context ?? {
-            roomId,
-            room,
-            threadId,
-            replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
-            threadingEnabled,
-            signalBridgedRoom: isSignalBridgeRoom(room),
-          };
-          queuedSendsRef.current.push(() => {
-            startSendSessionRef
-              .current?.({
-                textContent,
-                context: queuedContext,
-                composerFallback: queuedFallback,
-                composerContext: composerContext ?? { roomId, threadId },
-                composerAlreadyReset: true,
-                onUploadSent,
-              })
-              .catch((error: unknown) => {
-                // eslint-disable-next-line no-console
-                console.warn('[room-input] could not send the queued message', error);
-              });
-          });
+        if (hasRoomInputSendFailures(existingSession) && !composerAlreadyReset) {
+          // Send again: the attachments whose send failed go out again; text being sent stays
+          // in the composer meanwhile.
+          existingSession.blockedRoot = false;
+          existingSession.failedFiles.clear();
+          await processSendSession();
           return;
         }
-
-        existingSession.blockedRoot = false;
-        existingSession.failedFiles.clear();
-        await processSendSession();
+        // Repeated sends while uploads are still resolving should not create duplicate events.
+        if (!textContent) return;
+        if (hasFailedPasteMarkerInText(textContent, attachments.snapshot(context?.roomId).staged)) {
+          return;
+        }
+        // The composer takes the message now, as it does any message; the reply draft the earlier
+        // message took stays with that one.
+        const nextFallback = composerFallback ?? structuredClone(editor.children);
+        if (!composerAlreadyReset) {
+          resetEditor(editor); resetEditorHistory(editor);
+          sendTypingStatus(false);
+        }
+        const nextContext: RoomInputSendContext = context ?? {
+          roomId,
+          room,
+          threadId,
+          replyDraft: replyDraft === existingSession.replyDraft ? undefined : replyDraft,
+          threadingEnabled,
+          signalBridgedRoom: isSignalBridgeRoom(room),
+        };
+        const nextComposerContext = composerContext ?? { roomId, threadId };
+        if (isSessionStalled(existingSession)) {
+          // The session waits for the person to retry an attachment; the text does not wait
+          // with it and gets its row at once.
+          const session = createSendSession(nextContext, [], {
+            textContent,
+            composerFallback: nextFallback,
+            composerContext: nextComposerContext,
+            failFast: false,
+          });
+          const sending = textsBesideRef.current.then(() =>
+            sendSessionText(session).catch(() => restoreComposerFallback(session))
+          );
+          textsBesideRef.current = sending;
+          await sending;
+          return;
+        }
+        // Otherwise it follows the message still going out, in order.
+        queuedSendsRef.current.push(() => {
+          startSendSessionRef
+            .current?.({
+              textContent,
+              context: nextContext,
+              composerFallback: nextFallback,
+              composerContext: nextComposerContext,
+              composerAlreadyReset: true,
+              onUploadSent,
+            })
+            .catch((error: unknown) => {
+              // eslint-disable-next-line no-console
+              console.warn('[room-input] could not send the queued message', error);
+            });
+        });
         return;
       }
 
@@ -442,39 +512,29 @@ export const useRoomInputSendSessionController = ({
       if (hasFailedPasteMarkerInText(textContent, staged)) return;
       attachments.enroll(sendItems);
 
-      const sessionRoomId = context ? context.roomId : roomId;
-      const sessionRoom = context ? context.room : room;
-      const sessionThreadId = context ? context.threadId : threadId;
-      const sessionReplyDraft = context ? context.replyDraft : replyDraft;
-      const sessionThreadingEnabled = context ? context.threadingEnabled : threadingEnabled;
-      const signalBridgedRoom = context ? context.signalBridgedRoom : isSignalBridgeRoom(room);
-
-      sendSessionRef.current = {
-        composerContext: composerContext ?? { roomId, threadId },
-        room: sessionRoom,
-        roomId: sessionRoomId,
-        threadId: sessionThreadId,
-        replyDraft: sessionReplyDraft,
-        threadingEnabled: sessionThreadingEnabled,
-        textContent,
-        replyCleared: false,
-        signalBridgedRoom,
-        failFast: completeWithinCall,
-        uploads: batch?.uploads,
-        onUploadSent,
-        ...createRoomInputSendSessionState({
-          files: sendFiles,
-          hasText: Boolean(textContent),
-          threadId: sessionThreadId,
-          replyDraft: sessionReplyDraft,
-          threadingEnabled: sessionThreadingEnabled,
-        }),
-      };
+      sendSessionRef.current = createSendSession(
+        context ?? {
+          roomId,
+          room,
+          threadId,
+          replyDraft,
+          threadingEnabled,
+          signalBridgedRoom: isSignalBridgeRoom(room),
+        },
+        sendFiles,
+        {
+          textContent,
+          composerContext: composerContext ?? { roomId, threadId },
+          failFast: completeWithinCall,
+          uploads: batch?.uploads,
+          onUploadSent,
+        }
+      );
       if (textContent) {
         // The caption sends last (after the uploads), so free the composer as soon as the
         // session has snapshotted the text instead of when the text event goes out. Keep a
-        // clone of the composer content so a failed caption can be restored (slate mutates
-        // editor.children in place).
+        // clone of the composer content so a caption that never gets a row of its own can be
+        // restored (slate mutates editor.children in place).
         sendSessionRef.current.composerFallback =
           composerFallback ?? structuredClone(editor.children);
         if (!composerAlreadyReset) {
@@ -510,6 +570,8 @@ export const useRoomInputSendSessionController = ({
       sendTypingStatus,
       attachments,
       processSendSession,
+      sendSessionText,
+      isSessionStalled,
       restoreComposerFallback,
       clearSendSession,
     ]

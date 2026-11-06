@@ -1284,9 +1284,17 @@ describe('RoomInput', () => {
 
     const firstEnter = { key: 'Enter', preventDefault: vi.fn() };
     const secondEnter = { key: 'Enter', preventDefault: vi.fn() };
+    // The send takes the text out of the composer before the browser delivers the next key.
+    editorMocks.resetEditor.mockImplementationOnce(() => {
+      editorOutputState.plainText = '';
+      editorOutputState.customHtml = '';
+    });
 
     await act(async () => {
       customEditorState.props!.onKeyDown?.(firstEnter);
+      await Promise.resolve();
+    });
+    await act(async () => {
       customEditorState.props!.onKeyDown?.(secondEnter);
       await Promise.resolve();
     });
@@ -1307,11 +1315,12 @@ describe('RoomInput', () => {
       send.resolve({ event_id: '$sent' });
       await Promise.resolve();
     });
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
 
     renderer.unmount();
   });
 
-  it('shows the pending send indicator for unresolved thread composer sends', async () => {
+  it('leaves the pending mark of an unresolved thread send to its row', async () => {
     const { renderer } = await renderRoomInput(createStore(), { threadId: '$thread' });
     const send = createDeferred<{ event_id: string }>();
     mxState.sendMessage.mockReturnValueOnce(send.promise);
@@ -1325,8 +1334,11 @@ describe('RoomInput', () => {
       await Promise.resolve();
     });
 
-    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
-    expect(JSON.stringify(renderer.toJSON())).toContain('Waiting for server');
+    // The reply has its local echo, whose row shows that it is still sending; the composer is
+    // free for the next message at once.
+    expect(mxState.sendMessage).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Waiting for server');
     expect(JSON.stringify(renderer.toJSON())).not.toContain('Sending to this thread');
 
     await act(async () => {
@@ -1362,7 +1374,8 @@ describe('RoomInput', () => {
     expect(getEditorText()).toBe('');
     expect(editorMocks.resetEditorHistory).toHaveBeenCalled();
     expect(typingState.sendTypingStatus).toHaveBeenCalledWith(false);
-    expect(JSON.stringify(renderer.toJSON())).toContain('Message sending');
+    // The row of the local echo shows the pending send, not the composer.
+    expect(JSON.stringify(renderer.toJSON())).not.toContain('Message sending');
 
     await act(async () => {
       send.resolve({ event_id: '$sent' });
