@@ -128,8 +128,8 @@ const isClean = (content: unknown, sender: string | undefined): boolean => {
  * it has an object `m.new_content`. An edit without one is ignored, as the specification says.
  */
 export const isUsableEdit = (edit: MatrixEvent): boolean =>
-  (edit.isEncrypted() && edit.getClearContent() === null) ||
-  isRecord(edit.getContent()['m.new_content']);
+  isRecord(edit.getContent()['m.new_content']) ||
+  (edit.isEncrypted() && edit.getClearContent() === null);
 
 type Sanitized = { source: unknown; version: number; result: IContent };
 
