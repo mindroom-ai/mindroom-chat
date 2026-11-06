@@ -4,10 +4,55 @@ import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import { deleteCacheStoreDb, saveThreadEventsToCache } from '../../event-store/cache/db';
 import { useThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
-import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
+import {
+  resolveCachedOverviewUpdate,
+  useThreadOverviewCacheHydration,
+} from './threadOverviewCacheHydration';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { subscribeThreadCacheChanges } from '../../event-store/cache/threadCacheChanges';
 import { resolveThreadPresentationSnapshot } from '../../event-store/threads/threadPresentation';
+
+it('applies a separately cached terminal edit before deriving the reply preview', () => {
+  const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
+  const room = new Room('!room:example.org', mx, '@reader:example.org');
+  const reply = {
+    event_id: '$reply',
+    room_id: room.roomId,
+    sender: '@agent:example.org',
+    origin_server_ts: 1000,
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
+  };
+  const edit = {
+    ...reply,
+    event_id: '$terminal-edit',
+    origin_server_ts: 2000,
+    content: {
+      msgtype: 'm.text',
+      body: '* The release notes are ready.',
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: 'The release notes are ready.',
+        'io.mindroom.stream_status': 'completed',
+      },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+    },
+  };
+  const update = resolveCachedOverviewUpdate({
+    rootId: '$root',
+    room,
+    mapper: mx.getEventMapper(),
+    cachedPage: { events: [reply, edit], hasMoreBefore: false },
+    showCompactRoomView: true,
+    compactCachedThreadRootBodyMap: new Map(),
+    compactThreadRootBodyMap: new Map(),
+  });
+  expect(update?.nextReplyPreviewText).toBe('The release notes are ready.');
+});
 
 it('keeps the cached final reply when only the newer title notice is loaded', () => {
   const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
