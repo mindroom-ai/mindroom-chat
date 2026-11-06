@@ -173,7 +173,9 @@ const interruptNextPin = async (page: Page, phone: boolean) => {
           const below = node.scrollHeight - node.clientHeight - node.scrollTop;
           if (below < minBelow)
             pulled.push(
-              `${Math.round(performance.now() - start)} ms: ${Math.round(below)} px above the bottom`
+              `${Math.round(performance.now() - start)} ms: ${Math.round(
+                below
+              )} px above the bottom`
             );
           requestAnimationFrame(tick);
         };
@@ -196,7 +198,12 @@ const check = async (page: Page, world: World, viewMode: 'classic' | 'threaded',
     username: world.reader.username,
     password: PASSWORD,
   });
-  await seedRoomOverviewState({ page, roomId: world.roomId, userId: world.reader.userId, viewMode });
+  await seedRoomOverviewState({
+    page,
+    roomId: world.roomId,
+    userId: world.reader.userId,
+    viewMode,
+  });
   await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
   await expect(page.getByText('Status update 60:').first()).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeHidden({
