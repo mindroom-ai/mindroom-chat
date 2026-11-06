@@ -240,6 +240,9 @@ const getEditedContent = (
 };
 
 const getContentText = (content: Record<string, unknown> | undefined): string | undefined => {
+  // The body the SDK gives an event it cannot decrypt is its error text; the shared preview
+  // resolver names such an event instead.
+  if (content?.msgtype === 'm.bad.encrypted') return undefined;
   const edited = getEditedContent(content);
   const body = edited?.body ?? content?.body;
   const topic = edited?.topic ?? content?.topic;
