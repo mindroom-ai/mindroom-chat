@@ -30,10 +30,15 @@ export const Line = style([
     textAlign: 'start',
     cursor: 'pointer',
     selectors: {
-      '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
       '&:focus-visible': {
         outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
         outlineOffset: toRem(1),
+      },
+    },
+    // A touch screen keeps :hover on the line tapped last; only a pointer that can hover tints it.
+    '@media': {
+      '(hover: hover)': {
+        selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
       },
     },
   },
