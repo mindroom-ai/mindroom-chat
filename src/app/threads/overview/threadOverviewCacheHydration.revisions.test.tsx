@@ -1,12 +1,38 @@
 import 'fake-indexeddb/auto';
 import { act, create } from 'react-test-renderer';
-import { MatrixClient, Room } from 'matrix-js-sdk';
+import { MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { expect, it, vi } from 'vitest';
 import { deleteCacheStoreDb, saveThreadEventsToCache } from '../../event-store/cache/db';
 import { useThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
 import { subscribeThreadCacheChanges } from '../../event-store/cache/threadCacheChanges';
+import { resolveThreadPresentationSnapshot } from '../../event-store/threads/threadPresentation';
+
+it('keeps the cached final reply when only the newer title notice is loaded', () => {
+  const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
+  const room = new Room('!room:example.org', mx, '@reader:example.org');
+  const title = new MatrixEvent({
+    event_id: '$title',
+    room_id: room.roomId,
+    sender: '@agent:example.org',
+    origin_server_ts: 3000,
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.notice',
+      body: 'Release notes item 1',
+      'io.mindroom.thread_summary': true,
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
+  });
+  const presentation = resolveThreadPresentationSnapshot({
+    room,
+    threadRootId: '$root',
+    thread: { events: [title], timeline: [title] },
+    fallbackLatestReplyPreviewText: 'The release notes are ready.',
+  });
+  expect(presentation.latestReplyPreviewText).toBe('The release notes are ready.');
+});
 
 it('announces committed changes only, scoped to the reader, and ignores an older replay', async () => {
   const sessionId = 'preview-change-notifications';
