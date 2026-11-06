@@ -49,7 +49,7 @@ export function ClientLayout({ nav, className, children }: ClientLayoutProps) {
 
   useEffect(() => {
     if (!sessionId || isRuntimeHandOffPath(pathname)) return;
-    if (routeOpener?.key === key && routeOpener.sessionId !== sessionId) return;
+    if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) return;
     routeOpener = { key, sessionId };
     const storedPathname = canonicalizeSessionPathname(mx, pathname);
     updateSessionLastPath(sessionId, `${storedPathname}${search}${hash}`);
