@@ -23,6 +23,8 @@ type AutocompleteMenuProps = PropsWithChildren<{
   headerContent: ReactNode;
 }>;
 
+const keepTextBoxFocus = (event: React.MouseEvent) => event.preventDefault();
+
 type TrapOptions = NonNullable<React.ComponentProps<typeof FocusTrap>['focusTrapOptions']>;
 
 // Arrow keys step through the items like Tab does; the trap wraps at both ends.
@@ -122,7 +124,9 @@ export function AutocompleteMenu({ requestClose, headerContent, children }: Auto
   );
 
   return (
-    <div className={css.AutocompleteMenuBase}>
+    // A press on a suggestion leaves the focus, and with it the caret, in the text box: a tap would
+    // otherwise move the focus to the suggestion, and the caret could come back at the start.
+    <div className={css.AutocompleteMenuBase} onMouseDown={keepTextBoxFocus}>
       <div className={css.AutocompleteMenuContainer}>{menu}</div>
     </div>
   );

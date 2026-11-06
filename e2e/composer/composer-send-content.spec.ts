@@ -179,6 +179,8 @@ const pickSuggestion = async (page: Page, form: Form, suggestion: Locator) => {
   if (form === 'phone') await suggestion.tap();
   else await page.keyboard.press('Enter');
   await expect(suggestion).toHaveCount(0);
+  // Typing goes on in the text box, after the pill: a tap leaves the focus there.
+  await expect(composer(page)).toBeFocused();
 };
 
 const shot = async (page: Page, name: string) => {
