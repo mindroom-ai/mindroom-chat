@@ -74,6 +74,8 @@ const openPalette = async (browser: Browser, options: BrowserContextOptions, lan
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
   }
+  // The shell listens for the shortcut once the navigation is up.
+  await expect(page.getByTestId('resizable-page-nav')).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('ControlOrMeta+k');
   const tablist = page.getByRole('dialog').getByRole('tablist');
   await expect(tablist).toBeVisible();

@@ -150,7 +150,7 @@ const back = (page: Page) => page.getByRole('button', { name: /^(Back|رجوع)$
 const openLobby = async (page: Page, space: string) => {
   await page.locator(`[data-id="${space}"]`).first().tap();
   await expect(page).toHaveURL(spaceListPath(space));
-  await page.getByTestId('resizable-page-nav').locator('a[href$="/lobby/"]').tap();
+  await page.getByTestId('resizable-page-nav').locator('a[href*="/lobby"]').tap();
   await expect(page).toHaveURL(lobbyPath(space));
   await expect(card(page, 'Harbor Plans')).toBeVisible({ timeout: 30_000 });
 };

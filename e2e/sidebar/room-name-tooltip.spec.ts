@@ -26,8 +26,12 @@ const LONG_ROOMS = [
   'Quarterly planning for the customer onboarding experience redesign',
   'Notes from the design review of the new billing and invoicing flow',
 ];
-const SHORT = 'Book Swap';
-const OTHER_ROOMS = Array.from({ length: 22 }, (_, index) => `Team room ${index + 1}`);
+const OTHER_ROOMS = [
+  'Book Swap',
+  ...Array.from({ length: 22 }, (_, index) => `Team room ${index + 1}`),
+];
+// Beside the long name in the A to Z list, so it is rendered while that row is in view.
+const SHORT = 'Team room 22';
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 const TABLET: BrowserContextOptions = {
   viewport: { width: 1024, height: 768 },
@@ -63,7 +67,7 @@ const seed = async (): Promise<string> => {
       body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
     }
   );
-  for (const name of [...LONG_ROOMS, SHORT, ...OTHER_ROOMS]) {
+  for (const name of [...LONG_ROOMS, ...OTHER_ROOMS]) {
     await createPrivateRoom(HOMESERVER, token, { name, topic: 'Weekly notes and decisions' });
   }
   return username;
