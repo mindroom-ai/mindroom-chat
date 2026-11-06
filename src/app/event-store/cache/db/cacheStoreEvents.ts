@@ -1,6 +1,11 @@
 import type { IEvent } from 'matrix-js-sdk';
 import type { EventAttachmentMessage } from '../../../matrix/protocol/eventAttachments';
 import { countCacheProbe } from '../cacheProbe';
+import {
+  getSummaryLatestEvent,
+  isOlderThanSummary,
+  withNewestCachedReplies,
+} from '../cachedThreadSummary';
 import { isCacheWritable, reportCacheWriteError } from '../cacheHealth';
 import {
   collectEmbeddedRelationEventIds,
@@ -1004,9 +1009,12 @@ export const loadCachedThreadRootsForRoom = async (
             root = mergeRawEventRevisions(root, row.rawEvent);
           });
           if (root?.event_id !== meta.scope) return;
-          const entry: CachedThreadRoot = { rootEvent: root };
+          const rootEvent = root;
+          const entry: CachedThreadRoot = { rootEvent };
           roots.push(entry);
-          if (root.unsigned?.['m.relations']?.['m.thread']) return;
+          // A summarized root takes the newer replies the cache holds for its thread.
+          const summaryLatest = getSummaryLatestEvent(rootEvent);
+          const newerReplies: Partial<IEvent>[] = [];
           // Plain roots need actual reply evidence while SDK discovery is pending.
           // Skip standalone edits/reactions, whose target may not be loaded yet.
           const latest = transaction
@@ -1021,12 +1029,24 @@ export const loadCachedThreadRootsForRoom = async (
             );
           latest.onsuccess = () => {
             const cursor = latest.result;
-            if (!cursor) return;
-            const event = (cursor.value as CachedEventRecord).rawEvent;
+            const event = (cursor?.value as CachedEventRecord | undefined)?.rawEvent;
+            if (!cursor || !event || (summaryLatest && isOlderThanSummary(event, summaryLatest))) {
+              if (summaryLatest) entry.rootEvent = withNewestCachedReplies(rootEvent, newerReplies);
+              return;
+            }
             const relation = event.content?.['m.relates_to'];
             if (relation?.rel_type === 'm.thread' && relation.event_id === meta.scope) {
-              entry.latestReply = event;
-            } else cursor.continue();
+              if (!summaryLatest) {
+                entry.latestReply = event;
+                return;
+              }
+              newerReplies.push(event);
+              if (event.event_id === summaryLatest.event_id) {
+                entry.rootEvent = withNewestCachedReplies(rootEvent, newerReplies);
+                return;
+              }
+            }
+            cursor.continue();
           };
         };
       });
