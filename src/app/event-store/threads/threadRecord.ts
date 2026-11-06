@@ -284,7 +284,8 @@ export const buildThreadRecord = ({
     preferredSummaryInfo,
     preferredRootPreviewText: rootPreviewText,
     fallbackLatestReplyPreviewText,
-    fallbackLatestReplyTs: fallbackLatestReplyTs ?? fallbackLastActivityTs,
+    fallbackLatestReplyTs,
+    fallbackLastActivityTs,
     fallbackLastSenderId,
     fallbackLastSenderDisplayName,
     fallbackMessageCount: serverCounted

@@ -84,6 +84,8 @@ export const resolveThreadRootPreviewText = ({
 
 type ResolveThreadPresentationSnapshotOptions = {
   fallbackLatestReplyTs?: number;
+  /** Stands in for the cached reply's time when only the thread's activity is known. */
+  fallbackLastActivityTs?: number;
   fallbackLastSenderDisplayName?: string;
   fallbackLastSenderId?: string;
   fallbackLatestReplyPreviewText?: string;
@@ -112,8 +114,10 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackParticipantIds,
   visibleReplyEvents,
   fallbackLatestReplyTs,
+  fallbackLastActivityTs,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
   const bundled = getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
+  const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
   const loadedPreviewCandidate = getLatestRenderableVisibleThreadReplyEvent(
     bundled.reply ? replyEvents.filter((event) => !isThreadSummaryEvent(event)) : replyEvents
@@ -130,8 +134,8 @@ export const resolveThreadPresentationSnapshot = ({
   const bundledReply = bundled.reply ?? thread?.replyToEvent;
   const candidatePreviewEvent =
     (!fallbackLatestReplyPreviewText ||
-      (bundled.reply && fallbackLatestReplyTs !== undefined &&
-        getThreadPreviewRevisionTs(bundled.reply) > fallbackLatestReplyTs)) &&
+      (bundled.reply && cachedReplyTs !== undefined &&
+        getThreadPreviewRevisionTs(bundled.reply) > cachedReplyTs)) &&
     bundledReply &&
     !isThreadSummaryEvent(bundledReply) &&
     isVisibleThreadReplyEvent(bundledReply) &&
@@ -142,8 +146,8 @@ export const resolveThreadPresentationSnapshot = ({
       ? bundledReply
       : loadedPreviewEvent;
   const preferCachedReply = bundled.reply && fallbackLatestReplyPreviewText &&
-    fallbackLatestReplyTs !== undefined && (!candidatePreviewEvent ||
-      fallbackLatestReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
+    cachedReplyTs !== undefined && (!candidatePreviewEvent ||
+      cachedReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
   const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
   const lastEvent = preferCachedReply ? undefined : latestPreviewEvent ?? replyEvents[replyEvents.length - 1];
   const lastSenderId =
@@ -187,7 +191,12 @@ export const resolveThreadPresentationSnapshot = ({
     summaryText: summaryInfo?.summaryText,
     rootPreviewText,
     latestReplyPreviewText,
-    latestReplyTs: latestPreviewEvent ? getThreadPreviewRevisionTs(latestPreviewEvent) : fallbackLatestReplyTs,
+    // A title notice shown for want of a reply has no reply time.
+    latestReplyTs: latestPreviewEvent
+      ? isThreadSummaryEvent(latestPreviewEvent)
+        ? undefined
+        : getThreadPreviewRevisionTs(latestPreviewEvent)
+      : fallbackLatestReplyTs,
     ...(rootPreviewLocalization ? { rootPreviewLocalization } : {}),
     ...(latestReplyPreviewLocalization ? { latestReplyPreviewLocalization } : {}),
     lastSenderId,

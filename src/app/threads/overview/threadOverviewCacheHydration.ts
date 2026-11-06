@@ -143,9 +143,14 @@ export const resolveFetchedRelationOverviewUpdate = ({
     rootEvent: rootEvent ?? undefined,
   });
   const currentPresentation = currentRecord?.presentation;
+  // Reply against reply when the card shows a dated reply; else, as before, activity against
+  // activity: a later title raises the live activity above any reply's time.
+  const currentReplyTs = currentPresentation?.latestReplyTs;
   const shouldUseFetchedReplyMetadata =
-    (cachedPresentation.latestReplyTs !== undefined &&
-      cachedPresentation.latestReplyTs >= (currentPresentation?.latestReplyTs ?? liveActivityTs)) ||
+    (currentReplyTs !== undefined
+      ? cachedPresentation.latestReplyTs !== undefined &&
+        cachedPresentation.latestReplyTs >= currentReplyTs
+      : newestTs !== undefined && newestTs >= liveActivityTs) ||
     !currentPresentation?.latestReplyPreviewText;
   const nextReplyPreviewText =
     shouldUseFetchedReplyMetadata &&
@@ -252,9 +257,13 @@ export const resolveCachedOverviewUpdate = ({
     rootEvent: cachedEvents.find((event) => event.getId() === rootId) ?? currentRootEvent,
   });
   const currentPresentation = currentRecord?.presentation;
+  // As for fetched relations: reply against reply, else activity against activity.
+  const currentReplyTs = currentPresentation?.latestReplyTs;
   const shouldUseCachedReplyMetadata =
-    (cachedPresentation.latestReplyTs !== undefined &&
-      cachedPresentation.latestReplyTs >= (currentPresentation?.latestReplyTs ?? liveActivityTs)) ||
+    (currentReplyTs !== undefined
+      ? cachedPresentation.latestReplyTs !== undefined &&
+        cachedPresentation.latestReplyTs >= currentReplyTs
+      : cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
     !currentPresentation?.latestReplyPreviewText;
   const nextReplyPreviewText =
     shouldUseCachedReplyMetadata &&
