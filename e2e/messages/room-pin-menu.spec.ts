@@ -419,6 +419,8 @@ const FILLER_COUNT = 90;
 const FAR_PIN = 'Gate passes for contractors now come from the security office, not reception.';
 const RECENT_PIN = 'Tomorrow the morning meeting starts at half past seven, in the tower.';
 const DELETED = 'This message is pinned and then deleted.';
+const THREAD_ROOT = 'Crane maintenance plan for next week, details in this thread.';
+const THREAD_REPLY = 'The spare parts for crane two arrive on Tuesday morning.';
 const FILE_NAME = 'berth-plan.txt';
 const PICTURE_NAME = 'quay-map.png';
 
@@ -450,10 +452,16 @@ const seedHistory = async (name: string) => {
     // eslint-disable-next-line no-await-in-loop
     await send({ msgtype: 'm.text', body: `${FILLERS[index % FILLERS.length]} (${index + 1})` });
   }
+  const root = await send({ msgtype: 'm.text', body: THREAD_ROOT });
+  const threadReply = await send({
+    msgtype: 'm.text',
+    body: THREAD_REPLY,
+    'm.relates_to': { rel_type: 'm.thread', event_id: root, is_falling_back: true },
+  });
   const recent = await send({ msgtype: 'm.text', body: RECENT_PIN });
-  await pinEvents(owner, roomId, [far, picture, file, deleted, recent]);
+  await pinEvents(owner, roomId, [far, picture, file, deleted, threadReply, recent]);
   await redactEvent(HOMESERVER, owner.accessToken, roomId, deleted);
-  return { username, owner, roomId, far, picture, file, deleted, recent };
+  return { username, owner, roomId, far, picture, file, deleted, threadReply, recent };
 };
 
 /** Records whether the row of `eventId` is ever drawn highlighted, from now on. */
@@ -522,7 +530,14 @@ const checkJump = async (
   await expect(menu).toBeVisible();
   const entry = (eventId: string) => menu.locator(`[data-pinned-event-id="${eventId}"]`);
   // Every kind of pin shows its sender's row and its content.
-  for (const eventId of [seeded.far, seeded.picture, seeded.file, seeded.deleted, seeded.recent]) {
+  for (const eventId of [
+    seeded.far,
+    seeded.picture,
+    seeded.file,
+    seeded.deleted,
+    seeded.threadReply,
+    seeded.recent,
+  ]) {
     // eslint-disable-next-line no-await-in-loop
     await expect(jumpButton(entry(eventId), OWNER_NAME)).toBeVisible({ timeout: 30_000 });
   }
@@ -560,6 +575,24 @@ const checkJump = async (
   await expect(timelineRow(page, seeded.recent)).toBeInViewport({ timeout: 60_000 });
   await expect.poll(() => highlighted(page, seeded.recent), { timeout: 10_000 }).toBe(true);
 
+  // The reader scrolls away and opens the same pin again: it opens again.
+  await timelineRow(page, seeded.recent).evaluate((element) => {
+    let scroller = element.parentElement;
+    while (scroller && scroller.scrollHeight <= scroller.clientHeight + 1) {
+      scroller = scroller.parentElement;
+    }
+    scroller?.scrollBy({ top: -4000 });
+  });
+  await expect(timelineRow(page, seeded.recent)).not.toBeInViewport();
+  await pinButton.click();
+  await expect(menu).toBeVisible();
+  await watchHighlight(page, seeded.recent);
+  if (form === 'phone') await recentRow.tap();
+  else await recentRow.click();
+  await expect(menu).toHaveCount(0);
+  await expect(timelineRow(page, seeded.recent)).toBeInViewport({ timeout: 30_000 });
+  await expect.poll(() => highlighted(page, seeded.recent), { timeout: 10_000 }).toBe(true);
+
   // Unpin is reached with the keyboard; focus stays in the menu.
   await pinButton.click();
   await expect(menu).toBeVisible();
@@ -572,9 +605,16 @@ const checkJump = async (
     .toBe(true);
   await expect
     .poll(() => serverPins(seeded.owner, roomId), { timeout: 30_000 })
-    .toEqual([seeded.far, seeded.file, seeded.deleted, seeded.recent]);
-  await page.keyboard.press('Escape');
+    .toEqual([seeded.far, seeded.file, seeded.deleted, seeded.threadReply, seeded.recent]);
+
+  // A pinned thread reply opens in its thread, at the reply.
+  await watchHighlight(page, seeded.threadReply);
+  await jumpButton(entry(seeded.threadReply), OWNER_NAME).click();
   await expect(menu).toHaveCount(0);
+  await expect(page).toHaveURL(/threadId=/);
+  await expect(timelineRow(page, seeded.threadReply)).toBeInViewport({ timeout: 30_000 });
+  await expect.poll(() => highlighted(page, seeded.threadReply), { timeout: 10_000 }).toBe(true);
+  await shoot(page, testInfo, `jump-${engine}-${form}-thread-reply`);
 };
 
 /** Opens an encrypted room, sends a message from the browser and pins it from its menu. */
