@@ -90,7 +90,8 @@
       "close": "बंद करें"
     },
     "inviteUserPrompt": {
-      "close": "बंद करें"
+      "close": "बंद करें",
+      "invited": "{{user}} को आमंत्रित किया गया।"
     },
     "joinAddressPrompt": {
       "close": "बंद करें",

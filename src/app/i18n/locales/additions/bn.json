@@ -90,7 +90,8 @@
       "close": "বন্ধ করুন"
     },
     "inviteUserPrompt": {
-      "close": "বন্ধ করুন"
+      "close": "বন্ধ করুন",
+      "invited": "{{user}}-কে আমন্ত্রণ জানানো হয়েছে।"
     },
     "joinAddressPrompt": {
       "close": "বন্ধ করুন",

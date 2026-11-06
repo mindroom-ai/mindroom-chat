@@ -93,7 +93,8 @@
       "close": "Fechar"
     },
     "inviteUserPrompt": {
-      "close": "Fechar"
+      "close": "Fechar",
+      "invited": "{{user}} foi convidado."
     },
     "joinAddressPrompt": {
       "close": "Fechar",

@@ -87,7 +87,8 @@
       "close": "Tutup"
     },
     "inviteUserPrompt": {
-      "close": "Tutup"
+      "close": "Tutup",
+      "invited": "{{user}} telah diundang."
     },
     "joinAddressPrompt": {
       "close": "Tutup",

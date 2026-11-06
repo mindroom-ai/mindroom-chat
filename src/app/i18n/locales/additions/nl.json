@@ -90,7 +90,8 @@
       "close": "Sluiten"
     },
     "inviteUserPrompt": {
-      "close": "Sluiten"
+      "close": "Sluiten",
+      "invited": "{{user}} is uitgenodigd."
     },
     "joinAddressPrompt": {
       "close": "Sluiten",

@@ -90,7 +90,8 @@
       "close": "Kapat"
     },
     "inviteUserPrompt": {
-      "close": "Kapat"
+      "close": "Kapat",
+      "invited": "{{user}} davet edildi."
     },
     "joinAddressPrompt": {
       "close": "Kapat",

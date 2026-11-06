@@ -96,7 +96,8 @@
       "close": "Закрыть"
     },
     "inviteUserPrompt": {
-      "close": "Закрыть"
+      "close": "Закрыть",
+      "invited": "Приглашение отправлено: {{user}}."
     },
     "joinAddressPrompt": {
       "close": "Закрыть",

@@ -87,7 +87,8 @@
       "close": "關閉"
     },
     "inviteUserPrompt": {
-      "close": "關閉"
+      "close": "關閉",
+      "invited": "已邀請 {{user}}。"
     },
     "joinAddressPrompt": {
       "close": "關閉",

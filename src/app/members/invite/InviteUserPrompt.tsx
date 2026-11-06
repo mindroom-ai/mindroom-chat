@@ -1,4 +1,4 @@
-import { FormEvent, RefObject, useId, useRef, useState } from 'react';
+import { FormEvent, RefObject, useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import {
@@ -69,7 +69,10 @@ const dialogTrapOptions = (
   clickOutsideDeactivates: true,
 });
 
-/** Dialog to invite someone to a room by user ID, with directory suggestions and a reason. */
+/**
+ * Dialog to invite people to a room by user ID, with directory suggestions and a reason. It stays
+ * open after each invitation, says who was invited and clears the fields for the next person.
+ */
 export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) {
   const { t } = useTranslation();
   const reasonId = useId();
@@ -79,9 +82,16 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
   const [userId, setUserId] = useState('');
   const [inviting, setInviting] = useState(false);
   const [error, setError] = useState<string>();
+  // The last person invited: the dialog stays open for the next one.
+  const [invited, setInvited] = useState<string>();
+
+  useEffect(() => {
+    if (invited && !inviting) inputRef.current?.focus();
+  }, [invited, inviting]);
 
   const handleInputChange = (value: string) => {
     setError(undefined);
+    setInvited(undefined);
     setUserId(value);
   };
 
@@ -93,13 +103,19 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
       setError(t('featureUi.createChat.pleaseEnterAValidUserId'));
       return;
     }
-    const reason = (evt.target as InviteFormTarget).reasonInput?.value.trim() || undefined;
+    const form = evt.target as InviteFormTarget;
+    const reason = form.reasonInput?.value.trim() || undefined;
 
     setInviting(true);
     setError(undefined);
+    setInvited(undefined);
     try {
       await client.invite(room.roomId, target, reason);
-      if (alive()) requestClose();
+      if (!alive()) return;
+      setUserId('');
+      if (form.reasonInput) form.reasonInput.value = '';
+      setInvited(target);
+      setInviting(false);
     } catch (inviteError) {
       if (!alive()) return;
       setError(
@@ -163,6 +179,9 @@ export function InviteUserPrompt({ room, requestClose }: InviteUserPromptProps) 
                     {error}
                   </Text>
                 )}
+                <Text size="T300" role="status">
+                  {invited && t('sharedUi.inviteUserPrompt.invited', { user: invited })}
+                </Text>
                 <Button
                   type="submit"
                   variant="Primary"

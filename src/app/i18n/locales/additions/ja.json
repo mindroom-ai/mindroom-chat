@@ -87,7 +87,8 @@
       "close": "閉じる"
     },
     "inviteUserPrompt": {
-      "close": "閉じる"
+      "close": "閉じる",
+      "invited": "{{user}} を招待しました。"
     },
     "joinAddressPrompt": {
       "close": "閉じる",
