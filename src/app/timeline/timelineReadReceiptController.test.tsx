@@ -327,6 +327,15 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });
 
+    it('reads nothing when the window loses its focus before the frame comes', () => {
+      mount(optionsWith());
+
+      reportAnchor(true);
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
     it('reads nothing away from the live end', () => {
       mount(optionsWith({ atLiveEndRef: { current: false }, timelineAtLiveEnd: false }));
 
@@ -393,6 +402,15 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       runFrames();
       expect(markThreadAsRead).toHaveBeenCalledTimes(2);
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
+    it('is not read when the window loses its focus before the frame comes', () => {
+      // A busy machine: the window lost its focus, and the reply finished, before the frame.
+      mount(optionsWith(openThread));
+      vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+
+      runFrames();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
     });
 
     it('is not read while the window has no focus', () => {

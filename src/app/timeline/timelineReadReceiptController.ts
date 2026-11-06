@@ -79,19 +79,25 @@ const markerReachesLiveTimeline = (room: Room, markerEventId: string | undefined
   return getFirstLinkedTimeline(markerTimeline, Direction.Forward) === room.getLiveTimeline();
 };
 
-/** Reads the main timeline on the next frame, when the reader has seen its newest rows. */
+/**
+ * Reads the main timeline on the next frame, when the reader has seen its newest rows. A frame
+ * can come late on a busy machine: by then the window may have lost its focus, and what arrived
+ * in between was not seen, so the read is dropped.
+ */
 const readRoomOnNextFrame = (context: ReadContext, markerEventId: string | undefined): void => {
   const { hideActivity, mx, room } = context;
   if (!markerReachesLiveTimeline(room, markerEventId)) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
+    if (!document.hasFocus()) return;
     void markMainTimelineAsRead(mx, roomId, hideActivity);
   });
 };
 
 /**
  * Reads the open thread on the next frame, once its newest replies are loaded and rendered: its
- * tail is loaded, it is past its loading render, and it has a row.
+ * tail is loaded, it is past its loading render, and it has a row. As for the room, a frame that
+ * comes after the window lost its focus reads nothing.
  */
 const readThreadOnNextFrame = (context: ReadContext): void => {
   const { hideActivity, mx, room, threadId } = context;
@@ -99,6 +105,7 @@ const readThreadOnNextFrame = (context: ReadContext): void => {
   if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
+    if (!document.hasFocus()) return;
     void markThreadAsRead(mx, roomId, threadId, hideActivity);
   });
 };
