@@ -85,7 +85,7 @@ function MentionRow({
         // The ID takes only the room the name leaves: on a phone a long ID would otherwise cut
         // the name short.
         <Text size="T200" priority="300" truncate style={{ flex: '1 1 0', textAlign: 'end' }}>
-          {member.userId}
+          <bdi>{member.userId}</bdi>
         </Text>
       }
       onClick={() => onSelect(member)}

@@ -198,7 +198,9 @@ function UserMentionName({
  * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
  * room as `#room name`, and a link to an event as a link that keeps its text (`content`, else
  * the URL) but opens the event. Mentions carry the ID in `data-mention-id` and an event in
- * `data-mention-event-id`, for the mention click handler. Undefined for other links.
+ * `data-mention-event-id`, for the mention click handler. A user or room mention reads in its own
+ * direction (`dir="auto"`), so a Matrix ID inside right-to-left text keeps its `@` or `#` in front.
+ * Undefined for other links.
  */
 export const renderMatrixMention = (
   client: MatrixClient,
@@ -219,6 +221,7 @@ export const renderMatrixMention = (
           customProps.className
         )}
         data-mention-id={userId}
+        dir="auto"
       >
         <UserMentionName client={client} room={room} userId={userId} />
       </a>
@@ -255,6 +258,7 @@ export const renderMatrixMention = (
         )}
         data-mention-id={roomLink.roomIdOrAlias}
         data-mention-via={roomLink.viaServers?.join(',') || undefined}
+        dir="auto"
       >
         {roomName(client, roomLink.roomIdOrAlias)}
       </a>

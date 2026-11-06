@@ -10,6 +10,7 @@ import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthenticatio
 import { useRelations } from '../../matrix/hooks/useRelations';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../../matrix/matrix';
+import { ownDirectionLine } from '../../ui/directional';
 
 type ReactionViewerProps = {
   room: Room;
@@ -46,7 +47,7 @@ function SenderRow({ room, userId }: { room: Room; userId: string }) {
           {name}
         </Text>
         {name !== userId && (
-          <Text size="T200" priority="300" truncate>
+          <Text size="T200" priority="300" truncate {...ownDirectionLine}>
             {userId}
           </Text>
         )}

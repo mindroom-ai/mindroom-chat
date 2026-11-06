@@ -9,6 +9,7 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
+import { ownDirectionLine } from '../ui/directional';
 
 /** Everyone whose read receipt is at or after the event, the sender excluded. */
 const getEventReaders = (room: Room, eventId: string): string[] => {
@@ -110,7 +111,7 @@ export function EventReaders({ room, eventId, readers: known, requestClose }: Ev
                     {name}
                   </Text>
                   {name !== userId && (
-                    <Text size="T200" priority="300" truncate>
+                    <Text size="T200" priority="300" truncate {...ownDirectionLine}>
                       {userId}
                     </Text>
                   )}
