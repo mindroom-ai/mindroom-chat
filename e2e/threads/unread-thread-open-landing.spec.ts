@@ -142,6 +142,8 @@ type ThreadView = {
   gap: number;
   /** Whether the newest reply's row is mounted and its bottom is above the composer. */
   newestShown: boolean;
+  /** How far the newest reply's bottom is below the composer's top, when it is mounted. */
+  newestBelow: number | null;
 };
 
 type ReceiptRecord = { url: string; body: string; view: ThreadView | null };
@@ -174,6 +176,7 @@ const recordReceipts = (newestKey: string) => {
     return {
       gap: scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop,
       newestShown: !!rowBox && rowBox.bottom <= visibleBottom + 2 && rowBox.bottom > box.top,
+      newestBelow: rowBox ? Math.round(rowBox.bottom - visibleBottom) : null,
     };
   };
   const send = window.fetch.bind(window);
@@ -246,7 +249,7 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
         path: `${SHOTS}/unread-thread-open-${browserName}-${index + 1}.png`,
       });
     }
-    expect(view?.newestShown, `thread ${index + 1}: newest reply shown`).toBe(true);
+    expect(view, `thread ${index + 1}: newest reply shown`).toMatchObject({ newestShown: true });
     expect(view?.gap, `thread ${index + 1}: distance below the view`).toBeLessThanOrEqual(
       LANDED_PX
     );
@@ -257,7 +260,9 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
     const newestReceipts = receipts.filter((receipt) => receipt.url.includes(`/${newestId}`));
     expect(newestReceipts.length, `thread ${index + 1}: a receipt for the newest reply`).toBe(1);
     newestReceipts.forEach((receipt) =>
-      expect(receipt.view?.newestShown, `thread ${index + 1}: receipt sent in view`).toBe(true)
+      expect(receipt.view, `thread ${index + 1}: receipt sent in view`).toMatchObject({
+        newestShown: true,
+      })
     );
   }
 };
