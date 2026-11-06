@@ -335,11 +335,17 @@ const checkSurfaces = async (
         .filter({ hasText: 'Privacy & security' })
         .filter({ hasNot: page.getByRole('navigation') });
       await expect(title).toBeVisible();
-      await title.evaluate((element) => {
-        let node = element.parentElement;
-        while (node && node.scrollHeight <= node.clientHeight + 1) node = node.parentElement;
-        node?.scrollBy(0, 160);
-      });
+      // The page's rows load after its title; scroll its list once they are there.
+      await expect
+        .poll(() =>
+          title.evaluate((element) => {
+            const list = element.closest('[data-y-scrollbar-width]');
+            if (!list) return 0;
+            list.scrollTop = 160;
+            return list.scrollTop;
+          })
+        )
+        .toBeGreaterThanOrEqual(100);
       await measure(
         page,
         results,
