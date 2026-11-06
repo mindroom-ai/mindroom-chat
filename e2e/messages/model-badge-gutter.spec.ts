@@ -260,7 +260,7 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     // eslint-disable-next-line no-await-in-loop
     await shot(page, testInfo, `model-badge-${engine}-phone-${scheme}-tap`);
     // eslint-disable-next-line no-await-in-loop
-    await page.locator('[data-room-footer="true"]').tap({ position: { x: 4, y: 4 } });
+    await page.getByRole('heading', { level: 1 }).tap();
     // eslint-disable-next-line no-await-in-loop
     await expect(tip).toHaveCount(0);
   }

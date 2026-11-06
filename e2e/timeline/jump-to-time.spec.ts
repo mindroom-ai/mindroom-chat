@@ -2,7 +2,7 @@ import { devices, expect, test, type Page } from '@playwright/test';
 import { activeAccountButtonNamePattern, loginWithPassword } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { expectRoomCompact, roomViewSwitch } from '../helpers/roomViewSwitch';
 
 // Jump to Time in the room menu: the room's beginning opens the Full view at the room's first
 // events, far older than the sync window, and a server without `/timestamp_to_event` gets a
@@ -174,7 +174,7 @@ test.describe('on a phone', () => {
     const newest = page.getByText(`Later note ${LONG_LOG_NOTES - 1}:`, { exact: false });
     await expect(newest).toBeVisible({ timeout: 60_000 });
 
-    const header = page.getByRole('banner').filter({ has: roomViewSwitch(page) });
+    const header = page.getByRole('banner').filter({ has: page.locator('h1') });
     await header.getByRole('button', { name: 'More Options' }).tap();
     await page.getByRole('menuitem', { name: 'Jump to Time' }).tap();
     const dialog = page.getByRole('dialog', { name: 'Jump to Time' });
@@ -188,7 +188,7 @@ test.describe('on a phone', () => {
     await expect(dialog).toBeHidden();
 
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(eventId).replace(/\$/g, '\\$')));
-    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+    await expectRoomCompact(page, false);
     const first = page.getByText(FIRST_NOTE, { exact: true });
     await expect(first).toBeInViewport({ timeout: 60_000 });
     // It stays: the history loaded after it must not hand the view to the newest rows.

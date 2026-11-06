@@ -16,6 +16,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { leaveCompactView } from '../helpers/roomViewSwitch';
 
 // "Report a bug" on a message of an end-to-end encrypted room, against the slot's homeserver.
 // The report room is unencrypted (bug report agents read it without E2EE), so the menu entry
@@ -82,9 +83,7 @@ const openRoom = async (page: Page, roomId: string, userId: string) => {
     filterState: createDefaultThreadFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  const viewSwitch = page.locator('[data-room-view-switch]');
-  await expect(viewSwitch).toBeVisible({ timeout: 30_000 });
-  if ((await viewSwitch.getAttribute('aria-pressed')) === 'true') await viewSwitch.click();
+  await leaveCompactView(page);
 };
 
 /** The report the app opened after sending: its thread's attached file, as the server keeps it. */

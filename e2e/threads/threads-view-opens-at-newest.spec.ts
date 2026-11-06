@@ -14,7 +14,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 import { launchWebKit } from '../helpers/webkit';
 
 // The Threads view of a room with an agent lists the room's threads under the filter bar, in the
@@ -255,10 +255,10 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await page.goto('/home/');
   await openRoomFromList(page, phone);
   // A room with an agent opens in Compact; the switch moves it to Threads.
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
+  await expectRoomCompact(page, true);
   await expect(page.locator('[data-thread-root-id]').first()).toBeVisible({ timeout: 30_000 });
-  await roomViewSwitch(page).click();
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await toggleRoomView(page);
+  await expectRoomCompact(page, false);
   await expectShown(page, newest, `after switching to Threads (${label})`);
   await shot(page, `${label}-1-switch`);
 
@@ -274,7 +274,7 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await shot(page, `${label}-2-sent`);
 
   await page.reload();
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false', { timeout: 30_000 });
+  await expectRoomCompact(page, false);
   await expectShown(page, `Draft agenda ${RUN}`, `after a reload (${label})`);
   await shot(page, `${label}-3-reload`);
 
@@ -302,15 +302,15 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
     .click();
   await expect(page.getByText('Checked build 1245').first()).toBeVisible({ timeout: 20_000 });
   await page.goBack();
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
+  await expectRoomCompact(page, false, 20_000);
   await expectShown(page, 'Status update 81:', `back from a thread (${label})`);
   await shot(page, `${label}-5-back`);
 
   // To Compact and back to Threads.
-  await roomViewSwitch(page).click();
+  await toggleRoomView(page);
   await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 20_000 });
-  await roomViewSwitch(page).click();
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await toggleRoomView(page);
+  await expectRoomCompact(page, false);
   await expectShown(page, 'Status update 81:', `after Compact and back (${label})`);
   await shot(page, `${label}-6-compact-and-back`);
 

@@ -183,6 +183,15 @@ const fromHeaderMenu =
     return moreOptions(page);
   };
 
+// On a phone the room menu holds what the header leaves out; focus goes back to its button.
+const fromPhoneRoomMenu =
+  (entry: string) =>
+  async (page: Page, screen: Screen): Promise<Locator> => {
+    await press(moreOptions(page), screen);
+    await press(page.getByRole('menuitem', { name: entry, exact: true }), screen);
+    return moreOptions(page);
+  };
+
 const byButton =
   (name: string | RegExp) =>
   async (page: Page, screen: Screen): Promise<Locator> => {
@@ -217,10 +226,16 @@ const CASES: Case[] = [
   {
     name: 'Pinned Messages',
     from: 'room',
-    screens: ['desktop', 'phone'],
+    screens: ['desktop'],
     open: byButton('Pinned Messages'),
   },
-  { name: 'members', from: 'room', screens: ['phone'], open: byButton('Show Members') },
+  {
+    name: 'Pinned Messages from the room menu',
+    from: 'room',
+    screens: ['phone'],
+    open: fromPhoneRoomMenu('Pinned Messages'),
+  },
+  { name: 'members', from: 'room', screens: ['phone'], open: fromPhoneRoomMenu('Show Members') },
   {
     name: 'member profile',
     from: 'room',

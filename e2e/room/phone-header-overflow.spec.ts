@@ -195,10 +195,12 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
 
 const checkDesktop = async (page: Page, data: Seed) => {
   await openRoom(page, data);
-  for (const name of [...MOVED, 'Show Members', 'More Options']) {
+  for (const name of [...MOVED, 'More Options']) {
     // eslint-disable-next-line no-await-in-loop
     await expect(header(page).getByRole('button', { name, exact: true }), name).toBeVisible();
   }
+  // The phone left the members panel open, which a desktop shows beside the room.
+  await expect(header(page).getByRole('button', { name: /^(Show|Hide) Members$/ })).toBeVisible();
 };
 
 const newPage = async (

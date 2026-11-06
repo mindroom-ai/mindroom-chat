@@ -17,6 +17,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { leaveCompactView } from '../helpers/roomViewSwitch';
 
 // Links in messages against the slot's homeserver, in Chromium (desktop) and WebKit (phone):
 // - Site icons. By default no link sends anything to a third party. A deployment that sets
@@ -155,9 +156,7 @@ const openRoom = async (page: Page, roomId: string, userId: string) => {
     filterState: createDefaultThreadFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  const viewSwitch = page.locator('[data-room-view-switch]');
-  await expect(viewSwitch).toBeVisible({ timeout: 30_000 });
-  if ((await viewSwitch.getAttribute('aria-pressed')) === 'true') await viewSwitch.click();
+  await leaveCompactView(page);
 };
 
 const linkIn = (page: Page, label: string) =>

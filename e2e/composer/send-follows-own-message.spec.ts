@@ -12,6 +12,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 
 // A reader who scrolled away from the newest messages and sends one sees it land: the view
 // follows to it, and once the server has it, the room is read up to it, the messages that came
@@ -295,9 +296,8 @@ const checkSends = async (page: Page, seeded: Seeded, label: string, phone: bool
 
   // A room with an agent, newest first: scrolled down, the reader sends.
   await openRoom(page, AGENT_ROOM, phone);
-  const switchToThreads = page.locator('[data-room-view-switch]');
-  await expect(switchToThreads).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
-  await switchToThreads.click();
+  await expectRoomCompact(page, true);
+  await toggleRoomView(page);
   await expect(page.getByText('Release step 60:').first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1_500);
   await scrollAway(page, 1_600);
