@@ -28,6 +28,12 @@ test.beforeEach(async () => {
 
 const deployment = { version: undefined as string | undefined };
 
+/** Saves a screenshot as `<name>.png` when CONNECTION_STATE_SHOTS names a directory. */
+const shot = async (page: Page, name: string) => {
+  const directory = process.env.CONNECTION_STATE_SHOTS;
+  if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
+};
+
 const announcesTheNewVersion = async (page: Page, browserName: string) => {
   const user = await registerDisposableUser(`newver_${browserName}_${RUN}`, PASSWORD);
   await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
@@ -42,6 +48,7 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect(notice).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
+  await shot(page, `new-version-${browserName}`);
 };
 
 const withDeployment = async (run: (origin: string) => Promise<void>) => {

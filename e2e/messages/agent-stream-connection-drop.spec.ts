@@ -54,6 +54,8 @@ test('a streaming reply keeps the text it showed when the connection drops', asy
   const shownAtDrop = await highestWord(reply);
 
   await page.waitForTimeout(16_000);
+  const directory = process.env.CONNECTION_STATE_SHOTS;
+  if (directory) await page.screenshot({ path: `${directory}/stream-connection-drop.png` });
   expect(await highestWord(reply), 'after 16 s without a connection').toBeGreaterThanOrEqual(
     shownAtDrop
   );
