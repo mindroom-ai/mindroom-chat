@@ -108,6 +108,11 @@ let world: Promise<World> | undefined;
 /** The lobby's threads, written once per stack. */
 const seed = async (stack: AgentStack): Promise<World> => {
   const word = uniqueWord('a11y');
+  await Promise.all(
+    Array.from({ length: 25 }, (_, index) =>
+      createRoom(stack.homeserver, stack.tester.accessToken, { name: `Project room ${index + 1}` })
+    )
+  );
   const thread = await ask(stack, `Walk me through the release checks ${word} #think`);
   await waitForAgentReply(stack, thread, (body) => body.includes('42'));
   await ask(stack, 'Check the disk first #shell', thread);
