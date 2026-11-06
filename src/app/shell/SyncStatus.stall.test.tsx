@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import React from 'react';
 import { act, create, ReactTestRenderer, ReactTestRendererJSON } from 'react-test-renderer';
 import { ClientEvent, MatrixClient, SyncState } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -58,9 +57,13 @@ describe('SyncStatus with a /sync that gets no answer', () => {
     });
 
     const stuck = watch.fetchFn(SYNC_URL);
-    await act(() => vi.advanceTimersByTimeAsync(30_000 + SYNC_STALL_MARGIN_MS - 1));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000 + SYNC_STALL_MARGIN_MS - 1);
+    });
     expect(text()).toBe('');
-    await act(() => vi.advanceTimersByTimeAsync(1));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
     expect(text()).toBe('Connection Lost!');
 
     await act(async () => {
