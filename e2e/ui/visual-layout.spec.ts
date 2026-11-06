@@ -631,20 +631,25 @@ const checkSettingsPhone = async (run: Run) => {
       const range = document.createRange();
       range.selectNodeContents(title);
       const text = range.getBoundingClientRect();
-      return { back: [back.left, back.right], text: [text.left, text.right] };
+      return {
+        backLeft: back.left,
+        backRight: back.right,
+        textLeft: text.left,
+        textRight: text.right,
+      };
     });
     await shot(run, `settings-${direction}-${scheme}`);
     const where = `${run.engine}, ${direction}, ${scheme}: ${JSON.stringify(geometry)}`;
     if (direction === 'ltr') {
       expect(
-        geometry.back[1] + RING,
+        geometry.backRight + RING,
         `back button ends before the breadcrumb (${where})`
-      ).toBeLessThanOrEqual(geometry.text[0]);
+      ).toBeLessThanOrEqual(geometry.textLeft);
     } else {
       expect(
-        geometry.back[0] - RING,
+        geometry.backLeft - RING,
         `back button starts after the breadcrumb (${where})`
-      ).toBeGreaterThanOrEqual(geometry.text[1]);
+      ).toBeGreaterThanOrEqual(geometry.textRight);
     }
   }
 };
