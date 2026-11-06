@@ -1,4 +1,4 @@
-import { MatrixEvent, Room, ThreadEvent } from 'matrix-js-sdk';
+import { MatrixEvent, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   getRoomThreadsUnread,
@@ -122,7 +122,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         // One bundled reply does not prove the thread's history or tail was downloaded.
         const latest = getSummaryLatestEvent(rootEvent.event);
         const reply = latest && (!latest.room_id || latest.room_id === room.roomId)
-          ? mapper({ ...latest, room_id: room.roomId })
+          ? mapper({ ...latest, room_id: room.roomId } as IEvent)
           : undefined;
         const replies = reply && isVisibleThreadReplyEvent(reply) && reply.threadRootId === threadId
           ? [reply]
