@@ -1,11 +1,12 @@
 import { devices, expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Jump to Time from an open thread stays in the thread: the room's beginning, which comes before
 // the thread began, shows the thread's first message, and a time after its newest reply shows
 // that reply, with the thread still open. The thread is longer than the client loads at once, so
-// its start has to come from the server. Runs against the disposable homeserver of `just hs-up`
+// earlier replies need server pagination. Runs against the disposable homeserver of `just hs-up`
 // (or a slot of scripts/e2e-slot.sh), on a desktop and on a phone.
 
 test.use({
@@ -81,11 +82,27 @@ const runJumps = async (
 ) => {
   const token = await register(username);
   const { roomId, rootId } = await seedThread(token);
+  for (let index = 0; index < 25; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await createPrivateRoom(HOMESERVER, token, { name: `Planning room ${index + 1}` });
+  }
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
   await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
   const threadUrl = new RegExp(`threadId=${encodeURIComponent(rootId).replace(/\$/g, '\\$')}`);
   const newest = page.getByText(`Shift ${REPLIES - 1}:`, { exact: false });
   await expect(newest).toBeVisible({ timeout: 60_000 });
+  // Only the explicit time search uses 100-reply pages. Leave SDK loading and navigation live.
+  // A silent relation search must not block answers the open thread already knows.
+  const lookups: string[] = [];
+  await page.route('**/_matrix/client/**/relations/**', async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get('limit') === '100' && url.pathname.endsWith('/m.thread')) {
+      lookups.push(url.pathname);
+      // Keep the request silent until page teardown, without touching the homeserver.
+      return;
+    }
+    await route.continue();
+  });
   const rootRow = page.locator(`[data-message-id="${rootId}"]`);
 
   const press = (locator: ReturnType<Page['locator']>) => (phone ? locator.tap() : locator.click());
@@ -123,27 +140,56 @@ const runJumps = async (
   await expect(newest).toBeInViewport({ timeout: 60_000 });
   await expect(rootRow).not.toBeInViewport();
   await page.screenshot({ path: outputPath('jump-thread-newest.png') });
+  expect(lookups, 'boundary jumps never query relations').toEqual([]);
 };
 
-test('Jump to Time in a thread stays in the thread', async ({ page }, testInfo) => {
-  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
-  test.skip(new Date().getHours() === 23 && new Date().getMinutes() >= 55, 'Too close to 23:59');
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await runJumps(page, false, `jump_thread_${RUN}`, (name) => testInfo.outputPath(name));
-});
-
-test.describe('on a phone', () => {
-  test.use({
-    viewport: { width: 390, height: 844 },
-    deviceScaleFactor: 3,
-    isMobile: true,
-    hasTouch: true,
-    userAgent: devices['Pixel 7'].userAgent,
-  });
-
-  test('Jump to Time in a thread stays in the thread', async ({ page }, testInfo) => {
-    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
-    test.skip(new Date().getHours() === 23 && new Date().getMinutes() >= 55, 'Too close to 23:59');
-    await runJumps(page, true, `jump_thread_phone_${RUN}`, (name) => testInfo.outputPath(name));
-  });
-});
+for (const scheme of ['light', 'dark'] as const) {
+  for (const phone of [false, true]) {
+    const size = phone ? 'phone' : 'desktop';
+    test.describe(`${scheme} ${size}`, () => {
+      test.use({
+        viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+        hasTouch: phone,
+        isMobile: phone,
+        colorScheme: scheme,
+        ...(phone ? { userAgent: devices['Pixel 7'].userAgent } : {}),
+      });
+      test('Jump to Time in a thread stays in the thread (Chromium)', async ({
+        page,
+      }, testInfo) => {
+        test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+        test.skip(
+          new Date().getHours() === 23 && new Date().getMinutes() >= 55,
+          'Too close to 23:59'
+        );
+        await runJumps(page, phone, `jump_thread_chromium_${size}_${scheme}_${RUN}`, (name) =>
+          testInfo.outputPath(name)
+        );
+      });
+      test('Jump to Time in a thread stays in the thread (WebKit)', async ({
+        baseURL,
+      }, testInfo) => {
+        test.skip(!WEBKIT_EXECUTABLE, 'WebKit runner required');
+        test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+        test.skip(
+          new Date().getHours() === 23 && new Date().getMinutes() >= 55,
+          'Too close to 23:59'
+        );
+        await onWebKitPage(
+          {
+            baseURL,
+            viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+            hasTouch: phone,
+            isMobile: phone,
+            colorScheme: scheme,
+          },
+          async (page) => {
+            await runJumps(page, phone, `jump_thread_webkit_${size}_${scheme}_${RUN}`, (name) =>
+              testInfo.outputPath(name)
+            );
+          }
+        );
+      });
+    });
+  }
+}

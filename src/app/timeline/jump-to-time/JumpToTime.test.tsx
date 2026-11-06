@@ -175,6 +175,46 @@ describe('findThreadEventAtTime', () => {
     );
   });
 
+  it('answers the first message, and a time after the newest reply it knows, without the server', async () => {
+    const fetchRelations = relations(replies);
+    const newest = { eventId: '$r500', ts: 500 };
+    expect(await findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 100, 100)).toBe(
+      '$root'
+    );
+    expect(
+      await findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 900, 100, newest)
+    ).toBe('$r500');
+    expect(fetchRelations).not.toHaveBeenCalled();
+    // A time before that reply still asks the server.
+    expect(
+      await findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 320, 100, newest)
+    ).toBe('$r400');
+    expect(fetchRelations).toHaveBeenCalled();
+  });
+
+  it('bounds the whole server search, including all pages', async () => {
+    vi.useFakeTimers();
+    try {
+      let finishPage: (page: { chunk: ReturnType<typeof reply>[]; next_batch?: string }) => void;
+      const fetchRelations = vi.fn(
+        () =>
+          new Promise<{ chunk: ReturnType<typeof reply>[]; next_batch?: string }>((resolve) => {
+            finishPage = resolve;
+          })
+      );
+      const lookup = findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 320, 100);
+      const failure = expect(lookup).rejects.toThrow('Thread time lookup timed out');
+      await vi.advanceTimersByTimeAsync(10_000);
+      finishPage!({ chunk: [reply('$r500', 500)], next_batch: 'older' });
+      await vi.advanceTimersByTimeAsync(5_000);
+      await failure;
+      expect(fetchRelations).toHaveBeenCalledTimes(2);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('takes the first reply for a time between the first message and it', async () => {
     expect(await findThreadEventAtTime(thread(relations(replies)), '!r', '$root', 150, 100)).toBe(
       '$r200'
@@ -282,6 +322,83 @@ describe('JumpToTime', () => {
       '$root',
       expect.objectContaining({ replace: true })
     );
+  });
+
+  it("goes to a thread's first message and to its newest reply without waiting for the server", async () => {
+    // The server never answers, as a busy one may not for a long time.
+    state.fetchRelations.mockReturnValue(new Promise(() => undefined));
+    const newestTs = new Date().setHours(0, 1, 0, 0);
+    const newestReply = {
+      getId: () => '$newest',
+      getTs: () => newestTs,
+      getType: () => 'm.room.message',
+      isRedacted: () => false,
+    };
+    const threadRoom = {
+      ...room,
+      getThread: () => ({ rootEvent: { getTs: () => ROOT_TS }, replyToEvent: newestReply }),
+    } as unknown as Room;
+    const requestClose = vi.fn();
+    act(() =>
+      root.render(<JumpToTime room={threadRoom} threadId="$root" requestClose={requestClose} />)
+    );
+    act(() => button('Beginning').click());
+    await openTimeline();
+    expect(state.navigateRoomThread).toHaveBeenLastCalledWith(
+      '!room:test',
+      '$root',
+      '$root',
+      expect.objectContaining({ replace: true })
+    );
+
+    act(() => button('Today').click());
+    pick('Hour', 23);
+    pick('Minutes', 59);
+    await openTimeline();
+    expect(state.navigateRoomThread).toHaveBeenLastCalledWith(
+      '!room:test',
+      '$root',
+      '$newest',
+      expect.objectContaining({ replace: true })
+    );
+    expect(state.fetchRelations).not.toHaveBeenCalled();
+    expect(requestClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows a retryable error when a thread search times out, ignoring its late answer', async () => {
+    vi.useFakeTimers();
+    try {
+      let finish: (page: { chunk: ReturnType<typeof reply>[] }) => void;
+      state.fetchRelations.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          })
+      );
+      const requestClose = show(vi.fn(), '$root');
+      await openTimeline();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      expect(document.querySelector('[role="alert"]')?.textContent).toMatch(/timed out/i);
+      expect(button('Open Timeline').disabled).toBe(false);
+      await act(async () => {
+        finish!({ chunk: [reply('$late', Date.now())] });
+      });
+      expect(requestClose).not.toHaveBeenCalled();
+      expect(state.navigateRoomThread).not.toHaveBeenCalled();
+      state.fetchRelations.mockResolvedValue({ chunk: [reply('$retry', Date.now())] });
+      await openTimeline();
+      expect(state.navigateRoomThread).toHaveBeenCalledWith(
+        '!room:test',
+        '$root',
+        '$retry',
+        expect.anything()
+      );
+      expect(requestClose).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('starts the beginning at the room creation, to the millisecond', async () => {
