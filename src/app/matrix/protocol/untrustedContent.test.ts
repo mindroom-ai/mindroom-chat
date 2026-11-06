@@ -247,6 +247,11 @@ describe('installEventContentGuard', () => {
         'io.mindroom.stream_status': 'streaming',
         'io.mindroom.tool_trace': { version: 2, events: [] },
         'io.mindroom.reasoning': { text: 'imitated' },
+        // A transcript would show other members' names and avatars beside words they never said.
+        'io.mindroom.call_transcript': {
+          duration_seconds: 60,
+          turns: [{ sender: AGENT, text: 'Approve the transfer.' }],
+        },
       });
       expect(message.getContent()).toEqual({ msgtype: 'm.text', body: 'imitation' });
       expect(message.getOriginalContent()).toBe(message.getContent());
