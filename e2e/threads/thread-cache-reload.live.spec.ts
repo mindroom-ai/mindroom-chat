@@ -317,11 +317,14 @@ const watchRequests = async (page: Page, world: World, replyIds: Set<string>): P
   await page.route(
     (url) => {
       const path = decodeURIComponent(url.pathname);
-      return path.includes(roomPath) && (path.endsWith('/threads') || /\/event\/[^/]+$/.test(path));
+      return (
+        path.includes(roomPath) &&
+        (path.endsWith('/threads') || path.includes('/relations/') || /\/event\/[^/]+$/.test(path))
+      );
     },
     async (route) => {
-      if (decodeURIComponent(new URL(route.request().url()).pathname).endsWith('/threads'))
-        await listGate;
+      const path = decodeURIComponent(new URL(route.request().url()).pathname);
+      if (path.endsWith('/threads') || path.includes('/relations/')) await listGate;
       await new Promise((resolve) => {
         setTimeout(resolve, SLOW_MS);
       });
@@ -396,6 +399,11 @@ const check = async (page: Page, world: World, engine: string) => {
   await expectNoneStreaming(page, live, `${engine} watched`);
   // The page saves what it received a moment later.
   await page.waitForTimeout(3_000);
+  for (const stream of live.slice(0, 4)) {
+    await expect
+      .soft(threadCard(page, stream.rootId), `${engine}: off-screen terminal edit ${stream.index}`)
+      .toContainText(`Item ${stream.index} is ready: the notes list the export fix`);
+  }
 
   // The others finish while the page is away, and a busy thread pushes their last edits out of
   // the room's next /sync answer; half of them get a title.
@@ -432,12 +440,12 @@ const check = async (page: Page, world: World, engine: string) => {
       // Check the actual text on the first scroll into view, before opening any thread.
       for (const stream of live.slice(0, 4)) {
         const card = threadCard(page, stream.rootId);
-        await card.scrollIntoViewIfNeeded();
         await expect
           .soft(card, `${engine} ${pass}: finished reply preview ${stream.index}`)
           .toContainText(`Item ${stream.index} is ready: the notes list the export fix`, {
             timeout: 10_000,
           });
+        await card.scrollIntoViewIfNeeded();
         await shot(
           page,
           `${engine}-${PHONE ? 'phone' : 'desktop'}-${THEME}-${pass}-${stream.index}`
