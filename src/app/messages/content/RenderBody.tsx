@@ -6,6 +6,7 @@ import { color } from 'folds';
 import { MessageEmptyContent } from './FallbackContent';
 import { useClientConfig } from '../../config/useClientConfig';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
+import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { renderTextWithLatex } from '../html/react-custom-html-parser';
 import {
   HtmlReactParserOptionsSource,
@@ -89,6 +90,8 @@ export const RenderBody = memo(function RenderBody({
 }: RenderBodyProps) {
   const clientConfig = useClientConfig();
   const allowedSchemes = clientConfig.messageRendering?.additionalAllowedUriSchemes;
+  // Site icons come from a third party, so links show them only where the deployment allows it.
+  const linkFavicons = clientConfig.messageRendering?.linkFavicons === true;
   const schemesKey = JSON.stringify(allowedSchemes ?? null);
 
   const customContent = useMemo(() => {
@@ -100,15 +103,15 @@ export const RenderBody = memo(function RenderBody({
     );
   }, [customBody, highlightRegex, htmlReactParserOptions, schemesKey]);
 
-  if (customContent !== undefined) return <>{customContent}</>;
-  if (body === '') return <MessageEmptyContent />;
+  if (body === '' && customContent === undefined) return <MessageEmptyContent />;
   return (
-    <>
-      {renderTextWithLatex(body, {
-        linkify: true,
-        linkifyOpts,
-        highlightRegex,
-      })}
-    </>
+    <LinkFaviconContext.Provider value={linkFavicons}>
+      {customContent ??
+        renderTextWithLatex(body, {
+          linkify: true,
+          linkifyOpts,
+          highlightRegex,
+        })}
+    </LinkFaviconContext.Provider>
   );
 });

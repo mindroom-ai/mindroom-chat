@@ -352,9 +352,9 @@ export const useTimelineMessageFeature = ({
   // Encrypted rooms preview links only when the user allows it: the preview request reveals the
   // link to the homeserver.
   const showUrlPreview = room.hasEncryptionStateEvent?.() ? encUrlPreview : urlPreview;
-  // Links show their site's icon under the same settings as previews, and only with media loading.
+  // Links show their site's icon with previews and media loading on, never in encrypted rooms.
   const showLinkFavicons = shouldShowLinkFavicons(
-    { mediaAutoLoad, urlPreview, encUrlPreview },
+    { mediaAutoLoad, urlPreview },
     !!room.hasEncryptionStateEvent?.()
   );
   // Matrix permalinks in a message open in the app: a person's profile card, or the room and

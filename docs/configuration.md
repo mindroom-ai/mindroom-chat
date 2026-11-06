@@ -96,6 +96,7 @@ A `welcome` text equal to its English default is shown translated into the app l
 | Key | Type | Default | Effect |
 |---|---|---|---|
 | `messageRendering.additionalAllowedUriSchemes` | string[] | `[]` | Link schemes that message HTML may use besides `https`, `http`, `ftp`, `mailto` and `magnet` (for example `obsidian`). Entries are lower-cased and a trailing `:` or `://` is dropped. Schemes that run script, read local files or embed documents (`javascript`, `vbscript`, `data`, `file`, `blob`, `about` and others) are always refused. |
+| `messageRendering.linkFavicons` | boolean | `false` | `true` shows each web link's site icon beside it, loaded from `https://icons.duckduckgo.com/ip3/<host>.ico`: DuckDuckGo then sees the host names of the links people read and the address of their device. Only in unencrypted rooms, for people who load media automatically (Disable Media Auto Load off) and have Url Preview on, never inside spoilers; links with private or local hosts, credentials or a port never ask. Off, links load nothing from anywhere. |
 
 ### MindRoom features
 

@@ -1,9 +1,14 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { MessageLink } from './MessageLink';
+import { LinkFaviconContext, MessageLink } from './MessageLink';
 
 afterEach(() => vi.useRealTimers());
+
+// RenderBody allows icons where the deployment does.
+const allowed = (link: React.ReactElement) => (
+  <LinkFaviconContext.Provider value>{link}</LinkFaviconContext.Provider>
+);
 
 describe('MessageLink', () => {
   it.each([
@@ -26,9 +31,11 @@ describe('MessageLink', () => {
     'invalid',
   ])('does not send non-web or private destinations to the icon service: %s', (href) => {
     const renderer = create(
-      <MessageLink href={href} showFavicon>
-        Link
-      </MessageLink>
+      allowed(
+        <MessageLink href={href} showFavicon>
+          Link
+        </MessageLink>
+      )
     );
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(renderer.root.findByType('a').props.href).toBe(href);
@@ -38,15 +45,17 @@ describe('MessageLink', () => {
   it('canonicalizes the hostname and preserves link behavior and readable text', () => {
     const onClick = vi.fn();
     const renderer = create(
-      <MessageLink
-        href="http://GitHub.COM./one?q=value#part"
-        showFavicon
-        target="_blank"
-        rel="noreferrer noopener"
-        onClick={onClick}
-      >
-        Docs
-      </MessageLink>
+      allowed(
+        <MessageLink
+          href="http://GitHub.COM./one?q=value#part"
+          showFavicon
+          target="_blank"
+          rel="noreferrer noopener"
+          onClick={onClick}
+        >
+          Docs
+        </MessageLink>
+      )
     );
     const img = renderer.root.findByType('img');
     expect(img.props.src).toBe('https://icons.duckduckgo.com/ip3/github.com.ico');
@@ -66,9 +75,11 @@ describe('MessageLink', () => {
     // React DOM applies props in order, and Chromium can start a memory-cached
     // image request as soon as src is set, before later attributes exist.
     const renderer = create(
-      <MessageLink href="https://github.com" showFavicon>
-        Docs
-      </MessageLink>
+      allowed(
+        <MessageLink href="https://github.com" showFavicon>
+          Docs
+        </MessageLink>
+      )
     );
     const props = Object.keys(renderer.root.findByType('img').props);
     expect(props.indexOf('referrerPolicy')).toBeLessThan(props.indexOf('src'));
@@ -78,11 +89,12 @@ describe('MessageLink', () => {
 
   it('hides broken icons, backs off across remounts, and recovers for an edited URL', () => {
     vi.useFakeTimers();
-    const link = (href: string) => (
-      <MessageLink href={href} showFavicon>
-        Docs
-      </MessageLink>
-    );
+    const link = (href: string) =>
+      allowed(
+        <MessageLink href={href} showFavicon>
+          Docs
+        </MessageLink>
+      );
     const renderer = create(link('https://failed-site.com/one'));
     act(() => renderer.root.findByType('img').props.onError());
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
@@ -100,19 +112,33 @@ describe('MessageLink', () => {
   });
 
   it('responds to preview settings without removing the link', () => {
-    const renderer = create(<MessageLink href="https://github.com">Docs</MessageLink>);
+    const renderer = create(allowed(<MessageLink href="https://github.com">Docs</MessageLink>));
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     act(() =>
       renderer.update(
-        <MessageLink href="https://github.com" showFavicon>
-          Docs
-        </MessageLink>
+        allowed(
+          <MessageLink href="https://github.com" showFavicon>
+            Docs
+          </MessageLink>
+        )
       )
     );
     expect(renderer.root.findAllByType('img')).toHaveLength(1);
-    act(() => renderer.update(<MessageLink href="https://github.com">Docs</MessageLink>));
+    act(() =>
+      renderer.update(allowed(<MessageLink href="https://github.com">Docs</MessageLink>))
+    );
     expect(renderer.root.findAllByType('img')).toHaveLength(0);
     expect(renderer.root.findByType('a').children).toEqual(['Docs']);
+    renderer.unmount();
+  });
+
+  it('shows no icon unless a provider allows icons', () => {
+    const renderer = create(
+      <MessageLink href="https://github.com" showFavicon>
+        Docs
+      </MessageLink>
+    );
+    expect(renderer.root.findAllByType('img')).toHaveLength(0);
     renderer.unmount();
   });
 });

@@ -126,7 +126,7 @@ function Fixture() {
 }
 
 createRoot(document.getElementById('root')!).render(
-  <ClientConfigProvider value={{}}>
+  <ClientConfigProvider value={{ messageRendering: { linkFavicons: true } }}>
     <Fixture />
   </ClientConfigProvider>
 );

@@ -97,6 +97,11 @@ export type ClientConfig = {
   messageRendering?: {
     /** URI schemes, besides the web and Matrix ones, that links in messages may use. */
     additionalAllowedUriSchemes?: string[];
+    /**
+     * Site icons beside links in unencrypted rooms, from icons.duckduckgo.com, which then sees
+     * each linked host and the viewer's address. Off unless true.
+     */
+    linkFavicons?: boolean;
   };
 
   /** Copy and links on the welcome page. */

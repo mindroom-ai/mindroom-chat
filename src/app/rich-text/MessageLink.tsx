@@ -1,7 +1,8 @@
 import React, { ComponentPropsWithoutRef, createContext, useContext, useState } from 'react';
 
 // Spoiler text never starts a favicon lookup, even after disclosure.
-export const LinkFaviconContext = createContext(true);
+// Links show icons only inside a provider that allows them (RenderBody, from config.json).
+export const LinkFaviconContext = createContext(false);
 
 const failedIcons = new Map<string, number>();
 const FAILURE_BACKOFF_MS = 5 * 60 * 1000;
