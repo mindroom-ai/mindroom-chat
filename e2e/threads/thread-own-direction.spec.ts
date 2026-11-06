@@ -212,7 +212,7 @@ const check = async (browser: Browser, engine: string, phone: boolean, baseURL?:
   expect(await placement(summary)).toMatchObject({ direction: 'ltr', firstCharInside: true });
 
   // The fold toggle under the banner is a token, [+all]: its plus stays before the word.
-  const toggle = page.getByRole('button', { name: 'Expand all long messages' });
+  const toggle = page.getByRole('button', { name: 'توسيع كل الرسائل الطويلة' }); // Expand all long messages
   await expect(toggle).toBeVisible();
   const order = await toggle.evaluate((element) => {
     const text = element.firstChild!;
