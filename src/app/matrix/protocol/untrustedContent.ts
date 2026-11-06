@@ -1,5 +1,6 @@
 import { MatrixEvent, type IContent } from 'matrix-js-sdk';
 import { isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { isRecord } from '../../lib/isRecord';
 
 /**
  * Message content keys only MindRoom's agents send: the run details (model chip, Reply details),
@@ -17,9 +18,6 @@ export const AGENT_ONLY_CONTENT_KEYS: readonly string[] = [
   'io.mindroom.live_checkpoint',
   'io.mindroom.warmup_suffix',
 ];
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
 
 const isOptionalString = (value: unknown): boolean =>
   value === undefined || typeof value === 'string';
@@ -125,6 +123,14 @@ const isClean = (content: unknown, sender: string | undefined): boolean => {
   return !hasAgentKeys || isTrustedAgentSender(sender);
 };
 
+/**
+ * Whether an edit can replace its message: its content is not readable yet (still encrypted), or
+ * it has an object `m.new_content`. An edit without one is ignored, as the specification says.
+ */
+export const isUsableEdit = (edit: MatrixEvent): boolean =>
+  (edit.isEncrypted() && edit.getClearContent() === null) ||
+  isRecord(edit.getContent()['m.new_content']);
+
 type Sanitized = { source: unknown; version: number; result: IContent };
 
 /** One sanitized copy per event and source, so readers keep getting the same object. */
@@ -162,6 +168,7 @@ export const installEventContentGuard = (): void => {
   const sdkGetWireContent = proto.getWireContent;
   const sdkGetOriginalContent = proto.getOriginalContent;
   const sdkGetContent = proto.getContent;
+  const sdkReplacingEvent = proto.replacingEvent;
 
   proto.getWireContent = function getWireContent(this: MatrixEvent): IContent {
     const content: unknown = sdkGetWireContent.call(this);
@@ -181,15 +188,15 @@ export const installEventContentGuard = (): void => {
     ) as T;
   };
 
+  // An edit without usable content is no edit: the message shows as it was, without "(edited)".
+  proto.replacingEvent = function replacingEvent(this: MatrixEvent): MatrixEvent | null {
+    const replacement = sdkReplacingEvent.call(this);
+    return replacement && isUsableEdit(replacement) ? replacement : null;
+  };
+
   proto.getContent = function getContent<T extends IContent = IContent>(this: MatrixEvent): T {
-    const replacement = this.replacingEvent();
-    // An edit is ignored when its content is readable but has no usable `m.new_content`.
-    if (
-      replacement &&
-      !this.isRedacted() &&
-      (!replacement.isEncrypted() || replacement.getClearContent() !== null) &&
-      !isRecord(replacement.getContent()['m.new_content'])
-    ) {
+    const replacement = sdkReplacingEvent.call(this);
+    if (replacement && !this.isRedacted() && !isUsableEdit(replacement)) {
       return this.getOriginalContent<T>();
     }
     return sdkGetContent.call(this) as T;

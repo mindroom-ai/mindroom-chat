@@ -304,6 +304,7 @@ const checkRoomView = async (page: Page, world: World, label: string) => {
   });
   // The edit with unusable content is ignored: the note keeps its text.
   await expect(row(page, world.noteId)).toContainText(NOTE, { timeout: 30_000 });
+  await expect(row(page, world.noteId)).not.toContainText('(edited)');
   await expect(page.getByText(QUESTION, { exact: true }).first()).toBeVisible();
   await expectNoCrash(page);
   await shot(page, `${label}-room`);
@@ -314,6 +315,7 @@ const checkThreadView = async (page: Page, world: World, label: string) => {
   const agentRow = row(page, world.agentReplyId);
   await expect(agentRow).toContainText(AGENT_REPLY, { timeout: 30_000 });
   await expect(row(page, world.memberReplyId)).toContainText(MEMBER_REPLY);
+  await expect(row(page, world.memberReplyId)).not.toContainText('(edited)');
   // A real agent reply keeps its chip and its Reply details.
   await expectAgentAffordances(agentRow, true);
   for (const key of Object.keys(IMITATIONS) as (keyof typeof IMITATIONS)[]) {

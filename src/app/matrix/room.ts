@@ -15,6 +15,7 @@ import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBacken
 import { MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { copyResolvedEditMetadata } from './protocol/editMetadata';
+import { isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
@@ -204,7 +205,8 @@ export const getEditedEvent = (
       isSameSenderEditEvent(mEvent, candidate) &&
       !candidate.isRedacted() &&
       // An edit the client cannot read yet shows once it decrypts; until then the newest one it can.
-      !isUnreadableYet(candidate)
+      !isUnreadableYet(candidate) &&
+      isUsableEdit(candidate)
   );
 
   const latest = getLatestEdit(mEvent, candidates);

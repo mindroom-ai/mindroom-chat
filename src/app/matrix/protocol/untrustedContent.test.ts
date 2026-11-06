@@ -116,7 +116,27 @@ describe('installEventContentGuard', () => {
       target.makeReplaced(edit);
       expect(target.getContent()).toEqual({ msgtype: 'm.text', body: 'original' });
       expect(edit.getContent()['m.new_content']).toBeUndefined();
+      // Nothing shows the message as edited.
+      expect(target.replacingEvent()).toBeNull();
     }
+  });
+
+  it('keeps an encrypted edit that has not decrypted yet', () => {
+    const target = event(PERSON, { msgtype: 'm.text', body: 'original' }, '$target');
+    const edit = new MatrixEvent({
+      type: 'm.room.encrypted',
+      room_id: '!room:example.org',
+      event_id: '$encrypted-edit',
+      sender: PERSON,
+      origin_server_ts: 2,
+      content: {
+        algorithm: 'm.megolm.v1.aes-sha2',
+        ciphertext: 'opaque',
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+    });
+    target.makeReplaced(edit);
+    expect(target.replacingEvent()).toBe(edit);
   });
 
   it('applies a well-formed edit, without the agent keys a person wrote into it', () => {

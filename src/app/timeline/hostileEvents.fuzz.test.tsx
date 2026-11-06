@@ -306,8 +306,9 @@ describe('events of any shape', () => {
         'm.relates_to': { rel_type: RelationType.Replace, event_id: target.getId() },
       });
       target.makeReplaced(edit);
-      const { content } = parse(target, edit);
+      const { content, edited } = parse(target, edit);
       expect(content.body).toBe('original');
+      expect(edited).toBeUndefined();
     }
   });
 
