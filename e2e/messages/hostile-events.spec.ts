@@ -266,9 +266,23 @@ const threadRoute = (roomId: string, rootId: string) =>
 const row = (page: Page, eventId: string): Locator =>
   page.locator(`[data-message-id="${eventId}"]`).first();
 
+/**
+ * Taking a screenshot of a phone page in macOS WebKit resizes it for a moment, which can end a
+ * ResizeObserver loop; that error belongs to the screenshot, not to the events under test.
+ */
+const SCREENSHOT_RESIZE = /ResizeObserver loop/;
+const shooting = new WeakSet<Page>();
+
 const shot = async (page: Page, name: string) => {
   if (!SHOTS) return;
-  await page.screenshot({ path: `${SHOTS}/${name}.png` });
+  shooting.add(page);
+  try {
+    await page.screenshot({ path: `${SHOTS}/${name}.png` });
+    // The error event of the resize arrives after the screenshot.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+  } finally {
+    shooting.delete(page);
+  }
 };
 
 /**
@@ -379,6 +393,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
         // WebKit's message has a colon after the scheme, so Playwright splits it into a name.
         const text = `${error.name}: ${error.message}`;
         if (reloading.has(page) && RELOAD_CUTOFF.test(text)) return;
+        if (shooting.has(page) && SCREENSHOT_RESIZE.test(text)) return;
         pageErrors.push(text);
       });
       await loginWithPassword(page, {
