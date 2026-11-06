@@ -8,13 +8,17 @@ import { defined } from '../../../test/utils/defined';
 import { useJoinedRoomThreadLists } from './useJoinedRoomThreadLists';
 
 type Load = { roomId: string; onProgress?: () => void; signal?: AbortSignal; finish: () => void };
-const { loads } = vi.hoisted(() => ({ loads: [] as Load[] }));
+const { loads, completeRooms } = vi.hoisted(() => ({
+  loads: [] as Load[],
+  completeRooms: new Set<string>(),
+}));
 
 vi.mock('../../event-store/threads/roomThreadList', () => ({
   loadRoomThreads: (room: { roomId: string }, onProgress?: () => void, signal?: AbortSignal) =>
     new Promise<void>((resolve) => {
       loads.push({ roomId: room.roomId, onProgress, signal, finish: resolve });
     }),
+  roomThreadListIsComplete: (room: { roomId: string }) => completeRooms.has(room.roomId),
 }));
 
 const rooms: Record<string, { membership: string; space?: boolean }> = {
@@ -35,8 +39,10 @@ const client = {
 };
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => client }));
 
-function Probe() {
-  useJoinedRoomThreadLists();
+const answers: boolean[] = [];
+
+function Probe({ allPages = false }: { allPages?: boolean }) {
+  answers.push(useJoinedRoomThreadLists(allPages));
   return null;
 }
 
@@ -47,6 +53,8 @@ let store: ReturnType<typeof createStore>;
 beforeEach(() => {
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   loads.length = 0;
+  answers.length = 0;
+  completeRooms.clear();
   store = createStore();
   host = document.createElement('div');
   root = createRoot(host);
@@ -57,12 +65,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const mount = (roomIds: string[]) => {
+const mount = (roomIds: string[], allPages = false) => {
   store.set(allRoomsAtom, { type: 'INITIALIZE', rooms: roomIds });
   act(() =>
     root.render(
       <Provider store={store}>
-        <Probe />
+        <Probe allPages={allPages} />
       </Provider>
     )
   );
@@ -103,4 +111,37 @@ it('leaves the loads it started when the page closes', () => {
   act(() => root.unmount());
   root = createRoot(host);
   expect(loads.every((load) => load.signal?.aborted)).toBe(true);
+});
+
+it('with all pages, stays until each list ends and says whether every list is complete', async () => {
+  mount(Object.keys(rooms), true);
+  expect(loads.map((load) => load.roomId)).toEqual(['!a', '!b', '!c']);
+  const first = defined(loads[0], 'the first load');
+
+  // A page arrives: the page stays for the rest of the list and counts the room as not done.
+  await act(async () => {
+    first.onProgress?.();
+  });
+  expect(first.signal?.aborted).toBe(false);
+  expect(loads).toHaveLength(3);
+  expect(answers.at(-1)).toBe(false);
+
+  // The list ends: the next room starts.
+  completeRooms.add('!a');
+  await act(async () => {
+    first.onProgress?.();
+    first.finish();
+  });
+  expect(loads.map((load) => load.roomId)).toEqual(['!a', '!b', '!c', '!d']);
+  expect(answers.at(-1)).toBe(false);
+
+  for (const roomId of ['!b', '!c', '!d']) completeRooms.add(roomId);
+  await act(async () => {
+    loads.slice(1).forEach((load) => {
+      load.onProgress?.();
+      load.finish();
+    });
+  });
+  // Spaces and invites have no list of their own to wait for.
+  expect(answers.at(-1)).toBe(true);
 });

@@ -21,9 +21,16 @@ type ThreadsViewProps = {
   indexSnapshot: CrossRoomThreadIndexSnapshot;
   filters: CrossRoomThreadFilters;
   setFilters: (filters: CrossRoomThreadFiltersUpdate) => void;
+  /** False while some room's thread list has pages left; the count then reads "N+". */
+  countComplete?: boolean;
 };
 
-export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewProps) {
+export function ThreadsView({
+  indexSnapshot,
+  filters,
+  setFilters,
+  countComplete = true,
+}: ThreadsViewProps) {
   const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const eligibleEntries = useMemo(
@@ -80,7 +87,7 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
     <Box className={css.View}>
       <div className={css.Count} aria-live="polite">
         <Text size="T200" priority="300">
-          {entries.length}{' '}
+          {countComplete ? entries.length : `${entries.length}+`}{' '}
           {entries.length === 1
             ? t('sharedUi.threadsView.thread')
             : t('sharedUi.threadsView.threads')}

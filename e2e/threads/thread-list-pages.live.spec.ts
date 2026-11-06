@@ -164,6 +164,13 @@ const seed = async (): Promise<Seed> => {
 
 let seeded: Promise<Seed> | undefined;
 
+/** Keeps a measurement with the test and prints it, so a run's output carries it. */
+const report = (note: { type: string; description: string }) => {
+  test.info().annotations.push(note);
+  // eslint-disable-next-line no-console
+  console.log(`${note.type}: ${note.description}`);
+};
+
 type ListRequest = { include: string | null; from: string | null; at: number };
 
 /** Records the room's /threads requests, and delays every page after the first. */
@@ -243,7 +250,7 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
     await page.waitForTimeout(100);
   }
   const listedAfterMs = Date.now() - startedAt;
-  test.info().annotations.push({ type: 'count values', description: seen.join(' -> ') });
+  report({ type: 'count values', description: seen.join(' -> ') });
 
   // Every thread is listed, promptly.
   expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(String(THREADS));
@@ -273,7 +280,7 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
               ?.usedJSHeapSize ?? 0
         )
       : 0;
-  test.info().annotations.push({
+  report({
     type: 'thread list',
     description: `${name}: ${THREADS} threads in ${listedAfterMs} ms, ${
       requests.length
@@ -409,9 +416,65 @@ const checkOlderQuestions = async (page: Page, name: string) => {
   expect((await listedRoots(page)).sort()).toEqual([...questions, ...threads].sort());
   await expect(page.locator(`[data-thread-root-id="${questions[0]}"]`)).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-questions-after.png` });
-  test.info().annotations.push({
+  report({
     type: 'older history',
     description: `${name}: ${pagesBefore} history pages before the end, ${historyPages.length} after`,
+  });
+};
+
+/** The Threads page lists and counts every thread of every room, all rooms and all time. */
+const checkThreadsPage = async (page: Page, name: string) => {
+  seeded ??= seed();
+  const { reader, roomId } = await seeded;
+  const requests = await watchThreadList(page, roomId);
+  await loginWithPassword(page, {
+    homeserver: getHomeserver(),
+    username: reader.username,
+    password: PASSWORD,
+  });
+  await page.evaluate((userId) => {
+    localStorage.setItem(
+      `crossRoomThreadFilters:${userId}`,
+      JSON.stringify({
+        v: 1,
+        scope: 'all',
+        roomIds: [],
+        spaceIds: [],
+        tag: { include: [], exclude: [] },
+        unreadOnly: false,
+        resolved: 'all',
+        hasAttention: false,
+        activityWindow: 'all',
+      })
+    );
+  }, reader.userId);
+  await page.goto('/threads/');
+
+  const count = page.getByText(/^\d+\+? threads?$/).first();
+  const seen: string[] = [];
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < 45_000) {
+    // eslint-disable-next-line no-await-in-loop
+    const text = ((await count.textContent({ timeout: 1_000 }).catch(() => null)) ?? '').trim();
+    if (text && seen.at(-1) !== text) seen.push(text);
+    if (text === `${THREADS} threads`) break;
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(100);
+  }
+  report({ type: 'threads page count values', description: seen.join(' -> ') });
+  expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(`${THREADS} threads`);
+  expect(seen.slice(0, -1).filter((text) => !/^\d+\+ threads?$/.test(text))).toEqual([]);
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-threads-page.png` });
+
+  await page.waitForTimeout(5_000);
+  const roomPages = requests.filter(({ include }) => include === 'all');
+  expect(roomPages).toHaveLength(Math.ceil(THREADS / PAGE));
+  expect(new Set(roomPages.map(({ from }) => from)).size).toBe(roomPages.length);
+  report({
+    type: 'threads page',
+    description: `${name}: ${THREADS} threads in ${Date.now() - startedAt - 5_000} ms, ${
+      requests.length
+    } /threads requests for the big room`,
   });
 };
 
@@ -489,6 +552,29 @@ test('older questions without replies get cards at the end of the list (WebKit, 
   try {
     await inContext(browser, { ...PHONE, baseURL, colorScheme: 'light' }, (page) =>
       checkOlderQuestions(page, 'webkit-phone')
+    );
+  } finally {
+    await browser.close();
+  }
+});
+
+test('the Threads page lists and counts all 500 threads (Chromium, desktop)', async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(360_000);
+  await inContext(browser, { ...DESKTOP, baseURL, colorScheme: 'light' }, (page) =>
+    checkThreadsPage(page, 'chromium-desktop')
+  );
+});
+
+test('the Threads page lists and counts all 500 threads (WebKit, phone)', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(360_000);
+  const browser = await launchWebKit();
+  try {
+    await inContext(browser, { ...PHONE, baseURL, colorScheme: 'dark' }, (page) =>
+      checkThreadsPage(page, 'webkit-phone')
     );
   } finally {
     await browser.close();
