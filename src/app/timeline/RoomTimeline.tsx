@@ -1087,6 +1087,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     [timeline]
   );
   useCompactCoverageBackfillController({
+    roomId: room.roomId,
     enabled: compactViewRequested && !eventId,
     loadedEventCount: loadedRoomEventCount,
     hasZeroReplyRootCoverage: threadIndex.hasZeroReplyRootCoverage,

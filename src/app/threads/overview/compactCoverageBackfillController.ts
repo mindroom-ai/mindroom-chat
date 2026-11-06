@@ -28,9 +28,11 @@ export const shouldRunCompactCoverageBackfill = ({
 /**
  * Compact rooms have no scroll paginator. Drive the existing cache-first
  * room paginator until loaded history includes useful zero-reply coverage,
- * with a hard per-mount request budget.
+ * with a hard request budget per room: the view keeps this hook when the
+ * reader moves to another room, and that room starts with a full budget.
  */
 export const useCompactCoverageBackfillController = ({
+  roomId,
   enabled,
   loadedEventCount,
   hasZeroReplyRootCoverage,
@@ -38,6 +40,7 @@ export const useCompactCoverageBackfillController = ({
   hasMoreCachedBack,
   paginateBack,
 }: {
+  roomId: string;
   enabled: boolean;
   loadedEventCount: number;
   hasZeroReplyRootCoverage: boolean;
@@ -48,6 +51,7 @@ export const useCompactCoverageBackfillController = ({
   const paginateBackRef = useRef(paginateBack);
   paginateBackRef.current = paginateBack;
   const batchesUsedRef = useRef(0);
+  const budgetRoomIdRef = useRef(roomId);
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
   const [batchSettledTick, setBatchSettledTick] = useState(0);
@@ -60,6 +64,10 @@ export const useCompactCoverageBackfillController = ({
   }, []);
 
   useEffect(() => {
+    if (budgetRoomIdRef.current !== roomId) {
+      budgetRoomIdRef.current = roomId;
+      batchesUsedRef.current = 0;
+    }
     if (inFlightRef.current) return;
     if (
       !shouldRunCompactCoverageBackfill({
@@ -85,6 +93,7 @@ export const useCompactCoverageBackfillController = ({
         }
       });
   }, [
+    roomId,
     enabled,
     loadedEventCount,
     hasZeroReplyRootCoverage,
