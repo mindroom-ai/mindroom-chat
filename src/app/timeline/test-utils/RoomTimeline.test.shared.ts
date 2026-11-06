@@ -1432,6 +1432,7 @@ const makeRoom = ({
     getThreads: () => threads,
     getUnfilteredTimelineSet: () => timelineSet,
     hasEncryptionStateEvent: () => false,
+    eventShouldLiveIn: () => ({ shouldLiveInRoom: true, shouldLiveInThread: false }),
     partitionThreadedEvents: (events: ReturnType<typeof makeEvent>[]) => [events, [], []],
     processThreadRoots: vi.fn(),
     relations: {
