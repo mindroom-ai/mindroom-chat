@@ -61,7 +61,7 @@ import { getLoginPath, getOriginBaseUrl } from '../routes/pathUtils';
 import { withAddAccountSearchIf } from '../navigation/addAccount';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { SpecVersions } from './SpecVersions';
-import { SyncStatus } from './SyncStatus';
+import { CATCHING_UP_OVERLAY, SyncStatus } from './SyncStatus';
 import { reloadWouldLoseWork } from './reloadWouldLoseWork';
 import { ReloadWouldLoseWorkContext } from '../ui/PartUnavailable';
 import type { TFunction } from 'i18next';
@@ -415,7 +415,7 @@ function CatchingUpBar() {
       shrink="No"
       alignItems="Center"
       justifyContent="Center"
-      style={CATCHING_UP_STYLE}
+      style={{ ...CATCHING_UP_STYLE, ...CATCHING_UP_OVERLAY }}
     >
       <Text size="L400">{t('sharedUi.clientRoot.catchingUp')}</Text>
     </Box>
@@ -443,7 +443,7 @@ function AccountProviders({ mx, engine, sync, children }: AccountProvidersProps)
                 <MediaConfigProvider value={serverConfigs.mediaConfig ?? {}}>
                   <ClientStartupProvider hasCompletedInitialSync={sync.live}>
                     {/* One live region for every banner, so a change of state is read out. */}
-                    <div role="status" aria-live="polite">
+                    <div role="status" aria-live="polite" style={{ position: 'relative' }}>
                       {sync.reported ? <SyncStatus mx={mx} /> : <CatchingUpBar />}
                     </div>
                     {children}
