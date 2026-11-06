@@ -449,7 +449,8 @@ test.describe('compact filter timing', () => {
           .toBe(total);
         const overview = page.locator('[data-room-thread-overview]');
         const count = overview.locator('[data-thread-count]');
-        await expect(count).toHaveText(String(total));
+        // The count reads N+ until the room's thread list has paged to its end.
+        await expect(count).toHaveText(String(total), { timeout: 120_000 });
         // The seeded filter state opens the advanced filters; the timing starts simple.
         const modeSwitchButton = overview.locator('[data-thread-filter-mode-switch]');
         if ((await modeSwitchButton.getAttribute('aria-pressed')) === 'true') {
