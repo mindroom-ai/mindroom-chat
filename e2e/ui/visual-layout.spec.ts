@@ -736,7 +736,7 @@ const checkAddExisting = async (run: Run) => {
       .first()
       .click();
     await page
-      .getByRole('button', { name: tr(direction, 'featureUi.lobby.spaceItem.existingRoom') })
+      .getByRole('menuitem', { name: tr(direction, 'featureUi.lobby.spaceItem.existingRoom') })
       .click();
     const dialog = page.getByRole('dialog', {
       name: tr(direction, 'featureUi.addExisting.addExisting'),
