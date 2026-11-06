@@ -2,10 +2,12 @@ import { expect, test, type BrowserContextOptions, type Page } from '@playwright
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
+  createDefaultThreadFilterState,
   joinRoom,
   loginToMatrix,
   matrixFetch,
   registerAgentAccount,
+  seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
@@ -15,9 +17,10 @@ import { launchWebKit } from '../helpers/webkit';
 // follows to it, and once the server has it, the room is read up to it, the messages that came
 // while the reader was away included (no New Messages line above their own). Checked in a room
 // between two people with 400 messages (the Threads view, newest at the bottom), about 200
-// messages up, after a colleague wrote twice meanwhile; in an open thread with 60 replies; and in
-// a room with an agent (the Threads view sorted Last Reply, newest first, so newest at the top).
-// Among 25 rooms, with classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844,
+// messages up, after a colleague wrote twice meanwhile, and in a room with an agent (the Threads
+// view sorted Last Reply, newest first, so newest at the top), and in the Full view. (An open
+// thread keeps the place of a reader who scrolled up its replies, as the ported live-row suite
+// expects.) Among 25 rooms, with classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844,
 // touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
 // WebKit. Set SEND_FOLLOWS_SHOTS to a directory to save each landing.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -104,7 +107,6 @@ type Seeded = {
   colleague: MatrixSession;
   peopleRoomId: string;
   agentRoomId: string;
-  threadRootId: string;
 };
 
 const send = (session: MatrixSession, roomId: string, content: Record<string, unknown>) =>
@@ -123,26 +125,11 @@ const seed = async (label: string): Promise<Seeded> => {
     invite: [colleague.userId],
   });
   await joinRoom(HOMESERVER, colleague.accessToken, peopleRoomId);
-  let threadRootId = '';
   for (let index = 1; index <= 400; index += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const eventId = await send(index % 2 ? colleague : reader, peopleRoomId, {
-      msgtype: 'm.text',
-      body: note(index),
-    });
-    if (index === 380) threadRootId = eventId;
-  }
-  for (let index = 1; index <= 60; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await send(index % 2 ? colleague : reader, peopleRoomId, {
       msgtype: 'm.text',
-      body: `Thread note ${index}: checked the retry log for the import job, nothing new since the last run.`,
-      'm.relates_to': {
-        rel_type: 'm.thread',
-        event_id: threadRootId,
-        is_falling_back: true,
-        'm.in_reply_to': { event_id: threadRootId },
-      },
+      body: note(index),
     });
   }
   const agentRoomId = await createRoom(HOMESERVER, reader.accessToken, {
@@ -158,7 +145,7 @@ const seed = async (label: string): Promise<Seeded> => {
       body: `Release step ${index}: the checklist item is done and the notes are in the tracker.`,
     });
   }
-  return { reader, colleague, peopleRoomId, agentRoomId, threadRootId };
+  return { reader, colleague, peopleRoomId, agentRoomId };
 };
 
 /** Whether a row with this text shows to the reader, not covered by the header or composer. */
@@ -288,20 +275,23 @@ const checkSends = async (page: Page, seeded: Seeded, label: string, phone: bool
     })
     .toBe(ownId);
 
-  // An open thread with 60 replies: scrolled up, the reader replies.
-  await page.goto(
-    `/home/${encodeURIComponent(seeded.peopleRoomId)}?threadId=${encodeURIComponent(
-      seeded.threadRootId
-    )}`
-  );
-  await expect(page.getByText('Thread note 60:').first()).toBeVisible({ timeout: 30_000 });
+  // The same room in the Full view, a stored choice.
+  await seedRoomOverviewState({
+    page,
+    roomId: seeded.peopleRoomId,
+    userId: seeded.reader.userId,
+    viewMode: 'classic',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.reload();
+  await expect(page.getByText(roomText).first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1_500);
-  await scrollAway(page, -1_600);
-  expect(await rowShown(page, 'Thread note 60:'), 'the reader scrolled up the thread').toBe(false);
-  const replyText = `Own reply ${RUN} ${label}: thanks, I will close it if tonight's run is clean.`;
-  await typeAndSend(page, replyText, phone);
-  await expectLanded(page, replyText, `in the thread (${label})`);
-  await shot(page, `${label}-thread`);
+  await scrollAway(page, -1_500, 12);
+  expect(await rowShown(page, roomText), 'the reader scrolled away in the Full view').toBe(false);
+  const fullText = `Own Full view note ${RUN} ${label}: the rerun is scheduled for two.`;
+  await typeAndSend(page, fullText, phone);
+  await expectLanded(page, fullText, `in the Full view (${label})`);
+  await shot(page, `${label}-full`);
 
   // A room with an agent, newest first: scrolled down, the reader sends.
   await openRoom(page, AGENT_ROOM, phone);

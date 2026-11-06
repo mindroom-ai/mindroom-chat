@@ -60,8 +60,8 @@ type LiveRenderOptions = {
   /** Whether the room's newest row is its first, so a live row is followed at the top. */
   latestAtTopRef?: MutableRefObject<boolean>;
   /**
-   * Brings the view to a row the reader just sent, from wherever they are (Jump to Latest when
-   * the window has left the live end). Without it, the row asks for a bottom pin.
+   * Brings the view to a room row the reader just sent, from wherever they are (Jump to Latest
+   * when the window has left the live end).
    */
   onOwnSend?: () => void;
   mx: MatrixClient;
@@ -335,41 +335,55 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     if (followsLiveEnd) requestBottomPin(true);
   };
 
-  // The rows the reader sends here, not their reactions, edits or deletions.
-  const isOwnRow = (event: MatrixEvent) =>
-    (!threadId || isThreadActivity(event, threadId)) &&
-    isRenderableEvent(
-      event,
-      room,
-      threadId,
-      ignoredUsersSet,
-      showHiddenEvents,
-      hideMembershipEvents,
-      hideNickAvatarEvents
-    );
   const followedSendsRef = useRef(new WeakSet<MatrixEvent>());
 
   useRoomLocalEchoRefresh(room, (event, { initial }) => {
     repaint();
-    // A message the reader sends shows at once, wherever they were in the room or the thread:
-    // its first report, before its row renders, takes the view to it, so the pin follows the
-    // growth. Status changes (sent, failed, cancelled) only repaint.
-    if (initial && event.isSending() && isOwnRow(event)) {
+    // A message the reader sends in the room shows at once, wherever they were in it: its first
+    // report, before its row renders, takes the view there (`onOwnSend`), and the New Messages
+    // line of what came while they were away goes, as that is now in view above it. Reactions,
+    // edits and deletions are no rows of their own and leave the view where it is.
+    const ownRoomRow =
+      initial &&
+      !threadId &&
+      event.isSending() &&
+      isRenderableEvent(
+        event,
+        room,
+        undefined,
+        ignoredUsersSet,
+        showHiddenEvents,
+        hideMembershipEvents,
+        hideNickAvatarEvents
+      );
+    if (ownRoomRow && onOwnSend) {
       followedSendsRef.current.add(event);
-      // The reader now sees what came while they were away: no New Messages line above it.
-      if (!threadId) setUnreadInfo(undefined);
-      if (onOwnSend) onOwnSend();
-      else requestBottomPin(true);
+      setUnreadInfo(undefined);
+      onOwnSend();
       return;
     }
-    // It also reads the room up to it, the messages that came while the reader was away
-    // included, now in view above it. Its server echo replaces the pending row instead of
+    // It also reads the room up to it. Its server echo replaces the pending row instead of
     // arriving live, so the arrival above never sends that receipt, and a message that came
-    // while the reader then scrolled away would get the New Messages line above their own.
+    // while the reader then scrolled away would get the New Messages line above their own. A
+    // send the view followed counts before the at-bottom state catches up.
     const sent = event.status === null || event.status === EventStatus.SENT;
     const followed = followedSendsRef.current.has(event);
     if (!initial && sent && !threadId && (followed || atBottomRef.current) && documentHasFocus()) {
       void markMainTimelineAsRead(mx, room.roomId, hideActivity);
+    }
+    // Only the first report of a pending thread reply pins, before its row renders, so the pin
+    // follows the growth. Status changes (sent, failed, cancelled) only repaint.
+    if (!initial || !threadId || !event.isSending() || !isThreadActivity(event, threadId)) return;
+    const area = scrollRef.current;
+    if (!area) return;
+    if (
+      shouldAutoScrollThreadOnLiveEvent({
+        relationType: event.getRelation()?.rel_type,
+        isNearBottom: isNearBottomNow(area),
+        isTimelineAtLiveEnd: atLiveEndRef.current,
+      })
+    ) {
+      requestBottomPin(true);
     }
   });
 
