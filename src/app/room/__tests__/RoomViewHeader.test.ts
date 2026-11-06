@@ -223,6 +223,7 @@ vi.mock('../../matrix/state/useUnread', () => ({
 }));
 
 vi.mock('../../matrix/hooks/usePowerLevels', () => ({
+  usePowerLevels: () => ({}),
   usePowerLevelsContext: () => ({}),
 }));
 
@@ -520,7 +521,12 @@ describe('RoomViewHeader', () => {
       expect(
         renderer.root.findAll((node) => node.type === 'button' && textOf(node) === 'Leave Room')
       ).toHaveLength(1);
-      expect(findMessageSearch()).toHaveLength(offered ? 1 : 0);
+      // An encrypted room keeps the entry in its place, disabled, with the reason.
+      expect(findMessageSearch()).toHaveLength(1);
+      expect(textOf(findMessageSearch()[0]).includes('Not available in encrypted rooms')).toBe(
+        !offered
+      );
+      expect(findMessageSearch()[0].props.onClick === undefined).toBe(!offered);
       if (offered) {
         navigateSpy.mockClear();
         await act(async () => findMessageSearch()[0].props.onClick());

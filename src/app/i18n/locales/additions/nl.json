@@ -422,6 +422,10 @@
     },
     "roomOrder": {
       "sortByName": "Kamers sorteren van A tot Z"
+    },
+    "roomActions": {
+      "noInvitePermission": "Je hebt geen toestemming om uit te nodigen",
+      "searchEncrypted": "Niet beschikbaar in versleutelde kamers"
     }
   },
   "mindroomUi": {

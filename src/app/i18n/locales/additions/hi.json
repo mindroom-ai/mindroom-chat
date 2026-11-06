@@ -422,6 +422,10 @@
     },
     "roomOrder": {
       "sortByName": "रूम A से Z क्रम में लगाएँ"
+    },
+    "roomActions": {
+      "noInvitePermission": "आपको आमंत्रित करने की अनुमति नहीं है",
+      "searchEncrypted": "एन्क्रिप्टेड रूम में उपलब्ध नहीं"
     }
   },
   "mindroomUi": {

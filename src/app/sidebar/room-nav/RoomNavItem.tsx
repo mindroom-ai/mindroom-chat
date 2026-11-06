@@ -1,20 +1,6 @@
-import React, { forwardRef, useEffect, useRef, useState } from 'react';
-import {
-  Avatar,
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Line,
-  Spinner,
-  Text,
-  Tooltip,
-  config,
-  toRem,
-} from 'folds';
+import React, { useEffect, useRef, useState } from 'react';
+import { Avatar, Box, Icon, IconButton, Icons, Text, Tooltip, config, toRem } from 'folds';
 import { PopOut, ownDirectionLine } from '../../ui/directional';
-import { Menu } from '../../ui/glass/GlassPrimitives';
-import { MenuEntry } from '../../ui/MenuEntry';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
 import { useFocusWithin, useHover } from 'react-aria';
@@ -26,28 +12,16 @@ import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRoomAvatar, useRoomName } from '../../matrix/hooks/useRoomMeta';
-import {
-  RoomNotificationMode,
-  getRoomNotificationModeIcon,
-} from '../../matrix/hooks/useRoomsNotificationPreferences';
-import { RoomNotificationModeSwitcher } from '../../notifications/RoomNotificationSwitcher';
+import { RoomNotificationMode } from '../../matrix/hooks/useRoomsNotificationPreferences';
 import { useRoomUnread } from '../../matrix/state/useUnread';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
-import { useOpenRoomSettings } from '../../navigation/useRoomSettingsState';
-import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../../matrix/matrix';
+import { mxcUrlToHttp } from '../../matrix/matrix';
 import { getDirectPartnerId, getRoomAvatarUrl } from '../../matrix/room';
-import { copyToClipboard } from '../../lib/dom';
 import { nameInitials } from '../../lib/common';
-import { getMatrixToRoom } from '../../matrix/matrix-to';
 import { useRoomBackgroundJobs } from '../../background-jobs/useRoomBackgroundJobs';
 import { IconTooltip } from '../../ui/IconTooltip';
-import { MarkRoomReadMenuItem } from '../../notifications/MarkRoomReadMenuItem';
-import { ArchiveRoomMenuItem } from '../../rooms/archive/ArchiveRoomMenuItem';
-import { InviteUserPrompt } from '../../members/invite/InviteUserPrompt';
-import { LeaveRoomPrompt } from '../../rooms/LeaveRoomPrompt';
-import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
-import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
-import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
+import { RoomActionsMenu, useRoomActionDialog } from '../../room/RoomActionsMenu';
+import type { RoomActionDialog } from '../../room/roomActions';
 
 const AVATAR_SIZE = 96;
 
@@ -62,98 +36,9 @@ type RoomNavItemProps = {
   /** A direct message: shows the other person's avatar with initials as fallback. */
   direct: boolean;
   showAvatar: boolean;
+  /** The space whose list shows the row, which the room's settings and search stay in. */
+  spaceId: string;
 }>;
-
-/** A dialog the row's menu opened; it outlives the menu, which closes first. */
-type RoomNavPrompt = 'invite' | 'leave';
-
-type RoomNavItemMenuProps = {
-  room: Room;
-  requestClose: () => void;
-  onPrompt: (prompt: RoomNavPrompt) => void;
-  /** The room's notification mode; rows without one offer no mode switch. */
-  notificationMode?: RoomNotificationMode;
-};
-
-const menuGroupStyle = { padding: config.space.S100 } as const;
-const roomMenuStyle = { minWidth: toRem(200) } as const;
-
-// The focus trap around the menu finds its container through this ref, so Escape and a click
-// outside close the menu.
-const RoomNavItemMenu = forwardRef<HTMLDivElement, RoomNavItemMenuProps>(function RoomNavItemMenu(
-  { room, requestClose, onPrompt, notificationMode },
-  ref
-) {
-  const { t } = useTranslation();
-  const client = useMatrixClient();
-  const openRoomSettings = useOpenRoomSettings();
-  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
-  const canInvite = permissions.action('invite', client.getUserId() ?? '');
-
-  const closeThen = (action: () => void) => () => {
-    requestClose();
-    action();
-  };
-
-  // A matrix.to link, which opens the room in any Matrix client.
-  const shareableLink = getMatrixToRoom(getCanonicalAliasOrRoomId(client, room.roomId));
-
-  return (
-    <Menu style={roomMenuStyle} ref={ref}>
-      <Box direction="Column" gap="100" style={menuGroupStyle}>
-        <MarkRoomReadMenuItem room={room} onClose={requestClose} />
-        {notificationMode && (
-          <RoomNotificationModeSwitcher
-            roomId={room.roomId}
-            value={notificationMode}
-            onChange={requestClose}
-            side="Right"
-          >
-            {(handleOpen, opened, changing) => (
-              <MenuEntry
-                icon={getRoomNotificationModeIcon(notificationMode)}
-                label={t('featureUi.roomNav.roomNavItem.notifications')}
-                onSelect={handleOpen}
-                after={changing ? <Spinner size="100" variant="Secondary" /> : undefined}
-                fill={opened ? 'Soft' : 'None'}
-                aria-haspopup="menu"
-                aria-expanded={opened}
-              />
-            )}
-          </RoomNotificationModeSwitcher>
-        )}
-        {canInvite && (
-          <MenuEntry
-            icon={Icons.UserPlus}
-            label={t('featureUi.roomNav.roomNavItem.invite')}
-            onSelect={closeThen(() => onPrompt('invite'))}
-          />
-        )}
-        <MenuEntry
-          icon={Icons.Link}
-          label={t('featureUi.roomNav.roomNavItem.copyLink')}
-          onSelect={closeThen(() => void copyToClipboard(shareableLink))}
-        />
-        <MenuEntry
-          icon={Icons.Setting}
-          label={t('featureUi.roomNav.roomNavItem.roomSettings')}
-          onSelect={closeThen(() => openRoomSettings(room.roomId))}
-        />
-      </Box>
-      <Line variant="Surface" size="300" />
-      <Box direction="Column" gap="100" style={menuGroupStyle}>
-        <ArchiveRoomMenuItem room={room} onClose={requestClose} />
-        <MenuEntry
-          critical
-          directional
-          icon={Icons.ArrowGoLeft}
-          label={t('featureUi.roomNav.roomNavItem.leaveRoom')}
-          onSelect={closeThen(() => onPrompt('leave'))}
-        />
-      </Box>
-    </Menu>
-  );
-});
 
 /**
  * Whether the pointer is over the row or focus is inside it; the row swaps its badge for the
@@ -261,21 +146,21 @@ function RoomNavItemAvatar({ room, name, personAvatar, selected, quiet }: RoomNa
 
 type RoomNavOptionsProps = {
   room: Room;
+  spaceId?: string;
   /** Shown while the row is hovered, holds focus or has its menu open; hidden, it stays mounted. */
   shown: boolean;
   anchor: RectCords | undefined;
   onAnchorChange: (anchor: RectCords | undefined) => void;
-  onPrompt: (prompt: RoomNavPrompt) => void;
-  notificationMode?: RoomNotificationMode;
+  showDialog: (dialog: RoomActionDialog) => void;
 };
 
 function RoomNavOptions({
   room,
+  spaceId,
   shown,
   anchor,
   onAnchorChange,
-  onPrompt,
-  notificationMode,
+  showDialog,
 }: RoomNavOptionsProps) {
   const { t } = useTranslation();
   const menuOpen = anchor !== undefined;
@@ -283,6 +168,22 @@ function RoomNavOptions({
   const anchorToButton = (event: React.MouseEvent<HTMLButtonElement>) =>
     onAnchorChange(event.currentTarget.getBoundingClientRect());
 
+  // The button keeps focus while a pointer opened its menu, and a row that can be dragged keeps its
+  // buttons' keys from the page, where the menu's focus trap listens for Escape: Escape on the
+  // button is heard here first.
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const button = buttonRef.current;
+    if (!menuOpen || !button) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && event.target === button) onAnchorChange(undefined);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [menuOpen, onAnchorChange]);
+
+  // The focus trap around the menu finds its container through the menu's ref, so Escape and a
+  // click outside close the menu. It opens at the row's end, so its own menus open further right.
   const menu = (
     <FocusTrap
       focusTrapOptions={{
@@ -292,11 +193,12 @@ function RoomNavOptions({
         onDeactivate: closeMenu,
       }}
     >
-      <RoomNavItemMenu
+      <RoomActionsMenu
         room={room}
-        requestClose={closeMenu}
-        onPrompt={onPrompt}
-        notificationMode={notificationMode}
+        spaceId={spaceId}
+        submenuSide="Right"
+        close={closeMenu}
+        showDialog={showDialog}
       />
     </FocusTrap>
   );
@@ -305,6 +207,7 @@ function RoomNavOptions({
     <NavItemOptions shown={shown}>
       <PopOut anchor={anchor} offset={4} position="Right" align="Start" content={menu}>
         <IconButton
+          ref={buttonRef}
           variant="Background"
           fill="None"
           size="300"
@@ -412,11 +315,11 @@ const pointerAnchor = (event: React.MouseEvent): RectCords => ({
  * while agents run background jobs in it, and a menu on hover or focus or by right-click.
  */
 export function RoomNavItem(props: RoomNavItemProps) {
-  const { room, selected, linkPath, notificationMode, direct, showAvatar } = props;
+  const { room, selected, linkPath, notificationMode, direct, showAvatar, spaceId } = props;
   const { t } = useTranslation();
   const [engaged, engagementProps] = useRowEngagement();
   const [optionsAnchor, setOptionsAnchor] = useState<RectCords>();
-  const [prompt, setPrompt] = useState<RoomNavPrompt>();
+  const { dialog, showDialog } = useRoomActionDialog();
   const name = useRoomName(room);
   const unread = useRoomUnread(room.roomId, roomToUnreadAtom);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -444,7 +347,6 @@ export function RoomNavItem(props: RoomNavItemProps) {
     event.preventDefault();
     setOptionsAnchor(pointerAnchor(event));
   };
-  const closePrompt = () => setPrompt(undefined);
 
   const row = (
     <NavItem
@@ -470,11 +372,11 @@ export function RoomNavItem(props: RoomNavItemProps) {
       {/* Mounted while hidden too, so the button can leave as smoothly as it came. */}
       <RoomNavOptions
         room={room}
+        spaceId={spaceId}
         shown={showOptions}
         anchor={optionsAnchor}
         onAnchorChange={setOptionsAnchor}
-        onPrompt={setPrompt}
-        notificationMode={notificationMode}
+        showDialog={showDialog}
       />
     </NavItem>
   );
@@ -498,10 +400,7 @@ export function RoomNavItem(props: RoomNavItemProps) {
           </Tooltip>
         }
       />
-      {prompt === 'invite' && <InviteUserPrompt room={room} requestClose={closePrompt} />}
-      {prompt === 'leave' && (
-        <LeaveRoomPrompt roomId={room.roomId} requestClose={closePrompt} onLeft={closePrompt} />
-      )}
+      {dialog}
     </>
   );
 }

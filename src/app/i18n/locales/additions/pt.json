@@ -429,6 +429,10 @@
     },
     "roomOrder": {
       "sortByName": "Ordenar salas de A a Z"
+    },
+    "roomActions": {
+      "noInvitePermission": "Não tem permissão para convidar",
+      "searchEncrypted": "Indisponível em salas encriptadas"
     }
   },
   "mindroomUi": {

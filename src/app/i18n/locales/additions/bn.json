@@ -422,6 +422,10 @@
     },
     "roomOrder": {
       "sortByName": "রুমগুলো এ থেকে জেড সাজান"
+    },
+    "roomActions": {
+      "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
+      "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
     }
   },
   "mindroomUi": {

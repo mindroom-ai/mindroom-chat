@@ -409,6 +409,7 @@ export function Space() {
                       getCanonicalAliasOrRoomId(client, roomId)
                     )}
                     notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
+                    spaceId={space.roomId}
                   />
                 ) : null;
               })}

@@ -22,40 +22,24 @@ import { PageHeader } from '../ui/page/Page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { RoomTopicViewer } from './RoomTopicViewer';
 import { RoomAvatar, RoomIcon } from '../avatars/RoomAvatar';
-import { InviteUserPrompt } from '../members/invite/InviteUserPrompt';
-import { LeaveRoomPrompt } from '../rooms/LeaveRoomPrompt';
-import { JumpToTime } from '../timeline/jump-to-time/JumpToTime';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useIsDirectRoom, useRoom } from '../matrix/hooks/useRoom';
 import { useSpaceOptionally } from '../matrix/hooks/useSpace';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { useRoomAvatar, useRoomName, useRoomTopic } from '../matrix/hooks/useRoomMeta';
-import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { usePowerLevelsContext } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
-import { getCanonicalAliasOrRoomId, isRoomAlias, mxcUrlToHttp } from '../matrix/matrix';
-import { copyToClipboard } from '../lib/dom';
+import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
 import { nameInitials } from '../lib/common';
 import { getDirectPartnerId } from '../matrix/room';
-import { getMatrixToRoom } from '../matrix/matrix-to';
-import { getViaServers } from '../matrix/via-servers';
-import {
-  getDirectPath,
-  getHomePath,
-  getHomeSearchPath,
-  getSpacePath,
-  getSpaceSearchPath,
-  withSearchParam,
-} from '../routes/pathUtils';
+import { getDirectPath, getHomePath, getSpacePath } from '../routes/pathUtils';
 import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
-import { StateEvent } from '../matrix/types/room';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
 import {
   RoomSchedulesButton,
@@ -76,7 +60,7 @@ import {
   hasActiveThreadFilters,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
-import { RoomHeaderMenu } from './RoomHeaderMenu';
+import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 import { CompactViewIcon } from './CompactViewIcon';
 import { HeaderActionButton, HeaderTopic } from './RoomViewHeader.css';
 import * as css from './RoomViewHeaderLayout.css';
@@ -258,9 +242,7 @@ export function RoomViewHeader({
     filterBarHidden && !!threadFilterState && hasActiveThreadFilters(threadFilterState);
   const navigate = useNavigate();
   const [membersOpen, setMembersOpen] = useMembersDrawer();
-  const openRoomSettings = useOpenRoomSettings();
   const { navigateRoomThread } = useRoomNavigate();
-  const encrypted = useStateEvent(room, StateEvent.RoomEncryption) !== undefined;
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
   const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevelsContext());
@@ -287,10 +269,9 @@ export function RoomViewHeader({
   // On phones the room menu opens these; they stay with the room they were opened in.
   const [canvasMenuAnchor, setCanvasMenuAnchor] = useState<RectCords>();
   const [schedulesRoomId, setSchedulesRoomId] = useState<string>();
-  const [prompt, setPrompt] = useState<'invite' | 'leave' | 'jumpToTime'>();
-  // The prompts open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
+  // The dialogs open from an entry of the menu, which is gone once they close; lib/overlayFocus.ts
   // then gives focus back to the menu's button.
-  const closePrompt = () => setPrompt(undefined);
+  const { dialog, showDialog } = useRoomActionDialog();
 
   // A direct chat shows the other person, by picture or initial.
   const pictureMxc = useRoomAvatar(room, direct);
@@ -343,21 +324,12 @@ export function RoomViewHeader({
 
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
 
-  const copyRoomLink = () => {
-    const target = getCanonicalAliasOrRoomId(mx, room.roomId);
-    const via = isRoomAlias(target) ? undefined : getViaServers(room);
-    void copyToClipboard(getMatrixToRoom(target, via));
-  };
-  const searchMessages = () => {
-    const searchPath = spacePathId ? getSpaceSearchPath(spacePathId) : getHomeSearchPath();
-    navigate(withSearchParam(searchPath, { rooms: room.roomId }));
-  };
-
   // A phone's header keeps only the back button, the name and the room menu: the menu takes the
   // room's other actions first, each closing it before it acts where the menu's button was.
+  const closeMenu = () => setMenuAnchor(undefined);
   const fromMenu = (act: (menuButton: RectCords | undefined) => void) => () => {
     const menuButton = menuAnchor;
-    setMenuAnchor(undefined);
+    closeMenu();
     act(menuButton);
   };
   const canvasesHere = showCanvases && canvases ? canvases : [];
@@ -375,7 +347,17 @@ export function RoomViewHeader({
   }
   // A menu checkbox that is on shows a check where its icon would be.
   const checkMark = <Icon size="100" src={Icons.Check} />;
-  const phoneEntries = mobile && (
+  const computerEntry = computerInMenu && (
+    <MenuEntry
+      icon={Icons.Monitor}
+      label={t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')}
+      onSelect={fromMenu(() => {
+        if (!computerOpen) onComputerToggle?.();
+      })}
+    />
+  );
+  // What only works in the open room: on phones all the header leaves out, else the computer.
+  const roomEntries = mobile ? (
     <>
       {viewSwitch && !threadId && (
         <MenuEntry
@@ -430,7 +412,11 @@ export function RoomViewHeader({
         />
       )}
       <MenuEntry icon={Icons.User} label={membersEntryLabel} onSelect={fromMenu(toggleMembers)} />
+      {computerEntry}
+      {calls?.({ at: 'menu', requestClose: closeMenu })}
     </>
+  ) : (
+    computerEntry || undefined
   );
 
   return (
@@ -637,39 +623,24 @@ export function RoomViewHeader({
               initialFocus: false,
               returnFocusOnDeactivate: false,
               clickOutsideDeactivates: () => {
-                setMenuAnchor(undefined);
+                closeMenu();
                 return true;
               },
               escapeDeactivates: () => {
-                setMenuAnchor(undefined);
+                closeMenu();
                 return true;
               },
             }}
           >
-            <RoomHeaderMenu
+            <RoomActionsMenu
               room={room}
-              requestClose={() => setMenuAnchor(undefined)}
-              onInvite={
-                permissions.action('invite', myUserId) ? () => setPrompt('invite') : undefined
-              }
-              onCopyLink={copyRoomLink}
-              onOpenSettings={() => openRoomSettings(room.roomId, space?.roomId)}
-              onSearchMessages={encrypted ? undefined : searchMessages}
-              onJumpToTime={() => setPrompt('jumpToTime')}
-              onShowComputer={
-                computerInMenu
-                  ? () => {
-                      if (!computerOpen) onComputerToggle?.();
-                    }
-                  : undefined
-              }
-              roomEntries={phoneEntries || undefined}
-              calls={
-                mobile
-                  ? calls?.({ at: 'menu', requestClose: () => setMenuAnchor(undefined) })
-                  : undefined
-              }
-              onLeave={() => setPrompt('leave')}
+              spaceId={space?.roomId}
+              threadId={threadId}
+              submenuSide="Left"
+              close={closeMenu}
+              showDialog={showDialog}
+              onLeft={() => navigate(sectionPath)}
+              roomEntries={roomEntries}
             />
           </FocusTrap>
         }
@@ -690,20 +661,7 @@ export function RoomViewHeader({
           onOpenThread={(scheduledThreadId) => navigateRoomThread(room.roomId, scheduledThreadId)}
         />
       )}
-      {prompt === 'invite' && <InviteUserPrompt room={room} requestClose={closePrompt} />}
-      {prompt === 'jumpToTime' && (
-        <JumpToTime room={room} threadId={threadId} requestClose={closePrompt} />
-      )}
-      {prompt === 'leave' && (
-        <LeaveRoomPrompt
-          roomId={room.roomId}
-          requestClose={closePrompt}
-          onLeft={() => {
-            setPrompt(undefined);
-            navigate(sectionPath);
-          }}
-        />
-      )}
+      {dialog}
     </PageHeader>
   );
 }

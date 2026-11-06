@@ -422,6 +422,10 @@
     },
     "roomOrder": {
       "sortByName": "Odaları A'dan Z'ye sırala"
+    },
+    "roomActions": {
+      "noInvitePermission": "Davet etme izniniz yok",
+      "searchEncrypted": "Şifreli odalarda kullanılamaz"
     }
   },
   "mindroomUi": {

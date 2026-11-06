@@ -415,6 +415,10 @@
     },
     "roomOrder": {
       "sortByName": "Urutkan ruang dari A ke Z"
+    },
+    "roomActions": {
+      "noInvitePermission": "Anda tidak punya izin untuk mengundang",
+      "searchEncrypted": "Tidak tersedia di ruang terenkripsi"
     }
   },
   "mindroomUi": {

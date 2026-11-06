@@ -2841,3 +2841,5 @@ src/app/background-jobs/backgroundJobsBar.css.ts	src/app/background-jobs/Backgro
 src/app/rich-text/MatrixMath.css.ts	src/app/rich-text/matrixMath.css.ts	restructure-followups
 src/app/ui/media/media.css.ts	src/app/ui/media/Media.css.ts	restructure-followups
 src/app/native/iosCiVersion.test.ts		calver-ios-release
+src/app/room/RoomHeaderMenu.tsx	src/app/room/RoomActionsMenu.tsx	room-menu-unify
+src/app/room/RoomHeaderMenu.css.ts	src/app/room/RoomActionsMenu.css.ts	room-menu-unify

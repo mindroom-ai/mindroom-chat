@@ -415,6 +415,10 @@
     },
     "roomOrder": {
       "sortByName": "按 A 到 Z 排序房间"
+    },
+    "roomActions": {
+      "noInvitePermission": "您没有邀请权限",
+      "searchEncrypted": "在加密房间中不可用"
     }
   },
   "mindroomUi": {

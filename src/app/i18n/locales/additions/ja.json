@@ -415,6 +415,10 @@
     },
     "roomOrder": {
       "sortByName": "ルームを A から Z の順に並べる"
+    },
+    "roomActions": {
+      "noInvitePermission": "招待する権限がありません",
+      "searchEncrypted": "暗号化されたルームでは使用できません"
     }
   },
   "mindroomUi": {

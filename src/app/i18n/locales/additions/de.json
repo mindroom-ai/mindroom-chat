@@ -422,6 +422,10 @@
     },
     "roomOrder": {
       "sortByName": "Räume von A bis Z sortieren"
+    },
+    "roomActions": {
+      "noInvitePermission": "Du hast keine Berechtigung zum Einladen",
+      "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar"
     }
   },
   "mindroomUi": {

@@ -450,6 +450,10 @@
     },
     "roomOrder": {
       "sortByName": "ترتيب الغرف من أ إلى ي"
+    },
+    "roomActions": {
+      "noInvitePermission": "ليس لديك إذن بالدعوة",
+      "searchEncrypted": "غير متاح في الغرف المشفرة"
     }
   },
   "mindroomUi": {

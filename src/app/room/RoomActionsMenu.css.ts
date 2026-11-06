@@ -1,7 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 
-// On a touch screen the room menu also holds what a phone's header leaves out, so each row is a
-// full 44 px target and the menu scrolls when the rows outgrow the window below the header.
+// On a touch screen each row of a room's menu is a full 44 px target, and the menu scrolls when
+// its rows outgrow the window (a phone's room menu also holds what its header leaves out).
 const touch = '(pointer: coarse)';
 
 export const RoomMenu = style({
