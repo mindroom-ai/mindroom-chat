@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import path from 'node:path';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import {
@@ -92,6 +94,20 @@ const recordNotifications = async (context: BrowserContext, shown: Shown[], tabs
   });
 };
 
+const SHOTS = process.env.NOTIF_DEDUPE_SHOTS;
+
+/** With NOTIF_DEDUPE_SHOTS set, a screenshot of the page into that directory. */
+const shot = async (page: Page, name: string) => {
+  if (SHOTS) await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
+};
+
+/** With NOTIF_DEDUPE_SHOTS set, the notifications every tab raised, as JSON. */
+const saveLog = async (engine: Engine, name: string, shown: Shown[]) => {
+  if (!SHOTS) return;
+  await mkdir(SHOTS, { recursive: true });
+  await writeFile(path.join(SHOTS, `${engine}-${name}.json`), JSON.stringify(shown, null, 2));
+};
+
 const titles = (shown: Shown[]) => shown.map(({ title }) => title).sort();
 
 /**
@@ -147,13 +163,15 @@ const checkOncePerDevice = async (browser: Browser, baseURL: string, engine: Eng
   await expect.poll(() => titles(shown), { timeout: 30_000 }).toEqual(['Invitation', 'Ops Desk']);
 
   // L2-F010, L2-F011: a reload raises nothing for the invite or the message it notified before.
+  let seen = shown.length;
   await first.reload();
   await waitForLoggedInShell(first);
   await syncedThrough(tabs, writer, designId, 'Checked in after the reload');
-  expect(titles(shown), `${engine}: after the reload`).toEqual(['Invitation', 'Ops Desk']);
+  expect.soft(titles(shown.slice(seen)), `${engine}: raised after the reload`).toEqual([]);
 
   // L5-F026: two more tabs of the same session; their start raises nothing, and each new invite
   // or message raises one notification between the three tabs.
+  seen = shown.length;
   for (let index = 0; index < 2; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     const tab = await context.newPage();
@@ -162,11 +180,9 @@ const checkOncePerDevice = async (browser: Browser, baseURL: string, engine: Eng
     await openRoom(tab, designId);
   }
   await syncedThrough(tabs, writer, designId, 'Three tabs are open');
-  expect(titles(shown), `${engine}: after two more tabs started`).toEqual([
-    'Invitation',
-    'Ops Desk',
-  ]);
+  expect.soft(titles(shown.slice(seen)), `${engine}: raised as two more tabs started`).toEqual([]);
 
+  seen = shown.length;
   await createRoom(HOMESERVER, writer.accessToken, {
     name: 'Invite Desk Two',
     invite: [reader.userId],
@@ -176,12 +192,11 @@ const checkOncePerDevice = async (browser: Browser, baseURL: string, engine: Eng
     body: `${reader.userId} the rollback plan is ready`,
     'm.mentions': { user_ids: [reader.userId] },
   });
-  await expect.poll(() => shown.length, { timeout: 30_000 }).toBeGreaterThanOrEqual(4);
+  await expect.poll(() => shown.length - seen, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
   await syncedThrough(tabs, writer, designId, 'All three tabs have the news');
-  expect(titles(shown), `${engine}: one notification each across three tabs`).toEqual([
+  await saveLog(engine, 'once-per-device', shown);
+  expect(titles(shown.slice(seen)), `${engine}: raised across three tabs`).toEqual([
     'Invitation',
-    'Invitation',
-    'Ops Desk',
     'Ops Desk',
   ]);
   await context.close();
@@ -238,6 +253,7 @@ const checkMutedRoom = async (browser: Browser, baseURL: string, engine: Engine)
   });
   await syncedThrough([page], writer, designId, 'Anything else for today?');
 
+  await shot(page, `${engine}-muted-room`);
   expect(shown, `${engine}: a muted room raises no notification`).toEqual([]);
   await expect(mutedRow.getByLabel('Muted'), `${engine}: the muted row keeps its mark`).toBeVisible();
   await expect(homeRailBadge(page), `${engine}: Home shows no unread badge`).toHaveCount(0);
@@ -251,6 +267,7 @@ const checkMutedRoom = async (browser: Browser, baseURL: string, engine: Engine)
   await expect(homeRailBadge(page), `${engine}: Home shows the open room's unread`).toHaveCount(1, {
     timeout: 30_000,
   });
+  await shot(page, `${engine}-open-room-unread`);
   await context.close();
 };
 
