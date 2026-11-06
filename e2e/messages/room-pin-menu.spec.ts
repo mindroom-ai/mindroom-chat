@@ -789,13 +789,19 @@ const checkUnloadedPins =
     const shown = [THREAD_PIN_EDITED, THREAD_PINS[1], THREAD_PINS[0], OLD_PIN];
     const entries = [replies[2], replies[1], replies[0], oldPin];
     const where = `${engine}, ${form}, ${encrypted ? 'encrypted' : 'plain'}`;
-    for (const [index, body] of shown.entries()) {
-      const entry = menu.locator(`[data-pinned-event-id="${entries[index]}"]`);
-      // eslint-disable-next-line no-await-in-loop
-      // An edited message ends in "(edited)".
-      await expect(entry.getByText(body), `${body} (${where})`).toBeVisible({ timeout: 30_000 });
-      // eslint-disable-next-line no-await-in-loop
-      await expect(jumpButton(entry, OWNER_NAME)).toBeVisible();
+    try {
+      for (const [index, body] of shown.entries()) {
+        const entry = menu.locator(`[data-pinned-event-id="${entries[index]}"]`);
+        // An edited message ends in "(edited)".
+        // eslint-disable-next-line no-await-in-loop
+        await expect(entry.getByText(body), `${body} (${where})`).toBeVisible({ timeout: 30_000 });
+        // eslint-disable-next-line no-await-in-loop
+        await expect(jumpButton(entry, OWNER_NAME)).toBeVisible();
+      }
+    } catch (error) {
+      // WebKit runs in a browser of its own, which Playwright does not photograph on failure.
+      await shoot(page, testInfo, `unloaded-failed-${engine}-${form}`);
+      throw new Error(`${String(error)}\nThe menu reads: ${await menu.innerText()}`);
     }
     await expect(menu.getByText(THREAD_PINS[2])).toHaveCount(0);
     await expect(
