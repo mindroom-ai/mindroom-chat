@@ -341,8 +341,8 @@ describe('ToolApprovalCard', () => {
   });
 
   it.each([
-    ['approved', 'Approved by @ops:example.org'],
-    ['denied', 'Denied by @ops:example.org'],
+    ['approved', 'Approved by ops'],
+    ['denied', 'Denied by ops'],
   ] as const)('keeps the terminal %s server state authoritative', (status, expectedText) => {
     vi.useFakeTimers();
     vi.setSystemTime('2026-04-17T12:00:00Z');
@@ -1293,7 +1293,7 @@ describe('ToolApprovalCard', () => {
     const text = getNodeText(renderer.root);
 
     expect(text).toContain('web_search');
-    expect(text).toContain('Denied by @ops:example.org');
+    expect(text).toContain('Denied by ops');
     expect(text).toContain('Show all arguments');
     expect(text).toContain('release date');
     expect(
