@@ -45,6 +45,7 @@ const setup = (pages: { chunk: Partial<IEvent>[]; end?: string }[], knownTs: num
     threadsTimelineSets: [{}, {}],
     getUnfilteredTimelineSet: () => unfiltered,
     getThreads: () => [{ replyToEvent: { getTs: () => knownTs } }],
+    getThread: () => undefined,
     processListedThreadRoots: vi.fn<(events: MatrixEvent[], toStart: boolean) => void>(),
   });
   const requests: (string | null)[] = [];
