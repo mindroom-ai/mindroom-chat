@@ -126,7 +126,12 @@ const expectSetupStopped = (renderer: ReactTestRenderer) => {
   expect(renderer.root.findAllByProps({ 'data-spinner': true })).toHaveLength(0);
   const error = renderer.root.findAllByType('b').at(-1);
   expect(error && textOf(error)).toBe('Unexpected Error!');
-  expect(crypto.bootstrapSecretStorage).not.toHaveBeenCalled();
+  // The new secret storage is made before the cross-signing keys, whose upload asks for the
+  // authentication; the setup stops there and shows no recovery key.
+  const [storage] = crypto.bootstrapSecretStorage.mock.invocationCallOrder.slice(-1);
+  const [crossSigning] = crypto.bootstrapCrossSigning.mock.invocationCallOrder.slice(-1);
+  expect(storage).toBeLessThan(crossSigning ?? 0);
+  expect(textOf(renderer.root)).not.toContain('EsTc 1234');
 };
 
 describe('DeviceVerificationSetup unsupported auth flow', () => {

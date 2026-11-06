@@ -130,10 +130,9 @@ function SetupVerification({ onComplete, onRunningChange }: SetupVerificationPro
         const { encodedPrivateKey } = recoveryKey;
         if (!encodedPrivateKey) throw new Error(RECOVERY_KEY_FAILED);
 
-        await crypto.bootstrapCrossSigning({
-          authUploadDeviceSigningKeys,
-          setupNewCrossSigning: true,
-        });
+        // The new secret storage comes first. New cross-signing keys are written into the
+        // account's secret storage, and a reset is for people who no longer have the old
+        // storage's key, so they go into the new one, whose key is cached as it is created.
         // Keys cached for the previous secret storage cannot open the new one.
         clearSecretStorageKeys();
         const newStorage = {
@@ -141,6 +140,10 @@ function SetupVerification({ onComplete, onRunningChange }: SetupVerificationPro
           createSecretStorageKey: async () => recoveryKey,
         };
         await crypto.bootstrapSecretStorage(newStorage);
+        await crypto.bootstrapCrossSigning({
+          authUploadDeviceSigningKeys,
+          setupNewCrossSigning: true,
+        });
         if (alive()) onComplete(encodedPrivateKey);
       },
       [mx, alive, authUploadDeviceSigningKeys, onComplete]
