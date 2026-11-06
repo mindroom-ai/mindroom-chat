@@ -228,7 +228,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
     it('shows the reader at the bottom at once and away only after 500 ms without a report', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       const setAtBottom = vi.fn();
-      mount(optionsWith({ ...awayFromLiveEnd, setAtBottom }));
+      mount(optionsWith({ setAtBottom }));
 
       reportAnchor(true);
       expect(setAtBottom).toHaveBeenCalledWith(true);
@@ -248,7 +248,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
     it('keeps the reader at the bottom when the anchor is back within 500 ms', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       const setAtBottom = vi.fn();
-      mount(optionsWith({ ...awayFromLiveEnd, setAtBottom }));
+      mount(optionsWith({ setAtBottom }));
 
       reportAnchor(false);
       act(() => {
@@ -260,6 +260,21 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       });
       expect(setAtBottom).toHaveBeenCalledWith(true);
       expect(setAtBottom).not.toHaveBeenCalledWith(false);
+    });
+
+    it('keeps Jump to Latest offered at the end of rows away from the live end', () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const setAtBottom = vi.fn();
+      mount(optionsWith({ ...awayFromLiveEnd, setAtBottom }));
+
+      // A message link's window: its newest loaded row, and the anchor after it, are in view.
+      reportAnchor(true);
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(setAtBottom).not.toHaveBeenCalled();
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });
 
     it('sets nothing when the view unmounts within the 500 ms', () => {

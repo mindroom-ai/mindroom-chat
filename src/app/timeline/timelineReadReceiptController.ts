@@ -252,9 +252,11 @@ export const useTimelineReadReceiptController = ({
     if (!report) return;
     // Every report restarts the wait, and only the last one decides whether the reader left.
     settleScrolledAway(report.isIntersecting);
-    if (!report.isIntersecting) return;
+    // Away from the live end (a message link's window) the anchor marks only the end of the rows
+    // loaded there: Jump to Latest stays offered.
+    if (!report.isIntersecting || !atLiveEndRef.current) return;
     setAtBottom(true);
-    if (!atLiveEndRef.current || !document.hasFocus()) return;
+    if (!document.hasFocus()) return;
     const context = contextRef.current;
     if (context.threadId) readThreadOnNextFrame(context, stillReading);
     else readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
