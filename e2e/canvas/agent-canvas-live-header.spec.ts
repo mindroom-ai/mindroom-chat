@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { Page } from '@playwright/test';
 import {
   composer,
@@ -102,6 +104,18 @@ const createAgentRoom = async (
   return roomId;
 };
 
+/** The thread mode the backend keeps for `roomId` (`!thread_mode`), if any. */
+const roomModeOverride = (stack: AgentStack, roomId: string): string | undefined => {
+  try {
+    const overrides = JSON.parse(
+      readFileSync(join(stack.dir, 'storage', 'tracking', 'room_thread_modes.json'), 'utf8')
+    ) as Record<string, { mode?: string }>;
+    return overrides[roomId]?.mode;
+  } catch {
+    return undefined;
+  }
+};
+
 /** Moves the loaded client to a thread of `roomId`, as a link inside the app would. */
 const showRoomThread = async (page: Page, roomId: string, rootId: string) => {
   await page.evaluate((url) => {
@@ -192,21 +206,14 @@ const canvasComesAndGoes = async (page: Page, stack: AgentStack, scenario: Scena
   await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   if (scenario.conversation === 'room') {
-    // The room's creator is its admin, and so may move its agents to the main timeline.
+    // The room's creator is its admin, and so may move its agents to the main timeline. The
+    // backend keeps the choice in its storage, where the helper reads it when it answers.
     await sendFromComposer(page, '!thread_mode room');
     await expect
-      .poll(
-        () =>
-          matrixFetch<{ mode?: string }>(
-            stack.homeserver,
-            `/rooms/${encodeURIComponent(roomId)}/state/io.mindroom.thread_mode/`,
-            { accessToken: stack.tester.accessToken }
-          ).then(
-            (content) => content.mode,
-            () => undefined
-          ),
-        { timeout: 60_000, message: 'the room answers in its main timeline' }
-      )
+      .poll(() => roomModeOverride(stack, roomId), {
+        timeout: 60_000,
+        message: 'the room answers in its main timeline',
+      })
       .toBe('room');
   }
 
