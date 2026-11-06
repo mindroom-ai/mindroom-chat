@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   discovery: {} as Record<string, unknown>,
+  developerTools: true,
   navigateRoomThread: vi.fn(),
   buildBugReport: vi.fn(async () => ({ reportedAt: '2026-10-03T12:00:00.000Z' })),
   ensureBugReportRoom: vi.fn(async () => ({ roomId: '!reports:example.com' })),
@@ -44,6 +45,9 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: mocks.navigateRoomThread }),
 }));
 vi.mock('../native/nativeFileSave', () => ({ saveFile: mocks.saveFile }));
+vi.mock('../preferences/useSetting', () => ({
+  useSetting: () => [mocks.developerTools, vi.fn()],
+}));
 vi.mock('./bugReportPayload', () => ({
   buildBugReport: mocks.buildBugReport,
   getBugReportFileName: () => 'report.json',
@@ -92,6 +96,21 @@ describe('MessageBugReportItem', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.discovery = {};
+    mocks.developerTools = true;
+  });
+
+  it('offers no download without admins while developer tools are off', async () => {
+    mocks.developerTools = false;
+    const renderer = await render();
+    expect(renderer.root.findAllByType('button')).toHaveLength(0);
+  });
+
+  it('offers the report to the admins whether developer tools are on or off', async () => {
+    mocks.discovery = { 'io.mindroom.bug_reports': { admins: ['@admin:example.com'] } };
+    mocks.developerTools = false;
+    expect(text(await render())).toBe('Report a bug');
+    mocks.developerTools = true;
+    expect(text(await render())).toBe('Report a bug');
   });
 
   it('sends the report and opens its thread when admins are configured', async () => {

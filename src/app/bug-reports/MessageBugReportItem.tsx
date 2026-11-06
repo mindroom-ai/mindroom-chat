@@ -10,6 +10,8 @@ import { saveFile } from '../native/nativeFileSave';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { MenuEntry } from '../ui/MenuEntry';
+import { settingsAtom } from '../preferences/settings';
+import { useSetting } from '../preferences/useSetting';
 
 /** `busy` while the report is on its way, `done` once the admins have it. */
 type Phase = 'ready' | 'busy' | 'error' | 'done';
@@ -17,7 +19,8 @@ type Phase = 'ready' | 'busy' | 'error' | 'done';
 /**
  * "Report a bug" in a message's menu. With bug report admins configured in the homeserver's
  * well-known, the report (this message and the conversation around it) goes to a room with them
- * and its thread opens; without, the report downloads as a file.
+ * and its thread opens, for everyone; without, the report downloads as a file, offered only
+ * while developer tools are on.
  */
 export function MessageBugReportItem(props: {
   room: Room;
@@ -31,6 +34,7 @@ export function MessageBugReportItem(props: {
   const admins = useBugReportAdmins();
   const [phase, setPhase] = useState<Phase>('ready');
   const delivers = admins.length > 0;
+  const [developerTools] = useSetting(settingsAtom, 'developerTools');
 
   const download = async (): Promise<void> => {
     const report = await buildBugReport(mx, room, mEvent);
@@ -56,6 +60,8 @@ export function MessageBugReportItem(props: {
     onClose();
     navigateRoomThread(target.roomId, target.threadRootId);
   };
+
+  if (!delivers && !developerTools) return null;
 
   const idleKey = delivers
     ? ('mindroomUi.messages.bugReport.report' as const)
