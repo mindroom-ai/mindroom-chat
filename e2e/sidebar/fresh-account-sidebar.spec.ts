@@ -25,9 +25,9 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Settings > Sidebar (Threads, Canvases, Explore Community, Create Space, Search, Local MindRoom)
 // are off until the account turns them on, and the THREADS category starts collapsed until the
 // person opens it. Each hidden page stays reachable the way its switch's description says:
-// Threads, Canvases and Explore Community from Home's options menu, Search and Create Space from
-// the command palette (its shortcut on a desktop, Message Search on a phone), Local MindRoom in
-// Settings. Checked with 26 rooms and three threads, classic scrollbars, on a 1280 by 800 desktop
+// Threads, Canvases (once the account has a canvas, as for its button), Explore Community, Create
+// Space and Search from Home's options menu, Create Space and Search from the command palette and
+// its shortcut too, Local MindRoom in Settings. Checked with 26 rooms and three threads, classic scrollbars, on a 1280 by 800 desktop
 // and a 390 by 844 touch phone, in Chromium and WebKit. Set SIDEBAR_DEFAULTS_SHOTS=<directory>
 // to save the fresh sidebar's screenshots.
 
@@ -110,14 +110,22 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
+type Seeded = DisposableUser & { firstRoom: string };
+
+/** Pins a canvas in the account's first room, which gives the Canvases button something to list. */
+const pinCanvas = (user: Seeded) =>
+  setAccountData(HOMESERVER, user.accessToken, user.userId, 'io.mindroom.pinned_canvases', {
+    canvases: [{ room_id: user.firstRoom, event_id: '$fresh-account-canvas' }],
+  });
+
 /**
- * A new account with 26 rooms, three threads in the first one and a pinned canvas, so the
- * Canvases button has something to list; `settings` is stored as its `io.mindroom.settings`.
+ * A new account with 26 rooms and three threads in the first one, with a pinned canvas unless
+ * `canvas` is false; `settings` is stored as its `io.mindroom.settings`.
  */
 const seedAccount = async (
   name: string,
-  settings?: Record<string, boolean>
-): Promise<DisposableUser> => {
+  { settings, canvas = true }: { settings?: Record<string, boolean>; canvas?: boolean } = {}
+): Promise<Seeded> => {
   const user = await registerDisposableUser(`fresh_${name}_${RUN}`, PASSWORD);
   const rooms: string[] = [];
   for (let start = 0; start < ROOM_NAMES.length; start += 6) {
@@ -149,9 +157,8 @@ const seedAccount = async (
       },
     });
   }
-  await setAccountData(HOMESERVER, user.accessToken, user.userId, 'io.mindroom.pinned_canvases', {
-    canvases: [{ room_id: threadRoom, event_id: '$fresh-account-canvas' }],
-  });
+  const seeded = { ...user, firstRoom: threadRoom };
+  if (canvas) await pinCanvas(seeded);
   if (settings) {
     await setAccountData(
       HOMESERVER,
@@ -161,7 +168,7 @@ const seedAccount = async (
       settings
     );
   }
-  return user;
+  return seeded;
 };
 
 /** The deployment offers canvases and Local MindRoom; the slot has no provisioning service. */
@@ -214,10 +221,13 @@ const signIn = async (page: Page, user: DisposableUser) => {
   await openHome(page);
 };
 
+const homeMenuEntry = (page: Page, entry: string) =>
+  page.getByRole('menu').getByRole('menuitem', { name: entry, exact: true });
+
 /** Chooses an entry of Home's options menu. */
 const chooseFromHomeMenu = async (page: Page, entry: string) => {
   await page.getByRole('button', { name: 'Home Options', exact: true }).click();
-  await page.getByRole('menuitem', { name: entry, exact: true }).click();
+  await homeMenuEntry(page, entry).click();
 };
 
 /** Opens Settings at one of its pages. */
@@ -226,8 +236,11 @@ const openSettingsPage = async (page: Page, name: string) => {
   await page.getByRole('button', { name, exact: true }).click();
 };
 
-/** Everything a fresh account should find, on one signed-in page. */
-const checkFreshAccount = async (page: Page, layout: Layout) => {
+/**
+ * Everything a fresh account should find, on one signed-in page. The account has no canvas until
+ * this pins one.
+ */
+const checkFreshAccount = async (page: Page, layout: Layout, user: Seeded) => {
   // The rail shows none of the six buttons, though the deployment offers all of them.
   for (const name of RAIL_BUTTONS) {
     // eslint-disable-next-line no-await-in-loop
@@ -260,7 +273,28 @@ const checkFreshAccount = async (page: Page, layout: Layout) => {
   });
   await expect(page.getByTestId('thread-nav-list')).toBeVisible();
 
-  // Threads, Canvases and Explore Community: Home's options menu.
+  // Home's options menu lists every hidden button; Canvases waits for a canvas, as its button does.
+  await page.getByRole('button', { name: 'Home Options', exact: true }).click();
+  for (const entry of ['Threads', 'Explore Community', 'Create Space', 'Search']) {
+    // eslint-disable-next-line no-await-in-loop
+    await expect.soft(homeMenuEntry(page, entry)).toBeVisible();
+  }
+  await expect.soft(homeMenuEntry(page, 'Canvases')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('menu')).toHaveCount(0);
+  await pinCanvas(user);
+  await expect(async () => {
+    await page.getByRole('button', { name: 'Home Options', exact: true }).click();
+    try {
+      await expect(homeMenuEntry(page, 'Canvases')).toBeVisible({ timeout: 2_000 });
+    } finally {
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+    }
+  }).toPass({ timeout: 60_000 });
+  // Its rail button stays hidden by the switch.
+  await expect(rail(page).getByRole('button', { name: 'Canvases', exact: true })).toHaveCount(0);
+
   await chooseFromHomeMenu(page, 'Threads');
   await expect(page).toHaveURL(/\/threads\/$/);
   await openHome(page);
@@ -272,21 +306,30 @@ const checkFreshAccount = async (page: Page, layout: Layout) => {
   await expect(page).toHaveURL(/\/explore\//);
   await openHome(page);
 
-  // Search and Create Space: the command palette.
+  // Create Space and Search: Home's options menu, on a desktop and a phone alike.
+  const createDialog = page.getByRole('dialog', { name: 'Create Space' });
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
-  if (layout === 'desktop') {
-    await pressPaletteShortcut(page);
-  } else {
-    // A phone has no shortcut; Home's Message Search opens the palette.
-    await page.locator('[data-home-room-action="search"]').click();
-  }
+  await chooseFromHomeMenu(page, 'Create Space');
+  await expect(createDialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(createDialog).toHaveCount(0);
+  await chooseFromHomeMenu(page, 'Search');
   await expect(palette).toBeVisible();
+  await expect(palette.getByRole('combobox')).toBeFocused();
+
+  // The palette also creates a space; a desktop opens it with its shortcut too.
+  if (layout === 'desktop') {
+    await page.keyboard.press('Escape');
+    await expect(palette).toHaveCount(0);
+    await pressPaletteShortcut(page);
+    await expect(palette).toBeVisible();
+  }
   await palette.getByRole('tablist').getByRole('tab', { name: 'Actions', exact: true }).click();
   await palette.getByRole('combobox').fill('Create Space');
   await palette.getByRole('option').filter({ hasText: 'Create Space' }).first().click();
-  await expect(page.getByRole('dialog', { name: 'Create Space' })).toBeVisible();
+  await expect(createDialog).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByRole('dialog', { name: 'Create Space' })).toHaveCount(0);
+  await expect(createDialog).toHaveCount(0);
 
   // Local MindRoom: its Settings page.
   await openSettingsPage(page, 'Local MindRoom');
@@ -301,12 +344,12 @@ for (const layout of ['desktop', 'phone'] as const) {
     baseURL,
   }) => {
     test.setTimeout(360_000);
-    const user = await seedAccount(`c${layout[0]}`);
+    const user = await seedAccount(`c${layout[0]}`, { canvas: false });
     const context = await browser.newContext({ ...LAYOUTS[layout], baseURL });
     await routeDeployment(context);
     const page = await context.newPage();
     await signIn(page, user);
-    await checkFreshAccount(page, layout);
+    await checkFreshAccount(page, layout, user);
     await context.close();
   });
 
@@ -315,11 +358,11 @@ for (const layout of ['desktop', 'phone'] as const) {
   }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(360_000);
-    const user = await seedAccount(`w${layout[0]}`);
+    const user = await seedAccount(`w${layout[0]}`, { canvas: false });
     await onWebKitPage({ ...LAYOUTS[layout], baseURL }, async (page) => {
       await routeDeployment(page.context());
       await signIn(page, user);
-      await checkFreshAccount(page, layout);
+      await checkFreshAccount(page, layout, user);
     });
   });
 }
@@ -327,8 +370,7 @@ for (const layout of ['desktop', 'phone'] as const) {
 test('an account that stored its switches keeps them', async ({ browser, baseURL }) => {
   test.setTimeout(300_000);
   const user = await seedAccount('stored', {
-    showThreadsInSidebar: true,
-    showSearchInSidebar: true,
+    settings: { showThreadsInSidebar: true, showSearchInSidebar: true },
   });
   const context = await browser.newContext({ ...DESKTOP, baseURL });
   await routeDeployment(context);
@@ -346,7 +388,9 @@ test('an account that stored its switches keeps them', async ({ browser, baseURL
   await expect(
     menu.getByRole('menuitem', { name: 'Explore Community', exact: true })
   ).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: 'Create Space', exact: true })).toBeVisible();
   await expect(menu.getByRole('menuitem', { name: 'Threads', exact: true })).toHaveCount(0);
+  await expect(menu.getByRole('menuitem', { name: 'Search', exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
   await context.close();
 });
@@ -356,7 +400,7 @@ test('screenshots of a fresh account sidebar', async ({ browser, baseURL }) => {
   test.setTimeout(360_000);
   for (const layout of ['desktop', 'phone'] as const) {
     // eslint-disable-next-line no-await-in-loop
-    const user = await seedAccount(`s${layout[0]}`);
+    const user = await seedAccount(`s${layout[0]}`, { canvas: false });
     // eslint-disable-next-line no-await-in-loop
     const context = await browser.newContext({ ...LAYOUTS[layout], baseURL, colorScheme: 'light' });
     // eslint-disable-next-line no-await-in-loop
@@ -375,6 +419,15 @@ test('screenshots of a fresh account sidebar', async ({ browser, baseURL }) => {
     await page.waitForTimeout(3_000);
     // eslint-disable-next-line no-await-in-loop
     await page.screenshot({ path: `${SHOTS}/fresh-sidebar-${layout}.png` });
+    // Home's options menu of an account without a canvas yet.
+    // eslint-disable-next-line no-await-in-loop
+    await page.getByRole('button', { name: 'Home Options', exact: true }).click();
+    // eslint-disable-next-line no-await-in-loop
+    await expect(page.getByRole('menu')).toBeVisible();
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(500);
+    // eslint-disable-next-line no-await-in-loop
+    await page.screenshot({ path: `${SHOTS}/home-menu-${layout}.png` });
     // eslint-disable-next-line no-await-in-loop
     await context.close();
   }
