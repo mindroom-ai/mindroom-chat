@@ -1,0 +1,252 @@
+import { expect, test, type CDPSession, type Page } from '@playwright/test';
+import { buildLoginPath } from '../env';
+import { joinRoom, loginToMatrix } from '../helpers/matrix';
+import { createRoom } from '../helpers/createRoom';
+
+// What a person sees while the app starts, frame by frame, in the light theme: the splash never
+// flashes black while its particle background starts, no frame between the splash and the shell is
+// empty, and a start with saved rooms shows them while the first sync is still out. Checked against
+// the slot's Tuwunel with the production build. Set STARTUP_FRAMES_SHOTS=<directory> to save every
+// recorded frame.
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'startup-frames-spec-password';
+const RUN = Date.now().toString(36);
+const SHOTS = process.env.STARTUP_FRAMES_SHOTS;
+const ROOMS = ['Harbor Plans', 'Budget Review', 'Release Notes'];
+
+test.use({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' });
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+const register = async (name: string) => {
+  const username = `suf_${name}_${RUN}`;
+  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: PASSWORD,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(response.ok, `registering ${username}`).toBe(true);
+  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+};
+
+type DomState = { t: number; state: string; detail: string };
+
+/**
+ * Records, in every animation frame, what the page shows: the sign-in form, the splash (busy, no
+ * rooms), the shell (room rows) or none of them (an empty page).
+ */
+const sampleDomStates = (page: Page) =>
+  page.addInitScript(() => {
+    const states: { t: number; state: string; detail: string }[] = [];
+    (window as unknown as { __domStates: typeof states }).__domStates = states;
+    const classify = (): [string, string] => {
+      const rows = document.querySelectorAll('[data-room-id]').length;
+      if (rows) return ['shell', `${rows} rows`];
+      if (document.querySelector('input[name="passwordInput"]')) return ['login', ''];
+      const text = (document.body?.innerText ?? '').replace(/\s+/g, ' ').trim();
+      // The splash names the app under its loading line.
+      if (text.endsWith('MindRoom Chat')) return ['splash', ''];
+      return [
+        'empty',
+        `${text.slice(0, 60)} | html ${document.getElementById('root')?.innerHTML.length ?? 0}`,
+      ];
+    };
+    const sample = () => {
+      const [state, detail] = classify();
+      const last = states[states.length - 1];
+      if (!last || last.state !== state || last.detail !== detail) {
+        states.push({ t: Math.round(performance.now()), state, detail });
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+
+const readDomStates = (page: Page): Promise<DomState[]> =>
+  page.evaluate(() => (window as unknown as { __domStates: DomState[] }).__domStates.slice());
+
+type Frame = { t: number; data: string };
+
+const startScreencast = async (page: Page): Promise<{ cdp: CDPSession; frames: Frame[] }> => {
+  const cdp = await page.context().newCDPSession(page);
+  const frames: Frame[] = [];
+  cdp.on('Page.screencastFrame', (frame) => {
+    frames.push({ t: frame.metadata.timestamp ?? 0, data: frame.data });
+    cdp.send('Page.screencastFrameAck', { sessionId: frame.sessionId }).catch(() => undefined);
+  });
+  await cdp.send('Page.startScreencast', { format: 'png', maxWidth: 320, maxHeight: 200 });
+  return { cdp, frames };
+};
+
+type FrameStats = { t: number; mean: number; std: number };
+
+/** Mean luminance (0 to 255) and its spread for each frame, measured in a blank page. */
+const measureFrames = async (page: Page, frames: Frame[], since: number): Promise<FrameStats[]> => {
+  const helper = await page.context().newPage();
+  try {
+    const stats = await helper.evaluate(async (images) => {
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d', { willReadFrequently: true })!;
+      const measured: { t: number; mean: number; std: number }[] = [];
+      for (const image of images) {
+        // eslint-disable-next-line no-await-in-loop
+        const bitmap = await createImageBitmap(
+          // eslint-disable-next-line no-await-in-loop
+          await (await fetch(`data:image/png;base64,${image.data}`)).blob()
+        );
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        context.drawImage(bitmap, 0, 0);
+        const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+        let sum = 0;
+        let squares = 0;
+        const count = data.length / 4;
+        for (let index = 0; index < data.length; index += 4) {
+          const luminance =
+            0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2];
+          sum += luminance;
+          squares += luminance * luminance;
+        }
+        const mean = sum / count;
+        measured.push({
+          t: image.t,
+          mean: Math.round(mean),
+          std: Math.round(Math.sqrt(squares / count - mean * mean) * 10) / 10,
+        });
+      }
+      return measured;
+    }, frames);
+    return stats.map((frame) => ({ ...frame, t: Math.round((frame.t - since) * 1000) }));
+  } finally {
+    await helper.close();
+  }
+};
+
+const saveFrames = async (frames: Frame[], since: number, name: string) => {
+  if (!SHOTS) return;
+  const { mkdirSync, writeFileSync } = await import('node:fs');
+  mkdirSync(`${SHOTS}/${name}`, { recursive: true });
+  frames.forEach((frame, index) =>
+    writeFileSync(
+      `${SHOTS}/${name}/f${String(index).padStart(3, '0')}-${Math.round(
+        (frame.t - since) * 1000
+      )}ms.png`,
+      Buffer.from(frame.data, 'base64')
+    )
+  );
+};
+
+test.beforeEach(async () => {
+  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+});
+
+test('the start shows no black or empty frame, and saved rooms before the first sync', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const reader = await register('reader');
+  const writer = await register('writer');
+  for (const name of ROOMS) {
+    // eslint-disable-next-line no-await-in-loop
+    const roomId = await createRoom(HOMESERVER, writer.accessToken, {
+      name,
+      invite: [reader.userId],
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await joinRoom(HOMESERVER, reader.accessToken, roomId);
+  }
+  await sampleDomStates(page);
+
+  // Cold: sign in.
+  await page.goto(buildLoginPath(HOMESERVER, false));
+  await page.locator('input[name="usernameInput"]').fill(reader.username);
+  await page.locator('input[name="passwordInput"]').fill(PASSWORD);
+  const cold = await startScreencast(page);
+  const coldStart = Date.now() / 1000;
+  const coldClick = await page.evaluate(() => performance.now());
+  await page.getByRole('button', { name: 'Login' }).click();
+  await expect(page.locator('[data-room-id]').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+  await cold.cdp.send('Page.stopScreencast');
+  const coldStates = (await readDomStates(page)).filter((state) => state.t >= coldClick);
+  const coldFrames = await measureFrames(page, cold.frames, coldStart);
+  await saveFrames(cold.frames, coldStart, 'cold');
+
+  // Warm: open the app again with the first sync held back.
+  await page.goto('about:blank');
+  let releaseSync!: () => void;
+  const syncHeld = new Promise<void>((resolve) => {
+    releaseSync = resolve;
+  });
+  let syncAnswered = Number.POSITIVE_INFINITY;
+  await page.route(/\/_matrix\/client\/v3\/sync/, async (route) => {
+    await syncHeld;
+    await route.continue();
+  });
+  page.on('response', (response) => {
+    if (/\/_matrix\/client\/v3\/sync/.test(response.url())) {
+      syncAnswered = Math.min(syncAnswered, Date.now());
+    }
+  });
+  const warm = await startScreencast(page);
+  const warmStart = Date.now() / 1000;
+  await page.goto('/home/');
+  const rowsBeforeSync = await page
+    .locator('[data-room-id]')
+    .first()
+    .waitFor({ timeout: 6_000 })
+    .then(
+      () => true,
+      () => false
+    );
+  const rowsAt = Date.now();
+  releaseSync();
+  await expect(page.locator('[data-room-id]').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(800);
+  await warm.cdp.send('Page.stopScreencast');
+  const warmStates = await readDomStates(page);
+  const warmFrames = await measureFrames(page, warm.frames, warmStart);
+  await saveFrames(warm.frames, warmStart, 'warm');
+
+  // eslint-disable-next-line no-console
+  console.log(
+    'STARTUP',
+    JSON.stringify({
+      cold: {
+        states: coldStates.map((s) => ({ ...s, t: Math.round(s.t - coldClick) })),
+        frames: coldFrames,
+      },
+      warm: {
+        states: warmStates,
+        frames: warmFrames,
+        rowsBeforeSync,
+        rowsMs: Math.round(rowsAt - warmStart * 1000),
+        syncAnsweredMs: Number.isFinite(syncAnswered)
+          ? Math.round(syncAnswered - warmStart * 1000)
+          : null,
+      },
+    })
+  );
+
+  const dark = (frames: FrameStats[]) => frames.filter((frame) => frame.mean < 80);
+  expect(dark(coldFrames)).toEqual([]);
+  expect(dark(warmFrames)).toEqual([]);
+  const empty = (states: DomState[]) => states.filter((state) => state.state === 'empty');
+  expect(empty(coldStates)).toEqual([]);
+  expect(empty(warmStates)).toEqual([]);
+  expect(rowsBeforeSync).toBe(true);
+});
