@@ -381,6 +381,38 @@ describe('useLiveReplyContent', () => {
     expect(shown().body).toBe('Durable');
   });
 
+  it('keeps the newest live text when frames and edits stop while the durable reply is an earlier state of it', () => {
+    const update = (content: IContent) =>
+      act(() => {
+        renderer?.update(<Harness mx={mx} event={replyEvent()} content={content} />);
+      });
+    ingest(snapshot(0, 'word1 word2 word3'));
+    render(durable('streaming', { body: 'word1' }));
+    expect(shown().body).toBe('word1 word2 word3');
+
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(store().get(ROOM, REPLY)).toBeUndefined();
+    expect(shown().body).toBe('word1 word2 word3');
+    expect(live()).toBe(true);
+
+    // An edit with more of the reply takes over, and so does the finished reply.
+    update(durable('streaming', { body: 'word1 word2 word3 word4' }));
+    expect(shown().body).toBe('word1 word2 word3 word4');
+    update(durable('completed', { body: 'word1' }));
+    expect(shown().body).toBe('word1');
+  });
+
+  it('keeps the newest live text over the thinking placeholder when the entry expires', () => {
+    ingest(snapshot(0, 'word1 word2'));
+    render(durable('pending', { body: 'Thinking...' }));
+    act(() => {
+      vi.advanceTimersByTime(LIVE_REPLY_FRESHNESS_MS);
+    });
+    expect(shown().body).toBe('word1 word2');
+  });
+
   it('uses a frame stored before the reply rendered', () => {
     ingest(snapshot(0, 'Early'));
     vi.advanceTimersByTime(1000);
