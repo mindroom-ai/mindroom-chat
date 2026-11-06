@@ -17,6 +17,11 @@ export const WEBKIT_EXECUTABLE = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
  * its Chrome paths, such as the liquid glass refraction, which WebKit draws without any blur. A
  * key set to `undefined` counts as set, so WebKit keeps its own user agent; options that name
  * one (a device descriptor's, say) still win.
+ *
+ * Its contexts also block service workers unless the options allow them. Once the app's worker
+ * controls a page, Playwright's WebKit routes none of that page's requests: a spec's `route`
+ * would let the server's answers through unseen, and its WebKit case would pass without testing
+ * what it holds back or changes. A check of the worker itself passes `serviceWorkers: 'allow'`.
  */
 export const launchWebKit = async (): Promise<Browser> => {
   // No args: the project's launch options add a Chromium flag, which WebKit refuses.
@@ -24,7 +29,7 @@ export const launchWebKit = async (): Promise<Browser> => {
   const newContext = browser.newContext.bind(browser);
   // Browser.newPage creates its context through newContext, so this covers pages too.
   browser.newContext = (options?: BrowserContextOptions) =>
-    newContext({ userAgent: undefined, ...options });
+    newContext({ userAgent: undefined, serviceWorkers: 'block', ...options });
   return browser;
 };
 
