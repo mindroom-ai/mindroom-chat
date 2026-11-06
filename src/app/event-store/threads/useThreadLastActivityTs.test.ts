@@ -117,7 +117,8 @@ const makeEditEvent = (
   eventId: string,
   ts: number,
   targetEventId: string,
-  sender = '@alice:example.org'
+  sender = '@alice:example.org',
+  newContent: Record<string, unknown> = {}
 ) =>
   new MatrixEvent({
     content: {
@@ -125,6 +126,7 @@ const makeEditEvent = (
       'm.new_content': {
         body: eventId,
         msgtype: 'm.text',
+        ...newContent,
       },
       'm.relates_to': {
         event_id: targetEventId,
@@ -272,6 +274,40 @@ describe('useThreadLastActivityTs', () => {
     });
 
     expect(getSnapshot()).toBe(300);
+
+    renderer.unmount();
+  });
+
+  it('keeps a streaming reply at its own timestamp until the stream ends', () => {
+    const rootEvent = makeMessageEvent('$root', 100);
+    const agent = '@mindroom_helper:example.org';
+    const replyEvent = makeThreadReplyEvent('$reply', 200, agent);
+    const thread = makeThread({ rootEvent, lastReply: replyEvent });
+    const room = makeRoom(rootEvent, thread);
+
+    const { getSnapshot, renderer } = renderHookHarness(room);
+    expect(getSnapshot()).toBe(200);
+
+    // Every edit of a stream would otherwise move the thread's card to the top of the list.
+    for (let edit = 1; edit <= 5; edit += 1) {
+      act(() => {
+        replyEvent.makeReplaced(
+          makeEditEvent(`$stream-${edit}`, 200 + edit * 50, '$reply', agent, {
+            'io.mindroom.stream_status': 'streaming',
+          })
+        );
+      });
+      expect(getSnapshot()).toBe(200);
+    }
+
+    act(() => {
+      replyEvent.makeReplaced(
+        makeEditEvent('$finish', 600, '$reply', agent, {
+          'io.mindroom.stream_status': 'completed',
+        })
+      );
+    });
+    expect(getSnapshot()).toBe(600);
 
     renderer.unmount();
   });

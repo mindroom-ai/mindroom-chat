@@ -6,6 +6,7 @@ import {
   isVisibleThreadReplyEventType,
 } from './threadUtils';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
+import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
 
 type BundledThreadLatestEvent = {
   origin_server_ts?: unknown;
@@ -23,8 +24,12 @@ const getEventActivityTs = (mEvent: MatrixEvent | null | undefined): number | un
   if (!mEvent) return undefined;
 
   const replacingEvent = mEvent.replacingEvent();
+  // An agent's reply streams in as edits, several a second. Until the stream ends the reply counts
+  // from when it was sent, so the cards of streaming threads do not trade places at every edit.
   const replacingTs =
-    replacingEvent && replacingEvent.getSender() === mEvent.getSender()
+    replacingEvent &&
+    replacingEvent.getSender() === mEvent.getSender() &&
+    !isAiRunStreaming(replacingEvent.getContent())
       ? replacingEvent.getTs()
       : undefined;
 
