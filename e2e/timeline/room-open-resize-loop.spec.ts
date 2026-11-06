@@ -37,7 +37,7 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ROOM_NAME = 'Tide Station';
 const FILLER_ROOMS = 24;
 const HISTORY = 24;
-const OPENS = 4;
+const OPENS = 3;
 const LOOP_ERROR = /ResizeObserver loop/;
 
 const PHONE: BrowserContextOptions = {
@@ -88,7 +88,7 @@ const register = async (name: string): Promise<Account> => {
   return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
 };
 
-type World = { reader: Account; roomId: string; otherRoomId: string };
+type World = { reader: Account; roomId: string };
 
 /** An agent room with an hour-by-hour log, a thread with an agent reply, and 24 other rooms. */
 const seed = async (name: string): Promise<World> => {
@@ -101,10 +101,9 @@ const seed = async (name: string): Promise<World> => {
   });
   await joinRoom(HOMESERVER, member.accessToken, roomId);
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
-  let otherRoomId = '';
   for (let index = 1; index <= FILLER_ROOMS; index += 1) {
     // eslint-disable-next-line no-await-in-loop
-    otherRoomId = await createRoom(HOMESERVER, reader.accessToken, { name: `Gauge ${index}` });
+    await createRoom(HOMESERVER, reader.accessToken, { name: `Gauge ${index}` });
   }
   for (let index = 1; index <= HISTORY; index += 1) {
     const fromMember = index % 2 === 0;
@@ -138,7 +137,21 @@ const seed = async (name: string): Promise<World> => {
     body: 'Replace the harbor gauge battery first; the river mouth one lasts until Wednesday.',
     ...thread(memberReply),
   });
-  return { reader, roomId, otherRoomId };
+  for (let index = 1; index <= 3; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: `Noted, thanks (${index}).`,
+      ...thread(rootId),
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, member.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: `Gauge ${index} checked: the battery reads ${90 - index * 5} percent after the night.`,
+      ...thread(rootId),
+    });
+  }
+  return { reader, roomId };
 };
 
 const navigate = async (page: Page, route: string) => {
@@ -151,34 +164,55 @@ const navigate = async (page: Page, route: string) => {
 const roomRoute = (roomId: string) => `/home/${encodeURIComponent(roomId)}/`;
 
 /**
- * Opens the room OPENS times, each time from another room of a fresh page load (the client starts
- * again and the room's rows measure from their estimates), and collects the loop errors of each.
+ * Signs in on a fresh page (the first sync brings the room, and every row measures from its
+ * estimate), opens the room at once in the view mode, lets its rows settle and returns the loop
+ * errors the page saw.
  */
-const openRepeatedly = async (page: Page, world: World, pageErrors: string[]) => {
-  const loops: string[] = [];
-  for (let open = 0; open < OPENS; open += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    await page.goto(roomRoute(world.otherRoomId));
-    // eslint-disable-next-line no-await-in-loop
-    await expect(page.getByRole('heading', { name: `Gauge ${FILLER_ROOMS}` }).first()).toBeVisible({
-      timeout: 60_000,
+const openAfterSignIn = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  options: BrowserContextOptions,
+  world: World,
+  viewMode: 'threaded' | 'classic'
+): Promise<string[]> => {
+  const context = await browser.newContext({ ...options, baseURL });
+  try {
+    // Chromium reports the loop only to the page's error listeners, WebKit as a page error too.
+    await context.addInitScript(() => {
+      const loops: string[] = [];
+      Object.assign(window, { resizeLoops: loops });
+      window.addEventListener('error', (event) => {
+        if (/ResizeObserver loop/.test(event.message)) loops.push(event.message);
+      });
     });
-    // eslint-disable-next-line no-await-in-loop
+    const page = await context.newPage();
+    const pageErrors: string[] = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: world.reader.username,
+      password: PASSWORD,
+    });
+    await seedRoomOverviewState({
+      page,
+      roomId: world.roomId,
+      userId: world.reader.userId,
+      viewMode,
+      filterState: createDefaultThreadFilterState(),
+    });
     await navigate(page, roomRoute(world.roomId));
-    // eslint-disable-next-line no-await-in-loop
     await expect(page.getByRole('heading', { name: ROOM_NAME }).first()).toBeVisible({
       timeout: 60_000,
     });
-    // eslint-disable-next-line no-await-in-loop
     await expect(page.locator('[data-message-id]').first()).toBeVisible({ timeout: 30_000 });
-    // eslint-disable-next-line no-await-in-loop
-    await page.waitForTimeout(1_500);
-    // eslint-disable-next-line no-await-in-loop
-    loops.push(
-      ...(await page.evaluate(() => (window as unknown as { resizeLoops: string[] }).resizeLoops))
+    await page.waitForTimeout(2_000);
+    const loops = await page.evaluate(
+      () => (window as unknown as { resizeLoops: string[] }).resizeLoops
     );
+    return [...loops, ...pageErrors.filter((message) => LOOP_ERROR.test(message))];
+  } finally {
+    await context.close();
   }
-  return [...loops, ...pageErrors.filter((message) => LOOP_ERROR.test(message))];
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
@@ -187,47 +221,15 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     ['phone', PHONE],
     ['desktop', DESKTOP],
   ] as const) {
-    // eslint-disable-next-line no-await-in-loop
-    const context = await browser.newContext({ ...options, baseURL });
-    try {
-      // Chromium reports the loop only to the page's error listeners, WebKit as a page error too.
-      // eslint-disable-next-line no-await-in-loop
-      await context.addInitScript(() => {
-        const loops: string[] = [];
-        Object.assign(window, { resizeLoops: loops });
-        window.addEventListener('error', (event) => {
-          if (/ResizeObserver loop/.test(event.message)) loops.push(event.message);
-        });
-      });
-      // eslint-disable-next-line no-await-in-loop
-      const page = await context.newPage();
-      const pageErrors: string[] = [];
-      page.on('pageerror', (error) => pageErrors.push(error.message));
-      // eslint-disable-next-line no-await-in-loop
-      await loginWithPassword(page, {
-        homeserver: HOMESERVER,
-        username: world.reader.username,
-        password: PASSWORD,
-      });
-      for (const viewMode of ['threaded', 'classic'] as const) {
+    for (const viewMode of ['threaded', 'classic'] as const) {
+      for (let open = 1; open <= OPENS; open += 1) {
         // eslint-disable-next-line no-await-in-loop
-        await seedRoomOverviewState({
-          page,
-          roomId: world.roomId,
-          userId: world.reader.userId,
-          viewMode,
-          filterState: createDefaultThreadFilterState(),
-        });
-        pageErrors.length = 0;
-        // eslint-disable-next-line no-await-in-loop
-        const loops = await openRepeatedly(page, world, pageErrors);
-        expect(loops, `ResizeObserver loop errors in ${engine} ${viewport} ${viewMode}`).toEqual(
-          []
-        );
+        const loops = await openAfterSignIn(browser, baseURL, options, world, viewMode);
+        expect(
+          loops,
+          `ResizeObserver loop errors in ${engine} ${viewport} ${viewMode}, open ${open}`
+        ).toEqual([]);
       }
-    } finally {
-      // eslint-disable-next-line no-await-in-loop
-      await context.close();
     }
   }
 };
