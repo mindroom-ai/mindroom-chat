@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Icon, Icons, Text } from 'folds';
@@ -18,6 +18,8 @@ export type ThreadPeopleFilterProps = {
   /** The room's thread records before filtering: whoever took part in any of them is listed. */
   records: ReadonlyMap<string, ThreadRecord>;
   selected: readonly string[] | undefined;
+  /** Called when the list opens: its counts need every thread's writers. */
+  onShown?: () => void;
   onToggle: (userId: string) => void;
   /** Unchecks everyone. */
   onClear: () => void;
@@ -31,10 +33,20 @@ type PersonOption = {
   threadCount: number;
 };
 
-function PeoplePanel({ room, records, selected, onToggle, onClear }: ThreadPeopleFilterProps) {
+function PeoplePanel({
+  room,
+  records,
+  selected,
+  onShown,
+  onToggle,
+  onClear,
+}: ThreadPeopleFilterProps) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
+  useEffect(() => {
+    onShown?.();
+  }, [onShown]);
 
   // One pass over the room's threads while the panel is open, again only when they change.
   const activity = useMemo(() => buildThreadPeopleActivity(records.values()), [records]);

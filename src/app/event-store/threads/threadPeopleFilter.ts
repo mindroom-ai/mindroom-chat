@@ -2,6 +2,7 @@
  * The thread filter bar's People filter: who took part in each thread, who took part in the
  * room's threads at all (the picker's list), and which threads a selection keeps.
  */
+import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { ThreadRecord } from './types';
 
 /** The distinct senders of a thread: its root's sender first, then everyone who replied. */
@@ -18,9 +19,23 @@ export const collectThreadPeopleIds = (
 };
 
 /**
+ * Whether the server says the current user wrote in the thread: its bundled `m.thread`
+ * aggregation on the root carries `current_user_participated`, worked out for the requesting user.
+ * The aggregation names no other writer but the newest reply's sender.
+ */
+export const currentUserTookPart = (rootEvent: MatrixEvent | undefined): boolean => {
+  const thread = rootEvent?.getUnsigned()?.['m.relations']?.['m.thread'] as
+    | { current_user_participated?: unknown }
+    | undefined;
+  return thread?.current_user_participated === true;
+};
+
+/**
  * The people a thread record knows took part. Records from `buildThreadRecord` carry everyone the
- * client saw: the root's sender and every loaded reply's sender, plus the newest replies the room
- * timeline holds. Other records offer only their participant avatars and last sender.
+ * client saw: the root's sender, every loaded reply's sender, the writers the room timeline and
+ * the read replies (`threadWriters`) show, the newest reply's sender, and the current user when
+ * the server says they took part. Other records offer only their participant avatars and last
+ * sender.
  */
 export const getThreadRecordPeopleIds = (record: ThreadRecord): readonly string[] => {
   const { peopleIds, participantIds, replyParticipantIds, lastSenderId } = record.presentation;

@@ -25,7 +25,7 @@ import {
 import { EMPTY_THREAD_SCHEDULED_STATUS, type ThreadScheduledStatus } from './threadScheduledStatus';
 import { isFailedLocalEchoEvent, isPendingLocalEchoEvent } from '../../matrix/protocol/pendingLocalEcho';
 import type { ThreadCacheCoverage, ThreadRecord } from './types';
-import { collectThreadPeopleIds } from './threadPeopleFilter';
+import { collectThreadPeopleIds, currentUserTookPart } from './threadPeopleFilter';
 import { RESOLVED_TAG } from './threadTags';
 
 const THREAD_PARTICIPANT_LIMIT = 3;
@@ -273,12 +273,6 @@ export const buildThreadRecord = ({
     resolvedThreadRootEvent,
     fallbackParticipantIds
   );
-  const participantIds = getVisibleThreadParticipantIds(
-    thread,
-    resolvedThreadRootEvent,
-    THREAD_PARTICIPANT_LIMIT,
-    visibleReplyEvents
-  );
   const presentation = resolveThreadPresentationSnapshot({
     room,
     threadRootId,
@@ -295,6 +289,19 @@ export const buildThreadRecord = ({
     fallbackParticipantIds,
     visibleReplyEvents,
   });
+  // The newest reply's sender (the server's bundled reply counts), the loaded repliers, the
+  // other known writers, then the root's sender.
+  const participantIds = collectThreadPeopleIds(undefined, [
+    presentation.lastSenderId,
+    ...getVisibleThreadParticipantIds(
+      thread,
+      undefined,
+      THREAD_PARTICIPANT_LIMIT,
+      visibleReplyEvents
+    ),
+    ...(fallbackParticipantIds ?? []),
+    resolvedThreadRootEvent?.getSender(),
+  ]).slice(0, THREAD_PARTICIPANT_LIMIT);
   const resolvedScheduledTaskCount = scheduledStatus.scheduledTaskCount;
   const resolvedNextScheduledTs =
     resolvedScheduledTaskCount > 0 ? scheduledStatus.nextScheduledTs : undefined;
@@ -334,15 +341,13 @@ export const buildThreadRecord = ({
           rootEvent: resolvedThreadRootEvent,
           summaryInfo: presentation.summaryInfo,
         }),
-      participantIds:
-        participantIds.length > 0
-          ? participantIds
-          : fallbackParticipantIds?.slice(0, THREAD_PARTICIPANT_LIMIT) ?? [],
+      participantIds,
       replyParticipantIds,
       peopleIds: collectThreadPeopleIds(resolvedThreadRootEvent?.getSender(), [
         ...visibleReplyEvents.map((event) => event.getSender()),
         ...(fallbackParticipantIds ?? []),
         presentation.lastSenderId,
+        currentUserId && currentUserTookPart(resolvedThreadRootEvent) ? currentUserId : undefined,
       ]),
     },
     status: {

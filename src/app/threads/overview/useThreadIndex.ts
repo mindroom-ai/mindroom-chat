@@ -43,6 +43,7 @@ import {
 import { useScheduledTaskEvents } from '../../schedules/useScheduledTaskEvents';
 import { usePinnedEventIds } from '../../event-store/threads/useThreadPinning';
 import { usePinnedThreadEvents } from '../usePinnedThreadEvents';
+import { mergeThreadWriterIds, useThreadWriters } from '../../event-store/threads/threadWriters';
 import { useRoomThreadList } from './useRoomThreadList';
 import {
   buildRoomThreadScheduledStatusMap,
@@ -326,12 +327,16 @@ export const useThreadIndex = ({
       threadId ? new Map<string, number>() : buildVisibleThreadReplyCountMap(loadedTimelineEvents),
     [threadId, loadedTimelineEvents]
   );
+  const threadWriters = useThreadWriters(room);
   const threadParticipantMap = useMemo(
     () =>
       threadId
         ? new Map<string, string[]>()
-        : buildVisibleThreadParticipantMap(loadedTimelineEvents),
-    [threadId, loadedTimelineEvents]
+        : mergeThreadWriterIds(
+            buildVisibleThreadParticipantMap(loadedTimelineEvents, Infinity),
+            threadWriters
+          ),
+    [threadId, loadedTimelineEvents, threadWriters]
   );
   const threadSummaryInfoMap = useMemo(
     () =>

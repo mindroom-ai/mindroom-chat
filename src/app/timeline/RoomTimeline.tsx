@@ -145,6 +145,9 @@ import {
   useShownInScrollArea,
 } from './roomTimelineUnread';
 import { renderTimelineTiles, timelineRowSizing, useRoomRowEntries } from './roomTimelineRows';
+import { recordThreadWriters } from '../event-store/threads/threadWriters';
+import { useThreadWritersBackfill } from '../threads/overview/useThreadWritersBackfill';
+import type { FetchedRelationOverviewUpdateOptions } from '../threads/overview/threadOverviewCacheHydration';
 import {
   BannerExpandAllToggle,
   ExpandAllLine,
@@ -1101,6 +1104,38 @@ export function RoomTimeline(props: RoomTimelineProps) {
     roomThreadListThreads: threadIndex.roomThreadListThreads,
     setOverviewRefreshCounter,
   });
+  // Every fetched thread page also tells who wrote in the thread.
+  const { applyThreadOverviewRelationEvents } = threadIndex;
+  const applyThreadRelations = useCallback(
+    (options: FetchedRelationOverviewUpdateOptions) => {
+      recordThreadWriters(
+        options.room,
+        options.rootId,
+        options.events,
+        options.relationSnapshotComplete === true
+      );
+      applyThreadOverviewRelationEvents(options);
+    },
+    [applyThreadOverviewRelationEvents]
+  );
+  // Once the People list was opened in this room, or a person is chosen, the threads whose
+  // writers the cache cannot complete are read from the server.
+  const [peopleListOpened, setPeopleListOpened] = useState<string>();
+  const onPeopleListShown = useCallback(() => setPeopleListOpened(room.roomId), [room.roomId]);
+  const peopleInUse =
+    peopleListOpened === room.roomId || (threadFilterState.people?.length ?? 0) > 0;
+  useThreadWritersBackfill({
+    room,
+    mx,
+    sessionId,
+    records: compactViewRequested
+      ? threadIndex.compactThreadRecordMap
+      : threadIndex.normalThreadRecordMap,
+    fetchMissing: peopleInUse && !threadId,
+    onApplyThreadRelations: applyThreadRelations,
+    onStoreThreadSummary,
+    beginThreadCacheWrite,
+  });
   useThreadOverviewResumeController({
     alive,
     activeTimelineRange,
@@ -1114,7 +1149,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
       threadRootId: string,
       info: ThreadSummaryInfo | undefined
     ) => void,
-    onApplyThreadRelations: threadIndex.applyThreadOverviewRelationEvents,
+    onApplyThreadRelations: applyThreadRelations,
     beginThreadCacheWrite,
     refreshCompactThreadList: threadIndex.refreshRoomThreadList,
     room,
@@ -1281,6 +1316,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   : threadIndex.normalThreadRecordMap
               }
               selected={threadFilterState.people}
+              onShown={onPeopleListShown}
               onToggle={props.onTogglePerson}
               onClear={props.onClearPeople ?? ignoreFilterChange}
             />
