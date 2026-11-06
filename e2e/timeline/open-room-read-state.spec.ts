@@ -93,6 +93,10 @@ const answerIn = (rootId: string, body: string) => ({
   },
 });
 
+/** A message in the timeline (a notification may show its text too). */
+const inTimeline = (page: Page, text: string) =>
+  page.getByTestId('room-virtual-inner').getByText(text, { exact: false }).first();
+
 /** Moves within the app without reloading it, as its own links do. */
 const openPath = (page: Page, path: string) =>
   page.evaluate((target) => {
@@ -290,7 +294,7 @@ const readOnFocus = async (page: Page, browserName: string) => {
 
   // Opening the room reads its two new messages, which fit on screen below the line.
   await openPath(page, `/home/${encodeURIComponent(roomId)}/`);
-  await expect(page.getByText(`Log entry ${HISTORY}:`, { exact: false })).toBeVisible({
+  await expect(inTimeline(page, `Log entry ${HISTORY}:`)).toBeVisible({
     timeout: 60_000,
   });
   await expect
@@ -307,7 +311,7 @@ const readOnFocus = async (page: Page, browserName: string) => {
     // eslint-disable-next-line no-await-in-loop
     await send(`Away message ${index}`);
   }
-  await expect(page.getByText('Away message 5:', { exact: false })).toBeVisible({
+  await expect(inTimeline(page, 'Away message 5:')).toBeVisible({
     timeout: 30_000,
   });
   const whileAway = await badgeAndServer(page, reader, roomId, roomName);
@@ -340,7 +344,7 @@ const readOnFocus = async (page: Page, browserName: string) => {
     });
     labels.set(eventId, `Long report ${index}`);
   }
-  await expect(page.getByText('Long report 12:', { exact: false })).toBeVisible({
+  await expect(inTimeline(page, 'Long report 12:')).toBeVisible({
     timeout: 30_000,
   });
   await refocusWindow(page);
@@ -404,9 +408,9 @@ const openRoomBadge = async (page: Page, browserName: string) => {
   expect(before.badge, 'badge before the room opens').toBe(before.server);
 
   await openPath(page, `/home/${encodeURIComponent(roomId)}/`);
-  await expect(
-    page.getByText('The crane inspection moved to Thursday', { exact: false })
-  ).toBeVisible({ timeout: 60_000 });
+  await expect(inTimeline(page, 'The crane inspection moved to Thursday')).toBeVisible({
+    timeout: 60_000,
+  });
   await page.waitForTimeout(3_000);
   const open = await badgeAndServer(page, reader, roomId, roomName);
   // The two threads stay unread: the reader opened neither.
