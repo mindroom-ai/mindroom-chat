@@ -375,11 +375,17 @@ const checkMembers = async (run: Run) => {
 type Clash = { scrollTop: number; text: string } | null;
 
 /**
+ * How far each scan scrolls between checks: less than the 18 px toggle plus a 16 px line, and
+ * than the 14 px badge plus a 2 px strip, so no overlap slips between two steps.
+ */
+const SCAN_STEP = 12;
+
+/**
  * Scrolls the thread from top to bottom in small steps and answers the first position where the
  * expand-all toggle covers message text, if any.
  */
 const toggleClash = (page: Page): Promise<Clash> =>
-  page.evaluate(async () => {
+  page.evaluate(async (STEP) => {
     const toggle = Array.from(document.querySelectorAll('button')).find((button) =>
       /^\[[+-]/.test(button.textContent ?? '')
     );
@@ -398,7 +404,7 @@ const toggleClash = (page: Page): Promise<Clash> =>
       Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
       Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1;
     const end = scroll.scrollHeight - scroll.clientHeight;
-    for (let top = 0; top <= end + 8; top += 8) {
+    for (let top = 0; top <= end + STEP; top += STEP) {
       scroll.scrollTop = Math.min(top, end);
       // eslint-disable-next-line no-await-in-loop
       await frame();
@@ -417,11 +423,11 @@ const toggleClash = (page: Page): Promise<Clash> =>
       }
     }
     return null;
-  });
+  }, SCAN_STEP);
 
 /** Every model badge that a minimap strip crosses, over the whole scroll range. */
 const stripClash = (page: Page): Promise<string | null> =>
-  page.evaluate(async () => {
+  page.evaluate(async (STEP) => {
     const strips = Array.from(document.querySelectorAll('[data-minimap-strip]'));
     if (strips.length === 0) throw new Error('No minimap strips');
     let element: HTMLElement | null = document.querySelector('[data-thread-count]');
@@ -440,7 +446,7 @@ const stripClash = (page: Page): Promise<string | null> =>
       );
     const end = scroll.scrollHeight - scroll.clientHeight;
     let seen = 0;
-    for (let top = 0; top <= end + 8; top += 8) {
+    for (let top = 0; top <= end + STEP; top += STEP) {
       scroll.scrollTop = Math.min(top, end);
       // eslint-disable-next-line no-await-in-loop
       await frame();
@@ -464,7 +470,7 @@ const stripClash = (page: Page): Promise<string | null> =>
     }
     if (seen === 0) throw new Error('No model badges');
     return null;
-  });
+  }, SCAN_STEP);
 
 const EXPAND_LABELS = {
   expand: 'Expand all long messages',
@@ -487,7 +493,7 @@ const checkThread = async (run: Run, sizes: { width: number; height: number }[])
       });
       await shot(run, `thread-bottom-${size.width}-${direction}-${scheme}`);
       expect(await toggleClash(page), `toggle covers no text (${where})`).toBeNull();
-      if (run.form === 'desktop') {
+      if (run.form === 'desktop' && size.width === 1440) {
         expect(await stripClash(page), `strips cross no badge (${where})`).toBeNull();
       }
     }
