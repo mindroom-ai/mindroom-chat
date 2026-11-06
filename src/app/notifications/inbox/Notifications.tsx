@@ -1,5 +1,7 @@
 import {
+  type CSSProperties,
   type ReactNode,
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -119,12 +121,15 @@ const useNotificationPages = (mx: MatrixClient, filter: NotificationFilter) => {
       requestNotifications(mx, filter, from, limit).then(
         (page) => {
           if (generation.current !== mine) return;
+          // A page that brings nothing, or points back at itself, ends the list: some servers
+          // keep sending a token after the last page.
+          const more = !!page.next_token && page.next_token !== from && !!page.notifications.length;
           setPages((held) => ({
             status: AsyncStatus.Success,
             notifications: from
               ? [...held.notifications, ...page.notifications]
               : page.notifications,
-            nextToken: page.next_token || undefined,
+            nextToken: more ? page.next_token : undefined,
           }));
         },
         () => {
@@ -255,16 +260,25 @@ const highlightedRowStyle = {
 
 const unreadDotStyle = { width: toRem(8), height: toRem(8), padding: 0, flexShrink: 0 };
 
-function NotificationRow({
-  room,
-  notification,
-  onOpen,
-}: {
+// A row out of view is neither laid out nor painted; it keeps the height it last had.
+const rowRenderingStyle: CSSProperties = {
+  contentVisibility: 'auto',
+  containIntrinsicSize: `auto ${toRem(96)}`,
+};
+
+type NotificationRowProps = {
   room: Room;
   notification: INotification;
   /** Opens the message: in its thread when it has one, in the room otherwise. */
-  onOpen: (eventId: string, threadId?: string) => void;
-}) {
+  onOpen: (roomId: string, eventId: string, threadId?: string) => void;
+};
+
+/** One notification; a new page of the list renders only its own rows. */
+const NotificationRow = memo(function NotificationRow({
+  room,
+  notification,
+  onOpen,
+}: NotificationRowProps) {
   const { t, i18n } = useTranslation();
   const [hour24Clock] = useHour24Clock();
   const client = useMatrixClient();
@@ -307,7 +321,11 @@ function NotificationRow({
       gap="300"
       alignItems="Start"
       data-notification-highlight={highlighted || undefined}
-      style={{ padding: config.space.S300, ...(highlighted ? highlightedRowStyle : undefined) }}
+      style={{
+        padding: config.space.S300,
+        ...rowRenderingStyle,
+        ...(highlighted ? highlightedRowStyle : undefined),
+      }}
     >
       <Box direction="Column" grow="Yes" gap="100" style={{ minWidth: 0 }}>
         <Box gap="200" alignItems="Center">
@@ -343,13 +361,13 @@ function NotificationRow({
         variant="Secondary"
         radii="Pill"
         className={LoneTouchTarget}
-        onClick={() => onOpen(eventId, getEventThreadId(event))}
+        onClick={() => onOpen(room.roomId, eventId, getEventThreadId(event))}
       >
         <Text size="T200">{t('sharedUi.notifications.open')}</Text>
       </Chip>
     </Box>
   );
-}
+});
 
 /**
  * The avatar over a room's notifications. A direct chat shows the other person, with their
@@ -386,6 +404,11 @@ export function Notifications() {
     filter
   );
   const groups = useMemo(() => groupByRoom(client, notifications), [client, notifications]);
+  const openNotification = useCallback(
+    (roomId: string, eventId: string, threadId?: string) =>
+      threadId ? navigateRoomThread(roomId, threadId, eventId) : navigateRoom(roomId, eventId),
+    [navigateRoom, navigateRoomThread]
+  );
   const filters: [NotificationFilter, string][] = [
     ['all', t('sharedUi.notifications.allNotifications')],
     ['highlight', t('sharedUi.notifications.highlighted')],
@@ -464,11 +487,7 @@ export function Notifications() {
                           <NotificationRow
                             room={room}
                             notification={notification}
-                            onOpen={(eventId, threadId) =>
-                              threadId
-                                ? navigateRoomThread(room.roomId, threadId, eventId)
-                                : navigateRoom(room.roomId, eventId)
-                            }
+                            onOpen={openNotification}
                           />
                         )}
                       />
