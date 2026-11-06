@@ -124,6 +124,13 @@ const entry = (page: Page, name: string) =>
     .or(roomMenu(page).getByRole('menuitemcheckbox', { name, exact: true }));
 
 const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: TestInfo) => {
+  // The touch hit areas apply once the page reports a finger, which some Chromium builds take a
+  // moment to do.
+  await expect
+    .poll(() => page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches), {
+      message: `${engine}: the phone reports a finger`,
+    })
+    .toBe(true);
   for (const scheme of SCHEMES) {
     // eslint-disable-next-line no-await-in-loop
     await setLook(page, scheme);
