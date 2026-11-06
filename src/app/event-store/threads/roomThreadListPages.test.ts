@@ -1,4 +1,11 @@
-import { createClient, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
+import {
+  ClientEvent,
+  createClient,
+  Room,
+  SyncState,
+  ThreadEvent,
+  type IEvent,
+} from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadRoomThreads, roomThreadListIsComplete } from './roomThreadList';
@@ -46,19 +53,29 @@ const listedRoot = (index: number): IEvent => {
   } as unknown as IEvent;
 };
 
-type ListRequest = { include: string | null; from: string | null };
+/** A /threads request: which list, from which token, at what time, and how many were open. */
+type ListRequest = { include: string | null; from: string | null; at: number; open: number };
+
+/** A failure the transport gives instead of a page: a dropped connection or an HTTP status. */
+type Failure = 'dropped' | number;
 
 /**
  * A real SDK client whose transport answers /threads 30 roots at a time, newest activity first,
  * as the server does. A later page answers a moment after it is asked for, as over a network.
+ * `fail` may answer a request with a failure instead; every request counts, failed or not.
  */
-const serve = (beforePage?: (room: Room) => void) => {
+const serve = (
+  beforePage?: (room: Room) => void,
+  fail?: (request: ListRequest) => Failure | undefined
+) => {
   const all = Array.from({ length: THREADS }, (_, index) => listedRoot(index));
   const lists: Record<string, IEvent[]> = {
     all,
     participated: all.filter((_, index) => index % 2 === 0),
   };
   const requests: ListRequest[] = [];
+  /** Requests of each list that have not answered yet. */
+  const open: Record<string, number> = {};
   const json = (body: unknown) =>
     new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
   const client = createClient({
@@ -72,12 +89,23 @@ const serve = (beforePage?: (room: Room) => void) => {
       if (!path.endsWith('/threads')) throw new Error(`Unexpected request ${path}`);
       const include = url.searchParams.get('include');
       const from = url.searchParams.get('from');
-      requests.push({ include, from });
+      open[include ?? 'all'] = (open[include ?? 'all'] ?? 0) + 1;
+      const request = { include, from, at: Date.now(), open: open[include ?? 'all'] ?? 0 };
+      requests.push(request);
       if (from) {
         const listedRoom = client.getRoom(ROOM);
         if (listedRoom) beforePage?.(listedRoom);
         await new Promise((resolve) => {
           setTimeout(resolve, 5);
+        });
+      }
+      open[include ?? 'all'] = (open[include ?? 'all'] ?? 1) - 1;
+      const failure = fail?.(request);
+      if (failure === 'dropped') throw new TypeError('Failed to fetch');
+      if (failure !== undefined) {
+        return new Response(JSON.stringify({ errcode: 'M_UNKNOWN', error: 'Try again later' }), {
+          status: failure,
+          headers: { 'Content-Type': 'application/json' },
         });
       }
       const list = lists[include ?? 'all'] ?? [];
@@ -163,5 +191,191 @@ describe('room thread list pages', () => {
     expect(requests.filter(({ include }) => include === 'all').map(({ from }) => from)).toEqual(
       pages
     );
+  });
+  describe('a read that stops before the end', () => {
+    /** The room list's pages in order, each once: `null` is the first page. */
+    const PAGES = Array.from({ length: Math.ceil(THREADS / 30) }, (_, page) =>
+      page === 0 ? null : String(page * 30)
+    );
+    const roomPages = (requests: ListRequest[]) =>
+      requests.filter(({ include }) => include === 'all').map(({ from }) => from);
+    /** The pages in order, `page` asked for `times` times in a row. */
+    const pagesWith = (page: string | null, times: number) =>
+      PAGES.flatMap((from) => (from === page ? Array<string | null>(times).fill(from) : [from]));
+
+    /** Watches a load: whether it settled, and how. */
+    const watch = (load: Promise<void>) => {
+      const outcome: { settled: boolean; error?: unknown } = { settled: false };
+      load.then(
+        () => {
+          outcome.settled = true;
+        },
+        (error: unknown) => {
+          outcome.settled = true;
+          outcome.error = error;
+        }
+      );
+      return outcome;
+    };
+
+    /** Runs the clock 5 ms at a time until `done` or `limitMs`; returns the time that passed. */
+    const runClockUntil = async (done: () => boolean, limitMs: number): Promise<number> => {
+      let passed = 0;
+      while (!done() && passed < limitMs) {
+        // eslint-disable-next-line no-await-in-loop
+        await vi.advanceTimersByTimeAsync(5);
+        passed += 5;
+      }
+      return passed;
+    };
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('goes on from the page a dropped connection lost, waiting longer while it stays down', async () => {
+      // The fourth page fails three times. The read must not end there: a room whose list stopped
+      // kept its older threads' cached summaries for the rest of the session.
+      let failures = 0;
+      const { room, requests } = serve(undefined, ({ include, from }) => {
+        if (include !== 'all' || from !== '90' || failures === 3) return undefined;
+        failures += 1;
+        return 'dropped';
+      });
+
+      const load = watch(loadRoomThreads(room));
+      await runClockUntil(() => load.settled, 60_000);
+
+      expect(load).toEqual({ settled: true });
+      expect(room.getThreads()).toHaveLength(THREADS);
+      expect(roomThreadListIsComplete(room)).toBe(true);
+      // The lost page four times, every other page once: the read went on from its token.
+      expect(roomPages(requests)).toEqual(pagesWith('90', 4));
+      const tries = requests.filter(({ from }) => from === '90').map(({ at }) => at);
+      const waits = tries.slice(1).map((at, index) => at - (tries[index] ?? 0));
+      expect(waits.map((wait) => Math.round(wait / 1_000))).toEqual([1, 2, 4]);
+    });
+
+    it('reads the first page again when the server answers it with an error', async () => {
+      let failures = 0;
+      const { room, requests } = serve(undefined, ({ include, from }) => {
+        if (include !== 'all' || from !== null || failures === 2) return undefined;
+        failures += 1;
+        return 502;
+      });
+
+      const load = watch(loadRoomThreads(room));
+      await runClockUntil(() => load.settled, 60_000);
+
+      expect(load).toEqual({ settled: true });
+      expect(roomThreadListIsComplete(room)).toBe(true);
+      expect(room.getThreads()).toHaveLength(THREADS);
+      expect(roomPages(requests)).toEqual(pagesWith(null, 3));
+    });
+
+    it('tries again as soon as the connection is back', async () => {
+      let online = true;
+      let failures = 0;
+      const { room, requests } = serve(undefined, ({ include, from }) => {
+        if (include === 'all' && from === '90') online = false;
+        if (online) return undefined;
+        failures += 1;
+        return 'dropped';
+      });
+
+      const load = watch(loadRoomThreads(room));
+      await runClockUntil(() => failures === 1, 5_000);
+      online = true;
+      // The sync loop got through again after failing.
+      room.client.emit(ClientEvent.Sync, SyncState.Catchup, SyncState.Reconnecting);
+      const waited = await runClockUntil(
+        () => requests.filter(({ from }) => from === '90').length === 2,
+        5_000
+      );
+
+      // Well before the first wait of a second would have ended.
+      expect(waited).toBeLessThan(100);
+      await runClockUntil(() => load.settled, 60_000);
+      expect(load).toEqual({ settled: true });
+      expect(roomPages(requests)).toEqual(pagesWith('90', 2));
+    });
+
+    it('lets a caller that comes while the read waits wake it, without a second reader', async () => {
+      let failures = 0;
+      const { room, requests } = serve(undefined, ({ include, from }) => {
+        if (include !== 'all' || from !== '90' || failures === 1) return undefined;
+        failures += 1;
+        return 'dropped';
+      });
+
+      const first = watch(loadRoomThreads(room));
+      await runClockUntil(() => failures === 1, 5_000);
+      // The room opens again, twice, while the read waits to try again.
+      const second = watch(loadRoomThreads(room));
+      const third = watch(loadRoomThreads(room));
+      const waited = await runClockUntil(
+        () => requests.filter(({ from }) => from === '90').length === 2,
+        5_000
+      );
+      await runClockUntil(() => first.settled && second.settled && third.settled, 60_000);
+
+      expect(waited).toBeLessThan(100);
+      expect([first, second, third]).toEqual([
+        { settled: true },
+        { settled: true },
+        { settled: true },
+      ]);
+      // One reader: the lost page once more, and never two pages of the list at a time.
+      expect(roomPages(requests)).toEqual(pagesWith('90', 2));
+      expect(
+        requests
+          .filter(({ include, from }) => include === 'all' && from !== null)
+          .map(({ open }) => open)
+      ).toEqual(Array<number>(pagesWith('90', 2).length - 1).fill(1));
+    });
+
+    it('ends when its only caller leaves during the wait; the next one goes on from the lost page', async () => {
+      let failures = 0;
+      const { room, requests } = serve(undefined, ({ include, from }) => {
+        if (include !== 'all' || from !== '90' || failures === 1) return undefined;
+        failures += 1;
+        return 'dropped';
+      });
+
+      const leaving = new AbortController();
+      const first = watch(loadRoomThreads(room, undefined, leaving.signal));
+      await runClockUntil(() => failures === 1, 5_000);
+      leaving.abort();
+      await runClockUntil(() => first.settled, 100);
+      expect(first).toEqual({ settled: true });
+      // Nobody reads the list while nobody shows it.
+      const asked = requests.length;
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(requests).toHaveLength(asked);
+      expect(roomThreadListIsComplete(room)).toBe(false);
+
+      const second = watch(loadRoomThreads(room));
+      await runClockUntil(() => second.settled, 60_000);
+
+      expect(second).toEqual({ settled: true });
+      expect(roomThreadListIsComplete(room)).toBe(true);
+      expect(roomPages(requests)).toEqual(pagesWith('90', 2));
+    });
+
+    it('does not try again when the server refuses the page', async () => {
+      const { room, requests } = serve(undefined, ({ include, from }) =>
+        include === 'all' && from === '90' ? 403 : undefined
+      );
+
+      const load = watch(loadRoomThreads(room));
+      await runClockUntil(() => load.settled, 60_000);
+
+      expect(load.settled).toBe(true);
+      expect(load.error).toMatchObject({ httpStatus: 403 });
+      expect(roomPages(requests)).toEqual([null, '30', '60', '90']);
+    });
   });
 });
