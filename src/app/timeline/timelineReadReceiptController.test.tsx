@@ -16,6 +16,12 @@ vi.mock('../notifications/readReceipts', () => ({
   markThreadAsRead: vi.fn(),
 }));
 
+/** Each wait for the scroll area to rest, until the test lets it rest. */
+const { rests } = vi.hoisted(() => ({ rests: [] as Array<() => void> }));
+vi.mock('./scrollQuiescence', () => ({
+  waitForScrollQuiescence: () => new Promise<void>((resolve) => rests.push(resolve)),
+}));
+
 /** The observers the hook creates, with their callbacks, newest last. */
 const observers: FakeObserver[] = [];
 
@@ -508,7 +514,10 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       return handleOpenEvent.mock.calls[0]?.[2] as (scrolled: boolean) => void;
     };
     /** Lets the scroll area come to rest once. */
-    const scrollRests = () => act(async () => undefined);
+    const scrollRests = () =>
+      act(async () => {
+        rests.splice(0).forEach((rest) => rest());
+      });
 
     it('goes to a read marker in the live timeline and reads the room when nothing scrolled', () => {
       focusAtMarker()(false);
