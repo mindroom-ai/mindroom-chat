@@ -203,3 +203,61 @@ test('phone links, reactions and senders keep separate targets (WebKit)', async 
     await browser.close();
   }
 });
+
+const checkNeighbors = async (browser: Browser, baseURL?: string) => {
+  const context = await browser.newContext({
+    baseURL, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true,
+  });
+  const page = await context.newPage();
+  try {
+    for (const theme of ['', '?dark']) {
+      await page.goto(`/e2e/fixtures/touch-neighbors.html${theme}`);
+      const activity = page.getByRole('button', { name: 'Review details' });
+      await expect(activity).toBeVisible();
+      const conflicts = await page.locator('main').evaluate((main) => {
+        const controls = Array.from(main.querySelectorAll<HTMLElement>('button, a[href]'));
+        const overlaps: string[] = [];
+        controls.forEach((control) => {
+          const box = control.getBoundingClientRect();
+          const layer = getComputedStyle(control, '::after');
+          if (layer.content !== '""' || layer.position !== 'absolute') return;
+          const top = box.top + control.clientTop + parseFloat(layer.top);
+          const bottom = top + parseFloat(layer.height);
+          const left = box.left + control.clientLeft + parseFloat(layer.left);
+          const right = left + parseFloat(layer.width);
+          controls.forEach((other) => {
+            if (control === other) return;
+            const neighbor = other.getBoundingClientRect();
+            if (Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
+                Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5) {
+              overlaps.push(`${control.textContent} overlaps ${other.textContent}`);
+            }
+          });
+        });
+        return overlaps;
+      });
+      expect.soft(conflicts, 'activity and wrapped duration rows avoid their neighbors').toEqual([]);
+      await activity.tap();
+      await expect(activity).toHaveAttribute('aria-expanded', 'true');
+      const duration = page.getByRole('button', { name: '5 min, Allow for 5 minutes', exact: true });
+      await duration.last().tap();
+      await expect(page.getByLabel('Picked duration')).toHaveText('300');
+    }
+  } finally {
+    await context.close();
+  }
+};
+
+test('activity and duration touch layers avoid adjacent rows (Chromium)', async ({ browser, baseURL }) => {
+  await checkNeighbors(browser, baseURL);
+});
+
+test('activity and duration touch layers avoid adjacent rows (WebKit)', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  const browser = await launchWebKit();
+  try {
+    await checkNeighbors(browser, baseURL);
+  } finally {
+    await browser.close();
+  }
+});
