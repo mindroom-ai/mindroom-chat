@@ -217,7 +217,19 @@ for (const [themeId, width] of [
       await expect(typing).toBeVisible();
       await setTyping(false);
       await expect(typing).toHaveCount(0);
-      await buttons.nth(2).click();
+      // Phones reach Formatting through the More actions menu; wider screens have its button.
+      const toggleFormatting = async () => {
+        if (width > 480) {
+          await composer.getByRole('button', { name: 'Formatting', exact: true }).click();
+          return;
+        }
+        await page.getByRole('button', { name: 'More actions', exact: true }).click();
+        await page
+          .getByRole('menu', { name: 'More actions' })
+          .getByRole('menuitemcheckbox', { name: 'Formatting' })
+          .click();
+      };
+      await toggleFormatting();
       await expect.poll(() => buttons.count()).toBeGreaterThan(buttonCount);
       expect(
         await buttons.evaluateAll((nodes) =>
@@ -225,7 +237,7 @@ for (const [themeId, width] of [
         )
       ).toBe(true);
       await page.screenshot({ path: testInfo.outputPath('composer-formatting.png') });
-      await buttons.nth(2).click();
+      await toggleFormatting();
       await expect(buttons).toHaveCount(buttonCount);
       await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
       const body = 'The glass controls keep the conversation moving.';
