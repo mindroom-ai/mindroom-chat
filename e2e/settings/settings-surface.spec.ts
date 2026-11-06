@@ -138,7 +138,7 @@ const expectEvenInsets = (insets: Inset[]) => {
   expect(insets.length).toBeGreaterThan(10);
   for (const { part, start, end } of insets) {
     expect.soft(Math.abs(start - end), `${part}: ${start} vs ${end}`).toBeLessThanOrEqual(1);
-    expect.soft(start, part).toBeCloseTo(8, 0);
+    expect.soft(start, part).toBeCloseTo(12, 0);
   }
 };
 
