@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { glassSurface } from '../ui/styles/Glass.css';
+import { ENABLED_CARD_ACTION } from '../lib/cardAction';
 
 // Cards for rooms and spaces in Explore and the lobby, laid out in a responsive grid.
 export const CardGrid = style({
@@ -26,6 +27,13 @@ export const RoomCardBase = style([
   {
     color: color.SurfaceVariant.OnContainer,
     borderRadius: config.radii.R500,
+    selectors: {
+      // A click anywhere on the card presses its button (RoomCard).
+      [`&:has(${ENABLED_CARD_ACTION})`]: {
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+      },
+    },
   },
 ]);
 

@@ -22,6 +22,7 @@ import { RoomAccessControl, type RoomAccessJoinRule } from './RoomAccessControl'
 import { AsyncStatus } from '../lib/hooks/useAsyncCallback';
 import { isRoomId } from '../matrix/matrix';
 import { stopPropagation } from '../lib/keyboard';
+import { cardActionProps, pressCardAction } from '../lib/cardAction';
 import * as css from './RoomCard.css';
 
 export const RoomCardGrid = as<'div'>(({ className, ...props }, ref) => (
@@ -60,7 +61,10 @@ type RoomCardProps = CardTarget &
     renderTopicViewer: TopicViewerRenderer;
   };
 
-/** A room or space in a card grid: avatar, name, topic, members, and the way in (or View). */
+/**
+ * A room or space in a card grid: avatar, name, topic, members, and the way in (or View), which a
+ * click anywhere else on the card presses too.
+ */
 export const RoomCard = as<'div', RoomCardProps>(
   (
     {
@@ -112,6 +116,7 @@ export const RoomCard = as<'div', RoomCardProps>(
     } else if (accessStatus === AsyncStatus.Error && onAccessRetry) {
       fallback = (
         <Button
+          {...cardActionProps}
           before={<Icon src={Icons.Warning} size="50" />}
           onClick={onAccessRetry}
           size="300"
@@ -131,7 +136,8 @@ export const RoomCard = as<'div', RoomCardProps>(
     );
 
     return (
-      <RoomCardBase {...divProps} ref={ref}>
+      // A click anywhere on the card, away from its topic, does what its button does.
+      <RoomCardBase onClick={pressCardAction} {...divProps} ref={ref}>
         <Box gap="200" alignItems="Start">
           <Avatar size="500" radii="400">
             <RoomAvatar
@@ -183,6 +189,7 @@ export const RoomCard = as<'div', RoomCardProps>(
           )}
           {joined && verifiedRoomId ? (
             <Button
+              {...cardActionProps}
               className={css.ActionButton}
               variant="Secondary"
               fill="Soft"
@@ -204,6 +211,7 @@ export const RoomCard = as<'div', RoomCardProps>(
             >
               {(access) => (
                 <Button
+                  {...cardActionProps}
                   className={css.ActionButton}
                   variant={access.requested ? 'Secondary' : 'Primary'}
                   fill={access.requested ? 'Soft' : 'Solid'}
