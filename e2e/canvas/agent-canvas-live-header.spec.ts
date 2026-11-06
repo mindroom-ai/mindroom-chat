@@ -149,9 +149,9 @@ for (const encrypted of [false, true]) {
     const word = uniqueWord('canvasroom');
     await mentionHelper(page, stack, `#canvas ${word}`);
     const root = page.locator('[data-message-id]').filter({ hasText: word }).first();
-    await expect(root).toBeVisible({ timeout: 30_000 });
+    // The row carries the local echo's ID until the server's answer arrives.
+    await expect(root).toHaveAttribute('data-message-id', /^\$/, { timeout: 30_000 });
     const rootId = (await root.getAttribute('data-message-id')) ?? '';
-    expect(rootId).toMatch(/^\$/);
     await showRoomThread(page, roomId, rootId);
 
     const open = page.getByRole('button', { name: 'Open canvas', exact: true }).first();
