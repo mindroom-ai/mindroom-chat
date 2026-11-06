@@ -5,6 +5,7 @@ import { getSafeLocalStorage, removeStorageItemSafe } from '../../lib/safeLocalS
 import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
+import { relistThreadsAfterGaps } from './threadListGaps';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 
@@ -84,6 +85,7 @@ export const startClient = async (
     countedClients.add(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
+    relistThreadsAfterGaps(mx);
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);
     keepEncryptedRoomCounts(mx);
