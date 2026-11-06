@@ -590,5 +590,8 @@
       "editLast": "Je laatste bericht bewerken (in een leeg invoerveld)",
       "inlineCode": "Inline code"
     }
+  },
+  "thread": {
+    "back": "Terug"
   }
 }

@@ -599,5 +599,8 @@
       "editLast": "Editar a sua última mensagem (com a caixa vazia)",
       "inlineCode": "Código em linha"
     }
+  },
+  "thread": {
+    "back": "Voltar"
   }
 }

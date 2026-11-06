@@ -590,5 +590,8 @@
       "editLast": "Son mesajını düzenle (boş mesaj kutusunda)",
       "inlineCode": "Satır içi kod"
     }
+  },
+  "thread": {
+    "back": "Geri"
   }
 }

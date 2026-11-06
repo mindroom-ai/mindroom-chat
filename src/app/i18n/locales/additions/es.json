@@ -599,5 +599,8 @@
       "editLast": "Editar tu último mensaje (con el editor vacío)",
       "inlineCode": "Código en línea"
     }
+  },
+  "thread": {
+    "back": "Atrás"
   }
 }

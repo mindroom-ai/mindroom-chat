@@ -590,5 +590,8 @@
       "editLast": "Edit your last message (in an empty composer)",
       "inlineCode": "Inline code"
     }
+  },
+  "thread": {
+    "back": "Back"
   }
 }

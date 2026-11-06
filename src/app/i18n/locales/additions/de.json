@@ -590,5 +590,8 @@
       "editLast": "Letzte eigene Nachricht bearbeiten (in leerem Eingabefeld)",
       "inlineCode": "Inline-Code"
     }
+  },
+  "thread": {
+    "back": "Zurück"
   }
 }

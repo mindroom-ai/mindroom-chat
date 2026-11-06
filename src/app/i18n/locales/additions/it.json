@@ -599,5 +599,8 @@
       "editLast": "Modifica il tuo ultimo messaggio (campo di scrittura vuoto)",
       "inlineCode": "Codice in linea"
     }
+  },
+  "thread": {
+    "back": "Indietro"
   }
 }

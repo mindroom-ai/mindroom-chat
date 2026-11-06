@@ -581,5 +581,8 @@
       "editLast": "Edit pesan terakhir Anda (di kotak pesan kosong)",
       "inlineCode": "Kode sebaris"
     }
+  },
+  "thread": {
+    "back": "Kembali"
   }
 }

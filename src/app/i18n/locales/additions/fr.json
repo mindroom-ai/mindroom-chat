@@ -599,5 +599,8 @@
       "editLast": "Modifier votre dernier message (zone de saisie vide)",
       "inlineCode": "Code en ligne"
     }
+  },
+  "thread": {
+    "back": "Retour"
   }
 }

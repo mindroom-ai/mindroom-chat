@@ -270,18 +270,18 @@ export function ThreadContextBanner({
   const resolverBylineId = useId();
 
   const backButton = phone ? (
-    <PhoneBackButton label={t('thread.backToRoom')} onBack={onExitThread} />
+    <PhoneBackButton label={t('thread.back')} onBack={onExitThread} />
   ) : (
     // At the banner's start, so its tooltip opens toward the banner, not past it.
     // folds aligns to physical edges, and right-to-left puts the button on the right.
-    <IconTooltip label={t('thread.backToRoom')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
+    <IconTooltip label={t('thread.back')} align={i18n.dir() === 'rtl' ? 'End' : 'Start'}>
       {(triggerRef) => (
         <IconButton
           ref={triggerRef}
           className={toolbarCss.MessageOptionsButton}
           variant="SurfaceVariant"
           fill="None"
-          aria-label={t('thread.backToRoom')}
+          aria-label={t('thread.back')}
           onClick={onExitThread}
         >
           <Icon data-directional src={Icons.ArrowLeft} />
