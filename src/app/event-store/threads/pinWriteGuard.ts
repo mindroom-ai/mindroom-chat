@@ -1,5 +1,10 @@
-import { RoomStateEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
-import { StateEvent } from '../../matrix/types/room';
+import {
+  EventType,
+  RoomStateEvent,
+  type MatrixClient,
+  type MatrixEvent,
+  type Room,
+} from 'matrix-js-sdk';
 
 // A room's pins are one state event that every client writes whole, and a Matrix state write
 // cannot say which version it replaces. When two people pin at the same moment, both read the
@@ -13,6 +18,7 @@ import { StateEvent } from '../../matrix/types/room';
 // person's too. A write that only undoes a change is a deliberate unpin or pin by someone who saw
 // it, and a write that makes several changes of its own is a deliberate bulk edit; both stand.
 
+const PINS_EVENT: string = EventType.RoomPinnedEvents;
 const WINDOW_MS = 30_000;
 const MAX_REDOS = 3;
 
@@ -99,7 +105,7 @@ export const guardPinWrite = (
     const userId = mx.getSafeUserId();
     const changes = new Map<string, Change>();
     const onState = (event: MatrixEvent, _state: unknown, previous: MatrixEvent | null) => {
-      if (event.getType() !== StateEvent.RoomPinnedEvents || event.getStateKey() !== '') return;
+      if (event.getType() !== PINS_EVENT || event.getStateKey() !== '') return;
       const current = watches.get(room);
       if (current) handlePinEvent(current, userId, event, previous);
     };
