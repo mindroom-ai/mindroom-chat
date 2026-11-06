@@ -52,7 +52,7 @@ import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import { useCallPanel } from '../calls/callStore';
+import { useCallPanel, useInCall } from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
@@ -258,8 +258,10 @@ export function Room() {
   }, [closeCanvas, computer.open, setMembersOpen, toggleComputer]);
 
   // The call panel is one more side panel: opening it closes a canvas or the computer, and opening
-  // either of those closes it. The members panel only steps aside while the call shows.
+  // the computer closes it. A canvas does not open while this device is in a call (PANEL-09). The
+  // members panel only steps aside while the call shows.
   const [callOpen, setCallOpen] = useCallPanel(roomId);
+  const inCall = useInCall();
   const mediaPanelOpen = computerOpen || !!canvas;
   const lastPanels = useRef({ callOpen, mediaPanelOpen });
   useEffect(() => {
@@ -287,12 +289,13 @@ export function Room() {
           ? t('mindroomUi.uiActions.releaseControl')
           : undefined;
       }
-      if (action.action === 'show_canvas' && !canvasEnabled) {
-        return t('mindroomUi.uiActions.canvasDisabled');
+      if (action.action === 'show_canvas') {
+        if (!canvasEnabled) return t('mindroomUi.uiActions.canvasDisabled');
+        if (inCall) return t('mindroomUi.uiActions.canvasDuringCall');
       }
       return controlling ? t('mindroomUi.uiActions.releaseControl') : undefined;
     },
-    [canvasEnabled, computerTarget.agents, controlledAgent, controlling, t]
+    [canvasEnabled, computerTarget.agents, controlledAgent, controlling, inCall, t]
   );
 
   const perform = useCallback(
@@ -367,13 +370,14 @@ export function Room() {
   ].join('\n');
   const onCanvasOpen = useOpenCanvasById(client, room, panelContext, uiActions.activate);
 
-  // The Canvases page opens its canvas across the whole room.
+  // The Canvases page opens its canvas across the whole room; during a call, the conversation shows
+  // its request with the reason instead.
   const { read: readUiAction } = uiActions;
   const openRequestedCanvas = useCallback(
     (event: MatrixEvent) => {
-      if (readUiAction(event)?.action === 'show_canvas') showCanvas(event, true);
+      if (!inCall && readUiAction(event)?.action === 'show_canvas') showCanvas(event, true);
     },
-    [readUiAction, showCanvas]
+    [inCall, readUiAction, showCanvas]
   );
   useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
 
@@ -400,7 +404,7 @@ export function Room() {
     computerShown,
     onComputerToggle,
     canvasOpen: !!canvas,
-    canvases: canvasEnabled ? conversationCanvases : undefined,
+    canvases: canvasEnabled && !inCall ? conversationCanvases : undefined,
     openCanvasId,
     onCanvasOpen,
     onCanvasClose: closeCanvas,

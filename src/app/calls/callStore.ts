@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { atom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { RoomStateEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
-import type { CallDevices, CallState, RoomCall } from './RoomCall';
+import type { CallDevices, CallPhase, CallState, RoomCall } from './RoomCall';
 import { activeMemberships, type CallMember } from './callMemberships';
 import { takeDeviceCallLock } from './callResume';
 
@@ -121,6 +121,20 @@ const idleState = () => IDLE_STATE;
 /** A call's current state, re-rendering on each change. */
 export const useCallState = (call: RoomCall | undefined): CallState =>
   useSyncExternalStore(call?.subscribe ?? noSubscription, call?.getState ?? idleState);
+
+const LIVE_PHASES: ReadonlySet<CallPhase> = new Set(['connecting', 'connected', 'reconnecting']);
+
+/**
+ * Whether this device is in a call now: starting, connected or reconnecting (not one that failed
+ * and waits to be closed). Re-renders only when that answer changes, not on every call update.
+ */
+export const useInCall = (): boolean => {
+  const call = useActiveCall()?.call;
+  return useSyncExternalStore(
+    call?.subscribe ?? noSubscription,
+    () => !!call && LIVE_PHASES.has(call.getState().phase)
+  );
+};
 
 /** Whether the room's call panel shows the active call (its own, or an agent call started there). */
 export const isActiveCallShownIn = (active: ActiveCall | undefined, roomId: string): boolean =>

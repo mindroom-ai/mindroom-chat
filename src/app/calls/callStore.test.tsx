@@ -9,8 +9,10 @@ import {
   forgetCallState,
   noteCallStart,
   useCallActions,
+  useInCall,
   type ActiveCall,
 } from './callStore';
+import type { CallPhase, CallState } from './RoomCall';
 import {
   fakeWebLocks,
   holdLockInOtherTab,
@@ -390,5 +392,49 @@ describe('noteCallStart', () => {
 
     expect(noteCallStart(store, mx, ROOM, 'failed')).toBe(false);
     expect(store.get(callStartProblemAtom)).toBeUndefined();
+  });
+});
+
+describe('useInCall', () => {
+  it('answers whether this device is in a call, rendering again only when that changes', () => {
+    let phase: CallPhase = 'connecting';
+    const listeners = new Set<() => void>();
+    const call = {
+      subscribe: (listener: () => void) => {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+      getState: () => ({ phase } as CallState),
+    };
+    const store = createStore();
+    const seen: boolean[] = [];
+    function Probe() {
+      seen.push(useInCall());
+      return null;
+    }
+    act(() => {
+      create(
+        <Provider store={store}>
+          <Probe />
+        </Provider>
+      );
+    });
+    const moveTo = (next: CallPhase) =>
+      act(() => {
+        phase = next;
+        listeners.forEach((listener) => listener());
+      });
+
+    expect(seen).toEqual([false]);
+    act(() => store.set(activeCallAtom, { kind: 'room', call } as unknown as ActiveCall));
+    expect(seen).toEqual([false, true]);
+    moveTo('connected');
+    moveTo('reconnecting');
+    expect(seen).toEqual([false, true]);
+    // A call that failed waits for its panel to close; it no longer counts.
+    moveTo('failed');
+    expect(seen).toEqual([false, true, false]);
+    act(() => store.set(activeCallAtom, undefined));
+    expect(seen).toEqual([false, true, false]);
   });
 });
