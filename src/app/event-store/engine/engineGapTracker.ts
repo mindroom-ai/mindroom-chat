@@ -173,6 +173,13 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
     console.error('[MindRoom gap tracker] Retrying an undurable timeline gap.', normalizedError);
   };
 
+  // A room whose cache was cleared meanwhile has no hole left to record: its cache starts again.
+  const dropClearedPendingMark = (roomId: string, pending: PendingGapMark): void => {
+    if (stopped || pendingMarks.get(roomId) !== pending) return;
+    pendingMarks.delete(roomId);
+    pending.releaseUnsavedGap();
+  };
+
   const attemptPendingMark = (roomId: string): void => {
     if (stopped || inFlightMarks.has(roomId)) return;
     const pending = pendingMarks.get(roomId);
@@ -181,12 +188,11 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
 
     void pending.overlapEventIds
       .then((overlapEventIds) => {
-        if (
-          stopped ||
-          pendingMarks.get(roomId) !== pending ||
-          !isCacheStoreWriteLeaseCurrent(pending.writeLease)
-        )
+        if (!isCacheStoreWriteLeaseCurrent(pending.writeLease)) {
+          dropClearedPendingMark(roomId, pending);
           return undefined;
+        }
+        if (stopped || pendingMarks.get(roomId) !== pending) return undefined;
         return markDiscontinuity(options?.sessionId ?? '', roomId, {
           ...pending.marker,
           overlapEventIds,
@@ -205,12 +211,11 @@ export const createEngineGapTracker = (options?: EngineGapTrackerOptions): Engin
         });
       })
       .catch((error: unknown) => {
-        if (
-          stopped ||
-          pendingMarks.get(roomId) !== pending ||
-          !isCacheStoreWriteLeaseCurrent(pending.writeLease)
-        )
+        if (!isCacheStoreWriteLeaseCurrent(pending.writeLease)) {
+          dropClearedPendingMark(roomId, pending);
           return;
+        }
+        if (stopped || pendingMarks.get(roomId) !== pending) return;
         pending.failureCount += 1;
         reportPersistenceError(error, pending);
         const retryDelay = Math.min(

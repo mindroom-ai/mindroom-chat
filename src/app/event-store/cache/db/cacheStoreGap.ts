@@ -14,27 +14,48 @@ export type RoomCacheGap = {
 
 const UNKNOWN_SIDE: RoomCacheGap = { beforeGapEventIds: new Set() };
 
+type UnsavedGaps = { count: number; saved: Promise<void>; markSaved: () => void };
+
 /** Holes seen in this session whose durable marker is not saved yet, by session and room. */
-const unsavedGaps = new Map<string, number>();
+const unsavedGaps = new Map<string, UnsavedGaps>();
 const gapKey = (sessionId: string, roomId: string) => `${sessionId}\n${roomId}`;
 
 /**
  * Records a hole from the moment the limited sync arrives, before its durable marker is saved, so
- * no reader takes the cache across it meanwhile. Returns the release, for when the marker is saved
- * or the hole's tracker stops.
+ * no reader takes the cache across it and no room event is saved before the marker meanwhile.
+ * Returns the release, for when the marker is saved or the hole's tracker stops.
  */
 export const holdUnsavedRoomCacheGap = (sessionId: string, roomId: string): (() => void) => {
   const key = gapKey(sessionId, roomId);
-  unsavedGaps.set(key, (unsavedGaps.get(key) ?? 0) + 1);
+  let gaps = unsavedGaps.get(key);
+  if (!gaps) {
+    let markSaved: () => void = () => undefined;
+    const saved = new Promise<void>((resolve) => {
+      markSaved = resolve;
+    });
+    gaps = { count: 0, saved, markSaved };
+    unsavedGaps.set(key, gaps);
+  }
+  gaps.count += 1;
+  const held = gaps;
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    const count = (unsavedGaps.get(key) ?? 1) - 1;
-    if (count > 0) unsavedGaps.set(key, count);
-    else unsavedGaps.delete(key);
+    held.count -= 1;
+    if (held.count > 0) return;
+    if (unsavedGaps.get(key) === held) unsavedGaps.delete(key);
+    held.markSaved();
   };
 };
+
+/**
+ * Resolves once every hole of the room seen so far has its durable marker. A room event saved
+ * before that could outlive a page that closes before the marker is saved, and the next visit
+ * would take the events around the hole as one run.
+ */
+export const whenRoomCacheGapsSaved = (sessionId: string, roomId: string): Promise<void> =>
+  unsavedGaps.get(gapKey(sessionId, roomId))?.saved ?? Promise.resolve();
 
 /**
  * The room's open hole, or undefined when its cached history has none. Without IndexedDB there is

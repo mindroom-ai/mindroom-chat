@@ -18,7 +18,7 @@ import {
   type GapFillScheduler,
 } from '../engineGapTracker';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../../cache/cacheProbe';
-import { loadRoomCacheGap } from '../../cache/db';
+import { loadRoomCacheGap, revokeCacheStoreWrites } from '../../cache/db';
 
 const captureEnqueues = (scheduler: GapFillScheduler): GapFillJob[] => {
   const jobs: GapFillJob[] = [];
@@ -378,6 +378,36 @@ describe('createEngineGapTracker (ISSUE-207 P3.2)', () => {
     expect(await loadRoomCacheGap('stopped-session', '!stopped', noMarker)).toBeDefined();
     tracker.stop();
     expect(await loadRoomCacheGap('stopped-session', '!stopped', noMarker)).toBeUndefined();
+  });
+
+  it('lets go of an unsaved gap whose room cache was cleared meanwhile', async () => {
+    const noMarker = async () => undefined;
+    let readTail: ((page: { events: never[]; hasMoreBefore: boolean }) => void) | undefined;
+    loadCachedTail.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          readTail = resolve;
+        })
+    );
+    const tracker = createEngineGapTracker({
+      mx: {} as MatrixClient,
+      sessionId: 'cleared-session',
+      scheduler: createInMemoryGapFillScheduler(),
+      markDiscontinuity,
+      loadCachedTail,
+    });
+    const room = makeRoom({ roomId: '!cleared', paginationToken: 'batch-1' });
+
+    tracker.handleTimelineReset(room, room.getUnfilteredTimelineSet());
+    expect(await loadRoomCacheGap('cleared-session', '!cleared', noMarker)).toBeDefined();
+    revokeCacheStoreWrites('cleared-session');
+    readTail?.({ events: [], hasMoreBefore: false });
+
+    await vi.waitFor(async () =>
+      expect(await loadRoomCacheGap('cleared-session', '!cleared', noMarker)).toBeUndefined()
+    );
+    expect(markDiscontinuity).not.toHaveBeenCalled();
+    tracker.stop();
   });
 
   it('cancels an undurable marker retry when the tracker stops', async () => {

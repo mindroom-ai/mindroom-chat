@@ -19,6 +19,7 @@ import {
   type CacheStoreWriteLease,
 } from './cacheStoreDb';
 import { createLedgerTracker, type LedgerTracker } from './cacheStoreLedger';
+import { whenRoomCacheGapsSaved } from './cacheStoreGap';
 import {
   replaceCachedAttachmentReferences,
   invalidateCachedAttachmentReferences,
@@ -657,6 +658,9 @@ export const saveRoomEventsToCacheCommitted = async (
   // invoke us via `void save(...)` — a rejected open here would escape
   // as an unhandled rejection and never trip the health gate.
   try {
+    // A limited sync's hole is recorded before any room event lands, so
+    // a page closed meanwhile cannot leave events around an unmarked hole.
+    await whenRoomCacheGapsSaved(sessionId, roomId);
     const db = await openCacheStore(sessionId);
     if (!db || !isCacheStoreWriteLeaseCurrent(writeLease)) return false;
 

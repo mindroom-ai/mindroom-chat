@@ -1,10 +1,17 @@
-import { describe, expect, it } from 'vitest';
+import 'fake-indexeddb/auto';
+import { afterEach, describe, expect, it } from 'vitest';
 import { CacheStoreMetaUnavailableError } from '../cacheStoreMeta';
 import {
   cachedHistoryJoinsBefore,
   holdUnsavedRoomCacheGap,
   loadRoomCacheGap,
+  whenRoomCacheGapsSaved,
 } from '../cacheStoreGap';
+import {
+  deleteCacheStoreDb,
+  loadLatestCachedRoomEvents,
+  saveRoomEventsToCacheCommitted,
+} from '../index';
 
 const noMarker = async () => undefined;
 
@@ -64,5 +71,51 @@ describe('cachedHistoryJoinsBefore', () => {
     expect(cachedHistoryJoinsBefore(gap, '$before')).toBe(true);
     expect(cachedHistoryJoinsBefore(gap, '$after')).toBe(false);
     expect(cachedHistoryJoinsBefore(gap, undefined)).toBe(false);
+  });
+});
+
+describe('whenRoomCacheGapsSaved', () => {
+  const SESSION_ID = 'cache-gap-session';
+  const ROOM_ID = '!gap:example.org';
+
+  afterEach(async () => {
+    await deleteCacheStoreDb(SESSION_ID);
+  });
+
+  it('settles at once for a room without an unsaved hole', async () => {
+    await expect(whenRoomCacheGapsSaved(SESSION_ID, ROOM_ID)).resolves.toBeUndefined();
+  });
+
+  it('saves no room event before every hole of the room has its marker', async () => {
+    const releaseFirst = holdUnsavedRoomCacheGap(SESSION_ID, ROOM_ID);
+    const releaseSecond = holdUnsavedRoomCacheGap(SESSION_ID, ROOM_ID);
+    let saved = false;
+    const save = saveRoomEventsToCacheCommitted(SESSION_ID, ROOM_ID, [
+      {
+        event_id: '$after-gap',
+        origin_server_ts: 10,
+        sender: '@alice:example.org',
+        type: 'm.room.message',
+        content: { body: 'after the gap' },
+      },
+    ]).then((result) => {
+      saved = result;
+    });
+
+    releaseFirst();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+    expect(saved).toBe(false);
+    expect((await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10)).events).toEqual([]);
+
+    releaseSecond();
+    await save;
+    expect(saved).toBe(true);
+    expect(
+      (await loadLatestCachedRoomEvents(SESSION_ID, ROOM_ID, 10)).events.map(
+        (event) => event.event_id
+      )
+    ).toEqual(['$after-gap']);
   });
 });
