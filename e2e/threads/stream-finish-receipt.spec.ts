@@ -47,6 +47,8 @@ const FILLER_ROOMS = 24;
 const HISTORY = 30;
 /** How long a receipt that should not come gets to show up anyway. */
 const QUIET_MS = 3_000;
+/** How late each frame comes in the unfocused case, as on a busy machine. */
+const SLOW_FRAME_MS = 4_000;
 
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -369,13 +371,25 @@ const mainTimeline = async (page: Page, world: World, receipts: SentReceipt[], l
 const unfocused = async (page: Page, world: World, receipts: SentReceipt[], label: string) => {
   const rootId = await askQuestion(world, `Can the ${label} tag wait until Monday?`);
   const replyId = await startStream(world, rootId);
+  // A busy machine: the frame after the thread opens comes late, after the window lost its
+  // focus and the reply finished. A read decided before must not send its receipt then.
+  await page.evaluate((delay) => {
+    const frame = window.requestAnimationFrame.bind(window);
+    const slow = (callback: FrameRequestCallback) =>
+      frame(() => {
+        window.setTimeout(() => callback(performance.now()), delay);
+      });
+    Object.assign(window, { restoreFrames: () => Object.assign(window, { requestAnimationFrame: frame }) });
+    window.requestAnimationFrame = slow;
+  }, SLOW_FRAME_MS);
   await navigate(page, threadRoute(world.roomId, rootId));
   await expect(text(page, STREAM_STEPS[0]!)).toBeVisible({ timeout: 30_000 });
   await blurWindow(page);
   const finishId = await finishStream(world, replyId, label, (body) => text(page, body));
   await expect(text(page, finished(label))).toBeVisible({ timeout: 30_000 });
-  await page.waitForTimeout(QUIET_MS);
+  await page.waitForTimeout(QUIET_MS + SLOW_FRAME_MS);
   expect(receiptsFor(receipts, finishId)).toEqual([]);
+  await page.evaluate(() => (window as unknown as { restoreFrames: () => void }).restoreFrames());
 
   // Back in the window, still at the bottom of the thread: now the reader has seen it.
   await refocusWindow(page);
