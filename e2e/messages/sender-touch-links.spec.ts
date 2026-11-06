@@ -1,0 +1,198 @@
+import { mkdirSync } from 'node:fs';
+import { expect, test, type Browser } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import {
+  createDefaultThreadFilterState,
+  loginToMatrix,
+  matrixFetch,
+  seedRoomOverviewState,
+  sendRoomMessage,
+} from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'sender-touch-spec-password';
+const SHOTS = process.env.SENDER_TOUCH_SHOTS;
+
+// Catches a sender layer covering the first body line, and a replies layer covering reactions
+// or the next message. Real coordinates and real taps must agree with each control's identity.
+const checkPhone = async (browser: Browser, engine: string, baseURL?: string) => {
+  const register = async (role: string) => {
+    const username = `touch_${role}_${engine}_${Date.now().toString(36)}`;
+    await matrixFetch(HOMESERVER, '/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        username,
+        password: PASSWORD,
+        auth: { type: 'm.login.dummy' },
+        inhibit_login: true,
+      }),
+    });
+    const session = await loginToMatrix(HOMESERVER, username, PASSWORD);
+    await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
+      method: 'PUT',
+      accessToken: session.accessToken,
+      body: JSON.stringify({ displayname: role === 'reader' ? 'Harbor Reader' : 'River Writer' }),
+    });
+    return { ...session, username };
+  };
+  const reader = await register('reader');
+  const writer = await register('writer');
+  await Promise.all(
+    Array.from({ length: 25 }, (_, i) =>
+      createRoom(HOMESERVER, reader.accessToken, { name: `Project room ${i + 1}` })
+    )
+  );
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: 'Harbor planning',
+    invite: [writer.userId],
+  });
+  await matrixFetch(HOMESERVER, `/join/${encodeURIComponent(roomId)}`, {
+    method: 'POST',
+    accessToken: writer.accessToken,
+    body: '{}',
+  });
+  let targetId = '';
+  for (let i = 0; i < 5; i += 1) {
+    // Alternating senders keep adjacent sender rows visible, even when messages are grouped.
+    const author = i % 2 ? reader : writer;
+    // eslint-disable-next-line no-await-in-loop
+    targetId = await sendRoomMessage(HOMESERVER, author.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: `Plan ${i + 1}: https://example.org/plan`,
+      format: 'org.matrix.custom.html',
+      formatted_body: `Plan ${i + 1}: <a href="https://example.net/plan">https://example.org/plan</a><br>Review the route and confirm the handover before Thursday.`,
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await matrixFetch(
+      HOMESERVER,
+      `/rooms/${encodeURIComponent(roomId)}/send/m.reaction/reaction-${i}`,
+      {
+        method: 'PUT',
+        accessToken: writer.accessToken,
+        body: JSON.stringify({
+          'm.relates_to': { rel_type: 'm.annotation', event_id: targetId, key: '👍' },
+        }),
+      }
+    );
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: `Route ${i + 1} checked. The handover note includes the revised schedule.`,
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: targetId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: targetId },
+      },
+    });
+  }
+  const context = await browser.newContext({
+    baseURL,
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+    serviceWorkers: 'block',
+  });
+  const page = await context.newPage();
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, username: reader.username, password: PASSWORD });
+    await seedRoomOverviewState({
+      page, roomId, userId: reader.userId, viewMode: 'classic',
+      filterState: createDefaultThreadFilterState(),
+    });
+    await page.goto(`/home/${encodeURIComponent(roomId)}/`);
+    const row = page.locator(`[data-message-id="${targetId}"]`);
+    await expect(row).toBeVisible({ timeout: 30_000 });
+    const link = row.getByRole('link', { name: 'https://example.org/plan', exact: true });
+    await link.scrollIntoViewIfNeeded();
+    const sender = row.locator(`button[data-user-id="${writer.userId}"]`).last();
+    const reaction = row.getByRole('button', { name: /👍/ });
+    await expect(reaction).toBeVisible();
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      if (SHOTS) {
+        mkdirSync(SHOTS, { recursive: true });
+        await page.screenshot({ path: `${SHOTS}/timeline-${engine}-${scheme}.png` });
+      }
+      const audit = await page.evaluate(() => {
+        const controls = Array.from(document.querySelectorAll<HTMLElement>(
+          '[data-message-id] button, [data-message-id] a[href], [data-message-id] summary, [data-message-id] input'
+        )).filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && box.height > 0 && box.top >= 0 && box.bottom <= innerHeight;
+        });
+        const describe = (el: HTMLElement) => `${el.tagName} ${el.textContent?.trim().slice(0, 70)}`;
+        const conflicts: string[] = [];
+        let layers = 0;
+        controls.forEach((control) => {
+          if (Number(getComputedStyle(control).zIndex) < 1) return;
+          for (const pseudo of ['::before', '::after']) {
+            const css = getComputedStyle(control, pseudo);
+            if (css.content !== '\"\"' || css.position !== 'absolute') continue;
+            layers += 1;
+            const box = control.getBoundingClientRect();
+            const left = box.left + control.clientLeft + parseFloat(css.left);
+            const top = box.top + control.clientTop + parseFloat(css.top);
+            const right = left + parseFloat(css.width);
+            const bottom = top + parseFloat(css.height);
+            controls.forEach((other) => {
+              if (other === control || other.contains(control) || control.contains(other)) return;
+              const neighbor = other.getBoundingClientRect();
+              if (Math.min(right, neighbor.right) - Math.max(left, neighbor.left) > 0.5 &&
+                  Math.min(bottom, neighbor.bottom) - Math.max(top, neighbor.top) > 0.5) {
+                conflicts.push(`${describe(control)} overlaps ${describe(other)}`);
+              }
+            });
+          }
+        });
+        return { checked: controls.length, layers, conflicts };
+      });
+      console.log(`${engine} ${scheme} raised-layer audit: ${JSON.stringify(audit)}`);
+      expect(audit.checked).toBeGreaterThan(10);
+      expect.soft(audit.conflicts, `${scheme}: raised layers avoid every neighboring control`).toEqual([]);
+      const hit = await link.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return element.contains(document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2));
+      });
+      expect.soft(hit, `${scheme}: first-line link owns its tap`).toBe(true);
+      // A real tap, without force or DOM click, must open this link's confirmation.
+      if (hit) {
+        await link.tap();
+        const dialog = page.getByRole('dialog', { name: 'Open this link?' });
+        await expect(dialog).toBeVisible();
+        await dialog.getByRole('button', { name: 'Cancel', exact: true }).tap();
+      }
+      await reaction.tap();
+      await expect(reaction).toHaveAttribute('aria-pressed', 'true');
+      await reaction.tap();
+      await expect(reaction).toHaveAttribute('aria-pressed', 'false');
+      await sender.tap();
+      await expect(page.getByRole('dialog')).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      // The sender's own layout box must reserve 44 px, so its target cannot invade the body.
+      const senderBox = await sender.boundingBox();
+      expect.soft(senderBox?.height, 'sender reserves its 44 px touch height').toBeGreaterThanOrEqual(44);
+    }
+  } finally {
+    await context.close();
+  }
+};
+
+test.beforeEach(() => test.setTimeout(180_000));
+
+test('phone links, reactions and senders keep separate targets (Chromium)', async ({ browser, baseURL }) => {
+  await checkPhone(browser, 'chromium', baseURL);
+});
+
+test('phone links, reactions and senders keep separate targets (WebKit)', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  const browser = await launchWebKit();
+  try {
+    await checkPhone(browser, 'webkit', baseURL);
+  } finally {
+    await browser.close();
+  }
+});
