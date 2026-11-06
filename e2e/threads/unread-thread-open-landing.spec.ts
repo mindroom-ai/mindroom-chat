@@ -77,11 +77,11 @@ const inThread = (rootId: string, lastId: string) => ({
 const seedThread = async (
   roomId: string,
   topic: string,
-  people: MatrixSession[],
+  [starter, colleague]: [MatrixSession, MatrixSession],
   agent: MatrixSession,
   reader: DisposableUser
 ): Promise<{ rootId: string; newestId: string }> => {
-  const rootId = await sendRoomMessage(HOMESERVER, people[0].accessToken, roomId, {
+  const rootId = await sendRoomMessage(HOMESERVER, starter.accessToken, roomId, {
     msgtype: 'm.text',
     body: `${topic}. Can you take a look?`,
   });
@@ -124,7 +124,9 @@ const seedThread = async (
         }: thanks, please also check the edge case where the job retries twice.`,
       };
     }
-    const sender = newest || index % 2 === 1 ? people[index % people.length] : agent;
+    let sender = agent;
+    if (newest) sender = starter;
+    else if (index % 2 === 1) sender = colleague;
     // eslint-disable-next-line no-await-in-loop
     last = await sendRoomMessage(HOMESERVER, sender.accessToken, roomId, {
       ...content,
@@ -194,7 +196,7 @@ const readView = (page: Page) =>
 
 const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string) => {
   const reader = await registerDisposableUser(`utol_reader_${browserName}_${RUN}`, PASSWORD);
-  const people = [
+  const people: [DisposableUser, DisposableUser] = [
     await registerDisposableUser(`utol_dana_${browserName}_${RUN}`, PASSWORD),
     await registerDisposableUser(`utol_omar_${browserName}_${RUN}`, PASSWORD),
   ];
@@ -222,10 +224,10 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
 
   for (const [index, { rootId, newestId }] of threads.entries()) {
     // eslint-disable-next-line no-await-in-loop
-    await page.evaluate(
-      ([key, id]) => window.localStorage.setItem(key, id),
-      [NEWEST_KEY, newestId]
-    );
+    await page.evaluate(({ key, id }) => window.localStorage.setItem(key, id), {
+      key: NEWEST_KEY,
+      id: newestId,
+    });
     // From a link: the app starts with the thread open.
     // eslint-disable-next-line no-await-in-loop
     await page.goto(`/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`);
@@ -243,11 +245,8 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
         path: `${SHOTS}/unread-thread-open-${browserName}-${index + 1}.png`,
       });
     }
-    expect(view, `thread ${index + 1} after five seconds`).toEqual({
-      gap: expect.any(Number) as number,
-      newestShown: true,
-    });
-    expect(view!.gap, `thread ${index + 1}: distance below the view`).toBeLessThanOrEqual(
+    expect(view?.newestShown, `thread ${index + 1}: newest reply shown`).toBe(true);
+    expect(view?.gap, `thread ${index + 1}: distance below the view`).toBeLessThanOrEqual(
       LANDED_PX
     );
     // eslint-disable-next-line no-await-in-loop
