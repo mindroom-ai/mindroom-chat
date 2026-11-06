@@ -262,6 +262,76 @@ const ListRule: BlockMDRule = {
       .join(''),
 };
 
+/**
+ * The cells of a table row: the text between pipes, trimmed, with the pipes at either end of the
+ * line optional; a pipe after a backslash stays in its cell as a pipe.
+ */
+const splitTableRow = (line: string): string[] => {
+  const cells: string[] = [];
+  let cell = '';
+  const row = line.trim();
+  for (let at = row.startsWith('|') ? 1 : 0; at < row.length; at += 1) {
+    const character = row.charAt(at);
+    if (character === '\\' && row.charAt(at + 1) === '|') {
+      cell += '|';
+      at += 1;
+    } else if (character === '|') {
+      cells.push(cell.trim());
+      cell = '';
+    } else cell += character;
+  }
+  // A closing pipe ends the last cell; without one, the rest of the line is that cell.
+  if (cell.trim() !== '' || !row.endsWith('|')) cells.push(cell.trim());
+  return cells;
+};
+
+const TABLE_DELIMITER_CELL = /^:?-+:?$/;
+
+/** A header row holds a pipe; the line under it has a `---` cell for each of its cells. */
+const tableColumns = (header: string, delimiter: string | undefined): number => {
+  if (delimiter === undefined || !header.includes('|')) return 0;
+  const columns = splitTableRow(header).length;
+  const cells = splitTableRow(delimiter);
+  return cells.length === columns && cells.every((cell) => TABLE_DELIMITER_CELL.test(cell))
+    ? columns
+    : 0;
+};
+
+/**
+ * A table: a header row, a delimiter row of `---` cells (one per header cell), then the body rows
+ * up to the first line without a pipe. Rows with fewer cells are filled, extra cells dropped.
+ */
+const TableRule: BlockMDRule = {
+  match: (text) => {
+    const lines = text.split('\n');
+    let start = 0;
+    for (let index = 0; index < lines.length - 1; index += 1) {
+      const header = lines[index] ?? '';
+      if (tableColumns(header, lines[index + 1]) > 0) {
+        let last = index + 1;
+        while (last + 1 < lines.length && (lines[last + 1] ?? '').includes('|')) last += 1;
+        const end = lines.slice(index, last + 1).join('\n').length + start;
+        const withBreak = text[end] === '\n' ? end + 1 : end;
+        return toMatch([text.slice(start, withBreak)], start, text);
+      }
+      start += header.length + 1;
+    }
+    return null;
+  },
+  html: (parseInline, match) => {
+    const [header = '', , ...body] = match[0].replace(/\n$/, '').split('\n');
+    const columns = splitTableRow(header).length;
+    const row = (line: string, tag: 'th' | 'td') => {
+      const cells = splitTableRow(line);
+      const filled = Array.from({ length: columns }, (_, column) => cells[column] ?? '');
+      return `<tr>${filled.map((cell) => `<${tag}>${parseInline(cell)}</${tag}>`).join('')}</tr>`;
+    };
+    const tbody =
+      body.length > 0 ? `<tbody>${body.map((line) => row(line, 'td')).join('')}</tbody>` : '';
+    return `<table data-md="|"><thead>${row(header, 'th')}</thead>${tbody}</table>`;
+  },
+};
+
 /** Every block rule, in priority order for blocks that start at the same position. */
 export const BLOCK_MD_RULES: BlockMDRule[] = [
   CodeBlockRule,
@@ -270,3 +340,9 @@ export const BLOCK_MD_RULES: BlockMDRule[] = [
   BlockQuoteRule,
   ListRule,
 ];
+
+/**
+ * The block rules of a message being sent: every rule above, and tables. Messages are read with
+ * the rules above only, so a table someone sent as Markdown text is not redrawn.
+ */
+export const SENT_BLOCK_MD_RULES: BlockMDRule[] = [...BLOCK_MD_RULES, TableRule];

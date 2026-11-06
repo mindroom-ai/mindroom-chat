@@ -28,6 +28,7 @@ import { useSettingValue } from '../../preferences/useSettingValue';
 import { settingsAtom } from '../../preferences/settings';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { mobileOrTablet } from '../../lib/user-agent';
+import { useOptionalClientConfig } from '../../config/useClientConfig';
 import { trimReplyFromBody } from '../../matrix/room';
 import { buildEditContent } from './longEdit';
 import { useEditableContent } from './useEditableContent';
@@ -61,7 +62,8 @@ export const getEditedContent = (
   editor: Editor,
   markdown: boolean,
   msgtype: string,
-  ownUserId?: string
+  ownUserId?: string,
+  linkSchemes?: readonly string[]
 ): IContent | undefined => {
   const body = toPlainText(editor.children, markdown).trim();
   if (body === '') return undefined;
@@ -70,6 +72,7 @@ export const getEditedContent = (
       allowTextFormatting: true,
       allowInlineMarkdown: markdown,
       allowBlockMarkdown: markdown,
+      linkSchemes,
     })
   );
   const mentioned = getMentions(editor, ownUserId);
@@ -159,6 +162,7 @@ function LoadedMessageEditor({
     );
   }, [editor]);
   const emoticonMenuOpen = emoticonQuery !== undefined && emoticonsShown;
+  const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
 
   // Typing moves here when the editor opens, with the caret after the text.
   useEffect(() => {
@@ -173,7 +177,13 @@ function LoadedMessageEditor({
       typeof content.msgtype === 'string' && TEXT_MSGTYPES.has(content.msgtype)
         ? content.msgtype
         : 'm.text';
-    const edited = getEditedContent(editor, isMarkdown, msgtype, client.getUserId() ?? undefined);
+    const edited = getEditedContent(
+      editor,
+      isMarkdown,
+      msgtype,
+      client.getUserId() ?? undefined,
+      linkSchemes
+    );
     if (!edited) return;
     if (isUnchanged(content, edited)) {
       onDone();
@@ -190,7 +200,7 @@ function LoadedMessageEditor({
     } catch {
       setStatus('failed');
     }
-  }, [client, content, editor, isMarkdown, mEvent, onDone, room, saving]);
+  }, [client, content, editor, isMarkdown, linkSchemes, mEvent, onDone, room, saving]);
 
   const handleKeyDown = useCallback(
     (evt: KeyboardEvent<HTMLDivElement>) => {

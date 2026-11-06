@@ -1,7 +1,10 @@
 import { Descendant, Element, Text } from 'slate';
 import { sanitizeText } from '../rich-text/sanitize';
-import { parseInlineMD } from '../rich-text/markdown/inline/parser';
-import { parseBlockMD } from '../rich-text/markdown/block/parser';
+import { parseInlineMD, parseInlineMDWithRules } from '../rich-text/markdown/inline/parser';
+import { inlineMDRulesWithLinkSchemes } from '../rich-text/markdown/inline/rules';
+import type { InlineMDParser } from '../rich-text/markdown/inline/type';
+import { parseBlockMDWithRules } from '../rich-text/markdown/block/parser';
+import { SENT_BLOCK_MD_RULES } from '../rich-text/markdown/block/rules';
 import { unescapeMarkdownInlineSequences } from '../rich-text/markdown/utils';
 import { getMatrixToRoom, getMatrixToRoomEvent, getMatrixToUser } from '../matrix/matrix-to';
 import {
@@ -16,8 +19,20 @@ type OutputOptions = {
   readonly allowTextFormatting?: boolean;
   /** Read inline Markdown (emphasis, code, links, math) in typed text. */
   readonly allowInlineMarkdown?: boolean;
-  /** Read block Markdown (quotes, lists, headings, code blocks) across lines. */
+  /** Read block Markdown (quotes, lists, headings, code blocks, tables) across lines. */
   readonly allowBlockMarkdown?: boolean;
+  /**
+   * URI schemes Markdown links may use besides the web ones: the deployment's
+   * `messageRendering.additionalAllowedUriSchemes`, which received links may use as well.
+   */
+  readonly linkSchemes?: readonly string[];
+};
+
+/** The inline Markdown parser for `opts`: links take the configured schemes as well. */
+const inlineParser = (opts: OutputOptions): InlineMDParser => {
+  if (!opts.linkSchemes || opts.linkSchemes.length === 0) return parseInlineMD;
+  const rules = inlineMDRulesWithLinkSchemes(opts.linkSchemes);
+  return (text) => parseInlineMDWithRules(text, rules);
 };
 
 const LINE_BREAK = '<br/>';
@@ -68,7 +83,7 @@ const childrenToCustomHtml = (nodes: Descendant[], opts: OutputOptions): string 
 /** Inline Markdown runs over each line of a block that holds typed text. */
 const lineToCustomHtml = (nodes: Descendant[], opts: OutputOptions): string => {
   const html = childrenToCustomHtml(nodes, opts);
-  return opts.allowInlineMarkdown ? parseInlineMD(html) : html;
+  return opts.allowInlineMarkdown ? inlineParser(opts)(html) : html;
 };
 
 function nodeToCustomHtml(node: Descendant, opts: OutputOptions): string {
@@ -117,12 +132,12 @@ export const toMatrixCustomHTML = (
   }
 
   const inlineOpts: OutputOptions = { ...options, allowInlineMarkdown: false };
-  const parseInline = options.allowInlineMarkdown ? parseInlineMD : undefined;
+  const parseInline = options.allowInlineMarkdown ? inlineParser(options) : undefined;
   let html = '';
   let markdownLines: string[] = [];
   const flushMarkdown = () => {
     if (markdownLines.length === 0) return;
-    html += parseBlockMD(markdownLines.join('\n'), parseInline);
+    html += parseBlockMDWithRules(markdownLines.join('\n'), SENT_BLOCK_MD_RULES, parseInline);
     markdownLines = [];
   };
   nodes.forEach((child) => {

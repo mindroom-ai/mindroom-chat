@@ -266,6 +266,42 @@ const headingLevel = (name: string): HeadingLevel => {
   return (level >= 1 && level <= 3 ? level : 3) as HeadingLevel;
 };
 
+const TABLE_SECTIONS = new Set(['thead', 'tbody', 'tfoot']);
+
+/** The rows of a table, header and body alike, in order. */
+const tableRows = (node: DomElement): DomElement[] =>
+  node.children.flatMap((child) => {
+    if (!isTag(child)) return [];
+    if (child.name === 'tr') return [child];
+    return TABLE_SECTIONS.has(child.name) ? tableRows(child) : [];
+  });
+
+/**
+ * A table as one line per row, its cells between pipes; with `markdown` the line under the first
+ * row marks it as a Markdown table again.
+ */
+const parseTable = (node: DomElement, markdown: boolean): Descendant[] => {
+  const rows = tableRows(node).map((row) =>
+    row.children.filter(
+      (cell): cell is DomElement => isTag(cell) && (cell.name === 'th' || cell.name === 'td')
+    )
+  );
+  const lines: Descendant[] = rows.map((cells) =>
+    paragraph([
+      ...cells.flatMap((cell, index) => [
+        { text: index === 0 ? '| ' : ' | ' },
+        ...parseInlineChildren(cell.children, {}, markdown),
+      ]),
+      { text: ' |' },
+    ])
+  );
+  const columns = rows[0]?.length ?? 0;
+  if (markdown && columns > 0) {
+    lines.splice(1, 0, paragraph([{ text: `|${' --- |'.repeat(columns)}` }]));
+  }
+  return lines;
+};
+
 function parseBlock(node: DomElement, markdown: boolean): Descendant[] {
   if (isEditorMathBlockElement(node)) {
     return parseEditorMathBlock(node, getText, markdown);
@@ -275,6 +311,8 @@ function parseBlock(node: DomElement, markdown: boolean): Descendant[] {
   switch (node.name) {
     case 'mx-reply':
       return [];
+    case 'table':
+      return parseTable(node, markdown);
     case 'hr':
       return [paragraph([{ text: markdown ? '---' : '' }])];
     case 'h1':

@@ -83,6 +83,7 @@ import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
+import { useOptionalClientConfig } from '../config/useClientConfig';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import {
   getVoiceMessageContentOptions,
@@ -245,6 +246,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
+    const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room);
     const commandList = useMemo(() => Object.values(commands), [commands]);
     const [commandProblem, setCommandProblem] = useState<string>();
@@ -362,8 +364,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
 
     const buildTextContent = useCallback(
       (): IContent | undefined =>
-        composeTextMessage(editor, isMarkdown, mx.getUserId() ?? undefined),
-      [editor, isMarkdown, mx]
+        composeTextMessage(editor, isMarkdown, mx.getUserId() ?? undefined, linkSchemes),
+      [editor, isMarkdown, linkSchemes, mx]
     );
 
     // A command that acts sends nothing: the composer empties while it runs and gets the text

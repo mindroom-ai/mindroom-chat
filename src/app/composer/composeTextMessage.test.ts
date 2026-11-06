@@ -3,6 +3,7 @@ import { createEditor, type Descendant } from 'slate';
 import { describe, expect, it } from 'vitest';
 import { createMentionElement, withInlineElements } from '../editor/utils';
 import { composeTextMessage } from './composeTextMessage';
+import { htmlToEditorInput } from '../editor/input';
 
 const ME = '@me:example.org';
 
@@ -154,4 +155,67 @@ describe('composeTextMessage', () => {
       expect(compose([line({ text })])).toMatchObject({ msgtype: MsgType.Text, body: text });
     }
   );
+
+  it('sends a Markdown table as an HTML table, its cells read as inline Markdown', () => {
+    const content = compose([
+      line({ text: 'Results' }),
+      line({ text: '| Name | **Score** |' }),
+      line({ text: '| --- | ---: |' }),
+      line({ text: '| Ada | 1 |' }),
+      line({ text: 'Grace | `2` | extra' }),
+      line({ text: 'After the table' }),
+    ]);
+    expect(content).toMatchObject({
+      body: 'Results\n| Name | **Score** |\n| --- | ---: |\n| Ada | 1 |\nGrace | `2` | extra\nAfter the table',
+      formatted_body:
+        'Results<br/><table data-md="|"><thead><tr><th>Name</th><th><strong data-md="**">Score</strong></th></tr></thead>' +
+        '<tbody><tr><td>Ada</td><td>1</td></tr><tr><td>Grace</td><td><code data-md="`">2</code></td></tr></tbody></table>' +
+        'After the table',
+    });
+  });
+
+  it('gives a sent table back as Markdown when the message is edited', () => {
+    const sent = compose([
+      line({ text: '| A | B |' }),
+      line({ text: '|---|---|' }),
+      line({ text: '| _1_ | 2 |' }),
+    ]);
+    const editing = htmlToEditorInput(String(sent?.formatted_body), true);
+    expect(editing).toEqual([
+      line({ text: '| A | B |' }),
+      line({ text: '| --- | --- |' }),
+      line({ text: '| _1_ | 2 |' }),
+    ]);
+    expect(compose(editing)?.formatted_body).toBe(sent?.formatted_body);
+  });
+
+  it('keeps pipes that make no table as text', () => {
+    // No delimiter row, or one whose cells do not match the header's.
+    expect(compose([line({ text: 'a | b' }), line({ text: 'c | d' })])).not.toHaveProperty(
+      'formatted_body'
+    );
+    expect(compose([line({ text: 'a | b' }), line({ text: '| --- |' })])).not.toHaveProperty(
+      'formatted_body'
+    );
+  });
+
+  it('takes the configured extra link schemes in Markdown links, never forbidden ones', () => {
+    const document = [
+      line({
+        text: '[vault](obsidian://open?vault=notes) [js](javascript:alert(1)) [web](https://example.org)',
+      }),
+    ];
+    const withExtras = composeTextMessage(editorWith(document), true, ME, [
+      'obsidian',
+      'javascript',
+    ]);
+    expect(withExtras?.formatted_body).toBe(
+      '<a data-md href="obsidian://open?vault=notes">vault</a> [js](javascript:alert(1)) ' +
+        '<a data-md href="https://example.org">web</a>'
+    );
+    expect(compose(document)?.formatted_body).toBe(
+      '[vault](obsidian://open?vault=notes) [js](javascript:alert(1)) ' +
+        '<a data-md href="https://example.org">web</a>'
+    );
+  });
 });

@@ -1,4 +1,5 @@
 import { findInlineLatexMatch } from '../../math';
+import { allowedLinkSchemes } from '../../sanitize';
 import { restoreCodeSource } from './code';
 import type { InlineMDMatcher, InlineMDRule } from './type';
 
@@ -120,22 +121,32 @@ const SpoilerRule: InlineMDRule = {
 // a link that is refused never hides another one starting inside it.
 const LINK_REG = /\[([^[\]]+)\]\(((?:[^\s()[\]]|\([^\s()[\]]*\))+)\)/g;
 
-// The schemes the message sanitizer (`rich-text/sanitize`) keeps in links; any other destination,
-// relative ones included, stays text even before the sanitizer runs.
-const LINK_SCHEME_REG = /^(?:https?|ftp|mailto|magnet):/i;
+/** The scheme of a URL, lowercase, or undefined for a relative one. */
+const schemeOf = (url: string): string | undefined =>
+  /^([a-z][a-z0-9+.-]*):/i.exec(url)?.[1]?.toLowerCase();
 
-/** `[label](url)` with an http(s), ftp, mailto or magnet URL; the label may hold inline Markdown. */
-export const LinkRule: InlineMDRule = {
-  match: (text) => {
-    LINK_REG.lastIndex = 0;
-    for (let match = LINK_REG.exec(text); match; match = LINK_REG.exec(text)) {
-      if (LINK_SCHEME_REG.test(capture(match, 2))) return match;
-    }
-    return null;
-  },
-  html: (parseInline, match) =>
-    `<a data-md href="${capture(match, 2)}">${parseInline(capture(match, 1))}</a>`,
+/**
+ * `[label](url)` with a URL whose scheme is one of `schemes`, the ones the message sanitizer
+ * (`rich-text/sanitize`) keeps in links; any other destination, relative ones included, stays
+ * text even before the sanitizer runs. The label may hold inline Markdown.
+ */
+const createLinkRule = (schemes: readonly string[]): InlineMDRule => {
+  const allowed = new Set(schemes);
+  return {
+    match: (text) => {
+      LINK_REG.lastIndex = 0;
+      for (let match = LINK_REG.exec(text); match; match = LINK_REG.exec(text)) {
+        if (allowed.has(schemeOf(capture(match, 2)) ?? '')) return match;
+      }
+      return null;
+    },
+    html: (parseInline, match) =>
+      `<a data-md href="${capture(match, 2)}">${parseInline(capture(match, 1))}</a>`,
+  };
 };
+
+/** `[label](url)` with an http(s), ftp, mailto or magnet URL. */
+export const LinkRule: InlineMDRule = createLinkRule(allowedLinkSchemes());
 
 /**
  * `$latex$`, sent as Matrix math (`data-mx-maths`). The delimiters follow `findInlineLatexMatch`,
@@ -174,3 +185,12 @@ export const INLINE_MD_RULES: InlineMDRule[] = [
   InlineMathRule,
   EscapeRule,
 ];
+
+/**
+ * The inline rules with links that may also use the deployment's extra URI schemes
+ * (`messageRendering.additionalAllowedUriSchemes`), as received messages may.
+ */
+export const inlineMDRulesWithLinkSchemes = (additionalSchemes: unknown): InlineMDRule[] => {
+  const link = createLinkRule(allowedLinkSchemes(additionalSchemes));
+  return INLINE_MD_RULES.map((rule) => (rule === LinkRule ? link : rule));
+};

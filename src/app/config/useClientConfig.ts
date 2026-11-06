@@ -15,6 +15,9 @@ export const useClientConfig = (): ClientConfig => {
   return provided;
 };
 
+/** The deployment's configuration, or undefined without a `ClientConfigProvider` above. */
+export const useOptionalClientConfig = (): ClientConfig | undefined => useContext(configContext);
+
 /** A homeserver's server name, such as `mindroom.chat`. */
 type ServerName = string;
 

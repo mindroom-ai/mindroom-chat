@@ -95,11 +95,13 @@ const textOfHtml = (html: string): string =>
 /**
  * The message the composer holds, or undefined when no text is left to send: the plain body,
  * HTML only when it says more than the body, and the mentions the text holds as pills.
+ * `linkSchemes` are the extra URI schemes Markdown links may use, as received links may.
  */
 export const composeTextMessage = (
   editor: Editor,
   markdown: boolean,
-  ownUserId: string | undefined
+  ownUserId: string | undefined,
+  linkSchemes?: readonly string[]
 ): IContent | undefined => {
   const { command, document } = takeMessageCommand(editor.children);
   const msgtype = (command && MSGTYPE_BY_COMMAND.get(command)) ?? MsgType.Text;
@@ -116,6 +118,7 @@ export const composeTextMessage = (
         allowInlineMarkdown: readMarkdown,
         allowBlockMarkdown: readMarkdown,
         allowTextFormatting: true,
+        linkSchemes,
       })
     );
   };

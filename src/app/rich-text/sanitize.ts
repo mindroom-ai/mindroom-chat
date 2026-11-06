@@ -210,6 +210,13 @@ const normalizeAdditionalSchemes = (value: unknown): string[] => {
   });
 };
 
+/**
+ * The schemes a link may use: the web, mail and magnet ones, and the configured extras without
+ * the forbidden ones. Messages written in Markdown accept the same.
+ */
+export const allowedLinkSchemes = (additionalAllowedUriSchemes?: unknown): string[] =>
+  union(PERMITTED_URL_SCHEMES, normalizeAdditionalSchemes(additionalAllowedUriSchemes));
+
 type SanitizeCustomHtmlOptions = {
   /** Additions to the allowlist; they extend the base rules and never replace them. */
   policy?: IOptions;
@@ -240,10 +247,7 @@ const buildOptions = ({
       code: ['language-*'],
       ...(policy?.allowedClasses ?? {}),
     },
-    allowedSchemes: union(
-      PERMITTED_URL_SCHEMES,
-      normalizeAdditionalSchemes(additionalAllowedUriSchemes)
-    ),
+    allowedSchemes: allowedLinkSchemes(additionalAllowedUriSchemes),
     allowedSchemesByTag: { img: ['mxc'] },
     allowedSchemesAppliedToAttributes: ['href', 'src', 'cite'],
     allowProtocolRelative: false,
