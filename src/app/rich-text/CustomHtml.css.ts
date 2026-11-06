@@ -264,6 +264,21 @@ export const Mention = recipe({
   },
 });
 
+/**
+ * A link to a message, beside the `Mention` pill classes: one unbroken pill, cut short with an
+ * ellipsis when it is wider than the message.
+ */
+export const MessageLinkPill = style({
+  display: 'inline-block',
+  verticalAlign: 'bottom',
+  // Never wider than the message: a long room name ends in an ellipsis instead of a new line.
+  maxWidth: '100%',
+  whiteSpace: 'nowrap',
+  // The text past the pill's end is hidden behind the ellipsis.
+  textOverflow: 'ellipsis',
+  overflow: 'hidden',
+});
+
 // The descendant rules need globalStyle, so the recipe takes both blocks as class names.
 const SpoilerBase = style({
   color: 'transparent',

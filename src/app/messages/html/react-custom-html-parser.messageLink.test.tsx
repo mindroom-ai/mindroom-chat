@@ -13,6 +13,7 @@ import {
 
 vi.mock('../../rich-text/CustomHtml.css', () => ({
   Mention: () => 'Mention',
+  MessageLinkPill: 'MessageLinkPill',
   Spoiler: () => 'Spoiler',
   Emoticon: () => 'Emoticon',
 }));
@@ -84,7 +85,7 @@ describe('links to messages', () => {
     const root = render(mention(href));
     expect(textOf(root)).toBe('Message in #Harbor operations');
     expect(linkOf(root).props.title).toBe(href);
-    expect(linkOf(root).props.className).toBe('Mention');
+    expect(linkOf(root).props.className).toBe('Mention MessageLinkPill');
     expect(linkOf(root).props['data-mention-id']).toBe(ROOM_ID);
     expect(linkOf(root).props['data-mention-event-id']).toBe(PLAIN_ID);
   });

@@ -266,7 +266,11 @@ export const renderMatrixMention = (
         {...customProps}
         className={
           content === undefined
-            ? classNames(css.Mention({ highlight: false }), customProps.className)
+            ? classNames(
+                css.Mention({ highlight: false }),
+                css.MessageLinkPill,
+                customProps.className
+              )
             : customProps.className
         }
         title={content === undefined ? href : customProps.title}
