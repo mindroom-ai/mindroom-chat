@@ -1,6 +1,11 @@
 import { EventEmitter } from 'node:events';
 import { createStore, Provider } from 'jotai';
-import { RoomMemberEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
+import {
+  RoomMemberEvent,
+  RoomStateEvent,
+  type MatrixClient,
+  type MatrixEvent,
+} from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
@@ -19,6 +24,15 @@ const session = createSessionId('https://example.org', ME);
 type Member = { roomId: string; userId: string; membership: string };
 let members: Member[] = [];
 const storage = new Map<string, string>();
+// The room's `io.mindroom.thread_mode` content, if it has the state.
+let threadMode: unknown;
+const threadModeEvent = () =>
+  ({
+    getRoomId: () => ROOM,
+    getType: () => 'io.mindroom.thread_mode',
+    getStateKey: () => '',
+    getContent: () => threadMode,
+  } as unknown as MatrixEvent);
 const client = Object.assign(new EventEmitter(), {
   getHomeserverUrl: () => 'https://example.org',
   getSafeUserId: () => ME,
@@ -26,6 +40,12 @@ const client = Object.assign(new EventEmitter(), {
   getRoom: () => ({
     getMembers: () => members,
     getMember: (userId: string) => members.find((member) => member.userId === userId) ?? null,
+    currentState: {
+      getStateEvents: (type: string, stateKey: string) =>
+        type === 'io.mindroom.thread_mode' && stateKey === '' && threadMode !== undefined
+          ? threadModeEvent()
+          : null,
+    },
   }),
 });
 
@@ -49,6 +69,13 @@ const render = (agents?: boolean) => {
     );
   });
 };
+/** MindRoom publishes a new thread mode for the room, as the next sync applies it. */
+const publishThreadMode = (content: unknown) => {
+  threadMode = content;
+  act(() => {
+    client.emit(RoomStateEvent.Events, threadModeEvent(), {}, null);
+  });
+};
 const join = (userId: string) => {
   const member = { roomId: ROOM, userId, membership: 'join' };
   members = [...members, member];
@@ -61,6 +88,7 @@ beforeEach(() => {
   rooms += 1;
   ROOM = `!room-${rooms}:example.org`;
   members = [{ roomId: ROOM, userId: ME, membership: 'join' }];
+  threadMode = undefined;
   vi.stubGlobal('localStorage', {
     get length() {
       return storage.size;
@@ -119,5 +147,44 @@ describe('a room without a chosen view', () => {
 
     expect(result?.viewMode).toBe('threaded');
     expect(storage.get(getRoomViewModeStorageKey(session, ROOM))).toBe('"threaded"');
+  });
+});
+
+describe("a room's io.mindroom.thread_mode", () => {
+  it('opens a room whose agents answer in the main timeline in the Threads view', () => {
+    threadMode = { mode: 'room' };
+    render(true);
+    expect(result?.viewMode).toBe('threaded');
+  });
+
+  it.each([{ mode: 'thread' }, { mode: 'mixed' }, { mode: 'ROOM' }, { mode: 3 }, 'room', null])(
+    'keeps the default for %j',
+    (content) => {
+      threadMode = content;
+      render(true);
+      expect(result?.viewMode).toBe('compact');
+    }
+  );
+
+  it('follows the mode changing while the room is open, until the reader chooses a view', () => {
+    render(true);
+    expect(result?.viewMode).toBe('compact');
+
+    publishThreadMode({ mode: 'room' });
+    expect(result?.viewMode).toBe('threaded');
+
+    publishThreadMode({ mode: 'thread' });
+    expect(result?.viewMode).toBe('compact');
+
+    act(() => result?.setViewMode('compact'));
+    publishThreadMode({ mode: 'room' });
+    expect(result?.viewMode).toBe('compact');
+  });
+
+  it.each(['compact', 'classic'])('keeps the %s view the reader chose', (chosen) => {
+    storage.set(getRoomViewModeStorageKey(session, ROOM), JSON.stringify(chosen));
+    threadMode = { mode: 'room' };
+    render(true);
+    expect(result?.viewMode).toBe(chosen);
   });
 });
