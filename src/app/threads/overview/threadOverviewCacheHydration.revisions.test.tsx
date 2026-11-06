@@ -6,6 +6,61 @@ import { deleteCacheStoreDb, saveThreadEventsToCache } from '../../event-store/c
 import { useThreadOverviewCachedMetadata } from './threadOverviewCacheMetadata';
 import { useThreadOverviewCacheHydration } from './threadOverviewCacheHydration';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { subscribeThreadCacheChanges } from '../../event-store/cache/threadCacheChanges';
+
+it('announces committed changes only, scoped to the reader, and ignores an older replay', async () => {
+  const sessionId = 'preview-change-notifications';
+  const roomId = '!room:example.org';
+  const notify = vi.fn();
+  const unsubscribe = subscribeThreadCacheChanges(sessionId, roomId, notify);
+  const reply = {
+    event_id: '$reply',
+    origin_server_ts: 1000,
+    room_id: roomId,
+    sender: '@agent:example.org',
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
+  };
+  try {
+    await saveThreadEventsToCache(sessionId, roomId, '$root', [reply]);
+    await saveThreadEventsToCache(sessionId, roomId, '$root', [reply]);
+    expect(notify).toHaveBeenCalledTimes(1);
+    const finished = {
+      ...reply,
+      unsigned: {
+        'm.relations': {
+          'm.replace': {
+            ...reply,
+            event_id: '$edit',
+            origin_server_ts: 2000,
+            content: {
+              msgtype: 'm.text',
+              body: '* Ready.',
+              'm.new_content': { msgtype: 'm.text', body: 'Ready.' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+            },
+          },
+        },
+      },
+    };
+    await saveThreadEventsToCache(sessionId, roomId, '$root', [finished]);
+    await saveThreadEventsToCache(sessionId, roomId, '$root', [reply]);
+    expect(notify).toHaveBeenCalledTimes(2);
+    await saveThreadEventsToCache(sessionId, '!elsewhere:example.org', '$root', [reply]);
+    expect(notify).toHaveBeenCalledTimes(2);
+    expect(notify).toHaveBeenLastCalledWith('$root');
+    unsubscribe();
+    await saveThreadEventsToCache(sessionId, roomId, '$other', [reply]);
+    expect(notify).toHaveBeenCalledTimes(2);
+  } finally {
+    unsubscribe();
+    await deleteCacheStoreDb(sessionId);
+  }
+});
 
 it('refreshes a cached preview when the reply finishes outside the loaded thread timeline', async () => {
   const sessionId = 'preview-revisions';
