@@ -384,7 +384,7 @@ export function CollapsibleMessage({
         id={contentId}
         ref={contentRef}
         className={css.CollapsibleContent({ collapsed: isCollapsed })}
-        aria-expanded={isExempt ? undefined : expanded}
+        data-expanded={isExempt ? undefined : expanded}
         style={{
           maxHeight: effectiveExpanded ? undefined : MAX_HEIGHT,
           overflow: effectiveExpanded ? undefined : 'hidden',

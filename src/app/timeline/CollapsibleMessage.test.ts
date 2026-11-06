@@ -316,7 +316,7 @@ describe('CollapsibleMessage', () => {
       expanded: false,
       loadFullContent: false,
     });
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(false);
     expect(intersectionObserverConstructed).toHaveBeenCalledTimes(1);
 
     act(() => {
@@ -330,7 +330,7 @@ describe('CollapsibleMessage', () => {
       expanded: false,
       loadFullContent: true,
     });
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(false);
 
     act(() => {
       renderer.unmount();
@@ -359,7 +359,7 @@ describe('CollapsibleMessage', () => {
 
     expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
-    expect(content.props['aria-expanded']).toBe(false);
+    expect(content.props['data-expanded']).toBe(false);
     expect(content.props.role).toBeUndefined();
     expect(expandButton.props['aria-label']).toBe('Show full message');
     expect(resizeObserverConstructed).toHaveBeenCalledTimes(1);
@@ -382,7 +382,7 @@ describe('CollapsibleMessage', () => {
     expect(content.props.style.maxHeight).toBeUndefined();
     expect(content.props.style.overflow).toBeUndefined();
     expect(content.props.role).toBeUndefined();
-    expect(content.props['aria-expanded']).toBeUndefined();
+    expect(content.props['data-expanded']).toBeUndefined();
     expect(findCloseButtons(renderer)).toHaveLength(0);
     expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(resizeObserverConstructed).not.toHaveBeenCalled();
@@ -411,7 +411,7 @@ describe('CollapsibleMessage', () => {
 
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
     expect(getContentContainer(renderer).props.style.maxHeight).toBeUndefined();
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(true);
     expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     rerenderWithBaseline(
@@ -428,7 +428,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
-    expect(content.props['aria-expanded']).toBe(false);
+    expect(content.props['data-expanded']).toBe(false);
     expect(getExpandButton(renderer).props['aria-label']).toBe('Show full message');
 
     act(() => {
@@ -477,7 +477,7 @@ describe('CollapsibleMessage', () => {
 
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBeUndefined();
-    expect(content.props['aria-expanded']).toBe(true);
+    expect(content.props['data-expanded']).toBe(true);
     expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
@@ -502,7 +502,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBe('11em');
     expect(content.props.style.overflow).toBe('hidden');
-    expect(content.props['aria-expanded']).toBe(false);
+    expect(content.props['data-expanded']).toBe(false);
 
     act(() => {
       renderer.unmount();
@@ -531,7 +531,7 @@ describe('CollapsibleMessage', () => {
 
     const content = getContentContainer(renderer);
     expect(content.props.style.maxHeight).toBe('11em');
-    expect(content.props['aria-expanded']).toBe(false);
+    expect(content.props['data-expanded']).toBe(false);
     expect(findExpandButtons(renderer)).toHaveLength(0);
     expect(findCloseButtons(renderer)).toHaveLength(0);
 
@@ -693,6 +693,8 @@ describe('CollapsibleMessage', () => {
     expect(button.props.type).toBe('button');
     expect(button.props['aria-expanded']).toBe(false);
     expect(button.props['aria-controls']).toBe(content.props.id);
+    // Only the button says whether the message is open; a plain div may not (axe aria-allowed-attr).
+    expect(content.props['aria-expanded']).toBeUndefined();
     expect(content.findAllByType('button')).toHaveLength(0);
     act(() => button.props.onClick());
     const close = getCloseButton(renderer);
@@ -758,7 +760,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
 
     expect(content.props.style.maxHeight).toBeUndefined();
-    expect(content.props['aria-expanded']).toBe(true);
+    expect(content.props['data-expanded']).toBe(true);
     expect(getCloseButton(renderer).props['aria-label']).toBe('Show less');
 
     act(() => {
@@ -794,12 +796,12 @@ describe('CollapsibleMessage', () => {
         },
       });
     });
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(false);
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(false);
 
     act(() => {
       renderer.update(renderWithBaseline(true));
     });
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(true);
 
     act(() => {
       renderer.unmount();
@@ -816,7 +818,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
 
     expect(content.props.style.maxHeight).toBe('11em');
-    expect(content.props['aria-expanded']).toBe(false);
+    expect(content.props['data-expanded']).toBe(false);
 
     act(() => {
       renderer.unmount();
@@ -833,7 +835,7 @@ describe('CollapsibleMessage', () => {
     const content = getContentContainer(renderer);
 
     expect(content.props.style.maxHeight).toBe('11em');
-    expect(content.props['aria-expanded']).toBe(false);
+    expect(content.props['data-expanded']).toBe(false);
 
     act(() => {
       renderer.unmount();
@@ -861,7 +863,7 @@ describe('CollapsibleMessage', () => {
 
     expect(renderedStates[0]).toBe(true);
     expect(onInitialExpandConsumed).toHaveBeenCalledTimes(1);
-    expect(getContentContainer(renderer).props['aria-expanded']).toBe(true);
+    expect(getContentContainer(renderer).props['data-expanded']).toBe(true);
 
     act(() => {
       renderer.unmount();
@@ -978,7 +980,7 @@ describe('CollapsibleMessage', () => {
     act(() => {
       getExpandButton(first).props.onClick();
     });
-    expect(getContentContainer(first).props['aria-expanded']).toBe(true);
+    expect(getContentContainer(first).props['data-expanded']).toBe(true);
     act(() => {
       first.unmount();
     });
@@ -994,7 +996,7 @@ describe('CollapsibleMessage', () => {
       undefined,
       manualExpansionState
     );
-    expect(getContentContainer(second).props['aria-expanded']).toBe(true);
+    expect(getContentContainer(second).props['data-expanded']).toBe(true);
     expect(getCloseButton(second).props['aria-label']).toBe('Show less');
     act(() => {
       second.unmount();
@@ -1030,7 +1032,7 @@ describe('CollapsibleMessage', () => {
       undefined,
       manualExpansionState
     );
-    expect(getContentContainer(sameMessage).props['aria-expanded']).toBe(false);
+    expect(getContentContainer(sameMessage).props['data-expanded']).toBe(false);
     act(() => {
       sameMessage.unmount();
     });
@@ -1043,7 +1045,7 @@ describe('CollapsibleMessage', () => {
       undefined,
       manualExpansionState
     );
-    expect(getContentContainer(otherMessage).props['aria-expanded']).toBe(false);
+    expect(getContentContainer(otherMessage).props['data-expanded']).toBe(false);
     act(() => {
       otherMessage.unmount();
     });
@@ -1059,7 +1061,7 @@ describe('CollapsibleMessage', () => {
       false,
       manualExpansionState
     );
-    expect(getContentContainer(expanded).props['aria-expanded']).toBe(true);
+    expect(getContentContainer(expanded).props['data-expanded']).toBe(true);
     act(() => {
       expanded.unmount();
     });
@@ -1072,7 +1074,7 @@ describe('CollapsibleMessage', () => {
       true,
       manualExpansionState
     );
-    expect(getContentContainer(collapsed).props['aria-expanded']).toBe(false);
+    expect(getContentContainer(collapsed).props['data-expanded']).toBe(false);
     act(() => {
       collapsed.unmount();
     });

@@ -164,10 +164,6 @@ const knownPortedFindings = (code: string) => [
       label(code, 'mindroomUi.onboarding.keyBackupNudge.setUpSecureKeyBackup')
     )}"`
   ),
-  // CollapsibleMessage: each message body in a thread or the Full view says whether it is
-  // expanded, which a plain div may not; the toggle button that controls it says so as well. The
-  // body is the div with a React id (`:r1:`) and `aria-expanded`.
-  /^aria-allowed-attr: <div id=":[^"]+:" class="[^"]*" aria-expanded="(true|false)"/,
   // CompactThreadCard: a thread card's label summarizes the thread instead of repeating its text.
   // Matched by its attributes: production builds shorten the class names the dev server spells out,
   // and axe-core cuts a long element short, sometimes before the label (an Arabic label with a

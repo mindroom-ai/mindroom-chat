@@ -791,7 +791,7 @@ describe('LongTextText hydration identity', () => {
           (node) =>
             node.type === 'div' &&
             node.props.className === 'collapsible-content' &&
-            node.props['aria-expanded'] === false
+            node.props['data-expanded'] === false
         );
 
       expect(getCollapsibleContent()).toBeDefined();
