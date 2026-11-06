@@ -15,6 +15,26 @@ type TouchEventWithFlag = TouchEvent & {
 
 export type EdgeSwipeDirection = 'back' | 'forward';
 
+/**
+ * The rest of a touch that already went back or forward stays the app's: the browser neither
+ * scrolls it nor takes it as its own back or forward gesture, which would step a second time.
+ * Window listeners of their own, since the view that handled the swipe may be gone before the
+ * finger lifts.
+ */
+const holdRestOfTouch = () => {
+  const hold = (event: TouchEvent) => {
+    if (event.cancelable) event.preventDefault();
+  };
+  const release = () => {
+    window.removeEventListener('touchmove', hold);
+    window.removeEventListener('touchend', release);
+    window.removeEventListener('touchcancel', release);
+  };
+  window.addEventListener('touchmove', hold, { passive: false });
+  window.addEventListener('touchend', release, { passive: true });
+  window.addEventListener('touchcancel', release, { passive: true });
+};
+
 export const useEdgeSwipe = ({
   blockStandaloneWebApp = false,
   direction,
@@ -88,6 +108,7 @@ export const useEdgeSwipe = ({
 
       event[HANDLED_EVENT_FLAG] = true;
       reset();
+      holdRestOfTouch();
       onSwipeRef.current();
     };
 
