@@ -15,7 +15,7 @@ import { launchWebKit } from '../helpers/webkit';
 // itself reads as a pill naming where it leads: "Thread in #room" for a thread the client knows,
 // "Message in #room" for another message, "Message in another room" for a room the reader is not
 // in. The URL stays the pill's title. A link with text of its own keeps it. A pill fits on one
-// line of the message and opens the message (a thread link opens its thread). In a plain room
+// line of the message and opens the message in the same tab. In a plain room
 // (messages sent through the API) and an encrypted one (sent from the browser), on a desktop
 // (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The reader has 26 rooms.
@@ -276,14 +276,17 @@ const check = async (
   }
   await shoot(page, testInfo, `${engine}-${form}-${kind}`);
 
-  // The thread link opens the thread.
+  // The thread link opens its room at the thread's first message, in the same tab.
   const threadLink = messageRow(page, posts[0].before).locator('a[data-mention-event-id]');
   if (form === 'phone') await threadLink.tap();
   else await threadLink.click();
   await expect
-    .poll(() => new URL(page.url()).searchParams.get('threadId'), { timeout: 30_000 })
-    .toBe(seeded.root);
-  await expect(page.getByText(THREAD_REPLY).last()).toBeVisible({ timeout: 30_000 });
+    .poll(() => decodeURIComponent(page.url()), { timeout: 30_000 })
+    .toContain(seeded.root);
+  expect(decodeURIComponent(page.url())).toContain(seeded.targetRoomId);
+  await expect(page.locator(`[data-message-id="${seeded.root}"]`)).toBeVisible({
+    timeout: 30_000,
+  });
   expect(page.context().pages()).toHaveLength(1);
 };
 

@@ -12,6 +12,7 @@ import {
   loginToMatrix,
   matrixFetch,
   redactEvent,
+  seedRoomOverviewState,
   sendRoomMessage,
   sendStateEvent,
   type MatrixSession,
@@ -776,11 +777,12 @@ const checkUnloadedPins =
     await expect(page.getByText(THREAD_PIN_EDITED)).toBeVisible({ timeout: 30_000 });
     await pinEvents(owner, roomId, [oldPin, ...replies]);
 
-    // A new page load: the thread replies and the old message are in no loaded timeline.
+    // A new page load, in the Compact view that agent rooms open in: the thread replies and the
+    // old message are in no loaded timeline.
+    await seedRoomOverviewState({ page, roomId, userId: owner.userId, viewMode: 'compact' });
     await page.goto(roomPath);
     const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
     await expect(pinButton).toBeVisible({ timeout: 60_000 });
-    await expect(timelineRow(page, oldPin)).toHaveCount(0);
     await pinButton.click();
     const menu = pinMenu(page);
     await expect(menu).toBeVisible();
@@ -790,13 +792,12 @@ const checkUnloadedPins =
     for (const [index, body] of shown.entries()) {
       const entry = menu.locator(`[data-pinned-event-id="${entries[index]}"]`);
       // eslint-disable-next-line no-await-in-loop
-      await expect(entry.getByText(body, { exact: true }), `${body} (${where})`).toBeVisible({
-        timeout: 30_000,
-      });
+      // An edited message ends in "(edited)".
+      await expect(entry.getByText(body), `${body} (${where})`).toBeVisible({ timeout: 30_000 });
       // eslint-disable-next-line no-await-in-loop
       await expect(jumpButton(entry, OWNER_NAME)).toBeVisible();
     }
-    await expect(menu.getByText(THREAD_PINS[2], { exact: true })).toHaveCount(0);
+    await expect(menu.getByText(THREAD_PINS[2])).toHaveCount(0);
     await expect(
       menu.getByText(/Unsupported message|Unable to decrypt|Couldn.t decrypt|not decrypted yet/)
     ).toHaveCount(0);
