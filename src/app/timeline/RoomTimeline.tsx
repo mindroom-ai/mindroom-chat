@@ -533,7 +533,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
         backController.reset();
         openedViewKeyRef.current = viewKeyRef.current;
       },
-      resetAfterLeave: () => backController.reset(),
+      resetAfterLeave: () => {
+        backController.reset();
+        openedViewKeyRef.current = undefined;
+      },
       // Queued: the next commit applies it, unless the reader scrolls first.
       requestLatestPin: () => {
         backController.requestOpenBottomPin(scrollToBottomRef);
@@ -616,11 +619,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   // A thread opened at its latest row stays pinned there until the reader scrolls. Both flags
-  // belong to the open view; the render that switches views starts them over.
+  // belong to the open view; the render that switches views starts them over. The rows a thread
+  // has in memory or in the cache render before the session starts its open, which then says
+  // whether it opens at its latest row: until then, a thread opened without a target event does,
+  // so its first painted frame is already at the bottom.
   const openedAtLatestRef = useViewScopedFlag(viewKey);
   const readerScrolledRef = useViewScopedFlag(viewKey);
   const threadLatestOpenPending =
-    !!threadId && session.snapshot.open.latestPending && openedViewKeyRef.current === viewKey;
+    !!threadId &&
+    (openedViewKeyRef.current === viewKey ? session.snapshot.open.latestPending : !eventId);
   if (threadLatestOpenPending) openedAtLatestRef.current.value = true;
   const threadOpenedAtLatest = !!threadId && openedAtLatestRef.current.value;
   const threadUserScrolled = readerScrolledRef.current.value;
