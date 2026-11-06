@@ -486,8 +486,7 @@
         "threadFiltersActive": "थ्रेड फ़िल्टर (सक्रिय)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "उन्नत फ़िल्टर",
-        "notAllThreadsLoaded": "सभी थ्रेड अभी लोड नहीं हुए हैं"
+        "advancedFilters": "उन्नत फ़िल्टर"
       },
       "threadPeopleFilter": {
         "label": "लोग",

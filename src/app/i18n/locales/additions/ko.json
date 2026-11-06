@@ -477,8 +477,7 @@
         "threadFiltersActive": "스레드 필터 (사용 중)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "고급 필터",
-        "notAllThreadsLoaded": "아직 모든 스레드를 불러오지 않았습니다"
+        "advancedFilters": "고급 필터"
       },
       "threadPeopleFilter": {
         "label": "참여자",

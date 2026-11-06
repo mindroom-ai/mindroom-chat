@@ -495,8 +495,7 @@
         "threadFiltersActive": "Filtros de hilos (activos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avanzados",
-        "notAllThreadsLoaded": "Aún no se han cargado todos los hilos"
+        "advancedFilters": "Filtros avanzados"
       },
       "threadPeopleFilter": {
         "label": "Personas",

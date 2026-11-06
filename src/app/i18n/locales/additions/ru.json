@@ -504,8 +504,7 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры",
-        "notAllThreadsLoaded": "Ещё не все ветки загружены"
+        "advancedFilters": "Расширенные фильтры"
       },
       "threadPeopleFilter": {
         "label": "Участники",

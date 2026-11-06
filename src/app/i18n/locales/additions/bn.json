@@ -486,8 +486,7 @@
         "threadFiltersActive": "থ্রেড ফিল্টার (চালু)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "উন্নত ফিল্টার",
-        "notAllThreadsLoaded": "সব থ্রেড এখনও লোড হয়নি"
+        "advancedFilters": "উন্নত ফিল্টার"
       },
       "threadPeopleFilter": {
         "label": "লোকজন",

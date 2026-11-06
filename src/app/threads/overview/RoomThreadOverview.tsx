@@ -349,13 +349,11 @@ function ThreadInfoPopover({
   tagCounts,
   threadCount,
   totalThreadCount,
-  countComplete,
 }: {
   statusCounts?: StatusCounts;
   tagCounts?: Record<string, number>;
   threadCount: number;
   totalThreadCount: number;
-  countComplete: boolean;
 }) {
   const { t, i18n } = useTranslation();
   const digits = (count: number) => localDigits(String(count), i18n.language);
@@ -434,11 +432,6 @@ function ThreadInfoPopover({
               ? t('thread.stats.showing', { shown: threadCount, total: totalThreadCount })
               : t('thread.stats.threadCount', { count: totalThreadCount })}
           </Text>
-          {!countComplete && (
-            <Text size="T200" priority="300" data-thread-count-partial="true">
-              {t('mindroomUi.threads.roomThreadOverview.notAllThreadsLoaded')}
-            </Text>
-          )}
           {statusCounts &&
             (Object.keys(STATUS_LABEL_KEYS) as ThreadFilterKey[]).map((key) => (
               <div key={key} className={css.InfoStatRow}>
@@ -548,8 +541,6 @@ export type RoomThreadOverviewProps = {
   hasMindroomAgents: boolean;
   threadCount: number;
   totalThreadCount: number;
-  /** False while the room may hold threads that are not loaded yet; the count then reads "N+". */
-  countComplete?: boolean;
   statusCounts?: StatusCounts;
   tagCounts?: Record<string, number>;
   state: ThreadFilterState;
@@ -628,7 +619,6 @@ export function RoomThreadOverview({
   hasMindroomAgents,
   threadCount,
   totalThreadCount,
-  countComplete = true,
   statusCounts,
   tagCounts,
   state,
@@ -727,14 +717,11 @@ export function RoomThreadOverview({
     : t('mindroomUi.threads.roomThreadOverview.showingAllThreads', {
         count: threadCount,
       });
-  const loadedSummary = countComplete
-    ? filterSummary
-    : `${filterSummary}. ${t('mindroomUi.threads.roomThreadOverview.notAllThreadsLoaded')}`;
   const liveSummary = isThreadSortFrozen
     ? t('mindroomUi.threads.roomThreadOverview.sortLockedSummary', {
-        summary: loadedSummary,
+        summary: filterSummary,
       })
-    : loadedSummary;
+    : filterSummary;
   // The live region speaks when the person changes the filters or the sort, not each time a
   // message moves the count, and empties again after a while; the summary itself stays readable.
   const filterKey = JSON.stringify([state, isThreadSortFrozen, simpleMode]);
@@ -782,11 +769,6 @@ export function RoomThreadOverview({
           <Text size="T200">
             {t('mindroomUi.threads.roomThreadOverview.threadCount', { count: threadCount })}
           </Text>
-          {!countComplete && (
-            <Text size="T200">
-              {t('mindroomUi.threads.roomThreadOverview.notAllThreadsLoaded')}
-            </Text>
-          )}
         </Tooltip>
       }
     >
@@ -794,7 +776,7 @@ export function RoomThreadOverview({
         <span ref={triggerRef} className={css.CompactCount} data-thread-count="true">
           <IconMessages size={14} stroke={1.8} aria-hidden="true" />
           <Text size="T200">
-            {`${localDigits(String(threadCount), i18n.language)}${countComplete ? '' : '+'}`}
+            {localDigits(String(threadCount), i18n.language)}
           </Text>
         </span>
       )}
@@ -1006,7 +988,6 @@ export function RoomThreadOverview({
             tagCounts={tagCounts}
             threadCount={threadCount}
             totalThreadCount={totalThreadCount}
-            countComplete={countComplete}
           />
         )}
         <ThreadSearchBar

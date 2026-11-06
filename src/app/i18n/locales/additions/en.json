@@ -486,8 +486,7 @@
         "threadFiltersActive": "Thread filters (active)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Advanced filters",
-        "notAllThreadsLoaded": "Not all threads are loaded yet"
+        "advancedFilters": "Advanced filters"
       },
       "threadPeopleFilter": {
         "label": "People",
