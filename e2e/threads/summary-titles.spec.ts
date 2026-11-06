@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { chromium, expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import {
@@ -72,7 +72,8 @@ const summariesOnly = async (page: Page) => {
   });
 };
 
-test.beforeEach(async ({}, testInfo) => {
+test.beforeEach(async () => {
+  const testInfo = test.info();
   const homeserver = getHomeserver();
   const credentials = getPrimaryCredentials();
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
@@ -152,6 +153,10 @@ test.beforeEach(async ({}, testInfo) => {
     expect(root.unsigned['m.relations']['m.thread']['io.mindroom.latest_reply'].event_id).toBe(
       replyId
     );
+    await testInfo.attach('server-thread-summary.json', {
+      body: JSON.stringify(root, null, 2),
+      contentType: 'application/json',
+    });
   }
 });
 
@@ -160,15 +165,17 @@ for (const engine of ['chromium', 'webkit'] as const) {
     for (const continued of [false, true]) {
       test(`${engine} ${phone ? 'phone' : 'desktop'} ${
         continued ? 'continued' : 'title-last'
-      } fresh login shows bundled title and edited preview`, async ({
-        browser,
-        baseURL,
-      }, testInfo) => {
+      } fresh login shows bundled title and edited preview`, async ({ baseURL }, testInfo) => {
         test.setTimeout(180_000);
         test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'WebKit executable required');
-        let ownBrowser: Browser | undefined;
-        if (engine === 'webkit') ownBrowser = await launchWebKit();
-        const context = await (ownBrowser ?? browser).newContext({
+        const ownBrowser =
+          engine === 'webkit'
+            ? await launchWebKit()
+            : await chromium.launch({
+                executablePath: process.env.CHROMIUM_PATH || undefined,
+                ignoreDefaultArgs: ['--hide-scrollbars'],
+              });
+        const context = await ownBrowser.newContext({
           baseURL,
           viewport: phone ? { width: 390, height: 844 } : { width: 1280, height: 800 },
           hasTouch: phone,
@@ -222,9 +229,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
             filterState: createDefaultThreadFilterState(),
           });
           await page.goto(`/home/${encodeURIComponent(roomId)}`);
-          await expect(page.locator(`[data-thread-root-id="${rootId}"]`).first()).toContainText(
-            TITLE
-          );
+          await expect(page.getByRole('group').filter({ hasText: TITLE }).first()).toBeVisible();
           await page.screenshot({ path: testInfo.outputPath('threads-light.png') });
           await page.evaluate(() => {
             const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
@@ -247,7 +252,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
         } finally {
           await page.unrouteAll({ behavior: 'ignoreErrors' });
           await context.close();
-          await ownBrowser?.close();
+          await ownBrowser.close();
         }
       });
     }

@@ -54,6 +54,15 @@ const fixture = (bundle = summaryShape()) => {
   const mx = new MatrixClient({ baseUrl: 'https://example.org', userId });
   const room = new Room(roomId, mx, userId, { timelineSupport: true });
   mx.store.storeRoom(room);
+  room.currentState.setStateEvents([
+    new MatrixEvent({
+      type: 'm.room.member',
+      state_key: author,
+      sender: author,
+      room_id: roomId,
+      content: { membership: 'join', displayname: 'helper' },
+    }),
+  ]);
   const root = new MatrixEvent({
     event_id: rootId,
     room_id: roomId,
