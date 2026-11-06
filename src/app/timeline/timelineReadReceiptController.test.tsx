@@ -225,6 +225,27 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
   describe('bottom detection', () => {
     const awayFromLiveEnd = { atLiveEndRef: { current: false }, timelineAtLiveEnd: false };
 
+    it.each([
+      { reports: [false, true], atBottom: true },
+      { reports: [true, false], atBottom: false },
+    ])('uses the last anchor report in a batch: $reports', ({ reports, atBottom }) => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      const setAtBottom = vi.fn();
+      mount(optionsWith({ setAtBottom }));
+      const observer = observers.at(-1);
+      act(() => {
+        observer?.report(
+          reports.map((isIntersecting) => ({
+            target: anchor,
+            isIntersecting,
+          })) as IntersectionObserverEntry[],
+          observer as unknown as IntersectionObserver
+        );
+        vi.advanceTimersByTime(500);
+      });
+      expect(setAtBottom).toHaveBeenLastCalledWith(atBottom);
+    });
+
     it('shows the reader at the bottom at once and away only after 500 ms without a report', () => {
       vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
       const setAtBottom = vi.fn();
