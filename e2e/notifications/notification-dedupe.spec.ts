@@ -55,7 +55,10 @@ const register = async (name: string): Promise<Account> => {
 
 /** A room of the reader's that the writer has joined. */
 const sharedRoom = async (reader: Account, writer: Account, name: string): Promise<string> => {
-  const roomId = await createRoom(HOMESERVER, reader.accessToken, { name, invite: [writer.userId] });
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name,
+    invite: [writer.userId],
+  });
   await joinRoom(HOMESERVER, writer.accessToken, roomId);
   return roomId;
 };
@@ -72,9 +75,11 @@ const recordNotifications = async (context: BrowserContext, shown: Shown[], tabs
     }
   );
   await context.addInitScript(() => {
-    const record = (window as unknown as {
-      recordNotification: (entry: { title: string; body?: string }) => Promise<void>;
-    }).recordNotification;
+    const record = (
+      window as unknown as {
+        recordNotification: (entry: { title: string; body?: string }) => Promise<void>;
+      }
+    ).recordNotification;
     class RecordingNotification {
       static permission = 'granted';
 
@@ -215,18 +220,14 @@ const checkMutedRoom = async (browser: Browser, baseURL: string, engine: Engine)
   const designId = await sharedRoom(reader, writer, 'Design Desk');
   const mutedId = await sharedRoom(reader, writer, 'Muted Desk');
   // A mute is an override rule named after the room that does nothing (spec, "Push Rules").
-  await matrixFetch(
-    HOMESERVER,
-    `/pushrules/global/override/${encodeURIComponent(mutedId)}`,
-    {
-      method: 'PUT',
-      accessToken: reader.accessToken,
-      body: JSON.stringify({
-        actions: [],
-        conditions: [{ kind: 'event_match', key: 'room_id', pattern: mutedId }],
-      }),
-    }
-  );
+  await matrixFetch(HOMESERVER, `/pushrules/global/override/${encodeURIComponent(mutedId)}`, {
+    method: 'PUT',
+    accessToken: reader.accessToken,
+    body: JSON.stringify({
+      actions: [],
+      conditions: [{ kind: 'event_match', key: 'room_id', pattern: mutedId }],
+    }),
+  });
 
   const context = await browser.newContext({ ...DESKTOP, baseURL });
   const shown: Shown[] = [];
@@ -255,7 +256,10 @@ const checkMutedRoom = async (browser: Browser, baseURL: string, engine: Engine)
 
   await shot(page, `${engine}-muted-room`);
   expect(shown, `${engine}: a muted room raises no notification`).toEqual([]);
-  await expect(mutedRow.getByLabel('Muted'), `${engine}: the muted row keeps its mark`).toBeVisible();
+  await expect(
+    mutedRow.getByLabel('Muted'),
+    `${engine}: the muted row keeps its mark`
+  ).toBeVisible();
   await expect(homeRailBadge(page), `${engine}: Home shows no unread badge`).toHaveCount(0);
 
   // The same messages in a room that is not muted do mark it and Home.
