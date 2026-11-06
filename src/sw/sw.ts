@@ -19,6 +19,7 @@ import {
 } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
 import { looksLikeMediaRequest, validMediaRequest } from './swMediaAuth';
+import { recallAvatar, rememberAvatar } from './avatarCache';
 import { fetchWithDevelopmentCache } from './swDevelopmentCache';
 import { fetchBuildAsset, isBuildAssetRequest, keepOnlyBuildFiles } from './swRuntimeAssets';
 import {
@@ -263,7 +264,19 @@ const requestSession = (clientId: string): Promise<MediaSession | undefined> =>
 const fetchMedia = async (clientId: string, request: Request): Promise<Response> => {
   const session = sessions.get(clientId) ?? (clientId ? await requestSession(clientId) : undefined);
   if (session && validMediaRequest(request.url, session.baseUrl)) {
-    return fetch(request, buildAuthenticatedMediaRequestInit(request, session.accessToken));
+    // An avatar loaded is kept for offline starts, and a kept one answers when the network fails.
+    try {
+      const response = await fetch(
+        request,
+        buildAuthenticatedMediaRequestInit(request, session.accessToken)
+      );
+      if (response.ok) void rememberAvatar(request.url, response.clone());
+      return response;
+    } catch (error) {
+      const kept = await recallAvatar(request.url);
+      if (kept) return kept;
+      throw error;
+    }
   }
   return fetch(request);
 };

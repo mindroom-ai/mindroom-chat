@@ -1,6 +1,7 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { authenticatedMediaRequestInit, supportsAuthenticatedMedia } from '../matrix/mediaUrl';
 import { getBlobSafeMimeType } from '../lib/mimeTypes';
+import { forgetAvatars, recallAvatar, rememberAvatar } from '../../sw/avatarCache';
 
 // Avatar images normally load straight from their media URL: on the web the service worker adds
 // the access token to authenticated media requests (Matrix 1.11, MSC3916). A page without a
@@ -155,8 +156,17 @@ export const peekFetchedAvatar = (mx: AvatarMediaClient, src: string): string | 
 
 // The object URL belongs to the app's origin, where "Open image in new tab" would run an SVG or
 // HTML body's script, so the blob gets one of the safe image types or a plain download type.
+// An avatar loaded is kept for offline starts, and a kept one answers when the network fails.
 const download = async (target: string, init: RequestInit): Promise<string | undefined> => {
-  const response = await fetch(target, init);
+  let response: Response;
+  try {
+    response = await fetch(target, init);
+    if (response.ok) void rememberAvatar(target, response.clone());
+  } catch (error) {
+    const kept = await recallAvatar(target);
+    if (!kept) throw error;
+    response = kept;
+  }
   if (!response.ok) return undefined;
   const blob = await response.blob();
   if (blob.size === 0) return undefined;
@@ -206,6 +216,8 @@ export const fetchAvatar = (mx: AvatarMediaClient, src: string): Promise<string 
  * is given (it signed out), otherwise every account's.
  */
 export const clearFetchedAvatars = (userId?: string) => {
+  // The kept pictures belong to no one account; any sign-out deletes them.
+  void forgetAvatars();
   [...fetchedAvatars].forEach(([key, entry]) => {
     if (userId !== undefined && !key.startsWith(`${userId}\n`)) return;
     fetchedAvatars.delete(key);
