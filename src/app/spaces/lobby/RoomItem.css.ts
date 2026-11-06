@@ -1,5 +1,6 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
+import { ENABLED_CARD_ACTION } from '../../lib/cardAction';
 
 /** A room row in the lobby: room avatar, name and details, then the open or join control. */
 export const RoomItemCard = style({
@@ -8,6 +9,14 @@ export const RoomItemCard = style({
   selectors: {
     '&[data-opens-by-card]': { cursor: 'pointer', WebkitTapHighlightColor: 'transparent' },
     '&[data-opens-by-card]:active': { backgroundColor: color.SurfaceVariant.ContainerActive },
+    // A room the person is not in joins (or asks to join) from a click anywhere on its card.
+    [`&:has(${ENABLED_CARD_ACTION})`]: {
+      cursor: 'pointer',
+      WebkitTapHighlightColor: 'transparent',
+    },
+    [`&:has(${ENABLED_CARD_ACTION}):active`]: {
+      backgroundColor: color.SurfaceVariant.ContainerActive,
+    },
   },
 });
 

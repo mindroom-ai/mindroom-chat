@@ -21,6 +21,7 @@ import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
+import { pressCardAction } from '../../lib/cardAction';
 import { AddExistingModal } from '../AddExistingModal';
 import { useDraggableItem } from './DnD';
 import * as css from './SpaceItem.css';
@@ -239,12 +240,14 @@ export function SpaceItemCard({
     : undefined;
   const access = resolveLobbyItemAccess(summary?.join_rule, !!summary, membership);
 
+  // A click anywhere on the heading of a space the person is not in does what its chip does.
   return (
     <Box
       ref={cardRef}
       className={css.SpaceItemCard({ outlined: true })}
       alignItems="Center"
       gap="200"
+      onClick={pressCardAction}
     >
       {loading ? (
         <div className={css.HeaderChipPlaceholder}>

@@ -1,6 +1,7 @@
 import { Button, Chip, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { RoomAccessControl } from '../../rooms/RoomAccessControl';
+import { cardActionProps } from '../../lib/cardAction';
 import { Membership } from '../../matrix/types/room';
 import type { LobbyItemAccess } from './access';
 
@@ -14,7 +15,10 @@ type LobbyAccessButtonProps = {
   chipClassName?: string;
 };
 
-/** Join or request-to-join for a lobby item the user is not in. */
+/**
+ * Join or request-to-join for a lobby item the user is not in; a click elsewhere on the item's card
+ * presses it.
+ */
 export function LobbyAccessButton({
   roomId,
   roomName,
@@ -58,6 +62,7 @@ export function LobbyAccessButton({
         if (chipClassName) {
           return (
             <Chip
+              {...cardActionProps}
               className={chipClassName}
               variant={knock ? 'Secondary' : 'Primary'}
               radii="Pill"
@@ -72,6 +77,7 @@ export function LobbyAccessButton({
         }
         return (
           <Button
+            {...cardActionProps}
             variant={knock ? 'Secondary' : 'Primary'}
             fill="Soft"
             radii="300"

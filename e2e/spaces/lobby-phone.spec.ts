@@ -20,11 +20,11 @@ import {
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // A space's lobby on a phone (390 by 844, touch): a tap anywhere on a room's card opens the room,
-// with no separate Open Room button; a room the person is not in keeps its Join button. The
-// room's back chevron then returns to the lobby, where the person came from, while rooms opened
-// from the list, the command palette or a link still go back to the list. Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit; English and Arabic. Set
-// LOBBY_PHONE_SHOTS=<directory> for screenshots.
+// with no separate Open Room button; a room the person is not in keeps its Join button, which a
+// tap anywhere on its card presses. The room's back chevron then returns to the lobby, where the
+// person came from, while rooms opened from the list, the command palette or a link still go back
+// to the list. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit;
+// English and Arabic. Set LOBBY_PHONE_SHOTS=<directory> for screenshots.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'lobby-phone-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -109,8 +109,10 @@ const seed = async (engine: string): Promise<Seed> => {
 };
 
 const signIn = async (browser: Browser, engine: string, options = PHONE, language?: string) => {
-  if (!seeds.has(engine)) seeds.set(engine, seed(engine));
-  const seeded = await seeds.get(engine)!;
+  // Each language has accounts of its own: a tap in one run joins the room that the next taps.
+  const key = language ? `${engine}_${language}` : engine;
+  if (!seeds.has(key)) seeds.set(key, seed(key));
+  const seeded = await seeds.get(key)!;
   const context = await browser.newContext(options);
   // A missing control fails its step quickly instead of the whole test's timeout.
   context.setDefaultTimeout(30_000);
@@ -175,9 +177,12 @@ const checkCards = async (browser: Browser, engine: string, language?: string) =
   await back(page).tap();
   await expect(page).toHaveURL(lobbyPath(seeded.space));
 
-  // A tap on a room the person is not in opens nothing.
-  await card(page, PUBLIC_ROOM).getByText('Anyone may drop in').tap();
-  await page.waitForTimeout(500);
+  // A tap on a room the person is not in joins it, as its Join button does, and stays here; the
+  // joined card is then one button named by the room.
+  const open = card(page, PUBLIC_ROOM);
+  await open.getByText('Anyone may drop in').tap();
+  await expect(open.getByRole('button', { name: PUBLIC_ROOM })).toBeVisible();
+  await expect(open.getByRole('button', { name: /^(Join|انضمام)$/ })).toHaveCount(0);
   await expect(page).toHaveURL(lobbyPath(seeded.space));
   await context.close();
 };

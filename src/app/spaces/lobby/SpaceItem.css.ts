@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
+import { ENABLED_CARD_ACTION } from '../../lib/cardAction';
 
 /**
  * A space heading in the lobby. A line under it marks a closed space (its rooms hidden) and a
@@ -12,6 +13,13 @@ export const SpaceItemCard = recipe({
     paddingBlock: config.space.S100,
     paddingInlineEnd: config.space.S100,
     borderBlockEnd: `${config.borderWidth.B300} solid transparent`,
+    selectors: {
+      // A space the person is not in joins from a click anywhere on its heading.
+      [`&:has(${ENABLED_CARD_ACTION})`]: {
+        cursor: 'pointer',
+        WebkitTapHighlightColor: 'transparent',
+      },
+    },
   },
   variants: {
     outlined: {

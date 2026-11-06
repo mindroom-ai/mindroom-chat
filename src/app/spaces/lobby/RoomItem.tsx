@@ -13,6 +13,7 @@ import { getRoomAvatarUrl } from '../../matrix/room';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { Membership } from '../../matrix/types/room';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { pressCardAction } from '../../lib/cardAction';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
 import { useDraggableItem } from './DnD';
@@ -45,7 +46,10 @@ type RoomItemCardProps = RoomSummaryState &
     options?: React.ReactNode;
   };
 
-/** A room in a space's lobby: open it when joined, otherwise join or ask to join. */
+/**
+ * A room in a space's lobby: open it when joined, otherwise join or ask to join, by its button or
+ * by a click anywhere on the card.
+ */
 export function RoomItemCard({
   item,
   loading,
@@ -79,6 +83,11 @@ export function RoomItemCard({
     if (control && !control.hasAttribute('data-card-opener')) return;
     onOpen(roomId);
   };
+  // A room the person is not in: a click anywhere on its card does what its button does (join,
+  // accept the invite, or ask to join), on every screen size.
+  let onCardClick: ((event: React.MouseEvent<HTMLElement>) => void) | undefined;
+  if (opensByCard) onCardClick = openFromCard;
+  else if (!joined) onCardClick = pressCardAction;
 
   const roomName = summary?.name || summary?.canonical_alias || localRoom?.name || roomId;
   const topic = summary?.topic;
@@ -94,7 +103,7 @@ export function RoomItemCard({
       ref={cardRef}
       className={css.RoomItemCard}
       data-opens-by-card={opensByCard || undefined}
-      onClick={opensByCard ? openFromCard : undefined}
+      onClick={onCardClick}
       variant="SurfaceVariant"
       alignItems="Center"
       gap="300"
