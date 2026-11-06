@@ -2,7 +2,7 @@
 import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Direction, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import {
   markMainTimelineAsRead,
   markRoomAndThreadsAsRead,
@@ -408,17 +408,35 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
     });
 
     it('is read on the next frame when it opens there, and again for each new reply', () => {
-      const options = optionsWith(openThread);
+      const shown = { getId: () => '$reply-1' } as unknown as MatrixEvent;
+      const options = optionsWith({ ...openThread, threadShownEvent: shown });
       mount(options);
       expect(markThreadAsRead).not.toHaveBeenCalled();
 
       runFrames();
       expect(markThreadAsRead).toHaveBeenCalledTimes(1);
-      expect(markThreadAsRead).toHaveBeenLastCalledWith(mx, room.roomId, '$thread', false);
+      expect(markThreadAsRead).toHaveBeenLastCalledWith(
+        mx,
+        room.roomId,
+        '$thread',
+        false,
+        undefined,
+        shown
+      );
 
-      rerender({ ...options, threadEventsLength: 3 });
+      // Read as far as the reply it renders last, which the next render moved.
+      const newer = { getId: () => '$reply-2' } as unknown as MatrixEvent;
+      rerender({ ...options, threadEventsLength: 3, threadShownEvent: newer });
       runFrames();
       expect(markThreadAsRead).toHaveBeenCalledTimes(2);
+      expect(markThreadAsRead).toHaveBeenLastCalledWith(
+        mx,
+        room.roomId,
+        '$thread',
+        false,
+        undefined,
+        newer
+      );
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });
 

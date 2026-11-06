@@ -672,6 +672,31 @@ describe('bottom-pin requests', () => {
     expect(scrollTo).toHaveBeenCalledTimes(scrollsAtOpen);
   });
 
+  it('pins a thread opened at its newest row again when its rows grow below the view', () => {
+    const { options, renderer, scrollTo } = openThread();
+    const area = options.scrollRef.current;
+    if (!area) throw new Error('Expected the scroll area');
+    const settled = { ...options, threadLatestOpenPending: false, threadOpenedAtLatest: true };
+    act(() => renderer.update(<Harness options={settled} />));
+    scrollTo.mockClear();
+
+    // The rows measured taller than estimated, and the commit that renders the measurement
+    // changes nothing else: the bottom is 440 px below the view.
+    Object.defineProperty(area, 'scrollHeight', { configurable: true, value: 1300 });
+    Object.defineProperty(area, 'clientHeight', { configurable: true, value: 860 });
+    act(() => renderer.update(<Harness options={{ ...settled }} />));
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 440, behavior: 'instant' });
+
+    // At the bottom nothing moves; after the reader's own scroll the pin is over.
+    Object.defineProperty(area, 'scrollTop', { configurable: true, value: 440 });
+    scrollTo.mockClear();
+    act(() => renderer.update(<Harness options={{ ...settled }} />));
+    expect(scrollTo).not.toHaveBeenCalled();
+    Object.defineProperty(area, 'scrollTop', { configurable: true, value: 100 });
+    act(() => renderer.update(<Harness options={{ ...settled, threadUserScrolled: true }} />));
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+
   it('applies a later request once, smoothly when it asks so', () => {
     const { options, pins, renderer, scrollTo } = openThread();
     const settled = { ...options, threadLatestOpenPending: false };

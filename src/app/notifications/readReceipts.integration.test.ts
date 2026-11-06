@@ -105,6 +105,43 @@ describe('thread receipt unread state with SDK models', () => {
     }
   );
 
+  it('reads no reply of a thread whose view shows only its root yet', async () => {
+    const { mx, room, thread, requests } = await setupRoom();
+    const root = room.findEventById('$root');
+
+    await markThreadAsRead(mx, ROOM_ID, '$root', false, undefined, root);
+
+    const threadReceipts = requests.mock.calls.filter(
+      ([method, path, , body]) =>
+        method === 'POST' &&
+        String(path).includes('/receipt/') &&
+        (body as { thread_id?: string } | undefined)?.thread_id === '$root'
+    );
+    expect(threadReceipts).toEqual([]);
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
+  it('reads a thread up to the reply its view shows, not the newer one it knows', async () => {
+    const { mx, thread, requests } = await setupRoom();
+    const shown = message('$first', 2500, '$root');
+
+    await markThreadAsRead(mx, ROOM_ID, '$root', false, undefined, shown);
+
+    expect(requests).toHaveBeenCalledWith(
+      'POST',
+      `/rooms/${encodeURIComponent(ROOM_ID)}/receipt/${ReceiptType.Read}/%24first`,
+      undefined,
+      { thread_id: '$root' }
+    );
+    expect(requests).not.toHaveBeenCalledWith(
+      'POST',
+      expect.stringContaining('%24reply'),
+      undefined,
+      expect.anything()
+    );
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
   it('does not resend a receipt for an already-read summary-only reply', async () => {
     const { mx, requests } = await setupRoom();
     await markThreadAsRead(mx, ROOM_ID, '$root', false);
