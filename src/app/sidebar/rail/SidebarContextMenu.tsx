@@ -40,11 +40,15 @@ export function SidebarContextMenu({ anchor, onClose, children }: SidebarContext
   );
 }
 
-/** Toggles the menu at the clicked button, instead of the browser's own. */
+/**
+ * Toggles the menu at the clicked button, instead of the browser's own. A finger's long press,
+ * for which Android fires contextmenu, only opens it: the long press itself may have opened it.
+ */
 export const toggleContextMenu =
   (setAnchor: (update: (current?: RectCords) => RectCords | undefined) => void) =>
   (event: React.MouseEvent<HTMLElement>) => {
     event.preventDefault();
     const cords = event.currentTarget.getBoundingClientRect();
-    setAnchor((current) => (current ? undefined : cords));
+    const finger = (event.nativeEvent as Partial<PointerEvent>).pointerType === 'touch';
+    setAnchor((current) => (current && !finger ? undefined : cords));
   };

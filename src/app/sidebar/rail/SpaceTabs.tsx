@@ -12,7 +12,6 @@ import {
   type DragMoveEvent,
   type DragStartEvent,
   MouseSensor,
-  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -46,6 +45,8 @@ import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
 import { copyToClipboard } from '../../lib/dom';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
+import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
+import { useLongPress } from '../../lib/hooks/useLongPress';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { moveStep } from '../../shortcuts/shortcuts';
 import { getSpacePath, joinPathComponent } from '../../routes/pathUtils';
@@ -124,12 +125,13 @@ function useRailSortable(drag: SidebarDragItem, hint: DropAt | undefined) {
     isDragging && css.SpaceDragging
   );
   // Only the pointer drags; the buttons inside keep their own keyboard behaviour and focus ring.
-  return {
+  const props = {
     ref: setNodeRef,
     className,
     style: { transform: CSS.Translate.toString(transform) },
     ...listeners,
   };
+  return { props, dragging: isDragging };
 }
 
 /** Moves a rail entry one place up or down; ⌘ or Ctrl with Shift and an arrow key asks for it. */
@@ -178,6 +180,16 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const [inviting, setInviting] = useState(false);
   const sortable = useRailSortable(drag, hint);
 
+  // A finger resting on the space opens its menu beside it, as a right-click does: iOS fires no
+  // contextmenu for a long press. Moving on after it drags the space, which closes the menu.
+  const longPress = useLongPress(
+    (_x, _y, button) => setMenuAnchor(button.getBoundingClientRect()),
+    () => true
+  );
+  useEffect(() => {
+    if (sortable.dragging) setMenuAnchor(undefined);
+  }, [sortable.dragging]);
+
   const closeMenu = () => setMenuAnchor(undefined);
   const closeThen = (action: () => void) => () => {
     closeMenu();
@@ -209,7 +221,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   ) : null;
 
   return (
-    <div {...sortable}>
+    <div {...sortable.props}>
       <SidebarItem active={selected}>
         <SidebarItemTooltip tooltip={name}>
           {(triggerRef) => (
@@ -221,6 +233,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
               onClick={handleClick}
               onKeyDown={moveKeyHandler(onMove)}
               onContextMenu={toggleContextMenu(setMenuAnchor)}
+              {...longPress}
             >
               <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
               <span className={css.HiddenName}>{label}</span>
@@ -292,7 +305,7 @@ function FolderTab(props: FolderTabProps) {
   const label = folderLabel(folder, spaces);
   const sortable = useRailSortable({ folder }, hint);
   return (
-    <div {...sortable}>
+    <div {...sortable.props}>
       <SidebarItem active={!open && holdsSelected}>
         <SidebarItemTooltip tooltip={label}>
           {(triggerRef) => (
@@ -400,10 +413,11 @@ export function SpaceTabs({ onSelect }: SpaceTabsProps = {}) {
     [saved, topLevelSpaces, joinedSpaces, localOrder]
   );
 
-  // A mouse drags after a short move; a finger first holds still, so a swipe still scrolls the rail.
+  // A mouse drags after a short move; a finger moves on after a long press (which opens a space's
+  // menu), so a swipe still scrolls the rail.
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 300, tolerance: 8 } })
+    useSensor(LongPressTouchSensor)
   );
 
   // Opening a space, from the rail or anywhere else, scrolls the rail to its entry (or to the
