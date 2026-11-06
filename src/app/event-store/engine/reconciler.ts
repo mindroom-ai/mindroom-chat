@@ -354,8 +354,12 @@ const detectDivergence = (
  * app. Pagination places that history, even when the fetched page does not
  * overlap the older segments.
  */
-const addFetchedEventsToThread = (thread: Thread, events: MatrixEvent[]): void => {
+const addFetchedEventsToThread = (thread: Thread, fetchedEvents: MatrixEvent[]): void => {
   if (!hasLoadedFirstThreadPage(thread)) return;
+  // A redacted event has lost its relation and is in no thread, though the server still lists it.
+  const events = fetchedEvents.filter(
+    (event) => event.getId() === thread.id || !event.isRedacted()
+  );
   const timelineSet = thread.getUnfilteredTimelineSet();
   // Adding an event first applies a deferred sync-gap reset; apply it before
   // reading the segments, so they are the ones the events go into.
