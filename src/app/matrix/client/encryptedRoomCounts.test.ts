@@ -271,6 +271,43 @@ describe('unread counts of an encrypted room', () => {
     expect(f.totalCount()).toBe(1);
   });
 
+  it('count a reply whose first message still streamed not before it finishes, as the server', async () => {
+    const f = await fixture(true);
+    // MindRoom keeps the stream status of the reply's first message in the clear.
+    const pending = encrypted('$pending', AGENT, 2, inThread);
+    pending.content['io.mindroom.stream_status'] = 'pending';
+    // A receipt the reader sent in another thread earlier, as clients with threads send them.
+    const readElsewhere = {
+      type: 'm.receipt',
+      content: { $elsewhere: { 'm.read': { [ME]: { ts: 1, thread_id: '$other' } } } },
+    };
+    await f.deliver([encrypted(ROOT, ME, 1), pending], [readElsewhere]);
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    // The first message is text: push rules alone would count it.
+    const thinking = {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+      'm.relates_to': inThread,
+    };
+    await f.decrypt(f.find('$pending'), thinking);
+    expect(f.threadCount()).toBe(0);
+    // Decrypting it again (after a reload, say) counts nothing either.
+    f.mx.emit(MatrixEventEvent.Decrypted, f.find('$pending'));
+    expect(f.threadCount()).toBe(0);
+
+    // The finished reply counts once.
+    const done = encrypted('$done', AGENT, 5, { rel_type: 'm.replace', event_id: '$pending' });
+    done.content['io.mindroom.stream_status'] = 'completed';
+    await f.deliver([done]);
+    await f.decrypt(f.find('$done'), {
+      ...editContent('completed'),
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$pending' },
+    });
+    expect(f.threadCount()).toBe(1);
+    expect(f.totalCount()).toBe(1);
+  });
+
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
     // A reply in the room's main timeline (a room in room mode), read at its start.
