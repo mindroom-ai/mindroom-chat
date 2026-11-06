@@ -109,6 +109,19 @@ export const routeClientConfig = async (
       },
     });
   });
+  // Chat renders the configuration it cached on an earlier load and keeps it for the whole page
+  // load; one it fetches meanwhile applies from the next load (src/app/config/ClientConfigLoader.tsx).
+  // The signed-in storage state cached the sign-in's, so a page's first load drops it and starts
+  // from the configuration routed here; its later loads find that one cached.
+  await page.addInitScript((key) => {
+    try {
+      if (sessionStorage.getItem('e2e-client-config-routed')) return;
+      sessionStorage.setItem('e2e-client-config-routed', '1');
+      localStorage.removeItem(key);
+    } catch {
+      // A sandboxed frame, such as an agent canvas, has no storage.
+    }
+  }, 'io.mindroom.client-config:/config.json');
   // The slot has no provisioning service.
   await page.route('**/v1/local-mindroom/connections', (route) =>
     route.fulfill({ json: { connections: [] } })
