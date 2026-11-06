@@ -440,6 +440,13 @@
         "title": "Abrir este link?",
         "description": "O texto do link mostra um endereço diferente daquele que abre. Abre:",
         "open": "Abrir link"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "O histórico de aprovações desta sala não está disponível.",
+          "undecryptable": "Não foi possível descriptografar parte do histórico de aprovações.",
+          "unloadable": "Não foi possível carregar parte do histórico de aprovações."
+        }
       }
     },
     "message-search": {

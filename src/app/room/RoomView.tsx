@@ -316,7 +316,8 @@ export function RoomView({
         </div>
         <ThreadApprovalProvider
           room={room}
-          threadId={effectiveThreadId}
+          // A message not yet on the server has no approvals, and no relations to ask for.
+          threadId={focusedThreadId}
           focusConversation={focusConversation}
         >
           <Box grow="Yes" direction="Column" style={TIMELINE_STYLE}>

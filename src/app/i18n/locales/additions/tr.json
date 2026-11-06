@@ -434,6 +434,13 @@
         "title": "Bu bağlantı açılsın mı?",
         "description": "Bağlantının metni, açtığı adresten farklı bir adres gösteriyor. Açtığı adres:",
         "open": "Bağlantıyı aç"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "Bu odanın onay geçmişi kullanılamıyor.",
+          "undecryptable": "Onay geçmişinin bir kısmının şifresi çözülemedi.",
+          "unloadable": "Onay geçmişinin bir kısmı yüklenemedi."
+        }
       }
     },
     "message-search": {

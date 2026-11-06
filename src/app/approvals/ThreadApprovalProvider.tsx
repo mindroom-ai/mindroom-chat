@@ -12,6 +12,7 @@ import { MatrixEvent, MatrixEventEvent, Room, RoomEvent, ThreadEvent } from 'mat
 import { useIgnoredUsers } from '../matrix/hooks/useIgnoredUsers';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { enqueueThreadApprovalBackfill, useSyncEngine } from '../event-store/engine';
+import type { ThreadApprovalHistoryError } from '../event-store/engine/threadApprovalBackfill';
 import { useLiveEventArrive } from '../event-store/timeline/roomLiveEventArrive';
 import { collectKnownRedactedEventIds } from '../matrix/eventRevision';
 import {
@@ -38,7 +39,7 @@ export type ThreadApprovals = {
   now: number;
   pendingEventIds: ReadonlySet<string>;
   loading: boolean;
-  error?: string;
+  error?: ThreadApprovalHistoryError;
   refresh: () => void;
   ingestTimeline: (events: readonly MatrixEvent[]) => void;
   actions: ReadonlyMap<string, ApprovalActionState>;
@@ -98,8 +99,8 @@ function ActiveThreadApprovalProvider({
   );
   const events = history.events;
   const [loading, setLoading] = useState(true);
-  const [discoveryError, setDiscoveryError] = useState<string>();
-  const [repairError, setRepairError] = useState<string>();
+  const [discoveryError, setDiscoveryError] = useState<ThreadApprovalHistoryError>();
+  const [repairError, setRepairError] = useState<ThreadApprovalHistoryError>();
   const [request, setRequest] = useState<{ revision: number; origins?: MatrixEvent[] }>({
     revision: 0,
   });
@@ -136,7 +137,7 @@ function ActiveThreadApprovalProvider({
   const error =
     discoveryError ??
     repairError ??
-    (unreadableHistory ? 'Some approval history could not be decrypted.' : undefined);
+    (unreadableHistory ? 'undecryptable' : undefined);
   const retainedEventsRef = useRef(events);
   useLayoutEffect(() => {
     retainedEventsRef.current = events;
@@ -252,7 +253,7 @@ function ActiveThreadApprovalProvider({
       .catch(() => {
         if (active) {
           fetching.current = false;
-          setRequestError('Approval history could not be loaded.');
+          setRequestError('unloadable');
           setLoading(false);
         }
       });

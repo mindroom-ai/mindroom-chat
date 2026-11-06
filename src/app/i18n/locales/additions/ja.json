@@ -428,6 +428,13 @@
         "title": "このリンクを開きますか？",
         "description": "リンクのテキストには、実際に開くものとは別のアドレスが表示されています。開く先：",
         "open": "リンクを開く"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "このルームの承認履歴は利用できません。",
+          "undecryptable": "承認履歴の一部を復号できませんでした。",
+          "unloadable": "承認履歴の一部を読み込めませんでした。"
+        }
       }
     },
     "message-search": {

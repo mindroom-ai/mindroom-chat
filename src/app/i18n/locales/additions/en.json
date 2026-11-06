@@ -434,6 +434,13 @@
         "title": "Open this link?",
         "description": "The link's text shows a different address from the one it opens. It opens:",
         "open": "Open link"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "This room’s approval history is unavailable.",
+          "undecryptable": "Some approval history could not be decrypted.",
+          "unloadable": "Some approval history could not be loaded."
+        }
       }
     },
     "message-search": {

@@ -428,6 +428,13 @@
         "title": "Buka tautan ini?",
         "description": "Teks tautan menampilkan alamat yang berbeda dari alamat yang dibukanya. Tautan ini membuka:",
         "open": "Buka tautan"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "Riwayat persetujuan ruangan ini tidak tersedia.",
+          "undecryptable": "Sebagian riwayat persetujuan tidak dapat didekripsi.",
+          "unloadable": "Sebagian riwayat persetujuan tidak dapat dimuat."
+        }
       }
     },
     "message-search": {

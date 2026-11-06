@@ -434,6 +434,13 @@
         "title": "Diesen Link öffnen?",
         "description": "Der Text des Links zeigt eine andere Adresse als die, die er öffnet. Er öffnet:",
         "open": "Link öffnen"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "Der Genehmigungsverlauf dieses Raums ist nicht verfügbar.",
+          "undecryptable": "Ein Teil des Genehmigungsverlaufs konnte nicht entschlüsselt werden.",
+          "unloadable": "Ein Teil des Genehmigungsverlaufs konnte nicht geladen werden."
+        }
       }
     },
     "message-search": {

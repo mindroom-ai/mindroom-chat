@@ -428,6 +428,13 @@
         "title": "要開啟此連結嗎？",
         "description": "連結文字顯示的網址與實際開啟的網址不同。它會開啟：",
         "open": "開啟連結"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "此聊天室的批准記錄無法使用。",
+          "undecryptable": "部分批准記錄無法解密。",
+          "unloadable": "部分批准記錄無法載入。"
+        }
       }
     },
     "message-search": {

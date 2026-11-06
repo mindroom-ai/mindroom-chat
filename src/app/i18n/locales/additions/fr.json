@@ -440,6 +440,13 @@
         "title": "Ouvrir ce lien ?",
         "description": "Le texte du lien affiche une autre adresse que celle qu’il ouvre. Il ouvre :",
         "open": "Ouvrir le lien"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "L’historique des approbations de ce salon n’est pas disponible.",
+          "undecryptable": "Une partie de l’historique des approbations n’a pas pu être déchiffrée.",
+          "unloadable": "Une partie de l’historique des approbations n’a pas pu être chargée."
+        }
       }
     },
     "message-search": {

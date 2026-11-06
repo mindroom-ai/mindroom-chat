@@ -253,7 +253,7 @@ it('keeps failed discovery visible after a successful targeted repair until full
     type: 'm.room.encrypted',
     content: { ciphertext: 'late keys' },
   });
-  const discoveryError = 'Some approval history could not be loaded.';
+  const discoveryError = 'unloadable';
   mocks.backfill.mockResolvedValueOnce({
     events: [encrypted],
     repairedEventIds: [],
@@ -728,7 +728,7 @@ it.each(['bundled', 'attached'] as const)(
     await act(async () => current.ingestTimeline([cached]));
     expect(cached.getContent().status).toBe('approved');
     expect(current.records[0].approval.status).toBe('approved');
-    expect(current.error).toContain('could not be decrypted');
+    expect(current.error).toBe('undecryptable');
     const saved = serializeEventsForCache(room, mocks.persist.mock.lastCall![2]);
     expect(JSON.stringify(saved)).not.toContain('pending key');
     const retained = decrypt.mock.calls.find(([item]) => item.getId() === '$encrypted-edit')?.[0];
@@ -800,7 +800,7 @@ it('applies a standalone redaction to a cached ciphertext approval before keys a
   vi.spyOn(mx, 'decryptEventIfNeeded').mockResolvedValue(undefined);
   await mount();
   await act(async () => current.ingestTimeline([cached]));
-  expect(current.error).toContain('could not be decrypted');
+  expect(current.error).toBe('undecryptable');
   await act(async () => current.ingestTimeline([cached, redaction]));
   expect(cached.isRedacted()).toBe(true);
   expect(current.error).toBeUndefined();

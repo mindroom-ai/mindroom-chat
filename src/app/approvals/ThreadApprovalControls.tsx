@@ -365,6 +365,12 @@ export function ApprovalReviewGroup({
   );
 }
 
+const HISTORY_ERROR_KEYS = {
+  unavailable: 'mindroomUi.messages.threadApprovalControls.historyErrors.unavailable',
+  undecryptable: 'mindroomUi.messages.threadApprovalControls.historyErrors.undecryptable',
+  unloadable: 'mindroomUi.messages.threadApprovalControls.historyErrors.unloadable',
+} as const;
+
 export function ThreadApprovalQueue() {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
@@ -435,7 +441,9 @@ export function ThreadApprovalQueue() {
           t('mindroomUi.messages.threadApprovalControls.pausedForApproval', {
             count: pendingCount,
           })
-      : context.error ?? '';
+      : context.error
+      ? t(HISTORY_ERROR_KEYS[context.error])
+      : '';
   if (context.loading && pendingCount > 0) {
     statusText = t('mindroomUi.messages.threadApprovalControls.statusCheckingHistory', {
       status: statusText,

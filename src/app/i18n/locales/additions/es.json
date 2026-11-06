@@ -440,6 +440,13 @@
         "title": "¿Abrir este enlace?",
         "description": "El texto del enlace muestra una dirección distinta de la que abre. Abre:",
         "open": "Abrir enlace"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "El historial de aprobaciones de esta sala no está disponible.",
+          "undecryptable": "No se pudo descifrar parte del historial de aprobaciones.",
+          "unloadable": "No se pudo cargar parte del historial de aprobaciones."
+        }
       }
     },
     "message-search": {

@@ -440,6 +440,13 @@
         "title": "Aprire questo link?",
         "description": "Il testo del link mostra un indirizzo diverso da quello che apre. Apre:",
         "open": "Apri link"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "La cronologia delle approvazioni di questa stanza non è disponibile.",
+          "undecryptable": "Non è stato possibile decifrare parte della cronologia delle approvazioni.",
+          "unloadable": "Non è stato possibile caricare parte della cronologia delle approvazioni."
+        }
       }
     },
     "message-search": {

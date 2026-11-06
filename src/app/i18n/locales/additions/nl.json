@@ -434,6 +434,13 @@
         "title": "Deze link openen?",
         "description": "De tekst van de link toont een ander adres dan het adres dat hij opent. Hij opent:",
         "open": "Link openen"
+      },
+      "threadApprovalControls": {
+        "historyErrors": {
+          "unavailable": "De goedkeuringsgeschiedenis van deze kamer is niet beschikbaar.",
+          "undecryptable": "Een deel van de goedkeuringsgeschiedenis kon niet worden ontsleuteld.",
+          "unloadable": "Een deel van de goedkeuringsgeschiedenis kon niet worden geladen."
+        }
       }
     },
     "message-search": {

@@ -6,6 +6,9 @@ import {
 import { createPreferLiveEventMapper } from '../cache/eventRepository';
 import { BackfillScheduler } from './backfillScheduler';
 
+/** Why approval history is incomplete; the view names it in the app language. */
+export type ThreadApprovalHistoryError = 'unavailable' | 'undecryptable' | 'unloadable';
+
 export const enqueueThreadApprovalBackfill = (
   mx: MatrixClient,
   scheduler: BackfillScheduler,
@@ -13,7 +16,11 @@ export const enqueueThreadApprovalBackfill = (
   threadId: string,
   repairOrigins?: readonly MatrixEvent[],
   retainedEvents: readonly MatrixEvent[] = []
-): Promise<{ events: MatrixEvent[]; repairedEventIds: string[]; error?: string }> =>
+): Promise<{
+  events: MatrixEvent[];
+  repairedEventIds: string[];
+  error?: ThreadApprovalHistoryError;
+}> =>
   scheduler.enqueue({
     roomId,
     threadId,
@@ -25,7 +32,7 @@ export const enqueueThreadApprovalBackfill = (
       let decryptionFailed = false;
       const room = mx.getRoom(roomId);
       if (!room)
-        return { events: collected, repairedEventIds, error: 'Approval room is unavailable.' };
+        return { events: collected, repairedEventIds, error: 'unavailable' };
       const mapEvent = createPreferLiveEventMapper(room, mx.getEventMapper({ decrypt: false }));
       const eventType = room.hasEncryptionStateEvent() ? null : MINDROOM_TOOL_APPROVAL_EVENT;
       const fetchPages = async (target: string, relation: RelationType): Promise<MatrixEvent[]> => {
@@ -95,13 +102,13 @@ export const enqueueThreadApprovalBackfill = (
         return {
           events: collected,
           repairedEventIds,
-          ...(decryptionFailed ? { error: 'Some approval history could not be decrypted.' } : {}),
+          ...(decryptionFailed ? { error: 'undecryptable' as const } : {}),
         };
       } catch {
         return {
           events: collected,
           repairedEventIds,
-          error: 'Some approval history could not be loaded.',
+          error: 'unloadable',
         };
       }
     },
