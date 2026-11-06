@@ -101,7 +101,9 @@ export const useHeldThreadOrder = (
  * before the tap's mousedown, mouseup and click, and that mousedown moves focus off a card: let go
  * there, a new order would swap the cards between the mousedown and the mouseup, and the click
  * would miss what was tapped. A finger holds until its tap's click, or lets go at once after a
- * pointercancel, when it scrolled instead.
+ * pointercancel, when it scrolled instead. A press holds as well: React runs the updates of a
+ * pointer's enter and moves at its continuous priority, and the press's focus change renders at
+ * the discrete one, which can leave them out; the pointerdown is discrete too.
  */
 export const usePointerOverCards = () => {
   const [pointerInside, setPointerInside] = useState(false);
@@ -140,6 +142,7 @@ export const usePointerOverCards = () => {
     pointerInside,
     onPointerEnter,
     onPointerMove: onPointerEnter,
+    onPointerDown: onPointerEnter,
     onPointerLeave,
     onPointerCancel,
   };

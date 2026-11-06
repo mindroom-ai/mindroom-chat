@@ -79,6 +79,12 @@ describe('usePointerOverCards', () => {
     expect(result.current.pointerInside).toBe(false);
   });
 
+  it('holds from a press, which renders before the enter of the same tap may', () => {
+    const { result } = renderHook(() => usePointerOverCards());
+    act(() => result.current.onPointerDown());
+    expect(result.current.pointerInside).toBe(true);
+  });
+
   it('lets a finger go at once when it scrolled instead of tapping', () => {
     const { result } = renderHook(() => usePointerOverCards());
     act(() => result.current.onPointerEnter());
