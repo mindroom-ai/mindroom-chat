@@ -44,6 +44,7 @@ UPSTREAM = """export function heronLimit(colour: string): number {
 """
 COPIED = "".join(UPSTREAM.splitlines(keepends=True)[1:4])
 CLEAN = "export const quietMeadow = 'a line of our own, written for this test';\n"
+OWN_CODE = CLEAN + "".join(f"export const meadowRow{i} = quietMeadow.length * {i} + 'row {i}'.length;\n" for i in range(6))
 ZERO = "0" * 40
 patched_env = mock.patch.dict(os.environ, GIT_ENV)
 
@@ -263,6 +264,14 @@ class PrePushTests(Fixture):
         self.assertEqual(self.push(bad)[0], 1)
         self.assertEqual(self.push(bad)[0], 1)
 
+    def test_the_pushing_repository_s_git_variables_do_not_redirect_the_corpus(self) -> None:
+        # Git exports GIT_DIR to a hook run from a linked worktree; `git -C <corpus>` would then read this repository.
+        tip = commit(self.repo, {"src/app/own.ts": OWN_CODE}, "clean")
+        result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.corpus),
+                     "--pre-push", str(self.remote), input=f"refs/heads/work {tip} refs/heads/work {ZERO}\n",
+                     check=False, env={**os.environ, "TMPDIR": str(self.tmp), "GIT_DIR": str(self.repo / ".git")})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_a_missing_corpus_fails_and_says_why(self) -> None:
         tip = commit(self.repo, {"src/app/own.ts": CLEAN}, "clean")
         result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.tmp / "nowhere"),
@@ -314,6 +323,27 @@ class HookTests(Fixture):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(self.on_remote("wip/fixed-later"))
         self.assertIn(bad, result.stdout + result.stderr)
+
+    def test_a_clean_push_from_a_linked_worktree_passes_and_a_copy_is_still_blocked(self) -> None:
+        # The push the coordinator makes from a carry worktree: several commits, a locale file and a long spec.
+        self.install()
+        worktree = self.tmp / "carry"
+        git(self.repo, "worktree", "add", "-q", "-b", "carry", str(worktree), "work")
+        (worktree / "node_modules").mkdir()
+        locale = "{\n" + "".join(f'  "fixtureKey{i}": "A translated fixture string, number {i}",\n' for i in range(400))
+        spec = "".join(f"test('fixture case {i}', async () => {{\n  await expectFixtureValue({i}, 'value {i}');\n}});\n"
+                       for i in range(150))
+        commit(worktree, {"src/app/i18n/locales/additions/en.json": locale + '  "last": "end"\n}\n'}, "locale strings")
+        commit(worktree, {"e2e/composer/fixture-long.spec.ts": spec}, "a long spec")
+        commit(worktree, {"src/app/i18n/locales/additions/en.json": locale + '  "last": "the end"\n}\n'}, "edit a string")
+        result = run(worktree, "git", "push", str(self.remote), "HEAD:refs/heads/wip/carry", check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("0 findings in 0 files of the 3 commits", result.stdout + result.stderr)
+        self.assertTrue(self.on_remote("wip/carry"))
+        bad = commit(worktree, {"src/app/copy.ts": COPIED}, "copy")
+        result = run(worktree, "git", "push", str(self.remote), "HEAD:refs/heads/wip/carry", check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"{bad}\tsrc/app/copy.ts\t1-3\tline-run", result.stdout + result.stderr)
 
     def test_a_missing_corpus_blocks(self) -> None:
         self.install()
