@@ -125,6 +125,27 @@ describe('useCommandPaletteMessages', () => {
     });
   });
 
+  it('shows a hit by its latest edit as plain text, without Markdown syntax', async () => {
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const response = responseWith('$reply', 'Thinking... walrus');
+    const hit = response.search_categories.room_events.results?.[0];
+    if (!hit) throw new Error('no hit');
+    const body = 'The **walrus** plan: see the [list](https://example.org) and `run it`.';
+    hit.result.unsigned = {
+      'm.relations': {
+        'm.replace': {
+          event_id: '$edit',
+          content: { body: `* ${body}`, 'm.new_content': { msgtype: 'm.text', body } },
+        },
+      },
+    } as unknown as typeof hit.result.unsigned;
+    await act(async () => pending[0]?.resolve(response));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    expect(result.current.items[0]?.snippet).toBe('The walrus plan: see the list and run it.');
+  });
+
   it('reports a failed search as an error', async () => {
     const { result } = renderMessages('walrus');
     await waitFor(() => expect(pending).toHaveLength(1));

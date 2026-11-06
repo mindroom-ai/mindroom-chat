@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import type { Room } from 'matrix-js-sdk';
+import { type IEventWithRoomId, MsgType, type Room } from 'matrix-js-sdk';
+import type { TFunction } from 'i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { getMxIdLocalPart } from '../matrix/matrix';
+import { trimReplyFromBody } from '../matrix/room';
+import { stripPreviewMarkdown } from '../event-store/threads/threadMessagePreview';
 import {
   crossRoomThreadIndexAtom,
   getCrossRoomThreadIndexKey,
@@ -13,6 +16,7 @@ import {
 import { getSearchResultOpenTarget } from '../search/searchResultOpenTarget';
 import {
   getSearchResultBodySnippet,
+  getSearchResultEffectiveContent,
   getSearchResultPreviewText,
 } from '../search/searchResultPreview';
 import { useMessageSearch } from '../search/useMessageSearch';
@@ -25,6 +29,36 @@ export const COMMAND_PALETTE_MESSAGE_SEARCH_DELAY_MS = 250;
 
 // Enough text around the first match to fill one line of a wide palette.
 const SNIPPET_CHARS = 120;
+// The part of a long message around its first match that loses its Markdown syntax.
+const PLAIN_SOURCE_CHARS = 2000;
+const PLAIN_TEXT_TYPES: readonly unknown[] = [MsgType.Text, MsgType.Notice, MsgType.Emote];
+
+/**
+ * A hit's latest text as one line of plain text around the first match: the palette shows no
+ * Markdown, so its syntax goes and its words stay. Other hits keep their labelled preview.
+ */
+const getPlainSnippet = (event: IEventWithRoomId, highlights: string[], t: TFunction) => {
+  const content = getSearchResultEffectiveContent(event);
+  const plain =
+    !event.unsigned?.redacted_because &&
+    typeof content?.body === 'string' &&
+    PLAIN_TEXT_TYPES.includes(content.msgtype)
+      ? stripPreviewMarkdown(
+          getSearchResultBodySnippet(
+            trimReplyFromBody(content.body),
+            highlights,
+            PLAIN_SOURCE_CHARS
+          )
+        )
+          .replace(/\s+/g, ' ')
+          .trim()
+      : '';
+  return getSearchResultBodySnippet(
+    plain || getSearchResultPreviewText(event, highlights, t),
+    highlights,
+    SNIPPET_CHARS
+  );
+};
 
 export type CommandPaletteMessageStatus = 'idle' | 'loading' | 'error' | 'done';
 
@@ -102,11 +136,7 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
           threadName: target.threadRootId
             ? thread?.summaryText || thread?.rootPreviewText || ''
             : undefined,
-          snippet: getSearchResultBodySnippet(
-            getSearchResultPreviewText(event, highlights, t),
-            highlights,
-            SNIPPET_CHARS
-          ),
+          snippet: getPlainSnippet(event, highlights, t),
           highlights,
           timestamp: event.origin_server_ts,
           onSelect: () => {
