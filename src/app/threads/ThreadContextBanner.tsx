@@ -41,6 +41,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine } from '../ui/directional';
+import { getThreadRootTitle, ThreadRootTitle } from './ThreadRootTitle';
 
 const ThreadActionsMenu = lazy(() =>
   import('./ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -259,7 +260,9 @@ export function ThreadContextBanner({
 
   const hasTags = headerModel.displayTags.length > 0;
   const hasScheduled = !!(headerModel.bannerScheduledText && headerModel.scheduledLabel);
-  const hasSubtitle = !!headerModel.summaryText || hasScheduled;
+  // Without an AI summary, the start of the thread's first message is its title.
+  const rootTitle = getThreadRootTitle(room, headerRecord.presentation, t);
+  const hasSubtitle = !!headerModel.summaryText || !!rootTitle || hasScheduled;
   // A pinned thread shows the pin instead of the resolve chip and its byline.
   const showResolver = !isPinned && !!resolvedByDisplayName;
   // The Resolved button is described by the byline, also on short screens,
@@ -395,9 +398,10 @@ export function ThreadContextBanner({
                       {headerModel.summaryText}
                     </Text>
                   )}
+                  {rootTitle && <ThreadRootTitle text={rootTitle} />}
                   {hasScheduled && (
                     <Box as="span" className={css.ScheduledWrap} alignItems="Center" gap="100">
-                      {headerModel.summaryText && (
+                      {(headerModel.summaryText || rootTitle) && (
                         <Text
                           as="span"
                           className={css.MetadataDot}

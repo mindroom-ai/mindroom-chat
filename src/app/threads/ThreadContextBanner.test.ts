@@ -663,6 +663,56 @@ describe('ThreadContextBanner rendering', () => {
     scheduled.unmount();
   });
 
+  it("titles a thread without a summary by its first message's start", () => {
+    const rootEvent = new MatrixEvent({
+      event_id: '$root',
+      type: 'm.room.message',
+      room_id: '!room:example.org',
+      sender: '@bob:example.org',
+      origin_server_ts: 1,
+      content: { msgtype: 'm.text', body: '**Deploy** plan for @alice:example.org: staging first' },
+    });
+    const element = (summaryText?: string) =>
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(ThreadContextBanner, {
+          room: {
+            roomId: '!room:example.org',
+            getThread: () => undefined,
+            findEventById: (eventId: string) => (eventId === '$root' ? rootEvent : undefined),
+            getUnfilteredTimelineSet: () => undefined,
+            getMember: (userId: string) =>
+              userId === '@alice:example.org'
+                ? { rawDisplayName: 'Alice', name: 'Alice' }
+                : undefined,
+            hasEncryptionStateEvent: () => false,
+            on: vi.fn(),
+            removeListener: vi.fn(),
+          } as unknown as Room,
+          threadId: '$root',
+          summaryInfo: summaryText ? { summaryText } : undefined,
+          onExitThread: vi.fn(),
+        })
+      );
+
+    const untitled = create(element());
+    const title = untitled.root.findByProps({ 'data-thread-context-root-title': 'true' });
+    expect(text(title)).toBe('Deploy plan for Alice: staging first');
+    expect(title.props.title).toBe('Deploy plan for Alice: staging first');
+    expect(JSON.stringify(untitled.toJSON())).not.toContain('Thread View');
+    untitled.unmount();
+
+    const summarized = create(element('Staging deploy plan'));
+    expect(summarized.root.findAllByProps({ 'data-thread-context-root-title': 'true' })).toEqual(
+      []
+    );
+    expect(
+      text(summarized.root.findByProps({ 'data-thread-context-summary': 'true' }))
+    ).toBe('Staging deploy plan');
+    summarized.unmount();
+  });
+
   it('offers + tag only next to existing tags', () => {
     const editable = { tags: {}, isResolved: false, canEdit: true, availableTags: ['bug'] };
     bannerMocks.useThreadTags.mockReturnValue({ ...editable, displayTags: [] });
