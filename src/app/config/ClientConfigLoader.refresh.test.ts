@@ -54,9 +54,11 @@ const refreshWith = async (fresh: ClientConfig) => {
   let renderer!: ReturnType<typeof create>;
   await act(async () => {
     renderer = create(
-      React.createElement(ClientConfigLoader, {}, (config) => {
-        rendered.push(config);
-        return React.createElement(RouterProvider, { router });
+      React.createElement(ClientConfigLoader, {
+        children: (config: ClientConfig) => {
+          rendered.push(config);
+          return React.createElement(RouterProvider, { router });
+        },
       })
     );
   });
