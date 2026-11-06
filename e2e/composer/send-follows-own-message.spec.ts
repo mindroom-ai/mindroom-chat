@@ -1,0 +1,348 @@
+import { expect, test, type BrowserContextOptions, type Page } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import {
+  joinRoom,
+  loginToMatrix,
+  matrixFetch,
+  registerAgentAccount,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
+import { launchWebKit } from '../helpers/webkit';
+
+// A reader who scrolled away from the newest messages and sends one sees it land: the view
+// follows to it, and once the server has it, the room is read up to it, the messages that came
+// while the reader was away included (no New Messages line above their own). Checked in a room
+// between two people (the Threads view, newest at the bottom) after a colleague wrote twice
+// meanwhile, in an open thread with 60 replies, and in a room with an agent (the Threads view
+// sorted Last Reply, newest first, so newest at the top), among 25 rooms, with classic
+// scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set SEND_FOLLOWS_SHOTS to a
+// directory to save each landing.
+const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
+const PASSWORD = 'send-follows-own-message-password';
+const RUN = Date.now().toString(36);
+const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+const SHOTS = process.env.SEND_FOLLOWS_SHOTS;
+
+const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+const PHONE: BrowserContextOptions = {
+  viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+const PEOPLE_ROOM = 'Backlog review';
+const AGENT_ROOM = 'Release coordination';
+const OTHER_ROOMS = [
+  'Design reviews',
+  'Infrastructure',
+  'Customer feedback',
+  'Hiring',
+  'Weekly sync',
+  'Docs and guides',
+  'Billing questions',
+  'Mobile app',
+  'Security reviews',
+  'Data pipeline',
+  'Marketing site',
+  'Support escalations',
+  'Partner integrations',
+  'Office logistics',
+  'Research notes',
+  'Accessibility',
+  'Performance budget',
+  'Localization',
+  'Incident reviews',
+  'Onboarding',
+  'Roadmap',
+  'Quality assurance',
+  'Analytics',
+];
+
+test.use({
+  launchOptions: {
+    // The other launch options repeat playwright.config.ts.
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
+});
+
+const homeserverIsUp = async (): Promise<boolean> => {
+  try {
+    const response = await fetch(`${HOMESERVER}/_matrix/client/versions`, {
+      signal: AbortSignal.timeout(2_000),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+};
+
+const registerAndLogin = async (name: string): Promise<MatrixSession & { username: string }> => {
+  const username = `sfo_${name}_${RUN}`;
+  const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username,
+      password: PASSWORD,
+      auth: { type: 'm.login.dummy' },
+      inhibit_login: true,
+    }),
+  });
+  expect(response.ok, `registering ${username}`).toBe(true);
+  return { ...(await loginToMatrix(HOMESERVER, username, PASSWORD)), username };
+};
+
+const note = (index: number) =>
+  `Backlog item ${index}: the import job retried twice overnight, the dashboard shows the gap, and the owner will look at it after standup.`;
+
+type Seeded = {
+  reader: MatrixSession & { username: string };
+  colleague: MatrixSession;
+  peopleRoomId: string;
+  agentRoomId: string;
+  threadRootId: string;
+};
+
+const send = (session: MatrixSession, roomId: string, content: Record<string, unknown>) =>
+  sendRoomMessage(HOMESERVER, session.accessToken, roomId, content);
+
+const seed = async (label: string): Promise<Seeded> => {
+  const reader = await registerAndLogin(`reader_${label}`);
+  const colleague = await registerAndLogin(`colleague_${label}`);
+  const agent = await registerAgentAccount(HOMESERVER, `helper_${label}`);
+  for (const name of OTHER_ROOMS) {
+    // eslint-disable-next-line no-await-in-loop
+    await createRoom(HOMESERVER, reader.accessToken, { name });
+  }
+  const peopleRoomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: PEOPLE_ROOM,
+    invite: [colleague.userId],
+  });
+  await joinRoom(HOMESERVER, colleague.accessToken, peopleRoomId);
+  let threadRootId = '';
+  for (let index = 1; index <= 120; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const eventId = await send(index % 2 ? colleague : reader, peopleRoomId, {
+      msgtype: 'm.text',
+      body: note(index),
+    });
+    if (index === 100) threadRootId = eventId;
+  }
+  for (let index = 1; index <= 60; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await send(index % 2 ? colleague : reader, peopleRoomId, {
+      msgtype: 'm.text',
+      body: `Thread note ${index}: checked the retry log for the import job, nothing new since the last run.`,
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: threadRootId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: threadRootId },
+      },
+    });
+  }
+  const agentRoomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: AGENT_ROOM,
+    invite: [colleague.userId, agent.userId],
+  });
+  await joinRoom(HOMESERVER, colleague.accessToken, agentRoomId);
+  await joinRoom(HOMESERVER, agent.accessToken, agentRoomId);
+  for (let index = 1; index <= 60; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await send(index % 3 ? colleague : agent, agentRoomId, {
+      msgtype: 'm.text',
+      body: `Release step ${index}: the checklist item is done and the notes are in the tracker.`,
+    });
+  }
+  return { reader, colleague, peopleRoomId, agentRoomId, threadRootId };
+};
+
+/** Whether a row with this text shows to the reader, not covered by the header or composer. */
+const rowShown = (page: Page, text: string) =>
+  page.evaluate((needle) => {
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-message-id]')].filter((row) =>
+      row.textContent?.includes(needle)
+    );
+    return rows.some((row) => {
+      const rect = row.getBoundingClientRect();
+      const x = rect.left + Math.min(rect.width / 2, 160);
+      return [rect.top + 8, rect.top + rect.height / 2, rect.bottom - 8].some((y) => {
+        if (y < 0 || y > window.innerHeight) return false;
+        const hit = document.elementFromPoint(x, y);
+        return !!hit && row.contains(hit);
+      });
+    });
+  }, text);
+
+/** Scrolls the open timeline away from where it is, as a reader's wheel does. */
+const scrollAway = async (page: Page, deltaY: number) => {
+  const box = await page.locator('[data-room-footer="true"]').boundingBox();
+  const x = (box?.x ?? 200) + (box?.width ?? 200) / 2;
+  await page.mouse.move(x, 300);
+  for (let step = 0; step < 5; step += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await page.mouse.wheel(0, deltaY / 5);
+    // eslint-disable-next-line no-await-in-loop
+    await page.waitForTimeout(120);
+  }
+  await page.waitForTimeout(800);
+};
+
+const typeAndSend = async (page: Page, text: string, phone: boolean) => {
+  await page.locator('[data-room-footer="true"] [contenteditable="true"]').click();
+  await page.keyboard.type(text);
+  // A phone's Enter starts a new line; its send button sends.
+  if (phone) await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  else await page.keyboard.press('Enter');
+};
+
+const expectLanded = async (page: Page, text: string, where: string) => {
+  await expect
+    .poll(() => rowShown(page, text), { message: `"${text}" shows ${where}`, timeout: 10_000 })
+    .toBe(true);
+  await page.waitForTimeout(1_000);
+  expect(await rowShown(page, text), `"${text}" stays shown ${where}`).toBe(true);
+};
+
+/** The reader's main-timeline receipt in a room, as the server reports it. */
+const readerReceipt = async (seeded: Seeded, roomId: string) => {
+  const sync = await matrixFetch<{
+    rooms?: {
+      join?: Record<string, { ephemeral?: { events?: Array<{ type: string; content: unknown }> } }>;
+    };
+  }>(HOMESERVER, '/sync?timeout=0', { accessToken: seeded.reader.accessToken });
+  const events = sync.rooms?.join?.[roomId]?.ephemeral?.events ?? [];
+  for (const event of events) {
+    if (event.type !== 'm.receipt') continue;
+    const content = event.content as Record<
+      string,
+      Record<string, Record<string, { thread_id?: string }>>
+    >;
+    for (const [eventId, byType] of Object.entries(content)) {
+      const receipt = byType['m.read']?.[seeded.reader.userId];
+      if (receipt && (receipt.thread_id ?? 'main') === 'main') return eventId;
+    }
+  }
+  return undefined;
+};
+
+const latestEventId = async (seeded: Seeded, roomId: string, body: string) => {
+  const page = await matrixFetch<{
+    chunk: Array<{ event_id: string; content?: { body?: string } }>;
+  }>(HOMESERVER, `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=10`, {
+    accessToken: seeded.reader.accessToken,
+  });
+  return page.chunk.find((event) => event.content?.body === body)?.event_id;
+};
+
+const shot = async (page: Page, name: string) => {
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
+};
+
+const openRoom = async (page: Page, name: string, phone: boolean) => {
+  if (phone) await page.goto('/home/');
+  await page.getByRole('link', { name }).first().click();
+};
+
+const checkSends = async (page: Page, seeded: Seeded, label: string, phone: boolean) => {
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: seeded.reader.username,
+    password: PASSWORD,
+  });
+  await page.goto('/home/');
+
+  // A room between two people: scrolled up, a colleague writes twice, the reader sends.
+  await openRoom(page, PEOPLE_ROOM, phone);
+  await expect(page.getByText('Backlog item 120:').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1_500);
+  await scrollAway(page, -1_600);
+  expect(await rowShown(page, 'Backlog item 120:'), 'the reader scrolled away').toBe(false);
+  await send(seeded.colleague, seeded.peopleRoomId, { msgtype: 'm.text', body: note(121) });
+  await send(seeded.colleague, seeded.peopleRoomId, { msgtype: 'm.text', body: note(122) });
+  await page.waitForTimeout(1_000);
+  const roomText = `Own note ${RUN} ${label}: I will rerun the import after lunch.`;
+  await typeAndSend(page, roomText, phone);
+  await expectLanded(page, roomText, `in the room (${label})`);
+  await expect(page.getByText('New Messages')).toHaveCount(0);
+  await shot(page, `${label}-room`);
+  const ownId = await latestEventId(seeded, seeded.peopleRoomId, roomText);
+  expect(ownId, 'the server has the message').toBeTruthy();
+  await expect
+    .poll(() => readerReceipt(seeded, seeded.peopleRoomId), {
+      message: `the room is read up to the reader's message (${label})`,
+      timeout: 10_000,
+    })
+    .toBe(ownId);
+
+  // An open thread with 60 replies: scrolled up, the reader replies.
+  await page.goto(
+    `/home/${encodeURIComponent(seeded.peopleRoomId)}?threadId=${encodeURIComponent(
+      seeded.threadRootId
+    )}`
+  );
+  await expect(page.getByText('Thread note 60:').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1_500);
+  await scrollAway(page, -1_600);
+  expect(await rowShown(page, 'Thread note 60:'), 'the reader scrolled up the thread').toBe(false);
+  const replyText = `Own reply ${RUN} ${label}: thanks, I will close it if tonight's run is clean.`;
+  await typeAndSend(page, replyText, phone);
+  await expectLanded(page, replyText, `in the thread (${label})`);
+  await shot(page, `${label}-thread`);
+
+  // A room with an agent, newest first: scrolled down, the reader sends.
+  await openRoom(page, AGENT_ROOM, phone);
+  const switchToThreads = page.locator('[data-room-view-switch]');
+  await expect(switchToThreads).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
+  await switchToThreads.click();
+  await expect(page.getByText('Release step 60:').first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1_500);
+  await scrollAway(page, 1_600);
+  expect(await rowShown(page, 'Release step 60:'), 'the reader scrolled down').toBe(false);
+  const agentRoomText = `Own step ${RUN} ${label}: the release notes are ready for review.`;
+  await typeAndSend(page, agentRoomText, phone);
+  await expectLanded(page, agentRoomText, `in the newest-first Threads view (${label})`);
+  await shot(page, `${label}-newest-first`);
+};
+
+test.beforeEach(async () => {
+  test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+});
+
+for (const [form, options] of [
+  ['desktop', DESKTOP],
+  ['phone', PHONE],
+] as const) {
+  test.describe(form, () => {
+    test.use(options);
+
+    test(`a message sent while scrolled away lands in view and reads the room (Chromium, ${form})`, async ({
+      page,
+    }) => {
+      test.setTimeout(300_000);
+      const seeded = await seed(`c${form[0]}`);
+      await checkSends(page, seeded, `chromium-${form}`, form === 'phone');
+    });
+
+    test(`a message sent while scrolled away lands in view and reads the room (WebKit, ${form})`, async ({
+      baseURL,
+    }) => {
+      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.setTimeout(300_000);
+      const seeded = await seed(`w${form[0]}`);
+      // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
+      const browser = await launchWebKit();
+      try {
+        const context = await browser.newContext({ ...options, baseURL });
+        const page = await context.newPage();
+        await checkSends(page, seeded, `webkit-${form}`, form === 'phone');
+      } finally {
+        await browser.close();
+      }
+    });
+  });
+}
