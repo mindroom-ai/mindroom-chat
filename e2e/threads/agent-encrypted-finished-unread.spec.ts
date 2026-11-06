@@ -114,13 +114,14 @@ const describeRoom = async (stack: AgentStack, roomId: string): Promise<string> 
 };
 
 /**
- * Reads the router's welcome thread in a new room with an unthreaded receipt, so the counts
- * below are the reply's alone. A session that cannot decrypt the welcome counts it otherwise:
- * the server takes the reader's own message after it as reading it, the SDK does not.
+ * Reads the router's welcome thread in a new room, its root with a main-timeline receipt and its
+ * reply with a receipt in its thread, so the counts below are the reply's alone. A session that
+ * cannot decrypt the welcome counts it otherwise: the server takes the reader's own message after
+ * it as reading it, the SDK does not.
  */
 const readRouterWelcome = async (stack: AgentStack, roomId: string): Promise<void> => {
-  type Raw = { event_id: string; sender: string };
-  let latest: string | undefined;
+  type Raw = { event_id: string; sender: string; content: { 'm.relates_to'?: unknown } };
+  let welcome: Raw[] = [];
   await expect
     .poll(
       async () => {
@@ -129,18 +130,32 @@ const readRouterWelcome = async (stack: AgentStack, roomId: string): Promise<voi
           `/rooms/${encodeURIComponent(roomId)}/messages?dir=b&limit=20`,
           { accessToken: stack.tester.accessToken }
         );
-        const fromRouter = chunk.filter((event) => event.sender === stack.agents.router);
-        latest = fromRouter[0]?.event_id;
-        return fromRouter.length;
+        welcome = chunk.filter(
+          (event) => event.sender === stack.agents.router && event.content['m.relates_to'] !== undefined
+        );
+        const root = chunk.find(
+          (event) => event.sender === stack.agents.router && !event.content['m.relates_to']
+        );
+        if (root) welcome = [root, ...welcome];
+        return welcome.length;
       },
       { timeout: 30_000, intervals: [500, 1000], message: "the router's welcome thread" }
     )
     .toBeGreaterThanOrEqual(2);
-  await matrixFetch(
-    stack.homeserver,
-    `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(latest ?? '')}`,
-    { method: 'POST', accessToken: stack.tester.accessToken, body: JSON.stringify({}) }
-  );
+  const [root, ...replies] = welcome;
+  if (!root) throw new Error("The router's welcome has no root");
+  const receipt = (eventId: string, threadId: string) =>
+    matrixFetch(
+      stack.homeserver,
+      `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(eventId)}`,
+      {
+        method: 'POST',
+        accessToken: stack.tester.accessToken,
+        body: JSON.stringify({ thread_id: threadId }),
+      }
+    );
+  await receipt(root.event_id, 'main');
+  if (replies[0]) await receipt(replies[0].event_id, root.event_id);
 };
 
 const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[]) => {
