@@ -22,7 +22,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // screen, nothing when the view moves to the New Messages line and leaves them below it. The line
 // moves above the first message that arrived while the reader was away. And the open room's own
 // sidebar badge equals the server's count for it, as every other row's does, also when the room
-// holds a thread the reader once wrote in. No step sends a message as the reader after the room
+// holds a thread the reader once wrote in, and a reload shows it in every frame. No step sends a message as the reader after the room
 // has unread messages: the server currently resets the sender's counts for the whole room on any
 // send. Each case runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit. Runs against the disposable homeserver of `just hs-up` or of a slot of
@@ -437,6 +437,69 @@ const openRoomBadge = async (page: Page, browserName: string) => {
   expect(after.badge, 'badge after leaving the room').toBe(after.server);
 };
 
+/**
+ * A reload keeps a room's badge while the client starts: the room has two unread messages after
+ * the reader's own receipt, and its row shows 2 in every frame it is on screen.
+ */
+const badgeThroughReload = async (page: Page, browserName: string) => {
+  const reader = await registerAndLogin(`${browserName}_reload_reader`);
+  const writer = await registerAndLogin(`${browserName}_reload_writer`);
+  const roomName = `Tide Table ${browserName} ${RUN}`;
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: roomName,
+    invite: [writer.userId],
+  });
+  await joinRoom(HOMESERVER, writer.accessToken, roomId);
+  let lastRead = '';
+  for (let index = 1; index <= 6; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const eventId = await sendRoomMessage(
+      HOMESERVER,
+      writer.accessToken,
+      roomId,
+      message(`Tide reading ${index}`)
+    );
+    if (index === 4) lastRead = eventId;
+  }
+  await matrixFetch(
+    HOMESERVER,
+    `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(lastRead)}`,
+    { method: 'POST', accessToken: reader.accessToken, body: JSON.stringify({}) }
+  );
+
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: reader.username,
+    password: PASSWORD,
+  });
+  await parkPointer(page);
+  await expect.poll(() => sidebarCount(page, roomName), { timeout: 60_000 }).toBe(2);
+  await syncRoundTrips(page);
+
+  // Every frame after the reload records what the room's row shows, from when it first shows.
+  await page.addInitScript((name: string) => {
+    const samples: string[] = [];
+    (window as unknown as { badgeSamples: string[] }).badgeSamples = samples;
+    const sample = () => {
+      const row = Array.from(document.querySelectorAll('a')).find((link) =>
+        link.textContent?.includes(name)
+      );
+      if (row) samples.push((row.textContent ?? '').replace(name, '').replace(/\D/g, ''));
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }, roomName);
+  await page.reload();
+  await expect.poll(() => sidebarCount(page, roomName), { timeout: 60_000 }).toBe(2);
+  const settled = await badgeAndServer(page, reader, roomId, roomName);
+  const samples = await page.evaluate(
+    () => (window as unknown as { badgeSamples: string[] }).badgeSamples
+  );
+  expect(samples.length, 'frames with the row').toBeGreaterThan(0);
+  expect([...new Set(samples)], 'what the row showed after the reload').toEqual(['2']);
+  expect(settled).toEqual({ badge: 2, server: 2 });
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -467,4 +530,12 @@ test('the open room’s badge equals the server’s count (Chromium)', async ({ 
 
 test('the open room’s badge equals the server’s count (WebKit)', async () => {
   await inWebKit((page) => openRoomBadge(page, 'webkit'));
+});
+
+test('a reload keeps the room’s badge while the client starts (Chromium)', async ({ page }) => {
+  await badgeThroughReload(page, 'chromium');
+});
+
+test('a reload keeps the room’s badge while the client starts (WebKit)', async () => {
+  await inWebKit((page) => badgeThroughReload(page, 'webkit'));
 });
