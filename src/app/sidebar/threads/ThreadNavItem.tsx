@@ -16,6 +16,7 @@ import { usePinnedEventIds as useRoomPinnedEvents } from '../../event-store/thre
 import type { CrossRoomThreadIndexEntry } from '../../threads/cross-room/crossRoomThreadIndex';
 import { buildCompactThreadCardViewModelFromRecord } from '../../threads/overview/compactThreadCardViewModel';
 import { useInitializeShownThread } from '../../threads/useInitializeShownThread';
+import { ThreadStreamingDot } from '../../threads/ThreadStreamingDot';
 import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useToggleThreadResolution } from '../../threads/tags/useRoomThreadTags';
 import * as css from './threadNav.css';
@@ -79,6 +80,7 @@ export const ThreadNavItem = memo(
         entry={entry}
         room={room}
         title={viewModel?.displayTitleText ?? entry.summaryText}
+        streaming={entry.threadRecord.status.isStreaming}
         agentNames={
           viewModel?.participants
             .filter((participant) => participant.userId !== mx.getUserId())
@@ -114,6 +116,8 @@ type RowProps = {
   entry: CrossRoomThreadIndexEntry;
   room: Room;
   title: string;
+  /** An agent streams a reply in the thread, which its Compact card shows too. */
+  streaming: boolean;
   agentNames: string[];
   messageCountLabel?: string;
   activityTitle?: string;
@@ -132,6 +136,7 @@ function ThreadNavItemRow({
   entry,
   room,
   title,
+  streaming,
   agentNames,
   messageCountLabel,
   activityTitle,
@@ -217,6 +222,7 @@ function ThreadNavItemRow({
             onClick={onOpen}
             aria-label={[
               t('thread.aria.openThread', { title }),
+              streaming && t('thread.aria.agentStreaming'),
               entry.roomName,
               relativeTime && `${t('threadNav.lastActivity')} ${relativeTime}`,
             ]
@@ -239,6 +245,7 @@ function ThreadNavItemRow({
                 >
                   {title}
                 </Text>
+                {streaming && <ThreadStreamingDot aria-hidden="true" />}
                 {entry.isUnread && <span className={css.EntryUnreadDot} aria-hidden="true" />}
               </Box>
             </NavItemContent>
