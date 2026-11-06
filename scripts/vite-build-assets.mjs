@@ -43,9 +43,7 @@ export const mindroomBuildAssets = (env = process.env) => {
     name: 'mindroom-build-assets',
     config: () => ({
       define: {
-        // Without a version (no Git, no provider variables) src/app/config/appVersion.ts reports
-        // `development-build`.
-        ...(buildVersion ? { __MINDROOM_BUILD_VERSION__: JSON.stringify(buildVersion) } : {}),
+        __MINDROOM_BUILD_VERSION__: JSON.stringify(buildVersion),
         __MINDROOM_RELEASE_VERSION__: JSON.stringify(releaseVersion),
       },
     }),
@@ -57,7 +55,7 @@ export const mindroomBuildAssets = (env = process.env) => {
       this.emitFile({
         type: 'asset',
         fileName: 'version.json',
-        source: `${JSON.stringify({ version: buildVersion ?? null, release: releaseVersion })}\n`,
+        source: `${JSON.stringify({ version: buildVersion, release: releaseVersion })}\n`,
       });
     },
     configureServer(server) {

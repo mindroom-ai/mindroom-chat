@@ -1,7 +1,8 @@
 // @ts-check
 // Build and release identifiers for the bundle, read from deployment environments and Git.
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RELEASE_TAG_GLOB } from './calver.mjs';
@@ -83,18 +84,59 @@ export const readReleaseVersion = (env, cwd = process.cwd()) => {
   return resolveReleaseVersion(env, readPackageVersion(cwd), described);
 };
 
+/** What a build is made from; package-lock.json stands for node_modules. */
+const SOURCE_PATHS = [
+  'index.html',
+  'package.json',
+  'package-lock.json',
+  'vite.config.js',
+  'patches',
+  'public',
+  'scripts',
+  'src',
+];
+
 /**
+ * `source-` and a digest of the files a build is made from: the same files give the same version,
+ * any change another.
+ * @param {string} cwd
+ * @returns {string}
+ */
+export const readSourceVersion = (cwd) => {
+  const hash = createHash('sha256');
+  /** @param {string} relative */
+  const add = (relative) => {
+    const full = path.join(cwd, relative);
+    const stats = statSync(full, { throwIfNoEntry: false });
+    if (stats?.isDirectory()) {
+      readdirSync(full)
+        .sort()
+        .forEach((name) => add(path.posix.join(relative, name)));
+    } else if (stats?.isFile()) {
+      hash.update(`${relative}\0`).update(readFileSync(full)).update('\0');
+    }
+  };
+  SOURCE_PATHS.forEach(add);
+  return `source-${hash.digest('hex').slice(0, 16)}`;
+};
+
+/**
+ * The build version (resolveBuildVersion). A checkout without Git or provider variables (an
+ * archive, a container build that leaves `.git` out) is named after its sources, so its pages
+ * still tell a deployment from their own build (src/app/config/appUpdate.ts).
  * @param {Record<string, string | undefined>} env
  * @param {string | undefined} [cwd]
+ * @returns {string}
  */
-export const readBuildVersion = (env, cwd) => resolveBuildVersion(env, readGitCommit(cwd));
+export const readBuildVersion = (env, cwd) =>
+  resolveBuildVersion(env, readGitCommit(cwd)) ?? readSourceVersion(cwd ?? process.cwd());
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
   const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
   process.stdout.write(
     `${JSON.stringify({
-      version: readBuildVersion(process.env, root) ?? null,
+      version: readBuildVersion(process.env, root),
       release: readReleaseVersion(process.env, root),
     })}\n`
   );
