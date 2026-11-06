@@ -1,8 +1,7 @@
-import { createVar, fallbackVar, style } from '@vanilla-extract/css';
+import { createVar, fallbackVar, globalStyle, style } from '@vanilla-extract/css';
 import { DefaultReset, config, toRem } from 'folds';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
-import { globalTouchTarget, touchTarget } from '../ui/styles/touchTarget';
-import { Line as ActivityLine } from '../ui/ThreadActivity.css';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 /** The message row; its options bar is positioned against it. */
 export const MessageBase = style({
@@ -11,15 +10,18 @@ export const MessageBase = style({
 });
 
 /**
- * The line with the sender's name, the reply details and the time. To a finger its buttons are
- * 44 px, over the message text that follows; where an agent's activity line stands 4 px below,
- * they reach only 2 px down, and the line's own area stays under them.
+ * The sender and reply-details buttons reserve their touch area in the row. An invisible layer
+ * outside this line would cover links in the first body line or the following activity button.
  */
 export const SenderLine = style({});
-globalTouchTarget(`${SenderLine} button`, '22px', { raise: true });
-globalTouchTarget(`${SenderLine}:has(~ * ${ActivityLine}) button`, '22px', {
-  blockReach: '2px',
-  raise: true,
+globalStyle(`${SenderLine} button`, {
+  '@media': {
+    '(pointer: coarse)': {
+      minBlockSize: 44,
+      minInlineSize: 44,
+      alignItems: 'center',
+    },
+  },
 });
 
 /**

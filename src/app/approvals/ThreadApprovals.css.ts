@@ -2,7 +2,7 @@ import { style, globalStyle, keyframes } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import * as disclosure from '../ui/styles/MessageDisclosure.css';
-import { globalTouchTarget, touchTarget } from '../ui/styles/touchTarget';
+import { globalTouchTarget } from '../ui/styles/touchTarget';
 
 export const Bar = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
@@ -270,9 +270,9 @@ globalStyle(`${Segmented} > :last-child`, {
   borderEndEndRadius: '7px',
 });
 export const Segment = style([
-  // Segments touch, so a finger's area only reaches up and down, to 44 px, over the text below.
-  touchTarget('0px', '', { raise: true }),
   {
+  // Keep the touch area inside the segment, even when duration groups wrap onto adjacent rows.
+  '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
   border: 0,
   padding: '5px 11px',
   backgroundColor: color.Surface.Container,

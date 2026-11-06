@@ -1,6 +1,5 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
-import { touchTarget } from './styles/touchTarget';
 
 export const Activity = style([
   DefaultReset,
@@ -15,8 +14,6 @@ export const Activity = style([
 // same geometry. The chevron follows the text.
 export const Line = style([
   DefaultReset,
-  // 28 px tall; to a finger 44 px.
-  touchTarget('22px', '', { blockReach: '8px' }),
   {
     display: 'flex',
     alignItems: 'center',
@@ -40,6 +37,8 @@ export const Line = style([
     },
     // A touch screen keeps :hover on the line tapped last; only a pointer that can hover tints it.
     '@media': {
+      // Reserve the area between sender and body instead of extending into either neighbor.
+      '(pointer: coarse)': { minBlockSize: 44 },
       '(hover: hover)': {
         selectors: { '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover } },
       },

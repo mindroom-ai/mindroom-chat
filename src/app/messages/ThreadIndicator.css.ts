@@ -1,17 +1,14 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { touchTarget } from '../ui/styles/touchTarget';
 
 /** Items in a row, centered on the text line. */
 const inlineRow = { display: 'inline-flex', alignItems: 'center' } as const;
 
 /**
  * The "N replies" chip under a message that starts a thread, and the composer's thread label.
- * To a finger the chip is 44 px tall; its layer lies over the row that follows, which is
- * positioned and would otherwise take the lower part of it.
+ * Interactive chips reserve 44 px on touch screens, clear of reactions and the following row.
  */
 export const ThreadIndicator = style([
-  touchTarget('22px', '', { raise: true }),
   {
     ...inlineRow,
     alignSelf: 'flex-start',
@@ -36,6 +33,13 @@ export const ThreadIndicator = style([
       },
       'button&:active': {
         background: color.SurfaceVariant.ContainerActive,
+      },
+    },
+    '@media': {
+      '(pointer: coarse)': {
+        selectors: {
+          'button&': { minBlockSize: 44, minInlineSize: 44, boxSizing: 'border-box' },
+        },
       },
     },
   },
