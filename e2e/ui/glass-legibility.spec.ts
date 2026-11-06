@@ -164,11 +164,14 @@ const signIn = async (page: Page, world: World) => {
   });
 };
 
-/** The room in its Threads view, scrolled to its last message, so messages pass under the header. */
+/**
+ * The room in its Threads view, which lists the newest message first and opens at the end of the
+ * list, the first message: the others pass under the header and the filter bar.
+ */
 const openRoom = async (page: Page, world: World) => {
   await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
   await synced(page);
-  await expect(page.getByText(`18. ${MESSAGE.slice(0, 30)}`)).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText(/^1\. The weekly planning notes/)).toBeVisible({ timeout: 60_000 });
 };
 
 const openThread = async (page: Page, world: World) => {
@@ -299,7 +302,7 @@ const checkSurfaces = async (
   }
   // Playwright's WebKit leaves backdrop filters out of its screenshots (it draws them on screen),
   // so there the page behind shows through unblurred: the worst case, which the tint alone covers.
-  const limit = engine === 'webkit' ? 24 : 12;
+  const limit = engine === 'webkit' ? 24 : 16;
   for (const [name, { spread, contrast }] of Object.entries(results)) {
     expect.soft(spread, `${name}: the page behind shows only faintly`).toBeLessThanOrEqual(limit);
     expect

@@ -181,6 +181,21 @@ export async function expectFloatingNavHeader(
         highlight: css.backgroundImage,
         filter: css.backdropFilter,
         alpha: Number(css.backgroundColor.split('/')[1]?.replace(')', '').trim()),
+        // The fill's color, and that of the nearest panel around it, as 0 to 255 channels.
+        ...(() => {
+          const channels = (fill: string) => {
+            const numbers = (fill.match(/[\d.]+/g) ?? []).map(Number).slice(0, 3);
+            const scale = fill.startsWith('color(') ? 255 : 1;
+            return numbers.map((value) => Math.round(value * scale));
+          };
+          let panel = element.parentElement;
+          while (panel && /^rgba\(0, 0, 0, 0\)$|^transparent$/.test(getComputedStyle(panel).backgroundColor))
+            panel = panel.parentElement;
+          return {
+            color: channels(css.backgroundColor),
+            panelColor: panel ? channels(getComputedStyle(panel).backgroundColor) : [],
+          };
+        })(),
       };
     });
   await expect.poll(async () => (await geometry()).offset).toBeCloseTo(0, 0);
@@ -191,8 +206,10 @@ export async function expectFloatingNavHeader(
   expect(material.highlight).toBe('none');
   expect(material.filter).toContain('blur(');
   expect(material.filter).not.toContain('url(');
-  if (inheritsPanelTint) expect(material.alpha).toBe(0);
-  else expect(material.alpha).toBeGreaterThan(0);
+  // Content scrolls beneath the title, so its tint is dense (94%, 90% in dark themes); a title
+  // inside a panel takes the panel's own color, so it shows as no band across it.
+  expect(material.alpha).toBeGreaterThanOrEqual(0.9);
+  if (inheritsPanelTint) expect(material.color).toEqual(material.panelColor);
   expect(material.alpha).toBeLessThan(1);
   const scrollbar = scroll.getByRole('scrollbar', { includeHidden: true });
   await expect(scrollbar).toHaveCount(1);
