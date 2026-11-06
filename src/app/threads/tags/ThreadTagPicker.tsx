@@ -1,4 +1,4 @@
-import React, { useMemo, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import React, { useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
 import { Box, Text, config, type RectCords } from 'folds';
@@ -38,6 +38,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState<RectCords>();
   const [query, setQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const close = () => {
     setAnchor(undefined);
@@ -93,7 +94,10 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
         content={
           <FocusTrap
             focusTrapOptions={{
-              initialFocus: false,
+              // The trap focuses the field once it is active. Focusing it on mount instead
+              // loses the focus inside a dialog, whose own trap is still active then and pulls
+              // the focus back into the dialog.
+              initialFocus: () => inputRef.current ?? false,
               returnFocusOnDeactivate: false,
               clickOutsideDeactivates: () => {
                 close();
@@ -108,9 +112,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
             <Menu role="none" style={{ minWidth: '12rem', maxWidth: '16rem' }}>
               <div className={css.TagPickerInputContainer}>
                 <input
-                  // The popover opens from a click; focus the field so typing works at once.
-                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                  autoFocus
+                  ref={inputRef}
                   className={css.TagPickerInput}
                   aria-label={t('mindroomUi.threads.threadTagPicker.filterOrCreateTag')}
                   placeholder={t('mindroomUi.threads.threadTagPicker.filterNew')}
