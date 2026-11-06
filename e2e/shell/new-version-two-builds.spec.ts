@@ -161,6 +161,7 @@ const onWebKitPhone = async (origin: string, check: (page: Page) => Promise<void
       baseURL: origin,
       viewport: { width: 390, height: 844 },
       hasTouch: true,
+      serviceWorkers: 'allow',
     });
     await check(await context.newPage());
   } finally {

@@ -135,8 +135,9 @@ test('Clear Cache & Reload starts the account again every time (WebKit)', async 
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(420_000);
   await withStaticBuild((origin) =>
-    onWebKitPage({ viewport: { width: 1280, height: 800 }, baseURL: origin }, (page) =>
-      clearCacheAgainAndAgain(page.context(), 'webkit')
+    onWebKitPage(
+      { viewport: { width: 1280, height: 800 }, baseURL: origin, serviceWorkers: 'allow' },
+      (page) => clearCacheAgainAndAgain(page.context(), 'webkit')
     )
   );
 });
