@@ -34,7 +34,7 @@ type ThreadNavCategoryProps = {
 /**
  * The sidebar's THREADS category: unresolved threads across rooms by latest activity, the
  * user's pinned ones first. Direct messages and archived rooms are left out. It collapses like
- * the ROOMS category.
+ * the ROOMS category, but starts collapsed until the person opens it (`ClientInitStorageAtom`).
  */
 export function ThreadNavCategory({ spaceId }: ThreadNavCategoryProps) {
   const { t } = useTranslation();
