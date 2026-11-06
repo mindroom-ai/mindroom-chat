@@ -140,6 +140,8 @@ type ComposerIconButtonProps = {
   directional?: boolean;
   /** The send button answers its send's promise, which the composer tests await. */
   onPress: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<unknown>;
+  /** No other control beside it, so its touch hit area takes the full 44 px width. */
+  alone?: boolean;
 };
 
 /** An icon-only composer button, named by its tooltip and its aria-label alike. */
@@ -150,6 +152,7 @@ function ComposerIconButton({
   variant = 'SurfaceVariant',
   directional,
   onPress,
+  alone,
 }: ComposerIconButtonProps) {
   return (
     <IconTooltip position="Top" label={label}>
@@ -166,7 +169,7 @@ function ComposerIconButton({
           variant={variant}
           radii="300"
           size="300"
-          className={css.ComposerIconButton}
+          className={alone ? css.ComposerLoneButton : css.ComposerIconButton}
         >
           <Icon src={icon} filled={pressed} data-directional={directional || undefined} />
         </IconButton>
@@ -668,6 +671,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 directional
                 variant="Primary"
                 onPress={handleSend}
+                alone={phone}
               />
             </>
           }
