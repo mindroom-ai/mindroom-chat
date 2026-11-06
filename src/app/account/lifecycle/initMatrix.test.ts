@@ -815,6 +815,7 @@ describe('initClient', () => {
       });
       const refreshClient = { refreshToken };
       const matrixClient = {
+        getCrypto: ownCrypto,
         initRustCrypto: vi.fn().mockResolvedValue(undefined),
         http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
         setMaxListeners: vi.fn(),

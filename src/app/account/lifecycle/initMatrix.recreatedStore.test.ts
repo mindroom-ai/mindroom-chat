@@ -26,7 +26,7 @@ describe('a crypto store that vanishes after the startup check', () => {
     vi.restoreAllMocks();
   });
 
-  it('stops before any request instead of making new keys for the device', async () => {
+  it('stops before it syncs or uploads keys, instead of making new keys for the device', async () => {
     const saved = new Map<string, string>();
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => saved.get(key) ?? null,
@@ -68,7 +68,9 @@ describe('a crypto store that vanishes after the startup check', () => {
 
     await expect(initClient(session)).rejects.toBeInstanceOf(MissingCryptoStoreError);
 
-    expect(request).not.toHaveBeenCalled();
+    // Nothing syncs and no key goes to the homeserver (a key backup lookup may).
+    const paths = request.mock.calls.map(([input]) => new URL(String(input)).pathname);
+    expect(paths.filter((path) => /\/(sync|keys\/upload)$/.test(path))).toEqual([]);
     expect(getSessionStore().sessions[0].deviceIdentityKey).toBe(identity);
   });
 });

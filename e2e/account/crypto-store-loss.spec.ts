@@ -27,6 +27,8 @@ const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'crypto-store-loss-spec-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+// Set CRYPTO_STORE_LOSS_SHOTS=<directory> to save the screen on a desktop and a phone, light and dark.
+const SHOTS = process.env.CRYPTO_STORE_LOSS_SHOTS;
 // A same-origin page that runs no app code: the deletion happens there, as a person clearing
 // one database in the browser's site data would.
 const NO_APP_PAGE = '/runtime-config.js';
@@ -134,7 +136,27 @@ const deleteDatabase = (page: Page, name: string) =>
     name
   );
 
-const lostStoreAtLoad = async (context: BrowserContext) => {
+const SIZES = [
+  { name: 'desktop', width: 1280, height: 800 },
+  { name: 'phone', width: 390, height: 844 },
+];
+
+const saveScreens = async (page: Page, engine: string) => {
+  if (!SHOTS) return;
+  for (const size of SIZES) {
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.setViewportSize(size);
+      await page.emulateMedia({ colorScheme });
+      await page.screenshot({
+        path: `${SHOTS}/lost-keys-${engine}-${size.name}-${colorScheme}.png`,
+      });
+    }
+  }
+  await page.setViewportSize(SIZES[0]);
+  await page.emulateMedia({ colorScheme: null });
+};
+
+const lostStoreAtLoad = async (context: BrowserContext, engine: string) => {
   const other = await register('kept');
   const account = await register('lost');
   const page = await context.newPage();
@@ -153,6 +175,7 @@ const lostStoreAtLoad = async (context: BrowserContext) => {
   await page.waitForTimeout(3_000);
   expect(uploads).toEqual([]);
   expect(await serverDeviceKey(account, session.deviceId)).toBe(session.serverKey);
+  await saveScreens(page, engine);
 
   // Signing in again logs the old device out, keeps the other account, and starts a new device.
   await page.getByRole('button', { name: 'Sign in again' }).click();
@@ -225,11 +248,14 @@ const storeRecreatedBehindTheCheck = async (context: BrowserContext) => {
 
 const inWebKit = async (
   baseURL: string | undefined,
-  run: (context: BrowserContext) => Promise<void>
+  run: (context: BrowserContext, engine: string) => Promise<void>
 ) => {
   const browser: Browser = await launchWebKit();
   try {
-    await run(await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } }));
+    await run(
+      await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } }),
+      'webkit'
+    );
   } finally {
     await browser.close();
   }
@@ -241,7 +267,7 @@ test.beforeEach(async () => {
 });
 
 test('a store lost before the page loads asks to sign in again (Chromium)', async ({ context }) => {
-  await lostStoreAtLoad(context);
+  await lostStoreAtLoad(context, 'chromium');
 });
 
 test('a store lost before the page loads asks to sign in again (WebKit)', async ({ baseURL }) => {

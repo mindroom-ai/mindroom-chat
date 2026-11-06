@@ -157,7 +157,9 @@ describe('ClientRoot when an account cannot start', () => {
 
       // Signing in again ends in a reload, so it never settles here.
       vi.mocked(logoutSessionWithoutStores).mockReturnValue(new Promise(() => undefined));
-      act(() => buttons[0].props.onClick());
+      await act(async () => {
+        buttons[0].props.onClick();
+      });
 
       expect(logoutSessionWithoutStores).toHaveBeenCalledTimes(1);
       const [ended, href] = vi.mocked(logoutSessionWithoutStores).mock.calls[0];
