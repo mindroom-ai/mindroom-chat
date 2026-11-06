@@ -135,7 +135,8 @@ export const routeClientConfig = async (
   );
 };
 
-const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
+/** Signs the test account in with its password, for a browser of a spec's own. */
+export const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('settings')) {
       localStorage.setItem('settings', JSON.stringify({ isPeopleDrawer: false }));
