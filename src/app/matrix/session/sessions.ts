@@ -38,6 +38,12 @@ export type StoredSession = {
    * Matrix device replaces the login.
    */
   cryptoStoreInitialized?: boolean;
+  /**
+   * The current device's ed25519 identity key, as its Rust crypto store held it when this browser
+   * last opened the store. A store that opens with another key was made after the device's own was
+   * lost. Reset with `cryptoStoreInitialized`.
+   */
+  deviceIdentityKey?: string;
 };
 
 export type SessionStore = {
@@ -132,6 +138,7 @@ export const getLegacySessionRustCryptoStoreNames = (
 
 const OPTIONAL_STRING_FIELDS = [
   'refreshToken',
+  'deviceIdentityKey',
   'lastKnownPath',
   'lastKnownDisplayName',
   'lastKnownAvatarUrl',
@@ -346,7 +353,7 @@ const nextUsedAt = (store: SessionStore): number =>
 
 /**
  * Saves a login. An account that is already stored keeps its cached profile and route; a new
- * Matrix device forgets the old device's crypto store marker.
+ * Matrix device forgets the old device's crypto store marker and identity key.
  */
 export const putSession = (
   input: SessionInput,
@@ -366,8 +373,9 @@ export const putSession = (
     baseUrl,
     lastUsedAt: input.lastUsedAt ?? lastUsedAt,
   };
-  if (existing && existing.deviceId !== session.deviceId && !('cryptoStoreInitialized' in input)) {
-    session.cryptoStoreInitialized = undefined;
+  if (existing && existing.deviceId !== session.deviceId) {
+    if (!('cryptoStoreInitialized' in input)) session.cryptoStoreInitialized = undefined;
+    if (!('deviceIdentityKey' in input)) session.deviceIdentityKey = undefined;
   }
 
   const sessions = existing
@@ -507,17 +515,36 @@ export const updateSessionLastPath = (
   );
 };
 
-/** Records that the Rust crypto store of the account's current device exists. */
-export const markCryptoStoreInitialized = (sessionId: string, storage?: SessionStorage): void => {
+/**
+ * Records that the Rust crypto store of the account's current device exists, and the device
+ * identity key it holds.
+ */
+export const markCryptoStoreInitialized = (
+  sessionId: string,
+  deviceIdentityKey: string,
+  storage?: SessionStorage
+): void => {
   const session = getSessionStore(storage).sessions.find((item) => item.sessionId === sessionId);
-  if (!session || session.cryptoStoreInitialized) return;
+  if (
+    !session ||
+    (session.cryptoStoreInitialized && session.deviceIdentityKey === deviceIdentityKey)
+  ) {
+    return;
+  }
   updateSessionBestEffort(
     'crypto store marker',
     sessionId,
-    (item) => ({ ...item, cryptoStoreInitialized: true }),
+    (item) => ({ ...item, cryptoStoreInitialized: true, deviceIdentityKey }),
     storage
   );
 };
+
+/** The identity key recorded for the account's current device, if the browser recorded one. */
+export const getRecordedDeviceIdentityKey = (
+  sessionId: string,
+  storage?: SessionStorage
+): string | undefined =>
+  getSessionStore(storage).sessions.find((item) => item.sessionId === sessionId)?.deviceIdentityKey;
 
 /**
  * Whether this browser created the crypto store for the account's current device. A missing

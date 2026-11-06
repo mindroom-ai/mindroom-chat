@@ -33,7 +33,7 @@ import { SplashScreen } from '../ui/splash/SplashScreen';
 import { MindRoomSplashScreen } from '../ui/splash/BrandedSplashScreen';
 import { ServerConfigsLoader } from '../matrix/ServerConfigsLoader';
 import { useClientConfig } from '../config/useClientConfig';
-import { useActiveSession } from '../matrix/session/useSessionStore';
+import { useActiveSession, useStoredSessions } from '../matrix/session/useSessionStore';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { CapabilitiesProvider } from '../matrix/hooks/useCapabilities';
 import { MediaConfigProvider } from '../matrix/hooks/useMediaConfig';
@@ -46,13 +46,19 @@ import {
 import type { StoredSession } from '../matrix/session/sessions';
 import { closeClient } from '../matrix/client/closeClient';
 import { clearSecretStorageKeys } from '../matrix/client/secretStorageKeys';
-import { clearAllCacheAndReload, initClient, logoutClient } from '../account/lifecycle/initMatrix';
+import {
+  clearAllCacheAndReload,
+  initClient,
+  logoutClient,
+  logoutSessionWithoutStores,
+} from '../account/lifecycle/initMatrix';
 import {
   removeCurrentClientSessionAndReload,
   removeSessionAndReload,
 } from '../account/lifecycle/sessionLifecycle';
 import { startClient } from '../matrix/client/clientSyncPolicy';
-import { getLoginPath } from '../routes/pathUtils';
+import { getLoginPath, getOriginBaseUrl } from '../routes/pathUtils';
+import { withAddAccountSearchIf } from '../navigation/addAccount';
 import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { SpecVersions } from './SpecVersions';
 import { SyncStatus } from './SyncStatus';
@@ -125,7 +131,7 @@ const noteStoreRestored = (known: SyncProgress, hasRooms: boolean): SyncProgress
     ? known
     : { ...known, restoredRooms: hasRooms };
 
-type RecoveryAction = 'logout' | 'remove-account' | 'clear-cache';
+type RecoveryAction = 'logout' | 'remove-account' | 'clear-cache' | 'sign-in-again';
 
 /**
  * The ways out of a start that hangs or fails: sign out (with a client), clear the cache, or
@@ -151,12 +157,17 @@ function useRecoveryActions(session: StoredSession, mx: MatrixClient | undefined
   return {
     busy: running !== undefined,
     clearing,
+    signingInAgain: running === 'sign-in-again',
     clearCacheLabel: clearing
       ? t('sharedUi.clientRoot.clearing')
       : t('sharedUi.clientRoot.clearCacheAndReload'),
     logout: mx && (() => run('logout', () => logoutClient(mx))),
     clearCache: () => run('clear-cache', () => clearAllCacheAndReload(mx)),
     removeAccount: () => run('remove-account', () => removeSessionAndReload(session, mx)),
+    signInAgain: (loginHref: string) =>
+      run('sign-in-again', () =>
+        logoutSessionWithoutStores(toBootstrapSession(session), loginHref)
+      ),
   };
 }
 
@@ -255,21 +266,81 @@ function StartupSplash({ session, mx }: StartupScreenProps) {
 type StartupFailureProps = StartupScreenProps & { error: unknown; onRetry: () => void };
 
 /**
- * Why startup failed, translated: the two encryption storage checks say what to do (their own
- * text is English and says the same, so it is not repeated), anything else what it can.
+ * Why startup failed, translated: the device identity check says what to do (its own text is
+ * English and says the same, so it is not repeated), anything else what it can. Lost encryption
+ * keys have their own screen.
  */
 const startupFailureReason = (
   t: TFunction,
   error: unknown
 ): { reason: string; showDetail: boolean } => {
-  if (error instanceof MissingCryptoStoreError) {
-    return { reason: t('errors.cryptoStoreMissing'), showDetail: false };
-  }
   if (error instanceof DeviceIdentityVerificationError) {
     return { reason: t('errors.deviceIdentityUnverified'), showDetail: false };
   }
   return { reason: describeKnownError(t, error) ?? '', showDetail: true };
 };
+
+/**
+ * The device's encryption keys are gone from this browser, and its homeserver keeps the old ones:
+ * no retry can help, so the way on is a new sign-in (a new device) on the same homeserver.
+ */
+function EncryptionKeysLost({ session }: { session: StoredSession }) {
+  const { t } = useTranslation();
+  const { hashRouter } = useClientConfig();
+  const recovery = useRecoveryActions(session, undefined);
+  const { busy } = recovery;
+  const otherAccounts = useStoredSessions().some(
+    (stored) => stored.sessionId !== session.sessionId
+  );
+  const loginHref = `${getOriginBaseUrl(hashRouter)}${withAddAccountSearchIf(
+    getLoginPath(session.baseUrl),
+    otherAccounts
+  )}`;
+
+  return (
+    <SplashScreen>
+      <Box
+        grow="Yes"
+        direction="Column"
+        alignItems="Center"
+        justifyContent="Center"
+        style={{ padding: config.space.S400 }}
+      >
+        <Dialog>
+          <Box
+            direction="Column"
+            gap="300"
+            style={{ padding: config.space.S400, maxWidth: toRem(440) }}
+          >
+            <Text as="h2" size="H4">
+              {t('sharedUi.clientRoot.keysLostTitle')}
+            </Text>
+            <Text role="alert" size="T300">
+              {t('sharedUi.clientRoot.keysLost', { userId: session.userId })}
+            </Text>
+            <Button
+              variant="Primary"
+              disabled={busy}
+              before={
+                recovery.signingInAgain ? <Spinner size="100" variant="Primary" /> : undefined
+              }
+              onClick={() => recovery.signInAgain(loginHref)}
+            >
+              <Text as="span" size="B400">
+                {t('sharedUi.clientRoot.signInAgain')}
+              </Text>
+            </Button>
+            <Button variant="Critical" fill="None" disabled={busy} onClick={recovery.removeAccount}>
+              <Text as="span" size="B400">
+                {t('sharedUi.clientRoot.removeAccount')}
+              </Text>
+            </Button>
+          </Box>
+        </Dialog>
+      </Box>
+    </SplashScreen>
+  );
+}
 
 /** Startup threw: say why, and offer another try or a way out. */
 function StartupFailure({ session, mx, error, onRetry }: StartupFailureProps) {
@@ -504,6 +575,9 @@ function ClientSession({ session, children }: ClientSessionProps) {
 
   const retry = useCallback(() => setAttempt((count) => count + 1), []);
 
+  if (startup.status === 'error' && startup.error instanceof MissingCryptoStoreError) {
+    return <EncryptionKeysLost session={session} />;
+  }
   if (startup.status === 'error') {
     return (
       <StartupFailure session={session} mx={startup.mx} error={startup.error} onRetry={retry} />

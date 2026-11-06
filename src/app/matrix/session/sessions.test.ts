@@ -144,7 +144,7 @@ describe('sessions', () => {
     );
 
     expect(hasInitializedCryptoStore(initial.sessionId, storage)).toBe(false);
-    markCryptoStoreInitialized(initial.sessionId, storage);
+    markCryptoStoreInitialized(initial.sessionId, 'key-a', storage);
     expect(hasInitializedCryptoStore(initial.sessionId, storage)).toBe(true);
 
     putSession(

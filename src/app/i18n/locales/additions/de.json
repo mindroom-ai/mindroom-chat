@@ -26,7 +26,6 @@
     "serverRefused": "Der Server konnte diese Anfrage nicht ausführen.",
     "storageBlocked": "Dieser Browser konnte die Kontoliste nicht speichern. Prüfe die Speicherberechtigungen der Website und versuche es erneut.",
     "unknown": "Etwas ist schiefgelaufen.",
-    "cryptoStoreMissing": "Der Verschlüsselungsspeicher dieses Kontos fehlt, die Anmeldung des Geräts ist aber noch da. Weiterzumachen würde die Identität dieses Geräts ersetzen und verschlüsselte Nachrichten und Anrufe auf anderen Geräten unlesbar machen. Entferne dieses Konto und melde dich dann erneut an.",
     "deviceIdentityUnverified": "MindRoom konnte den Verschlüsselungsspeicher und die Geräteidentität dieses Kontos nicht sicher prüfen. Prüfe deine Verbindung und den Speicherzugriff des Browsers und versuche es dann erneut. Es wurden keine Verschlüsselungsschlüssel geändert.",
     "notKeyExport": "Diese Datei ist kein Export von Raumschlüsseln."
   },
@@ -178,6 +177,11 @@
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "Die Passwörter stimmen nicht überein."
+    },
+    "clientRoot": {
+      "keysLostTitle": "Verschlüsselungsschlüssel verloren",
+      "keysLost": "Dieser Browser hat die Verschlüsselungsschlüssel von {{userId}} verloren. Verschlüsselte Nachrichten können hier nicht gelesen werden, und der Server nimmt für diese Anmeldung keine neuen Schlüssel an. Melde dich erneut an, um als neues Gerät weiterzumachen; deine anderen Konten bleiben angemeldet. Verifiziere danach das neue Gerät oder nutze deinen Wiederherstellungsschlüssel, um frühere Nachrichten zu lesen.",
+      "signInAgain": "Erneut anmelden"
     }
   },
   "featureUi": {

@@ -28,7 +28,6 @@
     "serverRefused": "O servidor não conseguiu concluir este pedido.",
     "storageBlocked": "Este navegador não conseguiu guardar a lista de contas. Verifique as permissões de armazenamento do site e tente novamente.",
     "unknown": "Ocorreu um erro.",
-    "cryptoStoreMissing": "O armazenamento de encriptação desta conta está em falta, mas o início de sessão do dispositivo ainda existe. Continuar substituiria a identidade deste dispositivo e tornaria as mensagens e chamadas encriptadas ilegíveis noutros dispositivos. Remova esta conta e, em seguida, inicie sessão novamente.",
     "deviceIdentityUnverified": "O MindRoom não conseguiu verificar com segurança o armazenamento de encriptação e a identidade do dispositivo desta conta. Verifique a sua ligação e o acesso do navegador ao armazenamento e tente novamente. Nenhuma chave de encriptação foi alterada.",
     "notKeyExport": "Este ficheiro não é uma exportação de chaves de sala."
   },
@@ -181,6 +180,11 @@
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "As palavras-passe não coincidem."
+    },
+    "clientRoot": {
+      "keysLostTitle": "Chaves de encriptação perdidas",
+      "keysLost": "Este navegador perdeu as chaves de encriptação de {{userId}}. As mensagens encriptadas não podem ser lidas aqui, e o servidor não aceita chaves novas para este início de sessão. Inicie sessão novamente para continuar como um dispositivo novo; as suas outras contas continuam com sessão iniciada. Depois, verifique o dispositivo novo ou use a sua chave de recuperação para ler as mensagens anteriores.",
+      "signInAgain": "Iniciar sessão novamente"
     }
   },
   "featureUi": {

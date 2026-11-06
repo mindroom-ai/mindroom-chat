@@ -209,6 +209,13 @@ const createDatabase = async (factory: IDBFactory, name: string): Promise<void> 
   });
 };
 
+/** The device identity key of the Rust stores the client mocks open. */
+const OWN_KEY = 'own-ed25519-key';
+
+const ownCrypto = () => ({
+  getOwnDeviceKeys: vi.fn().mockResolvedValue({ ed25519: OWN_KEY, curve25519: 'own-curve' }),
+});
+
 describe('initClient', () => {
   beforeEach(() => {
     // Most initClient tests exercise behavior after an existing crypto store
@@ -245,6 +252,7 @@ describe('initClient', () => {
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     const setMaxListeners = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners,
@@ -299,7 +307,7 @@ describe('initClient', () => {
       undefined,
       storage
     );
-    markCryptoStoreInitialized(session.sessionId, storage);
+    markCryptoStoreInitialized(session.sessionId, OWN_KEY, storage);
     const [, optionalMetaStoreName] = getSessionRustCryptoStoreNames(session);
     const databases = vi.fn().mockResolvedValue([{ name: optionalMetaStoreName }]);
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
@@ -337,7 +345,7 @@ describe('initClient', () => {
       undefined,
       storage
     );
-    markCryptoStoreInitialized(session.sessionId, storage);
+    markCryptoStoreInitialized(session.sessionId, OWN_KEY, storage);
     const [cryptoStoreName] = getSessionRustCryptoStoreNames(session);
     const databases = vi.fn().mockResolvedValue([{ name: cryptoStoreName }]);
     vi.stubGlobal('localStorage', storage);
@@ -352,6 +360,7 @@ describe('initClient', () => {
     const setMaxListeners = vi.fn();
     const authedRequest = vi.fn().mockRejectedValue(new Error('network unavailable'));
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
       http: { authedRequest },
       setMaxListeners,
@@ -386,6 +395,7 @@ describe('initClient', () => {
     );
     const authedRequest = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
       http: { authedRequest },
       setMaxListeners: vi.fn(),
@@ -411,7 +421,7 @@ describe('initClient', () => {
       undefined,
       storage
     );
-    markCryptoStoreInitialized(session.sessionId, storage);
+    markCryptoStoreInitialized(session.sessionId, OWN_KEY, storage);
     vi.stubGlobal('localStorage', storage);
     vi.stubGlobal('indexedDB', factory);
 
@@ -444,6 +454,7 @@ describe('initClient', () => {
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     const setMaxListeners = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       http: { authedRequest },
       setMaxListeners,
@@ -492,6 +503,7 @@ describe('initClient', () => {
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       http: { authedRequest },
     } as never);
@@ -521,6 +533,7 @@ describe('initClient', () => {
     );
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       http: {
         authedRequest: vi.fn().mockResolvedValue({
@@ -554,6 +567,7 @@ describe('initClient', () => {
 
     const initRustCrypto = vi.fn().mockResolvedValue(undefined);
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       http: { authedRequest },
     } as never);
@@ -622,6 +636,7 @@ describe('initClient', () => {
         })
     );
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),
@@ -695,6 +710,7 @@ describe('initClient', () => {
     const stopClient = vi.fn();
     const setMaxListeners = vi.fn();
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto,
       setMaxListeners,
       stopClient,
@@ -748,6 +764,7 @@ describe('initClient', () => {
       () => ({} as unknown as IndexedDBCryptoStore)
     );
     vi.mocked(createMatrixClient).mockReturnValue({
+      getCrypto: ownCrypto,
       initRustCrypto: vi.fn().mockResolvedValue(undefined),
       http: { authedRequest: vi.fn().mockResolvedValue({ device_keys: {} }) },
       setMaxListeners: vi.fn(),

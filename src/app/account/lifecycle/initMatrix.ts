@@ -1,4 +1,5 @@
 import { type ICreateClientOpts, type MatrixClient } from 'matrix-js-sdk';
+import { Method } from 'matrix-js-sdk/lib/http-api';
 import { IndexedDBStore } from 'matrix-js-sdk/lib/store/indexeddb';
 import { IndexedDBCryptoStore } from 'matrix-js-sdk/lib/crypto/store/indexeddb-crypto-store';
 import type { CryptoCallbacks } from 'matrix-js-sdk/lib/crypto-api';
@@ -18,11 +19,13 @@ import {
   type StoredSession,
   getSessionRustCryptoStorePrefix,
   getSessionStoreName,
+  getRecordedDeviceIdentityKey,
   hasInitializedCryptoStore,
   markCryptoStoreInitialized,
 } from '../../matrix/session/sessions';
 import { createStoredSessionTokenRefresh } from '../../matrix/client/sessionTokenRefresh';
 import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
+import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 
 // Account removal, logout and cache clearing live in sessionLifecycle.ts. The three below end an
 // account's session and also drop the avatars that account fetched (avatarMedia keeps them per
@@ -43,6 +46,43 @@ export const logoutClient = async (mx: MatrixClient): Promise<void> => {
     await sessionLifecycle.logoutClient(mx);
   } finally {
     clearFetchedAvatars(userId);
+  }
+};
+
+/**
+ * Ends a session whose encryption keys this browser lost, then opens `nextHref`: the homeserver
+ * logs the device out (and drops the keys it keeps for it), and this browser forgets the account
+ * and deletes its stores by name, without opening them. Other accounts stay.
+ */
+export const logoutSessionWithoutStores = async (
+  session: ClientBootstrapSession,
+  nextHref: string
+): Promise<void> => {
+  const mx = createMatrixClient({
+    baseUrl: session.baseUrl,
+    accessToken: session.accessToken,
+    refreshToken: session.refreshToken,
+    tokenRefreshFunction: createStoredSessionTokenRefresh(session),
+    userId: session.userId,
+    deviceId: session.deviceId,
+  });
+  // A logout that cannot pass Cloudflare Access leaves the device on the server.
+  await renewExpiredCloudflareAccess(session.baseUrl);
+  try {
+    await mx.logout(true);
+  } catch {
+    // The server may already have dropped this device; local cleanup still runs.
+  }
+  // The removal ends in a reload of the current address, so that address becomes `nextHref`.
+  const { href, state } = { href: window.location.href, state: window.history.state as unknown };
+  window.history.replaceState(null, '', nextHref);
+  try {
+    await sessionLifecycle.removeSessionAndReload(session);
+  } catch (error) {
+    window.history.replaceState(state, '', href);
+    throw error;
+  } finally {
+    clearFetchedAvatars(session.userId);
   }
 };
 
@@ -117,13 +157,90 @@ const safeHasInitializedCryptoStore = (sessionId: string): boolean => {
   }
 };
 
-const safeMarkCryptoStoreInitialized = (sessionId: string): void => {
+const safeRecordedDeviceIdentityKey = (sessionId: string): string | undefined => {
   try {
-    markCryptoStoreInitialized(sessionId);
+    return getRecordedDeviceIdentityKey(sessionId);
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[initMatrix] could not read the device identity key', describeError(error));
+    return undefined;
+  }
+};
+
+const safeMarkCryptoStoreInitialized = (sessionId: string, deviceIdentityKey: string): void => {
+  try {
+    markCryptoStoreInitialized(sessionId, deviceIdentityKey);
   } catch (error) {
     // eslint-disable-next-line no-console
     console.warn('[initMatrix] could not record the crypto store mark', describeError(error));
   }
+};
+
+/** Stops a client whose stores are opening or open, and closes its sync store. */
+const abandonClient = async (mx: MatrixClient, store: SyncArchiveStore): Promise<void> => {
+  try {
+    mx.stopClient();
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.warn('[initMatrix] could not stop the half-started client', describeError(error));
+  }
+  await Promise.resolve(store.destroy?.()).catch((error: unknown) => {
+    // eslint-disable-next-line no-console
+    console.warn('[initMatrix] could not close the sync store', describeError(error));
+  });
+};
+
+type DeviceKeysQueryResponse = {
+  device_keys?: Record<string, Record<string, { keys?: Record<string, string> }>>;
+};
+
+// A first start after an update waits at most this long for the homeserver's answer.
+const IDENTITY_CHECK_TIMEOUT_MS = 10_000;
+
+/** The ed25519 key the homeserver holds for the session's device; undefined when it has none. */
+const serverDeviceIdentityKey = async (
+  mx: MatrixClient,
+  { userId, deviceId }: ClientBootstrapSession
+): Promise<string | undefined> => {
+  const body = await mx.http.authedRequest<DeviceKeysQueryResponse>(
+    Method.Post,
+    '/keys/query',
+    undefined,
+    { device_keys: { [userId]: [deviceId] } },
+    { localTimeoutMs: IDENTITY_CHECK_TIMEOUT_MS }
+  );
+  return body.device_keys?.[userId]?.[deviceId]?.keys?.[`ed25519:${deviceId}`];
+};
+
+/**
+ * Whether the Rust store that just opened is the device's own: the store can vanish between the
+ * existence check and its opening (a deletion that waited for another tab to close it, or one
+ * made while the page unloaded), and the Rust machine then makes new keys for the device. The key
+ * recorded the last time decides. A store this browser marked before it recorded keys is
+ * compared with the homeserver's key once (that also finds sessions an earlier version already
+ * gave new keys); when the homeserver cannot answer, the start goes on unrecorded.
+ */
+const openedOwnStore = async (
+  mx: MatrixClient,
+  session: ClientBootstrapSession,
+  storeExisted: boolean
+): Promise<boolean> => {
+  const ownKeys = await mx.getCrypto()?.getOwnDeviceKeys();
+  if (!ownKeys) throw new DeviceIdentityVerificationError(session.userId);
+  const recorded = safeRecordedDeviceIdentityKey(session.sessionId);
+  if (recorded !== undefined) return recorded === ownKeys.ed25519;
+  // A missing store was only created after the homeserver said it has no keys for the device.
+  if (storeExisted && safeHasInitializedCryptoStore(session.sessionId)) {
+    let serverKey: string | undefined;
+    try {
+      serverKey = await serverDeviceIdentityKey(mx, session);
+    } catch {
+      return true;
+    }
+    if (serverKey !== undefined && serverKey !== ownKeys.ed25519) return false;
+  }
+  safeMarkCryptoStoreInitialized(session.sessionId, ownKeys.ed25519);
+  return true;
 };
 
 /**
@@ -133,7 +250,9 @@ const safeMarkCryptoStoreInitialized = (sessionId: string): void => {
  * recreated for a device the homeserver already knows: that would give the device new keys and
  * make its messages unreadable to others. So a missing store is only created after the
  * homeserver confirms it has no keys for the device; otherwise startup stops with
- * MissingCryptoStoreError, or DeviceIdentityVerificationError when that cannot be checked.
+ * MissingCryptoStoreError, or DeviceIdentityVerificationError when that cannot be checked. A store
+ * that opens with other keys than the device's (it vanished after the check) stops startup the
+ * same way, before the client syncs or uploads a key.
  */
 export const initClient = async (session: ClientBootstrapSession): Promise<MatrixClient> => {
   const continuity = await inspectCryptoStoreContinuity(session);
@@ -185,20 +304,22 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     (result): result is PromiseRejectedResult => result.status === 'rejected'
   );
   if (failure) {
-    try {
-      mx.stopClient();
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn('[initMatrix] could not stop the half-started client', describeError(error));
-    }
-    await Promise.resolve(store.destroy?.()).catch((error: unknown) => {
-      // eslint-disable-next-line no-console
-      console.warn('[initMatrix] could not close the sync store', describeError(error));
-    });
+    await abandonClient(mx, store);
     throw failure.reason;
   }
 
-  safeMarkCryptoStoreInitialized(session.sessionId);
+  let ownStore: boolean;
+  try {
+    ownStore = await openedOwnStore(mx, session, continuity);
+  } catch (error) {
+    await abandonClient(mx, store);
+    throw error;
+  }
+  if (!ownStore) {
+    await abandonClient(mx, store);
+    throw new MissingCryptoStoreError(session.userId);
+  }
+
   mx.setMaxListeners(MAX_CLIENT_LISTENERS);
   return mx;
 };

@@ -24,7 +24,6 @@
     "serverRefused": "Server tidak dapat menyelesaikan permintaan ini.",
     "storageBlocked": "Browser ini tidak dapat menyimpan daftar akun. Periksa izin penyimpanan situs ini dan coba lagi.",
     "unknown": "Terjadi kesalahan.",
-    "cryptoStoreMissing": "Penyimpanan enkripsi akun ini hilang, tetapi login perangkatnya masih ada. Melanjutkan akan mengganti identitas perangkat ini dan membuat pesan serta panggilan terenkripsi tidak dapat dibaca di perangkat lain. Hapus akun ini, lalu login lagi.",
     "deviceIdentityUnverified": "MindRoom tidak dapat memeriksa penyimpanan enkripsi dan identitas perangkat akun ini dengan aman. Periksa koneksi Anda dan akses penyimpanan browser, lalu coba lagi. Tidak ada kunci enkripsi yang diubah.",
     "notKeyExport": "File ini bukan ekspor kunci ruang."
   },
@@ -175,6 +174,11 @@
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "Kata sandi tidak cocok."
+    },
+    "clientRoot": {
+      "keysLostTitle": "Kunci enkripsi hilang",
+      "keysLost": "Browser ini kehilangan kunci enkripsi {{userId}}. Pesan terenkripsi tidak dapat dibaca di sini, dan server tidak akan menerima kunci baru untuk login ini. Login lagi untuk melanjutkan sebagai perangkat baru; akun Anda yang lain tetap masuk. Setelah itu, verifikasi perangkat baru atau gunakan kunci pemulihan Anda untuk membaca pesan sebelumnya.",
+      "signInAgain": "Login lagi"
     }
   },
   "featureUi": {

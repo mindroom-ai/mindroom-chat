@@ -24,7 +24,6 @@
     "serverRefused": "伺服器無法完成此請求。",
     "storageBlocked": "此瀏覽器無法儲存帳號清單。請檢查該網站的儲存權限，然後再試一次。",
     "unknown": "發生錯誤。",
-    "cryptoStoreMissing": "此帳號的加密儲存空間已遺失，但其裝置登入仍然存在。繼續將取代此裝置的身分，並使其他裝置上的加密訊息和通話無法讀取。請移除此帳號，然後重新登入。",
     "deviceIdentityUnverified": "MindRoom 無法安全地檢查此帳號的加密儲存空間和裝置身分。請檢查您的網路連線和瀏覽器的儲存存取權限，然後再試一次。未變更任何加密金鑰。",
     "notKeyExport": "此檔案不是房間金鑰匯出檔。"
   },
@@ -175,6 +174,11 @@
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "兩次輸入的密碼不一致。"
+    },
+    "clientRoot": {
+      "keysLostTitle": "加密金鑰已遺失",
+      "keysLost": "此瀏覽器遺失了 {{userId}} 的加密金鑰。這裡無法讀取加密訊息，伺服器也不會為這次登入接受新的金鑰。請重新登入，以新裝置的身分繼續；您的其他帳戶仍保持登入。之後，請驗證新裝置或使用復原金鑰來讀取先前的訊息。",
+      "signInAgain": "重新登入"
     }
   },
   "featureUi": {

@@ -26,7 +26,6 @@
     "serverRefused": "De server kon dit verzoek niet uitvoeren.",
     "storageBlocked": "Deze browser kon de accountlijst niet opslaan. Controleer de opslagrechten van de site en probeer het opnieuw.",
     "unknown": "Er ging iets mis.",
-    "cryptoStoreMissing": "De versleutelingsopslag van dit account ontbreekt, maar de aanmelding van het apparaat is er nog. Doorgaan zou de identiteit van dit apparaat vervangen en versleutelde berichten en gesprekken op andere apparaten onleesbaar maken. Verwijder dit account en log daarna opnieuw in.",
     "deviceIdentityUnverified": "MindRoom kon de versleutelingsopslag en apparaatidentiteit van dit account niet veilig controleren. Controleer je verbinding en de opslagtoegang van de browser en probeer het daarna opnieuw. Er zijn geen versleutelingssleutels gewijzigd.",
     "notKeyExport": "Dit bestand is geen export van kamersleutels."
   },
@@ -178,6 +177,11 @@
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "De wachtwoorden komen niet overeen."
+    },
+    "clientRoot": {
+      "keysLostTitle": "Versleutelingssleutels kwijt",
+      "keysLost": "Deze browser is de versleutelingssleutels van {{userId}} kwijt. Versleutelde berichten zijn hier niet te lezen, en de server accepteert geen nieuwe sleutels voor deze aanmelding. Log opnieuw in om verder te gaan als nieuw apparaat; je andere accounts blijven ingelogd. Verifieer daarna het nieuwe apparaat of gebruik je herstelsleutel om eerdere berichten te lezen.",
+      "signInAgain": "Opnieuw inloggen"
     }
   },
   "featureUi": {

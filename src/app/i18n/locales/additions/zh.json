@@ -24,7 +24,6 @@
     "serverRefused": "服务器无法完成此请求。",
     "storageBlocked": "此浏览器无法保存账户列表。请检查该网站的存储权限，然后重试。",
     "unknown": "出了点问题。",
-    "cryptoStoreMissing": "此账户的加密存储已丢失，但其设备登录仍然存在。继续操作将替换此设备的身份，并使其他设备上的加密消息和通话无法读取。请移除此账户，然后重新登录。",
     "deviceIdentityUnverified": "MindRoom 无法安全地检查此账户的加密存储和设备身份。请检查您的网络连接和浏览器的存储访问权限，然后重试。没有更改任何加密密钥。",
     "notKeyExport": "此文件不是房间密钥导出文件。"
   },
@@ -175,6 +174,11 @@
     },
     "passwordRegisterForm": {
       "passwordsDoNotMatch": "两次输入的密码不一致。"
+    },
+    "clientRoot": {
+      "keysLostTitle": "加密密钥已丢失",
+      "keysLost": "此浏览器丢失了 {{userId}} 的加密密钥。此处无法读取加密消息，服务器也不会为此次登录接受新的密钥。请重新登录，以新设备的身份继续；您的其他账户仍保持登录。之后，请验证新设备或使用恢复密钥来读取之前的消息。",
+      "signInAgain": "重新登录"
     }
   },
   "featureUi": {

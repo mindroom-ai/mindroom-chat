@@ -1,17 +1,17 @@
 import React from 'react';
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import { createStore, Provider } from 'jotai';
 import { MatrixError } from 'matrix-js-sdk';
 import { ClientRoot } from './ClientRoot';
-import { useActiveSession } from '../matrix/session/useSessionStore';
+import { useActiveSession, useStoredSessions } from '../matrix/session/useSessionStore';
 import type { StoredSession } from '../matrix/session/sessions';
 import {
   DeviceIdentityVerificationError,
   MissingCryptoStoreError,
 } from '../matrix/client/cryptoStoreContinuity';
-import { initClient } from '../account/lifecycle/initMatrix';
+import { initClient, logoutSessionWithoutStores } from '../account/lifecycle/initMatrix';
 
 // The screen shown when an account cannot start says why in the app's language.
 
@@ -41,6 +41,7 @@ vi.mock('../account/lifecycle/initMatrix', () => ({
   clearAllCacheAndReload: vi.fn(),
   initClient: vi.fn(),
   logoutClient: vi.fn(),
+  logoutSessionWithoutStores: vi.fn(),
 }));
 vi.mock('../account/lifecycle/sessionLifecycle', () => ({
   removeCurrentClientSessionAndReload: vi.fn(),
@@ -68,8 +69,20 @@ vi.mock('../event-store/engine', () => ({
   createSyncEngine: vi.fn(),
   SyncEngineProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
-vi.mock('../matrix/session/useSessionStore', () => ({ useActiveSession: vi.fn() }));
+vi.mock('../matrix/session/useSessionStore', () => ({
+  useActiveSession: vi.fn(),
+  useStoredSessions: vi.fn(),
+}));
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => ({}) }));
+
+const OTHER: StoredSession = {
+  sessionId: 'session-bob',
+  baseUrl: 'https://example.org',
+  userId: '@bob:example.org',
+  deviceId: 'DEVICE_bob',
+  accessToken: 'token-bob',
+  lastUsedAt: 2,
+};
 
 const SESSION: StoredSession = {
   sessionId: 'session-alice',
@@ -85,6 +98,7 @@ describe('ClientRoot when an account cannot start', () => {
 
   beforeEach(() => {
     vi.mocked(useActiveSession).mockReturnValue(SESSION);
+    vi.mocked(useStoredSessions).mockReturnValue([SESSION]);
   });
 
   afterEach(() => {
@@ -116,17 +130,49 @@ describe('ClientRoot when an account cannot start', () => {
     return { sentence: parts[0], detail: parts[1] };
   };
 
-  it('says what to do when the encryption storage is missing, in words the app translates', async () => {
-    const { sentence, detail } = await failWith(new MissingCryptoStoreError(SESSION.userId));
+  /** The text of a rendered node, interpolated values included. */
+  const textOf = (node: ReactTestInstance | string): string =>
+    typeof node === 'string' ? node : node.children.map(textOf).join('');
 
-    expect(sentence).toBe(
-      "Failed to start account @alice:example.org. This account's encryption storage is missing, " +
-        "but its device sign-in is still here. Continuing would replace this device's identity " +
-        'and make encrypted messages and calls unreadable on other devices. Remove this account, ' +
-        'then sign in again.'
-    );
-    expect(detail).toBeUndefined();
-  });
+  it.each([
+    { others: [], login: '/login/https%3A%2F%2Fexample.org' },
+    { others: [OTHER], login: '/login/https%3A%2F%2Fexample.org?addAccount=1' },
+  ])(
+    'asks to sign in again when the encryption keys are lost ($others.length other accounts)',
+    async ({ others, login }) => {
+      vi.mocked(useStoredSessions).mockReturnValue([SESSION, ...others]);
+      await failWith(new MissingCryptoStoreError(SESSION.userId));
+      const screen = renderer?.root;
+
+      expect(textOf(screen!.findByProps({ as: 'h2' }))).toBe('Encryption keys lost');
+      expect(textOf(screen!.findByProps({ role: 'alert' }))).toBe(
+        'This browser lost the encryption keys of @alice:example.org. Encrypted messages ' +
+          "can't be read here, and the server won't accept new keys for this sign-in. Sign in " +
+          'again to continue as a new device; your other accounts stay signed in. Then verify ' +
+          'the new device or use your recovery key to read earlier messages.'
+      );
+      // No retry or cache clearing: neither brings the keys back.
+      const buttons = screen!.findAllByType('button');
+      expect(buttons.map(textOf)).toEqual(['Sign in again', 'Remove Account']);
+
+      // Signing in again ends in a reload, so it never settles here.
+      vi.mocked(logoutSessionWithoutStores).mockReturnValue(new Promise(() => undefined));
+      act(() => buttons[0].props.onClick());
+
+      expect(logoutSessionWithoutStores).toHaveBeenCalledTimes(1);
+      const [ended, href] = vi.mocked(logoutSessionWithoutStores).mock.calls[0];
+      expect(ended).toEqual({
+        sessionId: SESSION.sessionId,
+        baseUrl: SESSION.baseUrl,
+        userId: SESSION.userId,
+        deviceId: SESSION.deviceId,
+        accessToken: SESSION.accessToken,
+        refreshToken: undefined,
+      });
+      expect(href.endsWith(login)).toBe(true);
+      expect(screen!.findAllByType('button').every((button) => button.props.disabled)).toBe(true);
+    }
+  );
 
   it('says the device identity could not be checked', async () => {
     const { sentence } = await failWith(new DeviceIdentityVerificationError(SESSION.userId));
