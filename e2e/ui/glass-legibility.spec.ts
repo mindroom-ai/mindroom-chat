@@ -191,7 +191,13 @@ const openRoom = async (page: Page, world: World) => {
   await chooseView(page, world, 'threaded');
   await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
   await synced(page);
-  await expect(page.getByText(/^1\. The weekly planning notes/)).toBeVisible({ timeout: 60_000 });
+  // The first message; its thread's card can show the same text.
+  await expect(
+    page
+      .getByText(/^1\. The weekly planning notes/)
+      .filter({ visible: true })
+      .first()
+  ).toBeVisible({ timeout: 60_000 });
 };
 
 const openThread = async (page: Page, world: World) => {
