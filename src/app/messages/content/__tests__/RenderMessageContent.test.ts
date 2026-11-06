@@ -254,6 +254,29 @@ describe('RenderMessageContent', () => {
     }
   );
 
+  it("gives an agent reply's tool rows its event ID to find its approval cards", async () => {
+    const { RenderMessageContent } = await import('../RenderMessageContent');
+    const { ToolCallMessageContext } = await import('../../agent-run/toolCallStatus');
+    const ToolRows = () =>
+      React.createElement('span', null, React.useContext(ToolCallMessageContext));
+    renderAgentMessageContentMock.mockReset();
+    renderAgentMessageContentMock.mockReturnValue(React.createElement(ToolRows));
+    const renderer = create(
+      React.createElement(RenderMessageContent, {
+        displayName: 'Helper',
+        eventId: '$reply',
+        msgType: 'm.text',
+        ts: 0,
+        getContent: (() => ({ msgtype: 'm.text', body: 'Ran a tool' })) as <T>() => T,
+        htmlReactParserOptions: {} as never,
+        linkifyOpts: {} as never,
+      })
+    );
+
+    expect(JSON.stringify(renderer.toJSON())).toContain('$reply');
+    renderer.unmount();
+  });
+
   it('delegates MindRoom-specific message content to the MindRoom renderer seam', async () => {
     const { RenderMessageContent } = await import('../RenderMessageContent');
     renderAgentMessageContentMock.mockReset();

@@ -37,6 +37,7 @@ import {
 } from '../../matrix/protocol/agentIdentity';
 import { MessageEvent } from '../../matrix/types/room';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
+import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 
 const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
 
@@ -155,7 +156,13 @@ export function RenderMessageContent({
     showMessageExtras,
     hydrateLongText,
   });
-  if (agentContent !== undefined) return <>{agentContent}</>;
+  // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
+  if (agentContent !== undefined)
+    return (
+      <ToolCallMessageContext.Provider value={eventId}>
+        {agentContent}
+      </ToolCallMessageContext.Provider>
+    );
 
   const owner = getEventAttachmentOwner(mEvent);
   const renderStateSuffix = getMessageStateSuffixRenderer({
