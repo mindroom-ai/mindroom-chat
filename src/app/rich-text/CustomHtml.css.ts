@@ -9,7 +9,6 @@ import {
   type CodeTokenColors,
   type CodeTokenRole,
 } from '../theme/codeTokenPalette';
-import { touchTarget } from '../ui/styles/touchTarget';
 
 // Styles for message HTML (`org.matrix.custom.html`) as the custom HTML parser renders it.
 
@@ -101,8 +100,6 @@ export const CodeBlock = style({
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   borderRadius: config.radii.R400,
   whiteSpace: 'normal',
-  // The header's buttons reach past the block for a finger; the body rounds its own corners.
-  '@media': { '(pointer: coarse)': { overflow: 'visible' } },
 });
 
 /** A code block inside a message bubble, which has its own padding. */
@@ -148,11 +145,11 @@ export const CodeBlockActions = style({
 
 /**
  * An icon-only toolbar button; a pressed toggle (wrap) keeps the hover tint. To a finger it is
- * 44 px tall and reaches 1 px into the 2 px gap to the next.
+ * 44 px square in layout, so no layer reaches into the sticky thread banner above it.
  */
 export const CodeBlockAction = style([
-  touchTarget('1px'),
   {
+    '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
     display: 'inline-grid',
     placeItems: 'center',
     padding: config.space.S100,
