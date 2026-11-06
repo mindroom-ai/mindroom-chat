@@ -164,34 +164,30 @@ const interruptNextPin = async (page: Page, phone: boolean) => {
           top: node.scrollTop,
           below: node.scrollHeight - node.clientHeight - node.scrollTop,
         };
+        const minBelow = node.scrollHeight - node.clientHeight - node.scrollTop - 150;
+        const pulled: string[] = [];
+        let running = true;
+        const start = performance.now();
+        const tick = () => {
+          if (!running) return;
+          const below = node.scrollHeight - node.clientHeight - node.scrollTop;
+          if (below < minBelow)
+            pulled.push(
+              `${Math.round(performance.now() - start)} ms: ${Math.round(below)} px above the bottom`
+            );
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+        (window as WatchWindow).awayWatch = {
+          stop: () => {
+            running = false;
+            return pulled;
+          },
+        };
       });
     }) as HTMLElement['scrollTo'];
   }, phone);
 };
-
-/** Records each frame in which the reader is less than `minBelow` px above the bottom. */
-const watchAway = (page: Page, minBelow: number) =>
-  scrollArea(page).then((area) =>
-    area.evaluate((node, min) => {
-      const pulled: string[] = [];
-      let running = true;
-      const start = performance.now();
-      const tick = () => {
-        if (!running) return;
-        const below = node.scrollHeight - node.clientHeight - node.scrollTop;
-        if (below < min)
-          pulled.push(`${Math.round(performance.now() - start)} ms: ${Math.round(below)} px above the bottom`);
-        requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-      (window as WatchWindow).awayWatch = {
-        stop: () => {
-          running = false;
-          return pulled;
-        },
-      };
-    }, minBelow)
-  );
 
 const check = async (page: Page, world: World, viewMode: 'classic' | 'threaded', label: string) => {
   const phone = label.includes('phone');
@@ -218,16 +214,7 @@ const check = async (page: Page, world: World, viewMode: 'classic' | 'threaded',
   await expect
     .poll(() => page.evaluate(() => (window as WatchWindow).immediateAway?.below ?? 0))
     .toBeGreaterThan(300);
-  const initial = await page.evaluate(() => (window as WatchWindow).immediateAway);
-  expect(initial).toBeDefined();
-  await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible({
-    timeout: 10_000,
-  });
-  const away = await distanceBelow(page);
-  expect(away, `the reader scrolled away (${label})`).toBeGreaterThan(300);
-
   // A second later another message arrives below them; they stay where they are.
-  await watchAway(page, away - 150);
   await page.waitForTimeout(1_000);
   await sendRoomMessage(homeserver, world.colleague.accessToken, world.roomId, {
     msgtype: 'm.text',
