@@ -24,8 +24,9 @@ import { launchWebKit } from '../helpers/webkit';
 // classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The ways in: the
 // view switch from Compact, a reload, the room list (unread), back from a thread, Compact and back,
-// and Jump to Latest from further down; a permalink still lands on its own message. Set
-// THREADS_VIEW_SHOTS=<directory> to save each step.
+// and Jump to Latest from further down; a permalink still lands on its own message. From a
+// message link, opened by a page load or inside the app, Jump to Latest shows and reaches the
+// newest thread, which stays in view. Set THREADS_VIEW_SHOTS=<directory> to save each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'threads-view-opens-at-newest-password';
 const RUN = Date.now().toString(36);
@@ -330,6 +331,105 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await shot(page, `${label}-8-permalink`);
 };
 
+/**
+ * Samples every frame for `ms` and returns the frames, after the first in which the row with
+ * `text` showed, in which it did not show: the view moved away from it again.
+ */
+const framesWithoutRow = (page: Page, text: string, ms: number) =>
+  page.evaluate(
+    ({ needle, duration }) =>
+      new Promise<string[]>((resolve) => {
+        const shown = () =>
+          [...document.querySelectorAll<HTMLElement>('[data-message-id]')]
+            .filter((row) => row.textContent?.includes(needle))
+            .some((row) => {
+              const rect = row.getBoundingClientRect();
+              const x = rect.left + Math.min(rect.width / 2, 160);
+              return [rect.top + 8, rect.top + rect.height / 2, rect.bottom - 8].some((y) => {
+                if (y < 0 || y > window.innerHeight) return false;
+                const hit = document.elementFromPoint(x, y);
+                return !!hit && row.contains(hit);
+              });
+            });
+        const start = performance.now();
+        let seen = false;
+        const missing: string[] = [];
+        const tick = () => {
+          const now = performance.now() - start;
+          if (shown()) seen = true;
+          else if (seen) {
+            const inView = [...document.querySelectorAll<HTMLElement>('[data-message-id]')]
+              .filter((row) => {
+                const rect = row.getBoundingClientRect();
+                return rect.bottom > 0 && rect.top < window.innerHeight;
+              })
+              .map((row) => row.textContent?.match(/Status update \d+/)?.[0] ?? '?');
+            missing.push(`${Math.round(now)} ms: ${inView.join(', ')}`);
+          }
+          if (now < duration) requestAnimationFrame(tick);
+          else resolve(seen ? missing : ['never shown']);
+        };
+        requestAnimationFrame(tick);
+      }),
+    { needle: text, duration: ms }
+  );
+
+/**
+ * From a message link, Jump to Latest shows and leads up to the newest thread, which stays in
+ * view: the linked message does not pull the view back. The link opens by a page load and by a
+ * link inside the app; the reader jumps as soon as the button shows.
+ */
+const checkJumpFromLink = async (page: Page, seeded: Seeded, label: string, phone: boolean) => {
+  const newest = 'Status update 80:';
+  await loginWithPassword(page, {
+    homeserver: HOMESERVER,
+    username: seeded.reader.username,
+    password: PASSWORD,
+  });
+  await page.goto('/home/');
+  await openRoomFromList(page, phone);
+  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
+  await expect(page.locator('[data-thread-root-id]').first()).toBeVisible({ timeout: 30_000 });
+  await roomViewSwitch(page).click();
+  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await expectShown(page, newest, `after switching to Threads (${label})`);
+
+  const linkPath = (index: number) =>
+    `/home/${encodeURIComponent(seeded.roomId)}/${encodeURIComponent(
+      seeded.eventIds[index - 1] ?? ''
+    )}`;
+  const jumpToLatest = page.getByRole('button', { name: 'Jump to Latest' });
+  const jumpFromLink = async (way: 'page load' | 'link in the app', index: number) => {
+    if (way === 'page load') await page.goto(linkPath(index));
+    else
+      await page.evaluate((url) => {
+        window.history.pushState(null, '', url);
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }, linkPath(index));
+    await expect
+      .poll(() => rowShown(page, `Status update ${index}:`), {
+        message: `the linked message shows (${way}, ${label})`,
+        timeout: 20_000,
+      })
+      .toBe(true);
+    await expect(jumpToLatest, `Jump to Latest shows at the link (${way}, ${label})`).toBeVisible({
+      timeout: 5_000,
+    });
+    const step = way.replace(/ /g, '-');
+    await shot(page, `${label}-${step}`);
+    const frames = framesWithoutRow(page, newest, 4_000);
+    await jumpToLatest.click();
+    expect(
+      await frames,
+      `frames in which the newest thread left the view after Jump to Latest (${way}, ${label})`
+    ).toEqual([]);
+    await expectShown(page, newest, `after Jump to Latest from the link (${way}, ${label})`);
+    await shot(page, `${label}-${step}-latest`);
+  };
+  await jumpFromLink('page load', 30);
+  await jumpFromLink('link in the app', 12);
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
@@ -347,6 +447,30 @@ for (const [form, options] of [
       test.setTimeout(300_000);
       const seeded = await seed(`c${form[0]}`);
       await checkWaysIn(page, seeded, `chromium-${form}`, form === 'phone');
+    });
+
+    test(`Jump to Latest from a message link reaches the newest thread (Chromium, ${form})`, async ({
+      page,
+    }) => {
+      test.setTimeout(240_000);
+      const seeded = await seed(`jc${form[0]}`);
+      await checkJumpFromLink(page, seeded, `link-chromium-${form}`, form === 'phone');
+    });
+
+    test(`Jump to Latest from a message link reaches the newest thread (WebKit, ${form})`, async ({
+      baseURL,
+    }) => {
+      test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+      test.setTimeout(240_000);
+      const seeded = await seed(`jw${form[0]}`);
+      const browser = await launchWebKit();
+      try {
+        const context = await browser.newContext({ ...options, baseURL });
+        const page = await context.newPage();
+        await checkJumpFromLink(page, seeded, `link-webkit-${form}`, form === 'phone');
+      } finally {
+        await browser.close();
+      }
     });
 
     test(`the Threads view opens at the newest thread and shows a send (WebKit, ${form})`, async ({
