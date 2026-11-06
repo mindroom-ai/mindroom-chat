@@ -1,4 +1,4 @@
-import React, { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import { Box } from 'folds';
 import { CONVERSATION_MIN_WIDTH } from '../ui/panels/ResizablePanel';
 import { MembersOverlayProvider } from './useMembersDrawer';
@@ -18,12 +18,11 @@ export function PanelRow({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     const row = rowRef.current;
-    if (!row) return undefined;
-    // A row without a layout (hidden, or a test document) keeps the members beside it.
+    // A row without a layout (hidden, or a test renderer) keeps the members beside it.
     const measure = () =>
-      setOverlay(row.clientWidth > 0 && row.clientWidth < MEMBERS_BESIDE_MIN_WIDTH);
+      setOverlay(!!row && row.clientWidth > 0 && row.clientWidth < MEMBERS_BESIDE_MIN_WIDTH);
     measure();
-    if (typeof ResizeObserver === 'undefined') return undefined;
+    if (!row || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(measure);
     observer.observe(row);
     return () => observer.disconnect();
