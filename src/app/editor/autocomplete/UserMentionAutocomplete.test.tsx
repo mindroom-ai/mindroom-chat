@@ -26,6 +26,11 @@ vi.mock('../utils', () => ({
   moveCursor: () => undefined,
 }));
 vi.mock('../../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => members }));
+vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/usePowerLevels')>()),
+  usePowerLevels: () => ({}),
+}));
+vi.mock('../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:x' }),
 }));

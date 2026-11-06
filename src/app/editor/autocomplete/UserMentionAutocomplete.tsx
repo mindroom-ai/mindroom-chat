@@ -19,32 +19,41 @@ import {
   useAsyncSearch,
 } from '../../lib/hooks/useAsyncSearch';
 import { mxcUrlToHttp } from '../../matrix/matrix';
+import { usePowerLevels } from '../../matrix/hooks/usePowerLevels';
+import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
+import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import {
   memberName,
   mentionRank,
   orderMentionCandidates,
   recentSenders,
-  type SenderTimelines,
 } from './mentionRanking';
 
 const MAX_SUGGESTIONS = 20;
+
+/** The mention that notifies everyone in the room (`m.mentions.room`). */
+const ROOM_MENTION = '@room';
+type Suggestion = RoomMember | typeof ROOM_MENTION;
 
 // Joined and invited members can be mentioned; people who left or were banned are not offered.
 const isMentionable = (member: RoomMember): boolean =>
   member.membership === 'join' || member.membership === 'invite';
 
 type UserMentionAutocompleteProps = {
-  /** The room; its timelines, when given, put the members who spoke last first. */
-  room: Pick<Room, 'roomId'> & SenderTimelines;
-  editor: Editor;
-  query: AutocompleteQuery<string>;
-  /** Closes the menu, after a pick or when the host dismisses it. */
-  requestClose: () => void;
+  /**
+   * Its members are offered, the ones who spoke last first, and its power levels decide whether
+   * `@room` is.
+   */
+  room: Room;
   /**
    * Called on mount and whenever it changes with whether the menu shows: a query that matches no
    * member shows none, so Enter has no suggestion to pick.
    */
   onSuggestionsChange?: (hasSuggestions: boolean) => void;
+  editor: Editor;
+  query: AutocompleteQuery<string>;
+  /** Closes the menu, after a pick or when the host dismisses it. */
+  requestClose: () => void;
 };
 
 const renderFallbackAvatar = () => <Icon size="50" src={Icons.User} filled />;
@@ -98,7 +107,46 @@ function MentionRow({
   );
 }
 
-/** Suggests room members for an `@` mention and inserts the chosen one as a mention pill. */
+/** The `@room` suggestion: it notifies everyone in the room. */
+function RoomMentionRow({ onSelect }: { onSelect: () => void }) {
+  const [t] = useTranslation();
+  return (
+    <MenuItem
+      as="button"
+      type="button"
+      radii="300"
+      before={
+        <Avatar size="200">
+          <Icon size="50" src={Icons.BellRing} />
+        </Avatar>
+      }
+      after={
+        <Text size="T200" priority="300" truncate style={{ flex: '1 1 0', textAlign: 'end' }}>
+          {t('sharedUi.userMentionAutocomplete.notifyRoom')}
+        </Text>
+      }
+      onClick={onSelect}
+      onKeyDown={pickOnTab(onSelect)}
+    >
+      <Text size="B400" align="Left" truncate style={{ flex: '0 1 auto' }}>
+        {ROOM_MENTION}
+      </Text>
+    </MenuItem>
+  );
+}
+
+/**
+ * Whether a query asks for `@room`: a start of the word `room`. It is offered after the members
+ * that match, so Tab or Enter on a short query never notifies the whole room by accident, and
+ * first once the whole word is typed.
+ */
+const asksForRoomMention = (query: string): boolean =>
+  query !== '' && 'room'.startsWith(normalizeSearchString(query));
+
+/**
+ * Suggests room members for an `@` mention and inserts the chosen one as a mention pill. Someone
+ * whose power level may notify the whole room is offered `@room` as well.
+ */
 export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
   const { room, editor, query, requestClose, onSuggestionsChange } = props;
   const client = useMatrixClient();
@@ -108,6 +156,8 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
     () => orderMentionCandidates(roomMembers.filter(isMentionable), recentSenders(room)),
     [roomMembers, room]
   );
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
+  const mayMentionRoom = permissions.notification('room', client.getUserId() ?? '');
 
   const [result, search, resetSearch] = useAsyncSearch(members, mentionRank);
 
@@ -119,7 +169,7 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
 
   // The search runs in slices; until it answers, the first members (the last to speak) are
   // ranked right away so Tab can take an obvious match while the user is still typing.
-  const suggestions = useMemo(() => {
+  const memberSuggestions = useMemo(() => {
     if (!queryText) return members.slice(0, MAX_SUGGESTIONS);
     const searched = result && result.query === queryText ? result.items : undefined;
     if (searched && searched.length > 0) return searched.slice(0, MAX_SUGGESTIONS);
@@ -130,16 +180,28 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
     );
   }, [members, queryText, result]);
 
+  const suggestions = useMemo((): Suggestion[] => {
+    if (!mayMentionRoom || !asksForRoomMention(queryText)) return memberSuggestions;
+    return normalizeSearchString(queryText) === 'room'
+      ? [ROOM_MENTION, ...memberSuggestions]
+      : [...memberSuggestions, ROOM_MENTION];
+  }, [mayMentionRoom, memberSuggestions, queryText]);
+
   const handleSelect = useCallback(
-    (member: RoomMember) => {
+    (suggestion: Suggestion) => {
       const ownUserId = client.getUserId();
       // "@" and the name, as the timeline shows a mention; the plain body carries it as typed
       // text, which is how MindRoom reads a mention when the message has no mention metadata.
-      const label = `@${memberName(member)}`;
       replaceWithElement(
         editor,
         query.range,
-        createMentionElement(member.userId, label, member.userId === ownUserId)
+        suggestion === ROOM_MENTION
+          ? createMentionElement(ROOM_MENTION, ROOM_MENTION, true)
+          : createMentionElement(
+              suggestion.userId,
+              `@${memberName(suggestion)}`,
+              suggestion.userId === ownUserId
+            )
       );
       moveCursor(editor, true);
       requestClose();
@@ -156,9 +218,13 @@ export function UserMentionAutocomplete(props: UserMentionAutocompleteProps) {
       requestClose={requestClose}
       headerContent={<Text size="L400">{t('sharedUi.userMentionAutocomplete.mentions')}</Text>}
     >
-      {suggestions.map((member) => (
-        <MentionRow key={member.userId} member={member} onSelect={handleSelect} />
-      ))}
+      {suggestions.map((suggestion) =>
+        suggestion === ROOM_MENTION ? (
+          <RoomMentionRow key={ROOM_MENTION} onSelect={() => handleSelect(ROOM_MENTION)} />
+        ) : (
+          <MentionRow key={suggestion.userId} member={suggestion} onSelect={handleSelect} />
+        )
+      )}
     </AutocompleteMenu>
   );
 }

@@ -26,12 +26,25 @@ const grace = member('@grace:x', 'Grace');
 const researcher = member('@mindroom_research:x', 'Researcher');
 let members: RoomMember[] = [];
 
-const mentions = vi.hoisted(() => ({ createMentionElement: vi.fn() }));
+const mentions = vi.hoisted(() => ({
+  createMentionElement: vi.fn((id: string, name: string, highlight: boolean) => ({
+    id,
+    name,
+    highlight,
+  })),
+}));
+const levels = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
+const replaceWithElement = vi.hoisted(() => vi.fn());
 vi.mock('../utils', () => ({
   createMentionElement: mentions.createMentionElement,
-  replaceWithElement: vi.fn(),
+  replaceWithElement,
   moveCursor: vi.fn(),
 }));
+vi.mock('../../matrix/hooks/usePowerLevels', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/usePowerLevels')>()),
+  usePowerLevels: () => levels.current,
+}));
+vi.mock('../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => members }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:x' }),
@@ -41,8 +54,10 @@ vi.mock('./AutocompleteMenu', () => ({
   AutocompleteMenu: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../../ui/glass/GlassPrimitives', () => ({
-  MenuItem: ({ children }: { children: React.ReactNode }) => (
-    <button type="button">{children}</button>
+  MenuItem: ({ children, onClick }: { children: React.ReactNode; onClick: () => void }) => (
+    <button type="button" onClick={onClick}>
+      {children}
+    </button>
   ),
 }));
 vi.mock('../../avatars/UserAvatar', () => ({ UserAvatar: () => null }));
@@ -72,6 +87,7 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   keydownListeners.clear();
+  levels.current = {};
   vi.useRealTimers();
   Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
 });
@@ -130,6 +146,66 @@ const pickWithTab = (): [string, string] => {
   const [userId, label] = mentions.createMentionElement.mock.calls[0] as [string, string];
   return [userId, label];
 };
+
+/** The visible text of each suggestion row. */
+const rowTexts = (): string[] =>
+  renderer!.root
+    .findAllByType('button')
+    .map((button) => button.findAll((node) => typeof node.props.children === 'string'))
+    .map((nodes) => nodes.map((node) => node.props.children as string).join(' '));
+
+const renderQuery = (text: string) => render(picker(text, () => undefined), { searched: true });
+
+describe('UserMentionAutocomplete @room', () => {
+  beforeEach(() => {
+    members = [maya, grace];
+  });
+
+  it('offers @room to someone with the power to notify the room, and inserts its pill', () => {
+    // Moderators (50) may notify the room by default.
+    levels.current = { users: { '@me:x': 50 } };
+    renderQuery('roo');
+    expect(rowTexts()).toEqual([expect.stringContaining('@room')]);
+
+    act(() => {
+      renderer!.root.findAllByType('button')[0]!.props.onClick();
+    });
+    expect(replaceWithElement).toHaveBeenCalledWith(
+      {},
+      {},
+      { id: '@room', name: '@room', highlight: true }
+    );
+  });
+
+  it('follows the room notification level the power levels set', () => {
+    levels.current = { users: { '@me:x': 10 }, notifications: { room: 10 } };
+    renderQuery('r');
+    expect(rowTexts().some((row) => row.includes('@room'))).toBe(true);
+  });
+
+  it('offers no @room to a member below the room notification level', () => {
+    levels.current = { users: { '@me:x': 0 } };
+    renderQuery('room');
+    expect(renderer!.toJSON()).toBeNull();
+  });
+
+  it('puts @room after matching members until the whole word is typed', () => {
+    levels.current = { users: { '@me:x': 100 } };
+    const rose = member('@rose:x', 'Room Rose');
+    members.push(rose);
+    try {
+      renderQuery('roo');
+      expect(rowTexts()[0]).toContain('Room Rose');
+      expect(rowTexts()[1]).toContain('@room');
+      act(() => renderer!.unmount());
+      renderer = undefined;
+      renderQuery('room');
+      expect(rowTexts()[0]).toContain('@room');
+    } finally {
+      members.pop();
+    }
+  });
+});
 
 describe('UserMentionAutocomplete suggestions', () => {
   it('tells the host whether its menu shows, as the typed text changes', () => {
