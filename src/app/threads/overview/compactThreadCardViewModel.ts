@@ -149,31 +149,39 @@ export const buildCompactThreadCardViewModelFromRecord = ({
       t?.('mindroomUi.threads.compactThreadCardViewModel.threadStarted') ??
       'Thread started'
   );
+  const replyPreviewText = localizeThreadPreview(
+    presentation.latestReplyPreviewText,
+    presentation.latestReplyPreviewLocalization,
+    t
+  );
+  const rootPreviewText = localizeThreadPreview(
+    presentation.rootPreviewText,
+    presentation.rootPreviewLocalization,
+    t
+  );
   const latestPreviewText = replaceMatrixUserIdsWithDisplayNames(
     room,
-    localizeThreadPreview(
-      presentation.latestReplyPreviewText,
-      presentation.latestReplyPreviewLocalization,
-      t
-    ) ??
-      localizeThreadPreview(
-        presentation.rootPreviewText,
-        presentation.rootPreviewLocalization,
-        t
-      ) ??
+    replyPreviewText ??
+      rootPreviewText ??
       (presentation.messageCount > 0
         ? titleText
         : t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet')
   );
   const lastSenderId = presentation.lastSenderId;
+  // Without a known reply the card previews the root, so it names the root's sender.
+  const previewsRoot = !replyPreviewText && !!rootPreviewText && !!lastSenderId;
+  const previewSenderId = previewsRoot
+    ? (room.getThread(record.threadRootId)?.rootEvent ?? room.findEventById(record.threadRootId))
+        ?.getSender()
+    : lastSenderId;
   const lastSenderName =
-    (lastSenderId ? getMemberDisplayName(room, lastSenderId) : undefined) ??
-    (presentation.lastSenderDisplayName
+    (previewSenderId ? getMemberDisplayName(room, previewSenderId) : undefined) ??
+    (presentation.lastSenderDisplayName && !previewsRoot
       ? lastSenderId
         ? presentation.lastSenderDisplayName
         : replaceMatrixUserIdsWithDisplayNames(room, presentation.lastSenderDisplayName)
       : undefined) ??
-    (lastSenderId ? getMxIdLocalPart(lastSenderId) ?? lastSenderId : undefined);
+    (previewSenderId ? getMxIdLocalPart(previewSenderId) ?? previewSenderId : undefined);
   const previewText = lastSenderName
     ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
     : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
