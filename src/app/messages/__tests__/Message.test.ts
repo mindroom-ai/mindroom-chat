@@ -499,8 +499,8 @@ const rowValue = (renderer: ReactTestRenderer, label: string): string | undefine
   return term < 0 ? undefined : cells[term + 1]?.children.join('');
 };
 
-const hasNodeTitle = (renderer: ReactTestRenderer, title: string): boolean =>
-  renderer.root.findAll((node) => node.props.title === title).length > 0;
+const hasNodeTip = (renderer: ReactTestRenderer, tip: string): boolean =>
+  renderer.root.findAll((node) => node.props.tip === tip).length > 0;
 
 const openContextMenu = async (renderer: ReactTestRenderer) => {
   const menuButton = getButtonByIcon(renderer, 'VerticalDots');
@@ -648,7 +648,7 @@ describe('Message reply details menu item', () => {
     expect(aiRunAvatarStacks).toHaveLength(1);
     expect(aiRunAvatarStacks[0]?.findAll((node) => node === aiRunAvatars[0])).toHaveLength(1);
     expect(hasSpanText(renderer, 'Fast')).toBe(true);
-    expect(hasNodeTitle(renderer, 'fast (openai / gpt-5-mini)')).toBe(true);
+    expect(hasNodeTip(renderer, 'fast (openai / gpt-5-mini)')).toBe(true);
     expect(hasSpanText(renderer, 'Reply details')).toBe(false);
 
     await openContextMenu(renderer);
