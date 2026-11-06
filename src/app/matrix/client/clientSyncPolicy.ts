@@ -8,6 +8,7 @@ import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { relistThreadsAfterGaps } from './threadListGaps';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import { keepStreamingRepliesChecked } from './streamingReplies';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepUnsentMessages } from './unsentMessages';
 
@@ -89,6 +90,7 @@ export const startClient = async (
     keepBundledEditsInTheirRoom(mx);
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
+    keepStreamingRepliesChecked(mx);
     relistThreadsAfterGaps(mx);
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);

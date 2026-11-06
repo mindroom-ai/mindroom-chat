@@ -15,6 +15,7 @@ import { getActiveAnnotationsByKey } from '../../matrix/protocol/reactionAnnotat
 import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../matrix/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
+import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
@@ -139,7 +140,11 @@ const getThreadStreamingSnapshot = (
       trackedRelations.push(relations);
     }
 
-    if (!isStreaming && isEventStreaming(mEvent, relations, timelineSet)) {
+    if (
+      !isStreaming &&
+      isEventStreaming(mEvent, relations, timelineSet) &&
+      isStreamingReplyCurrent(room, mEvent)
+    ) {
       isStreaming = true;
     }
   });
