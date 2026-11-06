@@ -16,6 +16,7 @@ import type {
 } from './useVirtualPaginator';
 import { scrollToBottom } from '../lib/dom';
 import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
 import { getFocusedRoomEventIndex } from '../event-store/timeline/timelinePagination';
@@ -482,11 +483,46 @@ const useThreadJumpTarget = ({
   ]);
 };
 
+/** How many frames a smooth bottom pin may run before it is finished at once. */
+const SMOOTH_PIN_MAX_FRAMES = 60;
+
+/**
+ * Finishes a smooth scroll to the end of `scrollArea` that stops short. It aims at the end the area
+ * had when it started, so rows that grow while it runs end below it, and any scroll the timeline
+ * writes meanwhile stops it (the composer's typing line arriving with the reader's own message
+ * does). The reader would be left above the newest row, which then no longer counts them as at the
+ * bottom, and nothing would follow the reply. A frame in which it has not moved and is not at the
+ * end takes the end at once, as long as `wanted` says the request still holds and nothing moved
+ * the area up meanwhile.
+ */
+const finishSmoothBottomPin = (scrollArea: HTMLElement, wanted: () => boolean) => {
+  if (typeof requestAnimationFrame === 'undefined') return;
+  let frames = 0;
+  let lastTop = Number.NaN;
+  const check = () => {
+    if (!wanted() || !scrollArea.isConnected) return;
+    const below = scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop;
+    // At the end, or moved up by something else that owns the position now (a jump).
+    if (below <= 1 || scrollArea.scrollTop < lastTop) return;
+    if (scrollArea.scrollTop === lastTop || frames >= SMOOTH_PIN_MAX_FRAMES) {
+      scrollToBottom(scrollArea, 'instant');
+      return;
+    }
+    lastTop = scrollArea.scrollTop;
+    frames += 1;
+    requestAnimationFrame(check);
+  };
+  // The animation starts in the frame after the request.
+  requestAnimationFrame(() => requestAnimationFrame(check));
+};
+
 /**
  * Applies the shared bottom-pin requests. Every commit compares the request count as it is then
  * with the one the previous commit saw, so a request made earlier in the same commit (the thread's
  * opening pin, which scrolls at once) is taken there and never again later. A new count scrolls
- * the area to its latest end, unless the guard says a gesture of the reader dropped that request.
+ * the area to its latest end, unless the guard says a gesture of the reader dropped that request. A
+ * smooth one to the bottom is finished at once if it stops short, until a newer request or a
+ * gesture.
  */
 const useBottomPinRequests = ({
   latestAtTopRef,
@@ -498,15 +534,22 @@ const useBottomPinRequests = ({
   'latestAtTopRef' | 'scrollRef' | 'scrollToBottomRef' | 'shouldApplyThreadBottomPin'
 >) => {
   const seenCountRef = useRef(scrollToBottomRef.current.count);
+  const guardRef = useLatestRef(shouldApplyThreadBottomPin);
   useLayoutEffect(() => {
-    const { count } = scrollToBottomRef.current;
+    const { count, smooth } = scrollToBottomRef.current;
     if (count === seenCountRef.current) return;
     seenCountRef.current = count;
     if (count <= 0 || !shouldApplyThreadBottomPin(count)) return;
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
-    const behavior = scrollToBottomRef.current.smooth ? 'smooth' : 'instant';
-    scrollToLatestEnd(scrollArea, !!latestAtTopRef?.current, behavior);
+    const latestAtTop = !!latestAtTopRef?.current;
+    scrollToLatestEnd(scrollArea, latestAtTop, smooth ? 'smooth' : 'instant');
+    if (smooth && !latestAtTop) {
+      finishSmoothBottomPin(
+        scrollArea,
+        () => scrollToBottomRef.current.count === count && guardRef.current(count)
+      );
+    }
   });
 };
 

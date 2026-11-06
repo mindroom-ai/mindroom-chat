@@ -685,6 +685,83 @@ describe('bottom-pin requests', () => {
     expect(scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
+  /** A scroll area whose geometry the test sets, with frames it runs one at a time. */
+  const geometry = (area: HTMLElement, sizes: { scrollHeight: number; clientHeight: number }) => {
+    Object.defineProperty(area, 'scrollHeight', {
+      configurable: true,
+      get: () => sizes.scrollHeight,
+    });
+    Object.defineProperty(area, 'clientHeight', {
+      configurable: true,
+      get: () => sizes.clientHeight,
+    });
+    Object.defineProperty(area, 'scrollTop', { configurable: true, writable: true, value: 0 });
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) =>
+      frames.push(callback)
+    );
+    const nextFrame = () => frames.splice(0).forEach((callback) => callback(0));
+    return { nextFrame };
+  };
+
+  const smoothPin = () => {
+    const opened = openThread();
+    const area = opened.options.scrollRef.current as HTMLDivElement;
+    const sizes = { scrollHeight: 2000, clientHeight: 500 };
+    const { nextFrame } = geometry(area, sizes);
+    area.scrollTop = 1400;
+    const settled = { ...opened.options, threadLatestOpenPending: false };
+    act(() => opened.renderer.update(<Harness options={settled} />));
+    opened.scrollTo.mockClear();
+    opened.pins.current = { count: opened.pins.current.count + 1, smooth: true };
+    act(() => opened.renderer.update(<Harness options={{ ...settled }} />));
+    return { ...opened, area, nextFrame, settled, sizes };
+  };
+
+  it('finishes a smooth pin at once when it stops short of the end', () => {
+    const { area, nextFrame, scrollTo, sizes } = smoothPin();
+    expect(scrollTo).toHaveBeenCalledWith({ top: 1500, behavior: 'smooth' });
+    // The composer's typing line moves the position by a write, which stops the animation, and
+    // the reader's own message grows the end past where it aimed.
+    area.scrollTop = 1424;
+    sizes.scrollHeight = 2068;
+    // It starts a frame after the request, and stopped when a frame finds it where it was.
+    nextFrame();
+    nextFrame();
+    expect(scrollTo).toHaveBeenCalledTimes(1);
+    nextFrame();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 1568, behavior: 'instant' });
+  });
+
+  it('leaves a smooth pin that reaches the end, or that a gesture or a newer request ended', () => {
+    const reached = smoothPin();
+    reached.area.scrollTop = 1500;
+    [1, 2, 3, 4].forEach(reached.nextFrame);
+    expect(reached.scrollTo).toHaveBeenCalledTimes(1);
+    act(() => reached.renderer.unmount());
+
+    const gesture = smoothPin();
+    gesture.area.scrollTop = 1424;
+    const count = gesture.pins.current.count;
+    act(() =>
+      gesture.renderer.update(
+        <Harness options={{ ...gesture.settled, shouldApplyThreadBottomPin: (c) => c !== count }} />
+      )
+    );
+    [1, 2, 3, 4].forEach(gesture.nextFrame);
+    expect(gesture.scrollTo).toHaveBeenCalledTimes(1);
+    act(() => gesture.renderer.unmount());
+
+    const jumped = smoothPin();
+    jumped.area.scrollTop = 1424;
+    jumped.nextFrame();
+    jumped.nextFrame();
+    // A jump to an older message moves the position up while the pin waits.
+    jumped.area.scrollTop = 300;
+    [1, 2, 3].forEach(jumped.nextFrame);
+    expect(jumped.scrollTo).toHaveBeenCalledTimes(1);
+  });
+
   it('skips a request the guard refuses', () => {
     const { options, pins, renderer, scrollTo } = openThread();
     const settled = { ...options, threadLatestOpenPending: false };
