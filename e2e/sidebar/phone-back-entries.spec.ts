@@ -294,7 +294,7 @@ const edgeSwipeBack = async (page: Page, engine: Engine) => {
   const xs = Array.from({ length: 12 }, (_, step) => 4 + (step + 1) * 24);
   if (engine === 'chromium') {
     const touch = await page.context().newCDPSession(page);
-    const send = (type: string, x?: number) =>
+    const send = (type: 'touchStart' | 'touchMove' | 'touchEnd', x?: number) =>
       touch.send('Input.dispatchTouchEvent', {
         type,
         touchPoints: x === undefined ? [] : [{ x, y: 420, id: 1 }],
