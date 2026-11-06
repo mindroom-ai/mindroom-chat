@@ -28,6 +28,7 @@ import {
   scanToolMarkerLines,
 } from '../messageCopyText';
 import { formatMessageTextBodyAsHtml } from './blocks';
+import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { sanitizeCustomHtml } from '../../rich-text/sanitize';
 
 const clipboardMocks = vi.hoisted(() => ({
@@ -419,7 +420,10 @@ describe('inline website favicons', () => {
       linkifyOpts,
       showLinkFavicons: enabled,
     });
-    return renderToStaticMarkup(React.createElement(React.Fragment, null, parse(html, opts)));
+    // RenderBody allows icons where the deployment does.
+    return renderToStaticMarkup(
+      React.createElement(LinkFaviconContext.Provider, { value: true }, parse(html, opts))
+    );
   };
 
   it('uses the same cached site icon for plain and formatted links without exposing paths', () => {
@@ -429,7 +433,8 @@ describe('inline website favicons', () => {
     expect(markup.match(/src="https:\/\/icons.duckduckgo.com\/ip3\/github.com.ico"/g)).toHaveLength(
       2
     );
-    expect(markup).toContain('title="Read docs"');
+    // The title names the real address, whatever the message's HTML says.
+    expect(markup).toContain('title="https://github.com/example/two#part"');
     expect(markup).toContain('<strong>Docs</strong>');
     expect(markup).toContain('href="https://github.com/example/two#part"');
     expect(markup).toContain('referrerPolicy="no-referrer"');
