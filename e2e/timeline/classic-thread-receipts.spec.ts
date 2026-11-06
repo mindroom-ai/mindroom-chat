@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Page,
@@ -10,6 +9,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
+import { launchWebKit } from '../helpers/webkit';
 import {
   joinRoom,
   loginToMatrix,
@@ -33,8 +33,6 @@ import {
 // - scrolled up in the history: no receipt until the reader is back at the bottom;
 // - a streamed reply that finishes in view: a receipt on the finishing edit.
 // Set CLASSIC_RECEIPT_SHOTS=<directory> for screenshots of the room after each read.
-// Step (d) waits for wip/classic-receipts-jump.
-const SKIP_JUMP_STEP = true;
 
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'classic-thread-receipts-spec-password';
@@ -334,22 +332,41 @@ const check = async (page: Page, world: World, label: string, desktop: boolean) 
   await expectRead(page, world, receipts, rootId, replyCId, desktop);
 
   // (d) Scrolled up in the history, a reply is not read until the reader is back at the bottom.
-  // Open defect: Jump to Latest does not reach the new reply in Classic view.
-  test.info().annotations.push({
-    type: 'fixme',
-    description: 'classic-thread-replies-v4 vs thread-send-read Classic reads, fix on wip/classic-receipts-jump',
+  await scrollUp(page, root);
+  const replyD = `Ops ${label}: the replica is stopped, starting the upgrade now.`;
+  const replyDId = await say(world, replyD, inThread(rootId));
+  await expect.poll(() => serverThreadCount(world, rootId), { timeout: 15_000 }).toBe(1);
+  await page.waitForTimeout(QUIET_MS);
+  expect(receiptsFor(receipts, replyDId)).toEqual([]);
+  // Observe the mounted window and scroll position while the explicit jump settles. A range
+  // counted in room rows must expand to include the Classic view's newest thread reply.
+  const frames = page.evaluate(() => new Promise<unknown[]>((resolve) => {
+    const samples: unknown[] = [];
+    const start = performance.now();
+    const sample = () => {
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[data-message-id]'));
+      let area = rows.at(-1)?.parentElement ?? null;
+      while (area && !/(auto|scroll)/.test(getComputedStyle(area).overflowY)) area = area.parentElement;
+      samples.push({
+        ms: Math.round(performance.now() - start),
+        ids: rows.map((row) => row.dataset.messageId),
+        scrollTop: area?.scrollTop, scrollHeight: area?.scrollHeight, clientHeight: area?.clientHeight,
+      });
+      if (performance.now() - start < 1_500) requestAnimationFrame(sample);
+      else resolve(samples);
+    };
+    sample();
+  }));
+  await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
+  await test.info().attach('jump-frames', {
+    body: JSON.stringify({ replyDId, frames: await frames }, null, 2), contentType: 'application/json',
   });
-  if (!SKIP_JUMP_STEP) {
-    await scrollUp(page, root);
-    const replyD = `Ops ${label}: the replica is stopped, starting the upgrade now.`;
-    const replyDId = await say(world, replyD, inThread(rootId));
-    await expect.poll(() => serverThreadCount(world, rootId), { timeout: 15_000 }).toBe(1);
-    await page.waitForTimeout(QUIET_MS);
-    expect(receiptsFor(receipts, replyDId)).toEqual([]);
-    await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
-    await expect(text(page, replyD)).toBeVisible({ timeout: 30_000 });
-    await expectRead(page, world, receipts, rootId, replyDId, desktop);
+  if (SHOTS) {
+    await page.waitForTimeout(1_000);
+    await shot(page, `${label}-jump-latest`);
   }
+  await expect(text(page, replyD)).toBeVisible({ timeout: 30_000 });
+  await expectRead(page, world, receipts, rootId, replyDId, desktop);
 
   // (e) A streamed reply that finishes in view is read up to its finishing edit.
   const streaming = `Ops ${label}: checking the upgrade log for warnings.`;
@@ -377,47 +394,69 @@ const check = async (page: Page, world: World, label: string, desktop: boolean) 
   ).toEqual([]);
 };
 
-const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
-  for (const [viewport, options] of [
-    ['phone', PHONE],
-    ['desktop', DESKTOP],
-  ] as const) {
-    const world = await seed(`${engine}_${viewport}`);
-    const context = await browser.newContext({ ...options, baseURL });
+const run = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  engine: string,
+  viewport: 'phone' | 'desktop',
+  theme: 'light' | 'dark'
+) => {
+    const world = await seed(`${engine}_${viewport}_${theme}`);
+    const context = await browser.newContext({ ...(viewport === 'phone' ? PHONE : DESKTOP), baseURL });
+    const timeline: unknown[] = [];
     try {
       const page = await context.newPage();
+      await page.addInitScript((mode) => {
+        localStorage.setItem('mindroom.debug.timeline', '1');
+        const settings = JSON.parse(localStorage.getItem('settings') ?? '{}');
+        localStorage.setItem('settings', JSON.stringify({
+          ...settings, useSystemTheme: false, themeId: `${mode}-theme`,
+        }));
+      }, theme);
+      page.on('console', (message) => {
+        if (message.text().startsWith('[timeline-debug]')) {
+          void Promise.all(message.args().map((arg) => arg.jsonValue())).then((args) => timeline.push(args));
+        }
+      });
       await loginWithPassword(page, {
         homeserver: HOMESERVER,
         username: world.reader.username,
         password: PASSWORD,
       });
-      await check(page, world, `${engine} ${viewport}`, viewport === 'desktop');
+      await check(page, world, `${engine}-${viewport}-${theme}`, viewport === 'desktop');
     } finally {
+      await test.info().attach('timeline-log', {
+        body: JSON.stringify(timeline, null, 2), contentType: 'application/json',
+      });
       await context.close();
     }
-  }
 };
 
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('the Classic view reads the thread replies it shows (Chromium)', async ({
-  browser,
-  baseURL,
-}) => {
-  test.setTimeout(420_000);
-  await run(browser, baseURL, 'chromium');
+test.use({
+  launchOptions: {
+    executablePath: process.env.CHROMIUM_PATH || undefined,
+    args: ['--disable-features=IsolateSandboxedIframes'],
+    ignoreDefaultArgs: ['--hide-scrollbars'],
+  },
 });
 
-test('the Classic view reads the thread replies it shows (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(420_000);
-  // The runner adds the project's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
-  try {
-    await run(browser, baseURL, 'webkit');
-  } finally {
-    await browser.close();
+for (const engine of ['chromium', 'webkit'] as const) {
+  for (const viewport of ['phone', 'desktop'] as const) {
+    for (const theme of ['light', 'dark'] as const) {
+      test(`Classic thread reads, ${engine}, ${viewport}, ${theme}`, async ({ browser, baseURL }) => {
+        test.skip(engine === 'webkit' && !WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+        test.setTimeout(180_000);
+        const host = engine === 'webkit' ? await launchWebKit() : undefined;
+        try {
+          await run(host ?? browser, baseURL, engine, viewport, theme);
+        } finally {
+          await host?.close();
+        }
+      });
+    }
   }
-});
+}

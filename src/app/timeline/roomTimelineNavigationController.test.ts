@@ -1,11 +1,13 @@
 import React from 'react';
-import type { Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { act, create } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 import {
   useRoomTimelineNavigationController,
   type RoomTimelineNavigationControllerOptions,
 } from './roomTimelineNavigationController';
+import { placeClassicWindow } from './roomTimelineClassicRows';
+import type { Timeline } from '../event-store/timeline/timelinePagination';
 
 type Controller = ReturnType<typeof useRoomTimelineNavigationController>;
 
@@ -38,6 +40,41 @@ const renderController = (overrides: Partial<RoomTimelineNavigationControllerOpt
 };
 
 describe('useRoomTimelineNavigationController', () => {
+  it('replaces an anchored Classic window with the newest rows including thread replies', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
+    const room = new Room('!room:example.org', mx, '@reader:example.org');
+    const events = ['$a', '$b', '$root'].map((eventId, index) => new MatrixEvent({
+      event_id: eventId,
+      room_id: room.roomId,
+      sender: '@reader:example.org',
+      type: 'm.room.message',
+      origin_server_ts: index,
+      content: { msgtype: 'm.text', body: eventId },
+    }));
+    await room.addLiveEvents(events, { addToState: false });
+    const range = { start: 0, end: 3 };
+    const previous = {
+      source: range, range, chain: [room.getLiveTimeline()], firstRowId: '$a',
+    };
+    // Room history has three rows; Classic adds two inline replies after the root.
+    const rows = [...events, ...['$reply1', '$newest'].map((eventId) => new MatrixEvent({
+      event_id: eventId,
+    }))].map((event, absoluteIndex) => ({ event, absoluteIndex }));
+    let jumped: Timeline | undefined;
+    const { controller } = renderController({
+      room, threadId: undefined, showThreadRepliesInRoom: true, prefetchDepth: 3,
+      setTimeline: (next) => { if (typeof next !== 'function') jumped = next; },
+    });
+
+    controller.handleJumpToLatest();
+
+    if (!jumped) throw new Error('Jump did not set a room window');
+    const placed = placeClassicWindow(previous, jumped, rows, 3);
+    expect(rows.slice(placed.start, placed.end).map(({ event }) => event.getId())).toEqual([
+      '$root', '$reply1', '$newest',
+    ]);
+  });
+
   it('pins a thread to its newest reply synchronously on Jump to Latest', () => {
     const { controller, options } = renderController({});
 
