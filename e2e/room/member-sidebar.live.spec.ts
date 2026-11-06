@@ -95,8 +95,9 @@ test('members stay beside a wide enough room and resize, collapse, and reopen', 
       await expect(panel).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Show Members', exact: true })).toBeVisible();
     } else {
+      // Back beside the room, the panel opens in motion.
       await expect(handle).toBeVisible();
-      expect(await widthOf(panel)).toBeGreaterThanOrEqual(200);
+      await expect.poll(() => widthOf(panel)).toBeGreaterThanOrEqual(200);
     }
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth', width);
     await expect(page).toHaveURL(roomUrl);
