@@ -77,8 +77,8 @@ export const moveMenuFocus = (event: NavigationKey, menu: HTMLElement): void => 
   items[next]?.focus();
 };
 
-/** The last press anywhere in the page, where it was, and whether its click has come yet. */
-let lastPress: { target: Element; x: number; y: number; at: number; clicked: boolean } | undefined;
+/** The last press anywhere in the page, and whether its click has come yet. */
+let lastPress: { target: Element; at: number; clicked: boolean } | undefined;
 const PRESS_MS = 1_000;
 const BUTTON_SELECTOR = 'button, [role="button"], a[href]';
 
@@ -88,13 +88,7 @@ if (typeof window !== 'undefined') {
     'pointerdown',
     (event) => {
       if (event.target instanceof Element) {
-        lastPress = {
-          target: event.target,
-          x: event.clientX,
-          y: event.clientY,
-          at: performance.now(),
-          clicked: false,
-        };
+        lastPress = { target: event.target, at: performance.now(), clicked: false };
       }
     },
     true
@@ -111,8 +105,10 @@ if (typeof window !== 'undefined') {
 /**
  * Keeps a menu closed when a press on the button that opened it closes it. The menu's focus trap
  * closes it as the press starts, a click outside it; the click that ends the press then reaches
- * the button, which would open it again. That one click is dropped. On a touch screen the press
- * can land on a layer over the button, so the press counts by where it was.
+ * the button, which would open it again. That one click is dropped, so each press decides once.
+ * The click tells, not where the press began: on a touch screen the press lands on a layer over
+ * the button, even past the button's box, where a finger still reaches the button (its 44 px
+ * touch area).
  */
 const useButtonPressCloses = (element: { current: HTMLElement | null }) => {
   useEffect(() => {
@@ -126,15 +122,8 @@ const useButtonPressCloses = (element: { current: HTMLElement | null }) => {
       const closing = lastPress;
       if (!closing || closing.at <= opened || closing.clicked) return;
       if (performance.now() - closing.at > PRESS_MS) return;
-      const rect = button.getBoundingClientRect();
-      const onButton =
-        button.contains(closing.target) ||
-        (closing.x >= rect.left &&
-          closing.x <= rect.right &&
-          closing.y >= rect.top &&
-          closing.y <= rect.bottom);
-      if (!onButton) return;
-      // Only the click that ends this press: the next press, or its click anywhere, ends the watch.
+      // Only the click that ends this press, and only on the button: the next press, or this
+      // press's click anywhere, ends the watch.
       const stop = () => {
         window.removeEventListener('click', drop, true);
         window.removeEventListener('pointerdown', stop, true);
