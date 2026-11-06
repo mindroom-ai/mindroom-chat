@@ -176,7 +176,8 @@ export const TimeText = style({
 });
 
 export const TimeTextUnread = style({
-  color: color.Primary.Main,
+  // MainActive keeps 4.5:1 on the dark theme's cards, where Main has 4.0:1.
+  color: color.Primary.MainActive,
   fontWeight: 600,
   opacity: 1,
 });
@@ -191,6 +192,12 @@ export const MessageText = style({
   minWidth: 0,
   flex: 1,
 });
+
+// Secondary text on a resolved card's green keeps 4.5:1 at the lighter of the two quiet levels.
+globalStyle(
+  `${CardResolved} ${MessageText}, ${CardResolved} ${TimeText}:not(${TimeTextUnread})`,
+  { opacity: config.opacity.P400 }
+);
 
 // One line, so every card keeps one height: the byline and tags end in an ellipsis instead of
 // wrapping.
@@ -229,7 +236,8 @@ export const ResolutionByline = style({
   alignItems: 'center',
   columnGap: config.space.S100,
   minWidth: 0,
-  color: color.Success.Main,
+  // Success.Main has 3.9:1 on the light theme's resolved card.
+  color: color.Success.OnContainer,
   fontWeight: 500,
 });
 
