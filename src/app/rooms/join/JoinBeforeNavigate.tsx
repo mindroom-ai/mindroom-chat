@@ -25,6 +25,7 @@ import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
 import { getHomePath } from '../../routes/pathUtils';
+import { isRoomAlias } from '../../matrix/matrix';
 import { declineInvite } from '../../notifications/inbox/declineInvite';
 import { useAlive } from '../../lib/hooks/useAlive';
 
@@ -370,14 +371,28 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   );
 }
 
-/** The page header: a link icon and the room's name, or the alias or ID it was opened with. */
-function LinkHeader({ title }: { title: string }) {
+/**
+ * How the page header names the room: by the address the link used, else the room's own
+ * address, else its name (from the summary, or the client's own copy of an invite), else the room
+ * ID the link used. The summary brings the address and name once it loads; a link by room ID
+ * often reaches here as one because an alias route is swapped for its room ID before the page
+ * shows.
+ */
+const headerTarget = (roomIdOrAlias: string, summary?: SummaryData, knownName?: string): string =>
+  (isRoomAlias(roomIdOrAlias) ? roomIdOrAlias : undefined) ||
+  summary?.canonical_alias ||
+  summary?.name ||
+  knownName ||
+  roomIdOrAlias;
+
+/** The page header: a link icon and how the room is named (`headerTarget`). */
+function LinkHeader({ target }: { target: string }) {
   return (
     <PageHeader balance>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
         <Icon size="200" src={Icons.Link} />
         <Text as="h1" size="H4" truncate>
-          {title}
+          {target}
         </Text>
       </Box>
     </PageHeader>
@@ -435,7 +450,6 @@ function JoinPage({ state, retry, roomId, ...props }: JoinPageProps) {
   );
   const summary = state.status === AsyncStatus.Success ? (state.data as SummaryData) : undefined;
   const { room, membership } = useMyMembership(summary?.room_id ?? roomId ?? roomIdOrAlias);
-  const title = summary?.name || summary?.canonical_alias || knownRoomName(room) || roomIdOrAlias;
 
   let body: ReactNode;
   if (summary) {
@@ -455,7 +469,7 @@ function JoinPage({ state, retry, roomId, ...props }: JoinPageProps) {
 
   return (
     <Page>
-      <LinkHeader title={title} />
+      <LinkHeader target={headerTarget(roomIdOrAlias, summary, knownRoomName(room))} />
       <Box
         grow="Yes"
         direction="Column"
