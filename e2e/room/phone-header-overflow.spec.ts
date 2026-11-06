@@ -85,20 +85,29 @@ const openRoom = async (page: Page, data: Seed) => {
 };
 
 /** Whether a tap anywhere in the 44 px square around the control's center lands on it. */
-const fullTarget = (control: Locator) =>
+/**
+ * The points of the 44 px square around the control's center that a tap would not land on it
+ * (empty when the whole square is the control's), each with what it hits instead.
+ */
+const missedPoints = (control: Locator) =>
   control.evaluate((element, size) => {
     const { left, top, width, height } = element.getBoundingClientRect();
     const x = left + width / 2;
     const y = top + height / 2;
     const reach = size / 2 - 1;
-    return [
-      [x - reach, y],
-      [x + reach, y],
-      [x, y - reach],
-      [x, y + reach],
-    ].every(([px, py]) => {
-      const hit = document.elementFromPoint(px ?? 0, py ?? 0);
-      return !!hit && element.contains(hit);
+    const points: [string, number, number][] = [
+      ['start', x - reach, y],
+      ['end', x + reach, y],
+      ['top', x, y - reach],
+      ['bottom', x, y + reach],
+    ];
+    return points.flatMap(([at, px, py]) => {
+      const hit = document.elementFromPoint(px, py);
+      if (hit && element.contains(hit)) return [];
+      const what = hit
+        ? `${hit.tagName}.${hit.className} "${(hit.textContent ?? '').slice(0, 30)}"`
+        : 'nothing';
+      return [`${at} (${Math.round(px)}, ${Math.round(py)}): ${what}`];
     });
   }, TARGET);
 
@@ -139,9 +148,9 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     for (const name of ['Back', 'More Options']) {
       // eslint-disable-next-line no-await-in-loop
       expect(
-        await fullTarget(header(page).getByRole('button', { name, exact: true })),
+        await missedPoints(header(page).getByRole('button', { name, exact: true })),
         `${name} 44 px target`
-      ).toBe(true);
+      ).toEqual([]);
     }
     // eslint-disable-next-line no-await-in-loop
     await shot(page, testInfo, `phone-header-${engine}-${scheme}`);
