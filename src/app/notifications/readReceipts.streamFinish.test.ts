@@ -240,6 +240,46 @@ describe('markThreadAsRead, a thread opened after the stream finished', () => {
   });
 });
 
+describe('markThreadAsRead, ties and the server fallback', () => {
+  it("reads the finishing edit the server bundled with its newest reply", async () => {
+    const mx = setup([]);
+    const answer = replyWithBundledEdit('completed');
+    mx.fetchRelations.mockImplementation(async (...args: unknown[]) => ({
+      chunk: args[2] === RelationType.Thread ? [answer.event] : [],
+    }));
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(receiptTarget(mx)).toBe('$finish');
+  });
+
+  it('never moves the receipt back to a reply that ties with a later one', async () => {
+    // The server's summary names an earlier reply with the same timestamp as the last loaded one,
+    // which the reader's receipt already names.
+    const earlier = reply('$earlier', 3);
+    const later = reply('$later', 3);
+    const mx = setup([earlier, later], '$later');
+    const thread = mx.getRoom().getThread();
+    thread.replyToEvent = earlier;
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
+  });
+
+  it('reads the later of two tied replies by their order in the thread', async () => {
+    const earlier = reply('$earlier', 3);
+    const later = reply('$later', 3);
+    const mx = setup([earlier, later]);
+    const thread = mx.getRoom().getThread();
+    thread.replyToEvent = earlier;
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(receiptTarget(mx)).toBe('$later');
+  });
+});
+
 describe('markRoomAndThreadsAsRead, streamed replies', () => {
   it('reads the room up to the edit that finished a thread reply', async () => {
     const finish = editIn('$finish', 4, '$answer', 'completed');

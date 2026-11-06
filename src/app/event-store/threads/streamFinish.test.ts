@@ -83,6 +83,14 @@ describe('getThreadUnread, a streamed reply', () => {
     expect(getThreadUnread(thread, USER_ID)).toBe(true);
   });
 
+  it('read half-way is unread when the finishing edit has the reply\'s timestamp', async () => {
+    const { thread, reply } = await setup();
+    // Both in the same millisecond: the edit still comes after the reply the receipt names.
+    reply.makeReplaced(edit('$finish', 2000, 'completed'));
+
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
+
   it('read half-way is unread when the server bundles the finishing edit with the reply', async () => {
     const { thread, reply } = await setup();
     reply.setUnsigned({

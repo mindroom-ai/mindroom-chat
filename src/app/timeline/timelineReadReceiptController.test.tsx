@@ -327,6 +327,18 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });
 
+    it('reads nothing when the reader scrolled away before the frame comes', () => {
+      mount(optionsWith());
+
+      reportAnchor(true);
+      const away = vi
+        .spyOn(anchor, 'getBoundingClientRect')
+        .mockReturnValue({ top: 5_000 } as DOMRect);
+      runFrames();
+      away.mockRestore();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
     it('reads nothing when the window loses its focus before the frame comes', () => {
       mount(optionsWith());
 
@@ -402,6 +414,41 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       runFrames();
       expect(markThreadAsRead).toHaveBeenCalledTimes(2);
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+    });
+
+    it('is not read when the reader left the thread before the frame comes', () => {
+      const options = optionsWith(openThread);
+      mount(options);
+      rerender({ ...options, threadId: '$other-thread' });
+      frames.splice(1);
+
+      runFrames();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+    });
+
+    it('is not read when the reader scrolled away before the frame comes', () => {
+      mount(optionsWith(openThread));
+      const away = vi
+        .spyOn(anchor, 'getBoundingClientRect')
+        .mockReturnValue({ top: 5_000 } as DOMRect);
+
+      runFrames();
+      away.mockRestore();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+    });
+
+    it('is not read when the view left the live end or unmounted before the frame comes', () => {
+      const atLiveEndRef = { current: true };
+      mount(optionsWith({ ...openThread, atLiveEndRef }));
+      atLiveEndRef.current = false;
+      runFrames();
+      act(() => probe?.unmount());
+
+      mount(optionsWith(openThread));
+      act(() => probe?.unmount());
+      probe = undefined;
+      runFrames();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
     });
 
     it('is not read when the window loses its focus before the frame comes', () => {
