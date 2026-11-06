@@ -242,7 +242,7 @@
       "currentSpaceDescription": "Текущее пространство",
       "globalSearchDescription": "Глобальный поиск сообщений"
     },
-    "resultCount_few": "{{count}} результатов",
+    "resultCount_few": "{{count}} результата",
     "resultCount_many": "{{count}} результатов",
     "all": "Все",
     "filterLabel": "Фильтр результатов",
@@ -358,7 +358,7 @@
       "threadCount_one": "{{count}} ветка",
       "threadCount_other": "{{count}} веток",
       "tags": "Теги",
-      "threadCount_few": "{{count}} веток",
+      "threadCount_few": "{{count}} ветки",
       "threadCount_many": "{{count}} веток"
     },
     "filterTooltip": {
@@ -1149,7 +1149,7 @@
       "spamInvites_one": "{{count, number}} спам-приглашение",
       "spamInvites_other": "{{count, number}} спам-приглашений",
       "spamInvites_few": "{{count, number}} спам-приглашения",
-      "spamInvites_many": "{{count, number}} спам-приглашения"
+      "spamInvites_many": "{{count, number}} спам-приглашений"
     },
     "notifications": {
       "open": "Открыть",
@@ -1227,9 +1227,9 @@
     "reaction": {
       "others_one": "ещё {{count}} пользователь",
       "reactionSummary": "<names>{{names}}</names> отреагировали :<reaction>{{reaction}}</reaction>:",
-      "others_other": "ещё {{count}} пользователей",
-      "others_few": "{{count}} других",
-      "others_many": "{{count}} других"
+      "others_other": "ещё {{count}} пользователя",
+      "others_few": "ещё {{count}} пользователя",
+      "others_many": "ещё {{count}} пользователей"
     },
     "audioContent": {
       "pause": "Пауза",
@@ -1442,8 +1442,8 @@
         "collapse": "Свернуть",
         "additionalParticipants_one": "+ ещё {{count}}",
         "additionalParticipants_other": "+ ещё {{count}}",
-        "additionalParticipants_few": "+{{count}} других",
-        "additionalParticipants_many": "+{{count}} других"
+        "additionalParticipants_few": "+ ещё {{count}}",
+        "additionalParticipants_many": "+ ещё {{count}}"
       },
       "callView": {
         "yourHomeserverDoesNotSupportCalling": "Ваш домашний сервер не поддерживает звонки.",
@@ -1688,7 +1688,7 @@
       "create": "Создать",
       "rateLimited_one": "Сервер ограничил ваши запросы на {{count}} минуту!",
       "rateLimited_other": "Сервер ограничил ваши запросы на {{count}} минут!",
-      "rateLimited_few": "Сервер ограничил ваши запросы на {{count}} минут!",
+      "rateLimited_few": "Сервер ограничил ваши запросы на {{count}} минуты!",
       "rateLimited_many": "Сервер ограничил ваши запросы на {{count}} минут!"
     },
     "createRoom": {
@@ -1709,7 +1709,7 @@
       "newVoiceRoom": "Новая голосовая комната",
       "rateLimited_one": "Сервер ограничил ваши запросы на {{count}} минуту!",
       "rateLimited_other": "Сервер ограничил ваши запросы на {{count}} минут!",
-      "rateLimited_few": "Сервер ограничил ваши запросы на {{count}} минут!",
+      "rateLimited_few": "Сервер ограничил ваши запросы на {{count}} минуты!",
       "rateLimited_many": "Сервер ограничил ваши запросы на {{count}} минут!"
     },
     "createSpace": {
@@ -1728,7 +1728,7 @@
       },
       "rateLimited_one": "Сервер ограничил ваши запросы на {{count}} минуту!",
       "rateLimited_other": "Сервер ограничил ваши запросы на {{count}} минут!",
-      "rateLimited_few": "Сервер ограничил ваши запросы на {{count}} минут!",
+      "rateLimited_few": "Сервер ограничил ваши запросы на {{count}} минуты!",
       "rateLimited_many": "Сервер ограничил ваши запросы на {{count}} минут!"
     },
     "lobby": {
@@ -1980,7 +1980,7 @@
         "accessibleLabel_one": "{{baseLabel}}, {{count}} ожидающий запрос на вступление",
         "accessibleLabel_other": "{{baseLabel}}, {{count}} ожидающих запросов на вступление",
         "accessibleLabel_few": "{{baseLabel}}, {{count}} ожидающих запроса на вступление",
-        "accessibleLabel_many": "{{baseLabel}}, {{count}} ожидающих запросов на присоединение"
+        "accessibleLabel_many": "{{baseLabel}}, {{count}} ожидающих запросов на вступление"
       },
       "reactionViewer": {
         "reactedWith": "Реакция :{{shortcode}}:"
@@ -2543,8 +2543,8 @@
         "fixedExpiry": "Фиксированное окончание: {{timestamp}}",
         "expiresInMinutes_one": "Истекает через {{count}} минуту",
         "expiresInMinutes_other": "Истекает через {{count}} минут",
-        "expiresInMinutes_few": "Истекает через {{count}} минуты.",
-        "expiresInMinutes_many": "Истекает через {{count}} минут."
+        "expiresInMinutes_few": "Истекает через {{count}} минуты",
+        "expiresInMinutes_many": "Истекает через {{count}} минут"
       },
       "approvalReceipt": {
         "resolvedToolApprovalRequest": "Решённый запрос на одобрение инструмента",
@@ -2802,8 +2802,8 @@
         "activePermissionCount_many": "{{count}} активных разрешений",
         "allowForMinutes_few": "Разрешить на {{count}} минуты",
         "allowForMinutes_many": "Разрешить на {{count}} минут",
-        "approvedCount_few": "{{count}} одобрено",
-        "approvedCount_many": "{{count}} одобрено",
+        "approvedCount_few": "Одобрено: {{count}}",
+        "approvedCount_many": "Одобрено: {{count}}",
         "awaitingConfirmation_few": "{{count}} вызова ожидают подтверждения",
         "awaitingConfirmation_many": "{{count}} вызовов ожидают подтверждения",
         "operationCallCount_few": "{{operation}} · {{count}} вызова",
@@ -3041,11 +3041,11 @@
             "description": "Сбросить все фильтры"
           }
         },
-        "showingAllThreads_few": "Показано {{count}} веток",
+        "showingAllThreads_few": "Показано {{count}} ветки",
         "showingAllThreads_many": "Показано {{count}} веток",
         "showingFilteredThreads_few": "Показано {{count}} из {{total}} веток",
         "showingFilteredThreads_many": "Показано {{count}} веток из {{total}}",
-        "threadCount_few": "{{count}} веток",
+        "threadCount_few": "{{count}} ветки",
         "threadCount_many": "{{count}} веток"
       },
       "threadTagPicker": {
@@ -3091,7 +3091,7 @@
         "pendingScheduledTasks_one": "{{count}} ожидающая запланированная задача",
         "pendingScheduledTasks_other": "{{count}} ожидающих запланированных задач",
         "scheduledTasksWithDetail": "{{tasks}}, {{detail}}",
-        "pendingScheduledTasks_few": "{{count}} ожидающих запланированных задач",
+        "pendingScheduledTasks_few": "{{count}} ожидающие запланированные задачи",
         "pendingScheduledTasks_many": "{{count}} ожидающих запланированных задач",
         "scheduledTasks_few": "{{count}} запланированные задачи",
         "scheduledTasks_many": "{{count}} запланированных задач"
@@ -3116,7 +3116,7 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "{{count}} ожидающая запланированная задача",
         "pendingScheduledTasks_other": "{{count}} ожидающих запланированных задач",
-        "pendingScheduledTasks_few": "{{count}} ожидающих запланированных задач",
+        "pendingScheduledTasks_few": "{{count}} ожидающие запланированные задачи",
         "pendingScheduledTasks_many": "{{count}} ожидающих запланированных задач"
       }
     },

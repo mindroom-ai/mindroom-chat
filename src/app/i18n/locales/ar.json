@@ -242,9 +242,9 @@
       "currentSpaceDescription": "المساحة الحالية",
       "globalSearchDescription": "البحث العام في الرسائل"
     },
-    "resultCount_few": "⁨{{count}}⁩ نتيجة",
-    "resultCount_many": "⁨{{count}}⁩ نتيجة",
-    "resultCount_two": "⁨{{count}}⁩ نتيجة",
+    "resultCount_few": "⁨{{count}}⁩ نتائج",
+    "resultCount_many": "⁨{{count}}⁩ نتيجةً",
+    "resultCount_two": "نتيجتان (⁨{{count}}⁩)",
     "resultCount_zero": "⁨{{count}}⁩ نتيجة",
     "all": "الكل",
     "filterLabel": "تصفية النتائج",
@@ -360,9 +360,9 @@
       "threadCount_one": "⁨{{count}}⁩ سلسلة محادثة",
       "threadCount_other": "⁨{{count}}⁩ من سلاسل المحادثات",
       "tags": "الوسوم",
-      "threadCount_few": "⁨{{count}}⁩ سلسلة محادثة",
+      "threadCount_few": "⁨{{count}}⁩ سلاسل محادثة",
       "threadCount_many": "⁨{{count}}⁩ سلسلة محادثة",
-      "threadCount_two": "⁨{{count}}⁩ سلسلة محادثة",
+      "threadCount_two": "سلسلتا محادثة (⁨{{count}}⁩)",
       "threadCount_zero": "⁨{{count}}⁩ سلسلة محادثة"
     },
     "filterTooltip": {
@@ -411,8 +411,8 @@
       "showingAll": "تُعرض كل سلاسل المحادثات. انقر لعرض غير المحلولة فقط."
     },
     "replyCount_few": "⁨{{count}}⁩ ردود",
-    "replyCount_many": "⁨{{count}}⁩ رد",
-    "replyCount_two": "⁨{{count}}⁩ ردود",
+    "replyCount_many": "⁨{{count}}⁩ ردًا",
+    "replyCount_two": "ردّان (⁨{{count}}⁩)",
     "replyCount_zero": "⁨{{count}}⁩ ردود"
   },
   "sharedUi": {
@@ -770,7 +770,7 @@
       "members_other": "⁨{{count, number}}⁩ من الأعضاء",
       "members_few": "⁨{{count, number}}⁩ أعضاء",
       "members_many": "⁨{{count, number}}⁩ عضوًا",
-      "members_two": "⁨{{count, number}}⁩ أعضاء",
+      "members_two": "عضوان (⁨{{count, number}}⁩)",
       "members_zero": "⁨{{count, number}}⁩ أعضاء"
     },
     "roomIntro": {
@@ -889,7 +889,7 @@
       "mutualRooms_other": "⁨{{count, number}}⁩ من الغرف المشتركة",
       "mutualRooms_few": "⁨{{count, number}}⁩ غرف مشتركة",
       "mutualRooms_many": "⁨{{count, number}}⁩ غرفة مشتركة",
-      "mutualRooms_two": "⁨{{count, number}}⁩ غرف مشتركة",
+      "mutualRooms_two": "غرفتان مشتركتان (⁨{{count, number}}⁩)",
       "mutualRooms_zero": "⁨{{count, number}}⁩ غرف مشتركة"
     },
     "userModeration": {
@@ -1159,8 +1159,8 @@
       "spamInvites_one": "⁨{{count, number}}⁩ دعوة مزعجة",
       "spamInvites_other": "⁨{{count, number}}⁩ من الدعوات المزعجة",
       "spamInvites_few": "⁨{{count, number}}⁩ دعوات مزعجة",
-      "spamInvites_many": "⁨{{count, number}}⁩ دعوات مزعجة",
-      "spamInvites_two": "⁨{{count, number}}⁩ دعوات مزعجة",
+      "spamInvites_many": "⁨{{count, number}}⁩ دعوة مزعجة",
+      "spamInvites_two": "دعوتان مزعجتان (⁨{{count, number}}⁩)",
       "spamInvites_zero": "⁨{{count, number}}⁩ دعوات مزعجة"
     },
     "notifications": {
@@ -1241,8 +1241,8 @@
       "reactionSummary": "تفاعل <names>⁨{{names}}⁩</names> بالرمز :<reaction>⁨{{reaction}}⁩</reaction>:",
       "others_other": "⁨{{count}}⁩ آخرون",
       "others_few": "⁨{{count}}⁩ آخرون",
-      "others_many": "⁨{{count}}⁩ آخرون",
-      "others_two": "⁨{{count}}⁩ آخرين",
+      "others_many": "⁨{{count}}⁩ شخصًا آخر",
+      "others_two": "شخصان آخران (⁨{{count}}⁩)",
       "others_zero": "⁨{{count}}⁩ آخرون"
     },
     "audioContent": {
@@ -1302,8 +1302,8 @@
       "noMatches": "لا يوجد مستخدمون مطابقون",
       "matchingUsers_one": "⁨{{count}}⁩ مستخدم مطابق",
       "matchingUsers_other": "⁨{{count}}⁩ من المستخدمين المطابقين",
-      "matchingUsers_few": "⁨{{count}}⁩ من المستخدمين المطابقين",
-      "matchingUsers_many": "⁨{{count}}⁩ من المستخدمين المطابقين",
+      "matchingUsers_few": "⁨{{count}}⁩ مستخدمين مطابقين",
+      "matchingUsers_many": "⁨{{count}}⁩ مستخدمًا مطابقًا",
       "matchingUsers_two": "⁨{{count}}⁩ مستخدمان مطابقان",
       "matchingUsers_zero": "⁨{{count}}⁩ من المستخدمين المطابقين"
     },
@@ -1399,9 +1399,9 @@
       "voiceMessage": "رسالة صوتية",
       "tools_one": "⁨{{count, number}}⁩ أداة",
       "tools_other": "⁨{{count, number}}⁩ من الأدوات",
-      "tools_few": "⁨{{count, number}}⁩ أداة",
-      "tools_many": "⁨{{count, number}}⁩ أداة",
-      "tools_two": "⁨{{count, number}}⁩ أداة",
+      "tools_few": "⁨{{count, number}}⁩ أدوات",
+      "tools_many": "⁨{{count, number}}⁩ أداةً",
+      "tools_two": "أداتان (⁨{{count, number}}⁩)",
       "tools_zero": "⁨{{count, number}}⁩ أداة"
     },
     "threadSummary": {
@@ -1410,10 +1410,10 @@
       "provenance": "ملخص سلسلة محادثة أنشأه الذكاء الاصطناعي",
       "provenanceCount_one": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ رسالة",
       "provenanceCount_other": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ من الرسائل",
-      "provenanceCount_few": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ من الرسائل",
-      "provenanceCount_many": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ من الرسائل",
-      "provenanceCount_two": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ من الرسائل",
-      "provenanceCount_zero": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ من الرسائل"
+      "provenanceCount_few": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ رسائل",
+      "provenanceCount_many": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ رسالة",
+      "provenanceCount_two": "ملخص بالذكاء الاصطناعي لآخر رسالتين (⁨{{count, number}}⁩)",
+      "provenanceCount_zero": "ملخص بالذكاء الاصطناعي لآخر ⁨{{count, number}}⁩ رسالة"
     },
     "commandPalette": {
       "shortcutHint": "الاختصار: <shortcut>⁨{{shortcut}}⁩</shortcut> للفتح."
@@ -1466,7 +1466,7 @@
         "additionalParticipants_other": "+⁨{{count}}⁩ آخرون",
         "additionalParticipants_few": "+⁨{{count}}⁩ آخرون",
         "additionalParticipants_many": "+⁨{{count}}⁩ آخرون",
-        "additionalParticipants_two": "+⁨{{count}}⁩ آخرون",
+        "additionalParticipants_two": "+⁨{{count}}⁩ آخران",
         "additionalParticipants_zero": "+⁨{{count}}⁩ آخرون"
       },
       "callView": {
@@ -1657,11 +1657,11 @@
         "resultCount_other": "⁨{{count}}⁩ من النتائج",
         "memberCount_few": "⁨{{count}}⁩ أعضاء",
         "memberCount_many": "⁨{{count}}⁩ عضوًا",
-        "memberCount_two": "⁨{{count}}⁩ أعضاء",
+        "memberCount_two": "عضوان (⁨{{count}}⁩)",
         "memberCount_zero": "⁨{{count}}⁩ أعضاء",
-        "resultCount_few": "⁨{{count}}⁩ نتيجة",
-        "resultCount_many": "⁨{{count}}⁩ نتيجة",
-        "resultCount_two": "⁨{{count}}⁩ نتيجة",
+        "resultCount_few": "⁨{{count}}⁩ نتائج",
+        "resultCount_many": "⁨{{count}}⁩ نتيجةً",
+        "resultCount_two": "نتيجتان (⁨{{count}}⁩)",
         "resultCount_zero": "⁨{{count}}⁩ نتيجة"
       },
       "permissions": {
@@ -1803,7 +1803,7 @@
         "sendingRequest": "جارٍ إرسال الطلب",
         "memberCount_few": "⁨{{formattedCount}}⁩ أعضاء",
         "memberCount_many": "⁨{{formattedCount}}⁩ عضوًا",
-        "memberCount_two": "⁨{{formattedCount}}⁩ أعضاء",
+        "memberCount_two": "عضوان (⁨{{formattedCount}}⁩)",
         "memberCount_zero": "⁨{{formattedCount}}⁩ أعضاء"
       },
       "spaceHierarchy": {
@@ -1973,19 +1973,19 @@
         "formattedMemberCount_other": "⁨{{formattedCount}}⁩ من الأعضاء",
         "formattedMemberCount_few": "⁨{{formattedCount}}⁩ أعضاء",
         "formattedMemberCount_many": "⁨{{formattedCount}}⁩ عضوًا",
-        "formattedMemberCount_two": "⁨{{formattedCount}}⁩ أعضاء",
+        "formattedMemberCount_two": "عضوان (⁨{{formattedCount}}⁩)",
         "formattedMemberCount_zero": "⁨{{formattedCount}}⁩ أعضاء",
         "memberCount_few": "⁨{{count}}⁩ أعضاء",
         "memberCount_many": "⁨{{count}}⁩ عضوًا",
-        "memberCount_two": "⁨{{count}}⁩ أعضاء",
+        "memberCount_two": "عضوان (⁨{{count}}⁩)",
         "memberCount_zero": "⁨{{count}}⁩ أعضاء",
         "requestCount_few": "الطلبات (⁨{{count}}⁩)",
         "requestCount_many": "الطلبات (⁨{{count}}⁩)",
         "requestCount_two": "الطلبات (⁨{{count}}⁩)",
         "requestCount_zero": "الطلبات (⁨{{count}}⁩)",
-        "resultCount_few": "⁨{{count}}⁩ نتيجة",
-        "resultCount_many": "⁨{{count}}⁩ نتيجة",
-        "resultCount_two": "⁨{{count}}⁩ نتيجة",
+        "resultCount_few": "⁨{{count}}⁩ نتائج",
+        "resultCount_many": "⁨{{count}}⁩ نتيجةً",
+        "resultCount_two": "نتيجتان (⁨{{count}}⁩)",
         "resultCount_zero": "⁨{{count}}⁩ نتيجة"
       },
       "roomTombstone": {
@@ -2016,7 +2016,7 @@
         "two": "يكتب <first>⁨{{first}}⁩</first> و<second>⁨{{second}}⁩</second>...",
         "three": "يكتب <first>⁨{{first}}⁩</first> و<second>⁨{{second}}⁩</second> و<third>⁨{{third}}⁩</third>...",
         "four": "يكتب <first>⁨{{first}}⁩</first> و<second>⁨{{second}}⁩</second> و<third>⁨{{third}}⁩</third> و<others>⁨{{count}}⁩ شخص آخر</others>...",
-        "many": "يكتب <first>⁨{{first}}⁩</first> و<second>⁨{{second}}⁩</second> و<third>⁨{{third}}⁩</third> و<others>⁨{{count}}⁩ آخرون</others>...",
+        "many": "يكتب <first>⁨{{first}}⁩</first> و<second>⁨{{second}}⁩</second> و<third>⁨{{third}}⁩</third> و<others>آخرون (⁨{{count}}⁩)</others>...",
         "dropTypingStatus": "إخفاء حالة الكتابة"
       },
       "following": {
@@ -2029,10 +2029,10 @@
       "pendingJoinRequests": {
         "accessibleLabel_one": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلب انضمام معلق",
         "accessibleLabel_other": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ من طلبات الانضمام المعلقة",
-        "accessibleLabel_few": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلبات الانضمام المعلقة",
-        "accessibleLabel_many": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلبات الانضمام المعلقة",
-        "accessibleLabel_two": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلبات الانضمام المعلقة",
-        "accessibleLabel_zero": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلبات الانضمام المعلقة"
+        "accessibleLabel_few": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلبات انضمام معلقة",
+        "accessibleLabel_many": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلب انضمام معلقًا",
+        "accessibleLabel_two": "⁨{{baseLabel}}⁩، طلبا انضمام معلقان (⁨{{count}}⁩)",
+        "accessibleLabel_zero": "⁨{{baseLabel}}⁩، ⁨{{count}}⁩ طلب انضمام معلق"
       },
       "reactionViewer": {
         "reactedWith": "تفاعل بالرمز :⁨{{shortcode}}⁩:"
@@ -2451,9 +2451,9 @@
         "pastedText": "نص ملصق",
         "characterCount_one": "⁨{{formattedCount}}⁩ حرف",
         "characterCount_other": "⁨{{formattedCount}}⁩ من الأحرف",
-        "characterCount_few": "⁨{{formattedCount}}⁩ حرفًا",
+        "characterCount_few": "⁨{{formattedCount}}⁩ أحرف",
         "characterCount_many": "⁨{{formattedCount}}⁩ حرفًا",
-        "characterCount_two": "⁨{{formattedCount}}⁩ حرف",
+        "characterCount_two": "حرفان (⁨{{formattedCount}}⁩)",
         "characterCount_zero": "⁨{{formattedCount}}⁩ حرف"
       }
     },
@@ -2583,12 +2583,12 @@
         "confirmDeny2": "تأكيد الرفض",
         "cancel": "إلغاء",
         "autoApproveMinutes_one": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
-        "autoApproveMinutes_other": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقائق",
+        "autoApproveMinutes_other": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "denyCallReasonOptional": "سبب رفض الاستدعاء ⁨{{number}}⁩ (اختياري)",
         "approveExactCall": "الموافقة على هذا الاستدعاء بعينه",
         "approveAnyArguments": "الموافقة على أي وسائط",
         "anyArgumentsWarning": "مع أي وسائط، يمكن للوكيل إجراء استدعاء واحد لـ ⁨{{tool}}⁩ بما يقرره، خلال ⁨{{minutes}}⁩ دقيقة من الوقت المحدد.",
-        "autoApproveMinutes_few": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
+        "autoApproveMinutes_few": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقائق",
         "autoApproveMinutes_many": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة",
         "autoApproveMinutes_two": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقتين",
         "autoApproveMinutes_zero": "موافقة تلقائية لمدة ⁨{{count}}⁩ دقيقة"
@@ -2602,9 +2602,9 @@
         "submittedWaitingForRoomUpdate": "تم الإرسال. في انتظار تحديث الغرفة.",
         "fixedExpiry": "انتهاء ثابت: ⁨{{timestamp}}⁩",
         "expiresInMinutes_one": "تنتهي خلال ⁨{{count}}⁩ دقيقة",
-        "expiresInMinutes_other": "تنتهي خلال ⁨{{count}}⁩ دقائق",
+        "expiresInMinutes_other": "تنتهي خلال ⁨{{count}}⁩ دقيقة",
         "expiresInMinutes_few": "تنتهي خلال ⁨{{count}}⁩ دقائق",
-        "expiresInMinutes_many": "تنتهي خلال ⁨{{count}}⁩ دقائق",
+        "expiresInMinutes_many": "تنتهي خلال ⁨{{count}}⁩ دقيقة",
         "expiresInMinutes_two": "تنتهي خلال ⁨{{count}}⁩ دقيقتين",
         "expiresInMinutes_zero": "تنتهي خلال ⁨{{count}}⁩ دقيقة"
       },
@@ -2622,7 +2622,7 @@
         "resolvedAt": "⁨{{status}}⁩ · ⁨{{timestamp}}⁩",
         "timedPermission": "إذن مؤقت",
         "timedPermissionMinutes_one": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
-        "timedPermissionMinutes_other": "إذن مؤقت · ⁨{{count}}⁩ دقائق",
+        "timedPermissionMinutes_other": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
         "grantedByAt": "منحه ⁨{{grantor}}⁩ · ⁨{{timestamp}}⁩",
         "grantedBy": "منحه ⁨{{grantor}}⁩",
         "originalFixedExpiry": "وقت الانتهاء الثابت الأصلي: ⁨{{timestamp}}⁩",
@@ -2631,9 +2631,9 @@
         "reason": "السبب: ⁨{{reason}}⁩",
         "approvedWhenScheduledByAt": "وافق عليه ⁨{{approver}}⁩ عند الجدولة · ⁨{{timestamp}}⁩",
         "approvedWhenScheduledBy": "وافق عليه ⁨{{approver}}⁩ عند الجدولة",
-        "timedPermissionMinutes_few": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
+        "timedPermissionMinutes_few": "إذن مؤقت · ⁨{{count}}⁩ دقائق",
         "timedPermissionMinutes_many": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
-        "timedPermissionMinutes_two": "إذن مؤقت · ⁨{{count}}⁩ دقيقة",
+        "timedPermissionMinutes_two": "إذن مؤقت · دقيقتان (⁨{{count}}⁩)",
         "timedPermissionMinutes_zero": "إذن مؤقت · ⁨{{count}}⁩ دقيقة"
       },
       "approvalSchedule": {
@@ -2707,13 +2707,13 @@
         "toolNumber": "الأداة رقم ⁨{{index}}⁩: ⁨{{command}}⁩",
         "toolCallCount_one": "⁨{{count}}⁩ استدعاء أداة",
         "toolCallCount_other": "⁨{{count}}⁩ من استدعاءات الأدوات",
-        "characterCount_few": "⁨{{formattedCount}}⁩ حرفًا",
+        "characterCount_few": "⁨{{formattedCount}}⁩ أحرف",
         "characterCount_many": "⁨{{formattedCount}}⁩ حرفًا",
-        "characterCount_two": "⁨{{formattedCount}}⁩ حرف",
+        "characterCount_two": "حرفان (⁨{{formattedCount}}⁩)",
         "characterCount_zero": "⁨{{formattedCount}}⁩ حرفًا",
         "toolCallCount_few": "⁨{{count}}⁩ استدعاءات أداة",
-        "toolCallCount_many": "⁨{{count}}⁩ استدعاءً أداة",
-        "toolCallCount_two": "⁨{{count}}⁩ استدعاءان أداة",
+        "toolCallCount_many": "⁨{{count}}⁩ استدعاء أداة",
+        "toolCallCount_two": "استدعاءا أداة (⁨{{count}}⁩)",
         "toolCallCount_zero": "⁨{{count}}⁩ استدعاءات أداة",
         "usedToolCount_zero": "تم استخدام ⁨{{count}}⁩ أداة",
         "usedToolCount_one": "تم استخدام ⁨{{count}}⁩ أداة",
@@ -2723,31 +2723,31 @@
         "usedToolCount_other": "تم استخدام ⁨{{count}}⁩ أداة",
         "toolCallsRunning_zero": "جارٍ تنفيذ ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsRunning_one": "جارٍ تنفيذ ⁨{{count}}⁩ استدعاء أداة",
-        "toolCallsRunning_two": "جارٍ تنفيذ ⁨{{count}}⁩ استدعاء أداة",
+        "toolCallsRunning_two": "جارٍ تنفيذ استدعاءي أداة (⁨{{count}}⁩)",
         "toolCallsRunning_few": "جارٍ تنفيذ ⁨{{count}}⁩ استدعاءات أداة",
         "toolCallsRunning_many": "جارٍ تنفيذ ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsRunning_other": "جارٍ تنفيذ ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsWaiting_zero": "⁨{{count}}⁩ استدعاء أداة في انتظار الموافقة",
         "toolCallsWaiting_one": "⁨{{count}}⁩ استدعاء أداة في انتظار الموافقة",
-        "toolCallsWaiting_two": "⁨{{count}}⁩ استدعاء أداة في انتظار الموافقة",
+        "toolCallsWaiting_two": "استدعاءا أداة (⁨{{count}}⁩) في انتظار الموافقة",
         "toolCallsWaiting_few": "⁨{{count}}⁩ استدعاءات أداة في انتظار الموافقة",
         "toolCallsWaiting_many": "⁨{{count}}⁩ استدعاء أداة في انتظار الموافقة",
         "toolCallsWaiting_other": "⁨{{count}}⁩ استدعاء أداة في انتظار الموافقة",
         "toolCallsRan_zero": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsRan_one": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة",
-        "toolCallsRan_two": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة",
+        "toolCallsRan_two": "تم تنفيذ استدعاءي أداة (⁨{{count}}⁩)",
         "toolCallsRan_few": "تم تنفيذ ⁨{{count}}⁩ استدعاءات أداة",
         "toolCallsRan_many": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsRan_other": "تم تنفيذ ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsDenied_zero": "تم رفض ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsDenied_one": "تم رفض ⁨{{count}}⁩ استدعاء أداة",
-        "toolCallsDenied_two": "تم رفض ⁨{{count}}⁩ استدعاء أداة",
+        "toolCallsDenied_two": "تم رفض استدعاءي أداة (⁨{{count}}⁩)",
         "toolCallsDenied_few": "تم رفض ⁨{{count}}⁩ استدعاءات أداة",
         "toolCallsDenied_many": "تم رفض ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsDenied_other": "تم رفض ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsExpired_zero": "انتهت صلاحية ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsExpired_one": "انتهت صلاحية ⁨{{count}}⁩ استدعاء أداة",
-        "toolCallsExpired_two": "انتهت صلاحية ⁨{{count}}⁩ استدعاء أداة",
+        "toolCallsExpired_two": "انتهت صلاحية استدعاءي أداة (⁨{{count}}⁩)",
         "toolCallsExpired_few": "انتهت صلاحية ⁨{{count}}⁩ استدعاءات أداة",
         "toolCallsExpired_many": "انتهت صلاحية ⁨{{count}}⁩ استدعاء أداة",
         "toolCallsExpired_other": "انتهت صلاحية ⁨{{count}}⁩ استدعاء أداة"
@@ -2779,9 +2779,9 @@
         "download": "تنزيل",
         "characterCount_one": "⁨{{formattedCount}}⁩ حرف",
         "characterCount_other": "⁨{{formattedCount}}⁩ من الأحرف",
-        "characterCount_few": "⁨{{formattedCount}}⁩ حرفًا",
+        "characterCount_few": "⁨{{formattedCount}}⁩ أحرف",
         "characterCount_many": "⁨{{formattedCount}}⁩ حرفًا",
-        "characterCount_two": "⁨{{formattedCount}}⁩ حرف",
+        "characterCount_two": "حرفان (⁨{{formattedCount}}⁩)",
         "characterCount_zero": "⁨{{formattedCount}}⁩ حرفًا"
       },
       "mindroomRoomPinMenu": {
@@ -2847,13 +2847,13 @@
         "reviewToolCalls": "مراجعة استدعاءات الأدوات",
         "reviewAgentWants_zero": "يريد ⁨{{agent}}⁩ تنفيذ ⁨{{count}}⁩ إجراء",
         "reviewAgentWants_one": "يريد ⁨{{agent}}⁩ تنفيذ ⁨{{count}}⁩ إجراء",
-        "reviewAgentWants_two": "يريد ⁨{{agent}}⁩ تنفيذ ⁨{{count}}⁩ إجراء",
+        "reviewAgentWants_two": "يريد ⁨{{agent}}⁩ تنفيذ إجراءين (⁨{{count}}⁩)",
         "reviewAgentWants_few": "يريد ⁨{{agent}}⁩ تنفيذ ⁨{{count}}⁩ إجراءات",
         "reviewAgentWants_many": "يريد ⁨{{agent}}⁩ تنفيذ ⁨{{count}}⁩ إجراء",
         "reviewAgentWants_other": "يريد ⁨{{agent}}⁩ تنفيذ ⁨{{count}}⁩ إجراء",
         "reviewAgentsWant_zero": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ ⁨{{count}}⁩ إجراء",
         "reviewAgentsWant_one": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ ⁨{{count}}⁩ إجراء",
-        "reviewAgentsWant_two": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ ⁨{{count}}⁩ إجراء",
+        "reviewAgentsWant_two": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ إجراءين (⁨{{count}}⁩)",
         "reviewAgentsWant_few": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ ⁨{{count}}⁩ إجراءات",
         "reviewAgentsWant_many": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ ⁨{{count}}⁩ إجراء",
         "reviewAgentsWant_other": "يريد ⁨{{agents}}⁩ وكلاء تنفيذ ⁨{{count}}⁩ إجراء",
@@ -2871,7 +2871,7 @@
         "approveAllOnce": "الموافقة مرة واحدة على الكل (⁨{{count}}⁩)",
         "denyAll": "رفض الكل (⁨{{count}}⁩)",
         "allowForMinutes_one": "السماح لمدة ⁨{{count}}⁩ دقيقة",
-        "allowForMinutes_other": "السماح لمدة ⁨{{count}}⁩ دقائق",
+        "allowForMinutes_other": "السماح لمدة ⁨{{count}}⁩ دقيقة",
         "awaitingConfirmation_one": "⁨{{count}}⁩ استدعاء في انتظار التأكيد",
         "awaitingConfirmation_other": "⁨{{count}}⁩ من الاستدعاءات في انتظار التأكيد",
         "pausedForApproval_one": "⁨{{count}}⁩ استدعاء متوقف للموافقة",
@@ -2887,11 +2887,11 @@
         "approvedCount_one": "تمت الموافقة على ⁨{{count}}⁩",
         "approvedCount_other": "تمت الموافقة على ⁨{{count}}⁩",
         "activePermissionCount_few": "⁨{{count}}⁩ أذونات نشطة",
-        "activePermissionCount_many": "⁨{{count}}⁩ أذونات نشطة",
-        "activePermissionCount_two": "⁨{{count}}⁩ أذونات نشطة",
+        "activePermissionCount_many": "⁨{{count}}⁩ إذنًا نشطًا",
+        "activePermissionCount_two": "إذنان نشطان (⁨{{count}}⁩)",
         "activePermissionCount_zero": "⁨{{count}}⁩ أذونات نشطة",
         "allowForMinutes_few": "السماح لمدة ⁨{{count}}⁩ دقائق",
-        "allowForMinutes_many": "السماح لمدة ⁨{{count}}⁩ دقائق",
+        "allowForMinutes_many": "السماح لمدة ⁨{{count}}⁩ دقيقة",
         "allowForMinutes_two": "السماح لمدة ⁨{{count}}⁩ دقيقتين",
         "allowForMinutes_zero": "السماح لمدة ⁨{{count}}⁩ دقيقة",
         "approvedCount_few": "تمت الموافقة على ⁨{{count}}⁩",
@@ -2910,10 +2910,10 @@
         "pausedForApproval_many": "تم إيقاف ⁨{{count}}⁩ استدعاءً مؤقتًا للموافقة",
         "pausedForApproval_two": "تم إيقاف ⁨{{count}}⁩ استدعاءان مؤقتًا للموافقة",
         "pausedForApproval_zero": "تم إيقاف ⁨{{count}}⁩ استدعاءات مؤقتًا للموافقة",
-        "toolApprovalCount_few": "⁨{{count}}⁩ موافقات الأداة",
-        "toolApprovalCount_many": "⁨{{count}}⁩ موافقات الأداة",
-        "toolApprovalCount_two": "⁨{{count}}⁩ من موافقات الأدوات",
-        "toolApprovalCount_zero": "⁨{{count}}⁩ موافقات الأداة",
+        "toolApprovalCount_few": "⁨{{count}}⁩ موافقات أداة",
+        "toolApprovalCount_many": "⁨{{count}}⁩ موافقة أداة",
+        "toolApprovalCount_two": "موافقتا أداة (⁨{{count}}⁩)",
+        "toolApprovalCount_zero": "⁨{{count}}⁩ موافقة أداة",
         "agentWaitingForYou": "⁨{{agent}}⁩ في انتظارك",
         "agentsWaitingForYou_zero": "⁨{{count}}⁩ وكيل في انتظارك",
         "agentsWaitingForYou_one": "⁨{{count}}⁩ وكيل في انتظارك",
@@ -2945,7 +2945,7 @@
         "historyYouExpired": "انتهت صلاحية ⁨{{operation}}⁩",
         "minutesShort_zero": "⁨{{count}}⁩ دقيقة",
         "minutesShort_one": "⁨{{count}}⁩ دقيقة",
-        "minutesShort_two": "⁨{{count}}⁩ دقيقة",
+        "minutesShort_two": "دقيقتان (⁨{{count}}⁩)",
         "minutesShort_few": "⁨{{count}}⁩ دقائق",
         "minutesShort_many": "⁨{{count}}⁩ دقيقة",
         "minutesShort_other": "⁨{{count}}⁩ دقيقة",
@@ -3157,17 +3157,17 @@
             "description": "إعادة ضبط كل عوامل التصفية"
           }
         },
-        "showingAllThreads_few": "عرض ⁨{{count}}⁩ سلسلة محادثة",
+        "showingAllThreads_few": "عرض ⁨{{count}}⁩ سلاسل محادثة",
         "showingAllThreads_many": "عرض ⁨{{count}}⁩ سلسلة محادثة",
-        "showingAllThreads_two": "يتم عرض ⁨{{count}}⁩ سلسلة محادثة",
-        "showingAllThreads_zero": "يتم إظهار ⁨{{count}}⁩ سلسلة محادثة",
+        "showingAllThreads_two": "عرض سلسلتي محادثة (⁨{{count}}⁩)",
+        "showingAllThreads_zero": "عرض ⁨{{count}}⁩ سلسلة محادثة",
         "showingFilteredThreads_few": "عرض ⁨{{count}}⁩ من ⁨{{total}}⁩ من سلاسل المحادثات",
         "showingFilteredThreads_many": "عرض ⁨{{count}}⁩ من ⁨{{total}}⁩ من سلاسل المحادثات",
         "showingFilteredThreads_two": "عرض ⁨{{count}}⁩ من ⁨{{total}}⁩ من سلاسل المحادثات",
         "showingFilteredThreads_zero": "عرض ⁨{{count}}⁩ من ⁨{{total}}⁩ من سلاسل المحادثات",
-        "threadCount_few": "⁨{{count}}⁩ سلسلة محادثة",
+        "threadCount_few": "⁨{{count}}⁩ سلاسل محادثة",
         "threadCount_many": "⁨{{count}}⁩ سلسلة محادثة",
-        "threadCount_two": "⁨{{count}}⁩ سلسلة محادثة",
+        "threadCount_two": "سلسلتا محادثة (⁨{{count}}⁩)",
         "threadCount_zero": "⁨{{count}}⁩ سلسلة محادثة"
       },
       "threadTagPicker": {
@@ -3213,14 +3213,14 @@
         "pendingScheduledTasks_one": "⁨{{count}}⁩ مهمة مجدولة معلقة",
         "pendingScheduledTasks_other": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
         "scheduledTasksWithDetail": "⁨{{tasks}}⁩، ⁨{{detail}}⁩",
-        "pendingScheduledTasks_few": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_many": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_two": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_zero": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "scheduledTasks_few": "⁨{{count}}⁩ من المهام المجدولة",
+        "pendingScheduledTasks_few": "⁨{{count}}⁩ مهام مجدولة معلقة",
+        "pendingScheduledTasks_many": "⁨{{count}}⁩ مهمة مجدولة معلقة",
+        "pendingScheduledTasks_two": "مهمتان مجدولتان معلقتان (⁨{{count}}⁩)",
+        "pendingScheduledTasks_zero": "⁨{{count}}⁩ مهمة مجدولة معلقة",
+        "scheduledTasks_few": "⁨{{count}}⁩ مهام مجدولة",
         "scheduledTasks_many": "⁨{{count}}⁩ مهمة مجدولة",
-        "scheduledTasks_two": "⁨{{count}}⁩ مهام مجدولة",
-        "scheduledTasks_zero": "⁨{{count}}⁩ من المهام المجدولة"
+        "scheduledTasks_two": "مهمتان مجدولتان (⁨{{count}}⁩)",
+        "scheduledTasks_zero": "⁨{{count}}⁩ مهمة مجدولة"
       },
       "compactThreadCardViewModel": {
         "noReplies": "لا توجد ردود",
@@ -3233,9 +3233,9 @@
         "idle": "خاملة",
         "threadStarted": "بدأت سلسلة المحادثة",
         "noRepliesYet": "لا توجد ردود بعد",
-        "messageCount_few": "⁨{{formattedCount}}⁩ رسالة",
+        "messageCount_few": "⁨{{formattedCount}}⁩ رسائل",
         "messageCount_many": "⁨{{formattedCount}}⁩ رسالة",
-        "messageCount_two": "⁨{{formattedCount}}⁩ رسالة",
+        "messageCount_two": "رسالتان (⁨{{formattedCount}}⁩)",
         "messageCount_zero": "⁨{{formattedCount}}⁩ رسالة"
       },
       "threadHeaderViewModel": {
@@ -3244,10 +3244,10 @@
       "threadIndicator": {
         "pendingScheduledTasks_one": "⁨{{count}}⁩ مهمة مجدولة معلقة",
         "pendingScheduledTasks_other": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_few": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_many": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_two": "⁨{{count}}⁩ من المهام المجدولة المعلقة",
-        "pendingScheduledTasks_zero": "⁨{{count}}⁩ من المهام المجدولة المعلقة"
+        "pendingScheduledTasks_few": "⁨{{count}}⁩ مهام مجدولة معلقة",
+        "pendingScheduledTasks_many": "⁨{{count}}⁩ مهمة مجدولة معلقة",
+        "pendingScheduledTasks_two": "مهمتان مجدولتان معلقتان (⁨{{count}}⁩)",
+        "pendingScheduledTasks_zero": "⁨{{count}}⁩ مهمة مجدولة معلقة"
       }
     },
     "recent-threads": {
