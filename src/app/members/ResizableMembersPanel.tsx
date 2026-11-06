@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
-import { useMembersOverlay } from './useMembersDrawer';
+import { useMembersOverlay } from './PanelRow';
 import * as css from './ResizableMembersPanel.css';
 
 export function ResizableMembersPanel({

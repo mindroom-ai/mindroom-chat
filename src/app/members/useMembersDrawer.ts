@@ -1,9 +1,10 @@
-import { createContext, useCallback, useContext } from 'react';
+import { useCallback } from 'react';
 import { atom, useAtom } from 'jotai';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getScreenSize, ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
+import { useMembersOverlay } from './PanelRow';
 
 // On phones the members drawer covers the room, so it opens only when asked and is not saved;
 // this is that per-account, in-memory state.
@@ -11,14 +12,6 @@ export const phoneDrawerOpenAtom = atom<Record<string, boolean>>({});
 
 const isPhoneViewport = (): boolean =>
   typeof document !== 'undefined' && getScreenSize(document.body.clientWidth) === ScreenSize.Mobile;
-
-/**
- * True inside a room or a lobby too narrow to show the members beside the conversation
- * (`PanelRow`): there the members lie over it, as on a phone.
- */
-const MembersOverlayContext = createContext(false);
-export const MembersOverlayProvider = MembersOverlayContext.Provider;
-export const useMembersOverlay = (): boolean => useContext(MembersOverlayContext);
 
 /**
  * Whether the room's members drawer is open, and a setter. Beside the room (tablet, desktop) it
