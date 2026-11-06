@@ -188,7 +188,7 @@ const check = async (
     const includeText = dialog.getByRole('checkbox', { name: 'Include message text' });
     const startReport = async () => {
       await row.getByText(secret).click({ button: 'right' });
-      await page.getByRole('button', { name: 'Report a bug', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Report a bug', exact: true }).click();
       await expect(dialog, `${engine}: the report asks first`).toBeVisible();
     };
 
@@ -214,7 +214,7 @@ const check = async (
     // Cancel closes the dialog and the menu, sends nothing and makes no report room.
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Report a bug', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'Report a bug', exact: true })).toHaveCount(0);
     await page.waitForTimeout(500);
     expect(uploads, `${engine}: nothing uploaded after Cancel`).toEqual([]);
     await expect(
