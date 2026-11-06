@@ -1,4 +1,13 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type RefObject,
+} from 'react';
 
 /**
  * The shown order kept against the live one: the threads shown keep their places, threads that
@@ -83,4 +92,55 @@ export const useHeldThreadOrder = (
     return () => view.removeEventListener('scroll', record);
   }, [viewRef]);
   return shown;
+};
+
+/**
+ * Whether a pointer is over the cards, which holds their order (`useHeldThreadOrder`), and the
+ * handlers of the card list that follow it. A mouse is over them from its enter, or a move for a
+ * list drawn under a resting pointer, until it leaves. A finger's pointer leaves as it lifts,
+ * before the tap's mousedown, mouseup and click, and that mousedown moves focus off a card: let go
+ * there, a new order would swap the cards between the mousedown and the mouseup, and the click
+ * would miss what was tapped. A finger holds until its tap's click, or lets go at once after a
+ * pointercancel, when it scrolled instead.
+ */
+export const usePointerOverCards = () => {
+  const [pointerInside, setPointerInside] = useState(false);
+  const cancelledRef = useRef(false);
+  const releaseOnClickRef = useRef<() => void>();
+  const stopWaiting = useCallback(() => {
+    const release = releaseOnClickRef.current;
+    if (release) document.removeEventListener('click', release, true);
+    releaseOnClickRef.current = undefined;
+  }, []);
+  useEffect(() => stopWaiting, [stopWaiting]);
+  const onPointerEnter = useCallback(() => setPointerInside(true), []);
+  const onPointerCancel = useCallback(() => {
+    cancelledRef.current = true;
+  }, []);
+  const onPointerLeave = useCallback(
+    (event: PointerEvent<HTMLElement>) => {
+      const cancelled = cancelledRef.current;
+      cancelledRef.current = false;
+      stopWaiting();
+      if (event.pointerType === 'mouse' || cancelled) {
+        setPointerInside(false);
+        return;
+      }
+      // The click is already aimed when this runs, in the capture phase.
+      const release = () => {
+        stopWaiting();
+        setPointerInside(false);
+      };
+      releaseOnClickRef.current = release;
+      document.addEventListener('click', release, true);
+    },
+    [stopWaiting]
+  );
+  return {
+    pointerInside,
+    onPointerEnter,
+    onPointerMove: onPointerEnter,
+    onPointerLeave,
+    onPointerCancel,
+  };
 };

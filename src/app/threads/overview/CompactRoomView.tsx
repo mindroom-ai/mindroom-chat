@@ -25,7 +25,7 @@ import { useInitializeShownThread } from '../useInitializeShownThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { IconTooltip } from '../../ui/IconTooltip';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
-import { useHeldThreadOrder } from './useHeldThreadOrder';
+import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 import { useStagedCardIds } from './useStagedCardIds';
 
 const ThreadActionsMenu = lazy(() =>
@@ -227,7 +227,7 @@ export function CompactRoomView({
   const [menu, setMenu] = useState<ThreadActionsMenuState>();
   // While the reader points at or focuses a card, or has a card's menu open, the cards keep
   // their order so none moves under the pointer; the new order applies afterwards.
-  const [pointerInside, setPointerInside] = useState(false);
+  const { pointerInside, ...pointerHandlers } = usePointerOverCards();
   const [focusInside, setFocusInside] = useState(false);
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
@@ -367,10 +367,7 @@ export function CompactRoomView({
         gap="100"
         shrink="No"
         data-order-held={orderHeld || undefined}
-        // A list drawn under a resting pointer gets no enter, only moves between its cards.
-        onPointerEnter={() => setPointerInside(true)}
-        onPointerMove={() => setPointerInside(true)}
-        onPointerLeave={() => setPointerInside(false)}
+        {...pointerHandlers}
         // Keyboard focus only: a card a mouse click left focused does not hold the order.
         onFocus={(event: React.FocusEvent<HTMLDivElement>) =>
           setFocusInside(isKeyboardFocus(event.target))
