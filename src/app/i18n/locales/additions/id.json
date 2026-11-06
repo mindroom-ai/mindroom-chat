@@ -196,6 +196,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}, {{long}}"
+    },
+    "messageLink": {
+      "messageIn": "Pesan di {{room}}",
+      "threadIn": "Utas di {{room}}",
+      "messageElsewhere": "Pesan di ruang lain"
     }
   },
   "featureUi": {

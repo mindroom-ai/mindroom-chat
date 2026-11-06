@@ -196,6 +196,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}，{{long}}"
+    },
+    "messageLink": {
+      "messageIn": "{{room}} 中的消息",
+      "threadIn": "{{room}} 中的讨论串",
+      "messageElsewhere": "其他房间中的消息"
     }
   },
   "featureUi": {

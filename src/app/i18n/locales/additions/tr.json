@@ -200,6 +200,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}, {{long}}"
+    },
+    "messageLink": {
+      "messageIn": "{{room}} içindeki mesaj",
+      "threadIn": "{{room}} içindeki konu",
+      "messageElsewhere": "Başka bir odadaki mesaj"
     }
   },
   "featureUi": {

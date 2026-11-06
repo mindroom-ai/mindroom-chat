@@ -196,6 +196,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}、{{long}}"
+    },
+    "messageLink": {
+      "messageIn": "{{room}} のメッセージ",
+      "threadIn": "{{room}} のスレッド",
+      "messageElsewhere": "別のルームのメッセージ"
     }
   },
   "featureUi": {

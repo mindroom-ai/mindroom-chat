@@ -200,6 +200,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}, {{long}}"
+    },
+    "messageLink": {
+      "messageIn": "Bericht in {{room}}",
+      "threadIn": "Thread in {{room}}",
+      "messageElsewhere": "Bericht in een andere kamer"
     }
   },
   "featureUi": {

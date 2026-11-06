@@ -195,12 +195,42 @@ function UserMentionName({
 }
 
 /**
+ * What a link to a message says instead of its URL: the room it is in (`#room name`, or the
+ * alias for a room this account is not in), and whether it is a thread's message as far as the
+ * client knows.
+ */
+function MessageLinkLabel({
+  client,
+  roomIdOrAlias,
+  eventId,
+}: {
+  client: MatrixClient;
+  roomIdOrAlias: string;
+  eventId: string;
+}) {
+  const { t } = useTranslation();
+  const isAlias = roomIdOrAlias.startsWith('#');
+  const roomId = isAlias ? getCanonicalAliasRoomId(client, roomIdOrAlias) : roomIdOrAlias;
+  const room = roomId ? client.getRoom(roomId) : null;
+  const place = room?.name ? `#${room.name}` : isAlias ? roomIdOrAlias : undefined;
+  if (!place) return <>{t('sharedUi.messageLink.messageElsewhere')}</>;
+  const inThread = !!room?.getThread(eventId) || !!room?.findEventById(eventId)?.threadRootId;
+  return (
+    <>
+      {inThread
+        ? t('sharedUi.messageLink.threadIn', { room: place })
+        : t('sharedUi.messageLink.messageIn', { room: place })}
+    </>
+  );
+}
+
+/**
  * A Matrix permalink as a mention: a user as `@display name` (the name in `viewedRoomId`), a
- * room as `#room name`, and a link to an event as a link that keeps its text (`content`, else
- * the URL) but opens the event. Mentions carry the ID in `data-mention-id` and an event in
- * `data-mention-event-id`, for the mention click handler. A user or room mention reads in its own
- * direction (`dir="auto"`), so a Matrix ID inside right-to-left text keeps its `@` or `#` in front.
- * Undefined for other links.
+ * room as `#room name`, and a link to an event as a link that keeps its text (`content`) but
+ * opens the event; without text of its own (a URL in plain text) it names the room it leads to.
+ * Mentions carry the ID in `data-mention-id` and an event in `data-mention-event-id`, for the
+ * mention click handler. A user or room mention reads in its own direction (`dir="auto"`), so a
+ * Matrix ID inside right-to-left text keeps its `@` or `#` in front. Undefined for other links.
  */
 export const renderMatrixMention = (
   client: MatrixClient,
@@ -234,11 +264,23 @@ export const renderMatrixMention = (
       <a
         href={href}
         {...customProps}
+        className={
+          content === undefined
+            ? classNames(css.Mention({ highlight: false }), customProps.className)
+            : customProps.className
+        }
+        title={content === undefined ? href : customProps.title}
         data-mention-id={eventLink.roomIdOrAlias}
         data-mention-event-id={eventLink.eventId}
         data-mention-via={eventLink.viaServers?.join(',') || undefined}
       >
-        {content ?? href}
+        {content ?? (
+          <MessageLinkLabel
+            client={client}
+            roomIdOrAlias={eventLink.roomIdOrAlias}
+            eventId={eventLink.eventId}
+          />
+        )}
       </a>
     );
   }
@@ -684,12 +726,14 @@ export const getReactCustomHtmlParser = (
           stripLinkTextBidi(children);
           const content = domToReact(children, parserOptions);
           if (href && testMatrixTo(href)) {
+            // A link whose text is its own URL has nothing to say beyond where it leads.
+            const ownText = textContent(children).trim() !== href;
             const mention = renderMatrixMention(
               mx,
               roomId,
               href,
               makeMentionCustomProps(params.handleMentionClick),
-              content
+              ownText ? content : undefined
             );
             if (mention) return mention;
           }

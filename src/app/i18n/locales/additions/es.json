@@ -204,6 +204,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}, {{long}}"
+    },
+    "messageLink": {
+      "messageIn": "Mensaje en {{room}}",
+      "threadIn": "Hilo en {{room}}",
+      "messageElsewhere": "Mensaje en otra sala"
     }
   },
   "featureUi": {

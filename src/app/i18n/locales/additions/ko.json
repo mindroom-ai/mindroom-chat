@@ -196,6 +196,11 @@
     },
     "approvalDurations": {
       "name": "{{short}}, {{long}}"
+    },
+    "messageLink": {
+      "messageIn": "{{room}}의 메시지",
+      "threadIn": "{{room}}의 스레드",
+      "messageElsewhere": "다른 방의 메시지"
     }
   },
   "featureUi": {
