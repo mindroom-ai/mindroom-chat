@@ -8,6 +8,7 @@ import {
   matrixFetch,
   redactEvent,
   sendRoomMessage,
+  setAccountData,
 } from '../helpers/matrix';
 
 // Explicit opt-in to an isolated, disposable local Matrix server with open registration.
@@ -28,6 +29,10 @@ test('the Canvases page lists canvases, keeps pins in account data, and opens on
     });
   const username = `canvas_list_${suffix}`;
   const viewer = await register(username);
+  // This spec follows the sidebar's Canvases button, which is off until the account turns it on.
+  await setAccountData(homeserver!, viewer.access_token, viewer.user_id, 'io.mindroom.settings', {
+    showCanvasesInSidebar: true,
+  });
   const agent = await register(`mindroom_lister_${suffix}`);
   const fixture = await createThreadFixture(homeserver!, viewer.access_token, {
     name: 'Canvas list',

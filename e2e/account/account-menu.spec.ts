@@ -6,7 +6,7 @@ import {
   openAccountMenu,
   waitForLoggedInShell,
 } from '../helpers/auth';
-import { matrixFetch } from '../helpers/matrix';
+import { matrixFetch, setAccountData } from '../helpers/matrix';
 
 // The rail's single account button and its menu, and the Settings switches that hide rail
 // buttons, against the disposable homeserver of `just hs-up` (open registration).
@@ -24,8 +24,15 @@ const homeserverIsUp = async (): Promise<boolean> => {
   }
 };
 
-/** A fresh account with a display name, so the menu has a name to show. */
-const registerUser = async (username: string, displayName: string): Promise<string> => {
+/**
+ * A fresh account with a display name, so the menu has a name to show, and the sidebar switches
+ * it stored, if any.
+ */
+const registerUser = async (
+  username: string,
+  displayName: string,
+  sidebarSettings?: Record<string, boolean>
+): Promise<string> => {
   const { access_token: accessToken, user_id: userId } = await matrixFetch<{
     access_token: string;
     user_id: string;
@@ -38,6 +45,9 @@ const registerUser = async (username: string, displayName: string): Promise<stri
     accessToken,
     body: JSON.stringify({ displayname: displayName }),
   });
+  if (sidebarSettings) {
+    await setAccountData(HOMESERVER, accessToken, userId, 'io.mindroom.settings', sidebarSettings);
+  }
   return userId;
 };
 
@@ -77,7 +87,12 @@ test('switches accounts through the account menu, and hidden rail buttons stay h
   const stamp = Date.now().toString(36);
   const first = `menu_a_${stamp}`;
   const second = `menu_b_${stamp}`;
-  const firstId = await registerUser(first, 'Avery Menu');
+  // The rail buttons this spec hides and looks for start on, as for an account that turned them on.
+  const firstId = await registerUser(first, 'Avery Menu', {
+    showThreadsInSidebar: true,
+    showSearchInSidebar: true,
+    showExploreInSidebar: true,
+  });
   const secondId = await registerUser(second, 'Blake Menu');
 
   await page.goto(`/login/${encodeURIComponent(HOMESERVER)}`);

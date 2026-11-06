@@ -11,6 +11,7 @@ import {
   seedRoomOverviewState,
   setAccountData,
 } from '../helpers/matrix';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 test('thread navigation retains the selected space', async ({ page }, testInfo) => {
   test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
@@ -70,6 +71,7 @@ test('thread navigation retains the selected space', async ({ page }, testInfo) 
       await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
     };
 
+    await openThreadsCategory(page);
     await page
       .getByTestId('thread-nav-list')
       .getByRole('button', { name: /^Open thread: Keep this thread in its space/ })

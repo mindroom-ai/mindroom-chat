@@ -270,10 +270,15 @@ const CASES: Case[] = [
     },
   },
   {
+    // Home's Message Search: the rail's Search button is off until the account turns it on.
     name: 'command palette',
     from: 'home',
     screens: ['desktop', 'phone'],
-    open: byButton('Open command palette'),
+    open: async (page, screen) => {
+      const opener = page.locator('[data-home-room-action="search"]');
+      await press(opener, screen);
+      return opener;
+    },
   },
   {
     name: 'Join a Room',

@@ -70,6 +70,10 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   test.setTimeout(240_000);
   const owner = await registerAndLogin('owner');
   const compostId = await createRoom(HOMESERVER, owner.accessToken, { name: 'Compost' });
+  // The rail's Create Space button is off until the account turns it on in Settings > Sidebar.
+  await setAccountData(HOMESERVER, owner.accessToken, owner.userId, 'io.mindroom.settings', {
+    showCreateSpaceInSidebar: true,
+  });
   await signIn(page, owner.username);
 
   // The rail's Create Space button opens the dialog; a new space opens on its lobby.

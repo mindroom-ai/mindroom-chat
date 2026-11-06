@@ -8,6 +8,7 @@ import {
   loginToMatrix,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 const FILLER_ROOM_COUNT = 25;
 
@@ -98,6 +99,7 @@ test('the navigation panel keeps its scroll position across thread and room open
   }
 
   await loginWithPassword(page, { homeserver, ...credentials });
+  await openThreadsCategory(page);
   const panel = page.getByTestId('resizable-page-nav');
   const threadButton = (thread: ThreadSeed) =>
     panel

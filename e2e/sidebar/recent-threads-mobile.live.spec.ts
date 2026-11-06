@@ -414,6 +414,11 @@ test.describe('live issue073 persistent thread navigation', () => {
       await expect(getThreadsCategoryButton(page)).toHaveText('Threads');
       await expect(getRecentlyOpenedCategoryButton(page)).toHaveText('Recently Opened');
       await expect(getRecentlyOpenedCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
+      // THREADS starts collapsed too, until the person opens it.
+      await expect(getThreadsCategoryButton(page)).toHaveAttribute('aria-expanded', 'false');
+      await expect(page.getByTestId('thread-nav-list')).toHaveCount(0);
+      await getThreadsCategoryButton(page).click();
+      await expect(getThreadsCategoryButton(page)).toHaveAttribute('aria-expanded', 'true');
       await waitForThreadEntries(page, fixtures);
       await expect(page.getByTestId('recently-opened-nav-list')).toHaveCount(0);
       await expect(getRecentlyOpenedResizeHandle(page)).toHaveCount(0);

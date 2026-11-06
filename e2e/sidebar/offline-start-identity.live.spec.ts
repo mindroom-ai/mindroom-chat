@@ -9,6 +9,7 @@ import {
   seedRoomOverviewState,
   sendRoomMessage,
 } from '../helpers/matrix';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 // An offline start shows what the client showed online, from its caches: the sidebar's THREADS
 // rows keep their titles (also for rooms not opened in this page load), the room's thread cards
@@ -242,6 +243,7 @@ test('an offline start keeps thread titles, thread participants and the space pi
   const card = page.locator(`[data-thread-root-id="${rootId}"]`);
   await expect(card.getByTitle('Thread Helper', { exact: true })).toBeVisible();
   await expect(card.getByTitle('Offline Viewer', { exact: true })).toBeVisible();
+  await openThreadsCategory(page);
   const sidebar = page.getByTestId('thread-nav-category');
   await expect(sidebar.getByText(otherTitle, { exact: true })).toBeVisible();
   await expect(sidebar.getByText(rootTitle, { exact: true })).toBeVisible();

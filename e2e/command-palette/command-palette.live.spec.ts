@@ -1,7 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
-import { createPrivateRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import {
+  createPrivateRoom,
+  loginToMatrix,
+  sendRoomMessage,
+  setAccountData,
+} from '../helpers/matrix';
 
 const openCommandPalette = async (page: Page) => {
   const mac = await page.evaluate(() => /Mac|iPod|iPhone|iPad/.test(navigator.platform));
@@ -93,6 +98,10 @@ test.describe('command palette', () => {
     await sendRoomMessage(homeserver, session.accessToken, currentId, {
       msgtype: 'm.text',
       body: 'newest activity',
+    });
+    // The sidebar's trigger is off until the account turns it on in Settings > Sidebar.
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      showSearchInSidebar: true,
     });
     await loginWithPassword(page, { homeserver, ...credentials });
 

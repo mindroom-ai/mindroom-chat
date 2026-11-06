@@ -44,6 +44,13 @@ const register = async (prefix: string): Promise<Account> => {
       body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
     }
   );
+  // The rail's optional buttons, which this spec hovers, are off until an account turns them on.
+  await setAccountData(HOMESERVER, body.access_token, body.user_id, 'io.mindroom.settings', {
+    showThreadsInSidebar: true,
+    showExploreInSidebar: true,
+    showCreateSpaceInSidebar: true,
+    showSearchInSidebar: true,
+  });
   return { username, userId: body.user_id, accessToken: body.access_token };
 };
 

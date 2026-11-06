@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, loginToMatrix } from '../helpers/matrix';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 (['offline', 'delayed'] as const).forEach((sendMode) => {
   test(`preserves thread drafts and ${sendMode} replies across navigation`, async ({
@@ -27,6 +28,7 @@ import { createThreadFixture, loginToMatrix } from '../helpers/matrix';
     );
     await expect(page.locator('[data-thread-context-banner]')).toBeVisible();
     await expect(page.getByText(fixture.replyBody, { exact: true })).toBeVisible();
+    await openThreadsCategory(page);
 
     const composer = page.getByRole('textbox').first();
     const draft = `Unsent thread draft ${stamp}`;

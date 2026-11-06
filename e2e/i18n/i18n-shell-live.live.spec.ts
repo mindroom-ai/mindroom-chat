@@ -16,13 +16,11 @@ test.describe('live shell i18n', () => {
     const homeserver = getHomeserver();
     const { username, password } = getPrimaryCredentials();
     const session = await loginToMatrix(homeserver, username, password);
-    await setAccountData(
-      homeserver,
-      session.accessToken,
-      session.userId,
-      'io.mindroom.settings',
-      {}
-    );
+    // The rail's Threads and Search buttons on, so their labels follow the language too.
+    await setAccountData(homeserver, session.accessToken, session.userId, 'io.mindroom.settings', {
+      showThreadsInSidebar: true,
+      showSearchInSidebar: true,
+    });
     await loginWithPassword(page, { homeserver, username, password });
 
     // English defaults

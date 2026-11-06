@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { activeAccountButtonNamePattern } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 // The sidebar's Threads section lists a room's threads after sign-in and after a reload without
 // the room being opened, even when newer room messages pushed every thread event out of the sync
@@ -94,6 +95,7 @@ test('the sidebar lists quiet threads after sign-in and a reload without opening
 
   await signIn(page, username);
   await page.goto('/home/');
+  await openThreadsCategory(page);
   await expectListed();
 
   await page.reload();

@@ -10,6 +10,7 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 // L4-F029: while an agent streams a reply, the thread's row in the sidebar's THREADS list shows
 // that it streams, as the thread's Compact card does: a pulsing dot, and "Agent streaming" in the
@@ -27,6 +28,7 @@ const rowStreamsWhileAgentStreams = async (page: Page, stack: AgentStack, engine
   await openLobby(page, stack);
   // The lobby is in the stack's space, whose sidebar lists its threads.
   await page.getByRole('button', { name: /^MindRoom(,|$)/ }).click();
+  await openThreadsCategory(page);
   const word = uniqueWord('rowstream');
   // 400 words, one every quarter second: long enough to look while it streams on a loaded machine.
   const rootId = await startThread(stack, `${word} #stopme tell me more`);
