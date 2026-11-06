@@ -245,6 +245,21 @@ describe('edits of unopened threads', () => {
     expect(f.loadedThread()).toBe(false);
   });
 
+  it('shows the edits of a reply the thread knows only from its root summary', async () => {
+    const f = fixture(() => [reply()]);
+    await f.start();
+    // A thread listed with the room: its reply is only the root summary's latest event.
+    await f.deliver([withSummary(reply())]);
+    expect(f.card()).toEqual({ preview: 'Thinking about it', streaming: true });
+
+    await f.deliver([edit('The build passed. All 412 tests are green.', 152, 'completed')]);
+    expect(f.card()).toEqual({
+      preview: 'The build passed. All 412 tests are green.',
+      streaming: false,
+    });
+    expect(f.loadedThread()).toBe(false);
+  });
+
   it('is what moves the card past the first revision', async () => {
     const f = await streamingThread(false);
     await f.deliver([edit('The build passed.', 151, 'completed')]);
