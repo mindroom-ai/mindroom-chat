@@ -356,6 +356,8 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     // growth. Status changes (sent, failed, cancelled) only repaint.
     if (initial && event.isSending() && isOwnRow(event)) {
       followedSendsRef.current.add(event);
+      // The reader now sees what came while they were away: no New Messages line above it.
+      if (!threadId) setUnreadInfo(undefined);
       if (onOwnSend) onOwnSend();
       else requestBottomPin(true);
       return;
