@@ -1,7 +1,8 @@
-import { createClient, Room, type IEvent } from 'matrix-js-sdk';
+import { createClient, Room, ThreadEvent, type IEvent } from 'matrix-js-sdk';
 import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadRoomThreads, roomThreadListIsComplete } from './roomThreadList';
+import { restoreCachedRoomThreads } from '../sdk/roomTimelineSdk';
 
 const ROOM = '!big:example.org';
 const READER = '@reader:example.org';
@@ -51,7 +52,7 @@ type ListRequest = { include: string | null; from: string | null };
  * A real SDK client whose transport answers /threads 30 roots at a time, newest activity first,
  * as the server does. A later page answers a moment after it is asked for, as over a network.
  */
-const serve = () => {
+const serve = (beforePage?: (room: Room) => void) => {
   const all = Array.from({ length: THREADS }, (_, index) => listedRoot(index));
   const lists: Record<string, IEvent[]> = {
     all,
@@ -73,6 +74,8 @@ const serve = () => {
       const from = url.searchParams.get('from');
       requests.push({ include, from });
       if (from) {
+        const listedRoom = client.getRoom(ROOM);
+        if (listedRoom) beforePage?.(listedRoom);
         await new Promise((resolve) => {
           setTimeout(resolve, 5);
         });
@@ -131,5 +134,34 @@ describe('room thread list pages', () => {
       pages
     );
     expect(requests.filter(({ include }) => include === 'participated')).toHaveLength(1);
+  });
+
+  it('lists every thread after a reload restored them all from the cache', async () => {
+    // A reload restores every thread the page saved before the list is read. A restored thread
+    // that updates (its reply count, a streaming check, a cached preview) puts its root in the
+    // room's list. Here every third thread updates while the list loads, the newest of each page
+    // among them, so each later page arrives with its newest root listed and the others not. A
+    // busy room's list stopped there for good, and its older threads kept their cached summaries.
+    const { room, requests } = serve((listedRoom) => {
+      listedRoom.getThreads().forEach((thread) => {
+        if (Number(thread.id.split('-')[1]) % 3 === 0) thread.emit(ThreadEvent.Update, thread);
+      });
+    });
+    const mapper = room.client.getEventMapper();
+    restoreCachedRoomThreads(
+      room,
+      Array.from({ length: THREADS }, (_, index) => ({ rootEvent: mapper(listedRoot(index)) }))
+    );
+    expect(room.getThreads()).toHaveLength(THREADS);
+
+    await loadRoomThreads(room);
+
+    expect(roomThreadListIsComplete(room)).toBe(true);
+    const pages = Array.from({ length: Math.ceil(THREADS / 30) }, (_, page) =>
+      page === 0 ? null : String(page * 30)
+    );
+    expect(requests.filter(({ include }) => include === 'all').map(({ from }) => from)).toEqual(
+      pages
+    );
   });
 });
