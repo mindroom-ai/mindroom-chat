@@ -23,8 +23,9 @@ import {
 // behind, as a loaded phone does while 20 agents stream, never sees the events in the gap. The
 // room's cache fills such a gap from /messages in the background, but under that load the fill
 // falls behind too; the room's Compact view must still show a thread that started and finished in
-// the gap, with its title and finished reply. The spec holds the cache's gap fill back to make
-// that state certain. Against the disposable homeserver of a slot (scripts/e2e-slot.sh), on a
+// the gap, and the finished reply and title of a thread whose card was on screen when its reply
+// started, not its first streamed text. The spec holds the cache's gap fill back to make that state
+// certain. Against the disposable homeserver of a slot (scripts/e2e-slot.sh), on a
 // phone (390 by 844, touch) and a desktop (1280 by 800), in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set THREAD_GAP_SHOTS=<directory>
 // to save the list after the gap.
@@ -247,6 +248,24 @@ const check = async (
   });
   await expect(threadCard(page, world.busyRootId)).toBeAttached({ timeout: 30_000 });
 
+  // A reply that starts before the gap, on a card on screen, which loads its thread.
+  const startedLabel = `${label} started`;
+  const startedRootId = await ask(world, `Which ${startedLabel} fixes go into the notes?`);
+  const loadedThread = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/relations/${encodeURIComponent(startedRootId)}`) && response.ok(),
+    { timeout: 30_000 }
+  );
+  const startedReplyId = await sendAgent(world, {
+    msgtype: 'm.text',
+    body: PLACEHOLDER,
+    'io.mindroom.stream_status': 'pending',
+    ...inThread(startedRootId),
+  });
+  await streamEdit(world, startedReplyId, FIRST_STEP, 'streaming');
+  await expect(threadCard(page, startedRootId)).toContainText(FIRST_STEP, { timeout: 30_000 });
+  await loadedThread;
+
   // The page falls behind: its long poll has an answer it does not take yet.
   const answered = sync.hold();
   await sendRoomMessage(HOMESERVER, world.reader.accessToken, quietRoomId, {
@@ -255,17 +274,22 @@ const check = async (
   });
   await answered;
 
+  // The started reply finishes inside the gap, and gets its title.
+  await streamEdit(world, startedReplyId, `${FIRST_STEP} Two entries are missing.`, 'streaming');
+  await streamEdit(world, startedReplyId, finished(startedLabel), 'completed');
+  await sendTitle(world, startedRootId, titleOf(startedLabel));
   // A thread that starts and finishes inside the gap.
-  const rootId = await ask(world, `Is the ${label} changelog drafted?`);
-  const replyId = await sendAgent(world, {
+  const gapLabel = `${label} gap`;
+  const gapRootId = await ask(world, `Is the ${gapLabel} changelog drafted?`);
+  const gapReplyId = await sendAgent(world, {
     msgtype: 'm.text',
     body: PLACEHOLDER,
     'io.mindroom.stream_status': 'pending',
-    ...inThread(rootId),
+    ...inThread(gapRootId),
   });
-  await streamEdit(world, replyId, FIRST_STEP, 'streaming');
-  await streamEdit(world, replyId, finished(label), 'completed');
-  await sendTitle(world, rootId, titleOf(label));
+  await streamEdit(world, gapReplyId, FIRST_STEP, 'streaming');
+  await streamEdit(world, gapReplyId, finished(gapLabel), 'completed');
+  await sendTitle(world, gapRootId, titleOf(gapLabel));
   // A busy thread pushes all of that out of the next answer's 20 events.
   for (let index = 1; index <= BUSY_REPLIES; index += 1) {
     await sendRoomMessage(HOMESERVER, world.peer.accessToken, world.roomId, {
@@ -279,11 +303,17 @@ const check = async (
   await expect
     .poll(() => sync.sawLimited(world.roomId), { timeout: 30_000, message: 'a limited sync' })
     .toBe(true);
-  const card = threadCard(page, rootId);
-  await expect(card).toBeAttached({ timeout: 30_000 });
-  await card.scrollIntoViewIfNeeded();
-  await expect(card).toContainText(titleOf(label), { timeout: 30_000 });
-  await expect(card).toContainText(finishedStart(label), { timeout: 30_000 });
+  for (const [rootId, cardLabel] of [
+    [gapRootId, gapLabel],
+    [startedRootId, startedLabel],
+  ] as const) {
+    const card = threadCard(page, rootId);
+    await expect(card).toBeAttached({ timeout: 30_000 });
+    await card.scrollIntoViewIfNeeded();
+    await expect(card).toContainText(titleOf(cardLabel), { timeout: 30_000 });
+    await expect(card).toContainText(finishedStart(cardLabel), { timeout: 30_000 });
+    await expect(card).not.toHaveAttribute('data-attention-state', 'streaming');
+  }
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${label.replaceAll(' ', '-')}.png` });
 };
 
