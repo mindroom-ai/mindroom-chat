@@ -128,6 +128,7 @@ test.describe('on a phone', () => {
       await shot(page, `typing-stop-phone-${test.info().project.name}`);
 
       const frames = await recordFrames(page, streaming.event_id, 10_000);
+      await shot(page, `typing-stop-phone-streamed-${test.info().project.name}`);
       const streamed = frames.filter((frame) => frame.replyShown && frame.stop);
       expect(streamed.length).toBeGreaterThan(100);
       // No strip while the reply shows, so nothing ever covers Stop.

@@ -66,7 +66,7 @@ const check = async (
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
     await expect(
-      page.getByTestId('page-nav').getByText('Planning room 1', { exact: true })
+      page.getByTestId('resizable-page-nav').getByText('Planning room 1', { exact: true })
     ).toBeVisible({
       timeout: 60_000,
     });
@@ -87,7 +87,7 @@ const check = async (
       const frames: { band: boolean; top: number | null }[] = [];
       (window as unknown as { catchUpFrames: typeof frames }).catchUpFrames = frames;
       const read = () => {
-        const nav = document.querySelector('[data-testid="page-nav"]');
+        const nav = document.querySelector('[data-testid="resizable-page-nav"]');
         frames.push({
           band: !!document.querySelector('[data-testid="client-sync-status"]'),
           top: nav ? Math.round(nav.getBoundingClientRect().top * 10) / 10 : null,
