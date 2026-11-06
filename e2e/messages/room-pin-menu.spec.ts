@@ -697,7 +697,8 @@ const THREAD_PINS = [
   'Gate seven scanner is slow again, trucks queued for about twenty minutes around four.',
   'Straddle carrier 12 is parked by the workshop with a hydraulic leak.',
 ] as const;
-const THREAD_PIN_EDITED = 'Straddle carrier 12 is back in service, the hydraulic hose was replaced.';
+const THREAD_PIN_EDITED =
+  'Straddle carrier 12 is back in service, the hydraulic hose was replaced.';
 const OLD_PIN = 'The harbour master asks every vessel agent to confirm arrival times by noon.';
 
 /**
@@ -842,7 +843,10 @@ const CHECKS: [string, Check][] = [
     'an encrypted room’s pins outside the loaded timeline show decrypted, with their edit',
     checkUnloadedPins(true),
   ],
-  ['a plain room’s pins outside the loaded timeline show with their edit', checkUnloadedPins(false)],
+  [
+    'a plain room’s pins outside the loaded timeline show with their edit',
+    checkUnloadedPins(false),
+  ],
 ];
 
 for (const [form, options] of [

@@ -150,26 +150,27 @@ const seed = async (name: string, encrypted: boolean): Promise<Seeded> => {
 };
 
 /** The posted messages: what each says around its link, the link, and what the link reads as. */
-const postings = (seeded: Seeded, origin: string) => [
-  {
-    before: 'The crane plan is here:',
-    href: matrixTo(seeded.targetRoomId, seeded.root),
-    reads: `Thread in #${TARGET_ROOM}`,
-  },
-  {
-    before: 'Dredging notice:',
-    // The app's own link to a message, as Copy Link makes it.
-    href: `${origin}/${encodeURIComponent(seeded.targetRoomId)}/${encodeURIComponent(
-      seeded.notice
-    )}?via=localhost`,
-    reads: `Message in #${TARGET_ROOM}`,
-  },
-  {
-    before: 'Someone else wrote:',
-    href: matrixTo(seeded.elsewhere.roomId, seeded.elsewhere.eventId),
-    reads: 'Message in another room',
-  },
-] as const;
+const postings = (seeded: Seeded, origin: string) =>
+  [
+    {
+      before: 'The crane plan is here:',
+      href: matrixTo(seeded.targetRoomId, seeded.root),
+      reads: `Thread in #${TARGET_ROOM}`,
+    },
+    {
+      before: 'Dredging notice:',
+      // The app's own link to a message, as Copy Link makes it.
+      href: `${origin}/${encodeURIComponent(seeded.targetRoomId)}/${encodeURIComponent(
+        seeded.notice
+      )}?via=localhost`,
+      reads: `Message in #${TARGET_ROOM}`,
+    },
+    {
+      before: 'Someone else wrote:',
+      href: matrixTo(seeded.elsewhere.roomId, seeded.elsewhere.eventId),
+      reads: 'Message in another room',
+    },
+  ] as const;
 
 const messageRow = (page: Page, text: string) =>
   page.locator('[data-message-id^="$"]').filter({ hasText: text }).last();

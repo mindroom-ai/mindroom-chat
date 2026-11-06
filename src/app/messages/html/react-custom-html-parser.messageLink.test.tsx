@@ -130,8 +130,6 @@ describe('links to messages', () => {
     expect(textOf(render(parse(`see <a href="${href}">${href}</a>`, opts)))).toBe(
       'see Thread in #Harbor operations'
     );
-    expect(textOf(render(parse(`see <a href="${href}">the plan</a>`, opts)))).toBe(
-      'see the plan'
-    );
+    expect(textOf(render(parse(`see <a href="${href}">the plan</a>`, opts)))).toBe('see the plan');
   });
 });
