@@ -320,10 +320,11 @@ describe('events of any shape', () => {
     const fromPerson = parse(makeEvent(PERSON, message(fields)), undefined).content;
     expect(getAiRunInfo(fromPerson)).toBeUndefined();
     expect(isAiRunStreaming(fromPerson)).toBe(false);
-    expect(getContentToolTraceEvents(fromPerson)).toEqual([]);
+    expect(getContentToolTraceEvents(fromPerson)).toBeUndefined();
     const fromAgent = parse(makeEvent(AGENT, message(fields)), undefined).content;
     expect(getAiRunInfo(fromAgent)?.modelDisplayName).toBe('Survey Model');
     expect(isAiRunStreaming(fromAgent)).toBe(true);
+    expect(getContentToolTraceEvents(fromAgent)).toHaveLength(1);
   });
 
   it('aggregates reactions of any shape without throwing', async () => {
