@@ -263,22 +263,23 @@ const requestSession = (clientId: string): Promise<MediaSession | undefined> =>
 
 const fetchMedia = async (clientId: string, request: Request): Promise<Response> => {
   const session = sessions.get(clientId) ?? (clientId ? await requestSession(clientId) : undefined);
-  if (session && validMediaRequest(request.url, session.baseUrl)) {
-    // An avatar loaded is kept for offline starts, and a kept one answers when the network fails.
-    try {
+  // An avatar loaded is kept for offline starts, and a kept one answers when the network fails,
+  // also before an offline page has told the worker its session.
+  try {
+    if (session && validMediaRequest(request.url, session.baseUrl)) {
       const response = await fetch(
         request,
         buildAuthenticatedMediaRequestInit(request, session.accessToken)
       );
       if (response.ok) void rememberAvatar(request.url, response.clone());
       return response;
-    } catch (error) {
-      const kept = await recallAvatar(request.url);
-      if (kept) return kept;
-      throw error;
     }
+    return await fetch(request);
+  } catch (error) {
+    const kept = await recallAvatar(request.url);
+    if (kept) return kept;
+    throw error;
   }
-  return fetch(request);
 };
 
 self.addEventListener('fetch', (event) => {
