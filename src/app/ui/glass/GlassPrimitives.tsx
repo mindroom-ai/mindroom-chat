@@ -29,6 +29,7 @@ import {
 } from './SurfaceContext';
 import { inheritSurface } from './Surface.css';
 import { MenuRoleProvider, useMenuBehaviour, useMenuItemRole } from './menuBehaviour';
+import { useScrolledBeneath } from './useScrolledBeneath';
 
 export type SurfaceAppearance = 'glass' | 'plain' | 'inherit';
 type AppearanceProps = { appearance?: SurfaceAppearance };
@@ -221,20 +222,22 @@ export const Header = as<'header', HeaderProps>(
       'panel',
       variant
     );
+    const nested = isFlat && enclosingSurface && neutral;
+    const headerRef = useScrolledBeneath(surface.ref, nested);
     return (
       <ScrollHeaderProvider value={false}>
         <SurfaceProvider value={isFlat || surface.context}>
           <FoldsHeader
             {...props}
             data-glass-flat={isFlat || undefined}
-            ref={surface.ref}
+            ref={headerRef}
             variant={variant}
             className={classNames(
               surface.className,
               isFlat && glassSurface({ level: 'panel', variant }),
               isFlat && glassFlat,
               isFlat && glassFloating,
-              isFlat && enclosingSurface && neutral && glassInheritTint,
+              nested && glassInheritTint,
               className
             )}
           />

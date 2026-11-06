@@ -76,6 +76,10 @@ for (const theme of ['silver', 'dark']) {
       await scroll.evaluate((element) => {
         element.scrollTop = 145;
       });
+      // The dense tint a scrolled title takes would hide the difference; compare the blur alone.
+      await title.evaluate((element) => {
+        element.style.setProperty('background-color', 'transparent');
+      });
       const points = Array.from({ length: 200 }, (_, index) => ({
         x: bounds.x + 24 + (index % 40) * 3,
         y: bounds.y + bounds.height - 18 + Math.floor(index / 40) * 3,
@@ -84,6 +88,7 @@ for (const theme of ['silver', 'dark']) {
       await title.evaluate((element) => element.style.setProperty('backdrop-filter', 'none'));
       const unblurred = await sampleScreenshot(page, points);
       await title.evaluate((element) => element.style.removeProperty('backdrop-filter'));
+      await title.evaluate((element) => element.style.removeProperty('background-color'));
       expect(
         blurred.reduce((sum, pixel, index) => sum + pixelDifference(pixel, unblurred[index]), 0),
         'Scrolling text is visibly blurred beneath the title'

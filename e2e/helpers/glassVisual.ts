@@ -188,12 +188,14 @@ export async function expectFloatingNavHeader(
             const scale = fill.startsWith('color(') ? 255 : 1;
             return numbers.map((value) => Math.round(value * scale));
           };
+          const clear = (node: Element) =>
+            /^rgba\(0, 0, 0, 0\)$|^transparent$/.test(getComputedStyle(node).backgroundColor);
           let panel = element.parentElement;
-          while (panel && /^rgba\(0, 0, 0, 0\)$|^transparent$/.test(getComputedStyle(panel).backgroundColor))
-            panel = panel.parentElement;
+          while (panel && clear(panel)) panel = panel.parentElement;
           return {
             color: channels(css.backgroundColor),
             panelColor: panel ? channels(getComputedStyle(panel).backgroundColor) : [],
+            scrolled: viewport.scrollTop > 0,
           };
         })(),
       };
@@ -206,10 +208,14 @@ export async function expectFloatingNavHeader(
   expect(material.highlight).toBe('none');
   expect(material.filter).toContain('blur(');
   expect(material.filter).not.toContain('url(');
-  // Content scrolls beneath the title, so its tint is dense (94%, 90% in dark themes); a title
-  // inside a panel takes the panel's own color, so it shows as no band across it.
-  expect(material.alpha).toBeGreaterThanOrEqual(0.9);
-  if (inheritsPanelTint) expect(material.color).toEqual(material.panelColor);
+  // Content scrolling beneath a title takes the dense tint (94%, 90% in dark themes) under it. A
+  // title inside a panel has the panel's color, and no tint of its own until its list scrolls.
+  if (!inheritsPanelTint) expect(material.alpha).toBeGreaterThanOrEqual(0.9);
+  else if (!material.scrolled) expect(material.alpha).toBe(0);
+  else {
+    expect(material.alpha).toBeGreaterThanOrEqual(0.9);
+    expect(material.color).toEqual(material.panelColor);
+  }
   expect(material.alpha).toBeLessThan(1);
   const scrollbar = scroll.getByRole('scrollbar', { includeHidden: true });
   await expect(scrollbar).toHaveCount(1);

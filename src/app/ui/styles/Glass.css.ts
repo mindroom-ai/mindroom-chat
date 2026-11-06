@@ -178,10 +178,18 @@ export const glassFlat = style({
   },
 });
 
-// Nested chrome (a settings page's title) takes its panel's own color, so it does not show as a
-// band across the panel. Opaque accessibility/no-backdrop fallbacks use that color too.
+// Nested chrome (a settings page's title) takes its panel's own color. At rest the panel's tint
+// lies behind it and it adds none, so it shows as no band across the panel; once its list scrolls,
+// content passes beneath it and it takes the dense tint (useScrolledBeneath marks it).
+// Opaque accessibility/no-backdrop fallbacks use the panel's color too.
 export const glassInheritTint = style({
-  selectors: { '&&&&': { vars: { [surfaceContainer]: 'inherit' } } },
+  selectors: {
+    '&&&&&': { vars: { [surfaceContainer]: 'inherit', [surfaceTint]: '0%' } },
+    '&&&&&[data-scrolled-beneath]': { vars: { [surfaceTint]: denseTint.light } },
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&&&[data-scrolled-beneath]': {
+      vars: { [surfaceTint]: denseTint.dark },
+    },
+  },
 });
 
 // The sign-in card over the particle art keeps a light tint, so the art shows through it.
