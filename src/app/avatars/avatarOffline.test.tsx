@@ -8,6 +8,7 @@ import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { SpecVersionsProvider } from '../matrix/hooks/useSpecVersions';
 import { UserAvatar } from './UserAvatar';
 import { clearFetchedAvatars } from './avatarMedia';
+import { avatarCacheKey } from '../../sw/avatarCache';
 
 const HS = 'https://hs.test';
 const AUTHED = `${HS}/_matrix/client/v1/media/thumbnail/hs.test/face?width=96&height=96&method=crop`;
@@ -86,7 +87,7 @@ describe('avatars while the homeserver is out of reach', () => {
     );
 
   it('shows the picture kept from an earlier load when the network fails', async () => {
-    kept.set(AUTHED, new Response(new Blob(['png']), { status: 200 }));
+    kept.set(avatarCacheKey(AUTHED), new Response(new Blob(['png']), { status: 200 }));
     fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
     render(makeClient());
     await settle();
@@ -100,7 +101,7 @@ describe('avatars while the homeserver is out of reach', () => {
     await settle();
 
     expect(image()?.getAttribute('src')).toBe('blob:face');
-    expect(kept.has(AUTHED)).toBe(true);
+    expect(kept.has(avatarCacheKey(AUTHED))).toBe(true);
   });
 
   it('tries a failed picture again once sync recovers', async () => {
