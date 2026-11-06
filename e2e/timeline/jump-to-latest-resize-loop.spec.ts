@@ -42,8 +42,11 @@ const homeserverIsUp = async (): Promise<boolean> => {
 
 type Account = MatrixSession & { username: string };
 
+// Accounts stay unique when a run repeats a test in the same worker.
+let accounts = 0;
 const register = async (name: string): Promise<Account> => {
-  const username = `rol_${name}_${RUN}`;
+  accounts += 1;
+  const username = `rol_${name}_${RUN}_${accounts}`;
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -127,7 +130,8 @@ const jumpFromTheTop = async (page: Page, name: string) => {
         await page.waitForTimeout(400);
         return page.getByText('Entry 1:', { exact: false }).first().isVisible();
       },
-      { timeout: 90_000 }
+      // Paging back through 100 messages takes a loaded phone WebKit more than a minute.
+      { timeout: 150_000 }
     )
     .toBe(true);
   await page.waitForTimeout(1_000);
