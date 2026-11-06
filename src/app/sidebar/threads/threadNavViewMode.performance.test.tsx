@@ -41,7 +41,7 @@ const createClient = () => {
         roomId,
         {
           roomId,
-          currentState: {},
+          currentState: { getStateEvents: () => null },
           getMembers: () => {
             memberScans += 1;
             return Object.values(members);

@@ -43,6 +43,7 @@ describe('useRoomViewMode', () => {
           ? {
               getMembers: () => members,
               getMember: (memberId: string) => members.find((m) => m.userId === memberId) ?? null,
+              currentState: { getStateEvents: () => null },
             }
           : null;
       },
