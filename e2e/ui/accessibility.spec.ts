@@ -383,6 +383,24 @@ test.describe.serial('keyboard and accessibility', () => {
     await expect(roomOptions).toBeFocused();
   });
 
+  test("the members panel's resize handle shows its line while it has keyboard focus", async () => {
+    await openRoom(page);
+    const handle = page.getByRole('separator', { name: 'Resize member panel' });
+    await expect(handle).toBeVisible();
+    const line = () =>
+      handle.evaluate((element) => getComputedStyle(element, '::after').backgroundColor);
+    // Away from the pointer and the keyboard the floating layout hides the line in the gap.
+    await page.mouse.move(0, 0);
+    const resting = await line();
+    await handle.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(handle).toBeFocused();
+    expect(await handle.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+    await expect.poll(line).not.toBe(resting);
+    expect(await line()).not.toBe('rgba(0, 0, 0, 0)');
+  });
+
   test('the settings dialog is a named modal that gives focus back when it closes', async () => {
     const account = accountButton(page);
     await account.focus();
