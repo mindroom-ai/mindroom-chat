@@ -1,6 +1,6 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
-import { joinRoom, loginToMatrix } from '../helpers/matrix';
+import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 
 // What a person sees while the app starts, frame by frame, in the light theme: the splash never
@@ -12,7 +12,12 @@ const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'startup-frames-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.STARTUP_FRAMES_SHOTS;
-const ROOMS = ['Harbor Plans', 'Budget Review', 'Release Notes'];
+// STARTUP_ROOMS and STARTUP_MESSAGES make a heavier account (rooms, and messages in each).
+const ROOM_COUNT = Number(process.env.STARTUP_ROOMS ?? 3);
+const MESSAGES = Number(process.env.STARTUP_MESSAGES ?? 0);
+const ROOMS = ['Harbor Plans', 'Budget Review', 'Release Notes'].concat(
+  Array.from({ length: Math.max(0, ROOM_COUNT - 3) }, (_, index) => `Project Room ${index + 4}`)
+);
 
 test.use({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' });
 
@@ -53,6 +58,8 @@ const sampleDomStates = (page: Page) =>
   page.addInitScript(() => {
     const states: { t: number; state: string; detail: string }[] = [];
     (window as unknown as { __domStates: typeof states }).__domStates = states;
+    const frames: number[] = [];
+    (window as unknown as { __frameTimes: typeof frames }).__frameTimes = frames;
     const classify = (): [string, string] => {
       const rows = document.querySelectorAll('[data-room-id]').length;
       if (rows) return ['shell', `${rows} rows`];
@@ -68,6 +75,7 @@ const sampleDomStates = (page: Page) =>
       ];
     };
     const sample = () => {
+      frames.push(Math.round(performance.now()));
       const [state, detail] = classify();
       const last = states[states.length - 1];
       if (!last || last.state !== state || last.detail !== detail) {
@@ -156,10 +164,27 @@ test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
+/** Requests of the start that matter for its timing, in ms since `since` (a Date.now()). */
+const recordRequests = (page: Page, since: () => number) => {
+  const timeline: string[] = [];
+  const watched =
+    /\/(login|versions|pushrules\/|filter|sync|keys\/upload|keys\/query|capabilities)/;
+  page.on('request', (request) => {
+    const match = watched.exec(new URL(request.url()).pathname);
+    if (match) timeline.push(`${Date.now() - since()} > ${match[1]}`);
+  });
+  page.on('response', (response) => {
+    const match = watched.exec(new URL(response.url()).pathname);
+    if (match) timeline.push(`${Date.now() - since()} < ${match[1]}`);
+  });
+  return timeline;
+};
+
 test('the start shows no black or empty frame, and saved rooms before the first sync', async ({
   page,
+  browserName,
 }) => {
-  test.setTimeout(120_000);
+  test.setTimeout(300_000);
   const reader = await register('reader');
   const writer = await register('writer');
   for (const name of ROOMS) {
@@ -170,21 +195,46 @@ test('the start shows no black or empty frame, and saved rooms before the first 
     });
     // eslint-disable-next-line no-await-in-loop
     await joinRoom(HOMESERVER, reader.accessToken, roomId);
+    for (let start = 0; start < MESSAGES; start += 10) {
+      // eslint-disable-next-line no-await-in-loop
+      await Promise.all(
+        Array.from({ length: Math.min(10, MESSAGES - start) }, (_, offset) =>
+          sendRoomMessage(HOMESERVER, writer.accessToken, roomId, {
+            msgtype: 'm.text',
+            body: `Update ${start + offset} on the schedule, the budget and the open review items.`,
+          })
+        )
+      );
+    }
   }
   await sampleDomStates(page);
+  let clickedAt = 0;
+  const requests = recordRequests(page, () => clickedAt);
+  // The screencast is Chromium's (DevTools protocol); WebKit records only what the page shows.
+  const screencast = async () =>
+    browserName === 'chromium' ? startScreencast(page) : { cdp: undefined, frames: [] as Frame[] };
 
   // Cold: sign in.
   await page.goto(buildLoginPath(HOMESERVER, false));
   await page.locator('input[name="usernameInput"]').fill(reader.username);
   await page.locator('input[name="passwordInput"]').fill(PASSWORD);
-  const cold = await startScreencast(page);
+  const cold = await screencast();
   const coldStart = Date.now() / 1000;
   const coldClick = await page.evaluate(() => performance.now());
+  clickedAt = Date.now();
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page.locator('[data-room-id]').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-room-id]').first()).toBeVisible({ timeout: 60_000 });
+  const coldRowsMs = Date.now() - clickedAt;
   await page.waitForTimeout(800);
-  await cold.cdp.send('Page.stopScreencast');
+  await cold.cdp?.send('Page.stopScreencast');
   const coldStates = (await readDomStates(page)).filter((state) => state.t >= coldClick);
+  const coldFrameCount = await page.evaluate(
+    (since) =>
+      (window as unknown as { __frameTimes: number[] }).__frameTimes.filter((t) => t >= since)
+        .length,
+    coldClick
+  );
+  const coldRequests = requests.splice(0);
   const coldFrames = await measureFrames(page, cold.frames, coldStart);
   await saveFrames(cold.frames, coldStart, 'cold');
 
@@ -204,8 +254,9 @@ test('the start shows no black or empty frame, and saved rooms before the first 
       syncAnswered = Math.min(syncAnswered, Date.now());
     }
   });
-  const warm = await startScreencast(page);
+  const warm = await screencast();
   const warmStart = Date.now() / 1000;
+  clickedAt = Date.now();
   await page.goto('/home/');
   const rowsBeforeSync = await page
     .locator('[data-room-id]')
@@ -219,7 +270,7 @@ test('the start shows no black or empty frame, and saved rooms before the first 
   releaseSync();
   await expect(page.locator('[data-room-id]').first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(800);
-  await warm.cdp.send('Page.stopScreencast');
+  await warm.cdp?.send('Page.stopScreencast');
   const warmStates = await readDomStates(page);
   const warmFrames = await measureFrames(page, warm.frames, warmStart);
   await saveFrames(warm.frames, warmStart, 'warm');
@@ -229,13 +280,17 @@ test('the start shows no black or empty frame, and saved rooms before the first 
     'STARTUP',
     JSON.stringify({
       cold: {
+        rowsMs: coldRowsMs,
+        animationFrames: coldFrameCount,
         states: coldStates.map((s) => ({ ...s, t: Math.round(s.t - coldClick) })),
+        requests: coldRequests,
         frames: coldFrames,
       },
       warm: {
         states: warmStates,
         frames: warmFrames,
         rowsBeforeSync,
+        requests,
         rowsMs: Math.round(rowsAt - warmStart * 1000),
         syncAnsweredMs: Number.isFinite(syncAnswered)
           ? Math.round(syncAnswered - warmStart * 1000)
