@@ -667,8 +667,8 @@ const checkEncrypted = async (page: Page, engine: string, form: string, testInfo
     // eslint-disable-next-line no-await-in-loop
     await send(`${FILLERS[index]} (${index + 1})`);
   }
-  await row.click({ button: 'right' });
-  await page.getByText('Pin Message', { exact: true }).click();
+  // Pinned through the API: a phone has no right click, and the pin action is not under test.
+  await pinEvents(owner, roomId, [eventId]);
   const pinButton = page.getByRole('button', { name: 'Pinned Messages', exact: true });
   await expect(pinButton).toBeVisible({ timeout: 30_000 });
 
