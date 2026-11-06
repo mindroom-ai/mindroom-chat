@@ -2,7 +2,8 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { hasTerminalStreamMetadata, isAiRunStreaming } from './aiRun';
 import { type AnnotationEntry, getActiveAnnotationsByKey } from './reactionAnnotations';
-import { getReadableContent, isUnreadableYet } from '../room';
+import { getReadableContent } from '../room';
+import { isUnreadableYet } from '../decryptionWaits';
 
 /**
  * Stop-button reaction keys the MindRoom backend attaches to streaming

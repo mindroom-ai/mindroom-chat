@@ -21,7 +21,7 @@ import { mxcUrlToHttp } from './mediaUrl';
 import { matchesEnum } from '../lib/matchesEnum';
 import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimelineRead';
 import { countSeenThreadRootsAfter } from './seenThreadRoots';
-import { isAwaitingDecryption } from './decryptionWaits';
+import { isUnreadableYet } from './decryptionWaits';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -169,13 +169,6 @@ const fillMetadataFromOlderEdits = (latest: MatrixEvent, older: MatrixEvent[]): 
     if (newContent[key] === undefined && wrapper[key] === undefined) newContent[key] = value;
   });
 };
-
-/**
- * Whether `event` is encrypted and the client cannot read it yet. Stand-ins that only look like
- * events, as some rows hold, count as readable.
- */
-export const isUnreadableYet = (event: MatrixEvent): boolean =>
-  !!event.isEncrypted?.() && isAwaitingDecryption(event);
 
 const getRelationEdits = (
   eventId: string,

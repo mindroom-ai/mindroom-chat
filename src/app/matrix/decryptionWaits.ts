@@ -8,6 +8,13 @@ import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
 export const isAwaitingDecryption = (event: MatrixEvent): boolean =>
   event.isBeingDecrypted() || event.shouldAttemptDecryption() || event.isDecryptionFailure();
 
+/**
+ * Whether `event` is encrypted and the client cannot read it yet. Stand-ins that only look like
+ * events, as some rows hold, count as readable.
+ */
+export const isUnreadableYet = (event: MatrixEvent): boolean =>
+  !!event.isEncrypted?.() && isAwaitingDecryption(event);
+
 /** The encrypted events a listener waits for, each until it decrypts or its time runs out. */
 export type DecryptionWaits = {
   /**

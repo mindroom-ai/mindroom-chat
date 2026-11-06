@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, type RefObject } from 'react';
 import { MatrixEventEvent, type MatrixEvent } from 'matrix-js-sdk';
-import { isUnreadableYet } from '../../matrix/room';
+import { isUnreadableYet } from '../../matrix/decryptionWaits';
 
 const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
 
