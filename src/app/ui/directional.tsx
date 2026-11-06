@@ -74,7 +74,8 @@ let touchedLast = false;
 let watchingPresses = false;
 
 const watchPresses = () => {
-  if (watchingPresses || typeof document === 'undefined') return;
+  // Some tests stand in a partial document, without event listeners.
+  if (watchingPresses || typeof globalThis.document?.addEventListener !== 'function') return;
   watchingPresses = true;
   const options = { capture: true, passive: true };
   document.addEventListener(
@@ -115,7 +116,10 @@ const guardTrigger = (triggerRef: TriggerRef): TriggerRef => {
   let guarded = guardedTriggers.get(triggerRef);
   if (!guarded) {
     guarded = (node) => {
-      node?.addEventListener('mouseenter', skipHoverAfterTouch);
+      // Test renderers hand over stand-in nodes without event listeners.
+      if (typeof node?.addEventListener === 'function') {
+        node.addEventListener('mouseenter', skipHoverAfterTouch);
+      }
       if (typeof triggerRef === 'function') triggerRef(node);
       else (triggerRef as MutableRefObject<HTMLElement | SVGElement | null>).current = node;
     };
