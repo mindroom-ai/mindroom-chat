@@ -55,6 +55,7 @@ import {
 } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
+import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import {
   MessageBadEncryptedContent,
   MessageDeletedContent,
@@ -447,15 +448,19 @@ export function Notifications() {
                     style={{ color: color.SurfaceVariant.OnContainer }}
                   >
                     {roomNotifications.map((notification) => (
-                      <NotificationRow
+                      <MessageRowBoundary
                         key={notification.event.event_id}
-                        room={room}
-                        notification={notification}
-                        onOpen={(eventId, threadId) =>
-                          threadId
-                            ? navigateRoomThread(room.roomId, threadId, eventId)
-                            : navigateRoom(room.roomId, eventId)
-                        }
+                        render={() => (
+                          <NotificationRow
+                            room={room}
+                            notification={notification}
+                            onOpen={(eventId, threadId) =>
+                              threadId
+                                ? navigateRoomThread(room.roomId, threadId, eventId)
+                                : navigateRoom(room.roomId, eventId)
+                            }
+                          />
+                        )}
                       />
                     ))}
                   </SequenceCard>

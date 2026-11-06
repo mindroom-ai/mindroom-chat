@@ -13,6 +13,7 @@ import { Text, color, config } from 'folds';
 import { reactionOrEditEvent } from '../matrix/room';
 import { today, timeDayMonthYear, yesterday } from '../lib/time';
 import { VirtualTile } from '../ui/VirtualTile';
+import { MessageRowBoundary } from '../messages/content/MessageRowBoundary';
 import type { TimelineMessageData, TimelineMessageRow } from './message-rendering/types';
 import { hasThreadReplies } from './message-rendering/useTimelineMessageFeature';
 import type { ThreadRecord } from '../event-store/threads/types';
@@ -302,16 +303,22 @@ export const renderTimelineTiles = ({
         highlighted: focusItem?.eventId === id && focusItem.highlight,
         previousEventId: context.inPlaceReplyEventId,
       };
-      const rendered = renderEvent(row, messageData);
-      if (rendered !== null) {
-        content = (
-          <>
-            {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
-            {context.dayDivider && <DayDivider ts={event.getTs()} />}
-            {rendered}
-          </>
-        );
-      }
+      // A row that fails to render shows as broken; the rows around it stay.
+      content = (
+        <MessageRowBoundary
+          render={() => {
+            const rendered = renderEvent(row, messageData);
+            if (rendered === null) return null;
+            return (
+              <>
+                {context.unreadDivider && <UnreadDivider separatorRef={unreadMarkerRef} />}
+                {context.dayDivider && <DayDivider ts={event.getTs()} />}
+                {rendered}
+              </>
+            );
+          }}
+        />
+      );
     }
     return (
       <VirtualTile

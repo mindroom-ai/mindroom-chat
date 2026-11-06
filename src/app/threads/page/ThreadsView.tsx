@@ -14,6 +14,7 @@ import {
 } from '../cross-room/crossRoomThreadFilters';
 import { VirtualTile } from '../../ui/VirtualTile';
 import { ThreadsViewRow } from './ThreadsViewRow';
+import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import * as css from './ThreadsView.css';
 
 type ThreadsViewProps = {
@@ -102,7 +103,7 @@ export function ThreadsView({ indexSnapshot, filters, setFilters }: ThreadsViewP
                 virtualItem={virtualItem}
                 ref={virtualizer.measureElement}
               >
-                <ThreadsViewRow entry={entry} />
+                <MessageRowBoundary render={() => <ThreadsViewRow entry={entry} />} />
               </VirtualTile>
             );
           })}

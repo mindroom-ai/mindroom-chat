@@ -6,6 +6,7 @@ import { getMemberDisplayName } from '../matrix/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getSearchResultOpenTarget, type SearchResultOpenTarget } from './searchResultOpenTarget';
 import { SearchResultBody, type SearchResultBodyProps } from './SearchResultBody';
+import { MessageRowBoundary } from '../messages/content/MessageRowBoundary';
 
 function SearchResultTime({ ts }: { ts: number }) {
   const relative = useRelativeTime(ts);
@@ -53,7 +54,7 @@ export function SearchResultItem({ onOpen, ...props }: SearchResultItemProps) {
         </Chip>
       </Box>
       <Box direction="Column" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
-        <SearchResultBody {...props} />
+        <MessageRowBoundary render={() => <SearchResultBody {...props} />} />
       </Box>
     </SequenceCard>
   );

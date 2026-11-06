@@ -24,6 +24,7 @@ import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteU
 import { useInitializeShownThread } from '../useInitializeShownThread';
 import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollAnchorMemory';
 import { IconTooltip } from '../../ui/IconTooltip';
+import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -123,7 +124,9 @@ const CompactThreadCardRow = React.memo(
           label={viewModel.isResolved ? reopenLabel : resolveLabel}
           onSwipe={(wasResolved) => onSetResolved(rootId, !wasResolved)}
         >
-          <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />
+          <MessageRowBoundary
+            render={() => <CompactThreadCard viewModel={viewModel} onClick={onThreadClick} />}
+          />
           <div className={css.CardAction}>
             {showResolveAction && (
               <IconTooltip label={resolveLabel} position="Top">
