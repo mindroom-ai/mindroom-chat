@@ -224,7 +224,7 @@ export function Canvases() {
                             )}
                           </Box>
                         </td>
-                        <td>
+                        <td data-label={t('mindroomUi.canvases.thread')}>
                           {room && entry.threadId && (
                             <button
                               type="button"
@@ -237,7 +237,7 @@ export function Canvases() {
                             </button>
                           )}
                         </td>
-                        <td>
+                        <td data-label={t('mindroomUi.canvases.room')}>
                           <button
                             type="button"
                             className={css.Link}
@@ -248,13 +248,13 @@ export function Canvases() {
                             </Text>
                           </button>
                         </td>
-                        <td>
+                        <td data-label={t('mindroomUi.canvases.agent')}>
                           <Text size="T300">{agent}</Text>
                         </td>
-                        <td>
+                        <td data-label={t('mindroomUi.canvases.updated')}>
                           <Text size="T300">{date.format(entry.updatedTs)}</Text>
                         </td>
-                        <td>
+                        <td data-label={t('mindroomUi.canvases.created')}>
                           <Text size="T300">{date.format(entry.createdTs)}</Text>
                         </td>
                       </tr>
