@@ -1,4 +1,4 @@
-import { type CSSProperties, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { ClientEvent, SyncState, type MatrixClient, type SyncStateData } from 'matrix-js-sdk';
@@ -7,6 +7,7 @@ import { useHomeserverUnreachable } from '../matrix/client/homeserverReachabilit
 import { useSyncStalled } from '../matrix/client/syncStall';
 import { useCloudflareAccessSignInRequired } from '../native/cloudflareAccess';
 import { hostOf } from '../lib/httpUrl';
+import { CATCHING_UP_OVERLAY } from './catchingUpOverlay';
 
 type SyncStatusProps = {
   mx: MatrixClient;
@@ -15,19 +16,6 @@ type SyncStatusProps = {
 type SyncSnapshot = {
   current: SyncState | null;
   catchingUp: boolean;
-};
-
-/**
- * "Catching up..." lies over the top of the app, so the app neither moves down when it shows nor
- * back up when it goes, after every load; clicks pass through to what it covers. A lost connection
- * or a needed sign-in stays until the person acts, and takes its own line above the app.
- */
-export const CATCHING_UP_OVERLAY: CSSProperties = {
-  position: 'absolute',
-  insetBlockStart: 0,
-  insetInline: 0,
-  zIndex: config.zIndex.Z100,
-  pointerEvents: 'none',
 };
 
 /** Startup (Prepared) and reconnects (Catchup) catch up until a sync says the SDK has. */
