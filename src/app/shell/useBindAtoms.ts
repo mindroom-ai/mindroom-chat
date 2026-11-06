@@ -1,6 +1,7 @@
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
+import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
@@ -21,6 +22,8 @@ export function useBindAtoms(client: MatrixClient): void {
   useBindRoomToParentsAtom(client, roomToParentsAtom);
   // Archived rooms are left out of every list, so they are seeded behind the same gate.
   useBindArchivedRoomsAtom(client);
+  // So are rooms upgraded into one the account has joined.
+  useBindReplacedRoomsAtom(client);
   // The account's `io.mindroom.settings`, which the first render of the pages already reads.
   useBindAccountSettings(client);
   // The app settings that follow the account (`io.mindroom.client.settings`), and the edits of

@@ -2,6 +2,7 @@ import { atom, useAtomValue, useSetAtom } from 'jotai';
 import { ClientEvent, MatrixClient, MatrixEvent, Room, RoomEvent } from 'matrix-js-sdk';
 import { useEffect, useMemo } from 'react';
 import { allRoomsAtom } from './roomList';
+import { replacedRoomsAtom } from './replacedRooms';
 
 const ARCHIVED_ROOM_EVENT = 'io.mindroom.archived';
 
@@ -18,13 +19,18 @@ export const isRoomVisible = (roomId: string, archived: ReadonlySet<string>): bo
 
 export const useVisibleRooms = (rooms: string[]): string[] => {
   const archived = useAtomValue(archivedRoomsAtom);
-  return useMemo(() => rooms.filter((id) => isRoomVisible(id, archived)), [rooms, archived]);
+  const replaced = useAtomValue(replacedRoomsAtom);
+  return useMemo(
+    () => rooms.filter((id) => isRoomVisible(id, archived) && !replaced.has(id)),
+    [rooms, archived, replaced]
+  );
 };
 
 // Keep membership and routing on allRoomsAtom; only navigation hides archives.
 export const navigationRoomsAtom = atom((get) => {
   const archived = get(archivedRoomsAtom);
-  return get(allRoomsAtom).filter((id) => isRoomVisible(id, archived));
+  const replaced = get(replacedRoomsAtom);
+  return get(allRoomsAtom).filter((id) => isRoomVisible(id, archived) && !replaced.has(id));
 });
 
 export const joinedArchivedRoomsAtom = atom((get) => {
