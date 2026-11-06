@@ -5,6 +5,7 @@ import type { Room, RoomMember } from 'matrix-js-sdk';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { Membership } from '../../matrix/types/room';
+import { getMemberDisplayName } from '../../matrix/room';
 import type { ModerationAbilities } from './profileModeration';
 import * as css from './UserRoomProfile.css';
 import { describeError } from '../../lib/describeError';
@@ -24,7 +25,7 @@ const membershipNote = (room: Room, member: RoomMember | null): Note | undefined
   const event = member?.events.member;
   if (!member || !event) return undefined;
   const sender = event.getSender();
-  const senderName = (sender && room.getMember(sender)?.name) || sender || '';
+  const senderName = (sender && getMemberDisplayName(room, sender)) || sender || '';
   const reason = event.getContent().reason;
   const text = typeof reason === 'string' && reason.trim() ? reason : undefined;
   if (member.membership === Membership.Ban) return { kind: 'ban', senderName, reason: text };

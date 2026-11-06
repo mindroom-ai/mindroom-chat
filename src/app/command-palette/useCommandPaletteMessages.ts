@@ -7,7 +7,7 @@ import type { TFunction } from 'i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { trimReplyFromBody } from '../matrix/room';
+import { getMemberDisplayName, trimReplyFromBody } from '../matrix/room';
 import { stripPreviewMarkdown } from '../event-store/threads/threadMessagePreview';
 import {
   crossRoomThreadIndexAtom,
@@ -131,7 +131,9 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
           id: `message:${roomId}:${event.event_id}`,
           kind: 'message',
           senderName:
-            room?.getMember(event.sender)?.name ?? getMxIdLocalPart(event.sender) ?? event.sender,
+            (room && getMemberDisplayName(room, event.sender)) ??
+            getMxIdLocalPart(event.sender) ??
+            event.sender,
           roomName: room?.name ?? roomId,
           threadName: target.threadRootId
             ? thread?.summaryText || thread?.rootPreviewText || ''

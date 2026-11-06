@@ -22,7 +22,6 @@ import { SettingsPages } from '../../navigation/settingsPages';
 import { AgentCallButton } from '../../calls/agent/AgentCallButton';
 import { nameInitials } from '../../lib/common';
 import { getMxIdLocalPart, getMxIdServer } from '../../matrix/matrix';
-import { getMemberDisplayName } from '../../matrix/room';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { StateEvent } from '../../matrix/types/room';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -129,8 +128,9 @@ export function UserRoomProfile({
   const user = client.getUser(userId);
   // A member event without a name (a ban, the leave that lifts it) names the person by their ID;
   // their profile still has the name.
+  // The ID shows under the name, so the name goes without it.
   const name =
-    getMemberDisplayName(room, userId) ||
+    (member?.rawDisplayName !== userId ? member?.rawDisplayName : undefined) ||
     profile.displayName ||
     (user?.displayName !== userId ? user?.displayName : undefined) ||
     getMxIdLocalPart(userId) ||

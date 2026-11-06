@@ -4,7 +4,7 @@ import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';
 import { Membership } from '../matrix/types/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { getMemberDisplayName } from '../matrix/room';
+import { getMemberDisplayName, getRoomMemberName } from '../matrix/room';
 
 type ParsedMemberEvent = {
   icon: IconSrc;
@@ -196,7 +196,7 @@ const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts 
     kind: getMemberEventKind(current, previous, selfChange),
     userName,
     prevUserName: nameOf(targetId, previous.displayname),
-    senderName: selfChange ? userName : nameOf(senderId, event.sender?.rawDisplayName || undefined),
+    senderName: selfChange ? userName : nameOf(senderId, getRoomMemberName(event.sender)),
     reason: current.reason ? `(${current.reason})` : '',
   };
 };

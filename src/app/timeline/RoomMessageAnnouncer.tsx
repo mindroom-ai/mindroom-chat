@@ -13,6 +13,7 @@ import { isAiRunStreaming } from '../matrix/protocol/aiRun';
 import { isThreadListTimeline } from '../event-store/timeline/roomLiveEventArrive';
 import { readCanvasNoticeTitle } from '../matrix/protocol/chatUiProtocol';
 import { matchesEnum } from '../lib/matchesEnum';
+import { getMemberDisplayName } from '../matrix/room';
 
 /** Announcements kept in the log; screen readers read each one as it is added. */
 const KEPT = 5;
@@ -122,10 +123,11 @@ export function RoomMessageAnnouncer({
 
     const announce = (event: MatrixEvent, content: Content) => {
       const id = event.getId();
-      const body = announcementBody(content, (userId) => room.getMember(userId)?.name);
+      const body = announcementBody(content, (userId) => getMemberDisplayName(room, userId));
       if (!id || !body || announced.has(id)) return;
       announced.add(id);
-      const sender = room.getMember(event.getSender() ?? '')?.name ?? event.getSender() ?? '';
+      const senderId = event.getSender() ?? '';
+      const sender = getMemberDisplayName(room, senderId) ?? senderId;
       const text = translate.current('sharedUi.a11y.newMessage', { sender, body });
       setAnnouncements((previous) => [...previous, { key: id, text }].slice(-KEPT));
     };

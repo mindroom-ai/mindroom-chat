@@ -9,6 +9,7 @@ import {
   type MatrixClient,
   type MatrixEvent,
   type Room,
+  type RoomMember,
 } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
@@ -53,10 +54,35 @@ export const isRoom = (room: Room | null | undefined): boolean => {
   return type !== RoomType.Space && type !== RoomType.MindroomEmoji;
 };
 
-export const getMemberDisplayName = (room: Room, userId: string): string | undefined => {
-  const name = room.getMember(userId)?.rawDisplayName;
-  return name && name !== userId ? name : undefined;
+/**
+ * Characters that change how a name reads without showing themselves: soft hyphens, zero-width
+ * spaces, word joiners and invisible operators, byte order marks, fillers, and direction controls
+ * (which could also reorder the user ID shown after a name). Zero-width joiners and non-joiners
+ * are not among them: emoji sequences and Persian names need them.
+ */
+const NAME_DISGUISES =
+  /[\u00AD\u061C\u115F\u1160\u180E\u200B\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\u3164\uFEFF\uFFA0]/g;
+
+/**
+ * The name the room shows for a member as the sender of something, or undefined when they have
+ * none of their own; a timeline event's `sender` names them as they were then. As matrix-js-sdk's
+ * `RoomMember.name` does, the user ID follows the name when another member's name looks the same
+ * or the name looks like a user ID, so nobody can pass for someone else, an agent included; it
+ * also follows any name that holds one of the characters above, which are left out of it. The ID
+ * is isolated so it reads left to right in any text.
+ */
+export const getRoomMemberName = (member: RoomMember | null | undefined): string | undefined => {
+  // The SDK's raw name lacks direction overrides, and is the user ID when it would show nothing.
+  const raw = member?.rawDisplayName;
+  if (!member || !raw || raw === member.userId) return undefined;
+  const name = raw.replace(NAME_DISGUISES, '');
+  if (!name.trim()) return undefined;
+  return member.disambiguate || name !== raw ? `${name} (\u2066${member.userId}\u2069)` : name;
 };
+
+/** `getRoomMemberName` of the room's current member `userId`. */
+export const getMemberDisplayName = (room: Room, userId: string): string | undefined =>
+  getRoomMemberName(room.getMember(userId));
 
 export const getMemberAvatarMxc = (room: Room, userId: string): string | undefined =>
   room.getMember(userId)?.getMxcAvatarUrl() ?? undefined;

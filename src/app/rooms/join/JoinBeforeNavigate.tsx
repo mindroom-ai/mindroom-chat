@@ -24,6 +24,7 @@ import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
+import { getMemberDisplayName } from '../../matrix/room';
 import { getHomePath } from '../../routes/pathUtils';
 import { isRoomAlias } from '../../matrix/matrix';
 import { declineInvite } from '../../notifications/inbox/declineInvite';
@@ -93,7 +94,7 @@ function InvitedBy({ roomId }: { roomId: string }) {
   const { room, membership } = useMyMembership(roomId);
   if (!room || membership !== Membership.Invite) return null;
   const sender = room.getMember(client.getSafeUserId())?.events.member?.getSender();
-  const senderName = (sender && room.getMember(sender)?.name) || sender;
+  const senderName = (sender && getMemberDisplayName(room, sender)) || sender;
   if (!senderName) return null;
   return (
     <Text size="T200">
@@ -190,7 +191,7 @@ function RemovalNote({ room }: { room: Room }) {
       <Text size="T200">
         <Trans
           i18nKey={`sharedUi.userModeration.${by}` as const}
-          values={{ name: room.getMember(sender)?.name ?? sender }}
+          values={{ name: getMemberDisplayName(room, sender) ?? sender }}
           components={bold}
         />
       </Text>

@@ -7,6 +7,7 @@ import { UserAvatar } from '../avatars/UserAvatar';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { mxcUrlToHttp } from '../matrix/mediaUrl';
+import { getMemberDisplayName } from '../matrix/room';
 import { getThreadRootReplyCount } from './threadIndicatorViewModel';
 import * as css from './ThreadIndicator.css';
 
@@ -40,7 +41,7 @@ function ParticipantAvatar({ room, userId }: { room: Room; userId: string }) {
   const mx = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const member = room.getMember?.(userId);
-  const name = member?.rawDisplayName || userId;
+  const name = (member && getMemberDisplayName(room, userId)) || userId;
   const mxc = member?.getMxcAvatarUrl();
   const src = mxc
     ? mxcUrlToHttp(mx, mxc, useAuthentication, 36, 36, 'crop') ?? undefined
