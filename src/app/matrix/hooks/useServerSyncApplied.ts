@@ -19,10 +19,15 @@ export const useServerSyncApplied = (client: MatrixClient): boolean => {
     hasAppliedServerSync(client) ? client : undefined
   );
   useEffect(() => {
+    if (hasAppliedServerSync(client)) {
+      setAppliedBy(client);
+      return undefined;
+    }
     const check = () => {
-      if (hasAppliedServerSync(client)) setAppliedBy(client);
+      if (!hasAppliedServerSync(client)) return;
+      setAppliedBy(client);
+      client.removeListener(ClientEvent.Sync, check);
     };
-    check();
     client.on(ClientEvent.Sync, check);
     return () => {
       client.removeListener(ClientEvent.Sync, check);

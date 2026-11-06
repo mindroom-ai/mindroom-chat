@@ -9,9 +9,11 @@ import { useSetting } from '../preferences/useSetting';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import { settingsAtom } from '../preferences/settings';
 import { playChime } from './playChime';
-import { raiseOnce } from './notifiedOnce';
+import { forgetNotified, raiseOnce } from './notifiedOnce';
 import { MESSAGE_NOTIFY_MAX_AGE_MS } from './messageNotificationRules';
 import { matchesEnum } from '../lib/matchesEnum';
+
+const inviteKey = (roomId: string) => `invite:${roomId}`;
 
 const invitedRoomIds = (mx: MatrixClient): string[] =>
   mx
@@ -24,8 +26,8 @@ const invitedRoomIds = (mx: MatrixClient): string[] =>
  * when it started, or when the account switched, are not new: the list is reset to the current
  * client's invites first, since it may still hold the previous account's. Neither are the invites
  * of the first sync from the server, which catches up on the time before this start. One tab of
- * the browser announces each invite; its claim lasts as long as a message may take to notify, so
- * every tab has heard of the invite by then, and a later invite to the same room notifies again.
+ * the browser announces each invite; the claim ends when the invite leaves the list, so a later
+ * invite to the same room is new again, or after as long as a message may take to notify.
  */
 export function InviteNotifications() {
   const client = useMatrixClient();
@@ -59,18 +61,18 @@ export function InviteNotifications() {
     const before = new Set(previous.current);
     previous.current = invites;
     const current = new Set(invites);
+    const userId = client.getUserId() ?? '';
     // A room that left the list can invite again later, and then it is new again.
-    seen.current.forEach((roomId) => {
-      if (!current.has(roomId)) seen.current.delete(roomId);
-    });
+    const left = [...seen.current].filter((roomId) => !current.has(roomId));
+    left.forEach((roomId) => seen.current.delete(roomId));
+    if (left.length > 0) forgetNotified(userId, left.map(inviteKey));
     const added = invites.filter((roomId) => !before.has(roomId) && !seen.current.has(roomId));
     added.forEach((roomId) => seen.current.add(roomId));
     if (!synced || added.length === 0) return;
 
-    const keys = added.map((roomId) => `invite:${roomId}`);
     raiseOnce(
-      client.getUserId() ?? '',
-      keys,
+      userId,
+      added.map(inviteKey),
       (claimed) => {
         if (notificationSounds) playChime(InviteSound).catch(() => undefined);
         const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;

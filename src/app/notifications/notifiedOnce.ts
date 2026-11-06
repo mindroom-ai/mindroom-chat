@@ -115,6 +115,16 @@ export const raiseOnce = (
     .catch(() => undefined);
 };
 
+/** Forgets that `ids` were notified, so each can notify again. */
+export const forgetNotified = (userId: string, ids: string[]): void => {
+  ids.forEach((id) => claimedHere.delete(`${userId} ${id}`));
+  const storage = getSafeLocalStorage();
+  const key = storageKey(userId);
+  const notified = readNotified(getStorageItemSafe(storage, key), Date.now());
+  ids.forEach((id) => delete notified[id]);
+  setStorageItemSafe(storage, key, JSON.stringify(notified));
+};
+
 /** Forgets what the account was notified of on this device, when it signs out. */
 export const clearNotified = (userId: string): void => {
   removeStorageItemSafe(getSafeLocalStorage(), storageKey(userId));
