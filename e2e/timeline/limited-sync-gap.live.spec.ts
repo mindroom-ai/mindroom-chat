@@ -18,10 +18,11 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * only the newest events; the client must page back from there to fill the gap. Here the reader
  * misses more than that while the room is open, while the page is in the background, while the
  * room is open and then reloads at once, while another room is open (three times, so the room
- * has three gaps), and while the client is closed. The reader then scrolls to the room's start;
- * every message the server holds must show on the way, in the server's order, in the Classic,
- * Threads and Compact views (and the thread's replies in its thread), in Chromium and, when the
- * runner names it, in WebKit. Set LIMITED_SYNC_GAP_SHOTS=<directory> to save each view at its end.
+ * has three gaps), and while the client is closed; each gap holds replies to an older thread and
+ * five new threads. The reader then scrolls to the room's start; every message the server holds
+ * must show on the way, in the server's order, in the Classic, Threads and Compact views (the
+ * older thread's replies in its thread, every thread as a Compact card), in Chromium and, when
+ * the runner names it, in WebKit. Set LIMITED_SYNC_GAP_SHOTS=<directory> to save each view at its end.
  */
 
 const PASSWORD = 'limited-sync-gap-1';
@@ -39,6 +40,8 @@ const BEFORE_MESSAGES = 200;
 /** Room messages the reader misses in each gap, with thread replies between them. */
 const GAP_MESSAGES = 60;
 const GAP_REPLIES = 30;
+/** Threads that start and get a reply inside each gap. */
+const GAP_THREADS = 5;
 
 // Deterministic text of realistic lengths.
 const WORDS = (
@@ -148,6 +151,21 @@ const listRoomMessages = async (
     .map((event) => event.event_id)
     .reverse();
 
+/** The roots of the room's threads, oldest first, as the server has them. */
+const listThreadRoots = async (token: string, roomId: string) => {
+  const events = await listRoomEvents(token, roomId);
+  const roots = new Set(
+    events.flatMap((event) => {
+      const relation = event.content?.['m.relates_to'];
+      return relation?.rel_type === 'm.thread' && relation.event_id ? [relation.event_id] : [];
+    })
+  );
+  return events
+    .map((event) => event.event_id)
+    .filter((eventId) => roots.has(eventId))
+    .reverse();
+};
+
 /** The thread's replies, oldest first, as the server has them. */
 const listThreadReplies = async (token: string, roomId: string, rootId: string) =>
   (await listRoomEvents(token, roomId))
@@ -210,6 +228,21 @@ const sendGap = async (fixture: Fixture, room: GapRoom, round: number) => {
         room.roomId,
         reply(room.rootId, `${room.label} reply ${round}.${index / 2}`)
       );
+    if (index % (GAP_MESSAGES / GAP_THREADS) === 0) {
+      const thread = index / (GAP_MESSAGES / GAP_THREADS);
+      // eslint-disable-next-line no-await-in-loop
+      const newRootId = await send(
+        fixture.sender.accessToken,
+        room.roomId,
+        note(`${room.label} gap thread ${round}.${thread}`)
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await send(
+        fixture.sender.accessToken,
+        room.roomId,
+        reply(newRootId, `${room.label} gap thread reply ${round}.${thread}`)
+      );
+    }
   }
 };
 
@@ -439,13 +472,19 @@ const checkRoom = async (
   viewMode: ViewMode,
   label: string
 ) => {
-  // The Compact view has no scroll paginator: it shows every thread, and a card for each message
-  // without replies among the room's newest 200 events (COMPACT_COVERAGE_TARGET_EVENTS).
-  const expected = await listRoomMessages(
-    fixture.sender.accessToken,
-    room.roomId,
-    viewMode === 'compact' ? 200 : undefined
-  );
+  // The Compact view has no scroll paginator: it shows every thread, those that started in a gap
+  // too, and a card for each message without replies among the room's newest 200 events
+  // (COMPACT_COVERAGE_TARGET_EVENTS).
+  const token = fixture.sender.accessToken;
+  const expected =
+    viewMode === 'compact'
+      ? [
+          ...new Set([
+            ...(await listThreadRoots(token, room.roomId)),
+            ...(await listRoomMessages(token, room.roomId, 200)),
+          ]),
+        ]
+      : await listRoomMessages(token, room.roomId);
   await checkShown(page, viewMode, expected, label);
   if (viewMode !== 'threaded') return;
   // The thread's replies the gap held show in the thread too.
