@@ -485,14 +485,13 @@ export function RoomNavItem(props: RoomNavItemProps) {
       {row}
       {/* folds' PopOut layer covers the screen; as a tooltip it lets the pointer through. */}
       <PopOut
-        role="tooltip"
         style={{ pointerEvents: 'none' }}
         anchor={nameAnchor}
         position="Right"
         align="Center"
         offset={8}
         content={
-          <Tooltip style={{ maxWidth: toRem(320) }}>
+          <Tooltip role="tooltip" style={{ maxWidth: toRem(320) }}>
             <Text size="T300" {...ownDirectionLine}>
               {name}
             </Text>
