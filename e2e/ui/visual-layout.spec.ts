@@ -408,6 +408,17 @@ const checkMembers = async (run: Run) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
   await expect.poll(() => membersBeside(page)).toBe(true);
+  // The resize separator shows keyboard focus (L8-F027).
+  const handle = page.locator('[data-testid="resizable-members-panel"] [role="separator"]');
+  const line = () =>
+    handle.evaluate((element) => getComputedStyle(element, '::after').backgroundColor);
+  await page.mouse.move(1, 450);
+  const rest = await line();
+  await page.keyboard.press('Shift');
+  await handle.evaluate((element) => (element as HTMLElement).focus());
+  await expect(handle).toBeFocused();
+  expect(await handle.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+  expect(await line(), `separator focus ring (${run.engine})`).not.toBe(rest);
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -487,6 +498,24 @@ const checkThread = async (run: Run, sizes: { width: number; height: number }[])
       });
       await shot(run, `thread-bottom-${size.width}-${direction}-${scheme}`);
       expect(await toggleClash(page), `toggle covers no text (${where})`).toBeNull();
+      // The model name keeps its own direction, so its start stays in view (L8-F011).
+      const badgeStartCut = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('[aria-label*="Stub Large Model"] span')).some(
+          (label) => {
+            const text = label.firstChild;
+            if (text?.nodeType !== Node.TEXT_NODE || !text.textContent?.startsWith('Stub')) {
+              return false;
+            }
+            const range = document.createRange();
+            range.setStart(text, 0);
+            range.setEnd(text, 1);
+            const first = range.getBoundingClientRect();
+            const box = label.getBoundingClientRect();
+            return first.left < box.left - 1 || first.right > box.right + 1;
+          }
+        )
+      );
+      expect(badgeStartCut, `model names start in view (${where})`).toBe(false);
     }
   }
   // The toggle says what it does (English).
