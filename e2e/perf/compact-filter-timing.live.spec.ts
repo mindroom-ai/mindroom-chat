@@ -320,7 +320,7 @@ const seedRoom = async (homeserver: string, reader: MatrixSession): Promise<Seed
 };
 
 // A trace snapshots the whole page at every action, which would cost more than the page does.
-test.use({ trace: 'off', video: 'off', screenshot: 'off' });
+test.use({ trace: 'off', video: 'off', screenshot: 'off', actionTimeout: 30_000 });
 
 test.describe('compact filter timing', () => {
   test.skip(!hasPrimaryCredentials(), 'needs the e2e homeserver');
@@ -367,13 +367,6 @@ test.describe('compact filter timing', () => {
           viewMode: 'compact',
           filterState: createDefaultThreadFilterState(),
         });
-        await page.evaluate(() => {
-          const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
-          localStorage.setItem(
-            'settings',
-            JSON.stringify({ ...settings, simpleThreadFilters: true })
-          );
-        });
         await page.goto(`/home/${encodeURIComponent(seeded.roomId)}`);
         const view = page.locator('[data-compact-room-view="true"]');
         const cards = view.locator('[data-thread-root-id]');
@@ -384,6 +377,12 @@ test.describe('compact filter timing', () => {
         const overview = page.locator('[data-room-thread-overview]');
         const count = overview.locator('[data-thread-count]');
         await expect(count).toHaveText(String(THREADS));
+        // The seeded filter state opens the advanced filters; the timing starts simple.
+        const modeSwitchButton = overview.locator('[data-thread-filter-mode-switch]');
+        if ((await modeSwitchButton.getAttribute('aria-pressed')) === 'true') {
+          await modeSwitchButton.click();
+        }
+        await expect(overview.locator('[data-simple-unresolved-toggle]')).toBeVisible();
         await page.mouse.move(1, 1);
         // Let the list settle (cache writes, receipts) before timing it.
         await wait(3_000);
