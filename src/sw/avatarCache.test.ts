@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  avatarCacheKey,
   forgetAvatars,
   isAvatarThumbnailUrl,
   MAX_CACHED_AVATARS,
@@ -85,5 +86,15 @@ describe('avatar cache', () => {
     await rememberAvatar(avatar('face'), new Response('png'));
     expect(await recallAvatar(avatar('face'))).toBeUndefined();
     await expect(forgetAvatars()).resolves.toBeUndefined();
+  });
+
+  it('keeps one picture under one key, by either path and with transport parameters', async () => {
+    const legacy = `${HS}/_matrix/media/v3/thumbnail/hs.test/face?width=96&height=96&method=crop`;
+    const online = `${avatar('face')}&allow_redirect=true`;
+    expect(avatarCacheKey(legacy)).toBe(avatarCacheKey(online));
+    expect(avatarCacheKey(avatar('face', 32))).not.toBe(avatarCacheKey(avatar('face')));
+
+    await rememberAvatar(online, new Response('png'));
+    expect(await (await recallAvatar(legacy))?.text()).toBe('png');
   });
 });

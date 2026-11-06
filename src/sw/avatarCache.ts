@@ -31,13 +31,33 @@ export const isAvatarThumbnailUrl = (url: string): boolean => {
   return width > 0 && height > 0 && width <= MAX_AVATAR_SIDE && height <= MAX_AVATAR_SIDE;
 };
 
+// Parameters that change how the picture is fetched, not which picture it is.
+const TRANSPORT_PARAMETERS = ['allow_redirect', 'allow_remote', 'access_token'];
+const AUTHENTICATED_THUMBNAIL = '/_matrix/client/v1/media/thumbnail/';
+
+/**
+ * The key a thumbnail is kept under: one picture by the authenticated path and its size, whether
+ * it was asked for by the legacy path or with transport parameters (the client switches between
+ * them as it learns what the server supports, also between an online and an offline start).
+ */
+export const avatarCacheKey = (url: string): string => {
+  const parsed = new URL(url);
+  parsed.pathname = parsed.pathname.replace(
+    /\/_matrix\/media\/(v3|r0)\/thumbnail\//,
+    AUTHENTICATED_THUMBNAIL
+  );
+  TRANSPORT_PARAMETERS.forEach((name) => parsed.searchParams.delete(name));
+  parsed.searchParams.sort();
+  return parsed.href;
+};
+
 /** Keeps a loaded avatar for offline starts; does nothing for other responses. */
 export const rememberAvatar = async (url: string, response: Response): Promise<void> => {
   const storage = availableCaches();
   if (!storage || !response.ok || !isAvatarThumbnailUrl(url)) return;
   try {
     const cache = await storage.open(AVATAR_CACHE_NAME);
-    await cache.put(url, response);
+    await cache.put(avatarCacheKey(url), response);
     const keys = await cache.keys();
     await Promise.all(
       keys.slice(0, Math.max(0, keys.length - MAX_CACHED_AVATARS)).map((key) => cache.delete(key))
@@ -53,7 +73,7 @@ export const recallAvatar = async (url: string): Promise<Response | undefined> =
   if (!storage || !isAvatarThumbnailUrl(url)) return undefined;
   try {
     const cache = await storage.open(AVATAR_CACHE_NAME);
-    return await cache.match(url);
+    return await cache.match(avatarCacheKey(url));
   } catch {
     return undefined;
   }
