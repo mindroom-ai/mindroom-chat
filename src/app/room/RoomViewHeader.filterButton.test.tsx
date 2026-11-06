@@ -5,16 +5,29 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { RoomViewHeader } from './RoomViewHeader';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import { createDefaultThreadFilterState, type ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
+import {
+  createDefaultThreadFilterState,
+  type ThreadFilterState,
+} from '../event-store/threads/roomThreadOverviewModel';
 
-const { view } = vi.hoisted(() => ({
+const { view, screen } = vi.hoisted(() => ({
   view: {
     mode: 'compact' as RoomViewMode,
     setViewMode: (() => undefined) as (mode: string) => void,
   },
+  screen: { size: 'Desktop' },
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => vi.fn() }));
+// The room menu renders in place of folds' portal while it has an anchor, without a focus trap.
+vi.mock('folds', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('folds')>()),
+  PopOut: ({ anchor, content }: { anchor?: unknown; content: React.ReactNode }) =>
+    anchor ? content : null,
+}));
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
 vi.mock('../ui/page/Page', () => ({
   PageHeader: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
@@ -46,7 +59,15 @@ vi.mock('../navigation/useRoomNavigate', () => ({
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
 vi.mock('../calls/callStore', () => ({ useCallPanel: () => [false, vi.fn()] }));
 vi.mock('../members/useMembersDrawer', () => ({ useMembersDrawer: () => [false, vi.fn()] }));
-vi.mock('../schedules/RoomSchedulesButton', () => ({ RoomSchedulesButton: () => null }));
+vi.mock('../schedules/RoomSchedulesButton', () => ({
+  RoomSchedulesButton: () => null,
+  RoomSchedulesMenuEntry: () => null,
+  RoomSchedulesOverlay: () => null,
+}));
+vi.mock('../lib/hooks/useScreenSize', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../lib/hooks/useScreenSize')>()),
+  useScreenSizeContext: () => screen.size,
+}));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({
     viewMode: view.mode,
@@ -59,6 +80,7 @@ let renderer: ReactTestRenderer | undefined;
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  screen.size = 'Desktop';
 });
 
 const renderHeader = ({
@@ -166,5 +188,63 @@ describe('the room header view switch', () => {
 
   it('goes from a stored Classic view to Compact', () => {
     expect(switchTo('classic', true)).toEqual({ pressed: false, next: 'compact' });
+  });
+});
+
+describe("a phone's room header", () => {
+  const openMenu = () => {
+    const [more] =
+      renderer?.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'More Options'
+      ) ?? [];
+    if (!more) throw new Error('no More Options button');
+    act(() => {
+      more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    });
+  };
+  const entry = (name: string): ReactTestInstance | undefined =>
+    byData(name).find((node) => node.type === 'button');
+
+  it('offers the view switch and the filter bar in the room menu, not beside the name', () => {
+    screen.size = 'Mobile';
+    const setViewMode = vi.fn();
+    view.setViewMode = setViewMode;
+    const store = renderHeader();
+    expect(byData('data-room-view-switch')).toHaveLength(0);
+    expect(filterButtons()).toHaveLength(0);
+
+    openMenu();
+    expect(entry('data-room-view-switch')?.props).toMatchObject({
+      role: 'menuitemcheckbox',
+      'aria-checked': true,
+    });
+    expect(entry('data-thread-filter-bar-toggle')?.props).toMatchObject({
+      role: 'menuitemcheckbox',
+      'aria-checked': true,
+    });
+    act(() => {
+      entry('data-thread-filter-bar-toggle')?.props.onClick();
+    });
+    expect(store.get(settingsAtom).hideThreadFilterBar).toBe(true);
+    // Choosing an entry closes the menu.
+    expect(entry('data-room-view-switch')).toBeUndefined();
+
+    openMenu();
+    act(() => {
+      entry('data-room-view-switch')?.props.onClick();
+    });
+    expect(setViewMode).toHaveBeenCalledWith('threaded');
+  });
+
+  it('marks hidden active filters with a dot on the room menu button', () => {
+    screen.size = 'Mobile';
+    const filtered = { ...createDefaultThreadFilterState(), resolved: 'exclude' as const };
+    renderHeader({ hidden: true, threadFilterState: filtered });
+    expect(byData('data-room-menu-dot')).toHaveLength(1);
+    openMenu();
+    expect(entry('data-thread-filter-bar-toggle')?.props['aria-checked']).toBe(false);
+
+    renderHeader({ hidden: true });
+    expect(byData('data-room-menu-dot')).toHaveLength(0);
   });
 });

@@ -350,6 +350,35 @@ const renderHeader = async (
   return { renderer, store };
 };
 
+const textOf = (node: ReactTestInstance): string =>
+  node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
+
+/** Opens the room menu from the header's More Options button. */
+const openRoomMenu = (renderer: ReturnType<typeof create>) =>
+  act(async () =>
+    renderer.root
+      .findByProps({ 'aria-label': 'More Options' })
+      .props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } })
+  );
+
+/** The room menu's entries (buttons without a label of their own) whose text is `text`. */
+const findMenuEntries = (renderer: ReturnType<typeof create>, text: string) =>
+  renderer.root.findAll(
+    (node) => node.type === 'button' && !node.props['aria-label'] && textOf(node) === text
+  );
+
+/**
+ * The control that shows Members: the header button, or on phones the room menu's entry, which
+ * the menu opens first.
+ */
+const membersControl = async (renderer: ReturnType<typeof create>, label: string) => {
+  if (screenSizeState.value !== 'Mobile') return renderer.root.findByProps({ 'aria-label': label });
+  await openRoomMenu(renderer);
+  const [entry] = findMenuEntries(renderer, label);
+  if (!entry) throw new Error(`No room menu entry ${label}`);
+  return entry;
+};
+
 afterEach(() => {
   membersState.open = false;
   membersState.setOpen.mockClear();
@@ -368,10 +397,44 @@ describe('RoomViewHeader', () => {
     act(() => renderer.unmount());
   });
 
-  it('keeps schedules accessible on phones', async () => {
+  it('keeps schedules accessible on phones, in the room menu', async () => {
     screenSizeState.value = 'Mobile';
     const { renderer } = await renderHeader();
-    expect(renderer.root.findByProps({ 'aria-label': 'Scheduled tasks (0)' })).toBeDefined();
+    expect(renderer.root.findAllByProps({ 'aria-label': 'Scheduled tasks (0)' })).toHaveLength(0);
+    await openRoomMenu(renderer);
+    expect(findMenuEntries(renderer, 'Scheduled tasks (0)')).toHaveLength(1);
+    act(() => renderer.unmount());
+  });
+
+  it("keeps a phone's header to the back button, the name and the room menu", async () => {
+    screenSizeState.value = 'Mobile';
+    const { renderer } = await renderHeader(0, {
+      canvases: [
+        {
+          canvasId: '$canvas',
+          roomId: '!room:example.org',
+          threadId: '$thread',
+          agentUserId: '@mindroom_helper:example.org',
+          title: 'Plans',
+          createdTs: 1,
+          revisionId: '$canvas',
+          updatedTs: 1,
+          shared: false,
+        },
+      ],
+      onCanvasOpen: vi.fn(),
+      onCanvasClose: vi.fn(),
+    });
+    const labelled = renderer.root
+      .findAll((node) => node.type === 'button' && !!node.props['aria-label'])
+      .map((node) => node.props['aria-label'] as string);
+    expect(labelled).toEqual(['Back', 'More Options']);
+    expect(renderer.root.findAllByType('mock-canvas-header-button' as never)).toHaveLength(0);
+
+    await openRoomMenu(renderer);
+    for (const entry of ['Scheduled tasks (0)', 'Show Canvas', 'Show Members']) {
+      expect(findMenuEntries(renderer, entry), entry).toHaveLength(1);
+    }
     act(() => renderer.unmount());
   });
 
@@ -390,7 +453,7 @@ describe('RoomViewHeader', () => {
         computerOpen: true,
         onComputerToggle,
       });
-      const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
+      const button = await membersControl(renderer, 'Show Members');
       await act(async () => button.props.onClick());
       expect(onComputerToggle).toHaveBeenCalledTimes(1);
       expect(membersState.setOpen).toHaveBeenCalledWith(true);
@@ -443,8 +506,6 @@ describe('RoomViewHeader', () => {
       const { renderer } = await renderHeader(0, {});
       const findIcons = (icon: string) =>
         renderer.root.findAll((node) => node.props?.['data-icon'] === icon);
-      const textOf = (node: ReactTestInstance): string =>
-        node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
       const findMessageSearch = () =>
         renderer.root.findAll(
           (node) => node.type === 'button' && textOf(node).includes('Message Search')
@@ -471,7 +532,7 @@ describe('RoomViewHeader', () => {
     }
   );
 
-  it.each(['Desktop', 'Tablet', 'Mobile'])(
+  it.each(['Desktop', 'Tablet'])(
     'shows pending join requests on the %s Members button only to moderators',
     async (screenSize) => {
       screenSizeState.value = screenSize;
@@ -500,6 +561,25 @@ describe('RoomViewHeader', () => {
       ).toBeDefined();
     }
   );
+
+  it('shows pending join requests on phones in the room menu, with a dot on its button', async () => {
+    screenSizeState.value = 'Mobile';
+    const dots = (renderer: ReturnType<typeof create>) =>
+      renderer.root.findAll((node) => node.props['data-room-menu-dot'] === '');
+    const { renderer } = await renderHeader(2);
+    expect(dots(renderer).length).toBeGreaterThan(0);
+    await openRoomMenu(renderer);
+    expect(findMenuEntries(renderer, 'Show Members, 2 pending join requests')).toHaveLength(1);
+    act(() => renderer.unmount());
+
+    permissionState.canInvite = false;
+    permissionState.canKick = false;
+    const { renderer: unauthorized } = await renderHeader(2);
+    expect(dots(unauthorized)).toHaveLength(0);
+    await openRoomMenu(unauthorized);
+    expect(findMenuEntries(unauthorized, 'Show Members')).toHaveLength(1);
+    act(() => unauthorized.unmount());
+  });
 
   describe('canvas entry point', () => {
     const listed: CanvasListEntry[] = [
@@ -556,8 +636,6 @@ describe('RoomViewHeader', () => {
   });
 
   describe('computer entry points', () => {
-    const textOf = (node: ReactTestInstance): string =>
-      node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
     const findButton = (renderer: ReturnType<typeof create>, label: string) =>
       renderer.root.findAll((node) => node.type === 'button' && node.props['aria-label'] === label);
     const findMenuItem = (renderer: ReturnType<typeof create>) =>
@@ -631,7 +709,7 @@ describe('RoomViewHeader', () => {
       }
     );
 
-    // A phone's header already holds Schedules, Canvas, Pinned, Call, Members and More.
+    // A phone's header holds only Back, the name and More (and a call that is on).
     it.each([
       { name: 'was shown', shown: true, open: false },
       { name: 'is open', shown: false, open: true },
