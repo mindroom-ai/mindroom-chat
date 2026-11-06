@@ -675,11 +675,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
     focusItem?.eventId
   );
 
-  // While the opening room view does not fill the screen, keep paginating.
+  // While the opening room view does not fill the screen, keep paginating. The fill holds the
+  // last row still while the rows above it measure, so a view whose newest row is its first
+  // (which loads older history at its bottom sentinel) does without it.
   const roomSurfaceShown = !threadId && !compactViewRequested;
   const automaticFill = useRoomAutomaticFill({
     viewKey,
-    enabled: roomSurfaceShown && !eventId,
+    enabled: roomSurfaceShown && !eventId && !latestAtTop,
     latestEventId: roomRows[roomRows.length - 1]?.getId(),
     contentKey: `${activeTimelineRange.start}:${activeTimelineRange.end}:${roomRows.length}`,
     getScrollElement,
