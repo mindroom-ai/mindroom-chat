@@ -1,6 +1,6 @@
 import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
-import { contrastRatio, sampleScreenshot, type Rgba } from '../helpers/glassVisual';
+import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 
 // The Settings dialog over a busy room: its menu column is inset evenly (the search field, the
@@ -167,43 +167,19 @@ const surfaceOf = (dialog: Locator) =>
   });
 
 /**
- * The dialog's surface over the menu column with everything in the dialog hidden: how much the
- * room behind it varies (brightness spread, 0 to 255) and the lowest contrast a quiet menu name
- * (at its 0.7 opacity) has against any point of it.
+ * The dialog's surface over the menu column: how much the room behind shows through, and the
+ * lowest contrast a quiet menu name (at its 0.7 opacity) has against it.
  */
-const menuBackdrop = async (page: Page, dialog: Locator, account: Locator) => {
-  const quietName = dialog
-    .getByRole('navigation', { name: 'Settings' })
-    .getByRole('button', { name: 'Notifications', exact: true })
-    .locator('> :last-child');
-  const label = await quietName.evaluate((element) => {
-    const numbers = getComputedStyle(element)
-      .color.match(/[\d.]+/g)!
-      .map(Number);
-    return [numbers[0]!, numbers[1]!, numbers[2]!, Number(getComputedStyle(element).opacity)];
-  });
-  const column = (await account.locator('xpath=ancestor::nav[1]').boundingBox())!;
-  await dialog.evaluate((element) => element.setAttribute('data-surface-probe', ''));
-  const hide = await page.addStyleTag({
-    content: '[data-surface-probe] * { visibility: hidden !important; }',
-  });
-  let pixels: Rgba[];
-  try {
-    const points: Array<{ x: number; y: number }> = [];
-    for (let y = column.y + 12; y < column.y + column.height - 12; y += 6) {
-      for (let x = column.x + 12; x < column.x + column.width - 12; x += 6) points.push({ x, y });
-    }
-    pixels = await sampleScreenshot(page, points);
-  } finally {
-    await hide.evaluate((element) => (element as HTMLStyleElement).remove());
-    await dialog.evaluate((element) => element.removeAttribute('data-surface-probe'));
-  }
-  const brightness = pixels.map(([red, green, blue]) => (red + green + blue) / 3);
-  return {
-    spread: Math.max(...brightness) - Math.min(...brightness),
-    contrast: Math.min(...pixels.map((pixel) => contrastRatio(label as Rgba, pixel))),
-  };
-};
+const menuBackdrop = (dialog: Locator, account: Locator) =>
+  surfaceShowThrough(
+    dialog.page(),
+    dialog,
+    dialog
+      .getByRole('navigation', { name: 'Settings' })
+      .getByRole('button', { name: 'Notifications', exact: true })
+      .locator('> :last-child'),
+    account.locator('xpath=ancestor::nav[1]')
+  );
 
 /** Checks the Account page's menu insets and surface in both themes, and the phone's menu. */
 const checkSurface = async (
@@ -224,7 +200,7 @@ const checkSurface = async (
       /* eslint-disable no-await-in-loop -- one theme after the other on one page. */
       const insets = await menuInsets(dialog);
       const surface = await surfaceOf(dialog);
-      const backdrop = await menuBackdrop(page, dialog, account);
+      const backdrop = await menuBackdrop(dialog, account);
       /* eslint-enable no-await-in-loop */
       measured[theme] = { insets, surface, backdrop };
       expectEvenInsets(insets);

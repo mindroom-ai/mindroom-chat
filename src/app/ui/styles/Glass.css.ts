@@ -45,7 +45,13 @@ export const glassOutline = style({
   },
 });
 
-const material = (tint: number, blur: number, shadow: string, elevation: string): StyleRule => ({
+const material = (
+  tint: number,
+  blur: number,
+  shadow: string,
+  elevation: string,
+  darkTint = 72
+): StyleRule => ({
   vars: {
     [glassShadow]: '0 0 0 transparent',
     [surfaceTint]: `${tint}%`,
@@ -63,7 +69,7 @@ const material = (tint: number, blur: number, shadow: string, elevation: string)
     },
     ':is(.dark-theme, .midnight-theme, .butter-theme) &&': {
       vars: {
-        [surfaceTint]: '72%',
+        [surfaceTint]: `${darkTint}%`,
         [highlight]: 'rgb(255 255 255 / 4%)',
         [rimHighlight]: 'rgb(255 255 255 / 14%)',
         [rimShade]: 'rgb(255 255 255 / 3%)',
@@ -167,10 +173,10 @@ export const glassInheritTint = style({
   selectors: { '&&&&': { vars: { [surfaceTint]: '0%' } } },
 });
 
-// Modal500 already dims the page through OverlayBackdrop. Its glass needs less
-// tint than a floating menu over an undimmed page, especially in dark themes.
+// The sign-in card over the particle art keeps a light tint, so the art shows through it.
 export const glassOverBackdrop = style({
   selectors: {
+    '&&&': { vars: { [surfaceTint]: '60%' } },
     '.silver-theme &&&': { vars: { [surfaceTint]: '64%' } },
     ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
       vars: { [surfaceTint]: '28%' },
@@ -206,12 +212,14 @@ export const glassSurface = recipe({
   variants: {
     level: {
       overlay: [
-        // Vertical lighting catches the top and bottom while the sides recede.
+        // Vertical lighting catches the top and bottom while the sides recede. Menus, popovers
+        // and dialogs hold text over the page, so their glass is tinted nearly opaque.
         material(
-          60,
+          88,
           12,
           `inset 0 1px 0 ${rimHighlight}, inset 0 -1px 0 rgb(255 255 255 / 6%), 0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)`,
-          '0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)'
+          '0 16px 48px rgb(0 0 0 / 18%), 0 2px 8px rgb(0 0 0 / 8%)',
+          88
         ),
         { selectors: { '&&': { boxShadow: glassShadow } } },
       ],
