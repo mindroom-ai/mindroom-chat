@@ -12,6 +12,7 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 import { measureHitAreas } from '../helpers/hitAreas';
+import { raisedTouchConflicts } from '../helpers/raisedTouchLayers';
 import { createRoom } from '../helpers/createRoom';
 import {
   addRoomToSpace,
@@ -268,6 +269,32 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       },
     },
     {
+      name: 'badge-back',
+      open: async (page) => {
+        await go(page, threadUrl(stack, seeded.thread));
+        const badge = page.getByRole('button', { name: /^Model: / }).last();
+        await badge.scrollIntoViewIfNeeded();
+        await badge.evaluate((element) => {
+          const banner = document.querySelector('[data-thread-context-banner]');
+          if (!banner) throw new Error('Missing thread banner');
+          for (let node = element.parentElement; node; node = node.parentElement) {
+            if (/auto|scroll/.test(getComputedStyle(node).overflowY) &&
+                node.scrollHeight > node.clientHeight) {
+              node.scrollTop += element.getBoundingClientRect().top -
+                banner.getBoundingClientRect().bottom - 1;
+              return;
+            }
+          }
+          throw new Error('Missing thread scroller');
+        });
+        await expect.poll(async () => {
+          const box = await badge.boundingBox();
+          const banner = await page.locator('[data-thread-context-banner]').boundingBox();
+          return box && banner ? Math.abs(box.y - banner.y - banner.height - 1) : Infinity;
+        }).toBeLessThan(2);
+      },
+    },
+    {
       name: 'review',
       open: async (page) => {
         await go(page, threadUrl(stack, seeded.approval));
@@ -340,6 +367,11 @@ const checkScreen = async (page: Page, screen: Screen, engine: string) => {
       // eslint-disable-next-line no-await-in-loop
       await page.screenshot({ path: path.join(SHOTS, `${engine}-${theme}-${screen.name}.png`) });
     }
+    // All visible controls participate, including Back in the banner above message rows.
+    // eslint-disable-next-line no-await-in-loop
+    const conflicts = await raisedTouchConflicts(page);
+    expect.soft(conflicts, `${where}: no raised layer intersects another interactive element`)
+      .toEqual([]);
     // eslint-disable-next-line no-await-in-loop
     const { checked, misses } = await measureHitAreas(page);
     console.log(`${where}: ${checked} controls, ${misses.length} short sides`);
