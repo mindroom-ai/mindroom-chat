@@ -132,18 +132,17 @@ export function FilterBarSlot({
 /** "[+all]" and "[-all]": a small bracketed toggle that unfolds or folds every long message. */
 const expandAllToggleStyle: CSSProperties = {
   all: 'unset',
-  // Holds the larger hit area a touch screen gives it (css.ExpandAllToggle).
+  // Holds the layer that paints the pill behind the text (css.ExpandAllToggle).
   position: 'relative',
+  isolation: 'isolate',
   cursor: 'pointer',
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
   fontSize: toRem(12),
   // 16 px of text in a 1 px rim: 18 px tall, as thread-light.png shows it.
   lineHeight: toRem(16),
   padding: `0 ${config.space.S200}`,
-  borderRadius: config.radii.Pill,
-  border: `1px solid ${color.SurfaceVariant.ContainerLine}`,
+  border: '1px solid transparent',
   color: color.Primary.Main,
-  backgroundColor: `color-mix(in srgb, ${color.Surface.Container} 72%, transparent)`,
 };
 
 type ExpandAllProps = {
