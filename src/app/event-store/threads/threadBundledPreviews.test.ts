@@ -225,6 +225,57 @@ describe('fresh-device bundled thread presentation', () => {
     expect(value.latestReplyPreviewText).toBeUndefined();
   });
 
+  it('reads titles and replies as the server sorts them, whoever sent the title', () => {
+    // Any member's m.notice with an object marker is a title; every other thread event is a reply.
+    const shape = summaryShape();
+    const titler = '@reviewer:example.org';
+    shape['io.mindroom.title'] = {
+      ...reply('$title', 'Launch checklist', 3000, true),
+      sender: titler,
+    };
+    const marked = reply('$marked', 'Answer with dates', 2500);
+    marked.content['io.mindroom.thread_summary'] = { version: 1, summary: 'Not a title' };
+    shape['io.mindroom.latest_reply'] = marked;
+    const { room, root } = fixture(shape);
+    room.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.power_levels',
+        state_key: '',
+        sender: userId,
+        room_id: roomId,
+        content: { users: { [userId]: 100 }, users_default: 0, events_default: 0 },
+      }),
+    ]);
+    expect(presentation(room, root).summaryText).toBe('Launch checklist');
+    expect(presentation(room, root).latestReplyPreviewText).toBe('Answer with dates');
+
+    // A marker added by an edit does not make a title, and a legacy notice is no reply.
+    const edited = reply('$edited', 'Plain note', 3000);
+    edited.unsigned = {
+      'm.relations': {
+        'm.replace': {
+          ...reply('$edit-marker', '* Edited note', 3100),
+          content: {
+            'm.new_content': {
+              msgtype: 'm.notice',
+              body: 'Edited note',
+              'io.mindroom.thread_summary': { version: 1, summary: 'Edited note' },
+            },
+            'm.relates_to': { rel_type: 'm.replace', event_id: '$edited' },
+          },
+        },
+      },
+    };
+    const legacy = reply('$legacy', 'Legacy title', 2500);
+    legacy.content = { ...legacy.content, msgtype: 'm.notice', 'io.mindroom.thread_summary': true };
+    const odd = summaryShape();
+    odd['io.mindroom.title'] = edited;
+    odd['io.mindroom.latest_reply'] = legacy;
+    const other = fixture(odd);
+    expect(presentation(other.room, other.root).summaryText).toBeUndefined();
+    expect(presentation(other.room, other.root).latestReplyPreviewText).toBeUndefined();
+  });
+
   it('ignores a title-shaped reply and an event for a different root', () => {
     const shape = summaryShape();
     shape['io.mindroom.latest_reply'] = shape['io.mindroom.title'];

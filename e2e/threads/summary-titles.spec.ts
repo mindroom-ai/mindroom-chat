@@ -82,6 +82,8 @@ test.beforeEach(async () => {
   const session = await loginToMatrix(homeserver, credentials.username, credentials.password);
   userId = session.userId;
   const helper = await registerAgentAccount(homeserver, 'summary');
+  // The title comes from a member with default power who never replied: any sender may title.
+  const titler = await registerAgentAccount(homeserver, 'titles');
   await matrixFetch(homeserver, `/profile/${encodeURIComponent(helper.userId)}/displayname`, {
     method: 'PUT',
     accessToken: helper.accessToken,
@@ -96,9 +98,10 @@ test.beforeEach(async () => {
   roomId = await createPrivateRoom(homeserver, session.accessToken, {
     name: 'Release planning',
     topic: 'Checklist and launch preparation',
-    invite: [helper.userId],
+    invite: [helper.userId, titler.userId],
   });
   await joinRoom(homeserver, helper.accessToken, roomId);
+  await joinRoom(homeserver, titler.accessToken, roomId);
   rootId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'Please review the release plan and recommend the next steps for launch.',
@@ -113,8 +116,12 @@ test.beforeEach(async () => {
     msgtype: 'm.text',
     body: 'Preparing the release checklist...',
     'm.relates_to': relation,
+    // An m.text with a marker is still a conversational reply, not a title.
+    ...(testInfo.title.includes('marked')
+      ? { 'io.mindroom.thread_summary': { version: 1, summary: 'Release draft' } }
+      : {}),
   });
-  const titleId = await sendRoomMessage(homeserver, session.accessToken, roomId, {
+  const titleId = await sendRoomMessage(homeserver, titler.accessToken, roomId, {
     msgtype: 'm.notice',
     body: TITLE,
     'm.relates_to': relation,
@@ -165,10 +172,12 @@ test.beforeEach(async () => {
 
 for (const engine of ['chromium', 'webkit'] as const) {
   for (const phone of [false, true]) {
-    for (const continued of [false, true]) {
-      test(`${engine} ${phone ? 'phone' : 'desktop'} ${
-        continued ? 'continued' : 'title-last'
-      } fresh login shows bundled title and edited preview`, async ({ baseURL }, testInfo) => {
+    for (const order of ['title-last', 'continued', 'marked-reply'] as const) {
+      test(`${engine} ${
+        phone ? 'phone' : 'desktop'
+      } ${order} fresh login shows bundled title and edited preview`, async ({
+        baseURL,
+      }, testInfo) => {
         test.setTimeout(180_000);
         test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'WebKit executable required');
         const ownBrowser =
