@@ -67,7 +67,6 @@ vi.mock('./DnD', () => ({
 }));
 
 vi.mock('./RoomItem.css', () => ({
-  CardControls: 'CardControls',
   CardOpener: 'CardOpener',
   ErrorNameContainer: 'ErrorNameContainer',
   RoomName: 'RoomName',
@@ -314,7 +313,7 @@ describe('RoomItemCard opening a joined room', () => {
   const openRoomButtons = (renderer: ReturnType<typeof create>) =>
     renderer.root.findAll((node) => node.children.includes('Open Room'));
 
-  it('opens on a phone through the button its whole card is, named by the room', () => {
+  it('opens on a phone by a tap anywhere on the card, or by its name button', () => {
     const onOpen = vi.fn();
     const renderer = joinedCard(ScreenSize.Mobile, onOpen);
     expect(openRoomButtons(renderer)).toHaveLength(0);
@@ -323,7 +322,19 @@ describe('RoomItemCard opening a joined room', () => {
     expect(opener.findAll((node) => node.children.includes('Private room')).length).toBeGreaterThan(
       0
     );
-    act(() => opener.props.onClick());
+    const card = renderer.root.findByProps({ className: 'RoomItemCard' });
+    const click = (closest: Element | null) =>
+      act(() =>
+        card.props.onClick({
+          currentTarget: { contains: () => true },
+          target: { closest: () => closest },
+        })
+      );
+    // The card's topic, then the name's button, then the card's menu button.
+    click(null);
+    click({ hasAttribute: (name: string) => name === 'data-card-opener' } as unknown as Element);
+    click({ hasAttribute: () => false } as unknown as Element);
+    expect(onOpen).toHaveBeenCalledTimes(2);
     expect(onOpen).toHaveBeenCalledWith(roomId);
   });
 
@@ -331,5 +342,6 @@ describe('RoomItemCard opening a joined room', () => {
     const renderer = joinedCard(ScreenSize.Desktop, vi.fn());
     expect(openRoomButtons(renderer).length).toBeGreaterThan(0);
     expect(renderer.root.findAllByProps({ className: 'CardOpener' })).toHaveLength(0);
+    expect(renderer.root.findByProps({ className: 'RoomItemCard' }).props.onClick).toBeUndefined();
   });
 });

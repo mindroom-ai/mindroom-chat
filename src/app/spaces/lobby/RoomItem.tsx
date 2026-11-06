@@ -70,6 +70,15 @@ export function RoomItemCard({
   // On a phone a joined room's whole card opens it, through its name's button, instead of an
   // Open Room button that would take room from the name.
   const opensByCard = useScreenSizeContext() === ScreenSize.Mobile && joined;
+  // A click anywhere on such a card opens the room; the card's other controls, and the pop-outs
+  // they open (portals whose clicks still reach the card through React), keep their own.
+  const openFromCard = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as Element;
+    if (!event.currentTarget.contains(target)) return;
+    const control = target.closest('button, a, input');
+    if (control && !control.hasAttribute('data-card-opener')) return;
+    onOpen(roomId);
+  };
 
   const roomName = summary?.name || summary?.canonical_alias || localRoom?.name || roomId;
   const topic = summary?.topic;
@@ -84,6 +93,8 @@ export function RoomItemCard({
     <SequenceCard
       ref={cardRef}
       className={css.RoomItemCard}
+      data-opens-by-card={opensByCard || undefined}
+      onClick={opensByCard ? openFromCard : undefined}
       variant="SurfaceVariant"
       alignItems="Center"
       gap="300"
@@ -108,7 +119,7 @@ export function RoomItemCard({
         ) : (
           <Box className={css.ErrorNameContainer} alignItems="Center" gap="100">
             {opensByCard ? (
-              <button type="button" className={css.CardOpener} onClick={() => onOpen(roomId)}>
+              <button type="button" className={css.CardOpener} data-card-opener>
                 <Text as="span" className={css.RoomName} size="T400" {...ownDirectionLine}>
                   {roomName}
                 </Text>
@@ -151,7 +162,7 @@ export function RoomItemCard({
         </Box>
       </Box>
       {!loading && (
-        <Box className={css.CardControls} shrink="No" gap="200" alignItems="Center">
+        <Box shrink="No" gap="200" alignItems="Center">
           {joined && !opensByCard && (
             <Button
               variant="Secondary"
