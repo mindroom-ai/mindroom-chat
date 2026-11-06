@@ -271,6 +271,9 @@ const useLiveExpansion = () => {
   return { ids: idsRef.current, mark, consume };
 };
 
+/** Lines a failed send's Not sent row and reason up with the end of an own bubble. */
+const endAligned = { alignItems: 'flex-end' } as const;
+
 /**
  * How the room and thread timelines render one message row: edit state, reply quotes, collapse,
  * approvals, summary markers and failed sends; plus Up-arrow editing of the user's last message.
@@ -481,6 +484,8 @@ export const useTimelineMessageFeature = ({
       const pendingSend = PENDING_SEND_STATUSES.has(sendState.status);
       // The footer of an open thread offers the actions for its own failed root.
       const showFailedActions = failedSend && !(threadId && eventId === threadId);
+      // In Bubble layout the reader's own messages, the only ones that fail to send, sit at the end.
+      const bubbles = messageLayout === MessageLayout.Bubble;
       const editable = kind === 'message';
       const msgType = typeof content.msgtype === 'string' ? content.msgtype : '';
       const collapseMode =
@@ -646,8 +651,12 @@ export const useTimelineMessageFeature = ({
           {showFailedActions && (
             // Lined up with the message body it belongs to, past the avatar column; under an own
             // bubble, which sits on the end side, with the bubble's end.
-            <MessageAside end={messageLayout === MessageLayout.Bubble}>
-              <FailedSendActions room={room} event={sendState} />
+            <MessageAside end={bubbles}>
+              <FailedSendActions
+                room={room}
+                event={sendState}
+                style={bubbles ? endAligned : undefined}
+              />
             </MessageAside>
           )}
         </React.Fragment>
