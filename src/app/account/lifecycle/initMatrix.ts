@@ -75,6 +75,34 @@ const raiseSyncArchiveTimelineLimit = (store: SyncArchiveStore): void => {
   );
 };
 
+/**
+ * The libolm-era crypto store that `initRustCrypto` migrates from. The SDK asks whether it holds
+ * data by opening it, which creates an empty database, and then deletes that again. Another tab of
+ * the account starting at that moment could open the short-lived database and lose its connection
+ * to the deletion, and then failed to start ("The database connection is closing"). Listing the
+ * databases answers without creating one; a browser that cannot list them still asks the SDK.
+ */
+class LegacyCryptoStore extends IndexedDBCryptoStore {
+  private readonly factory: IDBFactory;
+
+  private readonly databaseName: string;
+
+  constructor(factory: IDBFactory, databaseName: string) {
+    super(factory, databaseName);
+    this.factory = factory;
+    this.databaseName = databaseName;
+  }
+
+  override async containsData(): Promise<boolean> {
+    try {
+      const databases = await this.factory.databases();
+      return databases.some(({ name }) => name === this.databaseName);
+    } catch {
+      return super.containsData();
+    }
+  }
+}
+
 // Failures here are logged, never thrown: the mark only guards against recreating a lost store.
 const describeError = (error: unknown): string =>
   error instanceof Error ? `${error.name}: ${error.message}` : String(error);
@@ -122,7 +150,7 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
     localStorage: globalThis.localStorage,
     dbName: storeNames.sync,
   });
-  const legacyCryptoStore = new IndexedDBCryptoStore(globalThis.indexedDB, storeNames.crypto);
+  const legacyCryptoStore = new LegacyCryptoStore(globalThis.indexedDB, storeNames.crypto);
 
   const { userId, deviceId } = session;
   const mx = createMatrixClient({
