@@ -335,7 +335,10 @@ const layoutProblem = (row: Locator) =>
         const range = document.createRange();
         range.selectNodeContents(text);
         const lines = Array.from(range.getClientRects()).filter((rect) => rect.width > 0);
-        const cut = text.scrollWidth > text.clientWidth + 1;
+        // WebKit gives an ellipsized text no scroll overflow; its line box past its own box shows it.
+        const cut =
+          text.scrollWidth > text.clientWidth + 1 ||
+          lines.some((line) => line.left < t.left - 1 || line.right > t.right + 1);
         if (!cut && new Set(lines.map((line) => Math.round(line.top))).size === 1) {
           const edge = rtl
             ? Math.max(...lines.map((line) => line.right))
