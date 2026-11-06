@@ -146,7 +146,7 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
   await page.keyboard.type('@Min');
 
   // The picker's rows: a name, then the user ID.
-  const rows = page.getByRole('button', { name: /^(Scout|Mind|RouterAgent|Quill|Forge)\s*@/ });
+  const rows = page.getByRole('option', { name: /^(Scout|Mind|RouterAgent|Quill|Forge)\s*@/ });
   await expect(rows.first()).toBeVisible({ timeout: 20_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/picker-${tag}.png` });
   // Tab (or a tap on the top row) right away, as a person who sees the picker open does.
