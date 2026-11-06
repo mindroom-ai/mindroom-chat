@@ -2,7 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { config, toRem } from 'folds';
 import { particleBackgroundColorVar } from './particleBackgroundTheme.css';
 
-const clearing = `color-mix(in srgb, ${particleBackgroundColorVar} 85%, transparent)`;
+const clearing = `color-mix(in srgb, ${particleBackgroundColorVar} 90%, transparent)`;
 
 /**
  * A soft clearing in the particle art behind a short line of small text: the art's own base color,

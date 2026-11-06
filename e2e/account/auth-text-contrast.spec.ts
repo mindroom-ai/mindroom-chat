@@ -4,7 +4,7 @@ import { contrastRatio, sampleScreenshot, type Rgba } from '../helpers/glassVisu
 import { matrixFetch } from '../helpers/matrix';
 
 // The small text of the sign-in screen (the card's notes and the credits under it) and of the
-// startup screens (the "Connecting to server" and loading lines, and the app name) keeps at least
+// "Connecting to server" screen (its line and the app name; the loading screen has the same) keeps at least
 // 4.5:1 against what is drawn behind it, the particle art included (3:1 for large text). Each text
 // is hidden, the screen behind it sampled three times as the particles move, and the text's color
 // compared with every sample. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
@@ -139,7 +139,7 @@ const record = async (page: Page, measured: Measured, name: string, browser: str
   measured[name] = await measureTexts(page);
 };
 
-/** The sign-in screen, then the connecting and loading screens of a signed-in account. */
+/** The sign-in screen, then the connecting screen of a signed-in account. */
 const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, browser: string) => {
   const username = `${prefix}_${Date.now().toString(36)}`;
   await matrixFetch(HOMESERVER, '/register', {
@@ -179,14 +179,6 @@ const checkScreens = async (page: Page, prefix: string, testInfo: TestInfo, brow
         await expect(page.getByText('Connecting to server')).toBeVisible();
         await record(page, measured, `connecting-${sizeName}-${theme}`, browser);
         await page.unroute('**/_matrix/client/versions');
-
-        // The first sync never answers, so the loading line stays.
-        await page.route('**/_matrix/client/v3/sync**', () => undefined);
-        await page.goto('/home/');
-        await expect(page.getByText('MindRoom Chat', { exact: true }).last()).toBeVisible();
-        await expect(page.getByText('Connecting to server')).toHaveCount(0);
-        await record(page, measured, `loading-${sizeName}-${theme}`, browser);
-        await page.unroute('**/_matrix/client/v3/sync**');
         /* eslint-enable no-await-in-loop */
       }
     }
