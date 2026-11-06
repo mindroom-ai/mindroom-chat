@@ -65,8 +65,15 @@ const indicatorHeight = 24;
 const hoverIndicatorScale = 18 / indicatorHeight;
 const selectedHoverIndicatorScale = 32 / indicatorHeight;
 
-/** A hovered entry, or one whose button has keyboard focus. */
-const entryEngaged = ['&:hover::before', '&:has(> :focus-visible)::before'].join(', ');
+/** A rail button whose menu is open (`useSidebarContextMenu`): it looks hovered until it closes. */
+const menuOpen = '[data-menu-open=true]';
+
+/** A hovered entry, or one whose button has keyboard focus or an open menu. */
+const entryEngaged = [
+  '&:hover::before',
+  '&:has(> :focus-visible)::before',
+  `&:has(> ${menuOpen})::before`,
+].join(', ');
 
 /** A rail entry: the avatar button with its selection indicator and unread badge. */
 export const SidebarItem = recipe({
@@ -128,6 +135,10 @@ const pressed = `${sidebarItemRoot} &&:active`;
 /** The theme classes whose palettes are dark. */
 const darkThemes = ':is(.dark-theme, .midnight-theme, .butter-theme)';
 
+/** A raised rail button that is hovered, focused or has its menu open, under `scope`. */
+const raisedEngaged = (scope: string) =>
+  [':hover', ':focus-visible', menuOpen].map((state) => `${scope}&&&${state}`).join(', ');
+
 /** The 42 px rounded square that a rail entry's icon or avatar fills. */
 export const SidebarAvatar = recipe({
   base: [
@@ -149,7 +160,7 @@ export const SidebarAvatar = recipe({
       '@media': {
         '(prefers-reduced-motion: reduce)': {
           selectors: {
-            [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: 'none' },
+            [`${sidebarItemRoot}:hover &, &:focus-visible, &${menuOpen}`]: { translate: 'none' },
             [pressed]: { scale: 'none' },
           },
         },
@@ -173,15 +184,17 @@ export const SidebarAvatar = recipe({
         '&&': {
           transition: `scale ${motion.duration.Normal} cubic-bezier(0.2, 0.8, 0.2, 1), translate ${motion.duration.Normal} ease-out`,
         },
-        // Keyboard focus looks like hover.
-        [`${sidebarItemRoot}:hover &, &:focus-visible`]: { translate: `${hoverSlide} 0` },
+        // Keyboard focus and an open menu look like hover.
+        [`${sidebarItemRoot}:hover &, &:focus-visible, &${menuOpen}`]: {
+          translate: `${hoverSlide} 0`,
+        },
         // Pressing keeps the slide and quickly shrinks the button a little; the entry, and so
         // the layout and the indicator, stay put.
         [pressed]: {
           scale: '0.95',
           transition: `scale ${motion.duration.Instant} ease-out, translate ${motion.duration.Normal} ease-out`,
         },
-        '&:hover': { backgroundColor: color.SurfaceVariant.ContainerHover },
+        [`&:hover, &${menuOpen}`]: { backgroundColor: color.SurfaceVariant.ContainerHover },
         '&:active': { backgroundColor: color.SurfaceVariant.ContainerActive },
         // An outline, not a ring shadow: the glass material of raised buttons owns box-shadow.
         '&:focus-visible': {
@@ -211,14 +224,14 @@ export const SidebarAvatar = recipe({
             backgroundColor: railButtonFill(color.Secondary.ContainerActive, 82),
             border: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
           },
-          '&&&:hover, &&&:focus-visible': {
+          [raisedEngaged('')]: {
             backgroundColor: railButtonFill(color.Secondary.ContainerLine, 82),
           },
           // room-dark.png: on dark rails the button barely lifts off the rail; its rim shows it.
           [`${darkThemes} &&&`]: {
             backgroundColor: railButtonFill(color.Background.ContainerHover, 10),
           },
-          [`${darkThemes} &&&:hover, ${darkThemes} &&&:focus-visible`]: {
+          [raisedEngaged(`${darkThemes} `)]: {
             backgroundColor: railButtonFill(color.Background.ContainerActive, 50),
           },
         },
