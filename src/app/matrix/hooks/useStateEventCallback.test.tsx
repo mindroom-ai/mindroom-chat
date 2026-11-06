@@ -1,5 +1,4 @@
 import { EventEmitter } from 'events';
-import React from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { RoomStateEvent, type MatrixEvent, type Room, type RoomState } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
