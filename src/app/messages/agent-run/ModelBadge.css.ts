@@ -21,11 +21,11 @@ const badgeTextPx = 10;
 const badgeLinePx = 12;
 
 /**
- * Small pill under an agent's avatar naming the model that wrote the message. A finger reaches it
- * a little above and below the pill, halfway to the avatar and the row's next control.
+ * Small pill under an agent's avatar naming the model that wrote the message. To a finger it is
+ * 44 px tall, and it lies over the tool rows that start beside it.
  */
 export const Badge = style([
-  touchTarget('0px', '', { blockReach: '4px' }),
+  touchTarget('0px', '', { raise: true }),
   {
     // As wide as the name, at most the avatar column plus the gap after it.
     boxSizing: 'border-box',
