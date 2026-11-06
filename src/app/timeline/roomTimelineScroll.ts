@@ -243,9 +243,33 @@ export const useGestureBottomPins = ({
   return { onThreadGesture, onRoomGesture, shouldApplyBottomPin };
 };
 
+/** How many frames a far jump goes on aligning its row while the rows around it mount and measure. */
+const FAR_JUMP_MAX_FRAMES = 45;
+/** How many frames in a row the target must keep its place before a far jump is done. */
+const FAR_JUMP_SETTLED_FRAMES = 3;
+
+/** Whether a mounted row sits within one view height of the visible band. */
+const rowNearView = (row: HTMLElement, scrollElement: HTMLElement): boolean => {
+  const band = scrollElement.getBoundingClientRect();
+  const box = row.getBoundingClientRect();
+  return box.bottom > band.top - band.height && box.top < band.bottom + band.height;
+};
+
+type RoomRowLookup = {
+  getScrollElement: () => HTMLElement | null;
+  /** The mounted element of a room row, by its index in the room's rows. */
+  getRowElement: (index: number) => HTMLElement | undefined;
+  /** The room's rows, so a far jump follows its event when rows load above it. */
+  roomRowsRef: MutableRefObject<{ getId: () => string | undefined }[]>;
+};
+
 /**
- * Jumps to a row. The paginator scrolls to mounted rows and moves the window; the virtual list
- * scrolls to the rows of the window it has not mounted. A thread's rows are all in the list.
+ * Jumps to a row. The paginator scrolls to mounted rows near the view and moves the window; the
+ * virtual list scrolls to the rows of the window it has not mounted. A row far from the view is
+ * reached without animation: its heights are estimates until it mounts, so a smooth scroll stops
+ * short. The virtual list goes to its index, and then, frame by frame, the row is aligned again as
+ * it and its neighbours mount and measure, until it keeps its place, the reader scrolls, or
+ * another jump starts. A thread's rows are all in the list.
  * `onJump` runs before each jump, so the offset ledger knows the move is the timeline's own.
  */
 export const useTimelineRowJumps = ({
@@ -255,6 +279,7 @@ export const useTimelineRowJumps = ({
   virtualizerRef,
   threadEventIndexMapRef,
   onJump,
+  rows,
 }: {
   paginatorScrollToItem: ScrollToItem;
   paginatorScrollToElement: ScrollToElement;
@@ -262,7 +287,10 @@ export const useTimelineRowJumps = ({
   virtualizerRef: MutableRefObject<Pick<Virtualizer<HTMLDivElement, Element>, 'scrollToIndex'>>;
   threadEventIndexMapRef: MutableRefObject<Map<string, number>>;
   onJump: () => void;
+  rows: RoomRowLookup;
 }) => {
+  const jumpCountRef = useRef(0);
+  const rowsRef = useLatestRef(rows);
   const scrollToElement = useCallback<ScrollToElement>(
     (element, opts) => {
       onJump();
@@ -270,19 +298,79 @@ export const useTimelineRowJumps = ({
     },
     [onJump, paginatorScrollToElement]
   );
+
+  /** Brings the row of `eventId` from far away into its aligned place; see above. */
+  const followFarRow = useCallback(
+    (eventId: string | undefined, firstIndex: number, align: 'start' | 'center' | 'end') => {
+      const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
+      const scrollElement = getScrollElement();
+      if (!scrollElement) return;
+      jumpCountRef.current += 1;
+      const thisJump = jumpCountRef.current;
+      let readerTookOver = false;
+      const onReader = () => {
+        readerTookOver = true;
+      };
+      READER_INTENT_EVENTS.forEach((name) =>
+        scrollElement.addEventListener(name, onReader, { passive: true })
+      );
+      const end = () =>
+        READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, onReader));
+      let frame = 0;
+      let settledFrames = 0;
+      let lastTop: number | undefined;
+      const step = () => {
+        if (readerTookOver || thisJump !== jumpCountRef.current || frame >= FAR_JUMP_MAX_FRAMES) {
+          end();
+          return;
+        }
+        frame += 1;
+        const found = eventId
+          ? roomRowsRef.current.findIndex((row) => row.getId() === eventId)
+          : firstIndex;
+        const index = found === -1 ? firstIndex : found;
+        const { start, end: stop } = activeRangeRef.current;
+        if (index >= start && index < stop) {
+          const row = getRowElement(index);
+          onJump();
+          if (row) {
+            paginatorScrollToElement(row, { align, behavior: 'instant' });
+            const top = row.getBoundingClientRect().top;
+            settledFrames =
+              lastTop !== undefined && Math.abs(top - lastTop) < 1 ? settledFrames + 1 : 0;
+            lastTop = top;
+            if (settledFrames >= FAR_JUMP_SETTLED_FRAMES) {
+              end();
+              return;
+            }
+          } else {
+            virtualizerRef.current.scrollToIndex(index - start, { align });
+          }
+        }
+        requestAnimationFrame(step);
+      };
+      step();
+    },
+    [activeRangeRef, onJump, paginatorScrollToElement, rowsRef, virtualizerRef]
+  );
+
   const scrollToItem = useCallback<ScrollToItem>(
     (index, opts) => {
       onJump();
-      if (paginatorScrollToItem(index, opts)) return true;
+      const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
+      const scrollElement = getScrollElement();
+      const mounted = getRowElement(index);
+      // Close by: the paginator's own scroll, smooth when asked.
+      if (!scrollElement || (mounted && rowNearView(mounted, scrollElement))) {
+        return paginatorScrollToItem(index, opts);
+      }
+      // Outside the window the paginator moves it there first; then the row is followed in.
       const { start, end } = activeRangeRef.current;
-      if (index < start || index >= end) return false;
-      virtualizerRef.current.scrollToIndex(index - start, {
-        align: opts?.align ?? 'center',
-        behavior: opts?.behavior === 'smooth' ? 'smooth' : 'auto',
-      });
+      if ((index < start || index >= end) && !paginatorScrollToItem(index, opts)) return false;
+      followFarRow(roomRowsRef.current[index]?.getId(), index, opts?.align ?? 'center');
       return true;
     },
-    [activeRangeRef, onJump, paginatorScrollToItem, virtualizerRef]
+    [activeRangeRef, followFarRow, onJump, paginatorScrollToItem, rowsRef]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {

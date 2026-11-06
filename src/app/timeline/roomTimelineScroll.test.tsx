@@ -383,18 +383,55 @@ describe('useLatestRowPin in an open thread the reader has scrolled', () => {
 });
 
 describe('useTimelineRowJumps', () => {
-  it('tells the ledger before every jump to a row', () => {
+  /** A box at a vertical position, as getBoundingClientRect answers it. */
+  const box = (top: number, height = 40) => ({ top, bottom: top + height, height });
+
+  /** A scroll area 600 px tall that records the listeners a jump adds. */
+  const fakeRoomScroller = () => {
+    const listeners = new Map<string, Set<() => void>>();
+    return {
+      getBoundingClientRect: () => box(0, 600),
+      addEventListener: (type: string, handler: () => void) => {
+        const forType = listeners.get(type) ?? new Set<() => void>();
+        forType.add(handler);
+        listeners.set(type, forType);
+      },
+      removeEventListener: (type: string, handler: () => void) => {
+        listeners.get(type)?.delete(handler);
+      },
+      fire: (type: string) => listeners.get(type)?.forEach((handler) => handler()),
+      listenerCount: () => [...listeners.values()].reduce((sum, set) => sum + set.size, 0),
+    };
+  };
+
+  type Setup = {
+    rowTop: Map<number, number>;
+    rows: { current: { getId: () => string | undefined }[] };
+  };
+
+  /** The jumps of a room whose 44 rows are all in the window; `rowTop` says which are mounted. */
+  const setup = () => {
     const steps: string[] = [];
+    const frames: (() => void)[] = [];
+    vi.stubGlobal('requestAnimationFrame', (callback: () => void) => frames.push(callback));
+    const scroller = fakeRoomScroller();
+    const state: Setup = {
+      rowTop: new Map(),
+      rows: {
+        current: Array.from({ length: 44 }, (_, index) => ({ getId: () => `$row${index}` })),
+      },
+    };
+    const element = (index: number) =>
+      ({ getBoundingClientRect: () => box(state.rowTop.get(index) ?? 0) } as HTMLElement);
     let jumps: ReturnType<typeof useTimelineRowJumps> | undefined;
     function Jumps() {
       jumps = useTimelineRowJumps({
-        // Row 0 is in the window but not mounted: the virtual list scrolls there.
-        paginatorScrollToItem: (index) => {
-          steps.push(`paginator row ${index}`);
-          return false;
+        paginatorScrollToItem: (index, opts) => {
+          steps.push(`paginator row ${index} ${opts?.behavior ?? ''}`.trim());
+          return true;
         },
-        paginatorScrollToElement: () => {
-          steps.push('paginator element');
+        paginatorScrollToElement: (row, opts) => {
+          steps.push(`align row at ${row.getBoundingClientRect().top} ${opts?.behavior ?? ''}`);
           return true;
         },
         activeRangeRef: { current: { start: 0, end: 44 } },
@@ -403,51 +440,78 @@ describe('useTimelineRowJumps', () => {
         },
         threadEventIndexMapRef: { current: new Map([['$reply', 3]]) },
         onJump: () => steps.push('ledger'),
+        rows: {
+          getScrollElement: () => scroller as unknown as HTMLElement,
+          getRowElement: (index) => (state.rowTop.has(index) ? element(index) : undefined),
+          roomRowsRef: state.rows,
+        },
       });
       return null;
     }
     act(() => {
       create(createElement(Jumps));
     });
+    const runFrame = () => frames.splice(0).forEach((callback) => callback());
+    return { steps, state, scroller, runFrame, jumps: () => jumps! };
+  };
 
-    jumps?.scrollToItem(0);
-    jumps?.scrollToElement({} as HTMLElement);
-    jumps?.scrollThreadEventIntoView('$reply');
-    expect(steps).toEqual([
-      'ledger',
-      'paginator row 0',
-      'virtual list row 0',
-      'ledger',
-      'paginator element',
-      'ledger',
-      'virtual list row 3',
-    ]);
+  it('scrolls a row near the view with the paginator, smooth when asked', () => {
+    const { steps, state, jumps } = setup();
+    state.rowTop.set(40, 700);
+    expect(jumps().scrollToItem(40, { behavior: 'smooth' })).toBe(true);
+    expect(steps).toEqual(['ledger', 'paginator row 40 smooth']);
+    vi.unstubAllGlobals();
   });
-});
 
-describe('useRowsGeneration', () => {
-  it('counts the times the rows on screen are replaced, not the times the chain grows', () => {
-    const part = (name: string) => ({ name } as unknown as EventTimeline);
-    const [live, older, context] = [part('live'), part('older'), part('context')];
-    const counts: number[] = [];
-    function Rows({ chain }: { chain: EventTimeline[] }) {
-      counts.push(useRowsGeneration(chain));
-      return null;
+  it('takes a far row through the virtual list, then aligns it until it keeps its place', () => {
+    const { steps, state, scroller, runFrame, jumps } = setup();
+    expect(jumps().scrollToItem(0, { behavior: 'smooth', align: 'center' })).toBe(true);
+    expect(steps).toEqual(['ledger', 'ledger', 'virtual list row 0']);
+    steps.length = 0;
+    // The row mounts and moves twice while the rows around it measure, then holds still.
+    for (const top of [180, 240, 280, 280, 280, 280]) {
+      state.rowTop.set(0, top);
+      runFrame();
     }
-    let renderer: ReactTestRenderer | undefined;
-    const show = (chain: EventTimeline[]) =>
-      act(() => {
-        if (renderer) renderer.update(createElement(Rows, { chain }));
-        else renderer = create(createElement(Rows, { chain }));
-      });
+    expect(steps.filter((step) => step.startsWith('align'))).toEqual([
+      'align row at 180 instant',
+      'align row at 240 instant',
+      'align row at 280 instant',
+      'align row at 280 instant',
+      'align row at 280 instant',
+      'align row at 280 instant',
+    ]);
+    runFrame();
+    expect(steps.filter((step) => step.startsWith('align'))).toHaveLength(6);
+    expect(scroller.listenerCount()).toBe(0);
+    vi.unstubAllGlobals();
+  });
 
-    show([live]);
-    show([older, live]);
-    // An event the room has not loaded: the rows empty, then the history around it arrives,
-    // and its newer history joins the live chain.
-    show([]);
-    show([context]);
-    show([context, live]);
-    expect(counts).toEqual([0, 0, 1, 2, 2]);
+  it('follows the event when rows load above it, and stops when the reader scrolls', () => {
+    const { steps, state, scroller, runFrame, jumps } = setup();
+    jumps().scrollToItem(2);
+    steps.length = 0;
+    // Two older rows arrive above: the target is row 4 now.
+    state.rows.current = [
+      { getId: () => '$older1' },
+      { getId: () => '$older2' },
+      ...state.rows.current,
+    ];
+    runFrame();
+    expect(steps).toEqual(['ledger', 'virtual list row 4']);
+    scroller.fire('wheel');
+    steps.length = 0;
+    runFrame();
+    expect(steps).toEqual([]);
+    expect(scroller.listenerCount()).toBe(0);
+    vi.unstubAllGlobals();
+  });
+
+  it('tells the ledger before every jump to a row', () => {
+    const { steps, jumps } = setup();
+    jumps().scrollToElement({ getBoundingClientRect: () => box(5) } as HTMLElement);
+    jumps().scrollThreadEventIntoView('$reply');
+    expect(steps).toEqual(['ledger', 'align row at 5 ', 'ledger', 'virtual list row 3']);
+    vi.unstubAllGlobals();
   });
 });

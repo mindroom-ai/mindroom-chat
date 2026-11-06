@@ -700,7 +700,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadIdRef,
     timeline,
   });
-  const { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage } =
+  const { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage, getRoomRowElement } =
     useRoomWindowPaginator({
       alive,
       roomRows,
@@ -784,6 +784,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     virtualizerRef,
     threadEventIndexMapRef,
     onJump: ledger.endSettleDiscardWatch,
+    rows: { getScrollElement, getRowElement: getRoomRowElement, roomRowsRef },
   });
   const cancelThreadBottomSettle = useCallback(
     () => backController.suppressOpenBottomPin(),

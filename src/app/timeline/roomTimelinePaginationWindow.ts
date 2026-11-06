@@ -261,7 +261,7 @@ export const useRoomWindowPaginator = ({
     automaticBackReach,
     externalBackwardScrollRestore: true,
   });
-  return { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage };
+  return { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage, getRoomRowElement };
 };
 
 /** A back page that added no rows asks the paginator again; one with rows moved the window. */
