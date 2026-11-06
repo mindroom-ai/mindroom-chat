@@ -11,6 +11,7 @@ import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { addRoomToSpace, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Layout checks from the live-test lanes, against a real homeserver, in Chromium and (when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) WebKit, in light and dark, left to right
@@ -604,7 +605,7 @@ const checkPalette = async (run: Run) => {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
     await setLook(page, direction, scheme);
     await expect(page.getByText(LATIN_THREAD).first()).toBeVisible({ timeout: 60_000 });
-    await page.keyboard.press('ControlOrMeta+k');
+    await pressPaletteShortcut(page);
     const dialog = page.getByRole('dialog').last();
     // A word only the two thread replies hold, so both are in the palette's few message results.
     await dialog.locator('input').first().fill('zephyr');

@@ -3,6 +3,7 @@ import { expect, test, webkit, type Locator, type Page, type TestInfo } from '@p
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Menus, popovers and dialogs over a busy room are tinted nearly opaque: the room's text behind
 // them shows only as a faint blur, and their own labels keep 4.5:1 against what shows through.
@@ -144,7 +145,7 @@ const SURFACES: Record<string, { size: typeof DESKTOP; open: (page: Page) => Pro
   'command-palette': {
     size: DESKTOP,
     open: async (page) => {
-      await page.keyboard.press('ControlOrMeta+k');
+      await pressPaletteShortcut(page);
       const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
       await palette.getByRole('combobox').fill('Project');
       const option = palette.getByRole('option').first();

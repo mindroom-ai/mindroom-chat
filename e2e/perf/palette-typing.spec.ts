@@ -18,6 +18,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 /**
  * Typing in the command palette (live-test finding L1-F021: about 340 ms from a key to the frame
@@ -259,7 +260,7 @@ const measure = async (
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.press('Backspace');
 
-    await page.keyboard.press('ControlOrMeta+k');
+    await pressPaletteShortcut(page);
     const field = page
       .getByRole('dialog', { name: 'Command palette', exact: true })
       .getByRole('combobox');

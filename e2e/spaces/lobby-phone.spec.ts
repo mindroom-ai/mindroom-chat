@@ -17,6 +17,7 @@ import {
   sendStateEvent,
   setAccountData,
 } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // A space's lobby on a phone (390 by 844, touch): a tap anywhere on a room's card opens the room,
 // with no separate Open Room button; a room the person is not in keeps its Join button. The
@@ -229,7 +230,7 @@ const checkBackPaths = async (browser: Browser, engine: string) => {
   await expect(page).toHaveURL(spaceListPath(space));
 
   // A room opened from the command palette goes back to the list.
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   await page.getByRole('dialog').getByRole('combobox').fill('Team room 2');
   await page
     .getByRole('dialog')

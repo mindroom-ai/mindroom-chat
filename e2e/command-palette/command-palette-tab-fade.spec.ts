@@ -8,6 +8,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // On a phone the palette's tab row is wider than the screen and scrolls sideways. It fades out
 // at each edge it has more tabs beyond: the end at first, both edges in the middle, the start at
@@ -76,7 +77,7 @@ const openPalette = async (browser: Browser, options: BrowserContextOptions, lan
   }
   // The shell listens for the shortcut once the navigation is up.
   await expect(page.getByTestId('resizable-page-nav')).toBeVisible({ timeout: 30_000 });
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   const tablist = page.getByRole('dialog').getByRole('tablist');
   await expect(tablist).toBeVisible();
   return { context, page, tablist };

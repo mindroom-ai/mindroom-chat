@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Rooms often share words in their topics. In the command palette, a room whose name holds the
 // typed word comes before rooms that only mention it in their topic, unread ones included, and
@@ -98,7 +99,7 @@ test('a room named after the typed word comes before rooms that only mention it'
 }) => {
   test.setTimeout(120_000);
   await signIn(page);
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   await palette(page).getByRole('combobox').fill('plan');
   await expect(options(page, 'room').first()).toHaveText(new RegExp(NAMED));
 });
@@ -106,7 +107,7 @@ test('a room named after the typed word comes before rooms that only mention it'
 test('the Messages section lists messages, not room topics', async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page);
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   await palette(page).getByRole('combobox').fill('plan');
   const messages = options(page, 'message');
   await expect(messages.filter({ hasText: 'Here is the plan for the week.' })).toBeVisible({

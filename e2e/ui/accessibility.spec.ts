@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Keyboard and screen reader basics against the disposable homeserver of `just hs-up` (or a slot
 // of scripts/e2e-slot.sh): the skip link and landmarks, focus that menus and dialogs take and
@@ -423,7 +424,7 @@ test.describe.serial('keyboard and accessibility', () => {
   test('the command palette opens with its shortcut and closes with Escape', async () => {
     const composer = page.getByRole('textbox', { name: /message/i }).first();
     await composer.focus();
-    await page.keyboard.press('ControlOrMeta+k');
+    await pressPaletteShortcut(page);
     const palette = page.getByRole('combobox', { name: 'Command palette' });
     await expect(palette).toBeFocused();
     await page.keyboard.press('Escape');

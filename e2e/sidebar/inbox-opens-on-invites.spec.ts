@@ -9,6 +9,7 @@ import { loginWithPassword } from '../helpers/auth';
 import { joinRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
 import { launchWebKit } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // The Inbox opens on Invites, its first entry, also with no invite waiting: from the rail, from
 // the command palette's Go Inbox and at the bare /inbox address. Notifications follows it in the
@@ -295,7 +296,7 @@ test('the Inbox opens on Invites, with Notifications one entry below', async ({ 
   await expectInvitesFirst(page, 2);
 
   // The command palette's Go Inbox lands on Invites too.
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
   await palette.getByRole('combobox').fill('inbox');
   await palette.locator('[role="option"][data-item-id="go-inbox"]').click();

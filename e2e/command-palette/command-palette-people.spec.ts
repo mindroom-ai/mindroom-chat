@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { matrixFetch } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Cmd+K's People against a real homeserver and its real `POST /user_directory/search`: people the
 // account shares no room with come from the server below the ones it knows, Enter asks before it
@@ -226,7 +227,7 @@ const optionIds = (page: Page) =>
   options(page).evaluateAll((rows) => rows.map((row) => row.getAttribute('data-item-id')));
 
 const openPalette = async (page: Page) => {
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   await expect(field(page)).toBeFocused();
 };
 

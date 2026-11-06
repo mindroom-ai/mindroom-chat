@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { addRoomToSpace, matrixFetch } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // The command palette as one search: tabs over rooms, threads, people, messages and actions,
 // local results at the first keystroke, and real server message search (`POST /search`) that
@@ -291,7 +292,7 @@ const optionIds = (page: Page) =>
   options(page).evaluateAll((rows) => rows.map((row) => row.getAttribute('data-item-id')));
 
 const openPalette = async (page: Page) => {
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   await expect(field(page)).toBeFocused();
 };
 

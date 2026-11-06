@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateSpace, matrixFetch, setAccountData } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // The rail keeps Home, Direct Messages, Threads and Canvases in place while only the spaces
 // scroll, when the part between that group and the foot group shows at least four space buttons;
@@ -327,7 +328,7 @@ const expectInView = async (page: Page, name: string, button: Locator) => {
 /** Opens a space from the command palette by its name. */
 const openFromPalette = async (page: Page, name: string) => {
   await pointerAway(page);
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   const palette = page.getByRole('dialog', { name: 'Command palette', exact: true });
   await expect(palette.getByRole('combobox')).toBeFocused();
   await palette.getByRole('combobox').fill(name);

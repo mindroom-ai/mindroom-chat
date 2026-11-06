@@ -10,6 +10,7 @@ import {
   type MatrixSession,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // On a phone, a thread's back chevron and a room's return to wherever the person opened them
 // from: the room list, a notification, the command palette, the search results, a link in
@@ -335,7 +336,7 @@ const FLOWS: Record<string, Flow> = {
     // The edge swipe leaves a thread for its room, one step, also after another room: the
     // browser must not take the rest of the swipe as its own back.
     await openFromList(page, 'Harbor Plans', harbor);
-    await page.keyboard.press('ControlOrMeta+k');
+    await pressPaletteShortcut(page);
     await palette(page).getByRole('combobox').fill('Garden Club');
     await palette(page)
       .locator('[role="option"][data-kind="room"]')
@@ -403,7 +404,7 @@ const FLOWS: Record<string, Flow> = {
   'the command palette': async (page, { harbor, books, garden, gardenRoot, word }, testInfo) => {
     // A room picked in the palette over another room.
     await openFromList(page, 'Harbor Plans', harbor);
-    await page.keyboard.press('ControlOrMeta+k');
+    await pressPaletteShortcut(page);
     await palette(page).getByRole('combobox').fill('Book Swap');
     await palette(page)
       .locator('[role="option"][data-kind="room"]')

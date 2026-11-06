@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Room and space names as the navigation shows them, with names people really give: several
 // rooms that differ only at their end, and long English names in an Arabic interface. A space
@@ -150,7 +151,7 @@ test('long English names keep their start in a right-to-left interface', async (
   await expect(heading).toBeVisible({ timeout: 30_000 });
   expect(await direction(heading)).toBe('ltr');
 
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   // The palette's accessible name is in Arabic too.
   const palette = page.getByRole('dialog').filter({ has: page.getByRole('combobox') });
   await palette.getByRole('combobox').fill('quarterly');

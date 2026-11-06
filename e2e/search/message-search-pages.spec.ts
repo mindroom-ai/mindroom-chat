@@ -9,6 +9,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, onWebKitPage } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // Message search against the real server (`POST /search`, live-test findings L1-F019 and
 // L1-F020). The account sits in 26 rooms with two other people and an agent. One made-up word
@@ -381,7 +382,7 @@ const checkPlaceholderHits = async (page: Page, shot: string) => {
   });
 
   // The palette's Messages tab.
-  await page.keyboard.press('ControlOrMeta+k');
+  await pressPaletteShortcut(page);
   await expect(paletteField(page)).toBeFocused();
   for (let n = 0; n < 4; n += 1) await paletteField(page).press('Tab');
   await expect(palette(page).getByRole('tab', { selected: true })).toHaveText('Messages');
