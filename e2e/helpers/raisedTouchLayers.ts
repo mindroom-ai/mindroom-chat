@@ -3,16 +3,19 @@ import type { Page } from '@playwright/test';
 /** Raised message targets must also avoid controls in the chrome above the timeline. */
 export const raisedTouchConflicts = (page: Page): Promise<string[]> =>
   page.evaluate(() => {
+    const selector =
+      'button, a[href], summary, input, select, textarea, [role="button"], [contenteditable="true"]';
     const controls = Array.from(
-      document.querySelectorAll<HTMLElement>(
-        'button, a[href], summary, input, select, textarea, [role="button"], [contenteditable="true"]'
-      )
+      document.querySelectorAll<HTMLElement>(selector)
     ).filter((element) => {
       if (element.closest('[aria-hidden="true"], [inert]')) return false;
       const box = element.getBoundingClientRect();
       return (
         box.width > 0 && box.height > 0 && box.bottom > 0 && box.top < innerHeight &&
-        getComputedStyle(element).visibility === 'visible'
+        getComputedStyle(element).visibility === 'visible' &&
+        // A modal backdrop makes the background noninteractive even without aria-hidden.
+        document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+          ?.closest(selector) === element
       );
     });
     const describe = (element: HTMLElement) =>

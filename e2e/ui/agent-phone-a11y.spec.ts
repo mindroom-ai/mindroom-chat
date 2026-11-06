@@ -273,7 +273,13 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       open: async (page) => {
         await go(page, threadUrl(stack, seeded.thread));
         // An early reply leaves enough content below it to scroll its badge up to the banner.
-        const badge = page.getByRole('button', { name: /^Model: / }).first();
+        const rowId = await page.getByRole('button', { name: /^Model: / }).first().evaluate(
+          (element) => element.closest('[data-message-id]')?.getAttribute('data-message-id')
+        );
+        if (!rowId) throw new Error('Missing badge message');
+        // Keep this message selected when virtualization mounts earlier rows during the scroll.
+        const badge = page.locator(`[data-message-id="${rowId}"]`)
+          .getByRole('button', { name: /^Model: / });
         await badge.scrollIntoViewIfNeeded();
         await badge.evaluate((element) => {
           const banner = document.querySelector('[data-thread-context-banner]');
