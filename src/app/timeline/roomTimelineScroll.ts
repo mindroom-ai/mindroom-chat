@@ -344,7 +344,7 @@ export const useTimelineRowJumps = ({
               return;
             }
           } else {
-            virtualizerRef.current.scrollToIndex(index - start, { align });
+            virtualizerRef.current.scrollToIndex(index - start, { align, behavior: 'auto' });
           }
         }
         requestAnimationFrame(step);
@@ -360,17 +360,24 @@ export const useTimelineRowJumps = ({
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
       const mounted = getRowElement(index);
-      // Close by: the paginator's own scroll, smooth when asked.
+      const { start, end } = activeRangeRef.current;
+      // Close by: the paginator's own scroll, smooth when asked; a row of the window it has not
+      // mounted goes to the virtual list.
       if (!scrollElement || (mounted && rowNearView(mounted, scrollElement))) {
-        return paginatorScrollToItem(index, opts);
+        if (paginatorScrollToItem(index, opts)) return true;
+        if (index < start || index >= end) return false;
+        virtualizerRef.current.scrollToIndex(index - start, {
+          align: opts?.align ?? 'center',
+          behavior: opts?.behavior === 'smooth' ? 'smooth' : 'auto',
+        });
+        return true;
       }
       // Outside the window the paginator moves it there first; then the row is followed in.
-      const { start, end } = activeRangeRef.current;
       if ((index < start || index >= end) && !paginatorScrollToItem(index, opts)) return false;
       followFarRow(roomRowsRef.current[index]?.getId(), index, opts?.align ?? 'center');
       return true;
     },
-    [activeRangeRef, followFarRow, onJump, paginatorScrollToItem, rowsRef]
+    [activeRangeRef, followFarRow, onJump, paginatorScrollToItem, rowsRef, virtualizerRef]
   );
   const scrollThreadEventIntoView = useCallback(
     (targetEventId: string) => {
