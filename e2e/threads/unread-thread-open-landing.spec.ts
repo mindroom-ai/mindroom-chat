@@ -148,7 +148,7 @@ type ThreadView = {
   newestBelow: number | null;
 };
 
-type ReceiptRecord = { url: string; body: string; view: ThreadView | null };
+type ReceiptRecord = { at: number; url: string; body: string; view: ThreadView | null };
 
 const NEWEST_KEY = 'e2e-newest-reply-id';
 
@@ -222,6 +222,7 @@ const recordReceipts = (newestKey: string) => {
     const url = input instanceof Request ? input.url : String(input);
     if (url.includes('/receipt/')) {
       win.receiptRecords.push({
+        at: performance.now(),
         url: decodeURIComponent(url),
         body: typeof init?.body === 'string' ? init.body : '',
         view: win.readThreadView(),
@@ -315,10 +316,16 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
     const receipts = await page.evaluate(
       () => (window as unknown as { receiptRecords: ReceiptRecord[] }).receiptRecords
     );
+    if (SHOTS) {
+      writeFileSync(`${SHOTS}/receipts-${browserName}-${index + 1}.json`, JSON.stringify(receipts));
+    }
     const newestReceipts = receipts.filter((receipt) => receipt.url.includes(`/${newestId}`));
     expect(newestReceipts.length, `thread ${index + 1}: a receipt for the newest reply`).toBe(1);
     newestReceipts.forEach((receipt) =>
-      expect(receipt.view, `thread ${index + 1}: receipt sent in view`).toMatchObject({
+      expect(
+        receipt.view,
+        `thread ${index + 1}: receipt sent in view ${JSON.stringify(receipt)}`
+      ).toMatchObject({
         newestShown: true,
       })
     );
