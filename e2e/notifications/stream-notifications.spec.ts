@@ -114,27 +114,71 @@ const inThread = (rootId: string) => ({
   },
 });
 
+type SyncWatch = { delivered: (eventId: string) => Promise<void> };
+
+/** Remembers the event IDs of the page's /sync answers, so a step waits until the page has it. */
+const watchSync = (page: Page): SyncWatch => {
+  const seen = new Set<string>();
+  page.on('response', (response) => {
+    if (!new URL(response.url()).pathname.endsWith('/_matrix/client/v3/sync')) return;
+    response.text().then(
+      (text) => {
+        for (const [, id] of text.matchAll(/"event_id":"(\$[^"]+)"/g)) if (id) seen.add(id);
+      },
+      () => undefined
+    );
+  });
+  return {
+    delivered: (eventId) => expect.poll(() => seen.has(eventId), { timeout: 30_000 }).toBe(true),
+  };
+};
+
+/**
+ * Sends one step of a reply and waits until the page's sync brought it: MindRoom's steps are
+ * seconds apart, so the client hears of the placeholder before any edit of it.
+ */
+const sendStep = async (sync: SyncWatch, world: World, content: Record<string, unknown>) => {
+  const eventId = await sendRoomMessage(HOMESERVER, world.agent.accessToken, world.roomId, content);
+  await sync.delivered(eventId);
+  return eventId;
+};
+
 /** The edit MindRoom sends while a reply streams (an `m.notice`) or once it finished. */
-const streamEdit = (world: World, replyId: string, body: string, status: string) => {
+const streamEdit = (
+  sync: SyncWatch,
+  world: World,
+  replyId: string,
+  body: string,
+  status: string
+) => {
   const msgtype = status === 'completed' ? 'm.text' : 'm.notice';
-  return sendRoomMessage(HOMESERVER, world.agent.accessToken, world.roomId, {
+  return sendStep(sync, world, {
     msgtype,
     body: `* ${body}`,
+    'io.mindroom.stream_status': status,
     'm.new_content': { msgtype, body, 'io.mindroom.stream_status': status },
     'm.relates_to': { rel_type: 'm.replace', event_id: replyId },
   });
 };
 
-/** A reply streamed as MindRoom does, in a thread or (`rootId` undefined) in the main timeline. */
-const streamReply = async (world: World, label: string, rootId?: string) => {
-  const replyId = await sendRoomMessage(HOMESERVER, world.agent.accessToken, world.roomId, {
+/**
+ * A reply streamed as MindRoom does: in a thread, or in the main timeline as an answer to the
+ * question (`thread_mode: room`).
+ */
+const streamReply = async (
+  sync: SyncWatch,
+  world: World,
+  label: string,
+  relation: Record<string, unknown>
+) => {
+  const replyId = await sendStep(sync, world, {
     msgtype: 'm.text',
     body: PLACEHOLDER,
     'io.mindroom.stream_status': 'pending',
-    ...(rootId ? inThread(rootId) : {}),
+    ...relation,
   });
-  await streamEdit(world, replyId, FIRST_STEP, 'streaming');
-  await streamEdit(world, replyId, finished(label), 'completed');
+  await streamEdit(sync, world, replyId, FIRST_STEP, 'streaming');
+  await streamEdit(sync, world, replyId, finished(label), 'completed');
 };
 
 /**
@@ -173,6 +217,7 @@ const shownNotifications = async (page: Page) =>
 
 const check = async (page: Page, world: World, label: string) => {
   await recordNotifications(page);
+  const sync = watchSync(page);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: world.reader.username,
@@ -184,12 +229,17 @@ const check = async (page: Page, world: World, label: string) => {
     timeout: 60_000,
   });
 
-  const rootId = await sendRoomMessage(HOMESERVER, world.reader.accessToken, world.roomId, {
-    msgtype: 'm.text',
-    body: `Which ${label} fixes go into the notes?`,
+  const ask = (question: string) =>
+    sendRoomMessage(HOMESERVER, world.reader.accessToken, world.roomId, {
+      msgtype: 'm.text',
+      body: question,
+    });
+  const rootId = await ask(`Which ${label} fixes go into the notes?`);
+  await streamReply(sync, world, `${label} thread`, inThread(rootId));
+  const questionId = await ask(`Is the ${label} changelog drafted?`);
+  await streamReply(sync, world, `${label} room`, {
+    'm.relates_to': { 'io.mindroom.in_reply_to': { event_id: questionId } },
   });
-  await streamReply(world, `${label} thread`, rootId);
-  await streamReply(world, `${label} room`);
   // A later message: once it notified, the client had every edit sent before it.
   await sendRoomMessage(HOMESERVER, world.agent.accessToken, world.roomId, {
     msgtype: 'm.text',
@@ -212,7 +262,8 @@ const check = async (page: Page, world: World, label: string) => {
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
   const world = await seed(engine);
-  const context = await browser.newContext({ ...DESKTOP, baseURL });
+  // WebKit sends a service worker's requests past the page's response events.
+  const context = await browser.newContext({ ...DESKTOP, baseURL, serviceWorkers: 'block' });
   try {
     await check(await context.newPage(), world, engine);
   } finally {
