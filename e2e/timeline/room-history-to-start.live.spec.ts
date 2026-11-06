@@ -19,7 +19,8 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * edited reply with its edit and each reacted reply with its reaction, with no space between rows
  * and no blank space above them. Checked when the room opens and again after a reload, at desktop
  * size with classic scrollbars and on a touch phone, in Chromium and, when the runner names it, in
- * WebKit. Set ROOM_HISTORY_SHOTS=<directory> to save each view at the start.
+ * WebKit. Set ROOM_HISTORY_SHOTS=<directory> to save each view at the start and at the room's first
+ * thread.
  *
  * The SDK keeps none of the thread replies a page of room history brings, and the Classic view
  * showed only replies already loaded into their threads: on the way to the start it showed few
@@ -178,6 +179,8 @@ type Fixture = {
   edits: [string, string][];
   /** The replies the person reacted to. */
   reacted: string[];
+  /** The root of the room's first thread. */
+  firstRoot: string;
 };
 
 const seedAccount = async (): Promise<Fixture> => {
@@ -202,8 +205,10 @@ const seedAccount = async (): Promise<Fixture> => {
   // Older history: notes and threads with the agent's edited answers, sent side by side. The person
   // reacts to each thread's first answer.
   const reacted: string[] = [];
+  let firstRoot = '';
   const thread = async (replies: number) => {
     const rootId = await send(token, roomId, note());
+    firstRoot ||= rootId;
     let previous = rootId;
     for (let reply = 0; reply < replies; reply += 1) {
       // eslint-disable-next-line no-await-in-loop
@@ -275,6 +280,7 @@ const seedAccount = async (): Promise<Fixture> => {
     sentAt: sent.map(({ ts }) => ts),
     edits: [...editedText],
     reacted,
+    firstRoot,
   };
 };
 
@@ -482,6 +488,13 @@ const scrollToStart = async (page: Page, fixture: Fixture, device: Device, label
   if (SHOTS) {
     mkdirSync(SHOTS, { recursive: true });
     await page.screenshot({ path: `${SHOTS}/${label}.png` });
+    // The room's first thread, whose answers come with an older page than the newest ones.
+    const root = page.locator(`[data-message-id="${fixture.firstRoot}"]`);
+    for (let step = 0; step < 60 && (await root.count()) === 0; step += 1)
+      await scroller.evaluate((view) => view.scrollBy({ top: 400 }));
+    await root.evaluate((row) => row.scrollIntoView({ block: 'start' }));
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOTS}/${label}-first-thread.png` });
   }
 
   const rendered = new Set(watch.seen);
