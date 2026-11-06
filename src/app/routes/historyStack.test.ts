@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { advanceHistoryStack, emptyHistoryStack, type HistoryStack } from './historyStack';
+import {
+  advanceHistoryStack,
+  emptyHistoryStack,
+  findHistoryOrigin,
+  showsRoom,
+  type HistoryStack,
+} from './historyStack';
 
-const entry = (key: string) => ({ key, pathname: `/${key}/` });
+const entry = (key: string) => ({ key, pathname: `/${key}/`, search: '' });
 const walk = (...steps: [string, 'PUSH' | 'REPLACE' | 'POP'][]): HistoryStack =>
   steps.reduce(
     (stack, [key, action]) => advanceHistoryStack(stack, entry(key), action),
@@ -40,5 +46,47 @@ describe('advanceHistoryStack', () => {
 
   it('starts over at an entry it has not seen, so it never guesses what came before', () => {
     expect(previous(walk(['home', 'POP'], ['list', 'PUSH'], ['unknown', 'POP']))).toBeUndefined();
+  });
+});
+
+describe('findHistoryOrigin', () => {
+  const page = (key: string, pathname: string, search = '') => ({ key, pathname, search });
+  const stack = (...pages: ReturnType<typeof page>[]): HistoryStack => ({
+    entries: pages,
+    index: pages.length - 1,
+  });
+  const room = '!harbor:example.org';
+  const inRoom = (candidate: { pathname: string; search: string }) =>
+    showsRoom(candidate, [room, '#harbor:example.org']);
+
+  it('passes over the pages of the room to the page it was opened from', () => {
+    const history = stack(
+      page('a', '/home/search/', '?term=crane'),
+      page('b', `/home/${encodeURIComponent(room)}/`),
+      page('c', `/home/${encodeURIComponent(room)}/%24event`, '?focusEvent=1'),
+      page('d', `/home/${encodeURIComponent(room)}/`, '?threadId=%24root')
+    );
+    expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toEqual({
+      steps: 3,
+      path: '/home/search/?term=crane',
+    });
+  });
+
+  it('knows a room by its alias too', () => {
+    expect(inRoom(page('a', '/space/%23harbor%3Aexample.org/'))).toBe(true);
+    expect(inRoom(page('a', '/home/!garden:example.org/'))).toBe(false);
+  });
+
+  it('tells a thread of the room from the room itself', () => {
+    const thread = (candidate: { pathname: string; search: string }) =>
+      showsRoom(candidate, [room], ['$root']);
+    expect(thread(page('a', `/home/${room}/`, '?threadId=%24root'))).toBe(true);
+    expect(thread(page('a', `/home/${room}/`))).toBe(false);
+    expect(thread(page('a', `/home/${room}/`, '?threadId=%24other'))).toBe(false);
+  });
+
+  it('finds nothing when every page the app has shown is the room', () => {
+    const history = stack(page('a', `/home/${room}/`), page('b', `/home/${room}/`, '?threadId=x'));
+    expect(findHistoryOrigin(history, (candidate) => !inRoom(candidate))).toBeUndefined();
   });
 });

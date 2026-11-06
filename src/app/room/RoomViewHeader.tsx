@@ -50,11 +50,11 @@ import {
   getDirectPath,
   getHomePath,
   getHomeSearchPath,
-  getSpaceLobbyPath,
   getSpacePath,
   getSpaceSearchPath,
   withSearchParam,
 } from '../routes/pathUtils';
+import { previousHistoryOrigin, showsRoom } from '../routes/historyStack';
 import { StateEvent } from '../matrix/types/room';
 import { RoomPinMenu } from '../messages/pins/RoomPinMenu';
 import { RoomSchedulesButton } from '../schedules/RoomSchedulesButton';
@@ -188,7 +188,7 @@ const rectOf = (event: MouseEvent<HTMLElement>): RectCords => {
   return { x, y, width, height };
 };
 
-/** Where a phone's back button leads: the list the room was opened from. */
+/** The list a phone's back button leads to from a room the app did not open itself. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
   if (spacePathId) return getSpacePath(spacePathId);
   return isDirect ? getDirectPath() : getHomePath();
@@ -266,11 +266,16 @@ export function RoomViewHeader({
   const spacePathId = space ? getCanonicalAliasOrRoomId(mx, space.roomId) : undefined;
   const direct = useIsDirectRoom();
   const sectionPath = sectionPathOf(spacePathId, direct);
-  // A room opened from its space's lobby goes back there, by whichever address the lobby had.
-  const lobbyPaths = space && [
-    getSpaceLobbyPath(space.roomId),
-    getSpaceLobbyPath(spacePathId ?? space.roomId),
-  ];
+  // A phone's back leaves the room for the page it was opened from (the list, a lobby, search
+  // results, the room a notification opened over, a thread with a link), passing over the room's
+  // own pages: its threads and the messages it was opened at. Opened from outside the app, the
+  // list takes the room's place.
+  const leaveRoom = () => {
+    const addresses = [room.roomId, getCanonicalAliasOrRoomId(mx, room.roomId)];
+    const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
+    if (origin) navigate(-origin.steps);
+    else navigate(sectionPath, { replace: true });
+  };
 
   const [menuAnchor, setMenuAnchor] = useState<RectCords>();
   const [pinAnchor, setPinAnchor] = useState<RectCords>();
@@ -340,7 +345,7 @@ export function RoomViewHeader({
       {/* On phones the title follows the back chevron's touch target directly. */}
       <Box grow="Yes" alignItems="Center" gap={mobile ? '0' : '300'} style={{ minWidth: 0 }}>
         {mobile ? (
-          <PhoneBackButton to={sectionPath} openedFrom={lobbyPaths} />
+          <PhoneBackButton onBack={leaveRoom} />
         ) : (
           <Avatar size="300" radii="400" style={{ flexShrink: 0 }}>
             <RoomAvatar
