@@ -1,12 +1,14 @@
 /**
  * Unread state per room, and per Space the sum over the rooms it contains (at any depth).
  * A room is listed while it has notification counts or an unread message by someone else in
- * its main timeline (shown as a dot without a count); thread activity alone does not list it.
+ * its main timeline (shown as a dot without a count, unless the room is muted); thread activity
+ * alone does not list it.
  */
 import { useEffect } from 'react';
 import { atom, type WritableAtom, useSetAtom } from 'jotai';
 import {
   ClientEvent,
+  EventType,
   KnownMembership,
   type MatrixClient,
   type MatrixEvent,
@@ -21,6 +23,7 @@ import { isRecord } from '../../lib/isRecord';
 import { roomToParentsAtom } from './roomToParents';
 import { matchesEnum } from '../../lib/matchesEnum';
 import { getAncestorSpaceIds } from './spaceAncestors';
+import { isRoomMuted } from '../hooks/useRoomsNotificationPreferences';
 
 type RoomToUnreadAction =
   | { type: 'RESET'; unreadInfos: UnreadInfo[] }
@@ -90,7 +93,10 @@ const toUnreadAction = (
 ): RoomToUnreadAction => {
   if (!isUnreadTracked(room)) return { type: 'DELETE', roomId: room.roomId };
   if (unreadInfo.total > 0 || unreadInfo.highlight > 0) return { type: 'PUT', unreadInfo };
-  if (roomHaveUnread(mx, room)) return { type: 'PUT', unreadInfo };
+  // A muted room pulls no attention: only its counts, which a mute keeps at zero, would show.
+  if (!isRoomMuted(mx.pushRules, room.roomId) && roomHaveUnread(mx, room)) {
+    return { type: 'PUT', unreadInfo };
+  }
   return { type: 'DELETE', roomId: room.roomId };
 };
 
@@ -162,13 +168,15 @@ export const useBindRoomToUnreadAtom = (
 
   useEffect(() => {
     const initialRooms = mx.getRooms();
-    setUnread({
-      type: 'RESET',
-      unreadInfos: initialRooms.flatMap((room) => {
-        const action = getRoomUnreadAction(mx, room);
-        return action.type === 'PUT' ? [action.unreadInfo] : [];
-      }),
-    });
+    const resetAll = (rooms: Room[]) =>
+      setUnread({
+        type: 'RESET',
+        unreadInfos: rooms.flatMap((room) => {
+          const action = getRoomUnreadAction(mx, room);
+          return action.type === 'PUT' ? [action.unreadInfo] : [];
+        }),
+      });
+    resetAll(initialRooms);
 
     const update = (room: Room) => setUnread(getRoomUnreadAction(mx, room));
 
@@ -204,18 +212,24 @@ export const useBindRoomToUnreadAtom = (
       update(room);
     };
     const handleDeleteRoom = (roomId: string) => setUnread({ type: 'DELETE', roomId });
+    // Muting a room, or unmuting it, changes whether its unread messages show.
+    const handleAccountData = (event: MatrixEvent) => {
+      if (event.getType() === EventType.PushRules) resetAll(mx.getRooms());
+    };
 
     mx.on(RoomEvent.Timeline, handleTimeline);
     mx.on(RoomEvent.Receipt, handleReceipt);
     mx.on(RoomEvent.MyMembership, update);
     mx.on(ClientEvent.Room, handleRoom);
     mx.on(ClientEvent.DeleteRoom, handleDeleteRoom);
+    mx.on(ClientEvent.AccountData, handleAccountData);
     return () => {
       mx.removeListener(RoomEvent.Timeline, handleTimeline);
       mx.removeListener(RoomEvent.Receipt, handleReceipt);
       mx.removeListener(RoomEvent.MyMembership, update);
       mx.removeListener(ClientEvent.Room, handleRoom);
       mx.removeListener(ClientEvent.DeleteRoom, handleDeleteRoom);
+      mx.removeListener(ClientEvent.AccountData, handleAccountData);
       countListeners.forEach((listener, room) =>
         room.removeListener(RoomEvent.UnreadNotifications, listener)
       );

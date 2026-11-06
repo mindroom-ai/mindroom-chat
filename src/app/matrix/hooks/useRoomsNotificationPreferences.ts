@@ -40,6 +40,11 @@ const isRoomMuteRule = (rule: IPushRule): boolean => {
   );
 };
 
+/** Whether the account's push rules mute the room. */
+export const isRoomMuted = (pushRules: IPushRules | undefined, roomId: string): boolean =>
+  pushRules?.global?.override?.some((rule) => rule.rule_id === roomId && isRoomMuteRule(rule)) ??
+  false;
+
 /** Every room with its own notification setting, read from the account's push rules. */
 const getRoomsNotificationPreferences = (
   pushRules: IPushRules | undefined
