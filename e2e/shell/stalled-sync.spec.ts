@@ -14,8 +14,8 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // link or a captive network (L7-F014). Nothing fails, so neither the SDK nor the homeserver check
 // notices; the SDK itself gives up on the request only after 110 s. The client must show the
 // lost connection once the request is well past its long-poll timeout (30 s), and clear it on
-// the next answer. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, in WebKit, against the disposable homeserver.
+// the next answer. Runs in Chromium (desktop) and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// Playwright's WebKit, in WebKit (phone, dark), against the disposable homeserver.
 const PASSWORD = 'stalled-sync-spec-password';
 const RUN = Date.now().toString(36);
 // The long-poll timeout plus the client's margin, plus room for a busy machine.
@@ -32,6 +32,12 @@ test.beforeEach(async () => {
 });
 
 const isSync = (url: URL) => url.pathname.endsWith('/_matrix/client/v3/sync');
+
+/** Saves a screenshot as `<name>.png` when CONNECTION_STATE_SHOTS names a directory. */
+const shot = async (page: Page, name: string) => {
+  const directory = process.env.CONNECTION_STATE_SHOTS;
+  if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
+};
 
 const stalledSyncShowsLostConnection = async (
   context: BrowserContext,
@@ -75,6 +81,7 @@ const stalledSyncShowsLostConnection = async (
   console.log(`[stalled-sync:${browserName}] notice after ${shownAfterMs} ms`);
   // Not before the long poll could have answered on its own.
   expect(shownAfterMs).toBeGreaterThan(30_000);
+  await shot(page, `stalled-sync-${browserName}`);
 
   // The network comes back: the held request reaches the server, and a message ends its poll.
   await context.unroute(isSync, hold);
@@ -96,6 +103,7 @@ const stalledSyncShowsLostConnection = async (
   await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({ timeout: 30_000 });
   await expect.poll(() => held.length, { timeout: 30_000 }).toBeGreaterThan(0);
   await expect(status).toHaveText(/Connection Lost!/, { timeout: 45_000 });
+  await shot(page, `stalled-start-${browserName}`);
   await context.unroute(isSync, hold);
   await Promise.all(held.map((route) => route.continue().catch(() => undefined)));
   await expect(status).toHaveCount(0, { timeout: 30_000 });
@@ -115,8 +123,15 @@ test('a /sync request that never answers shows the lost connection until the nex
 }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
+  // A phone, as the stalled mobile link this is about, in the dark theme.
   await onWebKitPage(
-    { viewport: { width: 1280, height: 800 }, baseURL, serviceWorkers: 'block' },
+    {
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+      colorScheme: 'dark',
+      baseURL,
+      serviceWorkers: 'block',
+    },
     (page) => stalledSyncShowsLostConnection(page.context(), page, 'webkit')
   );
 });
