@@ -3,14 +3,16 @@ import { loginWithPassword } from '../helpers/auth';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 import { buildLoginPath } from '../env';
 
-// An encrypted message that its sender edited while the reader was away. The reader's server
-// bundles the edit with the message, and the edit itself lies in the history the reader's
-// timeline loads later, if at all. The reader must see the edited text, before and after a
-// reload, never "Unsupported message". Against the disposable homeserver of `just hs-up`.
+// An encrypted message that its sender edited while the reader was away, then answered with a
+// reply once the edit was well back in the history. The reader's server bundles the edit with
+// the message wherever it serves the message alone (the reply's quote, a jump to it), and the
+// edit itself is not in the reader's timeline. The reader must see the edited text in the quote
+// and in the message's row, before and after a reload, never a blank quote or "Unsupported
+// message". Against the disposable homeserver of `just hs-up`.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'encrypted-edit-away-spec-password';
-/** More messages after the edit than one /sync timeline brings (20). */
-const LATER_MESSAGES = 24;
+/** Messages between the edit and the reply: the reader's /sync timeline (20) ends before the edit. */
+const LATER_MESSAGES = 21;
 const SHOTS = process.env.ENCRYPTED_EDIT_SHOTS;
 
 const homeserverIsUp = async (): Promise<boolean> => {
@@ -96,30 +98,6 @@ const send = async (page: Page, text: string) => {
   await expect(rowWith(page, text)).toBeVisible({ timeout: 30_000 });
 };
 
-/** Scrolls the timeline to its top until `row` shows, loading older messages on the way. */
-const scrollUntilShown = async (page: Page, text: string) => {
-  const row = rowWith(page, text);
-  await expect
-    .poll(
-      async () => {
-        if (await row.isVisible()) return true;
-        await page.evaluate(() => {
-          const first = document.querySelector('[data-message-id]');
-          let scroller = first?.parentElement ?? null;
-          while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
-            scroller = scroller.parentElement;
-          }
-          if (scroller) scroller.scrollTop = 0;
-        });
-        return false;
-      },
-      { timeout: 60_000, intervals: [500] }
-    )
-    .toBe(true);
-  await row.scrollIntoViewIfNeeded();
-  return row;
-};
-
 const readEditedWhileAway = async (browser: Browser, readerBrowser: Browser, label: string) => {
   const run = `${Date.now().toString(36)}${label}`;
   const reader = `away_a_${run}`;
@@ -156,24 +134,32 @@ const readEditedWhileAway = async (browser: Browser, readerBrowser: Browser, lab
       // eslint-disable-next-line no-await-in-loop
       await send(writerPage, `Later ${index} ${run}`);
     }
+    const target = rowWith(writerPage, edited);
+    await target.scrollIntoViewIfNeeded();
+    await target.hover();
+    await target.getByRole('button', { name: 'Reply', exact: true }).click();
+    const answer = `Answer to the edit ${run}`;
+    await send(writerPage, answer);
 
-    // The reader comes back and scrolls up to the edited message.
+    // The reader comes back: the reply is new, the edited message is history.
     const back = await readerContext.newPage();
-    await openFullRoom(back, roomId);
-    await expect(rowWith(back, `Later ${LATER_MESSAGES} ${run}`)).toBeVisible({ timeout: 60_000 });
-    let row = await scrollUntilShown(back, original);
-    await expect(row).toContainText(edited, { timeout: 30_000 });
-    await expect(row).not.toContainText('Unsupported message');
-    if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-back.png` });
+    const readQuoteAndJump = async (step: string) => {
+      await openFullRoom(back, roomId);
+      const quote = rowWith(back, answer).locator('button[data-event-id]');
+      await expect(quote).toContainText(edited, { timeout: 30_000 });
+      if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-${step}-quote.png` });
+      await quote.click();
+      const row = rowWith(back, original).first();
+      await expect(row).toContainText(edited, { timeout: 30_000 });
+      await expect(row).not.toContainText('Unsupported message');
+      await expect(row.locator('[data-edit-not-decrypted]')).toHaveCount(0);
+      if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-${step}-row.png` });
+    };
+    await readQuoteAndJump('back');
 
     // A reload rebuilds the timeline from the stores and the server.
     await back.reload();
-    await openFullRoom(back, roomId);
-    row = await scrollUntilShown(back, original);
-    await expect(row).toContainText(edited, { timeout: 30_000 });
-    await expect(row).not.toContainText('Unsupported message');
-    await expect(row.locator('[data-edit-not-decrypted]')).toHaveCount(0);
-    if (SHOTS) await back.screenshot({ path: `${SHOTS}/F025-${label}-reloaded.png` });
+    await readQuoteAndJump('reloaded');
   } finally {
     await readerContext.close();
     await writerContext.close();
