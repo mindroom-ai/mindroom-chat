@@ -19,41 +19,69 @@ const pillOutline = `${config.borderWidth.B300} solid ${color.Surface.ContainerL
 const badgeTextPx = 10;
 const badgeLinePx = 12;
 
+// The pill, painted behind the text from the button's top edge, so taps pass to the button.
+const pillLayer = {
+  pointerEvents: 'none',
+  position: 'absolute',
+  insetBlockStart: `calc(-1 * ${config.borderWidth.B300})`,
+  insetInline: `calc(-1 * ${config.borderWidth.B300})`,
+  blockSize: `calc(${toRem(badgeLinePx)} + 2 * ${config.borderWidth.B300})`,
+  zIndex: -1,
+  boxSizing: 'border-box',
+  border: pillOutline,
+  borderRadius: config.radii.Pill,
+  backgroundColor: badgeTone.Container,
+  content: '""',
+} as const;
+
 /**
- * Small pill under an agent's avatar naming the model that wrote the message. A touch screen
- * reserves its 44 px target in layout, clear of the avatar, tool rows and sticky thread banner.
+ * Small pill under an agent's avatar naming the model that wrote the message. The button is the
+ * hit area and a layer behind its text paints the pill, so a touch screen can reserve a 44 px
+ * target in layout, clear of the avatar, tool rows and sticky thread banner, while the pill keeps
+ * its 14 px.
  */
-export const Badge = style([
-  {
-    '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
-    // As wide as the name, at most the avatar column plus the gap after it.
-    boxSizing: 'border-box',
-    margin: 0,
-    fontFamily: 'inherit',
-    width: 'max-content',
-    maxWidth: widestBadge,
-    minWidth: 0,
-    flexShrink: 0,
-    paddingInline: toRem(4),
-    border: pillOutline,
-    borderRadius: config.radii.Pill,
-    backgroundColor: badgeTone.Container,
-    color: badgeTone.OnContainer,
-    // The provider mark, then the name on one line.
-    display: 'inline-flex',
-    columnGap: toRem(2),
-    alignItems: 'center',
-    fontSize: toRem(badgeTextPx),
-    lineHeight: toRem(badgeLinePx),
-    fontWeight: 500,
-    whiteSpace: 'nowrap',
-    cursor: 'default',
-    ':focus-visible': {
+export const Badge = style({
+  // As wide as the name, at most the avatar column plus the gap after it.
+  boxSizing: 'border-box',
+  position: 'relative',
+  isolation: 'isolate',
+  selectors: {
+    '&::before': pillLayer,
+    '&:focus-visible': { outline: 'none' },
+    '&:focus-visible::before': {
       outline: `${config.borderWidth.B600} solid ${color.Primary.Main}`,
       outlineOffset: toRem(1),
     },
   },
-]);
+  margin: 0,
+  fontFamily: 'inherit',
+  width: 'max-content',
+  maxWidth: widestBadge,
+  minWidth: 0,
+  flexShrink: 0,
+  paddingInline: toRem(4),
+  border: `${config.borderWidth.B300} solid transparent`,
+  borderRadius: config.radii.Pill,
+  backgroundColor: 'transparent',
+  color: badgeTone.OnContainer,
+  // The provider mark, then the name on one line.
+  display: 'inline-flex',
+  columnGap: toRem(2),
+  alignItems: 'center',
+  fontSize: toRem(badgeTextPx),
+  lineHeight: toRem(badgeLinePx),
+  fontWeight: 500,
+  whiteSpace: 'nowrap',
+  cursor: 'default',
+  '@media': {
+    '(pointer: coarse)': {
+      // The target reaches 30 px below the pill, into the empty avatar column.
+      paddingBlockEnd: toRem(44 - badgeLinePx - 2),
+      minInlineSize: 44,
+      borderRadius: 0,
+    },
+  },
+});
 
 export const Icon = style({
   display: 'block',
