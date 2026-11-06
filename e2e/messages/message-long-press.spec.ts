@@ -188,7 +188,7 @@ const message = (page: Page, body: string) =>
 const menuOf = (page: Page, row: Locator) => ({
   more: row.getByRole('button', { name: 'More Options', exact: true }),
   entry: page
-    .getByRole('button', { name: 'Reply in Thread', exact: true })
+    .getByRole('menuitem', { name: 'Reply in Thread', exact: true })
     .filter({ hasText: 'Reply in Thread' }),
 });
 
