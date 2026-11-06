@@ -408,7 +408,7 @@ test.describe('virtualized thread behaviors', () => {
       timeout: 15_000,
     });
 
-    await page.getByRole('button', { name: '[+all]' }).click();
+    await page.getByRole('button', { name: 'Expand all long messages' }).click();
     await page.waitForTimeout(500);
     expect(await page.locator('[data-message-item] [aria-expanded="false"]').count()).toBe(0);
 

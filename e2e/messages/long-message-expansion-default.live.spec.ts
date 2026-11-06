@@ -246,8 +246,11 @@ test.describe('live long-message expand-all and collapse-all', () => {
     expect(anchorBeforeToggle).toBeTruthy();
     if (!anchorBeforeToggle) throw new Error('No visible anchor before expanding all.');
 
-    const expandAll = page.getByRole('button', { name: '[+all]', exact: true });
-    const collapseAll = page.getByRole('button', { name: '[-all]', exact: true });
+    const expandAll = page.getByRole('button', { name: 'Expand all long messages', exact: true });
+    const collapseAll = page.getByRole('button', {
+      name: 'Collapse all long messages',
+      exact: true,
+    });
     await pointerClick(expandAll);
     await expect(collapseAll).toBeVisible();
     await expect.poll(() => showMore.count()).toBe(0);

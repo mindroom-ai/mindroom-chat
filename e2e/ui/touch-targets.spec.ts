@@ -250,7 +250,7 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
   const composer = COMPOSER.map((name) => button(page, name));
   // The expand toggle lies under a row's hover toolbar until the pointer leaves the rows.
-  const all = page.getByRole('button', { name: '[+all]', exact: true });
+  const all = page.getByRole('button', { name: 'Expand all long messages', exact: true });
   await expect(all).toBeVisible();
   await shot(page, page.getByRole('banner'), `header-${engine}-phone`);
   await shot(page, composer[0]!.locator('..').locator('..'), `composer-${engine}-phone`);

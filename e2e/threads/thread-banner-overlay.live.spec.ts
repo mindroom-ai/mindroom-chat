@@ -157,8 +157,11 @@ for (const viewport of [
         initialBanner!
       );
       expect(rowsBehindBanner, 'rendered messages continue behind the glass').toBeGreaterThan(0);
-      // Rows also pass under [+all], so it needs its own glass to keep their text out of its label.
-      const expansionButton = page.getByRole('button', { name: /^\[[+-]all\]$/ });
+      // [+all] takes a line of its own above the first row and scrolls away with the rows, so no
+      // message passes beneath it (live-test L8-F002: it used to float over their text).
+      const expansionButton = page.getByRole('button', {
+        name: /^(Expand|Collapse) all long messages$/,
+      });
       const expansionBox = (await expansionButton.boundingBox())!;
       const rowsBehindExpansion = await page.locator('[data-message-item]').evaluateAll(
         (rows, box) =>
@@ -168,9 +171,11 @@ for (const viewport of [
           }).length,
         expansionBox
       );
-      expect(rowsBehindExpansion, 'messages scroll beneath [+all]').toBeGreaterThan(0);
-      await expect(expansionButton).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
-      await expect(expansionButton).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+      expect(rowsBehindExpansion, 'no message scrolls beneath [+all]').toBe(0);
+      expect(
+        expansionBox.y + expansionBox.height,
+        '[+all] scrolled away under the summary'
+      ).toBeLessThanOrEqual(initialBanner!.y + initialBanner!.height);
       const footer = page.locator('[data-room-footer]');
       const emptyFooterHeight = (await footer.boundingBox())!.height;
       const clearComposer = async () => {

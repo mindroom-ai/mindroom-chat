@@ -70,7 +70,7 @@ test.describe('PERF: thread scroll stability under expand-all', () => {
     await page.waitForSelector('[data-message-item]', { timeout: 60_000 });
     await page.waitForTimeout(2_500);
 
-    await page.getByRole('button', { name: '[+all]' }).click();
+    await page.getByRole('button', { name: 'Expand all long messages' }).click();
     await page.waitForTimeout(1_200);
 
     await page.evaluate(() => {
