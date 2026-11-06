@@ -1,5 +1,5 @@
 import { Icon, IconButton, Icons, Text } from 'folds';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSetAtom } from 'jotai';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
@@ -17,6 +17,7 @@ import {
 import { NamesSentence } from './NamesSentence';
 import { getEventReactions } from '../../matrix/room';
 import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { DEFAULT_THREAD_TAIL_EVENT_COUNT } from '../../matrix/thread';
 import {
   getThreadStreamingEvents,
   isEventStreaming,
@@ -49,6 +50,77 @@ const useThreadStreamingSenders = (room: Room, threadId: string | undefined) => 
       })
       .map((event) => event.getSender())
   );
+};
+
+/** Whether part of the timeline row of `eventId` shows on screen, inside every scrolling area. */
+const rowOnScreen = (eventId: string): boolean =>
+  Array.from(document.querySelectorAll('[data-message-id]')).some((row) => {
+    if (row.getAttribute('data-message-id') !== eventId) return false;
+    let { top, bottom } = row.getBoundingClientRect();
+    top = Math.max(top, 0);
+    bottom = Math.min(bottom, window.innerHeight);
+    for (let parent = row.parentElement; parent; parent = parent.parentElement) {
+      if (/auto|scroll|hidden|clip/.test(getComputedStyle(parent).overflowY)) {
+        const box = parent.getBoundingClientRect();
+        top = Math.max(top, box.top);
+        bottom = Math.min(bottom, box.bottom);
+      }
+    }
+    return bottom > top;
+  });
+
+const NOBODY: ReadonlySet<string> = new Set();
+
+const sameMembers = (a: ReadonlySet<string>, b: ReadonlySet<string>) =>
+  a.size === b.size && Array.from(a).every((member) => b.has(member));
+
+/** How often a watched reply's place on screen is read again; scrolling moves it. */
+const ON_SCREEN_CHECK_MS = 250;
+
+/**
+ * The senders whose streaming reply shows on screen in the open thread or, outside one, in the
+ * room's timeline: the reply's dots and Stop button already say that they write. Read after each
+ * render and, while `watch` holds, a few times a second.
+ */
+const useStreamingRepliesOnScreen = (
+  room: Room,
+  threadId: string | undefined,
+  watch: boolean
+): ReadonlySet<string> => {
+  const [onScreen, setOnScreen] = useState(NOBODY);
+  const read = useCallback(() => {
+    const timelineSet =
+      (threadId ? room.getThread(threadId)?.getUnfilteredTimelineSet() : undefined) ??
+      room.getUnfilteredTimelineSet();
+    const events = threadId
+      ? getThreadStreamingEvents(room, threadId)
+      : room.getLiveTimeline().getEvents().slice(-DEFAULT_THREAD_TAIL_EVENT_COUNT);
+    const senders = new Set(
+      events
+        .filter((event) => {
+          const eventId = event.getId();
+          return (
+            !!eventId &&
+            isEventStreaming(event, getEventReactions(timelineSet, eventId), timelineSet) &&
+            rowOnScreen(eventId)
+          );
+        })
+        .flatMap((event) => event.getSender() ?? [])
+    );
+    setOnScreen((previous) => (sameMembers(previous, senders) ? previous : senders));
+  }, [room, threadId]);
+  // After every render, before the paint: a reply that just started streaming hides the strip
+  // in the same frame.
+  useLayoutEffect(() => {
+    if (watch) read();
+    else setOnScreen(NOBODY);
+  });
+  useEffect(() => {
+    if (!watch) return undefined;
+    const timer = window.setInterval(read, ON_SCREEN_CHECK_MS);
+    return () => window.clearInterval(timer);
+  }, [read, watch]);
+  return onScreen;
 };
 
 // Sentences for one to four typing members; five and more share the last one.
@@ -91,10 +163,12 @@ const useAgentsAwaitingApproval = (room: Room, threadId: string | undefined): Se
 
 /**
  * Names the other members who are typing in the room, in a strip above the composer; in a thread,
- * an agent only while its reply there streams. Dropping the status hides it until the next typing
- * update arrives for that member. In a thread, an agent whose job there waits for approval is left
- * out: MindRoom keeps its typing notice up while the reply waits for the decision, and the agent
- * waits for a person rather than writing.
+ * an agent only while its reply there streams. An agent whose streaming reply shows on screen is
+ * left out, as MindRoom Chat shows no strip: the reply's dots and Stop say it writes, and the strip
+ * would cover Stop as the reply grows. Dropping the status hides it until the next typing update
+ * arrives for that member. In a thread, an agent whose job there waits for approval is left out:
+ * MindRoom keeps its typing notice up while the reply waits for the decision, and the agent waits
+ * for a person rather than writing.
  */
 export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const { t } = useTranslation();
@@ -103,15 +177,20 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const myUserId = mx.getUserId();
   const awaitingApproval = useAgentsAwaitingApproval(room, threadId);
   const streaming = useThreadStreamingSenders(room, threadId);
-  const typing = useRoomTypingMember(room.roomId).filter(
+  const isAgent = (userId: string) => isMindroomAgentUserIdForViewer(userId, myUserId ?? undefined);
+  const members = useRoomTypingMember(room.roomId).filter(
     (receipt) =>
       receipt.userId !== myUserId &&
       receipt.isTyping() &&
       !awaitingApproval.has(receipt.userId) &&
-      (!streaming ||
-        streaming.has(receipt.userId) ||
-        !isMindroomAgentUserIdForViewer(receipt.userId, myUserId ?? undefined))
+      (!streaming || streaming.has(receipt.userId) || !isAgent(receipt.userId))
   );
+  const onScreen = useStreamingRepliesOnScreen(
+    room,
+    threadId,
+    members.some(({ userId }) => isAgent(userId))
+  );
+  const typing = members.filter(({ userId }) => !onScreen.has(userId));
 
   if (typing.length === 0) return null;
 
