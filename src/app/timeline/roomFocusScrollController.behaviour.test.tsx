@@ -692,6 +692,10 @@ describe('bottom-pin requests', () => {
     scrollTo.mockClear();
     act(() => renderer.update(<Harness options={{ ...settled }} />));
     expect(scrollTo).not.toHaveBeenCalled();
+    // A script or assistive technology moved the view up, without a gesture: it stays there.
+    Object.defineProperty(area, 'scrollTop', { configurable: true, value: 200 });
+    act(() => renderer.update(<Harness options={{ ...settled }} />));
+    expect(scrollTo).not.toHaveBeenCalled();
     Object.defineProperty(area, 'scrollTop', { configurable: true, value: 100 });
     act(() => renderer.update(<Harness options={{ ...settled, threadUserScrolled: true }} />));
     expect(scrollTo).not.toHaveBeenCalled();

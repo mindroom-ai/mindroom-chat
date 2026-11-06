@@ -385,6 +385,9 @@ const useThreadOpeningPin = ({
 >) => {
   // Whether the effect below pinned in this commit; the one after it then has nothing to do.
   const pinnedInCommitRef = useRef(false);
+  // Where the last pin, or the last commit that found the view at the bottom, left the scroll
+  // position: a view above it was moved up by something else than the rows growing.
+  const pinnedTopRef = useRef<number>();
   useLayoutEffect(() => {
     if (!threadId) return;
     const pinned = shouldPinThreadToBottomOnOpen({
@@ -401,6 +404,7 @@ const useThreadOpeningPin = ({
     scrollToBottom(scrollArea, 'instant');
     setAtBottom(true);
     pinnedInCommitRef.current = true;
+    pinnedTopRef.current = scrollArea.scrollTop;
   }, [
     isThreadOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
@@ -415,7 +419,8 @@ const useThreadOpeningPin = ({
   ]);
   // Rows measure after the commit that pinned them: one taller than its estimate (a tool call, a
   // reasoning summary) pushes the newest reply below the view. The commit that renders the
-  // measurement pins it again, as long as the opening pin holds.
+  // measurement pins it again, as long as the opening pin holds and nothing else moved the view
+  // up (a script or assistive technology scrolls without the gestures that end the pin).
   useLayoutEffect(() => {
     if (pinnedInCommitRef.current) {
       pinnedInCommitRef.current = false;
@@ -423,7 +428,12 @@ const useThreadOpeningPin = ({
     }
     const scrollArea = scrollRef.current;
     if (!threadId || !scrollArea) return;
-    if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) return;
+    if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
+      pinnedTopRef.current = scrollArea.scrollTop;
+      return;
+    }
+    const pinnedTop = pinnedTopRef.current;
+    if (pinnedTop === undefined || scrollArea.scrollTop < pinnedTop - 1) return;
     const pinned = shouldPinThreadToBottomOnOpen({
       suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
       threadId,
@@ -433,7 +443,9 @@ const useThreadOpeningPin = ({
       threadInitialRenderMode,
       threadEventCount: threadEventsLength,
     });
-    if (pinned && requestThreadOpenBottomPin()) scrollToBottom(scrollArea, 'instant');
+    if (!pinned || !requestThreadOpenBottomPin()) return;
+    scrollToBottom(scrollArea, 'instant');
+    pinnedTopRef.current = scrollArea.scrollTop;
   });
 };
 
