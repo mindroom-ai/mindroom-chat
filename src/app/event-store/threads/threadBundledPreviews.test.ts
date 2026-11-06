@@ -82,38 +82,63 @@ describe('fresh-device bundled thread presentation', () => {
     expect(record.presentation.lastSenderId).toBe(author);
     expect(room.getThread(rootId)).toBeUndefined();
     const card = buildCompactThreadCardViewModelFromRecord({
-      record, room, mx, useAuthentication: false,
+      record,
+      room,
+      mx,
+      useAuthentication: false,
     });
     expect(card.titleText).toBe('Launch checklist');
     expect(card.previewText).toBe('helper: Final answer with dates');
-    expect(buildThreadHeaderViewModelFromRecord({
-      record, canEdit: false, availableTags: [], pickerDisabled: true,
-    }).summaryText).toBe('Launch checklist');
-    expect(buildCrossRoomThreadIndexEntry({
-      room, threadRootId: rootId, threadRootEvent: root,
-    })?.summaryText).toBe('Launch checklist');
+    expect(
+      buildThreadHeaderViewModelFromRecord({
+        record,
+        canEdit: false,
+        availableTags: [],
+        pickerDisabled: true,
+      }).summaryText
+    ).toBe('Launch checklist');
+    expect(
+      buildCrossRoomThreadIndexEntry({
+        room,
+        threadRootId: rootId,
+        threadRootEvent: root,
+      })?.summaryText
+    ).toBe('Launch checklist');
   });
 
   it('keeps newer live titles and replies, including edits to the bundled reply', () => {
     const { room, root } = fixture();
-    const liveTitle = new MatrixEvent({ ...reply('$new-title', 'Updated checklist', 6000, true), room_id: roomId });
-    const liveReply = new MatrixEvent({ ...reply('$new-reply', 'Newer answer', 5000), room_id: roomId });
+    const liveTitle = new MatrixEvent({
+      ...reply('$new-title', 'Updated checklist', 6000, true),
+      room_id: roomId,
+    });
+    const liveReply = new MatrixEvent({
+      ...reply('$new-reply', 'Newer answer', 5000),
+      room_id: roomId,
+    });
     const value = presentation(room, root, [liveReply, liveTitle]);
     expect(value.summaryText).toBe('Updated checklist');
     expect(value.latestReplyPreviewText).toBe('Newer answer');
     const edited = new MatrixEvent({ ...reply('$reply', 'Draft answer', 2000), room_id: roomId });
-    edited.makeReplaced(new MatrixEvent({
-      ...reply('$live-edit', '* Live edited answer', 7000),
-      room_id: roomId,
-      content: { 'm.new_content': { msgtype: 'm.text', body: 'Live edited answer' }, 'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' } },
-    }));
+    edited.makeReplaced(
+      new MatrixEvent({
+        ...reply('$live-edit', '* Live edited answer', 7000),
+        room_id: roomId,
+        content: {
+          'm.new_content': { msgtype: 'm.text', body: 'Live edited answer' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+        },
+      })
+    );
     expect(presentation(room, root, [edited]).latestReplyPreviewText).toBe('Live edited answer');
   });
 
   it('keeps a newer cached title and reply', () => {
     const { room, root } = fixture();
     const record = buildThreadRecord({
-      room, threadRootId: rootId, threadRootEvent: root,
+      room,
+      threadRootId: rootId,
+      threadRootEvent: root,
       summaryInfo: { summaryText: 'Cached checklist', eventTs: 9000 },
       fallbackLatestReplyPreviewText: 'Cached answer',
       fallbackLastSenderId: '@writer:example.org',
@@ -128,18 +153,28 @@ describe('fresh-device bundled thread presentation', () => {
     const { room, root } = fixture();
     const old = new MatrixEvent({ ...reply('$old', 'Old answer', 1500), room_id: roomId });
     expect(presentation(room, root, [old]).latestReplyPreviewText).toBe('Final answer with dates');
-    expect(buildThreadRecord({
-      room, threadRootId: rootId, threadRootEvent: root,
-      summaryInfo: { summaryText: 'Old title', eventTs: 2500 },
-    }).presentation.summaryText).toBe('Launch checklist');
+    expect(
+      buildThreadRecord({
+        room,
+        threadRootId: rootId,
+        threadRootEvent: root,
+        summaryInfo: { summaryText: 'Old title', eventTs: 2500 },
+      }).presentation.summaryText
+    ).toBe('Launch checklist');
   });
 
   it('does not use namespaced plaintext in encrypted rooms', () => {
     const { room, root } = fixture();
-    room.currentState.setStateEvents([new MatrixEvent({
-      event_id: '$encryption', room_id: roomId, sender: userId,
-      type: 'm.room.encryption', state_key: '', content: { algorithm: 'm.megolm.v1.aes-sha2' },
-    })]);
+    room.currentState.setStateEvents([
+      new MatrixEvent({
+        event_id: '$encryption',
+        room_id: roomId,
+        sender: userId,
+        type: 'm.room.encryption',
+        state_key: '',
+        content: { algorithm: 'm.megolm.v1.aes-sha2' },
+      }),
+    ]);
     const value = presentation(room, root);
     expect(value.summaryText).toBeUndefined();
     expect(value.latestReplyPreviewText).toBeUndefined();
@@ -149,7 +184,10 @@ describe('fresh-device bundled thread presentation', () => {
     const shape = summaryShape();
     shape['io.mindroom.latest_reply'] = shape['io.mindroom.title'];
     shape['io.mindroom.title'] = reply('$wrong', 'Other thread', 3000, true);
-    shape['io.mindroom.title'].content!['m.relates_to'] = { rel_type: 'm.thread', event_id: '$other' };
+    shape['io.mindroom.title'].content['m.relates_to'] = {
+      rel_type: 'm.thread',
+      event_id: '$other',
+    };
     const { room, root } = fixture(shape);
     expect(presentation(room, root).summaryText).toBeUndefined();
     expect(presentation(room, root).latestReplyPreviewText).toBeUndefined();
