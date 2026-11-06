@@ -143,7 +143,8 @@ const pickWithTab = (): [string, string] => {
   const tab = { key: 'Tab', preventDefault: () => undefined } as KeyboardEvent;
   act(() => keydownListeners.forEach((handler) => handler(tab)));
   expect(mentions.createMentionElement).toHaveBeenCalledTimes(1);
-  const [userId, label] = mentions.createMentionElement.mock.calls[0] as [string, string];
+  const call = mentions.createMentionElement.mock.calls[0] as [string, string, boolean];
+  const [userId, label] = call;
   return [userId, label];
 };
 
