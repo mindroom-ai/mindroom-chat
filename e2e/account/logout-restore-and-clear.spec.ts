@@ -26,6 +26,31 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
+/**
+ * Once `slowDeletes` is set on the page, every IndexedDB deletion reports success 3 s late, as on
+ * a slow disk: the remaining account then starts in the page while the removed one's data goes,
+ * before the page loads again.
+ */
+const slowDatabaseDeletes = (page: Page) =>
+  page.addInitScript(() => {
+    const { deleteDatabase } = IDBFactory.prototype;
+    IDBFactory.prototype.deleteDatabase = function slowDelete(this: IDBFactory, name: string) {
+      const request = deleteDatabase.call(this, name);
+      if (!(window as { slowDeletes?: boolean }).slowDeletes) return request;
+      let handler: ((event: Event) => unknown) | null = null;
+      request.addEventListener('success', (event) => {
+        setTimeout(() => handler?.call(request, event), 3_000);
+      });
+      Object.defineProperty(request, 'onsuccess', {
+        get: () => handler,
+        set: (next: ((event: Event) => unknown) | null) => {
+          handler = next;
+        },
+      });
+      return request;
+    };
+  });
+
 /** localStorage entries whose key or value names one of `userIds`. */
 const storageNaming = (page: Page, userIds: string[]): Promise<string[]> =>
   page.evaluate((ids) => {
@@ -45,6 +70,7 @@ const logoutRestoresAndClears = async (page: Page, browserName: string) => {
     name: `Field notes ${browserName} ${RUN}`,
   });
 
+  await slowDatabaseDeletes(page);
   await loginWithPassword(page, { homeserver: HOMESERVER, ...first });
   await page.goto(`/home/${encodeURIComponent(room)}`);
   await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible({ timeout: 60_000 });
@@ -53,7 +79,9 @@ const logoutRestoresAndClears = async (page: Page, browserName: string) => {
   await loginWithPassword(page, { homeserver: HOMESERVER, ...second, addAccount: true });
   await expectActiveStoredUsername(page, second.username);
 
-  // The remaining account opens in its last room, after the page loads again.
+  // The remaining account opens in its last room, after the page loads again, also when it
+  // started in the page meanwhile.
+  await page.evaluate(() => Object.assign(window, { slowDeletes: true }));
   const reloaded = page.waitForEvent('load', { timeout: 60_000 });
   await logoutActiveAccount(page);
   await reloaded;
