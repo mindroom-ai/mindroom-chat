@@ -180,7 +180,7 @@ const recordRequests = (page: Page, since: () => number) => {
   return timeline;
 };
 
-test('the start shows no black or empty frame, and saved rooms before the first sync', async ({
+test('the start shows no black or empty frame, and saved rooms before the first sync @webkit', async ({
   page,
   browserName,
 }) => {
