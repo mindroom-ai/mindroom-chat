@@ -22,7 +22,10 @@ import {
 import type { ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
 import { getEventTimeline } from '../event-store/timeline/timelinePagination';
 import { getFirstLinkedTimeline } from '../event-store/timeline/linkedTimelines';
-import { TIMELINE_BOTTOM_THRESHOLD_PX } from '../event-store/timeline/timelineScrollUtils';
+import {
+  getEventElementById,
+  TIMELINE_BOTTOM_THRESHOLD_PX,
+} from '../event-store/timeline/timelineScrollUtils';
 import { isLatestAnchorInReach } from './roomTimelineScroll';
 import { waitForScrollQuiescence } from './scrollQuiescence';
 
@@ -31,6 +34,21 @@ import { waitForScrollQuiescence } from './scrollQuiescence';
  * short overshoot does not flash Jump to Latest.
  */
 const SCROLLED_AWAY_DELAY_MS = 500;
+
+/**
+ * How many times the scroll area may come to rest before a jump to the read marker has reached
+ * it; after that, the bottom observer reads the room once the reader scrolls down.
+ */
+const MARKER_JUMP_RESTS = 4;
+
+/** Whether the row of `eventId` shows in the scroll area `area`. */
+const rowShown = (area: HTMLElement | null | undefined, eventId: string): boolean => {
+  const row = getEventElementById(area, eventId);
+  if (!area || !row) return false;
+  const view = area.getBoundingClientRect();
+  const rect = row.getBoundingClientRect();
+  return rect.bottom > view.top && rect.top < view.bottom;
+};
 
 type ReadReceiptControllerOptions = {
   atBottom: boolean;
@@ -243,14 +261,21 @@ export const useTimelineReadReceiptController = ({
         return;
       }
       // Go to the read marker, without a highlight. When it was already in view nothing moved,
-      // so the reader has seen the rows after it. A scroll to it is measured where it stops: the
-      // newest rows are seen when they are still within reach, and read by the observer once
-      // the reader scrolls down to them when they are not.
+      // so the reader has seen the rows after it. A jump to it is measured once it has reached
+      // the marker and the scroll area rests (a busy machine may let the area rest before the
+      // jump moves it): the newest rows are seen when they are still within reach, and read by
+      // the observer once the reader scrolls down to them when they are not.
       const read = () =>
         readRoomOnNextFrame(contextRef.current, readUptoEventIdRef.current, stillReading);
+      const readOnceLanded = (rests: number) => {
+        void waitForScrollQuiescence(getScrollElement() ?? null).then(() => {
+          if (rowShown(getScrollElement(), marker.readUptoEventId)) read();
+          else if (rests > 1) readOnceLanded(rests - 1);
+        });
+      };
       void context.handleOpenEvent(marker.readUptoEventId, false, (scrolled) => {
         if (!scrolled) read();
-        else void waitForScrollQuiescence(getScrollElement() ?? null).then(read);
+        else readOnceLanded(MARKER_JUMP_RESTS);
       });
     },
     [atBottomRef, atLiveEndRef, contextRef, getScrollElement, readUptoEventIdRef, stillReading]

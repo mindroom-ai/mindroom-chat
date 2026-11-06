@@ -473,11 +473,30 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
   describe('coming back to the window', () => {
     const marker = { inLiveTimeline: true, readUptoEventId: '$linked' };
 
+    /**
+     * A scroll area 800 px tall holding the read marker's row, which starts `rowTop` px below the
+     * area's top; `place` moves it.
+     */
+    const areaWithMarkerRow = (rowTop: number) => {
+      const area = document.createElement('div');
+      const row = document.createElement('div');
+      row.setAttribute('data-message-id', marker.readUptoEventId);
+      area.append(row);
+      vi.spyOn(area, 'getBoundingClientRect').mockReturnValue({ top: 0, bottom: 800 } as DOMRect);
+      const place = (top: number) =>
+        vi
+          .spyOn(row, 'getBoundingClientRect')
+          .mockReturnValue({ top, bottom: top + 40 } as DOMRect);
+      place(rowTop);
+      return { area, place };
+    };
+
     /** Mounts the room with its read marker, focuses the window, and answers its scroll callback. */
-    const focusAtMarker = () => {
+    const focusAtMarker = (area: HTMLElement | null = null) => {
       const handleOpenEvent = vi.fn();
       mount(
         optionsWith({
+          getScrollElement: () => area,
           handleOpenEvent,
           readUptoEventIdRef: { current: marker.readUptoEventId },
           room: roomWithTimelines,
@@ -488,8 +507,8 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(handleOpenEvent).toHaveBeenCalledWith('$linked', false, expect.any(Function));
       return handleOpenEvent.mock.calls[0]?.[2] as (scrolled: boolean) => void;
     };
-    /** Lets a scroll that has stopped be measured. */
-    const scrollStops = () => act(async () => undefined);
+    /** Lets the scroll area come to rest once. */
+    const scrollRests = () => act(async () => undefined);
 
     it('goes to a read marker in the live timeline and reads the room when nothing scrolled', () => {
       focusAtMarker()(false);
@@ -497,26 +516,40 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
     });
 
-    it('reads the room once a scroll to the read marker stops with the newest rows in reach', async () => {
-      const onScroll = focusAtMarker();
+    it('reads the room once a jump has reached the read marker with the newest rows in reach', async () => {
+      const onScroll = focusAtMarker(areaWithMarkerRow(300).area);
 
       onScroll(true);
       runFrames();
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
 
-      await scrollStops();
+      await scrollRests();
       runFrames();
       expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
     });
 
-    it('reads nothing when the scroll to the read marker leaves the newest rows below the view', async () => {
-      vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({
-        top: window.innerHeight + 1_000,
-      } as DOMRect);
-      const onScroll = focusAtMarker();
+    it('waits for a jump that has not reached the read marker when the scroll area rests', async () => {
+      // A busy machine: the area rests before the jump has moved it.
+      const { area, place } = areaWithMarkerRow(-2_000);
+      const onScroll = focusAtMarker(area);
 
       onScroll(true);
-      await scrollStops();
+      await scrollRests();
+      runFrames();
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+
+      place(300);
+      await scrollRests();
+      runFrames();
+      expect(markMainTimelineAsRead).toHaveBeenCalledTimes(1);
+    });
+
+    it('reads nothing when the jump to the read marker leaves the newest rows below the view', async () => {
+      vi.spyOn(anchor, 'getBoundingClientRect').mockReturnValue({ top: 2_000 } as DOMRect);
+      const onScroll = focusAtMarker(areaWithMarkerRow(300).area);
+
+      onScroll(true);
+      await scrollRests();
       runFrames();
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });
