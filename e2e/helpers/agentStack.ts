@@ -393,7 +393,10 @@ export const waitForAgentReply = (
   );
 
 /** A new encrypted room of the tester with the helper and the router, once both joined it. */
-export const createEncryptedAgentRoom = async (stack: AgentStack, name: string): Promise<string> => {
+export const createEncryptedAgentRoom = async (
+  stack: AgentStack,
+  name: string
+): Promise<string> => {
   const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
     stack.homeserver,
     '/createRoom',

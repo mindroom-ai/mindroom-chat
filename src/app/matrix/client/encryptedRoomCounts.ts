@@ -62,7 +62,8 @@ const changeCounts = (
   actions: ReturnType<MatrixClient['getPushActionsForEvent']>,
   change: 1 | -1
 ): void => {
-  if (actions?.tweaks?.highlight) changeCount(room, threadId, NotificationCountType.Highlight, change);
+  if (actions?.tweaks?.highlight)
+    changeCount(room, threadId, NotificationCountType.Highlight, change);
   if (actions?.notify) changeCount(room, threadId, NotificationCountType.Total, change);
 };
 

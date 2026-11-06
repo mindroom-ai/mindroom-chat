@@ -43,7 +43,7 @@ const encryption = {
   state_key: '',
   origin_server_ts: 1,
   content: { algorithm: 'm.megolm.v1.aes-sha2' },
-} as IEvent;
+} as unknown as IEvent;
 
 /** An event as an encrypted room delivers it: only its relation is in the clear. */
 const encrypted = (
@@ -239,10 +239,7 @@ const readUpToReply = {
 
 const threadWithReadReply = async (keep: boolean) => {
   const f = await fixture(keep);
-  await f.deliver(
-    [encrypted(ROOT, ME, 1), encrypted(REPLY, AGENT, 2, inThread)],
-    [readUpToReply]
-  );
+  await f.deliver([encrypted(ROOT, ME, 1), encrypted(REPLY, AGENT, 2, inThread)], [readUpToReply]);
   await f.decrypt(f.find(ROOT), clear[ROOT]);
   await f.decrypt(f.find(REPLY), clear[REPLY]);
   return f;

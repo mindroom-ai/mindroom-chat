@@ -1,6 +1,8 @@
 import { MatrixEvent, type Room } from 'matrix-js-sdk';
+import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import type { TFunction } from 'i18next';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getLocalizedThreadMessagePreviewText,
   getReplyPreviewText,
@@ -26,7 +28,7 @@ const room = {
 } as unknown as Room;
 
 /** An encrypted event whose decryption failed, as the SDK leaves it. */
-const undecryptable = (eventId: string): MatrixEvent => {
+const undecryptable = async (eventId: string): Promise<MatrixEvent> => {
   const event = new MatrixEvent({
     type: 'm.room.encrypted',
     event_id: eventId,
@@ -35,13 +37,20 @@ const undecryptable = (eventId: string): MatrixEvent => {
     origin_server_ts: 1,
     content: { algorithm: 'm.megolm.v1.aes-sha2', ciphertext: 'opaque' },
   });
-  event.setClearDataForDecryptionFailure(SDK_ERROR);
+  const crypto = {
+    decryptEvent: vi
+      .fn()
+      .mockRejectedValue(
+        new DecryptionError(DecryptionFailureCode.HISTORICAL_MESSAGE_NO_KEY_BACKUP, SDK_ERROR)
+      ),
+  };
+  await event.attemptDecryption(crypto as never);
   return event;
 };
 
 describe('the preview of a message the client cannot decrypt', () => {
-  it('is a translated placeholder, not the SDK error text', () => {
-    const content = undecryptable('$failed').getContent();
+  it('is a translated placeholder, not the SDK error text', async () => {
+    const content = (await undecryptable('$failed')).getContent();
     expect(getThreadMessagePreviewText(content)).not.toMatch(/Unable to decrypt|DecryptionError/);
     expect(getLocalizedThreadMessagePreviewText(content, t)).toBe(
       'translated:sharedUi.threadPreviews.encrypted'
@@ -51,8 +60,8 @@ describe('the preview of a message the client cannot decrypt', () => {
     );
   });
 
-  it('titles a thread whose root it cannot decrypt with the placeholder', () => {
-    const root = undecryptable('$root');
+  it('titles a thread whose root it cannot decrypt with the placeholder', async () => {
+    const root = await undecryptable('$root');
     const presentation = resolveThreadPresentationSnapshot({
       room,
       threadRootId: '$root',

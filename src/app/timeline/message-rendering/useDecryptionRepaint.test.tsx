@@ -44,9 +44,7 @@ describe('useDecryptionRepaint', () => {
 
   it("repaints when the edit on a row's event decrypts", async () => {
     const reply = encrypted('$reply', 1);
-    await reply.attemptDecryption(
-      decryptsTo({ msgtype: 'm.text', body: 'Thinking...' }) as never
-    );
+    await reply.attemptDecryption(decryptsTo({ msgtype: 'm.text', body: 'Thinking...' }) as never);
     const edit = encrypted('$edit', 2, { rel_type: 'm.replace', event_id: '$reply' });
     reply.makeReplaced(edit);
     const renders: number[] = [];
