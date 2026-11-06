@@ -231,7 +231,7 @@ export function CompactRoomView({
   const [focusInside, setFocusInside] = useState(false);
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
-  const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld);
+  const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld, viewRef);
   // A filter change mounts the cards it brings back a chunk at a time.
   const stagedRootIds = useStagedCardIds(room.roomId, shownRootIds);
   const cardViewModels = useCompactThreadCardViewModels({
