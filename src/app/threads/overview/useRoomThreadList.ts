@@ -14,6 +14,9 @@ import {
   serializeThreadCacheEvents,
 } from '../../event-store/cache/eventRepository';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
+import { readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
+import { getSummaryLatestEvent } from '../../event-store/cache/cachedThreadSummary';
+import { isVisibleThreadReplyEvent } from '../../event-store/threads/threadUtils';
 
 /**
  * Per page, not per mount: returning to a room's overview must not read every
@@ -108,14 +111,23 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
     (signal: AbortSignal) => {
       const persist = engine.persist.forRoom(room);
       const saved = getSavedRootRevisions(room, persist.isCurrent);
+      const mapper = readOnlyEventMapper(room, createPreferLiveEventMapper(room, mx.getEventMapper()));
       const saveRoot = (threadId: string, rootEvent: MatrixEvent) => {
         if (signal.aborted) return;
         // Later pages can update the same SDK object, including its edits.
         const revision = getRootRevision(room, rootEvent);
         if (saved.get(threadId) === revision) return;
         saved.set(threadId, revision);
-        // A listed root is enough for the overview, not proof of cached replies.
-        persist.persistThreadEventCache(threadId, [], rootEvent);
+        // Keep the listed reply as an edit target when sync did not include its original event.
+        // One bundled reply does not prove the thread's history or tail was downloaded.
+        const latest = getSummaryLatestEvent(rootEvent.event);
+        const reply = latest && (!latest.room_id || latest.room_id === room.roomId)
+          ? mapper({ ...latest, room_id: room.roomId })
+          : undefined;
+        const replies = reply && isVisibleThreadReplyEvent(reply) && reply.threadRootId === threadId
+          ? [reply]
+          : [];
+        persist.persistThreadEventCache(threadId, replies, rootEvent);
       };
       return loadRoomThreads(
         room,
@@ -140,7 +152,7 @@ export const useRoomThreadList = (room: Room, enabled = true) => {
         signal
       );
     },
-    [engine.persist, handleThreadListProgress, room]
+    [engine.persist, handleThreadListProgress, mx, room]
   );
 
   const refresh = useCallback(async () => {
