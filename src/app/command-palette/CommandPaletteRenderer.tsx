@@ -2,7 +2,6 @@ import { useCallback, useRef, useState } from 'react';
 import { useAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import { isKeyHotkey } from 'is-hotkey';
 import { FocusScope, mergeProps, useDialog, useOverlay, usePreventScroll } from 'react-aria';
 import { Overlay, OverlayBackdrop, OverlayCenter, config } from 'folds';
 import { Modal } from '../ui/glass/GlassPrimitives';
@@ -14,9 +13,12 @@ import { commandPaletteOpenAtom } from './commandPaletteState';
 import type { CommandPaletteTab } from './commandPaletteTypes';
 import { useCommandPaletteHotkey } from './useCommandPaletteHotkey';
 import { useCommandPaletteMessages } from './useCommandPaletteMessages';
+import { matchesShortcut } from '../shortcuts/shortcuts';
 import { useCommandPalettePeople } from './useCommandPalettePeople';
 
-const matchesPaletteShortcut = isKeyHotkey('mod+k');
+// The app's own matcher, which decides ⌘ or Ctrl the way the shortcut's label does; is-hotkey
+// asks navigator.platform, which can disagree with the user agent (WebKit on Linux).
+const matchesPaletteShortcut = (event: KeyboardEvent) => matchesShortcut(event, 'palette');
 
 // A sheet at the bottom on phones: as tall as most of the small viewport, so the on-screen
 // keyboard and browser bars never push the search field out of reach. It keeps the rounded

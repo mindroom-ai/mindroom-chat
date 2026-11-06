@@ -6,7 +6,7 @@ import { CommandPaletteRenderer } from './CommandPaletteRenderer';
 import { commandPaletteOpenAtom } from './commandPaletteState';
 import type { CommandPaletteTab } from './commandPaletteTypes';
 
-const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted(() => {
+const { hotkeyState, screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted(() => {
   const state = {
     logoutAction: false,
   };
@@ -15,6 +15,10 @@ const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted
   };
 
   return {
+    hotkeyState: {
+      apple: false,
+      matcher: undefined as ((event: KeyboardEvent) => boolean) | undefined,
+    },
     screenSizeState: screenSize,
     sourceState: state,
     useCommandPaletteSourceMock: vi.fn((options?: { onLogout?: () => void }) => ({
@@ -42,13 +46,14 @@ const { screenSizeState, sourceState, useCommandPaletteSourceMock } = vi.hoisted
 });
 
 afterEach(() => {
+  hotkeyState.apple = false;
   screenSizeState.value = 'Desktop';
   sourceState.logoutAction = false;
   useCommandPaletteSourceMock.mockClear();
 });
 
 vi.mock('../lib/user-agent', () => ({
-  isMacOS: () => false,
+  isMacOS: () => hotkeyState.apple,
   isIOS: () => false,
 }));
 
@@ -70,7 +75,13 @@ vi.mock('./useCommandPalettePeople', () => ({
 }));
 
 vi.mock('./useCommandPaletteHotkey', () => ({
-  useCommandPaletteHotkey: () => undefined,
+  useCommandPaletteHotkey: (
+    _opened: boolean,
+    _setOpen: unknown,
+    matcher: (event: KeyboardEvent) => boolean
+  ) => {
+    hotkeyState.matcher = matcher;
+  },
 }));
 
 vi.mock('../lib/hooks/useScreenSize', () => ({
@@ -338,6 +349,24 @@ describe('CommandPaletteRenderer', () => {
 
     expect(store.get(commandPaletteOpenAtom)).toBeUndefined();
     expect(renderer.root.findAllByProps({ 'data-testid': 'logout-dialog' })).toHaveLength(1);
+  });
+
+  it('opens with the modifier its label names, where the user agent says Mac and the platform does not', () => {
+    renderRenderer(undefined);
+    const press = (modifier: 'metaKey' | 'ctrlKey') =>
+      hotkeyState.matcher?.({
+        key: 'k',
+        code: 'KeyK',
+        altKey: false,
+        shiftKey: false,
+        metaKey: modifier === 'metaKey',
+        ctrlKey: modifier === 'ctrlKey',
+      } as KeyboardEvent);
+    expect(press('ctrlKey')).toBe(true);
+    expect(press('metaKey')).toBe(false);
+    hotkeyState.apple = true;
+    expect(press('metaKey')).toBe(true);
+    expect(press('ctrlKey')).toBe(false);
   });
 
   it('opens on the tab the atom names, such as Messages from the sidebar', () => {
