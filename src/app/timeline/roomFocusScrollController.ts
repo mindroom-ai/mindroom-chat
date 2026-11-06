@@ -410,6 +410,24 @@ const useThreadOpeningPin = ({
     threadOpenedAtLatest,
     threadUserScrolled,
   ]);
+  // Rows measure after the commit that pinned them: one taller than its estimate (a tool call, a
+  // reasoning summary) pushes the newest reply below the view. The commit that renders the
+  // measurement pins it again, as long as the opening pin holds.
+  useLayoutEffect(() => {
+    const scrollArea = scrollRef.current;
+    if (!threadId || !scrollArea) return;
+    if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) return;
+    const pinned = shouldPinThreadToBottomOnOpen({
+      suppressOpenBottomPin: isThreadOpenBottomPinSuppressed(),
+      threadId,
+      threadLatestOpenPending,
+      threadOpenedAtLatest,
+      hasUserScrollIntent: threadUserScrolled,
+      threadInitialRenderMode,
+      threadEventCount: threadEventsLength,
+    });
+    if (pinned && requestThreadOpenBottomPin()) scrollToBottom(scrollArea, 'instant');
+  });
 };
 
 /**

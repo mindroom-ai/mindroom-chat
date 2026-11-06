@@ -6,7 +6,7 @@ import {
   type MutableRefObject,
   type SetStateAction,
 } from 'react';
-import { Direction, type MatrixClient, type Room } from 'matrix-js-sdk';
+import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { useDebounce } from '../lib/hooks/useDebounce';
 import { useDocumentFocusChange } from '../lib/hooks/useDocumentFocusChange';
 import {
@@ -71,6 +71,11 @@ type ReadReceiptControllerOptions = {
   threadEventsLength: number;
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
+  /**
+   * The newest reply the open thread renders, else its root: what reading the thread at its
+   * bottom reaches. The thread model may know newer replies that are not rendered yet.
+   */
+  threadShownEvent?: MatrixEvent;
   threadTailLoaded: boolean;
   timelineAtLiveEnd: boolean;
   unreadInfo?: { inLiveTimeline: boolean; readUptoEventId: string };
@@ -86,6 +91,7 @@ type ReadContext = Pick<
   | 'threadEventsLength'
   | 'threadId'
   | 'threadInitialRenderMode'
+  | 'threadShownEvent'
   | 'threadTailLoaded'
   | 'unreadInfo'
 >;
@@ -127,16 +133,17 @@ const readRoomOnNextFrame = (
 
 /**
  * Reads the open thread on the next frame, once its newest replies are loaded and rendered: its
- * tail is loaded, it is past its loading render, and it has a row.
+ * tail is loaded, it is past its loading render, and it has a row. It reads up to the reply it
+ * renders last (`threadShownEvent`): the tail can count as loaded while only the root is rendered.
  */
 const readThreadOnNextFrame = (context: ReadContext, stillReading: StillReading): void => {
-  const { hideActivity, mx, room, threadId } = context;
+  const { hideActivity, mx, room, threadId, threadShownEvent } = context;
   if (!threadId || !context.threadTailLoaded) return;
   if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
     if (!stillReading(roomId, threadId)) return;
-    void markThreadAsRead(mx, roomId, threadId, hideActivity);
+    void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadShownEvent);
   });
 };
 
@@ -162,6 +169,7 @@ export const useTimelineReadReceiptController = ({
   threadEventsLength,
   threadId,
   threadInitialRenderMode,
+  threadShownEvent,
   threadTailLoaded,
   timelineAtLiveEnd,
   unreadInfo,
@@ -174,6 +182,7 @@ export const useTimelineReadReceiptController = ({
     threadEventsLength,
     threadId,
     threadInitialRenderMode,
+    threadShownEvent,
     threadTailLoaded,
     unreadInfo,
   });

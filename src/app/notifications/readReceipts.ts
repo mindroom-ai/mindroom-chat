@@ -221,17 +221,29 @@ const markThreadRootAsRead = async (
 };
 
 /**
+ * What a view that shows the thread up to `shown`, its newest event there, has read: that reply,
+ * or the edit that finished it. A view that shows no reply has read none.
+ */
+const reachedReply = (shown: MatrixEvent, thread: Thread | null): MatrixEvent | undefined => {
+  if (!isConfirmedReply(shown)) return undefined;
+  return thread ? newer(shown, finishingEditOf(shown, thread)) : shown;
+};
+
+/**
  * Reads one thread: its root (`markThreadRootAsRead`), then a receipt scoped to the thread on its
  * newest reply or the edit that finished one (`latestThreadReply`), or on `seen`, an event of the
  * thread the reader saw arrive, when that is newer. When the SDK's thread model knows neither, the
- * server's latest reply is fetched. A reply the user already read gets no new receipt.
+ * server's latest reply is fetched. A reply the user already read gets no new receipt. With
+ * `shown`, the newest event of the thread the reader's view shows, the receipt reads up to it
+ * only (`reachedReply`): the thread model can know replies the view has not rendered yet.
  */
 export const markThreadAsRead = async (
   mx: MatrixClient,
   roomId: string,
   rootId: string,
   hideActivity: boolean,
-  seen?: MatrixEvent
+  seen?: MatrixEvent,
+  shown?: MatrixEvent
 ): Promise<void> => {
   // A thread still being created has nothing the server could acknowledge.
   if (!isConfirmedMatrixEventId(rootId)) return;
@@ -245,13 +257,14 @@ export const markThreadAsRead = async (
   );
   // The root first, so views that update on the thread receipt find the root read too.
   await markThreadRootAsRead(mx, room, rootId, hideActivity);
-  const target =
-    known ??
-    (await fetchThreadTail(mx, roomId, rootId)) ??
-    room
-      .getLiveTimeline()
-      .getEvents()
-      .findLast((event) => isConfirmedReply(event) && event.threadRootId === rootId);
+  const target = shown
+    ? reachedReply(shown, thread)
+    : known ??
+      (await fetchThreadTail(mx, roomId, rootId)) ??
+      room
+        .getLiveTimeline()
+        .getEvents()
+        .findLast((event) => isConfirmedReply(event) && event.threadRootId === rootId);
   const targetId = target?.getId();
   if (!target || !targetId || !isConfirmed(target)) return;
   if (thread && threadReceiptReads(thread, mx.getUserId() ?? undefined, target)) return;
