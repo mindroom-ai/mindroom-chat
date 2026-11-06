@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import { composer, expect, test, uniqueWord, type AgentStack } from '../helpers/agentStack';
 import { matrixFetch } from '../helpers/matrix';
@@ -74,12 +75,29 @@ test('the first reply in a new encrypted room streams its text with a Stop butto
 
   const unsupported = page.getByText('Unsupported message');
   const stop = page.getByRole('button', { name: 'Stop', exact: true });
+  // What the reader saw each half second, for a failure's report.
+  const samples: string[] = [];
+  const started = Date.now();
+  const sample = async () => {
+    const text = await page
+      .locator('[data-message-id]')
+      .allInnerTexts()
+      .catch(() => []);
+    samples.push(`${Date.now() - started}ms ${text.join(' | ').replace(/\s+/g, ' ').slice(-300)}`);
+  };
   try {
+    for (let index = 0; index < 12; index += 1) {
+      await sample();
+      await page.waitForTimeout(500);
+    }
     await expect(stop).toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/\bword5\b/).first()).toBeVisible({ timeout: 30_000 });
     await expect(unsupported).toHaveCount(0);
   } finally {
-    await test.info().attach('decryption console', { body: decryptLog.join('\n') });
+    writeFileSync(
+      test.info().outputPath('reader.log'),
+      `${samples.join('\n')}\n\n${decryptLog.join('\n')}\n`
+    );
   }
 
   await stop.click();
