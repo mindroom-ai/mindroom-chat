@@ -160,6 +160,37 @@ const recordReceipts = (newestKey: string) => {
     readThreadView: () => ThreadView | null;
   };
   win.receiptRecords = [];
+  const frames: unknown[] = [];
+  Object.assign(window, { landingFrames: frames });
+  const sample = () => {
+    const inner = document.querySelector<HTMLElement>('[data-thread-count]');
+    let scroll = inner?.parentElement ?? null;
+    while (scroll && !/^(auto|scroll)$/.test(getComputedStyle(scroll).overflowY)) {
+      scroll = scroll.parentElement;
+    }
+    if (inner && scroll && frames.length < 1200) {
+      frames.push({
+        t: performance.now(),
+        top: scroll.scrollTop,
+        height: scroll.scrollHeight,
+        viewport: scroll.clientHeight,
+        listHeight: inner.style.height,
+        margin: inner.style.marginTop,
+        bottom: inner.getBoundingClientRect().bottom,
+        visibility: getComputedStyle(inner).visibility,
+        rows: Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]')).map(
+          (tile) => ({
+            index: tile.dataset.index,
+            top: tile.getBoundingClientRect().top,
+            bottom: tile.getBoundingClientRect().bottom,
+            height: tile.offsetHeight,
+          })
+        ),
+      });
+    }
+    requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
   win.readThreadView = () => {
     const inner = document.querySelector<HTMLElement>('[data-thread-count]');
     let scroller = inner?.parentElement ?? null;
@@ -248,6 +279,12 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
     await page.waitForTimeout(5_000);
     // eslint-disable-next-line no-await-in-loop
     const view = await readView(page);
+    // Keep the opening geometry even when the assertion below fails.
+    // eslint-disable-next-line no-await-in-loop
+    await test.info().attach(`landing-${browserName}-${index + 1}.json`, {
+      body: JSON.stringify(await page.evaluate(() => Reflect.get(window, 'landingFrames'))),
+      contentType: 'application/json',
+    });
     if (SHOTS) {
       // eslint-disable-next-line no-await-in-loop
       await page.screenshot({
@@ -276,10 +313,6 @@ test('an unread thread opened from a link lands at its newest reply (Chromium)',
   page,
   browserName,
 }) => {
-  test.fixme(
-    true,
-    'stream-end-layout end clamp vs thread-read-reload opening pin, fix on wip/landing-end-clamp'
-  );
   test.setTimeout(300_000);
   await unreadThreadOpensAtItsNewestReply(page, browserName);
 });
@@ -287,10 +320,6 @@ test('an unread thread opened from a link lands at its newest reply (Chromium)',
 test('an unread thread opened from a link lands at its newest reply (WebKit)', async ({
   baseURL,
 }) => {
-  test.fixme(
-    true,
-    'stream-end-layout end clamp vs thread-read-reload opening pin, fix on wip/landing-end-clamp'
-  );
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await onWebKitPage({ viewport: { width: 1440, height: 900 }, baseURL }, (page) =>
@@ -301,14 +330,25 @@ test('an unread thread opened from a link lands at its newest reply (WebKit)', a
 test('an unread thread opened from a link lands at its newest reply (phone, WebKit)', async ({
   baseURL,
 }) => {
-  test.fixme(
-    true,
-    'stream-end-layout end clamp vs thread-read-reload opening pin, fix on wip/landing-end-clamp'
-  );
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   await onWebKitPage(
     { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },
     (page) => unreadThreadOpensAtItsNewestReply(page, 'phone')
   );
+});
+
+test('an unread thread opened from a link lands at its newest reply (phone, Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
+  test.setTimeout(300_000);
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL,
+  });
+  try {
+    await unreadThreadOpensAtItsNewestReply(await context.newPage(), 'chromium-phone');
+  } finally {
+    await context.close();
+  }
 });
