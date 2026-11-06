@@ -1,4 +1,4 @@
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useEffect, useLayoutEffect, useState } from 'react';
 import { useStore } from 'jotai';
 import type { MatrixClient } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -22,8 +22,11 @@ export function ClientBindAtoms({ children }: ClientBindAtomsProps) {
 
   const [seededFor, setSeededFor] = useState<MatrixClient | undefined>(undefined);
 
-  // Declared after the binding hooks, so it runs after their effects seeded the atoms.
-  useEffect(() => {
+  // A layout effect, so the pages render before the browser paints: an update from a layout
+  // effect renders again at once, and React runs the binding hooks' effects (the seeding) first.
+  // A passive effect here let the browser paint the empty first render between the splash and
+  // the shell.
+  useLayoutEffect(() => {
     setSeededFor(client);
   }, [client]);
 
