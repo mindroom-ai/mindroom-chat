@@ -148,6 +148,7 @@ const renderController = (scenario: Scenario = {}) => {
   const listeners = new Map<string, Set<Listener>>();
   const readEvent = makeEvent(READ_UP_TO, { sender: ME });
   const liveEvents = [readEvent];
+  const unfilteredSet = { getLiveTimeline: () => ({ getEvents: () => liveEvents }) };
   const room = {
     roomId: ROOM_ID,
     myUserId: ME,
@@ -159,7 +160,7 @@ const renderController = (scenario: Scenario = {}) => {
       return { id: rootId, events, timeline: events };
     },
     getEventReadUpTo: () => READ_UP_TO,
-    getUnfilteredTimelineSet: () => ({ getLiveTimeline: () => ({ getEvents: () => liveEvents }) }),
+    getUnfilteredTimelineSet: () => unfilteredSet,
     on: (name: string, listener: Listener) => {
       const named = listeners.get(name) ?? new Set<Listener>();
       named.add(listener);
@@ -241,6 +242,12 @@ const renderController = (scenario: Scenario = {}) => {
     arrive: (event: MatrixEvent, liveEvent: boolean) => {
       if (liveEvent) liveEvents.push(event);
       emit(RoomEvent.Timeline, event, room, !liveEvent, false, { liveEvent });
+    },
+    /** Sync appends `event` live to the room's own timeline or to a thread's timeline. */
+    arriveOn: (event: MatrixEvent, on: 'room' | 'thread') => {
+      if (on === 'room') liveEvents.push(event);
+      const timeline = { getTimelineSet: () => (on === 'room' ? unfilteredSet : {}) };
+      emit(RoomEvent.Timeline, event, room, false, false, { liveEvent: true, timeline });
     },
     echoAdded: (event: MatrixEvent) => emit(RoomEvent.LocalEchoUpdated, event, room),
     echoStatusChanged: (event: MatrixEvent) =>
@@ -415,6 +422,17 @@ describe('useRoomLiveRenderController, room view', () => {
 
     expect(view.ranges()).toEqual([UNCHANGED]);
     expect(view.pin()).toEqual({ count: 1, smooth: true });
+  });
+
+  it('grows the window once for a thread root that the thread timeline takes too', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const view = renderController();
+    const root = makeEvent('$root');
+
+    view.arriveOn(root, 'room');
+    view.arriveOn(root, 'thread');
+
+    expect(view.ranges()).toEqual([{ start: 0, end: 11 }, UNCHANGED]);
   });
 
   it('grows the window but leaves a reader 100 px above the bottom in place', () => {
