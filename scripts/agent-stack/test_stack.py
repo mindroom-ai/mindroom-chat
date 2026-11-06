@@ -1,4 +1,4 @@
-"""Tests of scripts/agent-stack/stack.py that need no backend: its configs, provider keys and usage summary."""
+"""Tests of scripts/agent-stack/stack.py that need no backend: its configs, provider keys, usage summary and joins."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import sqlite3
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from pathlib import Path
 from unittest import mock
 
@@ -103,6 +104,49 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(summary["calls"], 1)
         self.assertEqual(summary["usd"], 0)
         self.assertNotIn("usd", summary["models"]["default"])
+
+
+class FakeHomeserver:
+    """Joins succeed for invited accounts only; records who invited whom."""
+
+    def __init__(self, invited_rooms: set[str]) -> None:
+        self.invited_rooms = set(invited_rooms)
+        self.invites: list[tuple[str, str, str | None]] = []
+
+    def matrix(self, _homeserver: str, method: str, path: str, body: object = None, token: str | None = None):
+        assert method == "POST"
+        if path.startswith("/join/"):
+            room = urllib.parse.unquote(path.removeprefix("/join/"))
+            return (200, {"room_id": room}) if room in self.invited_rooms else (403, {"errcode": "M_FORBIDDEN"})
+        room = urllib.parse.unquote(path.removeprefix("/rooms/").removesuffix("/invite"))
+        assert isinstance(body, dict)
+        self.invites.append((room, body["user_id"], token))
+        self.invited_rooms.add(room)
+        return 200, {}
+
+
+class JoinTests(unittest.TestCase):
+    ROOMS = {"lobby": "!lobby:matrix.localhost", "space": "!space:matrix.localhost"}
+    TESTER = {"userId": TESTER, "accessToken": "tester-token"}
+
+    def join(self, server: FakeHomeserver, answers: dict) -> bool:
+        with mock.patch.object(stack, "matrix", server.matrix), mock.patch.object(stack, "log"):
+            return stack.join_rooms("http://hs", self.ROOMS, self.TESTER, "router-token", answers)
+
+    def test_the_router_invites_to_a_space_whose_invite_the_backend_skipped(self) -> None:
+        # The lobby's invite arrived, the space's never will: the backend's member list of the space failed.
+        server = FakeHomeserver({self.ROOMS["lobby"]})
+        answers: dict[str, str] = {}
+        self.assertTrue(self.join(server, answers))
+        self.assertEqual(server.invites, [(self.ROOMS["space"], TESTER, "router-token")])
+        self.assertEqual(answers, {"lobby": "200", "space": "200"})
+
+    def test_nothing_is_invited_while_the_backend_has_not_invited_to_the_lobby(self) -> None:
+        server = FakeHomeserver(set())
+        answers: dict[str, str] = {}
+        self.assertFalse(self.join(server, answers))
+        self.assertEqual(server.invites, [])
+        self.assertEqual(answers, {"lobby": "403 M_FORBIDDEN"})
 
 
 class CallsTests(unittest.TestCase):
