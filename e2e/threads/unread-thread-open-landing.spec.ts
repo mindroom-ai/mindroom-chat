@@ -21,7 +21,8 @@ import { onWebKitPage } from '../helpers/webkit';
 // their first paint, and the newest reply mentions the reader. The thread must land at its newest
 // reply and stay there, and a thread receipt may name the newest reply only while it is in view:
 // the server then clears the mention. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
-// names Playwright's WebKit, in WebKit, against the disposable homeserver.
+// names Playwright's WebKit, in WebKit on a desktop and a phone screen, against the disposable
+// homeserver.
 const PASSWORD = 'unread-thread-open-landing-password';
 const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
@@ -276,5 +277,16 @@ test('an unread thread opened from a link lands at its newest reply (WebKit)', a
   test.setTimeout(300_000);
   await onWebKitPage({ viewport: { width: 1440, height: 900 }, baseURL }, (page) =>
     unreadThreadOpensAtItsNewestReply(page, 'webkit')
+  );
+});
+
+test('an unread thread opened from a link lands at its newest reply (phone, WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(300_000);
+  await onWebKitPage(
+    { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },
+    (page) => unreadThreadOpensAtItsNewestReply(page, 'phone')
   );
 });
