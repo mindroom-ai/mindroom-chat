@@ -404,10 +404,14 @@ const CHECKS: [string, (open: Open, engine: string, info: TestInfo) => Promise<v
   ['a moderator at the room’s pin level gets the pin actions, and loses them live', moderatorPins],
 ];
 
-const opener = (browser: Browser, baseURL: string | undefined) => {
+const opener = (
+  browser: Browser,
+  baseURL: string | undefined,
+  extra?: BrowserContextOptions
+) => {
   const contexts: BrowserContext[] = [];
   const open: Open = async (options) => {
-    const context = await browser.newContext({ ...options, baseURL });
+    const context = await browser.newContext({ ...options, ...extra, baseURL });
     contexts.push(context);
     return context.newPage();
   };
@@ -431,7 +435,9 @@ for (const [title, check] of CHECKS) {
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     const browser = await launchWebKit();
     try {
-      await check(opener(browser, baseURL).open, 'webkit', testInfo);
+      // Playwright's WebKit cannot route what the app's service worker fetches, and the writes
+      // must pass the route that holds them.
+      await check(opener(browser, baseURL, { serviceWorkers: 'block' }).open, 'webkit', testInfo);
     } finally {
       await browser.close();
     }
