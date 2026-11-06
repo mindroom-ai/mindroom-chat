@@ -17,8 +17,10 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // finished while the reader was in another room. The server counted the finished reply as unread
 // (the finished-stream rule), but the reader's sidebar showed the room read; a new session of the
 // same account, which could not decrypt the room yet, showed one unread per streaming edit (23).
-// The room's badge must show what the server counts, in the session that read half-way and in
-// a new one.
+// The room's badge must show the finished reply as unread in the session that read half-way, and
+// a new session must not count each edit it cannot decrypt. The server counts an encrypted event
+// whose push rules it cannot read (an agent's notice, such as the thread's title) as a message,
+// so a badge can be below the server's count, never above it.
 test.describe.configure({ timeout: 420_000 });
 
 type Counts = Awaited<ReturnType<typeof serverUnreadCounts>>;
@@ -37,8 +39,8 @@ const badgeCount = async (page: Page, roomId: string): Promise<number> => {
   return match ? Number(match[1]) : 0;
 };
 
-/** Waits until the badge shows the server's count, which must be more than 0. */
-const expectBadgeMatchesServer = async (
+/** Waits until the badge shows unread messages, no more than the server counts. */
+const expectBadgeShowsUnread = async (
   page: Page,
   stack: AgentStack,
   roomId: string,
@@ -51,12 +53,12 @@ const expectBadgeMatchesServer = async (
         const server = await serverUnreadCounts(stack, roomId);
         const shown = await badgeCount(page, roomId);
         log.push(`${who}: badge ${shown}, server ${JSON.stringify(server)}`);
-        return shown > 0 && shown === total(server);
+        return shown > 0 && shown <= total(server);
       },
       {
         timeout: 60_000,
         intervals: [1000],
-        message: `${who}'s badge shows the server's unread count`,
+        message: `${who}'s badge shows the room unread, at most the server's count`,
       }
     )
     .toBe(true);
@@ -125,7 +127,7 @@ const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[]) =
   return roomId;
 };
 
-test('a reply that finishes in an encrypted room while the reader is away shows the server count', async ({
+test('a reply that finishes in an encrypted room while the reader is away leaves the room unread', async ({
   page,
   stack,
   browser,
@@ -135,12 +137,12 @@ test('a reply that finishes in an encrypted room while the reader is away shows 
   let roomId: string | undefined;
   try {
     roomId = await halfReadThenLeave(page, stack, log);
-    await expectBadgeMatchesServer(page, stack, roomId, log, 'reader');
+    await expectBadgeShowsUnread(page, stack, roomId, log, 'reader');
 
     // A new session of the same account has no keys for the room yet.
     const fresh = await openNewSession(browser, stack, { baseURL });
     try {
-      await expectBadgeMatchesServer(fresh, stack, roomId, log, 'new session');
+      await expectBadgeShowsUnread(fresh, stack, roomId, log, 'new session');
     } finally {
       await fresh.context().close();
     }
@@ -150,7 +152,7 @@ test('a reply that finishes in an encrypted room while the reader is away shows 
   }
 });
 
-test('a reply that finishes in an encrypted room while the reader is away shows the server count (WebKit)', async ({
+test('a reply that finishes in an encrypted room while the reader is away leaves the room unread (WebKit)', async ({
   stack,
   baseURL,
 }) => {
@@ -160,7 +162,7 @@ test('a reply that finishes in an encrypted room while the reader is away shows 
   try {
     const page = await openNewSession(webkit, stack, { baseURL });
     const roomId = await halfReadThenLeave(page, stack, log);
-    await expectBadgeMatchesServer(page, stack, roomId, log, 'reader');
+    await expectBadgeShowsUnread(page, stack, roomId, log, 'reader');
   } finally {
     writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
     await webkit.close();
