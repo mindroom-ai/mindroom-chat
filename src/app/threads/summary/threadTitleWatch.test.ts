@@ -82,6 +82,7 @@ const titleState = (summary = TITLE): IEvent =>
     sender: agentId,
     state_key: rootId,
     origin_server_ts: 120,
+    unsigned: {},
     content: {
       version: 1,
       summary,
@@ -99,6 +100,7 @@ const encryption = (): IEvent =>
     sender: personId,
     state_key: '',
     origin_server_ts: 0,
+    unsigned: {},
     content: { algorithm: 'm.megolm.v1.aes-sha2' },
   } as IEvent);
 const membership = (userId: string): IEvent =>

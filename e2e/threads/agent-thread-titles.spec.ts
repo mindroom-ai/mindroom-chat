@@ -187,6 +187,7 @@ test('a second device keeps the titles it learned, without loading the threads a
 const reloadKeepsReplyPreview = async (page: Page, stack: AgentStack, engine: string) => {
   const elsewhere = await createPrivateRoom(stack.homeserver, stack.tester.accessToken, {
     name: `Elsewhere ${uniqueWord('room')}`,
+    topic: 'A room without agents',
   });
   await page.goto(`/home/${encodeURIComponent(elsewhere)}`, { timeout: 180_000 });
   await expect(page.getByRole('textbox', { name: 'Send a message...' })).toBeVisible({
@@ -254,6 +255,7 @@ const threadRelation = (rootId: string, lastId: string) => ({
 const seedBoard = async (stack: AgentStack, titlesInState: boolean) => {
   const roomId = await createPrivateRoom(stack.homeserver, stack.tester.accessToken, {
     name: `Board ${uniqueWord('board')}`,
+    topic: 'Busy board',
   });
   const send = (content: Record<string, unknown>) =>
     sendRoomMessage(stack.homeserver, stack.tester.accessToken, roomId, content);
@@ -335,13 +337,21 @@ const newDeviceKnowsTitlesFromState = async (
         timeout: 60_000,
       })
       .toBe(BOARD_THREADS);
-    await expect
-      .poll(() => countTitledCards(device, titles), {
-        timeout: 20_000,
-        message: 'every titled thread shows its title',
-      })
-      .toBe(titles.size);
-    await device.screenshot({ path: test.info().outputPath(`state-titles-${engine}.png`) });
+    try {
+      await expect
+        .poll(() => countTitledCards(device, titles), {
+          timeout: 20_000,
+          message: 'every titled thread shows its title',
+        })
+        .toBe(titles.size);
+    } finally {
+      // The oldest threads, whose titles are furthest back in the room's history.
+      await device
+        .locator('button[data-thread-root-id][data-attention-state]')
+        .last()
+        .scrollIntoViewIfNeeded();
+      await device.screenshot({ path: test.info().outputPath(`state-titles-${engine}.png`) });
+    }
   } finally {
     await device.context().close();
   }
