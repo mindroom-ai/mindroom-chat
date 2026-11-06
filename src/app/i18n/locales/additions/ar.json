@@ -476,7 +476,8 @@
   },
   "composer": {
     "emoji": "رمز تعبيري",
-    "cancelReply": "إلغاء الرد"
+    "cancelReply": "إلغاء الرد",
+    "moreActions": "مزيد من الإجراءات"
   },
   "commandPalette": {
     "people": "الأشخاص",

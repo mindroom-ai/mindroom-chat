@@ -441,7 +441,8 @@
   },
   "composer": {
     "emoji": "絵文字",
-    "cancelReply": "返信をキャンセル"
+    "cancelReply": "返信をキャンセル",
+    "moreActions": "その他の操作"
   },
   "commandPalette": {
     "people": "人物",

@@ -462,7 +462,8 @@
   },
   "composer": {
     "emoji": "Эмодзи",
-    "cancelReply": "Отменить ответ"
+    "cancelReply": "Отменить ответ",
+    "moreActions": "Другие действия"
   },
   "commandPalette": {
     "people": "Люди",

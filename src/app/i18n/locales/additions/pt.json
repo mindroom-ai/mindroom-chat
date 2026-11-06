@@ -455,7 +455,8 @@
   },
   "composer": {
     "emoji": "Emoji",
-    "cancelReply": "Cancelar resposta"
+    "cancelReply": "Cancelar resposta",
+    "moreActions": "Mais ações"
   },
   "commandPalette": {
     "people": "Pessoas",

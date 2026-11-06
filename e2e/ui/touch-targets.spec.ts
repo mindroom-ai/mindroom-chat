@@ -17,8 +17,8 @@ import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/m
 // and 44 px wide where the next control is far enough, else up to the middle of the gap, so two
 // controls never share a point. Measured with elementFromPoint, which hit-tests like a tap: the
 // room header buttons, the composer buttons, the thread banner buttons and "[+all]". Their look
-// does not change. A tapped glass button (the composer's Formatting) also keeps no hover tint or
-// hover scale afterwards, while a desktop mouse still gets both. Checked in Chromium and, when
+// does not change. A tapped glass button (the composer's More actions) also keeps no hover tint or
+// hover scale afterwards, while a desktop mouse still gets both (on Formatting). Checked in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // Set TOUCH_TARGET_SHOTS=<directory> to save the controls, and a mock of the composer and banner
 // with 44 px between button centres (the visible change a full 44 px width would need).
@@ -41,7 +41,8 @@ const REPLIES = [
   'Security review signs off on Thursday once the token rotation lands.',
   'The API page needs one more pass before the docs ship; two examples still use the old field.',
 ] as const;
-const COMPOSER = ['Attach files', 'Record voice message', 'Formatting', 'Emoji', 'Send message'];
+// A phone composer keeps voice and Send; Attach, Formatting and Emoji are in More actions' menu.
+const COMPOSER = ['More actions', 'Record voice message', 'Send message'];
 const HEADER = ['Compact view', 'Show Members', 'More Options'];
 const BANNER = ['Thread options', 'Pin thread', 'Resolve'];
 
@@ -254,37 +255,39 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await shot(page, page.getByRole('banner'), `header-${engine}-phone`);
   await shot(page, composer[0]!.locator('..').locator('..'), `composer-${engine}-phone`);
 
-  // A tapped Formatting button rests like Attach once its toolbar is closed again.
-  const formatting = button(page, 'Formatting');
-  const attach = button(page, 'Attach files');
-  const rest = await surface(attach);
-  // The formatting toolbar moves the composer, so each tap finds the button again.
-  for (const pressed of ['true', 'false']) {
+  // A tapped More actions button rests like the voice button once its menu is closed again.
+  const more = button(page, 'More actions');
+  const rest = await surface(button(page, 'Record voice message'));
+  for (const expanded of ['true', 'false']) {
     // eslint-disable-next-line no-await-in-loop
-    const at = await formatting.boundingBox();
-    if (!at) throw new Error('no Formatting button');
+    const at = await more.boundingBox();
+    if (!at) throw new Error('no More actions button');
     // eslint-disable-next-line no-await-in-loop
     await page.touchscreen.tap(at.x + at.width / 2, at.y + at.height / 2);
     // eslint-disable-next-line no-await-in-loop
-    await expect(formatting).toHaveAttribute('aria-pressed', pressed);
+    await expect(more).toHaveAttribute('aria-expanded', expanded);
   }
   await page.waitForTimeout(400);
-  const tapped = await surface(formatting);
+  const tapped = await surface(more);
   console.log(
-    `${engine} Formatting after two taps: ${JSON.stringify(tapped)}, Attach ${JSON.stringify(rest)}`
+    `${engine} More actions after two taps: ${JSON.stringify(tapped)}, voice ${JSON.stringify(
+      rest
+    )}`
   );
-  await shot(page, formatting, `formatting-after-taps-${engine}-phone`);
-  expect.soft(tapped.fill, `${engine}: Formatting keeps no hover tint after a tap`).toBe(rest.fill);
+  await shot(page, more, `more-actions-after-taps-${engine}-phone`);
   expect
-    .soft(tapped.scale, `${engine}: Formatting keeps no hover scale after a tap`)
+    .soft(tapped.fill, `${engine}: More actions keeps no hover tint after a tap`)
+    .toBe(rest.fill);
+  expect
+    .soft(tapped.scale, `${engine}: More actions keeps no hover scale after a tap`)
     .toBe(rest.scale);
 
   await expectRow(
     HEADER.map((name) => button(page.getByRole('banner'), name)),
     `${engine} room header`
   );
-  await expectRow(composer.slice(0, 3), `${engine} composer start`);
-  await expectRow(composer.slice(3), `${engine} composer end`);
+  await expectRow(composer.slice(0, 2), `${engine} composer start`);
+  await expectRow(composer.slice(2), `${engine} composer end`);
   await expectRow([all], `${engine} [+all] in the room`);
 
   const banner = await openThread(page, world);
@@ -299,7 +302,7 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     // What a full 44 px width would look like: 12 px between the buttons instead of 4.
     await page.addStyleTag({
       content:
-        '[data-thread-context-banner] button + button, [aria-label="Formatting"], [aria-label="Record voice message"], [aria-label="Send message"] { margin-inline-start: 8px !important; }',
+        '[data-thread-context-banner] button + button, [aria-label="Record voice message"] { margin-inline-start: 8px !important; }',
     });
     await shot(page, banner, `mock-44-pitch-banner-${engine}-phone`);
     await shot(

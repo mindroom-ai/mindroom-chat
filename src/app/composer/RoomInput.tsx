@@ -61,6 +61,8 @@ import { ThreadModelPicker } from '../models/ModelPicker';
 import { hasMatchingReplyDraft } from './roomInputSendSession';
 import { IconTooltip } from '../ui/IconTooltip';
 import { ComposerFormattingToolbar } from './ComposerFormattingToolbar';
+import { ComposerActionsMenu } from './ComposerActionsMenu';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { composeTextMessage } from './composeTextMessage';
 import {
   type ActingCommand,
@@ -231,6 +233,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
     const [formattingOpen, setFormattingOpen] = useState(false);
+    // A phone row keeps voice and Send beside the text; Attach, Formatting and Emoji move into a
+    // "More actions" menu, so the text gets their width.
+    const phone = useScreenSizeContext() === ScreenSize.Mobile;
     // Phones reach stickers through the emoji board's tabs instead of a button of their own.
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
@@ -486,10 +491,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       },
       [clearReplyDraft, imagePackRooms, mx, replyDraft, roomId, threadId, threadingEnabled]
     );
-    const openBoard = (tab: EmojiBoardTab, event: React.MouseEvent<HTMLButtonElement>) => {
+    const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
-      setEmojiAnchor(event.currentTarget.getBoundingClientRect());
+      setEmojiAnchor(anchor);
     };
+    const toggleFormatting = () => setFormattingOpen((open) => !open);
 
     const sendLabel = t('composer.sendMessage');
     const emojiLabel = t('composer.emoji');
@@ -592,34 +598,50 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
             </>
           }
           before={
-            <>
-              <ComposerIconButton
-                label={attachLabel}
-                icon={Icons.PlusCircle}
-                onPress={attachments.pickFiles}
-              />
-              {voice.microphone}
-              <ComposerIconButton
-                label={t('composer.formatting')}
-                icon={Icons.Text}
-                pressed={formattingOpen}
-                onPress={() => setFormattingOpen((open) => !open)}
-              />
-            </>
+            phone ? (
+              <>
+                <ComposerActionsMenu
+                  formattingOpen={formattingOpen}
+                  onAttach={attachments.pickFiles}
+                  onToggleFormatting={toggleFormatting}
+                  onEmoji={(anchor) => openBoard('Emoji', anchor)}
+                />
+                {voice.microphone}
+              </>
+            ) : (
+              <>
+                <ComposerIconButton
+                  label={attachLabel}
+                  icon={Icons.PlusCircle}
+                  onPress={attachments.pickFiles}
+                />
+                {voice.microphone}
+                <ComposerIconButton
+                  label={t('composer.formatting')}
+                  icon={Icons.Text}
+                  pressed={formattingOpen}
+                  onPress={toggleFormatting}
+                />
+              </>
+            )
           }
           bottom={formattingOpen && <ComposerFormattingToolbar />}
           after={
             <>
-              <ComposerIconButton
-                label={emojiLabel}
-                icon={Icons.Smile}
-                pressed={boardOpen && boardTab === 'Emoji'}
-                onPress={(event) => openBoard('Emoji', event)}
-              />
+              {!phone && (
+                <ComposerIconButton
+                  label={emojiLabel}
+                  icon={Icons.Smile}
+                  pressed={boardOpen && boardTab === 'Emoji'}
+                  onPress={(event) =>
+                    openBoard('Emoji', event.currentTarget.getBoundingClientRect())
+                  }
+                />
+              )}
               <PopOut
                 anchor={emojiAnchor}
                 position="Top"
-                align="End"
+                align={phone ? 'Start' : 'End'}
                 offset={16}
                 content={
                   <EmojiBoard

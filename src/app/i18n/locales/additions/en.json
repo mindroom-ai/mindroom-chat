@@ -448,7 +448,8 @@
   },
   "composer": {
     "emoji": "Emoji",
-    "cancelReply": "Cancel reply"
+    "cancelReply": "Cancel reply",
+    "moreActions": "More actions"
   },
   "commandPalette": {
     "people": "People",

@@ -111,27 +111,17 @@ const button = (scope: Page | Locator, name: string) =>
 
 const textBox = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
 
-/** The composer's card: the text box's nearest ancestor that also holds Send. */
-const composerCard = (page: Page) =>
-  page
-    .locator('div')
-    .filter({ has: textBox(page) })
-    .filter({ has: button(page, 'Send message') })
-    .last();
-
+/** The bottom of the screen, where the composer is, reaching up to `extra` when it is given. */
 const shot = async (page: Page, name: string, extra?: Locator) => {
   if (!SHOTS) return;
   mkdirSync(SHOTS, { recursive: true });
-  const boxes = (
-    await Promise.all([composerCard(page), ...(extra ? [extra] : [])].map((l) => l.boundingBox()))
-  ).filter((box) => box !== null);
   const viewport = page.viewportSize();
-  if (!boxes.length || !viewport) return;
-  const top = Math.max(0, Math.min(...boxes.map((box) => box.y)) - 12);
-  const bottom = Math.min(viewport.height, Math.max(...boxes.map((box) => box.y + box.height)) + 12);
+  if (!viewport) return;
+  const box = extra ? await extra.boundingBox() : null;
+  const top = Math.max(0, Math.min(viewport.height - 240, (box?.y ?? viewport.height) - 12));
   await page.screenshot({
     path: path.join(SHOTS, `${name}.png`),
-    clip: { x: 0, y: top, width: viewport.width, height: bottom - top },
+    clip: { x: 0, y: top, width: viewport.width, height: viewport.height - top },
   });
 };
 
@@ -199,6 +189,11 @@ const openMenu = async (page: Page) => {
 
 const checkPhone = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
+  // Shot before any assertion, so a run without the menu still records how the row looks.
+  await shot(page, `phone-${engine}-light`);
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.waitForTimeout(300);
+  await shot(page, `phone-${engine}-dark`);
   const row = await composerRow(page);
   console.log(`${engine} phone row: ${JSON.stringify(row)}`);
   expect(row.names, `${engine}: the phone row is More actions, voice, text, Send`).toEqual(
@@ -210,10 +205,6 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
     // eslint-disable-next-line no-await-in-loop
     await expectTall(button(page, name), `${engine} ${name}`);
   }
-  await shot(page, `phone-${engine}-light`);
-  await page.emulateMedia({ colorScheme: 'dark' });
-  await page.waitForTimeout(300);
-  await shot(page, `phone-${engine}-dark`);
 
   // The menu: three entries, each 44 px tall; Escape closes it and focus is on More actions.
   const more = button(page, 'More actions');

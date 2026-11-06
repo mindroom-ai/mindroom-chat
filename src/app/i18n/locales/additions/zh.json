@@ -441,7 +441,8 @@
   },
   "composer": {
     "emoji": "表情符号",
-    "cancelReply": "取消回复"
+    "cancelReply": "取消回复",
+    "moreActions": "更多操作"
   },
   "commandPalette": {
     "people": "人员",

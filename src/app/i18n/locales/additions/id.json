@@ -441,7 +441,8 @@
   },
   "composer": {
     "emoji": "Emoji",
-    "cancelReply": "Batalkan balasan"
+    "cancelReply": "Batalkan balasan",
+    "moreActions": "Tindakan lainnya"
   },
   "commandPalette": {
     "people": "Orang",
