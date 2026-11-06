@@ -182,6 +182,8 @@ function HistoryStackRecorder() {
 }
 
 export const createRouter = (clientConfig: ClientConfig) => {
+  // Only these fields: ClientConfigLoader keeps a refreshed configuration that changes them for the
+  // next load, and applies any other change to the mounted router's pages at once.
   const { hashRouter, sidebar } = clientConfig;
   // A deployment that turns Local MindRoom off has no pairing page. /connect still needs its own
   // route, which sends it to `/`: without one it would open as a space named "connect".

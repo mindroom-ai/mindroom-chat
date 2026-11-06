@@ -57,6 +57,20 @@ const writeCachedClientConfig = (basePath: string, config: ClientConfig) => {
   }
 };
 
+/**
+ * What the router is built from (`createRouter` in src/app/shell/Router.tsx): a refreshed
+ * configuration that changes it needs a new router, which would drop the page's state, so it waits
+ * for the next load.
+ */
+const routing = (config: ClientConfig): string =>
+  JSON.stringify([config.hashRouter ?? null, config.sidebar?.showMindRoom ?? null]);
+
+/** The configuration to render once a fresh copy arrived during a page load already rendering one. */
+const refreshed = (shown: ClientConfig, fresh: ClientConfig): ClientConfig => {
+  if (JSON.stringify(shown) === JSON.stringify(fresh)) return shown;
+  return routing(shown) === routing(fresh) ? fresh : shown;
+};
+
 const isAuthenticationResponse = (response: Response): boolean =>
   response.type === 'opaqueredirect' ||
   response.status === 0 ||
@@ -139,7 +153,8 @@ type ClientConfigLoaderProps = {
 
 /**
  * Loads the deployment's `config.json` before rendering `children`. A cached copy renders at once
- * (web only) while a fresh fetch runs in the background; only a sign-in failure interrupts it.
+ * (web only) while a fresh fetch runs in the background; only a sign-in failure interrupts it. A
+ * fresh copy that differs replaces the cached one on screen, unless it routes differently.
  */
 export function ClientConfigLoader({ children, error, fallback }: ClientConfigLoaderProps) {
   const [state, setState] = useState<LoaderState>(() => {
@@ -156,8 +171,17 @@ export function ClientConfigLoader({ children, error, fallback }: ClientConfigLo
     if (!background) setState({ status: 'loading' });
     fetchClientConfig().then(
       (config) => {
-        if (request !== requestRef.current || background) return;
-        setState({ status: 'ready', config });
+        if (request !== requestRef.current) return;
+        if (!background) {
+          setState({ status: 'ready', config });
+          return;
+        }
+        // Operator switches (canvases off, the auto-open allowlist, error reports) apply on this load.
+        setState((current) => {
+          if (current.status !== 'ready') return current;
+          const shown = refreshed(current.config, config);
+          return shown === current.config ? current : { status: 'ready', config: shown };
+        });
       },
       (loadError: unknown) => {
         if (request !== requestRef.current) return;

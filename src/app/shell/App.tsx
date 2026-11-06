@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useMemo } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { Provider as JotaiProvider } from 'jotai';
 import { RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -43,8 +43,9 @@ export function AppTheme({ children }: { children: ReactNode }) {
 
 function AppRouter({ clientConfig }: { clientConfig: ClientConfig }) {
   const screenSize = useScreenSize();
-  // The router is created once per configuration; screen size changes reach pages by context.
-  const router = useMemo(() => createRouter(clientConfig), [clientConfig]);
+  // One router while the app is mounted: a refreshed configuration replaces this one only when it
+  // routes the same (ClientConfigLoader), so pages keep their state. Screen size reaches pages by context.
+  const [router] = useState(() => createRouter(clientConfig));
   // Error reports, when the configuration names a collector, follow the router's pages.
   useErrorReporting(clientConfig, router);
   return (
