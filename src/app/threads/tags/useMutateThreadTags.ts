@@ -1,22 +1,16 @@
 import { useCallback, useRef, useState } from 'react';
-import { EventTimeline, Room } from 'matrix-js-sdk';
+import { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import {
-  buildAddTagContent,
   buildPerTagEventContent,
   buildPerTagStateKey,
-  buildRemoveTagContent,
   MINDROOM_THREAD_TAGS_EVENT,
+  normalizeTagName,
   RESOLVED_TAG,
-  type ThreadTagsContent,
 } from '../../event-store/threads/threadTags';
-import { getValidThreadRootEvent } from '../../event-store/threads/threadUtils';
-import { clearPendingThreadTagsContent, setPendingThreadTagsContent } from './threadTagPending';
-import { buildThreadTagSnapshotMap } from './threadTagSnapshots';
+import { clearPendingThreadTag, setPendingThreadTag } from './threadTagPending';
 import { getResolvableThreadRootEvent } from '../../event-store/threads/threadResolvableRoot';
 import { isThreadPinned } from '../../event-store/threads/threadPinning';
-
-type ThreadRootEventResolver = typeof getValidThreadRootEvent;
 
 export type UseMutateThreadTagsResult = {
   addTag: (threadRootId: string, tagName: string) => Promise<void>;
@@ -28,29 +22,11 @@ export type UseMutateThreadTagsResult = {
 };
 
 /**
- * Read live state directly from the room timeline.
- * Uses EventTimeline.FORWARDS (not the string 'forward') per ISSUE-047 fix.
- */
-const readLiveTagsContent = (room: Room, threadRootId: string) => {
-  const stateEvents = room
-    .getLiveTimeline()
-    .getState(EventTimeline.FORWARDS)
-    ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT);
-
-  if (!Array.isArray(stateEvents)) {
-    return { tags: {} };
-  }
-
-  return buildThreadTagSnapshotMap(stateEvents).get(threadRootId)?.content ?? { tags: {} };
-};
-
-/**
  * Write hook for thread tag mutations.
  *
- * All write operations:
- * 1. Re-read live state from EventTimeline.FORWARDS (not cache)
- * 2. Build the next aggregated thread content plus the canonical per-tag write
- * 3. Send via mx.sendStateEvent with a JSON-array per-tag state key
+ * Each tag is its own state event (a JSON-array per-tag state key), so a write sets or removes
+ * one tag and leaves the others, including ones another person sets at the same moment. The
+ * write shows at once as a pending tag over the live tags until room state shows it.
  */
 export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const mx = useMatrixClient();
@@ -61,58 +37,42 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   const pendingRef = useRef(new Set<string>());
 
   const sendUpdate = useCallback(
-    async (
-      threadRootId: string,
-      buildPlan: (
-        existing: ThreadTagsContent,
-        validThreadRootId: string,
-        userId: string,
-        setAt: string
-      ) => {
-        next: ThreadTagsContent;
-        stateKey: string;
-        eventContent: Record<string, unknown>;
-      },
-      resolveThreadRootEvent: ThreadRootEventResolver = getResolvableThreadRootEvent
-    ) => {
+    async (threadRootId: string, tagName: string, present: boolean) => {
       if (pendingRef.current.has(threadRootId)) return;
       pendingRef.current.add(threadRootId);
       setUpdatingThreadRootIds(new Set(pendingRef.current));
       setError(null);
+      let pending: [rootId: string, tag: string] | undefined;
       try {
         const userId = mx.getSafeUserId();
-        const validThreadRootId = resolveThreadRootEvent(room, threadRootId)?.getId();
+        const validThreadRootId = getResolvableThreadRootEvent(room, threadRootId)?.getId();
         if (!validThreadRootId) {
           throw new Error('Thread tags are only available for known thread roots.');
         }
 
-        const current = readLiveTagsContent(room, validThreadRootId);
-        const setAt = new Date().toISOString();
-        const { next, stateKey, eventContent } = buildPlan(
-          current,
-          validThreadRootId,
-          userId,
-          setAt
-        );
+        const stateKey = buildPerTagStateKey(validThreadRootId, tagName);
         if (
           stateKey === buildPerTagStateKey(validThreadRootId, RESOLVED_TAG) &&
           isThreadPinned(room, validThreadRootId)
         ) {
           throw new Error('Pinned threads cannot be resolved.');
         }
-        setPendingThreadTagsContent(room.roomId, validThreadRootId, next);
+        const setAt = new Date().toISOString();
+        pending = [validThreadRootId, normalizeTagName(tagName)];
+        setPendingThreadTag(
+          room.roomId,
+          ...pending,
+          present ? { set_by: userId, set_at: setAt } : null
+        );
         await mx.sendStateEvent(
           room.roomId,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           MINDROOM_THREAD_TAGS_EVENT as any,
-          eventContent,
+          present ? buildPerTagEventContent(userId, undefined, undefined, setAt) : {},
           stateKey
         );
       } catch (err) {
-        const validThreadRootId = resolveThreadRootEvent(room, threadRootId)?.getId();
-        if (validThreadRootId) {
-          clearPendingThreadTagsContent(room.roomId, validThreadRootId);
-        }
+        if (pending) clearPendingThreadTag(room.roomId, ...pending);
         setError(err instanceof Error ? err : new Error(String(err)));
       } finally {
         pendingRef.current.delete(threadRootId);
@@ -123,40 +83,18 @@ export const useMutateThreadTags = (room: Room): UseMutateThreadTagsResult => {
   );
 
   const addTag = useCallback(
-    (threadRootId: string, tagName: string) =>
-      sendUpdate(threadRootId, (existing, validThreadRootId, userId, setAt) => ({
-        next: buildAddTagContent(existing, tagName, userId, setAt),
-        stateKey: buildPerTagStateKey(validThreadRootId, tagName),
-        eventContent: buildPerTagEventContent(userId, undefined, undefined, setAt),
-      })),
+    (threadRootId: string, tagName: string) => sendUpdate(threadRootId, tagName, true),
     [sendUpdate]
   );
 
   const removeTag = useCallback(
-    (threadRootId: string, tagName: string) =>
-      sendUpdate(threadRootId, (existing, validThreadRootId) => ({
-        next: buildRemoveTagContent(existing, tagName),
-        stateKey: buildPerTagStateKey(validThreadRootId, tagName),
-        eventContent: {},
-      })),
+    (threadRootId: string, tagName: string) => sendUpdate(threadRootId, tagName, false),
     [sendUpdate]
   );
 
   const setResolved = useCallback(
     (threadRootId: string, resolved: boolean) =>
-      sendUpdate(
-        threadRootId,
-        (existing, validThreadRootId, userId, setAt) => ({
-          next: resolved
-            ? buildAddTagContent(existing, RESOLVED_TAG, userId, setAt)
-            : buildRemoveTagContent(existing, RESOLVED_TAG),
-          stateKey: buildPerTagStateKey(validThreadRootId, RESOLVED_TAG),
-          eventContent: resolved
-            ? buildPerTagEventContent(userId, undefined, undefined, setAt)
-            : {},
-        }),
-        getResolvableThreadRootEvent
-      ),
+      sendUpdate(threadRootId, RESOLVED_TAG, resolved),
     [sendUpdate]
   );
 

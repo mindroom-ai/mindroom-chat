@@ -5,8 +5,16 @@ import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { EventTimeline } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
-import { getPendingThreadTagsContent, resetPendingThreadTagsForTests } from './threadTagPending';
-import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
+import {
+  getPendingThreadTagRootIds,
+  resetPendingThreadTagsForTests,
+  withPendingThreadTags,
+} from './threadTagPending';
+import {
+  aggregateThreadTagEvents,
+  buildPerTagStateKey,
+  MINDROOM_THREAD_TAGS_EVENT,
+} from '../../event-store/threads/threadTags';
 import { getValidThreadRootEvent } from '../../event-store/threads/threadUtils';
 import { useMutateThreadTags } from './useMutateThreadTags';
 
@@ -115,6 +123,18 @@ const makeRoom = (events: MatrixEvent[] = [], eventsById: Record<string, MatrixE
     }),
   } as unknown as Room);
 
+/** The thread's tags as shown: live tags with the pending writes on top; undefined without any. */
+const pendingTags = (room: Room, threadRootId: string) => {
+  if (!getPendingThreadTagRootIds(room.roomId).includes(threadRootId)) return undefined;
+  const events =
+    room
+      .getLiveTimeline()
+      .getState(EventTimeline.FORWARDS)
+      ?.getStateEvents(MINDROOM_THREAD_TAGS_EVENT) ?? [];
+  const live = aggregateThreadTagEvents(events).get(threadRootId) ?? { tags: {} };
+  return withPendingThreadTags(room.roomId, threadRootId, live);
+};
+
 describe('useMutateThreadTags', () => {
   const sendStateEvent = vi.fn();
 
@@ -170,7 +190,7 @@ describe('useMutateThreadTags', () => {
         else await snapshot.addTag('$root', 'resolved');
       });
       expect(sendStateEvent).not.toHaveBeenCalled();
-      expect(getPendingThreadTagsContent(room.roomId, '$root')).toBeUndefined();
+      expect(pendingTags(room, '$root')).toBeUndefined();
       expect(snapshot.error).toBeInstanceOf(Error);
       renderer.unmount();
     }
@@ -230,8 +250,8 @@ describe('useMutateThreadTags', () => {
     });
     expect(snapshot.updating).toBe(false);
     expect(snapshot.updatingThreadRootIds.size).toBe(0);
-    expect(getPendingThreadTagsContent(room.roomId, '$second')).toBeUndefined();
-    expect(getPendingThreadTagsContent(room.roomId, '$root')?.tags.resolved).toBeDefined();
+    expect(pendingTags(room, '$second')).toBeUndefined();
+    expect(pendingTags(room, '$root')?.tags.resolved).toBeDefined();
 
     await act(async () => {
       await snapshot.setResolved('$second', true);
@@ -270,7 +290,7 @@ describe('useMutateThreadTags', () => {
       },
       '["$root","bug"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+    expect(pendingTags(room, '$root')).toEqual({
       tags: {
         bug: {
           set_by: '@alice:example.org',
@@ -311,7 +331,7 @@ describe('useMutateThreadTags', () => {
       },
       '["$validated-root","bug"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$validated-root')).toEqual({
+    expect(pendingTags(room, '$validated-root')).toEqual({
       tags: {
         bug: {
           set_by: '@alice:example.org',
@@ -319,7 +339,7 @@ describe('useMutateThreadTags', () => {
         },
       },
     });
-    expect(getPendingThreadTagsContent('!room:example.org', '$unvalidated-root')).toBeUndefined();
+    expect(pendingTags(room, '$unvalidated-root')).toBeUndefined();
 
     renderer.unmount();
   });
@@ -355,7 +375,7 @@ describe('useMutateThreadTags', () => {
       {},
       '["$root","feature"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+    expect(pendingTags(room, '$root')).toEqual({
       tags: {
         bug: { set_by: '@alice:example.org', set_at: ISO_1 },
       },
@@ -396,7 +416,7 @@ describe('useMutateThreadTags', () => {
       },
       '["$root","resolved"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+    expect(pendingTags(room, '$root')).toEqual({
       tags: {
         bug: { set_by: '@alice:example.org', set_at: ISO_1 },
         resolved: { set_by: '@alice:example.org', set_at: ISO_2 },
@@ -436,7 +456,7 @@ describe('useMutateThreadTags', () => {
       },
       '["$standalone","resolved"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$standalone')).toEqual({
+    expect(pendingTags(room, '$standalone')).toEqual({
       tags: {
         resolved: { set_by: '@alice:example.org', set_at: ISO_2 },
       },
@@ -506,7 +526,7 @@ describe('useMutateThreadTags', () => {
       {},
       '["$root","resolved"]'
     );
-    expect(getPendingThreadTagsContent('!room:example.org', '$root')).toEqual({
+    expect(pendingTags(room, '$root')).toEqual({
       tags: {
         bug: { set_by: '@alice:example.org', set_at: ISO_1 },
       },

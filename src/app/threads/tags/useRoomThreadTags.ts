@@ -14,10 +14,10 @@ import {
 } from '../../event-store/threads/threadTags';
 import { buildThreadTagSnapshotMap, type ThreadTagSnapshot } from './threadTagSnapshots';
 import {
-  clearPendingThreadTagsContent,
-  getPendingThreadTagsContentMap,
-  sameThreadTagsContent,
+  getPendingThreadTagRootIds,
+  settlePendingThreadTags,
   usePendingThreadTagsVersion,
+  withPendingThreadTags,
 } from './threadTagPending';
 import { useMutateThreadTags } from './useMutateThreadTags';
 import { usePinnedEventIds } from '../../event-store/threads/useThreadPinning';
@@ -102,8 +102,8 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
   const events = useStateEvents(room, MINDROOM_THREAD_TAGS_EVENT);
   const pinnedEventIds = usePinnedEventIds(room);
   const pVersion = usePendingVersion();
-  const pendingMap = useMemo(
-    () => getPendingThreadTagsContentMap(room.roomId),
+  const pendingRootIds = useMemo(
+    () => getPendingThreadTagRootIds(room.roomId),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [room.roomId, pVersion]
   );
@@ -113,29 +113,28 @@ export const useRoomThreadResolutionMap = (room: Room): Map<string, ThreadResolu
   }, [events]);
 
   useEffect(() => {
-    pendingMap.forEach((pend, threadRootId) => {
+    pendingRootIds.forEach((threadRootId) => {
       const actual = resolutionMap.get(threadRootId);
-      const actualContent = { tags: actual?.tags ?? {} };
-      if (sameThreadTagsContent(actualContent, pend)) {
-        clearPendingThreadTagsContent(room.roomId, threadRootId);
-      }
+      settlePendingThreadTags(room.roomId, threadRootId, { tags: actual?.tags ?? {} });
     });
-  }, [pendingMap, resolutionMap, room.roomId]);
+  }, [pendingRootIds, resolutionMap, room.roomId]);
 
   return useMemo(() => {
-    if (pendingMap.size === 0 && pinnedEventIds.length === 0) return resolutionMap;
+    if (pendingRootIds.length === 0 && pinnedEventIds.length === 0) return resolutionMap;
 
     const next = new Map<string, ThreadResolutionState>(resolutionMap);
-    pendingMap.forEach((pend, threadRootId) => {
+    pendingRootIds.forEach((threadRootId) => {
       const current = next.get(threadRootId) ?? unresolvedState;
-      next.set(threadRootId, applyPending(current, pend));
+      const live = { tags: current.tags ?? {} };
+      const pending = withPendingThreadTags(room.roomId, threadRootId, live);
+      next.set(threadRootId, applyPending(current, pending));
     });
     pinnedEventIds.forEach((threadRootId) => {
       const current = next.get(threadRootId);
       if (current?.isResolved) next.set(threadRootId, { ...current, isResolved: false });
     });
     return next;
-  }, [pendingMap, resolutionMap, pinnedEventIds]);
+  }, [pendingRootIds, resolutionMap, pinnedEventIds, room.roomId]);
 };
 
 export const useToggleThreadResolution = (room: Room) => {

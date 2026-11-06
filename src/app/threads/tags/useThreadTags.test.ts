@@ -9,9 +9,9 @@ import { usePowerLevelsContext } from '../../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../../matrix/hooks/useRoomPermissions';
 import {
-  getPendingThreadTagsContent,
+  getPendingThreadTagRootIds,
   resetPendingThreadTagsForTests,
-  setPendingThreadTagsContent,
+  setPendingThreadTag,
 } from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
 import { useThreadTags } from './useThreadTags';
@@ -110,10 +110,9 @@ describe('useThreadTags', () => {
 
   it('surfaces pending custom tags before the state event sync arrives', () => {
     const room = makeRoom();
-    setPendingThreadTagsContent(room.roomId, '$root', {
-      tags: {
-        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
-      },
+    setPendingThreadTag(room.roomId, '$root', 'bug', {
+      set_by: '@alice:example.org',
+      set_at: ISO_1,
     });
 
     let snapshot: ReturnType<typeof useThreadTags> | undefined;
@@ -223,10 +222,9 @@ describe('useThreadTags', () => {
       }),
     ]);
 
-    setPendingThreadTagsContent(room.roomId, '$root', {
-      tags: {
-        bug: { set_by: '@alice:example.org', set_at: ISO_1 },
-      },
+    setPendingThreadTag(room.roomId, '$root', 'bug', {
+      set_by: '@alice:example.org',
+      set_at: ISO_1,
     });
 
     let snapshot: ReturnType<typeof useThreadTags> | undefined;
@@ -245,7 +243,7 @@ describe('useThreadTags', () => {
     });
 
     expect(snapshot?.displayTags).toEqual(['bug']);
-    expect(getPendingThreadTagsContent(room.roomId, '$root')).toBeUndefined();
+    expect(getPendingThreadTagRootIds(room.roomId)).toEqual([]);
 
     renderer?.unmount();
   });

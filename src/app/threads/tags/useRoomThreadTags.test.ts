@@ -5,9 +5,9 @@ import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import { createClient, Room } from 'matrix-js-sdk';
 import { useStateEvents } from '../../matrix/hooks/useStateEvents';
 import {
-  getPendingThreadTagsContent,
+  getPendingThreadTagRootIds,
   resetPendingThreadTagsForTests,
-  setPendingThreadTagsContent,
+  setPendingThreadTag,
 } from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
 import { useRoomThreadResolutionMap, useThreadResolution } from './useRoomThreadTags';
@@ -211,11 +211,13 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
 
   it('applies pending custom tags before state sync arrives', () => {
     const room = makeRoom();
-    setPendingThreadTagsContent(room.roomId, '$root', {
-      tags: {
-        resolved: { set_by: '@alice:example.org', set_at: ISO_1 },
-        urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
-      },
+    setPendingThreadTag(room.roomId, '$root', 'resolved', {
+      set_by: '@alice:example.org',
+      set_at: ISO_1,
+    });
+    setPendingThreadTag(room.roomId, '$root', 'urgent', {
+      set_by: '@alice:example.org',
+      set_at: ISO_2,
     });
 
     let snapshot: ReturnType<typeof useThreadResolution> | undefined;
@@ -243,10 +245,9 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
 
   it('clears pending content once aggregated live state matches it', () => {
     const room = makeRoom();
-    setPendingThreadTagsContent(room.roomId, '$root', {
-      tags: {
-        urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
-      },
+    setPendingThreadTag(room.roomId, '$root', 'urgent', {
+      set_by: '@alice:example.org',
+      set_at: ISO_2,
     });
     mockedUseStateEvents.mockImplementation((_room, eventType) => {
       if (eventType === MINDROOM_THREAD_TAGS_EVENT) {
@@ -279,7 +280,7 @@ describe('useRoomThreadTags compatibility with threadTags parser', () => {
         urgent: { set_by: '@alice:example.org', set_at: ISO_2 },
       },
     });
-    expect(getPendingThreadTagsContent(room.roomId, '$root')).toBeUndefined();
+    expect(getPendingThreadTagRootIds(room.roomId)).toEqual([]);
 
     renderer?.unmount();
   });

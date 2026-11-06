@@ -15,10 +15,9 @@ import {
   type ThreadTagsContent,
 } from '../../event-store/threads/threadTags';
 import {
-  clearPendingThreadTagsContent,
-  getPendingThreadTagsContent,
-  sameThreadTagsContent,
+  settlePendingThreadTags,
   usePendingThreadTagsVersion,
+  withPendingThreadTags,
 } from './threadTagPending';
 import { usePinnedEventIds } from '../../event-store/threads/useThreadPinning';
 
@@ -38,8 +37,8 @@ const EMPTY_CONTENT: ThreadTagsContent = { tags: {} };
 
 /**
  * Tags of one thread, from the room's `com.mindroom.thread.tags` state. A tag change the user
- * just made shows at once and gives way to the room state when the state catches up. A pinned
- * thread never reads as resolved.
+ * just made shows at once, on top of the room state, so tags others set meanwhile show too; it
+ * leaves once the room state shows it. A pinned thread never reads as resolved.
  */
 export const useThreadTags = (room: Room, threadRootId?: string): ThreadTagsState => {
   const myUserId = useMatrixClient().getSafeUserId();
@@ -51,21 +50,17 @@ export const useThreadTags = (room: Room, threadRootId?: string): ThreadTagsStat
 
   const aggregated = useMemo(() => aggregateThreadTagEvents(events), [events]);
   const liveContent = (threadRootId && aggregated.get(threadRootId)) || EMPTY_CONTENT;
-  const pendingContent = useMemo(
-    () => (threadRootId ? getPendingThreadTagsContent(room.roomId, threadRootId) : undefined),
+  const content = useMemo(
+    () =>
+      threadRootId ? withPendingThreadTags(room.roomId, threadRootId, liveContent) : liveContent,
     // The pending store is external; its version is the change signal.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [room.roomId, threadRootId, pendingVersion]
+    [room.roomId, threadRootId, liveContent, pendingVersion]
   );
 
   useEffect(() => {
-    if (!threadRootId || !pendingContent) return;
-    if (sameThreadTagsContent(liveContent, pendingContent)) {
-      clearPendingThreadTagsContent(room.roomId, threadRootId);
-    }
-  }, [liveContent, pendingContent, room.roomId, threadRootId]);
-
-  const content = pendingContent ?? liveContent;
+    if (threadRootId) settlePendingThreadTags(room.roomId, threadRootId, liveContent);
+  }, [liveContent, pendingVersion, room.roomId, threadRootId]);
   const pinned = !!threadRootId && pinnedEventIds.includes(threadRootId);
   const canEdit = permissions.stateEvent(MINDROOM_THREAD_TAGS_EVENT, myUserId);
 
