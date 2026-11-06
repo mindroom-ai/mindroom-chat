@@ -186,10 +186,8 @@ const scrollAway = async (page: Page, deltaY: number, steps = 5) => {
   for (let step = 0; step < steps; step += 1) {
     // eslint-disable-next-line no-await-in-loop
     await page.evaluate((delta) => {
-      const inner = document.querySelector(
-        '[data-testid="room-virtual-inner"], [data-thread-count]'
-      );
-      let scroller = inner?.parentElement ?? null;
+      // The scroll area of the timeline's rows, the room's or the open thread's.
+      let scroller = document.querySelector('[data-message-id]')?.parentElement ?? null;
       while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
         scroller = scroller.parentElement;
       }
