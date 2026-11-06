@@ -212,6 +212,20 @@ const seed = async (label: string): Promise<Seed> => {
   });
   await tag(tester, roomId, chart, 'metrics');
 
+  // A thread with a long title and six tags (L8-F016).
+  const tagged = await say(
+    tester,
+    roomId,
+    '🧩 Fix the flaky login test that fails on every third run of the nightly suite'
+  );
+  await say(helper, roomId, 'Found it: the session cookie expires mid-run.', tagged, {
+    'io.mindroom.ai_run': MODEL,
+  });
+  for (const name of ['auth', 'flaky', 'ci', 'nightly', 'qa', 'blocker']) {
+    // eslint-disable-next-line no-await-in-loop
+    await tag(tester, roomId, tagged, name);
+  }
+
   // The long thread: questions from the person (the minimap's strips) and agent answers with a
   // model badge, one long enough to fold.
   const longThread = await say(tester, roomId, LONG_THREAD);
@@ -313,20 +327,38 @@ const membersBeside = (page: Page) =>
     return !panel.closest('[role="dialog"]');
   });
 
-const readLocale = (code: string) =>
-  JSON.parse(
-    readFileSync(new URL(`../../src/app/i18n/locales/${code}.json`, import.meta.url), 'utf8')
-  ) as { mindroomUi: { threads: { mindroomRoomViewHeader: Record<string, string> } } };
-const HEADER_LABELS = {
-  ltr: readLocale('en').mindroomUi.threads.mindroomRoomViewHeader,
-  rtl: readLocale('ar').mindroomUi.threads.mindroomRoomViewHeader,
+type Locale = { [key: string]: string | Locale };
+const readJson = (path: string) =>
+  JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')) as Locale;
+const merge = (base: Locale, extra: Locale): Locale =>
+  Object.fromEntries(
+    [...new Set([...Object.keys(base), ...Object.keys(extra)])].map((key) => {
+      const [a, b] = [base[key], extra[key]];
+      return [key, typeof a === 'object' && typeof b === 'object' ? merge(a, b) : b ?? a!];
+    })
+  );
+/** The interface's strings, as the app merges them: the locale, then its additions. */
+const locale = (code: string) =>
+  merge(
+    readJson(`../../src/app/i18n/locales/${code}.json`),
+    readJson(`../../src/app/i18n/locales/additions/${code}.json`)
+  );
+const LOCALES = { ltr: locale('en'), rtl: locale('ar') };
+const tr = (direction: Direction, key: string): string => {
+  const value = key
+    .split('.')
+    .reduce<string | Locale | undefined>(
+      (node, part) => (typeof node === 'object' ? node[part] : undefined),
+      LOCALES[direction]
+    );
+  if (typeof value !== 'string') throw new Error(`No string ${key}`);
+  return value;
 };
 
 const checkMembers = async (run: Run) => {
   const { page, seed: data } = run;
   await signIn(page, data);
   for (const { direction, scheme } of looks) {
-    const labels = HEADER_LABELS[direction];
     for (const width of [800, 900]) {
       const where = `${run.engine}, ${width} px, ${direction}, ${scheme}`;
       await page.setViewportSize({ width, height: 900 });
@@ -340,8 +372,16 @@ const checkMembers = async (run: Run) => {
         360
       );
       // The header's members button opens them over the room; Escape closes them.
-      await page.getByRole('button', { name: labels.showMembers, exact: true }).click();
-      const sheet = page.getByRole('dialog', { name: labels.members, exact: true });
+      await page
+        .getByRole('button', {
+          name: tr(direction, 'mindroomUi.threads.mindroomRoomViewHeader.showMembers'),
+          exact: true,
+        })
+        .click();
+      const sheet = page.getByRole('dialog', {
+        name: tr(direction, 'mindroomUi.threads.mindroomRoomViewHeader.members'),
+        exact: true,
+      });
       await expect(sheet.getByTestId('resizable-members-panel')).toBeVisible();
       const box = await sheet.getByTestId('resizable-members-panel').boundingBox();
       // The sheet sits at the end of the line: the right in English, the left in Arabic.
@@ -468,7 +508,7 @@ const checkCompact = async (run: Run) => {
     await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
     await setLook(page, direction, scheme);
     const cards = page.locator('[data-thread-root-id]');
-    await expect(cards).toHaveCount(4, { timeout: 60_000 });
+    await expect(cards).toHaveCount(5, { timeout: 60_000 });
     await expect(page.locator('[data-compact-card-resolution-byline="true"]')).toBeVisible();
     const heights = await cards.evaluateAll((list) =>
       list.map((card) => Math.round(card.getBoundingClientRect().height))
@@ -570,6 +610,118 @@ const checkPalette = async (run: Run) => {
 };
 
 // ---------------------------------------------------------------------------------------------
+// L8-F015: phone Settings, the back button and the breadcrumb.
+
+const checkSettingsPhone = async (run: Run) => {
+  const { page, seed: data } = run;
+  await signIn(page, data);
+  for (const { direction, scheme } of looks) {
+    await page.goto('/home/');
+    await setLook(page, direction, scheme);
+    await page.goto('/settings/appearance');
+    const root = page.locator('[data-dialog-title]').first();
+    await expect(root).toBeVisible({ timeout: 60_000 });
+    const geometry = await root.evaluate((title) => {
+      const header = title.closest('header')!;
+      const back = header.querySelector('button')!.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(title);
+      const text = range.getBoundingClientRect();
+      return { back: [back.left, back.right], text: [text.left, text.right] };
+    });
+    await shot(run, `settings-${direction}-${scheme}`);
+    const where = `${run.engine}, ${direction}, ${scheme}: ${JSON.stringify(geometry)}`;
+    if (direction === 'ltr') {
+      expect(
+        geometry.back[1],
+        `back button ends before the breadcrumb (${where})`
+      ).toBeLessThanOrEqual(geometry.text[0]);
+    } else {
+      expect(
+        geometry.back[0],
+        `back button starts after the breadcrumb (${where})`
+      ).toBeGreaterThanOrEqual(geometry.text[1]);
+    }
+  }
+};
+
+// ---------------------------------------------------------------------------------------------
+// L8-F018, L5-F031: the members panel's chips at 150 % page zoom.
+
+const checkZoomMembers = async (run: Run) => {
+  const { page, seed: data } = run;
+  await signIn(page, data);
+  await page.evaluate(() => {
+    const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+    localStorage.setItem('settings', JSON.stringify({ ...settings, pageZoom: 150 }));
+  });
+  for (const { direction, scheme } of looks) {
+    await page.goto(`/home/${encodeURIComponent(data.roomId)}/`);
+    await setLook(page, direction, scheme);
+    const panel = page.getByTestId('resizable-members-panel');
+    await expect(panel).toBeVisible({ timeout: 60_000 });
+    // How many lines each chip's text takes.
+    const lines = await panel.evaluate((element) =>
+      Array.from(element.querySelectorAll('[aria-haspopup="menu"]')).map((chip) => {
+        const tops = new Set<number>();
+        const walker = document.createTreeWalker(chip, NodeFilter.SHOW_TEXT);
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          Array.from(range.getClientRects())
+            .filter((rect) => rect.width > 0)
+            .forEach((rect) => tops.add(Math.round(rect.top)));
+        }
+        return tops.size;
+      })
+    );
+    await shot(run, `zoom150-members-${direction}-${scheme}`);
+    expect(lines, `chips on one line (${run.engine}, ${direction}, ${scheme})`).toEqual(
+      lines.map(() => 1)
+    );
+  }
+};
+
+// ---------------------------------------------------------------------------------------------
+// L4-F022: Add Existing keeps its footer inside the dialog.
+
+const checkAddExisting = async (run: Run) => {
+  const { page, seed: data } = run;
+  await signIn(page, data);
+  for (const { direction, scheme } of looks) {
+    await page.goto(`/${encodeURIComponent(data.spaceId)}/lobby/`);
+    await setLook(page, direction, scheme);
+    await expect(page.getByText(ARABIC_ROOM).last()).toBeVisible({ timeout: 60_000 });
+    await page
+      .getByRole('button', { name: tr(direction, 'featureUi.lobby.spaceItem.addRoom') })
+      .first()
+      .click();
+    await page
+      .getByRole('button', { name: tr(direction, 'featureUi.lobby.spaceItem.existingRoom') })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: tr(direction, 'featureUi.addExisting.addExisting'),
+    });
+    const boxes = dialog.getByRole('checkbox');
+    await expect(boxes.nth(1)).toBeVisible();
+    await boxes.nth(0).click();
+    await boxes.nth(1).click();
+    const apply = dialog.getByRole('button', {
+      name: tr(direction, 'featureUi.addExisting.applyChanges'),
+    });
+    await expect(apply).toBeVisible();
+    const [dialogBox, applyBox] = await Promise.all([dialog.boundingBox(), apply.boundingBox()]);
+    await shot(run, `add-existing-${direction}-${scheme}`);
+    expect(
+      applyBox!.y + applyBox!.height,
+      `Apply Changes inside the dialog (${run.engine}, ${direction}, ${scheme})`
+    ).toBeLessThanOrEqual(dialogBox!.y + dialogBox!.height);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  }
+};
+
+// ---------------------------------------------------------------------------------------------
 
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
@@ -627,6 +779,24 @@ const CASES: { name: string; form: string; options: BrowserContextOptions; check
     form: 'phone',
     options: PHONE,
     check: checkCompact,
+  },
+  {
+    name: 'phone Settings keep the back button off the breadcrumb',
+    form: 'phone',
+    options: PHONE,
+    check: checkSettingsPhone,
+  },
+  {
+    name: 'the members panel keeps its chips on one line at 150 percent zoom',
+    form: 'desktop',
+    options: DESKTOP,
+    check: checkZoomMembers,
+  },
+  {
+    name: 'Add Existing keeps its footer inside the dialog',
+    form: 'desktop',
+    options: DESKTOP,
+    check: checkAddExisting,
   },
   {
     name: 'palette message rows show room, then thread, and the whole sender',
