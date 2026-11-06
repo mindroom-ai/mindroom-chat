@@ -285,7 +285,7 @@ const checkSurfaces = async (
       );
 
       await header.getByRole('button', { name: 'More Options', exact: true }).click();
-      await page.getByRole('button', { name: 'Leave Room', exact: true }).click();
+      await page.getByRole('menuitem', { name: 'Leave Room', exact: true }).click();
       const leave = page.getByRole('alertdialog', { name: 'Leave Room' });
       await measure(
         page,
