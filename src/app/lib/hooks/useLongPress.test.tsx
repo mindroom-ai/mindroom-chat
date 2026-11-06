@@ -7,7 +7,7 @@ function Row({
   onLongPress,
   canStart = () => true,
 }: {
-  onLongPress: (x: number, y: number) => void;
+  onLongPress: (x: number, y: number, element: HTMLElement) => void;
   canStart?: () => boolean;
 }) {
   const handlers = useLongPress(onLongPress, canStart);
@@ -29,7 +29,7 @@ describe('useLongPress', () => {
     return { onLongPress, row: view.container.firstElementChild as HTMLElement, view };
   };
 
-  it('fires at the resting point after the delay, and the lift does not click', () => {
+  it('fires at the resting point after the delay, with its element, and the lift does not click', () => {
     const { onLongPress, row } = setup();
     fireEvent.touchStart(row, { touches: [finger(40, 60)] });
     act(() => {
@@ -39,7 +39,7 @@ describe('useLongPress', () => {
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(onLongPress).toHaveBeenCalledWith(40, 60);
+    expect(onLongPress).toHaveBeenCalledWith(40, 60, row);
     // fireEvent answers false when a handler prevented the default.
     expect(fireEvent.touchEnd(row, { touches: [] })).toBe(false);
   });
