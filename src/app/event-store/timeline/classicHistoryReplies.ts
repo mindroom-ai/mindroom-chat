@@ -1,4 +1,6 @@
 import {
+  EventType,
+  RelationType,
   THREAD_RELATION_TYPE,
   type EventTimeline,
   type MatrixEvent,
@@ -50,6 +52,47 @@ export const keepHistoryReplies = (
     repliesByTimeline.set(timeline, [...(repliesByTimeline.get(timeline) ?? []), ...replies]);
   }
   return replies;
+};
+
+/**
+ * The thread events (replies, their edits and reactions) of the server pages each timeline took,
+ * until the cache saves them: the room's own save takes only what its timelines hold.
+ */
+const unsavedByTimeline = new WeakMap<EventTimeline, MatrixEvent[]>();
+
+/**
+ * Holds for the cache the thread events of a server page `timeline` took, and the reactions to its
+ * new replies `kept` that came with a newer page, before their reply: they are in its thread now.
+ */
+export const holdPageThreadEvents = (
+  room: Room,
+  timeline: EventTimeline,
+  threadedEvents: MatrixEvent[],
+  kept: MatrixEvent[]
+): void => {
+  const lateReactions = kept.flatMap((reply) => {
+    const replyId = reply.getId();
+    const rootId = reply.threadRootId;
+    if (!replyId || !rootId) return [];
+    const reactions = room.relations
+      .getChildEventsForEvent(replyId, RelationType.Annotation, EventType.Reaction)
+      ?.getRelations();
+    return (reactions ?? []).filter((reaction) => {
+      if (reaction.threadRootId) return false;
+      reaction.setThreadId(rootId);
+      return true;
+    });
+  });
+  const events = [...threadedEvents, ...lateReactions];
+  if (events.length === 0) return;
+  unsavedByTimeline.set(timeline, [...(unsavedByTimeline.get(timeline) ?? []), ...events]);
+};
+
+/** The thread events held for the cache with `timeline`, handed out once. */
+export const takePageThreadEvents = (timeline: EventTimeline): MatrixEvent[] => {
+  const events = unsavedByTimeline.get(timeline) ?? [];
+  unsavedByTimeline.delete(timeline);
+  return events;
 };
 
 /** The filters a row of the room passes, thread replies included. */

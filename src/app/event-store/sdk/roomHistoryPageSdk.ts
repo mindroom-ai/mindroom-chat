@@ -6,13 +6,13 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import { noUnsafeEventProps } from 'matrix-js-sdk/lib/utils';
-import { keepHistoryReplies } from '../timeline/classicHistoryReplies';
+import { holdPageThreadEvents, keepHistoryReplies } from '../timeline/classicHistoryReplies';
 
 /**
  * One page of the room's own history at `edge`, loaded as `MatrixClient.paginateEventTimeline`
  * loads it, with one difference: the page's thread replies, which the SDK drops, are kept with
- * `edge` for the Classic view, and decrypted in an encrypted room. Resolves to whether more history
- * lies that way.
+ * `edge` for the Classic view, and decrypted in an encrypted room; they wait there for the cache
+ * (`takePageThreadEvents`). Resolves to whether more history lies that way.
  */
 export const paginateRoomKeepingReplies = (
   mx: MatrixClient,
@@ -48,7 +48,8 @@ export const paginateRoomKeepingReplies = (
           threadedEvents.map((event) => mx.decryptEventIfNeeded(event).catch(() => undefined))
         );
       }
-      keepHistoryReplies(room, edge, threadedEvents);
+      const kept = keepHistoryReplies(room, edge, threadedEvents);
+      holdPageThreadEvents(room, edge, threadedEvents, kept);
       const atEnd = response.end === undefined || response.end === response.start;
       // The forward token stays, so a gappy sync can still be filled.
       if (backwards && atEnd) edge.setPaginationToken(null, dir);

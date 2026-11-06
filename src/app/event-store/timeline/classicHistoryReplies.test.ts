@@ -1,7 +1,11 @@
 import { Direction, MatrixClient, MatrixEvent, Room, type IRoomEvent } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { getEditedEvent } from '../../matrix/room';
-import { getHistoryReplies, getShownHistoryReplies } from './classicHistoryReplies';
+import {
+  getHistoryReplies,
+  getShownHistoryReplies,
+  takePageThreadEvents,
+} from './classicHistoryReplies';
 import { paginateRoomKeepingReplies } from '../sdk/roomHistoryPageSdk';
 
 const ROOM_ID = '!room:example.org';
@@ -25,6 +29,11 @@ const raw = (id: string, ts: number, content: Record<string, unknown> = {}): IRo
   } as IRoomEvent);
 
 const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
+const reactionTo = (eventId: string): IRoomEvent => ({
+  ...raw('$reaction', 5),
+  type: 'm.reaction',
+  content: { 'm.relates_to': { rel_type: 'm.annotation', event_id: eventId, key: '+1' } },
+});
 const editOf = (eventId: string) => ({
   'm.new_content': { msgtype: 'm.text', body: 'edited' },
   'm.relates_to': { rel_type: 'm.replace', event_id: eventId },
@@ -88,6 +97,30 @@ describe('paginateRoomKeepingReplies', () => {
     const [reply] = getHistoryReplies([edge]) as [MatrixEvent];
     await vi.waitFor(() => expect(reply.replacingEvent()?.getId()).toBe('$edit'));
     expect(edge.getPaginationToken(Direction.Backward)).toBeNull();
+  });
+});
+
+describe('takePageThreadEvents', () => {
+  it('hands the cache each page thread events once, with a reaction that came before its reply', async () => {
+    const { mx, room, edge, request } = setup([reactionTo('$reply'), raw('$b', 4)]);
+    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+    // The reaction's reply, and so its thread, is not known yet.
+    expect(takePageThreadEvents(edge)).toEqual([]);
+
+    request.mockImplementation(async () => ({
+      chunk: [raw('$edit', 3, editOf('$reply')), raw('$reply', 2, inThread), raw('$root', 1)],
+      start: 'oldest',
+      end: undefined,
+    }));
+    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+
+    const held = takePageThreadEvents(edge);
+    expect(held.map((event) => [event.getId(), event.threadRootId])).toEqual([
+      ['$edit', '$root'],
+      ['$reply', '$root'],
+      ['$reaction', '$root'],
+    ]);
+    expect(takePageThreadEvents(edge)).toEqual([]);
   });
 });
 

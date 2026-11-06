@@ -9,6 +9,7 @@ import {
 import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { prependCachedRoomTimeline } from '../event-store/sdk/roomTimelineSdk';
 import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
+import { takePageThreadEvents } from '../event-store/timeline/classicHistoryReplies';
 import {
   keepCachedHistoryReplies,
   keepCachedRepliesAboveServerPage,
@@ -189,6 +190,8 @@ export const useRoomPaginationCommandController = ({
         if (mEvent.getId() === preFetchEarliestId) break;
         eventsToPersist.push(mEvent);
       }
+      // The Classic view's page also brought thread replies, which no timeline holds.
+      eventsToPersist.push(...takePageThreadEvents(firstTimeline));
       if (eventsToPersist.length > 0) {
         // The batch contains the new overall-earliest cached event, so the
         // timeline's backward token is its continuity proof — the deleted
