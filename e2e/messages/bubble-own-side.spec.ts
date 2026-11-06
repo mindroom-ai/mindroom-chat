@@ -117,9 +117,15 @@ const rows = (page: Page): Promise<Row[]> =>
           const range = document.createRange();
           range.selectNodeContents(body);
           const bubbleLeft = bubble.getBoundingClientRect().left;
+          // Chromium adds rects for a line's wrapped end: take the leftmost rect of each line.
+          const lines = new Map<number, number>();
           Array.from(range.getClientRects())
             .filter((rect) => rect.width > 0)
-            .forEach((rect) => lineStarts.push(rect.left - bubbleLeft));
+            .forEach((rect) => {
+              const line = Math.round(rect.top);
+              lines.set(line, Math.min(lines.get(line) ?? Infinity, rect.left - bubbleLeft));
+            });
+          lineStarts.push(...lines.values());
         }
         const avatar = row.querySelector('[data-user-id]:not(button)');
         found.push({
