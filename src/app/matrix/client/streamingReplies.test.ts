@@ -1,4 +1,10 @@
-import { createClient, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
+import {
+  createClient,
+  ThreadEvent,
+  type IEvent,
+  type MatrixClient,
+  type Room,
+} from 'matrix-js-sdk';
 import {
   FeatureSupport,
   FILTER_RELATED_BY_REL_TYPES,
@@ -279,6 +285,51 @@ describe('streaming replies on thread cards', () => {
     await settle();
     expect(f.card().streaming).toBe(false);
     expect(f.replyRequests()).toBe(1);
+  });
+
+  it('puts the edit it learned on another copy of the reply', async () => {
+    const now = Date.now();
+    const f = fixture();
+    f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+    await f.start();
+    await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
+    expect(f.card().streaming).toBe(false);
+    await settle();
+    expect(f.card()).toEqual({ preview: finished, streaming: false });
+
+    // An older summary of the thread comes again, with a fresh copy of the reply's placeholder.
+    const thread = defined(f.room().getThread(rootId), 'the thread');
+    thread.refreshListedRoot(
+      f.mx.getEventMapper()(withSummary(root(now - 60_000), reply(now - 50_000)))
+    );
+    await settle();
+    const copy = thread.replyToEvent;
+    expect(copy?.replacingEvent()).toBeNull();
+    expect(f.card().streaming).toBe(false);
+    await settle();
+    expect(copy?.replacingEvent()?.getId()).toBe(`$edit-${now - 20_000}`);
+    expect(f.card()).toEqual({ preview: finished, streaming: false });
+    expect(f.replyRequests()).toBe(1);
+  });
+
+  it('announces a streaming thread once its reply has gone half an hour without an edit', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const now = Date.now();
+      const f = fixture();
+      await f.start();
+      await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000)), reply(now - 50_000)]);
+      await f.deliver([edit('The notes list', now - 1_000, 'streaming')]);
+      expect(f.card().streaming).toBe(true);
+      const updates = vi.fn();
+      f.room().on(ThreadEvent.Update, updates);
+
+      await vi.advanceTimersByTimeAsync(31 * MINUTE);
+      expect(updates).toHaveBeenCalled();
+      expect(f.card().streaming).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('does not stream a reply without an edit for half an hour', async () => {
