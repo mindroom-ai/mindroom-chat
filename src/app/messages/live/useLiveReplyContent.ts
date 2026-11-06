@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { IContent, MatrixClient, MatrixEvent } from 'matrix-js-sdk';
 import { getStreamStatusFromContent, STREAM_STATUS_KEY } from '../../matrix/protocol/aiRun';
-import { MINDROOM_THINKING_PLACEHOLDER_BODY } from '../../matrix/protocol/thinkingPlaceholder';
+import {
+  isThinkingPlaceholderBody,
+  MINDROOM_THINKING_PLACEHOLDER_BODY,
+} from '../../matrix/protocol/thinkingPlaceholder';
 import { MINDROOM_TOOL_TRACE_KEY } from '../../matrix/protocol/toolTrace';
 import { compareLiveOrder, type LiveDocs, type LiveOrder } from '../../matrix/protocol/liveFrame';
 import { renderLiveMarkdown, useLiveMarkdownReady } from './liveMarkdown';
@@ -128,6 +131,19 @@ const withRunningOutput = (content: IContent, tools: LiveDocs['tools']): IConten
   return changed ? { ...content, [MINDROOM_TOOL_TRACE_KEY]: { ...trace, events } } : content;
 };
 
+/**
+ * Whether the streaming durable reply is an earlier state of the live Markdown `md`: its body, or
+ * the thinking placeholder, that `md` grew from. Progress edits and frames show the same text.
+ */
+const isEarlierState = (event: MatrixEvent, content: IContent, md: string): boolean => {
+  const status = getStreamStatusFromContent(content);
+  if (event.isRedacted() || !status || !LIVE_DURABLE_STATUSES.has(status)) return false;
+  const { body } = withWarmupActivity(content);
+  if (typeof body !== 'string') return false;
+  if (isThinkingPlaceholderBody(content)) return md.length > 0;
+  return body.length < md.length && md.startsWith(body);
+};
+
 const noSubscription = () => () => undefined;
 
 export type LiveReplyContent = {
@@ -159,21 +175,39 @@ export const useLiveReplyContent = (
     roomId && replyId ? store.get(roomId, replyId) : undefined
   );
   const verdict = event && entry ? getLiveVerdict(event, content, entry, Date.now()) : undefined;
-  const markdownReady = useLiveMarkdownReady(verdict === 'show');
+  const docs = verdict === 'show' ? entry?.docs : undefined;
+  // The frames the row showed last. When frames and edits stop together (the connection dropped
+  // mid-stream), the entry expires while the durable reply is still an earlier state of what the
+  // reader saw. The row keeps that text until an edit with more of it arrives, so a reply only
+  // grows or pauses.
+  const shownDocs = useRef<LiveDocs>();
+  if (docs) shownDocs.current = docs;
+  const heldDocs =
+    !docs &&
+    verdict !== 'wait' &&
+    event &&
+    shownDocs.current &&
+    isEarlierState(event, content, shownDocs.current.md)
+      ? shownDocs.current
+      : undefined;
+  const liveDocs = docs ?? heldDocs;
+  const markdownReady = useLiveMarkdownReady(liveDocs !== undefined);
 
   useEffect(() => {
     if (verdict !== 'drop' || !roomId || !replyId || store.get(roomId, replyId) !== entry) return;
     store.drop(roomId, replyId);
   }, [entry, replyId, roomId, store, verdict]);
 
-  const docs = verdict === 'show' ? entry?.docs : undefined;
   const waitDocs = verdict === 'wait' ? entry?.docs : undefined;
   const liveContent = useMemo(() => {
-    if (docs) return getLiveContent(content, docs, markdownReady);
+    if (liveDocs) return getLiveContent(content, liveDocs, markdownReady);
     const durable = withWarmupActivity(content);
     if (!waitDocs) return durable;
     const covered = withRunningOutput(durable, waitDocs.tools);
     return waitDocs.reasoning ? { ...covered, [LIVE_REASONING_KEY]: waitDocs.reasoning } : covered;
-  }, [content, docs, markdownReady, waitDocs]);
-  return { content: liveContent, live: verdict === 'show' || verdict === 'wait' };
+  }, [content, liveDocs, markdownReady, waitDocs]);
+  return {
+    content: liveContent,
+    live: verdict === 'show' || verdict === 'wait' || heldDocs !== undefined,
+  };
 };
