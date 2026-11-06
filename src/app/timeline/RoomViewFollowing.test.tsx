@@ -35,22 +35,27 @@ const NAMES: Record<string, string> = {
   '@sam:example.org': 'Sam',
 };
 
-type FakeRoom = EventEmitter & { read: Set<string>; latest: { id: string; sender: string } };
+type FakeRoom = EventEmitter & {
+  read: Set<string>;
+  latest: { id: string; sender: string };
+  liveTimeline: { getEvents: () => unknown[] };
+};
 
 /** A room whose latest event is `latest` and whose members in `read` have read it. */
 const makeRoom = (): FakeRoom => {
   const emitter = new EventEmitter() as FakeRoom;
   emitter.read = new Set();
   emitter.latest = { id: '$latest', sender: '@sam:example.org' };
+  emitter.liveTimeline = {
+    getEvents: () =>
+      [
+        { getId: () => '~local', getSender: () => '@me:example.org' },
+        { getId: () => emitter.latest.id, getSender: () => emitter.latest.sender },
+      ].reverse(),
+  };
   Object.assign(emitter, {
     roomId: '!room:example.org',
-    getLiveTimeline: () => ({
-      getEvents: () =>
-        [
-          { getId: () => '~local', getSender: () => '@me:example.org' },
-          { getId: () => emitter.latest.id, getSender: () => emitter.latest.sender },
-        ].reverse(),
-    }),
+    getLiveTimeline: () => emitter.liveTimeline,
     getThread: () => null,
     getJoinedMembers: () => Object.keys(NAMES).map((userId) => ({ userId })),
     getMember: (userId: string) => ({ rawDisplayName: NAMES[userId] }),
@@ -145,4 +150,51 @@ it('does not draw the row again for events that leave the same readers', () => {
     room.emit('Room.timeline');
   });
   expect(getMember.mock.calls.length).toBe(namedOnFirstDraw);
+});
+
+it('asks no receipts for the events and receipts of threads the room view does not show', () => {
+  const room = makeRoom();
+  room.read.add('@avery:example.org');
+  const hasUserReadEvent = vi.spyOn(
+    room as unknown as { hasUserReadEvent: () => boolean },
+    'hasUserReadEvent'
+  );
+  const view = render(room);
+  const askedOnFirstDraw = hasUserReadEvent.mock.calls.length;
+
+  // A streamed reply's edits land in its thread's timeline, which the room passes on, and give
+  // the agent a receipt in that thread.
+  const threadTimeline = { getEvents: () => [] };
+  const threadReceipt = {
+    getContent: () => ({
+      $edit: { 'm.read': { '@agent:example.org': { ts: 1, thread_id: '$thread' } } },
+    }),
+  };
+  act(() => {
+    for (let edit = 0; edit < 20; edit += 1) {
+      room.emit('Room.timeline', {}, room, false, false, { timeline: threadTimeline });
+      room.emit('Thread.update', { id: '$thread' });
+      room.emit('Room.receipt', threadReceipt, room);
+    }
+  });
+  expect(hasUserReadEvent.mock.calls.length).toBe(askedOnFirstDraw);
+
+  // A receipt in the main timeline still counts.
+  const mainReceipt = {
+    getContent: () => ({
+      $latest: { 'm.read': { '@avery:example.org': { ts: 2, thread_id: 'main' } } },
+    }),
+  };
+  act(() => {
+    room.emit('Room.receipt', mainReceipt, room);
+  });
+  expect(hasUserReadEvent.mock.calls.length).toBeGreaterThan(askedOnFirstDraw);
+
+  // An event of the room's own timeline still refreshes the row.
+  room.latest = { id: '$newer', sender: '@sam:example.org' };
+  room.read.clear();
+  act(() => {
+    room.emit('Room.timeline', {}, room, false, false, { timeline: room.liveTimeline });
+  });
+  expect(strip(view)?.textContent).toBe('');
 });

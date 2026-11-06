@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
-import { type MatrixEvent, type Room, RoomEvent, RoomStateEvent, ThreadEvent } from 'matrix-js-sdk';
+import {
+  type EventTimeline,
+  type MatrixEvent,
+  type Room,
+  RoomEvent,
+  type RoomEventHandlerMap,
+  RoomStateEvent,
+  type Thread,
+  ThreadEvent,
+} from 'matrix-js-sdk';
+import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import { EventReaders } from '../messages/EventReaders';
 import { Modal500 } from '../ui/Modal500';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
@@ -11,10 +21,33 @@ import { getMxIdLocalPart } from '../matrix/matrix';
 import * as css from './RoomViewFollowing.css';
 import { NamesSentence } from './typing/NamesSentence';
 
+/** The live timeline the row follows: the open thread's, else the room's. */
+const shownTimeline = (room: Room, threadId?: string): EventTimeline | undefined =>
+  threadId ? room.getThread(threadId)?.liveTimeline : room.getLiveTimeline();
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object';
+
+/**
+ * Whether a receipt event holds a receipt of the shown timeline: an unthreaded one, or one of the
+ * open thread (of the main timeline in the room view). A thread's every event gives its sender a
+ * receipt there, so while agents stream these come many a second.
+ */
+const hasShownTimelineReceipt = (receiptEvent: MatrixEvent | undefined, threadId?: string) => {
+  // Without the event (the SDK always passes one) the receipt may be any.
+  if (!receiptEvent) return true;
+  const shown = threadId ?? MAIN_ROOM_TIMELINE;
+  const receipts = Object.values(receiptEvent.getContent())
+    .flatMap((byType) => (isRecord(byType) ? Object.values(byType) : []))
+    .flatMap((byUser) => (isRecord(byUser) ? Object.values(byUser) : []));
+  return receipts.some(
+    (receipt) => !isRecord(receipt) || !receipt.thread_id || receipt.thread_id === shown
+  );
+};
+
 /** The newest event the server knows, in the thread when one is open, else in the room. */
 const latestSyncedEvent = (room: Room, threadId?: string): MatrixEvent | undefined => {
-  const timeline = threadId ? room.getThread(threadId)?.liveTimeline : room.getLiveTimeline();
-  const events = timeline?.getEvents() ?? [];
+  const events = shownTimeline(room, threadId)?.getEvents() ?? [];
   return events.findLast((event) => event.getId()?.startsWith('$'));
 };
 
@@ -62,16 +95,29 @@ const useFollowers = (room: Room, threadId: string | undefined, myUserId: string
       const next = readFollowers(room, threadId, myUserId);
       setFollowing((previous) => (sameFollowing(previous, next) ? previous : next));
     };
+    // The room passes on the events and receipts of all its threads, many a second while agents
+    // stream, and each refresh asks every member's receipt; only those of the shown timeline can
+    // change who has read its newest event.
+    const refreshForTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (...[, , , , data]) => {
+      if (data?.timeline && data.timeline !== shownTimeline(room, threadId)) return;
+      refresh();
+    };
+    const refreshForThread = (thread: Thread) => {
+      if (thread.id === threadId) refresh();
+    };
+    const refreshForReceipt = (receiptEvent: MatrixEvent | undefined) => {
+      if (hasShownTimelineReceipt(receiptEvent, threadId)) refresh();
+    };
     refresh();
-    room.on(RoomEvent.Receipt, refresh);
-    room.on(RoomEvent.Timeline, refresh);
-    room.on(ThreadEvent.Update, refresh);
+    room.on(RoomEvent.Receipt, refreshForReceipt);
+    room.on(RoomEvent.Timeline, refreshForTimeline);
+    room.on(ThreadEvent.Update, refreshForThread);
     // Members load lazily, so a follower may only be known once the member list arrives.
     room.on(RoomStateEvent.NewMember, refresh);
     return () => {
-      room.removeListener(RoomEvent.Receipt, refresh);
-      room.removeListener(RoomEvent.Timeline, refresh);
-      room.removeListener(ThreadEvent.Update, refresh);
+      room.removeListener(RoomEvent.Receipt, refreshForReceipt);
+      room.removeListener(RoomEvent.Timeline, refreshForTimeline);
+      room.removeListener(ThreadEvent.Update, refreshForThread);
       room.removeListener(RoomStateEvent.NewMember, refresh);
     };
   }, [room, threadId, myUserId]);
