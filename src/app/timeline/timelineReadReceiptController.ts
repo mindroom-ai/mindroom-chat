@@ -90,6 +90,7 @@ type ReadReceiptControllerOptions = {
 /** The values a read decision takes from the newest render. */
 type ReadContext = Pick<
   ReadReceiptControllerOptions,
+  | 'getScrollElement'
   | 'handleOpenEvent'
   | 'hideActivity'
   | 'mx'
@@ -144,19 +145,26 @@ const readRoomOnNextFrame = (
 };
 
 /**
- * Reads the open thread on the next frame, once its newest replies are loaded and rendered: its
+ * Reads the open thread once its opening scroll corrections settle, on the next frame: its
  * tail is loaded, it is past its loading render, and it has a row. It reads up to the reply it
  * renders last (`threadEvents`): the tail can count as loaded while only the root is rendered.
  */
-const readThreadOnNextFrame = (context: ReadContext, stillReading: StillReading): void => {
+const readThreadOnceLanded = (context: ReadContext, stillReading: StillReading): void => {
   const { hideActivity, mx, room, threadEvents, threadId } = context;
   if (!threadId || !context.threadTailLoaded) return;
   if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
   const { roomId } = room;
-  requestAnimationFrame(() => {
-    if (!stillReading(roomId, threadId)) return;
-    void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadEvents);
-  });
+  const read = () => {
+    requestAnimationFrame(() => {
+      if (!stillReading(roomId, threadId)) return;
+      void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadEvents);
+    });
+  };
+  // The first frame can still measure rows and correct the opening position after its callbacks
+  // run. Use the shared scroll-rest check so the receipt does not overtake that landing.
+  const scrollArea = context.getScrollElement();
+  if (scrollArea) void waitForScrollQuiescence(scrollArea).then(read);
+  else read();
 };
 
 /**
@@ -188,6 +196,7 @@ export const useTimelineReadReceiptController = ({
   unreadInfo,
 }: ReadReceiptControllerOptions): { handleMarkAsRead: () => void } => {
   const contextRef = useLatestRef<ReadContext>({
+    getScrollElement,
     handleOpenEvent,
     hideActivity,
     mx,
@@ -258,7 +267,7 @@ export const useTimelineReadReceiptController = ({
     setAtBottom(true);
     if (!document.hasFocus()) return;
     const context = contextRef.current;
-    if (context.threadId) readThreadOnNextFrame(context, stillReading);
+    if (context.threadId) readThreadOnceLanded(context, stillReading);
     else readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
   };
   const observer = useIntersectionObserver(handleAnchorReports, getObserverOptions, getAnchor);
@@ -277,7 +286,7 @@ export const useTimelineReadReceiptController = ({
       if (!inFocus || !atBottomRef.current) return;
       const context = contextRef.current;
       if (context.threadId) {
-        if (atLiveEndRef.current) readThreadOnNextFrame(context, stillReading);
+        if (atLiveEndRef.current) readThreadOnceLanded(context, stillReading);
         return;
       }
       const marker = context.unreadInfo;
@@ -311,7 +320,7 @@ export const useTimelineReadReceiptController = ({
   // bottom with the window focused, is read.
   useEffect(() => {
     if (!threadId || !atBottom || !timelineAtLiveEnd || !document.hasFocus()) return;
-    readThreadOnNextFrame(contextRef.current, stillReading);
+    readThreadOnceLanded(contextRef.current, stillReading);
   }, [
     atBottom,
     contextRef,
