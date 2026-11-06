@@ -418,7 +418,8 @@ const check = async (page: Page, world: World, engine: string) => {
       const card = threadCard(page, stream.rootId);
       await card.scrollIntoViewIfNeeded();
       await shot(page, `${engine}-${PHONE ? 'phone' : 'desktop'}-${THEME}-${pass}-${stream.index}`);
-      expect.soft(await card.innerText(), `${engine} ${pass}: finished reply preview ${stream.index}`)
+      expect
+        .soft(await card.innerText(), `${engine} ${pass}: finished reply preview ${stream.index}`)
         .toContain(finishedText(stream.index));
     }
     const asked = watch.replyRequests.slice(before.replies);
@@ -450,8 +451,14 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   try {
     const page = await context.newPage();
     await page.addInitScript((theme) => {
-      const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<string, unknown>;
-      localStorage.setItem('settings', JSON.stringify({ ...settings, useSystemTheme: false, themeId: `${theme}-theme` }));
+      const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<
+        string,
+        unknown
+      >;
+      localStorage.setItem(
+        'settings',
+        JSON.stringify({ ...settings, useSystemTheme: false, themeId: `${theme}-theme` })
+      );
     }, THEME);
     await loginWithPassword(page, {
       homeserver: HOMESERVER,

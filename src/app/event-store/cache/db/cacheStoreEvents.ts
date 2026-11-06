@@ -1,6 +1,7 @@
 import type { IEvent } from 'matrix-js-sdk';
 import type { EventAttachmentMessage } from '../../../matrix/protocol/eventAttachments';
 import { countCacheProbe } from '../cacheProbe';
+import { notifyThreadCacheChanged } from '../threadCacheChanges';
 import {
   getSummaryLatestEvent,
   isOlderThanSummary,
@@ -739,6 +740,7 @@ type SchedulePutsOptions = {
   attachmentOwners: readonly EventAttachmentMessage[];
   reject: (reason?: unknown) => void;
   onComplete: (earliestPersistedEventId: string | undefined) => void;
+  onChanged?: () => void;
 };
 
 const scheduleEventPutsWithLedger = ({
@@ -755,6 +757,7 @@ const scheduleEventPutsWithLedger = ({
   attachmentOwners,
   reject,
   onComplete,
+  onChanged,
 }: SchedulePutsOptions): void => {
   const persistedEventIds: Array<string | undefined> = new Array(eventsToConsider.length);
   let pendingPuts = eventsToConsider.length;
@@ -788,6 +791,8 @@ const scheduleEventPutsWithLedger = ({
         previous,
         relationSnapshotMode
       );
+      if (onChanged && JSON.stringify(previous?.rawEvent) !== JSON.stringify(eventRecord.rawEvent))
+        onChanged();
       countCacheProbe(probeKey);
       if (ledger) ledger.notePut(eventRecord, previous);
       eventStore.put(eventRecord);
@@ -1269,7 +1274,7 @@ export const saveThreadEventsToCacheCommitted = async (
     countCacheProbe('threadSaveCalls');
     countCacheProbe('threadMetaPuts');
 
-    await runSaveThreadEventsTxn(
+    const changed = await runSaveThreadEventsTxn(
       db,
       roomId,
       threadId,
@@ -1284,6 +1289,8 @@ export const saveThreadEventsToCacheCommitted = async (
       redactedEventIds,
       attachmentOwners
     );
+    if (changed && isCacheStoreWriteLeaseCurrent(writeLease))
+      notifyThreadCacheChanged(sessionId, roomId, threadId);
   } catch (error) {
     if (isCacheStoreWriteLeaseCurrent(writeLease))
       reportCacheWriteError('threadEventCache.save', error);
@@ -1315,8 +1322,9 @@ const runSaveThreadEventsTxn = async (
   relationSnapshotMode: RelationSnapshotMode,
   redactedEventIds: ReadonlySet<string>,
   attachmentOwners: readonly EventAttachmentMessage[]
-): Promise<void> =>
-  new Promise<void>((resolve, reject) => {
+): Promise<boolean> =>
+  new Promise<boolean>((resolve, reject) => {
+    let changed = false;
     // Only include ROOM_LEDGER_STORE in the txn when we actually have
     // event puts — a rootEvent-only meta-only save leaves the ledger
     // untouched (per plan: "ledger untouched by meta-only writes").
@@ -1425,6 +1433,9 @@ const runSaveThreadEventsTxn = async (
             probeKey: 'threadEventPuts',
             reject,
             onComplete: scheduleMetaPut,
+            onChanged: () => {
+              changed = true;
+            },
           });
         if (ledger && ledgerStore) {
           ledger.readBaseline(ledgerStore, eventStore, scheduleWrites);
@@ -1435,7 +1446,7 @@ const runSaveThreadEventsTxn = async (
       reject
     );
 
-    transaction.oncomplete = () => resolve();
+    transaction.oncomplete = () => resolve(changed);
     transaction.onerror = (event) => reject((event.target as IDBRequest).error);
     transaction.onabort = () =>
       reject(transaction.error ?? new DOMException('Cache write aborted', 'AbortError'));

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import {
   getThreadSummaryInfosFromEventSources,
@@ -20,6 +20,7 @@ import type {
   ThreadOverviewCachedMetadataUpdate,
 } from './threadOverviewCacheMetadata';
 import { readOnlyEventMapper } from '../../event-store/sdk/readOnlyEventMapper';
+import { subscribeThreadCacheChanges } from '../../event-store/cache/threadCacheChanges';
 
 type ThreadLikeRoot = {
   id: string;
@@ -349,12 +350,35 @@ export const useThreadOverviewCacheHydration = ({
   const pendingReadsRef = useRef(
     new Map<string, ReturnType<typeof loadLatestCachedThreadEventsBatch>>()
   );
+  const changedThreadsRef = useRef(new Map<string, number>());
+  const [cacheRevision, setCacheRevision] = useState(0);
+
+  useEffect(() => {
+    changedThreadsRef.current = new Map();
+    let revision = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const unsubscribe = subscribeThreadCacheChanges(sessionId, room.roomId, (rootId) => {
+      changedThreadsRef.current.set(rootId, ++revision);
+      // Several replies can stream at once. Refresh their previews together after the writes.
+      timer ??= setTimeout(() => {
+        timer = undefined;
+        setCacheRevision((value) => value + 1);
+      }, OVERVIEW_CACHE_PUBLICATION_INTERVAL_MS);
+    });
+    return () => {
+      unsubscribe();
+      clearTimeout(timer);
+    };
+  }, [sessionId, room.roomId]);
 
   useEffect(() => {
     if (threadId || overviewThreadRootIds.length === 0 || overviewThreadMetadataCacheLimit <= 0)
       return;
 
+    const changedThreads = new Map(changedThreadsRef.current);
+
     const threadRootIdsToLoad = overviewThreadRootIds.filter((rootId) => {
+      if (changedThreads.has(rootId)) return true;
       const needsCacheCoverage = !cachedThreadCoverageMap.has(rootId);
       const needsActivityTs = !cachedThreadLastActivityTsMap.has(rootId) && needsCacheCoverage;
 
@@ -400,6 +424,7 @@ export const useThreadOverviewCacheHydration = ({
             room.roomId,
             OVERVIEW_CACHE_EVENT_LIMIT,
             Array.from(new Set(batchIds)).sort(),
+            batchIds.map((id) => changedThreads.get(id) ?? 0),
           ]);
           const pendingReads = pendingReadsRef.current;
           let read = pendingReads.get(readKey);
@@ -483,6 +508,12 @@ export const useThreadOverviewCacheHydration = ({
       }
       if (cancelled) return;
 
+      attemptedRootIds.forEach((rootId) => {
+        // A write during this read still needs another pass, even when this pass changes no text.
+        if (changedThreadsRef.current.get(rootId) === changedThreads.get(rootId))
+          changedThreadsRef.current.delete(rootId);
+      });
+
       if (showCompactRoomView) {
         attemptedRootIds.forEach((rootId) => {
           if (compactCachedThreadRootBodyMap.has(rootId)) return;
@@ -514,6 +545,7 @@ export const useThreadOverviewCacheHydration = ({
       clearTimeout(publicationTimer);
     };
   }, [
+    cacheRevision,
     cachedThreadLastActivityTsMap,
     cachedThreadCoverageMap,
     compactRootPreviewAttemptCountsRef,
