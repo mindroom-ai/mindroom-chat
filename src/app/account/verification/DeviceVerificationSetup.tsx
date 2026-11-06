@@ -1,4 +1,11 @@
-import { CSSProperties, FormEventHandler, ReactNode, useCallback, useState } from 'react';
+import {
+  CSSProperties,
+  FormEventHandler,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useState,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import FileSaver from 'file-saver';
 import type { MatrixError, UIAuthCallback } from 'matrix-js-sdk';
@@ -61,7 +68,8 @@ const TITLE_BAR_STYLE = {
 };
 
 type DialogTitleBarProps = {
-  onClose: () => void;
+  /** Without it the bar has no close button. */
+  onClose?: () => void;
   /** The title, before the close button. */
   children?: ReactNode;
 };
@@ -71,14 +79,16 @@ function DialogTitleBar({ onClose, children }: DialogTitleBarProps) {
   return (
     <Header size="500" style={TITLE_BAR_STYLE}>
       <Box grow="Yes">{children}</Box>
-      <IconButton
-        size="300"
-        radii="300"
-        aria-label={t('sharedUi.deviceVerification.close')}
-        onClick={onClose}
-      >
-        <Icon src={Icons.Cross} />
-      </IconButton>
+      {onClose && (
+        <IconButton
+          size="300"
+          radii="300"
+          aria-label={t('sharedUi.deviceVerification.close')}
+          onClick={onClose}
+        >
+          <Icon src={Icons.Cross} />
+        </IconButton>
+      )}
     </Header>
   );
 }
@@ -88,7 +98,13 @@ const RECOVERY_DESCRIPTION_TAGS = { b: <b /> };
 // Both the secret storage and its key backup are created anew, never merged into existing ones.
 const FRESH_SECRET_STORAGE = { setupNewSecretStorage: true, setupNewKeyBackup: true } as const;
 
-function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) => void }) {
+type SetupVerificationProps = {
+  onComplete: (recoveryKey: string) => void;
+  /** Told when the setup starts and stops running. */
+  onRunningChange: (running: boolean) => void;
+};
+
+function SetupVerification({ onComplete, onRunningChange }: SetupVerificationProps) {
   const mx = useMatrixClient();
   const alive = useAlive();
   // The SDK first tries the upload without auth; each stage the server then asks for is
@@ -131,6 +147,7 @@ function SetupVerification({ onComplete }: { onComplete: (recoveryKey: string) =
     )
   );
   const busy = setupState.status === AsyncStatus.Loading;
+  useEffect(() => onRunningChange(busy), [busy, onRunningChange]);
   const failure =
     setupState.status === AsyncStatus.Error ? describeError(setupState.error) : undefined;
 
@@ -188,7 +205,8 @@ const RECOVERY_KEY_BOX_STYLE: CSSProperties = {
   padding: config.space.S300,
   border: `${config.borderWidth.B300} solid var(--mr-container-line)`,
   borderRadius: config.radii.R400,
-  wordBreak: 'break-all',
+  // The key wraps between its groups of four, never inside one.
+  overflowWrap: 'break-word',
 };
 
 function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
@@ -238,26 +256,41 @@ function RecoveryKeyDisplay({ recoveryKey, onDone }: RecoveryKeyDisplayProps) {
 
 type DeviceVerificationSetupProps = {
   onCancel: () => void;
+  /**
+   * Told whether the dialog must stay open: while the setup runs and while the recovery key
+   * shows, since closing then loses the key. Its close button is gone meanwhile; Okay closes.
+   */
+  onKeepOpenChange?: (keepOpen: boolean) => void;
 };
 
 /**
  * Sets up cross-signing and secret storage for the account and shows the recovery key once.
  * An optional passphrase can stand in for the key later.
  */
-export function DeviceVerificationSetup({ onCancel }: DeviceVerificationSetupProps) {
+export function DeviceVerificationSetup({
+  onCancel,
+  onKeepOpenChange,
+}: DeviceVerificationSetupProps) {
   const { t } = useTranslation();
   const [recoveryKey, setRecoveryKey] = useState<string>();
+  const [running, setRunning] = useState(false);
+  const keepOpen = running || recoveryKey !== undefined;
+
+  useEffect(() => {
+    onKeepOpenChange?.(keepOpen);
+    return () => onKeepOpenChange?.(false);
+  }, [keepOpen, onKeepOpenChange]);
 
   return (
     <Dialog variant="Surface" role="dialog" aria-modal="true">
-      <DialogTitleBar onClose={onCancel}>
+      <DialogTitleBar onClose={keepOpen ? undefined : onCancel}>
         <Text size="H4">{t('sharedUi.deviceVerificationSetup.setupDeviceVerification')}</Text>
       </DialogTitleBar>
       <Box direction="Column" style={{ padding: config.space.S400 }}>
         {recoveryKey ? (
           <RecoveryKeyDisplay recoveryKey={recoveryKey} onDone={onCancel} />
         ) : (
-          <SetupVerification onComplete={setRecoveryKey} />
+          <SetupVerification onComplete={setRecoveryKey} onRunningChange={setRunning} />
         )}
       </Box>
     </Dialog>

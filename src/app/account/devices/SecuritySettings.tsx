@@ -29,6 +29,7 @@ function DeviceVerificationTile({ crossSigning }: { crossSigning: boolean }) {
   const [step, setStep] = useState<Step>();
   const [checking, setChecking] = useState(false);
   const [checkFailed, setCheckFailed] = useState(false);
+  const [keepOpen, setKeepOpen] = useState(false);
   const close = () => setStep(undefined);
 
   const enable = () => {
@@ -51,6 +52,9 @@ function DeviceVerificationTile({ crossSigning }: { crossSigning: boolean }) {
       after={
         crossSigning ? (
           <Button
+            // Not the Enable button reused: focus returning to Enable after the setup must not
+            // land on Reset.
+            key="reset"
             size="300"
             radii="300"
             variant="Critical"
@@ -61,6 +65,7 @@ function DeviceVerificationTile({ crossSigning }: { crossSigning: boolean }) {
           </Button>
         ) : (
           <Button
+            key="enable"
             size="300"
             radii="300"
             variant="Primary"
@@ -80,11 +85,11 @@ function DeviceVerificationTile({ crossSigning }: { crossSigning: boolean }) {
         </Text>
       )}
       {step && (
-        <SecurityOverlay onClose={close}>
+        <SecurityOverlay onClose={close} dismissible={!keepOpen}>
           {step === 'confirm-reset' ? (
             <ResetVerificationDialog onReset={() => setStep('setup')} onCancel={close} />
           ) : (
-            <DeviceVerificationSetup onCancel={close} />
+            <DeviceVerificationSetup onCancel={close} onKeepOpenChange={setKeepOpen} />
           )}
         </SecurityOverlay>
       )}
