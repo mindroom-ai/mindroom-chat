@@ -3,7 +3,7 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Direction, type MatrixClient, MatrixError, type Room } from 'matrix-js-sdk';
+import { Direction, type MatrixClient, MatrixError, MatrixEvent, type Room } from 'matrix-js-sdk';
 import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
 import { JumpToTime } from './JumpToTime';
 
@@ -329,6 +329,7 @@ describe('JumpToTime', () => {
     state.fetchRelations.mockReturnValue(new Promise(() => undefined));
     const newestTs = new Date().setHours(0, 1, 0, 0);
     const newestReply = {
+      threadRootId: '$root',
       getId: () => '$newest',
       getTs: () => newestTs,
       getType: () => 'm.room.message',
@@ -363,6 +364,57 @@ describe('JumpToTime', () => {
     );
     expect(state.fetchRelations).not.toHaveBeenCalled();
     expect(requestClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('skips edits, pending echoes and deleted replies when choosing the newest local reply', async () => {
+    state.fetchRelations.mockReturnValue(new Promise(() => undefined));
+    const start = new Date().setHours(0, 1, 0, 0);
+    const event = (
+      id: string,
+      ts: number,
+      relType = 'm.thread',
+      extra: Record<string, unknown> = {}
+    ) =>
+      new MatrixEvent({
+        event_id: id,
+        room_id: room.roomId,
+        sender: '@reader:test',
+        origin_server_ts: ts,
+        type: 'm.room.message',
+        content: {
+          msgtype: 'm.text',
+          body: 'Shift plan',
+          'm.relates_to': { rel_type: relType, event_id: '$root' },
+        },
+        ...extra,
+      });
+    const visible = event('$visible', start);
+    const edit = event('$edit', start + 60_000, 'm.replace');
+    const pending = event('~pending', start + 120_000);
+    const deleted = event('$deleted', start + 180_000, 'm.thread', {
+      unsigned: { redacted_because: {} },
+    });
+    const threadRoom = {
+      ...room,
+      getThread: () => ({
+        rootEvent: { getTs: () => ROOT_TS },
+        replyToEvent: pending,
+        events: [visible, edit, pending, deleted],
+      }),
+    } as unknown as Room;
+    act(() =>
+      root.render(<JumpToTime room={threadRoom} threadId="$root" requestClose={vi.fn()} />)
+    );
+    pick('Hour', 23);
+    pick('Minutes', 59);
+    await openTimeline();
+    expect(state.navigateRoomThread).toHaveBeenCalledWith(
+      '!room:test',
+      '$root',
+      '$visible',
+      expect.anything()
+    );
+    expect(state.fetchRelations).not.toHaveBeenCalled();
   });
 
   it('shows a retryable error when a thread search times out, ignoring its late answer', async () => {
