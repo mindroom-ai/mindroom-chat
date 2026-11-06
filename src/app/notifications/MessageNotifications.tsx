@@ -16,7 +16,7 @@ import {
 import MessageSound from '../../../public/sound/notification.ogg';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
-import { useClientStartupContext } from '../matrix/ClientStartupContext';
+import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { useSetting } from '../preferences/useSetting';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { settingsAtom } from '../preferences/settings';
@@ -30,6 +30,7 @@ import {
   replaceMatrixUserIdsWithDisplayNames,
 } from '../event-store/threads/threadMessagePreview';
 import { playChime } from './playChime';
+import { raiseOnce } from './notifiedOnce';
 import {
   MESSAGE_NOTIFY_MAX_AGE_MS,
   getViewedPlace,
@@ -109,13 +110,14 @@ const showNotice = (client: MatrixClient, notice: MessageNotice, settings: Notif
 /**
  * Shows a desktop notification and plays the message chime for each new message the account's
  * push rules notify for, unless the window shows it already. Clicking a notification opens its
- * room, or its thread. Starts after the first sync, so history never notifies.
+ * room, or its thread. Starts once the first sync from the server is applied, so history never
+ * notifies, and each message notifies once on this device, whichever tab hears of it first.
  */
 export function MessageNotificationsFeature() {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const location = useLocation();
-  const { hasCompletedInitialSync } = useClientStartupContext();
+  const hasCompletedInitialSync = useServerSyncApplied(client);
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const directRooms = useAtomValue(mDirectAtom);
   const [desktop] = useSetting(settingsAtom, 'showNotifications');
@@ -136,13 +138,14 @@ export function MessageNotificationsFeature() {
 
   useEffect(() => {
     if (!hasCompletedInitialSync) return undefined;
-    // An agent's reply notifies once, however many times its finished text arrives.
-    const notified = new Set<string>();
+    // Once per device: across reloads and tabs, and however many times an agent's finished
+    // reply arrives. A tab that shows the message claims it too, so no other tab announces it.
     const consider = (event: MatrixEvent, room: Room) => {
       const notice = readMessageNotice(client, room, event, Date.now());
-      if (!notice || notified.has(notice.eventId) || !settings.current) return;
-      notified.add(notice.eventId);
-      showNotice(client, notice, settings.current);
+      if (!notice) return;
+      raiseOnce(client.getUserId() ?? '', [notice.eventId], () => {
+        if (settings.current) showNotice(client, notice, settings.current);
+      });
     };
     // Push rules need the clear content, so an encrypted message waits for its keys, until a
     // decryption works or the message is too old to notify anyway.

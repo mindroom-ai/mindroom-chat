@@ -15,7 +15,6 @@ import {
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
-import { ClientStartupProvider } from '../matrix/ClientStartupContext';
 import { MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
 import { defined } from '../../test/utils/defined';
@@ -66,7 +65,12 @@ const room = {
 };
 
 let actions: Actions = { notify: true, tweaks: { sound: 'default' } };
+// The client's sync state: SYNCING once a sync from the server is applied, PREPARED from the
+// store before that.
+let sync: { state: string; fromCache?: boolean } = { state: 'SYNCING' };
 const emitter = Object.assign(new EventEmitter(), {
+  getSyncState: () => sync.state,
+  getSyncStateData: () => ({ fromCache: sync.fromCache }),
   getUserId: () => ME,
   getRoom: (roomId: string) => (roomId === ROOM ? room : null),
   getRooms: () => [room],
@@ -132,20 +136,26 @@ const relist = (root: MatrixEvent) =>
 let renderer: ReactTestRenderer | undefined;
 const render = (path: string, synced = true) =>
   act(() => {
+    sync = synced ? { state: 'SYNCING' } : { state: 'PREPARED', fromCache: true };
     renderer = create(
       <Provider store={createStore()}>
         <MatrixClientProvider value={client}>
-          <ClientStartupProvider hasCompletedInitialSync={synced}>
-            <MemoryRouter
-              initialEntries={[path]}
-              future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-            >
-              <MessageNotificationsFeature />
-            </MemoryRouter>
-          </ClientStartupProvider>
+          <MemoryRouter
+            initialEntries={[path]}
+            future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+          >
+            <MessageNotificationsFeature />
+          </MemoryRouter>
         </MatrixClientProvider>
       </Provider>
     );
+  });
+
+/** The client applies a sync from the server. */
+const serverSync = () =>
+  act(() => {
+    sync = { state: 'SYNCING' };
+    emitter.emit(ClientEvent.Sync, 'SYNCING', 'PREPARED', {});
   });
 
 describe('MessageNotificationsFeature', () => {
@@ -223,6 +233,30 @@ describe('MessageNotificationsFeature', () => {
 
     arrive(message({ msgtype: 'm.text', body: 'I do.' }));
     expect(FakeNotification.shown).toHaveLength(1);
+  });
+
+  it('stays quiet for the first sync after a start from the store, which catches up', () => {
+    render('/home/', false);
+    arrive(message({ msgtype: 'm.text', body: 'came while the app was closed' }));
+    expect(FakeNotification.shown).toHaveLength(0);
+
+    serverSync();
+    arrive(message({ msgtype: 'm.text', body: 'new after the start' }));
+    expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
+      'Maya Chen: new after the start',
+    ]);
+  });
+
+  it('notifies a message once on this device, also when it arrives again after a reload', () => {
+    const news = message({ msgtype: 'm.text', body: 'Notified before the reload' });
+    render('/home/');
+    arrive(news);
+    act(() => renderer?.unmount());
+
+    render('/home/');
+    arrive(news);
+    expect(FakeNotification.shown).toHaveLength(1);
+    expect(playChime).toHaveBeenCalledTimes(1);
   });
 
   it('notifies for the room on screen when the window has no focus', () => {
