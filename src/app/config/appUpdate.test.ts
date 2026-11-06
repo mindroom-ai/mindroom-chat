@@ -89,6 +89,62 @@ describe('new version after a failed part', () => {
   });
 });
 
+describe('new version without a failed part', () => {
+  const setVisibility = (state: DocumentVisibilityState) => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: state });
+    document.dispatchEvent(new Event('visibilitychange'));
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    setVisibility('visible');
+  });
+
+  it('says so when the page is shown again after a deployment', async () => {
+    const fetchMock = publishes('build-2');
+    vi.stubGlobal('fetch', fetchMock);
+    const { getNewVersion, watchForNewVersion } = await loadAppUpdate();
+    const stop = watchForNewVersion();
+    setVisibility('hidden');
+    await settle();
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    setVisibility('visible');
+    await vi.waitFor(() => expect(getNewVersion()).toBe('build-2'));
+    stop();
+  });
+
+  it('asks every five minutes while the page is shown, and when it comes back online', async () => {
+    vi.useFakeTimers();
+    const fetchMock = publishes(BUILD);
+    vi.stubGlobal('fetch', fetchMock);
+    const { watchForNewVersion } = await loadAppUpdate();
+    const stop = watchForNewVersion();
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    setVisibility('hidden');
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledOnce();
+
+    setVisibility('visible');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    stop();
+    await vi.advanceTimersByTimeAsync(10 * 60 * 1000);
+    setVisibility('visible');
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+});
+
 type WorkerState = ServiceWorkerState;
 
 /** A service worker whose state the test moves on. */

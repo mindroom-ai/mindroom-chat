@@ -1,8 +1,9 @@
 // What a page does after a deployment replaced the build it runs. The service worker precaches only
 // a signed-in start (src/sw/sw.ts), so a page loads its other chunks from the server the first time it
 // needs them, and a deployment that removed the previous build's files leaves the page unable to
-// load them. When a part fails to load and the server publishes another version than this page's
-// (version.json), the page says a new version is available (NewVersionNotice) and offers to reload.
+// load them. When the server publishes another version than this page's (version.json), the page
+// says a new version is available (NewVersionNotice) and offers to reload. It asks when a part fails
+// to load, when the page is shown again or comes back online, and every five minutes while shown.
 //
 // A failed chunk can also outlive a reload: Safari 26 (and so the iOS app) answers a module the
 // page failed to load from that failure again after the reload, without a request, until the file
@@ -14,7 +15,11 @@
 // new version asks the waiting worker to take over first, staging it if the version monitor
 // (src/app/config/appVersion.ts) has not yet, and reloads once it controls the page.
 
-import { APP_BUILD_VERSION, fetchPublishedAppVersion } from './appVersion';
+import {
+  APP_BUILD_VERSION,
+  APP_VERSION_POLL_INTERVAL_MS,
+  fetchPublishedAppVersion,
+} from './appVersion';
 import { createServiceWorkerUrl } from './serviceWorkerRegistration';
 import { ensureBasePathTrailingSlash, getAppBasePath } from '../lib/basePath';
 
@@ -30,7 +35,7 @@ const failedModules = new Set<string>();
 let checking: Promise<void> | undefined;
 const listeners = new Set<() => void>();
 
-/** The version the server publishes when it is not this page's, once a part failed to load. */
+/** The version the server publishes when it is not this page's, once the page asked. */
 export const getNewVersion = (): string | undefined => newVersion;
 
 export const subscribeToNewVersion = (listener: () => void): (() => void) => {
@@ -41,9 +46,9 @@ export const subscribeToNewVersion = (listener: () => void): (() => void) => {
 };
 
 /**
- * Asks the server which version it publishes, after a part of the app failed to load. Offline, or
- * when the server still has this page's version, nothing changes: the part failed for another
- * reason and loads again on its next use.
+ * Asks the server which version it publishes. Offline, or when the server still has this page's
+ * version, nothing changes: a part that failed to load failed for another reason and loads again
+ * on its next use.
  */
 export const checkForNewVersion = (): Promise<void> => {
   if (newVersion !== undefined) return Promise.resolve();
@@ -63,12 +68,19 @@ export const checkForNewVersion = (): Promise<void> => {
  * Checks for a new version whenever a dynamic import fails, and notes the files that failed.
  * Production builds load every on-demand chunk through Vite's preload helper, which adds a module
  * preload link for the chunk and each chunk it imports, and reports each failure on the window;
- * the importer still gets its error and handles it as before. Returns a function that stops it.
+ * the importer still gets its error and handles it as before. A deployment is also noticed with
+ * nothing failing, which a page that already loaded every part it uses never would: when the page
+ * is shown again or comes back online, and every five minutes while it is shown. Returns a
+ * function that stops it.
  */
 export const watchForNewVersion = (target: Window = window): (() => void) => {
-  const onPreloadError = () => {
+  const check = () => {
     checkForNewVersion().catch(() => undefined);
   };
+  const checkWhenShown = () => {
+    if (target.document.visibilityState !== 'hidden') check();
+  };
+  const onPreloadError = check;
   // A link's error does not bubble, so the window hears it while capturing.
   const onResourceError = (event: Event) => {
     const link = event.target;
@@ -77,9 +89,15 @@ export const watchForNewVersion = (target: Window = window): (() => void) => {
   };
   target.addEventListener(PRELOAD_ERROR_EVENT, onPreloadError);
   target.addEventListener('error', onResourceError, true);
+  target.document.addEventListener('visibilitychange', checkWhenShown);
+  target.addEventListener('online', checkWhenShown);
+  const timer = target.setInterval(checkWhenShown, APP_VERSION_POLL_INTERVAL_MS);
   return () => {
     target.removeEventListener(PRELOAD_ERROR_EVENT, onPreloadError);
     target.removeEventListener('error', onResourceError, true);
+    target.document.removeEventListener('visibilitychange', checkWhenShown);
+    target.removeEventListener('online', checkWhenShown);
+    target.clearInterval(timer);
   };
 };
 

@@ -4,14 +4,15 @@ import { Icon, IconButton, Icons, Text } from 'folds';
 import { getNewVersion, reloadForNewVersion, subscribeToNewVersion } from '../config/appUpdate';
 import * as noticeCss from '../notifications/notices/NoticeBanners.css';
 
-/** The new version the server publishes after a part of this page failed to load, if any. */
+/** The new version the server publishes, if the page found one (src/app/config/appUpdate.ts). */
 export const useNewVersion = (): string | undefined =>
   useSyncExternalStore(subscribeToNewVersion, getNewVersion);
 
 /**
  * "A new version is available" with a Reload action, above every screen in the look of the
- * operator notices. It appears once a part of the app failed to load because a deployment removed
- * this build's files (src/app/config/appUpdate.ts); dismissed, it stays away for the life of the page.
+ * operator notices. It appears once the server publishes another build than this page's, found
+ * when a part fails to load, when the page is shown again, or by a check every five minutes
+ * (src/app/config/appUpdate.ts); dismissed, it stays away for the life of the page.
  */
 export function NewVersionNotice() {
   const { t } = useTranslation();

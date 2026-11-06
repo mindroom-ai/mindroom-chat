@@ -23,15 +23,23 @@ const TYPES: Record<string, string> = {
  * Serves a production build as a static deployment does: the hashed files under assets/ cached
  * for a year and sent uncompressed, everything else revalidated, app routes answered with
  * index.html. `vite preview` compresses every response, which changes how the browser's HTTP
- * cache stores a large file such as the 7.8 MB crypto wasm.
+ * cache stores a large file such as the 7.8 MB crypto wasm. `publishedVersion`, when it answers,
+ * replaces the build's version.json, as a deployment of another build would.
  */
 export const serveBuild = async (
-  directory: string
+  directory: string,
+  { publishedVersion }: { publishedVersion?: () => string | undefined } = {}
 ): Promise<{ origin: string; close: () => Promise<void> }> => {
   const server = createServer((request, response) => {
     const { pathname } = new URL(request.url ?? '/', 'http://127.0.0.1');
     const path = normalize(decodeURIComponent(pathname)).replace(/^(\.\.[/\\])+/, '');
     const asset = path.startsWith('/assets/');
+    const deployed = path === '/version.json' ? publishedVersion?.() : undefined;
+    if (deployed !== undefined) {
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      response.end(JSON.stringify({ version: deployed }));
+      return;
+    }
     const answer = async () => {
       let file = join(directory, path);
       if (!(await stat(file).catch(() => undefined))?.isFile()) {
