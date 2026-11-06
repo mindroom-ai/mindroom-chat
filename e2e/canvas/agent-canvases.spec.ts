@@ -1,5 +1,6 @@
 import {
   expect,
+  inThread,
   lobbyEvents,
   openLobby,
   showThread,
@@ -35,8 +36,11 @@ test('a canvas from the agent opens in the panel and sends a confirmed answer ba
   await page2.getByRole('button', { name: 'Blue' }).click();
   await expect(panel.getByText('Send to')).toContainText('Submitted');
   // Nothing leaves before the person presses Send.
+  // This thread's answers only: the stack keeps its lobby, and earlier runs answered there too.
   const responses = async () =>
-    (await lobbyEvents(stack)).filter((event) => event.content['io.mindroom.canvas_response']);
+    (await lobbyEvents(stack)).filter(
+      (event) => inThread(event, rootId) && event.content['io.mindroom.canvas_response']
+    );
   expect(await responses()).toHaveLength(0);
 
   await panel.getByRole('button', { name: 'Send', exact: true }).click();
