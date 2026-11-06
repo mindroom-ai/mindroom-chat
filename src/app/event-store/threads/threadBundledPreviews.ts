@@ -32,6 +32,11 @@ export const getBundledThreadPreviews = (
     const relation = raw.content['m.relates_to'];
     if (!object(relation) || relation.rel_type !== 'm.thread' || relation.event_id !== rootId)
       return undefined;
+    // As the server sorts them: any sender's m.notice whose own content has an object marker is a
+    // title, every other thread event a reply. A marker added only by an edit makes no title.
+    const marked =
+      raw.content.msgtype === 'm.notice' && object(raw.content['io.mindroom.thread_summary']);
+    if (marked !== title) return undefined;
     const known = room.getThread(rootId)?.findEventById(raw.event_id);
     if (known?.isRedacted()) return undefined;
     const event = new MatrixEvent({ ...raw, room_id: room.roomId } as IEvent);
@@ -53,12 +58,8 @@ export const getBundledThreadPreviews = (
         event.makeReplaced(new MatrixEvent({ ...replacement, room_id: room.roomId } as IEvent));
       }
     }
-    // Servers authorize titles at event time. Current room power levels cannot repeat that check.
-    if (title) return isThreadSummaryEvent(event) ? event : undefined;
-    return raw.content['io.mindroom.thread_summary'] ||
-      event.getContent()['io.mindroom.thread_summary']
-      ? undefined
-      : event;
+    // The client's own title rule reads the edited content, as it does for loaded events.
+    return isThreadSummaryEvent(event) === title ? event : undefined;
   };
   return { title: read('io.mindroom.title', true), reply: read('io.mindroom.latest_reply', false) };
 };
