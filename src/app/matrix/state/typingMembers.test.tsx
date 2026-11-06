@@ -9,6 +9,7 @@ import {
   MatrixEvent,
   MemoryStore,
   Room,
+  RoomEvent,
   RoomMemberEvent,
 } from 'matrix-js-sdk';
 import {
@@ -78,7 +79,7 @@ const setup = () => {
       .get(roomIdToTypingMembersAtom)
       .get(ROOM_ID)
       ?.map((r) => r.userId) ?? [];
-  return { room, serverTyping, shown };
+  return { mx, room, serverTyping, shown };
 };
 
 it('shows a member until the server stops listing them as typing', async () => {
@@ -140,4 +141,35 @@ it('stops checking once the binder unmounts', async () => {
   await act(() => vi.advanceTimersByTimeAsync(TYPING_TIMEOUT_MS));
   expect(shown()).toEqual([]);
   expect(vi.getTimerCount()).toBe(timers);
+});
+
+it('drops a notice when the member's message arrives, but not for a reply that still streams', async () => {
+  const { mx, room, serverTyping, shown } = setup();
+  // Sync re-emits room timeline events on the client.
+  mx.reEmitter.reEmit(room, [RoomEvent.Timeline]);
+  const message = (eventId: string, content: Record<string, unknown>) =>
+    act(async () => {
+      await room.addLiveEvents(
+        [
+          new MatrixEvent({
+            type: 'm.room.message',
+            sender: AGENT,
+            room_id: ROOM_ID,
+            event_id: eventId,
+            origin_server_ts: Date.now(),
+            content: { msgtype: 'm.text', ...content },
+          }),
+        ],
+        { addToState: false }
+      );
+    });
+  serverTyping([AGENT]);
+
+  // An agent's reply carries its stream status; its notice stays while it writes.
+  await message('$placeholder', { body: 'Thinking...', 'io.mindroom.stream_status': 'pending' });
+  expect(shown()).toEqual([AGENT]);
+
+  // The server keeps listing the member, but their message ends the notice.
+  await message('$message', { body: 'Here is the report.' });
+  expect(shown()).toEqual([]);
 });
