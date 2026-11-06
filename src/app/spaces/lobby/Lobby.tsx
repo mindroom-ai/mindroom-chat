@@ -242,14 +242,17 @@ function LobbyContent() {
         options={optionsFor(item)}
       />
     );
-    if (local) {
+    const known = summaries.get(item.roomId);
+    // A joined room describes itself from its synced state. For a room the person is not in, the
+    // server's description wins: the client's copy keeps only what it saw before the person left,
+    // and a room that reached the client already left has no state at all ("Empty room").
+    if (local && (joinedCopy(item.roomId) || !known)) {
       return (
         <LocalRoomSummaryLoader key={item.roomId} room={local}>
           {(summary) => card(toCardSummary(summary), false, null)}
         </LocalRoomSummaryLoader>
       );
     }
-    const known = summaries.get(item.roomId);
     if (known) return card(known, false, null);
     if (loading) return card(undefined, true, null);
     return (
