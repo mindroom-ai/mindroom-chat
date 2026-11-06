@@ -1,4 +1,11 @@
-import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -9,6 +16,8 @@ import {
   setAccountData,
   type MatrixSession,
 } from '../helpers/matrix';
+import { holdFirstWrites } from '../helpers/holdWrites';
+import { launchWebKit } from '../helpers/webkit';
 
 // Settings that follow the account: browser contexts signed in to one account on the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh) share the 8 roaming settings
@@ -97,14 +106,19 @@ const seedAccount = async (account: Account, name: string): Promise<string> => {
   return roomId;
 };
 
-/** The account's roaming settings content, straight from the homeserver; undefined while unset. */
+/**
+ * The account's roaming settings content, straight from the homeserver, without the revision
+ * each write stores (`rev`, `base_rev`); undefined while unset.
+ */
 const accountContent = async (account: Account): Promise<Record<string, unknown> | undefined> => {
   try {
-    return await matrixFetch<Record<string, unknown>>(
+    const content = await matrixFetch<Record<string, unknown>>(
       HOMESERVER,
       `/user/${encodeURIComponent(account.userId)}/account_data/${EVENT_TYPE}`,
       { accessToken: account.accessToken }
     );
+    const { rev, base_rev: baseRev, ...settings } = content;
+    return settings;
   } catch {
     return undefined;
   }
@@ -117,9 +131,10 @@ const accountContent = async (account: Account): Promise<Record<string, unknown>
 const openDevice = async (
   browser: Browser,
   account: Account,
-  deviceSettings?: Record<string, unknown>
+  deviceSettings?: Record<string, unknown>,
+  options?: BrowserContextOptions
 ) => {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, ...options });
   const page = await context.newPage();
   if (deviceSettings) {
     await page.goto('/');
@@ -363,5 +378,70 @@ test('an edit made offline shows at once and reaches the other device on reconne
   } finally {
     await laptop.context.close();
     await phone.context.close();
+  }
+});
+
+/**
+ * Two devices of one account change different settings at the same moment: both writes read the
+ * account data before either lands (the writes are held until both are sent). Both changes stay,
+ * on the homeserver and on both devices.
+ */
+const changeTogether = async (
+  browser: Browser,
+  engine: string,
+  options?: BrowserContextOptions
+) => {
+  const account = await register(`together_${engine}`);
+  await seedAccount(account, `together_${engine}`);
+  const laptop = await openDevice(browser, account, undefined, options);
+  const phone = await openDevice(browser, account, undefined, options);
+  try {
+    const laptopDialog = await openSettingsPage(laptop.page, 'Chats');
+    const phoneDialog = await openSettingsPage(phone.page, 'Chats');
+    await expect(toggle(laptopDialog, 'markdown')).toBeChecked();
+    await expect(toggle(phoneDialog, 'enterForNewline')).not.toBeChecked();
+    const writes = await holdFirstWrites([laptop.page, phone.page], `/account_data/${EVENT_TYPE}`);
+    await Promise.all([
+      toggle(laptopDialog, 'markdown').click(),
+      toggle(phoneDialog, 'enterForNewline').click(),
+    ]);
+    await writes.release();
+    const both = { version: 1, isMarkdown: false, enterForNewline: true };
+    await expect.poll(() => accountContent(account), { timeout: 30_000 }).toEqual(both);
+    for (const dialog of [laptopDialog, phoneDialog]) {
+      // eslint-disable-next-line no-await-in-loop
+      await expect(toggle(dialog, 'markdown')).not.toBeChecked();
+      // eslint-disable-next-line no-await-in-loop
+      await expect(toggle(dialog, 'enterForNewline')).toBeChecked();
+    }
+    // And they stay.
+    await laptop.page.waitForTimeout(2_000);
+    expect(await accountContent(account)).toEqual(both);
+    await expect(toggle(laptopDialog, 'markdown')).not.toBeChecked();
+    await expect(toggle(phoneDialog, 'enterForNewline')).toBeChecked();
+  } finally {
+    await laptop.context.close();
+    await phone.context.close();
+  }
+};
+
+test('two devices that change different settings at the same moment keep both (Chromium)', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  await changeTogether(browser, 'chromium');
+});
+
+test('two devices that change different settings at the same moment keep both (WebKit)', async ({
+  baseURL,
+}) => {
+  test.skip(!process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+  test.setTimeout(240_000);
+  const browser = await launchWebKit();
+  try {
+    // Playwright's WebKit does not route what the app's service worker fetches.
+    await changeTogether(browser, 'webkit', { baseURL, serviceWorkers: 'block' });
+  } finally {
+    await browser.close();
   }
 });
