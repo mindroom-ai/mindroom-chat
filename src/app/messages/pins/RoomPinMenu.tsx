@@ -23,22 +23,13 @@ import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { Time } from '../Time';
 import { isPinnedToolApprovalEvent, renderPinnedToolApprovalEvent } from './pinnedToolApproval';
-import { getPinContent } from './pinContent';
+import { getLoadedDecryptedEvent, getPinContent } from './pinContent';
 import { isRecord } from '../../lib/isRecord';
 import * as css from './RoomPinMenu.css';
 
 export type RoomPinMenuProps = {
   room: Room;
   requestClose: () => void;
-};
-
-/** The decrypted copy of an encrypted pin when the room timeline already holds it. */
-const getLoadedDecryptedEvent = (room: Room, event: MatrixEvent) => {
-  const eventId = event.getId();
-  if (!eventId) return undefined;
-  const timeline = room.getTimelineForEvent(eventId);
-  const loaded = timeline?.getEvents().find((candidate) => candidate.getId() === eventId);
-  return loaded && timeline ? { event: loaded, timelineSet: timeline.getTimelineSet() } : undefined;
 };
 
 /** Controls inside an entry that do something of their own, so a click on them opens nothing. */

@@ -95,6 +95,7 @@ export const useRoomEvent = (
   const threadId = options?.threadId;
   const localEvent = getLocally?.() ?? room.findEventById(eventId);
   const fetchEvent = useFetchRoomEvent(room);
+  const mx = useMatrixClient();
 
   const query = useQuery({
     queryKey: [room.roomId, eventId, threadId],
@@ -113,6 +114,10 @@ export const useRoomEvent = (
   const [, setRevision] = useState(0);
   useEffect(() => {
     if (!shownEvent) return undefined;
+    // A held copy nothing has decrypted yet (one built from a cache or a bundle) is decrypted
+    // here, as a loaded one is; the repaint follows its Decrypted event.
+    void decryptLoadedEvent(mx, shownEvent);
+    if (shownEdit) void decryptLoadedEvent(mx, shownEdit);
     const repaint = () => setRevision((revision) => revision + 1);
     shownEvent.on(MatrixEventEvent.Decrypted, repaint);
     shownEvent.on(MatrixEventEvent.Replaced, repaint);
@@ -122,7 +127,7 @@ export const useRoomEvent = (
       shownEvent.removeListener(MatrixEventEvent.Replaced, repaint);
       shownEdit?.removeListener(MatrixEventEvent.Decrypted, repaint);
     };
-  }, [shownEvent, shownEdit]);
+  }, [mx, shownEvent, shownEdit]);
 
   if (localEvent) return localEvent;
   if (query.isError) return null;
