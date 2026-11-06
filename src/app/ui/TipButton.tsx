@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type PointerEvent } from 'react';
 import { Text, Tooltip, type RectCords } from 'folds';
 import { PopOut } from './directional';
-import { portalContainer } from '../lib/portalOverlay';
 
 type TipButtonProps = {
   /** The text the tip shows. */
@@ -62,18 +61,17 @@ export function TipButton({ tip, children, ...props }: TipButtonProps) {
       >
         {children}
       </button>
-      {/* folds' PopOut layer covers the screen; as a tip it lets the pointer through. It lives in
-          the portal container, where a tip a tap opened stays on touch screens (index.css). */}
+      {/* folds' PopOut layer covers the screen; as a tip it lets the pointer through. The tip
+          inside, not the layer, is the tooltip: on touch screens index.css hides tooltip layers
+          in the body, the hover tips a tap would leave behind, and this one a tap opens. */}
       <PopOut
-        role="tooltip"
-        container={portalContainer}
         style={{ pointerEvents: 'none' }}
         anchor={anchor}
         position="Top"
         align="Start"
         offset={4}
         content={
-          <Tooltip>
+          <Tooltip role="tooltip">
             <Text size="T200">{tip}</Text>
           </Tooltip>
         }
