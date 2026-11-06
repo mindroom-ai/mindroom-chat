@@ -97,6 +97,18 @@ describe('InviteNotifications', () => {
     expect(playChime).toHaveBeenCalledTimes(1);
   });
 
+  it('announces a room again once its earlier invite left the list', () => {
+    sync = { state: 'SYNCING' };
+    render();
+    invite('!again:example.org');
+    act(() => {
+      invitedRooms.length = 0;
+      store.set(allInvitesAtom, { type: 'DELETE', roomId: '!again:example.org' });
+    });
+    invite('!again:example.org');
+    expect(FakeNotification.shown).toHaveLength(2);
+  });
+
   it('stays quiet for an invite another tab announced already', () => {
     sync = { state: 'SYNCING' };
     render();
