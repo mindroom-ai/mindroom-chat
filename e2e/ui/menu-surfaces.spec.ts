@@ -128,7 +128,7 @@ const SURFACES: Record<string, { size: typeof DESKTOP; open: (page: Page) => Pro
         .locator('header')
         .filter({ hasText: ROOM })
         .getByRole('button', { name: 'More Options', exact: true });
-      const entry = page.getByRole('button', { name: 'Room Settings', exact: true });
+      const entry = page.getByRole('menuitem', { name: 'Room Settings', exact: true });
       // A click while the room is still settling can land before the menu listens; try again.
       await expect(async () => {
         if (!(await entry.isVisible())) await more.click();
