@@ -149,6 +149,28 @@ def token_is_valid(homeserver: str, token: str | None) -> bool:
     return status == 200
 
 
+def join_rooms(homeserver: str, rooms: dict[str, str], tester: dict, router_token: str, answers: dict) -> bool:
+    """One try to join the test account to the lobby, then the space; true once it is in both.
+
+    MindRoom invites the account to the space before the lobby. A space that still refuses the account once the
+    lobby took it lost that invite: the backend skips it when its member list of the new space races a membership
+    change (`room_invitations_skipped_members_unavailable`), and nothing retries it. The router, which made the
+    space, then invites the account itself.
+    """
+    for name in ("lobby", "space"):
+        path = f"/join/{urllib.request.quote(rooms[name])}"
+        status, body = matrix(homeserver, "POST", path, {}, tester["accessToken"])
+        if status == 403 and name == "space":
+            invite = f"/rooms/{urllib.request.quote(rooms[name])}/invite"
+            invited, _ = matrix(homeserver, "POST", invite, {"user_id": tester["userId"]}, router_token)
+            log(f"the backend skipped the space invite; the router invited the test account ({invited})")
+            status, body = matrix(homeserver, "POST", path, {}, tester["accessToken"])
+        answers[name] = f"{status} {body.get('errcode') or ''}".strip()
+        if status != 200:
+            return False
+    return True
+
+
 def wait_until(description: str, check, timeout: float, interval: float = 1.0, on_fail=None):
     deadline = time.monotonic() + timeout
     while True:
@@ -920,15 +942,19 @@ def start(
     # The homeserver's last answer to each join, for the message of a start that gives up here.
     join_answers: dict[str, str] = {}
 
-    def joined(room_id: str) -> bool:
+    def joined() -> bool:
         backend_alive()
-        status, body = matrix(homeserver, "POST", f"/join/{urllib.request.quote(room_id)}", {}, tester_token)
-        join_answers["lobby" if room_id == lobby else "space"] = f"{status} {body.get('errcode') or ''}".strip()
-        return status == 200
+        return join_rooms(
+            homeserver,
+            {"lobby": lobby, "space": space},
+            {"userId": tester_id, "accessToken": tester_token},
+            accounts["agent_router"]["access_token"],
+            join_answers,
+        )
 
     wait_until(
         "the invites to the lobby and the space",
-        lambda: joined(lobby) and joined(space),
+        joined,
         120,
         1,
         lambda: f" (last join answers: {join_answers}){backend_log_tail()}",
