@@ -3,12 +3,8 @@ import { EventTimeline } from 'matrix-js-sdk';
 import { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
 import {
   aggregateThreadTagEvents,
-  buildAddTagContent,
   buildPerTagEventContent,
   buildPerTagStateKey,
-  buildRemoveTagContent,
-  buildResolvedTagsContent,
-  buildUnresolvedTagsContent,
   collectAvailableTags,
   getDisplayTags,
   isThreadResolved,
@@ -223,81 +219,6 @@ describe('isThreadTagsTombstone', () => {
         tags: { bug: { set_by: '@alice:example.com', set_at: ISO_1 } },
       })
     ).toBe(false);
-  });
-});
-
-describe('buildAddTagContent', () => {
-  it('adds a new tag preserving existing', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(ISO_1));
-
-    const existing: ThreadTagsContent = {
-      tags: { bug: { set_by: '@alice:example.com', set_at: ISO_2 } },
-    };
-    const result = buildAddTagContent(existing, 'feature', '@bob:example.com');
-    expect(result.tags.bug).toEqual(existing.tags.bug);
-    expect(result.tags.feature).toEqual({
-      set_by: '@bob:example.com',
-      set_at: ISO_1,
-    });
-  });
-
-  it('adds a tag to empty content', () => {
-    const result = buildAddTagContent({ tags: {} }, 'bug', '@alice:example.com');
-    expect(Object.keys(result.tags)).toEqual(['bug']);
-  });
-});
-
-describe('buildRemoveTagContent', () => {
-  it('removes a tag preserving others', () => {
-    const existing: ThreadTagsContent = {
-      tags: {
-        bug: { set_by: '@alice:example.com', set_at: ISO_1 },
-        feature: { set_by: '@bob:example.com', set_at: ISO_2 },
-      },
-    };
-    const result = buildRemoveTagContent(existing, 'bug');
-    expect(result.tags.feature).toEqual(existing.tags.feature);
-    expect(result.tags.bug).toBeUndefined();
-  });
-
-  it('returns empty tags when removing the only tag', () => {
-    const existing: ThreadTagsContent = {
-      tags: { bug: { set_by: '@alice:example.com', set_at: ISO_1 } },
-    };
-    const result = buildRemoveTagContent(existing, 'bug');
-    expect(result.tags).toEqual({});
-  });
-});
-
-describe('buildResolvedTagsContent', () => {
-  it('adds resolved tag preserving existing tags', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(ISO_1));
-
-    const existing: ThreadTagsContent = {
-      tags: { bug: { set_by: '@alice:example.com', set_at: ISO_2 } },
-    };
-    const result = buildResolvedTagsContent(existing, '@alice:example.com');
-    expect(result.tags.bug).toEqual(existing.tags.bug);
-    expect(result.tags[RESOLVED_TAG]).toEqual({
-      set_by: '@alice:example.com',
-      set_at: ISO_1,
-    });
-  });
-});
-
-describe('buildUnresolvedTagsContent', () => {
-  it('removes only the resolved tag', () => {
-    const existing: ThreadTagsContent = {
-      tags: {
-        bug: { set_by: '@alice:example.com', set_at: ISO_1 },
-        [RESOLVED_TAG]: { set_by: '@alice:example.com', set_at: ISO_2 },
-      },
-    };
-    const result = buildUnresolvedTagsContent(existing);
-    expect(result.tags.bug).toEqual(existing.tags.bug);
-    expect(result.tags[RESOLVED_TAG]).toBeUndefined();
   });
 });
 

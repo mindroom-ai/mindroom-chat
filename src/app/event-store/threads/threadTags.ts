@@ -144,47 +144,6 @@ export const isThreadTagsTombstone = (content: unknown): boolean => {
 };
 
 /**
- * Build content that adds a tag while preserving existing tags.
- */
-export const buildAddTagContent = (
-  existing: ThreadTagsContent,
-  tagName: string,
-  userId: string,
-  setAt = new Date().toISOString()
-): ThreadTagsContent => ({
-  tags: {
-    ...existing.tags,
-    [requirePersistedTagName(tagName)]: { set_by: userId, set_at: setAt },
-  },
-});
-
-/**
- * Build content that removes a tag while preserving others.
- */
-export const buildRemoveTagContent = (
-  existing: ThreadTagsContent,
-  tagName: string
-): ThreadTagsContent => {
-  const next = { ...existing.tags };
-  delete next[requirePersistedTagName(tagName)];
-  return { tags: next };
-};
-
-/**
- * Build content that sets the thread as resolved, preserving existing tags.
- */
-export const buildResolvedTagsContent = (
-  existing: ThreadTagsContent,
-  userId: string
-): ThreadTagsContent => buildAddTagContent(existing, RESOLVED_TAG, userId);
-
-/**
- * Build content that removes the resolved tag, preserving other tags.
- */
-export const buildUnresolvedTagsContent = (existing: ThreadTagsContent): ThreadTagsContent =>
-  buildRemoveTagContent(existing, RESOLVED_TAG);
-
-/**
  * Parse a canonical per-tag state key: `["$threadRootId","tag"]`.
  */
 export const parsePerTagStateKey = (
