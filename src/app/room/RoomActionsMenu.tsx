@@ -1,4 +1,4 @@
-import { Fragment, forwardRef, useCallback, useState, type ReactNode } from 'react';
+import { Fragment, Suspense, forwardRef, useCallback, useState, type ReactNode } from 'react';
 import { Line, toRem } from 'folds';
 import { Menu } from '../ui/glass/GlassPrimitives';
 import { MenuGroup } from '../ui/MenuEntry';
@@ -55,5 +55,6 @@ export const useRoomActionDialog = () => {
   const [render, setRender] = useState<{ dialog: RoomActionDialog }>();
   const close = useCallback(() => setRender(undefined), []);
   const showDialog = useCallback((dialog: RoomActionDialog) => setRender({ dialog }), []);
-  return { dialog: render?.dialog(close), showDialog };
+  const dialog = render && <Suspense fallback={null}>{render.dialog(close)}</Suspense>;
+  return { dialog, showDialog };
 };

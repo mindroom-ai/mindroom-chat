@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from 'react';
+import { lazy, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
@@ -12,9 +12,6 @@ import {
   useRoomsNotificationPreferencesContext,
 } from '../matrix/hooks/useRoomsNotificationPreferences';
 import { ArchiveRoomMenuItem } from '../rooms/archive/ArchiveRoomMenuItem';
-import { InviteUserPrompt } from '../members/invite/InviteUserPrompt';
-import { LeaveRoomPrompt } from '../rooms/LeaveRoomPrompt';
-import { JumpToTime } from '../timeline/jump-to-time/JumpToTime';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { usePowerLevels } from '../matrix/hooks/usePowerLevels';
 import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
@@ -27,6 +24,19 @@ import { getMatrixToRoom } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
 import { copyToClipboard } from '../lib/dom';
 import { getHomeSearchPath, getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
+
+// Each room row has a menu: its dialogs load the first time someone opens one.
+const InviteUserPrompt = lazy(() =>
+  import('../members/invite/InviteUserPrompt').then((module) => ({
+    default: module.InviteUserPrompt,
+  }))
+);
+const JumpToTime = lazy(() =>
+  import('../timeline/jump-to-time/JumpToTime').then((module) => ({ default: module.JumpToTime }))
+);
+const LeaveRoomPrompt = lazy(() =>
+  import('../rooms/LeaveRoomPrompt').then((module) => ({ default: module.LeaveRoomPrompt }))
+);
 
 /** A dialog an entry opens; it outlives the menu, and `close` ends it. */
 export type RoomActionDialog = (close: () => void) => ReactNode;

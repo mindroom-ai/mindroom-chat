@@ -31,8 +31,8 @@ type MenuEntryProps = Omit<
 // The label takes the row's free width, so the icons line up, and starts at the leading edge
 // (the item is a button, which would center it).
 const labelStyle = { flexGrow: 1, textAlign: 'start' } as const;
-// A disabled entry dims its label and icon as folds dims a disabled item; its reason stays legible.
-const dimmed = { opacity: config.opacity.Disabled } as const;
+// A disabled entry's label over its reason, which wraps rather than being cut off.
+const reasonColumnStyle = { minWidth: 0, textAlign: 'start', whiteSpace: 'normal' } as const;
 
 /** One row of a menu: its label, then its shortcut's keys and its icon at the end of the line. */
 export function MenuEntry({
@@ -48,21 +48,13 @@ export function MenuEntry({
   ...props
 }: MenuEntryProps) {
   const reasonId = useId();
+  // A disabled entry dims its label and icon as folds dims a disabled item; its reason stays legible.
+  const dimmed = disabledReason ? { opacity: config.opacity.Disabled } : undefined;
   const end = after ?? (
-    <Icon
-      size="100"
-      src={icon}
-      data-directional={directional || undefined}
-      style={disabledReason ? dimmed : undefined}
-    />
+    <Icon size="100" src={icon} data-directional={directional || undefined} style={dimmed} />
   );
   const labelText = (
-    <Text
-      as="span"
-      size="T300"
-      truncate
-      style={disabledReason ? { ...labelStyle, ...dimmed } : labelStyle}
-    >
+    <Text as="span" size="T300" truncate style={{ ...labelStyle, ...dimmed }}>
       {label}
     </Text>
   );
@@ -88,7 +80,7 @@ export function MenuEntry({
       {...(disabledReason && { 'aria-disabled': true, 'aria-describedby': reasonId })}
     >
       {disabledReason ? (
-        <Box as="span" direction="Column" grow="Yes" className={css.UnavailableText}>
+        <Box as="span" direction="Column" grow="Yes" style={reasonColumnStyle}>
           {labelText}
           {/* The row's description, not part of its name. */}
           <Text as="span" id={reasonId} size="T200" priority="300" aria-hidden="true">

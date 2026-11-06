@@ -82,6 +82,9 @@ vi.mock('../timeline/jump-to-time/JumpToTime', () => ({
   ),
 }));
 
+// The real menu and rows, with their roles.
+vi.unmock('../ui/glass/GlassPrimitives');
+
 const room = { roomId: '!room:example.org' } as unknown as Room;
 
 /** A room menu as an entry point shows it, with its dialog beside it as the entry points do. */
@@ -150,7 +153,7 @@ describe('the shared room actions', () => {
     expect(rows()).toEqual(SHARED);
   });
 
-  it('keeps Invite in its place, disabled with the reason, for someone who may not invite', () => {
+  it('keeps Invite in its place, disabled with the reason, for someone who may not invite', async () => {
     state.canInvite = false;
     render(<Harness />);
     expect(rows()).toEqual(
@@ -159,7 +162,10 @@ describe('the shared room actions', () => {
       )
     );
     const invite = screen.getByRole('menuitem', { name: 'Invite' });
+    expect(invite.getAttribute('aria-disabled')).toBe('true');
     fireEvent.click(invite);
+    // A dialog would load lazily; nothing is waiting to load either.
+    await Promise.resolve();
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -196,17 +202,18 @@ describe('the shared room actions', () => {
     expect(state.openSettings).toHaveBeenCalledWith('!room:example.org', '!space:example.org');
   });
 
-  it('opens its dialogs beside the menu: Jump to Time stays in the open thread', () => {
+  it('opens its dialogs beside the menu: Jump to Time stays in the open thread', async () => {
     render(<Harness threadId="$thread" />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Jump to Time' }));
-    expect(screen.getByRole('dialog', { name: 'Jump to Time' }).dataset.thread).toBe('$thread');
+    const dialog = await screen.findByRole('dialog', { name: 'Jump to Time' });
+    expect(dialog.dataset.thread).toBe('$thread');
   });
 
-  it('closes the leave dialog once the room is left and tells the entry point', () => {
+  it('closes the leave dialog once the room is left and tells the entry point', async () => {
     const onLeft = vi.fn();
     render(<Harness onLeft={onLeft} />);
     fireEvent.click(screen.getByRole('menuitem', { name: 'Leave Room' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm leave' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm leave' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(onLeft).toHaveBeenCalledOnce();
   });
