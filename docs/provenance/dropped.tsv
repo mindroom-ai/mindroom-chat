@@ -103,3 +103,4 @@ ios/Tests/public/index.html	2	rewritten in Lane C from a behaviour spec (ancestr
 src/app/mindroom/threads/roomLiveRenderController.ts	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/components/invite-user-prompt/InviteAutocompleteMenu.tsx	1	rewritten in Lane C from a behaviour spec (ancestry audit)
 src/app/components/splash-screen/MindRoomSplashScreen.tsx	1	rewritten in Lane C from a behaviour spec (ancestry audit)
+src/app/mindroom/native/iosCiVersion.test.ts	1	tested the 4.12.x build-counter versions that calendar versions replaced; written again in Lane C for them

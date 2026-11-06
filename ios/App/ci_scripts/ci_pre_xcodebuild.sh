@@ -69,6 +69,8 @@ elif [[ -n "${CI:-}" || -n "${CI_BUILD_NUMBER:-}" || -n "${CI_XCODEBUILD_ACTION:
   exit 1
 fi
 
+# Settings > About in the app names the version the App Store shows.
+export MINDROOM_RELEASE_VERSION="v$APPLE_MARKETING_VERSION"
 npm run build:ios
 npx cap sync ios
 npm run appstore:preflight

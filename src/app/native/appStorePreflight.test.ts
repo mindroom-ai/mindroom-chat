@@ -29,22 +29,15 @@ const problems = (
   overrides: Partial<Parameters<typeof appStoreVersionProblems>[0]> = {}
 ): string[] =>
   appStoreVersionProblems({
-    packageVersion: '4.12.6',
     projectText: project('4.12.6', '33'),
     infoPlistText: checkedInInfoPlist,
     ...overrides,
   });
 
 describe('appStoreVersionProblems', () => {
-  it('accepts a marketing version equal to or ahead of package.json and a positive build', () => {
+  it('accepts a three-integer marketing version, a calendar version among them, and a positive build', () => {
     expect(problems()).toEqual([]);
-    expect(problems({ projectText: project('4.13.0', '1') })).toEqual([]);
-  });
-
-  it('rejects a marketing version behind package.json', () => {
-    expect(problems({ packageVersion: '4.12.7' })).toEqual([
-      'iOS MARKETING_VERSION 4.12.6 must not be lower than package.json version 4.12.7.',
-    ]);
+    expect(problems({ projectText: project('2026.11.0', '1') })).toEqual([]);
   });
 
   it.each(['4.12', '4.12.6-beta', '"4.12.x"'])('rejects the marketing version %s', (version) => {
@@ -80,19 +73,6 @@ describe('appStoreVersionProblems', () => {
       "Info.plist CFBundleShortVersionString must be $(MARKETING_VERSION), got '4.12.6'.",
     ]);
   });
-
-  it('checks a submitted APP_STORE_VERSION against package.json too', () => {
-    expect(problems({ env: { APP_STORE_VERSION: '4.12.130' } })).toEqual([]);
-    expect(problems({ env: { APP_STORE_VERSION: '4.11.9' } })).toEqual([
-      'APP_STORE_VERSION 4.11.9 must not be lower than package.json version 4.12.6.',
-    ]);
-  });
-
-  it('rejects a package.json version without three parts', () => {
-    expect(problems({ packageVersion: '4.12' })).toEqual([
-      "package.json version must have the form major.minor.patch, got '4.12'.",
-    ]);
-  });
 });
 
 describe('appstore-preflight.mjs', () => {
@@ -101,12 +81,11 @@ describe('appstore-preflight.mjs', () => {
     checkouts.splice(0).forEach((path) => rmSync(path, { recursive: true, force: true }));
   });
 
-  const checkout = (packageVersion: string) => {
+  const checkout = (projectText: string) => {
     const root = mkdtempSync(join(tmpdir(), 'mindroom-appstore-preflight-'));
     checkouts.push(root);
     const files = {
-      'package.json': JSON.stringify({ version: packageVersion }),
-      [XCODE_PROJECT_PATH]: checkedInProject,
+      [XCODE_PROJECT_PATH]: projectText,
       [INFO_PLIST_PATH]: checkedInInfoPlist,
     };
     Object.entries(files).forEach(([path, content]) => {
@@ -116,11 +95,8 @@ describe('appstore-preflight.mjs', () => {
     return root;
   };
 
-  const run = (root: string) => {
-    const env = { ...process.env };
-    delete env.APP_STORE_VERSION;
-    return spawnSync(process.execPath, [scriptPath, root], { encoding: 'utf8', env });
-  };
+  const run = (root: string) =>
+    spawnSync(process.execPath, [scriptPath, root], { encoding: 'utf8' });
 
   it('passes the checked-in project of this repository', () => {
     const result = run(repoRoot);
@@ -129,10 +105,12 @@ describe('appstore-preflight.mjs', () => {
     expect(result.stdout).toMatch(/^App Store preflight passed: iOS \d+\.\d+\.\d+ \(\d+\)/);
   });
 
-  it('fails with the reason when package.json is ahead of the native version', () => {
-    const result = run(checkout('99.0.0'));
+  it('fails with the reason when the marketing version is not three integers', () => {
+    const result = run(checkout(project('2026.11', '1')));
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('App Store preflight failed:');
-    expect(result.stderr).toContain('must not be lower than package.json version 99.0.0.');
+    expect(result.stderr).toContain(
+      "iOS MARKETING_VERSION must use Apple's three-integer format, got '2026.11'."
+    );
   });
 });

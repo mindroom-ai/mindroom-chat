@@ -1,242 +1,102 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  assertMarketingVersionNotBehindPackage,
-  resolveIosCiVersionMetadata,
-} from '../../../scripts/ios-ci-version.mjs';
+import { resolveIosCiVersionMetadata } from '../../../scripts/ios-ci-version.mjs';
+
+const NOV_5 = new Date('2026-11-05T12:00:00Z');
+const XCODE_CLOUD = { CI: 'TRUE', CI_BUILD_NUMBER: '512' };
+
+const resolve = (
+  input: Partial<Parameters<typeof resolveIosCiVersionMetadata>[0]> = {}
+): ReturnType<typeof resolveIosCiVersionMetadata> =>
+  resolveIosCiVersionMetadata({
+    env: {},
+    checkedInBuildNumber: '33',
+    tags: [],
+    headTags: [],
+    date: NOV_5,
+    ...input,
+  });
 
 describe('resolveIosCiVersionMetadata', () => {
-  it('keeps the checked-in marketing version for release-tag builds outside Xcode Cloud', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: {},
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.2',
-      checkedInBuildNumber: '80',
-      headTags: ['v4.12.2-mindroom.18'],
-    });
-
-    expect(metadata).toEqual({
-      marketingVersion: '4.12.2',
-      marketingVersionSource: 'checked-in Xcode project',
-      buildNumber: '18',
-      buildNumberSource: 'head-tag:v4.12.2-mindroom.18',
+  it('takes the marketing version of the release tag Xcode Cloud builds', () => {
+    expect(
+      resolve({
+        env: { ...XCODE_CLOUD, CI_TAG: 'v2026.11.3' },
+        tags: ['v2026.11.2', 'v2026.11.3', 'v2026.11.4'],
+      })
+    ).toEqual({
+      marketingVersion: '2026.11.3',
+      marketingVersionSource: 'tag:v2026.11.3',
+      buildNumber: '512',
+      buildNumberSource: 'CI_BUILD_NUMBER',
     });
   });
 
-  it('keeps an explicit iOS build number override ahead of release tags', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: { CI_BUILD_NUMBER: '999', IOS_BUILD_NUMBER: '123' },
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.2',
-      checkedInBuildNumber: '80',
-      headTags: ['v4.12.2-mindroom.18'],
+  it('takes a release tag on HEAD when the build was not started by the tag', () => {
+    const metadata = resolve({
+      env: XCODE_CLOUD,
+      tags: ['v2026.10.9', 'v2026.11.0', 'v2026.11.1'],
+      headTags: ['nightly', 'v2026.11.0'],
     });
 
-    expect(metadata.buildNumber).toBe('123');
-    expect(metadata.buildNumberSource).toBe('IOS_BUILD_NUMBER');
-    expect(metadata.marketingVersion).toBe('4.12.2');
-    expect(metadata.marketingVersionSource).toBe('checked-in Xcode project');
+    expect(metadata.marketingVersion).toBe('2026.11.0');
+    expect(metadata.marketingVersionSource).toBe('head-tag:v2026.11.0');
   });
 
-  it('uses CI release tag variables before tags fetched at HEAD', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: { GITHUB_REF: 'refs/tags/v4.12.2-mindroom.19' },
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.2',
-      checkedInBuildNumber: '80',
-      headTags: ['v4.12.2-mindroom.18'],
-    });
+  it('gives an untagged build the version the next release will get', () => {
+    const metadata = resolve({ env: XCODE_CLOUD, tags: ['v2026.10.9', 'v2026.11.4', 'v0.1.0'] });
 
-    expect(metadata.buildNumber).toBe('19');
-    expect(metadata.buildNumberSource).toBe('env-tag:v4.12.2-mindroom.19');
-    expect(metadata.marketingVersion).toBe('4.12.2');
+    expect(metadata.marketingVersion).toBe('2026.11.5');
+    expect(metadata.marketingVersionSource).toBe('next-after:v2026.11.4');
+    expect(metadata.buildNumber).toBe('512');
   });
 
-  it('uses the auto-incrementing Xcode Cloud build number ahead of release tags', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: { CI: 'TRUE', CI_BUILD_NUMBER: '124' },
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.2',
-      checkedInBuildNumber: '80',
-      headTags: ['v4.12.2-mindroom.18'],
+  it('starts the month at 0 for an untagged build after the month rolls over', () => {
+    const metadata = resolve({
+      env: XCODE_CLOUD,
+      tags: ['v2026.11.4'],
+      date: new Date('2026-12-01T00:10:00Z'),
     });
 
-    expect(metadata.buildNumber).toBe('124');
-    expect(metadata.buildNumberSource).toBe('CI_BUILD_NUMBER');
-    expect(metadata.marketingVersion).toBe('4.12.126');
-    expect(metadata.marketingVersionSource).toBe('build-counter:CI_BUILD_NUMBER');
+    expect(metadata.marketingVersion).toBe('2026.12.0');
   });
 
-  it('keeps Xcode Cloud marketing versions monotonic across package patch releases', () => {
-    const previous = resolveIosCiVersionMetadata({
-      env: { CI: 'TRUE', CI_BUILD_NUMBER: '124' },
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.3',
-      checkedInBuildNumber: '80',
-      headTags: ['v4.12.2-mindroom.26'],
-    });
-    const next = resolveIosCiVersionMetadata({
-      env: { CI: 'TRUE', CI_BUILD_NUMBER: '125' },
-      packageVersion: '4.12.3',
-      checkedInMarketingVersion: '4.12.4',
-      checkedInBuildNumber: '33',
-      headTags: ['v4.12.3-mindroom.1'],
-    });
+  it('versions the first build without any release tag', () => {
+    const metadata = resolve({ env: XCODE_CLOUD });
 
-    expect(previous.marketingVersion).toBe('4.12.127');
-    expect(next.marketingVersion).toBe('4.12.129');
+    expect(metadata.marketingVersion).toBe('2026.11.0');
+    expect(metadata.marketingVersionSource).toBe('next-after:none');
   });
 
-  it('uses a newer checked-in marketing version as the automated counter base', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: { CI: 'TRUE', CI_BUILD_NUMBER: '1' },
-      packageVersion: '4.12.3',
-      checkedInMarketingVersion: '4.12.10',
-      checkedInBuildNumber: '33',
-      headTags: ['v4.12.3-mindroom.36'],
-    });
-
-    expect(metadata.marketingVersion).toBe('4.12.11');
-    expect(metadata.marketingVersionSource).toBe('build-counter:CI_BUILD_NUMBER');
-    expect(metadata.buildNumber).toBe('1');
-  });
-
-  it('keeps consecutive low counters increasing across the checked-in version floor', () => {
-    const marketingVersions = Array.from(
-      { length: 10 },
-      (_value, index) =>
-        resolveIosCiVersionMetadata({
-          env: { CI: 'TRUE', CI_BUILD_NUMBER: String(index + 1) },
-          packageVersion: '4.12.3',
-          checkedInMarketingVersion: '4.12.10',
-          checkedInBuildNumber: '33',
-          headTags: [],
-        }).marketingVersion
+  it('refuses a tag build whose tag is not a release tag', () => {
+    expect(() => resolve({ env: { ...XCODE_CLOUD, CI_TAG: 'v4.12.6-mindroom.180' } })).toThrow(
+      'CI_TAG v4.12.6-mindroom.180 is not a release tag vYYYY.M.N.'
     );
-
-    expect(marketingVersions).toEqual(
-      Array.from({ length: 10 }, (_value, index) => `4.12.${index + 11}`)
-    );
-  });
-
-  it('keeps consecutive counters increasing across a checked-in minor-version transition', () => {
-    const marketingVersions = ['1', '2'].map(
-      (buildNumber) =>
-        resolveIosCiVersionMetadata({
-          env: { CI: 'TRUE', CI_BUILD_NUMBER: buildNumber },
-          packageVersion: '4.12.3',
-          checkedInMarketingVersion: '4.13.2',
-          checkedInBuildNumber: '33',
-          headTags: [],
-        }).marketingVersion
-    );
-
-    expect(marketingVersions).toEqual(['4.13.3', '4.13.4']);
-  });
-
-  it.each([
-    {
-      description: 'checked-in major version',
-      packageVersion: '4.12.3',
-      checkedInMarketingVersion: '5.0.2',
-      expected: ['5.0.3', '5.0.4'],
-    },
-    {
-      description: 'package major version',
-      packageVersion: '5.0.0',
-      checkedInMarketingVersion: '4.13.9',
-      expected: ['5.0.1', '5.0.2'],
-    },
-  ])('uses the newer $description as the counter base', (testCase) => {
-    const marketingVersions = ['1', '2'].map(
-      (buildNumber) =>
-        resolveIosCiVersionMetadata({
-          env: { CI: 'TRUE', CI_BUILD_NUMBER: buildNumber },
-          packageVersion: testCase.packageVersion,
-          checkedInMarketingVersion: testCase.checkedInMarketingVersion,
-          checkedInBuildNumber: '33',
-          headTags: [],
-        }).marketingVersion
-    );
-
-    expect(marketingVersions).toEqual(testCase.expected);
   });
 
   it.each(['IOS_MARKETING_VERSION', 'APP_STORE_MARKETING_VERSION'])(
-    'keeps an explicit %s override in the Xcode Cloud counter path',
-    (marketingVersionKey) => {
-      const metadata = resolveIosCiVersionMetadata({
-        env: { CI: 'TRUE', CI_BUILD_NUMBER: '1', [marketingVersionKey]: '4.12.4' },
-        packageVersion: '4.12.3',
-        checkedInMarketingVersion: '4.13.2',
-        checkedInBuildNumber: '33',
-        headTags: [],
+    'keeps an explicit %s override ahead of tags',
+    (key) => {
+      const metadata = resolve({
+        env: { ...XCODE_CLOUD, CI_TAG: 'v2026.11.3', [key]: '2026.11.9' },
       });
 
-      expect(metadata.marketingVersion).toBe('4.12.4');
-      expect(metadata.marketingVersionSource).toBe(marketingVersionKey);
-      expect(metadata.buildNumber).toBe('1');
-      expect(metadata.buildNumberSource).toBe('CI_BUILD_NUMBER');
+      expect(metadata.marketingVersion).toBe('2026.11.9');
+      expect(metadata.marketingVersionSource).toBe(key);
     }
   );
 
-  it('does not reuse a reset release iteration as an automatic marketing counter', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: {},
-      packageVersion: '4.12.3',
-      checkedInMarketingVersion: '4.12.4',
-      checkedInBuildNumber: '33',
-      headTags: ['v4.12.3-mindroom.1'],
-    });
+  it('keeps an explicit build number override ahead of the Xcode Cloud counter', () => {
+    const metadata = resolve({ env: { ...XCODE_CLOUD, IOS_BUILD_NUMBER: '7' } });
 
-    expect(metadata.marketingVersion).toBe('4.12.4');
-    expect(metadata.marketingVersionSource).toBe('checked-in Xcode project');
-    expect(metadata.buildNumber).toBe('1');
+    expect(metadata.buildNumber).toBe('7');
+    expect(metadata.buildNumberSource).toBe('IOS_BUILD_NUMBER');
   });
 
-  it('keeps explicit marketing and build overrides for manual releases', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: { IOS_MARKETING_VERSION: '5.0.0', IOS_BUILD_NUMBER: '7' },
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.2',
-      checkedInBuildNumber: '80',
-      headTags: ['v4.12.2-mindroom.18'],
-    });
+  it('keeps the checked-in build number outside Xcode Cloud', () => {
+    const metadata = resolve({ env: { CI_BUILD_NUMBER: '512' } });
 
-    expect(metadata).toEqual({
-      marketingVersion: '5.0.0',
-      marketingVersionSource: 'IOS_MARKETING_VERSION',
-      buildNumber: '7',
-      buildNumberSource: 'IOS_BUILD_NUMBER',
-    });
-  });
-
-  it('keeps checked-in metadata for local builds without an automated counter', () => {
-    const metadata = resolveIosCiVersionMetadata({
-      env: {},
-      packageVersion: '4.12.2',
-      checkedInMarketingVersion: '4.12.3',
-      checkedInBuildNumber: '80',
-      headTags: [],
-    });
-
-    expect(metadata).toEqual({
-      marketingVersion: '4.12.3',
-      marketingVersionSource: 'checked-in Xcode project',
-      buildNumber: '80',
-      buildNumberSource: 'checked-in Xcode project',
-    });
-  });
-});
-
-describe('assertMarketingVersionNotBehindPackage', () => {
-  it('rejects a checked-in App Store marketing version that lags behind package.json', () => {
-    expect(() => assertMarketingVersionNotBehindPackage('4.11.2', '4.12.2')).toThrow(
-      'must not be lower than package.json version 4.12.2'
-    );
-  });
-
-  it('allows an App Store marketing version ahead of package.json for closed train bumps', () => {
-    expect(() => assertMarketingVersionNotBehindPackage('4.11.2', '4.11.1')).not.toThrow();
+    expect(metadata.buildNumber).toBe('33');
+    expect(metadata.buildNumberSource).toBe('checked-in Xcode project');
   });
 });

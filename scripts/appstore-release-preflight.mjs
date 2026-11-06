@@ -48,7 +48,7 @@ export const validateReleaseInput = (input = {}) => {
   /** @type {string[]} */
   const errors = [];
   if (!/^\d+\.\d+\.\d+$/.test(appVersion)) {
-    errors.push('APP_STORE_VERSION must use the three-integer format, such as 4.12.145.');
+    errors.push('APP_STORE_VERSION must use the three-integer format, such as 2026.11.0.');
   }
   if (!/^[1-9]\d*$/.test(buildNumber)) {
     errors.push('APP_STORE_BUILD_NUMBER must be a positive integer.');
