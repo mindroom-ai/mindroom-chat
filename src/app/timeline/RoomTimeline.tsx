@@ -121,7 +121,6 @@ import { useFooterBottomPin } from './useFooterBottomPin';
 import { useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
-import { isVisibleThreadReplyEvent } from '../event-store/threads/threadUtils';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
   useGestureBottomPins,
@@ -997,7 +996,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadEventsLength: threadEvents.length,
     threadId,
     threadInitialRenderMode,
-    threadShownEvent: threadEvents.findLast(isVisibleThreadReplyEvent) ?? threadEvents[0],
+    threadEvents,
     threadTailLoaded,
     timelineAtLiveEnd,
     unreadInfo,

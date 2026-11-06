@@ -67,6 +67,7 @@ function Harness({
     readUptoEventIdRef,
     room,
     setAtBottom,
+    threadEvents: [],
     threadEventsLength: 0,
     threadInitialRenderMode: 'live',
     threadTailLoaded: true,
@@ -172,6 +173,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
     readUptoEventIdRef: { current: undefined },
     room,
     setAtBottom: vi.fn(),
+    threadEvents: [],
     threadEventsLength: 0,
     threadInitialRenderMode: 'live',
     threadTailLoaded: true,
@@ -408,25 +410,28 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
     });
 
     it('is read on the next frame when it opens there, and again for each new reply', () => {
-      const shown = { getId: () => '$reply-1' } as unknown as MatrixEvent;
-      const options = optionsWith({ ...openThread, threadShownEvent: shown });
+      const rows = [
+        { getId: () => '$thread' },
+        { getId: () => '$reply-1' },
+      ] as unknown as MatrixEvent[];
+      const options = optionsWith({ ...openThread, threadEvents: rows });
       mount(options);
       expect(markThreadAsRead).not.toHaveBeenCalled();
 
       runFrames();
       expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+      // As far as the rows it renders.
       expect(markThreadAsRead).toHaveBeenLastCalledWith(
         mx,
         room.roomId,
         '$thread',
         false,
         undefined,
-        shown
+        rows
       );
 
-      // Read as far as the reply it renders last, which the next render moved.
-      const newer = { getId: () => '$reply-2' } as unknown as MatrixEvent;
-      rerender({ ...options, threadEventsLength: 3, threadShownEvent: newer });
+      const moreRows = [...rows, { getId: () => '$reply-2' } as unknown as MatrixEvent];
+      rerender({ ...options, threadEventsLength: 3, threadEvents: moreRows });
       runFrames();
       expect(markThreadAsRead).toHaveBeenCalledTimes(2);
       expect(markThreadAsRead).toHaveBeenLastCalledWith(
@@ -435,7 +440,7 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
         '$thread',
         false,
         undefined,
-        newer
+        moreRows
       );
       expect(markMainTimelineAsRead).not.toHaveBeenCalled();
     });

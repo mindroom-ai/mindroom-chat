@@ -383,6 +383,8 @@ const useThreadOpeningPin = ({
   | 'threadOpenedAtLatest'
   | 'threadUserScrolled'
 >) => {
+  // Whether the effect below pinned in this commit; the one after it then has nothing to do.
+  const pinnedInCommitRef = useRef(false);
   useLayoutEffect(() => {
     if (!threadId) return;
     const pinned = shouldPinThreadToBottomOnOpen({
@@ -398,6 +400,7 @@ const useThreadOpeningPin = ({
     if (!pinned || !scrollArea || !requestThreadOpenBottomPin()) return;
     scrollToBottom(scrollArea, 'instant');
     setAtBottom(true);
+    pinnedInCommitRef.current = true;
   }, [
     isThreadOpenBottomPinSuppressed,
     requestThreadOpenBottomPin,
@@ -414,6 +417,10 @@ const useThreadOpeningPin = ({
   // reasoning summary) pushes the newest reply below the view. The commit that renders the
   // measurement pins it again, as long as the opening pin holds.
   useLayoutEffect(() => {
+    if (pinnedInCommitRef.current) {
+      pinnedInCommitRef.current = false;
+      return;
+    }
     const scrollArea = scrollRef.current;
     if (!threadId || !scrollArea) return;
     if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) return;

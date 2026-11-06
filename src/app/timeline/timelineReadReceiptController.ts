@@ -72,10 +72,10 @@ type ReadReceiptControllerOptions = {
   threadId?: string;
   threadInitialRenderMode: ThreadInitialRenderMode;
   /**
-   * The newest reply the open thread renders, else its root: what reading the thread at its
-   * bottom reaches. The thread model may know newer replies that are not rendered yet.
+   * The events the open thread renders: reading it at its bottom reaches its newest reply there.
+   * The thread model may know newer replies that are not rendered yet.
    */
-  threadShownEvent?: MatrixEvent;
+  threadEvents: readonly MatrixEvent[];
   threadTailLoaded: boolean;
   timelineAtLiveEnd: boolean;
   unreadInfo?: { inLiveTimeline: boolean; readUptoEventId: string };
@@ -91,7 +91,7 @@ type ReadContext = Pick<
   | 'threadEventsLength'
   | 'threadId'
   | 'threadInitialRenderMode'
-  | 'threadShownEvent'
+  | 'threadEvents'
   | 'threadTailLoaded'
   | 'unreadInfo'
 >;
@@ -134,16 +134,16 @@ const readRoomOnNextFrame = (
 /**
  * Reads the open thread on the next frame, once its newest replies are loaded and rendered: its
  * tail is loaded, it is past its loading render, and it has a row. It reads up to the reply it
- * renders last (`threadShownEvent`): the tail can count as loaded while only the root is rendered.
+ * renders last (`threadEvents`): the tail can count as loaded while only the root is rendered.
  */
 const readThreadOnNextFrame = (context: ReadContext, stillReading: StillReading): void => {
-  const { hideActivity, mx, room, threadId, threadShownEvent } = context;
+  const { hideActivity, mx, room, threadEvents, threadId } = context;
   if (!threadId || !context.threadTailLoaded) return;
   if (context.threadInitialRenderMode === 'loading' || context.threadEventsLength === 0) return;
   const { roomId } = room;
   requestAnimationFrame(() => {
     if (!stillReading(roomId, threadId)) return;
-    void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadShownEvent);
+    void markThreadAsRead(mx, roomId, threadId, hideActivity, undefined, threadEvents);
   });
 };
 
@@ -168,8 +168,8 @@ export const useTimelineReadReceiptController = ({
   setAtBottom,
   threadEventsLength,
   threadId,
+  threadEvents,
   threadInitialRenderMode,
-  threadShownEvent,
   threadTailLoaded,
   timelineAtLiveEnd,
   unreadInfo,
@@ -181,8 +181,8 @@ export const useTimelineReadReceiptController = ({
     room,
     threadEventsLength,
     threadId,
+    threadEvents,
     threadInitialRenderMode,
-    threadShownEvent,
     threadTailLoaded,
     unreadInfo,
   });

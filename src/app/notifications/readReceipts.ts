@@ -221,12 +221,15 @@ const markThreadRootAsRead = async (
 };
 
 /**
- * What a view that shows the thread up to `shown`, its newest event there, has read: that reply,
- * or the edit that finished it. A view that shows no reply has read none.
+ * What a view that renders the thread's `shown` events has read: the newest reply among them, or
+ * the edit that finished it. A view that renders no reply has read none.
  */
-const reachedReply = (shown: MatrixEvent, thread: Thread | null): MatrixEvent | undefined => {
-  if (!isConfirmedReply(shown)) return undefined;
-  return thread ? newer(shown, finishingEditOf(shown, thread)) : shown;
+const reachedReply = (
+  shown: readonly MatrixEvent[],
+  thread: Thread | null
+): MatrixEvent | undefined => {
+  const reply = shown.findLast(isConfirmedReply);
+  return reply && thread ? newer(reply, finishingEditOf(reply, thread)) : reply;
 };
 
 /**
@@ -234,8 +237,8 @@ const reachedReply = (shown: MatrixEvent, thread: Thread | null): MatrixEvent | 
  * newest reply or the edit that finished one (`latestThreadReply`), or on `seen`, an event of the
  * thread the reader saw arrive, when that is newer. When the SDK's thread model knows neither, the
  * server's latest reply is fetched. A reply the user already read gets no new receipt. With
- * `shown`, the newest event of the thread the reader's view shows, the receipt reads up to it
- * only (`reachedReply`): the thread model can know replies the view has not rendered yet.
+ * `shown`, the thread's events the reader's view renders, the receipt reads up to the newest
+ * reply among them only (`reachedReply`): the thread model can know replies not rendered yet.
  */
 export const markThreadAsRead = async (
   mx: MatrixClient,
@@ -243,7 +246,7 @@ export const markThreadAsRead = async (
   rootId: string,
   hideActivity: boolean,
   seen?: MatrixEvent,
-  shown?: MatrixEvent
+  shown?: readonly MatrixEvent[]
 ): Promise<void> => {
   // A thread still being created has nothing the server could acknowledge.
   if (!isConfirmedMatrixEventId(rootId)) return;

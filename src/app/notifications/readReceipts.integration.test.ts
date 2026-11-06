@@ -109,7 +109,7 @@ describe('thread receipt unread state with SDK models', () => {
     const { mx, room, thread, requests } = await setupRoom();
     const root = room.findEventById('$root');
 
-    await markThreadAsRead(mx, ROOM_ID, '$root', false, undefined, root);
+    await markThreadAsRead(mx, ROOM_ID, '$root', false, undefined, root ? [root] : []);
 
     const threadReceipts = requests.mock.calls.filter(
       ([method, path, , body]) =>
@@ -122,8 +122,10 @@ describe('thread receipt unread state with SDK models', () => {
   });
 
   it('reads a thread up to the reply its view shows, not the newer one it knows', async () => {
-    const { mx, thread, requests } = await setupRoom();
-    const shown = message('$first', 2500, '$root');
+    const { mx, room, thread, requests } = await setupRoom();
+    const shown = [room.findEventById('$root'), message('$first', 2500, '$root')].filter(
+      (event): event is MatrixEvent => !!event
+    );
 
     await markThreadAsRead(mx, ROOM_ID, '$root', false, undefined, shown);
 
