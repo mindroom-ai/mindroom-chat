@@ -93,6 +93,7 @@ import {
   useRoomInputUploadTransport,
 } from './useRoomInputUploadTransport';
 import { useRoomInputVoice } from './useRoomInputVoice';
+import { type HeldSend, useUnconfirmedRootSends } from './useUnconfirmedRootSends';
 import { useSavedVoiceDraft } from './voice/savedVoiceDraft';
 
 export { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
@@ -255,6 +256,15 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     // Phones reach stickers through the emoji board's tabs instead of a button of their own.
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
+    // In a thread whose root the server has not confirmed, sends wait for it (set further down).
+    const rootConfirmedRef = useRef<(sends: HeldSend[]) => void>();
+    const { hold: holdForRoot, waiting: waitingForRoot } = useUnconfirmedRootSends({
+      room,
+      roomId,
+      threadId,
+      userId,
+      onConfirmedRef: rootConfirmedRef,
+    });
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
     const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
@@ -419,6 +429,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         await runActingCommand(acting);
         return;
       }
+      if (holdForRoot({ kind: 'message' })) return;
       const textContent = buildTextContent();
       // Sending the text answers the notice of files a reload lost.
       if (textContent) dismissLostFiles();
@@ -437,6 +448,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       commands,
       dismissLostFiles,
       editor,
+      holdForRoot,
       runActingCommand,
       sendTypingStatus,
       sessions,
@@ -530,6 +542,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const sendSticker = useCallback(
       (mxc: string, label: string) => {
+        if (holdForRoot({ kind: 'sticker', mxc, label })) return;
         const target = { roomId, threadId, replyDraft, threadingEnabled };
         sendComposerSticker(mx, target, { mxc, label }, imagePackRooms).catch((error: unknown) => {
           // eslint-disable-next-line no-console
@@ -537,8 +550,22 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         });
         if (replyDraft) clearReplyDraft({ roomId, replyDraft });
       },
-      [clearReplyDraft, imagePackRooms, mx, replyDraft, roomId, threadId, threadingEnabled]
+      [
+        clearReplyDraft,
+        imagePackRooms,
+        mx,
+        replyDraft,
+        roomId,
+        holdForRoot,
+        threadId,
+        threadingEnabled,
+      ]
     );
+    rootConfirmedRef.current = (sends) =>
+      sends.forEach((send) => {
+        if (send.kind === 'sticker') sendSticker(send.mxc, send.label);
+        else void handleSend();
+      });
     const openBoard = (tab: EmojiBoardTab, anchor: RectCords) => {
       setBoardTab(tab);
       setEmojiAnchor(anchor);
@@ -660,7 +687,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 />
               ) : (
                 threadId &&
-                submitPending && (
+                (submitPending || waitingForRoot) && (
                   <RoomInputReplyContext room={room} relation={undefined} pendingSend />
                 )
               )}

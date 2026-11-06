@@ -146,11 +146,8 @@ test.describe('live issue-068 fresh zero-reply open', () => {
         .toMatch(/^~/);
       await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText(rootBody).first()).toBeVisible({ timeout: 30_000 });
-      await expect(
-        page.getByText('Replies are available after this message is confirmed.')
-      ).toBeVisible();
-      await expect(page.locator('[data-editable-name="RoomInput"]')).toHaveCount(0);
-      await testInfo.attach('pending-root-replies-disabled', {
+      await expect(page.locator('[data-editable-name="RoomInput"]')).toBeVisible();
+      await testInfo.attach('pending-root-composer', {
         body: await page.screenshot(),
         contentType: 'image/png',
       });

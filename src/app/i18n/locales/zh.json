@@ -2839,7 +2839,6 @@
         "yesterday": "昨天"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "此消息确认后即可回复。",
         "youDoNotHavePermissionToPostInThisRoom": "您没有在此房间发送消息的权限"
       },
       "mindroomRoomViewHeader": {

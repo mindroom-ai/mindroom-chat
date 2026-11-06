@@ -2839,7 +2839,6 @@
         "yesterday": "Kemarin"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "Balasan tersedia setelah pesan ini dikonfirmasi.",
         "youDoNotHavePermissionToPostInThisRoom": "Anda tidak memiliki izin untuk mengirim pesan di ruang ini"
       },
       "mindroomRoomViewHeader": {

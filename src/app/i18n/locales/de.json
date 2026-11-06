@@ -2852,7 +2852,6 @@
         "yesterday": "Gestern"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "Antworten sind verfügbar, nachdem diese Nachricht bestätigt wurde.",
         "youDoNotHavePermissionToPostInThisRoom": "Du hast keine Berechtigung, in diesem Raum zu schreiben"
       },
       "mindroomRoomViewHeader": {

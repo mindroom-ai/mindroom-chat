@@ -79,7 +79,7 @@ const DOCK_STYLE: CSSProperties = {
   pointerEvents: 'none',
 };
 const DOCK_CONTENT_STYLE: CSSProperties = { pointerEvents: 'auto' };
-// Where the composer would be: why it is not there, or what to do about the unsent root.
+// Where the composer would be: why it is not there; or above it, what to do about the unsent root.
 const NOTICE_GAP = config.space.S400;
 const NOTICE_STYLE: CSSProperties = {
   background: color.SurfaceVariant.Container,
@@ -218,7 +218,13 @@ export function RoomView({
   );
   // An upgraded room takes no more messages; its notice leads to the replacement.
   const tombstone = useStateEvent(room, StateEvent.RoomTombstone);
-  const composerShown = !localRoot.pending && canMessage && !tombstone;
+  // A thread whose root the server has not confirmed keeps its composer: a reply sent there
+  // waits for the root (`useUnconfirmedRootSends`).
+  const composerShown = canMessage && !tombstone;
+  const failedRoot =
+    localRoot.pending && localRoot.event && isFailedLocalEchoEvent(localRoot.event)
+      ? localRoot.event
+      : undefined;
   useTypeToCompose(editor, composerShown);
   useRoomOverlayInsets(areaRef, headerRef, footerRef, dockRef, effectiveThreadId);
 
@@ -275,19 +281,8 @@ export function RoomView({
   };
 
   let composerNotice: React.ReactNode;
-  if (localRoot.pending) {
-    composerNotice =
-      localRoot.event && isFailedLocalEchoEvent(localRoot.event) ? (
-        <FailedSendActions room={room} event={localRoot.event} style={NOTICE_STYLE} />
-      ) : (
-        <Box justifyContent="Center" style={NOTICE_STYLE}>
-          <Text size="T300" priority="300">
-            {t(
-              'mindroomUi.threads.mindroomRoomView.repliesAreAvailableAfterThisMessageIsConfirmed'
-            )}
-          </Text>
-        </Box>
-      );
+  if (failedRoot) {
+    composerNotice = <FailedSendActions room={room} event={failedRoot} style={NOTICE_STYLE} />;
   } else if (tombstone) {
     composerNotice = <RoomTombstone tombstone={tombstone} style={NOTICE_STYLE} />;
   } else if (!canMessage) {

@@ -2852,7 +2852,6 @@
         "yesterday": "Dün"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "Bu mesaj onaylandıktan sonra yanıt verilebilir.",
         "youDoNotHavePermissionToPostInThisRoom": "Bu odada mesaj gönderme izniniz yok"
       },
       "mindroomRoomViewHeader": {

@@ -2839,7 +2839,6 @@
         "yesterday": "昨日"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "このメッセージが確認された後、返信が可能になります。",
         "youDoNotHavePermissionToPostInThisRoom": "このルームに投稿する権限がありません"
       },
       "mindroomRoomViewHeader": {

@@ -1799,7 +1799,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
     expect(navigateRoomThreadMock).toHaveBeenCalledWith(room.roomId, '~local-echo');
   });
 
-  it('hides the composer until a local-echo thread root is confirmed', async () => {
+  it('keeps the composer while a local-echo thread root waits for the server', async () => {
     const { RoomView } = await import('../RoomView');
     const room = makeRoom(nextRoomId('room-a'));
     useThreadRootEventMock.mockReturnValue('~pending-thread');
@@ -1814,10 +1814,9 @@ describe('RoomView', { timeout: 30_000 }, () => {
       );
     });
 
-    expect(renderer?.root.findAllByType('room-input')).toHaveLength(0);
-    expect(JSON.stringify(renderer?.toJSON())).toContain(
-      'Replies are available after this message is confirmed.'
-    );
+    const inputs = renderer?.root.findAllByType('room-input') ?? [];
+    expect(inputs).toHaveLength(1);
+    expect(inputs[0]?.props.threadId).toBe('~pending-thread');
   });
 
   const renderFailedLocalRoot = async () => {
@@ -1855,15 +1854,15 @@ describe('RoomView', { timeout: 30_000 }, () => {
         .findAll(() => true)
         .flatMap((node) => node.children.filter((child) => typeof child === 'string'))
         .join('|');
-    expect(renderer.root.findAllByType('room-input')).toHaveLength(0);
+    const composers = () => renderer.root.findAllByType('room-input');
+    expect(composers()).toHaveLength(1);
     expect(renderedText()).toContain('Not sent|Retry|Delete');
-    expect(renderedText()).not.toContain('Replies are available after this message is confirmed.');
 
     await act(async () => {
       room.updatePendingEvent(root, EventStatus.SENDING);
     });
 
-    expect(renderedText()).toContain('Replies are available after this message is confirmed.');
+    expect(composers()).toHaveLength(1);
     expect(renderedText()).not.toContain('Not sent');
   });
 

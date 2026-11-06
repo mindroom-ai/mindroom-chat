@@ -2968,7 +2968,6 @@
         "yesterday": "Вчера"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "Ответы станут доступны после подтверждения сообщения.",
         "youDoNotHavePermissionToPostInThisRoom": "У вас нет разрешения писать в этой комнате"
       },
       "mindroomRoomViewHeader": {

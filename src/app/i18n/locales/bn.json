@@ -1593,7 +1593,6 @@
         "yesterday": "গতকাল"
       },
       "mindroomRoomView": {
-        "repliesAreAvailableAfterThisMessageIsConfirmed": "এই বার্তা নিশ্চিত হওয়ার পরে উত্তর পাওয়া যায়।",
         "youDoNotHavePermissionToPostInThisRoom": "আপনার এই রুমে পোস্ট করার অনুমতি নেই"
       },
       "mindroomRoomViewHeader": {
