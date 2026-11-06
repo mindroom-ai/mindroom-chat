@@ -107,7 +107,8 @@ test.describe('phone back button', () => {
         timeout: 60_000,
       });
       const roomBack = header.getByRole('button', { name: 'Back', exact: true });
-      const members = header.getByRole('button', { name: /Members/ });
+      // A phone's header keeps Back, the name and the room menu; its icon is the reference.
+      const members = header.getByRole('button', { name: 'More Options', exact: true });
       const room = await measure(roomBack);
       const memberIcon = await measure(members);
       for (const other of await header.getByRole('button').all()) {
