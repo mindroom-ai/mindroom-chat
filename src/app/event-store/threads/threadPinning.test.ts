@@ -350,11 +350,32 @@ describe('room thread pins', () => {
       ''
     );
   });
-  it.each([0, 50, 99])('rejects power %i even when the room permits state edits', async (level) => {
-    const { mx, room } = makeRoom(level, 0);
+  it.each([
+    [50, 50],
+    [40, 40],
+    [0, 0],
+  ])('lets power %i pin when the room sets pins to %i', async (level, required) => {
+    const { mx, room } = makeRoom(level, required);
+    const send = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$pin' });
+    await setRoomEventPinned(mx, room, '$root', true);
+    expect(send).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    [0, 50],
+    [30, 40],
+    [99, 100],
+  ])('rejects power %i when the room sets pins to %i', async (level, required) => {
+    const { mx, room } = makeRoom(level, required);
     const send = vi.spyOn(mx, 'sendStateEvent').mockResolvedValue({ event_id: '$pin' });
     await expect(setRoomEventPinned(mx, room, '$root', true)).rejects.toThrow();
     expect(send).not.toHaveBeenCalled();
+  });
+
+  it('reads the pin level from state_default when the room sets none for pins', () => {
+    const powers = { users: { [admin]: 50 }, state_default: 50 };
+    expect(canPinRoomEvents(new Set(), powers, admin)).toBe(true);
+    expect(canPinRoomEvents(new Set(), { ...powers, state_default: 60 }, admin)).toBe(false);
   });
 
   it('honors stricter room permissions and privileged room creators', () => {

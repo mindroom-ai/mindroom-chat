@@ -15,6 +15,7 @@ import {
 } from './threadTagPending';
 import { buildPerTagStateKey, MINDROOM_THREAD_TAGS_EVENT } from '../../event-store/threads/threadTags';
 import { useThreadTags } from './useThreadTags';
+import { useMutateThreadTags } from './useMutateThreadTags';
 
 vi.mock('../../matrix/hooks/useStateEvents', () => ({
   useStateEvents: vi.fn(),
@@ -247,5 +248,66 @@ describe('useThreadTags', () => {
     expect(getPendingThreadTagsContent(room.roomId, '$root')).toBeUndefined();
 
     renderer?.unmount();
+  });
+
+  it("shows another person's tag that syncs while this client's own tag is pending", () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(ISO_1));
+    const room = makeRoom();
+    const root = new MatrixEvent({
+      content: { body: 'Root', msgtype: 'm.text' },
+      event_id: '$root',
+      origin_server_ts: 1,
+      room_id: room.roomId,
+      sender: '@alice:example.org',
+      type: 'm.room.message',
+    });
+    Object.defineProperty(root, 'isThreadRoot', { value: true });
+    vi.spyOn(room, 'findEventById').mockReturnValue(root);
+    // The write stays in flight, so only sync can settle the tag.
+    const sendStateEvent = vi.fn(() => new Promise(() => undefined));
+    mockedUseMatrixClient.mockReturnValue({
+      getSafeUserId: () => '@alice:example.org',
+      sendStateEvent,
+    } as never);
+    let mutate: ReturnType<typeof useMutateThreadTags> | undefined;
+    let snapshot: ReturnType<typeof useThreadTags> | undefined;
+    function Both() {
+      mutate = useMutateThreadTags(room);
+      snapshot = useThreadTags(room, '$root');
+      return null;
+    }
+    let renderer!: ReturnType<typeof create>;
+    act(() => {
+      renderer = create(React.createElement(Both));
+    });
+    const sync = (events: MatrixEvent[]) => {
+      mockedUseStateEvents.mockReturnValue(events);
+      act(() => renderer.update(React.createElement(Both)));
+    };
+    const bobsTag = makePerTagEvent('$root', 'y-tab', {
+      set_by: '@bob:example.org',
+      set_at: ISO_2,
+    });
+    try {
+      act(() => {
+        void mutate?.addTag('$root', 'x-desk');
+      });
+      expect(sendStateEvent).toHaveBeenCalledTimes(1);
+      expect(snapshot?.displayTags).toEqual(['x-desk']);
+
+      sync([bobsTag]);
+      expect(snapshot?.displayTags).toEqual(['x-desk', 'y-tab']);
+
+      sync([bobsTag, makePerTagEvent('$root', 'x-desk', { set_by: '@alice:example.org', set_at: ISO_1 })]);
+      expect(snapshot?.displayTags).toEqual(['x-desk', 'y-tab']);
+
+      // The own tag has settled, so a later removal by someone else shows at once.
+      sync([bobsTag, makePerTagTombstoneEvent('$root', 'x-desk')]);
+      expect(snapshot?.displayTags).toEqual(['y-tab']);
+    } finally {
+      act(() => renderer.unmount());
+      vi.useRealTimers();
+    }
   });
 });
