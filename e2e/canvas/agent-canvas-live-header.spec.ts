@@ -255,6 +255,9 @@ for (const scenario of SCENARIOS) {
         baseURL,
         viewport: { width: 390, height: 844 },
         hasTouch: true,
+        // WebKit's routes do not see what a service worker fetches, so the worker would fetch the
+        // unrouted config.json, which has canvases off.
+        serviceWorkers: 'block',
       });
       await canvasComesAndGoes(page, stack, scenario);
     } finally {
