@@ -50,11 +50,15 @@ export const useBindRoomListAtom = (
     setRooms({ type: 'INITIALIZE', rooms: initialRoomIds });
 
     const update = (room: Room) => {
-      setRooms(
-        belongs(room)
-          ? { type: 'PUT', roomId: room.roomId }
-          : { type: 'DELETE', roomId: room.roomId }
-      );
+      if (!belongs(room)) {
+        setRooms({ type: 'DELETE', roomId: room.roomId });
+        return;
+      }
+      // A sync works out the membership of a new room before it stores the room, and can wait
+      // for the server in between; listed then, the room showed as an empty row that the stored
+      // room never filled. It is listed once the client has it (`ClientEvent.Room`).
+      if (!mx.getRoom(room.roomId)) return;
+      setRooms({ type: 'PUT', roomId: room.roomId });
     };
     const handleDeleteRoom = (roomId: string) => setRooms({ type: 'DELETE', roomId });
 
