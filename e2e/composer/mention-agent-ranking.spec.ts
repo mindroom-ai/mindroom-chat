@@ -137,8 +137,11 @@ const mentionMind = async (page: Page, tag: string, pick: 'tab' | 'tap') => {
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
   const composer = page.locator('[data-editable-name="RoomInput"]');
   await expect(composer).toBeVisible({ timeout: 60_000 });
-  // The room has loaded its members once the router's message shows.
-  await expect(page.getByText('Welcome to the launch room.')).toBeVisible({ timeout: 30_000 });
+  // The room has loaded its members once the router's message shows (the room list previews it
+  // too).
+  await expect(page.getByText('Welcome to the launch room.').first()).toBeVisible({
+    timeout: 30_000,
+  });
   await composer.click();
   await page.keyboard.type('@Min');
 
