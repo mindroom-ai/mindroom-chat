@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, webkit, type BrowserContext, type Page } from '@playwright/test';
 import { getHomeserver } from '../env';
 import { readSessionStore } from '../helpers/accounts';
 import { loginWithPassword } from '../helpers/auth';
@@ -252,11 +252,6 @@ test('an offline start keeps thread titles, thread participants and the space pi
   // Let the cache writes of the thread lists settle before the page goes away.
   await page.waitForTimeout(1_000);
 
-  // Playwright's WebKit contexts keep cache storage in memory and drop it once no page of the
-  // origin is open (Safari keeps it); a plain file of the app holds the origin while the app
-  // restarts.
-  const keeper = await context.newPage();
-  await keeper.goto('/version.json');
   await page.close();
   await goOffline(context, baseURL!, browserName);
   const offline = await context.newPage();
@@ -269,7 +264,11 @@ test('an offline start keeps thread titles, thread participants and the space pi
     timeout: 15_000,
   });
   await expect(offlineSidebar.getByText(rootTitle, { exact: true })).toBeVisible();
-  await expect.poll(() => imageLoaded(offline, spaceImage), { timeout: 15_000 }).toBe(true);
+  // Playwright's WebKit contexts drop their cache storage between pages, which Safari does not;
+  // the profile restart below covers WebKit.
+  if (browserName !== 'webkit') {
+    await expect.poll(() => imageLoaded(offline, spaceImage), { timeout: 15_000 }).toBe(true);
+  }
 
   await shot(offline, 'offline-start-sidebar', browserName);
 
@@ -390,3 +389,55 @@ test.describe('with the service worker', () => {
     await expect.poll(() => imageLoaded(page, spaceImage), { timeout: 15_000 }).toBe(true);
   });
 });
+
+test(
+  'a WebKit profile restarted offline keeps the space picture',
+  { tag: '@webkit' },
+  async ({ baseURL, browserName }, testInfo) => {
+    test.skip(browserName !== 'webkit', 'Persistent-profile restart coverage uses WebKit');
+    test.setTimeout(150_000);
+    const viewer = await register('offline_profile_viewer', 'Profile Viewer');
+    const picture = await uploadPicture(viewer.accessToken);
+    const spaceId = await createRoom(viewer, {
+      name: `Profile space ${Date.now().toString(36)}`,
+      creation_content: { type: 'm.space' },
+      initial_state: [{ type: 'm.room.avatar', state_key: '', content: { url: picture } }],
+    });
+    const profile = testInfo.outputPath('persistent-profile');
+    const options = {
+      baseURL,
+      viewport: { width: 1280, height: 800 },
+      serviceWorkers: 'block' as const,
+    };
+    const spaceImage = `[data-id="${spaceId}"] img`;
+    let context = await webkit.launchPersistentContext(profile, options);
+    try {
+      const page = context.pages()[0] ?? (await context.newPage());
+      await loginWithPassword(page, {
+        homeserver: getHomeserver(),
+        username: viewer.username,
+        password: PASSWORD,
+      });
+      await expect.poll(() => imageLoaded(page, spaceImage), { timeout: 20_000 }).toBe(true);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            async () => (await (await caches.open('mindroom-avatars-v1')).keys()).length
+          )
+        )
+        .toBeGreaterThan(0);
+      await waitForSavedSync(page, spaceId);
+      await context.close();
+
+      // The homeserver is out of reach when the profile opens again.
+      context = await webkit.launchPersistentContext(profile, options);
+      await context.route(/\/_matrix\//, (route) => route.abort());
+      const reopened = context.pages()[0] ?? (await context.newPage());
+      await reopened.goto('/home/');
+      await expect.poll(() => imageLoaded(reopened, spaceImage), { timeout: 20_000 }).toBe(true);
+      await shot(reopened, 'offline-profile-space-picture', browserName);
+    } finally {
+      await context.close();
+    }
+  }
+);
