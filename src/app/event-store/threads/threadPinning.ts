@@ -16,6 +16,7 @@ import {
 import { getRoomPermissionsAPI } from '../../matrix/hooks/useRoomPermissions';
 import { getStateEvent } from '../../matrix/room';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { guardPinWrite } from './pinWriteGuard';
 
 /** Whether the room's power levels let `userId` write its pins, as the server decides it. */
 export const canPinRoomEvents = (
@@ -189,6 +190,7 @@ export const setRoomEventPinned = async (
     }
   };
   assertCanPin();
+  guardPinWrite(mx, room, eventId, pinned, (id, value) => setRoomEventPinned(mx, room, id, value));
   if (pinned) trackQueuedPin(room, eventId, 1);
   // Room pins are one state event. Serialize this client's writes and read the
   // server copy so a successful write is retained even before its sync echo.
