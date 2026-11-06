@@ -1,5 +1,5 @@
-import { style } from '@vanilla-extract/css';
-import { config } from 'folds';
+import { globalStyle, style } from '@vanilla-extract/css';
+import { color, config } from 'folds';
 
 // Sits above the composer, as wide as it, and grows upward.
 
@@ -35,4 +35,9 @@ export const AutocompleteMenuHeader = style({
 
 export const AutocompleteMenuItems = style({
   padding: config.space.S100,
+});
+
+// The row Enter or Tab picks.
+globalStyle(`${AutocompleteMenuItems} [role="option"][aria-selected="true"]`, {
+  backgroundColor: color.Surface.ContainerActive,
 });

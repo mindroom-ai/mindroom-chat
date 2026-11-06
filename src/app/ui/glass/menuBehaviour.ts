@@ -21,10 +21,12 @@ const MenuRoleContext = createContext<string | undefined>(undefined);
 /** Tells the rows inside a menu surface which role the surface has. */
 export const MenuRoleProvider = MenuRoleContext.Provider;
 
-/** A menu row's role: the one it names, else `menuitem` inside a `menu`. */
+const ROW_ROLES: Record<string, string> = { menu: 'menuitem', listbox: 'option' };
+
+/** A menu row's role: the one it names, else `menuitem` in a `menu` and `option` in a `listbox`. */
 export const useMenuItemRole = (role: string | undefined): string | undefined => {
   const menuRole = useContext(MenuRoleContext);
-  return role ?? (menuRole === 'menu' ? 'menuitem' : undefined);
+  return role ?? (menuRole ? ROW_ROLES[menuRole] : undefined);
 };
 
 const ITEM_SELECTOR = '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]';

@@ -79,7 +79,7 @@ const wholeNameShows = async (page: Page, browserName: string) => {
   await composer.click();
   await page.keyboard.type('@Wren');
 
-  const suggestion = page.getByRole('button', { name: /Wren Harbormaster/ });
+  const suggestion = page.getByRole('option', { name: /Wren Harbormaster/ });
   await expect(suggestion).toBeVisible({ timeout: 20_000 });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/mention-${browserName}.png` });
   const name = await suggestion.evaluate((button) => {
