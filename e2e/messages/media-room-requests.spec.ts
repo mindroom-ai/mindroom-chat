@@ -129,7 +129,7 @@ test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('a media room loads thumbnails near the viewport and files only on request', async ({
+test('a media room loads thumbnails near the viewport and files only on request @webkit', async ({
   page,
 }) => {
   test.setTimeout(180_000);

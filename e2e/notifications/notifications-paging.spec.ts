@@ -45,7 +45,7 @@ test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('Load Older Messages ends with the last page, and late pages cost what early ones do', async ({
+test('Load Older Messages ends with the last page, and late pages cost what early ones do @webkit', async ({
   page,
 }) => {
   test.setTimeout(240_000);
