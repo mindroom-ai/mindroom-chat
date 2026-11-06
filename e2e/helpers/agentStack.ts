@@ -83,8 +83,15 @@ const startAgentStack = (args: string[]): AgentStack | string => {
   );
 };
 
-/** The client config the specs need: the slot's homeserver, and canvases on. */
-const routeClientConfig = async (page: Page, stack: AgentStack): Promise<void> => {
+/**
+ * The client config the specs need: the slot's homeserver, and canvases on. A spec may route it again
+ * with more `mindroom` settings; the route added last answers.
+ */
+export const routeClientConfig = async (
+  page: Page,
+  stack: AgentStack,
+  mindroom: Record<string, unknown> = {}
+): Promise<void> => {
   await page.route('**/config.json', async (route) => {
     const response = await route.fetch();
     const config = (await response.json()) as Record<string, Record<string, unknown>>;
@@ -94,7 +101,11 @@ const routeClientConfig = async (page: Page, stack: AgentStack): Promise<void> =
         ...config,
         homeserverList: [stack.homeserver],
         defaultHomeserver: 0,
-        mindroom: { ...config.mindroom, canvas: { enabled: true, libraries: false } },
+        mindroom: {
+          ...config.mindroom,
+          canvas: { enabled: true, libraries: false },
+          ...mindroom,
+        },
       },
     });
   });
