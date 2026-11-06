@@ -15,6 +15,8 @@ type CreateDialogFrameProps = {
 
 // The form keeps the same inset from the close button side as from the title side.
 const FORM_INSET = { paddingInline: '1.5rem', paddingBottom: '1.5rem' };
+// Below a long list the scrolling content gives way, never the footer.
+const FOOTER = { flexShrink: 0 };
 
 /**
  * The dialog that creation forms (a room, a space) and pickers open in: their title and a close
@@ -51,7 +53,7 @@ export function CreateDialogFrame({
         <PageScroll header={heading}>
           <PageContent style={FORM_INSET}>{children}</PageContent>
         </PageScroll>
-        {footer}
+        {footer && <div style={FOOTER}>{footer}</div>}
       </Page>
     </Modal500>
   );
