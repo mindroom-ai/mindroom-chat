@@ -28,6 +28,7 @@ it('renders the rows an applied correction moved before the browser paints', asy
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = false;
   const scrollElement = { scrollTop: 3400, addEventListener() {}, removeEventListener() {} };
   let commits = 0;
+  let readMeasurementCorrectionPx = () => 0;
   function Harness() {
     const controller = useTimelineScrollLedgerController({
       alive: () => true,
@@ -42,6 +43,7 @@ it('renders the rows an applied correction moved before the browser paints', asy
       threadEvents: [],
       threadInitialRenderMode: 'live',
     });
+    readMeasurementCorrectionPx = controller.readMeasurementCorrectionPx;
     useLayoutEffect(() => {
       commits += 1;
     });
@@ -54,11 +56,11 @@ it('renders the rows an applied correction moved before the browser paints', asy
     delta: number,
     instance: { scrollOffset: number; scrollDirection: null; scrollElement: { scrollTop: number } }
   ) => boolean;
-  const resize = (end: number) => {
+  const resize = (end: number, delta = -200) => {
     const scrollOffset = scrollElement.scrollTop;
-    const apply = correction({ end }, -200, { scrollOffset, scrollDirection: null, scrollElement });
+    const apply = correction({ end }, delta, { scrollOffset, scrollDirection: null, scrollElement });
     // virtual-core writes an applied correction at once.
-    if (apply) scrollElement.scrollTop -= 200;
+    if (apply) scrollElement.scrollTop += delta;
     return apply;
   };
   const committed = commits;
@@ -68,6 +70,11 @@ it('renders the rows an applied correction moved before the browser paints', asy
   expect(resize(3300)).toBe(true);
   expect(resize(3350)).toBe(true);
   expect(scrollElement.scrollTop).toBe(3000);
+  // Growth can ask for a downward adjustment before React extends the scroll range. The browser
+  // clamps it, so it must not cancel the upward movement the opening pin needs to recognize.
+  expect(resize(100, 200)).toBe(true);
+  scrollElement.scrollTop = 3000;
+  expect(readMeasurementCorrectionPx()).toBe(-400);
   expect(commits).toBe(committed);
 
   // One microtask later, before a scheduled render could run after the
