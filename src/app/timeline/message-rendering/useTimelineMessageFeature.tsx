@@ -617,7 +617,12 @@ export const useTimelineMessageFeature = ({
               <ApprovalHistory records={historyRecords as never} />
             </MessageAside>
           )}
-          {showFailedActions && <FailedSendActions room={room} event={sendState} />}
+          {showFailedActions && (
+            // Lined up with the message body it belongs to, past the avatar column.
+            <MessageAside>
+              <FailedSendActions room={room} event={sendState} />
+            </MessageAside>
+          )}
         </React.Fragment>
       );
     },
