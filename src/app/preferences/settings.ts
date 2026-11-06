@@ -56,7 +56,6 @@ const BOOLEAN_SETTING_KEYS = [
   'mediaAutoLoad', // Load images and videos without a click.
   'urlPreview', // Show link previews in unencrypted rooms.
   'encUrlPreview', // Show link previews in encrypted rooms too; the homeserver then sees the links.
-  'hour24Clock', // Times as 13:00 instead of 1:00 PM.
   'threadBannerCollapsed',
   'simpleThreadFilters', // The room's thread filter bar offers only the count, Unresolved and the sort.
   'hideThreadFilterBar', // The room header's filter button hid the thread filter bar.
@@ -85,6 +84,11 @@ export type Settings = Record<BooleanSettingKey, boolean> &
     pageZoom: number;
     /** dayjs format for dates in the timeline. */
     dateFormatString: string;
+    /**
+     * Times as 13:00 instead of 1:00 PM; unset, times follow the app language's clock
+     * (`useHour24Clock`).
+     */
+    hour24Clock?: boolean;
   };
 
 /** The on/off settings that start on; every other one starts off. */
@@ -154,6 +158,7 @@ const sanitizeSettings = (value: unknown): Settings => {
       typeof record.dateFormatString === 'string'
         ? record.dateFormatString
         : DEFAULT_SETTINGS.dateFormatString,
+    hour24Clock: typeof record.hour24Clock === 'boolean' ? record.hour24Clock : undefined,
   };
   // A stored value of another type counts by its truthiness, so `null` or `0` turns a setting off.
   BOOLEAN_SETTING_KEYS.forEach((key) => {
@@ -163,12 +168,22 @@ const sanitizeSettings = (value: unknown): Settings => {
   return settings;
 };
 
+/**
+ * The stored settings. Until the clock followed the language, every device stored the 24-hour
+ * clock as off by default, so a stored off is no choice; a choice made while signed in is the
+ * account's (roamingSettings.ts), where off stays off.
+ */
+const readStoredSettings = (stored: unknown): Settings => {
+  const settings = sanitizeSettings(stored);
+  return settings.hour24Clock === false ? { ...settings, hour24Clock: undefined } : settings;
+};
+
 /** Reads the stored settings; never throws. */
 export const getSettings = (): Settings => {
   const raw = getStorageItemSafe(getSafeLocalStorage(), SETTINGS_STORAGE_KEY);
   if (raw === null) return sanitizeSettings(undefined);
   try {
-    return sanitizeSettings(JSON.parse(raw));
+    return readStoredSettings(JSON.parse(raw));
   } catch {
     return sanitizeSettings(undefined);
   }

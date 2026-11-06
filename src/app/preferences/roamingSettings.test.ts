@@ -184,6 +184,8 @@ describe('roamingMigration', () => {
     const flipped = Object.fromEntries(
       ROAMING_KEYS.map((key) => {
         const value = DEFAULT_SETTINGS[key];
+        // The clock has no default (it follows the language), so a choice differs from it.
+        if (value === undefined) return [key, true];
         return [key, typeof value === 'boolean' ? !value : 'YYYY-MM-DD'];
       })
     );

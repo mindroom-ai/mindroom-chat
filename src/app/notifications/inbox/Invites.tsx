@@ -31,6 +31,8 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { allInvitesAtom } from '../../matrix/state/inviteList';
 import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
+import { useHour24Clock } from '../../preferences/useHour24Clock';
+import { timeHourMinute } from '../../lib/time';
 import { glassOutline, glassSurface } from '../../ui/styles/Glass.css';
 import { getRoomAvatarUrl } from '../../matrix/room';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
@@ -187,7 +189,7 @@ type InviteTimeFormat = { hour24Clock: boolean; dateFormatString: string };
 
 const useInviteTimeFormat = (): InviteTimeFormat => {
   const [dateFormatString] = useSetting(settingsAtom, 'dateFormatString');
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
+  const [hour24Clock] = useHour24Clock();
   return { dateFormatString, hour24Clock };
 };
 
@@ -220,7 +222,7 @@ export function InviteCard({
   hideAvatar,
   useAuthentication = false,
 }: InviteCardProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const client = useMatrixClient();
   const { room, roomId, roomName, roomTopic, isSpace } = invite;
   const [state, setState] = useState<'idle' | 'joining' | 'leaving' | 'error'>('idle');
@@ -254,8 +256,12 @@ export function InviteCard({
   };
 
   const busy = state === 'joining' || state === 'leaving';
+  // The date in the user's format, the time and its day period as the language writes them.
   const time = invite.inviteTs
-    ? dayjs(invite.inviteTs).format(`${dateFormatString} ${hour24Clock ? 'HH:mm' : 'hh:mm A'}`)
+    ? [
+        dayjs(invite.inviteTs).format(dateFormatString),
+        timeHourMinute(invite.inviteTs, hour24Clock, i18n.language),
+      ].join(' ')
     : undefined;
 
   return (

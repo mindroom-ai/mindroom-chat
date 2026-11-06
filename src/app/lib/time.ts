@@ -74,9 +74,42 @@ export const timeDayMonthYear = (ts: number, language?: string): string =>
     year: 'numeric',
   }).format(ts);
 
-// Two-digit hours on both clocks ("08:44 PM"), so the times down a timeline line up.
+/**
+ * Whether `language` tells the time on a 24-hour clock ("14:40" in German, "2:40 PM" in
+ * English): the clock the app shows until the user picks one (`useHour24Clock`).
+ */
+export const languageUses24HourClock = (language?: string): boolean => {
+  const { hourCycle } = dateTimeFormat(language, { hour: 'numeric' }).resolvedOptions();
+  return hourCycle === 'h23' || hourCycle === 'h24';
+};
+
+// Two-digit hours on both clocks ("08:44 PM"), so the times down a timeline line up. Intl writes
+// the language's own day period ("오후", "م") and digits.
 export const timeHourMinute = (ts: number, hour24Clock = false, language?: string): string =>
   dateTimeFormat(language, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: !hour24Clock,
+  }).format(ts);
+
+/** The time to the second, for a timestamp's tooltip ("8:44:05 PM", "20:44:05"). */
+export const timeHourMinuteSecond = (ts: number, hour24Clock = false, language?: string): string =>
+  dateTimeFormat(language, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: !hour24Clock,
+  }).format(ts);
+
+/** A short date and the time, for lists of past events ("Nov 5, 08:44 PM"). */
+export const timeMonthDayHourMinute = (
+  ts: number,
+  hour24Clock = false,
+  language?: string
+): string =>
+  dateTimeFormat(language, {
+    month: 'short',
+    day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
     hour12: !hour24Clock,

@@ -44,6 +44,7 @@ import {
 } from '../../messages/html/react-custom-html-parser';
 import { useMentionClickHandler } from '../../messages/useMentionClickHandler';
 import { useSettingValue } from '../../preferences/useSettingValue';
+import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { settingsAtom, type Settings } from '../../preferences/settings';
 import { roomIdToReplyDraftAtomFamily } from '../../composer/roomInputDrafts';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
@@ -141,7 +142,7 @@ export const hasThreadReplies = (record: ThreadRecord | undefined): boolean =>
 /** The settings each message row reads; the row list re-renders when one changes. */
 const useMessageDisplaySettings = () => ({
   dateFormatString: useSettingValue(settingsAtom, 'dateFormatString'),
-  hour24Clock: useSettingValue(settingsAtom, 'hour24Clock'),
+  hour24Clock: useHour24Clock()[0],
   mediaAutoLoad: useSettingValue(settingsAtom, 'mediaAutoLoad'),
   urlPreview: useSettingValue(settingsAtom, 'urlPreview'),
   encUrlPreview: useSettingValue(settingsAtom, 'encUrlPreview'),
@@ -589,7 +590,7 @@ export const useTimelineMessageFeature = ({
               toggleReaction(eventId, key, shortcode, relations)
             }
             hideReadReceipts={hideActivity}
-            hour24Clock={!!hour24Clock}
+            hour24Clock={hour24Clock}
             dateFormatString={dateFormatString}
           >
             <div

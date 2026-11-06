@@ -22,7 +22,6 @@ import {
   toRem,
 } from 'folds';
 import { useTranslation } from 'react-i18next';
-import dayjs from 'dayjs';
 import { useAtomValue } from 'jotai';
 import {
   MatrixEventEvent,
@@ -60,9 +59,14 @@ import {
   MessageBadEncryptedContent,
   MessageDeletedContent,
 } from '../../messages/content/FallbackContent';
-import { getReactCustomHtmlParser, LINKIFY_OPTS } from '../../messages/html/react-custom-html-parser';
+import {
+  getReactCustomHtmlParser,
+  LINKIFY_OPTS,
+} from '../../messages/html/react-custom-html-parser';
 import { useSettingValue } from '../../preferences/useSettingValue';
 import { settingsAtom } from '../../preferences/settings';
+import { useHour24Clock } from '../../preferences/useHour24Clock';
+import { timeMonthDayHourMinute } from '../../lib/time';
 import { MarkRoomReadChip } from '../MarkRoomReadChip';
 import { isHighlightNotification, isMessageNotification } from '../inboxNotification';
 import { getEventThreadId } from '../messageNotificationRules';
@@ -258,7 +262,8 @@ function NotificationRow({
   /** Opens the message: in its thread when it has one, in the room otherwise. */
   onOpen: (eventId: string, threadId?: string) => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const [hour24Clock] = useHour24Clock();
   const client = useMatrixClient();
   const event = useNotificationEvent(client, room, notification.event);
   const parserOptions = useBodyParserOptions(client, room.roomId);
@@ -318,7 +323,7 @@ function NotificationRow({
             <b>{senderName}</b>
           </Text>
           <Text size="T200" priority="300" style={{ flexShrink: 0 }}>
-            {dayjs(notification.ts).format('MMM D, HH:mm')}
+            {timeMonthDayHourMinute(notification.ts, hour24Clock, i18n.language)}
           </Text>
           {highlighted && (
             <Icon

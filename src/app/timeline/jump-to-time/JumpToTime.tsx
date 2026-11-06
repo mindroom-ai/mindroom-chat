@@ -23,8 +23,7 @@ import { useAlive } from '../../lib/hooks/useAlive';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useRoomViewMode } from '../../navigation/useRoomViewMode';
-import { useSetting } from '../../preferences/useSetting';
-import { settingsAtom } from '../../preferences/settings';
+import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { readableReason } from '../../lib/errorReason';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
@@ -127,7 +126,7 @@ export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
   const { t, i18n } = useTranslation();
   const client = useMatrixClient();
   const viewModes = useRoomViewMode(room.roomId);
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
+  const [hour24Clock] = useHour24Clock();
   const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [moment, setMoment] = useState<Moment>(() => midnight(0));
   const mounted = useAlive();

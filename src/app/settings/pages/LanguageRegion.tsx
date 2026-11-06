@@ -1,10 +1,11 @@
 import { useTranslation } from 'react-i18next';
+import { Switch } from 'folds';
 import { SettingTile } from '../../ui/SettingTile';
 import { APP_LANGUAGES } from '../../i18n/i18nLanguages';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { SettingsPageFrame, type SettingsPageProps } from '../../ui/settings/SettingsPageFrame';
 import { SettingsSection } from '../../ui/settings/SettingsSection';
-import { SettingSwitchTile } from '../../ui/settings/SettingSwitchTile';
+import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { ChoiceButton } from '../../ui/settings/ChoiceButton';
 import { DateFormatSetting } from './DateFormatSetting';
 
@@ -36,6 +37,20 @@ function AppLanguageTile() {
   );
 }
 
+/** The 24-hour clock switch: on or off as times show now, the language's clock until picked. */
+function Hour24ClockTile() {
+  const { t } = useTranslation();
+  const [on, setOn] = useHour24Clock();
+  const title = t('settings.general.dateTime.hour24Clock');
+  return (
+    <SettingTile
+      focusId="hour24Clock"
+      title={title}
+      after={<Switch variant="Primary" aria-label={title} value={on} onChange={setOn} />}
+    />
+  );
+}
+
 /** The interface language, and how times and dates read in the timeline. */
 export function LanguageRegion({ requestClose }: SettingsPageProps) {
   const { t } = useTranslation();
@@ -49,11 +64,7 @@ export function LanguageRegion({ requestClose }: SettingsPageProps) {
         <AppLanguageTile />
       </SettingsSection>
       <SettingsSection title={t('settings.general.dateTime.sectionTitle')}>
-        <SettingSwitchTile
-          focusId="hour24Clock"
-          setting="hour24Clock"
-          title={t('settings.general.dateTime.hour24Clock')}
-        />
+        <Hour24ClockTile />
         <DateFormatSetting />
       </SettingsSection>
     </SettingsPageFrame>

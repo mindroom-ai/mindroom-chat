@@ -219,8 +219,8 @@ describe('bindRoamingSettings', () => {
     );
     await vi.waitFor(() => expect(app.pending()).toEqual({}));
     expect(loadPendingRoamingSettings(pendingRoamingSettingsKey(ALICE, 'PHONE'))).toEqual({});
-    // The device entry keeps the value it had before the setting roamed.
-    expect(getSettings().hour24Clock).toBe(false);
+    // The device entry keeps the value it had before the setting roamed: no clock of its own.
+    expect(getSettings().hour24Clock).toBeUndefined();
     app.unbind();
   });
 
@@ -439,7 +439,7 @@ describe('bindRoamingSettings', () => {
     unbind();
 
     unbind = bindRoamingSettings(bobPhone.mx, store);
-    expect(store.get(settingsAtom).hour24Clock).toBe(false);
+    expect(store.get(settingsAtom).hour24Clock).toBeUndefined();
     expect(store.get(settingsAtom).isMarkdown).toBe(false);
     expect(store.get(pendingRoamingSettingsAtom).values).toEqual({});
     change('hideActivity', true);

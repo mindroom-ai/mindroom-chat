@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Icon, Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { useSetting } from '../../preferences/useSetting';
-import { settingsAtom } from '../../preferences/settings';
+import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { inSameDay } from '../../lib/time';
 import { useAgentRoomState } from '../../matrix/protocol/agentRoomState';
 import { userDisplayName } from '../approvalPeople';
@@ -36,7 +35,7 @@ const formatEnd = (expiresAt: number, now: number, language: string, hour24Clock
 export function AutoApproveChip({ room, threadId }: { room: Room; threadId: string }) {
   const { t } = useTranslation();
   const language = useAppLanguageCode();
-  const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
+  const [hour24Clock] = useHour24Clock();
   const [now, setNow] = useState(Date.now);
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);

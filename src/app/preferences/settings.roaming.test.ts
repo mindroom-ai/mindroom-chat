@@ -46,7 +46,7 @@ describe('settingsAtom with roaming settings', () => {
 
   it('follows the account content sync delivers, with no edit of its own', () => {
     const store = signedIn(ALICE);
-    expect(store.get(settingsAtom).hour24Clock).toBe(false);
+    expect(store.get(settingsAtom).hour24Clock).toBeUndefined();
     store.set(roamingAccountContentAtom, { version: 1, hour24Clock: true });
     expect(store.get(settingsAtom).hour24Clock).toBe(true);
   });
@@ -70,7 +70,7 @@ describe('settingsAtom with roaming settings', () => {
       values: { hour24Clock: true },
     });
     expect(loadPendingRoamingSettings(ALICE)).toEqual({ hour24Clock: true });
-    expect(getSettings().hour24Clock).toBe(false);
+    expect(getSettings().hour24Clock).toBeUndefined();
   });
 
   it('writes device settings to this device only, and never adds them to the pending edits', () => {
@@ -83,7 +83,7 @@ describe('settingsAtom with roaming settings', () => {
     expect(getSettings().useSystemTheme).toBe(false);
     expect(store.get(pendingRoamingSettingsAtom).values).toEqual({});
     // The account's value never lands in the device entry either.
-    expect(getSettings().hour24Clock).toBe(false);
+    expect(getSettings().hour24Clock).toBeUndefined();
   });
 
   it('stores a roaming change on the device while no account is signed in', () => {
@@ -101,7 +101,7 @@ describe('settingsAtom with roaming settings', () => {
     // Bob signs in on the same device: his own account content and pending edits, the same
     // device entry, which Alice's choices never reached.
     const bob = signedIn(BOB, { version: 1 });
-    expect(bob.get(settingsAtom).hour24Clock).toBe(false);
+    expect(bob.get(settingsAtom).hour24Clock).toBeUndefined();
     expect(bob.get(settingsAtom).hideActivity).toBe(false);
     expect(loadPendingRoamingSettings(BOB)).toEqual({});
     expect(loadPendingRoamingSettings(ALICE)).toEqual({ hideActivity: true });
