@@ -5,7 +5,11 @@ import { act, create } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useRoomEvent } from './useRoomEvent';
 
-vi.mock('../../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => ({}) }));
+type Crypto = Parameters<MatrixEvent['attemptDecryption']>[0];
+const clientCrypto = vi.hoisted(() => ({ current: undefined as unknown }));
+vi.mock('../../matrix/hooks/useMatrixClient', () => ({
+  useMatrixClient: () => ({ getCrypto: () => clientCrypto.current }),
+}));
 vi.mock('../../matrix/session/useSessionStore', () => ({ useActiveSession: () => undefined }));
 vi.mock('./eventRepository', () => ({
   loadCachedRoomEvent: vi.fn(),
@@ -36,9 +40,39 @@ afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
   client.clear();
+  clientCrypto.current = undefined;
 });
 
+/** Crypto that decrypts `$reply` as `body`. */
+const decryptingTo = (body: string) =>
+  ({
+    decryptEvent: vi.fn().mockResolvedValue({
+      clearEvent: { type: 'm.room.message', content: { msgtype: 'm.text', body } },
+    }),
+  } as unknown as Crypto);
+
 describe('useRoomEvent with a copy the client holds', () => {
+  it('decrypts a copy that nothing decrypted, and shows it', async () => {
+    const reply = encryptedReply();
+    const crypto = decryptingTo('Reefer row C lost power twice before midnight.');
+    clientCrypto.current = crypto;
+    const room = { roomId: ROOM_ID, findEventById: () => reply } as unknown as Room;
+    const seen: unknown[] = [];
+    function Probe() {
+      seen.push(useRoomEvent(room, '$reply')?.getContent().body);
+      return null;
+    }
+    await act(async () => {
+      renderer = create(
+        React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
+      );
+      await reply.getDecryptionPromise();
+    });
+
+    expect(crypto.decryptEvent).toHaveBeenCalledTimes(1);
+    expect(seen.at(-1)).toBe('Reefer row C lost power twice before midnight.');
+  });
+
   it('shows the copy again once it is decrypted', async () => {
     const reply = encryptedReply();
     const room = { roomId: ROOM_ID, findEventById: () => reply } as unknown as Room;
