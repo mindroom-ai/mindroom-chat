@@ -26,7 +26,7 @@ const RAN = /^Ran \d+ tool calls?$/;
 // APPROVAL_STATES_SHOTS=<directory> saves the states the tests check as screenshots there.
 const shot = async (page: Page, name: string) => {
   const dir = process.env.APPROVAL_STATES_SHOTS;
-  if (dir) await page.screenshot({ path: `${dir}/${name}.png` });
+  if (dir) await page.screenshot({ path: `${dir}/${test.info().project.name}-${name}.png` });
 };
 
 const waitForApproval = (
