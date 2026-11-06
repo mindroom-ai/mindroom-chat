@@ -44,6 +44,7 @@ vi.mock('folds', async () => {
     MenuItem: Container,
     PopOut: Container,
     Spinner: Container,
+    Tooltip: Container,
     Text: ({ children, ...props }: { children?: React.ReactNode }) =>
       reactModule.createElement('span', props, children),
     config: {
