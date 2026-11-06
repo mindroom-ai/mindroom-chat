@@ -225,8 +225,10 @@ const phoneMenus = async (page: Page, name: string) => {
     .first();
   await walkMenu(page, 'room header (phone)', () => headerOptions.tap());
 
+  // A tap on the message's text shows its options; its middle can be the sender's name, whose
+  // touch target opens their profile.
   const message = page.locator('[data-message-id]', { hasText: NOTE });
-  await message.tap();
+  await message.getByText(NOTE).tap();
   const messageOptions = message.getByRole('button', { name: 'More Options', exact: true });
   await walkMenu(page, 'message options (phone)', () => messageOptions.tap());
 };
