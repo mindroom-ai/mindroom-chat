@@ -14,6 +14,7 @@ import {
   joinRoom,
   loginToMatrix,
   matrixFetch,
+  registerAgentAccount,
   seedRoomOverviewState,
   sendRoomMessage,
   type MatrixSession,
@@ -86,20 +87,23 @@ const register = async (homeserver: string, name: string): Promise<Account> => {
 };
 
 /**
- * A writer's room with 500 threads, each with one reply. The reader replied to the odd threads
- * and the writer to the even ones. The newest 100 threads get their replies one at a time, oldest
- * first, so thread 499 is the newest by activity and thread 469 leads the list's second page.
- * The reader also has 25 smaller rooms.
+ * A writer's room with an agent and 500 threads, each with one reply. The reader replied to the
+ * odd threads, the agent to every fourth and the writer to the rest. The newest 100 threads get
+ * their replies one at a time, oldest first, so thread 499 is the newest by activity and thread
+ * 469 leads the list's second page. The reader also has 25 smaller rooms.
  */
 const seed = async (): Promise<Seed> => {
   const homeserver = getHomeserver();
   const reader = await register(homeserver, 'reader');
   const writer = await register(homeserver, 'writer');
+  // The thread count shows in rooms with an agent.
+  const agent = await registerAgentAccount(homeserver, 'planner');
   const roomId = await createRoom(homeserver, writer.accessToken, {
     name: 'Operations planning',
-    invite: [reader.userId],
+    invite: [reader.userId, agent.userId],
   });
   await joinRoom(homeserver, reader.accessToken, roomId);
+  await joinRoom(homeserver, agent.accessToken, roomId);
   for (let batch = 0; batch < 5; batch += 1) {
     // eslint-disable-next-line no-await-in-loop
     await Promise.all(
@@ -133,7 +137,7 @@ const seed = async (): Promise<Seed> => {
   const reply = (index: number) =>
     sendRoomMessage(
       homeserver,
-      (index % 2 === 1 ? reader : writer).accessToken,
+      (index % 2 === 1 ? reader : index % 4 === 0 ? agent : writer).accessToken,
       roomId,
       {
         msgtype: 'm.text',
@@ -188,17 +192,18 @@ const watchThreadList = async (page: Page, roomId: string) => {
   return requests;
 };
 
-/** Scrolls the card list to its end; answers whether it got there. */
-const scrollCardsToEnd = (page: Page) =>
+/** The cards' thread root IDs; scrolls the card list to its end first. */
+const listedRoots = (page: Page) =>
   page.evaluate(() => {
     const view = document.querySelector('[data-compact-room-view]');
-    let scroller: Element | null = view?.querySelector('[data-thread-root-id]') ?? null;
-    while (scroller && !(scroller.scrollHeight > scroller.clientHeight + 1)) {
-      scroller = scroller.parentElement;
-    }
-    if (!scroller) return false;
-    scroller.scrollTop = scroller.scrollHeight;
-    return true;
+    if (view) view.scrollTop = view.scrollHeight;
+    return [
+      ...new Set(
+        [...document.querySelectorAll('[data-compact-room-view] [data-thread-root-id]')].map(
+          (card) => card.getAttribute('data-thread-root-id')
+        )
+      ),
+    ];
   });
 
 const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'webkit') => {
@@ -248,10 +253,8 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
   expect(partial.filter((text) => !/^\d+\+$/.test(text))).toEqual([]);
   expect(partial.length).toBeGreaterThan(0);
 
-  // The oldest card is in the list: thread 1 has the oldest activity of the threads the reader
-  // read (the writer's replies keep the even threads unread, and unread threads come first).
-  await expect.poll(() => scrollCardsToEnd(page)).toBe(true);
-  await expect(page.locator(`[data-thread-root-id="${roots[1]}"]`)).toBeVisible();
+  // A card for every thread, the oldest ones included.
+  await expect.poll(async () => (await listedRoots(page)).sort()).toEqual([...roots].sort());
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-end.png` });
 
   // Each page of the room's list once, the reader's list once, and nothing more after a while.

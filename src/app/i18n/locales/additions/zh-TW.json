@@ -427,7 +427,8 @@
         "threadFiltersActive": "討論串篩選器（已啟用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "進階篩選器"
+        "advancedFilters": "進階篩選器",
+        "notAllThreadsLoaded": "尚未載入所有討論串"
       },
       "threadPeopleFilter": {
         "label": "參與者",

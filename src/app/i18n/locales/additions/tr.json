@@ -434,7 +434,8 @@
         "threadFiltersActive": "Konu filtreleri (etkin)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Gelişmiş filtreler"
+        "advancedFilters": "Gelişmiş filtreler",
+        "notAllThreadsLoaded": "Henüz tüm konular yüklenmedi"
       },
       "threadPeopleFilter": {
         "label": "Kişiler",

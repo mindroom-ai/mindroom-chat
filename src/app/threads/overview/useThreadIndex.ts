@@ -106,6 +106,8 @@ export type UseThreadIndexResult = ThreadIndexSnapshot & {
   scheduledStatusMap: Map<string, ThreadScheduledStatus>;
   availableRoomTags: string[];
   roomThreadListThreads: Thread[];
+  /** The room's thread list has its first page and no page left. */
+  roomThreadListFullyLoaded: boolean;
   refreshRoomThreadList: () => Promise<void>;
   applyThreadOverviewRelationEvents: (options: FetchedRelationOverviewUpdateOptions) => void;
 };
@@ -644,6 +646,7 @@ export const useThreadIndex = ({
     scheduledStatusMap,
     availableRoomTags,
     roomThreadListThreads,
+    roomThreadListFullyLoaded,
     refreshRoomThreadList,
     applyThreadOverviewRelationEvents,
   };

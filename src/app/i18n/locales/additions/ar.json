@@ -462,7 +462,8 @@
         "threadFiltersActive": "عوامل تصفية سلاسل المحادثات (مفعّلة)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "عوامل تصفية متقدمة"
+        "advancedFilters": "عوامل تصفية متقدمة",
+        "notAllThreadsLoaded": "لم يتم تحميل كل سلاسل المحادثات بعد"
       },
       "threadPeopleFilter": {
         "label": "الأشخاص",

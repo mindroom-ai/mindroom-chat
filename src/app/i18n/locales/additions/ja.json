@@ -427,7 +427,8 @@
         "threadFiltersActive": "スレッドフィルター（有効）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "詳細フィルター"
+        "advancedFilters": "詳細フィルター",
+        "notAllThreadsLoaded": "まだすべてのスレッドが読み込まれていません"
       },
       "threadPeopleFilter": {
         "label": "参加者",

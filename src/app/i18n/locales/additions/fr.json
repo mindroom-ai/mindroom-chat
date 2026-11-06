@@ -441,7 +441,8 @@
         "threadFiltersActive": "Filtres de fils (actifs)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtres avancés"
+        "advancedFilters": "Filtres avancés",
+        "notAllThreadsLoaded": "Tous les fils ne sont pas encore chargés"
       },
       "threadPeopleFilter": {
         "label": "Personnes",

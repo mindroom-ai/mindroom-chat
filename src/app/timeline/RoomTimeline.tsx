@@ -1204,6 +1204,12 @@ export function RoomTimeline(props: RoomTimelineProps) {
           (compactCards ? threadIndex.compactThreadRootData : threadIndex.visibleThreadRootData).ids
             .length
         }
+        // Cards come from the room's thread list and, for roots without replies, its history.
+        countComplete={
+          (!compactCards || threadIndex.roomThreadListFullyLoaded) &&
+          !canPaginateRoomBack &&
+          !roomHasMoreCachedBack
+        }
         statusCounts={threadIndex.statusCounts}
         tagCounts={threadIndex.tagCounts}
         state={threadFilterState}

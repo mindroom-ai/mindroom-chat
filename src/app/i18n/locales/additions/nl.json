@@ -434,7 +434,8 @@
         "threadFiltersActive": "Threadfilters (actief)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Geavanceerde filters"
+        "advancedFilters": "Geavanceerde filters",
+        "notAllThreadsLoaded": "Nog niet alle threads zijn geladen"
       },
       "threadPeopleFilter": {
         "label": "Personen",

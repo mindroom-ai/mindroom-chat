@@ -427,7 +427,8 @@
         "threadFiltersActive": "Filter utas (aktif)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filter lanjutan"
+        "advancedFilters": "Filter lanjutan",
+        "notAllThreadsLoaded": "Belum semua utas dimuat"
       },
       "threadPeopleFilter": {
         "label": "Orang",

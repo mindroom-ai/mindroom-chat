@@ -441,7 +441,8 @@
         "threadFiltersActive": "Filtros de tópicos (ativos)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Filtros avançados"
+        "advancedFilters": "Filtros avançados",
+        "notAllThreadsLoaded": "Nem todos os tópicos foram carregados ainda"
       },
       "threadPeopleFilter": {
         "label": "Pessoas",

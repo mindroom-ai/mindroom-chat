@@ -427,7 +427,8 @@
         "threadFiltersActive": "讨论串过滤器（已启用）"
       },
       "roomThreadOverview": {
-        "advancedFilters": "高级过滤器"
+        "advancedFilters": "高级过滤器",
+        "notAllThreadsLoaded": "尚未加载所有讨论串"
       },
       "threadPeopleFilter": {
         "label": "参与者",

@@ -448,7 +448,8 @@
         "threadFiltersActive": "Фильтры веток (активны)"
       },
       "roomThreadOverview": {
-        "advancedFilters": "Расширенные фильтры"
+        "advancedFilters": "Расширенные фильтры",
+        "notAllThreadsLoaded": "Ещё не все ветки загружены"
       },
       "threadPeopleFilter": {
         "label": "Участники",
