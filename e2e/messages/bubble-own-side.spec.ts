@@ -232,6 +232,63 @@ const setLayout = async (page: Page, layout: number) => {
   }, layout);
 };
 
+/**
+ * An own message the server refuses keeps its "Not sent" line with Retry and Delete under its
+ * bubble, ending where the bubble ends, not at the other side of the conversation.
+ */
+const checkFailedSend = async (page: Page, label: string, desktop: boolean, testInfo: TestInfo) => {
+  const text = `Refused draft ${label}: the agenda for Thursday.`;
+  await page.route('**/send/m.room.message/**', async (route) => {
+    const body = (route.request().postDataJSON() ?? {}) as { body?: string };
+    if (!body.body?.startsWith('Refused draft')) {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 400,
+      contentType: 'application/json',
+      body: JSON.stringify({ errcode: 'M_UNKNOWN', error: 'injected failure' }),
+    });
+  });
+  const composer = page.locator('[data-room-footer="true"] [contenteditable="true"]');
+  await composer.click();
+  await page.keyboard.type(text);
+  // A phone's Enter starts a new line; its send button sends.
+  if (desktop) await page.keyboard.press('Enter');
+  else await page.getByRole('button', { name: 'Send message', exact: true }).click();
+  const row = page.locator('[data-message-id]').filter({ hasText: text }).last();
+  const line = row
+    .locator('xpath=following-sibling::*[1]')
+    .filter({ hasText: 'Not sent' })
+    .getByRole('button', { name: 'Delete' });
+  await expect(line).toBeVisible({ timeout: 30_000 });
+  await line.scrollIntoViewIfNeeded();
+  await shot(page, testInfo, `bubble-${label}-not-sent`);
+  const ends = await row.evaluate((element, needle) => {
+    const name = element.querySelector('button[data-user-id]');
+    let bubble: HTMLElement | null = name?.parentElement ?? null;
+    while (bubble && bubble !== element) {
+      const { backgroundColor } = getComputedStyle(bubble);
+      if (backgroundColor !== 'rgba(0, 0, 0, 0)' && backgroundColor !== 'transparent') break;
+      bubble = bubble.parentElement;
+    }
+    const next = element.nextElementSibling;
+    const remove = Array.from(next?.querySelectorAll('button') ?? []).find(
+      (button) => button.textContent === needle
+    );
+    return {
+      bubble: bubble?.getBoundingClientRect().right ?? NaN,
+      line: remove?.getBoundingClientRect().right ?? NaN,
+    };
+  }, 'Delete');
+  expect(Math.abs(ends.line - ends.bubble), 'the Not sent line ends with the bubble').toBeLessThan(
+    4
+  );
+  await line.click();
+  await expect(row).toHaveCount(0);
+  await page.unrouteAll({ behavior: 'ignoreErrors' });
+};
+
 const run = async (page: Page, data: Seed, label: string, desktop: boolean, testInfo: TestInfo) => {
   for (const scheme of SCHEMES) {
     // eslint-disable-next-line no-await-in-loop
@@ -247,6 +304,7 @@ const run = async (page: Page, data: Seed, label: string, desktop: boolean, test
     // eslint-disable-next-line no-await-in-loop
     await checkBubble(page, 'ltr', desktop);
   }
+  await checkFailedSend(page, label, desktop, testInfo);
   for (const layout of [LAYOUT.classic, LAYOUT.compact]) {
     // eslint-disable-next-line no-await-in-loop
     await setLayout(page, layout);
