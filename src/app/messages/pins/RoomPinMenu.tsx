@@ -1,5 +1,6 @@
 import { forwardRef, useMemo, useRef, useState, useId, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useParams } from 'react-router-dom';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Avatar, Box, Chip, Icon, IconButton, Icons, Scroll, Spinner, Text, config } from 'folds';
 import { Menu } from '../../ui/glass/GlassPrimitives';
@@ -300,7 +301,8 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
   ({ requestClose, room }, ref) => {
     const { pinnedEventIds, canPin, setPinned, updating } = useThreadPinning(room);
     const [clock24] = useSetting(settingsAtom, 'hour24Clock');
-    const { navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
+    const { navigateRoom, navigateRoomFocusEvent, navigateRoomThread } = useRoomNavigate();
+    const { eventId: routedEventId } = useParams();
     const [datePattern] = useSetting(settingsAtom, 'dateFormatString');
     const { t } = useTranslation();
     const timeFormat = useMemo(
@@ -318,11 +320,22 @@ export const RoomPinMenu = forwardRef<HTMLDivElement, RoomPinMenuProps>(
     // thread focuses its root); a thread reply opens in its thread, as a search hit does.
     const openMessage = (eventId: string, threadRootId?: string) => {
       requestClose();
-      if (threadRootId && threadRootId !== eventId) {
-        navigateRoomThread(room.roomId, threadRootId, eventId);
-      } else {
-        navigateRoomFocusEvent(room.roomId, eventId);
+      const open = () => {
+        if (threadRootId && threadRootId !== eventId) {
+          navigateRoomThread(room.roomId, threadRootId, eventId);
+        } else {
+          navigateRoomFocusEvent(room.roomId, eventId);
+        }
+      };
+      if (routedEventId !== eventId) {
+        open();
+        return;
       }
+      // The address already names this message (the reader opened it before and scrolled away),
+      // and the timeline acts only on a change of it: drop the permalink first, as Jump to
+      // Latest does, and open the message on the next frame.
+      navigateRoom(room.roomId, undefined, { replace: true });
+      requestAnimationFrame(open);
     };
 
     const unpinMessage = (eventId: string, from: HTMLElement) => {

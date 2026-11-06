@@ -576,14 +576,16 @@ const checkJump = async (
   await expect.poll(() => highlighted(page, seeded.recent), { timeout: 10_000 }).toBe(true);
 
   // The reader scrolls away and opens the same pin again: it opens again.
-  await timelineRow(page, seeded.recent).evaluate((element) => {
-    let scroller = element.parentElement;
-    while (scroller && scroller.scrollHeight <= scroller.clientHeight + 1) {
-      scroller = scroller.parentElement;
-    }
-    scroller?.scrollBy({ top: -4000 });
-  });
-  await expect(timelineRow(page, seeded.recent)).not.toBeInViewport();
+  await expect(async () => {
+    await timelineRow(page, seeded.recent).evaluate((element) => {
+      let scroller = element.parentElement;
+      while (scroller && scroller.scrollHeight <= scroller.clientHeight + 1) {
+        scroller = scroller.parentElement;
+      }
+      scroller?.scrollBy({ top: -4000 });
+    });
+    await expect(timelineRow(page, seeded.recent)).not.toBeInViewport({ timeout: 1_000 });
+  }).toPass({ timeout: 20_000 });
   await pinButton.click();
   await expect(menu).toBeVisible();
   await watchHighlight(page, seeded.recent);
