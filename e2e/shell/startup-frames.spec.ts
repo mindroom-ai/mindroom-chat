@@ -277,10 +277,26 @@ test('the start shows no black or empty frame, and saved rooms before the first 
   const warmFrames = await measureFrames(page, warm.frames, warmStart);
   await saveFrames(warm.frames, warmStart, 'warm');
 
+  // Where WebGL draws decides what the particle background costs the main thread.
+  const webgl = await page.evaluate(() => {
+    const gl = document.createElement('canvas').getContext('webgl2');
+    if (!gl) return { webgl2: false };
+    const info = gl.getExtension('WEBGL_debug_renderer_info');
+    return {
+      webgl2: true,
+      renderer: String(gl.getParameter(gl.RENDERER)),
+      unmasked: info ? String(gl.getParameter(info.UNMASKED_RENDERER_WEBGL)) : undefined,
+      caveat:
+        document
+          .createElement('canvas')
+          .getContext('webgl2', { failIfMajorPerformanceCaveat: true }) === null,
+    };
+  });
   // eslint-disable-next-line no-console
   console.log(
     'STARTUP',
     JSON.stringify({
+      webgl,
       cold: {
         rowsMs: coldRowsMs,
         animationFrames: coldFrameCount,
