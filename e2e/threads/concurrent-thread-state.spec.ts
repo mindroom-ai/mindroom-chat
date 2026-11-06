@@ -6,17 +6,12 @@ import {
   type BrowserContextOptions,
   type Locator,
   type Page,
-  type Route,
   type TestInfo,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  loginToMatrix,
-  matrixFetch,
-  sendRoomMessage,
-  type MatrixSession,
-} from '../helpers/matrix';
+import { loginToMatrix, matrixFetch, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { holdFirstWrites } from '../helpers/holdWrites';
 import { launchWebKit } from '../helpers/webkit';
 
 // Two people work on the same room at the same moment, each in their own browser, against a
@@ -174,21 +169,16 @@ const seed = async (name: string, guestPower: number) => {
     roots.push(rootId);
     for (const [index, body] of thread.replies.entries()) {
       // eslint-disable-next-line no-await-in-loop
-      await sendRoomMessage(
-        HOMESERVER,
-        (index % 2 ? owner : guest).accessToken,
-        roomId,
-        {
-          msgtype: 'm.text',
-          body,
-          'm.relates_to': {
-            rel_type: 'm.thread',
-            event_id: rootId,
-            is_falling_back: true,
-            'm.in_reply_to': { event_id: rootId },
-          },
-        }
-      );
+      await sendRoomMessage(HOMESERVER, (index % 2 ? owner : guest).accessToken, roomId, {
+        msgtype: 'm.text',
+        body,
+        'm.relates_to': {
+          rel_type: 'm.thread',
+          event_id: rootId,
+          is_falling_back: true,
+          'm.in_reply_to': { event_id: rootId },
+        },
+      });
     }
   }
   const [first, second] = roots;
@@ -209,33 +199,6 @@ const openThread = async (page: Page, account: Account, roomId: string, rootId: 
   await expect(banner(page).getByRole('button', { name: 'Thread options' })).toBeEnabled({
     timeout: 30_000,
   });
-};
-
-/**
- * Holds every state write to `eventType` from the pages until each page has sent one, then lets
- * them all through together, so every page read the room before any of the writes landed.
- */
-const holdFirstWrites = async (pages: Page[], eventType: string) => {
-  const held: Route[] = [];
-  let released = false;
-  const matches = (url: URL) => url.pathname.includes(`/state/${eventType}/`);
-  const handler = async (route: Route) => {
-    if (released || route.request().method() !== 'PUT') {
-      await route.continue();
-      return;
-    }
-    held.push(route);
-  };
-  await Promise.all(pages.map((page) => page.route(matches, handler)));
-  return {
-    release: async () => {
-      await expect
-        .poll(() => held.length, { message: 'each page sent its write', timeout: 20_000 })
-        .toBe(pages.length);
-      released = true;
-      await Promise.all(held.map((route) => route.continue()));
-    },
-  };
 };
 
 const shoot = async (page: Page, testInfo: TestInfo, name: string) => {
@@ -268,7 +231,7 @@ const tagTogether = async (open: Open, engine: string, testInfo: TestInfo) => {
   const laptop = await open(LAPTOP);
   await openThread(desk, owner, roomId, roots[0]);
   await openThread(laptop, guest, roomId, roots[0]);
-  const writes = await holdFirstWrites([desk, laptop], 'com.mindroom.thread.tags');
+  const writes = await holdFirstWrites([desk, laptop], '/state/com.mindroom.thread.tags/');
   const dialogs = new Map<Page, Locator>();
   for (const [page, tag] of [
     [desk, 'x-desk'],
@@ -315,13 +278,12 @@ const pinTogether = async (open: Open, engine: string, testInfo: TestInfo) => {
   const laptop = await open(LAPTOP);
   await openThread(desk, owner, roomId, roots[0]);
   await openThread(laptop, guest, roomId, roots[1]);
-  const pin = (page: Page) =>
-    banner(page).getByRole('button', { name: 'Pin thread', exact: true });
+  const pin = (page: Page) => banner(page).getByRole('button', { name: 'Pin thread', exact: true });
   const unpin = (page: Page) =>
     banner(page).getByRole('button', { name: 'Unpin thread', exact: true });
   await expect(pin(desk)).toBeVisible();
   await expect(pin(laptop)).toBeVisible();
-  const writes = await holdFirstWrites([desk, laptop], 'm.room.pinned_events');
+  const writes = await holdFirstWrites([desk, laptop], '/state/m.room.pinned_events/');
   await Promise.all([pin(desk).click(), pin(laptop).click()]);
   await writes.release();
   const both = [...roots].sort();
@@ -370,6 +332,7 @@ const moderatorPins = async (open: Open, engine: string, testInfo: TestInfo) => 
     await expect(page.getByRole('menuitem', { name: 'Copy Link', exact: true })).toBeVisible();
     const hasPin = (await item.count()) > 0;
     await page.keyboard.press('Escape');
+    await expect(page.getByRole('menu')).toHaveCount(0);
     return hasPin;
   };
 
@@ -404,11 +367,7 @@ const CHECKS: [string, (open: Open, engine: string, info: TestInfo) => Promise<v
   ['a moderator at the room’s pin level gets the pin actions, and loses them live', moderatorPins],
 ];
 
-const opener = (
-  browser: Browser,
-  baseURL: string | undefined,
-  extra?: BrowserContextOptions
-) => {
+const opener = (browser: Browser, baseURL: string | undefined, extra?: BrowserContextOptions) => {
   const contexts: BrowserContext[] = [];
   const open: Open = async (options) => {
     const context = await browser.newContext({ ...options, ...extra, baseURL });
