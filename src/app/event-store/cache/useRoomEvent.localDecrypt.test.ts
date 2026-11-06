@@ -62,10 +62,12 @@ describe('useRoomEvent with a copy the client holds', () => {
       seen.push(useRoomEvent(room, '$reply')?.getContent().body);
       return null;
     }
-    await act(async () => {
+    act(() => {
       renderer = create(
         React.createElement(QueryClientProvider, { client }, React.createElement(Probe))
       );
+    });
+    await act(async () => {
       await reply.getDecryptionPromise();
     });
 
