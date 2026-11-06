@@ -122,6 +122,7 @@ import { useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
 import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
+import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
   useGestureBottomPins,
@@ -534,10 +535,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
         backController.reset();
         openedViewKeyRef.current = viewKeyRef.current;
       },
-      resetAfterLeave: () => {
-        backController.reset();
-        openedViewKeyRef.current = undefined;
-      },
+      resetAfterLeave: () => backController.reset(),
       // Queued: the next commit applies it, unless the reader scrolls first.
       requestLatestPin: () => {
         backController.requestOpenBottomPin(scrollToBottomRef);
@@ -625,12 +623,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const readerScrolledRef = useViewScopedFlag(viewKey);
   const threadLatestOpenPending =
     !!threadId && session.snapshot.open.latestPending && openedViewKeyRef.current === viewKey;
-  // The rows a thread has in memory or in the cache render before the session starts its open,
-  // which pins a thread opened at its latest row to the bottom: until then they would paint at the
-  // top, the root above the newest replies, and jump. They stay hidden until then; a thread still
-  // being created (a local echo root) has no open to wait for.
-  const hideThreadRowsBeforeOpen =
-    !!threadId && !eventId && !isLocalEchoEventId(threadId) && openedViewKeyRef.current !== viewKey;
   if (threadLatestOpenPending) openedAtLatestRef.current.value = true;
   const threadOpenedAtLatest = !!threadId && openedAtLatestRef.current.value;
   const threadUserScrolled = readerScrolledRef.current.value;
@@ -956,6 +948,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
     timelineAtLiveEnd,
     unreadInfo,
     unreadScrollAnchorIndex: windowState.unreadScrollAnchorIndex,
+  });
+  // After the pins above: a thread opening at its newest reply shows its rows once they rest there
+  // (a local echo root, a thread still being created, has no open to wait for).
+  const hideOpeningThreadRows = useThreadOpeningReveal({
+    viewKey,
+    opensAtLatest: !!threadId && !eventId && !isLocalEchoEventId(threadId),
+    rowCount: threadEvents.length,
+    scrollRef,
+    readerTookOver: () =>
+      readerScrolledRef.current.value || backController.isOpenBottomPinSuppressed(),
   });
 
   const { handleJumpToLatest, handleJumpToUnread, handleOpenReply } =
@@ -1531,9 +1533,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
                   position: 'relative',
                   height: listHeight,
                   visibility:
-                    automaticFill.hideInitialRows || hideThreadRowsBeforeOpen
-                      ? 'hidden'
-                      : undefined,
+                    automaticFill.hideInitialRows || hideOpeningThreadRows ? 'hidden' : undefined,
                 }}
               >
                 {tiles}
