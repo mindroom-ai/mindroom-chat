@@ -111,7 +111,7 @@ const SURFACES: Record<string, { size: typeof DESKTOP; open: (page: Page) => Pro
       await row.hover();
       await row.getByRole('button', { name: 'More Options', exact: true }).click();
       const entry = page
-        .getByRole('button', { name: 'Reply in Thread', exact: true })
+        .getByRole('menuitem', { name: 'Reply in Thread', exact: true })
         .filter({ hasText: 'Reply in Thread' });
       await expect(entry).toBeVisible();
       return {
