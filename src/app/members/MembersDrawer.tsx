@@ -79,11 +79,13 @@ const BODY_STYLE: CSSProperties = {
 const TOOLBAR_STYLE: CSSProperties = { paddingBlock: config.space.S200 };
 // The search field: 40 px high with 12 px corners, white on the panel's grey.
 const SEARCH_STYLE: CSSProperties = { blockSize: toRem(40), borderRadius: config.radii.R500 };
-// Toolbar buttons are flat: the panel shows through them until they are hovered.
+// Toolbar buttons are flat: the panel shows through them until they are hovered. Their labels
+// stay on one line, also at a large page zoom.
 const TOOLBAR_BUTTON_STYLE: CSSProperties = {
   blockSize: toRem(24),
   paddingInline: config.space.S200,
   gap: config.space.S100,
+  whiteSpace: 'nowrap',
 };
 
 /** A room member; only the membership and user ID are required to place it. */
