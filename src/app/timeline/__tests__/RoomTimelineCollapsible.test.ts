@@ -378,6 +378,7 @@ vi.mock('../../matrix/room', () => ({
   ) => editedEvent?.getContent() ?? mEvent.getContent(),
   getMemberDisplayName: () => 'Alice',
   hasUndecryptedNewerEdit: () => false,
+  getPendingEdits: () => [],
   isHiddenReferenceEvent: () => false,
   isMembershipChanged: () => false,
   reactionOrEditEvent: (mEvent: { getRelation: () => { rel_type?: string } | undefined }) => {

@@ -52,6 +52,7 @@ import {
   getEditedEvent,
   getEventReactions,
   getLatestMessageContent,
+  getPendingEdits,
   hasUndecryptedNewerEdit,
 } from '../../matrix/room';
 import { MessageEvent } from '../../matrix/types/room';
@@ -438,6 +439,7 @@ export const useTimelineMessageFeature = ({
       // A newer edit that could not be decrypted leaves this version shown, with a note.
       const editNotDecrypted =
         kind === 'message' && hasUndecryptedNewerEdit(eventId, event, row.timelineSet, editedEvent);
+      renderedEventsRef.current?.push(...getPendingEdits(eventId, event, row.timelineSet));
       const content = (
         kind === 'approval'
           ? getToolApprovalRenderContent(event.getOriginalContent(), editedEvent?.getContent())
