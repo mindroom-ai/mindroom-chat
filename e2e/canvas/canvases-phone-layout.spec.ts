@@ -103,6 +103,8 @@ const expectRowsInside = async (page: Page, fixture: Fixture, label: string) => 
   const layout = await list.evaluate((root) => {
     const width = document.documentElement.clientWidth;
     const overflowing = [...root.querySelectorAll<HTMLElement>('*')]
+      // A box of 1 px or less is visually hidden on purpose (the phone layout's header row).
+      .filter((element) => element.clientWidth > 1)
       .filter((element) => element.scrollWidth > element.clientWidth + 1)
       .filter((element) => getComputedStyle(element).overflowX !== 'visible')
       .map((element) => `${element.tagName}.${element.className}`);
