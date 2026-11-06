@@ -12,6 +12,7 @@ import { buildLoginPath } from '../env';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'reset-verification-spec-password';
 const RECOVERY_KEY = /^E\w{3}( \w{4}){11}$/;
+const SHOTS = process.env.RESET_VERIFICATION_SHOTS;
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
@@ -116,6 +117,7 @@ const resetFromFreshPage = async (browser: Browser, baseURL: string | undefined)
     await page.getByRole('alertdialog').getByRole('button', { name: 'Reset' }).click();
     await page.getByRole('button', { name: 'Continue' }).click();
     expect(await awaitRecoveryKey(page)).not.toBe(firstRecoveryKey);
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/F028-${browser.browserType().name()}.png` });
     await page.getByRole('button', { name: 'Okay' }).click();
 
     // The server has the new identity, and secret storage holds it under the new key.
