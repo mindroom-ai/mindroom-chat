@@ -305,7 +305,10 @@
       "options": "私信选项"
     },
     "spaceNav": {
-      "options": "空间选项"
+      "options": "空间选项",
+      "subspaces": "子空间",
+      "subspaceUnread": "{{name}}，有未读消息",
+      "backToParent": "返回 {{name}}"
     },
     "calls": {
       "panel": {

@@ -309,7 +309,10 @@
       "options": "সরাসরি বার্তার বিকল্প"
     },
     "spaceNav": {
-      "options": "স্পেস বিকল্প"
+      "options": "স্পেস বিকল্প",
+      "subspaces": "উপ-স্পেস",
+      "subspaceUnread": "{{name}}, অপঠিত বার্তা",
+      "backToParent": "{{name}}-এ ফিরে যান"
     },
     "calls": {
       "panel": {

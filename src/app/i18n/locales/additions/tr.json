@@ -309,7 +309,10 @@
       "options": "Doğrudan mesaj seçenekleri"
     },
     "spaceNav": {
-      "options": "Alan seçenekleri"
+      "options": "Alan seçenekleri",
+      "subspaces": "Alt alanlar",
+      "subspaceUnread": "{{name}}, okunmamış mesajlar",
+      "backToParent": "{{name}} alanına dön"
     },
     "calls": {
       "panel": {

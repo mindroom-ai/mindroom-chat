@@ -309,7 +309,10 @@
       "options": "सीधे संदेश विकल्प"
     },
     "spaceNav": {
-      "options": "स्पेस विकल्प"
+      "options": "स्पेस विकल्प",
+      "subspaces": "उप-स्पेस",
+      "subspaceUnread": "{{name}}, अपठित संदेश",
+      "backToParent": "{{name}} पर वापस जाएँ"
     },
     "calls": {
       "panel": {

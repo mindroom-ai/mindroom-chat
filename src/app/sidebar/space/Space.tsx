@@ -4,6 +4,7 @@ import type { IconSrc } from 'folds';
 import { Navigate, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
+import type { Room } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
 import { ownDirectionLine } from '../../ui/directional';
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
@@ -47,13 +48,24 @@ import {
   getHomeRoomPath,
   getRootPath,
   getSpaceLobbyPath,
+  getSpacePath,
   getSpaceRoomPath,
   withSearchParam,
 } from '../../routes/pathUtils';
 import { useClientStartupContext } from '../../matrix/ClientStartupContext';
 import { RouteResolving } from '../../room/RoomRoute';
-import { canRenderRoutedRoom, shouldDeferRoomRouteFallback } from '../../navigation/routeVisibility';
-import { useSpaceNavigationRooms } from '../../matrix/state/useSpaceSearchRooms';
+import {
+  canRenderRoutedRoom,
+  shouldDeferRoomRouteFallback,
+} from '../../navigation/routeVisibility';
+import {
+  useJoinedParentSpaces,
+  useJoinedSubspaces,
+  useSpaceNavigationRooms,
+  useSpaceOwnRooms,
+} from '../../matrix/state/useSpaceSearchRooms';
+import { BackToListButton } from '../../ui/page/PhoneBackButton';
+import { SubspacesMenu } from './SubspacesMenu';
 import { getSpaceShareLink } from './spaceLink';
 import { sortRoomIdsByName } from '../../lib/nameOrder';
 
@@ -158,6 +170,21 @@ type SpaceHeaderProps = {
   onSortByName?: () => void;
 };
 
+/** A sub-space's way back to the room list of the space that holds it. */
+function ParentSpaceBack({ parent, others }: { parent: Room; others: Room[] }) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const name = useRoomName(parent);
+  const listPath = (room: Room) => getSpacePath(getCanonicalAliasOrRoomId(client, room.roomId));
+  return (
+    <BackToListButton
+      to={listPath(parent)}
+      openedFrom={others.map(listPath)}
+      label={t('featureUi.spaceNav.backToParent', { name })}
+    />
+  );
+}
+
 function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
@@ -169,9 +196,13 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const [inviting, setInviting] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const navigate = useNavigate();
+  const [parent, ...otherParents] = useJoinedParentSpaces(space.roomId).flatMap(
+    (roomId) => client.getRoom(roomId) ?? []
+  );
   return (
     <PageNavHeader>
       <Box gap="300" grow="Yes" alignItems="Center">
+        {parent && <ParentSpaceBack parent={parent} others={otherParents} />}
         <Box grow="Yes">
           {/* Not a heading: the lobby's hero names the space as its h2 (page-header-glass). */}
           <Text truncate size="H4" {...ownDirectionLine}>
@@ -298,7 +329,10 @@ export function Space() {
   const title = useRoomName(space);
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
+  // Mark as Read covers the rooms of the sub-spaces too; the list shows only the space's own.
   const spaceRooms = useVisibleRooms(useSpaceNavigationRooms(space.roomId));
+  const ownRooms = useVisibleRooms(useSpaceOwnRooms(space.roomId));
+  const subspaceIds = useJoinedSubspaces(space.roomId);
   const notificationPreferences = useRoomsNotificationPreferencesContext();
   const selectedRoomId = useSelectedRoom();
   const [roomsClosed, setRoomsClosed] = useState(false);
@@ -306,7 +340,7 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
-  const roomsByName = useMemo(() => sortRoomIdsByName(client, spaceRooms), [client, spaceRooms]);
+  const roomsByName = useMemo(() => sortRoomIdsByName(client, ownRooms), [client, ownRooms]);
   // Like Home: A to Z until the person drags a room, then their order.
   const roomOrder = useRoomOrder(space.roomId, roomsByName);
   const sortedRooms = useMemo(
@@ -345,6 +379,7 @@ export function Space() {
               label={t('sharedUi.space.messageSearch')}
               onSelect={() => openCommandPalette('messages')}
             />
+            {subspaceIds.length > 0 && <SubspacesMenu subspaceIds={subspaceIds} />}
           </NavCategory>
           <NavCategory>
             <NavCategoryHeader>

@@ -309,7 +309,10 @@
       "options": "Direct Messages Options"
     },
     "spaceNav": {
-      "options": "Space Options"
+      "options": "Space Options",
+      "subspaces": "Sub-spaces",
+      "subspaceUnread": "{{name}}, unread messages",
+      "backToParent": "Back to {{name}}"
     },
     "calls": {
       "panel": {

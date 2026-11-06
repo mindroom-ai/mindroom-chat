@@ -305,7 +305,10 @@
       "options": "Opsi pesan langsung"
     },
     "spaceNav": {
-      "options": "Opsi space"
+      "options": "Opsi space",
+      "subspaces": "Sub-space",
+      "subspaceUnread": "{{name}}, pesan belum dibaca",
+      "backToParent": "Kembali ke {{name}}"
     },
     "calls": {
       "panel": {

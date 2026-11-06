@@ -313,7 +313,10 @@
       "options": "Opzioni dei messaggi diretti"
     },
     "spaceNav": {
-      "options": "Opzioni dello spazio"
+      "options": "Opzioni dello spazio",
+      "subspaces": "Sottospazi",
+      "subspaceUnread": "{{name}}, messaggi non letti",
+      "backToParent": "Torna a {{name}}"
     },
     "calls": {
       "panel": {

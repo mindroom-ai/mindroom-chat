@@ -105,6 +105,14 @@ function NavigateBack({ to, openedFrom = [], label }: NavigateBackProps) {
 }
 
 /**
+ * A back chevron on every screen size, such as a sub-space's way back to its parent's list. Like
+ * the phone's, it steps back in history when the list came just before.
+ */
+export function BackToListButton(props: NavigateBackProps) {
+  return <NavigateBack {...props} />;
+}
+
+/**
  * Leads a full-screen page on phones, where a section's list and its pages take turns on screen:
  * the chevron returns to the list, or leaves a thread. Wider screens show both side by side, so
  * it renders nothing there.

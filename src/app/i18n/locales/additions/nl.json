@@ -309,7 +309,10 @@
       "options": "Opties voor directe berichten"
     },
     "spaceNav": {
-      "options": "Opties voor space"
+      "options": "Opties voor space",
+      "subspaces": "Sub-spaces",
+      "subspaceUnread": "{{name}}, ongelezen berichten",
+      "backToParent": "Terug naar {{name}}"
     },
     "calls": {
       "panel": {

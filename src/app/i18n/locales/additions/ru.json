@@ -317,7 +317,10 @@
       "options": "Параметры личных сообщений"
     },
     "spaceNav": {
-      "options": "Параметры пространства"
+      "options": "Параметры пространства",
+      "subspaces": "Подпространства",
+      "subspaceUnread": "{{name}}, непрочитанные сообщения",
+      "backToParent": "Назад в {{name}}"
     },
     "calls": {
       "panel": {

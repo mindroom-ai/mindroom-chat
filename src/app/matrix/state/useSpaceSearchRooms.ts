@@ -87,3 +87,62 @@ export const useSpaceNavigationRooms = (spaceId: string): string[] => {
     [client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom]
   );
 };
+
+/**
+ * A space's own room list: the joined rooms it lists directly, without DMs or sub-spaces. Rooms
+ * of a sub-space show in the sub-space's own list.
+ */
+export const getSpaceOwnRooms = (
+  mx: MatrixClient,
+  spaceId: string,
+  roomIds: string[],
+  directs: Set<string>,
+  roomToParents: RoomToParents
+): string[] =>
+  roomIds.filter((roomId) => {
+    if (directs.has(roomId) || !roomToParents.get(roomId)?.has(spaceId)) return false;
+    const room = mx.getRoom(roomId);
+    return !isSpace(room) && !isEmojiRoom(room);
+  });
+
+/** The joined spaces a space lists directly. */
+export const getJoinedSubspaces = (
+  mx: MatrixClient,
+  spaceId: string,
+  roomIds: string[],
+  roomToParents: RoomToParents
+): string[] =>
+  roomIds.filter(
+    (roomId) => roomToParents.get(roomId)?.has(spaceId) === true && isSpace(mx.getRoom(roomId))
+  );
+
+export const useSpaceOwnRooms = (spaceId: string): string[] => {
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const directRoomIds = useAtomValue(mDirectAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
+  return useMemo(
+    () => getSpaceOwnRooms(client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom),
+    [client, spaceId, joinedRoomIds, directRoomIds, parentsByRoom]
+  );
+};
+
+export const useJoinedSubspaces = (spaceId: string): string[] => {
+  const client = useMatrixClient();
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
+  return useMemo(
+    () => getJoinedSubspaces(client, spaceId, joinedRoomIds, parentsByRoom),
+    [client, spaceId, joinedRoomIds, parentsByRoom]
+  );
+};
+
+/** The joined spaces that list `spaceId` directly. */
+export const useJoinedParentSpaces = (spaceId: string): string[] => {
+  const joinedRoomIds = useAtomValue(allRoomsAtom);
+  const parentsByRoom = useAtomValue(roomToParentsAtom);
+  return useMemo(() => {
+    const parents = parentsByRoom.get(spaceId);
+    return parents ? joinedRoomIds.filter((roomId) => parents.has(roomId)) : [];
+  }, [spaceId, joinedRoomIds, parentsByRoom]);
+};
