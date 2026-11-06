@@ -79,25 +79,32 @@ const waitForSavedSync = async (page: Page, text: string) => {
   await expect
     .poll(
       () =>
-        page.evaluate(async (name) => {
-          const db = await new Promise<IDBDatabase>((resolve, reject) => {
-            const request = indexedDB.open(name);
-            request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
-          });
-          try {
-            return await new Promise<string>((resolve, reject) => {
-              const request = db.transaction('sync').objectStore('sync').getAll();
-              request.onsuccess = () => resolve(JSON.stringify(request.result));
+        page.evaluate(
+          async ({ name, wanted }) => {
+            const db = await new Promise<IDBDatabase>((resolve, reject) => {
+              const request = indexedDB.open(name);
+              request.onsuccess = () => resolve(request.result);
               request.onerror = () => reject(request.error);
             });
-          } finally {
-            db.close();
-          }
-        }, `matrix-js-sdk:web-sync-store::${activeSessionId}`),
-      { timeout: 30_000 }
+            // Room data and account data are saved in stores of their own.
+            const read = (store: string) =>
+              new Promise<string>((resolve, reject) => {
+                const request = db.transaction(store).objectStore(store).getAll();
+                request.onsuccess = () => resolve(JSON.stringify(request.result));
+                request.onerror = () => reject(request.error);
+              });
+            try {
+              const saved = await Promise.all(['sync', 'accountData'].map(read));
+              return saved.some((json) => json.includes(wanted));
+            } finally {
+              db.close();
+            }
+          },
+          { name: `matrix-js-sdk:web-sync-store::${activeSessionId}`, wanted: text }
+        ),
+      { message: `the saved sync holds ${text}`, timeout: 30_000 }
     )
-    .toContain(text);
+    .toBe(true);
 };
 
 /** True once the image has loaded pixels (a broken or missing image has none). */
@@ -355,6 +362,12 @@ test.describe('with the service worker', () => {
     await page.reload();
     const spaceImage = `[data-id="${spaceId}"] img`;
     await expect.poll(() => imageLoaded(page, spaceImage), { timeout: 20_000 }).toBe(true);
+    // The worker keeps the picture it loaded.
+    await expect
+      .poll(() =>
+        page.evaluate(async () => (await (await caches.open('mindroom-avatars-v1')).keys()).length)
+      )
+      .toBeGreaterThan(0);
 
     await context.setOffline(true);
     await page.reload();
