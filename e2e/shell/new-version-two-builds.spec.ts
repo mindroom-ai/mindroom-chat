@@ -67,15 +67,17 @@ test.beforeEach(async () => {
 const notice = (page: Page) => page.locator('[data-new-version-notice]');
 const announcement = (page: Page) => page.getByText('A new version of MindRoom is available.');
 
-/** The build the page runs, by its entry script. */
+/** The build the page runs, by its entry script; empty while the page navigates. */
 const runningEntry = (page: Page) =>
-  page.evaluate(
-    () => document.querySelector('script[type="module"][src]')?.getAttribute('src') ?? ''
-  );
+  page
+    .evaluate(
+      () => document.querySelector('script[type="module"][src]')?.getAttribute('src') ?? ''
+    )
+    .catch(() => '');
 
-/** The script URL of the worker that controls the page. */
+/** The script URL of the worker that controls the page; empty while the page navigates. */
 const controllerScript = (page: Page) =>
-  page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? '');
+  page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? '').catch(() => '');
 
 const shot = async (page: Page, name: string) => {
   const directory = process.env.NEW_VERSION_SHOTS;
