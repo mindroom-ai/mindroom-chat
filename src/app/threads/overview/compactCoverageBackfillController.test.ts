@@ -9,6 +9,7 @@ import {
 } from './compactCoverageBackfillController';
 
 type HarnessProps = {
+  roomId: string;
   enabled: boolean;
   loadedEventCount: number;
   hasZeroReplyRootCoverage: boolean;
@@ -23,6 +24,7 @@ const CoverageHarness = (props: HarnessProps) => {
 };
 
 const baseProps = (paginateBack: HarnessProps['paginateBack']): HarnessProps => ({
+  roomId: '!first:example.org',
   enabled: true,
   loadedEventCount: 0,
   hasZeroReplyRootCoverage: false,
@@ -45,7 +47,7 @@ describe('compact coverage backfill', () => {
       ...baseProps(vi.fn()),
       batchesUsed: 0,
     };
-    const { paginateBack: _paginateBack, ...decision } = base;
+    const { paginateBack: _paginateBack, roomId: _roomId, ...decision } = base;
 
     expect(shouldRunCompactCoverageBackfill(decision)).toBe(true);
     expect(shouldRunCompactCoverageBackfill({ ...decision, enabled: false })).toBe(false);
@@ -138,5 +140,29 @@ describe('compact coverage backfill', () => {
     await flush();
 
     expect(paginateBack).toHaveBeenCalledTimes(COMPACT_COVERAGE_MAX_BATCHES);
+  });
+
+  it('gives the next room the view moves to a full budget of its own', async () => {
+    const paginateBack = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    let renderer: ReactTestRenderer | undefined;
+
+    await act(async () => {
+      renderer = create(React.createElement(CoverageHarness, baseProps(paginateBack)));
+    });
+    await flush();
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_COVERAGE_MAX_BATCHES);
+
+    await act(async () => {
+      renderer?.update(
+        React.createElement(CoverageHarness, {
+          ...baseProps(paginateBack),
+          roomId: '!next:example.org',
+        })
+      );
+    });
+    await flush();
+
+    expect(paginateBack).toHaveBeenCalledTimes(COMPACT_COVERAGE_MAX_BATCHES * 2);
+    renderer?.unmount();
   });
 });
