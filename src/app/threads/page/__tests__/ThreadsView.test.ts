@@ -21,6 +21,11 @@ vi.mock('../../../ui/VirtualTile', () => ({
     React.createElement('div', null, children),
 }));
 
+vi.mock('../../../messages/content/MessageRowBoundary', () => ({
+  MessageRowBoundary: ({ render }: { render: () => React.ReactNode }) =>
+    React.createElement(React.Fragment, null, render()),
+}));
+
 vi.mock('../ThreadsViewRow', () => ({
   ThreadsViewRow: () => React.createElement('div', null, 'row'),
 }));
