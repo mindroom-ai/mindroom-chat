@@ -23,7 +23,7 @@ import { launchWebKit } from '../helpers/webkit';
 // with 80 messages from two people and an agent, three of them threads, among 25 rooms, with
 // classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium
 // and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. The ways in: the
-// view switch from Compact, a reload, the room list, back from a thread, Compact and back again;
+// view switch from Compact, a reload, the room list (unread), back from a thread, Compact and back;
 // a permalink still lands on its own message, and Jump to Latest from there goes back up. Set
 // THREADS_VIEW_SHOTS=<directory> to save each step.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -112,6 +112,7 @@ const messageBody = (index: number) =>
 
 type Seeded = {
   reader: MatrixSession & { username: string };
+  colleague: MatrixSession;
   roomId: string;
   eventIds: string[];
 };
@@ -155,7 +156,7 @@ const seed = async (label: string): Promise<Seeded> => {
       });
     }
   }
-  return { reader, roomId, eventIds };
+  return { reader, colleague, roomId, eventIds };
 };
 
 /**
@@ -275,14 +276,19 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expectShown(page, `Draft agenda ${RUN}`, `after a reload (${label})`);
   await shot(page, `${label}-3-reload`);
 
-  // Another room, then back through the room list.
+  // Another room, where the reader misses a colleague's message, then back through the room
+  // list: the unread room opens at its newest thread, the colleague's.
   if (phone) {
     await page.goto('/home/');
   }
   await page.getByRole('link', { name: 'Design reviews' }).first().click();
   await expect(page.getByText('Design reviews').first()).toBeVisible();
+  await sendRoomMessage(HOMESERVER, seeded.colleague.accessToken, seeded.roomId, {
+    msgtype: 'm.text',
+    body: messageBody(81),
+  });
   await openRoomFromList(page, phone);
-  await expectShown(page, `Draft agenda ${RUN}`, `after the room list (${label})`);
+  await expectShown(page, 'Status update 81:', `unread, after the room list (${label})`);
   await shot(page, `${label}-4-room-list`);
 
   // Into a thread further down and back.
@@ -292,7 +298,7 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expect(page.getByText('Checked build 1245').first()).toBeVisible({ timeout: 20_000 });
   await page.goBack();
   await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false', { timeout: 20_000 });
-  await expectShown(page, `Draft agenda ${RUN}`, `back from a thread (${label})`);
+  await expectShown(page, 'Status update 81:', `back from a thread (${label})`);
   await shot(page, `${label}-5-back`);
 
   // To Compact and back to Threads.
@@ -300,7 +306,7 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
   await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 20_000 });
   await roomViewSwitch(page).click();
   await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
-  await expectShown(page, `Draft agenda ${RUN}`, `after Compact and back (${label})`);
+  await expectShown(page, 'Status update 81:', `after Compact and back (${label})`);
   await shot(page, `${label}-6-compact-and-back`);
 
   // A permalink still lands on its own message, even an old one.
@@ -311,7 +317,7 @@ const checkWaysIn = async (page: Page, seeded: Seeded, label: string, phone: boo
 
   // From there, Jump to Latest leads back up to the newest thread.
   await page.getByRole('button', { name: 'Jump to Latest' }).click();
-  await expectShown(page, `Draft agenda ${RUN}`, `after Jump to Latest (${label})`);
+  await expectShown(page, 'Status update 81:', `after Jump to Latest (${label})`);
   await shot(page, `${label}-8-jump-to-latest`);
 };
 
