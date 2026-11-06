@@ -1,6 +1,8 @@
-import { type ComponentProps, type MouseEventHandler, type ReactNode } from 'react';
+import { type ComponentProps, type MouseEventHandler, type ReactNode, useId } from 'react';
+import classNames from 'classnames';
 import { Box, Icon, Text, config, type IconSrc } from 'folds';
 import { MenuItem } from './glass/GlassPrimitives';
+import * as css from './MenuEntry.css';
 import { ShortcutHint, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 
@@ -18,11 +20,19 @@ type MenuEntryProps = Omit<
   directional?: boolean;
   /** The keyboard shortcut for the same action, shown before the icon. */
   shortcut?: ShortcutId;
+  /**
+   * Why the entry cannot be used here. The entry keeps its place, dimmed, says why under its
+   * label, and stays reachable with the arrow keys, where a screen reader hears the reason as its
+   * description; choosing it does nothing.
+   */
+  disabledReason?: string;
 };
 
 // The label takes the row's free width, so the icons line up, and starts at the leading edge
 // (the item is a button, which would center it).
 const labelStyle = { flexGrow: 1, textAlign: 'start' } as const;
+// A disabled entry dims its label and icon as folds dims a disabled item; its reason stays legible.
+const dimmed = { opacity: config.opacity.Disabled } as const;
 
 /** One row of a menu: its label, then its shortcut's keys and its icon at the end of the line. */
 export function MenuEntry({
@@ -33,14 +43,35 @@ export function MenuEntry({
   critical,
   directional,
   shortcut,
+  disabledReason,
+  className,
   ...props
 }: MenuEntryProps) {
-  const end = after ?? <Icon size="100" src={icon} data-directional={directional || undefined} />;
+  const reasonId = useId();
+  const end = after ?? (
+    <Icon
+      size="100"
+      src={icon}
+      data-directional={directional || undefined}
+      style={disabledReason ? dimmed : undefined}
+    />
+  );
+  const labelText = (
+    <Text
+      as="span"
+      size="T300"
+      truncate
+      style={disabledReason ? { ...labelStyle, ...dimmed } : labelStyle}
+    >
+      {label}
+    </Text>
+  );
   return (
     <MenuItem
       size="300"
       radii="300"
       variant={critical ? 'Critical' : 'Surface'}
+      className={classNames(className, disabledReason && css.Unavailable)}
       after={
         shortcut ? (
           <Box as="span" alignItems="Center" gap="200">
@@ -51,13 +82,22 @@ export function MenuEntry({
           end
         )
       }
-      onClick={onSelect}
+      onClick={disabledReason ? undefined : onSelect}
       {...shortcutAttributes(shortcut)}
       {...props}
+      {...(disabledReason && { 'aria-disabled': true, 'aria-describedby': reasonId })}
     >
-      <Text as="span" size="T300" truncate style={labelStyle}>
-        {label}
-      </Text>
+      {disabledReason ? (
+        <Box as="span" direction="Column" grow="Yes" className={css.UnavailableText}>
+          {labelText}
+          {/* The row's description, not part of its name. */}
+          <Text as="span" id={reasonId} size="T200" priority="300" aria-hidden="true">
+            {disabledReason}
+          </Text>
+        </Box>
+      ) : (
+        labelText
+      )}
     </MenuItem>
   );
 }

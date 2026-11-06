@@ -32,12 +32,16 @@ export const useMenuItemRole = (role: string | undefined): string | undefined =>
 const ITEM_SELECTOR = '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]';
 const NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'Home', 'End']);
 
-/** The rows of `menu` a reader can reach, in order, without those of a menu inside it. */
+/**
+ * The rows of `menu` a reader can reach, in order, without those of a menu inside it. A row the
+ * menu offers but that cannot run here (`aria-disabled`) stays reachable, as WAI-ARIA asks for
+ * disabled menu items, so a screen reader hears it and its reason; a `disabled` button is skipped.
+ */
 const menuItems = (menu: HTMLElement): HTMLElement[] =>
   Array.from(menu.querySelectorAll<HTMLElement>(ITEM_SELECTOR)).filter(
     (item) =>
       item.closest('[role="menu"]') === menu &&
-      !item.matches(':disabled, [aria-disabled="true"]') &&
+      !item.matches(':disabled') &&
       // A row a menu hides (display: none) is skipped; without checkVisibility every row counts.
       (item.checkVisibility?.() ?? true)
   );
@@ -167,7 +171,8 @@ export const useMenuBehaviour = <T extends HTMLElement>(
   useButtonPressCloses(element);
 
   // A menu opened with a pointer leaves focus where it was (its button, or the page); the arrow
-  // keys there go into the menu.
+  // keys there go into the menu. They are heard before the page's own handlers, since a sidebar
+  // row that can be dragged keeps its buttons' keys to itself.
   useEffect(() => {
     const menu = element.current;
     if (!isMenu || !menu) return undefined;
@@ -178,8 +183,8 @@ export const useMenuBehaviour = <T extends HTMLElement>(
       if (target instanceof Node && menu.contains(target)) return;
       moveMenuFocus(event, menu);
     };
-    document.addEventListener('keydown', enter);
-    return () => document.removeEventListener('keydown', enter);
+    document.addEventListener('keydown', enter, true);
+    return () => document.removeEventListener('keydown', enter, true);
   }, [isMenu]);
 
   return {
