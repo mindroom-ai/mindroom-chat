@@ -16,6 +16,12 @@ import {
 // the saved sync, as in a busy room, so only the event cache can name it.
 const PASSWORD = 'offline-start-identity-password';
 
+// OFFLINE_IDENTITY_SHOTS=<directory> also saves screenshots of the checked states.
+const SHOTS = process.env.OFFLINE_IDENTITY_SHOTS;
+const shot = async (page: Page, name: string, browserName: string) => {
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${browserName}.png` });
+};
+
 // A 48 px square with a pale disc, the space's picture.
 const SPACE_PICTURE = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAIAAADYYG7QAAACMUlEQVR42s3WaTfUYRgG8OvjIPua7LvsOw1Fu6JIpMVOlnZLpVAzGMMQWbMTbUTSYn/jG/Sm9z1z5o3Oecbk//ybc59zfYDfec557uuCmVZp1qU071SZa1QWHa0W6rZD7Sztlm1qy1a1larDSqmxfqmxftFpw9LSZdustWvS2j3vtn/WY9/Y49D4yuFpr+OTXsfHfU4NfU71r53r+53r+l1qB1weDR5+OOj6YMj1/vARlnsjbndH3O68ca8Zda8e9aga86ga96wc97w94VUx6VU+6V025VM2DVIan9JpkNL4lsyAlMa3eAakNH5FsyCl8St8C1Ia/wIdiJDGv2AOpDQBt+Yhr+b3r11D+RdNwM15mEajj1FN4I13kEVjlLI3+2gCr7+Had7mL5BhTVA+A5lWo48hTdC1DzC9Rh+uJlgHEvvhkkFcTXDeRwjeG+kgnuZo7icIXj/JIK4m5CoDid1i6SCeJiRnAYLNIBnE1YReWYRgT0kH8TSh2YsQbE3JIK4mLPszBDtcOoinCctagviikFETfpmB5Ng3cmnCLy1DlrV1INA+mohMBpJv+wm+DdNEZHyBvEtUUBOZsYL/sYsN9ZRRTeTFFZDSRF34ClKaqPRVkNJEn18FKU3MuW8gpYk5+x2kNLE6ECVN7JkfIKWJO81AlDRxp36ClCb+5BpIaeLT1kBKk5C6DlKahNQNkNIknmAgSprE45sgpUlK2QIpTVLyFkhpjim2QUqjUOz8AagjATipQGfoAAAAAElFTkSuQmCC',
@@ -265,12 +271,15 @@ test('an offline start keeps thread titles, thread participants and the space pi
   await expect(offlineSidebar.getByText(rootTitle, { exact: true })).toBeVisible();
   await expect.poll(() => imageLoaded(offline, spaceImage), { timeout: 15_000 }).toBe(true);
 
+  await shot(offline, 'offline-start-sidebar', browserName);
+
   // The room's card shows both people, as it did online.
   await offline.goto(`/home/${encodeURIComponent(roomId)}`);
   const offlineCard = offline.locator(`[data-thread-root-id="${rootId}"]`);
   await expect(offlineCard).toContainText(rootTitle, { timeout: 15_000 });
   await expect(offlineCard.getByTitle('Thread Helper', { exact: true })).toBeVisible();
   await expect(offlineCard.getByTitle('Offline Viewer', { exact: true })).toBeVisible();
+  await shot(offline, 'offline-start-thread-cards', browserName);
 
   await goOnline(context, offline, browserName);
   await expect.poll(() => imageLoaded(offline, spaceImage), { timeout: 30_000 }).toBe(true);
@@ -334,6 +343,7 @@ test('an offline start shows a rename and a roaming setting made shortly before 
   const offlineMessage = offline.locator(`[data-message-id="${messageId}"]`);
   await expect(offlineMessage).toContainText('Name After', { timeout: 15_000 });
   await expect(offline.getByText(/Room Member joined the room/)).toHaveCount(0);
+  await shot(offline, 'offline-start-rename', browserName);
 });
 
 test.describe('with the service worker', () => {

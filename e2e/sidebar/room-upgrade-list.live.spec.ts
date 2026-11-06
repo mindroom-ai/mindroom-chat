@@ -9,7 +9,7 @@ const PASSWORD = 'room-upgrade-list-password';
 
 test.use({ viewport: { width: 1280, height: 800 } });
 
-test('an upgraded room is listed once, as its successor @webkit', async ({ page }) => {
+test('an upgraded room is listed once, as its successor @webkit', async ({ page, browserName }) => {
   test.setTimeout(90_000);
   const homeserver = getHomeserver();
   const username = `upgrade_owner_${Date.now().toString(36)}${Math.random()
@@ -53,4 +53,7 @@ test('an upgraded room is listed once, as its successor @webkit', async ({ page 
   // Once the successor shows, the list stays at one row.
   await page.waitForTimeout(2_000);
   await expect(rows).toHaveCount(1);
+  // OFFLINE_IDENTITY_SHOTS=<directory> also saves the list.
+  const shots = process.env.OFFLINE_IDENTITY_SHOTS;
+  if (shots) await page.screenshot({ path: `${shots}/upgraded-room-list-${browserName}.png` });
 });

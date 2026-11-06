@@ -11,6 +11,12 @@ import { joinRoom, matrixFetch, seedRoomOverviewState } from '../helpers/matrix'
 // after an unban the person keeps their name and is not described as kicked.
 const PASSWORD = 'room-identity-spec-password';
 
+// OFFLINE_IDENTITY_SHOTS=<directory> also saves screenshots of the checked states.
+const SHOTS = process.env.OFFLINE_IDENTITY_SHOTS;
+const shot = async (page: Page, name: string, browserName: string) => {
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${browserName}.png` });
+};
+
 type Account = { username: string; userId: string; accessToken: string };
 
 const register = async (prefix: string, displayname: string): Promise<Account> => {
@@ -103,6 +109,7 @@ test.use({ viewport: { width: 1280, height: 800 }, serviceWorkers: 'block' });
 test('an invite is titled by its room name, offline too, and refreshes when the server returns @webkit', async ({
   page,
   context,
+  browserName,
 }) => {
   test.setTimeout(120_000);
   const homeserver = getHomeserver();
@@ -133,14 +140,19 @@ test('an invite is titled by its room name, offline too, and refreshes when the 
   await expect(page.getByRole('button', { name: 'Join', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Decline', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Retry room info' })).toHaveCount(0);
+  await shot(page, 'invite-homeserver-unreachable', browserName);
 
   // Once the server answers again, the card catches up without a click.
   await context.unroute(homeserverRoutes);
   await expect(page.getByText('1 Member', { exact: true })).toBeVisible({ timeout: 45_000 });
+  await shot(page, 'invite-recovered', browserName);
   await expect(page.getByRole('heading', { level: 1, name: roomName, exact: true })).toBeVisible();
 });
 
-test('a person removed from a room still sees its name in the header @webkit', async ({ page }) => {
+test('a person removed from a room still sees its name in the header @webkit', async ({
+  page,
+  browserName,
+}) => {
   test.setTimeout(90_000);
   const owner = await register('identity_owner', 'Room Keeper');
   const member = await register('identity_member', 'Removed Reader');
@@ -155,12 +167,14 @@ test('a person removed from a room still sees its name in the header @webkit', a
 
   await expect(page.getByText('Removal reason for the test')).toBeVisible({ timeout: 20_000 });
   await expect(page.getByText('Room Keeper', { exact: true })).toBeVisible();
+  await shot(page, 'removed-room-header', browserName);
   await expect(page.getByRole('heading', { level: 1, name: roomName, exact: true })).toBeVisible();
   await expect(page.getByText(roomId)).toHaveCount(0);
 });
 
 test('after an unban the person keeps their name and is not called kicked @webkit', async ({
   page,
+  browserName,
 }) => {
   test.setTimeout(90_000);
   const owner = await register('identity_mod', 'Room Moderator');
@@ -198,6 +212,7 @@ test('after an unban the person keeps their name and is not called kicked @webki
   await expect(unbanned).toBeVisible({ timeout: 15_000 });
   await expect(unbanned).toContainText('Banned Person');
   await expect(unbanned).not.toContainText(member.username);
+  await shot(page, 'unbanned-profile-and-row', browserName);
 });
 
 test('a space opened by link is titled by its name before joining @webkit', async ({ page }) => {
