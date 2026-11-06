@@ -26,6 +26,7 @@ import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { AsyncStatus, useAsyncCallback } from '../../lib/hooks/useAsyncCallback';
 import { revokeBlobUrl, useBlobUrlCleanup } from '../../lib/hooks/useBlobUrlCleanup';
 import { downloadCachedAttachment } from '../../event-store/cache/attachmentRepository';
+import { canUseServerThumbnail, loadServerScaledPicture } from './serverThumbnail';
 import { imageViewerOpenAtom } from '../../navigation/imageViewerState';
 import { getBlobSafeMimeType, FALLBACK_MIMETYPE } from '../../lib/mimeTypes';
 import { stopPropagation } from '../../lib/keyboard';
@@ -214,8 +215,10 @@ export const ImageContent = as<'div', ImageContentProps>(
     const ownerKey = owner ? `${owner.roomId}|${owner.eventId}|${owner.revisionTs}` : '';
     const encKey = encInfo ? `${encInfo.iv}|${encInfo.hashes?.sha256 ?? ''}` : '';
 
-    // The timeline shows the sender's thumbnail when there is one; the viewer loads the original.
+    // The timeline shows the sender's thumbnail when there is one, else for an unencrypted photo
+    // one the homeserver scales; the viewer loads the original.
     const thumbnail = getImageThumbnail(info);
+    const serverScaled = !thumbnail && canUseServerThumbnail(mimeType, !!encInfo);
     const thumbnailRef = useRef(thumbnail);
     thumbnailRef.current = thumbnail;
     const thumbnailKey = thumbnail ? `${thumbnail.mxcUri}|${thumbnail.mimeType}` : '';
@@ -236,6 +239,7 @@ export const ImageContent = as<'div', ImageContentProps>(
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
         const preview = thumbnailRef.current;
+        if (!preview && serverScaled) return loadServerScaledPicture(mx, url, loadOriginal);
         if (!preview) return loadOriginal();
         const blob = await downloadCachedAttachment(mx, {
           owner: ownerRef.current,
@@ -245,7 +249,7 @@ export const ImageContent = as<'div', ImageContentProps>(
         });
         return URL.createObjectURL(blob);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-      }, [mx, ownerKey, thumbnailKey, loadOriginal]),
+      }, [mx, ownerKey, thumbnailKey, serverScaled, url, loadOriginal]),
       revokeBlobUrl
     );
     useBlobUrlCleanup(srcState);
@@ -262,7 +266,12 @@ export const ImageContent = as<'div', ImageContentProps>(
     const viewerFrame = useViewerFrame();
     const closeViewer = useCallback(() => setViewerOpen(false), []);
     useViewerHistoryEntry(viewerOpen, closeViewer);
-    const original = useOriginalForViewer(viewerOpen && !!thumbnail, loadOriginal, closeViewer);
+    const scaledInTimeline = !!thumbnail || serverScaled;
+    const original = useOriginalForViewer(
+      viewerOpen && scaledInTimeline,
+      loadOriginal,
+      closeViewer
+    );
 
     useEffect(() => {
       if (!viewerOpen) return undefined;
@@ -272,7 +281,7 @@ export const ImageContent = as<'div', ImageContentProps>(
 
     const src = srcState.status === AsyncStatus.Success ? srcState.data : undefined;
     // The viewer saves what it shows, so it waits for the original rather than show the thumbnail.
-    const viewerSrc = thumbnail ? original : src;
+    const viewerSrc = scaledInTimeline ? original : src;
     const blurHash = getInfoBlurHash(info);
     const aspectRatio = info?.w && info?.h ? `${info.w} / ${info.h}` : undefined;
     const caption = { alt: body, title: body };

@@ -235,6 +235,12 @@ vi.mock('../../event-store/cache/attachmentRepository', () => ({
   downloadCachedAttachment: mocks.downloadCachedAttachment,
 }));
 
+vi.mock('./serverThumbnail', async () => ({
+  ...(await vi.importActual<typeof import('./serverThumbnail')>('./serverThumbnail')),
+  loadServerScaledPicture: (_mx: unknown, _url: string, loadOriginal: () => Promise<string>) =>
+    loadOriginal(),
+}));
+
 vi.mock('../../matrix/matrix', () => ({
   decryptFile: vi.fn(),
   mxcUrlToHttp: () => 'https://example.test/image',
