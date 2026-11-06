@@ -89,6 +89,36 @@ const setState = async (
 /** A name or topic row's line, which carries the whole new value as its tooltip. */
 const lineOf = (row: Locator) => row.locator('[title]');
 
+/**
+ * Whether a cut line still shows where the quoted value starts and how the sentence ends: the
+ * value's first character and the line's last one lie inside the line's box.
+ */
+const endsVisible = (row: Locator) =>
+  lineOf(row).evaluate((line) => {
+    const box = line.getBoundingClientRect();
+    const texts = (root: Node): Text[] => {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const found: Text[] = [];
+      while (walker.nextNode()) found.push(walker.currentNode as Text);
+      return found.filter((node) => node.data.replace(/[\u2068\u2069]/g, '').trim() !== '');
+    };
+    const inside = (node: Text | undefined, offset: number): boolean => {
+      if (!node || offset < 0) return false;
+      const range = document.createRange();
+      range.setStart(node, offset);
+      range.setEnd(node, offset + 1);
+      const char = range.getBoundingClientRect();
+      return char.left >= box.left - 1 && char.right <= box.right + 1;
+    };
+    const value = texts(line.querySelector('bdi') ?? line)[0];
+    const all = texts(line);
+    const last = all[all.length - 1];
+    return {
+      valueStart: inside(value, value?.data.search(/[^\u2068\u2069\s]/) ?? -1),
+      sentenceEnd: inside(last, (last?.data.replace(/[\u2068\u2069\s]+$/, '').length ?? 0) - 1),
+    };
+  });
+
 const checkRows = async (page: Page, screen: Screen, name: string) => {
   const reader = await register(name);
   // A sidebar with as many rooms as a working account has.
@@ -140,14 +170,18 @@ const checkRows = async (page: Page, screen: Screen, name: string) => {
   const shortBox = await lineOf(row('topic')).boundingBox();
   const longBox = await long.boundingBox();
   expect(longBox && shortBox && Math.abs(longBox.height - shortBox.height)).toBeLessThan(1);
-  const cut = await long.evaluate((element) => ({
+  // The value is cut, not the sentence: its start and the closing quote stay in view.
+  expect(await endsVisible(row('longTopic'))).toEqual({ valueStart: true, sentenceEnd: true });
+  expect(await endsVisible(row('rtlName'))).toEqual({ valueStart: true, sentenceEnd: true });
+  const cut = await long.locator('bdi').evaluate((element) => ({
     overflow: element.scrollWidth > element.clientWidth,
     ellipsis: getComputedStyle(element).textOverflow,
-    right: element.getBoundingClientRect().right,
   }));
   expect(cut.overflow, 'long topic is cut').toBe(true);
   expect(cut.ellipsis).toBe('ellipsis');
-  expect(cut.right).toBeLessThanOrEqual(screen.viewport.width);
+  expect(longBox && longBox.x >= 0 && longBox.x + longBox.width <= screen.viewport.width).toBe(
+    true
+  );
 
   // The quoted name and the sender keep their own direction inside the sentence.
   const isolation = (locator: Locator) =>
@@ -165,6 +199,9 @@ const checkRows = async (page: Page, screen: Screen, name: string) => {
   await expect(row('name').locator('bdi')).toHaveText(`\u2068${NAME}\u2069`);
   await expect(row('name')).not.toContainText('changed the room name');
   expect(await isolation(row('name').locator('bdi'))).toBe('isolate');
+  // A long Latin topic in the right-to-left sentence keeps its start in view too.
+  await row('longTopic').scrollIntoViewIfNeeded();
+  expect(await endsVisible(row('longTopic'))).toEqual({ valueStart: true, sentenceEnd: true });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/state-values-${name}-ar.png` });
 };
 
