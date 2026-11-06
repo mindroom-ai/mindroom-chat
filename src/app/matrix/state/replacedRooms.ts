@@ -10,6 +10,7 @@ import {
 } from 'matrix-js-sdk';
 import { useEffect } from 'react';
 import { StateEvent } from '../types/room';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 /**
  * Rooms that were upgraded into a room this account has joined. The successor stands in for them
@@ -30,7 +31,7 @@ export const findReplacedRooms = (mx: MatrixClient): Set<string> => {
   const replaced = new Set<string>();
   mx.getRooms().forEach((room) => {
     const successor = successorOf(room);
-    if (successor && mx.getRoom(successor)?.getMyMembership() === KnownMembership.Join) {
+    if (successor && matchesEnum(mx.getRoom(successor)?.getMyMembership(), KnownMembership.Join)) {
       replaced.add(room.roomId);
     }
   });

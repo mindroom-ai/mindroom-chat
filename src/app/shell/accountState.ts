@@ -8,6 +8,7 @@ import {
   emptyCrossRoomThreadIndexSnapshot,
 } from '../threads/cross-room/crossRoomThreadIndex';
 import { archivedRoomsAtom } from '../matrix/state/archivedRooms';
+import { replacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { accountSettingsAtom } from '../matrix/hooks/useAccountSettings';
 import {
   pendingRoamingSettingsAtom,
@@ -58,6 +59,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   (store) => store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set<string>() }),
   (store) => store.set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() }),
   (store) => store.set(archivedRoomsAtom, new Set<string>()),
+  (store) => store.set(replacedRoomsAtom, new Set<string>()),
   (store) => store.set(roomIdToTypingMembersAtom, { type: 'RESET' }),
   (store) => store.set(roomToUnreadAtom, { type: 'RESET', unreadInfos: [] }),
   toInitial(accountSettingsAtom),

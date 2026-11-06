@@ -6,6 +6,7 @@ import { useBindAtoms } from './useBindAtoms';
 import { useBindLiveReplyFrames } from '../messages/live/bindLiveReplyFrames';
 import { useModelControllerLifetime } from '../models/useModelPicker';
 import { useBindArchivedRoomsAtom } from '../matrix/state/archivedRooms';
+import { useBindReplacedRoomsAtom } from '../matrix/state/replacedRooms';
 import { useBindAccountSettings } from '../matrix/hooks/useAccountSettings';
 import { useBindRoamingSettings } from '../matrix/hooks/useBindRoamingSettings';
 
@@ -24,6 +25,7 @@ vi.mock('../matrix/state/typingMembers', () => ({
 vi.mock('../messages/live/bindLiveReplyFrames', () => ({ useBindLiveReplyFrames: vi.fn() }));
 vi.mock('../models/useModelPicker', () => ({ useModelControllerLifetime: vi.fn() }));
 vi.mock('../matrix/state/archivedRooms', () => ({ useBindArchivedRoomsAtom: vi.fn() }));
+vi.mock('../matrix/state/replacedRooms', () => ({ useBindReplacedRoomsAtom: vi.fn() }));
 vi.mock('../matrix/hooks/useAccountSettings', () => ({
   useBindAccountSettings: vi.fn(),
 }));
@@ -46,7 +48,7 @@ describe('useBindAtoms', () => {
     act(() => renderer?.unmount());
   });
 
-  it("seeds the account's archived rooms behind the same gate as its room lists", () => {
+  it("seeds the account's archived and replaced rooms behind the same gate as its room lists", () => {
     const client = { id: 'account' } as unknown as MatrixClient;
     function Probe() {
       useBindAtoms(client);
@@ -59,6 +61,7 @@ describe('useBindAtoms', () => {
     });
 
     expect(useBindArchivedRoomsAtom).toHaveBeenCalledWith(client);
+    expect(useBindReplacedRoomsAtom).toHaveBeenCalledWith(client);
     act(() => renderer?.unmount());
   });
 
