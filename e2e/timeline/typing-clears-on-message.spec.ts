@@ -74,7 +74,7 @@ const typingEndsWithTheMessage = async (page: Page, name: string) => {
     password: PASSWORD,
   });
   await page.goto(`/home/${encodeURIComponent(roomId)}`);
-  await expect(page.getByText('Morning, the harbor report is coming.')).toBeVisible({
+  await expect(page.getByText('Morning, the harbor report is coming.').first()).toBeVisible({
     timeout: 60_000,
   });
 
@@ -95,7 +95,7 @@ const typingEndsWithTheMessage = async (page: Page, name: string) => {
     msgtype: 'm.text',
     body: report,
   });
-  await expect(page.getByText(report)).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(report).first()).toBeVisible({ timeout: 30_000 });
   // The notice would last its whole minute without the message clearing it.
   await expect(typing).toHaveCount(0, { timeout: 5_000 });
 };
