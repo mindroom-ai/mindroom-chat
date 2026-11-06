@@ -204,7 +204,13 @@ test('following glass appears only while another reader follows the latest messa
         })
       )
       .toBe(true);
-    await expect.poll(historyPlace).toEqual(historyTop);
+    // The same message in view, within a pixel of where it was (offsets round to whole pixels).
+    await expect
+      .poll(async () => {
+        const { text, top } = await historyPlace();
+        return { text, moved: Math.abs(top - historyTop.top) > 1 };
+      })
+      .toEqual({ text: historyTop.text, moved: false });
     await expectMessagesBehindStrip();
     await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('following-reader.png') });
