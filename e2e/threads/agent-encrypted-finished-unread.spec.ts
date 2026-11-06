@@ -129,7 +129,8 @@ const readRouterWelcome = async (stack: AgentStack, roomId: string): Promise<voi
           { accessToken: stack.tester.accessToken }
         );
         welcome = chunk.filter(
-          (event) => event.sender === stack.agents.router && event.content['m.relates_to'] !== undefined
+          (event) =>
+            event.sender === stack.agents.router && event.content['m.relates_to'] !== undefined
         );
         const root = chunk.find(
           (event) => event.sender === stack.agents.router && !event.content['m.relates_to']
@@ -169,17 +170,13 @@ const streamingEdits = async (stack: AgentStack, roomId: string): Promise<number
   );
   return chunk.filter(
     (event) =>
-      event.sender === stack.agents.helper && event.content['m.relates_to']?.rel_type === 'm.replace'
+      event.sender === stack.agents.helper &&
+      event.content['m.relates_to']?.rel_type === 'm.replace'
   ).length;
 };
 
 /** The reader reads the start of a reply to `request`, then leaves before it finishes. */
-const halfReadThenLeave = async (
-  page: Page,
-  stack: AgentStack,
-  log: string[],
-  request: string
-) => {
+const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], request: string) => {
   // Home lists the room; the room is in no space.
   const roomId = await createEncryptedAgentRoom(stack, 'Secure desk');
   await readRouterWelcome(stack, roomId);
