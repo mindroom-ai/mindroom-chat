@@ -31,6 +31,7 @@ import { toggleKeyboardShortcut } from '../editor/keyboard';
 import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { type EmojiBoardTab } from '../emoji/board/EmojiBoard';
 import { IconButton } from '../ui/glass/GlassPrimitives';
+import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
 import {
   getAudioMsgContent,
   getFileMsgContent,
@@ -584,6 +585,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         <CustomEditor
           editor={editor}
           editableName="RoomInput"
+          // The composer floats over the timeline and the cards, which scroll beneath it.
+          className={glassDenseOverBackdrop}
           placeholder={t('composer.placeholder')}
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
           onChange={handleChange}

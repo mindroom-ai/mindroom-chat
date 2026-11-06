@@ -23,7 +23,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // Text behind a glass surface never competes with the text on it. Over a room of long messages,
 // with the surface's own content hidden, the screen is sampled across the surface: what shows
 // through varies only faintly, and the surface's title keeps 4.5:1 against every sample. Measured
-// on the room header and the thread filter bar, the thread banner and the room header above it,
+// on the room header and the thread filter bar, the composer over the Compact view's cards, the
+// thread banner and the room header above it,
 // the Leave Room dialog and the sticky title of a settings page, on a desktop (1440 by 900) and a
 // phone (390 by 844, touch), in light and dark themes, in Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
@@ -88,15 +89,31 @@ const seed = async (name: string) => {
     invite: [agent.user_id],
   });
   await joinRoom(HOMESERVER, agent.access_token, roomId);
-  let rootId = '';
+  const messageIds: string[] = [];
   for (let index = 0; index < 18; index += 1) {
     // eslint-disable-next-line no-await-in-loop -- the timeline in order.
     const eventId = await sendRoomMessage(HOMESERVER, reader.access_token, roomId, {
       msgtype: 'm.text',
       body: `${index + 1}. ${MESSAGE}`,
     });
-    if (index === 8) rootId = eventId;
+    messageIds.push(eventId);
   }
+  // A dozen more threads of one reply, so the Compact view's cards pass under the composer.
+  for (const eventId of messageIds.slice(0, 12)) {
+    // eslint-disable-next-line no-await-in-loop -- the replies in order.
+    await sendRoomMessage(HOMESERVER, agent.access_token, roomId, {
+      msgtype: 'm.text',
+      body: REPLY,
+      'io.mindroom.stream_status': 'completed',
+      'm.relates_to': {
+        rel_type: 'm.thread',
+        event_id: eventId,
+        is_falling_back: true,
+        'm.in_reply_to': { event_id: eventId },
+      },
+    });
+  }
+  const rootId = messageIds[12]!;
   const relation = {
     rel_type: 'm.thread',
     event_id: rootId,
@@ -149,26 +166,29 @@ const roomHeader = (page: Page) =>
  * Signs in and keeps the room in its Threads view (a room with an agent opens in Compact), with
  * the filter bar shown.
  */
-const signIn = async (page: Page, world: World) => {
-  await loginWithPassword(page, {
+const signIn = (page: Page, world: World) =>
+  loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: world.username,
     password: PASSWORD,
   });
-  await seedRoomOverviewState({
+
+/** Keeps the room in a view (a room with an agent opens in Compact), with the filter bar shown. */
+const chooseView = (page: Page, world: World, viewMode: 'threaded' | 'compact') =>
+  seedRoomOverviewState({
     page,
     roomId: world.roomId,
     userId: world.userId,
-    viewMode: 'threaded',
+    viewMode,
     filterState: createDefaultThreadFilterState(),
   });
-};
 
 /**
  * The room in its Threads view, which lists the newest message first and opens at the end of the
  * list, the first message: the others pass under the header and the filter bar.
  */
 const openRoom = async (page: Page, world: World) => {
+  await chooseView(page, world, 'threaded');
   await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
   await synced(page);
   await expect(page.getByText(/^1\. The weekly planning notes/)).toBeVisible({ timeout: 60_000 });
@@ -231,6 +251,30 @@ const checkSurfaces = async (
         `${prefix}-filter-bar`,
         filterBar,
         filterBar.locator('[data-filter-key]').first()
+      );
+
+      // The Compact view's cards pass under the composer.
+      await chooseView(page, world, 'compact');
+      await page.goto(`/home/${encodeURIComponent(world.roomId)}`);
+      await synced(page);
+      await expect(page.getByText(SUMMARY, { exact: true }).first()).toBeVisible({
+        timeout: 60_000,
+      });
+      const textBox = page.locator('[data-editable-name="RoomInput"]');
+      await textBox.evaluate((element) => {
+        for (let node = element.parentElement; node; node = node.parentElement) {
+          if (getComputedStyle(node).backdropFilter.includes('blur')) {
+            node.setAttribute('data-glass-composer', '');
+            return;
+          }
+        }
+      });
+      await measure(
+        page,
+        results,
+        `${prefix}-compact-composer`,
+        page.locator('[data-glass-composer]'),
+        textBox
       );
 
       await header.getByRole('button', { name: 'More Options', exact: true }).click();
