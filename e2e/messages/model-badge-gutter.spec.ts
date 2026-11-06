@@ -163,6 +163,24 @@ const badgeProblem = (page: Page, zoom: number, minimap: boolean) =>
     }
   );
 
+/**
+ * Whether the visible tip is painted over the page, not under it: hit testing at its center,
+ * with the tip briefly taking the pointer (its layer lets the pointer through), finds the tip.
+ */
+const tipOnTop = (page: Page) =>
+  page.evaluate((model) => {
+    const tip = Array.from(document.querySelectorAll<HTMLElement>('[role="tooltip"]')).find(
+      (node) => node.textContent?.includes(model) && node.getClientRects().length > 0
+    );
+    if (!tip) return false;
+    const { left, top, width, height } = tip.getBoundingClientRect();
+    const before = tip.style.pointerEvents;
+    tip.style.pointerEvents = 'auto';
+    const hit = document.elementFromPoint(left + width / 2, top + height / 2);
+    tip.style.pointerEvents = before;
+    return !!hit && tip.contains(hit);
+  }, MODEL_NAME);
+
 /** The badge of the last reply, brought into view. */
 const lastBadge = async (page: Page) => {
   const row = page
@@ -236,6 +254,7 @@ const checkDesktop = async (page: Page, data: Seed, engine: string, testInfo: Te
   }
   expect(reached, 'Tab from the row reaches the model badge').toBe(true);
   await expect(page.getByRole('tooltip').filter({ hasText: MODEL_NAME })).toBeVisible();
+  expect(await tipOnTop(page), 'the focused badge tip shows over the page').toBe(true);
   await shot(page, testInfo, `model-badge-${engine}-desktop-focus`);
   await page.keyboard.press('Escape');
   await expect(page.getByRole('tooltip').filter({ hasText: MODEL_NAME })).toHaveCount(0);
@@ -257,6 +276,8 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
     const tip = page.getByRole('tooltip').filter({ hasText: MODEL_NAME });
     // eslint-disable-next-line no-await-in-loop
     await expect(tip).toBeVisible();
+    // eslint-disable-next-line no-await-in-loop
+    expect(await tipOnTop(page), 'the tapped badge tip shows over the page').toBe(true);
     // eslint-disable-next-line no-await-in-loop
     await shot(page, testInfo, `model-badge-${engine}-phone-${scheme}-tap`);
     // eslint-disable-next-line no-await-in-loop
