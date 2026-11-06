@@ -24,7 +24,7 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * is resolved. The reader opens it in the Compact view among 24 other rooms and changes the
  * filters: the simple Unresolved toggle on and off, the switch to the advanced filters and back,
  * the Working and All presets, and a search (a letter no thread has, then Backspace). Each
- * change is timed from its click or keydown to the first frame after the list and the count show
+ * change is timed from its press or keydown to the first frame after the list and the count show
  * its result, that is until that frame has been painted (the next task after it); the search's
  * 300 ms pause in typing is not counted. Every change
  * runs FILTER_ROUNDS (default 3) times; the median of each must stay within FILTER_BUDGET_MS
@@ -172,7 +172,7 @@ const startAgents = (
 type Expect = { cards?: number; resolved?: number; selector?: string };
 
 /**
- * Installed before the app. `arm(expect)` starts a timing at the next click or keydown: from that
+ * Installed before the app. `arm(expect)` starts a timing at the next press or keydown: from that
  * event until the frame after the list shows `expect` and the count matches the list.
  */
 const instrument = () => {
@@ -193,7 +193,7 @@ const instrument = () => {
       (expected.selector === undefined || !!document.querySelector(expected.selector)) &&
       counted() === String(shown());
     const start = (event: Event) => {
-      document.removeEventListener('click', start, true);
+      document.removeEventListener('pointerdown', start, true);
       document.removeEventListener('keydown', start, true);
       const startedAt = event.timeStamp;
       const check = () => {
@@ -214,7 +214,8 @@ const instrument = () => {
       };
       requestAnimationFrame(check);
     };
-    document.addEventListener('click', start, true);
+    // The press, not the click: a preset option acts on its press and is gone before a click.
+    document.addEventListener('pointerdown', start, true);
     document.addEventListener('keydown', start, true);
   };
   (window as unknown as { __filterTiming: unknown }).__filterTiming = { state, arm };
