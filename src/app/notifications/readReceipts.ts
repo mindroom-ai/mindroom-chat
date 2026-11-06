@@ -1,7 +1,6 @@
 import {
   Direction,
   EventStatus,
-  type IEvent,
   type MatrixClient,
   MatrixEvent,
   ReceiptType,
@@ -12,6 +11,7 @@ import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { inMainTimelineForReceipt } from 'matrix-js-sdk/lib/client';
 import { getThreadReadState } from '../event-store/threads/roomThreadList';
+import { getFinishingEdit, threadReceiptNamesEvent } from '../event-store/threads/streamFinish';
 import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import { isVisibleThreadReplyEvent } from '../event-store/threads/threadUtils';
 import { getMainTimelineReadTs } from '../matrix/mainTimelineRead';
@@ -54,15 +54,10 @@ const isConfirmedFinishingEdit = (event: MatrixEvent): boolean =>
   !inMainTimelineForReceipt(event) &&
   hasTerminalStreamMetadata(event.getContent());
 
-/**
- * The edit that finished `reply`'s stream, as the SDK applied it or as the server bundles it with
- * the reply, for a thread that does not hold the edit itself (opened after the stream ended).
- */
-const finishingEditOf = (reply: MatrixEvent): MatrixEvent | undefined => {
-  const bundled = reply.getServerAggregatedRelation<Partial<IEvent>>(RelationType.Replace);
-  const edit = reply.replacingEvent() ?? (bundled?.content ? new MatrixEvent(bundled) : undefined);
-  if (!edit || !isConfirmed(edit)) return undefined;
-  return hasTerminalStreamMetadata(edit.getContent()) ? edit : undefined;
+/** The confirmed edit that finished `reply` (`getFinishingEdit`). */
+const finishingEditOf = (reply: MatrixEvent, thread: Thread): MatrixEvent | undefined => {
+  const edit = getFinishingEdit(reply, thread);
+  return isConfirmed(edit) ? edit : undefined;
 };
 
 /**
@@ -76,7 +71,7 @@ const latestThreadReply = (thread: Thread): MatrixEvent | undefined => {
   );
   const summary = thread.replyToEvent ?? undefined;
   const tail = newer(loaded, summary && isConfirmedReply(summary) ? summary : undefined);
-  return tail && !tail.isRelation(RelationType.Replace) ? newer(tail, finishingEditOf(tail)) : tail;
+  return tail && !tail.isRelation(RelationType.Replace) ? newer(tail, finishingEditOf(tail, thread)) : tail;
 };
 
 const send = (promise: Promise<unknown> | undefined): Promise<void> =>
@@ -164,10 +159,7 @@ const forThreadReceipt = (event: MatrixEvent, roomId: string, rootId: string): M
 /** Whether the reader's receipt in the thread, public or private, already names `eventId`. */
 const threadReceiptNames = (thread: Thread, userId: string | undefined, eventId: string) =>
   !!getThreadReadState(thread, userId)?.readEventIds.has(eventId) ||
-  (!!userId &&
-    [ReceiptType.Read, ReceiptType.ReadPrivate].some(
-      (type) => thread.getReadReceiptForUserId(userId, false, type)?.eventId === eventId
-    ));
+  (!!userId && threadReceiptNamesEvent(thread, userId, eventId));
 
 /**
  * Reads the root of an opened thread, which belongs to the main timeline: a main receipt once

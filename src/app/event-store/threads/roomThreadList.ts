@@ -7,6 +7,7 @@ import type { Room } from 'matrix-js-sdk/lib/models/room';
 import { Thread } from 'matrix-js-sdk/lib/models/thread';
 import { isVisibleThreadReplyEvent } from './threadUtils';
 import { getThreadEventReadUpTo } from './threadEventReadUpTo';
+import { getFinishingEdit, threadReceiptNamesEvent } from './streamFinish';
 
 /** A thread that has not loaded its latest page knows its newest reply from the root's summary. */
 export const getLatestVisibleReply = (thread: Thread): MatrixEvent | undefined => {
@@ -71,12 +72,16 @@ export const getThreadLastActivityTs = (thread: Thread): number =>
 /**
  * A thread is unread when its latest reply is from another user and newer than
  * the user's thread or unthreaded receipt; a main-timeline receipt reads no replies.
+ * A streamed reply is as new as the edit that finished it, which a receipt naming it reads.
  */
 export const getThreadUnread = (thread: Thread, userId: string): boolean => {
   const latestReply = getLatestVisibleReply(thread);
   if (!latestReply || latestReply.getSender() === userId) return false;
+  const finish = getFinishingEdit(latestReply, thread);
+  const finishId = finish?.getId();
+  if (finishId && threadReceiptNamesEvent(thread, userId, finishId)) return false;
   const readUpToTs = getThreadReadState(thread, userId)?.readUpToTs;
-  return readUpToTs === undefined || latestReply.getTs() > readUpToTs;
+  return readUpToTs === undefined || (finish ?? latestReply).getTs() > readUpToTs;
 };
 
 /**
