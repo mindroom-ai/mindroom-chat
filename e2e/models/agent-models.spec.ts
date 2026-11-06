@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import {
   expect,
   messageRow,
@@ -15,6 +16,12 @@ import {
 // router for its catalog over encrypted to-device messages, sends `!model <key>`, and the next reply
 // runs on that model (the backend names it in the reply's `io.mindroom.ai_run` metadata).
 test.describe.configure({ timeout: 300_000 });
+
+// AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
+const shot = async (page: Page, name: string) => {
+  if (process.env.AGENT_UI_SHOTS)
+    await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
+};
 
 const named = (name: string): RegExp => new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 
@@ -96,6 +103,7 @@ test(
     });
     // The chip follows the router's answer well inside the picker's 12 s discovery window.
     await expect(chip).toHaveText(second.displayName, { timeout: 10_000 });
+    await shot(page, `typed-model-chip-${test.info().project.name}`);
 
     await sendFromComposer(page, '!model reset');
     await expect(page.getByText('Thread model override removed').last()).toBeVisible({

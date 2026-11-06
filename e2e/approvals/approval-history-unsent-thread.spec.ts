@@ -15,6 +15,12 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const VIEWPORT = { width: 1280, height: 800 };
 const TEXT = 'Harbor note: the crane inspection moves to Thursday morning.';
 
+// AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
+const shot = async (page: Page, name: string) => {
+  if (process.env.AGENT_UI_SHOTS)
+    await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
+};
+
 test.use({
   viewport: VIEWPORT,
   launchOptions: {
@@ -95,6 +101,7 @@ const unsentThreadHasNoApprovalError = async (page: Page, name: string) => {
   await expect(page.getByText(/approval history/i)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Retry history' })).toHaveCount(0);
   expect(localRelations).toEqual([]);
+  await shot(page, `unsent-thread-${name}`);
 };
 
 test.beforeEach(async () => {

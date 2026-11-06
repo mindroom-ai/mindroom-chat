@@ -15,6 +15,12 @@ const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const VIEWPORT = { width: 1280, height: 800 };
 const KEYS = ['😀', '🎉', '👍', '🚀'];
 
+// AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
+const shot = async (page: Page, name: string) => {
+  if (process.env.AGENT_UI_SHOTS)
+    await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
+};
+
 test.use({
   viewport: VIEWPORT,
   launchOptions: {
@@ -103,6 +109,7 @@ const pillsKeepTheirPlaces = async (page: Page, name: string) => {
   expect(await keysInOrder()).toEqual(KEYS);
   const moved = await pill(KEYS[2]).boundingBox();
   expect({ x: moved?.x, y: moved?.y }).toEqual({ x: third?.x, y: third?.y });
+  await shot(page, `reaction-order-${name}`);
 
   // A second click at the same place takes the reaction back from the same emoji.
   await page.mouse.click(third!.x + third!.width / 2, third!.y + third!.height / 2);

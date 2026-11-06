@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import {
   expect,
   openLobby,
@@ -14,6 +15,12 @@ import {
 // names the agent as typing only while that agent streams there, so a finished thread stays quiet
 // while the agent answers in another one.
 test.describe.configure({ timeout: 300_000 });
+
+// AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
+const shot = async (page: Page, name: string) => {
+  if (process.env.AGENT_UI_SHOTS)
+    await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
+};
 
 test(
   'an agent streaming in one thread shows as typing there, not in another thread',
@@ -41,6 +48,7 @@ test(
     // Long enough for a typing strip to show, as it did at once in the streaming thread.
     await page.waitForTimeout(3_000);
     await expect(typing).toHaveCount(0);
+    await shot(page, `typing-finished-thread-${test.info().project.name}`);
 
     await showThread(page, stack, streamingId);
     await expect(typing).toBeVisible({ timeout: 30_000 });

@@ -13,6 +13,12 @@ const RUN = Date.now().toString(36);
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const VIEWPORT = { width: 1280, height: 800 };
 
+// AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
+const shot = async (page: Page, name: string) => {
+  if (process.env.AGENT_UI_SHOTS)
+    await page.screenshot({ path: `${process.env.AGENT_UI_SHOTS}/${name}.png` });
+};
+
 test.use({
   viewport: VIEWPORT,
   launchOptions: {
@@ -98,6 +104,7 @@ const typingEndsWithTheMessage = async (page: Page, name: string) => {
   await expect(page.getByText(report).first()).toBeVisible({ timeout: 30_000 });
   // The notice would last its whole minute without the message clearing it.
   await expect(typing).toHaveCount(0, { timeout: 5_000 });
+  await shot(page, `typing-cleared-${name}`);
 };
 
 test.beforeEach(async () => {
