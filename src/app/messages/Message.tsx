@@ -83,6 +83,7 @@ import {
 import { MessageReadReceiptItem, MessageSourceCodeItem } from './MessageInspectionActions';
 import * as css from './styles.css';
 import * as copyCss from './MessageCopyActions.css';
+import * as stateCss from './roomStateChange.css';
 
 export type { ReactionHandler };
 export {
@@ -1001,7 +1002,8 @@ const ROOM_STATE_ICONS: Record<string, IconSrc> = {
 
 /**
  * A state row's icon and line, the icon in the column the membership rows keep theirs. A line
- * with a `title` stays on one line, cut with an ellipsis, and shows the whole text on hover.
+ * with a `title` (a new name or topic) stays on one line, its quoted value cut with an ellipsis,
+ * and shows the whole value on hover.
  */
 function StateLine({
   icon,
@@ -1018,9 +1020,8 @@ function StateLine({
       <Text
         size="T300"
         priority="300"
-        truncate={title !== undefined}
         title={title}
-        style={{ minWidth: 0 }}
+        className={title === undefined ? undefined : stateCss.OneLine}
       >
         {children}
       </Text>
