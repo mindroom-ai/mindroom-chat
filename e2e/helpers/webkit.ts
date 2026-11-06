@@ -34,6 +34,18 @@ export const launchWebKit = async (): Promise<Browser> => {
 };
 
 /**
+ * `test.use` value for tests of the `@webkit` project whose own `page` routes requests: there the
+ * page blocks service workers, for the reason `launchWebKit` gives. Chromium keeps its worker,
+ * since Chromium routes the requests the worker leaves to the network.
+ */
+export const blockWebKitServiceWorkers = {
+  serviceWorkers: async (
+    { browserName }: { browserName: string },
+    use: (serviceWorkers: 'allow' | 'block') => Promise<void>
+  ) => use(browserName === 'webkit' ? 'block' : 'allow'),
+};
+
+/**
  * Runs `check` on a page of a new WebKit context, saving a screenshot of the page into the test's
  * output when it fails: the test's own trace records only its Chromium page.
  */

@@ -2,6 +2,7 @@ import { expect, test, type CDPSession, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 import { createRoom } from '../helpers/createRoom';
+import { blockWebKitServiceWorkers } from '../helpers/webkit';
 
 // What a person sees while the app starts, frame by frame, in the light theme: the splash never
 // flashes black while its particle background starts, no frame between the splash and the shell is
@@ -20,6 +21,8 @@ const ROOMS = ['Harbor Plans', 'Budget Review', 'Release Notes'].concat(
 );
 
 test.use({ viewport: { width: 1280, height: 800 }, colorScheme: 'light' });
+// The warm start holds the first sync back with a route.
+test.use(blockWebKitServiceWorkers);
 
 const homeserverIsUp = async (): Promise<boolean> => {
   try {
