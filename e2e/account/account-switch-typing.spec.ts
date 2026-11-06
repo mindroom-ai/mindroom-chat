@@ -4,6 +4,7 @@ import { buildLoginPath, getHomeserver } from '../env';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { switchToStoredUsername } from '../helpers/accounts';
 import { createPrivateRoom, joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
+import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
 // An account that stops being the active one stops typing (live-test L9-F011). The first account
 // types a draft in a room and leaves it unsent; when a second account is added, the device
@@ -155,6 +156,42 @@ test('an account that stops being active, or leaves the page, stops typing in it
       })
       .toBe(false);
   } finally {
+    await watcher.stop();
+  }
+});
+
+test('a page left mid-draft stops typing in WebKit too', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
+  test.setTimeout(180_000);
+  const homeserver = getHomeserver();
+  const run = randomUUID().replaceAll('-', '').slice(0, 10);
+  const writerName = `typing_webkit_${run}`;
+  const writer = await register(homeserver, writerName);
+  const observer = await register(homeserver, `typing_webkit_observer_${run}`);
+  const roomId = await createPrivateRoom(homeserver, observer.accessToken, {
+    name: 'Lobby',
+    topic: 'Typing notices in WebKit',
+    invite: [writer.userId],
+  });
+  await joinRoom(homeserver, writer.accessToken, roomId);
+  const watcher = watchTyping(homeserver, observer, roomId);
+  const browser = await launchWebKit();
+  try {
+    const page = await (
+      await browser.newContext({ baseURL, viewport: { width: 1280, height: 800 } })
+    ).newPage();
+    await loginWithPassword(page, { homeserver, username: writerName, password: PASSWORD });
+    await typeDraft(page, roomId);
+    await expect.poll(() => watcher.isTyping(writer.userId), { timeout: 15_000 }).toBe(true);
+    await page.goto(buildLoginPath(homeserver, true));
+    await expect
+      .poll(() => watcher.isTyping(writer.userId), {
+        timeout: STOP_WITHIN_MS,
+        message: 'WebKit: the account still types after its page was left',
+      })
+      .toBe(false);
+  } finally {
+    await browser.close();
     await watcher.stop();
   }
 });
