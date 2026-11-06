@@ -324,7 +324,10 @@ const run = async (browser: Browser, engine: 'chromium' | 'webkit') => {
   }
 };
 
-/** Desktop: a right-clicked row keeps its tint while the pointer is on its menu. */
+/**
+ * Desktop: a right-clicked row keeps its tint while focus and the pointer are in its menu, which
+ * sits outside the row (the arrow keys move focus there).
+ */
 const checkRightClickTint = async (page: Page, tag: string) => {
   await page.goto('/home/');
   const nav = list(page, 'Home');
@@ -336,6 +339,10 @@ const checkRightClickTint = async (page: Page, tag: string) => {
   await target.click({ button: 'right' });
   const menu = roomMenu(page);
   await expect(menu).toBeVisible();
+  await page.keyboard.press('ArrowDown');
+  await expect
+    .poll(() => menu.evaluate((element) => element.contains(document.activeElement)))
+    .toBe(true);
   await menu.getByRole('menuitem', { name: 'Copy Link', exact: true }).hover();
   await save(page, `${tag}-right-click`);
   expect(await rowTint(target), `${tag}: the right-clicked row keeps its tint`).not.toBe(UNTINTED);
