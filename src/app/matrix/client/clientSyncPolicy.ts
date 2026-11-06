@@ -1,6 +1,7 @@
 import { Filter, MatrixClient, type IStartClientOpts } from 'matrix-js-sdk';
 import { buildFeatureSupportMap, Feature, ServerSupport } from 'matrix-js-sdk/lib/feature';
 import { readCachedSpecVersions } from '../cachedSpecVersions';
+import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
@@ -71,6 +72,7 @@ export const startClient = async (
     keepThreadReplyCounts(mx);
     keepUnopenedThreadEditsShown(mx);
     keepRedactionsInSavedSync(mx);
+    dropRoomsForgottenElsewhere(mx);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
