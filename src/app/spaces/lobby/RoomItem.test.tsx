@@ -5,6 +5,7 @@ import { act, create } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
+import { ScreenSize, ScreenSizeProvider } from '../../lib/hooks/useScreenSize';
 import type { HierarchyItem } from '../useSpaceHierarchy';
 import { RoomItemCard } from './RoomItem';
 
@@ -66,6 +67,8 @@ vi.mock('./DnD', () => ({
 }));
 
 vi.mock('./RoomItem.css', () => ({
+  CardControls: 'CardControls',
+  CardOpener: 'CardOpener',
   ErrorNameContainer: 'ErrorNameContainer',
   RoomName: 'RoomName',
   RoomItemCard: 'RoomItemCard',
@@ -281,5 +284,52 @@ describe('RoomItemCard room access', () => {
 
     expect(renderer.root.findAll((node) => node.children.includes('Join'))).toHaveLength(1);
     expect(renderer.root.findAll((node) => node.children.includes('Request sent'))).toHaveLength(0);
+  });
+});
+
+describe('RoomItemCard opening a joined room', () => {
+  const joinedCard = (screenSize: ScreenSize, onOpen: (id: string) => void) => {
+    vi.mocked(mx.getRoom).mockReturnValue(cachedRoom('join', JoinRule.Invite));
+    const renderer = create(<></>);
+    act(() => {
+      renderer.update(
+        <ScreenSizeProvider value={screenSize}>
+          <MatrixClientProvider value={mx}>
+            <RoomItemCard
+              item={item}
+              loading={false}
+              error={null}
+              summary={summary}
+              onOpen={onOpen}
+              onDragging={vi.fn()}
+              canReorder={false}
+              getRoom={() => undefined}
+            />
+          </MatrixClientProvider>
+        </ScreenSizeProvider>
+      );
+    });
+    return renderer;
+  };
+  const openRoomButtons = (renderer: ReturnType<typeof create>) =>
+    renderer.root.findAll((node) => node.children.includes('Open Room'));
+
+  it('opens on a phone through the button its whole card is, named by the room', () => {
+    const onOpen = vi.fn();
+    const renderer = joinedCard(ScreenSize.Mobile, onOpen);
+    expect(openRoomButtons(renderer)).toHaveLength(0);
+    const opener = renderer.root.findByProps({ className: 'CardOpener' });
+    expect(opener.type).toBe('button');
+    expect(opener.findAll((node) => node.children.includes('Private room')).length).toBeGreaterThan(
+      0
+    );
+    act(() => opener.props.onClick());
+    expect(onOpen).toHaveBeenCalledWith(roomId);
+  });
+
+  it('keeps the Open Room button on wider screens', () => {
+    const renderer = joinedCard(ScreenSize.Desktop, vi.fn());
+    expect(openRoomButtons(renderer).length).toBeGreaterThan(0);
+    expect(renderer.root.findAllByProps({ className: 'CardOpener' })).toHaveLength(0);
   });
 });

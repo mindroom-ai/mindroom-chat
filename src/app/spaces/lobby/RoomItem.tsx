@@ -12,6 +12,7 @@ import type { HierarchyItem } from '../useSpaceHierarchy';
 import { getRoomAvatarUrl } from '../../matrix/room';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { Membership } from '../../matrix/types/room';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
 import { useDraggableItem } from './DnD';
@@ -66,6 +67,9 @@ export function RoomItemCard({
   const localRoom = getRoom(roomId) ?? client.getRoom(roomId) ?? undefined;
   const membership = localRoom?.getMyMembership();
   const joined = membership === Membership.Join;
+  // On a phone a joined room's whole card opens it, through its name's button, instead of an
+  // Open Room button that would take room from the name.
+  const opensByCard = useScreenSizeContext() === ScreenSize.Mobile && joined;
 
   const roomName = summary?.name || summary?.canonical_alias || localRoom?.name || roomId;
   const topic = summary?.topic;
@@ -103,9 +107,17 @@ export function RoomItemCard({
           <div className={styleCss.LinePlaceholder} />
         ) : (
           <Box className={css.ErrorNameContainer} alignItems="Center" gap="100">
-            <Text className={css.RoomName} size="T400" {...ownDirectionLine}>
-              {roomName}
-            </Text>
+            {opensByCard ? (
+              <button type="button" className={css.CardOpener} onClick={() => onOpen(roomId)}>
+                <Text as="span" className={css.RoomName} size="T400" {...ownDirectionLine}>
+                  {roomName}
+                </Text>
+              </button>
+            ) : (
+              <Text className={css.RoomName} size="T400" {...ownDirectionLine}>
+                {roomName}
+              </Text>
+            )}
             {error && !summary && (
               <Icon size="50" src={Icons.Warning} style={{ color: color.Warning.Main }} />
             )}
@@ -139,8 +151,8 @@ export function RoomItemCard({
         </Box>
       </Box>
       {!loading && (
-        <Box shrink="No" gap="200" alignItems="Center">
-          {joined ? (
+        <Box className={css.CardControls} shrink="No" gap="200" alignItems="Center">
+          {joined && !opensByCard && (
             <Button
               variant="Secondary"
               fill="Soft"
@@ -152,7 +164,8 @@ export function RoomItemCard({
             >
               <Text size="B300">{t('featureUi.lobby.roomItem.openRoom')}</Text>
             </Button>
-          ) : (
+          )}
+          {!joined && (
             <LobbyAccessButton
               roomId={roomId}
               roomName={roomName}
