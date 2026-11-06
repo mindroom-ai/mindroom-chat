@@ -85,6 +85,7 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
           return { top, bottom };
         };
         const started = performance.now();
+        let captured = false;
         const read = () => {
           const row = document.querySelector(`[data-message-id="${id}"]`);
           const rowBox = row?.getBoundingClientRect();
@@ -96,6 +97,11 @@ const recordFrames = (page: Page, replyId: string, ms: number): Promise<Frame[]>
                 (button) => button.textContent?.trim() === 'Stop'
               )
             : undefined;
+          if (rowBox && stop && !captured) {
+            captured = true;
+            // Start the optional screenshot in the same frame as the reply first appears.
+            void (window as unknown as { typingReplyShown: () => Promise<void> }).typingReplyShown();
+          }
           const clipping: Frame['clipping'] = [];
           for (let parent = row?.parentElement; parent; parent = parent.parentElement) {
             const overflow = getComputedStyle(parent).overflowY;
@@ -135,6 +141,9 @@ test.describe('on a phone', () => {
         rootId,
         (event) => event.sender === stack.agents.helper && streamStatus(event) === 'streaming',
         { description: 'the long reply streaming' }
+      );
+      await page.exposeFunction('typingReplyShown', () =>
+        shot(page, `typing-entry-phone-${test.info().project.name}`)
       );
       // Start before navigation: waiting for Stop or a screenshot can hide the first few frames.
       const recording = recordFrames(page, streaming.event_id, 10_000);
