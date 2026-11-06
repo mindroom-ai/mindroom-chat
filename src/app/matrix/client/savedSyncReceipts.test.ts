@@ -76,7 +76,11 @@ const reloadedRoom = async (receipts: MatrixEvent[]) => {
     room.getUnfilteredTimelineSet().addLiveEvent(root, { addToState: false });
     return room.createThread(rootId, root, [message(replyId, replyTs, rootId)], false);
   });
-  await vi.waitFor(() => created.forEach((thread) => expect(thread.events.length).toBe(2)));
+  await vi.waitFor(() =>
+    created.forEach((thread, index) =>
+      expect(thread.events.at(-1)?.getId()).toBe(threads[index][2])
+    )
+  );
   room.addEphemeralEvents(receipts);
   return { room, first: created[0], second: created[1] };
 };
