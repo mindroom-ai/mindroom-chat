@@ -20,7 +20,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // The room's badge must show the finished reply as unread in the session that read half-way, no
 // more than the server counts: the server counts an encrypted event whose push rules it cannot
 // read (an agent's notice, such as the thread's title) as a message, the client does not. A new
-// session must count fewer unread messages than the reply had streaming edits.
+// session must count fewer unread messages than the reply had streaming edits. The tests skip on a
+// homeserver without mindroom-tuwunel#133 (v1.9.4-mindroom.21); #135 (v1.9.4-mindroom.22) gives the
+// server's own count of the finished reply.
 test.describe.configure({ timeout: 420_000 });
 
 // Set E2EE_SHOTS=<directory> to save each session's sidebar once its badge shows.
@@ -175,6 +177,58 @@ const streamingEdits = async (stack: AgentStack, roomId: string): Promise<number
   ).length;
 };
 
+/**
+ * Whether the homeserver lists the room's thread counts on a sync that carries the room for
+ * another reason, here the tester's typing (mindroom-tuwunel#133, v1.9.4-mindroom.21 and later).
+ * An older one leaves the map out, which by MSC3773 says no thread has notifications, so the SDK
+ * clears the thread counts it keeps itself in an encrypted room on each such sync.
+ */
+const listsThreadCountsOnEverySync = async (stack: AgentStack, roomId: string) => {
+  type Joined = { timeline?: { events?: unknown[] }; unread_thread_notifications?: unknown };
+  type Sync = { next_batch: string; rooms?: { join?: Record<string, Joined> } };
+  const filter = encodeURIComponent(
+    JSON.stringify({
+      room: {
+        rooms: [roomId],
+        timeline: { limit: 5, unread_thread_notifications: true },
+        ephemeral: { types: ['m.typing'] },
+      },
+    })
+  );
+  const sync = (since?: string) =>
+    matrixFetch<Sync>(
+      stack.homeserver,
+      `/sync?filter=${filter}&timeout=${since ? 5000 : 0}${since ? `&since=${since}` : ''}`,
+      { accessToken: stack.tester.accessToken }
+    );
+  const typing = (on: boolean) =>
+    matrixFetch(
+      stack.homeserver,
+      `/rooms/${encodeURIComponent(roomId)}/typing/${encodeURIComponent(stack.tester.userId)}`,
+      {
+        method: 'PUT',
+        accessToken: stack.tester.accessToken,
+        body: JSON.stringify(on ? { typing: true, timeout: 10_000 } : { typing: false }),
+      }
+    );
+  let since = (await sync()).next_batch;
+  await typing(true);
+  try {
+    // The first round that carries the room with no new events of its own.
+    for (let round = 0; round < 5; round += 1) {
+      const next = await sync(since);
+      since = next.next_batch;
+      const joined = next.rooms?.join?.[roomId];
+      if (joined && !joined.timeline?.events?.length) {
+        return joined.unread_thread_notifications !== undefined;
+      }
+    }
+    return true;
+  } finally {
+    await typing(false);
+  }
+};
+
 /** The reader reads the start of a reply to `request`, then leaves before it finishes. */
 const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], request: string) => {
   // Home lists the room; the room is in no space.
@@ -201,6 +255,12 @@ const halfReadThenLeave = async (page: Page, stack: AgentStack, log: string[], r
     })
     .toBeGreaterThan(0);
   log.push(`server after the finish: ${JSON.stringify(await serverUnreadCounts(stack, roomId))}`);
+  test.skip(
+    !(await listsThreadCountsOnEverySync(stack, roomId)),
+    'The homeserver leaves thread counts out of syncs that carry a room without new events ' +
+      '(mindroom-tuwunel#133, in v1.9.4-mindroom.21 and later); the SDK then clears the counts ' +
+      'of encrypted rooms. Run with a newer image (MRC_TUWUNEL_IMAGE).'
+  );
   return roomId;
 };
 
