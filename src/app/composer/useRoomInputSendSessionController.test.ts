@@ -1029,10 +1029,12 @@ describe('useRoomInputSendSessionController optimistic room roots', () => {
     expect(onRoomMessageSent).toHaveBeenCalledWith('$confirmed-root');
   });
 
-  it('restores a failed root when the thread view declines timeline ownership', async () => {
+  it('leaves a failed root in the timeline when the view does not open its thread', async () => {
     const send = createDeferred<{ event_id: string }>();
     const onRoomMessageSent = vi.fn(() => false);
-    const { api, editor, localEvents, mx } = renderHarness({ onRoomMessageSent });
+    const { api, localEvents, mx, restoreComposerFallbackForRoom } = renderHarness({
+      onRoomMessageSent,
+    });
     mx.sendMessage.mockImplementationOnce(
       (targetRoomId: string, _content: unknown, txnId?: string) => {
         if (!txnId) throw new Error('Expected a transaction id');
@@ -1055,10 +1057,126 @@ describe('useRoomInputSendSessionController optimistic room roots', () => {
     });
 
     expect(onRoomMessageSent).toHaveBeenCalledWith('~!room:example.org:txn-0');
-    expect(mocks.restoreEditorContent).toHaveBeenCalledWith(editor, [
-      { type: 'paragraph', children: [{ text: 'caption draft' }] },
-    ]);
-    // The composer has the text again, so the unsent echo must not offer a second send.
-    expect(mx.cancelPendingEvent).toHaveBeenCalledWith(localEvents.get('txn-0'));
+    // The unsent message keeps its row, with Retry and Delete; the composer is left alone.
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(restoreComposerFallbackForRoom).not.toHaveBeenCalled();
+    expect(mx.cancelPendingEvent).not.toHaveBeenCalled();
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+});
+
+describe('useRoomInputSendSessionController sends that cannot go out yet', () => {
+  beforeEach(() => {
+    mocks.resetEditor.mockReset();
+    mocks.resetEditorHistory.mockReset();
+    mocks.restoreEditorContent.mockReset();
+  });
+
+  /** Sends that create their local echo and then wait for the server until settled by hand. */
+  const holdSends = (
+    mx: ReturnType<typeof renderHarness>['mx'],
+    localEvents: ReturnType<typeof renderHarness>['localEvents']
+  ) => {
+    const held: ReturnType<typeof createDeferred<{ event_id: string }>>[] = [];
+    mx.sendMessage.mockImplementation(
+      (targetRoomId: string, _content: unknown, txnId?: string) => {
+        if (!txnId) throw new Error('Expected a transaction id');
+        localEvents.set(txnId, { getId: () => `~${targetRoomId}:${txnId}` });
+        const send = createDeferred<{ event_id: string }>();
+        held.push(send);
+        return send.promise;
+      }
+    );
+    return held;
+  };
+
+  const textBodies = (mx: ReturnType<typeof renderHarness>['mx']) =>
+    mx.sendMessage.mock.calls
+      .map((call) => call[1] as { msgtype?: string; body?: string })
+      .filter((content) => content.msgtype === 'm.text')
+      .map((content) => content.body);
+
+  it('gives each text its own row at once while the one before it is still going out', async () => {
+    const { api, mx, localEvents, restoreComposerFallbackForRoom } = renderHarness({
+      threadId: '$thread',
+    });
+    const held = holdSends(mx, localEvents);
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'first' } });
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'second' } });
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'third' } });
+    });
+
+    // The client's queue sends them in this order; none waits for the server's answer.
+    expect(textBodies(mx)).toEqual(['first', 'second', 'third']);
+    expect(mocks.resetEditor).toHaveBeenCalledTimes(3);
+    expect(api.hasActiveSendSession()).toBe(false);
+
+    // All three fail: each keeps its row, and nothing comes back into the composer.
+    await act(async () => {
+      for (const [index, send] of held.entries()) {
+        localEvents.get(`txn-${index}`)!.status = EventStatus.NOT_SENT;
+        send.reject(new Error('offline'));
+      }
+      await Promise.resolve();
+    });
+    expect(mocks.restoreEditorContent).not.toHaveBeenCalled();
+    expect(restoreComposerFallbackForRoom).not.toHaveBeenCalled();
+    expect(mx.cancelPendingEvent).not.toHaveBeenCalled();
+  });
+
+  it('sends a text at once while an attachment waits for a retry of its failed upload', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('tide-table.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [prepErrorUpload(file)];
+
+    // Send with only the failed file staged: it waits for its upload's Retry.
+    await act(async () => {
+      await api.startSendSession();
+    });
+    expect(api.hasActiveSendSession()).toBe(true);
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'after the file' } });
+    });
+    expect(textBodies(mx)).toEqual(['after the file']);
+    expect(mx.sendMessage.mock.calls[0][1]).toMatchObject({
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
+    });
+    expect(mocks.resetEditor).toHaveBeenCalledTimes(1);
+
+    // The retried upload resumes the waiting session, which sends the file once.
+    api.uploadsRef.current = [successUpload(file)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(mx.sendMessage).toHaveBeenCalledTimes(2);
+    expect(mx.sendMessage.mock.calls[1][1]).toMatchObject({ body: 'tide-table.txt' });
+    expect(api.hasActiveSendSession()).toBe(false);
+  });
+
+  it('sends the texts held behind an upload in progress, in order, once that upload fails', async () => {
+    const { api, mx } = renderHarness({ threadId: '$thread' });
+    const file = createFile('tide-table.txt');
+    api.selectedFilesRef.current = [createUploadItem(file)];
+    api.uploadsRef.current = [loadingUpload(file)];
+
+    await act(async () => {
+      await api.startSendSession();
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'one' } });
+      await api.startSendSession({ textContent: { msgtype: 'm.text', body: 'two' } });
+    });
+    // They follow the file, which is still uploading.
+    expect(mx.sendMessage).not.toHaveBeenCalled();
+
+    api.uploadsRef.current = [prepErrorUpload(file)];
+    await act(async () => {
+      await api.processSendSession();
+    });
+    expect(textBodies(mx)).toEqual(['one', 'two']);
+    expect(api.hasActiveSendSession()).toBe(true);
   });
 });

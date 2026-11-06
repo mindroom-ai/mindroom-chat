@@ -6,6 +6,7 @@ import {
   createRoomInputSendSessionState,
   getTextRelationForSendSession,
   getUploadRelationForSendSession,
+  isRoomInputSendSessionStalled,
   resolveRoomInputSendStep,
 } from './roomInputSendSession';
 
@@ -446,5 +447,77 @@ describe('roomInputSendSession', () => {
         [first, second]
       )
     ).toEqual({ kind: 'wait' });
+  });
+
+  it('sends the caption on its own while the root attachment waits for a retry of its upload', () => {
+    const first = createFile('first.png');
+    const session = createRoomInputSendSessionState({ files: [first], hasText: true });
+
+    expect(session.mode).toBe('auto-thread-upload-root');
+    expect(resolveRoomInputSendStep(session, [errorUpload(first)], [first])).toEqual({
+      kind: 'send-text',
+    });
+    // No thread exists yet, so the caption goes to the room, still replying where it was written.
+    const relation = getTextRelationForSendSession({ ...session, replyDraft: plainReplyDraft() });
+    expect(relation?.rel_type).toBeUndefined();
+    expect(relation?.['m.in_reply_to']?.event_id).toBe('$reply');
+
+    session.textPending = false;
+    expect(resolveRoomInputSendStep(session, [errorUpload(first)], [first])).toEqual({
+      kind: 'wait',
+    });
+    expect(isRoomInputSendSessionStalled(session, [errorUpload(first)], [first])).toBe(true);
+  });
+
+  it('sends the caption on its own while a root whose send failed waits to be sent again', () => {
+    const first = createFile('first.png');
+    const session = createRoomInputSendSessionState({ files: [first], hasText: true });
+    session.blockedRoot = true;
+
+    expect(resolveRoomInputSendStep(session, [successUpload(first)], [first])).toEqual({
+      kind: 'send-text',
+    });
+    session.textPending = false;
+    expect(resolveRoomInputSendStep(session, [successUpload(first)], [first])).toEqual({
+      kind: 'wait',
+    });
+    expect(isRoomInputSendSessionStalled(session, [successUpload(first)], [first])).toBe(true);
+  });
+
+  it('counts a session as stalled only when everything it waits for needs the person', () => {
+    const first = createFile('first.png');
+    const second = createFile('second.png');
+    const session = createRoomInputSendSessionState({
+      files: [first, second],
+      hasText: false,
+      threadId: '$thread',
+    });
+
+    // An upload still running: the session goes on by itself.
+    expect(
+      isRoomInputSendSessionStalled(
+        session,
+        [loadingUpload(first), errorUpload(second)],
+        [first, second]
+      )
+    ).toBe(false);
+    // Only a failed upload and a failed send are left: both wait for a retry.
+    session.failedFiles.add(first);
+    expect(
+      isRoomInputSendSessionStalled(
+        session,
+        [successUpload(first), errorUpload(second)],
+        [first, second]
+      )
+    ).toBe(true);
+    // A file ready to send is progress.
+    session.failedFiles.clear();
+    expect(
+      isRoomInputSendSessionStalled(
+        session,
+        [successUpload(first), errorUpload(second)],
+        [first, second]
+      )
+    ).toBe(false);
   });
 });
