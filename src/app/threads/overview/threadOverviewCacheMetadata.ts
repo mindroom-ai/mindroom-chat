@@ -7,6 +7,7 @@ export type ThreadOverviewCachedMetadataSnapshot = {
   compactRootSourceTsMap: Map<string, number>;
   lastActivityTsMap: Map<string, number>;
   latestReplyPreviewMap: Map<string, string>;
+  latestReplyTsMap?: Map<string, number>;
   lastSenderIdMap: Map<string, string>;
   messageCountMap: Map<string, number>;
   coverageMap: Map<string, ThreadCacheCoverage>;
@@ -18,6 +19,7 @@ export type ThreadOverviewCachedMetadataUpdate = {
   nextPreview?: string;
   nextPreviewSourceTs?: number;
   nextReplyPreviewText?: string;
+  nextReplyTs?: number;
   nextLastSenderId?: string;
   nextMessageCount?: number;
   nextCacheCoverage?: ThreadCacheCoverage;
@@ -45,6 +47,7 @@ export const createEmptyThreadOverviewCachedMetadata =
     compactRootSourceTsMap: new Map(),
     lastActivityTsMap: new Map(),
     latestReplyPreviewMap: new Map(),
+    latestReplyTsMap: new Map(),
     lastSenderIdMap: new Map(),
     messageCountMap: new Map(),
     coverageMap: new Map(),
@@ -102,6 +105,10 @@ export const applyThreadOverviewCachedMetadataUpdates = (
     previous.lastSenderIdMap,
     updates.map(({ rootId, nextLastSenderId }) => ({ key: rootId, value: nextLastSenderId }))
   );
+  const latestReplyTsMap = updateMap(
+    previous.latestReplyTsMap ?? new Map<string, number>(),
+    updates.map(({ rootId, nextReplyTs }) => ({ key: rootId, value: nextReplyTs }))
+  );
   const messageCountMap = updateMap(
     previous.messageCountMap,
     updates.map(({ rootId, nextMessageCount }) => ({ key: rootId, value: nextMessageCount }))
@@ -116,6 +123,7 @@ export const applyThreadOverviewCachedMetadataUpdates = (
     compactRootSourceTsMap === previous.compactRootSourceTsMap &&
     lastActivityTsMap === previous.lastActivityTsMap &&
     latestReplyPreviewMap === previous.latestReplyPreviewMap &&
+    latestReplyTsMap === previous.latestReplyTsMap &&
     lastSenderIdMap === previous.lastSenderIdMap &&
     messageCountMap === previous.messageCountMap &&
     coverageMap === previous.coverageMap
@@ -128,6 +136,7 @@ export const applyThreadOverviewCachedMetadataUpdates = (
     compactRootSourceTsMap,
     lastActivityTsMap,
     latestReplyPreviewMap,
+    latestReplyTsMap,
     lastSenderIdMap,
     messageCountMap,
     coverageMap,
