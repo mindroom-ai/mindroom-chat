@@ -32,9 +32,10 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * (default 1000), and in Chromium no task between the press and the whole list may take longer
  * than FILTER_BUDGET_MS.
  *
- * Then FILTER_AGENTS (default 8) agents stream replies in threads of their own, an edit a second
- * each, and the Unresolved toggle is timed again: its median while they stream must stay within
- * FILTER_BUSY_BUDGET_MS (default 150).
+ * Then, once every engine has had its idle run, FILTER_AGENTS (default 8) agents stream replies
+ * in threads of their own, an edit a second each, and the Unresolved toggle is timed again on each
+ * engine's page: its median while they stream must stay within FILTER_BUSY_BUDGET_MS (default
+ * 150).
  *
  * Chromium at 1280x800 with classic scrollbars, and WebKit when PLAYWRIGHT_WEBKIT_EXECUTABLE names
  * it. Run it on the production build (e2e-slot.sh --preview). The timings go to
@@ -130,7 +131,6 @@ const startAgents = (
   agents: MatrixSession[]
 ) => {
   let running = true;
-  const counts = { roots: 0 };
   const stream = async (agent: MatrixSession, index: number) => {
     await wait((index * 1000) / agents.length);
     for (let round = 1; running; round += 1) {
@@ -139,7 +139,6 @@ const startAgents = (
         body: `Agent ${index + 1}, round ${round}: summarize the open questions`,
         'm.mentions': { user_ids: [agent.userId] },
       });
-      counts.roots += 1;
       const replyId = await send(homeserver, agent, roomId, 'm.room.message', {
         msgtype: 'm.text',
         body: 'Thinking...',
@@ -169,7 +168,6 @@ const startAgents = (
   };
   const done = Promise.all(agents.map((agent, index) => stream(agent, index)));
   return {
-    counts,
     stop: async () => {
       running = false;
       await done;
@@ -414,14 +412,17 @@ test.describe('compact filter timing', () => {
     };
     const engines = ENGINES.filter((engine) => engine !== 'webkit' || !!WEBKIT_EXECUTABLE);
     const results: Record<string, unknown>[] = [];
-    // Threads the agents started in an earlier engine's run.
-    let streamedThreads = 0;
+    const browsers: Browser[] = [];
+    // Each engine's page is timed again while the agents stream, once every engine has had its
+    // idle run: a client that starts after the agents ran would see other threads.
+    const busyRuns: { result: Record<string, unknown>; measure: () => Promise<number[]> }[] = [];
 
-    for (const engine of engines) {
-      const launch = launchers[engine];
-      if (!launch) throw new Error(`Unknown engine ${engine}`);
-      const browser = await launch();
-      try {
+    try {
+      for (const engine of engines) {
+        const launch = launchers[engine];
+        if (!launch) throw new Error(`Unknown engine ${engine}`);
+        const browser = await launch();
+        browsers.push(browser);
         const context = await browser.newContext({
           baseURL,
           viewport: DESKTOP,
@@ -440,7 +441,7 @@ test.describe('compact filter timing', () => {
         await page.goto(`/home/${encodeURIComponent(seeded.roomId)}`);
         const view = page.locator('[data-compact-room-view="true"]');
         const cards = view.locator('[data-thread-root-id]');
-        const total = THREADS + streamedThreads;
+        const total = THREADS;
         await expect(view).toBeVisible({ timeout: 120_000 });
         await expect
           .poll(() => cards.count(), { timeout: 180_000, message: 'all threads listed' })
@@ -462,15 +463,11 @@ test.describe('compact filter timing', () => {
           elements.map((element) => ({
             id: element.getAttribute('data-thread-root-id') ?? '',
             resolved: element.getAttribute('data-attention-state') === 'resolved',
-            streaming: element.getAttribute('data-attention-state') === 'streaming',
           }))
         );
         expect(order.filter((card) => card.resolved)).toHaveLength(RESOLVED);
         const everyThread = order.map((card) => card.id);
         const unresolvedThreads = order.filter((card) => !card.resolved).map((card) => card.id);
-        // Working lists the threads the list shows as streaming: none, though a fresh client can
-        // still count the finished agent replies of an earlier engine's run.
-        const workingThreads = order.filter((card) => card.streaming).map((card) => card.id);
         // A screenful of cards at 1280x800 is about eight.
         const showing = (ids: string[]): Expect => ({ first: ids.slice(0, 10), count: ids.length });
 
@@ -554,7 +551,7 @@ test.describe('compact filter timing', () => {
         await expect(overview.locator('[data-preset-button]')).toBeVisible();
         for (let round = 0; round < ROUNDS; round += 1) {
           await openPreset('working');
-          await record('preset working', showing(workingThreads), choose);
+          await record('preset working', showing([]), choose);
           await openPreset('all');
           await record('preset all', showing(everyThread), choose);
         }
@@ -576,31 +573,6 @@ test.describe('compact filter timing', () => {
         await expect(unresolved).toBeVisible();
         await page.screenshot({ path: `${OUT_DIR}/compact-filter-${engine}.png` });
 
-        // While agents stream: their threads are new, unresolved cards at the top, so the
-        // resolved ones show again within the first screenful.
-        const load = startAgents(homeserver, seeded.roomId, seeded.poster, seeded.agents);
-        await wait(5_000);
-        const busy: number[] = [];
-        try {
-          for (let round = 0; round < ROUNDS * 2; round += 1) {
-            const timing = await profiled(`busy-${round}`, () =>
-              timeChange(
-                page,
-                round % 2 === 0
-                  ? { resolved: 0, selector: UNRESOLVED_ON }
-                  : { resolvedAtLeast: 1, selector: UNRESOLVED_OFF },
-                clickIn(unresolved)
-              )
-            );
-            busy.push(timing.shown);
-            await page.mouse.move(1, 1);
-            await wait(700);
-          }
-        } finally {
-          await load.stop();
-          streamedThreads += load.counts.roots;
-        }
-
         const summary = Object.fromEntries(
           Object.entries(timings).map(([name, entry]) => [
             name,
@@ -612,20 +584,52 @@ test.describe('compact filter timing', () => {
             },
           ])
         );
-        const result = {
+        const result: Record<string, unknown> = {
           engine,
           threads: total,
           seedSeconds,
           idle: summary,
-          busy: { values: busy, median: median(busy) },
         };
-        // eslint-disable-next-line no-console
-        console.log(`PERF ${JSON.stringify(result)}`);
         results.push(result);
-        await context.close();
-      } finally {
-        await browser.close();
+        busyRuns.push({
+          result,
+          // Their threads are new, unresolved cards at the top, so resolved ones show again
+          // within the first screenful.
+          measure: async () => {
+            const busy: number[] = [];
+            for (let round = 0; round < ROUNDS * 2; round += 1) {
+              const timing = await profiled(`busy-${round}`, () =>
+                timeChange(
+                  page,
+                  round % 2 === 0
+                    ? { resolved: 0, selector: UNRESOLVED_ON }
+                    : { resolvedAtLeast: 1, selector: UNRESOLVED_OFF },
+                  clickIn(unresolved)
+                )
+              );
+              busy.push(timing.shown);
+              await page.mouse.move(1, 1);
+              await wait(700);
+            }
+            return busy;
+          },
+        });
       }
+
+      const load = startAgents(homeserver, seeded.roomId, seeded.poster, seeded.agents);
+      try {
+        await wait(5_000);
+        for (const run of busyRuns) {
+          const busy = await run.measure();
+          run.result.busy = { values: busy, median: median(busy) };
+          // eslint-disable-next-line no-console
+          console.log(`PERF ${JSON.stringify(run.result)}`);
+        }
+      } finally {
+        await load.stop();
+      }
+    } finally {
+      await Promise.all(browsers.map((browser) => browser.close()));
     }
 
     writeFileSync(`${OUT_DIR}/compact-filter.json`, JSON.stringify(results, null, 1));
