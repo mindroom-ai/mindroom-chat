@@ -26,6 +26,7 @@ import {
   type Timeline,
 } from '../event-store/timeline/timelinePagination';
 import { getRenderableEvents } from '../event-store/timeline/roomTimelineEvents';
+import { getLinkedTimelines } from '../event-store/timeline/linkedTimelines';
 import { shouldAutoPaginateThreadBack } from '../event-store/threads/threadRenderUtils';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import {
@@ -289,16 +290,24 @@ export const useRoomWindowPaginator = ({
   // or reached the room's start) leaves the window as it was: nothing else would show the room's
   // start or drop the sentinel, and the paginator, which follows window changes, would not ask
   // again while it stays in view. Each such page renders again and checks the sentinel once more.
-  const [roomBackPage, setRoomBackPage] = useState<{ rowsBefore: number }>();
+  // So does a page whose chain a limited sync replaced while it ran: the page asked for the new
+  // chain meanwhile waited for it instead of running, and the new chain may hold only hidden
+  // events, which leaves the room blank.
+  const [roomBackPage, setRoomBackPage] = useState<{
+    rowsBefore: number;
+    chainReplaced: boolean;
+  }>();
   const handleRoomPaginationEnd = useCallback(
     (back: boolean) => {
       const edge = back ? firstRoomTimelineRef.current : undefined;
       const tokenBefore = edge?.getPaginationToken(Direction.Backward);
       const rowsBefore = roomRowsRef.current.length;
       void paginateRoom(back).then(() => {
-        if (!edge || !alive() || edge.getPaginationToken(Direction.Backward) === tokenBefore)
-          return;
-        setRoomBackPage({ rowsBefore });
+        if (!edge || !alive()) return;
+        const shown = firstRoomTimelineRef.current;
+        const chainReplaced = !!shown && !getLinkedTimelines(shown).includes(edge);
+        if (!chainReplaced && edge.getPaginationToken(Direction.Backward) === tokenBefore) return;
+        setRoomBackPage({ rowsBefore, chainReplaced });
       });
     },
     [alive, firstRoomTimelineRef, paginateRoom, roomRowsRef]
@@ -338,15 +347,20 @@ export const useRoomWindowPaginator = ({
   };
 };
 
-/** A back page that added no rows asks the paginator again; one with rows moved the window. */
+/**
+ * A back page that added no rows, or that went to a chain the room no longer shows, asks the
+ * paginator again; one with rows moved the window.
+ */
 export const useRetryAfterEmptyBackPage = (
-  roomBackPage: { rowsBefore: number } | undefined,
+  roomBackPage: { rowsBefore: number; chainReplaced: boolean } | undefined,
   roomRowsRef: MutableRefObject<MatrixEvent[]>,
   retryPagination: () => void
 ) => {
   useLayoutEffect(() => {
+    if (!roomBackPage) return;
     // A page that added rows moved the window, and the paginator carries on from there.
-    if (roomBackPage && roomRowsRef.current.length === roomBackPage.rowsBefore) retryPagination();
+    if (roomBackPage.chainReplaced || roomRowsRef.current.length === roomBackPage.rowsBefore)
+      retryPagination();
   }, [retryPagination, roomBackPage, roomRowsRef]);
 };
 
