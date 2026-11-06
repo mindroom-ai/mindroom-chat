@@ -301,15 +301,16 @@ def has_commit(repo, oid):
     return subprocess.run(["git", "-C", str(repo), "cat-file", "-e", f"{oid}^{{commit}}"], capture_output=True).returncode == 0
 
 
-def remote_main(url, cwd):
-    """The commit of the remote's main branch, or None when it has none or cannot be asked."""
-    listed = subprocess.run(["git", "ls-remote", url, "refs/heads/main"], cwd=cwd, capture_output=True, text=True,
-                            env={**os.environ, "GIT_TERMINAL_PROMPT": "0"})
-    for line in listed.stdout.splitlines():
-        oid, _, ref = line.partition("\t")
-        if ref == "refs/heads/main":
-            return oid
-    return None
+def remote_main(repo, url, cwd):
+    """The commit of the remote's main branch, or None when it has none or cannot be asked. When the repository
+    lacks it (main moved on since the last fetch), its objects are fetched without touching any ref."""
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    listed = subprocess.run(["git", "ls-remote", url, "refs/heads/main"], cwd=cwd, capture_output=True, text=True, env=env)
+    oid = next((line.split("\t")[0] for line in listed.stdout.splitlines() if line.endswith("\trefs/heads/main")), None)
+    if oid and not has_commit(repo, oid):
+        subprocess.run(["git", "fetch", "--quiet", "--no-tags", "--no-write-fetch-head", "--no-auto-maintenance", url,
+                        "refs/heads/main"], cwd=cwd, capture_output=True, env=env)
+    return oid
 
 
 def pushed_commits(repo, updates, main):
@@ -353,7 +354,9 @@ def pre_push(corpus, url, lines, repo):
     A blob found clean is remembered under the checker's own hash and the corpus head, so a routine push reads
     the corpus only for files it has not seen."""
     updates = push_updates(lines)
-    main = remote_main(url, repo / os.environ.get("GIT_PREFIX", "")) if updates else None
+    main = remote_main(repo, url, repo / os.environ.get("GIT_PREFIX", "")) if updates else None
+    if updates and not (main and has_commit(repo, main)):
+        print("upstream-overlap: the remote's main is not available here, so every commit behind the pushed tips is checked")
     commits = pushed_commits(repo, updates, main)
     changes = changed_blobs(repo, commits)
     key = hashlib.sha256(Path(__file__).read_bytes() + corpus_head(corpus).encode()).hexdigest()[:16]

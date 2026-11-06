@@ -142,8 +142,21 @@ class CommitSelectionTests(Fixture):
         self.assertEqual(check.pushed_commits(self.repo, [(self.b1, None), (self.b2, None)], self.base), [self.b1, self.b2])
 
     def test_the_remote_main_is_read_from_the_remote(self) -> None:
-        self.assertEqual(check.remote_main(str(self.remote), self.repo), self.base)
-        self.assertIsNone(check.remote_main(str(self.tmp / "missing.git"), self.repo))
+        self.assertEqual(check.remote_main(self.repo, str(self.remote), self.repo), self.base)
+        self.assertIsNone(check.remote_main(self.repo, str(self.tmp / "missing.git"), self.repo))
+
+    def test_a_remote_main_this_clone_lacks_is_fetched_without_touching_refs(self) -> None:
+        other = self.tmp / "other"
+        run(self.tmp, "git", "clone", "-q", "--template=", str(self.remote), str(other))
+        later = commit(other, {"src/app/later.ts": "later\n"}, "main moves on")
+        run(self.remote, "git", "fetch", "-q", str(other), "refs/heads/main:refs/heads/main")
+        refs = git(self.repo, "for-each-ref")
+        self.assertFalse(check.has_commit(self.repo, later))
+        self.assertEqual(check.remote_main(self.repo, str(self.remote), self.repo), later)
+        self.assertTrue(check.has_commit(self.repo, later))
+        self.assertEqual(git(self.repo, "for-each-ref"), refs)
+        self.assertFalse((self.repo / ".git" / "FETCH_HEAD").exists())
+        self.assertEqual(check.pushed_commits(self.repo, [(self.b2, None)], later), [self.b1, self.b2])
 
 
 class BlobSelectionTests(Fixture):
