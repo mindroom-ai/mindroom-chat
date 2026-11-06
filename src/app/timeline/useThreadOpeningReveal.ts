@@ -9,7 +9,7 @@ type ThreadOpeningRevealOptions = {
   viewKey: string;
   /** Whether the open thread opens at its newest reply (no target event). */
   opensAtLatest: boolean;
-  /** How many rows the thread's list holds. */
+  /** How many rows the thread's virtual list holds. */
   rowCount: number;
   scrollRef: RefObject<HTMLElement>;
   /** Whether the reader took the position over: a gesture, a jump, a request for older history. */
@@ -20,9 +20,10 @@ type ThreadOpeningRevealOptions = {
  * Whether an opening thread keeps its rows hidden. A thread that opens at its newest reply renders
  * the rows the client already holds (the root and the newest replies) before its open pins them
  * to the bottom, and on a long thread they would paint at the top and jump there a moment later.
- * The rows stay hidden until the view first rests at the end of its scroll range with rows in it,
- * checked after every commit, after the pins; or the reader takes over; or THREAD_REVEAL_AFTER_MS
- * pass. Once shown, they stay shown for the view.
+ * The rows stay hidden until the view first rests at the end of its scroll range with the list's
+ * last row mounted (the virtual list can still hold the rows of the scroll position before the
+ * pin), checked after every commit, after the pins; or the reader takes over; or
+ * THREAD_REVEAL_AFTER_MS pass. Once shown, they stay shown for the view.
  */
 export const useThreadOpeningReveal = ({
   viewKey,
@@ -39,7 +40,8 @@ export const useThreadOpeningReveal = ({
     const atEnd =
       !!scrollArea &&
       rowCount > 0 &&
-      scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1;
+      scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1 &&
+      !!scrollArea.querySelector(`[data-index="${rowCount - 1}"]`);
     if (atEnd || readerTookOver()) setRevealed(true);
   });
 

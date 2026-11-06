@@ -3,10 +3,21 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { THREAD_REVEAL_AFTER_MS, useThreadOpeningReveal } from './useThreadOpeningReveal';
 
-type Geometry = { scrollHeight: number; clientHeight: number; scrollTop: number };
+type Geometry = {
+  scrollHeight: number;
+  clientHeight: number;
+  scrollTop: number;
+  /** The virtual list's mounted rows, by index. */
+  mounted?: number[];
+};
 
-/** A scroll area whose geometry the test sets. */
-const scrollArea = (geometry: Geometry) => geometry as unknown as HTMLElement;
+/** A scroll area whose geometry and mounted rows the test sets. */
+const scrollArea = ({ mounted = [20], ...geometry }: Geometry) =>
+  ({
+    ...geometry,
+    querySelector: (selector: string) =>
+      mounted.some((index) => selector === `[data-index="${index}"]`) ? {} : null,
+  } as unknown as HTMLElement);
 
 type Props = {
   viewKey?: string;
@@ -60,6 +71,10 @@ describe('useThreadOpeningReveal', () => {
     render({ geometry: AT_TOP });
     expect(shown.hidden).toBe(true);
 
+    // At the end of the range while the list still holds the rows of the top.
+    render({ geometry: { ...AT_END, mounted: [0, 1, 2] } });
+    expect(shown.hidden).toBe(true);
+
     render({ geometry: AT_END });
     expect(shown.hidden).toBe(false);
 
@@ -76,7 +91,10 @@ describe('useThreadOpeningReveal', () => {
   it('keeps an empty list hidden at the end, and shows a short thread that fits', () => {
     render({ geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0 }, rowCount: 0 });
     expect(shown.hidden).toBe(true);
-    render({ geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0 }, rowCount: 2 });
+    render({
+      geometry: { scrollHeight: 800, clientHeight: 800, scrollTop: 0, mounted: [0, 1] },
+      rowCount: 2,
+    });
     expect(shown.hidden).toBe(false);
   });
 
