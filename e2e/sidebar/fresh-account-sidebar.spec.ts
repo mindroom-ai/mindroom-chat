@@ -19,7 +19,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { createPrivateRoom, sendRoomMessage, setAccountData } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
-import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A fresh account's sidebar (Bas, 2026-11-06): the six rail buttons a person can hide in
 // Settings > Sidebar (Threads, Canvases, Explore Community, Create Space, Search, Local MindRoom)
@@ -34,11 +34,17 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 const PASSWORD = 'fresh-account-sidebar-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.SIDEBAR_DEFAULTS_SHOTS;
-const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+// The deployment's settings come from a routed config.json, which a service worker would answer
+// itself after a reload (WebKit).
+const DESKTOP: BrowserContextOptions = {
+  viewport: { width: 1280, height: 800 },
+  serviceWorkers: 'block',
+};
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   isMobile: true,
+  serviceWorkers: 'block',
 };
 type Layout = 'desktop' | 'phone';
 const LAYOUTS: Record<Layout, BrowserContextOptions> = { desktop: DESKTOP, phone: PHONE };
@@ -195,6 +201,8 @@ const openHome = async (page: Page) => {
 };
 
 const signIn = async (page: Page, user: DisposableUser) => {
+  // A step that cannot happen fails on its own, not at the end of the whole test.
+  page.setDefaultTimeout(90_000);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: user.username,
@@ -308,16 +316,11 @@ for (const layout of ['desktop', 'phone'] as const) {
     test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(360_000);
     const user = await seedAccount(`w${layout[0]}`);
-    const webkitBrowser = await launchWebKit();
-    try {
-      const context = await webkitBrowser.newContext({ ...LAYOUTS[layout], baseURL });
-      await routeDeployment(context);
-      const page = await context.newPage();
+    await onWebKitPage({ ...LAYOUTS[layout], baseURL }, async (page) => {
+      await routeDeployment(page.context());
       await signIn(page, user);
       await checkFreshAccount(page, layout);
-    } finally {
-      await webkitBrowser.close();
-    }
+    });
   });
 }
 
@@ -364,6 +367,9 @@ test('screenshots of a fresh account sidebar', async ({ browser, baseURL }) => {
     await signIn(page, user);
     // eslint-disable-next-line no-await-in-loop
     await page.getByTestId('thread-nav-category').scrollIntoViewIfNeeded({ timeout: 60_000 });
+    // The pointer rests on the rail's empty middle, so no row shows its hover.
+    // eslint-disable-next-line no-await-in-loop
+    await page.mouse.move(33, (LAYOUTS[layout].viewport?.height ?? 800) / 2);
     // Let the thread index and the rail settle before the picture.
     // eslint-disable-next-line no-await-in-loop
     await page.waitForTimeout(3_000);
