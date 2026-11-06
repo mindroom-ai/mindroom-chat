@@ -411,6 +411,20 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
   describe('a thread at its bottom', () => {
     const openThread = { threadId: '$thread', threadEventsLength: 2 };
 
+    it('waits for opening scroll corrections to settle before reading the thread', async () => {
+      const area = document.createElement('div');
+      mount(optionsWith({ ...openThread, getScrollElement: () => area }));
+      runFrames();
+      expect(markThreadAsRead).not.toHaveBeenCalled();
+
+      await act(async () => {
+        rests.splice(0).forEach((rest) => rest());
+        await Promise.resolve();
+      });
+      runFrames();
+      expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    });
+
     it.each([
       ['its newest replies are not loaded', { threadTailLoaded: false }],
       ['it is still loading', { threadInitialRenderMode: 'loading' as const }],
