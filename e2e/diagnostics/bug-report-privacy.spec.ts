@@ -202,7 +202,11 @@ const check = async (
     await expect(includeText).not.toBeChecked();
     if (SHOTS) {
       mkdirSync(SHOTS, { recursive: true });
-      await page.screenshot({ path: `${SHOTS}/bug-report-dialog-${engine}.png` });
+      for (const scheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.screenshot({ path: `${SHOTS}/bug-report-dialog-${engine}-${scheme}.png` });
+      }
+      await page.emulateMedia({ colorScheme: null });
     }
     await page.waitForTimeout(500);
     expect(uploads, `${engine}: nothing uploaded while the dialog is open`).toEqual([]);

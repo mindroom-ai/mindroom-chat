@@ -332,7 +332,11 @@ const checkDestinations = async (
       await expect(dialog.getByText(href, { exact: true })).toBeVisible();
       if (SHOTS && label === 'Claimed') {
         mkdirSync(SHOTS, { recursive: true });
-        await page.screenshot({ path: `${SHOTS}/link-confirm-${engine}.png` });
+        for (const scheme of ['light', 'dark'] as const) {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.screenshot({ path: `${SHOTS}/link-confirm-${engine}-${scheme}.png` });
+        }
+        await page.emulateMedia({ colorScheme: null });
       }
       await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
       await expect(dialog).toHaveCount(0);
