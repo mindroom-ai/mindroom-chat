@@ -2,11 +2,12 @@ import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
-import { glassFloating, glassSurface } from '../../ui/styles/Glass.css';
+import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../../ui/styles/Glass.css';
 
 export const Overview = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
   glassFloating,
+  glassDenseOverBackdrop,
   {
     margin: `${config.space.S200} ${config.space.S300}`,
     position: 'relative', minWidth: 0,

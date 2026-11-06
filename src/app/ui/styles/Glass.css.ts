@@ -155,22 +155,33 @@ export const glassFloating = style({
   },
 });
 
-// Full-width room chrome keeps the material without raised edges or highlights.
+// Text over moving content (dialogs, approval review, the chrome content scrolls beneath) is
+// tinted nearly opaque, so what passes behind never competes with it, even where no blur is drawn
+// (Playwright's WebKit leaves backdrop filters out of its screenshots).
+const denseTint = { light: '94%', dark: '90%' };
+
+// Full-width chrome keeps the material without raised edges or highlights. Content scrolls beneath
+// it (a room's timeline under its header), so its tint is dense: a lighter one let the messages
+// read through beside the title.
 export const glassFlat = style({
   selectors: {
     '&&&::before': { display: 'none' },
     '&&&': {
+      vars: { [surfaceTint]: denseTint.light },
       border: 0,
       boxShadow: 'none',
       backgroundImage: 'none',
     },
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+      vars: { [surfaceTint]: denseTint.dark },
+    },
   },
 });
 
-// Nested chrome already has its panel's tint behind it; only blur scrolling content.
-// Opaque accessibility/no-backdrop fallbacks do not use surfaceTint and stay intact.
+// Nested chrome (a settings page's title) takes its panel's own color, so it does not show as a
+// band across the panel. Opaque accessibility/no-backdrop fallbacks use that color too.
 export const glassInheritTint = style({
-  selectors: { '&&&&': { vars: { [surfaceTint]: '0%' } } },
+  selectors: { '&&&&': { vars: { [surfaceContainer]: 'inherit' } } },
 });
 
 // The sign-in card over the particle art keeps a light tint, so the art shows through it.
@@ -184,12 +195,15 @@ export const glassOverBackdrop = style({
   },
 });
 
-// Approval review holds dense text and decisions: keep the rim and blur, but tint the
-// panel nearly opaque so the thread behind it does not compete with what is being approved.
+// Approval review, large dialogs and floating chrome over the timeline (the thread banner, the
+// thread filter bar) hold dense text: keep the rim and blur, but tint them nearly opaque so the
+// page behind does not compete with what they say.
 export const glassDenseOverBackdrop = style({
   selectors: {
-    '&&&': { vars: { [surfaceTint]: '94%' } },
-    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': { vars: { [surfaceTint]: '90%' } },
+    '&&&': { vars: { [surfaceTint]: denseTint.light } },
+    ':is(.dark-theme, .midnight-theme, .butter-theme) &&&': {
+      vars: { [surfaceTint]: denseTint.dark },
+    },
   },
 });
 

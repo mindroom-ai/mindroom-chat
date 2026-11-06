@@ -1,6 +1,6 @@
 import { keyframes, style, type CSSProperties } from '@vanilla-extract/css';
 import { config, color } from 'folds';
-import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
+import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import { shortViewport } from '../ui/styles/shortViewport';
 import { toolbarButtonRestFill } from '../messages/styles.css';
 
@@ -32,6 +32,7 @@ export const Banner = style([
   BannerLayout,
   glassSurface({ level: 'control', variant: 'SurfaceVariant' }),
   glassFloating,
+  glassDenseOverBackdrop,
 ]);
 
 // Back, title and actions; narrow screens add the tags as a second row.
@@ -267,6 +268,7 @@ export const BannerResolved = style([
   BannerLayout,
   glassSurface({ level: 'control', variant: 'Success' }),
   glassFloating,
+  glassDenseOverBackdrop,
   { color: color.Success.OnContainer },
 ]);
 
