@@ -16,10 +16,11 @@ import {
 import { keepThreadTitles } from './threadTitleWatch';
 import { defined } from '../../../test/utils/defined';
 
+// The titles' disk copy: empty, and every write succeeds.
 vi.mock('../../event-store/cache/db', async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  loadCachedThreadSummaries: vi.fn().mockResolvedValue(new Map()),
-  saveCachedThreadSummary: vi.fn().mockResolvedValue(undefined),
+  loadCachedThreadSummaries: () => Promise.resolve(new Map()),
+  saveCachedThreadSummary: () => Promise.resolve(),
 }));
 
 const sessionId = 'session';
