@@ -36,7 +36,7 @@ import { EmojiBoard } from '../emoji/board/LazyEmojiBoard';
 import { useMemberEventParser } from './useMemberEventParser';
 import { describeRoomStateChange, RoomStateSentence } from './roomStateChange';
 import { Time } from './Time';
-import { useLongPress } from './useLongPress';
+import { useLongPress } from '../lib/hooks/useLongPress';
 import {
   AvatarBase,
   BubbleLayout,
