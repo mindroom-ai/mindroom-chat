@@ -118,7 +118,8 @@ const routeConfig = async (context: BrowserContext, linkFavicons: boolean | unde
  * linked sites answer locally, so nothing leaves the test machine.
  */
 const openContext = async (browser: Browser, options: BrowserContextOptions, baseURL?: string) => {
-  const context = await browser.newContext({ ...options, baseURL });
+  // WebKit does not route the requests the service worker makes, config.json among them.
+  const context = await browser.newContext({ ...options, baseURL, serviceWorkers: 'block' });
   const external: string[] = [];
   context.on('request', (request) => {
     const { hostname } = new URL(request.url());
