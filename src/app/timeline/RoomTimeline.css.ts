@@ -37,6 +37,16 @@ export const ExpandAllToggle = style({
     '(pointer: coarse)': {
       minBlockSize: '44px !important',
       minInlineSize: '44px !important',
+      selectors: {
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          // The containing block excludes the 1 px border. Include it, without leaving the box,
+          // so the rounded visual corners still receive taps within the reserved rectangle.
+          insetBlock: -1,
+          insetInline: -1,
+        },
+      },
     },
   },
 });
