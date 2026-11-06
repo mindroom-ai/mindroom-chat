@@ -408,20 +408,21 @@ const check = async (page: Page, world: World, engine: string) => {
       await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
     await page.waitForTimeout(2_000);
     await shot(page, `${engine}-reload-${pass}`);
-    await expectWholeList(listEnds, before.ends, `${engine} ${pass} reload`);
-    await expectNoneStreaming(page, streams, `${engine} ${pass} reload`);
-    await page.waitForTimeout(3_000);
     // These older cards stayed outside the viewport while the replies finished. A title notice
     // is the thread's newest event, so only the card's cached reply preview can show the answer.
     // Check the actual text on the first scroll into view, before opening any thread.
     for (const stream of live.slice(0, 4)) {
       const card = threadCard(page, stream.rootId);
+      const previewBeforeScroll = await card.innerText();
       await card.scrollIntoViewIfNeeded();
       await shot(page, `${engine}-${PHONE ? 'phone' : 'desktop'}-${THEME}-${pass}-${stream.index}`);
       expect
-        .soft(await card.innerText(), `${engine} ${pass}: finished reply preview ${stream.index}`)
-        .toContain(finishedText(stream.index));
+        .soft(previewBeforeScroll, `${engine} ${pass}: finished reply preview ${stream.index}`)
+        .toContain(`Item ${stream.index} is ready: the notes list the export fix`);
     }
+    await expectWholeList(listEnds, before.ends, `${engine} ${pass} reload`);
+    await expectNoneStreaming(page, streams, `${engine} ${pass} reload`);
+    await page.waitForTimeout(3_000);
     const asked = watch.replyRequests.slice(before.replies);
     const lists = watch.listRequests.slice(before.lists);
     report(
