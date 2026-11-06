@@ -2,6 +2,7 @@ import { devices, expect, test, type Locator, type Page } from '@playwright/test
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, createPrivateSpace, loginToMatrix } from '../helpers/matrix';
+import { roomMoreOptions } from '../helpers/roomMenu';
 
 test.skip(!hasPrimaryCredentials(), 'Requires a local Matrix test account.');
 
@@ -144,7 +145,19 @@ test.describe('phone member overlay', () => {
     const roomUrl = page.url();
     const panel = page.getByTestId('resizable-members-panel');
     const dialog = page.getByRole('dialog', { name: 'Members', exact: true });
-    const show = page.getByRole('button', { name: 'Show Members', exact: true });
+    // A phone's header leaves Members to the room menu, whose button gets focus back.
+    const show = roomMoreOptions(page);
+    const showEntry = page.getByRole('menuitem', { name: 'Show Members', exact: true });
+    const openWithKeyboard = async () => {
+      await show.focus();
+      await page.keyboard.press('Enter');
+      await showEntry.focus();
+      await page.keyboard.press('Enter');
+    };
+    const openWithTap = async () => {
+      await show.tap();
+      await showEntry.tap();
+    };
     await expect(show).toBeVisible();
     await expect(dialog).toHaveCount(0);
     const editor = page.locator('[data-slate-editor="true"]').first();
@@ -153,8 +166,7 @@ test.describe('phone member overlay', () => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
 
-    await show.focus();
-    await page.keyboard.press('Enter');
+    await openWithKeyboard();
     await expect(dialog).toBeVisible();
     await expect
       .poll(() => dialog.evaluate((element) => element.contains(document.activeElement)))
@@ -170,16 +182,16 @@ test.describe('phone member overlay', () => {
     await expect(page).toHaveURL(roomUrl);
     await expect(show).toBeFocused();
     // CDP touch injection can swallow the next tap even on plain HTML; reopen with the keyboard.
-    await page.keyboard.press('Enter');
+    await openWithKeyboard();
     await expect.poll(() => widthOf(panel)).toBe(316);
     await dialog.getByRole('button', { name: 'Close', exact: true }).tap();
     await expect(dialog).toHaveCount(0);
     await expect(show).toBeFocused();
 
-    await show.tap();
+    await openWithTap();
     await page.keyboard.press('Escape');
     await expect(dialog).toHaveCount(0);
-    await show.tap();
+    await openWithTap();
     await page.touchscreen.tap(20, 350);
     await expect(dialog).toHaveCount(0);
     await expect.poll(() => widthOf(editor)).toBe(editorWidth);
@@ -196,8 +208,7 @@ test.describe('phone member overlay', () => {
             (dir) => document.documentElement.setAttribute('dir', dir),
             direction
           );
-          await show.focus();
-          await page.keyboard.press('Enter');
+          await openWithKeyboard();
           await expect(dialog).toHaveCSS('padding-left', '44px');
           await expect(dialog).toHaveCSS('padding-right', '32px');
           await handle.focus();
