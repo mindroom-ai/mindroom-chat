@@ -127,7 +127,9 @@ const measureFrames = async (page: Page, frames: Frame[], since: number): Promis
         const count = data.length / 4;
         for (let index = 0; index < data.length; index += 4) {
           const luminance =
-            0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2];
+            0.2126 * (data[index] ?? 0) +
+            0.7152 * (data[index + 1] ?? 0) +
+            0.0722 * (data[index + 2] ?? 0);
           sum += luminance;
           squares += luminance * luminance;
         }

@@ -121,7 +121,7 @@ test('Load Older Messages ends with the last page, and late pages cost what earl
   await expect(loadOlder).toHaveCount(0);
   expect(clicks.every((click) => click.ms >= 0)).toBe(true);
   const median = (values: number[]) =>
-    [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+    [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
   const early = median(clicks.slice(0, 3).map((click) => click.ms));
   const late = median(clicks.slice(-4, -1).map((click) => click.ms));
   expect(late).toBeLessThan(2 * early + 50);

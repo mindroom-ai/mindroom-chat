@@ -104,7 +104,8 @@ const recordMediaRequests = (page: Page, kinds: Map<string, 'image' | 'file'>) =
       /\/_matrix\/(?:client\/v1|media\/v3)\/media\/(download|thumbnail)\/[^/]+\/([^/?#]+)/.exec(
         request.url()
       );
-    if (match) requests.push({ endpoint: match[1], kind: kinds.get(match[2]) ?? 'other' });
+    const [, endpoint, mediaId] = match ?? [];
+    if (endpoint && mediaId) requests.push({ endpoint, kind: kinds.get(mediaId) ?? 'other' });
   });
   return requests;
 };
