@@ -281,31 +281,75 @@ const searchMessages = async (page: Page, word: string) => {
   await palette(page).getByRole('combobox').fill(word);
 };
 
-/** iOS's swipe from the screen's start edge, as the app's own gesture sees it. */
-const edgeSwipeBack = (page: Page) =>
-  page.evaluate(() => {
+/**
+ * A swipe from the screen's start edge toward the middle. Chromium gets real touches (12 moves of
+ * 16 ms, as a finger makes them), so the browser could take the rest of the swipe as its own back
+ * gesture; Playwright drives WebKit's touches only through its taps, so WebKit gets the events the
+ * app's gesture listens to.
+ */
+const edgeSwipeBack = async (page: Page, engine: Engine) => {
+  const xs = Array.from({ length: 12 }, (_, step) => 4 + (step + 1) * 24);
+  if (engine === 'chromium') {
+    const touch = await page.context().newCDPSession(page);
+    const send = (type: string, x?: number) =>
+      touch.send('Input.dispatchTouchEvent', {
+        type,
+        touchPoints: x === undefined ? [] : [{ x, y: 420, id: 1 }],
+      });
+    await send('touchStart', 4);
+    for (const x of xs) {
+      await send('touchMove', x);
+      await page.waitForTimeout(16);
+    }
+    await send('touchEnd');
+    await touch.detach();
+    return;
+  }
+  await page.evaluate((moves) => {
     const fire = (type: string, x: number) => {
       const event = new Event(type, { bubbles: true, cancelable: true });
       const touches = type === 'touchend' ? [] : [{ identifier: 1, clientX: x, clientY: 420 }];
       Object.defineProperty(event, 'touches', { value: touches });
       window.dispatchEvent(event);
     };
-    fire('touchstart', 8);
-    fire('touchmove', 60);
-    fire('touchmove', 150);
-    fire('touchend', 150);
-  });
+    fire('touchstart', 4);
+    for (const x of moves) fire('touchmove', x);
+    fire('touchend', moves[moves.length - 1]!);
+  }, xs);
+};
 
-type Flow = (page: Page, seed: Seed, testInfo: TestInfo) => Promise<void>;
+type Flow = (page: Page, seed: Seed, testInfo: TestInfo, engine: Engine) => Promise<void>;
 
 const FLOWS: Record<string, Flow> = {
-  'the room list': async (page, { garden, gardenRoot }) => {
+  'the room list': async (page, { harbor, garden, gardenRoot }, testInfo, engine) => {
     await openFromList(page, 'Garden Club', garden);
     await openThread(page, garden, gardenRoot);
     await threadBack(page).tap();
     await expectAt(page, inRoom(garden), 'the thread chevron returns to the room');
     await roomBack(page).tap();
     await expectAt(page, HOME, 'the room chevron returns to the list');
+
+    // The edge swipe leaves a thread for its room, one step, also after another room: the
+    // browser must not take the rest of the swipe as its own back.
+    await openFromList(page, 'Harbor Plans', harbor);
+    await page.keyboard.press('ControlOrMeta+k');
+    await palette(page).getByRole('combobox').fill('Garden Club');
+    await palette(page)
+      .locator('[role="option"][data-kind="room"]')
+      .filter({ hasText: 'Garden Club' })
+      .tap();
+    await expectAt(page, inRoom(garden), 'the palette opens the second room');
+    await openThread(page, garden, gardenRoot);
+    await edgeSwipeBack(page, engine);
+    await shoot(page, testInfo, 'list-edge-swipe');
+    await expectAt(page, inRoom(garden), 'the edge swipe returns to the room');
+    // Settled: nothing goes back a second step.
+    await page.waitForTimeout(1_000);
+    await expectAt(page, inRoom(garden), 'the edge swipe went back one step only');
+    await roomBack(page).tap();
+    await expectAt(page, inRoom(harbor), 'the room chevron returns to the first room');
+    await roomBack(page).tap();
+    await expectAt(page, HOME, 'then to the list');
     await browserBackLeaves(page, garden, 'browser back after the chevrons leaves the list');
   },
 
@@ -385,7 +429,8 @@ const FLOWS: Record<string, Flow> = {
   'the search results': async (
     page,
     { garden, gardenRoot, gardenReply, gardenNote, word },
-    testInfo
+    testInfo,
+    engine
   ) => {
     await searchMessages(page, word);
     await palette(page).locator('[role="option"][data-kind="search-page"]').tap();
@@ -407,7 +452,7 @@ const FLOWS: Record<string, Flow> = {
     // The edge swipe does the same.
     await openReply.tap();
     await expectAt(page, inThreadOf(garden, gardenRoot), 'the reply opens its thread again');
-    await edgeSwipeBack(page);
+    await edgeSwipeBack(page, engine);
     await expectAt(page, results, 'the edge swipe returns to the results');
 
     // A message of the room's own timeline opens the room; its chevron returns to the results.
@@ -572,7 +617,7 @@ for (const engine of ENGINES) {
         const seed = await seeded(engine);
         const { context, page } = await signIn(own, seed);
         try {
-          await flow(page, seed, testInfo);
+          await flow(page, seed, testInfo, engine);
         } finally {
           await shoot(page, testInfo, 'last');
           await context.close();
