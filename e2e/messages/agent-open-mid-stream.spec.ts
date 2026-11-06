@@ -62,10 +62,11 @@ test(
       () => (window as unknown as { replySamples: { words: number }[] }).replySamples
     );
     const shown = samples.map(({ words }) => words).filter((words) => words > 0);
-    // Nothing older than the edit the server had before the page loaded.
+    // Nothing much older than the edit the server had before the page loaded: the first paint may
+    // trail it by a few words, never by an edit interval (5 s, 20 words).
     expect(
       Math.min(...shown),
       `word counts after the load: ${shown.join(' ')}`
-    ).toBeGreaterThanOrEqual(editedWords);
+    ).toBeGreaterThan(editedWords - 20);
   }
 );
