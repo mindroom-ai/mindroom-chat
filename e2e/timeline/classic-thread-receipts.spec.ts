@@ -22,6 +22,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { openThreadsCategory } from '../helpers/threadsCategory';
 
 // The Classic view shows each thread's replies among the room's rows. A reply the reader sees
 // there is read, as it is in the open thread: at the bottom of the live end, with the window
@@ -455,6 +456,8 @@ const checkJumpEntered = async (page: Page, world: World, label: string, desktop
   await expectRead(page, world, receipts, rootId, replyId, desktop);
   await shot(page, `${label}-jump-entered-read`);
   if (desktop) {
+    // The THREADS category starts collapsed until the person opens it.
+    await openThreadsCategory(page);
     const entry = page.locator('[data-highlight]').filter({
       has: page.getByRole('button', { name: `Open thread: ${root}` }),
     });
