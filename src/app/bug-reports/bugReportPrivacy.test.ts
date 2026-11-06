@@ -58,19 +58,19 @@ describe('withoutMessageText', () => {
 
     expect(result.messageTextOmitted).toBe(true);
     expect(result.target.eventId).toBe('$reply');
-    expect(result.events[0].event).toEqual({
+    expect(result.events[0]?.event).toEqual({
       event_id: '$reply',
       type: 'm.room.message',
       sender: '@reporter:example.org',
       origin_server_ts: 5,
       content: { msgtype: 'm.file', 'm.relates_to': relation },
     });
-    expect(result.events[0].latestEdit).toEqual({
+    expect(result.events[0]?.latestEdit).toEqual({
       event_id: '$edit',
       type: 'm.room.message',
       content: { msgtype: 'm.text', 'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' } },
     });
-    expect(result.events[1].event.content).toEqual({ 'm.relates_to': relation });
+    expect(result.events[1]?.event.content).toEqual({ 'm.relates_to': relation });
     expect(JSON.stringify(result)).not.toMatch(/secret|decryption key/);
   });
 
@@ -81,6 +81,6 @@ describe('withoutMessageText', () => {
       state_key: '',
       content: { name: 'Harbor' },
     };
-    expect(withoutMessageText(report([item(name)])).events[0].event).toEqual(name);
+    expect(withoutMessageText(report([item(name)])).events[0]?.event).toEqual(name);
   });
 });
