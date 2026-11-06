@@ -2397,7 +2397,7 @@ index 2dd8c1f..540c1ab 100644
       * Process data returned from a sync response and propagate it
       * into the model objects
 diff --git a/node_modules/matrix-js-sdk/lib/sync.js b/node_modules/matrix-js-sdk/lib/sync.js
-index 2741877..35e1885 100644
+index 2741877..8bb2875 100644
 --- a/node_modules/matrix-js-sdk/lib/sync.js
 +++ b/node_modules/matrix-js-sdk/lib/sync.js
 @@ -30,7 +30,7 @@ limitations under the License.
@@ -2550,8 +2550,12 @@ index 2741877..35e1885 100644
    /**
     * Process data returned from a sync response and propagate it
     * into the model objects
-@@ -941,6 +996,11 @@ export class SyncApi {
-       var _data$presence, _data$account_data, _data$users, _this9$syncOpts$crypt, _data$device_unused_f;
+@@ -938,9 +993,14 @@ export class SyncApi {
+   processSyncResponse(syncEventData, data) {
+     var _this9 = this;
+     return _asyncToGenerator(function* () {
+-      var _data$presence, _data$account_data, _data$users, _this9$syncOpts$crypt, _data$device_unused_f;
++      var _data$presence, _data$account_data, _data$users, _this9$syncOpts$crypt, _data$device_unused_f, _data$device_one_time;
        var client = _this9.client;
  
 +      // Let the crypto layer take the to-device messages before anything of this
@@ -2594,14 +2598,27 @@ index 2741877..35e1885 100644
            var accountDataEvents = _this9.mapSyncEventsFormat(joinObj.account_data);
            var stickyEvents = _this9.mapSyncEventsFormat(joinObj.msc4354_sticky);
  
-@@ -1812,4 +1862,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
+@@ -1418,7 +1468,11 @@ export class SyncApi {
+       }
+ 
+       // Handle one_time_keys_count and unused fallback keys
+-      yield (_this9$syncOpts$crypt = _this9.syncOpts.cryptoCallbacks) === null || _this9$syncOpts$crypt === void 0 ? void 0 : _this9$syncOpts$crypt.processKeyCounts(data.device_one_time_keys_count, (_data$device_unused_f = data.device_unused_fallback_key_types) !== null && _data$device_unused_f !== void 0 ? _data$device_unused_f : data["org.matrix.msc2732.device_unused_fallback_key_types"]);
++      // MindRoom: as in matrix-js-sdk #5503, a live sync without `device_one_time_keys_count` has no
++      // one-time keys on the server (sync v2), even when it reports no fallback keys either; only
++      // the saved sync's replay carries no counts at all.
++      var oneTimeKeysCounts = syncEventData.fromCache ? data.device_one_time_keys_count : (_data$device_one_time = data.device_one_time_keys_count) !== null && _data$device_one_time !== void 0 ? _data$device_one_time : {};
++      yield (_this9$syncOpts$crypt = _this9.syncOpts.cryptoCallbacks) === null || _this9$syncOpts$crypt === void 0 ? void 0 : _this9$syncOpts$crypt.processKeyCounts(oneTimeKeysCounts, (_data$device_unused_f = data.device_unused_fallback_key_types) !== null && _data$device_unused_f !== void 0 ? _data$device_unused_f : data["org.matrix.msc2732.device_unused_fallback_key_types"]);
+     })();
+   }
+ 
+@@ -1812,4 +1866,3 @@ export function processToDeviceMessages(toDeviceMessages, client) {
      client.emit(ClientEvent.ReceivedToDeviceMessage, processedEvent);
    });
  }
 -//# sourceMappingURL=sync.js.map
 \ No newline at end of file
 diff --git a/node_modules/matrix-js-sdk/src/sync.ts b/node_modules/matrix-js-sdk/src/sync.ts
-index e731161..4dadd8f 100644
+index e731161..0a58716 100644
 --- a/node_modules/matrix-js-sdk/src/sync.ts
 +++ b/node_modules/matrix-js-sdk/src/sync.ts
 @@ -26,7 +26,7 @@ limitations under the License.
@@ -2808,6 +2825,19 @@ index e731161..4dadd8f 100644
                  const accountDataEvents = this.mapSyncEventsFormat(joinObj.account_data);
                  const stickyEvents = this.mapSyncEventsFormat(joinObj.msc4354_sticky);
  
+@@ -1583,8 +1633,11 @@ export class SyncApi {
+         }
+ 
+         // Handle one_time_keys_count and unused fallback keys
++        // MindRoom: as in matrix-js-sdk #5503, a live sync without `device_one_time_keys_count` has no
++        // one-time keys on the server (sync v2), even when it reports no fallback keys either; only
++        // the saved sync's replay carries no counts at all.
+         await this.syncOpts.cryptoCallbacks?.processKeyCounts(
+-            data.device_one_time_keys_count,
++            syncEventData.fromCache ? data.device_one_time_keys_count : (data.device_one_time_keys_count ?? {}),
+             data.device_unused_fallback_key_types ?? data["org.matrix.msc2732.device_unused_fallback_key_types"],
+         );
+     }
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/index.ts b/node_modules/matrix-js-sdk/src/rust-crypto/index.ts
 index cf0686a..32a3d9b 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/index.ts
