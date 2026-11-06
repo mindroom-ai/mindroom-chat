@@ -48,7 +48,7 @@ const bothTabsFollow = async (context: BrowserContext, browserName: string) => {
   const failures = await recordStartFailures(context);
   const pageErrors: string[] = [];
   context.on('page', (page) => {
-    page.on('pageerror', (error) => pageErrors.push(error.message));
+    page.on('pageerror', (error) => pageErrors.push(`${page.url()}: ${error.message}`));
   });
   const first = await registerDisposableUser(`ttac_a_${browserName}_${RUN}`, PASSWORD);
   const second = await registerDisposableUser(`ttac_b_${browserName}_${RUN}`, PASSWORD);
@@ -97,6 +97,8 @@ const bothTabsFollow = async (context: BrowserContext, browserName: string) => {
   await one.waitForTimeout(5_000);
 
   expect(failures).toEqual([]);
+  // eslint-disable-next-line no-console
+  if (pageErrors.length > 0) console.log(`[two-tabs:${browserName}] page errors`, pageErrors);
   // WebKit reports a request cut off by the logout's own reload as "Fetch API cannot load <url>
   // due to access control checks."; that tab is leaving, so it says nothing about a crash.
   expect(pageErrors.filter((message) => !/due to access control checks/.test(message))).toEqual([]);
