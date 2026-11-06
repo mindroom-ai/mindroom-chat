@@ -227,7 +227,8 @@ const checkDesktop = async (page: Page, data: Seed, engine: string, testInfo: Te
     .last();
   await row.focus();
   let reached = false;
-  for (let press = 0; press < 3 && !reached; press += 1) {
+  // The row's toolbar comes first: Add Reaction, Reply, Reply in Thread, More Options.
+  for (let press = 0; press < 6 && !reached; press += 1) {
     // eslint-disable-next-line no-await-in-loop
     await page.keyboard.press('Tab');
     // eslint-disable-next-line no-await-in-loop

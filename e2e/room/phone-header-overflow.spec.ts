@@ -189,9 +189,8 @@ const checkPhone = async (page: Page, data: Seed, engine: string, testInfo: Test
   await openMenu(page);
   await expect(entry(page, 'Compact view')).toHaveAttribute('aria-checked', 'false');
   await entry(page, 'Show Members').tap();
-  await expect(
-    page.getByTestId('resizable-members-panel').or(page.getByRole('dialog'))
-  ).toBeVisible();
+  // On a phone the members panel opens as a dialog over the room.
+  await expect(page.getByRole('dialog', { name: 'Members' })).toBeVisible();
 };
 
 const checkDesktop = async (page: Page, data: Seed) => {
