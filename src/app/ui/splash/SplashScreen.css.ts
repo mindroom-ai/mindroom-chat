@@ -48,6 +48,10 @@ export const SplashScreenFooter = style([
     paddingInline: config.space.S400,
     paddingTop: config.space.S400,
     paddingBottom: `calc(${config.space.S400} + env(safe-area-inset-bottom, 0px))`,
-    opacity: config.opacity.P300,
   },
 ]);
+
+/** The app name, quieter than the loading line; its clearing in the art stays opaque. */
+export const SplashScreenName = style({
+  color: `color-mix(in srgb, currentColor 75%, transparent)`,
+});

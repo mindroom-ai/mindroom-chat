@@ -2,6 +2,7 @@ import { type ReactNode, useMemo } from 'react';
 import { Box, Spinner, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { SplashScreen } from './SplashScreen';
+import { ParticleTextBackdrop } from '../particle-background/ParticleTextBackdrop.css';
 
 /** The loading line when there is no other line with text in it. */
 export const DEFAULT_MINDROOM_SPLASH_MESSAGES = ['Loading MindRoom Chat'] as const;
@@ -59,7 +60,7 @@ export function MindRoomSplashScreen({
     <SplashScreen>
       <Box grow="Yes" direction="Column" justifyContent="Center" alignItems="Center" gap="400">
         <Spinner size="600" variant="Secondary" />
-        <Text>{line}</Text>
+        <Text className={ParticleTextBackdrop}>{line}</Text>
         {children}
       </Box>
     </SplashScreen>

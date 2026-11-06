@@ -3,6 +3,7 @@ import { Box, Text } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
 import { useClientConfig } from '../../config/useClientConfig';
 import { MINDROOM_AUTH_BRANDING } from './authUi';
+import { ParticleTextBackdrop } from '../../ui/particle-background/ParticleTextBackdrop.css';
 import * as css from './styles.css';
 
 type PoweredByLink = { readonly label: string; readonly url: string };
@@ -56,7 +57,7 @@ function PoweredByLinks({
 /** One support or policy page, opened in a new tab. */
 function PolicyLink({ label, url }: PoweredByLink) {
   return (
-    <Text size="T300">
+    <Text size="T300" className={ParticleTextBackdrop}>
       <a href={url} target="_blank" rel="noreferrer">
         {label}
       </a>
@@ -82,7 +83,7 @@ export function AuthFooter() {
 
   const creditLine =
     credited.length === 0 ? null : (
-      <Text size="T300">
+      <Text size="T300" className={ParticleTextBackdrop}>
         <Trans
           i18nKey="sharedUi.authFooter.poweredBy"
           components={{ links: <PoweredByLinks links={credited} language={language} /> }}
