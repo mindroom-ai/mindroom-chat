@@ -90,8 +90,8 @@ const setState = async (
 const lineOf = (row: Locator) => row.locator('[title]');
 
 /**
- * Whether a cut line still shows where the quoted value starts and how the sentence ends: the
- * value's first character and the line's last one lie inside the line's box.
+ * Whether a cut line still shows the sender's whole name, where the quoted value starts, and how
+ * the sentence ends: the value's first character and the line's last one lie inside the line's box.
  */
 const endsVisible = (row: Locator) =>
   lineOf(row).evaluate((line) => {
@@ -113,7 +113,9 @@ const endsVisible = (row: Locator) =>
     const value = texts(line.querySelector('bdi') ?? line)[0];
     const all = texts(line);
     const last = all[all.length - 1];
+    const sender = line.querySelector('b');
     return {
+      senderWhole: !!sender && sender.scrollWidth <= sender.clientWidth,
       valueStart: inside(value, value?.data.search(/[^\u2068\u2069\s]/) ?? -1),
       sentenceEnd: inside(last, (last?.data.replace(/[\u2068\u2069\s]+$/, '').length ?? 0) - 1),
     };
@@ -171,8 +173,16 @@ const checkRows = async (page: Page, screen: Screen, name: string) => {
   const longBox = await long.boundingBox();
   expect(longBox && shortBox && Math.abs(longBox.height - shortBox.height)).toBeLessThan(1);
   // The value is cut, not the sentence: its start and the closing quote stay in view.
-  expect(await endsVisible(row('longTopic'))).toEqual({ valueStart: true, sentenceEnd: true });
-  expect(await endsVisible(row('rtlName'))).toEqual({ valueStart: true, sentenceEnd: true });
+  expect(await endsVisible(row('longTopic'))).toEqual({
+    senderWhole: true,
+    valueStart: true,
+    sentenceEnd: true,
+  });
+  expect(await endsVisible(row('rtlName'))).toEqual({
+    senderWhole: true,
+    valueStart: true,
+    sentenceEnd: true,
+  });
   const cut = await long.locator('bdi').evaluate((element) => ({
     overflow: element.scrollWidth > element.clientWidth,
     ellipsis: getComputedStyle(element).textOverflow,
@@ -201,7 +211,11 @@ const checkRows = async (page: Page, screen: Screen, name: string) => {
   expect(await isolation(row('name').locator('bdi'))).toBe('isolate');
   // A long Latin topic in the right-to-left sentence keeps its start in view too.
   await row('longTopic').scrollIntoViewIfNeeded();
-  expect(await endsVisible(row('longTopic'))).toEqual({ valueStart: true, sentenceEnd: true });
+  expect(await endsVisible(row('longTopic'))).toEqual({
+    senderWhole: true,
+    valueStart: true,
+    sentenceEnd: true,
+  });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/state-values-${name}-ar.png` });
 };
 
