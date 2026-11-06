@@ -143,7 +143,7 @@ it('stops checking once the binder unmounts', async () => {
   expect(vi.getTimerCount()).toBe(timers);
 });
 
-it('drops a notice when the member's message arrives, but not for a reply that still streams', async () => {
+it('drops a notice when the member’s message arrives, but not for a reply that still streams', async () => {
   const { mx, room, serverTyping, shown } = setup();
   // Sync re-emits room timeline events on the client.
   mx.reEmitter.reEmit(room, [RoomEvent.Timeline]);
