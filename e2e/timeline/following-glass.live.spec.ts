@@ -45,6 +45,17 @@ test('following glass appears only while another reader follows the latest messa
     if (error.message.startsWith('Matrix API 404')) return {};
     throw error;
   });
+  // Hiding activity on this device at the end roams to the account when the account has no
+  // value of its own (src/app/preferences/roamingSettings.ts), and the next run would start with
+  // it: start without one, and put the account's roaming settings back afterwards.
+  const roamingSettings = await matrixFetch<Record<string, unknown>>(
+    homeserver,
+    `/user/${encodeURIComponent(author.userId)}/account_data/io.mindroom.client.settings`,
+    { accessToken: author.accessToken }
+  ).catch((error: Error) => {
+    if (error.message.startsWith('Matrix API 404')) return {};
+    throw error;
+  });
   const roomId = await createPrivateRoom(homeserver, author.accessToken, {
     name: 'Shared notes',
     topic: 'Planning the next design review',
@@ -56,6 +67,14 @@ test('following glass appears only while another reader follows the latest messa
     await setAccountData(homeserver, author.accessToken, author.userId, 'io.mindroom.settings', {
       ...accountSettings,
     });
+    const { hideActivity: _hideActivity, ...roamingWithoutActivity } = roamingSettings;
+    await setAccountData(
+      homeserver,
+      author.accessToken,
+      author.userId,
+      'io.mindroom.client.settings',
+      roamingWithoutActivity
+    );
     await joinRoom(homeserver, reader.accessToken, roomId);
     readerJoined = true;
     // Keep the sample name local to this room instead of changing the account profile.
@@ -251,6 +270,13 @@ test('following glass appears only while another reader follows the latest messa
         author.userId,
         'io.mindroom.settings',
         accountSettings
+      ),
+      setAccountData(
+        homeserver,
+        author.accessToken,
+        author.userId,
+        'io.mindroom.client.settings',
+        roamingSettings
       ),
       ...sessions.map(async ({ accessToken }) => {
         await matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/leave`, {
