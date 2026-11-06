@@ -10,6 +10,7 @@ import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import {
+  clipTurnText,
   groupCallTranscriptTurns,
   type CallTranscript,
   type CallTranscriptGroup,
@@ -30,6 +31,57 @@ type CallTranscriptCardProps = {
   highlightRegex?: RegExp;
   linkifyOpts: LinkifyOpts;
 };
+
+const matchesAny = (regex: RegExp, texts: readonly string[]): boolean => {
+  const once = new RegExp(regex.source, regex.flags.replace('g', ''));
+  return texts.some((text) => once.test(text));
+};
+
+type TurnTextProps = {
+  text: string;
+  highlightRegex?: RegExp;
+  linkifyOpts: LinkifyOpts;
+};
+
+/**
+ * One turn's words, in their own direction. A long turn (a speaker's words merge into one) shows
+ * its start, then a button for the rest; it starts whole when a search matched it.
+ */
+function TurnText({ text, highlightRegex, linkifyOpts }: TurnTextProps) {
+  const { t } = useTranslation();
+  const textId = useId();
+  const preview = useMemo(() => clipTurnText(text), [text]);
+  const [whole, setWhole] = useState(
+    () => !!highlightRegex && preview.clipped && matchesAny(highlightRegex, [text])
+  );
+  const shown = whole || !preview.clipped ? text : preview.text;
+  return (
+    <>
+      <Text
+        id={textId}
+        as="p"
+        size="T300"
+        className={css.Text}
+        data-call-transcript-text=""
+        dir={textDirection(text) ?? 'auto'}
+      >
+        {renderTextWithLatex(shown, { linkify: true, linkifyOpts, highlightRegex })}
+      </Text>
+      {preview.clipped && (
+        <button
+          type="button"
+          className={`${css.More} ${LoneTouchTarget}`}
+          aria-expanded={whole}
+          aria-controls={textId}
+          data-call-transcript-more=""
+          onClick={() => setWhole((open) => !open)}
+        >
+          {whole ? t('mindroomUi.notices.showLess') : t('mindroomUi.notices.showMore')}
+        </button>
+      )}
+    </>
+  );
+}
 
 type GroupProps = {
   group: CallTranscriptGroup;
@@ -82,28 +134,19 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
           {name}
         </Text>
         {texts.map((text, index) => (
-          <Text
+          <TurnText
             // Turns never move within a group, so their place is their identity.
             // eslint-disable-next-line react/no-array-index-key
             key={index}
-            as="p"
-            size="T300"
-            className={css.Text}
-            data-call-transcript-text=""
-            dir={textDirection(text) ?? 'auto'}
-          >
-            {renderTextWithLatex(text, { linkify: true, linkifyOpts, highlightRegex })}
-          </Text>
+            text={text}
+            highlightRegex={highlightRegex}
+            linkifyOpts={linkifyOpts}
+          />
         ))}
       </div>
     </li>
   );
 }
-
-const matchesAny = (regex: RegExp, texts: readonly string[]): boolean => {
-  const once = new RegExp(regex.source, regex.flags.replace('g', ''));
-  return texts.some((text) => once.test(text));
-};
 
 /**
  * A finished voice call (`io.mindroom.call_transcript`): the phone icon, "Voice call" and how

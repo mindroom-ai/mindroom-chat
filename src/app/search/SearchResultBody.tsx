@@ -25,6 +25,7 @@ import type { ResultItem } from './useMessageSearch';
 import * as css from './SearchResultBody.css';
 import { matchesEnum } from '../lib/matchesEnum';
 import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
+import { readCallTranscript } from '../matrix/protocol/callTranscript';
 
 /** One search hit and the terms the server matched in it. */
 export type SearchResultBodyProps = {
@@ -102,7 +103,8 @@ const quotesAnotherMessage = (content: Record<string, unknown>): boolean => {
 /**
  * A search hit as the room shows the message: its latest text with Markdown, mentions, code and
  * MindRoom's tool calls, the matched words marked. Long messages (and long-text sidecars) take
- * the lightweight path: a snippet around the first match, as HTML when the message has some.
+ * the lightweight path: a snippet around the first match, as HTML when the message has some; a
+ * voice call's transcript shows as its call card instead.
  * Hits without a message body (redactions, reactions, room names and topics) are a line of text.
  */
 export function SearchResultBody({
@@ -152,7 +154,8 @@ export function SearchResultBody({
 
   const edited = isSearchResultEdited(event);
   let body: React.ReactNode;
-  if (shouldUseLightweightSearchResultBody(content)) {
+  // A call's transcript shows as its card, open at the match, whatever the length of its body.
+  if (shouldUseLightweightSearchResultBody(content) && !readCallTranscript(content)) {
     body = (
       <Text as="div" size="T300" dir="auto">
         <RenderBody

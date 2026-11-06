@@ -45,7 +45,8 @@ export const Toggle = style({
   background: 'none',
   alignItems: 'center',
   textAlign: 'start',
-  maxWidth: '100%',
+  // No percentage width: a button with one does not count towards the card's width, which
+  // then wraps its labels.
   cursor: 'pointer',
   // The chevron lines up with the phone icon above it.
   marginInlineStart: toRem(-4),
@@ -85,7 +86,10 @@ export const Group = style({
 
 export const Avatar = style({ inlineSize: AVATAR, blockSize: AVATAR, borderRadius: '50%' });
 
+// Each line is as wide as its words and starts beside the avatar, as message bodies do, also when
+// it reads the other way from the interface.
 export const GroupBody = style({
+  alignItems: 'flex-start',
   flexDirection: 'column',
   minWidth: 0,
   display: 'flex',
@@ -96,3 +100,22 @@ export const Name = style({ fontWeight: 600 });
 
 /** Spoken text keeps its line breaks and wraps anywhere rather than overflow the card. */
 export const Text = style({ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' });
+
+/** Show more or less of a long turn: a quiet link-like button under its text. */
+export const More = style({
+  padding: 0,
+  font: 'inherit',
+  fontSize: toRem(12),
+  border: 0,
+  color: color.Primary.Main,
+  background: 'none',
+  cursor: 'pointer',
+  borderRadius: config.radii.R300,
+  selectors: {
+    '&:hover': { textDecoration: 'underline' },
+    '&:focus-visible': {
+      outlineOffset: toRem(1),
+      outline: `${config.borderWidth.B400} solid ${color.Primary.Main}`,
+    },
+  },
+});

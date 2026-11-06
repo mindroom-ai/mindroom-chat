@@ -10,9 +10,14 @@ import { isUserId } from '../matrix';
 export const CALL_TRANSCRIPT_KEY = 'io.mindroom.call_transcript';
 
 /** Most turns the card shows; a longer transcript renders as the message's HTML. */
-export const CALL_TRANSCRIPT_MAX_TURNS = 1000;
-/** Longest text of one turn the card shows, in UTF-16 code units; longer renders as the HTML. */
-export const CALL_TRANSCRIPT_MAX_TEXT_LENGTH = 10_000;
+export const CALL_TRANSCRIPT_MAX_TURNS = 2000;
+/**
+ * Most text the card shows, all turns together, in UTF-16 code units; a longer transcript renders
+ * as the message's HTML. One turn may be long: a speaker's words merge into one turn.
+ */
+export const CALL_TRANSCRIPT_MAX_TOTAL_LENGTH = 500_000;
+/** How much of a long turn shows until the reader asks for the rest. */
+export const CALL_TRANSCRIPT_TURN_PREVIEW_LENGTH = 1000;
 /** Longest call the card shows, in seconds: a week. */
 const MAX_DURATION_SECONDS = 7 * 24 * 3600;
 
@@ -31,19 +36,15 @@ const isTurn = (value: unknown): value is CallTranscriptTurn => {
   if (!isRecord(value)) return false;
   const { sender, text } = value;
   return (
-    typeof sender === 'string' &&
-    isUserId(sender) &&
-    typeof text === 'string' &&
-    text.trim() !== '' &&
-    text.length <= CALL_TRANSCRIPT_MAX_TEXT_LENGTH
+    typeof sender === 'string' && isUserId(sender) && typeof text === 'string' && text.trim() !== ''
   );
 };
 
 /**
  * The transcript in `content`, or undefined when it is missing or malformed in any part (then the
  * message renders as its HTML, which carries the same turns): a duration that is not a number of
- * seconds up to a week, no turns or more than the card shows, or a turn without a user ID and
- * text of its own.
+ * seconds up to a week, no turns or more than the card shows, a turn without a user ID and text
+ * of its own, or more text than the card shows.
  */
 export const readCallTranscript = (
   content: Record<string, unknown>
@@ -63,6 +64,8 @@ export const readCallTranscript = (
     return undefined;
   }
   if (!turns.every(isTurn)) return undefined;
+  const length = turns.reduce((sum, { text }) => sum + text.length, 0);
+  if (length > CALL_TRANSCRIPT_MAX_TOTAL_LENGTH) return undefined;
   return {
     durationSeconds: Math.round(duration),
     turns: turns.map(({ sender, text }) => ({ sender, text })),
@@ -79,3 +82,19 @@ export const groupCallTranscriptTurns = (
     else groups.push({ sender, texts: [text], index });
     return groups;
   }, []);
+
+/**
+ * The start of a turn longer than `limit`: cut at its last space within the limit when that
+ * keeps most of it, else at the limit, never between the halves of a character, then an
+ * ellipsis. A shorter turn comes back whole.
+ */
+export const clipTurnText = (
+  text: string,
+  limit = CALL_TRANSCRIPT_TURN_PREVIEW_LENGTH
+): { text: string; clipped: boolean } => {
+  if (text.length <= limit) return { text, clipped: false };
+  const head = text.slice(0, limit + 1);
+  const space = head.lastIndexOf(' ');
+  const cut = space >= limit / 2 ? head.slice(0, space) : head.slice(0, limit);
+  return { text: `${cut.replace(/[\uD800-\uDBFF]$/, '').trimEnd()}…`, clipped: true };
+};
