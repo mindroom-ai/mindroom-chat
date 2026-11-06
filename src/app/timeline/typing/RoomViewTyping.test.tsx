@@ -17,6 +17,15 @@ vi.mock('./RoomViewTyping.css', () => ({
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:example.org' }),
 }));
+// The helper's reply streams in every thread, so an agent in a thread shows for its approval
+// state alone.
+vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
+  useThreadStreamingState: () => true,
+  getThreadStreamingEvents: () => [
+    { getId: () => undefined, getSender: () => '@mindroom_helper:example.org' },
+  ],
+  isEventStreaming: () => true,
+}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -35,6 +44,8 @@ const room = {
   currentState: {
     getStateEvents: (type: string) => (type === 'io.mindroom.background_jobs' ? jobsState : []),
   },
+  getThread: () => null,
+  getUnfilteredTimelineSet: () => ({}),
   on: () => undefined,
   removeListener: () => undefined,
 } as unknown as Room;
