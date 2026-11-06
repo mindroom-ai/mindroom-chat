@@ -14,6 +14,7 @@ import {
 } from '../cache/eventCacheEditUtils';
 import { resolveHydratedRoomBeforeToken } from '../cache/eventCacheTokenUtils';
 import { getLiveTimeline } from '../timeline/timelinePagination';
+import { adoptCachedThreadRoot } from './cachedThreadRoots';
 
 /** Restore the thread catalogue without implying contiguous room history. */
 export function restoreCachedRoomThreads(
@@ -21,6 +22,7 @@ export function restoreCachedRoomThreads(
   roots: { rootEvent: MatrixEvent; latestReply?: MatrixEvent }[]
 ): void {
   const missingRoots = roots.filter(({ rootEvent }) => !room.getThread(rootEvent.getId()!));
+  roots.forEach(({ rootEvent }) => adoptCachedThreadRoot(room, rootEvent));
   const missing = missingRoots.map(({ rootEvent }) => rootEvent);
   hydrateCachedEvents({ room, events: missing });
   room.processThreadRoots(missing, true);

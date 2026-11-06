@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -7,6 +7,8 @@ import { Box, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider, ownDirectionLine } from '../../ui/directional';
 import { NavButton, NavItem, NavItemContent } from '../../ui/nav/NavItem';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useSyncEngineOptional } from '../../event-store/engine/engineContext';
+import { requestCachedThreadRoot, saveThreadRoot } from '../../event-store/sdk/cachedThreadRoots';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { useRelativeTime } from '../../i18n/useRelativeTime';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
@@ -43,6 +45,17 @@ export const ThreadNavItem = memo(
     const relativeTime = useRelativeTime(entry.lastActivityTs);
     const shownRef = useInitializeShownThread(entry.roomId, entry.threadRootId);
     const [pinHovered, setPinHovered] = useState(false);
+    const engine = useSyncEngineOptional();
+
+    // The row's title is its root's text. A root the SDK has is saved for offline starts; a thread
+    // known only from its replies (an offline start) takes its root from the event cache.
+    const rootEvent =
+      room?.getThread(entry.threadRootId)?.rootEvent ?? room?.findEventById(entry.threadRootId);
+    useEffect(() => {
+      if (!room || !engine) return;
+      if (rootEvent) saveThreadRoot(engine.persist, room, entry.threadRootId, rootEvent);
+      else requestCachedThreadRoot(mx, engine.sessionId, room, entry.threadRootId);
+    }, [engine, entry.threadRootId, mx, room, rootEvent]);
 
     const viewModel = useMemo(
       () =>
