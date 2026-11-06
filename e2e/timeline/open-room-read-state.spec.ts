@@ -22,9 +22,11 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // screen, nothing when the view moves to the New Messages line and leaves them below it. The line
 // moves above the first message that arrived while the reader was away. And the open room's own
 // sidebar badge equals the server's count for it, as every other row's does, also when the room
-// holds a thread the reader once wrote in, and a reload shows it in every frame. No step sends a message as the reader after the room
-// has unread messages: the server currently resets the sender's counts for the whole room on any
-// send. Each case runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
+// holds a thread the reader once wrote in, and a reload shows it in every frame. No step sends a
+// message as the reader after the room has unread messages: the server currently resets the
+// sender's counts for the whole room on any send. The thread counts need a homeserver that lists
+// every thread count in each /sync that carries the room (mindroom-tuwunel v1.9.4-mindroom.21 and
+// later). Each case runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit. Runs against the disposable homeserver of `just hs-up` or of a slot of
 // scripts/e2e-slot.sh, and registers its own accounts. Set OPEN_ROOM_READ_SHOTS=<directory> to save
 // screenshots of the steps that check the line and the badges.
@@ -278,17 +280,22 @@ const readOnFocus = async (page: Page, browserName: string) => {
     return eventId;
   };
   let lastRead = '';
-  for (let index = 1; index <= HISTORY; index += 1) {
+  for (let index = 1; index <= HISTORY - 2; index += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const eventId = await send(`Log entry ${index}`);
-    if (index === HISTORY - 2) lastRead = eventId;
+    lastRead = await send(`Log entry ${index}`);
   }
-  // The reader read the room up to two messages before its end.
+  // The reader read the room, then two more messages came.
   await matrixFetch(
     HOMESERVER,
     `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(lastRead)}`,
-    { method: 'POST', accessToken: reader.accessToken, body: JSON.stringify({}) }
+    {
+      method: 'POST',
+      accessToken: reader.accessToken,
+      body: JSON.stringify({ thread_id: 'main' }),
+    }
   );
+  await send(`Log entry ${HISTORY - 1}`);
+  await send(`Log entry ${HISTORY}`);
 
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
@@ -450,22 +457,26 @@ const badgeThroughReload = async (page: Page, browserName: string) => {
     invite: [writer.userId],
   });
   await joinRoom(HOMESERVER, writer.accessToken, roomId);
+  const reading = (index: number) =>
+    sendRoomMessage(HOMESERVER, writer.accessToken, roomId, message(`Tide reading ${index}`));
   let lastRead = '';
-  for (let index = 1; index <= 6; index += 1) {
+  for (let index = 1; index <= 4; index += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const eventId = await sendRoomMessage(
-      HOMESERVER,
-      writer.accessToken,
-      roomId,
-      message(`Tide reading ${index}`)
-    );
-    if (index === 4) lastRead = eventId;
+    lastRead = await reading(index);
   }
+  // The reader read the room, then two more messages came. (The server resets the counts on any
+  // receipt, wherever it points, so the receipt names the newest message of its time.)
   await matrixFetch(
     HOMESERVER,
     `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(lastRead)}`,
-    { method: 'POST', accessToken: reader.accessToken, body: JSON.stringify({}) }
+    {
+      method: 'POST',
+      accessToken: reader.accessToken,
+      body: JSON.stringify({ thread_id: 'main' }),
+    }
   );
+  await reading(5);
+  await reading(6);
 
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
