@@ -93,8 +93,10 @@ test('a space is created from the rail and filled from its lobby', async ({ page
   expect(spaceId.startsWith('!')).toBe(true);
   const railTile = page.getByRole('group', { name: 'Spaces' }).locator(`[data-id="${spaceId}"]`);
   await expect(railTile).toBeVisible();
-  // Without a picture the rail shows the first two characters of the space's name.
-  await expect(railTile).toHaveText('Ga');
+  // Without a picture the rail shows the first two characters of the space's name; the button
+  // itself is named by the whole name.
+  await expect(railTile.getByText('Ga', { exact: true })).toBeVisible();
+  await expect(railTile).toHaveAccessibleName('Garden club');
   await page.screenshot({ path: testInfo.outputPath('lobby-empty.png') });
 
   // Add Room, Chat Room: the new room opens inside the space.
