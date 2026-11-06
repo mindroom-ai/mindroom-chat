@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import {
   expect,
   test,
@@ -273,12 +274,25 @@ const openFrom = async (page: Page, room: Case, entry: Entry, phone: boolean) =>
   await expect(roomMenu(page)).toBeVisible();
 };
 
-const closeMenu = async (page: Page) => {
+/**
+ * Escape closes the menu. When it does not, the problem is noted and a press outside closes it,
+ * so the remaining menus are still read.
+ */
+const closeMenu = async (page: Page, problems: string[], where: string) => {
   await page.keyboard.press('Escape');
-  await expect(roomMenu(page)).toHaveCount(0);
+  try {
+    await expect(roomMenu(page)).toHaveCount(0, { timeout: 3_000 });
+  } catch {
+    problems.push(`${where}: Escape left the menu open`);
+    await page.evaluate(() =>
+      document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+    );
+    await expect(roomMenu(page)).toHaveCount(0);
+  }
 };
 
 type Seen = Record<Entry, Item[]>;
+type Read = { seen: Seen; problems: string[] };
 
 /** Opens the three menus of one room, saving a screenshot of each, and reads their rows. */
 const readAllMenus = async (
@@ -287,19 +301,19 @@ const readAllMenus = async (
   phone: boolean,
   tag: string,
   testInfo: TestInfo
-): Promise<{ seen: Seen; short: string[] }> => {
+): Promise<Read> => {
   const seen = {} as Seen;
-  const short: string[] = [];
+  const problems: string[] = [];
   const read = async (entry: Entry) => {
     await openFrom(page, room, entry, phone);
     await shot(page, testInfo, `${tag}-${room.key}-${entry}`);
     seen[entry] = await readMenu(roomMenu(page));
     if (phone) {
       for (const [name, height] of await shortRows(roomMenu(page))) {
-        short.push(`${entry} "${name}" ${Math.round(height)} px`);
+        problems.push(`${entry} "${name}" is ${Math.round(height)} px tall`);
       }
     }
-    await closeMenu(page);
+    await closeMenu(page, problems, entry);
   };
   // A phone shows the list and the room on separate pages; a desktop shows both.
   if (phone) {
@@ -316,10 +330,10 @@ const readAllMenus = async (
     timeout: 30_000,
   });
   await read('header');
-  return { seen, short };
+  return { seen, problems };
 };
 
-const checkSame = (room: Case, { seen, short }: { seen: Seen; short: string[] }, tag: string) => {
+const checkSame = (room: Case, { seen, problems }: Read, tag: string) => {
   const expected = sharedItems(room);
   const where = `${tag} ${room.key}`;
   expect(seen['row-context'], `${where}: right-click menu = row button menu`).toEqual(
@@ -333,7 +347,10 @@ const checkSame = (room: Case, { seen, short }: { seen: Seen; short: string[] },
   );
   const unknown = extra.filter(({ name }) => !IN_ROOM.some((pattern) => pattern.test(name)));
   expect(unknown, `${where}: header-only entries depend on the open room`).toEqual([]);
-  expect(short, `${where}: rows shorter than ${TARGET} px on a touch screen`).toEqual([]);
+  expect(
+    problems,
+    `${where}: rows under ${TARGET} px on a touch screen, menus Escape left open`
+  ).toEqual([]);
 };
 
 /** A keyboard reaches the disabled Invite, hears why, and cannot start it. */
@@ -414,7 +431,7 @@ for (const engine of ENGINES) {
             )
             .toBe(true);
         }
-        const results: [Case, { seen: Seen; short: string[] }, string][] = [];
+        const results: [Case, Read, string][] = [];
         for (const scheme of SCHEMES) {
           // eslint-disable-next-line no-await-in-loop
           await setLook(page, scheme);
@@ -424,6 +441,15 @@ for (const engine of ENGINES) {
             results.push([room, await readAllMenus(page, room, phone, tag, testInfo), tag]);
           }
         }
+        // Every menu's rows, for the record (test-results/<test>/menus.json).
+        writeFileSync(
+          testInfo.outputPath('menus.json'),
+          JSON.stringify(
+            results.map(([room, read, tag]) => ({ tag, room: room.key, ...read })),
+            null,
+            2
+          )
+        );
         for (const [room, read, tag] of results) checkSame(room, read, tag);
         if (!phone) {
           const member = data.cases.find((room) => room.key === 'member-encrypted');
