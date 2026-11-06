@@ -31,6 +31,8 @@ const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-cache-reload-spec-password';
 const RUN = Date.now().toString(36);
 const SHOTS = process.env.THREAD_CACHE_SHOTS;
+const PHONE = process.env.CARD_PREVIEW_PHONE === '1';
+const THEME = process.env.CARD_PREVIEW_THEME ?? 'light';
 const ROOM_NAME = 'Release Desk';
 const FILLER_ROOMS = 25;
 const HISTORY = 300;
@@ -409,6 +411,16 @@ const check = async (page: Page, world: World, engine: string) => {
     await expectWholeList(listEnds, before.ends, `${engine} ${pass} reload`);
     await expectNoneStreaming(page, streams, `${engine} ${pass} reload`);
     await page.waitForTimeout(3_000);
+    // These older cards stayed outside the viewport while the replies finished. A title notice
+    // is the thread's newest event, so only the card's cached reply preview can show the answer.
+    // Check the actual text on the first scroll into view, before opening any thread.
+    for (const stream of live.slice(0, 4)) {
+      const card = threadCard(page, stream.rootId);
+      await card.scrollIntoViewIfNeeded();
+      await shot(page, `${engine}-${PHONE ? 'phone' : 'desktop'}-${THEME}-${pass}-${stream.index}`);
+      expect.soft(await card.innerText(), `${engine} ${pass}: finished reply preview ${stream.index}`)
+        .toContain(finishedText(stream.index));
+    }
     const asked = watch.replyRequests.slice(before.replies);
     const lists = watch.listRequests.slice(before.lists);
     report(
@@ -430,12 +442,17 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   const world = await seed(engine);
   // WebKit sends a service worker's requests past page.route, so the routes need it off.
   const context = await browser.newContext({
-    viewport: { width: 1280, height: 800 },
+    viewport: PHONE ? { width: 390, height: 844 } : { width: 1280, height: 800 },
+    hasTouch: PHONE,
     baseURL,
     serviceWorkers: 'block',
   });
   try {
     const page = await context.newPage();
+    await page.addInitScript((theme) => {
+      const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<string, unknown>;
+      localStorage.setItem('settings', JSON.stringify({ ...settings, useSystemTheme: false, themeId: `${theme}-theme` }));
+    }, THEME);
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: world.reader.username,
