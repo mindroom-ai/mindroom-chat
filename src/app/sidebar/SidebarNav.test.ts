@@ -83,9 +83,13 @@ vi.mock('../matrix/hooks/useAccountSettings', async () => {
   const { DEFAULT_MINDROOM_ACCOUNT_SETTINGS } = await import(
     '../preferences/accountSettings'
   );
+  // An account that turned its rail buttons on; SidebarNav.buttons.test.tsx covers the defaults.
   return {
     useAccountSettings: () => ({
       ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
+      showThreadsInSidebar: true,
+      showExploreInSidebar: true,
+      showLocalMindroomInSidebar: true,
       showCanvasesInSidebar: mocks.showCanvases,
     }),
   };

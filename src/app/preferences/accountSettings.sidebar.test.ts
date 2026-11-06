@@ -7,6 +7,7 @@ import {
 
 const SIDEBAR_SWITCHES = [
   'showThreadsInSidebar',
+  'showCanvasesInSidebar',
   'showExploreInSidebar',
   'showCreateSpaceInSidebar',
   'showSearchInSidebar',
@@ -14,24 +15,25 @@ const SIDEBAR_SWITCHES = [
 ] as const;
 
 describe('sidebar button switches in io.mindroom.settings', () => {
-  it.each(SIDEBAR_SWITCHES)('shows %s by default and keeps a stored boolean', (key) => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS[key]).toBe(true);
-    expect(sanitizeAccountSettings({})[key]).toBe(true);
+  it.each(SIDEBAR_SWITCHES)('hides %s by default and keeps a stored boolean', (key) => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS[key]).toBe(false);
+    expect(sanitizeAccountSettings({})[key]).toBe(false);
+    expect(sanitizeAccountSettings({ [key]: true })[key]).toBe(true);
     expect(sanitizeAccountSettings({ [key]: false })[key]).toBe(false);
-    expect(sanitizeAccountSettings({ [key]: 'off' })[key]).toBe(true);
+    expect(sanitizeAccountSettings({ [key]: 'on' })[key]).toBe(false);
   });
 
-  it('turns one button off without touching the others or keys it does not know', () => {
-    const stored = { showSearchInSidebar: true, futureKey: [1] };
-    const next = mergeAccountSettings(stored, { showThreadsInSidebar: false });
+  it('turns one button on without touching the others or keys it does not know', () => {
+    const stored = { showSearchInSidebar: false, futureKey: [1] };
+    const next = mergeAccountSettings(stored, { showThreadsInSidebar: true });
     expect(next).toEqual({
-      showSearchInSidebar: true,
+      showSearchInSidebar: false,
       futureKey: [1],
-      showThreadsInSidebar: false,
+      showThreadsInSidebar: true,
     });
     expect(sanitizeAccountSettings(next)).toEqual({
       ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
-      showThreadsInSidebar: false,
+      showThreadsInSidebar: true,
     });
   });
 });

@@ -26,12 +26,12 @@ export type AccountSettings = {
 };
 
 export const DEFAULT_MINDROOM_ACCOUNT_SETTINGS: AccountSettings = {
-  showCanvasesInSidebar: true,
-  showThreadsInSidebar: true,
-  showExploreInSidebar: true,
-  showCreateSpaceInSidebar: true,
-  showSearchInSidebar: true,
-  showLocalMindroomInSidebar: true,
+  showCanvasesInSidebar: false,
+  showThreadsInSidebar: false,
+  showExploreInSidebar: false,
+  showCreateSpaceInSidebar: false,
+  showSearchInSidebar: false,
+  showLocalMindroomInSidebar: false,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

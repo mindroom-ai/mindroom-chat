@@ -13,15 +13,15 @@ describe('sanitizeAccountSettings', () => {
     expect(sanitizeAccountSettings([true])).toEqual(DEFAULT_MINDROOM_ACCOUNT_SETTINGS);
   });
 
-  it('shows Canvases in the sidebar by default while preserving explicit booleans', () => {
-    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar).toBe(true);
-    expect(sanitizeAccountSettings({}).showCanvasesInSidebar).toBe(true);
+  it('hides Canvases in the sidebar by default while preserving explicit booleans', () => {
+    expect(DEFAULT_MINDROOM_ACCOUNT_SETTINGS.showCanvasesInSidebar).toBe(false);
+    expect(sanitizeAccountSettings({}).showCanvasesInSidebar).toBe(false);
     expect(
-      sanitizeAccountSettings({ showCanvasesInSidebar: false }).showCanvasesInSidebar
-    ).toBe(false);
+      sanitizeAccountSettings({ showCanvasesInSidebar: true }).showCanvasesInSidebar
+    ).toBe(true);
     expect(
       sanitizeAccountSettings({ showCanvasesInSidebar: 'no' }).showCanvasesInSidebar
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('ignores unknown keys when reading', () => {

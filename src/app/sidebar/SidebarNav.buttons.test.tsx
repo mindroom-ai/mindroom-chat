@@ -108,12 +108,31 @@ const SWITCHES: Array<[string, keyof AccountSettings]> = [
   ['localMindroom', 'showLocalMindroomInSidebar'],
 ];
 
+/** Every switch turned on, as an account that chose to show them all has stored. */
+const ALL_ON: Partial<AccountSettings> = Object.fromEntries(
+  SWITCHES.map(([, setting]) => [setting, true])
+);
+
 describe('SidebarNav buttons a person can hide', () => {
   afterEach(() => {
     state.settings = {};
   });
 
-  it('shows every optional button by default', () => {
+  it('shows none of the optional buttons for an account that never set them', () => {
+    expect(renderedTabs().tabs).toEqual([
+      'home',
+      'direct',
+      'spaces',
+      'unverified',
+      'inbox',
+      'settings',
+    ]);
+    // Only the rule between the scrolling and pinned parts.
+    expect(renderedTabs().separators).toBe(1);
+  });
+
+  it('shows every optional button once each switch is on', () => {
+    state.settings = ALL_ON;
     expect(renderedTabs().tabs).toEqual([
       'home',
       'direct',
@@ -131,22 +150,31 @@ describe('SidebarNav buttons a person can hide', () => {
   });
 
   it.each(SWITCHES)('hides %s when its switch is off and keeps the rest', (button, setting) => {
-    state.settings = { [setting]: false };
+    state.settings = { ...ALL_ON, [setting]: false };
     const { tabs } = renderedTabs();
     expect(tabs).not.toContain(button);
     expect(tabs).toHaveLength(11);
   });
 
+  it.each(SWITCHES)('shows only %s when only its switch is on', (button, setting) => {
+    state.settings = { [setting]: true };
+    const { tabs } = renderedTabs();
+    expect(tabs).toContain(button);
+    expect(tabs).toHaveLength(7);
+  });
+
   it('keeps the rule above Explore and Create Space while one of them shows', () => {
     // Between the joined spaces and that group, and between the scrolling and pinned parts.
+    state.settings = ALL_ON;
     expect(renderedTabs().separators).toBe(2);
-    state.settings = { showExploreInSidebar: false };
+    state.settings = { ...ALL_ON, showExploreInSidebar: false };
     expect(renderedTabs().separators).toBe(2);
-    state.settings = { showExploreInSidebar: false, showCreateSpaceInSidebar: false };
+    state.settings = { ...ALL_ON, showExploreInSidebar: false, showCreateSpaceInSidebar: false };
     expect(renderedTabs().separators).toBe(1);
   });
 
   it('lets the deployment hide a button whatever the switch says', () => {
+    state.settings = ALL_ON;
     const { tabs } = renderedTabs({ sidebar: { showThreads: false, showExploreCommunity: false } });
     expect(tabs).not.toContain('threads');
     expect(tabs).not.toContain('explore');

@@ -15,9 +15,12 @@ vi.mock('../../config/useClientConfig', () => ({ useClientConfig: () => state.co
 vi.mock('../../local-mindroom/useShowLocalMindroom', () => ({
   useShowLocalMindroom: () => state.localMindroom,
 }));
+// An account that stored Threads and Create Space on and Search off, and never set the rest.
 vi.mock('../../matrix/hooks/useAccountSettings', () => ({
   useAccountSettings: () => ({
     ...DEFAULT_MINDROOM_ACCOUNT_SETTINGS,
+    showThreadsInSidebar: true,
+    showCreateSpaceInSidebar: true,
     showSearchInSidebar: false,
   }),
   useSetAccountSettings: () => state.write,
@@ -116,6 +119,7 @@ describe('Settings > General > Sidebar', () => {
     const toggle = (title: string) => tile(renderer, title).findByType('button');
     expect(toggle('Show Threads in the sidebar').props['aria-checked']).toBe(true);
     expect(toggle('Show Search in the sidebar').props['aria-checked']).toBe(false);
+    expect(toggle('Show Explore Community in the sidebar').props['aria-checked']).toBe(false);
 
     await act(async () => {
       toggle('Show Create Space in the sidebar').props.onClick();
