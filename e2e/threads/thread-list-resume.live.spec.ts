@@ -250,12 +250,10 @@ const goToRoom = (page: Page, roomId: string) =>
  * again after that, one request at a time, and the oldest thread has its card.
  */
 const expectWholeList = async (page: Page, world: Seed, calls: ListCall[], name: string) => {
+  // The poll shows the requests so far when it fails.
   await expect
-    .poll(() => calls.some(({ outcome }) => outcome === 'last page'), {
-      timeout: 45_000,
-      message: `the list's last page (${name}: ${describeCalls(calls)})`,
-    })
-    .toBe(true);
+    .poll(() => describeCalls(calls), { timeout: 45_000, message: `${name}: the list's last page` })
+    .toContain('last page');
   // Nothing more after the last page.
   await page.waitForTimeout(3_000);
   const answered = calls.filter(({ outcome }) => outcome === 'page' || outcome === 'last page');
@@ -397,10 +395,18 @@ const inContext = async (
   }
 };
 
+/** Runs every case, also after one failed, and then fails with each failure. */
 const checkAll = async (browser: Browser, options: BrowserContextOptions, name: string) => {
-  await inContext(browser, options, (page) => checkServerError(page, name));
-  await inContext(browser, options, (page) => checkOutage(page, name));
-  await inContext(browser, options, (page) => checkLeaveAndReturn(page, name));
+  const failures: string[] = [];
+  for (const check of [checkServerError, checkOutage, checkLeaveAndReturn]) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await inContext(browser, options, (page) => check(page, name));
+    } catch (error) {
+      failures.push(`${check.name}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  expect(failures).toEqual([]);
 };
 
 test.beforeAll(() => {
