@@ -288,6 +288,8 @@ export const clearAttachmentRepositoryMemory = (): void => {
 
 export type PrefetchEventAttachmentsOptions = {
   includeAllMedia?: boolean;
+  /** Only message bodies (long text): media and files wait until someone opens them. */
+  essentialOnly?: boolean;
   canDownload?: () => Promise<boolean>;
   signal?: AbortSignal;
   writeLease?: CacheStoreWriteLease;
@@ -316,7 +318,8 @@ export const prefetchEventAttachments = async (
       const satisfied = hasCachedReference(cached, message);
       if (
         !satisfied &&
-        (attachment.autoDownload || options.includeAllMedia) &&
+        (attachment.essential ||
+          (!options.essentialOnly && (attachment.autoDownload || options.includeAllMedia))) &&
         (!options.canDownload || (await options.canDownload()))
       ) {
         try {

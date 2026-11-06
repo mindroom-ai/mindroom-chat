@@ -247,11 +247,16 @@ export const createRoomOfflineController = ({
         .filter((owner) => owner.attachments.some((attachment) => attachment.essential))
         .map((owner) => owner.eventId)
     );
+    // Automatic saving keeps message bodies only; media and files of the open room load as the
+    // timeline shows them, and an explicit download saves them all.
+    const essentialOnly = () => !state(roomId).explicit;
     const ordered = events
       .filter((event) => {
         const owner = owners.find((item) => item.eventId === event.getId());
         return owner?.attachments.some(
-          (attachment) => attachment.autoDownload || state(roomId).includeAllMedia
+          (attachment) =>
+            attachment.essential ||
+            (!essentialOnly() && (attachment.autoDownload || state(roomId).includeAllMedia))
         );
       })
       .sort((a, b) => Number(essential.has(b.getId()!)) - Number(essential.has(a.getId()!)));
@@ -273,6 +278,7 @@ export const createRoomOfflineController = ({
               signal,
               writeLease: lease,
               includeAllMedia: state(roomId).includeAllMedia,
+              essentialOnly: essentialOnly(),
               canDownload: async () => {
                 admitted = await canSavePage(roomId, lease);
                 return admitted && !paused() && isCacheStoreWriteLeaseCurrent(lease);
