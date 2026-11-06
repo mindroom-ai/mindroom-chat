@@ -1,4 +1,5 @@
-import { ClientEvent, KnownMembership, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, SyncState, type MatrixClient } from 'matrix-js-sdk';
+import { Membership } from '../types/room';
 
 // A room left and forgotten on another device in one go never arrives here as left: the
 // homeserver leaves forgotten rooms out of /sync, so the room stayed joined in this client and in
@@ -19,7 +20,7 @@ type SavedSyncStore = {
 const joinedRoomIds = (mx: MatrixClient): string[] =>
   mx
     .getRooms()
-    .filter((room) => room.getMyMembership() === KnownMembership.Join)
+    .filter((room) => room.getMyMembership() === Membership.Join)
     .map((room) => room.roomId);
 
 /** Removes rooms that `/joined_rooms` no longer lists; call it before the client starts. */
@@ -37,6 +38,10 @@ export const dropRoomsForgottenElsewhere = (mx: MatrixClient): void => {
       mx.store.removeRoom(roomId);
       mx.emit(ClientEvent.DeleteRoom, roomId);
     });
+    // A save asked for while another one writes returns that one, which read the saved sync
+    // before the change (the SDK saves after the session's first sync too); the second save
+    // then writes it.
+    await mx.store.save(true);
     await mx.store.save(true);
   };
 

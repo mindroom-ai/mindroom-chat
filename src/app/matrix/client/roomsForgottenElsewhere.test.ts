@@ -53,6 +53,7 @@ describe('dropRoomsForgottenElsewhere', () => {
       rooms: { leave: { '!forgotten:example.org': {} } },
     });
     expect(client.store.save).toHaveBeenCalledWith(true);
+    expect(client.store.save).toHaveBeenCalledTimes(2);
     expect(rooms.map((room) => room.roomId)).toEqual(['!kept:example.org', '!invite:example.org']);
 
     // Once per start.
