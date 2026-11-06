@@ -1175,8 +1175,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
     surface: threadId ? threadRowsPinned : roomRowsPinned,
     itemCount,
     virtualizer,
-    // A room with unread rows opens at its unread marker instead (roomFocusScrollController).
-    opensAtLatest: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
+    // A room with unread rows opens at its unread marker instead (roomFocusScrollController),
+    // unless its newest row is first.
+    opensAtLatest:
+      !eventId && (latestAtTop || !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline)),
     latestAtTop,
     roomId: room.roomId,
     scrollElement,

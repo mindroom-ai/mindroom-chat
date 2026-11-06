@@ -114,9 +114,11 @@ type MarkerOpening = { marker: UnreadMarker; viewKey: string; over: boolean };
 /**
  * A room with unread rows opens with the row after its read marker at the top. Rows that load
  * above it move that row, so it is aimed at again as they load, until the reader's first gesture in
- * the room view or until the view changes. Returns what that gesture calls.
+ * the room view or until the view changes. Returns what that gesture calls. Rows that run newest
+ * first have their unread rows above the marker, so they open at their top instead.
  */
 const useUnreadMarkerOpening = ({
+  latestAtTopRef,
   roomId,
   scrollToItem,
   threadId,
@@ -124,7 +126,12 @@ const useUnreadMarkerOpening = ({
   unreadScrollAnchorIndex,
 }: Pick<
   Options,
-  'roomId' | 'scrollToItem' | 'threadId' | 'unreadInfo' | 'unreadScrollAnchorIndex'
+  | 'latestAtTopRef'
+  | 'roomId'
+  | 'scrollToItem'
+  | 'threadId'
+  | 'unreadInfo'
+  | 'unreadScrollAnchorIndex'
 >) => {
   const openingRef = useRef<MarkerOpening>();
   useLayoutEffect(() => {
@@ -132,7 +139,7 @@ const useUnreadMarkerOpening = ({
     const previous = openingRef.current;
     // A thread or another room ends the opening of the view it began in.
     if (previous && previous.viewKey !== viewKey) previous.over = true;
-    if (threadId || !unreadInfo?.readUptoEventId) return;
+    if (threadId || !unreadInfo?.readUptoEventId || latestAtTopRef?.current) return;
     if (!unreadInfo.inLiveTimeline || !unreadInfo.scrollTo) return;
     let opening = previous;
     if (!opening || opening.marker !== unreadInfo) {
@@ -145,7 +152,7 @@ const useUnreadMarkerOpening = ({
       align: 'start',
       stopInView: true,
     });
-  }, [roomId, scrollToItem, threadId, unreadInfo, unreadScrollAnchorIndex]);
+  }, [latestAtTopRef, roomId, scrollToItem, threadId, unreadInfo, unreadScrollAnchorIndex]);
   return useCallback(() => {
     const opening = openingRef.current;
     if (opening) opening.over = true;
