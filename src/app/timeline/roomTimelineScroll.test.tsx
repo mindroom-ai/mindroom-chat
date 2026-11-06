@@ -390,6 +390,7 @@ describe('useTimelineRowJumps', () => {
   const fakeRoomScroller = () => {
     const listeners = new Map<string, Set<() => void>>();
     return {
+      scrollTop: 0,
       getBoundingClientRect: () => box(0, 600),
       addEventListener: (type: string, handler: () => void) => {
         const forType = listeners.get(type) ?? new Set<() => void>();
@@ -460,6 +461,31 @@ describe('useTimelineRowJumps', () => {
     state.rowTop.set(40, 700);
     expect(jumps().scrollToItem(40, { behavior: 'smooth' })).toBe(true);
     expect(steps).toEqual(['ledger', 'paginator row 40 smooth']);
+    vi.unstubAllGlobals();
+  });
+
+  it('aligns a near row a smooth scroll left out of view once the scrolling stops', () => {
+    const { steps, state, scroller, runFrame, jumps } = setup();
+    state.rowTop.set(40, 700);
+    jumps().scrollToItem(40, { behavior: 'smooth', align: 'center' });
+    steps.length = 0;
+    // The smooth scroll moves for two frames, then stops with the row still below the view.
+    for (const top of [100, 200, 200, 200, 200]) {
+      scroller.scrollTop = top;
+      runFrame();
+    }
+    expect(steps.filter((step) => step.startsWith('align'))).toEqual(['align row at 700 instant']);
+    vi.unstubAllGlobals();
+  });
+
+  it('leaves a near row a smooth scroll brought into view alone', () => {
+    const { steps, state, scroller, runFrame, jumps } = setup();
+    state.rowTop.set(40, 700);
+    jumps().scrollToItem(40, { behavior: 'smooth', align: 'center' });
+    state.rowTop.set(40, 280);
+    for (let frame = 0; frame < 6; frame += 1) runFrame();
+    expect(steps).toEqual(['ledger', 'paginator row 40 smooth']);
+    expect(scroller.listenerCount()).toBe(0);
     vi.unstubAllGlobals();
   });
 

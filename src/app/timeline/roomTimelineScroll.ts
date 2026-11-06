@@ -248,6 +248,16 @@ const FAR_JUMP_MAX_FRAMES = 45;
 /** How many frames in a row the target must keep its place before a far jump is done. */
 const FAR_JUMP_SETTLED_FRAMES = 3;
 
+/** How many frames a smooth scroll to a row may run before the row is checked anyway. */
+const SMOOTH_JUMP_MAX_FRAMES = 90;
+
+/** Whether the start of a mounted row is inside the visible band. */
+const rowStartInView = (row: HTMLElement, scrollElement: HTMLElement): boolean => {
+  const band = scrollElement.getBoundingClientRect();
+  const box = row.getBoundingClientRect();
+  return box.top >= band.top && box.top < band.bottom;
+};
+
 /** Whether a mounted row sits within one view height of the visible band. */
 const rowNearView = (row: HTMLElement, scrollElement: HTMLElement): boolean => {
   const band = scrollElement.getBoundingClientRect();
@@ -299,9 +309,19 @@ export const useTimelineRowJumps = ({
     [onJump, paginatorScrollToElement]
   );
 
-  /** Brings the row of `eventId` from far away into its aligned place; see above. */
+  /**
+   * Brings the row of `eventId` from far away into its aligned place; see above. After a smooth
+   * scroll it first waits for the scrolling to stop and checks that the row's start is in view:
+   * a smooth scroll can stop short (WebKit on macOS cuts it off when rows measure), and only
+   * then is the row aligned frame by frame.
+   */
   const followFarRow = useCallback(
-    (eventId: string | undefined, firstIndex: number, align: 'start' | 'center' | 'end') => {
+    (
+      eventId: string | undefined,
+      firstIndex: number,
+      align: 'start' | 'center' | 'end',
+      afterSmoothScroll = false
+    ) => {
       const { getScrollElement, getRowElement, roomRowsRef } = rowsRef.current;
       const scrollElement = getScrollElement();
       if (!scrollElement) return;
@@ -319,16 +339,35 @@ export const useTimelineRowJumps = ({
       let frame = 0;
       let settledFrames = 0;
       let lastTop: number | undefined;
+      let smoothFrames = afterSmoothScroll ? 0 : SMOOTH_JUMP_MAX_FRAMES;
+      let stillFrames = 0;
+      let lastScrollTop = scrollElement.scrollTop;
       const step = () => {
         if (readerTookOver || thisJump !== jumpCountRef.current || frame >= FAR_JUMP_MAX_FRAMES) {
           end();
           return;
         }
-        frame += 1;
         const found = eventId
           ? roomRowsRef.current.findIndex((row) => row.getId() === eventId)
           : firstIndex;
         const index = found === -1 ? firstIndex : found;
+        if (smoothFrames < SMOOTH_JUMP_MAX_FRAMES) {
+          smoothFrames += 1;
+          const scrollTop = scrollElement.scrollTop;
+          stillFrames = Math.abs(scrollTop - lastScrollTop) < 1 ? stillFrames + 1 : 0;
+          lastScrollTop = scrollTop;
+          if (stillFrames < FAR_JUMP_SETTLED_FRAMES && smoothFrames < SMOOTH_JUMP_MAX_FRAMES) {
+            requestAnimationFrame(step);
+            return;
+          }
+          smoothFrames = SMOOTH_JUMP_MAX_FRAMES;
+          const landed = getRowElement(index);
+          if (landed && rowStartInView(landed, scrollElement)) {
+            end();
+            return;
+          }
+        }
+        frame += 1;
         const { start, end: stop } = activeRangeRef.current;
         if (index >= start && index < stop) {
           const row = getRowElement(index);
@@ -349,7 +388,8 @@ export const useTimelineRowJumps = ({
         }
         requestAnimationFrame(step);
       };
-      step();
+      if (afterSmoothScroll) requestAnimationFrame(step);
+      else step();
     },
     [activeRangeRef, onJump, paginatorScrollToElement, rowsRef, virtualizerRef]
   );
@@ -364,7 +404,12 @@ export const useTimelineRowJumps = ({
       // Close by: the paginator's own scroll, smooth when asked; a row of the window it has not
       // mounted goes to the virtual list.
       if (!scrollElement || (mounted && rowNearView(mounted, scrollElement))) {
-        if (paginatorScrollToItem(index, opts)) return true;
+        if (paginatorScrollToItem(index, opts)) {
+          if (scrollElement && opts?.behavior === 'smooth') {
+            followFarRow(roomRowsRef.current[index]?.getId(), index, opts.align ?? 'center', true);
+          }
+          return true;
+        }
         if (index < start || index >= end) return false;
         virtualizerRef.current.scrollToIndex(index - start, {
           align: opts?.align ?? 'center',
