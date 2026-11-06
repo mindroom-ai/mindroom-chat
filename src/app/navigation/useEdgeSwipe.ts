@@ -15,26 +15,6 @@ type TouchEventWithFlag = TouchEvent & {
 
 export type EdgeSwipeDirection = 'back' | 'forward';
 
-/**
- * The rest of a touch that already went back or forward stays the app's: the browser neither
- * scrolls it nor takes it as its own back or forward gesture, which would step a second time.
- * Window listeners of their own, since the view that handled the swipe may be gone before the
- * finger lifts.
- */
-const holdRestOfTouch = () => {
-  const hold = (event: TouchEvent) => {
-    if (event.cancelable) event.preventDefault();
-  };
-  const release = () => {
-    window.removeEventListener('touchmove', hold);
-    window.removeEventListener('touchend', release);
-    window.removeEventListener('touchcancel', release);
-  };
-  window.addEventListener('touchmove', hold, { passive: false });
-  window.addEventListener('touchend', release, { passive: true });
-  window.addEventListener('touchcancel', release, { passive: true });
-};
-
 export const useEdgeSwipe = ({
   blockStandaloneWebApp = false,
   direction,
@@ -58,10 +38,15 @@ export const useEdgeSwipe = ({
     if (!enabled || standaloneBlocked || imageViewerOpen || typeof window === 'undefined') return;
 
     let tracking = false;
+    // Far enough to go back or forward when the finger lifts. The swipe acts on the lift, not
+    // mid-move: a navigation while the finger still moves leaves the rest of the touch to the
+    // browser, which takes it as its own back or forward gesture and steps a second time.
+    let armed = false;
     let startX = 0;
     let startY = 0;
     const reset = () => {
       tracking = false;
+      armed = false;
       startX = 0;
       startY = 0;
     };
@@ -104,23 +89,25 @@ export const useEdgeSwipe = ({
       }
 
       if (distanceX > 8 && driftY <= MAX_VERTICAL_DRIFT) event.preventDefault();
-      if (distanceX < MIN_SWIPE_DISTANCE_X || driftY > MAX_VERTICAL_DRIFT) return;
+      armed = distanceX >= MIN_SWIPE_DISTANCE_X && driftY <= MAX_VERTICAL_DRIFT;
+      if (armed) event[HANDLED_EVENT_FLAG] = true;
+    };
 
-      event[HANDLED_EVENT_FLAG] = true;
+    const handleTouchEnd = () => {
+      const swiped = tracking && armed;
       reset();
-      holdRestOfTouch();
-      onSwipeRef.current();
+      if (swiped) onSwipeRef.current();
     };
 
     window.addEventListener('touchstart', handleTouchStart, { passive: true });
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
-    window.addEventListener('touchend', reset, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
     window.addEventListener('touchcancel', reset, { passive: true });
 
     return () => {
       window.removeEventListener('touchstart', handleTouchStart);
       window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', reset);
+      window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', reset);
     };
   }, [direction, enabled, imageViewerOpen, standaloneBlocked]);

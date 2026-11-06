@@ -75,6 +75,7 @@ describe('useEdgeSwipeBack', () => {
         preventDefault,
         touches: createTouchList([{ clientX: 96, clientY: 24 }]),
       } as unknown as TouchEvent);
+      mockWindow.dispatch('touchend', { touches: createTouchList([]) } as unknown as TouchEvent);
     });
 
     return preventDefault;
@@ -200,6 +201,39 @@ describe('useEdgeSwipeBack', () => {
 
     expect(preventDefault).not.toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('goes back when the finger lifts, not while it still moves, and not when cancelled', () => {
+    const onBack = vi.fn();
+    const store = createStore();
+
+    act(() => {
+      renderer = create(
+        React.createElement(Provider, { store }, React.createElement(HookHarness, { onBack }))
+      );
+    });
+
+    const move = (clientX: number) =>
+      mockWindow.dispatch('touchmove', {
+        preventDefault: vi.fn(),
+        touches: createTouchList([{ clientX, clientY: 24 }]),
+      } as unknown as TouchEvent);
+    act(() => {
+      mockWindow.dispatch('touchstart', {
+        touches: createTouchList([{ clientX: 12, clientY: 20 }]),
+      } as unknown as TouchEvent);
+      move(96);
+      move(180);
+    });
+    expect(onBack).not.toHaveBeenCalled();
+    act(() => {
+      mockWindow.dispatch('touchcancel', {} as unknown as TouchEvent);
+      mockWindow.dispatch('touchend', { touches: createTouchList([]) } as unknown as TouchEvent);
+    });
+    expect(onBack).not.toHaveBeenCalled();
+
+    swipeFromLeftEdge();
+    expect(onBack).toHaveBeenCalledOnce();
   });
 
   it('preserves edge-swipe back in regular iOS Safari tabs', () => {

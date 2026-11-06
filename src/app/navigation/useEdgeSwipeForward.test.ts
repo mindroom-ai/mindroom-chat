@@ -101,6 +101,7 @@ describe('useEdgeSwipeForward', () => {
         preventDefault,
         touches: createTouchList([move]),
       } as unknown as TouchEvent);
+      mockWindow.dispatch('touchend', { touches: createTouchList([]) } as unknown as TouchEvent);
     });
 
     return preventDefault;
