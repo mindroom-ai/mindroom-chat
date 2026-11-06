@@ -38,7 +38,8 @@ const createRoom = () => {
   const threadList = {};
   const room = Object.assign(emitter, {
     roomId: ROOM_ID,
-    getMember: (userId: string) => (userId === AGENT ? { name: 'Code' } : null),
+    getMember: (userId: string) =>
+      userId === AGENT ? { userId, rawDisplayName: 'Code', disambiguate: false } : null,
     threadsTimelineSets: [threadList],
   }) as unknown as Room;
   const receive = (event: MatrixEvent, live = true) =>
