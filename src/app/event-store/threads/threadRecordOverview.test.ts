@@ -8,11 +8,16 @@ import {
   resolveThreadRecordOverviewRootIds,
 } from './threadRecordOverview';
 
+const makeResolvedRecord = (threadRootId: string): ThreadRecord => {
+  const record = makeRecord(threadRootId);
+  return { ...record, status: { ...record.status, isResolved: true } };
+};
+
 describe('pinned announcement ordering', () => {
   it('keeps pins above filtered threads in pin order without duplicates', () => {
     const recordMap = new Map([
-      ['$old', makeRecord('$old')],
-      ['$new', makeRecord('$new')],
+      ['$old', makeResolvedRecord('$old')],
+      ['$new', makeResolvedRecord('$new')],
       ['$normal', makeRecord('$normal')],
     ]);
     const result = resolveThreadRecordOverviewRootIds({
@@ -26,6 +31,51 @@ describe('pinned announcement ordering', () => {
     });
     expect(result.filteredIds).toEqual(['$new', '$old']);
     expect(result.displayOrderedIds).toEqual(['$new', '$old']);
+  });
+
+  it('shows a pin only when the filters and the search keep it, like any other thread', () => {
+    const recordMap = new Map([
+      ['$pinned-open', makeRecord('$pinned-open')],
+      ['$pinned-done', makeResolvedRecord('$pinned-done')],
+      ['$open', makeRecord('$open')],
+      ['$done', makeResolvedRecord('$done')],
+    ]);
+    const resolve = (state: ThreadFilterState, searchQuery = '') =>
+      resolveThreadRecordOverviewRootIds({
+        threadRootIds: ['$open', '$done', '$pinned-done', '$pinned-open'],
+        pinnedThreadRootIds: ['$pinned-open', '$pinned-done'],
+        threadFilterState: state,
+        searchQuery,
+        recordMap,
+        threadSortFreezeState: null,
+        threadSortControlSignature: 'live',
+      });
+
+    // Archived: only the resolved threads, the resolved pin first.
+    const archived = resolve(makeDefaultState({ resolved: 'include' }));
+    expect(archived.filteredIds).toEqual(['$pinned-done', '$done']);
+    expect(archived.liveOrderedIds).toEqual(['$pinned-done', '$done']);
+    expect(archived.displayOrderedIds).toEqual(['$pinned-done', '$done']);
+    // Needs attention: only the unresolved ones.
+    expect(resolve(makeDefaultState({ resolved: 'exclude' })).displayOrderedIds).toEqual([
+      '$pinned-open',
+      '$open',
+    ]);
+    // A filter nothing matches leaves no pin behind.
+    expect(resolve(makeDefaultState({ streaming: 'include' })).displayOrderedIds).toEqual([]);
+    // The search applies to pins too.
+    recordMap.set('$open', {
+      ...makeRecord('$open'),
+      presentation: { ...makeRecord('$open').presentation, rootPreviewText: 'Deploy keys' },
+    });
+    expect(resolve(makeDefaultState(), 'deploy').displayOrderedIds).toEqual(['$open']);
+    // No filter: every pin first, in pin order.
+    expect(resolve(makeDefaultState()).displayOrderedIds).toEqual([
+      '$pinned-open',
+      '$pinned-done',
+      '$open',
+      '$done',
+    ]);
   });
 });
 
