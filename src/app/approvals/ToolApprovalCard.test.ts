@@ -680,6 +680,24 @@ describe('ToolApprovalCard', () => {
     renderer.unmount();
   });
 
+  it('says why a call whose arguments are too large can only be denied', () => {
+    const renderer = renderCard({
+      ...timedPendingApproval,
+      arguments: {},
+      argumentsTruncated: true,
+      approvable: false,
+    });
+    const text = getNodeText(renderer.root);
+
+    expect(text).toContain('The arguments are too large to preview.');
+    expect(text).toContain('The arguments are too large to review, so this request can only be denied.');
+    expect(text).not.toContain('This request cannot be approved here.');
+    expect(text).not.toContain('Show all arguments');
+    expect(findButtonByText(renderer.root, 'Deny')).toBeDefined();
+
+    renderer.unmount();
+  });
+
   it('allows a failed timed response to be retried', async () => {
     sendEventMock
       .mockRejectedValueOnce(new Error('Matrix send failed'))

@@ -218,6 +218,36 @@ describe('parseToolApproval', () => {
     ).toMatchObject({ approvable: false });
   });
 
+  it('drops the backend omission summary from a preview with no room for any argument', () => {
+    const content = {
+      approval_id: 'approval-1',
+      tool_name: 'run_shell_command',
+      agent_name: 'helper',
+      status: 'pending',
+      requested_at: '2026-04-10T12:00:00Z',
+      expires_at: '2026-04-17T12:00:00Z',
+      approvable: false,
+      arguments_truncated: true,
+      arguments: {
+        _summary: '1 arguments omitted because the preview exceeded the size limit.',
+      },
+    };
+    expect(parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, content)).toMatchObject({
+      arguments: {},
+      argumentsTruncated: true,
+      approvable: false,
+    });
+    // A tool's own argument of that name stays when the preview is complete.
+    expect(
+      parseToolApprovalContent(MINDROOM_TOOL_APPROVAL_EVENT, {
+        ...content,
+        approvable: true,
+        arguments_truncated: false,
+        arguments: { _summary: 'short' },
+      })?.arguments
+    ).toEqual({ _summary: 'short' });
+  });
+
   it('prefers m.new_content but falls back to original fields omitted by the edit wrapper', () => {
     const event = makeApprovalEvent({
       approval_id: 'approval-1',
