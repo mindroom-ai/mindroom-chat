@@ -14,7 +14,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { expectRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit } from '../helpers/webkit';
 
 // Compact cards sorted by last reply, newest first, have their live end at the top: a card that
@@ -205,7 +205,7 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
   });
   await page.goto(`/home/${encodeURIComponent(seeded.roomId)}/`);
   // A room with an agent opens in Compact, sorted by last reply, newest first.
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 60_000 });
+  await expectRoomCompact(page, true, 60_000);
   await expect(page.locator(CARDS)).toHaveCount(THREAD_COUNT, { timeout: 60_000 });
   expect((await cardOrder(page))[0], `${label}: the newest thread leads`).toBe(
     seeded.rootIds[THREAD_COUNT - 1]
