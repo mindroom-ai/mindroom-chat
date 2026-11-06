@@ -771,6 +771,46 @@ describe('model mutation acknowledgement', () => {
     expect(h.snapshot().override).toBe('fast');
     expect(h.snapshot('$other').override).toBeNull();
   });
+  it('asks again after a typed !model command is answered, and shows the new selection at once', async () => {
+    const h = setup();
+    await h.discover();
+    expect(h.snapshot().override).toBeNull();
+    const message = (sender: string, body: string, id: string) =>
+      h.mx.emit(
+        ClientEvent.Event,
+        new MatrixEvent({
+          event_id: id,
+          type: 'm.room.message',
+          sender,
+          room_id: h.room.roomId,
+          content: {
+            msgtype: 'm.text',
+            body,
+            'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+          },
+        })
+      );
+    const asked = h.queued.length;
+    message(viewer, '!model fast', '$typed');
+    await flush();
+    expect(h.queued.length).toBe(asked);
+    message(router, '✅ This thread now uses `fast`.', '$answer');
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    h.response(h.request(), { selection: { override: 'fast', inherited: [] } });
+    await flush();
+    expect(h.snapshot().override).toBe('fast');
+    // Another message of the runtime asks nothing more.
+    message(router, 'Something else', '$later');
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    message(viewer, '!model reset', '$typed2');
+    message(router, '✅ Thread model override removed.', '$answer2');
+    await flush();
+    h.response(h.request(), { selection: { override: null, inherited: [] } });
+    await flush();
+    expect(h.snapshot().override).toBeNull();
+  });
   it('refreshes after timeout and prevents older discovery replacing acknowledged selection', async () => {
     const h = setup();
     await h.discover();
