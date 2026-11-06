@@ -23,6 +23,12 @@ test.describe.configure({ timeout: 300_000 });
 const APPROVAL_EVENT = 'io.mindroom.tool_approval';
 const RAN = /^Ran \d+ tool calls?$/;
 
+// APPROVAL_STATES_SHOTS=<directory> saves the states the tests check as screenshots there.
+const shot = async (page: Page, name: string) => {
+  const dir = process.env.APPROVAL_STATES_SHOTS;
+  if (dir) await page.screenshot({ path: `${dir}/${name}.png` });
+};
+
 const waitForApproval = (
   stack: AgentStack,
   rootId: string,
@@ -87,6 +93,7 @@ test('a call denied while its reply waits says denied, not ran', async ({ page, 
     timeout: 30_000,
   });
   await expect(messageRow(page, reply.event_id).getByText(RAN)).toHaveCount(0);
+  await shot(page, 'denied-row');
 });
 
 test('a call the reply stopped waiting for shows as waiting until it is approved, then as ran', async ({
@@ -110,6 +117,7 @@ test('a call the reply stopped waiting for shows as waiting until it is approved
   await expect(toolRowTitle(page, reply.event_id)).toHaveText('1 tool call waiting for approval', {
     timeout: 30_000,
   });
+  await shot(page, 'late-waiting-row');
 
   const dialog = await openReview(page);
   await dialog.getByRole('button', { name: 'Approve once' }).click();
@@ -119,6 +127,7 @@ test('a call the reply stopped waiting for shows as waiting until it is approved
   await expect(toolRowTitle(page, reply.event_id)).toHaveText('Ran 1 tool call', {
     timeout: 30_000,
   });
+  await shot(page, 'late-approved-row');
 });
 
 test('Stop on a reply that waits for approval never says the call ran, and stopping the job clears it', async ({
@@ -156,6 +165,7 @@ test('Stop on a reply that waits for approval never says the call ran, and stopp
     timeout: 30_000,
   });
   await expect(messageRow(page, reply.event_id).getByText(RAN)).toHaveCount(0);
+  await shot(page, 'stop-row');
 
   if (card.content.status === 'pending') {
     // Stopping the job denies its card, and nothing says the agent still waits.
@@ -169,6 +179,7 @@ test('Stop on a reply that waits for approval never says the call ran, and stopp
     await expect(toolRowTitle(page, reply.event_id)).toHaveText('Denied 1 tool call', {
       timeout: 30_000,
     });
+    await shot(page, 'stop-job-stopped');
   }
 });
 
@@ -188,4 +199,5 @@ test('an agent that waits for approval is not shown typing', async ({ page, stac
     await expect(typing).toHaveCount(0);
     await page.waitForTimeout(500);
   }
+  await shot(page, 'typing-while-waiting');
 });
