@@ -16,7 +16,7 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { expectRoomCompact } from '../helpers/roomViewSwitch';
 
 test('following glass appears only while another reader follows the latest message', async ({
   page,
@@ -113,7 +113,7 @@ test('following glass appears only while another reader follows the latest messa
     await page.goto(roomPath);
     await expect.poll(() => new URL(page.url()).pathname).toBe(roomPath);
     await expect(page.getByTestId('room-virtual-inner')).toBeVisible();
-    await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+    await expectRoomCompact(page, false);
     await expect(page.getByText(firstBody, { exact: true })).toBeVisible();
     // Initial catchup may need another 30-second Matrix long-poll cycle.
     await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0, {

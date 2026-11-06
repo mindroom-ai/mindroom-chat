@@ -12,7 +12,7 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
-import { roomViewSwitch } from '../helpers/roomViewSwitch';
+import { expectRoomCompact, toggleRoomView } from '../helpers/roomViewSwitch';
 
 for (const width of [390, 1280]) {
   test(`room controls overlay cards at ${width}px`, async ({ page }, testInfo) => {
@@ -122,7 +122,7 @@ for (const width of [390, 1280]) {
         })
       ).toEqual(['0px', '0px', 'none', 'none']);
       await expect(header).toHaveCSS('backdrop-filter', /^blur\(3px\)/);
-      await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true');
+      await expectRoomCompact(page, true);
       const headerBox = (await header.boundingBox())!;
       const filtersBox = (await filters.boundingBox())!;
       const footerBox = (await footer.boundingBox())!;
@@ -208,10 +208,11 @@ for (const width of [390, 1280]) {
       await sort.click();
       await expect(sort).not.toHaveAttribute('data-sort-direction', previousSort!);
 
-      // The header switch leads from Compact to Threads, which keeps the filter bar.
+      // The view switch (the header's, or a phone's room menu entry) leads from Compact to Threads,
+      // which keeps the filter bar.
       for (const mode of ['threaded']) {
         // eslint-disable-next-line no-await-in-loop
-        await roomViewSwitch(page).click();
+        await toggleRoomView(page);
         const messages = page.getByTestId('room-virtual-inner');
         const messageScroll = messages.locator('xpath=../..');
         // eslint-disable-next-line no-await-in-loop
