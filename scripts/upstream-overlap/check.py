@@ -54,6 +54,15 @@ def git(repo, *args, text=True):
     return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=text, check=True).stdout
 
 
+def forget_calling_repository():
+    """Git exports GIT_DIR (and in a linked worktree more) to the hooks it runs, and with it set `git -C <corpus>`
+    reads the pushing repository instead, whose files then match themselves line for line. Drop git's
+    repository-local variables, so that every command finds its repository from its own path."""
+    names = subprocess.run(["git", "rev-parse", "--local-env-vars"], capture_output=True, text=True, check=True).stdout
+    for name in names.split():
+        os.environ.pop(name, None)
+
+
 def corpus_head(corpus):
     try:
         return git(corpus, "rev-parse", "--all").split()[0]
@@ -349,12 +358,12 @@ def changed_blobs(repo, commits):
     return list(dict.fromkeys(found))
 
 
-def pre_push(corpus, url, lines, repo):
+def pre_push(corpus, url, lines, repo, prefix=""):
     """Check every commit a push adds (scripts/git-hooks/pre-push); returns the exit status, 1 on any finding.
     A blob found clean is remembered under the checker's own hash and the corpus head, so a routine push reads
     the corpus only for files it has not seen."""
     updates = push_updates(lines)
-    main = remote_main(repo, url, repo / os.environ.get("GIT_PREFIX", "")) if updates else None
+    main = remote_main(repo, url, repo / prefix) if updates else None
     if updates and not (main and has_commit(repo, main)):
         print("upstream-overlap: the remote's main is not available here, so every commit behind the pushed tips is checked")
     commits = pushed_commits(repo, updates, main)
@@ -434,11 +443,13 @@ def main():
     ap.add_argument("--out")
     ap.add_argument("--pre-push", metavar="URL", help="check the commits of the pre-push input on stdin (the hook)")
     args = ap.parse_args()
+    prefix = os.environ.get("GIT_PREFIX", "")  # where the push ran, for a relative remote path
+    forget_calling_repository()
     corpus = Path(args.corpus)
     corpus_head(corpus)
     if args.pre_push is not None:
         repo = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
-        sys.exit(pre_push(corpus, args.pre_push, sys.stdin.read().splitlines(), repo))
+        sys.exit(pre_push(corpus, args.pre_push, sys.stdin.read().splitlines(), repo, prefix))
     cset = corpus_lines(corpus)
     generic = generic_lines(cset)
     if args.history:
