@@ -105,4 +105,25 @@ describe('getThreadEventReadUpTo', () => {
     thread.addEvent(message('$newer', 4000, '$root'), false);
     expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
   });
+
+  it('reads a reply through a receipt on the edit that finished it, which the thread lacks', async () => {
+    const { room, thread } = await setupThread();
+    const reply = thread.events.at(-1)!;
+    // After a reload, or on another device: the server bundles the reply's newest edit with it.
+    reply.setUnsigned({
+      'm.relations': { [RelationType.Replace]: { event_id: '$finish', origin_server_ts: 2500 } },
+    } as never);
+    room.addReceipt(receipt(USER_ID, '$finish', 3000, '$root'));
+
+    expect(getThreadEventReadUpTo(thread, USER_ID)).toBe('$reply');
+    expect(getThreadUnread(thread, USER_ID)).toBe(false);
+  });
+
+  it('reads nothing through a receipt on an event that edits no loaded reply', async () => {
+    const { room, thread } = await setupThread();
+    room.addReceipt(receipt(USER_ID, '$unknown-edit', 3000, '$root'));
+
+    expect(getThreadEventReadUpTo(thread, USER_ID)).toBeNull();
+    expect(getThreadUnread(thread, USER_ID)).toBe(true);
+  });
 });

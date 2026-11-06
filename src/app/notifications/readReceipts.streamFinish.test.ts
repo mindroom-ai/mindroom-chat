@@ -1,6 +1,6 @@
 import { MatrixEvent, ReceiptType, RelationType } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
-import { markRoomAndThreadsAsRead, markThreadAsRead } from './readReceipts';
+import { markMainTimelineAsRead, markRoomAndThreadsAsRead, markThreadAsRead } from './readReceipts';
 
 // A streamed reply ends with an edit the server counts as new, so the thread receipt has to reach
 // that edit. The SDK's thread model holds the edits of its replies, marked with the thread's ID.
@@ -54,7 +54,7 @@ const setup = (events: MatrixEvent[], readEventId: string | null = null) => {
     roomId: ROOM_ID,
     findEventById: vi.fn(),
     getEventReadUpTo: vi.fn(() => null),
-    getLiveTimeline: vi.fn(() => ({ getEvents: () => [] })),
+    getLiveTimeline: vi.fn(() => ({ getEvents: (): MatrixEvent[] => [] })),
     getThread: vi.fn(() => thread),
     getThreads: vi.fn(() => [thread]),
   };
@@ -71,10 +71,16 @@ const setup = (events: MatrixEvent[], readEventId: string | null = null) => {
   return mx;
 };
 
-/** The ID of the event the only receipt names. */
+/**
+ * The ID of the event the only receipt names. A thread receipt's event must be of that thread:
+ * the SDK takes the receipt's `thread_id` from it.
+ */
 const receiptTarget = (mx: ReturnType<typeof setup>) => {
   expect(mx.sendReceipt).toHaveBeenCalledTimes(1);
-  return (mx.sendReceipt.mock.calls[0]?.[0] as MatrixEvent).getId();
+  const [event, , body] = mx.sendReceipt.mock.calls[0] as [MatrixEvent, unknown, unknown];
+  if ((body as { thread_id?: string } | undefined)?.thread_id === THREAD_ID)
+    expect(event.threadRootId).toBe(THREAD_ID);
+  return event.getId();
 };
 
 describe('markThreadAsRead, streamed replies', () => {
@@ -155,15 +161,18 @@ describe('markThreadAsRead, a thread model without the reply', () => {
 
   it("fetches the server's newest reply and the edit that finished it", async () => {
     const mx = setup([]);
-    const finish = editIn('$finish', 4, '$answer', 'completed');
+    // As the server lists it: without the thread, and here without the room.
+    const finish = { ...editIn('$finish', 4, '$answer', 'completed').event };
+    delete finish.room_id;
     mx.fetchRelations.mockImplementation(async (...args: unknown[]) => ({
-      chunk: [args[2] === RelationType.Thread ? reply('$answer', 2).event : finish.event],
+      chunk: [args[2] === RelationType.Thread ? reply('$answer', 2).event : finish],
     }));
 
     await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
 
     expect(mx.fetchRelations).toHaveBeenCalledTimes(2);
     expect(receiptTarget(mx)).toBe('$finish');
+    expect((mx.sendReceipt.mock.calls[0]?.[0] as MatrixEvent).getRoomId()).toBe(ROOM_ID);
   });
 
   it('keeps the fetched reply while its newest edit only continues the stream', async () => {
@@ -190,6 +199,47 @@ describe('markThreadAsRead, a thread model without the reply', () => {
   });
 });
 
+/** A reply as the server sends it after its stream: with its newest edit bundled. */
+const replyWithBundledEdit = (status: string) => {
+  const answer = reply('$answer', 2);
+  // Bundled events need not name their room.
+  const bundled = { ...editIn('$finish', 4, '$answer', status).event };
+  delete bundled.room_id;
+  answer.setUnsigned({ 'm.relations': { [RelationType.Replace]: bundled } } as never);
+  return answer;
+};
+
+describe('markThreadAsRead, a thread opened after the stream finished', () => {
+  it('reads the finishing edit the server bundled with the reply', async () => {
+    const mx = setup([replyWithBundledEdit('completed')]);
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(receiptTarget(mx)).toBe('$finish');
+    // The SDK builds the request path from the event's room.
+    expect((mx.sendReceipt.mock.calls[0]?.[0] as MatrixEvent).getRoomId()).toBe(ROOM_ID);
+    expect(mx.sendReceipt.mock.calls[0]?.[2]).toEqual({ thread_id: THREAD_ID });
+  });
+
+  it('reads the finishing edit the SDK applied to the reply', async () => {
+    const answer = reply('$answer', 2);
+    answer.makeReplaced(editIn('$finish', 4, '$answer', 'completed'));
+    const mx = setup([answer]);
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(receiptTarget(mx)).toBe('$finish');
+  });
+
+  it('reads the reply while its bundled edit only continues the stream', async () => {
+    const mx = setup([replyWithBundledEdit('streaming')]);
+
+    await markThreadAsRead(mx as never, ROOM_ID, THREAD_ID, false);
+
+    expect(receiptTarget(mx)).toBe('$answer');
+  });
+});
+
 describe('markRoomAndThreadsAsRead, streamed replies', () => {
   it('reads the room up to the edit that finished a thread reply', async () => {
     const finish = editIn('$finish', 4, '$answer', 'completed');
@@ -198,5 +248,43 @@ describe('markRoomAndThreadsAsRead, streamed replies', () => {
     await markRoomAndThreadsAsRead(mx as never, ROOM_ID, false);
 
     expect(mx.sendReadReceipt).toHaveBeenCalledWith(finish, ReceiptType.Read, true);
+  });
+});
+
+describe('markMainTimelineAsRead, streamed thread replies', () => {
+  it('skips a finishing edit of a thread reply the main timeline does not hold', async () => {
+    const question = message('$question', 1, { msgtype: 'm.text', body: 'Ready?' });
+    // Synced into the main timeline because the client has not loaded the reply it edits.
+    const finish = message('$finish', 4, {
+      msgtype: 'm.text',
+      body: '* Done',
+      'm.new_content': { msgtype: 'm.text', body: 'Done', 'io.mindroom.stream_status': 'completed' },
+      'm.relates_to': { rel_type: RelationType.Replace, event_id: '$unloaded-reply' },
+    });
+    const ownEdit = message('$own-edit', 5, {
+      msgtype: 'm.text',
+      body: '* Ready now?',
+      'm.new_content': { msgtype: 'm.text', body: 'Ready now?' },
+      'm.relates_to': { rel_type: RelationType.Replace, event_id: '$question' },
+    });
+    const mx = setup([]);
+    const room = mx.getRoom();
+    room.getLiveTimeline.mockReturnValue({ getEvents: () => [question, finish] });
+
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+    expect(receiptTarget(mx)).toBe('$question');
+
+    // The same when the reply is there, but in its thread.
+    mx.sendReceipt.mockClear();
+    const answer = reply('$unloaded-reply', 2);
+    room.getLiveTimeline.mockReturnValue({ getEvents: () => [question, answer, finish] });
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+    expect(receiptTarget(mx)).toBe('$question');
+
+    // An edit of a message the main timeline holds is still read.
+    mx.sendReceipt.mockClear();
+    room.getLiveTimeline.mockReturnValue({ getEvents: () => [question, finish, ownEdit] });
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+    expect(receiptTarget(mx)).toBe('$own-edit');
   });
 });

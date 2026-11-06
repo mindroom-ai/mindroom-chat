@@ -30,7 +30,8 @@ import {
 // Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit:
 // - watching the thread: a thread receipt on the finishing edit, accepted by the server, and the
 //   thread stays read, also after a reload;
-// - in another room: no receipt;
+// - in another room: no receipt, until the reader opens the thread and sees the finished reply;
+// - on another device, both threads stay read;
 // - a reply in the main timeline: a main receipt on the finishing edit;
 // - the window without focus: no receipt until the window gets its focus back.
 // Set STREAM_RECEIPT_SHOTS=<directory> to save the thread after each finished reply.
@@ -332,6 +333,14 @@ const elsewhere = async (page: Page, world: World, receipts: SentReceipt[], labe
   await page.waitForTimeout(QUIET_MS);
   expect(receiptsFor(receipts, finishId)).toEqual([]);
   expect(receipts.filter((receipt) => receipt.threadId === rootId)).toEqual([]);
+
+  // Opening the thread later shows the finished reply: now it is read, up to its finishing edit.
+  await navigate(page, threadRoute(world.roomId, rootId));
+  await expect(text(page, finished(label))).toBeVisible({ timeout: 30_000 });
+  await expect
+    .poll(() => receiptsFor(receipts, finishId), { timeout: 15_000 })
+    .toEqual([`${rootId} 200`]);
+  return rootId;
 };
 
 /** (c) A reply in the main timeline finishes while the reader is at its bottom. */
@@ -397,11 +406,44 @@ const check = async (page: Page, world: World, label: string) => {
     timeout: 60_000,
   });
   await focusPage(page);
-  await watchThread(page, world, receipts, `${label} watched`);
+  const watched = await watchThread(page, world, receipts, `${label} watched`);
   await focusPage(page);
-  await elsewhere(page, world, receipts, `${label} elsewhere`);
+  const openedLater = await elsewhere(page, world, receipts, `${label} elsewhere`);
   await mainTimeline(page, world, receipts, `${label} main`);
   await unfocused(page, world, receipts, `${label} unfocused`);
+  return [watched, openedLater];
+};
+
+/**
+ * On another device, whose client loads each reply with its newest edit bundled rather than the
+ * edits themselves, the threads read through their finishing edits stay read.
+ */
+const checkOtherDevice = async (
+  browser: Browser,
+  options: BrowserContextOptions,
+  world: World,
+  rootIds: string[]
+) => {
+  const context = await browser.newContext(options);
+  try {
+    const page = await context.newPage();
+    await loginWithPassword(page, {
+      homeserver: HOMESERVER,
+      username: world.reader.username,
+      password: PASSWORD,
+    });
+    await seedRoomOverviewState({
+      page,
+      roomId: world.roomId,
+      userId: world.reader.userId,
+      viewMode: 'compact',
+      filterState: createDefaultThreadFilterState(),
+    });
+    await page.goto(roomRoute(world.roomId));
+    for (const rootId of rootIds) await expectThreadRead(page, rootId);
+  } finally {
+    await context.close();
+  }
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
@@ -418,7 +460,8 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
         username: world.reader.username,
         password: PASSWORD,
       });
-      await check(page, world, `${engine} ${viewport}`);
+      const readRoots = await check(page, world, `${engine} ${viewport}`);
+      await checkOtherDevice(browser, { ...options, baseURL }, world, readRoots);
     } finally {
       await context.close();
     }
