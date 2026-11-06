@@ -19,10 +19,13 @@ const reachSwitch = async (page: Page): Promise<{ control: Locator; inMenu: bool
     await expect(roomViewSwitch(page)).toBeVisible({ timeout: 60_000 });
     return { control: roomViewSwitch(page), inMenu: false };
   }
-  await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
-  await roomMoreOptions(page).click();
   const entry = page.getByRole('menu').locator('[data-room-view-switch]');
-  await expect(entry).toBeVisible();
+  // A menu opened while the room is still loading may lack the switch: close it and try again.
+  await expect(async () => {
+    if ((await page.getByRole('menu').count()) > 0) await page.keyboard.press('Escape');
+    await roomMoreOptions(page).click({ timeout: 5_000 });
+    await expect(entry).toBeVisible({ timeout: 3_000 });
+  }).toPass({ timeout: 60_000 });
   return { control: entry, inMenu: true };
 };
 
