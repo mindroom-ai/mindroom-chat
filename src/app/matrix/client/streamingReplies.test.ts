@@ -15,6 +15,7 @@ import {
 import { MemoryStore } from 'matrix-js-sdk/lib/store/memory';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildThreadRecord } from '../../event-store/threads/threadRecord';
+import { loadRoomThreads } from '../../event-store/threads/roomThreadList';
 import { restoreCachedRoomThreads } from '../../event-store/sdk/roomTimelineSdk';
 import { startClient } from './clientSyncPolicy';
 import { defined } from '../../../test/utils/defined';
@@ -94,6 +95,13 @@ const settle = async () => {
     });
   }
 };
+/** A check asks the server only after a moment, so the room's thread list can answer first. */
+const afterCheckDelay = async () => {
+  await new Promise((resolve) => {
+    setTimeout(resolve, 2_000);
+  });
+  await settle();
+};
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
@@ -110,6 +118,9 @@ const fixture = () => {
   let batch = 0;
   /** What GET /event/$reply answers: the reply with its newest edit, or an error status. */
   let serverReply: IEvent | number = 404;
+  /** The roots the room's thread list holds, and a gate its pages wait for. */
+  let listedRoots: IEvent[] = [];
+  let listGate: Promise<void> = Promise.resolve();
   const mx = createClient({
     baseUrl: 'https://example.org',
     userId: readerId,
@@ -132,7 +143,10 @@ const fixture = () => {
           waitingSyncs.push(resolve);
         });
       }
-      if (path.endsWith('/threads')) return json({ chunk: [] });
+      if (path.endsWith('/threads')) {
+        await listGate;
+        return json({ chunk: url.searchParams.get('include') === 'all' ? listedRoots : [] });
+      }
       if (path.endsWith(`/event/${replyId}`))
         return typeof serverReply === 'number'
           ? json({ errcode: 'M_NOT_FOUND', error: 'Event not found' }, serverReply)
@@ -183,7 +197,16 @@ const fixture = () => {
   const setServerReply = (value: IEvent | number) => {
     serverReply = value;
   };
-  return { mx, deliver, start, room, card, replyRequests, setServerReply };
+  /** The room's thread list holds `roots`; its pages answer once the returned function is called. */
+  const holdThreadList = (roots: IEvent[]) => {
+    listedRoots = roots;
+    let open!: () => void;
+    listGate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    return open;
+  };
+  return { mx, deliver, start, room, card, replyRequests, setServerReply, holdThreadList };
 };
 
 const threadNamespaces = [
@@ -345,5 +368,85 @@ describe('streaming replies on thread cards', () => {
 
     await f.deliver([edit('The notes list the export fix', now, 'streaming')]);
     expect(f.card().streaming).toBe(true);
+  });
+  describe('while the room’s thread list is read', () => {
+    /** A reload: the cache restores the thread with the summary a mid-stream list read saved. */
+    const reload = async (now: number) => {
+      const f = fixture();
+      await f.start();
+      await f.deliver([chat('$chat-1', now - 10_000)]);
+      restoreCachedRoomThreads(f.room(), [
+        {
+          rootEvent: f.mx.getEventMapper()(withSummary(root(now - 60_000), reply(now - 50_000))),
+        },
+      ]);
+      return f;
+    };
+    const title = (ts: number): IEvent =>
+      message('$title', ts, {
+        msgtype: 'm.notice',
+        body: 'Release notes',
+        'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+      });
+
+    it('lets the list that starts after the card asked answer for the reply', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      const openList = f.holdThreadList([
+        withSummary(
+          root(now - 60_000),
+          withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed'))
+        ),
+      ]);
+      // The card asks as it renders, before the room's list starts reading.
+      expect(f.card().streaming).toBe(false);
+      const listing = loadRoomThreads(f.room());
+      await afterCheckDelay();
+      // The check waits for the list, which is still being read.
+      expect(f.replyRequests()).toBe(0);
+
+      openList();
+      await listing;
+      await settle();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+      await afterCheckDelay();
+      expect(f.replyRequests()).toBe(0);
+    });
+
+    it('asks nothing about a reply whose thread the list shows with a newer event', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      const openList = f.holdThreadList([withSummary(root(now - 60_000), title(now - 15_000), 2)]);
+      expect(f.card().streaming).toBe(false);
+      const listing = loadRoomThreads(f.room());
+      await afterCheckDelay();
+
+      openList();
+      await listing;
+      await settle();
+      expect(f.card().streaming).toBe(false);
+      await afterCheckDelay();
+      expect(f.card().streaming).toBe(false);
+      expect(f.replyRequests()).toBe(0);
+    });
+
+    it('checks a reply the list did not answer once the list is read', async () => {
+      const now = Date.now();
+      const f = await reload(now);
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      const openList = f.holdThreadList([]);
+      expect(f.card().streaming).toBe(false);
+      const listing = loadRoomThreads(f.room());
+      await afterCheckDelay();
+      expect(f.replyRequests()).toBe(0);
+
+      openList();
+      await listing;
+      await settle();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+      expect(f.replyRequests()).toBe(1);
+    });
   });
 });
