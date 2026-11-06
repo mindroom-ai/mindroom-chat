@@ -214,7 +214,8 @@ const newPage = async (
   options: BrowserContextOptions
 ) => {
   const owner = engine === 'webkit' ? await launchWebKit() : browser;
-  const context = await owner.newContext(options);
+  // Without the service worker the page's routes see the sends in WebKit too.
+  const context = await owner.newContext({ ...options, serviceWorkers: 'block' });
   const page = await context.newPage();
   return {
     page,
