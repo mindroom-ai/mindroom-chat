@@ -2,10 +2,16 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { canUseServerThumbnail, loadServerScaledPicture } from './serverThumbnail';
 
-const mocks = vi.hoisted(() => ({ savedMetadata: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  savedMetadata: vi.fn(),
+  savedScaled: vi.fn(),
+  saveScaled: vi.fn(),
+}));
 
 vi.mock('../../event-store/cache/attachmentRepository', () => ({
   getCachedAttachmentCacheMetadata: mocks.savedMetadata,
+  loadCachedScaledPictureBlob: mocks.savedScaled,
+  saveCachedScaledPicture: mocks.saveScaled,
 }));
 
 const HOMESERVER = 'https://matrix.example';
@@ -30,6 +36,8 @@ describe('loadServerScaledPicture', () => {
 
   beforeEach(() => {
     mocks.savedMetadata.mockReset().mockResolvedValue(undefined);
+    mocks.savedScaled.mockReset().mockResolvedValue(undefined);
+    mocks.saveScaled.mockReset().mockResolvedValue(undefined);
     loadOriginal.mockClear();
     blobs = [];
     vi.spyOn(URL, 'createObjectURL').mockImplementation((blob) => {
@@ -69,6 +77,31 @@ describe('loadServerScaledPicture', () => {
       'blob:original'
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('saves the scaled copy for the event revision that shows it', async () => {
+    const owner = { roomId: '!room:example', eventId: '$photo', revisionTs: 1 };
+
+    await loadServerScaledPicture(mx, 'mxc://example/photo', loadOriginal, owner);
+    expect(mocks.saveScaled).toHaveBeenCalledOnce();
+    const [, mxcUri, picture, savedFor] = mocks.saveScaled.mock.calls[0] as [
+      MatrixClient,
+      string,
+      Blob,
+      typeof owner
+    ];
+    expect([mxcUri, picture.type, savedFor]).toEqual(['mxc://example/photo', 'image/png', owner]);
+  });
+
+  it('shows a scaled copy this device saved, without the network', async () => {
+    mocks.savedScaled.mockResolvedValue(new Blob(['saved'], { type: 'image/jpeg' }));
+
+    await expect(loadServerScaledPicture(mx, 'mxc://example/photo', loadOriginal)).resolves.toBe(
+      'blob:scaled'
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.saveScaled).not.toHaveBeenCalled();
+    expect(blobs[0]?.type).toBe('image/jpeg');
   });
 
   it('falls back to the original when the homeserver cannot scale it', async () => {
