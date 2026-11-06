@@ -190,7 +190,7 @@ Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is 
 | Variable | Read by | Effect |
 |---|---|---|
 | `MINDROOM_BUILD_VERSION` | `scripts/build-version.mjs` | Build version in `version.json` and the service worker URL. Otherwise Netlify's `COMMIT_REF`, then `GITHUB_SHA`, then the checked-out Git commit, then Netlify's `DEPLOY_ID`; with none of them the app reports `development-build`. |
-| `MINDROOM_RELEASE_VERSION` | `scripts/build-version.mjs` | Release name shown in Settings > About. Otherwise the nearest Git tag `v<package version>-mindroom.<n>`, else `v<package version>`. |
+| `MINDROOM_RELEASE_VERSION` | `scripts/build-version.mjs` | Release name shown in Settings > About and in `version.json`. Otherwise the nearest release tag `vYYYY.M.N` as `git describe` names it (`v2026.11.3`, or `v2026.11.3-4-g1a2b3c4` four commits later), else `v<package version>`. A build from `git archive` has no tags to describe: pass the name in. iOS builds pass the app's version (`docs/ios-release.md`). |
 | `MINDROOM_COMPUTER_API_URL` | `scripts/ios-client-config.mjs` (`npm run build:ios`) | Written into the iOS bundle's `mindroom.computers.apiUrl`. An empty value leaves it unset, so the app uses the origin the room's agents publish; it does not turn computers off. |
 
 `npm run build:ios` writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it: objects merge key by key, and any other value replaces the base one. The shipped iOS overlay turns canvases and canvas libraries on. The Android build uses `config.mindroom.json` as it is.

@@ -122,17 +122,17 @@ describe('release version from Git', () => {
 
   it('uses the release tag on the checked-out commit', () => {
     createRepository();
-    git('tag', 'v4.12.6-mindroom.180');
+    git('tag', 'v2026.11.0');
 
-    expect(readReleaseVersion({}, repository)).toBe('v4.12.6-mindroom.180');
+    expect(readReleaseVersion({}, repository)).toBe('v2026.11.0');
   });
 
   it('describes commits after the latest release tag like git describe', () => {
     createRepository();
-    git('tag', 'v4.12.6-mindroom.180');
+    git('tag', 'v2026.11.0');
     git('commit', '--quiet', '--allow-empty', '-m', 'next');
 
-    expect(readReleaseVersion({}, repository)).toMatch(/^v4\.12\.6-mindroom\.180-1-g[0-9a-f]{7,}$/);
+    expect(readReleaseVersion({}, repository)).toMatch(/^v2026\.11\.0-1-g[0-9a-f]{7,}$/);
   });
 
   it('ignores release tags for another base version', () => {

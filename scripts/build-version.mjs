@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { RELEASE_TAG_GLOB } from './calver.mjs';
 
 const COMMIT_HASH = /^[0-9a-f]{7,64}$/i;
 
@@ -70,19 +71,16 @@ export const readPackageVersion = (cwd = process.cwd()) =>
   String(JSON.parse(readFileSync(path.join(cwd, 'package.json'), 'utf8')).version);
 
 /**
- * The release of the checkout in `cwd`, like `git describe` over the release tags of the
- * package version (`v<version>-mindroom.<n>`).
+ * The release of the checkout in `cwd`: `git describe` over the calendar version tags
+ * (`vYYYY.M.N`, scripts/calver.mjs), so a commit after `v2026.11.3` reads
+ * `v2026.11.3-4-g1a2b3c4`.
  * @param {Record<string, string | undefined>} env
  * @param {string | undefined} [cwd]
  * @returns {string}
  */
 export const readReleaseVersion = (env, cwd = process.cwd()) => {
-  const packageVersion = readPackageVersion(cwd);
-  const described = git(
-    ['describe', '--tags', '--match', `v${packageVersion}-mindroom.*`, '--abbrev=7'],
-    cwd
-  );
-  return resolveReleaseVersion(env, packageVersion, described);
+  const described = git(['describe', '--tags', '--match', RELEASE_TAG_GLOB, '--abbrev=7'], cwd);
+  return resolveReleaseVersion(env, readPackageVersion(cwd), described);
 };
 
 /**
