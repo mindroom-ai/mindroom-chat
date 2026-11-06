@@ -14,12 +14,12 @@ import { launchWebKit } from '../helpers/webkit';
 // A reader who scrolled away from the newest messages and sends one sees it land: the view
 // follows to it, and once the server has it, the room is read up to it, the messages that came
 // while the reader was away included (no New Messages line above their own). Checked in a room
-// between two people (the Threads view, newest at the bottom) after a colleague wrote twice
-// meanwhile, in an open thread with 60 replies, and in a room with an agent (the Threads view
-// sorted Last Reply, newest first, so newest at the top), among 25 rooms, with classic
-// scrollbars, on a desktop (1280 by 800) and a phone (390 by 844, touch), in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set SEND_FOLLOWS_SHOTS to a
-// directory to save each landing.
+// between two people with 400 messages (the Threads view, newest at the bottom), about 200
+// messages up, after a colleague wrote twice meanwhile; in an open thread with 60 replies; and in
+// a room with an agent (the Threads view sorted Last Reply, newest first, so newest at the top).
+// Among 25 rooms, with classic scrollbars, on a desktop (1280 by 800) and a phone (390 by 844,
+// touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
+// WebKit. Set SEND_FOLLOWS_SHOTS to a directory to save each landing.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'send-follows-own-message-password';
 const RUN = Date.now().toString(36);
@@ -124,13 +124,13 @@ const seed = async (label: string): Promise<Seeded> => {
   });
   await joinRoom(HOMESERVER, colleague.accessToken, peopleRoomId);
   let threadRootId = '';
-  for (let index = 1; index <= 120; index += 1) {
+  for (let index = 1; index <= 400; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     const eventId = await send(index % 2 ? colleague : reader, peopleRoomId, {
       msgtype: 'm.text',
       body: note(index),
     });
-    if (index === 100) threadRootId = eventId;
+    if (index === 380) threadRootId = eventId;
   }
   for (let index = 1; index <= 60; index += 1) {
     // eslint-disable-next-line no-await-in-loop
@@ -178,16 +178,26 @@ const rowShown = (page: Page, text: string) =>
     });
   }, text);
 
-/** Scrolls the open timeline away from where it is, as a reader's wheel does. */
-const scrollAway = async (page: Page, deltaY: number) => {
-  const box = await page.locator('[data-room-footer="true"]').boundingBox();
-  const x = (box?.x ?? 200) + (box?.width ?? 200) / 2;
-  await page.mouse.move(x, 300);
-  for (let step = 0; step < 5; step += 1) {
+/**
+ * Scrolls the open timeline away from where it is, in steps, as a reader does: each step starts
+ * with a wheel event (the reader's gesture), and older history pages in between the steps.
+ */
+const scrollAway = async (page: Page, deltaY: number, steps = 5) => {
+  for (let step = 0; step < steps; step += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await page.mouse.wheel(0, deltaY / 5);
+    await page.evaluate((delta) => {
+      const inner = document.querySelector(
+        '[data-testid="room-virtual-inner"], [data-thread-count]'
+      );
+      let scroller = inner?.parentElement ?? null;
+      while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
+        scroller = scroller.parentElement;
+      }
+      scroller?.dispatchEvent(new WheelEvent('wheel', { deltaY: delta, bubbles: true }));
+      scroller?.scrollBy({ top: delta });
+    }, deltaY);
     // eslint-disable-next-line no-await-in-loop
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(400);
   }
   await page.waitForTimeout(800);
 };
@@ -258,12 +268,13 @@ const checkSends = async (page: Page, seeded: Seeded, label: string, phone: bool
 
   // A room between two people: scrolled up, a colleague writes twice, the reader sends.
   await openRoom(page, PEOPLE_ROOM, phone);
-  await expect(page.getByText('Backlog item 120:').first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Backlog item 400:').first()).toBeVisible({ timeout: 30_000 });
   await page.waitForTimeout(1_500);
-  await scrollAway(page, -1_600);
-  expect(await rowShown(page, 'Backlog item 120:'), 'the reader scrolled away').toBe(false);
-  await send(seeded.colleague, seeded.peopleRoomId, { msgtype: 'm.text', body: note(121) });
-  await send(seeded.colleague, seeded.peopleRoomId, { msgtype: 'm.text', body: note(122) });
+  // About 200 messages up, so the window of rows leaves the live end.
+  await scrollAway(page, -1_500, 12);
+  expect(await rowShown(page, 'Backlog item 400:'), 'the reader scrolled away').toBe(false);
+  await send(seeded.colleague, seeded.peopleRoomId, { msgtype: 'm.text', body: note(401) });
+  await send(seeded.colleague, seeded.peopleRoomId, { msgtype: 'm.text', body: note(402) });
   await page.waitForTimeout(1_000);
   const roomText = `Own note ${RUN} ${label}: I will rerun the import after lunch.`;
   await typeAndSend(page, roomText, phone);
