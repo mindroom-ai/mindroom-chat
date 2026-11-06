@@ -155,6 +155,9 @@ vi.mock('../thread-summary/ThreadSummaryCard', () => ({
 vi.mock('../../approvals/ToolApprovalCard', () => ({
   ToolApprovalCard: () => null,
 }));
+vi.mock('./CallTranscriptCard', () => ({
+  CallTranscriptCard: () => null,
+}));
 vi.mock('../agent-run/StreamingIndicator', () => ({
   renderStreamingIndicator: () => null,
 }));
