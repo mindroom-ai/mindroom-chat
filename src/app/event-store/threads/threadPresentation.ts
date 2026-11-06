@@ -8,11 +8,13 @@ import {
 } from './threadMessagePreview';
 import {
   getThreadSummaryInfosFromEventSources,
+  getThreadSummaryEventInfo,
   isThreadSummaryEvent,
   pickLatestThreadSummaryInfo,
   type ThreadSummaryInfo,
 } from '../../matrix/protocol/threadSummary';
 import { getMemberDisplayName } from '../../matrix/room';
+import { getBundledThreadPreviews, getThreadPreviewRevisionTs } from './threadBundledPreviews';
 import {
   getCompactThreadRootBodyPreviewText,
   pickPreferredThreadRootPreviewText,
@@ -80,6 +82,7 @@ export const resolveThreadRootPreviewText = ({
   });
 
 type ResolveThreadPresentationSnapshotOptions = {
+  fallbackLatestReplyTs?: number;
   fallbackLastSenderDisplayName?: string;
   fallbackLastSenderId?: string;
   fallbackLatestReplyPreviewText?: string;
@@ -107,9 +110,13 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackMessageCount,
   fallbackParticipantIds,
   visibleReplyEvents,
+  fallbackLatestReplyTs,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
+  const bundled = getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
-  const loadedPreviewCandidate = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
+  const loadedPreviewCandidate = getLatestRenderableVisibleThreadReplyEvent(
+    bundled.reply ? replyEvents.filter((event) => !isThreadSummaryEvent(event)) : replyEvents
+  );
   // A title can arrive without its reply timeline. Keep the cached reply preview in that case.
   const loadedPreviewEvent =
     loadedPreviewCandidate &&
@@ -119,17 +126,25 @@ export const resolveThreadPresentationSnapshot = ({
       : loadedPreviewCandidate;
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count.
-  const bundledReply = thread?.replyToEvent;
-  const latestPreviewEvent =
-    !fallbackLatestReplyPreviewText &&
+  const bundledReply = bundled.reply ?? thread?.replyToEvent;
+  const candidatePreviewEvent =
+    (!fallbackLatestReplyPreviewText ||
+      (bundled.reply && fallbackLatestReplyTs !== undefined &&
+        getThreadPreviewRevisionTs(bundled.reply) > fallbackLatestReplyTs)) &&
     bundledReply &&
     !isThreadSummaryEvent(bundledReply) &&
     isVisibleThreadReplyEvent(bundledReply) &&
     getVisibleThreadEventBodyPreviewText(bundledReply) &&
-    (!loadedPreviewEvent || bundledReply.getTs() > loadedPreviewEvent.getTs())
+    (!loadedPreviewEvent || (bundledReply.getId() === loadedPreviewEvent.getId()
+      ? getThreadPreviewRevisionTs(bundledReply) > getThreadPreviewRevisionTs(loadedPreviewEvent)
+      : bundledReply.getTs() > loadedPreviewEvent.getTs()))
       ? bundledReply
       : loadedPreviewEvent;
-  const lastEvent = latestPreviewEvent ?? replyEvents[replyEvents.length - 1];
+  const preferCachedReply = bundled.reply && fallbackLatestReplyPreviewText &&
+    fallbackLatestReplyTs !== undefined && (!candidatePreviewEvent ||
+      fallbackLatestReplyTs > getThreadPreviewRevisionTs(candidatePreviewEvent));
+  const latestPreviewEvent = preferCachedReply ? undefined : candidatePreviewEvent;
+  const lastEvent = preferCachedReply ? undefined : latestPreviewEvent ?? replyEvents[replyEvents.length - 1];
   const lastSenderId =
     lastEvent?.getSender?.() ??
     fallbackLastSenderId ??
@@ -138,7 +153,10 @@ export const resolveThreadPresentationSnapshot = ({
     ? getMemberDisplayName(room, lastSenderId) ?? lastSenderId
     : fallbackLastSenderDisplayName;
   const summaryInfo = resolveThreadSummaryInfo({
-    preferredSummaryInfo,
+    preferredSummaryInfo: pickLatestThreadSummaryInfo(
+      bundled.title ? getThreadSummaryEventInfo(bundled.title) : undefined,
+      preferredSummaryInfo
+    ),
     thread,
   });
   const visibleMessageCount = getVisibleThreadMessageCount(
