@@ -358,6 +358,28 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
   ];
 };
 
+/**
+ * Pills that keep their drawn height inside a 44 px touch target: the model badge (14 px) and
+ * [+all] (18 px). A transparent button paints its pill with the layer behind its text.
+ */
+const grownPills = (page: Page): Promise<string[]> =>
+  page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('button[aria-label]')).flatMap((button) => {
+      const label = button.getAttribute('aria-label') ?? '';
+      let drawn = 0;
+      if (label.startsWith('Model: ')) drawn = 14;
+      else if (/^(Expand|Collapse) all long messages$/.test(label)) drawn = 18;
+      const box = button.getBoundingClientRect();
+      if (!drawn || box.height === 0) return [];
+      const layer = getComputedStyle(button, '::before');
+      const painted =
+        getComputedStyle(button).backgroundColor === 'rgba(0, 0, 0, 0)' && layer.content !== 'none'
+          ? parseFloat(layer.height)
+          : box.height;
+      return painted > drawn + 1 ? [`${label}: ${painted} px pill, not ${drawn} px`] : [];
+    })
+  );
+
 /** Checks one screen in both themes; a screen that does not open fails on its own. */
 const checkScreen = async (page: Page, screen: Screen, engine: string) => {
   try {
@@ -383,6 +405,9 @@ const checkScreen = async (page: Page, screen: Screen, engine: string) => {
     // eslint-disable-next-line no-await-in-loop
     const conflicts = await raisedTouchConflicts(page);
     expect.soft(conflicts, `${where}: no raised layer intersects another interactive element`)
+      .toEqual([]);
+    // eslint-disable-next-line no-await-in-loop
+    expect.soft(await grownPills(page), `${where}: pills keep their size in 44 px targets`)
       .toEqual([]);
     // eslint-disable-next-line no-await-in-loop
     const { checked, misses } = await measureHitAreas(page);
