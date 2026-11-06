@@ -122,10 +122,14 @@ export const SubtitleRow = style({
   '@media': {
     [shortViewport]: { marginTop: 0, flexWrap: 'nowrap', flex: '1 1 0', minWidth: '4rem' },
     // Narrow screens move the tags to their own row, which can leave the
-    // eyebrow row with nothing showing.
+    // eyebrow row with nothing showing: neither the view label nor a status chip. (Asked as
+    // "no child but the tags", a :has() before a sibling combinator made WebKit restyle the
+    // whole page on every DOM change anywhere, on every screen size.)
     '(max-width: 480px)': {
       selectors: {
-        [`${EyebrowRow}:not(:has(> :not(${DesktopOnlyTags}))) + &`]: { marginTop: 0 },
+        [`${EyebrowRow}:not(:has(> ${ViewLabel}, > [data-thread-status-chip])) + &`]: {
+          marginTop: 0,
+        },
       },
     },
   },
