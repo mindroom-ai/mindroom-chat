@@ -278,6 +278,7 @@ const expectNoneStreaming = async (page: Page, streams: Stream[], label: string)
 };
 
 type Watch = {
+  holdLists: () => () => void;
   /** The page's single-event requests for the agents' replies. */
   replyRequests: string[];
   /** The room's /threads requests (`include` and `from`). */
@@ -286,7 +287,21 @@ type Watch = {
 
 /** Counts the requests that matter, and makes /threads pages and single events slow. */
 const watchRequests = async (page: Page, world: World, replyIds: Set<string>): Promise<Watch> => {
-  const watch: Watch = { replyRequests: [], listRequests: [] };
+  let listGate: Promise<void> | undefined;
+  const watch: Watch = {
+    replyRequests: [],
+    listRequests: [],
+    holdLists: () => {
+      let release!: () => void;
+      listGate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      return () => {
+        listGate = undefined;
+        release();
+      };
+    },
+  };
   const roomPath = `/rooms/${world.roomId}/`;
   page.on('request', (request) => {
     const url = new URL(request.url());
@@ -305,6 +320,8 @@ const watchRequests = async (page: Page, world: World, replyIds: Set<string>): P
       return path.includes(roomPath) && (path.endsWith('/threads') || /\/event\/[^/]+$/.test(path));
     },
     async (route) => {
+      if (decodeURIComponent(new URL(route.request().url()).pathname).endsWith('/threads'))
+        await listGate;
       await new Promise((resolve) => {
         setTimeout(resolve, SLOW_MS);
       });
@@ -403,22 +420,31 @@ const check = async (page: Page, world: World, engine: string) => {
       lists: watch.listRequests.length,
       ends: listEnds.count,
     };
-    await openRoom(page, world);
-    for (const stream of streams.slice(0, 8))
-      await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
-    await page.waitForTimeout(2_000);
-    await shot(page, `${engine}-reload-${pass}`);
-    // These older cards stayed outside the viewport while the replies finished. A title notice
-    // is the thread's newest event, so only the card's cached reply preview can show the answer.
-    // Check the actual text on the first scroll into view, before opening any thread.
-    for (const stream of live.slice(0, 4)) {
-      const card = threadCard(page, stream.rootId);
-      const previewBeforeScroll = await card.innerText();
-      await card.scrollIntoViewIfNeeded();
-      await shot(page, `${engine}-${PHONE ? 'phone' : 'desktop'}-${THEME}-${pass}-${stream.index}`);
-      expect
-        .soft(previewBeforeScroll, `${engine} ${pass}: finished reply preview ${stream.index}`)
-        .toContain(`Item ${stream.index} is ready: the notes list the export fix`);
+    const releaseLists = watch.holdLists();
+    try {
+      await openRoom(page, world);
+      for (const stream of streams.slice(0, 8))
+        await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
+      await page.waitForTimeout(2_000);
+      await shot(page, `${engine}-reload-${pass}`);
+      // These older cards stayed outside the viewport while the replies finished. A title notice
+      // is the thread's newest event, so only the card's cached reply preview can show the answer.
+      // Check the actual text on the first scroll into view, before opening any thread.
+      for (const stream of live.slice(0, 4)) {
+        const card = threadCard(page, stream.rootId);
+        await card.scrollIntoViewIfNeeded();
+        await expect
+          .soft(card, `${engine} ${pass}: finished reply preview ${stream.index}`)
+          .toContainText(`Item ${stream.index} is ready: the notes list the export fix`, {
+            timeout: 10_000,
+          });
+        await shot(
+          page,
+          `${engine}-${PHONE ? 'phone' : 'desktop'}-${THEME}-${pass}-${stream.index}`
+        );
+      }
+    } finally {
+      releaseLists();
     }
     await expectWholeList(listEnds, before.ends, `${engine} ${pass} reload`);
     await expectNoneStreaming(page, streams, `${engine} ${pass} reload`);
