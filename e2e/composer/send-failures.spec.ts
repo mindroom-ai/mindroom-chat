@@ -161,6 +161,13 @@ const serverBodies = async (world: World): Promise<string[]> => {
 
 const composerOf = (page: Page): Locator => page.locator('[data-editable-name="RoomInput"]');
 
+/**
+ * Waits until the page shows it is connected again. The connection banner leaves the top of the
+ * page then and everything below it moves up, so a tap aimed before that lands on the wrong row.
+ */
+const expectReconnected = (page: Page) =>
+  expect(page.getByText(/^Connection Lost!/)).toHaveCount(0, { timeout: 30_000 });
+
 /** The composer holds no text (its placeholder is not text the person typed). */
 const expectEmptyComposer = (page: Page) =>
   expect(composerOf(page).locator('[data-slate-string]')).toHaveCount(0);
@@ -372,6 +379,7 @@ const offlineSendsQueueVisibly = async (browser: Browser, layout: Layout, label:
     await shot(page, `${label}-1-offline`);
 
     await context.setOffline(false);
+    await expectReconnected(page);
     await expect
       .poll(async () => (await serverBodies(world)).filter((body) => texts.includes(body)), {
         timeout: 45_000,
@@ -431,6 +439,7 @@ const unsentMessagesStayInTheirRows = async (browser: Browser, layout: Layout, l
     await shot(page, `${label}-1-not-sent`);
 
     await context.setOffline(false);
+    await expectReconnected(page);
     for (const text of texts) {
       const actions = failedActionsOf(rowOf(page, text));
       // eslint-disable-next-line no-await-in-loop
@@ -592,6 +601,7 @@ const offlineReloadKeepsMessage = async (browser: Browser, layout: Layout, label
     expect(await serverBodies(world)).not.toContain(text);
 
     await goOnline();
+    await expectReconnected(page);
     await press(layout, failedActionsOf(rowOf(page, text)).getByRole('button', { name: 'Retry' }));
     await expect
       .poll(async () => (await serverBodies(world)).filter((body) => body === text).length, {
