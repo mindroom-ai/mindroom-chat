@@ -1,4 +1,4 @@
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useCallback, useState } from 'react';
 import { toRem } from 'folds';
 import { PopOut } from '../../ui/directional';
 import type { RectCords } from 'folds';
@@ -6,6 +6,7 @@ import FocusTrap from 'focus-trap-react';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import { MenuGroup } from '../../ui/MenuEntry';
 import { stopPropagation } from '../../lib/keyboard';
+import { useLongPress } from '../../lib/hooks/useLongPress';
 
 type SidebarContextMenuProps = {
   anchor?: RectCords;
@@ -41,14 +42,31 @@ export function SidebarContextMenu({ anchor, onClose, children }: SidebarContext
 }
 
 /**
- * Toggles the menu at the clicked button, instead of the browser's own. A finger's long press,
- * for which Android fires contextmenu, only opens it: the long press itself may have opened it.
+ * The menu of a rail button, opened beside the button: a right-click toggles it, instead of the
+ * browser's own menu, and a finger's long press opens it, since iOS fires no contextmenu for one
+ * (Android's contextmenu for the same press only opens it). `buttonProps` go on the button; while
+ * the menu is open the button looks pressed (`data-menu-open`).
  */
-export const toggleContextMenu =
-  (setAnchor: (update: (current?: RectCords) => RectCords | undefined) => void) =>
-  (event: React.MouseEvent<HTMLElement>) => {
+export function useSidebarContextMenu() {
+  const [anchor, setAnchor] = useState<RectCords>();
+  const longPress = useLongPress(
+    (_x, _y, button) => setAnchor(button.getBoundingClientRect()),
+    () => true
+  );
+  const close = useCallback(() => setAnchor(undefined), []);
+  const onContextMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.preventDefault();
     const cords = event.currentTarget.getBoundingClientRect();
     const finger = (event.nativeEvent as Partial<PointerEvent>).pointerType === 'touch';
     setAnchor((current) => (current && !finger ? undefined : cords));
   };
+  return {
+    anchor,
+    close,
+    buttonProps: {
+      ...longPress,
+      onContextMenu,
+      'data-menu-open': anchor ? 'true' : undefined,
+    },
+  };
+}

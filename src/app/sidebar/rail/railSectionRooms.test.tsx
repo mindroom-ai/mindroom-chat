@@ -47,7 +47,7 @@ vi.mock('../../routes/useNavToActivePath', async () => {
 });
 vi.mock('./SidebarContextMenu', () => ({
   SidebarContextMenu: () => null,
-  toggleContextMenu: () => () => undefined,
+  useSidebarContextMenu: () => ({ anchor: undefined, close: () => undefined, buttonProps: {} }),
 }));
 
 const seededStore = () => {

@@ -1,5 +1,5 @@
-import { type ReactNode, useState } from 'react';
-import { Icon, type IconSrc, type RectCords } from 'folds';
+import { type ReactNode } from 'react';
+import { Icon, type IconSrc } from 'folds';
 import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -14,7 +14,7 @@ import { useNavToActivePathAtom } from '../../routes/useNavToActivePath';
 import { useRoomsUnread } from '../../matrix/state/useUnread';
 import { roomToUnreadAtom } from '../../matrix/state/roomToUnread';
 import { joinPathComponent } from '../../routes/pathUtils';
-import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
+import { SidebarContextMenu, useSidebarContextMenu } from './SidebarContextMenu';
 
 type SectionTabProps = {
   /** The section's key among the last opened paths. */
@@ -27,7 +27,7 @@ type SectionTabProps = {
   selected: boolean;
   /** The rooms its unread badge counts. */
   rooms: string[];
-  /** The right-click menu's entries (Mark as Read for the same rooms); `close` dismisses it. */
+  /** The menu's entries (Mark as Read for the same rooms); `close` dismisses it. */
   menu: (close: () => void) => ReactNode;
   /** Direct messages are personal, so any unread one stands out like a mention. */
   personal?: boolean;
@@ -37,7 +37,7 @@ type SectionTabProps = {
 
 /**
  * A section button of the icon rail (Home, Direct Messages): returns to the last place opened in
- * the section, shows its unread count, and opens its menu on right click.
+ * the section, shows its unread count, and opens its menu on right click or a long press.
  */
 export function SectionTab({
   section,
@@ -50,8 +50,7 @@ export function SectionTab({
   personal,
   onSelect,
 }: SectionTabProps) {
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
-  const closeMenu = () => setMenuAnchor(undefined);
+  const { anchor: menuAnchor, close: closeMenu, buttonProps } = useSidebarContextMenu();
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
   const lastPaths = useAtomValue(useNavToActivePathAtom());
   const sectionUnread = useRoomsUnread(rooms, roomToUnreadAtom);
@@ -74,7 +73,7 @@ export function SectionTab({
             outlined
             aria-label={label}
             onClick={open}
-            onContextMenu={toggleContextMenu(setMenuAnchor)}
+            {...buttonProps}
           >
             <Icon filled={selected} src={icon} />
           </SidebarAvatar>

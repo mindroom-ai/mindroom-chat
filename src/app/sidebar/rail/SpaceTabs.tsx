@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, Icons, Text } from 'folds';
-import type { RectCords } from 'folds';
 import { atom, useAtom, useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -46,14 +45,13 @@ import { getRoomAvatarUrl, isSpace } from '../../matrix/room';
 import { copyToClipboard } from '../../lib/dom';
 import { suppressNextClickDefaultAfterPointerDrag } from '../../lib/sortableDrag';
 import { LongPressTouchSensor } from '../../lib/longPressTouchSensor';
-import { useLongPress } from '../../lib/hooks/useLongPress';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { moveStep } from '../../shortcuts/shortcuts';
 import { getSpacePath, joinPathComponent } from '../../routes/pathUtils';
 import { useSpaceRailRooms } from './spaceRailRooms';
 import { revealRailEntry } from './RailScrollArea';
 import { getSpaceShareLink } from '../space/spaceLink';
-import { SidebarContextMenu, toggleContextMenu } from './SidebarContextMenu';
+import { SidebarContextMenu, useSidebarContextMenu } from './SidebarContextMenu';
 import {
   type SidebarDragItem,
   type SidebarFolder,
@@ -176,21 +174,15 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const { unread, rooms: spaceRooms } = useSpaceRailRooms(roomId);
   const avatarUrl = getRoomAvatarUrl(client, space, 96, useAuthentication);
   const openSpaceSettings = useOpenSpaceSettings();
-  const [menuAnchor, setMenuAnchor] = useState<RectCords>();
+  const { anchor: menuAnchor, close: closeMenu, buttonProps } = useSidebarContextMenu();
   const [inviting, setInviting] = useState(false);
   const sortable = useRailSortable(drag, hint);
 
-  // A finger resting on the space opens its menu beside it, as a right-click does: iOS fires no
-  // contextmenu for a long press. Moving on after it drags the space, which closes the menu.
-  const longPress = useLongPress(
-    (_x, _y, button) => setMenuAnchor(button.getBoundingClientRect()),
-    () => true
-  );
+  // A finger that moves on after the long press that opened the menu drags the space instead.
+  const dragging = sortable.dragging;
   useEffect(() => {
-    if (sortable.dragging) setMenuAnchor(undefined);
-  }, [sortable.dragging]);
-
-  const closeMenu = () => setMenuAnchor(undefined);
+    if (dragging) closeMenu();
+  }, [dragging, closeMenu]);
   const closeThen = (action: () => void) => () => {
     closeMenu();
     action();
@@ -232,8 +224,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
               data-id={roomId}
               onClick={handleClick}
               onKeyDown={moveKeyHandler(onMove)}
-              onContextMenu={toggleContextMenu(setMenuAnchor)}
-              {...longPress}
+              {...buttonProps}
             >
               <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
               <span className={css.HiddenName}>{label}</span>
