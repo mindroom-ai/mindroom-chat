@@ -121,6 +121,7 @@ import { useFooterBottomPin } from './useFooterBottomPin';
 import { useListEndClamp } from './useListEndClamp';
 import { ROOM_TIMELINE_INTERACTIVE_BATCH_SIZE } from '../event-store/cache/preloadSettings';
 import type { ThreadSummaryWriter } from '../event-store/threads/threadSummaryState';
+import { isLocalEchoEventId } from '../event-store/threads/threadRouteUtils';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
   useGestureBottomPins,
@@ -619,15 +620,17 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   // A thread opened at its latest row stays pinned there until the reader scrolls. Both flags
-  // belong to the open view; the render that switches views starts them over. The rows a thread
-  // has in memory or in the cache render before the session starts its open, which then says
-  // whether it opens at its latest row: until then, a thread opened without a target event does,
-  // so its first painted frame is already at the bottom.
+  // belong to the open view; the render that switches views starts them over.
   const openedAtLatestRef = useViewScopedFlag(viewKey);
   const readerScrolledRef = useViewScopedFlag(viewKey);
   const threadLatestOpenPending =
-    !!threadId &&
-    (openedViewKeyRef.current === viewKey ? session.snapshot.open.latestPending : !eventId);
+    !!threadId && session.snapshot.open.latestPending && openedViewKeyRef.current === viewKey;
+  // The rows a thread has in memory or in the cache render before the session starts its open,
+  // which pins a thread opened at its latest row to the bottom: until then they would paint at the
+  // top, the root above the newest replies, and jump. They stay hidden until then; a thread still
+  // being created (a local echo root) has no open to wait for.
+  const hideThreadRowsBeforeOpen =
+    !!threadId && !eventId && !isLocalEchoEventId(threadId) && openedViewKeyRef.current !== viewKey;
   if (threadLatestOpenPending) openedAtLatestRef.current.value = true;
   const threadOpenedAtLatest = !!threadId && openedAtLatestRef.current.value;
   const threadUserScrolled = readerScrolledRef.current.value;
@@ -1527,7 +1530,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
                 style={{
                   position: 'relative',
                   height: listHeight,
-                  visibility: automaticFill.hideInitialRows ? 'hidden' : undefined,
+                  visibility:
+                    automaticFill.hideInitialRows || hideThreadRowsBeforeOpen
+                      ? 'hidden'
+                      : undefined,
                 }}
               >
                 {tiles}
