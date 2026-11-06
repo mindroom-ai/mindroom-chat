@@ -1,5 +1,6 @@
 import { CanvasIndexFeature } from '../canvas/CanvasIndexFeature';
 import { CrossRoomThreadIndexFeature } from '../threads/cross-room/CrossRoomThreadIndexFeature';
+import { ThreadTitlesFeature } from '../threads/summary/ThreadTitlesFeature';
 import { InviteNotifications } from '../notifications/InviteNotifications';
 import {
   NativeIOSPushFeature,
@@ -14,8 +15,8 @@ import { JoinedRoomThreadListsFeature } from '../threads/page/JoinedRoomThreadLi
 import { ErrorReportingClientFeature } from '../bug-reports/error-reporting/errorReporting';
 
 /**
- * Account-wide work without UI: indexes and the joined rooms' thread lists that fill them,
- * invites, message notifications and the count in the page title, push, the emoji room, the bug
+ * Account-wide work without UI: indexes and the joined rooms' thread lists that fill them, the
+ * threads' titles, invites, message notifications and the count in the page title, push, the emoji room, the bug
  * report rooms an administrator joins without accepting their invites, agents' connect links,
  * which open through the Connections portal signed in as this account, and the error reports of
  * sync, decryption and send failures when the deployment collects them. The account's MindRoom
@@ -25,6 +26,7 @@ export function ClientNonUIFeatures() {
   return (
     <>
       <CrossRoomThreadIndexFeature />
+      <ThreadTitlesFeature />
       <JoinedRoomThreadListsFeature />
       <InviteNotifications />
       <MessageNotificationsFeature />
