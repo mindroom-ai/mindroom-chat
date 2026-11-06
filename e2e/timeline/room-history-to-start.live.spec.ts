@@ -15,10 +15,15 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 
 /**
  * Scrolling up through a long room in the Classic view reaches the room's start: every message of
- * the room's timeline (notes and thread roots) shows on the way, in the server's order, with no
- * space between rows and no blank space above them. Checked when the room opens and again after a
- * reload, at desktop size with classic scrollbars and on a touch phone, in Chromium and, when the
- * runner names it, in WebKit. Set ROOM_HISTORY_SHOTS=<directory> to save each view at the start.
+ * the room (notes, thread roots and thread replies) shows on the way, in the server's order, each
+ * edited reply with its edit and each reacted reply with its reaction, with no space between rows
+ * and no blank space above them. Checked when the room opens and again after a reload, at desktop
+ * size with classic scrollbars and on a touch phone, in Chromium and, when the runner names it, in
+ * WebKit. Set ROOM_HISTORY_SHOTS=<directory> to save each view at the start.
+ *
+ * The SDK keeps none of the thread replies a page of room history brings, and the Classic view
+ * showed only replies already loaded into their threads: on the way to the start it showed few
+ * replies of older threads.
  *
  * When a room opens, the client saves its newest 200 events for offline reading, and the next 200
  * on each later visit. This room's newest events end in an agent's streamed thread whose final
@@ -76,8 +81,11 @@ const inThread = (rootId: string, previousId: string) => ({
     'm.in_reply_to': { event_id: previousId },
   },
 });
+/** The start of the text each edited reply shows, by reply. */
+const editedText = new Map<string, string>();
 const editOf = (eventId: string) => {
   const content = answer();
+  editedText.set(eventId, content.body.split('\n')[0]?.slice(0, 60) ?? '');
   return {
     ...content,
     body: `* ${content.body}`,
@@ -94,6 +102,16 @@ const send = async (token: string, roomId: string, content: Record<string, unkno
       { method: 'PUT', accessToken: token, body: JSON.stringify(content) }
     )
   ).event_id;
+
+const REACTION = '\u{1F44D}';
+const react = (token: string, roomId: string, eventId: string) =>
+  matrixFetch(homeserver, `/rooms/${encodeURIComponent(roomId)}/send/m.reaction/${randomUUID()}`, {
+    method: 'PUT',
+    accessToken: token,
+    body: JSON.stringify({
+      'm.relates_to': { rel_type: 'm.annotation', event_id: eventId, key: REACTION },
+    }),
+  });
 
 /** Runs the tasks with at most `limit` at once. */
 const pool = async (tasks: (() => Promise<unknown>)[], limit: number) => {
@@ -116,10 +134,10 @@ type RawEvent = {
   origin_server_ts: number;
   content?: { 'm.relates_to'?: { rel_type?: string } };
 };
-type SentMessage = { id: string; ts: number };
+type SentMessage = { id: string; ts: number; reply: boolean };
 
-/** The room's own messages (no thread replies, no edits), oldest first, as the server orders them. */
-const listRoomMessages = async (token: string, roomId: string): Promise<SentMessage[]> => {
+/** The room's messages and thread replies (no edits), oldest first, as the server orders them. */
+const listMessages = async (token: string, roomId: string): Promise<SentMessage[]> => {
   const messages: SentMessage[] = [];
   let from = '';
   for (;;) {
@@ -133,8 +151,12 @@ const listRoomMessages = async (token: string, roomId: string): Promise<SentMess
     );
     page.chunk.forEach((event) => {
       const relation = event.content?.['m.relates_to']?.rel_type;
-      if (event.type === 'm.room.message' && relation !== 'm.thread' && relation !== 'm.replace')
-        messages.push({ id: event.event_id, ts: event.origin_server_ts });
+      if (event.type === 'm.room.message' && relation !== 'm.replace')
+        messages.push({
+          id: event.event_id,
+          ts: event.origin_server_ts,
+          reply: relation === 'm.thread',
+        });
     });
     if (!page.end || page.chunk.length === 0) break;
     from = page.end;
@@ -146,10 +168,16 @@ type Fixture = {
   username: string;
   userId: string;
   roomId: string;
-  /** The room's own messages, oldest first. */
+  /** The room's messages and thread replies, oldest first. */
   messages: string[];
+  /** The newest message that is not a thread reply. */
+  newest: string;
   /** When each was sent: the order of two sent in the same millisecond is the server's alone. */
   sentAt: number[];
+  /** Each edited reply and the start of the text its edit shows. */
+  edits: [string, string][];
+  /** The replies the person reacted to. */
+  reacted: string[];
 };
 
 const seedAccount = async (): Promise<Fixture> => {
@@ -171,7 +199,9 @@ const seedAccount = async (): Promise<Fixture> => {
   });
   await joinRoom(homeserver, agent.accessToken, roomId);
 
-  // Older history: notes and threads with the agent's edited answers, sent side by side.
+  // Older history: notes and threads with the agent's edited answers, sent side by side. The person
+  // reacts to each thread's first answer.
+  const reacted: string[] = [];
   const thread = async (replies: number) => {
     const rootId = await send(token, roomId, note());
     let previous = rootId;
@@ -183,6 +213,9 @@ const seedAccount = async (): Promise<Fixture> => {
       });
       // eslint-disable-next-line no-await-in-loop
       if (random() < 0.3) await send(agent.accessToken, roomId, editOf(replyId));
+      // eslint-disable-next-line no-await-in-loop
+      if (reply === 0) await react(token, roomId, replyId);
+      if (reply === 0) reacted.push(replyId);
       previous = replyId;
     }
   };
@@ -232,13 +265,16 @@ const seedAccount = async (): Promise<Fixture> => {
     }),
     8
   );
-  const sent = await listRoomMessages(token, roomId);
+  const sent = await listMessages(token, roomId);
   return {
     username,
     userId: person.user_id,
     roomId,
     messages: sent.map(({ id }) => id),
+    newest: sent.filter(({ reply }) => !reply).pop()?.id ?? '',
     sentAt: sent.map(({ ts }) => ts),
+    edits: [...editedText],
+    reacted,
   };
 };
 
@@ -252,8 +288,11 @@ type Rest = {
   atStart: boolean;
 };
 
-/** What the timeline rendered, frame by frame, while the reader scrolled. */
-type Watch = { seen: string[]; outOfOrder: string[][] };
+/**
+ * What the timeline rendered, frame by frame, while the reader scrolled: the messages, those shown
+ * with their edit and those shown with the person's reaction.
+ */
+type Watch = { seen: string[]; outOfOrder: string[][]; edited: string[]; reactedTo: string[] };
 type WatchWindow = Window & { roomHistoryWatch?: Watch & { stop: () => void } };
 
 /** The room timeline's scroll area: the nearest scrolling box around its virtual list. */
@@ -269,17 +308,22 @@ type Scroller = Awaited<ReturnType<typeof findScroller>>;
 
 /**
  * Records, on every frame, the room's messages the timeline renders (the rows in view and those
- * the virtual list keeps ready around them) and any frame whose visible band (between the room
- * header and the composer) shows two of them out of the server's order. A window that skipped
- * rows would never render them; a slow frame rate only skips frames. Two messages sent in the
- * same millisecond may show in either order: the cache orders them by event ID.
+ * the virtual list keeps ready around them), whether an edited reply shows its edit and a reacted
+ * reply its reaction, and any frame whose visible band (between the room header and the composer)
+ * shows two of them out of the server's order. A window that skipped rows would never render
+ * them; a slow frame rate only skips frames. Two messages sent in the same millisecond may show
+ * in either order: the cache orders them by event ID.
  */
 const startWatch = (scroller: Scroller, fixture: Fixture) =>
   scroller.evaluate(
-    (view, { ids, times }) => {
+    (view, { ids, times, edits, reacted, reaction }) => {
       const position = new Map(ids.map((id, index) => [id, index]));
       const sentAt = new Map(ids.map((id, index) => [id, times[index]]));
+      const editText = new Map(edits);
+      const reactedIds = new Set(reacted);
       const seen = new Set<string>();
+      const edited = new Set<string>();
+      const reactedTo = new Set<string>();
       const outOfOrder: string[][] = [];
       let running = true;
       const tick = () => {
@@ -289,9 +333,15 @@ const startWatch = (scroller: Scroller, fixture: Fixture) =>
         const bandTop = box.top + (Number.parseFloat(style.scrollPaddingTop) || 0);
         const bandBottom = box.bottom - (Number.parseFloat(style.scrollPaddingBottom) || 0);
         const rows = Array.from(view.querySelectorAll<HTMLElement>('[data-message-id]')).map(
-          (row) => ({ id: row.dataset.messageId ?? '', rect: row.getBoundingClientRect() })
+          (row) => ({ id: row.dataset.messageId ?? '', row, rect: row.getBoundingClientRect() })
         );
-        rows.forEach(({ id }) => seen.add(id));
+        rows.forEach(({ id, row }) => {
+          seen.add(id);
+          const text = editText.get(id);
+          if (text && !edited.has(id) && row.textContent?.includes(text)) edited.add(id);
+          if (reactedIds.has(id) && !reactedTo.has(id) && row.textContent?.includes(reaction))
+            reactedTo.add(id);
+        });
         const shown = rows
           .filter(
             ({ id, rect }) => position.has(id) && rect.bottom > bandTop && rect.top < bandBottom
@@ -314,19 +364,36 @@ const startWatch = (scroller: Scroller, fixture: Fixture) =>
         get seen() {
           return [...seen];
         },
+        get edited() {
+          return [...edited];
+        },
+        get reactedTo() {
+          return [...reactedTo];
+        },
         outOfOrder,
         stop: () => {
           running = false;
         },
       };
     },
-    { ids: fixture.messages, times: fixture.sentAt }
+    {
+      ids: fixture.messages,
+      times: fixture.sentAt,
+      edits: fixture.edits,
+      reacted: fixture.reacted,
+      reaction: REACTION,
+    }
   );
 
 const readWatch = (page: Page) =>
   page.evaluate((): Watch => {
     const watch = (window as WatchWindow).roomHistoryWatch;
-    return { seen: watch?.seen ?? [], outOfOrder: watch?.outOfOrder ?? [] };
+    return {
+      seen: watch?.seen ?? [],
+      outOfOrder: watch?.outOfOrder ?? [],
+      edited: watch?.edited ?? [],
+      reactedTo: watch?.reactedTo ?? [],
+    };
   });
 
 const readRest = (scroller: Scroller, first: string) =>
@@ -421,8 +488,14 @@ const scrollToStart = async (page: Page, fixture: Fixture, device: Device, label
   const missing = fixture.messages.flatMap((id, index) =>
     rendered.has(id) ? [] : [`${index + 1} of ${fixture.messages.length}: ${id}`]
   );
-  expect(missing, `${label}: room messages never shown on the way to the start`).toEqual([]);
-  expect(watch.outOfOrder, `${label}: room messages out of order`).toEqual([]);
+  expect(missing, `${label}: messages never shown on the way to the start`).toEqual([]);
+  expect(watch.outOfOrder, `${label}: messages out of order`).toEqual([]);
+  const shownEdited = new Set(watch.edited);
+  const withoutEdit = fixture.edits.flatMap(([id]) => (shownEdited.has(id) ? [] : [id]));
+  expect(withoutEdit, `${label}: edited replies never shown with their edit`).toEqual([]);
+  const shownReacted = new Set(watch.reactedTo);
+  const withoutReaction = fixture.reacted.filter((id) => !shownReacted.has(id));
+  expect(withoutReaction, `${label}: reacted replies never shown with the reaction`).toEqual([]);
   const gaps = rests.map((rest) => Math.round(rest.maxGap));
   expect(Math.max(...gaps), `${label}: space between rows at rest`).toBeLessThanOrEqual(
     MAX_ROW_GAP_PX
@@ -465,9 +538,9 @@ const openRoom = async (page: Page, fixture: Fixture) => {
     filterState: createDefaultThreadFilterState(),
   });
   await page.goto(`/home/${encodeURIComponent(fixture.roomId)}`);
-  await expect(
-    page.locator(`[data-message-id="${fixture.messages[fixture.messages.length - 1]}"]`)
-  ).toBeVisible({ timeout: 60_000 });
+  await expect(page.locator(`[data-message-id="${fixture.newest}"]`)).toBeVisible({
+    timeout: 60_000,
+  });
   // The reader scrolls once the visit has saved its page, as anyone does who reads for a moment.
   await expect.poll(offlinePageSaved, { timeout: 60_000 }).toBe(true);
   await page.waitForTimeout(1_000);
@@ -486,9 +559,9 @@ const readToStart = async (
     // The reload opens the room from what the first visit saved; its own visit saves the next
     // page, which starts with an edit whose answer is older than the page too.
     await page.reload();
-    await expect(
-      page.locator(`[data-message-id="${fixture.messages[fixture.messages.length - 1]}"]`)
-    ).toBeVisible({ timeout: 60_000 });
+    await expect(page.locator(`[data-message-id="${fixture.newest}"]`)).toBeVisible({
+      timeout: 60_000,
+    });
     await page.waitForTimeout(2_000);
   }
   await scrollToStart(page, fixture, device, label);
