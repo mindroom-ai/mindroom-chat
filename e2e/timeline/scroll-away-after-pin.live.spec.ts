@@ -130,7 +130,40 @@ const scrollUp = async (page: Page, phone: boolean) => {
   });
 };
 
-type WatchWindow = Window & { awayWatch?: { stop: () => string[] } };
+type WatchWindow = Window & {
+  awayWatch?: { stop: () => string[] };
+  immediateAway?: { top: number; below: number };
+};
+
+/**
+ * Hand the position to the reader in the same task as the next latest-row pin. Ordinary
+ * Playwright round trips can miss the virtualizer's reconciliation window entirely. Only the
+ * browser scroll boundary is wrapped: the app, virtual list, layout and homeserver remain real.
+ */
+const interruptNextPin = async (page: Page, phone: boolean) => {
+  const area = await scrollArea(page);
+  await area.evaluate((node, isPhone) => {
+    const nativeScrollTo = node.scrollTo.bind(node);
+    node.scrollTo = ((...args: Parameters<HTMLElement['scrollTo']>) => {
+      nativeScrollTo(...args);
+      node.scrollTo = nativeScrollTo;
+      queueMicrotask(() => {
+        node.dispatchEvent(
+          isPhone
+            ? new TouchEvent('touchstart', { bubbles: true })
+            : new WheelEvent('wheel', { deltaY: -600, bubbles: true })
+        );
+        nativeScrollTo({ top: node.scrollTop - 600, behavior: 'instant' });
+        // Let every scroll observer see the reader's position before the next animation frame.
+        node.dispatchEvent(new Event('scroll'));
+        (window as WatchWindow).immediateAway = {
+          top: node.scrollTop,
+          below: node.scrollHeight - node.clientHeight - node.scrollTop,
+        };
+      });
+    }) as HTMLElement['scrollTo'];
+  }, phone);
+};
 
 /** Records each frame in which the reader is less than `minBelow` px above the bottom. */
 const watchAway = (page: Page, minBelow: number) =>
@@ -172,16 +205,17 @@ const check = async (page: Page, world: World, viewMode: 'classic' | 'threaded',
   await page.waitForTimeout(1_500);
 
   // A message arrives while the reader is at the bottom: the view goes to it.
+  await interruptNextPin(page, phone);
   const first = `Heads-up for ${label}: the release branch is cut, please hold merges for an hour.`;
   await sendRoomMessage(homeserver, world.colleague.accessToken, world.roomId, {
     msgtype: 'm.text',
     body: first,
   });
-  await expect(page.getByText(first).first()).toBeVisible({ timeout: 20_000 });
-  await page.waitForTimeout(800);
-
-  // The reader scrolls up, away from the newest rows.
-  await scrollUp(page, phone);
+  await expect
+    .poll(() => page.evaluate(() => (window as WatchWindow).immediateAway?.below ?? 0))
+    .toBeGreaterThan(300);
+  const initial = await page.evaluate(() => (window as WatchWindow).immediateAway);
+  expect(initial).toBeDefined();
   await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible({
     timeout: 10_000,
   });
