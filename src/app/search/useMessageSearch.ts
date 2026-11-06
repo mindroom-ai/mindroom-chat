@@ -33,7 +33,10 @@ type MessageSearchParams = {
 export type MessageSearchPage = {
   highlights: string[];
   groups: ResultGroup[];
+  /** The server's total of hits for the search, when it gives one. */
   count?: number;
+  /** Hits of this page left out: older versions of a message, and texts edited away. */
+  hidden: number;
   nextToken?: string;
 };
 
@@ -170,10 +173,12 @@ export const useMessageSearch = ({
       const response = await mx.search({ body, next_batch: pageParam }, signal);
       const roomEvents = response.search_categories.room_events;
       const results = roomEvents.results ?? [];
+      const shown = dropEditedAwayResults(deduplicateResults(results), searchTerm);
       return {
         highlights: roomEvents.highlights ?? [],
-        groups: groupByRoom(dropEditedAwayResults(deduplicateResults(results), searchTerm)),
+        groups: groupByRoom(shown),
         count: roomEvents.count,
+        hidden: results.length - shown.length,
         nextToken: roomEvents.next_batch,
       };
     },

@@ -491,7 +491,13 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "فشل البحث. حاول مرة أخرى."
+        "searchFailed": "فشل البحث. حاول مرة أخرى.",
+        "resultCountFor_zero": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
+        "resultCountFor_one": "نتيجة واحدة (⁨{{count}}⁩) «⁨{{term}}⁩»",
+        "resultCountFor_two": "نتيجتان (⁨{{count}}⁩) «⁨{{term}}⁩»",
+        "resultCountFor_few": "⁨{{count}}⁩ نتائج «⁨{{term}}⁩»",
+        "resultCountFor_many": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»",
+        "resultCountFor_other": "⁨{{count}}⁩ نتيجة «⁨{{term}}⁩»"
       }
     },
     "notifications": {

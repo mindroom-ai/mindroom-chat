@@ -470,7 +470,10 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "A pesquisa falhou. Tente novamente."
+        "searchFailed": "A pesquisa falhou. Tente novamente.",
+        "resultCountFor_one": "{{count}} resultado para “{{term}}”",
+        "resultCountFor_many": "{{count}} de resultados para “{{term}}”",
+        "resultCountFor_other": "{{count}} resultados para “{{term}}”"
       }
     },
     "notifications": {

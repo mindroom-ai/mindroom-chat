@@ -463,7 +463,9 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "Zoeken mislukt. Probeer het opnieuw."
+        "searchFailed": "Zoeken mislukt. Probeer het opnieuw.",
+        "resultCountFor_one": "{{count}} resultaat voor ‘{{term}}’",
+        "resultCountFor_other": "{{count}} resultaten voor ‘{{term}}’"
       }
     },
     "notifications": {

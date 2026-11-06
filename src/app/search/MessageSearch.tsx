@@ -144,7 +144,7 @@ export function MessageSearch({
   const search = useMessageSearch({ term: deferred ? undefined : term, rooms, order });
   const pages = search.data?.pages;
   // Every loaded page contributes its room groups and the terms the server matched.
-  const { groups, rows, highlights, highlightRegex } = useMemo(() => {
+  const { groups, rows, highlights, highlightRegex, shownCount, hiddenCount } = useMemo(() => {
     const loaded = pages ?? [];
     const allGroups = loaded.flatMap((page) => page.groups);
     const matchedTerms = [...new Set(loaded.flatMap((page) => page.highlights))];
@@ -153,6 +153,8 @@ export function MessageSearch({
       rows: flattenMessageSearchRows(allGroups),
       highlights: matchedTerms,
       highlightRegex: makeHighlightRegex(matchedTerms),
+      shownCount: allGroups.reduce((sum, group) => sum + group.items.length, 0),
+      hiddenCount: loaded.reduce((sum, page) => sum + page.hidden, 0),
     };
   }, [pages]);
 
@@ -173,6 +175,12 @@ export function MessageSearch({
   });
 
   const { hasNextPage, isFetchingNextPage, fetchNextPage } = search;
+  // The results there are: those shown once every page is in, else the server's total less
+  // the hits the loaded pages left out.
+  const serverCount = pages?.at(-1)?.count;
+  let total: number | undefined;
+  if (!hasNextPage) total = shownCount;
+  else if (serverCount !== undefined) total = Math.max(serverCount - hiddenCount, shownCount);
   useEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return undefined;
@@ -440,7 +448,9 @@ export function MessageSearch({
         </Box>
         {term && groups.length > 0 && (
           <Text size="T200" priority="300" role="status">
-            {t('mindroomUi.message-search.messageSearch.resultsFor', { term })}
+            {total === undefined
+              ? t('mindroomUi.message-search.messageSearch.resultsFor', { term })
+              : t('mindroomUi.message-search.messageSearch.resultCountFor', { count: total, term })}
           </Text>
         )}
       </Box>

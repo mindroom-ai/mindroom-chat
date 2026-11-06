@@ -463,7 +463,9 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।"
+        "searchFailed": "অনুসন্ধান ব্যর্থ হয়েছে। আবার চেষ্টা করুন।",
+        "resultCountFor_one": "\"{{term}}\" এর জন্য {{count}}টি ফলাফল",
+        "resultCountFor_other": "\"{{term}}\" এর জন্য {{count}}টি ফলাফল"
       }
     },
     "notifications": {

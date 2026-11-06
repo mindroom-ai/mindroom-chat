@@ -456,7 +456,8 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "搜尋失敗，請再試一次。"
+        "searchFailed": "搜尋失敗，請再試一次。",
+        "resultCountFor_other": "「{{term}}」的 {{count}} 筆結果"
       }
     },
     "notifications": {

@@ -477,7 +477,11 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "Поиск не удался. Повторите попытку."
+        "searchFailed": "Поиск не удался. Повторите попытку.",
+        "resultCountFor_one": "{{count}} результат для «{{term}}»",
+        "resultCountFor_few": "{{count}} результата для «{{term}}»",
+        "resultCountFor_many": "{{count}} результатов для «{{term}}»",
+        "resultCountFor_other": "{{count}} результата для «{{term}}»"
       }
     },
     "notifications": {

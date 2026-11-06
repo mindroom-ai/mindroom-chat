@@ -463,7 +463,9 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "खोज विफल रही। फिर से कोशिश करें।"
+        "searchFailed": "खोज विफल रही। फिर से कोशिश करें।",
+        "resultCountFor_one": "\"{{term}}\" के लिए {{count}} परिणाम",
+        "resultCountFor_other": "\"{{term}}\" के लिए {{count}} परिणाम"
       }
     },
     "notifications": {

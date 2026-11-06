@@ -456,7 +456,8 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "Pencarian gagal. Coba lagi."
+        "searchFailed": "Pencarian gagal. Coba lagi.",
+        "resultCountFor_other": "{{count}} hasil untuk “{{term}}”"
       }
     },
     "notifications": {

@@ -463,7 +463,9 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "Arama başarısız oldu. Tekrar deneyin."
+        "searchFailed": "Arama başarısız oldu. Tekrar deneyin.",
+        "resultCountFor_one": "“{{term}}” için {{count}} sonuç",
+        "resultCountFor_other": "“{{term}}” için {{count}} sonuç"
       }
     },
     "notifications": {

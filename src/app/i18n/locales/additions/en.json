@@ -463,7 +463,9 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "Search failed. Try again."
+        "searchFailed": "Search failed. Try again.",
+        "resultCountFor_one": "{{count}} result for “{{term}}”",
+        "resultCountFor_other": "{{count}} results for “{{term}}”"
       }
     },
     "notifications": {

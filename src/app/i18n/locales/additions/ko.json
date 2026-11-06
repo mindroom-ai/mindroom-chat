@@ -456,7 +456,8 @@
     },
     "message-search": {
       "messageSearch": {
-        "searchFailed": "검색하지 못했습니다. 다시 시도하세요."
+        "searchFailed": "검색하지 못했습니다. 다시 시도하세요.",
+        "resultCountFor_other": "“{{term}}” 검색 결과 {{count}}개"
       }
     },
     "notifications": {
