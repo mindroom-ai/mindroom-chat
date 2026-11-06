@@ -15,7 +15,7 @@ import type { CryptoBackend } from 'matrix-js-sdk/lib/common-crypto/CryptoBacken
 import { MessageEvent, MsgType, RoomType, StateEvent } from './types/room';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { copyResolvedEditMetadata } from './protocol/editMetadata';
-import { isUsableEdit } from './protocol/untrustedContent';
+import { getAppliedEdit, isUsableEdit } from './protocol/untrustedContent';
 import { MINDROOM_TOOL_APPROVAL_EVENT } from './protocol/toolApproval';
 import { isRecord } from '../lib/isRecord';
 import { mxcUrlToHttp } from './mediaUrl';
@@ -193,7 +193,7 @@ const getEditCandidates = (
   serializedReplacementCandidate?: MatrixEvent
 ): MatrixEvent[] =>
   [
-    mEvent.replacingEvent() ?? undefined,
+    getAppliedEdit(mEvent) ?? undefined,
     ...getRelationEdits(eventId, mEvent, timelineSet),
     serializedReplacementCandidate ?? getShallowSerializedReplacementEvent(mEvent),
   ].filter(

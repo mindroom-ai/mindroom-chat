@@ -1,6 +1,7 @@
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
+  getAppliedEdit,
   installEventContentGuard,
   isTrustedAgentSender,
   sanitizeContent,
@@ -118,6 +119,8 @@ describe('installEventContentGuard', () => {
       expect(edit.getContent()['m.new_content']).toBeUndefined();
       // Nothing shows the message as edited.
       expect(target.replacingEvent()).toBeNull();
+      // The SDK's applied edit stays known, for the note on an edit that could not be decrypted.
+      expect(getAppliedEdit(target)).toBe(edit);
     }
   });
 

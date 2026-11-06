@@ -152,6 +152,17 @@ const memo = (
 const wireCache = new WeakMap<MatrixEvent, Sanitized>();
 const originalCache = new WeakMap<MatrixEvent, Sanitized>();
 let installed = false;
+let sdkReplacingEvent: ((this: MatrixEvent) => MatrixEvent | null) | undefined;
+
+/**
+ * The edit the SDK applied to `event`, usable or not. Once the guard is installed,
+ * `replacingEvent()` answers only a usable one; an edit that could not be decrypted is still
+ * worth knowing about, to say that a newer version exists.
+ */
+export const getAppliedEdit = (event: MatrixEvent): MatrixEvent | null =>
+  sdkReplacingEvent && event.replacingEvent === MatrixEvent.prototype.replacingEvent
+    ? sdkReplacingEvent.call(event)
+    : event.replacingEvent();
 
 /**
  * Checks the shape of every event's content where the app reads it out of the SDK's events: the
@@ -168,7 +179,8 @@ export const installEventContentGuard = (): void => {
   const sdkGetWireContent = proto.getWireContent;
   const sdkGetOriginalContent = proto.getOriginalContent;
   const sdkGetContent = proto.getContent;
-  const sdkReplacingEvent = proto.replacingEvent;
+  const sdkReplacing = proto.replacingEvent;
+  sdkReplacingEvent = sdkReplacing;
 
   proto.getWireContent = function getWireContent(this: MatrixEvent): IContent {
     const content: unknown = sdkGetWireContent.call(this);
@@ -190,12 +202,12 @@ export const installEventContentGuard = (): void => {
 
   // An edit without usable content is no edit: the message shows as it was, without "(edited)".
   proto.replacingEvent = function replacingEvent(this: MatrixEvent): MatrixEvent | null {
-    const replacement = sdkReplacingEvent.call(this);
+    const replacement = sdkReplacing.call(this);
     return replacement && isUsableEdit(replacement) ? replacement : null;
   };
 
   proto.getContent = function getContent<T extends IContent = IContent>(this: MatrixEvent): T {
-    const replacement = sdkReplacingEvent.call(this);
+    const replacement = sdkReplacing.call(this);
     if (replacement && !this.isRedacted() && !isUsableEdit(replacement)) {
       return this.getOriginalContent<T>();
     }
