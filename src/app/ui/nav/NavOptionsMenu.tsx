@@ -4,6 +4,7 @@ import FocusTrap from 'focus-trap-react';
 import { PopOut } from '../directional';
 import { Menu } from '../glass/GlassPrimitives';
 import { stopPropagation } from '../../lib/keyboard';
+import { LoneTouchTarget } from '../styles/TouchTarget.css';
 
 type NavOptionsMenuProps = {
   /** The button's name; its own, so it is not taken for a room's More Options button. */
@@ -41,7 +42,12 @@ export function NavOptionsMenu({ label, width = 160, children }: NavOptionsMenuP
 
   return (
     <>
-      <IconButton variant="Background" aria-label={label} onClick={open}>
+      <IconButton
+        variant="Background"
+        className={LoneTouchTarget}
+        aria-label={label}
+        onClick={open}
+      >
         <Icon size="200" src={Icons.VerticalDots} />
       </IconButton>
       <PopOut anchor={anchor} position="Bottom" align="End" offset={6} content={menu} />

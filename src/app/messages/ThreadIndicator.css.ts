@@ -1,37 +1,44 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 /** Items in a row, centered on the text line. */
 const inlineRow = { display: 'inline-flex', alignItems: 'center' } as const;
 
-/** The "N replies" chip under a message that starts a thread, and the composer's thread label. */
-export const ThreadIndicator = style({
-  ...inlineRow,
-  alignSelf: 'flex-start',
-  gap: config.space.S100,
-  minWidth: 0,
-  maxWidth: '100%',
-  padding: `${toRem(2)} ${config.space.S200}`,
-  borderRadius: config.radii.R300,
-  border: `solid ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
-  background: color.SurfaceVariant.Container,
-  color: color.SurfaceVariant.OnContainer,
-  font: 'inherit',
-  textAlign: 'start',
-  selectors: {
-    'button&': { cursor: 'pointer' },
-    'button&:hover, button&:focus-visible': {
-      background: color.SurfaceVariant.ContainerHover,
-    },
-    'button&:focus-visible': {
-      outline: `${config.borderWidth.B400} solid ${color.Primary.Main}`,
-      outlineOffset: toRem(1),
-    },
-    'button&:active': {
-      background: color.SurfaceVariant.ContainerActive,
+/**
+ * The "N replies" chip under a message that starts a thread, and the composer's thread label.
+ * To a finger the chip is 44 px tall.
+ */
+export const ThreadIndicator = style([
+  touchTarget('22px'),
+  {
+    ...inlineRow,
+    alignSelf: 'flex-start',
+    gap: config.space.S100,
+    minWidth: 0,
+    maxWidth: '100%',
+    padding: `${toRem(2)} ${config.space.S200}`,
+    borderRadius: config.radii.R300,
+    border: `solid ${config.borderWidth.B300} ${color.SurfaceVariant.ContainerLine}`,
+    background: color.SurfaceVariant.Container,
+    color: color.SurfaceVariant.OnContainer,
+    font: 'inherit',
+    textAlign: 'start',
+    selectors: {
+      'button&': { cursor: 'pointer' },
+      'button&:hover, button&:focus-visible': {
+        background: color.SurfaceVariant.ContainerHover,
+      },
+      'button&:focus-visible': {
+        outline: `${config.borderWidth.B400} solid ${color.Primary.Main}`,
+        outlineOffset: toRem(1),
+      },
+      'button&:active': {
+        background: color.SurfaceVariant.ContainerActive,
+      },
     },
   },
-});
+]);
 
 /** A resolved thread's chip takes the success tint and steps back a little. */
 export const ThreadIndicatorResolved = style({

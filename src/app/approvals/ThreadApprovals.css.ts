@@ -2,6 +2,7 @@ import { style, globalStyle, keyframes } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import { glassFloating, glassSurface } from '../ui/styles/Glass.css';
 import * as disclosure from '../ui/styles/MessageDisclosure.css';
+import { globalTouchTarget, touchTarget } from '../ui/styles/touchTarget';
 
 export const Bar = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
@@ -148,6 +149,9 @@ export const Group = style([
   },
 ]);
 export const Actions = style({ display: 'flex', flexWrap: 'wrap', gap: 8 });
+// To a finger each button is 44 px wide where the row allows, and reaches 5 px up and down,
+// halfway to the controls above and below it.
+globalTouchTarget(`${Actions} > button`, '4px', { blockReach: '5px' });
 
 export const Call = style({
   display: 'flex',
@@ -254,8 +258,21 @@ export const Segmented = style({
   border: `${config.borderWidth.B300} solid ${color.Surface.ContainerLine}`,
   borderRadius: '8px',
   overflow: 'hidden',
+  // A finger's hit areas reach out of the group, so the end segments round themselves instead.
+  '@media': { '(pointer: coarse)': { overflow: 'visible' } },
 });
-export const Segment = style({
+globalStyle(`${Segmented} > :first-child`, {
+  borderStartStartRadius: '7px',
+  borderEndStartRadius: '7px',
+});
+globalStyle(`${Segmented} > :last-child`, {
+  borderStartEndRadius: '7px',
+  borderEndEndRadius: '7px',
+});
+export const Segment = style([
+  // Segments touch, so a finger's area only reaches up and down, to 44 px, over the text below.
+  touchTarget('0px', '', { raise: true }),
+  {
   border: 0,
   padding: '5px 11px',
   backgroundColor: color.Surface.Container,
@@ -275,7 +292,8 @@ export const Segment = style({
     '&:focus-visible': { outline: `2px solid ${color.Primary.Main}`, outlineOffset: -2 },
     '&:disabled': { cursor: 'not-allowed', opacity: config.opacity.Disabled },
   },
-});
+  },
+]);
 export const SingleCall = style({ display: 'flex', flexDirection: 'column', gap: 10 });
 export const CallsToggle = style({ alignSelf: 'flex-start' });
 export const DenyRow = style({

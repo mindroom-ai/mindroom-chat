@@ -2,6 +2,7 @@ import { ReactNode, forwardRef, useId, useLayoutEffect, useRef } from 'react';
 import { Box, Text } from 'folds';
 import { SettingScopeLabel } from './settings/SettingScopeLabel';
 import { ScopeLine } from './settings/scopeLabel.css';
+import * as css from './SettingTile.css';
 
 type SettingTileProps = {
   title?: ReactNode;
@@ -20,16 +21,15 @@ type SettingTileProps = {
 };
 
 /** A leading or trailing slot that keeps its content at natural size; empty slots vanish. */
-const FixedSlot = forwardRef<HTMLDivElement, { children?: ReactNode }>(function FixedSlot(
-  { children },
-  ref
-) {
-  return children ? (
-    <Box shrink="No" ref={ref}>
-      {children}
-    </Box>
-  ) : null;
-});
+const FixedSlot = forwardRef<HTMLDivElement, { children?: ReactNode; className?: string }>(
+  function FixedSlot({ children, className }, ref) {
+    return children ? (
+      <Box shrink="No" ref={ref} className={className}>
+        {children}
+      </Box>
+    ) : null;
+  }
+);
 
 /** Switches and checkboxes show no text of their own; the tile's title is their name. */
 const UNNAMED_TOGGLE = [
@@ -82,7 +82,9 @@ export function SettingTile(props: SettingTileProps) {
         {descriptionLine}
         {children}
       </Box>
-      <FixedSlot ref={afterRef}>{after}</FixedSlot>
+      <FixedSlot ref={afterRef} className={css.After}>
+        {after}
+      </FixedSlot>
     </Box>
   );
 }

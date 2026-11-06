@@ -38,6 +38,7 @@ import { useOpenSpaceSettings } from '../../navigation/useSpaceSettingsState';
 import { mxcUrlToHttp } from '../../matrix/matrix';
 import { nameInitials } from '../../lib/common';
 import { MenuEntry } from '../../ui/MenuEntry';
+import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
 type LobbyHeaderProps = {
   powerLevels: IPowerLevels;
@@ -170,6 +171,7 @@ export function LobbyHeader({
           {(triggerRef) => (
             <IconButton
               ref={triggerRef}
+              className={LoneTouchTarget}
               aria-label={membersLabel}
               aria-pressed={membersOpen}
               onClick={() => setMembersOpen(!membersOpen)}
@@ -236,6 +238,7 @@ export function LobbyHeader({
           }
         >
           <IconButton
+            className={LoneTouchTarget}
             onClick={(event: React.MouseEvent<HTMLButtonElement>) =>
               setMenuAnchor(event.currentTarget.getBoundingClientRect())
             }

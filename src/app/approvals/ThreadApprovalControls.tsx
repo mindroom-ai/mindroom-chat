@@ -45,6 +45,7 @@ import {
   ApprovalSectionHeader,
 } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
+import { LoneTouchTarget } from '../ui/styles/TouchTarget.css';
 
 export function ApprovalDialog({
   title,
@@ -105,6 +106,7 @@ export function ApprovalDialog({
                   </Box>
                   <IconButton
                     size="300"
+                    className={LoneTouchTarget}
                     aria-label={t('mindroomUi.messages.threadApprovalControls.close')}
                     onClick={onClose}
                   >

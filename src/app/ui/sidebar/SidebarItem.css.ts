@@ -153,6 +153,19 @@ export const SidebarAvatar = recipe({
             [pressed]: { scale: 'none' },
           },
         },
+        // A finger gets 44 px: a layer 1 px larger on every side. It is laid out from the
+        // entry, which is the button's size, so the button's own clipping (round avatars)
+        // leaves it alone; a raised button, which is positioned, stops clipping instead.
+        '(pointer: coarse)': {
+          selectors: {
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              insetBlock: `min(0px, calc((100% - ${toRem(44)}) / 2))`,
+              insetInline: `min(0px, calc((100% - ${toRem(44)}) / 2))`,
+            },
+          },
+        },
       },
       selectors: {
         // Doubled to outrank the glass material's `button&` transition, which only names `scale`
@@ -191,6 +204,7 @@ export const SidebarAvatar = recipe({
     outlined: {
       true: {
         position: 'relative',
+        '@media': { '(pointer: coarse)': { overflow: 'visible' } },
         color: color.Secondary.OnContainer,
         selectors: {
           '&&&': {

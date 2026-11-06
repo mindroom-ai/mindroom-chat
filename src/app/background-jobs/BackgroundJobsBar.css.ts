@@ -1,6 +1,7 @@
 import { style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import * as approvals from '../approvals/ThreadApprovals.css';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 // The bar's place in the footer. Given a fixed height while the jobs are listed, it lets the bar
 // grow upward over the timeline instead of growing the footer.
@@ -57,6 +58,16 @@ export const Toggle = style({
     // As tall as the bar to a finger, without growing the line; on a phone it is the way to the Stops.
     '&::after': { content: '""', position: 'absolute', inset: `calc(-1 * ${config.space.S200}) 0` },
   },
+  // A finger gets 44 px.
+  '@media': {
+    '(pointer: coarse)': {
+      selectors: {
+        '&::after': {
+          insetBlock: `min(calc(-1 * ${config.space.S200}), calc((100% - 44px) / 2))`,
+        },
+      },
+    },
+  },
 });
 
 export const Chevron = style({
@@ -98,11 +109,16 @@ export const Muted = style({ minWidth: 0, opacity: config.opacity.P300 });
 // "Stopping…" in a Stop's place ends where the Stop's text does, inside the button's padding.
 export const Stopping = style([Muted, { flexShrink: 0, paddingInlineEnd: config.space.S300 }]);
 
-// Without fills, Stop keeps an edge in forced colors, as the glass controls do.
-export const Plain = style({
-  '@media': {
-    '(forced-colors: active)': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
+// Without fills, Stop keeps an edge in forced colors, as the glass controls do. To a finger it is
+// 44 px, and in the list of jobs as tall as its 40 px row.
+export const Plain = style([
+  touchTarget('22px'),
+  touchTarget('22px', `${Job} `, { blockReach: '8px' }),
+  {
+    '@media': {
+      '(forced-colors: active)': { outline: '1px solid CanvasText', outlineOffset: '-1px' },
+    },
   },
-});
+]);
 
 export const Alert = style({ gridArea: 'alert', paddingBlock: config.space.S100 });

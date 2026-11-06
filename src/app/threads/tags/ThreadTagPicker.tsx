@@ -6,6 +6,7 @@ import { PopOut } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { isValidTagName, normalizeTagName } from '../../event-store/threads/threadTags';
 import * as css from '../ThreadContextBanner.css';
+import * as tagCss from './ThreadTagPicker.css';
 
 type ThreadTagPickerProps = {
   /** Tags used elsewhere in the room, offered as suggestions. */
@@ -78,6 +79,7 @@ export function ThreadTagPicker({ availableTags, onAddTag, disabled }: ThreadTag
       <button
         type="button"
         style={addButtonStyle}
+        className={tagCss.AddTag}
         aria-label={t('mindroomUi.threads.threadTagPicker.addTag')}
         aria-haspopup="menu"
         aria-expanded={!!anchor}

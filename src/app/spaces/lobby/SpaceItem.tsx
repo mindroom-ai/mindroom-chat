@@ -25,6 +25,7 @@ import { AddExistingModal } from '../AddExistingModal';
 import { useDraggableItem } from './DnD';
 import * as css from './SpaceItem.css';
 import * as styleCss from './style.css';
+import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
 /** How the heading is shown and what it offers: joined or not, collapsing, adding children. */
 type SpaceItemHeadingProps = {
@@ -109,6 +110,7 @@ function AddChoiceChip({ label, choices, compact = false }: AddChoiceChipProps) 
       <Chip
         variant="SurfaceVariant"
         radii="Pill"
+        className={LoneTouchTarget}
         aria-haspopup="menu"
         aria-expanded={!!anchor}
         aria-label={compact ? label : undefined}

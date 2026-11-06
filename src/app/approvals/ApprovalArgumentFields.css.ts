@@ -1,5 +1,6 @@
 import { style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 // Argument rows sit inside an approval or tool surface, which owns the glass.
 export const Fields = style({
@@ -52,9 +53,11 @@ export const Code = style({
   overflowWrap: 'anywhere',
 });
 
-export const Toggle = style({
-  alignSelf: 'flex-start',
-});
+// To a finger it reaches 5 px up and down, halfway to the decision buttons below it.
+export const Toggle = style([
+  { alignSelf: 'flex-start' },
+  touchTarget('22px', '', { blockReach: '5px' }),
+]);
 
 export const Count = style({
   opacity: config.opacity.P400,

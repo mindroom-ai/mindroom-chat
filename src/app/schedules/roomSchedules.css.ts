@@ -1,14 +1,14 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { glassDenseOverBackdrop } from '../ui/styles/Glass.css';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 // A solid border line of the given width and color.
 const solid = (width: string, lineColor: string) => `${width} solid ${lineColor}`;
 
-// The room header's schedules button; the count sits on its corner.
-export const Trigger = style({
-  position: 'relative',
-});
+// The room header's schedules button; the count sits on its corner. 40 px with 4 px to the next
+// button, so 44 by 44 px to a finger.
+export const Trigger = style([{ position: 'relative' }, touchTarget('2px')]);
 
 export const Count = style({
   position: 'absolute',

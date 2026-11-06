@@ -9,6 +9,7 @@ import {
   type CodeTokenColors,
   type CodeTokenRole,
 } from '../theme/codeTokenPalette';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 // Styles for message HTML (`org.matrix.custom.html`) as the custom HTML parser renders it.
 
@@ -100,6 +101,8 @@ export const CodeBlock = style({
   border: `${config.borderWidth.B300} solid ${color.SurfaceVariant.ContainerLine}`,
   borderRadius: config.radii.R400,
   whiteSpace: 'normal',
+  // The header's buttons reach past the block for a finger; the body rounds its own corners.
+  '@media': { '(pointer: coarse)': { overflow: 'visible' } },
 });
 
 /** A code block inside a message bubble, which has its own padding. */
@@ -143,33 +146,41 @@ export const CodeBlockActions = style({
   flex: 'none',
 });
 
-/** An icon-only toolbar button; a pressed toggle (wrap) keeps the hover tint. */
-export const CodeBlockAction = style({
-  display: 'inline-grid',
-  placeItems: 'center',
-  padding: config.space.S100,
-  border: 0,
-  borderRadius: CHIP_RADIUS,
-  backgroundColor: 'transparent',
-  color: 'inherit',
-  opacity: 0.7,
-  cursor: 'pointer',
-  selectors: {
-    '&:hover, &[aria-pressed="true"]': {
-      opacity: 1,
-      backgroundColor: color.SurfaceVariant.ContainerHover,
-    },
-    '&:focus-visible': {
-      opacity: 1,
-      outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
+/**
+ * An icon-only toolbar button; a pressed toggle (wrap) keeps the hover tint. To a finger it is
+ * 44 px tall and reaches 1 px into the 2 px gap to the next.
+ */
+export const CodeBlockAction = style([
+  touchTarget('1px'),
+  {
+    display: 'inline-grid',
+    placeItems: 'center',
+    padding: config.space.S100,
+    border: 0,
+    borderRadius: CHIP_RADIUS,
+    backgroundColor: 'transparent',
+    color: 'inherit',
+    opacity: 0.7,
+    cursor: 'pointer',
+    selectors: {
+      '&:hover, &[aria-pressed="true"]': {
+        opacity: 1,
+        backgroundColor: color.SurfaceVariant.ContainerHover,
+      },
+      '&:focus-visible': {
+        opacity: 1,
+        outline: `${config.borderWidth.B600} solid ${color.Other.FocusRing}`,
+      },
     },
   },
-});
+]);
 
 export const CodeBlockActionIcon = style(square(toRem(16)));
 
 export const CodeBlockScroll = style({
   overflow: 'auto',
+  borderEndStartRadius: `calc(${config.radii.R400} - ${config.borderWidth.B300})`,
+  borderEndEndRadius: `calc(${config.radii.R400} - ${config.borderWidth.B300})`,
   // At its top or bottom the block hands the scroll on to the timeline. Sideways it keeps the
   // scroll, since the timeline does not scroll sideways and a trackpad swipe past the edge would
   // otherwise go back in the browser history.

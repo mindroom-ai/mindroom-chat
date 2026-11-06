@@ -30,6 +30,7 @@ import {
 } from './spaceChildren';
 import { StateEvent } from '../../matrix/types/room';
 import { MenuEntry } from '../../ui/MenuEntry';
+import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
 
 type HierarchyItemMenuProps = {
   item: HierarchyItem;
@@ -192,6 +193,7 @@ export function HierarchyItemMenu({ item, parent, joinedRoom }: HierarchyItemMen
           size="300"
           radii="300"
           variant="SurfaceVariant"
+          className={LoneTouchTarget}
           aria-label={t('featureUi.lobby.lobbyHeader.moreOptions')}
           aria-pressed={!!anchor}
           onClick={(event: React.MouseEvent<HTMLButtonElement>) =>

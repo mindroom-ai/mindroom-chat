@@ -1,6 +1,7 @@
 import { globalStyle, style } from '@vanilla-extract/css';
 import { color, config } from 'folds';
 import { glassSurface } from '../ui/styles/Glass.css';
+import { touchTarget } from '../ui/styles/touchTarget';
 
 export const Shell = style([
   glassSurface({ level: 'overlay', variant: 'Surface' }),
@@ -49,6 +50,8 @@ export const Input = style({
   lineHeight: '24px',
   '::placeholder': { color: color.SurfaceVariant.OnContainer },
   ':focus-visible': { boxShadow: `0 1px 0 ${color.Primary.Main}` },
+  // 44 px tall to a finger; the field is see-through, so it looks the same.
+  '@media': { '(pointer: coarse)': { paddingBlock: 10, marginBlock: -2 } },
 });
 
 export const Close = style({
@@ -81,9 +84,14 @@ export const Tabs = style({
   selectors: { '&::-webkit-scrollbar': { display: 'none' } },
   flexShrink: 0,
   borderBottom: `1px solid ${color.Surface.ContainerLine}`,
+  // Room inside the row's clip for the tabs' hit areas, which reach 2 px above them.
+  '@media': { '(pointer: coarse)': { paddingTop: 2, marginTop: -2 } },
 });
 
-export const Tab = style({
+export const Tab = style([
+  // 4 px apart: to a finger each reaches 2 px out, 44 px tall.
+  touchTarget('2px'),
+  {
   display: 'inline-flex',
   alignItems: 'center',
   flex: 'none',
@@ -109,7 +117,8 @@ export const Tab = style({
     },
   },
   '@media': { '(max-width: 480px)': { minHeight: 40 } },
-});
+  },
+]);
 
 export const ClearSearch = style([Tab, { border: `1px solid ${color.Surface.ContainerLine}` }]);
 

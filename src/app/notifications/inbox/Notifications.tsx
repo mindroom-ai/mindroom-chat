@@ -40,6 +40,8 @@ import { ownDirectionLine } from '../../ui/directional';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
+import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
+import * as css from './Notifications.css';
 import { INBOX_PATH } from '../../routes/paths';
 import { AsyncStatus } from '../../lib/hooks/useAsyncCallback';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -218,6 +220,7 @@ function NotificationPreview({ children }: { children: ReactNode }) {
   return (
     <div
       ref={ref}
+      className={css.Preview}
       style={{
         maxHeight: PREVIEW_MAX_HEIGHT,
         overflow: 'hidden',
@@ -339,6 +342,7 @@ function NotificationRow({
       <Chip
         variant="Secondary"
         radii="Pill"
+        className={LoneTouchTarget}
         onClick={() => onOpen(eventId, getEventThreadId(event))}
       >
         <Text size="T200">{t('sharedUi.notifications.open')}</Text>
@@ -393,6 +397,7 @@ export function Notifications() {
       {filters.map(([value, label]) => (
         <Chip
           key={value}
+          className={css.FilterChip}
           radii="Pill"
           variant={filter === value ? 'Primary' : 'SurfaceVariant'}
           aria-pressed={filter === value}

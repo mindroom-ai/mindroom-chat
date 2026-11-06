@@ -1,5 +1,6 @@
 import { style, styleVariants } from '@vanilla-extract/css';
 import { DefaultReset, color, config, toRem } from 'folds';
+import { touchTarget } from './styles/touchTarget';
 
 export const Activity = style([
   DefaultReset,
@@ -14,6 +15,8 @@ export const Activity = style([
 // same geometry. The chevron follows the text.
 export const Line = style([
   DefaultReset,
+  // 28 px tall; to a finger 44 px.
+  touchTarget('22px', '', { blockReach: '8px' }),
   {
     display: 'flex',
     alignItems: 'center',

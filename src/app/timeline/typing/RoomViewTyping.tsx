@@ -138,6 +138,7 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
             radii="Pill"
             variant="SurfaceVariant"
             fill="None"
+            className={css.DropButton}
             aria-label={dropLabel}
             onClick={dropTyping}
           >

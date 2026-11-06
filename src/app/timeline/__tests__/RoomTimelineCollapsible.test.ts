@@ -343,6 +343,7 @@ vi.mock('../../rich-text/CustomHtml.css', () => ({
 
 vi.mock('../RoomTimeline.css', () => ({
   ExpandAllToggle: 'ExpandAllToggle',
+  FloatingAction: 'FloatingAction',
   TimelineFloat: () => 'TimelineFloat',
 }));
 

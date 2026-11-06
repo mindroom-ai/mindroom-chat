@@ -60,6 +60,7 @@ export function FloatingAction({
 }) {
   return (
     <Chip
+      className={css.FloatingAction}
       onClick={onSelect}
       variant={primary ? 'Primary' : 'SurfaceVariant'}
       outlined

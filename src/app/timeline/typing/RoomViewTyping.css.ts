@@ -1,6 +1,7 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
 import { glassFloating, glassSurface } from '../../ui/styles/Glass.css';
+import { touchTarget } from '../../ui/styles/touchTarget';
 
 const arrive = keyframes({
   from: { opacity: 0, transform: `translateY(${toRem(4)})` },
@@ -33,6 +34,10 @@ export const TypingStrip = style([
     },
   },
 ]);
+
+// The ✕ that drops the strip: 24 px, 44 px wide to a finger and as tall as the room between the
+// bar above it and the composer below allows.
+export const DropButton = style(touchTarget('22px', '', { blockReach: '5px' }));
 
 export const TypingText = style({
   flexGrow: 1,

@@ -18,6 +18,8 @@ export const HeaderTopic = style([
     cursor: 'pointer',
     ':focus-visible': { outlineOffset: 2 },
   },
+  // Its 18 px line grows to 44 px for a finger, over the name above it.
+  touchTarget('22px'),
 ]);
 
 /** A header button, 40 px with 4 px between them: 44 by 44 px to a finger. */

@@ -718,7 +718,13 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
       };
       // The name on the left; the reply details button and the time on the right.
       const header = (
-        <Box gap="300" justifyContent="SpaceBetween" alignItems="Center" grow="Yes">
+        <Box
+          className={css.SenderLine}
+          gap="300"
+          justifyContent="SpaceBetween"
+          alignItems="Center"
+          grow="Yes"
+        >
           <Username as="button" data-user-id={senderId} tone={nameTone} onClick={onUsernameClick}>
             <Text as="span" size="T400" truncate>
               <UsernameBold>{senderDisplayName}</UsernameBold>

@@ -31,6 +31,7 @@ vi.mock('../styles.css', () => ({
   MessageOptionsButton: 'MessageOptionsButton',
   MessageOptionsReplyIcon: 'MessageOptionsReplyIcon',
   MessageOptionsRow: 'MessageOptionsRow',
+  SenderLine: 'SenderLine',
 }));
 
 vi.mock('../agent-run/ModelBadge.css', () => ({

@@ -3,6 +3,7 @@ import { color, config, toRem } from 'folds';
 import { motion } from '../../ui/styles/Motion.css';
 import { transition } from '../../ui/styles/transition';
 import { glassDenseOverBackdrop, glassFloating, glassSurface } from '../../ui/styles/Glass.css';
+import { touchTarget } from '../../ui/styles/touchTarget';
 
 export const Overview = style([
   glassSurface({ level: 'panel', variant: 'SurfaceVariant' }),
@@ -46,7 +47,16 @@ export const CompactCount = style({
 
 const TOGGLE_SIZE = toRem(32);
 
-export const ToggleButton = style({
+// A finger's hit area: the bar's 32 px controls reach out halfway to their neighbours (4 px apart
+// in a group, 8 px between groups, rows 4 px apart; the area starts inside the 1 px border), and
+// to 44 px tall in the simple bar's one row.
+const SIMPLE_BAR = '[role="toolbar"]:has([data-simple-unresolved-toggle]) ';
+
+export const ToggleButton = style([
+  // ToggleExclude draws its slash with ::after.
+  touchTarget('2px', '', { blockReach: '2px', layer: '::before' }),
+  touchTarget('5px', SIMPLE_BAR, { layer: '::before' }),
+  {
   position: 'relative',
   display: 'inline-grid',
   placeItems: 'center',
@@ -77,7 +87,8 @@ export const ToggleButton = style({
       outlineOffset: '1px',
     },
   },
-});
+  },
+]);
 
 export const ToggleInclude = style({
   backgroundColor: color.Success.Container,
@@ -131,7 +142,10 @@ export const ToggleExclude = style({
   },
 });
 
-export const SortButton = style({
+export const SortButton = style([
+  touchTarget('5px', '', { blockReach: '2px' }),
+  touchTarget('5px', SIMPLE_BAR),
+  {
   display: 'inline-flex',
   columnGap: config.space.S100,
   placeItems: 'center',
@@ -158,7 +172,8 @@ export const SortButton = style({
       outlineOffset: '1px',
     },
   },
-});
+  },
+]);
 
 export const SortButtonActive = style({
   backgroundColor: color.Primary.Container,

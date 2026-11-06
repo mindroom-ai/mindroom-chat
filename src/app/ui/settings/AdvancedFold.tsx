@@ -3,6 +3,7 @@ import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getSettingDefinition } from '../../preferences/settingsRegistry';
 import { useSettingsTarget } from '../../preferences/settingsTarget';
+import { LoneTouchTarget } from '../styles/TouchTarget.css';
 
 type AdvancedFoldProps = {
   children: ReactNode;
@@ -32,6 +33,7 @@ export function AdvancedFold({ children }: AdvancedFoldProps) {
           fill="None"
           size="300"
           radii="300"
+          className={LoneTouchTarget}
           aria-expanded={open}
           aria-controls={contentId}
           before={

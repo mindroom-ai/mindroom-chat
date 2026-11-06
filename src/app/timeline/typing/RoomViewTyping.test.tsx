@@ -9,6 +9,7 @@ import { RoomViewTyping } from './RoomViewTyping';
 
 vi.mock('./RoomViewTyping.css', () => ({
   TypingStrip: 'typing-strip',
+  DropButton: 'drop-button',
   TypingText: 'typing-text',
   TypingDots: 'typing-dots',
   TypingDot: 'typing-dot',
