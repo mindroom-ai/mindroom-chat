@@ -6,6 +6,7 @@ import { dropRoomsForgottenElsewhere } from './roomsForgottenElsewhere';
 import { keepRedactionsInSavedSync } from './savedSyncRedactions';
 import { keepThreadReplyCounts } from './threadReplyCounts';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
+import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 
 // How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates
 // the client and its stores; the app shell (src/app/shell/ClientRoot.tsx) then calls `startClient`
@@ -85,6 +86,7 @@ export const startClient = async (
     keepUnopenedThreadEditsShown(mx);
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);
+    keepEncryptedRoomCounts(mx);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
