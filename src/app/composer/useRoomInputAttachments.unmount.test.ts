@@ -59,6 +59,7 @@ const mountComposer = (staged: TUploadItem[] = []) => {
   function Harness() {
     feature = useRoomInputAttachments({
       mx: { cancelUpload: vi.fn() } as never,
+      userId: '@tester:example.org',
       room,
       roomId: ROOM_ID,
       editor: createEditor(),

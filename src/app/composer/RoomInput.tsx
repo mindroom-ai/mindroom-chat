@@ -49,6 +49,7 @@ import { useSetting } from '../preferences/useSetting';
 import {
   getRoomInputDraftKey,
   type IReplyDraft,
+  keepReplyDraft,
   roomIdToMsgDraftAtomFamily,
   roomIdToReplyDraftAtomFamily,
 } from './roomInputDrafts';
@@ -84,6 +85,7 @@ import { RoomInputReplyPreview } from './RoomInputReplyPreview';
 import { createRoomUploadItems } from '../matrix/send/roomInputUploadPreparation';
 import { useRoomInputAttachments } from './useRoomInputAttachments';
 import { useRoomInputDraft } from './useRoomInputDraft';
+import { useKeptComposerState } from './useKeptComposerState';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { useRoomInputSendSessionController } from './useRoomInputSendSessionController';
 import {
@@ -131,6 +133,13 @@ const isModEnter = isKeyHotkey('mod+enter');
 const commandProblemStyle = (): React.CSSProperties => ({
   color: color.Critical.Main,
   paddingInline: config.space.S200,
+  paddingBlockEnd: config.space.S200,
+});
+
+// The files a reload could not keep, named above the composer until dismissed.
+const lostFilesStyle = (): React.CSSProperties => ({
+  color: color.Warning.Main,
+  paddingInlineStart: config.space.S200,
   paddingBlockEnd: config.space.S200,
 });
 
@@ -247,6 +256,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     const imagePackRooms = useImagePackRooms(roomId, useAtomValue(roomToParentsAtom));
     const mountedRef = useRef(true);
     const saveDraft = useRoomInputDraft(editor, userId, roomId, threadId);
+    const { lostFileNames, dismissLostFiles } = useKeptComposerState(userId, roomId);
     const linkSchemes = useOptionalClientConfig()?.messageRendering?.additionalAllowedUriSchemes;
     const commands = useCommands(room);
     const commandList = useMemo(() => Object.values(commands), [commands]);
@@ -266,6 +276,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const attachments = useRoomInputAttachments({
       mx,
+      userId,
       room,
       roomId,
       draftKey,
@@ -288,9 +299,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         // A reply chosen after this send started stays for the next message.
         if (consumed && hasMatchingReplyDraft(consumed, store.get(replyAtom))) {
           store.set(replyAtom, undefined);
+          // The composer may show another room by now; its kept reply goes too.
+          if (userId) keepReplyDraft(userId, replyRoomId, undefined);
         }
       },
-      [store]
+      [store, userId]
     );
 
     const restoreComposerFallbackForRoom = useCallback(
@@ -407,6 +420,8 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         return;
       }
       const textContent = buildTextContent();
+      // Sending the text answers the notice of files a reload lost.
+      if (textContent) dismissLostFiles();
       setSubmitPending(true);
       try {
         if (await voice.submitIfActive(textContent)) return;
@@ -420,6 +435,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     }, [
       buildTextContent,
       commands,
+      dismissLostFiles,
       editor,
       runActingCommand,
       sendTypingStatus,
@@ -600,6 +616,23 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           <Text as="p" role="alert" size="T300" style={commandProblemStyle()}>
             {commandProblem}
           </Text>
+        )}
+        {lostFileNames.length > 0 && (
+          <Box role="status" alignItems="Center" gap="200" style={lostFilesStyle()}>
+            <Icon size="100" src={Icons.Warning} />
+            <Text size="T300" style={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+              {t('composer.lostFiles', { files: lostFileNames.join(', ') })}
+            </Text>
+            <IconButton
+              size="300"
+              radii="300"
+              variant="SurfaceVariant"
+              aria-label={t('composer.dismissLostFiles')}
+              onClick={dismissLostFiles}
+            >
+              <Icon size="50" src={Icons.Cross} />
+            </IconButton>
+          </Box>
         )}
         {voice.renderRecorder(() => void handleSend())}
         <CustomEditor

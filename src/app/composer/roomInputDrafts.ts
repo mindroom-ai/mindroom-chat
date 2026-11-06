@@ -1,6 +1,7 @@
 /**
  * Composer state per room and thread: the unsent message (kept in localStorage per account),
- * the message being replied to, staged attachments, and a voice message whose send failed.
+ * the message being replied to (kept there too), staged attachments (only their names are kept),
+ * and a voice message whose send failed.
  */
 import { atom, type createStore, type WritableAtom } from 'jotai';
 import { atomFamily } from 'jotai/utils';
@@ -56,6 +57,8 @@ export type PendingVoiceSendDraft = {
   errorMessage?: string;
   inFlight?: PendingVoiceSendInFlight;
 };
+
+type JotaiStore = ReturnType<typeof createStore>;
 
 // Unsent messages.
 
@@ -129,7 +132,16 @@ const createMsgDraftAtom = (draftKey: string): WritableAtom<Descendant[], [Desce
 /** The unsent message of a composer, keyed by `getRoomInputDraftKey`. */
 export const roomIdToMsgDraftAtomFamily = atomFamily(createMsgDraftAtom);
 
-/** Forgets every unsent message of an account, in storage and in memory. */
+// What else a reload keeps, per account and room: the message being replied to, and the names of
+// the staged files, which cannot be kept themselves.
+const REPLY_STORAGE_PREFIX = 'roomInputReply:';
+const STAGED_FILES_STORAGE_PREFIX = 'roomInputStagedFiles:';
+const STORAGE_PREFIXES = [DRAFT_STORAGE_PREFIX, REPLY_STORAGE_PREFIX, STAGED_FILES_STORAGE_PREFIX];
+
+/**
+ * Forgets every unsent message of an account, in storage and in memory, with the reply targets
+ * and staged file names it kept.
+ */
 export const clearRoomInputDrafts = (userId: string): void => {
   draftGenerations.set(userId, getDraftGeneration(userId) + 1);
   roomIdToMsgDraftAtomFamily.setShouldRemove(
@@ -139,10 +151,31 @@ export const clearRoomInputDrafts = (userId: string): void => {
 
   const storage = getSafeLocalStorage();
   getStorageKeysSafe(storage).forEach((storageKey) => {
-    if (!storageKey.startsWith(DRAFT_STORAGE_PREFIX)) return;
-    if (getDraftUserId(storageKey.slice(DRAFT_STORAGE_PREFIX.length)) !== userId) return;
+    const prefix = STORAGE_PREFIXES.find((candidate) => storageKey.startsWith(candidate));
+    if (prefix === undefined) return;
+    if (getDraftUserId(storageKey.slice(prefix.length)) !== userId) return;
     removeStorageItemSafe(storage, storageKey);
   });
+};
+
+const roomStorageKey = (prefix: string, userId: string, roomId: string): string =>
+  `${prefix}${getRoomInputDraftKey(userId, roomId)}`;
+
+const readStoredJson = (storageKey: string): unknown => {
+  const raw = getStorageItemSafe(getSafeLocalStorage(), storageKey);
+  if (raw === null) return undefined;
+  try {
+    return JSON.parse(raw) as unknown;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Stores `value` as JSON, or removes the entry for undefined. */
+const writeStoredJson = (storageKey: string, value: unknown): void => {
+  const storage = getSafeLocalStorage();
+  if (value === undefined) removeStorageItemSafe(storage, storageKey);
+  else setStorageItemSafe(storage, storageKey, JSON.stringify(value));
 };
 
 // Replies.
@@ -151,6 +184,36 @@ export const clearRoomInputDrafts = (userId: string): void => {
 export const roomIdToReplyDraftAtomFamily = atomFamily((_key: string) =>
   atom<IReplyDraft | undefined>(undefined)
 );
+
+const isOptionalString = (value: unknown): boolean =>
+  value === undefined || typeof value === 'string';
+
+const isReplyDraft = (value: unknown): value is IReplyDraft =>
+  isRecord(value) &&
+  typeof value.userId === 'string' &&
+  typeof value.eventId === 'string' &&
+  typeof value.body === 'string' &&
+  isOptionalString(value.formattedBody) &&
+  isOptionalString(value.previewText) &&
+  (value.relation === undefined || isRecord(value.relation));
+
+/** Keeps the reply target of an account's composer in a room for the next page, or forgets it. */
+export const keepReplyDraft = (
+  userId: string,
+  roomId: string,
+  draft: IReplyDraft | undefined
+): void => writeStoredJson(roomStorageKey(REPLY_STORAGE_PREFIX, userId, roomId), draft);
+
+/**
+ * Gives a room's composer back the reply target it had before a reload, unless it has one: the
+ * reply bar comes back with the text.
+ */
+export const restoreKeptReplyDraft = (store: JotaiStore, userId: string, roomId: string): void => {
+  const replyAtom = roomIdToReplyDraftAtomFamily(roomId);
+  if (store.get(replyAtom) !== undefined) return;
+  const kept = readStoredJson(roomStorageKey(REPLY_STORAGE_PREFIX, userId, roomId));
+  if (isReplyDraft(kept)) store.set(replyAtom, kept);
+};
 
 // Attachments.
 
@@ -204,14 +267,28 @@ export const roomUploadAtomFamily = atomFamily(
   (file: TUploadContent): TUploadAtom => createUploadAtom(file)
 );
 
+/**
+ * Keeps the names of the files staged in a room, so the composer after a reload can say which
+ * ones it lost; none staged forgets them.
+ */
+export const keepStagedFileNames = (userId: string, roomId: string, items: TUploadItem[]): void =>
+  writeStoredJson(
+    roomStorageKey(STAGED_FILES_STORAGE_PREFIX, userId, roomId),
+    items.length > 0 ? items.map((item) => item.originalFile.name) : undefined
+  );
+
+/** The names of the files a room's composer had staged when they were last kept. */
+export const readKeptFileNames = (userId: string, roomId: string): string[] => {
+  const kept = readStoredJson(roomStorageKey(STAGED_FILES_STORAGE_PREFIX, userId, roomId));
+  return Array.isArray(kept) ? kept.filter((name): name is string => typeof name === 'string') : [];
+};
+
 // Voice messages.
 
 export const pendingVoiceSendDraftAtom = atom<PendingVoiceSendDraft | undefined>(undefined);
 
 /** True while a recorded voice message waits to be sent with the composer's attachments. */
 export const voiceAutoSendPendingAtom = atom(false);
-
-type JotaiStore = ReturnType<typeof createStore>;
 
 // What a reload would lose.
 

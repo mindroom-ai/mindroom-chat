@@ -86,6 +86,7 @@ const renderHarness = (
     saveDraft = useRoomInputDraft(editor, '@tester:example.org', ROOM_ID, threadId);
     feature = useRoomInputAttachments({
       mx: mx as never,
+      userId: '@tester:example.org',
       room,
       roomId: ROOM_ID,
       draftKey: threadId
