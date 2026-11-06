@@ -812,9 +812,10 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // scroll content, which the scrollbar, the minimap and the follow-growth observer watch, after the
   // rows inside it were reported, and WebKit then reports "ResizeObserver loop completed with
   // undelivered notifications".
+  // A row that changed size in place renders the rows after it the same way.
   const renderedListHeight = ledger.virtualInnerRef.current?.style.height;
   const listHeight =
-    ledger.unrenderedCorrectionPx() !== 0 && renderedListHeight
+    (ledger.unrenderedCorrectionPx() !== 0 || ledger.unrenderedRowMove()) && renderedListHeight
       ? renderedListHeight
       : virtualizer.getTotalSize();
   useThreadApprovalRowMeasurements(

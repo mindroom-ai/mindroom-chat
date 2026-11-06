@@ -77,6 +77,8 @@ export type TimelineScrollLedgerController = {
   threadLeadingRef: RefObject<HTMLDivElement>;
   /** The correction virtual-core applied that the rows do not show yet, in px. */
   unrenderedCorrectionPx: () => number;
+  /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
+  unrenderedRowMove: () => boolean;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -521,8 +523,22 @@ export const useTimelineScrollLedgerController = ({
     unrenderedCorrectionPxRef.current += deltaPx;
   }, []);
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
+  // A row that changes size where the reader sees it moves the rows after it, which virtual-core
+  // also renders in React's next task: for a frame the next row is drawn over a growing row, or
+  // apart from a shrinking one. Render them in a microtask as well.
+  const unrenderedRowMoveRef = useRef(false);
+  const renderRowMoveBeforePaint = useCallback(() => {
+    if (unrenderedRowMoveRef.current) return;
+    unrenderedRowMoveRef.current = true;
+    queueMicrotask(() => {
+      if (!unrenderedRowMoveRef.current) return;
+      flushSync(() => setLedgerCommitTick((tick) => tick + 1));
+    });
+  }, []);
+  const unrenderedRowMove = useCallback(() => unrenderedRowMoveRef.current, []);
   useInsertionEffect(() => {
     unrenderedCorrectionPxRef.current = 0;
+    unrenderedRowMoveRef.current = false;
   });
 
   // Ledger boundary guard (upstream #119, direction-aware): negative ledger
@@ -667,26 +683,40 @@ export const useTimelineScrollLedgerController = ({
   }, [getScrollElement, roomId, threadId]);
 
   const isAutomaticFillActive = automaticFill?.isActive;
-  const measurementScrollCorrectionHook = useMemo(
-    () =>
-      buildMeasurementScrollCorrectionHook({
-        isIOSWebKitDevice,
-        onDroppedCorrection: handleDroppedCorrection,
-        shouldDeferAutomaticFillCorrection: (item) =>
-          !!isAutomaticFillActive?.() && (item.index ?? itemCount) < itemCount - 1,
-        viewportTopOffset: readerTopOffset,
-        onAppliedCorrection: handleAppliedCorrection,
-        unrenderedCorrectionPx,
-      }),
-    [
-      isAutomaticFillActive,
-      handleAppliedCorrection,
-      handleDroppedCorrection,
-      itemCount,
-      readerTopOffset,
+  const measurementScrollCorrectionHook = useMemo(() => {
+    let dropped = false;
+    const decide = buildMeasurementScrollCorrectionHook({
+      isIOSWebKitDevice,
+      onDroppedCorrection: (deltaPx) => {
+        dropped = true;
+        handleDroppedCorrection(deltaPx);
+      },
+      shouldDeferAutomaticFillCorrection: (item) =>
+        !!isAutomaticFillActive?.() && (item.index ?? itemCount) < itemCount - 1,
+      viewportTopOffset: readerTopOffset,
+      onAppliedCorrection: handleAppliedCorrection,
       unrenderedCorrectionPx,
-    ]
-  );
+    });
+    return (...args: Parameters<typeof decide>): boolean => {
+      dropped = false;
+      const apply = decide(...args);
+      // An applied correction renders before the paint already, and the offset ledger moves
+      // the rows of a dropped one in its own commit; the newest row moves no row after it.
+      const [item] = args;
+      if (!apply && !dropped && (item.index ?? itemCount) < itemCount - 1) {
+        renderRowMoveBeforePaint();
+      }
+      return apply;
+    };
+  }, [
+    isAutomaticFillActive,
+    handleAppliedCorrection,
+    handleDroppedCorrection,
+    itemCount,
+    readerTopOffset,
+    renderRowMoveBeforePaint,
+    unrenderedCorrectionPx,
+  ]);
 
   useLayoutEffect(() => {
     if (!automaticFill) return;
@@ -742,6 +772,7 @@ export const useTimelineScrollLedgerController = ({
     measureElement,
     threadLeadingRef,
     unrenderedCorrectionPx,
+    unrenderedRowMove,
     virtualInnerRef,
     virtualizer,
   };
