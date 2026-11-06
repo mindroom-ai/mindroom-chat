@@ -9,12 +9,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import {
-  addRoomToSpace,
-  matrixFetch,
-  sendRoomMessage,
-  sendStateEvent,
-} from '../helpers/matrix';
+import { addRoomToSpace, matrixFetch, sendRoomMessage, sendStateEvent } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 
 // Layout checks from the live-test lanes, against a real homeserver, in Chromium and (when
@@ -603,6 +598,7 @@ const checkPalette = async (run: Run) => {
     ] as const) {
       // eslint-disable-next-line no-await-in-loop
       const [row] = await messageRows(page, room, thread);
+      if (!row) throw new Error(`No message row from ${room}`);
       // The room comes first in reading order: left in English, right in Arabic.
       if (direction === 'ltr') {
         expect(row.roomLeft, `room before thread (${room}, ${where})`).toBeLessThan(row.threadLeft);
