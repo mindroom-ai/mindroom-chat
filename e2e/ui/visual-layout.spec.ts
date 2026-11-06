@@ -216,7 +216,8 @@ const seed = async (label: string): Promise<Seed> => {
   const tagged = await say(
     tester,
     roomId,
-    '🧩 Fix the flaky login test that fails on every third run of the nightly suite'
+    // Short enough for one line: a title may take two lines by design.
+    '🧩 Fix the flaky login test'
   );
   await say(helper, roomId, 'Found it: the session cookie expires mid-run.', tagged, {
     'io.mindroom.ai_run': MODEL,
@@ -612,6 +613,9 @@ const checkPalette = async (run: Run) => {
 // ---------------------------------------------------------------------------------------------
 // L8-F015: phone Settings, the back button and the breadcrumb.
 
+/** The focus ring the back button shows as the page opens: 2 px outside its box, and a gap. */
+const RING = 4;
+
 const checkSettingsPhone = async (run: Run) => {
   const { page, seed: data } = run;
   await signIn(page, data);
@@ -633,12 +637,12 @@ const checkSettingsPhone = async (run: Run) => {
     const where = `${run.engine}, ${direction}, ${scheme}: ${JSON.stringify(geometry)}`;
     if (direction === 'ltr') {
       expect(
-        geometry.back[1],
+        geometry.back[1] + RING,
         `back button ends before the breadcrumb (${where})`
       ).toBeLessThanOrEqual(geometry.text[0]);
     } else {
       expect(
-        geometry.back[0],
+        geometry.back[0] - RING,
         `back button starts after the breadcrumb (${where})`
       ).toBeGreaterThanOrEqual(geometry.text[1]);
     }
