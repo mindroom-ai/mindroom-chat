@@ -576,6 +576,7 @@ vi.mock('../../matrix/room', () => ({
   getLatestEdit: (_target: unknown, edits: Array<{ getTs: () => number }>) =>
     edits.reduce((latest, edit) => (edit.getTs() >= latest.getTs() ? edit : latest), edits[0]),
   getMemberDisplayName: () => 'Alice',
+  hasUndecryptedNewerEdit: () => false,
   isHiddenReferenceEvent: () => false,
   isMembershipChanged: isMembershipChangedMock,
   reactionOrEditEvent: reactionOrEditEventMock,

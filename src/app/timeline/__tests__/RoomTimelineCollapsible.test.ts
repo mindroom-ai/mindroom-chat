@@ -372,6 +372,7 @@ vi.mock('../../matrix/room', () => ({
     editedEvent?: { getContent: () => Record<string, unknown> }
   ) => editedEvent?.getContent() ?? mEvent.getContent(),
   getMemberDisplayName: () => 'Alice',
+  hasUndecryptedNewerEdit: () => false,
   isHiddenReferenceEvent: () => false,
   isMembershipChanged: () => false,
   reactionOrEditEvent: (mEvent: { getRelation: () => { rel_type?: string } | undefined }) => {
