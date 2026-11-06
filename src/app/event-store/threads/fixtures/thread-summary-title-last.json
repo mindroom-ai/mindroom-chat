@@ -1,0 +1,117 @@
+{
+  "content": {
+    "body": "Please review the release plan and recommend the next steps for launch.",
+    "msgtype": "m.text"
+  },
+  "event_id": "$question",
+  "origin_server_ts": 1793981452121,
+  "room_id": "!board:example.org",
+  "sender": "@reader:example.org",
+  "type": "m.room.message",
+  "unsigned": {
+    "m.relations": {
+      "m.thread": {
+        "count": 2,
+        "current_user_participated": true,
+        "io.mindroom.latest_reply": {
+          "content": {
+            "body": "Preparing the release checklist...",
+            "m.relates_to": {
+              "event_id": "$question",
+              "is_falling_back": true,
+              "m.in_reply_to": {
+                "event_id": "$question"
+              },
+              "rel_type": "m.thread"
+            },
+            "msgtype": "m.text"
+          },
+          "event_id": "$reply",
+          "origin_server_ts": 1793981452130,
+          "sender": "@helper:example.org",
+          "type": "m.room.message",
+          "unsigned": {
+            "m.relations": {
+              "m.replace": {
+                "content": {
+                  "body": "* The release checklist is ready. Review the dates, confirm the rollout window, and share the final plan.",
+                  "m.new_content": {
+                    "body": "The release checklist is ready. Review the dates, confirm the rollout window, and share the final plan.",
+                    "m.relates_to": {
+                      "event_id": "$question",
+                      "is_falling_back": true,
+                      "m.in_reply_to": {
+                        "event_id": "$question"
+                      },
+                      "rel_type": "m.thread"
+                    },
+                    "msgtype": "m.text"
+                  },
+                  "m.relates_to": {
+                    "event_id": "$reply",
+                    "rel_type": "m.replace"
+                  },
+                  "msgtype": "m.text"
+                },
+                "event_id": "$edit",
+                "origin_server_ts": 1793981452154,
+                "sender": "@helper:example.org",
+                "type": "m.room.message",
+                "unsigned": {}
+              }
+            }
+          }
+        },
+        "io.mindroom.title": {
+          "content": {
+            "body": "Release checklist and launch dates",
+            "io.mindroom.thread_summary": {
+              "generated_at": "2026-11-06T16:10:52.138Z",
+              "message_count": 1,
+              "summary": "Release checklist and launch dates",
+              "version": 1
+            },
+            "m.relates_to": {
+              "event_id": "$question",
+              "is_falling_back": true,
+              "m.in_reply_to": {
+                "event_id": "$question"
+              },
+              "rel_type": "m.thread"
+            },
+            "msgtype": "m.notice"
+          },
+          "event_id": "$title",
+          "origin_server_ts": 1793981452143,
+          "sender": "@reader:example.org",
+          "type": "m.room.message",
+          "unsigned": {}
+        },
+        "latest_event": {
+          "content": {
+            "body": "Release checklist and launch dates",
+            "io.mindroom.thread_summary": {
+              "generated_at": "2026-11-06T16:10:52.138Z",
+              "message_count": 1,
+              "summary": "Release checklist and launch dates",
+              "version": 1
+            },
+            "m.relates_to": {
+              "event_id": "$question",
+              "is_falling_back": true,
+              "m.in_reply_to": {
+                "event_id": "$question"
+              },
+              "rel_type": "m.thread"
+            },
+            "msgtype": "m.notice"
+          },
+          "event_id": "$title",
+          "origin_server_ts": 1793981452143,
+          "sender": "@reader:example.org",
+          "type": "m.room.message"
+        }
+      }
+    }
+  }
+}
