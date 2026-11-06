@@ -730,23 +730,29 @@ export function RoomTimeline(props: RoomTimelineProps) {
     threadIdRef,
     timeline,
   });
-  const { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage, getRoomRowElement } =
-    useRoomWindowPaginator({
-      alive,
-      roomRows,
-      roomRowsRef,
-      activeTimelineRange,
-      activeRangeRef,
-      threadIdRef,
-      firstRoomTimelineRef,
-      scrollRef,
-      setTimeline,
-      paginateRoom,
-      suppressFocusPaginationRef,
-      windowLimit,
-      getScrollElement,
-      deferAutomaticPagination: automaticFill.defer,
-    });
+  const {
+    paginator,
+    pendingRoomFoldPxRef,
+    roomFoldWindowRef,
+    roomFoldPriceRef,
+    roomBackPage,
+    getRoomRowElement,
+  } = useRoomWindowPaginator({
+    alive,
+    roomRows,
+    roomRowsRef,
+    activeTimelineRange,
+    activeRangeRef,
+    threadIdRef,
+    firstRoomTimelineRef,
+    scrollRef,
+    setTimeline,
+    paginateRoom,
+    suppressFocusPaginationRef,
+    windowLimit,
+    getScrollElement,
+    deferAutomaticPagination: automaticFill.defer,
+  });
 
   // The virtual list and its offset ledger.
   const itemCount = threadId ? threadEvents.length : roomWindowRows.length;
@@ -774,6 +780,9 @@ export function RoomTimeline(props: RoomTimelineProps) {
     getScrollElement,
     itemCount,
     pendingRoomFoldPxRef,
+    // virtual-core renders at once when the reader scrolls, which can come before the update of
+    // a window widened over older rows: that render keeps the window the fold was priced for.
+    roomFoldHeld: activeTimelineRange === roomFoldWindowRef.current,
     roomFoldPriceRef,
     roomId: room.roomId,
     rowsKey: threadId ? undefined : rowsGeneration,

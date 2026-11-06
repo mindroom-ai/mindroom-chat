@@ -49,6 +49,12 @@ export type TimelineScrollLedgerControllerOptions = {
   getScrollElement: () => HTMLDivElement | null;
   itemCount: number;
   pendingRoomFoldPxRef: MutableRefObject<number>;
+  /**
+   * This render still shows the window the pending room fold was priced against: the rows it
+   * prices are not mounted yet (a scroll renders the virtual list at once, before the window's
+   * update), so the fold waits for the render that mounts them.
+   */
+  roomFoldHeld?: boolean;
   roomFoldPriceRef: MutableRefObject<(key: VirtualItemKey, index: number) => number>;
   roomId: string;
   /**
@@ -163,6 +169,7 @@ export const useTimelineScrollLedgerController = ({
   getScrollElement,
   itemCount,
   pendingRoomFoldPxRef,
+  roomFoldHeld = false,
   roomFoldPriceRef,
   roomId,
   rowsKey,
@@ -223,7 +230,8 @@ export const useTimelineScrollLedgerController = ({
   // Room pagination records its exact prepend height before requesting the
   // range update. Keep that debt pending until the matching render commits;
   // abandoned concurrent renders neither lose nor double-apply it.
-  const roomFoldPxAtRender = resettingLedgerView ? 0 : pendingRoomFoldPxRef.current;
+  const roomFoldPxAtRender =
+    resettingLedgerView || roomFoldHeld ? 0 : pendingRoomFoldPxRef.current;
   // One immutable snapshot feeds virtualizer.scrollMargin, the inner margin,
   // and every tile top for this paint.
   const ledgerPxAtRender = resettingLedgerView

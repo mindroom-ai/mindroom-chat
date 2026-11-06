@@ -182,6 +182,9 @@ export const useRoomWindowPaginator = ({
   deferAutomaticPagination: (retry: () => boolean) => boolean;
 }) => {
   const pendingRoomFoldPxRef = useRef(0);
+  // The window the pending fold was priced against: a render that still shows it has not mounted
+  // the fold's rows.
+  const roomFoldWindowRef = useRef<ItemRange>();
   const roomFoldPriceRef = useRef<RoomRowFoldPrice>(() => 0);
   const handleRoomRangeChange = useCallback(
     (next: ItemRange, pagedFrom?: ItemRange) => {
@@ -196,6 +199,7 @@ export const useRoomWindowPaginator = ({
           foldPx += roomFoldPriceRef.current(key, index - current.start);
         }
         pendingRoomFoldPxRef.current += foldPx;
+        roomFoldWindowRef.current = current;
       }
       // A page towards newer rows keeps only the rows it measured on screen in the window it
       // widened. When another window was set after that render (the newest row kept, a live row
@@ -261,7 +265,14 @@ export const useRoomWindowPaginator = ({
     automaticBackReach,
     externalBackwardScrollRestore: true,
   });
-  return { paginator, pendingRoomFoldPxRef, roomFoldPriceRef, roomBackPage, getRoomRowElement };
+  return {
+    paginator,
+    pendingRoomFoldPxRef,
+    roomFoldWindowRef,
+    roomFoldPriceRef,
+    roomBackPage,
+    getRoomRowElement,
+  };
 };
 
 /** A back page that added no rows asks the paginator again; one with rows moved the window. */
