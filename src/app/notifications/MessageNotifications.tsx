@@ -4,7 +4,9 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import {
+  ClientEvent,
   RoomEvent,
+  type ClientEventHandlerMap,
   type MatrixClient,
   type MatrixEvent,
   type Room,
@@ -31,6 +33,7 @@ import { playChime } from './playChime';
 import {
   MESSAGE_NOTIFY_MAX_AGE_MS,
   getViewedPlace,
+  isEditEvent,
   isNoticeOnScreen,
   readMessageNotice,
   type MessageNotice,
@@ -144,11 +147,7 @@ export function MessageNotificationsFeature() {
     // Push rules need the clear content, so an encrypted message waits for its keys, until a
     // decryption works or the message is too old to notify anyway.
     const decryptions = createDecryptionWaits();
-    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, room, older, gone, at) => {
-      // Back-pagination and removals are history; only events the sync just delivered are news,
-      // not a root a thread list adds again (at a reload, or at each reply to its thread).
-      if (!room || older || gone || !at.liveEvent || isThreadListTimeline(room, at.timeline))
-        return;
+    const judge = (event: MatrixEvent, room: Room) => {
       if (isAwaitingDecryption(event)) {
         const left = MESSAGE_NOTIFY_MAX_AGE_MS - (Date.now() - event.getTs());
         decryptions.wait(event, left, () => consider(event, room));
@@ -156,11 +155,29 @@ export function MessageNotificationsFeature() {
       }
       consider(event, room);
     };
+    const onTimeline: RoomEventHandlerMap[RoomEvent.Timeline] = (event, room, older, gone, at) => {
+      // Back-pagination and removals are history; only events the sync just delivered are news,
+      // not a root a thread list adds again (at a reload, or at each reply to its thread).
+      if (!room || older || gone || !at.liveEvent || isThreadListTimeline(room, at.timeline))
+        return;
+      // Edits are judged as the sync delivers them, below.
+      if (isEditEvent(event)) return;
+      judge(event, room);
+    };
+    // The SDK keeps the edits of a thread nobody opened back from its timeline until it opens, so
+    // the edit that completes an agent's reply there never reaches `onTimeline`; every edit the
+    // sync delivers is announced here, once the SDK has placed it.
+    const onSyncEvent: ClientEventHandlerMap[ClientEvent.Event] = (event) => {
+      const room = client.getRoom(event.getRoomId());
+      if (room && isEditEvent(event)) judge(event, room);
+    };
     client.on(RoomEvent.Timeline, onTimeline);
+    client.on(ClientEvent.Event, onSyncEvent);
     return () => {
       // A message still waiting when the account signs out or switches stays quiet.
       decryptions.stop();
       client.removeListener(RoomEvent.Timeline, onTimeline);
+      client.removeListener(ClientEvent.Event, onSyncEvent);
     };
   }, [client, hasCompletedInitialSync]);
 

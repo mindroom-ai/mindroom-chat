@@ -49,6 +49,10 @@ const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => 
   return isRecord(relation) ? relation : undefined;
 };
 
+/** Whether an event edits another (`m.replace`); its relation is readable before decryption. */
+export const isEditEvent = (event: MatrixEvent): boolean =>
+  relationOf(event)?.rel_type === RelationType.Replace;
+
 /** The thread an event sits in, from its own `m.thread` relation. */
 export const getEventThreadId = (event: MatrixEvent): string | undefined => {
   const relation = relationOf(event);
@@ -134,7 +138,7 @@ export const readMessageNotice = (
   if (isUnfinishedReply(event.getContent())) return undefined;
 
   const completed = getCompletedAgentReply(room, event);
-  if (relationOf(event)?.rel_type === RelationType.Replace && !completed) return undefined;
+  if (isEditEvent(event) && !completed) return undefined;
 
   const actions = completed
     ? actionsForFinishedReply(client, completed.reply, completed.content)
