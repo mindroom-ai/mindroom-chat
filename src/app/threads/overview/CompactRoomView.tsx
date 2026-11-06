@@ -26,6 +26,7 @@ import { type ScrollAnchorMemory, useScrollAnchorMemory } from '../../ui/scrollA
 import { IconTooltip } from '../../ui/IconTooltip';
 import { MessageRowBoundary } from '../../messages/content/MessageRowBoundary';
 import { useHeldThreadOrder } from './useHeldThreadOrder';
+import { useStagedCardIds } from './useStagedCardIds';
 
 const ThreadActionsMenu = lazy(() =>
   import('../ThreadActionsMenu').then((module) => ({ default: module.ThreadActionsMenu }))
@@ -231,9 +232,11 @@ export function CompactRoomView({
   const focusHeld = focusInside && !!contentRef.current?.contains(document.activeElement);
   const orderHeld = pointerInside || focusHeld || !!menu;
   const shownRootIds = useHeldThreadOrder(threadRootIds, orderHeld);
+  // A filter change mounts the cards it brings back a chunk at a time.
+  const stagedRootIds = useStagedCardIds(room.roomId, shownRootIds);
   const cardViewModels = useCompactThreadCardViewModels({
     room,
-    threadRootIds: shownRootIds,
+    threadRootIds: stagedRootIds,
     threadRecordMap,
   });
   const { canToggle, setResolved, updatingThreadRootIds, error } = useToggleThreadResolution(room);
