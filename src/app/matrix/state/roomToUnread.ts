@@ -214,7 +214,7 @@ export const useBindRoomToUnreadAtom = (
     const handleDeleteRoom = (roomId: string) => setUnread({ type: 'DELETE', roomId });
     // Muting a room, or unmuting it, changes whether its unread messages show.
     const handleAccountData = (event: MatrixEvent) => {
-      if (event.getType() === EventType.PushRules) resetAll(mx.getRooms());
+      if (matchesEnum(event.getType(), EventType.PushRules)) resetAll(mx.getRooms());
     };
 
     mx.on(RoomEvent.Timeline, handleTimeline);
