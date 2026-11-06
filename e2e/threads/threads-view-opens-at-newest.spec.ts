@@ -388,10 +388,10 @@ const checkJumpFromLink = async (page: Page, seeded: Seeded, label: string, phon
   });
   await page.goto('/home/');
   await openRoomFromList(page, phone);
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'true', { timeout: 30_000 });
+  await expectRoomCompact(page, true);
   await expect(page.locator('[data-thread-root-id]').first()).toBeVisible({ timeout: 30_000 });
-  await roomViewSwitch(page).click();
-  await expect(roomViewSwitch(page)).toHaveAttribute('aria-pressed', 'false');
+  await toggleRoomView(page);
+  await expectRoomCompact(page, false);
   await expectShown(page, newest, `after switching to Threads (${label})`);
 
   const linkPath = (index: number) =>
