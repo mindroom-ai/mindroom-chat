@@ -1,11 +1,13 @@
 import type { Dispatch, MutableRefObject, RefObject, SetStateAction } from 'react';
 import {
   EventStatus,
+  MatrixEventEvent,
   RelationType,
   type MatrixClient,
   type MatrixEvent,
   type Room,
 } from 'matrix-js-sdk';
+import { inMainTimelineForReceipt } from 'matrix-js-sdk/lib/client';
 import { isZeroReplyStandaloneThreadRootEvent } from '../event-store/threads/compactThreadRootData';
 import type { ThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import { isThreadOnlyRoomActivity } from '../event-store/threads/threadRenderUtils';
@@ -29,7 +31,9 @@ import {
   getThreadSummaryInfosFromEventSources,
   isThreadSummaryEvent,
 } from '../matrix/protocol/threadSummary';
-import { markMainTimelineAsRead } from '../notifications/readReceipts';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { hasTerminalStreamMetadata } from '../matrix/protocol/aiRun';
+import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
 import type { ScrollToBottomState } from './roomFocusScrollController';
 import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
@@ -91,6 +95,28 @@ const isNearBottomNow = (area: HTMLElement): boolean =>
   });
 
 /**
+ * Whether `event` is the edit that finishes a streamed reply in thread `threadId`: an edit of a
+ * reply there (not of the root, which is in the main timeline) whose content ends the stream.
+ * The server counts the finished reply as new, so a reader who watched it finish has to read it.
+ */
+export const finishesStreamedThreadReply = (event: MatrixEvent, threadId: string): boolean =>
+  isEdit(event) &&
+  event.threadRootId === threadId &&
+  !inMainTimelineForReceipt(event) &&
+  hasTerminalStreamMetadata(event.getContent());
+
+/** Calls `onClear` once the event's content can be read: now, or when it is decrypted. */
+const whenDecrypted = (event: MatrixEvent, onClear: () => void): void => {
+  if (event.isEncrypted() && event.getClearContent() === null) {
+    event.once(MatrixEventEvent.Decrypted, () => {
+      if (!event.isDecryptionFailure()) onClear();
+    });
+    return;
+  }
+  onClear();
+};
+
+/**
  * Whether `event` changes what the open thread shows: its root, a reply in it, or an event
  * related to one of its rows (a reaction or an edit).
  */
@@ -144,6 +170,9 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     threadResolutionMap,
     unreadInfo,
   } = options;
+
+  // A reply decrypted after the reader left its thread was not watched there.
+  const openThreadIdRef = useLatestRef(threadId);
 
   // Same rows, same range, new object: whatever derives from the window computes again. A
   // repaint never touches the range, which another hook may have just changed (a removed row).
@@ -220,6 +249,19 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
       // A reply streams in as edits: hold the reader at the bottom without an animation.
       requestBottomPin(false);
     }
+    if (isEdit(event)) whenDecrypted(event, () => readFinishedStream(event, openThreadId));
+  };
+
+  // A reader who watches a streamed reply finish has read it, as a reader who watches a new reply
+  // arrive has (`useTimelineReadReceiptController`): the thread is still open, at the bottom of
+  // its live end, with the window focused, measured when the edit can be read.
+  const readFinishedStream = (event: MatrixEvent, openThreadId: string) => {
+    if (openThreadIdRef.current !== openThreadId) return;
+    if (!finishesStreamedThreadReply(event, openThreadId)) return;
+    const area = scrollRef.current;
+    if (!area || !atLiveEndRef.current || !atBottomRef.current || !documentHasFocus()) return;
+    if (!isNearBottomNow(area)) return;
+    void markThreadAsRead(mx, room.roomId, openThreadId, hideActivity, event);
   };
 
   const storeThreadSummary = (event: MatrixEvent) => {

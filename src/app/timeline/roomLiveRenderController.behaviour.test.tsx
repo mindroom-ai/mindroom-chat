@@ -2,6 +2,7 @@ import type { SetStateAction } from 'react';
 import {
   EventStatus,
   MatrixEvent,
+  MatrixEventEvent,
   RoomEvent,
   type IEvent,
   type MatrixClient,
@@ -11,12 +12,16 @@ import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import type { RoomUnreadInfo, Timeline } from '../event-store/timeline/timelinePagination';
-import { markMainTimelineAsRead } from '../notifications/readReceipts';
-import { useRoomLiveRenderController } from './roomLiveRenderController';
+import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
+import {
+  finishesStreamedThreadReply,
+  useRoomLiveRenderController,
+} from './roomLiveRenderController';
 
 vi.mock('../notifications/readReceipts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../notifications/readReceipts')>()),
   markMainTimelineAsRead: vi.fn(() => Promise.resolve()),
+  markThreadAsRead: vi.fn(() => Promise.resolve()),
 }));
 
 const ROOM_ID = '!live:example.org';
@@ -55,6 +60,29 @@ const editOf = (id: string, targetId: string): MatrixEvent =>
       'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
     },
   });
+
+/** A streamed edit of a reply in thread `rootId`, as the SDK's thread model marks it. */
+const streamEditOf = (
+  id: string,
+  targetId: string,
+  status: string,
+  rootId: string = THREAD_ID
+): MatrixEvent => {
+  const event = makeEvent(id, {
+    content: {
+      msgtype: 'm.text',
+      body: `* Reply (${status})`,
+      'm.new_content': {
+        msgtype: 'm.text',
+        body: `Reply (${status})`,
+        'io.mindroom.stream_status': status,
+      },
+      'm.relates_to': { rel_type: 'm.replace', event_id: targetId },
+    },
+  });
+  event.setThreadId(rootId);
+  return event;
+};
 
 const reactionTo = (id: string, targetId: string): MatrixEvent =>
   makeEvent(id, {
@@ -113,6 +141,7 @@ afterEach(() => {
   });
   vi.unstubAllGlobals();
   vi.mocked(markMainTimelineAsRead).mockClear();
+  vi.mocked(markThreadAsRead).mockClear();
 });
 
 const renderController = (scenario: Scenario = {}) => {
@@ -574,5 +603,100 @@ describe('useRoomLiveRenderController, thread open', () => {
     expect(view.notifyThreadEventsChanged).toHaveBeenCalledTimes(2);
     expect(view.observeLiveTail).not.toHaveBeenCalled();
     expect(view.pin()).toEqual(NO_PIN);
+  });
+});
+
+describe('finishesStreamedThreadReply', () => {
+  it('is true only for the edit that ends a reply streamed in the thread', () => {
+    ['completed', 'cancelled', 'interrupted', 'error'].forEach((status) => {
+      expect(finishesStreamedThreadReply(streamEditOf('$end', THREAD_ROW, status), THREAD_ID)).toBe(
+        true
+      );
+    });
+    expect(
+      finishesStreamedThreadReply(streamEditOf('$mid', THREAD_ROW, 'streaming'), THREAD_ID)
+    ).toBe(false);
+    // Another thread, an edit of the root (main timeline), and a plain edit without a status.
+    expect(
+      finishesStreamedThreadReply(
+        streamEditOf('$other', '$other-reply', 'completed', '$other-root'),
+        THREAD_ID
+      )
+    ).toBe(false);
+    expect(
+      finishesStreamedThreadReply(streamEditOf('$root-edit', THREAD_ID, 'completed'), THREAD_ID)
+    ).toBe(false);
+    const plainEdit = editOf('$plain', THREAD_ROW);
+    plainEdit.setThreadId(THREAD_ID);
+    expect(finishesStreamedThreadReply(plainEdit, THREAD_ID)).toBe(false);
+    expect(finishesStreamedThreadReply(threadReply('$reply'), THREAD_ID)).toBe(false);
+  });
+});
+
+describe('useRoomLiveRenderController, a streamed thread reply finishes', () => {
+  const open = (scenario: Scenario = {}) =>
+    renderController({ threadId: THREAD_ID, threadRows: [THREAD_ID, THREAD_ROW], ...scenario });
+
+  it('reads the thread when the reader watches the reply finish', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const view = open({ hideActivity: true });
+
+    view.arrive(streamEditOf('$mid', THREAD_ROW, 'streaming'), true);
+    expect(markThreadAsRead).not.toHaveBeenCalled();
+
+    const finish = streamEditOf('$end', THREAD_ROW, 'completed');
+    view.arrive(finish, true);
+    expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    expect(markThreadAsRead).toHaveBeenCalledWith(view.mx, ROOM_ID, THREAD_ID, true, finish);
+    expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing while the window has no focus', () => {
+    vi.stubGlobal('document', { hasFocus: () => false });
+    const view = open();
+
+    view.arrive(streamEditOf('$end', THREAD_ROW, 'completed'), true);
+
+    expect(markThreadAsRead).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing to a reader who scrolled away or stops short of the live end', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    [{ fromBottom: 300 }, { atBottom: false }, { atLiveEnd: false }].forEach((scenario) => {
+      open(scenario).arrive(streamEditOf('$end', THREAD_ROW, 'completed'), true);
+    });
+
+    expect(markThreadAsRead).not.toHaveBeenCalled();
+  });
+
+  it('sends nothing for a reply finishing in another thread or from history', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const view = open();
+
+    view.arrive(streamEditOf('$other', '$other-reply', 'completed', '$other-root'), true);
+    view.arrive(streamEditOf('$old', THREAD_ROW, 'completed'), false);
+
+    expect(markThreadAsRead).not.toHaveBeenCalled();
+  });
+
+  it('decides on an encrypted edit once it is decrypted', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    const view = open();
+    const edit = streamEditOf('$end', THREAD_ROW, 'completed');
+    const clear = edit.getContent();
+    vi.spyOn(edit, 'isEncrypted').mockReturnValue(true);
+    const clearContent = vi.spyOn(edit, 'getClearContent').mockReturnValue(null);
+    const content = vi.spyOn(edit, 'getContent').mockReturnValue({ algorithm: 'm.megolm' });
+
+    view.arrive(edit, true);
+    expect(markThreadAsRead).not.toHaveBeenCalled();
+
+    clearContent.mockReturnValue(clear);
+    content.mockReturnValue(clear);
+    act(() => {
+      edit.emit(MatrixEventEvent.Decrypted, edit);
+    });
+    expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+    expect(markThreadAsRead).toHaveBeenCalledWith(view.mx, ROOM_ID, THREAD_ID, false, edit);
   });
 });
