@@ -100,16 +100,18 @@ const runJumps = async (
   // A silent relation search must not block answers the open thread already knows.
   const lookups: string[] = [];
   const stalled: Route[] = [];
-  await page.route('**/_matrix/client/**/relations/**', async (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.get('limit') === '100' && url.pathname.endsWith('/m.thread')) {
-      lookups.push(url.pathname);
+  await page.route(
+    (url) =>
+      url.pathname.includes('/_matrix/client/') &&
+      url.pathname.includes('/relations/') &&
+      url.pathname.endsWith('/m.thread') &&
+      url.searchParams.get('limit') === '100',
+    (route) => {
+      lookups.push(new URL(route.request().url()).pathname);
       stalled.push(route);
-      // Keep the request silent until page teardown, without touching the homeserver.
-      return;
+      // Keep the explicit time lookup silent until this test's cleanup.
     }
-    await route.continue();
-  });
+  );
   const rootRow = page.locator(`[data-message-id="${rootId}"]`);
 
   const press = (locator: ReturnType<Page['locator']>) => (phone ? locator.tap() : locator.click());
