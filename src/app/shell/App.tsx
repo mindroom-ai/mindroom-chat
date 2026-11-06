@@ -18,6 +18,8 @@ import { installOverlayFocus } from '../lib/overlayFocus';
 import { useErrorReporting } from '../bug-reports/error-reporting/errorReporting';
 import { ConfigConfigError, ConfigConfigLoading } from './ConfigConfig';
 import { createRouter } from './Router';
+import { PersistentParticleBackgroundProvider } from '../ui/particle-background/PersistentParticleBackground';
+import '../ui/particle-background/particleCanvasReveal.css';
 
 const queryClient = new QueryClient();
 setImperativeJotaiStore(appJotaiStore);
@@ -65,31 +67,35 @@ function App() {
     <JotaiProvider store={appJotaiStore}>
       <AppTheme>
         <QueryClientProvider client={queryClient}>
-          {/* After a deployment, above every screen: a new version is available. */}
-          <NewVersionNotice />
-          {/* Operator notices sit above every screen, sign-in and config loading included. */}
-          <NoticeLayout>
-            {/* A screen that fails to render shows what happened and Reload, never a blank page. */}
-            <AppErrorBoundary>
-              <ClientConfigLoader
-                fallback={() => <ConfigConfigLoading />}
-                error={(error, retry, ignore, authenticate) => (
-                  <ConfigConfigError
-                    error={error}
-                    retry={retry}
-                    ignore={ignore}
-                    authenticate={authenticate}
-                  />
-                )}
-              >
-                {(clientConfig) => (
-                  <ClientConfigProvider value={clientConfig}>
-                    <AppRouter clientConfig={clientConfig} />
-                  </ClientConfigProvider>
-                )}
-              </ClientConfigLoader>
-            </AppErrorBoundary>
-          </NoticeLayout>
+          {/* One particle renderer for the sign-in pages and every splash in turn: a new one per
+              screen would start black each time and restart its animation. */}
+          <PersistentParticleBackgroundProvider>
+            {/* After a deployment, above every screen: a new version is available. */}
+            <NewVersionNotice />
+            {/* Operator notices sit above every screen, sign-in and config loading included. */}
+            <NoticeLayout>
+              {/* A screen that fails to render shows what happened and Reload, never a blank page. */}
+              <AppErrorBoundary>
+                <ClientConfigLoader
+                  fallback={() => <ConfigConfigLoading />}
+                  error={(error, retry, ignore, authenticate) => (
+                    <ConfigConfigError
+                      error={error}
+                      retry={retry}
+                      ignore={ignore}
+                      authenticate={authenticate}
+                    />
+                  )}
+                >
+                  {(clientConfig) => (
+                    <ClientConfigProvider value={clientConfig}>
+                      <AppRouter clientConfig={clientConfig} />
+                    </ClientConfigProvider>
+                  )}
+                </ClientConfigLoader>
+              </AppErrorBoundary>
+            </NoticeLayout>
+          </PersistentParticleBackgroundProvider>
         </QueryClientProvider>
       </AppTheme>
     </JotaiProvider>
