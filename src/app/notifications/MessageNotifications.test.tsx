@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ClientEvent,
   MatrixEvent,
   MatrixEventEvent,
   RoomEvent,
@@ -293,6 +294,53 @@ describe('MessageNotificationsFeature', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('notifies once for an agent reply in an unopened thread, when the sync brings its last edit', () => {
+    const agentMessage = (content: IContent) =>
+      new MatrixEvent({
+        type: 'm.room.message',
+        room_id: ROOM,
+        sender: '@mindroom_helper:example.org',
+        event_id: `$a${Math.random()}`,
+        origin_server_ts: Date.now(),
+        content,
+      });
+    const reply = agentMessage({
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'io.mindroom.stream_status': 'pending',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    });
+    const edit = (status: string, body: string) =>
+      agentMessage({
+        msgtype: status === 'completed' ? 'm.text' : 'm.notice',
+        body: `* ${body}`,
+        'io.mindroom.stream_status': status,
+        'm.new_content': { msgtype: 'm.text', body, 'io.mindroom.stream_status': status },
+        'm.relates_to': { rel_type: 'm.replace', event_id: reply.getId() },
+      });
+    vi.spyOn(room, 'findEventById').mockImplementation(((id: string) =>
+      id === reply.getId() ? reply : undefined) as never);
+    const synced = (event: MatrixEvent) =>
+      act(() => {
+        emitter.emit(ClientEvent.Event, event);
+      });
+    render('/home/');
+
+    arrive(reply);
+    synced(reply);
+    // An unopened thread keeps its edits back from the timeline; only the sync announces them.
+    synced(edit('streaming', 'Checking the release notes.'));
+    expect(FakeNotification.shown).toHaveLength(0);
+
+    const finished = edit('completed', 'The notes are ready.');
+    synced(finished);
+    // An opened thread adds the same edit to its timeline too.
+    arrive(finished);
+    expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
+      'mindroom_helper: The notes are ready.',
+    ]);
   });
 
   it('chimes only when the push actions ask for a sound, and respects the settings', () => {
