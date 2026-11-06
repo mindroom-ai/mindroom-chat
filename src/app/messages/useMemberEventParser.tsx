@@ -1,16 +1,18 @@
 import { ReactNode, useCallback } from 'react';
 import { IconSrc, Icons } from 'folds';
-import type { MatrixEvent } from 'matrix-js-sdk';
+import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';
 import { Membership } from '../matrix/types/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
+import { getMemberDisplayName } from '../matrix/room';
 
 type ParsedMemberEvent = {
   icon: IconSrc;
   body: ReactNode;
 };
 
-type MemberEventParser = (event: MatrixEvent) => ParsedMemberEvent;
+/** `room` lets a sentence name a member whose event carries no name by the name they had before. */
+type MemberEventParser = (event: MatrixEvent, room?: Room) => ParsedMemberEvent;
 
 type MemberContent = {
   membership?: string;
@@ -140,6 +142,33 @@ const getMemberEventKind = (
 const nameOf = (userId: string | undefined, displayName: string | undefined): string =>
   displayName ?? (userId ? getMxIdLocalPart(userId) ?? userId : '');
 
+/**
+ * The name `userId` had before `event`, from the member events the client has loaded, newest
+ * first. Bans and the leave that lifts one carry no name, so their rows would otherwise fall back
+ * to the user ID.
+ */
+const nameBefore = (room: Room, event: MatrixEvent, userId: string): string | undefined => {
+  const eventId = event.getId();
+  let timeline = eventId ? room.getTimelineForEvent(eventId) : null;
+  let events = timeline?.getEvents() ?? [];
+  let index = events.findIndex((candidate) => candidate.getId() === eventId);
+  while (timeline) {
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const earlier = events[i];
+      if (earlier.getType() === 'm.room.member' && earlier.getStateKey() === userId) {
+        const name =
+          readMemberContent(earlier.getContent()).displayname ??
+          readMemberContent(earlier.getPrevContent()).displayname;
+        if (name) return name;
+      }
+    }
+    timeline = timeline.getNeighbouringTimeline(Direction.Backward);
+    events = timeline?.getEvents() ?? [];
+    index = events.length;
+  }
+  return undefined;
+};
+
 type MemberEventFacts = {
   kind: MemberEventKind;
   userName: string;
@@ -149,14 +178,20 @@ type MemberEventFacts = {
 };
 
 /** Reads who did what to whom from a member event; the sentence is chosen by `kind`. */
-const describeMemberEvent = (event: MatrixEvent): MemberEventFacts => {
+const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts => {
   const current = readMemberContent(event.getContent());
   const previous = readMemberContent(event.getPrevContent());
   const senderId = event.getSender();
   const targetId = event.getStateKey() ?? undefined;
   const selfChange = !!senderId && senderId === targetId;
 
-  const userName = nameOf(targetId, current.displayname ?? previous.displayname);
+  const knownName =
+    current.displayname ??
+    previous.displayname ??
+    (room && targetId
+      ? nameBefore(room, event, targetId) ?? getMemberDisplayName(room, targetId)
+      : undefined);
+  const userName = nameOf(targetId, knownName);
   return {
     kind: getMemberEventKind(current, previous, selfChange),
     userName,
@@ -176,8 +211,8 @@ export function useMemberEventParser(): MemberEventParser {
   const { t: translate } = useTranslation();
 
   return useCallback(
-    (event) => {
-      const { kind, ...values } = describeMemberEvent(event);
+    (event, room) => {
+      const { kind, ...values } = describeMemberEvent(event, room);
       return {
         icon: ICONS[kind],
         body: (

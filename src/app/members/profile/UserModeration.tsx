@@ -29,7 +29,12 @@ const membershipNote = (room: Room, member: RoomMember | null): Note | undefined
   const text = typeof reason === 'string' && reason.trim() ? reason : undefined;
   if (member.membership === Membership.Ban) return { kind: 'ban', senderName, reason: text };
   if (member.membership === Membership.Invite) return { kind: 'invite', senderName, reason: text };
-  if (member.membership === Membership.Leave && sender !== member.userId) {
+  // Someone else ending a membership kicks only a member: lifting a ban, withdrawing an invite
+  // or turning down a request to join is not a kick.
+  const previous: unknown = event.getPrevContent().membership;
+  const removedMember =
+    previous !== Membership.Ban && previous !== Membership.Invite && previous !== Membership.Knock;
+  if (member.membership === Membership.Leave && sender !== member.userId && removedMember) {
     return { kind: 'kick', senderName, reason: text };
   }
   return undefined;

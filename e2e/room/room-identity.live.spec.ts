@@ -169,7 +169,9 @@ test('after an unban the person keeps their name and is not called kicked @webki
   await page.goto(roomPath(roomId));
   await expect(page.getByText(/banned Banned Person/)).toBeVisible({ timeout: 20_000 });
 
-  await page.getByRole('button', { name: 'Show Members', exact: true }).click();
+  // The members panel opens by default on a wide window.
+  const showMembers = page.getByRole('button', { name: 'Show Members', exact: true });
+  if (await showMembers.isVisible()) await showMembers.click();
   await page.getByRole('button', { name: 'Joined', exact: true }).click();
   await page.getByRole('menuitemradio', { name: 'Banned', exact: true }).click();
   await page.locator(`button[data-user-id="${member.userId}"]`).click();

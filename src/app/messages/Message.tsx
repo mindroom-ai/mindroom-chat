@@ -1036,7 +1036,7 @@ function StateEventLine({ room, mEvent }: { room: Room; mEvent: MatrixEvent }) {
   const parseMemberEvent = useMemberEventParser();
   const type = mEvent.getType();
   if (type === 'm.room.member') {
-    const parsed = parseMemberEvent(mEvent);
+    const parsed = parseMemberEvent(mEvent, room);
     return <StateLine icon={parsed.icon}>{parsed.body}</StateLine>;
   }
   const icon = ROOM_STATE_ICONS[type];
