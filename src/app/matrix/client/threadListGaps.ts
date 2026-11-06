@@ -21,8 +21,8 @@ import { watchRoomThreads } from '../watchRoomThreads';
 // streaming. A page that falls behind, as a loaded phone does while many agents stream, gets gap
 // after gap. After each gap in a room whose thread list was read, this reads the list again,
 // newest activity first, down to the activity the room knew before the gap. The SDK adds the
-// threads it lacked and refreshes the summaries of unopened ones; a loaded thread with news moves
-// its timeline past the gap and loads the page before it.
+// threads it lacked and refreshes the summaries of unopened ones; a loaded thread with news loads
+// its latest page again.
 
 /** Roots per thread list page. */
 const PAGE_SIZE = 30;
@@ -34,12 +34,18 @@ const listedActivityTs = (root: MatrixEvent): number =>
   root.getServerAggregatedRelation<IThreadBundledRelationship>(THREAD_RELATION_TYPE.name)
     ?.latest_event?.origin_server_ts ?? root.getTs();
 
+/** The SDK patch keeps a loaded thread's gap here until an event or an open view moves past it. */
+type ThreadGap = { pendingTimelineReset?: unknown };
+
 /**
- * A loaded thread whose newest events came in a gap: its timeline moves past the gap, and the page
- * before that end loads, with the edits and titles in it.
+ * A loaded thread whose newest events came in a gap loads its latest page again, as the SDK loads
+ * a thread's first page: in a new segment after the gap, the replies before the gap would stay in
+ * the old one, which cards do not read. An open thread's view moves past a gap at once and
+ * recovers it itself, so a thread no longer holding its gap is left alone.
  */
 const catchUpLoadedThread = async (mx: MatrixClient, thread: Thread): Promise<void> => {
-  await thread.flushPendingTimelineReset();
+  if (!(thread as unknown as ThreadGap).pendingTimelineReset) return;
+  await thread.resetLiveTimeline();
   await mx.paginateEventTimeline(thread.getUnfilteredTimelineSet().getLiveTimeline(), {
     backwards: true,
   });
