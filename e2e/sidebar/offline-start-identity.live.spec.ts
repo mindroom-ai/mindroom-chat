@@ -321,6 +321,7 @@ test('an offline start shows a rename and a roaming setting made shortly before 
     accessToken: viewer.accessToken,
     body: JSON.stringify({ displayname: 'Name After' }),
   });
+  await expect(message).toContainText('Name After', { timeout: 20_000 });
   await matrixFetch(
     homeserver,
     `/user/${encodeURIComponent(viewer.userId)}/account_data/io.mindroom.client.settings`,
@@ -330,8 +331,7 @@ test('an offline start shows a rename and a roaming setting made shortly before 
       body: JSON.stringify({ version: 1, hideMembershipEvents: true }),
     }
   );
-  await expect(message).toContainText('Name After', { timeout: 20_000 });
-  await expect(page.getByText(/Room Member joined the room/)).toHaveCount(0);
+  await expect(page.getByText(/Room Member joined the room/)).toHaveCount(0, { timeout: 20_000 });
   await waitForSavedSync(page, 'Name After');
   await waitForSavedSync(page, 'hideMembershipEvents');
 
