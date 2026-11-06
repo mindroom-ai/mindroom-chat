@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { AiRunInfo } from '../../matrix/protocol/aiRun';
 import { getAiRunCompactModelLabel, getAiRunModelLabel } from './aiRunDisplay';
 import { ProviderModelIcon } from '../../models/ProviderModelIcon';
+import { ownDirectionLine } from '../../ui/directional';
 import * as css from './ModelBadge.css';
 
 export function ModelBadge({ info }: { info: AiRunInfo }) {
@@ -28,7 +29,7 @@ export function ModelBadge({ info }: { info: AiRunInfo }) {
         className={css.Icon}
         size={10}
       />
-      <span className={css.Label}>{label}</span>
+      <span className={css.Label} {...ownDirectionLine}>{label}</span>
     </span>
   );
 }
