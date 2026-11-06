@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { expect, test, webkit, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
@@ -106,7 +107,9 @@ const SURFACES: Record<string, { size: typeof DESKTOP; open: (page: Page) => Pro
     size: DESKTOP,
     open: async (page) => {
       const row = page.locator('[data-message-id]').filter({ hasText: '16. ' }).last();
-      await row.getByText(`16. ${MESSAGE.slice(0, 30)}`).click({ button: 'right' });
+      // The toolbar's More Options opens the menu a right click opens (WebKit gets no right click).
+      await row.hover();
+      await row.getByRole('button', { name: 'More Options', exact: true }).click();
       const entry = page
         .getByRole('button', { name: 'Reply in Thread', exact: true })
         .filter({ hasText: 'Reply in Thread' });
@@ -182,7 +185,9 @@ const checkSurfaces = async (page: Page, prefix: string, browser: string, testIn
       }
     }
   } finally {
-    await testInfo.attach(`surfaces-${browser}.json`, { body: JSON.stringify(measured, null, 2) });
+    const body = JSON.stringify(measured, null, 2);
+    await writeFile(testInfo.outputPath(`surfaces-${browser}.json`), body);
+    await testInfo.attach(`surfaces-${browser}.json`, { body });
   }
   for (const [name, { alpha, spread, contrast }] of Object.entries(measured)) {
     expect.soft(alpha, `${name}: tint`).toBeGreaterThanOrEqual(0.85);
