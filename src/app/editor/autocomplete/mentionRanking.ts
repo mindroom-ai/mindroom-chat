@@ -67,13 +67,19 @@ export type SenderTimelines = Partial<Pick<Room, 'getLiveTimeline' | 'getThreads
 
 /** Who sent the messages the client holds for the room, threads included: latest first. */
 export const recentSenders = (room: SenderTimelines): string[] => {
-  const events = [
-    ...(room.getLiveTimeline?.().getEvents() ?? []),
-    ...(room.getThreads?.().flatMap((thread) => thread.liveTimeline.getEvents()) ?? []),
-  ].filter((event) => event.getType() === ROOM_MESSAGE);
-  events.sort((left, right) => right.getTs() - left.getTs());
-  const senders = events.flatMap((event) => event.getSender() ?? []);
-  return [...new Set(senders)];
+  const latest = new Map<string, number>();
+  const timelines = [
+    room.getLiveTimeline?.(),
+    ...(room.getThreads?.().map((thread) => thread.liveTimeline) ?? []),
+  ];
+  timelines.forEach((timeline) =>
+    timeline?.getEvents().forEach((event) => {
+      const sender = event.getSender();
+      if (!sender || event.getType() !== ROOM_MESSAGE) return;
+      latest.set(sender, Math.max(latest.get(sender) ?? 0, event.getTs()));
+    })
+  );
+  return [...latest].sort(([, left], [, right]) => right - left).map(([sender]) => sender);
 };
 
 /**
