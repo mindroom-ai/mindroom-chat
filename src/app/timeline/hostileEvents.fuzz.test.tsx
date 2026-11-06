@@ -351,9 +351,10 @@ describe('events of any shape', () => {
   });
 
   it('renders state events of any shape', () => {
+    const MEMBER: string = EventType.RoomMember;
     function StateRow({ event }: { event: MatrixEvent }) {
       const parseMember = useMemberEventParser();
-      if (event.getType() === EventType.RoomMember) return <>{parseMember(event).body}</>;
+      if (event.getType() === MEMBER) return <>{parseMember(event).body}</>;
       const change = describeRoomStateChange(event);
       return change ? <RoomStateSentence change={change} sender="Sender" /> : null;
     }
@@ -370,7 +371,7 @@ describe('events of any shape', () => {
         all.forEach((content) => {
           const event = makeEvent(PERSON, content, {
             type,
-            state_key: type === EventType.RoomMember ? PERSON : '',
+            state_key: type === MEMBER ? PERSON : '',
             unsigned: { prev_content: value as never },
           });
           rows.push(() => <StateRow event={event} />);

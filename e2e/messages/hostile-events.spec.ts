@@ -271,6 +271,22 @@ const shot = async (page: Page, name: string) => {
   await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
 
+/**
+ * WebKit reports each request a reload cuts off as a page error ("Fetch API cannot load <url> due
+ * to access control checks."), also when the app handles the failure; those are not the app's.
+ */
+const RELOAD_CUTOFF = /^Fetch API cannot load .* due to access control checks\.$/;
+const reloading = new WeakSet<Page>();
+
+const reload = async (page: Page) => {
+  reloading.add(page);
+  try {
+    await page.reload();
+  } finally {
+    reloading.delete(page);
+  }
+};
+
 const expectNoCrash = async (page: Page) => {
   await expect(page.getByText('Something went wrong.')).toHaveCount(0);
 };
@@ -329,7 +345,7 @@ const check = async (page: Page, world: World, label: string) => {
   });
   await checkRoomView(page, world, label);
   await checkThreadView(page, world, label);
-  await page.reload();
+  await reload(page);
   await checkThreadView(page, world, `${label}-reloaded`);
   await seedRoomOverviewState({
     page,
@@ -338,7 +354,7 @@ const check = async (page: Page, world: World, label: string) => {
     viewMode: 'compact',
     filterState: createDefaultThreadFilterState(),
   });
-  await page.reload();
+  await reload(page);
   await checkCompactView(page, world, label);
 };
 
@@ -352,7 +368,12 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     try {
       const page = await context.newPage();
       const pageErrors: string[] = [];
-      page.on('pageerror', (error) => pageErrors.push(`${error.name}: ${error.message}`));
+      page.on('pageerror', (error) => {
+        // WebKit's message has a colon after the scheme, so Playwright splits it into a name.
+        const text = `${error.name}: ${error.message}`;
+        if (reloading.has(page) && RELOAD_CUTOFF.test(text)) return;
+        pageErrors.push(text);
+      });
       await loginWithPassword(page, {
         homeserver: HOMESERVER,
         username: world.reader.username,
