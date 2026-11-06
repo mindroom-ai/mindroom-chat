@@ -180,4 +180,12 @@ test('a media room loads thumbnails near the viewport and files only on request'
   expect(pictures.length).toBeGreaterThan(0);
   expect(pictures.length).toBeLessThan(IMAGES);
   expect(pictures.every((request) => request.endpoint === 'thumbnail')).toBe(true);
+
+  // The viewer shows the original, loaded when it opens.
+  const shown = requests.length;
+  await page.getByRole('img', { name: 'photo-020.png' }).click();
+  await expect(page.getByRole('dialog', { name: 'photo-020.png' })).toBeVisible();
+  await expect
+    .poll(() => requests.slice(shown).filter((request) => request.kind === 'image'))
+    .toEqual([{ kind: 'image', endpoint: 'download' }]);
 });
