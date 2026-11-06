@@ -186,15 +186,17 @@ export const runThreadOpenSdkBootstrap = async ({
     if (!isMounted()) return false;
   }
   const loadedThreadTimelineSet = threadModel.getUnfilteredTimelineSet();
-  // Only a thread with no loaded events needs the root's context. The SDK prepends the context's
-  // reply page newest first to the segment holding the root (or a new one), so a segment that
-  // already holds those newer replies becomes its older neighbour; later history then cannot join
-  // the live segment. Backward pagination of the live segment reaches the root instead.
-  const contextRequested = loadedThreadTimelineSet
+  // Only a thread with no loaded events needs its first page, and the page goes into the live
+  // segment, as the SDK's own first page does: the root's context would start a new segment (no
+  // segment holds the root yet), and a reply /sync brings later, already known there, would never
+  // reach the live segment, which thread cards, unread state and read receipts read.
+  const firstPageRequested = loadedThreadTimelineSet
     .getTimelines()
     .every((timeline) => timeline.getEvents().length === 0);
-  if (contextRequested) {
-    const [err] = await to(mx.getThreadTimeline(loadedThreadTimelineSet, threadId));
+  if (firstPageRequested) {
+    const [err] = await to(
+      mx.paginateEventTimeline(loadedThreadTimelineSet.getLiveTimeline(), { backwards: true })
+    );
     if (!isMounted()) {
       return false;
     }
@@ -235,7 +237,7 @@ export const runThreadOpenSdkBootstrap = async ({
   }
 
   logTimelineDebug(debugTraceId, 'thread-sdk-bootstrap-ready', {
-    contextRequested,
+    contextRequested: firstPageRequested,
     rootPresent: !!threadModel.rootEvent,
     sdkEventCount: getThreadTimelineEvents(threadModel).length,
     threadId,

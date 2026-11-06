@@ -160,12 +160,12 @@ it.each(['pending', 'missed'] as const)(
   }
 );
 
-it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
+it.each(['reply', 'root', 'first-page-reply', 'pending-bootstrap'] as const)(
   'renders the available %s through the real render hook while storage stays pending',
   async (mode) => {
     const support = Thread.hasServerSideSupport;
     Thread.hasServerSideSupport =
-      mode === 'joined-reply' || mode === 'pending-bootstrap'
+      mode === 'first-page-reply' || mode === 'pending-bootstrap'
         ? FeatureSupport.Stable
         : FeatureSupport.None;
     const mx = createClient({
@@ -198,29 +198,23 @@ it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
     vi.spyOn(mx, 'fetchRoomEvent').mockImplementation(() =>
       mode === 'pending-bootstrap' ? new Promise(() => {}) : Promise.resolve(rawRoot)
     );
-    let finishFallback!: () => void;
-    const fallback = new Promise<{ chunk: typeof rawReply[] }>((resolve) => {
-      finishFallback = () => resolve({ chunk: [rawReply] });
-    });
-    vi.spyOn(mx, 'fetchRelations').mockImplementation(() => fallback);
+    // The fallback page never answers, so a rendered reply comes from the SDK's timeline.
+    vi.spyOn(mx, 'fetchRelations').mockImplementation(() => new Promise(() => {}));
     vi.spyOn(room, 'findEventById').mockImplementation((id) => (id === '$root' ? root : undefined));
     const thread =
       mode === 'reply' || mode === 'pending-bootstrap'
         ? room.createThread('$root', root, [], false)
         : undefined;
-    vi.spyOn(mx, 'getThreadTimeline').mockImplementation(async () => {
-      if (mode === 'joined-reply') {
-        const createdThread = room.getThread('$root')!;
-        const existing = createdThread.timelineSet.getTimelineForEvent('$root');
-        if (existing) return existing;
-        const detached = createdThread.timelineSet.addTimeline();
-        createdThread.timelineSet.addEventsToTimeline([reply, root], true, false, detached, null);
-        return detached;
+    vi.spyOn(mx, 'paginateEventTimeline').mockImplementation(async (timeline) => {
+      if (mode === 'first-page-reply') {
+        // The open's first page goes into the live timeline of the thread it created, root first.
+        timeline.getTimelineSet().addEventsToTimeline([reply, root], true, false, timeline, null);
+        return false;
       }
-      if (!thread) return new Promise(() => {});
-      // getThreadTimeline fills the timeline directly, without Thread.NewReply.
+      if (!thread) return new Promise<boolean>(() => {});
+      // The first page fills the timeline directly, without Thread.NewReply.
       thread.timelineSet.addEventsToTimeline([reply], true, false, thread.liveTimeline, null);
-      return thread.liveTimeline;
+      return false;
     });
     vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(room.getLiveTimeline());
     const persist = vi.fn();
@@ -282,22 +276,14 @@ it.each(['reply', 'root', 'joined-reply', 'pending-bootstrap'] as const)(
         renderer = create(<Harness />);
       });
       expect(vi.mocked(loadThreadCachedSnapshot)).toHaveBeenCalled();
-      if (mode === 'joined-reply') {
-        expect(renderer.root.findAllByType('span').map((node) => node.children.join(''))).toEqual([
-          'Root',
-        ]);
-        expect(mx.fetchRelations).toHaveBeenCalled();
-        await act(async () => finishFallback());
-        expect(
-          room
-            .getThread('$root')!
-            .timelineSet.getLiveTimeline()
-            .getNeighbouringTimeline(Direction.Backward)
-        ).toBeTruthy();
+      if (mode === 'first-page-reply') {
+        expect(room.getThread('$root')!.events).toEqual([root, reply]);
+        // The live timeline holds a reply, so no fallback page is needed.
+        expect(mx.fetchRelations).not.toHaveBeenCalled();
       }
       if (mode === 'pending-bootstrap') {
         // The open waits for the SDK's own initialization, whose root request never returns.
-        expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+        expect(mx.paginateEventTimeline).not.toHaveBeenCalled();
         await act(async () => {
           thread!.timelineSet.addEventsToTimeline([reply], true, false, thread!.liveTimeline, null);
         });

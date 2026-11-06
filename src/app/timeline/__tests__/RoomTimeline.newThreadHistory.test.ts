@@ -45,7 +45,6 @@ describe('new thread history', () => {
       const renderError = vi.fn();
       threadRenderStateMock.threadEvents = [root] as never;
 
-      matrixClientMock.getThreadTimeline.mockRejectedValue(new Error('context request failed'));
       matrixClientMock.getEventMapper.mockReturnValue((event: unknown) =>
         event === latestReply.event ? latestReply : event
       );
@@ -55,6 +54,10 @@ describe('new thread history', () => {
         relType === 'm.thread'
           ? { chunk: [latestReply.event], next_batch: 'older-cursor' }
           : { chunk: [], next_batch: null }
+      );
+      // The open's first page fails; the fallback page then brings the latest reply.
+      matrixClientMock.paginateEventTimeline.mockRejectedValueOnce(
+        new Error('first page request failed')
       );
       matrixClientMock.paginateEventTimeline.mockImplementation(async (timeline) => {
         if (outcome === 'request failure') throw new Error('pagination request failed');
@@ -86,7 +89,8 @@ describe('new thread history', () => {
         } else {
           expect(() => getClickableByText(renderer!, 'Load Older Messages')).toThrow();
         }
-        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledOnce();
+        // The open's first page and the fallback's history check.
+        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(2);
         if (outcome === 'older reply') {
           expect(threadRenderStateMock.setSupplementalThreadEvents).toHaveBeenCalledWith(
             threadId,

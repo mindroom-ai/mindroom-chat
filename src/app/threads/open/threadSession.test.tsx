@@ -55,7 +55,7 @@ const openFixture = () => {
   };
   vi.spyOn(room, 'getThread').mockImplementation(() => thread as never);
   vi.spyOn(room, 'findEventById').mockImplementation((id) => (id === '$a' ? root : undefined));
-  const bootstrap = vi.spyOn(mx, 'getThreadTimeline').mockResolvedValue(timeline);
+  const bootstrap = vi.spyOn(mx, 'paginateEventTimeline').mockResolvedValue(false);
   const context = vi.spyOn(mx, 'getEventTimeline').mockResolvedValue(timeline);
   vi.spyOn(mx, 'fetchRelations').mockResolvedValue({ chunk: [] });
   const rendered = new Map<string, MatrixEvent>();
@@ -239,7 +239,7 @@ describe('thread session opening', () => {
     'joins complete cache coverage with a stale server backward cursor (relations proven: %s)',
     async (relationSnapshotComplete) => {
       const fixture = openFixture();
-      const bootstrap = deferred<typeof fixture.timeline>();
+      const bootstrap = deferred<boolean>();
       fixture.bootstrap.mockReturnValue(bootstrap.promise);
       fixture.timeline.setPaginationToken('stale-older', Direction.Backward);
       const cache = fixture.cache();
@@ -259,7 +259,7 @@ describe('thread session opening', () => {
       try {
         await act(async () => undefined);
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
-        await act(async () => bootstrap.resolve(fixture.timeline));
+        await act(async () => bootstrap.resolve(false));
         expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBeNull();
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(false);
       } finally {
@@ -270,7 +270,7 @@ describe('thread session opening', () => {
 
   it('keeps the server cursor when the complete cache starts after the loaded replies', async () => {
     const fixture = openFixture();
-    const bootstrap = deferred<typeof fixture.timeline>();
+    const bootstrap = deferred<boolean>();
     fixture.bootstrap.mockReturnValue(bootstrap.promise);
     fixture.timeline.setPaginationToken('server-older', Direction.Backward);
     const cache = fixture.cache();
@@ -292,7 +292,7 @@ describe('thread session opening', () => {
     });
     try {
       await act(async () => undefined);
-      await act(async () => bootstrap.resolve(fixture.timeline));
+      await act(async () => bootstrap.resolve(false));
       expect(fixture.timeline.getPaginationToken(Direction.Backward)).toBe('server-older');
       expect(view.session.snapshot.history.hasMoreCachedBack).toBe(true);
     } finally {
@@ -353,7 +353,7 @@ describe('thread session opening', () => {
       const fixture = openFixture();
       Object.assign(fixture.runtime.room.getThread('$a')!, { events: [fixture.root] });
       const cache = deferred<ReturnType<typeof fixture.cache>>();
-      const network = deferred<typeof fixture.timeline>();
+      const network = deferred<boolean>();
       vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(cache.promise);
       fixture.bootstrap.mockReturnValue(network.promise);
       vi.mocked(fixture.runtime.mx.fetchRelations).mockRejectedValue(new Error('offline'));
@@ -415,7 +415,7 @@ describe('thread session opening', () => {
     Object.assign(thread, { events: [fixture.root] });
     fixture.bootstrap.mockImplementation(async () => {
       Object.assign(thread, { events: [fixture.root, fixture.reply] });
-      return fixture.timeline;
+      return false;
     });
     vi.mocked(loadThreadCachedSnapshot).mockReset().mockReturnValue(pending.promise);
     const view = renderOpen(fixture.runtime, {
@@ -647,7 +647,7 @@ describe('thread session opening', () => {
       vi.mocked(loadThreadCachedSnapshot).mockReset();
       const fixture = openFixture();
       const pending = deferred<ReturnType<typeof fixture.cache>>();
-      const sdk = deferred<typeof fixture.timeline>();
+      const sdk = deferred<boolean>();
       vi.mocked(loadThreadCachedSnapshot).mockReturnValue(pending.promise);
       fixture.bootstrap.mockReturnValue(sdk.promise);
       const view = renderOpen(fixture.runtime, {
@@ -667,7 +667,7 @@ describe('thread session opening', () => {
         expect(fixture.rendered.get('$reply')).toBe(fixture.reply);
         expect(view.session.snapshot.history.hasMoreCachedBack).toBe(true);
       }
-      await act(async () => sdk.resolve(fixture.timeline));
+      await act(async () => sdk.resolve(false));
       expect(view.session.snapshot.history.tailLoaded).toBe(true);
       expect(view.session.targets.getPending()?.eventId).toBe('$reply');
       expect(view.targetIndexes.length).toBeGreaterThan(0);

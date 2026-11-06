@@ -4003,8 +4003,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
           })
         );
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
-        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
-        expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(1);
         // The reconcile's repair persisted the missed edit into the
         // thread cache (as a standalone record or folded into the
         // target's bundled m.replace). The relationSnapshotComplete
@@ -4166,8 +4166,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
-        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
-        expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(1);
       } finally {
         await act(async () => {
           renderer?.unmount();
@@ -4512,8 +4512,8 @@ describe('RoomTimeline', { timeout: 30_000 }, () => {
 
         expect(matrixClientMock.getEventTimeline).not.toHaveBeenCalled();
         expect(matrixClientMock.fetchRelations).toHaveBeenCalledTimes(2);
-        expect(matrixClientMock.getThreadTimeline).toHaveBeenCalledTimes(1);
-        expect(matrixClientMock.paginateEventTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.getThreadTimeline).not.toHaveBeenCalled();
+        expect(matrixClientMock.paginateEventTimeline).toHaveBeenCalledTimes(1);
       } finally {
         await act(async () => {
           renderer?.unmount();

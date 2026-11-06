@@ -55,7 +55,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     };
     const room = makeRoom({ liveEvents: [root], threads: [thread as never] });
     const mx = {
-      getThreadTimeline: vi.fn(),
+      paginateEventTimeline: vi.fn(),
       fetchRelations: vi.fn().mockResolvedValue({ chunk: [reply.event], next_batch: 'older' }),
       getEventMapper: () => () => reply,
     };
@@ -72,7 +72,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       shouldScrollToLatestOnOpen: true,
     });
     expect(result).toBe(true);
-    expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+    expect(mx.paginateEventTimeline).not.toHaveBeenCalled();
     expect(events.map((event) => event.getId())).toEqual(['$reply', '$root']);
     expect(backward).toBe('older');
   });
@@ -107,7 +107,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       const mx = {
         getEventTimeline: vi.fn(() => (phase === 'context' ? pending : Promise.resolve())),
         fetchRelations: vi.fn(() => pending),
-        getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+        paginateEventTimeline: vi.fn().mockResolvedValue(false),
         getEventMapper: vi.fn(),
       };
       let mounted = true;
@@ -174,7 +174,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         fetchRelations: vi.fn().mockResolvedValue({ chunk: [] }),
         getEventMapper: vi.fn(),
         getEventTimeline: vi.fn(),
-        getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+        paginateEventTimeline: vi.fn().mockResolvedValue(false),
       };
       let mounted = true;
       const work = runThreadOpenSdkBootstrap({
@@ -194,13 +194,13 @@ describe('runThreadOpenSdkBootstrap', () => {
       expect(thread.flushPendingTimelineReset.mock.invocationCallOrder[0]).toBeLessThan(
         thread.initialize.mock.invocationCallOrder[0]
       );
-      expect(mx.getThreadTimeline).not.toHaveBeenCalled();
+      expect(mx.paginateEventTimeline).not.toHaveBeenCalled();
 
       mounted = stayMounted;
       finishInitialization();
 
       expect(await work).toBe(stayMounted);
-      expect(mx.getThreadTimeline).toHaveBeenCalledTimes(stayMounted ? 1 : 0);
+      expect(mx.paginateEventTimeline).toHaveBeenCalledTimes(stayMounted ? 1 : 0);
     }
   );
 
@@ -213,7 +213,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       fetchRelations: vi.fn().mockResolvedValue(undefined),
       getEventMapper: vi.fn(),
       getEventTimeline: vi.fn(),
-      getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+      paginateEventTimeline: vi.fn().mockResolvedValue(false),
     };
 
     const options = {
@@ -236,7 +236,7 @@ describe('runThreadOpenSdkBootstrap', () => {
     expect(onBootstrap).toHaveBeenCalledWith({ kind: 'root-ready' });
     expect(pinThreadToBottomOnOpen).toHaveBeenCalledTimes(1);
     expect(mx.getEventTimeline).not.toHaveBeenCalled();
-    expect(mx.getThreadTimeline).toHaveBeenCalledOnce();
+    expect(mx.paginateEventTimeline).toHaveBeenCalledOnce();
     expect(mx.fetchRelations).toHaveBeenCalledOnce();
 
     const createdThread = room.createThread.mock.results[0]?.value;
@@ -282,7 +282,7 @@ describe('runThreadOpenSdkBootstrap', () => {
       fetchRelations: vi.fn(),
       getEventMapper: vi.fn(),
       getEventTimeline: vi.fn(),
-      getThreadTimeline: vi.fn().mockResolvedValue(undefined),
+      paginateEventTimeline: vi.fn().mockResolvedValue(false),
     };
 
     const shouldContinue = await runThreadOpenSdkBootstrap({
@@ -312,9 +312,9 @@ describe('runThreadOpenSdkBootstrap', () => {
     const rootFetch = new Promise<Record<string, unknown>>((resolve) => {
       resolveRootFetch = resolve;
     });
-    const paginateEventTimeline = vi.fn().mockRejectedValue(new Error('pagination failed'));
     let room: Room;
-    const getThreadTimeline = vi.fn(async () => {
+    // The open's first page; the SDK's own initialization would page a second time.
+    const paginateEventTimeline = vi.fn(async () => {
       const existingReply = new MatrixEvent({
         content: {
           body: 'Existing reply',
@@ -328,6 +328,7 @@ describe('runThreadOpenSdkBootstrap', () => {
         type: 'm.room.message',
       });
       room.getThread('$root')?.addEvent(existingReply, false);
+      return false;
     });
     const client = {
       canSupport: new Map(),
@@ -338,7 +339,6 @@ describe('runThreadOpenSdkBootstrap', () => {
         (event: Record<string, unknown>): MatrixEvent =>
           event instanceof MatrixEvent ? event : new MatrixEvent(event),
       getUserId: () => '@alice:example.org',
-      getThreadTimeline,
       paginateEventTimeline,
       supportsThreads: () => true,
     } as unknown as MatrixClient;
@@ -395,8 +395,7 @@ describe('runThreadOpenSdkBootstrap', () => {
 
       expect(thread?.events).toContain(reply);
       expect(thread?.events.map((event) => event.getId())).toContain('$existing-reply');
-      expect(paginateEventTimeline).not.toHaveBeenCalled();
-      expect(getThreadTimeline).toHaveBeenCalledOnce();
+      expect(paginateEventTimeline).toHaveBeenCalledOnce();
     } finally {
       Thread.hasServerSideSupport = previousThreadSupport;
     }
