@@ -14,6 +14,7 @@ import {
   isCacheStoreWriteLeaseCurrent,
   maybeScheduleEvictionCheck,
 } from './db';
+import { loadCachedScaledPicture, putCachedScaledPicture } from './db/cacheStoreScaledPictures';
 
 import {
   parseLongTextJsonSidecar,
@@ -271,6 +272,36 @@ export const downloadCachedAttachment = async (
   } finally {
     attachment.release();
   }
+};
+
+/** The homeserver's scaled copy of a picture that this device saved for offline reading. */
+export const loadCachedScaledPictureBlob = async (
+  mx: MatrixClient,
+  mxcUri: string
+): Promise<Blob | undefined> => {
+  const record = await loadCachedScaledPicture(getSessionId(mx), mxcUri);
+  return record && new Blob([record.bytes], { type: record.mimeType });
+};
+
+/**
+ * Saves the homeserver's scaled copy of a picture for the event revision that shows it, so the
+ * picture shows offline too. Its size is bounded like automatically saved media, and the cache's
+ * byte budget evicts it with the other media.
+ */
+export const saveCachedScaledPicture = async (
+  mx: MatrixClient,
+  mxcUri: string,
+  picture: Blob,
+  owner: EventAttachmentOwner | undefined
+): Promise<void> => {
+  if (!owner || owner.redacted || picture.size > AUTO_MEDIA_MAX_BYTES) return;
+  const sessionId = getSessionId(mx);
+  const saved = await putCachedScaledPicture(
+    sessionId,
+    { mxcUri, bytes: await picture.arrayBuffer(), mimeType: picture.type },
+    owner
+  );
+  if (saved) maybeScheduleEvictionCheck(sessionId);
 };
 
 export const getCachedAttachmentCacheMetadata = (

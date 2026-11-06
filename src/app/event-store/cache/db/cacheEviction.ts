@@ -20,6 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
+import { attachmentOwnerUri, isScaledPictureKey, scaledPictureKey } from './cacheStoreScaledPictures';
 
 const protectedRoomIds = new Set<string>();
 export const setEvictionProtectedRoomIds = (roomIds: readonly string[]): void => {
@@ -133,6 +134,15 @@ export const clearRoomCachedContent = async (
           if (!shared.length) {
             blobs.delete(mxcUri);
             freedBytes += byteLength;
+            // The picture's scaled copy goes with its last reference.
+            const scaledKey = scaledPictureKey(mxcUri);
+            const scaled = blobs.get(scaledKey);
+            scaled.onsuccess = () => {
+              const record = scaled.result as CachedAttachmentRecord | undefined;
+              if (!record) return;
+              blobs.delete(scaledKey);
+              freedBytes += record.byteLength;
+            };
           } else {
             const blob = blobs.get(mxcUri);
             blob.onsuccess = () => {
@@ -272,8 +282,10 @@ const reclaimOptionalMedia = (
           if (owners) owners.push(row);
           else ownersByMxcUri.set(row.mxcUri, [row]);
         });
+        // A picture's scaled copy has its picture's owners.
+        const ownersOf = (key: string) => ownersByMxcUri.get(attachmentOwnerUri(key)) ?? [];
         const ownedByProtectedRoom = (mxcUri: string) =>
-          (ownersByMxcUri.get(mxcUri) ?? []).some((row) => protectedIds.has(row.roomId));
+          ownersOf(mxcUri).some((row) => protectedIds.has(row.roomId));
         const protectedBytes =
           ledger
             .filter((row) => protectedIds.has(row.roomId))
@@ -290,7 +302,7 @@ const reclaimOptionalMedia = (
           records.sort((a, b) => a.lastAccessedAt - b.lastAccessedAt);
           for (const record of records) {
             if (bytesAfter <= budget * EVICTION_TARGET_UTILIZATION) break;
-            const owners = ownersByMxcUri.get(record.mxcUri) ?? [];
+            const owners = ownersOf(record.mxcUri);
             if (owners.some((row) => row.essential || protectedIds.has(row.roomId))) continue;
             // Only eviction candidates need a value read (unowned essentials also survive).
             // eslint-disable-next-line no-await-in-loop
@@ -304,7 +316,9 @@ const reclaimOptionalMedia = (
             if (cached?.essential) continue;
             if (owners.some((row) => isRoomInUse(sessionId, row.roomId))) continue;
             blobs.delete(record.mxcUri);
-            owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
+            // A scaled copy leaves the picture's own bytes, and so its references, as they are.
+            if (!isScaledPictureKey(record.mxcUri))
+              owners.forEach((row) => refs.put({ ...row, byteLength: 0, status: 'missing' }));
             bytesAfter -= record.byteLength;
             evictedMxcUris.push(record.mxcUri);
           }

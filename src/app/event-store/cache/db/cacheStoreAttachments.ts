@@ -20,6 +20,7 @@ import {
   type CachedAttachmentRecord,
   type CachedAttachmentReferenceRecord,
 } from './cacheStoreSchema';
+import { deleteScaledPictures } from './cacheStoreScaledPictures';
 
 export type CachedAttachmentMetadata = Omit<CachedAttachmentRecord, 'bytes'> & {
   references: CachedAttachmentReferenceRecord[];
@@ -231,17 +232,21 @@ export const getCachedAttachmentMetadata = async (
 const pruneAttachmentBytes = async (transaction: IDBTransaction, mxcUris: Iterable<string>) => {
   const refs = transaction.objectStore(ATTACHMENT_REFERENCES_STORE);
   const blobs = transaction.objectStore(ATTACHMENTS_STORE);
+  const unowned: string[] = [];
   for (const mxcUri of new Set(mxcUris)) {
     if (!mxcUri) continue;
     const cached = (await requestResult(blobs.get(mxcUri))) as CachedAttachmentRecord | undefined;
-    if (!cached) continue;
     const remaining = (await requestResult(
       refs.index(ATTACHMENT_REFERENCES_BY_ATTACHMENT_INDEX).getAll(mxcUri)
     )) as CachedAttachmentReferenceRecord[];
+    if (!remaining.length) unowned.push(mxcUri);
+    if (!cached) continue;
     const essential = remaining.some((row) => row.essential && row.status === 'cached');
     if (!remaining.length) blobs.delete(mxcUri);
     else if (cached.essential !== essential) blobs.put({ ...cached, essential });
   }
+  // A picture's scaled copy goes with its last reference, saved bytes or not.
+  await deleteScaledPictures(blobs, unowned);
 };
 
 /** Only the canonical event transaction calls this after accepting the same raw revision. */

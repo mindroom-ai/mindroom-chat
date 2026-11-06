@@ -239,7 +239,8 @@ export const ImageContent = as<'div', ImageContentProps>(
     const [srcState, loadSrc] = useAsyncCallback(
       useCallback(async () => {
         const preview = thumbnailRef.current;
-        if (!preview && serverScaled) return loadServerScaledPicture(mx, url, loadOriginal);
+        if (!preview && serverScaled)
+          return loadServerScaledPicture(mx, url, loadOriginal, ownerRef.current);
         if (!preview) return loadOriginal();
         const blob = await downloadCachedAttachment(mx, {
           owner: ownerRef.current,

@@ -1,5 +1,10 @@
 import type { MatrixClient } from 'matrix-js-sdk';
-import { getCachedAttachmentCacheMetadata } from '../../event-store/cache/attachmentRepository';
+import {
+  getCachedAttachmentCacheMetadata,
+  loadCachedScaledPictureBlob,
+  saveCachedScaledPicture,
+} from '../../event-store/cache/attachmentRepository';
+import type { EventAttachmentOwner } from '../../matrix/protocol/eventAttachments';
 import { FALLBACK_MIMETYPE, getBlobSafeMimeType } from '../../lib/mimeTypes';
 import { readClientCachedSpecVersions } from '../../matrix/cachedSpecVersions';
 import {
@@ -41,18 +46,23 @@ const downloadServerThumbnail = async (mx: MatrixClient, mxcUri: string): Promis
 };
 
 /**
- * A blob URL of the picture for the timeline: the original when this device saved it (so it shows
- * offline too), else the homeserver's scaled copy, else the original after all.
+ * A blob URL of the picture for the timeline: the original when this device saved it, else the
+ * homeserver's scaled copy, from this device's cache or else from the homeserver (then saved for
+ * `owner`, the event revision that shows it, so it shows offline too), else the original after all.
  */
 export const loadServerScaledPicture = async (
   mx: MatrixClient,
   mxcUri: string,
-  loadOriginal: () => Promise<string>
+  loadOriginal: () => Promise<string>,
+  owner?: EventAttachmentOwner
 ): Promise<string> => {
   const saved = await getCachedAttachmentCacheMetadata(mx, mxcUri).catch(() => undefined);
   if (saved) return loadOriginal();
-  const scaled = await downloadServerThumbnail(mx, mxcUri).catch(() => undefined);
+  const savedScaled = await loadCachedScaledPictureBlob(mx, mxcUri).catch(() => undefined);
+  const scaled = savedScaled ?? (await downloadServerThumbnail(mx, mxcUri).catch(() => undefined));
   if (!scaled) return loadOriginal();
   const type = getBlobSafeMimeType(scaled.type || FALLBACK_MIMETYPE);
-  return URL.createObjectURL(new Blob([scaled], { type }));
+  const picture = new Blob([scaled], { type });
+  if (!savedScaled) void saveCachedScaledPicture(mx, mxcUri, picture, owner).catch(() => undefined);
+  return URL.createObjectURL(picture);
 };
