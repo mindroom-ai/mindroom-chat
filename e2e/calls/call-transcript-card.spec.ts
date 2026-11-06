@@ -10,7 +10,7 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { matrixFetch } from '../helpers/matrix';
+import { matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import {
   DESKTOP,
   HOMESERVER,
@@ -66,6 +66,7 @@ test.use({ launchOptions: LAUNCH });
 type Seed = {
   username: string;
   roomId: string;
+  longCallRoomId: string;
   caller: Account;
   agent: Account;
   absentId: string;
@@ -85,6 +86,68 @@ const setAvatar = async (account: Account) => {
     accessToken: account.token,
     body: JSON.stringify({ avatar_url: avatarUrl }),
   });
+};
+
+const LONG_CALL_TURNS = 120;
+
+/**
+ * A room with a long call, sent as MindRoom sends a message over its size limit: the event holds
+ * the start of the body and points at a JSON file with the whole content, transcript included.
+ */
+const seedLongCall = async (caller: Account, agent: Account): Promise<string> => {
+  const roomId = await withRetry(() =>
+    createRoom(HOMESERVER, caller.token, { name: 'Long call', invite: [agent.userId] })
+  );
+  await join(agent, roomId);
+  const turns = Array.from({ length: LONG_CALL_TURNS }, (_, index) => ({
+    sender: index % 2 ? agent.userId : caller.userId,
+    // Without the searched word, so the search below finds only the short call.
+    text: `Point ${index + 1}: ${LONG_TURN.replace(SEARCH_WORD, 'blue')}`,
+  }));
+  const name = (sender: string) => (sender === caller.userId ? 'Robin Tester' : 'Helper');
+  const body = [
+    '📞 Voice call · 48 min',
+    'Transcript',
+    ...turns.map((turn) => `${name(turn.sender)}: ${turn.text}`),
+  ].join('\n\n');
+  const full = {
+    msgtype: 'm.text',
+    body,
+    format: 'org.matrix.custom.html',
+    formatted_body: `<p>📞 Voice call · 48 min</p><details><summary>Transcript</summary>${turns
+      .map((turn) => `<p><strong>${name(turn.sender)}</strong>: ${turn.text}</p>`)
+      .join('')}</details>`,
+    'io.mindroom.call_transcript': { duration_seconds: 2890, turns },
+  };
+  const sidecar = Buffer.from(JSON.stringify(full));
+  const response = await fetch(
+    `${HOMESERVER}/_matrix/media/v3/upload?filename=message-content.json`,
+    {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${agent.token}`, 'Content-Type': 'application/json' },
+      body: sidecar,
+    }
+  );
+  expect(response.ok).toBe(true);
+  const { content_uri: url } = (await response.json()) as { content_uri: string };
+  const preview = body.slice(0, 2000);
+  await withRetry(() =>
+    sendRoomMessage(HOMESERVER, agent.token, roomId, {
+      msgtype: 'm.file',
+      body: preview,
+      filename: 'message-content.json',
+      info: { mimetype: 'application/json', size: sidecar.length },
+      url,
+      'io.mindroom.long_text': {
+        version: 2,
+        encoding: 'matrix_event_content_json',
+        original_event_size: sidecar.length,
+        preview_size: preview.length,
+        is_complete_content: true,
+      },
+    })
+  );
+  return roomId;
 };
 
 const seed = async (label: string): Promise<Seed> => {
@@ -132,7 +195,8 @@ const seed = async (label: string): Promise<Seed> => {
     'io.mindroom.call_transcript': { duration_seconds: 187, turns },
   });
   await say(caller, roomId, LAST_WORDS);
-  return { username: caller.username, roomId, caller, agent, absentId, body };
+  const longCallRoomId = await seedLongCall(caller, agent);
+  return { username: caller.username, roomId, longCallRoomId, caller, agent, absentId, body };
 };
 
 const newPage = async (
@@ -339,8 +403,27 @@ const look = async (
   await openRoom(page, data);
 };
 
+/** The long call's card comes from its hydrated sidecar, with every turn. */
+const checkLongCall = async (page: Page, data: Seed, info: TestInfo) => {
+  await page.goto(`/home/${encodeURIComponent(data.longCallRoomId)}`);
+  const row = page
+    .locator('[data-message-id]')
+    .filter({ has: page.locator('[data-call-transcript]') });
+  await expect(row).toHaveCount(1, { timeout: 30_000 });
+  await row.scrollIntoViewIfNeeded();
+  await expect(card(row).locator('[data-call-transcript-header]')).toHaveText(
+    /Voice call\s*48 min/
+  );
+  await expect(toggle(row)).toContainText(`${LONG_CALL_TURNS} turns`);
+  await toggle(row).click();
+  await expect(groups(row)).toHaveCount(LONG_CALL_TURNS);
+  await expect(groups(row).last()).toContainText(`Point ${LONG_CALL_TURNS}:`);
+  await shot(page, info, 'call-transcript-long-call');
+};
+
 const checkCopyAndSearch = async (page: Page, data: Seed, info: TestInfo) => {
   // Copy Text copies the plain transcript MindRoom wrote.
+  await openRoom(page, data);
   const row = await callRow(page);
   await card(row).locator('[data-call-transcript-header]').click({ button: 'right' });
   await page.getByRole('menuitem', { name: 'Copy Text', exact: true }).click();
@@ -387,6 +470,7 @@ for (const engine of ENGINES) {
       await look(page, data, 'light', 'ltr');
       await checkCard(page, data, false, `${engine}-desktop-ltr-light-keyboard`, testInfo);
       await checkKeyboard(page);
+      await checkLongCall(page, data, testInfo);
       if (engine === 'chromium') {
         await context.grantPermissions(['clipboard-read', 'clipboard-write']);
         await checkCopyAndSearch(page, data, testInfo);

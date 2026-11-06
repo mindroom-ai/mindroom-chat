@@ -2,10 +2,17 @@
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider } from '../../config/useClientConfig';
 import { RenderMessageContent } from './RenderMessageContent';
+
+// The sidecar of a long message, as the attachment cache hands it to the long-text renderer.
+const hydrateLongText = vi.hoisted(() => vi.fn());
+vi.mock('../../event-store/cache/attachmentRepository', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  hydrateCachedLongText: hydrateLongText,
+}));
 
 const VIEWER = '@reader:example.org';
 const AGENT = '@mindroom_helper:example.org';
@@ -38,6 +45,22 @@ const VALID = {
   ],
 };
 
+// A long call: MindRoom keeps the transcript out of the preview event, in the sidecar only.
+const sidecarPreview = (): IContent => ({
+  msgtype: 'm.file',
+  body: BODY.slice(0, 30),
+  filename: 'message-content.json',
+  info: { mimetype: 'application/json', size: 70_000 },
+  url: 'mxc://example.org/sidecar',
+  'io.mindroom.long_text': {
+    version: 2,
+    encoding: 'matrix_event_content_json',
+    original_event_size: 70_000,
+    preview_size: 30,
+    is_complete_content: true,
+  },
+});
+
 const MEMBERS: Record<string, string> = {
   [CALLER]: 'Robin Tester',
   [AGENT]: 'Helper',
@@ -59,7 +82,12 @@ describe('a voice call transcript message', () => {
     container.remove();
   });
 
-  const render = (content: IContent, sender = AGENT, highlightRegex?: RegExp) => {
+  const render = (
+    content: IContent,
+    sender = AGENT,
+    highlightRegex?: RegExp,
+    hydrate: boolean | undefined = undefined
+  ) => {
     const mEvent = new MatrixEvent({
       type: 'm.room.message',
       room_id: ROOM_ID,
@@ -87,8 +115,9 @@ describe('a voice call transcript message', () => {
               mEvent={mEvent}
               roomId={ROOM_ID}
               displayName="Helper"
-              msgType="m.text"
+              msgType={content.msgtype as string}
               ts={1}
+              hydrateLongText={hydrate}
               getContent={(() => content) as never}
               urlPreview={false}
               highlightRegex={highlightRegex}
@@ -178,5 +207,42 @@ describe('a voice call transcript message', () => {
 
     expect(card()).toBeNull();
     expect(container.querySelector('details summary')?.textContent).toBe('Transcript');
+  });
+
+  describe('of a long call, whose transcript is only in the sidecar', () => {
+    const flush = () => act(async () => {});
+
+    beforeEach(() => hydrateLongText.mockReset());
+
+    it('shows the call card once the sidecar is hydrated', async () => {
+      hydrateLongText.mockResolvedValue(transcriptContent(VALID));
+      render(sidecarPreview());
+      await flush();
+
+      expect(hydrateLongText).toHaveBeenCalled();
+      expect(card()).not.toBeNull();
+      expect(toggle()?.textContent).toContain('5 turns');
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(4);
+    });
+
+    it('shows the preview while the sidecar is not hydrated', async () => {
+      render(sidecarPreview(), AGENT, undefined, false);
+      await flush();
+
+      expect(hydrateLongText).not.toHaveBeenCalled();
+      expect(card()).toBeNull();
+      expect(container.textContent).toContain('Voice call');
+    });
+
+    it("shows no card for a person's sidecar", async () => {
+      hydrateLongText.mockResolvedValue(transcriptContent(VALID));
+      render(sidecarPreview(), PERSON);
+      await flush();
+
+      expect(hydrateLongText).toHaveBeenCalled();
+      expect(card()).toBeNull();
+      expect(container.querySelector('details summary')?.textContent).toBe('Transcript');
+    });
   });
 });
