@@ -1,4 +1,6 @@
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
+import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
+import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   getAppliedEdit,
@@ -140,6 +142,69 @@ describe('installEventContentGuard', () => {
     });
     target.makeReplaced(edit);
     expect(target.replacingEvent()).toBe(edit);
+  });
+
+  it('keeps an edit that could not be decrypted when a copy of it is applied again', async () => {
+    const target = event(PERSON, { msgtype: 'm.text', body: 'original' }, '$target');
+    const encryptedEdit = () =>
+      new MatrixEvent({
+        type: 'm.room.encrypted',
+        room_id: '!room:example.org',
+        event_id: '$withheld-edit',
+        sender: PERSON,
+        origin_server_ts: 2,
+        content: {
+          algorithm: 'm.megolm.v1.aes-sha2',
+          ciphertext: 'opaque',
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+        },
+      });
+    const failed = encryptedEdit();
+    target.makeReplaced(failed);
+    await failed.attemptDecryption({
+      decryptEvent: () =>
+        Promise.reject(
+          new DecryptionError(DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID, 'withheld')
+        ),
+    } as never);
+    expect(failed.isDecryptionFailure()).toBe(true);
+    // Code that applies the newest edit it sees does not see this one, and puts back a fresh copy
+    // of it from the message's bundle, which nothing decrypts.
+    expect(target.replacingEvent()).toBeNull();
+    target.makeReplaced(encryptedEdit());
+    expect(getAppliedEdit(target)).toBe(failed);
+
+    // A copy that decrypted, and another edit, still replace it.
+    const decrypted = encryptedEdit();
+    await decrypted.attemptDecryption({
+      decryptEvent: () =>
+        Promise.resolve({
+          clearEvent: {
+            type: 'm.room.message',
+            content: {
+              msgtype: 'm.text',
+              body: '* changed',
+              'm.new_content': { msgtype: 'm.text', body: 'changed' },
+              'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+            },
+          },
+        }),
+    } as never);
+    target.makeReplaced(decrypted);
+    expect(getAppliedEdit(target)).toBe(decrypted);
+    expect(target.getContent()).toEqual({ msgtype: 'm.text', body: 'changed' });
+    const newer = event(
+      PERSON,
+      {
+        msgtype: 'm.text',
+        body: '* newer',
+        'm.new_content': { msgtype: 'm.text', body: 'newer' },
+        'm.relates_to': { rel_type: 'm.replace', event_id: '$target' },
+      },
+      '$newer-edit'
+    );
+    target.makeReplaced(newer);
+    expect(getAppliedEdit(target)).toBe(newer);
   });
 
   it('applies a well-formed edit, without the agent keys a person wrote into it', () => {
