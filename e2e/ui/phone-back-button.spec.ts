@@ -139,7 +139,7 @@ test.describe('phone back button', () => {
       );
       const banner = page.locator('[data-thread-context-banner]');
       await expect(banner).toBeVisible({ timeout: 60_000 });
-      const thread = await measure(banner.getByRole('button', { name: 'Back to room' }));
+      const thread = await measure(banner.getByRole('button', { name: 'Back', exact: true }));
       report.push(`thread banner back: button ${size(thread.button)}, glyph ${size(thread.glyph)}`);
       expectPhoneBack(thread, memberIcon);
       await shoot(page, 'thread', scheme);

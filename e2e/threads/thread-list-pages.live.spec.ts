@@ -26,8 +26,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // thread, so the reader's own list (also 30) reaches into the second page of the room's list, and
 // the client knows that page's newest thread before the page arrives. The thread list used to keep
 // the token of such a page and stop there: 66 of 500 threads, with a count of 66, for minutes.
-// Pages after the first answer late here, so the count is seen while they load: it reads "N+"
-// until the last page is in. Set THREAD_PAGES_SHOTS=<directory> to save each view.
+// Pages after the first answer late here, so the count is seen while they load: it is the plain
+// number of threads listed so far, as MindRoom Chat shows it, never "N+". Set
+// THREAD_PAGES_SHOTS=<directory> to save each view.
 const THREADS = 500;
 const PAGE = 30;
 const PASSWORD = 'thread-list-pages-spec-password';
@@ -241,7 +242,7 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
     const text = ((await chip.textContent({ timeout: 1_000 }).catch(() => null)) ?? '').trim();
     if (text && seen.at(-1) !== text) seen.push(text);
     if (text === String(THREADS)) break;
-    if (SHOTS && !partialShot && /^\d+\+$/.test(text)) {
+    if (SHOTS && !partialShot && text && text !== String(THREADS)) {
       partialShot = true;
       // eslint-disable-next-line no-await-in-loop
       await page.screenshot({ path: `${SHOTS}/${name}-loading.png` });
@@ -255,10 +256,8 @@ const checkThreadList = async (page: Page, name: string, engine: 'chromium' | 'w
   // Every thread is listed, promptly.
   expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(String(THREADS));
   await expect(page.getByText(`Showing ${THREADS} threads`, { exact: true })).toHaveCount(1);
-  // A count shown before the list was complete said so.
-  const partial = seen.slice(0, -1);
-  expect(partial.filter((text) => !/^\d+\+$/.test(text))).toEqual([]);
-  expect(partial.length).toBeGreaterThan(0);
+  // Every count shown on the way is a plain number, as MindRoom Chat shows it.
+  expect(seen.filter((text) => !/^\d+$/.test(text))).toEqual([]);
 
   // A card for every thread, the oldest ones included.
   await expect.poll(async () => (await listedRoots(page)).sort()).toEqual([...roots].sort());
@@ -389,8 +388,8 @@ const checkOlderQuestions = async (page: Page, name: string) => {
 
   const chip = page.locator('[data-thread-count="true"]');
   const total = questions.length + threads.length;
-  // The threads and the newest question have cards; older history is not loaded, so the count
-  // says it may grow.
+  // The threads and the newest question have cards; older history is not loaded, and the count
+  // is the plain number of cards.
   await expect(page.locator(`[data-thread-root-id="${questions.at(-1)}"]`)).toBeVisible({
     timeout: 30_000,
   });
@@ -399,7 +398,7 @@ const checkOlderQuestions = async (page: Page, name: string) => {
     .toBe(threads.length + 1);
   await page.waitForTimeout(3_000);
   expect((await listedRoots(page)).length).toBe(threads.length + 1);
-  await expect(chip).toHaveText(`${threads.length + 1}+`);
+  await expect(chip).toHaveText(`${threads.length + 1}`);
   const pagesBefore = historyPages.length;
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-questions-before.png` });
 
@@ -463,7 +462,7 @@ const checkThreadsPage = async (page: Page, name: string) => {
   }
   report({ type: 'threads page count values', description: seen.join(' -> ') });
   expect(seen.at(-1), `count values: ${seen.join(' -> ')}`).toBe(`${THREADS} threads`);
-  expect(seen.slice(0, -1).filter((text) => !/^\d+\+ threads?$/.test(text))).toEqual([]);
+  expect(seen.filter((text) => !/^\d+ threads?$/.test(text))).toEqual([]);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-threads-page.png` });
 
   await page.waitForTimeout(5_000);

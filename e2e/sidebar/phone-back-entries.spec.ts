@@ -259,9 +259,7 @@ const browserBackLeaves = async (page: Page, room: string, step: string) => {
 const roomBack = (page: Page) =>
   page.getByRole('banner').getByRole('button', { name: 'Back', exact: true });
 const threadBack = (page: Page) =>
-  page
-    .locator('[data-thread-context-banner]')
-    .getByRole('button', { name: 'Back to room', exact: true });
+  page.locator('[data-thread-context-banner]').getByRole('button', { name: 'Back', exact: true });
 
 const shoot = (page: Page, testInfo: TestInfo, name: string) =>
   page.screenshot({ path: testInfo.outputPath(`${name}.png`) });

@@ -18,11 +18,12 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
   useMatrixClient: () => ({ getUserId: () => '@me:example.org' }),
 }));
 // The helper's reply streams in every thread, so an agent in a thread shows for its approval
-// state alone.
+// state alone; the reply has no row on screen unless a test adds one.
+let streamingReplyId: string | undefined;
 vi.mock('../../event-store/threads/useThreadStreamingState', () => ({
   useThreadStreamingState: () => true,
   getThreadStreamingEvents: () => [
-    { getId: () => undefined, getSender: () => '@mindroom_helper:example.org' },
+    { getId: () => streamingReplyId, getSender: () => '@mindroom_helper:example.org' },
   ],
   isEventStreaming: () => true,
 }));
@@ -46,6 +47,7 @@ const room = {
   },
   getThread: () => null,
   getUnfilteredTimelineSet: () => ({}),
+  getLiveTimeline: () => ({ getEvents: () => [] }),
   on: () => undefined,
   removeListener: () => undefined,
 } as unknown as Room;
@@ -55,6 +57,9 @@ let container: HTMLDivElement | undefined;
 
 afterEach(() => {
   jobsState = [];
+  streamingReplyId = undefined;
+  document.querySelectorAll('[data-message-id]').forEach((row) => row.remove());
+  vi.useRealTimers();
   act(() => root?.unmount());
   container?.remove();
   root = undefined;
@@ -140,4 +145,35 @@ it('leaves out an agent whose job in the open thread waits for approval, as it w
   expect(render(store, '$elsewhere').querySelector('[role="status"]')?.textContent).toBe(
     'Avery and Helper are typing...'
   );
+});
+
+/** A timeline row for `eventId` whose box spans `top` to `bottom` in the window. */
+const addRow = (eventId: string, place: { top: number; bottom: number }) => {
+  const row = document.createElement('div');
+  row.setAttribute('data-message-id', eventId);
+  row.getBoundingClientRect = () =>
+    ({ ...place, left: 0, right: 300, width: 300, height: place.bottom - place.top } as DOMRect);
+  document.body.append(row);
+  return place;
+};
+
+it('leaves out an agent whose streaming reply shows on screen, and names it once it is out of view', () => {
+  vi.useFakeTimers();
+  streamingReplyId = '$streaming';
+  const place = addRow('$streaming', { top: 120, bottom: 600 });
+  const store = createStore();
+  typing(store, '@avery:example.org');
+  typing(store, HELPER);
+
+  // The reply's dots and Stop say the helper writes; people typing still show.
+  const view = render(store, '$thread');
+  expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery is typing...');
+
+  // Scrolled up: the reply is below the screen.
+  place.top = 2000;
+  place.bottom = 2500;
+  act(() => {
+    vi.advanceTimersByTime(1000);
+  });
+  expect(view.querySelector('[role="status"]')?.textContent).toBe('Avery and Helper are typing...');
 });

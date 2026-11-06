@@ -399,7 +399,7 @@ const checkScroll = async (page: Page, world: World, label: string, phone: boole
   if (keyboardFocusHeld(page, label)) {
     await expectHeld(page, label, 'tab-into-banner', async () => {
       await banner(page)
-        .getByRole('button', { name: 'Back to room', exact: true })
+        .getByRole('button', { name: 'Back', exact: true })
         .evaluate((element) => (element as HTMLElement).focus({ preventScroll: true }));
       // WebKit, as Safari, tabs to buttons with Option held.
       await page.keyboard.press(label.startsWith('webkit') ? 'Alt+Tab' : 'Tab');

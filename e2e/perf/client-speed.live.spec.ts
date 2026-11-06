@@ -794,7 +794,10 @@ test.describe('PERF: client speed with a realistic account', () => {
       blocking.push(longTasksBetween(perf, perf.lastPointerDown, end).blocking);
       const ms = end - perf.lastPointerDown;
       work.push(workSince(before, await readWork()));
-      await page.getByRole('button', { name: 'Back to room', exact: true }).click();
+      await page
+        .locator('[data-thread-context-banner]')
+        .getByRole('button', { name: 'Back', exact: true })
+        .click();
       await expect(page.locator(`main [data-thread-root-id="${thread.rootId}"]`).first()).toBeVisible();
       await page.waitForTimeout(1_000);
       return ms;

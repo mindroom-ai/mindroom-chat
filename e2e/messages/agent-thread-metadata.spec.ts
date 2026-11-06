@@ -50,7 +50,10 @@ test('a thread gets its summary title, then the title the agent sets', async ({ 
     'set_thread_summary'
   );
   // The room's Compact card takes the same title.
-  await page.getByRole('button', { name: 'Back to room' }).click();
+  await page
+    .locator('[data-thread-context-banner]')
+    .getByRole('button', { name: 'Back', exact: true })
+    .click();
   await expect(page.getByText('Stub picked this title from a tool call').first()).toBeVisible({
     timeout: 30_000,
   });

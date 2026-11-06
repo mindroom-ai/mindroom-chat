@@ -782,7 +782,7 @@ describe('ThreadContextBanner rendering', () => {
     });
     expect(banner(renderer).props.className).toBe('Banner Collapsed');
     expect(store.get(settingsAtom).threadBannerCollapsed).toBe(true);
-    expect(buttons(renderer)).toEqual(['Back to room', 'Show thread details']);
+    expect(buttons(renderer)).toEqual(['Back', 'Show thread details']);
     expect(renderer.root.findAllByProps({ 'data-approvals': 'true' })).toHaveLength(1);
     // Auto-approval stays in view with the thread's own ID.
     expect(renderer.root.findAllByProps({ 'data-auto-approve': '$root' })).toHaveLength(1);
@@ -1154,7 +1154,7 @@ describe('ThreadContextBanner rendering', () => {
     expect(resolve.props.className).toBe('MessageOptionsButton CompactHidden');
     const tips = renderer.root.findAllByProps({ role: 'tooltip' }).map(text);
     expect(tips).toEqual([
-      'Back to room',
+      'Back',
       'Thread options',
       'Pin thread',
       'Resolve Ctrl+Shift+Enter',
@@ -1169,7 +1169,7 @@ describe('ThreadContextBanner rendering', () => {
 
   it('opens the back tooltip toward the banner in either text direction', () => {
     const backTip = (renderer: ReturnType<typeof renderBanner>) =>
-      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back to room')!
+      renderer.root.findAllByProps({ role: 'tooltip' }).find((tip) => text(tip) === 'Back')!
         .props['data-align'];
     const ltr = renderBanner('A concise thread summary');
     expect(backTip(ltr)).toBe('Start');

@@ -317,3 +317,51 @@ test('a reply that finishes in an encrypted room while the reader is away leaves
     await webkit.close();
   }
 });
+
+/**
+ * The reader asks the helper and leaves at once, before any of the reply arrives. The reply streams
+ * and finishes while the reader is in the lobby: one unread message. The server counts only the
+ * finished reply (its stream status is in the clear, and Tuwunel counts no event that still
+ * streams); the client counted the reply's first event too, and showed 2, and 3 after a reload.
+ */
+test('a reply that comes while the reader is away counts once, also after a reload', async ({
+  page,
+  stack,
+}) => {
+  const log: string[] = [];
+  let roomId: string | undefined;
+  try {
+    roomId = await createEncryptedAgentRoom(stack, 'Agenda desk');
+    await readRouterWelcome(stack, roomId);
+    await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
+    await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+    // 30 words, one every quarter second.
+    await mentionHelper(page, stack, '#slow what is on the agenda today?');
+    await page.evaluate((url) => {
+      window.history.pushState(null, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, `/home/${encodeURIComponent(stack.rooms.lobby)}`);
+    await expect(composer(page)).toBeVisible({ timeout: 30_000 });
+
+    // The reply finishes and the server counts it.
+    await expect
+      .poll(async () => total(await serverUnreadCounts(stack, roomId!)), {
+        timeout: 200_000,
+        intervals: [1000],
+        message: 'the server counts the finished reply',
+      })
+      .toBeGreaterThan(0);
+    // The thread's title notice and the summary come after the reply.
+    await page.waitForTimeout(5_000);
+    log.push(`server after the finish: ${JSON.stringify(await serverUnreadCounts(stack, roomId))}`);
+    const once = (shown: number, server: number) => shown === 1 && shown <= server;
+    await expectBadgeShowsUnread(page, stack, roomId, log, 'live', once, 'one unread reply');
+
+    await page.reload();
+    await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+    await expectBadgeShowsUnread(page, stack, roomId, log, 'reload', once, 'one unread reply');
+  } finally {
+    if (roomId) log.push(await describeRoom(stack, roomId));
+    writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
+  }
+});

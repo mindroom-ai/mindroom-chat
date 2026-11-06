@@ -196,7 +196,10 @@ for (const encrypted of [false, true]) {
       .toEqual([alice.userId, bob.userId]);
 
     // Back in the conversation, Bob sees neither reply, only the root's chip with both.
-    await bobPage.getByRole('button', { name: 'Back to room' }).click();
+    await bobPage
+      .locator('[data-thread-context-banner]')
+      .getByRole('button', { name: 'Back', exact: true })
+      .click();
     await expect.poll(() => threadIdOf(bobPage), { timeout: TIMEOUT }).toBeNull();
     await expect(chipOf(rowWith(bobPage, ROOT))).toContainText('2 replies', { timeout: TIMEOUT });
     await expect(rowWith(bobPage, OTHER)).toHaveCount(1);
