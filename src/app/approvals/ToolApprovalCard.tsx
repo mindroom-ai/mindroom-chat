@@ -159,7 +159,7 @@ function StandaloneToolApprovalCard({
 
   if (effectiveStatus !== 'pending') {
     return (
-      <ApprovalReceipt approval={{ ...approval, status: effectiveStatus }}>
+      <ApprovalReceipt approval={{ ...approval, status: effectiveStatus }} roomId={roomId}>
         <ApprovalGrantStatus {...controls} />
       </ApprovalReceipt>
     );

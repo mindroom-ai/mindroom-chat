@@ -8,18 +8,24 @@ import { getToolApprovalOperationLabel, ToolApprovalData } from '../matrix/proto
 import * as css from './ThreadApprovals.css';
 import { useAppLanguageCode } from '../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../ui/glass/liquid/useLiquidGlass';
+import { agentDisplayName, useApprovalRoom, userDisplayName } from './approvalPeople';
 
 export function ApprovalReceipt({
   approval,
   children,
   nested = false,
+  roomId,
 }: {
   approval: ToolApprovalData;
   children?: React.ReactNode;
   nested?: boolean;
+  /** The approval's room, for people's names; the thread's room by default. */
+  roomId?: string;
 }) {
   const glassRef = useGlassHighlight<HTMLDetailsElement>(undefined, !nested);
   const { t } = useTranslation();
+  const room = useApprovalRoom(roomId);
+  const person = (userId: string) => userDisplayName(room, userId);
   const language = useAppLanguageCode();
   const provenance = approval.provenance;
   const statusLabel =
@@ -49,21 +55,23 @@ export function ApprovalReceipt({
       <div className={css.ReceiptBody}>
         <p>
           {t('mindroomUi.messages.approvalReceipt.requestedBy', {
-            agent: approval.agentName,
-            requester: approval.requesterId ?? t('mindroomUi.messages.approvalReceipt.unknown'),
+            agent: agentDisplayName(room, approval.agentName),
+            requester: approval.requesterId
+              ? person(approval.requesterId)
+              : t('mindroomUi.messages.approvalReceipt.unknown'),
           })}
         </p>
         <p>
           {approval.resolvedBy && approval.resolvedAt
             ? t('mindroomUi.messages.approvalReceipt.resolvedByAt', {
                 status: statusLabel,
-                resolver: approval.resolvedBy,
+                resolver: person(approval.resolvedBy),
                 timestamp: new Date(approval.resolvedAt).toLocaleString(language),
               })
             : approval.resolvedBy
             ? t('mindroomUi.messages.approvalReceipt.resolvedBy', {
                 status: statusLabel,
-                resolver: approval.resolvedBy,
+                resolver: person(approval.resolvedBy),
               })
             : approval.resolvedAt
             ? t('mindroomUi.messages.approvalReceipt.resolvedAt', {
@@ -77,11 +85,11 @@ export function ApprovalReceipt({
           <p>
             {provenance.approvedAt
               ? t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledByAt', {
-                  approver: provenance.approvedBy,
+                  approver: person(provenance.approvedBy),
                   timestamp: formatApprovalTime(provenance.approvedAt, language),
                 })
               : t('mindroomUi.messages.approvalReceipt.approvedWhenScheduledBy', {
-                  approver: provenance.approvedBy,
+                  approver: person(provenance.approvedBy),
                 })}
             <br />
             {t('mindroomUi.messages.approvalSchedule.scheduledFor', {
@@ -100,11 +108,11 @@ export function ApprovalReceipt({
             <br />
             {provenance.grantedAt
               ? t('mindroomUi.messages.approvalReceipt.grantedByAt', {
-                  grantor: provenance.grantedBy,
+                  grantor: person(provenance.grantedBy),
                   timestamp: new Date(provenance.grantedAt).toLocaleString(language),
                 })
               : t('mindroomUi.messages.approvalReceipt.grantedBy', {
-                  grantor: provenance.grantedBy,
+                  grantor: person(provenance.grantedBy),
                 })}
             <br />
             {t('mindroomUi.messages.approvalReceipt.originalFixedExpiry', {
