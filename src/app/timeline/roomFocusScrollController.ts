@@ -15,6 +15,7 @@ import type {
   ScrollToItem,
 } from './useVirtualPaginator';
 import { scrollToBottom } from '../lib/dom';
+import { isLatestAnchorInReach, scrollToLatestEnd } from './roomTimelineScroll';
 import type { ThreadTargetCommands } from '../threads/open/threadSessionTypes';
 import { shouldPinThreadToBottomOnOpen, type ThreadInitialRenderMode } from '../event-store/threads/threadRenderUtils';
 import { getFocusedRoomEventIndex } from '../event-store/timeline/timelinePagination';
@@ -24,7 +25,6 @@ import {
   getEventElementById,
   getRoomFocusScrollOptions,
   getRoomFocusScrollToItemOptions,
-  isAnchorVisibleInScroll,
   setupFocusObserver,
 } from '../event-store/timeline/timelineScrollUtils';
 
@@ -56,6 +56,8 @@ export type RoomFocusScrollControllerOptions = {
   editId?: string;
   focusItem?: RoomTimelineFocusItem;
   focusScrollResetToken: unknown;
+  /** Whether the room's newest row is its first, so its latest end is the top (`scrollToLatestEnd`). */
+  latestAtTopRef: MutableRefObject<boolean>;
   threadTargets: ThreadTargetCommands;
   pendingThreadOpenTick: number;
   retryPagination: (opts?: RetryPaginationOptions) => void;
@@ -477,13 +479,17 @@ const useThreadJumpTarget = ({
  * Applies the shared bottom-pin requests. Every commit compares the request count as it is then
  * with the one the previous commit saw, so a request made earlier in the same commit (the thread's
  * opening pin, which scrolls at once) is taken there and never again later. A new count scrolls
- * the area to its end, unless the guard says a gesture of the reader dropped that request.
+ * the area to its latest end, unless the guard says a gesture of the reader dropped that request.
  */
 const useBottomPinRequests = ({
+  latestAtTopRef,
   scrollRef,
   scrollToBottomRef,
   shouldApplyThreadBottomPin,
-}: Pick<Options, 'scrollRef' | 'scrollToBottomRef' | 'shouldApplyThreadBottomPin'>) => {
+}: Pick<
+  Options,
+  'latestAtTopRef' | 'scrollRef' | 'scrollToBottomRef' | 'shouldApplyThreadBottomPin'
+>) => {
   const seenCountRef = useRef(scrollToBottomRef.current.count);
   useLayoutEffect(() => {
     const { count } = scrollToBottomRef.current;
@@ -492,7 +498,8 @@ const useBottomPinRequests = ({
     if (count <= 0 || !shouldApplyThreadBottomPin(count)) return;
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
-    scrollToBottom(scrollArea, scrollToBottomRef.current.smooth ? 'smooth' : 'instant');
+    const behavior = scrollToBottomRef.current.smooth ? 'smooth' : 'instant';
+    scrollToLatestEnd(scrollArea, latestAtTopRef.current, behavior);
   });
 };
 
@@ -586,7 +593,7 @@ const useEditedRowInView = ({
 
 /**
  * Jump to Latest shows while the timeline is away from its live end. Back at the live end it hides
- * when the bottom anchor is within reach of the scroll area's bottom; otherwise scrolling decides.
+ * when the latest-end anchor is within reach of the scroll area; otherwise scrolling decides.
  */
 const useLiveEndAtBottom = ({
   atBottomAnchorRef,
@@ -601,7 +608,7 @@ const useLiveEndAtBottom = ({
     }
     const anchor = atBottomAnchorRef.current;
     const scrollArea = scrollRef.current;
-    if (anchor && scrollArea && isAnchorVisibleInScroll(anchor, scrollArea)) setAtBottom(true);
+    if (anchor && scrollArea && isLatestAnchorInReach(anchor, scrollArea)) setAtBottom(true);
   }, [atBottomAnchorRef, scrollRef, setAtBottom, timelineAtLiveEnd]);
 };
 

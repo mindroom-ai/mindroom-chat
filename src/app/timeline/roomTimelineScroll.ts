@@ -12,7 +12,10 @@ import type { ItemRange, ScrollToElement, ScrollToItem } from './useVirtualPagin
 import type { RoomTimelineFocusItem, ScrollToBottomState } from './roomFocusScrollController';
 import type { ThreadBackPaginationController } from './threadBackPaginationController';
 import type { ViewScopedFlag } from './roomTimelineViewScope';
-import { isScrollNearBottom } from '../event-store/timeline/timelineScrollUtils';
+import {
+  isScrollNearBottom,
+  TIMELINE_BOTTOM_THRESHOLD_PX,
+} from '../event-store/timeline/timelineScrollUtils';
 import { useLatestRef } from '../lib/hooks/useLatestRef';
 import { scrollToBottom } from '../lib/dom';
 
@@ -50,17 +53,54 @@ export const useTimelineScrollElement = () => {
   return { scrollRef, scrollElement, attachScroll, getScrollElement };
 };
 
-/** Whether the scroll area is at its bottom now; before it mounts, the last known answer. */
+/**
+ * The room's newest row ends its rows, except in a Threads view whose filter bar sorts by Last
+ * Reply, newest first: there the newest thread comes first, and the top is the rows' latest end,
+ * where the timeline opens, follows new rows and jumps to with Jump to Latest.
+ */
+export const scrollToLatestEnd = (
+  element: HTMLElement,
+  latestAtTop: boolean,
+  behavior: ScrollBehavior = 'instant'
+): void => {
+  if (latestAtTop) element.scrollTo({ top: 0, behavior });
+  else scrollToBottom(element, behavior);
+};
+
+/** Whether the view is within the follow threshold of the rows' latest end (`scrollToLatestEnd`). */
+export const isNearLatestEnd = (element: HTMLElement, latestAtTop: boolean): boolean => {
+  const { scrollHeight, scrollTop, clientHeight } = element;
+  if (latestAtTop) return scrollTop <= TIMELINE_BOTTOM_THRESHOLD_PX;
+  return isScrollNearBottom({ scrollHeight, scrollTop, clientHeight });
+};
+
+/**
+ * Whether the latest-end anchor (a mark at the rows' latest end, at the bottom or the top) is
+ * within the follow threshold of the scroll area's edges, so the reader counts as at the latest end.
+ */
+export const isLatestAnchorInReach = (anchor: Element, scrollArea: Element): boolean => {
+  const anchorRect = anchor.getBoundingClientRect();
+  const areaRect = scrollArea.getBoundingClientRect();
+  return (
+    anchorRect.top <= areaRect.bottom + TIMELINE_BOTTOM_THRESHOLD_PX &&
+    anchorRect.bottom >= areaRect.top - TIMELINE_BOTTOM_THRESHOLD_PX
+  );
+};
+
+/**
+ * Whether the scroll area is at its bottom now, or with `latestAtTopRef` at the rows' latest end;
+ * before it mounts, the last known answer.
+ */
 export const useViewportAtBottomNow = (
   scrollRef: MutableRefObject<HTMLElement | null>,
-  atBottomRef: MutableRefObject<boolean>
+  atBottomRef: MutableRefObject<boolean>,
+  latestAtTopRef?: MutableRefObject<boolean>
 ) =>
   useCallback(() => {
     const element = scrollRef.current;
     if (!element) return atBottomRef.current;
-    const { scrollHeight, scrollTop, clientHeight } = element;
-    return isScrollNearBottom({ scrollHeight, scrollTop, clientHeight });
-  }, [atBottomRef, scrollRef]);
+    return isNearLatestEnd(element, !!latestAtTopRef?.current);
+  }, [atBottomRef, latestAtTopRef, scrollRef]);
 
 /** Gestures and keys that hand the scroll position over to the reader. */
 const READER_INTENT_EVENTS = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const;
@@ -73,6 +113,8 @@ const distanceBelowView = (element: HTMLElement): number =>
 type LatestRowRequestOptions = {
   /** Whether opening this room shows its newest row (not its unread marker or an event). */
   opensAtLatest: boolean;
+  /** Whether the room's newest row is its first (`scrollToLatestEnd`). */
+  latestAtTop: boolean;
   roomId: string;
   scrollElement: HTMLElement | null;
   /** The bottom pins asked for: each new `count` that a commit sees asks for the newest row. */
@@ -93,6 +135,7 @@ type LatestRowRequestOptions = {
  */
 const useLatestRowRequest = ({
   opensAtLatest,
+  latestAtTop,
   roomId,
   scrollElement,
   scrollToBottomRef,
@@ -105,6 +148,7 @@ const useLatestRowRequest = ({
   const viewRef = useRef(committedView);
   const roomRef = useRef(roomId);
   const onReaderGestureRef = useLatestRef(onReaderGesture);
+  const latestAtTopRef = useLatestRef(latestAtTop);
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
@@ -136,12 +180,17 @@ const useLatestRowRequest = ({
     // the view that changes size moves the position and the content by the same amount. It
     // listens in the capture phase, ahead of the virtualizer, whose scroll handler renders
     // synchronously and so would pin the newest row again before this saw the reader's position.
+    // With the newest row first, the pins scroll up, and a scroll down away from the top is the
+    // reader's.
     let lastTop = scrollElement.scrollTop;
     let lastBelow = distanceBelowView(scrollElement);
     const followScroll = () => {
       const top = scrollElement.scrollTop;
       const below = distanceBelowView(scrollElement);
-      if (top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX) release();
+      const leftLatest = latestAtTopRef.current
+        ? top > lastTop + LEFT_LATEST_ROW_PX
+        : top < lastTop && below > lastBelow + LEFT_LATEST_ROW_PX;
+      if (leftLatest) release();
       lastTop = top;
       lastBelow = below;
     };
@@ -153,13 +202,14 @@ const useLatestRowRequest = ({
       READER_INTENT_EVENTS.forEach((name) => scrollElement.removeEventListener(name, release));
       scrollElement.removeEventListener('scroll', followScroll, { capture: true });
     };
-  }, [onReaderGestureRef, scrollElement, scrollToBottomRef]);
+  }, [latestAtTopRef, onReaderGestureRef, scrollElement, scrollToBottomRef]);
   return requestRef;
 };
 
 /**
  * Keeps the newest row at the bottom while a request for it holds: after every commit, the room's
- * virtual list scrolls to its last row, and an open thread to the end of its scroll area. A pin
+ * virtual list scrolls to its last row (to its top when its newest row is first), and an open
+ * thread to the end of its scroll area. A pin
  * applied once can be cut short (a smooth scroll stops at the next scroll the timeline writes, as
  * when the composer grows) or land before the rows below it measure, and then every later row
  * would find the reader above the bottom and leave them there.
@@ -193,10 +243,11 @@ export const useLatestRowPin = ({
     surfaceAtLastCommitRef.current = surface;
     if (surface === 'thread') latestRowRequestRef.current = false;
   });
-  const { scrollElement } = request;
+  const { scrollElement, latestAtTop } = request;
   useLayoutEffect(() => {
     if (!surface || !latestRowRequestRef.current || itemCount === 0) return;
-    if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
+    if (surface === 'room' && latestAtTop) scrollElement?.scrollTo({ top: 0 });
+    else if (surface === 'room') virtualizer.scrollToIndex(itemCount - 1, { align: 'end' });
     else if (scrollElement) scrollToBottom(scrollElement, 'instant');
   });
 };

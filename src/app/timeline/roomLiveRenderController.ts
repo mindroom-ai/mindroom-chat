@@ -23,7 +23,6 @@ import {
 } from '../event-store/timeline/timelinePagination';
 import {
   isScrollNearBottom,
-  shouldAutoScrollRoomOnLiveEvent,
   shouldAutoScrollThreadOnLiveEvent,
 } from '../event-store/timeline/timelineScrollUtils';
 import {
@@ -36,6 +35,7 @@ import { hasTerminalStreamMetadata } from '../matrix/protocol/aiRun';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
 import type { ScrollToBottomState } from './roomFocusScrollController';
 import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
+import { isNearLatestEnd } from './roomTimelineScroll';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
 
 type LiveRenderOptions = {
@@ -51,6 +51,8 @@ type LiveRenderOptions = {
   ignoredUsersSet: Set<string>;
   /** A long message marked here opens expanded once. */
   markLiveExpansionCandidate: (eventId: string) => void;
+  /** Whether the room's newest row is its first, so a live row is followed at the top. */
+  latestAtTopRef: MutableRefObject<boolean>;
   mx: MatrixClient;
   normalThreadRecordMap: ReadonlyMap<string, ThreadRecord>;
   onStoreThreadSummary: ThreadSummaryWriter;
@@ -152,6 +154,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     hideNickAvatarEvents,
     ignoredUsersSet,
     markLiveExpansionCandidate,
+    latestAtTopRef,
     mx,
     normalThreadRecordMap,
     onStoreThreadSummary,
@@ -299,10 +302,8 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     );
     // Measured at this moment, so that a streamed edit cannot hold a reader at the bottom who
     // has just scrolled away.
-    const followsLiveEnd = shouldAutoScrollRoomOnLiveEvent({
-      scrollElement: scrollRef.current,
-      isTimelineAtLiveEnd: atLiveEnd,
-    });
+    const area = scrollRef.current;
+    const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, latestAtTopRef.current);
     if (followsLiveEnd && atBottomRef.current && documentHasFocus()) {
       void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     } else if (!unreadInfo && isRoomRow) {

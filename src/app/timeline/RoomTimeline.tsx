@@ -431,6 +431,16 @@ export function RoomTimeline(props: RoomTimelineProps) {
   });
 
   const threadRecordMapRef = useLatestRef(threadIndex.threadRecordMap);
+  // The Threads view under the bar's Last Reply sort, newest first, lists the newest thread first:
+  // the top is its latest end, where it opens, where a new message lands and where it follows.
+  const { sortBy, sortDirection } = threadIndex.effectiveThreadFilterState;
+  const latestAtTop =
+    !threadId &&
+    !compactViewRequested &&
+    threadIndex.roomThreadFilterActive &&
+    sortBy === 'lastReply' &&
+    sortDirection === 'desc';
+  const latestAtTopRef = useLatestRef(latestAtTop);
   useThreadSortFreezeController({
     activeLiveOverviewThreadRootIds: threadIndex.activeLiveOverviewThreadRootIds,
     setThreadSortFreezeState: setThreadSortFreezeState ?? ignoreSortFreezeUpdate,
@@ -872,6 +882,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     editId: feature.editingEventId,
     focusItem,
     focusScrollResetToken: room.roomId,
+    latestAtTopRef,
     threadTargets: session.targets,
     pendingThreadOpenTick: session.snapshot.targetRevision,
     retryPagination,
@@ -975,6 +986,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     timeline,
   });
   const isViewportAtBottomNow = useViewportAtBottomNow(scrollRef, atBottomRef);
+  const isViewportAtLatestNow = useViewportAtBottomNow(scrollRef, atBottomRef, latestAtTopRef);
   useRoomTimelineResetRelink({
     room,
     threadId,
@@ -982,7 +994,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     timeline,
     rebuildTimeline: buildInitialTimeline,
     setTimeline,
-    isViewportAtBottomNow,
+    isViewportAtBottomNow: isViewportAtLatestNow,
     scrollToBottomRef,
   });
   const { refreshLatest, notifyEventsChanged, readEditResetEpoch, observeLiveTail } =
@@ -1119,6 +1131,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     hideNickAvatarEvents,
     ignoredUsersSet,
     markLiveExpansionCandidate: feature.markLiveExpansionCandidate,
+    latestAtTopRef,
     mx,
     normalThreadRecordMap: threadIndex.normalThreadRecordMap,
     onStoreThreadSummary,
@@ -1161,6 +1174,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     virtualizer,
     // A room with unread rows opens at its unread marker instead (roomFocusScrollController).
     opensAtLatest: !eventId && !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline),
+    latestAtTop,
     roomId: room.roomId,
     scrollElement,
     scrollToBottomRef,
@@ -1338,6 +1352,20 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const bannerExpandAllToggle = itemCount > 0 && (
     <BannerExpandAllToggle expanded={expandAll} onToggle={handleToggleExpandAll} />
   );
+  // The room's start (its intro and the sentinel that loads older history) and newer history
+  // (the front sentinel) sit at the ends where their rows are: with the newest row first, older
+  // history is at the bottom.
+  const roomStart = !threadId && (
+    <>
+      {showRoomIntro && (compactCards ? <CompactRoomWithoutThreads /> : <RoomIntro room={room} />)}
+      {showRoomBackSentinel && <div ref={paginator.observeBackAnchor} style={{ height: 1 }} />}
+    </>
+  );
+  const roomNewer = showRoomFrontSentinel && (
+    <div ref={paginator.observeFrontAnchor} style={{ height: 1 }} />
+  );
+  // Marks the rows' latest end for Jump to Latest and the read receipts.
+  const latestEndAnchor = <span ref={atBottomAnchorRef} style={{ display: 'block', height: 0 }} />;
 
   return (
     <Box grow="Yes" direction="Column" style={threadId ? threadViewStyle : roomStyle}>
@@ -1347,10 +1375,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
         <UnreadActions onJumpToUnread={handleJumpToUnread} onMarkAsRead={markRoomAsRead} />
       )}
       <Scroll ref={attachScroll} className={overlay.Scroll} visibility="Hover" size="300">
+        {latestAtTop && latestEndAnchor}
         <Box
           ref={contentRef}
           direction="Column"
-          justifyContent={threadId || compactCards ? 'Start' : 'End'}
+          justifyContent={threadId || compactCards || latestAtTop ? 'Start' : 'End'}
           style={{
             minHeight: '100%',
             paddingTop: overlay.topInset,
@@ -1381,11 +1410,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
             </>
           ) : (
             <>
-              {showRoomIntro &&
-                (compactCards ? <CompactRoomWithoutThreads /> : <RoomIntro room={room} />)}
-              {showRoomBackSentinel && (
-                <div ref={paginator.observeBackAnchor} style={{ height: 1 }} />
-              )}
+              {latestAtTop ? roomNewer : roomStart}
               {expandAllToggle}
             </>
           )}
@@ -1405,13 +1430,11 @@ export function RoomTimeline(props: RoomTimelineProps) {
               </div>
             )}
           </ThreadConversationCostProvider>
-          {showRoomFrontSentinel && (
-            <div ref={paginator.observeFrontAnchor} style={{ height: 1 }} />
-          )}
+          {latestAtTop ? roomStart : roomNewer}
         </Box>
         {/* After the content's padding, so "at the bottom" means the end of the scroll range,
             not the last row, which sits a composer's height higher, behind the footer. */}
-        <span ref={atBottomAnchorRef} style={{ display: 'block', height: 0 }} />
+        {!latestAtTop && latestEndAnchor}
         {/* In the scroll area for its accessibility tree; the unpositioned Scroll leaves it
             placed by the timeline box, so it stays between the header and the composer. */}
         <InsetScrollbar

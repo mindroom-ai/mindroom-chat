@@ -23,6 +23,7 @@ import type { ThreadInitialRenderMode } from '../event-store/threads/threadRende
 import { getEventTimeline } from '../event-store/timeline/timelinePagination';
 import { getFirstLinkedTimeline } from '../event-store/timeline/linkedTimelines';
 import { TIMELINE_BOTTOM_THRESHOLD_PX } from '../event-store/timeline/timelineScrollUtils';
+import { isLatestAnchorInReach } from './roomTimelineScroll';
 
 /**
  * How long the bottom anchor must stay out of reach before the view counts as scrolled away, so a
@@ -164,7 +165,8 @@ export const useTimelineReadReceiptController = ({
     };
   }, []);
   // Measured when the frame comes, not taken from the "at bottom" state, which lags behind the
-  // reader's scroll: the anchor is within reach of the scroll area's lower edge.
+  // reader's scroll: the anchor is within reach of the scroll area's edges (it marks the rows'
+  // latest end, the top when the newest row is first).
   const stillReading = useCallback<StillReading>(
     (roomId, threadId) => {
       const context = contextRef.current;
@@ -172,8 +174,9 @@ export const useTimelineReadReceiptController = ({
         return false;
       const anchor = atBottomAnchorRef.current;
       if (!anchor || !atLiveEndRef.current || !document.hasFocus()) return false;
-      const lowerEdge = getScrollElement()?.getBoundingClientRect().bottom ?? window.innerHeight;
-      return anchor.getBoundingClientRect().top <= lowerEdge + TIMELINE_BOTTOM_THRESHOLD_PX;
+      const scrollArea = getScrollElement();
+      if (scrollArea) return isLatestAnchorInReach(anchor, scrollArea);
+      return anchor.getBoundingClientRect().top <= window.innerHeight + TIMELINE_BOTTOM_THRESHOLD_PX;
     },
     [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement]
   );
@@ -186,12 +189,12 @@ export const useTimelineReadReceiptController = ({
   );
   const settleScrolledAway = useDebounce(confirmScrolledAway, { wait: SCROLLED_AWAY_DELAY_MS });
 
-  // The scroll area is the root, grown by the bottom threshold below its lower edge only, so the
-  // anchor counts as reached while it is at most that far below the visible rows.
+  // The scroll area is the root, grown by the threshold beyond its edges, so the anchor counts as
+  // reached while it is at most that far below (or, at the top, above) the visible rows.
   const getObserverOptions = useCallback(
     (): IntersectionObserverInit => ({
       root: getScrollElement() ?? null,
-      rootMargin: `0px 0px ${TIMELINE_BOTTOM_THRESHOLD_PX}px`,
+      rootMargin: `${TIMELINE_BOTTOM_THRESHOLD_PX}px 0px`,
     }),
     [getScrollElement]
   );
