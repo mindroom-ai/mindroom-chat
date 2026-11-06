@@ -1,5 +1,4 @@
 import { style } from '@vanilla-extract/css';
-import { touchTarget } from '../../ui/styles/touchTarget';
 import { color, config, toRem } from 'folds';
 import { MESSAGE_AVATAR_WIDTH_PX, MESSAGE_LAYOUT_GAP_SPACE_KEY } from '../layout/config';
 import { getModelBadgeMaxWidth } from './modelBadgeLayout';
@@ -21,12 +20,12 @@ const badgeTextPx = 10;
 const badgeLinePx = 12;
 
 /**
- * Small pill under an agent's avatar naming the model that wrote the message. To a finger it is
- * 44 px tall, and it lies over the tool rows that start beside it.
+ * Small pill under an agent's avatar naming the model that wrote the message. A touch screen
+ * reserves its 44 px target in layout, clear of the avatar, tool rows and sticky thread banner.
  */
 export const Badge = style([
-  touchTarget('0px', '', { raise: true }),
   {
+    '@media': { '(pointer: coarse)': { minBlockSize: 44, minInlineSize: 44 } },
     // As wide as the name, at most the avatar column plus the gap after it.
     boxSizing: 'border-box',
     margin: 0,
