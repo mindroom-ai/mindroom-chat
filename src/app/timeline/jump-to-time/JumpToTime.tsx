@@ -26,11 +26,14 @@ import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useSetting } from '../../preferences/useSetting';
 import { settingsAtom } from '../../preferences/settings';
 import { readableReason } from '../../lib/errorReason';
-import { findEventAtTime } from './findEventAtTime';
+import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
+import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
 import * as css from './JumpToTime.css';
 
 type JumpToTimeProps = {
   room: Room;
+  /** The open thread, which the jump stays in. */
+  threadId?: string;
   requestClose: () => void;
 };
 
@@ -116,14 +119,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 /**
  * Jump to Time: pick a date and time (or Today, Yesterday, the room's beginning), and the room
  * opens in its Full view at the event the server finds for that time (Matrix spec,
- * `/timestamp_to_event`). A server without that endpoint gets a message instead.
+ * `/timestamp_to_event`). A server without that endpoint gets a message instead. From an open
+ * thread, the thread stays open and moves to its message at that time (`findThreadEventAtTime`):
+ * a time before the thread began shows its first message, one after its newest reply that reply.
  */
-export function JumpToTime({ room, requestClose }: JumpToTimeProps) {
+export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
   const { t, i18n } = useTranslation();
   const client = useMatrixClient();
   const viewModes = useRoomViewMode(room.roomId);
   const [hour24Clock] = useSetting(settingsAtom, 'hour24Clock');
-  const { navigateRoom } = useRoomNavigate();
+  const { navigateRoom, navigateRoomThread } = useRoomNavigate();
   const [moment, setMoment] = useState<Moment>(() => midnight(0));
   const mounted = useAlive();
   const [preset, setPreset] = useState<Preset | undefined>('today');
@@ -164,6 +169,22 @@ export function JumpToTime({ room, requestClose }: JumpToTimeProps) {
     // The beginning is the room's first event, even when the creation time has seconds.
     const at = preset === 'beginning' ? createdAt ?? 0 : timestampOf(moment);
     try {
+      if (threadId && isConfirmedMatrixEventId(threadId)) {
+        const rootTs = (
+          room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
+        )?.getTs();
+        const eventId = await findThreadEventAtTime(client, room.roomId, threadId, at, rootTs);
+        if (!mounted()) return;
+        requestClose();
+        // The same thread at another message: its back button keeps the place it returns to.
+        const historyState: unknown = window.history.state;
+        const userState =
+          typeof historyState === 'object' && historyState !== null && 'usr' in historyState
+            ? historyState.usr
+            : undefined;
+        navigateRoomThread(room.roomId, threadId, eventId, { replace: true, state: userState });
+        return;
+      }
       const found = await findEventAtTime(client, room.roomId, at);
       if (!mounted()) return;
       if (found.kind !== 'found') {

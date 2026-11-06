@@ -3,22 +3,30 @@ import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { Direction, MatrixError, type Room } from 'matrix-js-sdk';
-import { findEventAtTime } from './findEventAtTime';
+import { Direction, type MatrixClient, MatrixError, type Room } from 'matrix-js-sdk';
+import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
 import { JumpToTime } from './JumpToTime';
 
 const state = vi.hoisted(() => ({
   timestampToEvent: vi.fn(),
+  fetchRelations: vi.fn(),
   navigateRoom: vi.fn(),
+  navigateRoomThread: vi.fn(),
   setViewMode: vi.fn(),
   hour24Clock: true,
 }));
 
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ timestampToEvent: state.timestampToEvent }),
+  useMatrixClient: () => ({
+    timestampToEvent: state.timestampToEvent,
+    fetchRelations: state.fetchRelations,
+  }),
 }));
 vi.mock('../../navigation/useRoomNavigate', () => ({
-  useRoomNavigate: () => ({ navigateRoom: state.navigateRoom }),
+  useRoomNavigate: () => ({
+    navigateRoom: state.navigateRoom,
+    navigateRoomThread: state.navigateRoomThread,
+  }),
 }));
 vi.mock('../../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({
@@ -35,8 +43,11 @@ vi.mock('focus-trap-react', () => ({
 }));
 
 const CREATED_AT = new Date(2024, 2, 5, 9, 30, 15).getTime();
+const ROOT_TS = new Date(2024, 2, 6, 10, 0).getTime();
 const room = {
   roomId: '!room:test',
+  getThread: () => null,
+  findEventById: (eventId: string) => (eventId === '$root' ? { getTs: () => ROOT_TS } : undefined),
   currentState: {
     getStateEvents: (type: string) =>
       type === 'm.room.create' ? { getTs: () => CREATED_AT } : null,
@@ -86,6 +97,95 @@ describe('findEventAtTime', () => {
   });
 });
 
+const reply = (eventId: string, ts: number, extra: Record<string, unknown> = {}) => ({
+  event_id: eventId,
+  origin_server_ts: ts,
+  type: 'm.room.message',
+  ...extra,
+});
+
+/** A thread's replies served newest first, `pageSize` at a time. */
+const relations = (newestFirst: ReturnType<typeof reply>[], pageSize = 2) =>
+  vi.fn(
+    async (
+      _roomId: string,
+      _eventId: string,
+      _rel: string,
+      _type: null,
+      opts: { from?: string }
+    ) => {
+      const start = Number(opts.from ?? 0);
+      const next = start + pageSize;
+      return {
+        chunk: newestFirst.slice(start, next),
+        ...(next < newestFirst.length ? { next_batch: String(next) } : {}),
+      };
+    }
+  );
+
+const thread = (fetchRelations: unknown) =>
+  thread(fetchRelations) as unknown as Pick<MatrixClient, 'fetchRelations'>;
+
+describe('findThreadEventAtTime', () => {
+  // Root at 100; replies at 200, 300, 400 and 500, with a deleted one and a reaction between.
+  const replies = [
+    reply('$r500', 500),
+    reply('$gone', 450, { unsigned: { redacted_because: {} } }),
+    reply('$r400', 400),
+    reply('$state', 350, { type: 'm.reaction' }),
+    reply('$r300', 300),
+    reply('$r200', 200),
+  ];
+
+  it("takes the thread's first reply at or after the time, reading pages only as far as needed", async () => {
+    const fetchRelations = relations(replies);
+    expect(await findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 320, 100)).toBe(
+      '$r400'
+    );
+    expect(fetchRelations).toHaveBeenCalledTimes(3);
+    expect(fetchRelations.mock.calls[0]).toEqual([
+      '!r',
+      '$root',
+      'm.thread',
+      null,
+      { dir: Direction.Backward, limit: 100 },
+    ]);
+    expect(await findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 300, 100)).toBe(
+      '$r300'
+    );
+  });
+
+  it('takes the newest reply for a time after it', async () => {
+    const fetchRelations = relations(replies);
+    expect(await findThreadEventAtTime(thread(fetchRelations), '!r', '$root', 900, 100)).toBe(
+      '$r500'
+    );
+    expect(fetchRelations).toHaveBeenCalledOnce();
+  });
+
+  it('takes the first message for a time before the thread began, or without replies', async () => {
+    expect(await findThreadEventAtTime(thread(relations(replies)), '!r', '$root', 50, 100)).toBe(
+      '$root'
+    );
+    expect(await findThreadEventAtTime(thread(relations(replies)), '!r', '$root', 100, 100)).toBe(
+      '$root'
+    );
+    expect(await findThreadEventAtTime(thread(relations([])), '!r', '$root', 900, 100)).toBe(
+      '$root'
+    );
+  });
+
+  it('takes the first reply for a time between the first message and it', async () => {
+    expect(await findThreadEventAtTime(thread(relations(replies)), '!r', '$root', 150, 100)).toBe(
+      '$r200'
+    );
+    // Without the root's time, a time before every reply lands on the root.
+    expect(
+      await findThreadEventAtTime(thread(relations(replies)), '!r', '$root', 150, undefined)
+    ).toBe('$root');
+  });
+});
+
 describe('JumpToTime', () => {
   let host: HTMLDivElement;
   let root: Root;
@@ -101,13 +201,17 @@ describe('JumpToTime', () => {
     act(() => root.unmount());
     host.remove();
     state.timestampToEvent.mockReset();
+    state.fetchRelations.mockReset();
     state.navigateRoom.mockReset();
+    state.navigateRoomThread.mockReset();
     state.setViewMode.mockReset();
     state.hour24Clock = true;
   });
 
-  const show = (requestClose = vi.fn()) => {
-    act(() => root.render(<JumpToTime room={room} requestClose={requestClose} />));
+  const show = (requestClose = vi.fn(), threadId?: string) => {
+    act(() =>
+      root.render(<JumpToTime room={room} threadId={threadId} requestClose={requestClose} />)
+    );
     return requestClose;
   };
   const button = (text: string) =>
@@ -141,6 +245,43 @@ describe('JumpToTime', () => {
     expect(state.setViewMode).toHaveBeenCalledWith('classic');
     expect(state.navigateRoom).toHaveBeenCalledWith('!room:test', '$found');
     expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it('stays in an open thread and moves it to its message at that time', async () => {
+    const afternoon = new Date(2024, 2, 6, 14, 0).getTime();
+    state.fetchRelations.mockImplementation(async () => ({
+      chunk: [reply('$late', afternoon + 60_000), reply('$noon', afternoon - 60_000)],
+    }));
+    window.history.replaceState({ usr: { exitTarget: 'kept' }, key: 'k', idx: 0 }, '');
+    const requestClose = show(vi.fn(), '$root');
+    pick('Year', 2024);
+    pick('Month', 2);
+    pick('Day', 6);
+    pick('Hour', 14);
+    pick('Minutes', 0);
+    await openTimeline();
+
+    expect(state.timestampToEvent).not.toHaveBeenCalled();
+    expect(state.setViewMode).not.toHaveBeenCalled();
+    expect(state.navigateRoom).not.toHaveBeenCalled();
+    expect(state.navigateRoomThread).toHaveBeenCalledWith('!room:test', '$root', '$late', {
+      replace: true,
+      state: { exitTarget: 'kept' },
+    });
+    expect(requestClose).toHaveBeenCalledOnce();
+  });
+
+  it("opens a thread's first message from the room's beginning", async () => {
+    state.fetchRelations.mockResolvedValue({ chunk: [reply('$reply', ROOT_TS + 60_000)] });
+    show(vi.fn(), '$root');
+    act(() => button('Beginning').click());
+    await openTimeline();
+    expect(state.navigateRoomThread).toHaveBeenCalledWith(
+      '!room:test',
+      '$root',
+      '$root',
+      expect.objectContaining({ replace: true })
+    );
   });
 
   it('starts the beginning at the room creation, to the millisecond', async () => {

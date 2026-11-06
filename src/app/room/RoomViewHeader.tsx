@@ -565,7 +565,9 @@ export function RoomViewHeader({
         }
       />
       {prompt === 'invite' && <InviteUserPrompt room={room} requestClose={closePrompt} />}
-      {prompt === 'jumpToTime' && <JumpToTime room={room} requestClose={closePrompt} />}
+      {prompt === 'jumpToTime' && (
+        <JumpToTime room={room} threadId={threadId} requestClose={closePrompt} />
+      )}
       {prompt === 'leave' && (
         <LeaveRoomPrompt
           roomId={room.roomId}
