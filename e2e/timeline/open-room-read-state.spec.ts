@@ -26,7 +26,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // has unread messages: the server currently resets the sender's counts for the whole room on any
 // send. Each case runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit. Runs against the disposable homeserver of `just hs-up` or of a slot of
-// scripts/e2e-slot.sh, and registers its own accounts.
+// scripts/e2e-slot.sh, and registers its own accounts. Set OPEN_ROOM_READ_SHOTS=<directory> to save
+// screenshots of the steps that check the line and the badges.
+const SHOTS = process.env.OPEN_ROOM_READ_SHOTS;
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'open-room-read-state-spec-password';
 const RUN = Date.now().toString(36);
@@ -245,6 +247,11 @@ const badgeAndServer = async (page: Page, reader: Account, roomId: string, roomN
   return { badge, server };
 };
 
+/** Saves a screenshot when OPEN_ROOM_READ_SHOTS names a directory. */
+const shot = async (page: Page, name: string) => {
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
+};
+
 /** Keeps the pointer off the sidebar, whose rows swap their badge for buttons under it. */
 const parkPointer = (page: Page) => page.mouse.move(VIEWPORT.width - 40, VIEWPORT.height / 2);
 
@@ -325,6 +332,7 @@ const readOnFocus = async (page: Page, browserName: string) => {
     .toEqual([{ type: 'm.read', event: 'Away message 5', thread: 'main' }]);
   expect(await unreadLineRows(page)).toEqual([expect.stringContaining('Away message 1:')]);
   expect(await badgeAndServer(page, reader, roomId, roomName)).toEqual({ badge: 0, server: 0 });
+  await shot(page, `${browserName}-refocus-five-read`);
   receipts.splice(0);
 
   // Twelve long messages arrive while away: more than a screen. Coming back shows the line, and
@@ -353,6 +361,7 @@ const readOnFocus = async (page: Page, browserName: string) => {
   const afterLongAway = await badgeAndServer(page, reader, roomId, roomName);
   expect(receipts, 'receipts while the newest messages are below the view').toEqual([]);
   expect(afterLongAway).toEqual({ badge: 12, server: 12 });
+  await shot(page, `${browserName}-refocus-at-line`);
 
   await backToBottom(page);
   await expect
@@ -362,9 +371,10 @@ const readOnFocus = async (page: Page, browserName: string) => {
 };
 
 /**
- * A room with two unread threads, one of which holds an older reply of the reader's, and an
- * unread message: its sidebar badge equals the server's count before the room opens, while it is
- * open, and after the reader leaves it.
+ * A room with two unread threads, one of which holds an older reply of the reader's, and unread
+ * messages: its sidebar badge equals the server's count before the room opens, while it is open,
+ * and after the reader leaves it. The messages after the threads push them out of the first
+ * /sync's rows, so the client loads the threads' replies only when the room opens.
  */
 const openRoomBadge = async (page: Page, browserName: string) => {
   const reader = await registerAndLogin(`${browserName}_badge_reader`);
@@ -389,6 +399,10 @@ const openRoomBadge = async (page: Page, browserName: string) => {
   for (let index = 1; index <= 3; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await say(answerIn(second, `Delivery note ${index} is waiting at the gate.`));
+  }
+  for (let index = 1; index <= 24; index += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await say(message(`Gate log ${index}`));
   }
   await say(message('The crane inspection moved to Thursday'));
 
@@ -416,6 +430,7 @@ const openRoomBadge = async (page: Page, browserName: string) => {
   // The two threads stay unread: the reader opened neither.
   expect(open.server, 'server count with the room open').toBeGreaterThanOrEqual(5);
   expect(open.badge, 'badge with the room open').toBe(open.server);
+  await shot(page, `${browserName}-open-room-badge`);
 
   await openPath(page, `/home/${encodeURIComponent(otherId)}/`);
   const after = await badgeAndServer(page, reader, roomId, roomName);
