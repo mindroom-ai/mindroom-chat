@@ -12,7 +12,6 @@ import { useTranslation } from 'react-i18next';
 import { Text, color } from 'folds';
 import {
   EventStatus,
-  MatrixEventEvent,
   type MatrixClient,
   type MatrixEvent,
   type Relations,
@@ -35,6 +34,7 @@ import { Reply } from '../../messages/reply/Reply';
 import { MessageAside } from '../../messages/layout/MessageAside';
 import { RenderMessageContent } from '../../messages/content/RenderMessageContent';
 import { Reactions } from '../../messages/reactions/Reactions';
+import { useDecryptionRepaint } from './useDecryptionRepaint';
 import {
   factoryRenderLinkifyWithMention,
   getReactCustomHtmlParser,
@@ -127,8 +127,6 @@ const shouldShowReply = (row: TimelineMessageRow): boolean => {
  */
 const UNFOLDED_MEDIA_MSGTYPES: ReadonlySet<string> = new Set(['m.image', 'm.video']);
 
-const REPAINT_EVENTS = [MatrixEventEvent.Decrypted, MatrixEventEvent.Replaced] as const;
-
 /**
  * Whether a room row starts a thread with at least one reply, which earns it the thread chip.
  * The record's count is the loaded replies once all of them are, and before that the larger of
@@ -145,45 +143,6 @@ const useMessageDisplaySettings = () => ({
   urlPreview: useSettingValue(settingsAtom, 'urlPreview'),
   encUrlPreview: useSettingValue(settingsAtom, 'encUrlPreview'),
 });
-
-/**
- * Re-render the host when an encrypted row on screen decrypts or gets new content from an edit.
- * An encrypted edit, such as each step of an agent reply streaming in an encrypted room, replaces
- * its target only once decrypted, after the timeline change that brought it; an edit in a room
- * without encryption replaces its target before that change. Listens to exactly the events the
- * last render showed: new rows subscribe, rows that left the screen unsubscribe.
- */
-const useDecryptionRepaint = (renderedEventsRef: RefObject<MatrixEvent[]>): number => {
-  const [decryptions, repaint] = useReducer((value: number) => value + 1, 0);
-  const subscribedRef = useRef(new Set<MatrixEvent>());
-  useEffect(() => {
-    const subscribed = subscribedRef.current;
-    const current = new Set(
-      (renderedEventsRef.current ?? []).filter((event) => event.isEncrypted?.())
-    );
-    subscribed.forEach((event) => {
-      if (current.has(event)) return;
-      REPAINT_EVENTS.forEach((name) => event.removeListener(name, repaint));
-      subscribed.delete(event);
-    });
-    current.forEach((event) => {
-      // Rows can hold stand-ins for events that never decrypt and emit nothing.
-      if (subscribed.has(event) || typeof event.on !== 'function') return;
-      REPAINT_EVENTS.forEach((name) => event.on(name, repaint));
-      subscribed.add(event);
-    });
-  });
-  useEffect(
-    () => () => {
-      subscribedRef.current.forEach((event) =>
-        REPAINT_EVENTS.forEach((name) => event.removeListener(name, repaint))
-      );
-      subscribedRef.current.clear();
-    },
-    []
-  );
-  return decryptions;
-};
 
 type ReactionToggle = (
   targetEventId: string,
