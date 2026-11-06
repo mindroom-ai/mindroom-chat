@@ -183,7 +183,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
     });
     const before = receipts.length;
     await page.getByRole('button', { name: 'More Options', exact: true }).click();
-    await page.getByRole('button', { name: 'Mark as Read', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Mark as Read', exact: true }).click();
     await expect
       .poll(() => describeReceipts(receipts.slice(before).filter((r) => !r.threadId)), {
         timeout: 20_000,
