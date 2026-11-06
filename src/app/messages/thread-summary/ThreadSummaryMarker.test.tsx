@@ -119,8 +119,11 @@ describe('ThreadSummaryMarker', () => {
 
     // folds' PopOut layer covers the screen; a tooltip must not take input.
     const [layer] = popout(renderer);
-    expect(layer.props.role).toBe('tooltip');
     expect(layer.props.style).toEqual({ pointerEvents: 'none' });
+    // The tooltip inside has the role, not the layer in the body, which index.css hides on
+    // touch screens.
+    expect(layer.props.role).toBeUndefined();
+    expect(layer.findByProps({ 'data-tooltip': true }).props.role).toBe('tooltip');
   });
 
   it('opens while a mouse hovers and closes when it leaves', () => {

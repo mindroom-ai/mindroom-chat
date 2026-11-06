@@ -104,16 +104,17 @@ export function ThreadSummaryMarker({
         {summaryInfo.summaryText} {previous}
       </span>
       {/* folds' PopOut layer covers the screen; as a tooltip it must let the
-          pointer through to the marker and the timeline. */}
+          pointer through to the marker and the timeline. The tooltip inside,
+          not the layer, has the role: on touch screens index.css hides tooltip
+          layers in the body, and these details a tap opens. */}
       <PopOut
-        role="tooltip"
         style={{ pointerEvents: 'none' }}
         anchor={open?.anchor}
         position="Top"
         align="Start"
         offset={4}
         content={
-          <Tooltip>
+          <Tooltip role="tooltip">
             <div className={css.MarkerDetails} data-thread-summary-details="true">
               <Text size="T200" priority="300">
                 {provenance}
