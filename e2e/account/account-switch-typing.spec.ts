@@ -1,15 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { getHomeserver } from '../env';
+import { buildLoginPath, getHomeserver } from '../env';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { switchToStoredUsername } from '../helpers/accounts';
 import { createPrivateRoom, joinRoom, matrixFetch, type MatrixSession } from '../helpers/matrix';
 
 // An account that stops being the active one stops typing (live-test L9-F011). The first account
-// types a draft in a room and leaves it unsent; when a second account is added, or the device
-// switches to it, the others in the room must stop seeing the first one typing at once, not when
-// the server's typing timeout (30 s) ends it. A third account reads the room's typing users the
-// way every member does, from its own /sync.
+// types a draft in a room and leaves it unsent; when a second account is added, the device
+// switches to it, or the page is left (a reload, a link, a closed tab: the live test opened the
+// login page by its address), the others in the room must stop seeing the first one typing at
+// once, not when the server's typing timeout (30 s) ends it. A third account reads the room's
+// typing users the way every member does, from its own /sync.
 
 const PASSWORD = 'typing-switch-password';
 const DRAFT = 'a draft left behind';
@@ -85,7 +86,9 @@ const typeDraft = async (page: Page, roomId: string) => {
   await page.keyboard.type(DRAFT, { delay: 30 });
 };
 
-test('an account that stops being active stops typing in its rooms', async ({ page }) => {
+test('an account that stops being active, or leaves the page, stops typing in its rooms', async ({
+  page,
+}) => {
   test.setTimeout(240_000);
   const homeserver = getHomeserver();
   const run = randomUUID().replaceAll('-', '').slice(0, 10);
@@ -139,6 +142,18 @@ test('an account that stops being active stops typing in its rooms', async ({ pa
       .toBe(false);
     // The second account, now active, never typed.
     expect(watcher.isTyping(second.userId)).toBe(false);
+
+    // Leaving the page while a draft is typed: no code of the page runs afterwards.
+    await switchToStoredUsername(page, firstName);
+    await typeDraft(page, roomId);
+    await expect.poll(() => watcher.isTyping(first.userId), { timeout: 15_000 }).toBe(true);
+    await page.goto(buildLoginPath(homeserver, true));
+    await expect
+      .poll(() => watcher.isTyping(first.userId), {
+        timeout: STOP_WITHIN_MS,
+        message: 'the first account still types after its page was left',
+      })
+      .toBe(false);
   } finally {
     await watcher.stop();
   }
