@@ -149,6 +149,35 @@ describe('readMessageNotice', () => {
       expect(judged.getId()).toBe(reply.getId());
     });
 
+    it('stays quiet for a placeholder still in progress, whatever its msgtype', () => {
+      const { client, room, getPushActionsForEvent } = setup(loud);
+      for (const status of ['pending', 'streaming', 'approval_pending']) {
+        const placeholder = makeEvent({
+          msgtype: 'm.text',
+          body: 'Thinking...',
+          'io.mindroom.stream_status': status,
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+        });
+        expect(readMessageNotice(client, room, placeholder, NOW)).toBeUndefined();
+      }
+      expect(getPushActionsForEvent).not.toHaveBeenCalled();
+    });
+
+    it('notifies once a reply that started as an m.text placeholder completes', () => {
+      const reply = makeEvent({
+        msgtype: 'm.text',
+        body: 'Thinking...',
+        'io.mindroom.stream_status': 'pending',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+      });
+      const { client, room } = setup(loud, [reply]);
+      expect(readMessageNotice(client, room, finish(reply), NOW)).toMatchObject({
+        eventId: reply.getId(),
+        threadId: '$root',
+        content: { body: '@me:example.org the answer' },
+      });
+    });
+
     it('does not notify for progress edits or for replies sent finished', () => {
       const reply = streamed();
       const { room } = setup(loud, [reply]);
