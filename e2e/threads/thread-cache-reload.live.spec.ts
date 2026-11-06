@@ -20,8 +20,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // replies and their titles with the threads' events); 10 finish while the page is away, behind a
 // gap deeper than one /sync answer. After each reload, with the server's thread list and events
 // slow:
-// - the room's thread list pages to its end (a busy room's list used to stop, keeping old
-//   summaries for good),
+// - the room's thread list pages to its end, each page once (a busy room's list used to stop,
+//   keeping old summaries for good),
 // - no finished reply's card streams, not even for a moment,
 // - the page asks the server about none of those replies one by one (it asked once per thread):
 //   the cache answers for the 30, the thread list for the 10.
@@ -232,13 +232,37 @@ const openRoom = async (page: Page, world: World) => {
   });
 };
 
-/** Waits until the count chip shows the whole room: the room's thread list is read to its end. */
-const expectWholeList = async (page: Page, label: string) => {
-  const chip = page.locator('[data-thread-count="true"]');
-  await expect(chip, `${label}: the count once the whole list is read`).toHaveText(
-    String(THREADS),
-    { timeout: 120_000 }
-  );
+type ListEnds = { count: number };
+
+/**
+ * Counts the room's thread list pages that end the list (no `next_batch`). The count chip is no
+ * proxy: in the Compact view it also waits for the room's history to reach its start.
+ */
+const watchListEnds = (page: Page, world: World): ListEnds => {
+  const ends: ListEnds = { count: 0 };
+  page.on('response', (response) => {
+    const url = new URL(response.url());
+    const path = decodeURIComponent(url.pathname);
+    if (!path.endsWith(`/rooms/${world.roomId}/threads`) || !response.ok()) return;
+    if (url.searchParams.get('include') !== 'all') return;
+    response
+      .json()
+      .then((body: { next_batch?: string }) => {
+        if (!body.next_batch) ends.count += 1;
+      })
+      .catch(() => undefined);
+  });
+  return ends;
+};
+
+/** Waits until the room's thread list is read to its end once more. */
+const expectWholeList = async (ends: ListEnds, before: number, label: string) => {
+  await expect
+    .poll(() => ends.count > before, {
+      timeout: 120_000,
+      message: `${label}: the room's thread list read to its end`,
+    })
+    .toBe(true);
 };
 
 /** Each finished reply's card stops streaming. */
@@ -302,6 +326,7 @@ const report = (description: string) => {
 
 const check = async (page: Page, world: World, engine: string) => {
   await page.addInitScript(recordStreamingCards);
+  const listEnds = watchListEnds(page, world);
   await seedRoomOverviewState({
     page,
     roomId: world.roomId,
@@ -333,9 +358,10 @@ const check = async (page: Page, world: World, engine: string) => {
 
   // The reader reloads before the first words: the room's thread list is read while every reply
   // is its placeholder, and the page saves the roots with that summary.
+  const endsBeforeReload = listEnds.count;
   await page.reload();
   await openRoom(page, world);
-  await expectWholeList(page, `${engine} first read`);
+  await expectWholeList(listEnds, endsBeforeReload, `${engine} first read`);
   await inBatches(STREAMS, 10, async (offset) => {
     const stream = streams[offset];
     if (stream) await streamEdit(world, stream, stepText(stream.index), 'streaming');
@@ -370,13 +396,17 @@ const check = async (page: Page, world: World, engine: string) => {
   // Two reloads, with the server's thread list and single events slow.
   const watch = await watchRequests(page, world, new Set(streams.map((s) => s.replyId)));
   for (const pass of ['first', 'second']) {
-    const before = { replies: watch.replyRequests.length, lists: watch.listRequests.length };
+    const before = {
+      replies: watch.replyRequests.length,
+      lists: watch.listRequests.length,
+      ends: listEnds.count,
+    };
     await openRoom(page, world);
     for (const stream of streams.slice(0, 8))
       await expect(threadCard(page, stream.rootId)).toBeAttached({ timeout: 60_000 });
     await page.waitForTimeout(2_000);
     await shot(page, `${engine}-reload-${pass}`);
-    await expectWholeList(page, `${engine} ${pass} reload`);
+    await expectWholeList(listEnds, before.ends, `${engine} ${pass} reload`);
     await expectNoneStreaming(page, streams, `${engine} ${pass} reload`);
     await page.waitForTimeout(3_000);
     const asked = watch.replyRequests.slice(before.replies);
