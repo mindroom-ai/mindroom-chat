@@ -336,11 +336,11 @@ describe('MessageNotificationsFeature', () => {
 
     const finished = edit('completed', 'The notes are ready.');
     synced(finished);
+    const bodies = () => FakeNotification.shown.map((note) => note.options.body);
+    expect(bodies()).toEqual(['mindroom_helper: The notes are ready.']);
     // An opened thread adds the same edit to its timeline too.
     arrive(finished);
-    expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
-      'mindroom_helper: The notes are ready.',
-    ]);
+    expect(bodies()).toEqual(['mindroom_helper: The notes are ready.']);
   });
 
   it('chimes only when the push actions ask for a sound, and respects the settings', () => {
