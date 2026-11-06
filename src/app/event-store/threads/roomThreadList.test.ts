@@ -608,18 +608,38 @@ describe('roomThreadListIsComplete', () => {
     expect(roomThreadListIsComplete(room as never)).toBe(false);
   });
 
-  it('returns true once the thread-list pagination token is null', () => {
+  it('returns true once the thread-list pagination token is null', async () => {
     setServerSideListSupport(true);
     const { room } = makeRoom([null]);
+    await loadRoomThreads(room as never);
 
     expect(roomThreadListIsComplete(room as never)).toBe(true);
   });
 
-  it('treats missing timeline sets as locally complete', () => {
+  it('returns false until the first page of the list arrives', async () => {
+    // A new timeline has no token either, so only the first page tells an empty list from a done one.
+    setServerSideListSupport(true);
+    const { room } = makeRoom([null]);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+
+    expect(roomThreadListIsComplete(room as never)).toBe(false);
+    room.fetchRoomThreads.mockRejectedValueOnce(new Error('offline'));
+    await loadRoomThreads(room as never);
+    expect(roomThreadListIsComplete(room as never)).toBe(false);
+    await loadRoomThreads(room as never);
+    expect(roomThreadListIsComplete(room as never)).toBe(true);
+  });
+
+  it('treats missing timeline sets as locally complete', async () => {
     setServerSideListSupport(true);
     const room = {
+      client: { supportsThreads: vi.fn(() => true) },
+      createThreadsTimelineSets: vi.fn(async () => undefined),
+      fetchRoomThreads: vi.fn(async () => undefined),
       threadsTimelineSets: [],
     };
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await loadRoomThreads(room as never);
 
     expect(roomThreadListIsComplete(room as never)).toBe(true);
   });

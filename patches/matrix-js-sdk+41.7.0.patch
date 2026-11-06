@@ -1831,16 +1831,19 @@ index 80ea382..699cb03 100644
  
          // TODO: we should implement a backoff (as per scrollback()) to deal more
          // nicely with HTTP errors.
-@@ -5119,7 +5132,7 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -5119,7 +5132,10 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
                      const timelineSet = eventTimeline.getTimelineSet();
                      timelineSet.addEventsToTimeline(matrixEvents, backwards, false, eventTimeline, token);
++                    // MindRoom: /threads pages never overlap, so its next_batch is the list's place even when the
++                    // page's newest root is listed already (the reader's own list or a reply put it there).
++                    if (backwards) eventTimeline.setPaginationToken(token ?? null, dir);
                      this.processAggregatedTimelineEvents(room, matrixEvents);
 -                    this.processThreadRoots(room, matrixEvents, backwards);
 +                    room.processListedThreadRoots(matrixEvents, backwards);
  
                      // if we've hit the end of the timeline, we need to stop trying to
                      // paginate. We need to keep the 'forwards' token though, to make sure
-@@ -6877,7 +6890,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -6877,7 +6893,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          eventType?: EventType | string | null,
          opts: IRelationsRequestOpts = { dir: Direction.Backward },
      ): Promise<IRelationsResponse> {
@@ -1850,7 +1853,7 @@ index 80ea382..699cb03 100644
          if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
              params = replaceParam("dir", "org.matrix.msc3715.dir", params);
          }
-@@ -6906,6 +6920,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
+@@ -6906,6 +6923,8 @@ export class MatrixClient extends TypedEventEmitter<EmittedEvents, ClientEventHa
          });
          return this.http.authedRequest(Method.Get, path, undefined, undefined, {
              prefix: ClientPrefix.V1,
@@ -1939,16 +1942,19 @@ index bc4e623..e7ecdae 100644
  
      // TODO: we should implement a backoff (as per scrollback()) to deal more
      // nicely with HTTP errors.
-@@ -3862,7 +3880,7 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -3862,7 +3880,10 @@ export class MatrixClient extends TypedEventEmitter {
          var timelineSet = eventTimeline.getTimelineSet();
          timelineSet.addEventsToTimeline(matrixEvents, backwards, false, eventTimeline, token);
++        // MindRoom: /threads pages never overlap, so its next_batch is the list's place even when the
++        // page's newest root is listed already (the reader's own list or a reply put it there).
++        if (backwards) eventTimeline.setPaginationToken(token ?? null, dir);
          this.processAggregatedTimelineEvents(room, matrixEvents);
 -        this.processThreadRoots(room, matrixEvents, backwards);
 +        room.processListedThreadRoots(matrixEvents, backwards);
  
          // if we've hit the end of the timeline, we need to stop trying to
          // paginate. We need to keep the 'forwards' token though, to make sure
-@@ -5476,7 +5494,8 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -5476,7 +5497,8 @@ export class MatrixClient extends TypedEventEmitter {
      var opts = arguments.length > 4 && arguments[4] !== undefined ? arguments[4] : {
        dir: Direction.Backward
      };
@@ -1958,7 +1964,7 @@ index bc4e623..e7ecdae 100644
      if (Thread.hasServerSideFwdPaginationSupport === FeatureSupport.Experimental) {
        params = replaceParam("dir", "org.matrix.msc3715.dir", params);
      }
-@@ -5501,7 +5520,9 @@ export class MatrixClient extends TypedEventEmitter {
+@@ -5501,7 +5523,9 @@ export class MatrixClient extends TypedEventEmitter {
        $eventType: eventType
      });
      return this.http.authedRequest(Method.Get, path, undefined, undefined, {
@@ -1969,7 +1975,7 @@ index bc4e623..e7ecdae 100644
      });
    }
  
-@@ -7522,4 +7543,3 @@ export function inMainTimelineForReceipt(event) {
+@@ -7522,4 +7546,3 @@ export function inMainTimelineForReceipt(event) {
    // else, then it's in the thread (because it has a thread ID).
    return isRelatedToRoot;
  }

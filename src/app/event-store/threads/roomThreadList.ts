@@ -121,6 +121,8 @@ type RoomThreadListLoad = {
 };
 
 const roomThreadListLoads = new WeakMap<Room, RoomThreadListLoad>();
+/** Rooms whose list has its first page; before it, the room knows only what sync and the cache showed. */
+const listedRooms = new WeakSet<Room>();
 
 const ensureThreadTimelineSets = async (room: Room): Promise<void> => {
   if (!Thread.hasServerSideListSupport || room.threadsTimelineSets.length > 0) {
@@ -145,6 +147,7 @@ const ensureThreadTimelineSets = async (room: Room): Promise<void> => {
 
 export const roomThreadListIsComplete = (room: Room): boolean => {
   if (!Thread.hasServerSideListSupport) return true;
+  if (!listedRooms.has(room)) return false;
 
   const allThreadsLiveTimeline = getAllThreadsLiveTimeline(room);
   if (!allThreadsLiveTimeline) return true;
@@ -169,6 +172,7 @@ const loadRoomThreadsOnce = async (
       console.warn('[threadList] fetchRoomThreads failed:', err);
       return;
     }
+    listedRooms.add(room);
     onProgress?.();
 
     if (!Thread.hasServerSideListSupport) return;
