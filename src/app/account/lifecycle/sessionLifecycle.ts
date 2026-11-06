@@ -2,6 +2,7 @@ import type { MatrixClient } from 'matrix-js-sdk/lib/client';
 
 import { clearSecretStorageKeys } from '../../matrix/client/secretStorageKeys';
 import { clearNavToActivePathStore } from '../../routes/navToActivePath';
+import { reloadAtAppRoot } from '../../routes/pathUtils';
 import {
   clearInMemoryCaches,
   clearSessionNativeState,
@@ -182,7 +183,7 @@ export const removeSessionAndReload = async (
   // cache data is safe to clean up later; deleting crypto for an account that
   // remains selectable is not.
   await removeSessionRecordAndLocalData(session);
-  window.location.reload();
+  reloadAtAppRoot();
 };
 
 export const removeCurrentClientSessionAndReload = async (
@@ -204,7 +205,7 @@ export const removeCurrentClientSessionAndReload = async (
 
   if (session) {
     await removeSessionRecordAndLocalData(session, mx);
-    window.location.reload();
+    reloadAtAppRoot();
     return;
   }
 
@@ -223,7 +224,7 @@ export const removeCurrentClientSessionAndReload = async (
     deleteNamedDatabase(getCanvasIndexDbName(identity.sessionId)).catch(() => undefined),
   ]);
   clearSessionScopedUiState(identity, clearUserScopedState);
-  window.location.reload();
+  reloadAtAppRoot();
 };
 
 export const removeStoredSession = async (session: StoredSession): Promise<void> => {

@@ -102,6 +102,21 @@ export const getAppPathFromHref = (baseUrl: string, href: string): string => {
   return '';
 };
 
+/**
+ * Loads the app again at its root, which opens the active account where it last was, or login
+ * when no account is left. A plain reload after the active account went away would open the next
+ * account on the route the removed one showed.
+ */
+export const reloadAtAppRoot = (): void => {
+  const basePath = trimSlashes(getAppBasePath());
+  try {
+    window.history.replaceState(null, '', basePath ? `/${basePath}/` : '/');
+  } catch {
+    // Without history the page reloads where it is.
+  }
+  window.location.reload();
+};
+
 export const getRootPath = (): string => ROOT_PATH;
 
 const getServerPath = (pattern: string, server?: string): string =>
