@@ -190,6 +190,9 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "通知聊天室中的所有人"
+    },
+    "spaceTabs": {
+      "nameUnread_other": "{{name}}，{{count}} 則未讀訊息"
     }
   },
   "featureUi": {

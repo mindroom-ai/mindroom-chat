@@ -193,6 +193,10 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "रूम में सभी को सूचित करें"
+    },
+    "spaceTabs": {
+      "nameUnread_one": "{{name}}, {{count}} अपठित संदेश",
+      "nameUnread_other": "{{name}}, {{count}} अपठित संदेश"
     }
   },
   "featureUi": {

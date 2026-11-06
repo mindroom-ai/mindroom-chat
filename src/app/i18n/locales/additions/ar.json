@@ -205,6 +205,14 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "تنبيه كل من في الغرفة"
+    },
+    "spaceTabs": {
+      "nameUnread_zero": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة",
+      "nameUnread_one": "⁨{{name}}⁩، رسالة واحدة غير مقروءة",
+      "nameUnread_two": "⁨{{name}}⁩، رسالتان غير مقروءتين",
+      "nameUnread_few": "⁨{{name}}⁩، ⁨{{count}}⁩ رسائل غير مقروءة",
+      "nameUnread_many": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة",
+      "nameUnread_other": "⁨{{name}}⁩، ⁨{{count}}⁩ رسالة غير مقروءة"
     }
   },
   "featureUi": {

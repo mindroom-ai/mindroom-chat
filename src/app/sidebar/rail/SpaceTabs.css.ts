@@ -99,3 +99,17 @@ globalStyle(`${FolderFaceTile} > *`, {
   display: 'grid',
   placeItems: 'center',
 });
+
+/**
+ * The space's name and unread count inside its rail button, for assistive technology only: the
+ * button shows a picture or two letters, so it is named by its content rather than a label that
+ * would not match the letters.
+ */
+export const HiddenName = style({
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  clipPath: 'inset(50%)',
+  whiteSpace: 'nowrap',
+});

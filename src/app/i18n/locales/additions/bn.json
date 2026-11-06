@@ -193,6 +193,10 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "রুমের সবাইকে জানান"
+    },
+    "spaceTabs": {
+      "nameUnread_one": "{{name}}, {{count}}টি অপঠিত বার্তা",
+      "nameUnread_other": "{{name}}, {{count}}টি অপঠিত বার্তা"
     }
   },
   "featureUi": {

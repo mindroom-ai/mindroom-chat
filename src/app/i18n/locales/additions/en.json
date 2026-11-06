@@ -193,6 +193,10 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "Notify everyone in the room"
+    },
+    "spaceTabs": {
+      "nameUnread_one": "{{name}}, {{count}} unread message",
+      "nameUnread_other": "{{name}}, {{count}} unread messages"
     }
   },
   "featureUi": {

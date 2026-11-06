@@ -166,7 +166,7 @@ for (const [themeId, width] of [
         await page.screenshot({ path: testInfo.outputPath(`${name}-scrolled.png`) });
       };
 
-      await page.getByRole('button', { name: 'Mi', exact: true }).click({ timeout: 15000 });
+      await page.getByRole('button', { name: /^MindRoom(,|$)/ }).click({ timeout: 15000 });
       await page.getByRole('link', { name: 'Lobby', exact: true }).click({ timeout: 15000 });
       const lobbyHeader = page
         .locator('header')

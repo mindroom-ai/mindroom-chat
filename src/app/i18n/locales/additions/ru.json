@@ -199,6 +199,12 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "Уведомить всех в комнате"
+    },
+    "spaceTabs": {
+      "nameUnread_one": "{{name}}, {{count}} непрочитанное сообщение",
+      "nameUnread_few": "{{name}}, {{count}} непрочитанных сообщения",
+      "nameUnread_many": "{{name}}, {{count}} непрочитанных сообщений",
+      "nameUnread_other": "{{name}}, {{count}} непрочитанного сообщения"
     }
   },
   "featureUi": {

@@ -190,6 +190,9 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "Beri tahu semua orang di ruangan"
+    },
+    "spaceTabs": {
+      "nameUnread_other": "{{name}}, {{count}} pesan belum dibaca"
     }
   },
   "featureUi": {

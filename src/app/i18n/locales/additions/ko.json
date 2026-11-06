@@ -190,6 +190,9 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "방의 모든 사람에게 알림"
+    },
+    "spaceTabs": {
+      "nameUnread_other": "{{name}}, 읽지 않은 메시지 {{count}}개"
     }
   },
   "featureUi": {

@@ -190,6 +190,9 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "通知房间内的所有人"
+    },
+    "spaceTabs": {
+      "nameUnread_other": "{{name}}，{{count}} 条未读消息"
     }
   },
   "featureUi": {

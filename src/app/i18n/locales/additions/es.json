@@ -196,6 +196,11 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "Notificar a todos en la sala"
+    },
+    "spaceTabs": {
+      "nameUnread_one": "{{name}}, {{count}} mensaje sin leer",
+      "nameUnread_many": "{{name}}, {{count}} mensajes sin leer",
+      "nameUnread_other": "{{name}}, {{count}} mensajes sin leer"
     }
   },
   "featureUi": {

@@ -193,6 +193,10 @@
     },
     "userMentionAutocomplete": {
       "notifyRoom": "Odadaki herkese bildir"
+    },
+    "spaceTabs": {
+      "nameUnread_one": "{{name}}, {{count}} okunmamış mesaj",
+      "nameUnread_other": "{{name}}, {{count}} okunmamış mesaj"
     }
   },
   "featureUi": {

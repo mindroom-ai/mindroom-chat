@@ -159,8 +159,14 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   const client = useMatrixClient();
   const { roomId, name } = space;
   // Without a picture the rail shows the first two characters of the name, as written ("Mi" for
-  // MindRoom): the Lane P spec live/page-header-glass finds the space's button by that name.
+  // MindRoom); the button is named by the whole name, with its unread count.
   const letters = Array.from(name.trim()).slice(0, 2).join('');
+  // The button is named by the whole name (`label`); the letters and the picture only show it.
+  const initials = () => (
+    <Text size="H4" aria-hidden>
+      {letters}
+    </Text>
+  );
   const navigate = useNavigate();
   const isMobile = useScreenSizeContext() === ScreenSize.Mobile;
   const useAuthentication = useMediaAuthentication();
@@ -192,8 +198,12 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
     navigate(lastPath ? joinPathComponent(lastPath) : spacePath);
   };
 
+  // The button's name says what the badge shows, so the badge itself stays out of the reading.
+  let label = name;
+  if (unread?.total) label = t('sharedUi.spaceTabs.nameUnread', { name, count: unread.total });
+  else if (unread) label = t('featureUi.spaceNav.subspaceUnread', { name });
   const unreadBadge = unread ? (
-    <SidebarItemBadge hasCount={unread.total > 0}>
+    <SidebarItemBadge aria-hidden hasCount={unread.total > 0}>
       <UnreadBadge count={unread.total} highlight={unread.highlight > 0} />
     </SidebarItemBadge>
   ) : null;
@@ -212,12 +222,8 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
               onKeyDown={moveKeyHandler(onMove)}
               onContextMenu={toggleContextMenu(setMenuAnchor)}
             >
-              <RoomAvatar
-                alt={name}
-                roomId={roomId}
-                src={avatarUrl}
-                renderFallback={() => <Text size="H4">{letters}</Text>}
-              />
+              <RoomAvatar roomId={roomId} src={avatarUrl} alt="" renderFallback={initials} />
+              <span className={css.HiddenName}>{label}</span>
             </SidebarAvatar>
           )}
         </SidebarItemTooltip>
