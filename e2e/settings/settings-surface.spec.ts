@@ -5,9 +5,10 @@ import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matr
 
 // The Settings dialog over a busy room: its menu column is inset evenly (the search field, the
 // group headings, the rows and Logout leave as much space at the dialog's edge as at the divider
-// beside the page), and its surface is nearly opaque, so the room behind it shows only as a faint
-// blur and the menu's names keep their contrast. Checked in Chromium and, when
-// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
+// beside the page), the search field keeps at least that much space from the dialog's top edge, in
+// line with the page's title bar beside it, and its surface is nearly opaque, so the room behind
+// it shows only as a faint blur and the menu's names keep their contrast. Checked in Chromium and,
+// when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
 // SETTINGS_SURFACE_SHOTS=<directory> to also save the dialog and the other large dialogs.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-surface-spec-password';
@@ -142,6 +143,66 @@ const expectEvenInsets = (insets: Inset[]) => {
   }
 };
 
+type HeaderLine = {
+  /** The search field's distance from the dialog's top edge and from its start edge. */
+  topGap: number;
+  sideInset: number;
+  /** From the field's bottom to the first group heading of the menu. */
+  belowGap: number;
+  /** Vertical centers of the field, the page's title and its close button. */
+  field: number;
+  title: number;
+  close: number;
+  /** Heights of the search field's header and of the page's title bar. */
+  searchBar: number;
+  titleBar: number;
+};
+
+/**
+ * Where the search field sits on top of the menu, beside the open page's title bar, in CSS pixels
+ * (wide screens, where the page and the menu are side by side).
+ */
+const headerLine = (dialog: Locator) =>
+  dialog.evaluate((element): HeaderLine => {
+    const dialogBox = element.getBoundingClientRect();
+    // Inside the dialog's 1 px border.
+    const top = dialogBox.top + element.clientTop;
+    const start = dialogBox.left + element.clientLeft;
+    const input = element.querySelector('[role="combobox"]')!;
+    const field = input.parentElement!.getBoundingClientRect();
+    const searchBar = input.closest('header')!.getBoundingClientRect();
+    const heading = element
+      .querySelector('nav [role="group"] > :first-child')!
+      .getBoundingClientRect();
+    const title = element.querySelector('[data-dialog-title]')!;
+    const titleBar = title.closest('header')!;
+    const close = titleBar.querySelector('button')!.getBoundingClientRect();
+    const center = (box: DOMRect) => box.top + box.height / 2;
+    return {
+      topGap: field.top - top,
+      sideInset: field.left - start,
+      belowGap: heading.top - field.bottom,
+      field: center(field),
+      title: center(title.getBoundingClientRect()),
+      close: center(close),
+      searchBar: searchBar.height,
+      titleBar: titleBar.getBoundingClientRect().height,
+    };
+  });
+
+const expectHeaderLine = (line: HeaderLine, theme: string) => {
+  expect
+    .soft(line.topGap, `${theme}: gap above the search field`)
+    .toBeGreaterThanOrEqual(line.sideInset - 0.5);
+  expect.soft(Math.abs(line.searchBar - line.titleBar), `${theme}: header heights`).toBeLessThan(1);
+  expect
+    .soft(Math.abs(line.field - line.title), `${theme}: field and title`)
+    .toBeLessThanOrEqual(1);
+  expect
+    .soft(Math.abs(line.field - line.close), `${theme}: field and close`)
+    .toBeLessThanOrEqual(1);
+};
+
 /**
  * The dialog's own background: its color, alpha and backdrop filters, and the search field's
  * fill, which must not be the surface's own color.
@@ -181,11 +242,15 @@ const menuBackdrop = (dialog: Locator, account: Locator) =>
     account.locator('xpath=ancestor::nav[1]')
   );
 
-/** Checks the Account page's menu insets and surface in both themes, and the phone's menu. */
+/**
+ * Checks the Account page's menu insets, search field and surface in both themes, and the phone's
+ * menu; with SETTINGS_SURFACE_SHOTS set, saves the dialog in each theme, named after `shots`.
+ */
 const checkSurface = async (
   page: Page,
   prefix: string,
-  attach: (body: string) => Promise<void>
+  attach: (body: string) => Promise<void>,
+  shots: string
 ) => {
   const roomId = await signIn(page, prefix);
   const measured: Record<string, unknown> = {};
@@ -199,11 +264,20 @@ const checkSurface = async (
       await page.waitForTimeout(400);
       /* eslint-disable no-await-in-loop -- one theme after the other on one page. */
       const insets = await menuInsets(dialog);
+      const line = await headerLine(dialog);
       const surface = await surfaceOf(dialog);
       const backdrop = await menuBackdrop(dialog, account);
+      if (SHOTS) {
+        const box = (await dialog.boundingBox())!;
+        await page.screenshot({
+          path: `${SHOTS}/desktop-dialog-${shots}-${theme}.png`,
+          clip: { x: box.x - 8, y: box.y - 8, width: box.width + 16, height: box.height + 16 },
+        });
+      }
       /* eslint-enable no-await-in-loop */
-      measured[theme] = { insets, surface, backdrop };
+      measured[theme] = { insets, line, surface, backdrop };
       expectEvenInsets(insets);
+      expectHeaderLine(line, theme);
       // A blur, or the liquid glass filter where the browser draws it.
       expect.soft(surface.filter, theme).toMatch(/blur\(|url\(/);
       expect.soft(surface.alpha, theme).toBeGreaterThanOrEqual(0.9);
@@ -228,7 +302,12 @@ test('the Settings menu is inset evenly and its surface hides the room behind it
   page,
 }, testInfo) => {
   test.slow();
-  await checkSurface(page, 'settings_surface', (body) => testInfo.attach('surface.json', { body }));
+  await checkSurface(
+    page,
+    'settings_surface',
+    (body) => testInfo.attach('surface.json', { body }),
+    'chromium'
+  );
 });
 
 test('the Settings menu is inset evenly and its surface hides the room behind it (WebKit)', async ({
@@ -240,8 +319,11 @@ test('the Settings menu is inset evenly and its surface hides the room behind it
   const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
   try {
     const context = await browser.newContext({ viewport: DESKTOP, baseURL });
-    await checkSurface(await context.newPage(), 'settings_surface_webkit', (body) =>
-      testInfo.attach('surface-webkit.json', { body })
+    await checkSurface(
+      await context.newPage(),
+      'settings_surface_webkit',
+      (body) => testInfo.attach('surface-webkit.json', { body }),
+      'webkit'
     );
   } finally {
     await browser.close();
