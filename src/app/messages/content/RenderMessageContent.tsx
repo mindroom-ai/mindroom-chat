@@ -144,17 +144,6 @@ export function RenderMessageContent({
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
     : undefined;
 
-  if (callTranscript) {
-    return (
-      <CallTranscriptCard
-        transcript={callTranscript}
-        roomId={roomId ?? mEvent?.getRoomId()}
-        highlightRegex={highlightRegex}
-        linkifyOpts={linkifyOpts}
-      />
-    );
-  }
-
   const agentContent = renderAgentMessageContent({
     mEvent,
     fromMindroomAgent,
@@ -176,12 +165,24 @@ export function RenderMessageContent({
     hydrateLongText,
   });
   // An agent reply's tool rows find the approval cards MindRoom posted for its calls by its ID.
-  if (agentContent !== undefined)
+  const agentMessage = agentContent !== undefined && (
+    <ToolCallMessageContext.Provider value={eventId}>
+      {agentContent}
+    </ToolCallMessageContext.Provider>
+  );
+  if (callTranscript && agentMessage) {
     return (
-      <ToolCallMessageContext.Provider value={eventId}>
-        {agentContent}
-      </ToolCallMessageContext.Provider>
+      <CallTranscriptCard
+        transcript={callTranscript}
+        sender={mEvent?.getSender()}
+        roomId={roomId ?? mEvent?.getRoomId()}
+        fallback={agentMessage}
+        highlightRegex={highlightRegex}
+        linkifyOpts={linkifyOpts}
+      />
     );
+  }
+  if (agentMessage) return agentMessage;
 
   const owner = getEventAttachmentOwner(mEvent);
   const renderStateSuffix = getMessageStateSuffixRenderer({

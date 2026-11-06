@@ -1,15 +1,17 @@
-import { useId, useMemo, useState } from 'react';
+import { type ReactNode, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import {
+  callTranscriptSpeakersTrusted,
   clipTurnText,
   groupCallTranscriptTurns,
   type CallTranscript,
@@ -25,8 +27,15 @@ import * as css from './CallTranscriptCard.css';
 
 type CallTranscriptCardProps = {
   transcript: CallTranscript;
+  /** Who posted the message: the agent whose call it was. */
+  sender: string | undefined;
   /** The room whose members name the speakers. */
   roomId?: string;
+  /**
+   * The message as it renders without the card, shown while the transcript names a speaker the
+   * card may not (`callTranscriptSpeakersTrusted`).
+   */
+  fallback: ReactNode;
   /** A search's matches: they are marked, and a transcript with one starts open. */
   highlightRegex?: RegExp;
   linkifyOpts: LinkifyOpts;
@@ -155,7 +164,9 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
  */
 export function CallTranscriptCard({
   transcript,
+  sender,
   roomId,
+  fallback,
   highlightRegex,
   linkifyOpts,
 }: CallTranscriptCardProps) {
@@ -175,6 +186,20 @@ export function CallTranscriptCard({
   );
   const groups = useMemo(() => groupCallTranscriptTurns(turns), [turns]);
   const room = roomId ? client.getRoom(roomId) : null;
+  // The room's members load in the background; a speaker who joins them later is trusted then.
+  const members = useRoomMembers(client, roomId ?? '');
+  const trusted = useMemo(() => {
+    const joined = new Set(
+      members.filter((member) => member.membership === 'join').map((member) => member.userId)
+    );
+    return callTranscriptSpeakersTrusted(
+      transcript,
+      sender,
+      client.getUserId() ?? undefined,
+      (userId) => joined.has(userId)
+    );
+  }, [client, members, sender, transcript]);
+  if (!trusted) return <>{fallback}</>;
 
   return (
     // The card is the interface's, so it keeps the interface's direction inside a message body

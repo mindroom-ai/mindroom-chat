@@ -1,5 +1,6 @@
 import { isRecord } from '../../lib/isRecord';
 import { isUserId } from '../matrix';
+import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentIdentity';
 
 /**
  * The structured transcript MindRoom adds to the message it posts after a voice call, beside the
@@ -71,6 +72,23 @@ export const readCallTranscript = (
     turns: turns.map(({ sender, text }) => ({ sender, text })),
   };
 };
+
+/**
+ * Whether the card may name the transcript's speakers. Any account can write the key with any user
+ * ID as a turn's sender, and the card shows that member's name and avatar beside the words, so:
+ * the poster is an agent of the viewer's homeserver, every turn by an agent account (of any
+ * homeserver) is the poster's own, and every other turn is a joined member of the room.
+ */
+export const callTranscriptSpeakersTrusted = (
+  transcript: CallTranscript,
+  poster: string | undefined,
+  viewer: string | undefined,
+  isJoinedMember: (userId: string) => boolean
+): boolean =>
+  isMindroomAgentUserIdForViewer(poster, viewer) &&
+  transcript.turns.every(({ sender }) =>
+    isMindroomAgentUserId(sender) ? sender === poster : isJoinedMember(sender)
+  );
 
 /** Consecutive turns by one speaker under one name, as a chat groups messages. */
 export const groupCallTranscriptTurns = (

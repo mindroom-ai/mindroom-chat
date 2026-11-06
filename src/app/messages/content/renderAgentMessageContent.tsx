@@ -199,17 +199,22 @@ export const renderAgentMessageContent = ({
       );
     };
 
-  // A long call's transcript is only in the sidecar; until it is hydrated, the HTML shows.
-  const renderLongCallTranscript = (resolvedContent: Record<string, unknown>) => {
+  // A long call's transcript is only in the sidecar; until it is hydrated, and when the card may
+  // not name its speakers, the body shows.
+  const renderLongCallTranscript = (resolvedContent: Record<string, unknown>, body: ReactNode) => {
     const transcript = fromMindroomAgent ? readCallTranscript(resolvedContent) : undefined;
     return transcript ? (
       <CallTranscriptCard
         transcript={transcript}
+        sender={mEvent?.getSender()}
         roomId={roomId ?? mEvent?.getRoomId()}
+        fallback={body}
         highlightRegex={highlightRegex}
         linkifyOpts={linkifyOpts}
       />
-    ) : undefined;
+    ) : (
+      body
+    );
   };
 
   const renderLongTextBody: ComponentProps<typeof LongTextText>['renderBody'] = (
@@ -217,20 +222,22 @@ export const renderAgentMessageContent = ({
     props,
     metadataStatus
   ) =>
-    renderLongCallTranscript(resolvedContent) ??
-    wrapWithReasoning(
-      // The live reasoning rides on the outer content, not on the preview or the sidecar.
-      content[LIVE_REASONING_KEY] === undefined
-        ? resolvedContent
-        : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
-      <AgentRenderBody
-        {...props}
-        highlightRegex={highlightRegex}
-        htmlReactParserOptions={htmlReactParserOptions}
-        markerContent={resolvedContent}
-        metadataStatus={metadataStatus}
-        linkifyOpts={linkifyOpts}
-      />
+    renderLongCallTranscript(
+      resolvedContent,
+      wrapWithReasoning(
+        // The live reasoning rides on the outer content, not on the preview or the sidecar.
+        content[LIVE_REASONING_KEY] === undefined
+          ? resolvedContent
+          : { ...resolvedContent, [LIVE_REASONING_KEY]: content[LIVE_REASONING_KEY] },
+        <AgentRenderBody
+          {...props}
+          highlightRegex={highlightRegex}
+          htmlReactParserOptions={htmlReactParserOptions}
+          markerContent={resolvedContent}
+          metadataStatus={metadataStatus}
+          linkifyOpts={linkifyOpts}
+        />
+      )
     );
 
   const renderMessageExtras = (
