@@ -160,7 +160,7 @@ export const useBindRoomIdToTypingMembersAtom = (
       if (!listed()) return;
       mx.decryptEventIfNeeded(event)
         .then(() => {
-          if (event.getType() !== EventType.RoomMessage || !listed()) return;
+          if (!matchesEnum(event.getType(), EventType.RoomMessage) || !listed()) return;
           store.set(typingAtom, { type: 'DELETE', roomId: room.roomId, userId: sender });
           if (store.get(typingAtom).size === 0) stopChecking();
         })
