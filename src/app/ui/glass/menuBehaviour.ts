@@ -75,9 +75,86 @@ export const moveMenuFocus = (event: NavigationKey, menu: HTMLElement): void => 
   items[next]?.focus();
 };
 
+/** The last press anywhere in the page, where it was, and whether its click has come yet. */
+let lastPress: { target: Element; x: number; y: number; at: number; clicked: boolean } | undefined;
+const PRESS_MS = 1_000;
+const BUTTON_SELECTOR = 'button, [role="button"], a[href]';
+
+// Presses are followed from the start, so the press that opens the first menu counts too.
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'pointerdown',
+    (event) => {
+      if (event.target instanceof Element) {
+        lastPress = {
+          target: event.target,
+          x: event.clientX,
+          y: event.clientY,
+          at: performance.now(),
+          clicked: false,
+        };
+      }
+    },
+    true
+  );
+  window.addEventListener(
+    'click',
+    () => {
+      if (lastPress) lastPress.clicked = true;
+    },
+    true
+  );
+}
+
 /**
- * The menu behaviour for an element with `role`; only a `menu` gets it. Returns a ref that also
- * fills `forwardedRef`, and the caller's key handler wrapped with the menu's own.
+ * Keeps a menu closed when a press on the button that opened it closes it. The menu's focus trap
+ * closes it as the press starts, a click outside it; the click that ends the press then reaches
+ * the button, which would open it again. That one click is dropped. On a touch screen the press
+ * can land on a layer over the button, so the press counts by where it was.
+ */
+const useButtonPressCloses = (element: { current: HTMLElement | null }) => {
+  useEffect(() => {
+    const opened = performance.now();
+    const press = lastPress;
+    const fromPress =
+      press && opened - press.at < PRESS_MS && !element.current?.contains(press.target);
+    const button = fromPress ? press.target.closest(BUTTON_SELECTOR) : null;
+    if (!button) return undefined;
+    return () => {
+      const closing = lastPress;
+      if (!closing || closing.at <= opened || closing.clicked) return;
+      if (performance.now() - closing.at > PRESS_MS) return;
+      const rect = button.getBoundingClientRect();
+      const onButton =
+        button.contains(closing.target) ||
+        (closing.x >= rect.left &&
+          closing.x <= rect.right &&
+          closing.y >= rect.top &&
+          closing.y <= rect.bottom);
+      if (!onButton) return;
+      // Only the click that ends this press: the next press, or its click anywhere, ends the watch.
+      const stop = () => {
+        window.removeEventListener('click', drop, true);
+        window.removeEventListener('pointerdown', stop, true);
+        window.clearTimeout(timer);
+      };
+      const drop = (event: MouseEvent) => {
+        stop();
+        if (!(event.target instanceof Node) || !button.contains(event.target)) return;
+        event.stopPropagation();
+        event.preventDefault();
+      };
+      window.addEventListener('click', drop, true);
+      window.addEventListener('pointerdown', stop, true);
+      const timer = window.setTimeout(stop, PRESS_MS);
+    };
+  }, [element]);
+};
+
+/**
+ * The menu behaviour for an element with `role`; only a `menu` gets the roles and keys, every
+ * menu surface the closing press on its button. Returns a ref that also fills `forwardedRef`,
+ * and the caller's key handler wrapped with the menu's own.
  */
 export const useMenuBehaviour = <T extends HTMLElement>(
   role: string | undefined,
@@ -95,6 +172,8 @@ export const useMenuBehaviour = <T extends HTMLElement>(
     },
     [forwardedRef]
   );
+
+  useButtonPressCloses(element);
 
   // A menu opened with a pointer leaves focus where it was (its button, or the page); the arrow
   // keys there go into the menu.
