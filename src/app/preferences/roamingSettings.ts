@@ -11,8 +11,9 @@
  * and every account on this device sees it until its own account has one.
  *
  * The event belongs to this client alone. `io.mindroom.settings` is written by other MindRoom
- * clients too, which may replace its content whole. The content is flat: `version` and the
- * `Settings` keys below.
+ * clients too, which may replace its content whole. The content is flat: `version`, the
+ * `Settings` keys below, and `rev` and `base_rev`: each write's revision and the revision of the
+ * content it patched (`matrix/hooks/useBindRoamingSettings.ts`).
  * - Readers take only those keys, each with its exact type, and only from content of their own
  *   version.
  * - Writers put a patch over the stored content, so keys from a later build survive, and leave
