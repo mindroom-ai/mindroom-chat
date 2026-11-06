@@ -201,6 +201,15 @@ export async function expectFloatingNavHeader(
       };
     });
   await expect.poll(async () => (await geometry()).offset).toBeCloseTo(0, 0);
+  // A nested title's tint follows the scroll event, which comes after a scroll.
+  if (inheritsPanelTint) {
+    await expect
+      .poll(async () => {
+        const { scrolled, alpha } = await geometry();
+        return scrolled ? alpha >= 0.9 : alpha === 0;
+      })
+      .toBe(true);
+  }
   const material = await geometry();
   material.edges.forEach((edge) => expect(Math.abs(edge)).toBeLessThan(0.5));
   expect(material.border).toEqual(['0px', '0px', '0px', '0px']);
