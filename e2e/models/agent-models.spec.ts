@@ -75,29 +75,30 @@ test('a thread switches to another model from the picker, and the choice survive
   await expect(chip).toHaveText(second.displayName, { timeout: 45_000 });
 });
 
-test('a typed !model command moves the thread model chip without a reload', async ({
-  page,
-  stack,
-}) => {
-  const { first, second } = stack.models;
-  await openLobby(page, stack);
-  const word = uniqueWord('typedmodel');
-  const rootId = await startThread(stack, `${word} first question`);
-  await showThread(page, stack, rootId);
-  await waitForAgentReply(stack, rootId, (body) => body.includes('first question'), {
-    modelId: first.id,
-  });
-  const chip = page.getByRole('button', { name: 'Choose model' });
-  await expect(chip).toHaveText('Room default', { timeout: 60_000 });
+test(
+  'a typed !model command moves the thread model chip without a reload',
+  { tag: '@webkit' },
+  async ({ page, stack }) => {
+    const { first, second } = stack.models;
+    await openLobby(page, stack);
+    const word = uniqueWord('typedmodel');
+    const rootId = await startThread(stack, `${word} first question`);
+    await showThread(page, stack, rootId);
+    await waitForAgentReply(stack, rootId, (body) => body.includes('first question'), {
+      modelId: first.id,
+    });
+    const chip = page.getByRole('button', { name: 'Choose model' });
+    await expect(chip).toHaveText('Room default', { timeout: 60_000 });
 
-  await sendFromComposer(page, `!model ${second.key}`);
-  await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
-    timeout: 60_000,
-  });
-  // The chip follows the router's answer well inside the picker's 12 s discovery window.
-  await expect(chip).toHaveText(second.displayName, { timeout: 10_000 });
+    await sendFromComposer(page, `!model ${second.key}`);
+    await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
+      timeout: 60_000,
+    });
+    // The chip follows the router's answer well inside the picker's 12 s discovery window.
+    await expect(chip).toHaveText(second.displayName, { timeout: 10_000 });
 
-  await sendFromComposer(page, '!model reset');
-  await expect(page.getByText('Thread model override removed')).toBeVisible({ timeout: 60_000 });
-  await expect(chip).toHaveText('Room default', { timeout: 10_000 });
-});
+    await sendFromComposer(page, '!model reset');
+    await expect(page.getByText('Thread model override removed')).toBeVisible({ timeout: 60_000 });
+    await expect(chip).toHaveText('Room default', { timeout: 10_000 });
+  }
+);

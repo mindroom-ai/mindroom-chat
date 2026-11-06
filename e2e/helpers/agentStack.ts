@@ -194,7 +194,12 @@ export const test = base.extend<{ stack: AgentStack }, WorkerFixtures>({
       }
       const directory = join(agentStackOrSkip.dir, 'browser-state');
       mkdirSync(directory, { recursive: true });
-      const file = join(directory, 'tester.json');
+      // One session per browser: two browsers on one device's crypto store would break its Olm sessions.
+      const browserName = browser.browserType().name();
+      const file = join(
+        directory,
+        browserName === 'chromium' ? 'tester.json' : `tester-${browserName}.json`
+      );
       if (!existsSync(file)) {
         const context = await browser.newContext({ baseURL: workerInfo.project.use.baseURL });
         const page = await context.newPage();
