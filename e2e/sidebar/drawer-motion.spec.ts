@@ -115,6 +115,10 @@ const seedAccount = async (): Promise<Account> => {
   await setDirectAccountData(HOMESERVER, accessToken, userId, '@drawer-peer:example.org', chat);
   // Saved in this order, so the rail lists them as created.
   await setAccountData(HOMESERVER, accessToken, userId, 'io.mindroom.spaces', { sidebar: spaces });
+  // The rail's Threads button, which this spec presses, is off until the account turns it on.
+  await setAccountData(HOMESERVER, accessToken, userId, 'io.mindroom.settings', {
+    showThreadsInSidebar: true,
+  });
   return { username, spaces };
 };
 

@@ -24,6 +24,7 @@ import {
 } from '../helpers/matrix';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 
 // The main screens on a phone (390 by 844, touch), with a live MindRoom backend and its stub
 // model, in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit,
@@ -345,10 +346,7 @@ const screens = (stack: AgentStack, seeded: World): Screen[] => {
       open: async (page) => {
         await go(page, '/home/');
         // The keys the app names for it: ⌘K where the user agent says Apple, else Ctrl+K.
-        const keys = await page
-          .getByRole('button', { name: 'Open command palette' })
-          .getAttribute('aria-keyshortcuts');
-        await page.keyboard.press(keys ?? 'Control+K');
+        await pressPaletteShortcut(page);
         const palette = page.getByRole('combobox', { name: 'Command palette' });
         await expect(palette).toBeFocused();
         await palette.fill('release');

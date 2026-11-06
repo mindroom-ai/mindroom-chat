@@ -44,10 +44,17 @@ test('section icons reopen collapsed navigation while bottom actions leave it co
         },
       });
     });
+    // The rail's Threads and Explore Community buttons, which this spec selects, are off until
+    // the account turns them on.
     await matrixFetch(homeserver, settingsPath, {
       method: 'PUT',
       accessToken: session.accessToken,
-      body: JSON.stringify({ ...settings }),
+      body: JSON.stringify({
+        ...settings,
+        showThreadsInSidebar: true,
+        showExploreInSidebar: true,
+        showCreateSpaceInSidebar: true,
+      }),
     });
     await loginWithPassword(page, { homeserver, ...credentials });
     const collapse = page.getByRole('button', { name: 'Collapse navigation panel', exact: true });
