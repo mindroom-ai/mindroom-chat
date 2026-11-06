@@ -50,7 +50,23 @@ export function ThreadTimelineHeader({
       });
     });
     observer.observe(content);
+    // The padding keeps rows the browser brings into view clear of the banner, but it covers the
+    // banner too: a control focused there (by Tab, or as a dialog hands focus back) read as
+    // hidden, and the browser scrolled the thread hundreds of pixels to show it. The stuck banner
+    // is always in view, so its controls are revealed without the padding, back the next frame.
+    let focusFrame = 0;
+    const revealWithoutPadding = () => {
+      scroll.style.scrollPaddingTop = '0px';
+      cancelAnimationFrame(focusFrame);
+      focusFrame = requestAnimationFrame(() => {
+        focusFrame = 0;
+        scroll.style.scrollPaddingTop = `calc(${headerInset} + ${height ?? 0}px)`;
+      });
+    };
+    header.addEventListener('focusin', revealWithoutPadding);
     return () => {
+      header.removeEventListener('focusin', revealWithoutPadding);
+      cancelAnimationFrame(focusFrame);
       observer.disconnect();
       cancelAnimationFrame(frame);
       scroll.style.scrollPaddingTop = previousPadding;
