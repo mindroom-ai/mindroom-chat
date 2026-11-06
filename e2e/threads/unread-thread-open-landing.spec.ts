@@ -161,15 +161,17 @@ const recordReceipts = (newestKey: string) => {
   };
   win.receiptRecords = [];
   const frames: unknown[] = [];
-  Object.assign(window, { landingFrames: frames });
-  const sample = () => {
+  const writes: unknown[] = [];
+  Object.assign(window, { landingFrames: frames, landingWrites: writes });
+  const sample = (write?: string) => {
     const inner = document.querySelector<HTMLElement>('[data-thread-count]');
     let scroll = inner?.parentElement ?? null;
     while (scroll && !/^(auto|scroll)$/.test(getComputedStyle(scroll).overflowY)) {
       scroll = scroll.parentElement;
     }
     if (inner && scroll && frames.length < 1200) {
-      frames.push({
+      const record = {
+        write,
         t: performance.now(),
         top: scroll.scrollTop,
         height: scroll.scrollHeight,
@@ -186,11 +188,30 @@ const recordReceipts = (newestKey: string) => {
             height: tile.offsetHeight,
           })
         ),
-      });
+      };
+      if (write) writes.push(record);
+      else frames.push(record);
     }
-    requestAnimationFrame(sample);
   };
-  requestAnimationFrame(sample);
+  const frame = () => { sample(); requestAnimationFrame(frame); };
+  requestAnimationFrame(frame);
+  const top = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop');
+  if (top?.set) {
+    const set = top.set;
+    Object.defineProperty(Element.prototype, 'scrollTop', {
+      ...top,
+      set(value: number) {
+        sample(`scrollTop ${value}`);
+        set.call(this, value);
+      },
+    });
+  }
+  const scrollTo = Element.prototype.scrollTo;
+  Element.prototype.scrollTo = function (...args: [ScrollToOptions] | [number, number]) {
+    sample(`scrollTo ${JSON.stringify(args)}`);
+    // Apply both overloads without changing the browser's scroll behavior.
+    Reflect.apply(scrollTo, this, args);
+  };
   win.readThreadView = () => {
     const inner = document.querySelector<HTMLElement>('[data-thread-count]');
     let scroller = inner?.parentElement ?? null;
@@ -283,6 +304,11 @@ const unreadThreadOpensAtItsNewestReply = async (page: Page, browserName: string
     // eslint-disable-next-line no-await-in-loop
     await test.info().attach(`landing-${browserName}-${index + 1}.json`, {
       body: JSON.stringify(await page.evaluate(() => Reflect.get(window, 'landingFrames'))),
+      contentType: 'application/json',
+    });
+    // eslint-disable-next-line no-await-in-loop
+    await test.info().attach(`writes-${browserName}-${index + 1}.json`, {
+      body: JSON.stringify(await page.evaluate(() => Reflect.get(window, 'landingWrites'))),
       contentType: 'application/json',
     });
     if (SHOTS) {
