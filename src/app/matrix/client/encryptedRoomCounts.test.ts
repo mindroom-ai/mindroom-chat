@@ -276,19 +276,19 @@ describe('unread counts of an encrypted room', () => {
 
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
+    // A reply in the room's main timeline (a room in room mode), read at its start.
     await f.deliver(
       [
         encrypted(ROOT, ME, 1),
-        encrypted(REPLY, AGENT, 2, inThread),
+        encrypted(REPLY, AGENT, 2),
         ...Array.from({ length: 5 }, (_, index) =>
           encrypted(`$edit-${index}`, AGENT, 4 + index, editsReply)
         ),
       ],
-      [readUpToReply]
+      [{ type: 'm.receipt', content: { [REPLY]: { 'm.read': { [ME]: { ts: 3 } } } } }]
     );
-    const edits = Array.from({ length: 5 }, (_, index) => f.find(`$edit-${index}`));
     await f.decrypt(f.find(REPLY), undefined);
-    for (const edit of edits) await f.decrypt(edit, undefined);
+    for (let index = 0; index < 5; index += 1) await f.decrypt(f.find(`$edit-${index}`), undefined);
     expect(f.totalCount()).toBe(0);
   });
 });
