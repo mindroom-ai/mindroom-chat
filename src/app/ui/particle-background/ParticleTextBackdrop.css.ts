@@ -17,3 +17,11 @@ export const ParticleTextBackdrop = style({
   backdropFilter: 'blur(4px)',
   WebkitBackdropFilter: 'blur(4px)',
 });
+
+/**
+ * Quieter text on such a clearing, such as the splash's app name: the tone comes from the color,
+ * so the clearing under it stays as opaque as the others.
+ */
+export const ParticleTextQuiet = style({
+  color: 'color-mix(in srgb, currentColor 90%, transparent)',
+});

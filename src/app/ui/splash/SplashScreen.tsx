@@ -6,7 +6,10 @@ import {
   usePersistentParticleBackground,
 } from '../particle-background/PersistentParticleBackground';
 import { MINDROOM_CLIENT_BRANDING } from '../branding/clientBranding';
-import { ParticleTextBackdrop } from '../particle-background/ParticleTextBackdrop.css';
+import {
+  ParticleTextBackdrop,
+  ParticleTextQuiet,
+} from '../particle-background/ParticleTextBackdrop.css';
 import * as css from './SplashScreen.css';
 
 type SplashScreenProps = {
@@ -37,7 +40,7 @@ export function SplashScreen({ children, background }: SplashScreenProps) {
         <Text
           size="H2"
           align="Center"
-          className={classNames(css.SplashScreenName, ParticleTextBackdrop)}
+          className={classNames(ParticleTextQuiet, ParticleTextBackdrop)}
         >
           {MINDROOM_CLIENT_BRANDING.appName}
         </Text>
