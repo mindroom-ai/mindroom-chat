@@ -406,7 +406,10 @@ const checkScroll = async (page: Page, world: World, label: string, phone: boole
       await expect(banner(page).locator(':focus')).toHaveCount(1);
     });
     await expectHeld(page, label, 'focus-returns-to-options', async () => {
-      await options.evaluate((element) => (element as HTMLElement).focus());
+      await options.evaluate((element) => {
+        (document.activeElement as HTMLElement | null)?.blur();
+        (element as HTMLElement).focus();
+      });
       await expect(options).toBeFocused();
     });
   }
