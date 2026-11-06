@@ -80,7 +80,7 @@ const hasStopReaction = (relations: Relations | undefined): boolean =>
     ([key, events]) => STOP_REACTION_KEYS.has(key) && events.size > 0
   );
 
-const getThreadStreamingEvents = (
+export const getThreadStreamingEvents = (
   room: Room | undefined,
   threadRootId: string | undefined
 ): MatrixEvent[] => {
@@ -90,7 +90,7 @@ const getThreadStreamingEvents = (
   return getThreadTailEvents(thread, DEFAULT_THREAD_TAIL_EVENT_COUNT);
 };
 
-const isEventStreaming = (
+export const isEventStreaming = (
   mEvent: MatrixEvent,
   relations: Relations | undefined,
   timelineSet: ReturnType<Room['getUnfilteredTimelineSet']>

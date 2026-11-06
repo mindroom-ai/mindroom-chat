@@ -1,19 +1,24 @@
 /**
  * Who is typing in each room. The server's `m.typing` lists everyone typing, and the SDK reports
- * only changes, so a member stays listed until a list without them arrives. While anyone is
- * listed, a check every `TYPING_TIMEOUT_MS` drops members of rooms that no longer receive
- * `m.typing` (for example a room the user left).
+ * only changes, so a member stays listed until a list without them arrives, or until a message of
+ * theirs arrives: a server may keep the notice to its timeout and never announce that it ended.
+ * While anyone is listed, a check every `TYPING_TIMEOUT_MS` drops members of rooms that no longer
+ * receive `m.typing` (for example a room the user left).
  */
 import { useEffect } from 'react';
 import { atom, type WritableAtom, useStore } from 'jotai';
 import {
+  EventType,
   KnownMembership,
   type MatrixClient,
   type MatrixEvent,
+  type Room,
+  RoomEvent,
   type RoomMember,
   RoomMemberEvent,
 } from 'matrix-js-sdk';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { getAiRunInfo, getStreamStatusFromContent } from '../protocol/aiRun';
 
 /** How long a typing notice lasts; also the interval of the stale-member check. */
 export const TYPING_TIMEOUT_MS = 30_000;
@@ -135,9 +140,44 @@ export const useBindRoomIdToTypingMembersAtom = (
       if (store.get(typingAtom).size === 0) stopChecking();
     };
 
+    // A person's message ends their notice. An agent's reply carries its run status instead: the
+    // agent keeps one notice for every reply it writes in the room and ends it after the last one.
+    const handleTimeline = (
+      event: MatrixEvent,
+      room: Room | undefined,
+      toStartOfTimeline: boolean | undefined,
+      _removed: boolean,
+      data: { liveEvent?: boolean }
+    ) => {
+      const sender = event.getSender();
+      if (!room || toStartOfTimeline || !data.liveEvent || !sender) return;
+      const listed = () =>
+        store
+          .get(typingAtom)
+          .get(room.roomId)
+          ?.some((receipt) => receipt.userId === sender) ?? false;
+      if (!listed()) return;
+      mx.decryptEventIfNeeded(event)
+        .then(() => {
+          const content = event.getContent();
+          if (
+            event.getType() !== EventType.RoomMessage ||
+            getStreamStatusFromContent(content) !== undefined ||
+            getAiRunInfo(content) !== undefined ||
+            !listed()
+          )
+            return;
+          store.set(typingAtom, { type: 'DELETE', roomId: room.roomId, userId: sender });
+          if (store.get(typingAtom).size === 0) stopChecking();
+        })
+        .catch(() => undefined);
+    };
+
     mx.on(RoomMemberEvent.Typing, handleTyping);
+    mx.on(RoomEvent.Timeline, handleTimeline);
     return () => {
       mx.removeListener(RoomMemberEvent.Typing, handleTyping);
+      mx.removeListener(RoomEvent.Timeline, handleTimeline);
       stopChecking();
       store.set(typingAtom, { type: 'RESET' });
     };

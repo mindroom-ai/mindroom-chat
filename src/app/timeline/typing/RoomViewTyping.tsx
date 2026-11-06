@@ -15,11 +15,40 @@ import {
   parseBackgroundJobsStateEvent,
 } from '../../matrix/protocol/backgroundJobsContract';
 import { NamesSentence } from './NamesSentence';
+import { getEventReactions } from '../../matrix/room';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import {
+  getThreadStreamingEvents,
+  isEventStreaming,
+  useThreadStreamingState,
+} from '../../event-store/threads/useThreadStreamingState';
 import * as css from './RoomViewTyping.css';
 
 type RoomViewTypingProps = {
   room: Room;
+  /** The open thread, if any. */
   threadId?: string;
+};
+
+/**
+ * The senders whose reply in the thread still streams, or undefined outside a thread. An agent
+ * keeps one typing notice for all its replies in a room, so only these name the agent as typing.
+ */
+const useThreadStreamingSenders = (room: Room, threadId: string | undefined) => {
+  // Re-renders whenever the thread's latest replies change.
+  useThreadStreamingState(room, threadId);
+  if (!threadId) return undefined;
+  const timelineSet =
+    room.getThread(threadId)?.getUnfilteredTimelineSet() ?? room.getUnfilteredTimelineSet();
+  return new Set(
+    getThreadStreamingEvents(room, threadId)
+      .filter((event) => {
+        const eventId = event.getId();
+        const reactions = eventId ? getEventReactions(timelineSet, eventId) : undefined;
+        return isEventStreaming(event, reactions, timelineSet);
+      })
+      .map((event) => event.getSender())
+  );
 };
 
 // Sentences for one to four typing members; five and more share the last one.
@@ -61,10 +90,11 @@ const useAgentsAwaitingApproval = (room: Room, threadId: string | undefined): Se
 };
 
 /**
- * Names the other members who are typing in the room, in a strip above the composer. Dropping
- * the status hides it until the next typing update arrives for that member. In a thread, an agent
- * whose job there waits for approval is left out: MindRoom keeps its typing notice up while the
- * reply waits for the decision, and the agent waits for a person rather than writing.
+ * Names the other members who are typing in the room, in a strip above the composer; in a thread,
+ * an agent only while its reply there streams. Dropping the status hides it until the next typing
+ * update arrives for that member. In a thread, an agent whose job there waits for approval is left
+ * out: MindRoom keeps its typing notice up while the reply waits for the decision, and the agent
+ * waits for a person rather than writing.
  */
 export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const { t } = useTranslation();
@@ -72,9 +102,15 @@ export function RoomViewTyping({ room, threadId }: RoomViewTypingProps) {
   const updateTyping = useSetAtom(roomIdToTypingMembersAtom);
   const myUserId = mx.getUserId();
   const awaitingApproval = useAgentsAwaitingApproval(room, threadId);
+  const streaming = useThreadStreamingSenders(room, threadId);
   const typing = useRoomTypingMember(room.roomId).filter(
     (receipt) =>
-      receipt.userId !== myUserId && receipt.isTyping() && !awaitingApproval.has(receipt.userId)
+      receipt.userId !== myUserId &&
+      receipt.isTyping() &&
+      !awaitingApproval.has(receipt.userId) &&
+      (!streaming ||
+        streaming.has(receipt.userId) ||
+        !isMindroomAgentUserIdForViewer(receipt.userId, myUserId ?? undefined))
   );
 
   if (typing.length === 0) return null;
