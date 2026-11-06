@@ -4,6 +4,8 @@ import { Box, Chip, color, Text } from 'folds';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { discardFailedLocalEcho, isFailedLocalEchoEvent } from '../matrix/protocol/pendingLocalEcho';
+import { describeKnownError } from '../lib/describeError';
+import { ErrorDetail } from '../ui/ErrorDetail';
 
 type FailedSendActionsProps = {
   room: Room;
@@ -23,31 +25,43 @@ export function FailedSendActions({ room, event, style, message }: FailedSendAct
     mx.resendEvent(event, room).catch(() => undefined);
   };
 
+  // Why the server did not take it (no connection, not allowed, too many requests and how long
+  // to wait), with the server's own words in a quieter line; nothing after a reload.
+  const reason = event.error ? describeKnownError(t, event.error) : undefined;
+
   return (
-    <Box style={style} alignItems="Center" gap="200" wrap="Wrap">
-      <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
-        {message ?? t('mindroomUi.messages.pendingSendIndicator.notSent')}
-      </Text>
-      <Chip
-        as="button"
-        type="button"
-        variant="Critical"
-        radii="Pill"
-        outlined
-        onClick={handleRetry}
-      >
-        <Text size="B300">{t('mindroomUi.messages.failedSendActions.retry')}</Text>
-      </Chip>
-      <Chip
-        as="button"
-        type="button"
-        variant="SurfaceVariant"
-        radii="Pill"
-        outlined
-        onClick={() => discardFailedLocalEcho(mx, event)}
-      >
-        <Text size="B300">{t('mindroomUi.messages.failedSendActions.delete')}</Text>
-      </Chip>
+    <Box style={style} direction="Column" gap="100">
+      <Box alignItems="Center" gap="200" wrap="Wrap">
+        <Text as="span" size="T200" style={{ color: color.Critical.Main }}>
+          {message ?? t('mindroomUi.messages.pendingSendIndicator.notSent')}
+        </Text>
+        <Chip
+          as="button"
+          type="button"
+          variant="Critical"
+          radii="Pill"
+          outlined
+          onClick={handleRetry}
+        >
+          <Text size="B300">{t('mindroomUi.messages.failedSendActions.retry')}</Text>
+        </Chip>
+        <Chip
+          as="button"
+          type="button"
+          variant="SurfaceVariant"
+          radii="Pill"
+          outlined
+          onClick={() => discardFailedLocalEcho(mx, event)}
+        >
+          <Text size="B300">{t('mindroomUi.messages.failedSendActions.delete')}</Text>
+        </Chip>
+      </Box>
+      {reason && (
+        <Text size="T200" priority="300">
+          {reason}
+          <ErrorDetail error={event.error} />
+        </Text>
+      )}
     </Box>
   );
 }
