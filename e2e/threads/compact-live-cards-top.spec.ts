@@ -1,4 +1,10 @@
-import { expect, test, type BrowserContextOptions, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -281,11 +287,10 @@ const checkLiveEnd = async (page: Page, seeded: Seeded, label: string, phone: bo
       })
   );
   const moved = (await topOf(midCard)) - before;
+  const scrolledAfter = await listScrollTop(page);
   test.info().annotations.push({
     type: 'held card',
-    description: `${label}: moved ${moved.toFixed(1)} px, scrollTop ${scrolledBefore} to ${await listScrollTop(
-      page
-    )}`,
+    description: `${label}: moved ${moved} px, scrollTop ${scrolledBefore} to ${scrolledAfter}`,
   });
   expect(Math.abs(moved), `${label}: the card under the pointer moved`).toBeLessThan(1);
   await shot(page, `${label}-4-held-scrolled`);
