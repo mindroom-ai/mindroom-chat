@@ -380,8 +380,8 @@ describe('useLatestRowPin and the virtual list', () => {
     return { element, fire, list };
   };
 
-  it("ends the list's scroll to the newest row at the reader's wheel, touch or key", () => {
-    (['wheel', 'touchstart', 'keydown'] as const).forEach((gesture) => {
+  it("ends the list's scroll to the newest row at the reader's wheel, touch, pointer or key", () => {
+    (['wheel', 'touchstart', 'pointerdown', 'keydown'] as const).forEach((gesture) => {
       const room = pinnedList();
       act(() => room.fire(gesture));
       expect(room.list.scrollState).toBeNull();

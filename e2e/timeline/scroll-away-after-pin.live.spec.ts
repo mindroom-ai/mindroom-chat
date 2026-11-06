@@ -26,11 +26,15 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 const PASSWORD = 'scroll-away-after-pin-password';
 const SHOTS = process.env.SCROLL_AWAY_SHOTS;
 const homeserver = getHomeserver();
-const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
+const DESKTOP: BrowserContextOptions = {
+  viewport: { width: 1280, height: 800 },
+  colorScheme: 'light',
+};
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
   isMobile: true,
+  colorScheme: 'dark',
 };
 const ROOM_NAME = 'Release coordination';
 
@@ -237,6 +241,19 @@ const check = async (page: Page, world: World, viewMode: 'classic' | 'threaded',
   }
   expect(pulled, `frames that pulled the reader back toward the bottom (${label})`).toEqual([]);
   await expect(page.getByRole('button', { name: 'Jump to Latest', exact: true })).toBeVisible();
+
+  // A fresh explicit jump can follow again; cancelling the old one must not disable later pins.
+  await page.getByRole('button', { name: 'Jump to Latest', exact: true }).click();
+  await expect.poll(() => distanceBelow(page)).toBeLessThan(32);
+  const final = `Release checklist for ${label}: all checks complete.`;
+  await sendRoomMessage(homeserver, world.colleague.accessToken, world.roomId, {
+    msgtype: 'm.text',
+    body: final,
+  });
+  await expect(page.getByText(final).first()).toBeVisible();
+  await expect.poll(() => distanceBelow(page)).toBeLessThan(32);
+  await scrollUp(page, phone);
+  await expect.poll(() => distanceBelow(page)).toBeGreaterThan(300);
 };
 
 test.use({
