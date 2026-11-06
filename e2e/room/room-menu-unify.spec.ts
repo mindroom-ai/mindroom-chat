@@ -1,0 +1,439 @@
+import { randomUUID } from 'node:crypto';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import { createRoom } from '../helpers/createRoom';
+import { addRoomToSpace, matrixFetch, setDirectAccountData } from '../helpers/matrix';
+import {
+  DESKTOP,
+  HOMESERVER,
+  LAUNCH,
+  PASSWORD,
+  PHONE,
+  RUN,
+  SCHEMES,
+  createOtherRooms,
+  homeserverIsUp,
+  join,
+  register,
+  say,
+  setLook,
+  shot,
+  withRetry,
+  type Account,
+} from '../helpers/designChoices';
+import { roomMoreOptions } from '../helpers/roomMenu';
+import { launchWebKit } from '../helpers/webkit';
+
+// A room's menu offers the same entries, in the same order, with the same labels, wherever it
+// opens: the More Options button of its sidebar row, a right-click on the row (a long press's
+// contextmenu on Android), and the room header's More Options. The header's menu may add only
+// what depends on being in the open room (view switch, filters, members and the like on phones),
+// in a section before the shared entries. An entry the person cannot use here stays in its place,
+// disabled, and says why. Four rooms: one the tester created (admin), an encrypted one where the
+// tester may not invite, a direct message and a room in a space; 28 rooms in all. Desktop
+// (1440 by 900) and phone (390 by 844, touch), light and dark, Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set DESIGN_CHOICES_SHOTS to save
+// the screenshots.
+const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
+type Engine = (typeof ENGINES)[number];
+const TARGET = 44;
+const NO_INVITE = "You don't have permission to invite";
+const NO_SEARCH = 'Not available in encrypted rooms';
+
+test.use({ launchOptions: LAUNCH });
+
+type Item = { name: string; role: string; disabled: boolean; reason: string };
+
+type Case = {
+  key: string;
+  roomId: string;
+  /** The sidebar list that shows the room's row. */
+  list: string;
+  /** The room's own page. */
+  room: string;
+  canInvite: boolean;
+  encrypted: boolean;
+};
+
+const item = (name: string, reason = ''): Item => ({
+  name,
+  role: 'menuitem',
+  disabled: reason !== '',
+  reason,
+});
+
+/** The entries every room menu shares, in their order. */
+const sharedItems = ({ canInvite, encrypted }: Case): Item[] => [
+  item('Mark as Read'),
+  item('Notifications'),
+  item('Invite', canInvite ? '' : NO_INVITE),
+  item('Copy Link'),
+  item('Room Settings'),
+  item('Message Search', encrypted ? NO_SEARCH : ''),
+  item('Jump to Time'),
+  item('Archive Room'),
+  item('Leave Room'),
+];
+
+/** What only the open room's header menu may add: what a phone's header leaves out, and calls. */
+const IN_ROOM = [
+  /^Compact view$/,
+  /^Thread filters/,
+  /^Scheduled tasks/,
+  /^(Canvases|Show Canvas|Hide Canvas)$/,
+  /^Pinned Messages$/,
+  /^(Show|Hide) Members/,
+  /^(Show|Hide) Computer$/,
+  /Call/,
+];
+
+type Seed = { tester: Account; cases: Case[] };
+
+const createRoomWith = (account: Account, body: Record<string, unknown>) =>
+  withRetry(async () => {
+    const created = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
+      method: 'POST',
+      accessToken: account.token,
+      body: JSON.stringify({ preset: 'private_chat', ...body }),
+    });
+    return created.room_id;
+  });
+
+const seed = async (label: string): Promise<Seed> => {
+  const id = `${label}_${RUN}_${randomUUID().slice(0, 6)}`;
+  const tester = await register(`rmu_${id}`, 'Robin Tester');
+  const helper = await register(`rmu_helper_${id}`, 'Sam Rivera');
+  await createOtherRooms(tester);
+
+  const admin = await withRetry(() =>
+    createRoom(HOMESERVER, tester.token, { name: 'Planning Desk', invite: [helper.userId] })
+  );
+  // The helper's room: inviting needs power level 50, which the tester lacks, and it is encrypted.
+  const member = await createRoomWith(helper, {
+    name: 'Vendor Updates',
+    invite: [tester.userId],
+    power_level_content_override: { invite: 50 },
+    initial_state: [
+      {
+        type: 'm.room.encryption',
+        state_key: '',
+        content: { algorithm: 'm.megolm.v1.aes-sha2' },
+      },
+    ],
+  });
+  await join(tester, member);
+  const direct = await createRoomWith(helper, { is_direct: true, invite: [tester.userId] });
+  await join(tester, direct);
+  await withRetry(() =>
+    setDirectAccountData(HOMESERVER, tester.token, tester.userId, helper.userId, direct)
+  );
+  const space = await withRetry(() =>
+    createRoom(HOMESERVER, tester.token, { name: 'Field Team', space: true })
+  );
+  const spaceRoom = await withRetry(() =>
+    createRoom(HOMESERVER, tester.token, { name: 'Site Visits' })
+  );
+  await withRetry(() => addRoomToSpace(HOMESERVER, tester.token, space, spaceRoom));
+
+  // The newest activity puts the rooms under test at the top of their lists.
+  await say(tester, admin, 'Agenda for Thursday: budget review, hiring plan, then open questions.');
+  await say(helper, member, 'The supplier confirmed the new delivery window for next month.');
+  await say(helper, direct, 'Can you look at the draft contract before the call tomorrow?');
+  await say(tester, spaceRoom, 'Site visit notes from Tuesday are in the shared folder.');
+
+  const enc = encodeURIComponent;
+  return {
+    tester,
+    cases: [
+      {
+        key: 'admin',
+        roomId: admin,
+        list: '/home/',
+        room: `/home/${enc(admin)}/`,
+        canInvite: true,
+        encrypted: false,
+      },
+      {
+        key: 'member-encrypted',
+        roomId: member,
+        list: '/home/',
+        room: `/home/${enc(member)}/`,
+        canInvite: false,
+        encrypted: true,
+      },
+      {
+        key: 'direct',
+        roomId: direct,
+        list: '/direct/',
+        room: `/direct/${enc(direct)}/`,
+        canInvite: true,
+        encrypted: false,
+      },
+      {
+        key: 'space',
+        roomId: spaceRoom,
+        list: `/${enc(space)}/`,
+        room: `/${enc(space)}/${enc(spaceRoom)}/`,
+        canInvite: true,
+        encrypted: false,
+      },
+    ],
+  };
+};
+
+/** The room's menu while it is open: the menu that ends with Leave Room. */
+const roomMenu = (page: Page) => page.getByRole('menu').filter({ hasText: 'Leave Room' });
+
+/** The rows of the open room menu, as a reader meets them: name, role, state and reason. */
+const readMenu = (menu: Locator): Promise<Item[]> =>
+  menu.evaluate((element) => {
+    const rows = Array.from(
+      element.querySelectorAll<HTMLElement>(
+        '[role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]'
+      )
+    ).filter((row) => row.closest('[role="menu"]') === element);
+    const visibleText = (node: Element) => {
+      const copy = node.cloneNode(true) as Element;
+      copy.querySelectorAll('[aria-hidden="true"], svg').forEach((hidden) => hidden.remove());
+      return (copy.textContent ?? '').replace(/\s+/g, ' ').trim();
+    };
+    return rows.map((row) => ({
+      name: row.getAttribute('aria-label') ?? visibleText(row),
+      role: row.getAttribute('role') ?? '',
+      disabled: row.matches(':disabled, [aria-disabled="true"]'),
+      reason: (row.getAttribute('aria-describedby') ?? '')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((describedBy) => document.getElementById(describedBy)?.textContent?.trim() ?? '')
+        .join(' '),
+    }));
+  });
+
+/** The rows of the open room menu shorter than a 44 px touch target, by name and height. */
+const shortRows = (menu: Locator) =>
+  menu.evaluate((element, target) => {
+    const rows = Array.from(
+      element.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')
+    ).filter((row) => row.closest('[role="menu"]') === element);
+    return rows
+      .map((row) => [row.textContent?.trim() ?? '', row.getBoundingClientRect().height] as const)
+      .filter(([, height]) => height < target - 0.5);
+  }, TARGET);
+
+const sidebarLink = (page: Page, roomId: string) =>
+  page.locator(`a[href*="${encodeURIComponent(roomId)}"]`).first();
+
+/** The sidebar row of the link: the closest element that also holds its More Options button. */
+const sidebarRow = (link: Locator) =>
+  link.locator('xpath=ancestor::*[.//button[@aria-label="More Options"]][1]');
+
+type Entry = 'row-button' | 'row-context' | 'header';
+
+/** Opens the room's menu from one entry point; the page shows the list or the room as needed. */
+const openFrom = async (page: Page, room: Case, entry: Entry, phone: boolean) => {
+  if (entry === 'header') {
+    await expect(roomMoreOptions(page)).toBeVisible({ timeout: 30_000 });
+    if (phone) await roomMoreOptions(page).tap();
+    else await roomMoreOptions(page).click();
+  } else {
+    const link = sidebarLink(page, room.roomId);
+    await expect(link).toBeVisible({ timeout: 30_000 });
+    if (entry === 'row-context') {
+      if (phone) {
+        // A long press on Android fires contextmenu at the finger; WebKit and Playwright's touch
+        // emulation do not, so the test fires it.
+        const box = await link.boundingBox();
+        await link.dispatchEvent('contextmenu', {
+          clientX: (box?.x ?? 0) + 40,
+          clientY: (box?.y ?? 0) + (box?.height ?? 0) / 2,
+          button: 2,
+        });
+      } else {
+        await link.click({ button: 'right' });
+      }
+    } else {
+      // The row shows its button while hovered or holding focus; a phone has no hover.
+      if (phone) await link.focus();
+      else await link.hover();
+      const button = sidebarRow(link).getByRole('button', { name: 'More Options', exact: true });
+      await expect(button).toBeVisible();
+      if (phone) await button.tap();
+      else await button.click();
+    }
+  }
+  await expect(roomMenu(page)).toBeVisible();
+};
+
+const closeMenu = async (page: Page) => {
+  await page.keyboard.press('Escape');
+  await expect(roomMenu(page)).toHaveCount(0);
+};
+
+type Seen = Record<Entry, Item[]>;
+
+/** Opens the three menus of one room, saving a screenshot of each, and reads their rows. */
+const readAllMenus = async (
+  page: Page,
+  room: Case,
+  phone: boolean,
+  tag: string,
+  testInfo: TestInfo
+): Promise<{ seen: Seen; short: string[] }> => {
+  const seen = {} as Seen;
+  const short: string[] = [];
+  const read = async (entry: Entry) => {
+    await openFrom(page, room, entry, phone);
+    await shot(page, testInfo, `${tag}-${room.key}-${entry}`);
+    seen[entry] = await readMenu(roomMenu(page));
+    if (phone) {
+      for (const [name, height] of await shortRows(roomMenu(page))) {
+        short.push(`${entry} "${name}" ${Math.round(height)} px`);
+      }
+    }
+    await closeMenu(page);
+  };
+  // A phone shows the list and the room on separate pages; a desktop shows both.
+  if (phone) {
+    await page.goto(room.list);
+    await read('row-button');
+    await read('row-context');
+    await page.goto(room.room);
+  } else {
+    await page.goto(room.room);
+    await read('row-button');
+    await read('row-context');
+  }
+  await expect(page.getByRole('banner').filter({ has: page.locator('h1') })).toBeVisible({
+    timeout: 30_000,
+  });
+  await read('header');
+  return { seen, short };
+};
+
+const checkSame = (room: Case, { seen, short }: { seen: Seen; short: string[] }, tag: string) => {
+  const expected = sharedItems(room);
+  const where = `${tag} ${room.key}`;
+  expect(seen['row-context'], `${where}: right-click menu = row button menu`).toEqual(
+    seen['row-button']
+  );
+  expect(seen['row-button'], `${where}: row menu entries`).toEqual(expected);
+  const { header } = seen;
+  const extra = header.slice(0, Math.max(0, header.length - expected.length));
+  expect(header.slice(extra.length), `${where}: header menu ends with the shared entries`).toEqual(
+    expected
+  );
+  const unknown = extra.filter(({ name }) => !IN_ROOM.some((pattern) => pattern.test(name)));
+  expect(unknown, `${where}: header-only entries depend on the open room`).toEqual([]);
+  expect(short, `${where}: rows shorter than ${TARGET} px on a touch screen`).toEqual([]);
+};
+
+/** A keyboard reaches the disabled Invite, hears why, and cannot start it. */
+const checkKeyboard = async (page: Page, room: Case) => {
+  await page.goto(room.room);
+  const link = sidebarLink(page, room.roomId);
+  await link.focus();
+  await page.keyboard.press('Tab');
+  const button = sidebarRow(link).getByRole('button', { name: 'More Options', exact: true });
+  await expect(button).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(roomMenu(page)).toBeVisible();
+  const invite = roomMenu(page).getByRole('menuitem', { name: 'Invite', exact: true });
+  for (let step = 0; step < 4; step += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await invite.evaluate((row) => row === document.activeElement)) break;
+    // eslint-disable-next-line no-await-in-loop
+    await page.keyboard.press('ArrowDown');
+  }
+  await expect(invite).toBeFocused();
+  await expect(invite).toHaveAttribute('aria-disabled', 'true');
+  await expect(invite).toHaveAccessibleDescription(NO_INVITE);
+  await page.keyboard.press('Enter');
+  await expect(roomMenu(page)).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(roomMenu(page)).toHaveCount(0);
+  await expect(button).toBeFocused();
+};
+
+/** Entries that the header offered before work from the sidebar row too. */
+const checkSidebarActions = async (page: Page, room: Case) => {
+  await page.goto(room.list);
+  await openFrom(page, room, 'row-button', false);
+  await roomMenu(page).getByRole('menuitem', { name: 'Jump to Time', exact: true }).click();
+  const jump = page.getByRole('dialog', { name: 'Jump to Time' });
+  await expect(jump).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(jump).toHaveCount(0);
+  await openFrom(page, room, 'row-context', false);
+  await roomMenu(page).getByRole('menuitem', { name: 'Message Search', exact: true }).click();
+  await expect(page).toHaveURL(/\/home\/search\/.*rooms=/);
+};
+
+const newPage = async (engine: Engine, browser: Browser, options: BrowserContextOptions) => {
+  const owner = engine === 'webkit' ? await launchWebKit() : browser;
+  const context = await owner.newContext(options);
+  const page = await context.newPage();
+  return {
+    page,
+    close: async () => {
+      await context.close();
+      if (owner !== browser) await owner.close();
+    },
+  };
+};
+
+for (const engine of ENGINES) {
+  for (const layout of ['desktop', 'phone'] as const) {
+    test(`a room's menu is the same from its row, a right-click and its header: ${engine} ${layout}`, async ({
+      browser,
+    }, testInfo) => {
+      test.skip(!(await homeserverIsUp()), 'Test homeserver is not running.');
+      test.setTimeout(420_000);
+      const phone = layout === 'phone';
+      const data = await seed(`${engine.slice(0, 2)}${layout.slice(0, 2)}`);
+      const { page, close } = await newPage(engine, browser, phone ? PHONE : DESKTOP);
+      try {
+        await loginWithPassword(page, {
+          homeserver: HOMESERVER,
+          username: data.tester.username,
+          password: PASSWORD,
+        });
+        if (phone) {
+          await expect
+            .poll(() =>
+              page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches)
+            )
+            .toBe(true);
+        }
+        const results: [Case, { seen: Seen; short: string[] }, string][] = [];
+        for (const scheme of SCHEMES) {
+          // eslint-disable-next-line no-await-in-loop
+          await setLook(page, scheme);
+          for (const room of data.cases) {
+            const tag = `${layout}-${engine}-${scheme}`;
+            // eslint-disable-next-line no-await-in-loop
+            results.push([room, await readAllMenus(page, room, phone, tag, testInfo), tag]);
+          }
+        }
+        for (const [room, read, tag] of results) checkSame(room, read, tag);
+        if (!phone) {
+          const member = data.cases.find((room) => room.key === 'member-encrypted');
+          const admin = data.cases.find((room) => room.key === 'admin');
+          if (member) await checkKeyboard(page, member);
+          if (admin) await checkSidebarActions(page, admin);
+        }
+      } finally {
+        await close();
+      }
+    });
+  }
+}
