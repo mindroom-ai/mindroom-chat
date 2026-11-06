@@ -209,26 +209,28 @@ const checkIcons = async (
     await expect(plain.locator('img'), `${engine}: no icon by default`).toHaveCount(0);
     expect(iconRequests(external), `${engine}: no icon requests by default`).toEqual([]);
 
-    // The deployment turns icons on: the unencrypted room shows one.
-    // The app starts from its stored config.json and stores the fresh one for the next start, so
-    // a changed deployment applies from the second load on.
+    // The deployment turns icons on: the unencrypted room shows one, and only the icon of the
+    // allowed host goes to the service, once per page load. Routing turns the browser's HTTP cache
+    // off, so each load asks again; a browser without routes keeps the icon for the service's
+    // max-age.
+    const icon = `https://${ICON_SERVICE}/ip3/example.org.ico`;
+    const expectIconRequests = async (count: number, when: string) => {
+      await expect(plain.locator('img'), `${engine}: icon ${when}`).toHaveCount(1);
+      await expect.poll(() => iconRequests(external).length).toBeGreaterThanOrEqual(count);
+      await page.waitForTimeout(1_500);
+      expect(iconRequests(external), `${engine}: one icon request per load ${when}`).toEqual(
+        Array.from({ length: count }, () => icon)
+      );
+    };
+    // The page renders its stored config.json and applies the fresh one on the same load.
     await routeConfig(context, true);
     await page.reload();
     await expect(plain).toHaveText('plain-link', { timeout: 30_000 });
+    await expectIconRequests(1, 'once the fresh configuration allows it');
+    // The next start renders the stored configuration that allows it at once.
     await page.reload();
     await expect(plain).toHaveText('plain-link', { timeout: 30_000 });
-    await expect(plain.locator('img'), `${engine}: icon once the deployment allows it`).toHaveCount(
-      1
-    );
-    // The icon of the allowed host and nothing else goes to the service. Open defect: on current
-    // main the icon is requested twice, so the count of exactly one waits for its fix.
-    test.info().annotations.push({
-      type: 'fixme',
-      description: 'example.org.ico is requested twice instead of once (open defect)',
-    });
-    await expect
-      .poll(() => [...new Set(iconRequests(external))])
-      .toEqual([`https://${ICON_SERVICE}/ip3/example.org.ico`]);
+    await expectIconRequests(2, 'on a start from the stored configuration');
 
     // An encrypted room never shows one, even with link previews allowed there.
     await page.evaluate(() => {
