@@ -350,7 +350,7 @@ describe('useLatestRowPin and the virtual list', () => {
    * The room's rows at their newest row, with a virtual list that keeps the scroll it was last
    * asked for (virtual-core's `scrollState`) until it lands there.
    */
-  const pinnedList = () => {
+  const pinnedList = (pendingListShrinkPx?: () => number) => {
     const { element, fire } = fakeRoomScroller();
     const list = {
       scrollState: null as { index: number } | null,
@@ -370,6 +370,7 @@ describe('useLatestRowPin and the virtual list', () => {
         committedView: '!room||classic',
         focusItem: undefined,
         onReaderGesture: () => undefined,
+        pendingListShrinkPx,
       });
       return null;
     }
@@ -390,6 +391,22 @@ describe('useLatestRowPin and the virtual list', () => {
 
   it('ends it when the reader drags the scrollbar up', () => {
     const room = pinnedList();
+    room.element.scrollTop -= 200;
+    act(() => room.fire('scroll'));
+    expect(room.list.scrollState).toBeNull();
+  });
+
+  it('keeps it when rows that shrank move the position up before the list renders its end', () => {
+    // A narrower panel closes: the rows near the end shrink by 220 px, the timeline's correction
+    // keeps the end in place, and the list still holds their room until React renders it.
+    let shrinkNotRendered = 0;
+    const room = pinnedList(() => shrinkNotRendered);
+    shrinkNotRendered = 220;
+    room.element.scrollTop -= 220;
+    act(() => room.fire('scroll'));
+    expect(room.list.scrollState).toEqual({ index: 19 });
+
+    // The reader's own scroll up past that still ends it.
     room.element.scrollTop -= 200;
     act(() => room.fire('scroll'));
     expect(room.list.scrollState).toBeNull();
