@@ -53,6 +53,8 @@ export const findEventAtTime = async (
 
 /** Replies per page while a thread is read newest first. */
 const THREAD_PAGE_SIZE = 100;
+/** One deadline for all pages, including a server that never answers. */
+const THREAD_LOOKUP_TIMEOUT_MS = 15_000;
 
 /** A reply the thread shows as a row: a message, approval or sticker that was not deleted. */
 const shownReply = (raw: Partial<IEvent>): boolean =>
@@ -63,34 +65,53 @@ const shownReply = (raw: Partial<IEvent>): boolean =>
  * later, or when every reply came before the time, its newest reply. A time before the first
  * reply that is not after the thread's first message (`rootTs`), or a thread without replies,
  * lands on that first message, the root (`threadId`). The replies are read newest first, a page at
- * a time, until one is older than the time.
+ * a time, until one is older than the time. Known boundary answers need no server request.
+ * Server pagination shares one deadline; a timed-out page cannot resume the search.
  */
 export const findThreadEventAtTime = async (
   mx: Pick<MatrixClient, 'fetchRelations'>,
   roomId: string,
   threadId: string,
   timestamp: number,
-  rootTs: number | undefined
+  rootTs: number | undefined,
+  newestKnownReply?: { eventId: string; ts: number }
 ): Promise<string> => {
+  if (rootTs !== undefined && timestamp <= rootTs) return threadId;
+  if (newestKnownReply && timestamp > newestKnownReply.ts) return newestKnownReply.eventId;
+
+  let timer: ReturnType<typeof setTimeout>;
+  const deadline = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(
+      () => reject(new DOMException('Thread time lookup timed out', 'TimeoutError')),
+      THREAD_LOOKUP_TIMEOUT_MS
+    );
+  });
   let newest: string | undefined;
   let atOrAfter: string | undefined;
   let from: string | undefined;
-  do {
-    // eslint-disable-next-line no-await-in-loop
-    const page = await mx.fetchRelations(roomId, threadId, RelationType.Thread, null, {
-      dir: Direction.Backward,
-      limit: THREAD_PAGE_SIZE,
-      ...(from ? { from } : {}),
-    });
-    for (const raw of page.chunk) {
-      if (shownReply(raw)) {
-        newest ??= raw.event_id;
-        if (raw.origin_server_ts < timestamp) return atOrAfter ?? newest;
-        atOrAfter = raw.event_id;
+  try {
+    do {
+      // eslint-disable-next-line no-await-in-loop
+      const page = await Promise.race([
+        mx.fetchRelations(roomId, threadId, RelationType.Thread, null, {
+          dir: Direction.Backward,
+          limit: THREAD_PAGE_SIZE,
+          ...(from ? { from } : {}),
+        }),
+        deadline,
+      ]);
+      for (const raw of page.chunk) {
+        if (shownReply(raw)) {
+          newest ??= raw.event_id;
+          if (raw.origin_server_ts < timestamp) return atOrAfter ?? newest;
+          atOrAfter = raw.event_id;
+        }
       }
-    }
-    from = page.next_batch;
-  } while (from);
-  if (!atOrAfter || rootTs === undefined || timestamp <= rootTs) return threadId;
-  return atOrAfter;
+      from = page.next_batch;
+    } while (from);
+    if (!atOrAfter || rootTs === undefined || timestamp <= rootTs) return threadId;
+    return atOrAfter;
+  } finally {
+    clearTimeout(timer!);
+  }
 };

@@ -26,6 +26,7 @@ import { useRoomViewMode } from '../../navigation/useRoomViewMode';
 import { useHour24Clock } from '../../preferences/useHour24Clock';
 import { localDigits } from '../../lib/localDigits';
 import { readableReason } from '../../lib/errorReason';
+import { isVisibleThreadReplyEventType } from '../../event-store/threads/threadUtils';
 import { isConfirmedMatrixEventId } from '../../event-store/threads/threadRouteUtils';
 import { findEventAtTime, findThreadEventAtTime } from './findEventAtTime';
 import * as css from './JumpToTime.css';
@@ -171,10 +172,32 @@ export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
     const at = preset === 'beginning' ? createdAt ?? 0 : timestampOf(moment);
     try {
       if (threadId && isConfirmedMatrixEventId(threadId)) {
-        const rootTs = (
-          room.getThread(threadId)?.rootEvent ?? room.findEventById(threadId)
-        )?.getTs();
-        const eventId = await findThreadEventAtTime(client, room.roomId, threadId, at, rootTs);
+        const thread = room.getThread(threadId);
+        const rootTs = (thread?.rootEvent ?? room.findEventById(threadId))?.getTs();
+        let newestReply: { eventId: string; ts: number } | undefined;
+        // replyToEvent can be a pending local echo. Keep only confirmed, visible replies,
+        // including the live events when a pending echo hides the SDK's last confirmed reply.
+        for (const event of [thread?.replyToEvent, ...(thread?.events ?? [])]) {
+          const eventId = event?.getId();
+          if (
+            !event ||
+            !isConfirmedMatrixEventId(eventId) ||
+            eventId === threadId ||
+            !isVisibleThreadReplyEventType(event.getType()) ||
+            event.isRedacted()
+          )
+            continue;
+          const ts = event.getTs();
+          if (!newestReply || ts > newestReply.ts) newestReply = { eventId, ts };
+        }
+        const eventId = await findThreadEventAtTime(
+          client,
+          room.roomId,
+          threadId,
+          at,
+          rootTs,
+          newestReply
+        );
         if (!mounted()) return;
         requestClose();
         // The same thread at another message: its back button keeps the place it returns to.
@@ -197,7 +220,13 @@ export function JumpToTime({ room, threadId, requestClose }: JumpToTimeProps) {
       requestClose();
       navigateRoom(room.roomId, found.eventId);
     } catch (error) {
-      if (mounted()) setLookup({ kind: 'failed', reason: readableReason(error) });
+      if (mounted()) {
+        const reason =
+          error instanceof DOMException && error.name === 'TimeoutError'
+            ? t('errors.timedOut')
+            : readableReason(error);
+        setLookup({ kind: 'failed', reason });
+      }
     }
   };
 

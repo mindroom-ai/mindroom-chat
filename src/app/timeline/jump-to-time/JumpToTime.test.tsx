@@ -380,7 +380,9 @@ describe('JumpToTime', () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(15_000);
       });
-      expect(document.querySelector('[role="alert"]')?.textContent).toMatch(/timed out/i);
+      expect(document.querySelector('[role="alert"]')?.textContent).toContain(
+        "The request didn't finish. Try again."
+      );
       expect(button('Open Timeline').disabled).toBe(false);
       await act(async () => {
         finish!({ chunk: [reply('$late', Date.now())] });
