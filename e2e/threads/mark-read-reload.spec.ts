@@ -165,7 +165,8 @@ const threadsStayReadThroughReloads = async (page: Page, browserName: string) =>
   await expect(page.locator(`[data-thread-root-id="${rootIds[0]}"]`)).toBeVisible({
     timeout: 60_000,
   });
-  await expect(unreadCards).toHaveCount(2);
+  // Every root is unread in the room's main timeline, which the phone's thread receipt leaves.
+  await expect(unreadCards).toHaveCount(3);
 
   const markedRead = page.waitForRequest(
     (request) =>
