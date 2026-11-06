@@ -157,7 +157,20 @@ test('following glass appears only while another reader follows the latest messa
         .toBe(true);
     };
     await expectMessagesBehindStrip();
-    const historyTop = await scroll.evaluate((element) => element.scrollTop);
+    // Where the reader is: the first message in view and its offset. An older page that lands
+    // above it while the history settles changes scrollTop, not what the reader sees.
+    const historyPlace = () =>
+      scroll.evaluate((element) => {
+        const top = element.getBoundingClientRect().top;
+        const first = Array.from(element.querySelectorAll('[data-message-item]')).find(
+          (message) => message.getBoundingClientRect().bottom > top
+        );
+        return {
+          text: first?.textContent?.slice(0, 40),
+          top: Math.round((first?.getBoundingClientRect().top ?? 0) - top),
+        };
+      });
+    const historyTop = await historyPlace();
     const jumpToLatest = page.getByRole('button', { name: 'Jump to Latest', exact: true });
     await expect(jumpToLatest).toBeVisible();
     await page.mouse.move(0, 0);
@@ -191,9 +204,7 @@ test('following glass appears only while another reader follows the latest messa
         })
       )
       .toBe(true);
-    await expect
-      .poll(() => scroll.evaluate((element) => element.scrollTop))
-      .toBeCloseTo(historyTop, 0);
+    await expect.poll(historyPlace).toEqual(historyTop);
     await expectMessagesBehindStrip();
     await expect(page.getByText('Catching up...', { exact: true })).toHaveCount(0);
     await page.screenshot({ path: testInfo.outputPath('following-reader.png') });
