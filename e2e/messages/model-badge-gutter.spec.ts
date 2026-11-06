@@ -245,10 +245,12 @@ const checkDesktop = async (page: Page, data: Seed, engine: string, testInfo: Te
     .last();
   await row.focus();
   let reached = false;
+  // WebKit on macOS moves Tab only between fields and lists unless Option is held, as Safari does.
+  const macWebKit = process.platform === 'darwin' && engine === 'webkit';
   // The row's toolbar comes first: Add Reaction, Reply, Reply in Thread, More Options.
   for (let press = 0; press < 6 && !reached; press += 1) {
     // eslint-disable-next-line no-await-in-loop
-    await page.keyboard.press('Tab');
+    await page.keyboard.press(macWebKit ? 'Alt+Tab' : 'Tab');
     // eslint-disable-next-line no-await-in-loop
     reached = await badge.evaluate((node) => node === document.activeElement);
   }
