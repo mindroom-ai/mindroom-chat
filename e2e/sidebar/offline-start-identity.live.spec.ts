@@ -323,3 +323,42 @@ test('an offline start shows a rename and a roaming setting made shortly before 
   await expect(offlineMessage).toContainText('Name After', { timeout: 15_000 });
   await expect(offline.getByText(/Room Member joined the room/)).toHaveCount(0);
 });
+
+test.describe('with the service worker', () => {
+  test.use({ serviceWorkers: 'allow' });
+
+  test('an offline reload keeps the space picture the worker loaded', async ({
+    page,
+    context,
+    browserName,
+  }) => {
+    // Playwright's WebKit runs no service workers.
+    test.skip(browserName !== 'chromium', 'Service workers run in Chromium only');
+    test.setTimeout(120_000);
+    const viewer = await register('offline_sw_viewer', 'Worker Viewer');
+    const picture = await uploadPicture(viewer.accessToken);
+    const spaceId = await createRoom(viewer, {
+      name: `Worker space ${Date.now().toString(36)}`,
+      creation_content: { type: 'm.space' },
+      initial_state: [{ type: 'm.room.avatar', state_key: '', content: { url: picture } }],
+    });
+
+    await loginWithPassword(page, {
+      homeserver: getHomeserver(),
+      username: viewer.username,
+      password: PASSWORD,
+    });
+    await expect
+      .poll(() => page.evaluate(() => !!navigator.serviceWorker?.controller), { timeout: 30_000 })
+      .toBe(true);
+    // Load the picture through the worker that now controls the page.
+    await page.reload();
+    const spaceImage = `[data-id="${spaceId}"] img`;
+    await expect.poll(() => imageLoaded(page, spaceImage), { timeout: 20_000 }).toBe(true);
+
+    await context.setOffline(true);
+    await page.reload();
+    await expect(page.getByText('Connection Lost!').first()).toBeVisible({ timeout: 20_000 });
+    await expect.poll(() => imageLoaded(page, spaceImage), { timeout: 15_000 }).toBe(true);
+  });
+});
