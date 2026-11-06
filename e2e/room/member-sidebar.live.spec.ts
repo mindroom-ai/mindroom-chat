@@ -65,7 +65,7 @@ const dragOnPhone = async (page: Page, handle: Locator, delta: number) => {
   }
 };
 
-test('members remain available below desktop width and resize, collapse, and reopen', async ({
+test('members stay beside a wide enough room and resize, collapse, and reopen', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1000, height: 850 });
@@ -90,8 +90,14 @@ test('members remain available below desktop width and resize, collapse, and reo
 
   for (const width of [751, 800, 1124, 1280]) {
     await page.setViewportSize({ width, height: 850 });
-    await expect(handle).toBeVisible();
-    expect(await widthOf(panel)).toBeGreaterThanOrEqual(200);
+    if (width < 950) {
+      // Too narrow for the members beside the conversation: they open over it when asked.
+      await expect(panel).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Show Members', exact: true })).toBeVisible();
+    } else {
+      await expect(handle).toBeVisible();
+      expect(await widthOf(panel)).toBeGreaterThanOrEqual(200);
+    }
     await expect(page.locator('body')).toHaveJSProperty('scrollWidth', width);
     await expect(page).toHaveURL(roomUrl);
   }

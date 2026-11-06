@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
+import { useMembersOverlay } from './useMembersDrawer';
 import * as css from './ResizableMembersPanel.css';
 
 export function ResizableMembersPanel({
@@ -16,7 +17,9 @@ export function ResizableMembersPanel({
 }) {
   const { t } = useTranslation();
   const userId = useMatrixClient().getSafeUserId();
-  const mobile = useScreenSizeContext() === ScreenSize.Mobile;
+  // A room too narrow for the panel beside it shows it over the room, as a phone does.
+  const overlay = useMembersOverlay();
+  const mobile = useScreenSizeContext() === ScreenSize.Mobile || overlay;
   const panel = (
     <ResizablePanel
       side="end"

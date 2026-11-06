@@ -21,6 +21,7 @@ import { getCanonicalAliasOrRoomId } from '../../matrix/matrix';
 import { getSpacePath, getSpaceRoomPath } from '../../routes/pathUtils';
 import { MembersDrawer } from '../../members/MembersDrawer';
 import { ResizableMembersPanel } from '../../members/ResizableMembersPanel';
+import { PanelRow } from '../../members/PanelRow';
 import { usePanelSlot } from '../../ui/panels/panelPresence';
 import { useMembersDrawer } from '../../members/useMembersDrawer';
 import { LobbyHeader, SpaceAvatar, useSpaceAvatarSrc } from './LobbyHeader';
@@ -165,6 +166,14 @@ function EmptyLobby() {
 
 /** A space's lobby: its header, the rooms and subspaces it lists, and the space's members. */
 export function Lobby() {
+  return (
+    <PanelRow>
+      <LobbyContent />
+    </PanelRow>
+  );
+}
+
+function LobbyContent() {
   const space = useSpace();
   const client = useMatrixClient();
   const navigate = useNavigate();
@@ -300,43 +309,41 @@ export function Lobby() {
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>
-      <Box grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
-        <Page style={{ position: 'relative' }}>
-          <PageScroll scrollRef={scrollRef} header={lobbyHeader}>
-            <Box direction="Column" gap="200" style={LOBBY_COLUMN}>
-              <LobbyHero heroRef={heroRef} />
-              <LobbyRootHeading canEdit={canEditRoot} />
-              {items.length === 0 && !loading && <EmptyLobby />}
-              {items.map((item) => {
-                if (hidden.has(item)) return null;
-                return (
-                  <Box
-                    key={`${item.parentId}/${item.roomId}`}
-                    direction="Column"
-                    style={nestingInset(item.depth)}
-                    data-lobby-entry={item.roomId}
-                  >
-                    {item.space ? renderSpace(item) : renderRoom(item)}
-                  </Box>
-                );
-              })}
-            </Box>
-          </PageScroll>
-          <ScrollTopContainer scrollRef={scrollRef} style={SCROLL_TOP_PLACE}>
-            <IconButton
-              size="300"
-              radii="Pill"
-              variant="Surface"
-              outlined
-              aria-label={t('featureUi.lobby.scrollToTop')}
-              onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
-            >
-              <Icon size="200" src={Icons.ChevronTop} />
-            </IconButton>
-          </ScrollTopContainer>
-        </Page>
-        {membersPanel}
-      </Box>
+      <Page style={{ position: 'relative' }}>
+        <PageScroll scrollRef={scrollRef} header={lobbyHeader}>
+          <Box direction="Column" gap="200" style={LOBBY_COLUMN}>
+            <LobbyHero heroRef={heroRef} />
+            <LobbyRootHeading canEdit={canEditRoot} />
+            {items.length === 0 && !loading && <EmptyLobby />}
+            {items.map((item) => {
+              if (hidden.has(item)) return null;
+              return (
+                <Box
+                  key={`${item.parentId}/${item.roomId}`}
+                  direction="Column"
+                  style={nestingInset(item.depth)}
+                  data-lobby-entry={item.roomId}
+                >
+                  {item.space ? renderSpace(item) : renderRoom(item)}
+                </Box>
+              );
+            })}
+          </Box>
+        </PageScroll>
+        <ScrollTopContainer scrollRef={scrollRef} style={SCROLL_TOP_PLACE}>
+          <IconButton
+            size="300"
+            radii="Pill"
+            variant="Surface"
+            outlined
+            aria-label={t('featureUi.lobby.scrollToTop')}
+            onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+          >
+            <Icon size="200" src={Icons.ChevronTop} />
+          </IconButton>
+        </ScrollTopContainer>
+      </Page>
+      {membersPanel}
     </PowerLevelsContextProvider>
   );
 }

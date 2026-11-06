@@ -27,6 +27,7 @@ import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
+import { PanelRow } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
 import { ComputerPanel } from '../computer/ComputerPanel';
@@ -154,11 +155,6 @@ const useRoomComputer = (
   return { agents, apiUrl: agents.length > 0 ? apiUrl : undefined };
 };
 
-/**
- * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, the
- * call, or the members). The room also carries out the UI requests agents send
- * (`io.mindroom.ui_action`).
- */
 /** What the room's URL asks for: an event, a thread, and whether to show the event in place. */
 const useRoomRoute = () => {
   const params = useParams();
@@ -170,7 +166,20 @@ const useRoomRoute = () => {
   };
 };
 
+/**
+ * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, the
+ * call, or the members). The room also carries out the UI requests agents send
+ * (`io.mindroom.ui_action`).
+ */
 export function Room() {
+  return (
+    <PanelRow>
+      <RoomContent />
+    </PanelRow>
+  );
+}
+
+function RoomContent() {
   const room = useRoom();
   const { eventId, routedThreadId, focusEventInRoom } = useRoomRoute();
   const { roomId } = room;
@@ -500,24 +509,22 @@ export function Room() {
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
-        <Box grow="Yes" style={{ minWidth: 0, minHeight: 0 }}>
-          {!conversationHidden && (
-            <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
-              <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
-              <RoomView
-                room={room}
-                eventId={eventId}
-                threadId={routedThreadId}
-                focusEventInRoom={focusEventInRoom}
-                hasMindroomAgents={hasMindroomAgents}
-                joinRequestCount={joinRequestCount}
-                onThreadLoadError={onThreadLoadError}
-                {...headerPanels}
-              />
-            </Box>
-          )}
-          {sidePanel}
-        </Box>
+        {!conversationHidden && (
+          <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
+            <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
+            <RoomView
+              room={room}
+              eventId={eventId}
+              threadId={routedThreadId}
+              focusEventInRoom={focusEventInRoom}
+              hasMindroomAgents={hasMindroomAgents}
+              joinRequestCount={joinRequestCount}
+              onThreadLoadError={onThreadLoadError}
+              {...headerPanels}
+            />
+          </Box>
+        )}
+        {sidePanel}
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>
   );
