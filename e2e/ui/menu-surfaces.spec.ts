@@ -124,9 +124,16 @@ const SURFACES: Record<string, { size: typeof DESKTOP; open: (page: Page) => Pro
   'room-header-menu': {
     size: DESKTOP,
     open: async (page) => {
-      await page.locator('header').filter({ hasText: ROOM }).getByRole('button').last().click();
+      const more = page
+        .locator('header')
+        .filter({ hasText: ROOM })
+        .getByRole('button', { name: 'More Options', exact: true });
       const entry = page.getByRole('button', { name: 'Room Settings', exact: true });
-      await expect(entry).toBeVisible();
+      // A click while the room is still settling can land before the menu listens; try again.
+      await expect(async () => {
+        if (!(await entry.isVisible())) await more.click();
+        await expect(entry).toBeVisible({ timeout: 2_000 });
+      }).toPass({ timeout: 15_000 });
       return {
         surface: await surfaceOf(page, entry),
         text: entry,
