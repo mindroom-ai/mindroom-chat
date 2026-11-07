@@ -44,8 +44,9 @@ work; it describes what the software does and the contract between the two sides
 | `languages` | `[]` | Language codes, hints for speech-to-text (the first is sent). |
 
 Speech-to-text uses MindRoom's existing voice-message settings (`voice.stt`: provider, model, host, credentials).
-Changes apply to the next request, without a restart. Turning `enabled` off ends live calls and deletes the lines of
-every transcript not yet posted; while it is off nothing is read from or posted to Matrix.
+Changes apply to the next request, without a restart. Turning `enabled` off stops all reading and posting in Matrix for
+calls at once; while it is off, stored calls keep only the one-day limit below (a call not heard from for a day ends
+and its message is given up). Turned back on, calls go on as before.
 
 ### A call
 
@@ -71,7 +72,7 @@ every transcript not yet posted; while it is off nothing is read from or posted 
   tried once more after 60 seconds, then the transcript is posted without them; a failed post is retried every minute.
   A call with no speech posts nothing; a call whose speech could not be transcribed at all posts the message with no
   turns and a body saying so. Afterwards the call's lines are deleted. A message not posted within a day of the end, or
-  in a room the router has left, is given up and its lines deleted, so the server never keeps them indefinitely; that
+  in a room the router has left or may not post in, is given up and its lines deleted, so the server never keeps them indefinitely; that
   holds after MindRoom was down for longer, too. A day after its end MindRoom does nothing more for a call: no message,
   no row edit.
 - **Pause.** Anyone in the call can pause transcription, and anyone in it can resume it; the call records who paused.
