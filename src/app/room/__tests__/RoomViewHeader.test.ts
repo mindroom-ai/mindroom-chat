@@ -326,7 +326,8 @@ const renderHeader = async (
     computerOpen?: boolean;
     computerShown?: boolean;
     onComputerToggle?: () => void;
-    canvasOpen?: boolean;
+    shownPanel?: string;
+    onPanelToggle?: (id: string) => void;
     canvases?: CanvasListEntry[];
     openCanvasId?: string;
     onCanvasOpen?: (canvasId: string) => void;
@@ -449,15 +450,17 @@ describe('RoomViewHeader', () => {
       screenSizeState.value = screen;
       membersState.open = storedOpen;
       const onComputerToggle = vi.fn();
+      const onPanelToggle = vi.fn();
       const { renderer } = await renderHeader(0, {
         computerAvailable: true,
         computerOpen: true,
         onComputerToggle,
+        shownPanel: 'computer',
+        onPanelToggle,
       });
       const button = await membersControl(renderer, 'Show Members');
       await act(async () => button.props.onClick());
-      expect(onComputerToggle).toHaveBeenCalledTimes(1);
-      expect(membersState.setOpen).toHaveBeenCalledWith(true);
+      expect(onPanelToggle).toHaveBeenCalledWith('members');
       act(() => renderer.unmount());
     }
   );
@@ -471,12 +474,11 @@ describe('RoomViewHeader', () => {
     async ({ screen, storedOpen }) => {
       screenSizeState.value = screen;
       membersState.open = storedOpen;
-      const onCanvasClose = vi.fn();
-      const { renderer } = await renderHeader(0, { canvasOpen: true, onCanvasClose });
+      const onPanelToggle = vi.fn();
+      const { renderer } = await renderHeader(0, { shownPanel: 'canvas', onPanelToggle });
       const button = renderer.root.findByProps({ 'aria-label': 'Show Members' });
       await act(async () => button.props.onClick());
-      expect(onCanvasClose).toHaveBeenCalledTimes(1);
-      expect(membersState.setOpen).toHaveBeenCalledWith(true);
+      expect(onPanelToggle).toHaveBeenCalledWith('members');
       act(() => renderer.unmount());
     }
   );
@@ -732,7 +734,9 @@ describe('RoomViewHeader', () => {
 
       expect(findButton(renderer, 'Show Computer')).toHaveLength(0);
       expect(findButton(renderer, 'Hide Computer')).toHaveLength(0);
-      expect(findMenuItem(renderer)).toHaveLength(1);
+      // The entry is named after whether the computer shows, as the button is.
+      const entry = state.open ? 'Hide Computer' : 'Show Computer';
+      expect(findMenuEntries(renderer, entry)).toHaveLength(1);
       act(() => renderer.unmount());
     });
 

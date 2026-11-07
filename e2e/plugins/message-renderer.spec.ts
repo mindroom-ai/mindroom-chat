@@ -2,8 +2,14 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Browser, type Page } from '@playwright/test';
-import { loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
+import {
+  expect,
+  test,
+  type Browser,
+  type BrowserContextOptions,
+  type Page,
+} from '@playwright/test';
+import { chooseFromAccountMenu, loginWithPassword, waitForLoggedInShell } from '../helpers/auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
@@ -20,15 +26,19 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // carries the plugin's content key renders through the plugin, with the label from the plugin's
 // config.json section; a person's message with the same key renders as the app renders it.
 // `?plugins=off`, on the page itself or on the sign-in page the session started from, and
-// `plugins.example.enabled: false` show the app's own rendering of the reply instead. The plugin's
-// pages open from their links, one with the app's rail and one filling the window; an unknown
-// plugin's page, and the example's with `?plugins=off` or `enabled: false`, say "Page not found"
-// where they are. A second plugin installed its own copy of a package the app bundles too, which
-// the build accepts as the plugin's. Set PLUGIN_SHOTS=<directory> to save screenshots.
+// `plugins.example.enabled: false` show the app's own rendering of the reply instead. A second
+// plugin installed its own copy of a package the app bundles too, which the build accepts as the
+// plugin's. Without a label in config.json the plugin shows its own, from its strings: English, and
+// German once the app's language is German, without a reload, also in a reply that rendered while
+// the plugin's German strings were still loading. The plugin's pages open from their links, one
+// with the app's rail and one filling the window; an unknown plugin's page, and the example's with
+// `?plugins=off` or `enabled: false`, say "Page not found" where they are. Set
+// PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'client-plugin-password';
 const RUN = Date.now().toString(36);
 const GREETING = 'Hello from the example plugin';
+const GERMAN_LABEL = 'Beispiel-Plugin';
 const AGENT_BODY = 'Plain body of the agent reply';
 const PERSON_BODY = 'Plain body of a person';
 
@@ -62,6 +72,17 @@ test.beforeAll(async () => {
       name: 'own-packages-plugin',
       version: '1.0.0',
       mindroomClientPlugin: { id: 'own-packages', apiVersion: 1, entry: './index.js' },
+    })
+  );
+  // The third-party notices read a plugin's installed packages from its lockfile.
+  const { version: linkifyVersion } = JSON.parse(
+    readFileSync(resolve('node_modules/linkifyjs/package.json'), 'utf8')
+  ) as { version: string };
+  writeFileSync(
+    join(ownPackages, 'package-lock.json'),
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: { '': {}, 'node_modules/linkifyjs': { version: linkifyVersion } },
     })
   );
   writeFileSync(
@@ -122,11 +143,12 @@ test.beforeEach(async () => {
 const onBuild = async (
   browser: Browser,
   plugins: Record<string, unknown>,
-  check: (page: Page, data: Seed) => Promise<void>
+  check: (page: Page, data: Seed) => Promise<void>,
+  options: BrowserContextOptions = {}
 ) => {
   writeFileSync(join(build!, 'config.json'), JSON.stringify({ ...shippedConfig, plugins }));
   const server = await serveBuild(build!);
-  const context = await browser.newContext({ baseURL: server.origin });
+  const context = await browser.newContext({ ...options, baseURL: server.origin });
   const page = await context.newPage();
   try {
     await check(page, seeded!);
@@ -210,6 +232,80 @@ test('plugins.example.enabled: false shows the reply as the app renders it', ({ 
     await page.goto(threadPath(data));
     await expectCoreRendering(page, data, 'plugin-disabled');
   }));
+
+/** Picks `language` on the Language & region page of Settings, then closes Settings. */
+const pickLanguage = async (page: Page, language: string) => {
+  await chooseFromAccountMenu(page, 'Settings');
+  const dialog = page.getByRole('dialog', { name: 'Settings' });
+  await dialog
+    .getByRole('navigation', { name: 'Settings' })
+    .getByRole('button', { name: 'Language & region', exact: true })
+    .click();
+  await dialog.getByRole('button', { name: 'English', exact: true }).click();
+  await page.getByRole('menuitemradio', { name: language, exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+};
+
+test("the plugin's label follows the language picked in Settings, without a reload", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await signIn(page, data);
+    await page.goto(threadPath(data));
+    const label = (await agentReply(page, data)).locator('[data-example-plugin]');
+    await expect(label).toHaveText(`Example plugin: ${GREETING}`);
+    await page.evaluate(() => {
+      (window as { pluginSpecLoad?: boolean }).pluginSpecLoad = true;
+    });
+
+    await pickLanguage(page, 'Deutsch');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+    await expect(label).toHaveText(`${GERMAN_LABEL}: ${GREETING}`);
+    await shot(page, 'plugin-german');
+    expect(await page.evaluate(() => (window as { pluginSpecLoad?: boolean }).pluginSpecLoad)).toBe(
+      true
+    );
+  }));
+
+test("a reply that renders while the plugin's German strings load shows them when they arrive", ({
+  browser,
+}) =>
+  onBuild(
+    browser,
+    {},
+    async (page, data) => {
+      await signIn(page, data);
+      // The build's chunk of the plugin's German strings answers only once released.
+      let release: () => void = () => undefined;
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let held = false;
+      await page.route('**/*.js', async (route) => {
+        const response = await route.fetch();
+        const body = await response.text();
+        if (body.includes(GERMAN_LABEL)) {
+          held = true;
+          await released;
+        }
+        await route.fulfill({ response, body });
+      });
+      await page.evaluate(() => localStorage.setItem('i18nextLng', 'de'));
+      await page.goto(threadPath(data));
+
+      const label = (await agentReply(page, data)).locator('[data-example-plugin]');
+      await expect(page.locator('html')).toHaveAttribute('lang', 'de');
+      await expect(label).toHaveText(`Example plugin: ${GREETING}`);
+      await expect.poll(() => held).toBe(true);
+
+      release();
+      await expect(label).toHaveText(`${GERMAN_LABEL}: ${GREETING}`);
+      await shot(page, 'plugin-german-late');
+    },
+    // Requests a service worker makes pass by the page's routes.
+    { serviceWorkers: 'block' }
+  ));
 
 const rail = (page: Page) => page.getByRole('navigation', { name: 'Main', exact: true });
 const examplePage = (page: Page) => page.locator('[data-example-page]');

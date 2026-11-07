@@ -548,6 +548,13 @@
       "resize": "Ridimensiona il pannello del computer",
       "close": "Chiudi il computer"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Ridimensiona {{label}}",
+        "close": "Chiudi {{label}}",
+        "failed": "Questo pannello ha smesso di funzionare."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Mostra o cambia se gli agenti hanno bisogno di una menzione per avviare una conversazione qui (impostare/reimpostare richiede un amministratore della stanza)."

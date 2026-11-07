@@ -111,7 +111,13 @@ describe('getThreadEventReadUpTo', () => {
     const reply = thread.events.at(-1)!;
     // After a reload, or on another device: the server bundles the reply's newest edit with it.
     reply.setUnsigned({
-      'm.relations': { [RelationType.Replace]: { event_id: '$finish', origin_server_ts: 2500 } },
+      'm.relations': {
+        [RelationType.Replace]: {
+          event_id: '$finish',
+          sender: reply.getSender(),
+          origin_server_ts: 2500,
+        },
+      },
     } as never);
     room.addReceipt(receipt(USER_ID, '$finish', 3000, '$root'));
 

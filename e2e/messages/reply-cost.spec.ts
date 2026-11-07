@@ -213,11 +213,18 @@ test('reply details show what a reply and the conversation so far cost', async (
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
 
-  // The viewer's own message wrote the keys too, but its details show no cost.
-  await detailsOf('Sounds good').click();
-  await expect(section('Tokens')).toBeVisible();
-  await expect(costCard).toHaveCount(0);
+  // The viewer's own message wrote the keys too, but they count only from MindRoom's own
+  // accounts: it gets no model chip and no reply details, in its header or in its menu.
+  const ownRow = page.locator('[data-message-id]').filter({ hasText: 'Sounds good' });
+  await expect(ownRow).toBeVisible();
+  await expect(ownRow.getByRole('button', { name: /^Model: / })).toHaveCount(0);
+  await expect(detailsOf('Sounds good')).toHaveCount(0);
+  await ownRow.hover();
+  await ownRow.getByRole('button', { name: 'More Options', exact: true }).click();
+  await expect(page.getByRole('menuitem', { name: 'Copy Link', exact: true })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Reply details', exact: true })).toHaveCount(0);
   await page.keyboard.press('Escape');
+  await expect(page.getByRole('menuitem', { name: 'Copy Link', exact: true })).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
   // A phone has no hover, so the details open from the keyboard here.

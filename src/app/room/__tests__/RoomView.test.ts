@@ -177,6 +177,7 @@ vi.mock('folds', async (importOriginal) => {
   };
 });
 
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
 vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../../test/utils/i18n');
   return {
@@ -1532,7 +1533,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
           computerOpen: true,
           computerShown: true,
           onComputerToggle,
-          canvasOpen: true,
+          shownPanel: 'canvas',
           canvases: canvases as never,
           openCanvasId: '$canvas',
           onCanvasOpen,
@@ -1550,7 +1551,7 @@ describe('RoomView', { timeout: 30_000 }, () => {
       computerOpen: true,
       computerShown: true,
       onComputerToggle,
-      canvasOpen: true,
+      shownPanel: 'canvas',
       canvases,
       openCanvasId: '$canvas',
       onCanvasOpen,

@@ -3333,3 +3333,65 @@ index c3e4a37..8ebe7b7 100644
          this.checkedForBackup = true;
  
          if (backupInfo && !backupInfo.version) {
+diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
+index 41c0e07..6052750 100644
+--- a/node_modules/matrix-js-sdk/lib/models/event.js
++++ b/node_modules/matrix-js-sdk/lib/models/event.js
+@@ -1319,6 +1319,11 @@ export class MatrixEvent extends TypedEventEmitter {
+     if (this.isState()) {
+       return;
+     }
++    // MindRoom: only a message's sender can edit it, as Relations.getLastReplacement checks for live
++    // edits; another sender's replacement changes nothing.
++    if (newEvent && newEvent.getSender() !== this.getSender()) {
++      return;
++    }
+     if (this._replacingEvent !== newEvent) {
+       this._replacingEvent = newEvent !== null && newEvent !== void 0 ? newEvent : null;
+       this.emit(MatrixEventEvent.Replaced, this);
+@@ -1341,7 +1346,13 @@ export class MatrixEvent extends TypedEventEmitter {
+   }
+   getServerAggregatedRelation(relType) {
+     var _this$getUnsigned$mR;
+-    return (_this$getUnsigned$mR = this.getUnsigned()["m.relations"]) === null || _this$getUnsigned$mR === void 0 ? void 0 : _this$getUnsigned$mR[relType];
++    var relation = (_this$getUnsigned$mR = this.getUnsigned()["m.relations"]) === null || _this$getUnsigned$mR === void 0 ? void 0 : _this$getUnsigned$mR[relType];
++    // MindRoom: only a message's sender can edit it, as makeReplaced checks; an edit the server
++    // bundles from another sender is no edit of this event.
++    if (relType === RelationType.Replace && (relation === null || relation === void 0 ? void 0 : relation.sender) !== this.getSender()) {
++      return undefined;
++    }
++    return relation;
+   }
+ 
+   /**
+diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
+index 19a2f43..d7c247c 100644
+--- a/node_modules/matrix-js-sdk/src/models/event.ts
++++ b/node_modules/matrix-js-sdk/src/models/event.ts
+@@ -1526,6 +1526,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+         if (this.isState()) {
+             return;
+         }
++        // MindRoom: only a message's sender can edit it, as Relations.getLastReplacement checks for live
++        // edits; another sender's replacement changes nothing.
++        if (newEvent && newEvent.getSender() !== this.getSender()) {
++            return;
++        }
+         if (this._replacingEvent !== newEvent) {
+             this._replacingEvent = newEvent ?? null;
+             this.emit(MatrixEventEvent.Replaced, this);
+@@ -1548,7 +1553,13 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
+     }
+ 
+     public getServerAggregatedRelation<T>(relType: RelationType | string): T | undefined {
+-        return this.getUnsigned()["m.relations"]?.[relType];
++        const relation = this.getUnsigned()["m.relations"]?.[relType];
++        // MindRoom: only a message's sender can edit it, as makeReplaced checks; an edit the server
++        // bundles from another sender is no edit of this event.
++        if (relType === RelationType.Replace && relation?.sender !== this.getSender()) {
++            return undefined;
++        }
++        return relation;
+     }
+ 
+     /**

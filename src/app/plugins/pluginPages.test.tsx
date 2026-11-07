@@ -29,6 +29,9 @@ const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   tag: `${id}@1.0.0`,
   messageRenderers: [],
   pages,
+  roomHeaderSlot: [],
+  sidePanels: [],
+  headerActions: [],
 });
 
 /** A config.json with this `plugins` section. */

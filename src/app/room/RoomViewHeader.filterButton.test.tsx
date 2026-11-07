@@ -3,20 +3,19 @@ import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../preferences/settings';
-import { RoomViewHeader } from './RoomViewHeader';
+import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import {
-  createDefaultThreadFilterState,
-  type ThreadFilterState,
-} from '../event-store/threads/roomThreadOverviewModel';
+import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
+import { Icons } from 'folds';
 
-const { view, screen, navigate } = vi.hoisted(() => ({
+const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
     mode: 'compact' as RoomViewMode,
     setViewMode: (() => undefined) as (mode: string) => void,
   },
   screen: { size: 'Desktop' },
   navigate: vi.fn(),
+  pins: { ids: [] as string[] },
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
@@ -67,13 +66,12 @@ vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new S
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ action: () => false, event: () => false }),
 }));
-vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => [] }));
+vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
+vi.mock('../messages/pins/RoomPinMenu', () => ({ RoomPinMenu: () => <div data-pin-list="" /> }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
-vi.mock('../calls/callStore', () => ({ useCallPanel: () => [false, vi.fn()] }));
-vi.mock('../members/useMembersDrawer', () => ({ useMembersDrawer: () => [false, vi.fn()] }));
 vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,
@@ -97,21 +95,16 @@ afterEach(() => {
   renderer = undefined;
   screen.size = 'Desktop';
   navigate.mockReset();
+  pins.ids = [];
 });
 
 const renderHeader = ({
   mode = 'compact',
   hidden = false,
   hasMindroomAgents = true,
-  threadId,
   threadFilterState = createDefaultThreadFilterState(),
-}: {
-  mode?: RoomViewMode;
-  hidden?: boolean;
-  hasMindroomAgents?: boolean;
-  threadId?: string;
-  threadFilterState?: ThreadFilterState;
-} = {}) => {
+  ...props
+}: RoomViewHeaderProps & { mode?: RoomViewMode; hidden?: boolean } = {}) => {
   act(() => renderer?.unmount());
   view.mode = mode;
   const store = createStore();
@@ -121,8 +114,8 @@ const renderHeader = ({
       <Provider store={store}>
         <RoomViewHeader
           hasMindroomAgents={hasMindroomAgents}
-          threadId={threadId}
           threadFilterState={threadFilterState}
+          {...props}
         />
       </Provider>
     );
@@ -195,6 +188,17 @@ describe('the room header view switch', () => {
     return { pressed: viewSwitch.props['aria-pressed'], next: setViewMode.mock.calls[0]?.[0] };
   };
 
+  it('tints the switch while the room shows Compact', () => {
+    const tint = () =>
+      renderer?.root.findAll(
+        (node) => node.props['aria-label'] === 'Compact view' && 'variant' in node.props
+      )[0]?.props.variant;
+    renderHeader({ mode: 'compact' });
+    expect(tint()).toBe('Primary');
+    renderHeader({ mode: 'threaded' });
+    expect(tint()).toBe('Surface');
+  });
+
   it('goes between Compact and Threads in rooms with and without agents', () => {
     expect(switchTo('compact', true)).toEqual({ pressed: true, next: 'threaded' });
     expect(switchTo('threaded', true)).toEqual({ pressed: false, next: 'compact' });
@@ -207,17 +211,20 @@ describe('the room header view switch', () => {
   });
 });
 
+const buttons = (match: (node: ReactTestInstance) => boolean): ReactTestInstance[] =>
+  renderer?.root.findAll((node) => node.type === 'button' && match(node)) ?? [];
+const textOf = (node: ReactTestInstance): string =>
+  node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
+
+const openMenu = () => {
+  const [more] = buttons((node) => node.props['aria-label'] === 'More Options');
+  if (!more) throw new Error('no More Options button');
+  act(() => {
+    more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+  });
+};
+
 describe("a phone's room header", () => {
-  const openMenu = () => {
-    const [more] =
-      renderer?.root.findAll(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'More Options'
-      ) ?? [];
-    if (!more) throw new Error('no More Options button');
-    act(() => {
-      more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
-    });
-  };
   const entry = (name: string): ReactTestInstance | undefined =>
     byData(name).find((node) => node.type === 'button');
 
@@ -308,5 +315,230 @@ describe("a phone's room header", () => {
     renderHeader();
     swipeFromLeftEdge();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("the room header's side panel controls", () => {
+  const PLUGIN_PANELS = [
+    { id: 'notes/panel', label: 'Notes' },
+    { id: 'tasks/panel', label: 'Tasks' },
+  ];
+  /** The room menu's plugin panel entries: label and whether each is checked. */
+  const panelEntries = () =>
+    buttons(
+      (node) =>
+        node.props.role === 'menuitemcheckbox' &&
+        PLUGIN_PANELS.some(({ label }) => textOf(node) === label)
+    ).map((node) => [textOf(node), node.props['aria-checked'] as boolean]);
+
+  it.each(['Desktop', 'Mobile'])(
+    "offers the plugins' panels in the room menu on %s, marking the one shown",
+    (size) => {
+      screen.size = size;
+      const onPanelToggle = vi.fn();
+      renderHeader({ pluginPanels: PLUGIN_PANELS, shownPanel: 'tasks/panel', onPanelToggle });
+      expect(panelEntries()).toEqual([]);
+
+      openMenu();
+      expect(panelEntries()).toEqual([
+        ['Notes', false],
+        ['Tasks', true],
+      ]);
+      const [notes] = buttons((node) => textOf(node) === 'Notes');
+      act(() => {
+        notes?.props.onClick();
+      });
+      expect(onPanelToggle).toHaveBeenCalledWith('notes/panel');
+      // Choosing an entry closes the menu.
+      expect(panelEntries()).toEqual([]);
+    }
+  );
+
+  it('names the members button after whether the members show', () => {
+    const onPanelToggle = vi.fn();
+    renderHeader({ shownPanel: 'members', onPanelToggle });
+    const [hide] = buttons((node) => node.props['aria-label'] === 'Hide Members');
+    act(() => {
+      hide?.props.onClick();
+    });
+    expect(onPanelToggle).toHaveBeenCalledWith('members');
+
+    renderHeader({ shownPanel: 'call', onPanelToggle });
+    expect(buttons((node) => node.props['aria-label'] === 'Show Members')).toHaveLength(1);
+  });
+});
+
+describe("the room header's actions", () => {
+  /** Every action on: an agent room in Compact with a canvas, the computer, calls, pins, a plugin panel. */
+  const renderEverything = () => {
+    pins.ids = ['$pinned'];
+    renderHeader({
+      computerAvailable: true,
+      computerShown: true,
+      onComputerToggle: vi.fn(),
+      canvases: [
+        {
+          canvasId: '$canvas',
+          roomId: '!room:example.org',
+          threadId: '$thread',
+          agentUserId: '@mindroom_helper:example.org',
+          title: 'Plans',
+          createdTs: 1,
+          revisionId: '$canvas',
+          updatedTs: 1,
+          shared: false,
+        },
+      ],
+      onCanvasOpen: vi.fn(),
+      onCanvasClose: vi.fn(),
+      // A call is on: a phone's row keeps its button, the menu offers the rest.
+      calls: (placement) =>
+        placement.at === 'menu' ? (
+          <button type="button">Call Helper</button>
+        ) : (
+          <button type="button" aria-label={placement.phone ? 'Join the call' : 'Start a call'} />
+        ),
+      pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
+      onPanelToggle: vi.fn(),
+    });
+  };
+  const rowLabels = () =>
+    buttons((node) => typeof node.props['aria-label'] === 'string').map(
+      (node) => node.props['aria-label'] as string
+    );
+  /** The room menu's entries before the ones every room menu shares (Invite first among them). */
+  const roomEntries = () => {
+    const entries = buttons((node) => !node.props['aria-label']).map(textOf);
+    return entries.slice(
+      0,
+      entries.findIndex((entry) => entry.startsWith('Invite'))
+    );
+  };
+
+  it('puts every action in the row of a wide header, in order', () => {
+    renderEverything();
+    expect(rowLabels()).toEqual([
+      'Compact view',
+      'Thread filters',
+      'Show Canvas',
+      'Show Computer',
+      'Start a call',
+      'Pinned Messages',
+      'Show Members',
+      'More Options',
+    ]);
+    openMenu();
+    expect(roomEntries()).toEqual(['Notes']);
+  });
+
+  it("folds a phone's actions into the room menu, in the row's order", () => {
+    screen.size = 'Mobile';
+    renderEverything();
+    expect(rowLabels()).toEqual(['Back', 'Join the call', 'More Options']);
+    openMenu();
+    expect(roomEntries()).toEqual([
+      'Compact view',
+      'Thread filters',
+      'Show Canvas',
+      'Show Computer',
+      'Pinned Messages',
+      'Show Members',
+      'Notes',
+      'Call Helper',
+    ]);
+  });
+
+  it("places the plugins' actions by their placement and runs them in the open room", () => {
+    const run = vi.fn();
+    const pluginActions = (['auto', 'menu'] as const).map((placement) => ({
+      id: `demo/${placement}`,
+      label: `Demo ${placement}`,
+      icon: Icons.Smile,
+      placement,
+      run,
+    }));
+    const runFromRow = () =>
+      act(() => {
+        buttons((node) => node.props['aria-label'] === 'Demo auto')[0]?.props.onClick();
+      });
+    renderHeader({ pluginActions, threadId: '$thread' });
+    expect(rowLabels().slice(-2)).toEqual(['Demo auto', 'More Options']);
+    runFromRow();
+    expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: '$thread' });
+    openMenu();
+    expect(roomEntries()).toEqual(['Demo menu']);
+    // A thread whose root the server has not confirmed yet is left out.
+    renderHeader({ pluginActions, threadId: '~local' });
+    runFromRow();
+    expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: undefined });
+
+    screen.size = 'Mobile';
+    renderHeader({ pluginActions });
+    expect(rowLabels()).toEqual(['Back', 'More Options']);
+    openMenu();
+    expect(roomEntries().slice(-3)).toEqual(['Show Members', 'Demo auto', 'Demo menu']);
+    run.mockClear();
+    act(() => {
+      buttons((node) => textOf(node) === 'Demo auto')[0]?.props.onClick();
+    });
+    expect(run).toHaveBeenCalledWith({ roomId: '!room:example.org', threadId: undefined });
+    // Choosing the entry closed the menu.
+    expect(roomEntries()).toEqual([]);
+  });
+
+  it('announces what the buttons open, the members shortcut, and a check on a shown panel', () => {
+    renderEverything();
+    const button = (label: string) =>
+      buttons((node) => node.props['aria-label'] === label)[0]?.props ?? {};
+    expect(button('Pinned Messages')['aria-haspopup']).toBe('dialog');
+    expect(button('Show Members')['aria-keyshortcuts']).toBeTruthy();
+    expect(button('More Options')).toMatchObject({
+      'aria-haspopup': 'menu',
+      'aria-expanded': false,
+    });
+    openMenu();
+    expect(button('More Options')['aria-expanded']).toBe(true);
+    const checks = () =>
+      renderer?.root
+        .findAll(
+          (node) =>
+            node.props.role === 'menuitemcheckbox' && 'label' in node.props && 'after' in node.props
+        )
+        .map((node) => !!node.props.after);
+    expect(checks()).toEqual([false]);
+
+    renderHeader({
+      pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
+      shownPanel: 'notes/panel',
+    });
+    openMenu();
+    expect(checks()).toEqual([true]);
+  });
+
+  it('opens the pinned messages from the row and from the room menu', () => {
+    pins.ids = ['$pinned'];
+    renderHeader();
+    const [pinsButton] = buttons((node) => node.props['aria-label'] === 'Pinned Messages');
+    expect(pinsButton?.props['aria-expanded']).toBe(false);
+    act(() => {
+      pinsButton?.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    });
+    expect(byData('data-pin-list')).toHaveLength(1);
+    expect(
+      buttons((node) => node.props['aria-label'] === 'Pinned Messages')[0]?.props['aria-expanded']
+    ).toBe(true);
+
+    screen.size = 'Mobile';
+    renderHeader();
+    expect(byData('data-pin-list')).toHaveLength(0);
+    openMenu();
+    const [entry] = buttons((node) => textOf(node) === 'Pinned Messages');
+    expect(entry?.props['aria-haspopup']).toBe('dialog');
+    act(() => {
+      entry?.props.onClick();
+    });
+    expect(byData('data-pin-list')).toHaveLength(1);
+    // Choosing the entry closed the menu.
+    expect(buttons((node) => textOf(node) === 'Pinned Messages')).toHaveLength(0);
   });
 });

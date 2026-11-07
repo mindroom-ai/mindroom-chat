@@ -1,11 +1,11 @@
 import {
   type ComponentProps,
-  type ReactElement,
+  Fragment,
+  type ReactNode,
   Suspense,
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -30,6 +30,10 @@ import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
 import { PanelRow } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
+import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
+import { registeredPlugins } from '../plugins/registry';
+import { enabledSidePanels } from '../plugins/sidePanels';
+import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
@@ -63,6 +67,7 @@ import {
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
+import { PluginSidePanel } from './PluginSidePanel';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -126,27 +131,20 @@ const HeaderCallMenuEntries = lazyPart(() =>
   }))
 );
 
-/** The call panel fits two tiles side by side; wider, it fits more. */
+/** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
 
-/** The side-panel controls of the room header; the room owns their state. */
-type HeaderPanelControls = Pick<
-  RoomViewHeaderProps,
-  | 'computerAvailable'
-  | 'computerOpen'
-  | 'computerShown'
-  | 'onComputerToggle'
-  | 'canvasOpen'
-  | 'canvases'
-  | 'openCanvasId'
-  | 'onCanvasOpen'
-  | 'onCanvasClose'
-  | 'calls'
->;
-
 /** A canvas on screen and the conversation it was opened in. */
 type ShownCanvas = { event: MatrixEvent; expanded: boolean; conversation: string };
+
+/** A side panel of the room: whether it takes the conversation's place, and what it shows. */
+type PanelEntry = RoomPanel & {
+  covers: boolean;
+  render: () => ReactNode;
+  /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
+  show?: () => void;
+};
 
 /** The computer agents of the room and the server each one runs on. */
 const useRoomComputer = (
@@ -163,6 +161,8 @@ const useRoomComputer = (
   const apiUrl = configuredApiUrl ?? discoveredApiUrl;
 
   const agents = useMemo<ComputerAgent[]>(() => {
+    // With no server to reach, as when the user turned computers off, no agent's computer opens.
+    if (!apiUrl) return [];
     const joinedAgents = members.filter(
       (member) =>
         member.membership === 'join' &&
@@ -179,7 +179,7 @@ const useRoomComputer = (
       if (!bindsOpenIdTokens || !published?.computer) return [];
       return [{ userId: member.userId, name, serverUrl: published.apiUrl }];
     });
-  }, [bindsOpenIdTokens, configuredApiUrl, members, myUserId, roomServers]);
+  }, [apiUrl, bindsOpenIdTokens, configuredApiUrl, members, myUserId, roomServers]);
 
   return { agents, apiUrl: agents.length > 0 ? apiUrl : undefined };
 };
@@ -197,7 +197,7 @@ const useRoomRoute = () => {
 
 /**
  * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, the
- * call, or the members). The room also carries out the UI requests agents send
+ * call, the members, or a plugin's panel). The room also carries out the UI requests agents send
  * (`io.mindroom.ui_action`).
  */
 export function Room() {
@@ -278,41 +278,167 @@ function RoomContent() {
     canvasEnabled && shownCanvas?.conversation === conversation ? shownCanvas : undefined;
   const openCanvasId = canvas?.event.getId() ?? undefined;
   const closeCanvas = useCallback(() => setShownCanvas(undefined), []);
-  const showCanvas = useCallback(
-    (event: MatrixEvent, expanded = false) => {
-      setShownCanvas({ event, expanded, conversation });
-      closeComputer();
-      setMembersOpen(false);
-    },
-    [closeComputer, conversation, setMembersOpen]
-  );
 
-  const onComputerToggle = useCallback(() => {
-    if (!computer.open) {
-      closeCanvas();
-      setMembersOpen(false);
-    }
-    toggleComputer();
-  }, [closeCanvas, computer.open, setMembersOpen, toggleComputer]);
-
-  // The call panel is one more side panel: opening it closes a canvas or the computer, and opening
-  // the computer closes it. A canvas does not open while this device is in a call (PANEL-09). The
-  // members panel only steps aside while the call shows.
+  // A canvas does not open while this device is in a call (PANEL-09).
   const [callOpen, setCallOpen] = useCallPanel(roomId);
   const inCall = useInCall();
-  const mediaPanelOpen = computerOpen || !!canvas;
-  const lastPanels = useRef({ callOpen, mediaPanelOpen });
-  useEffect(() => {
-    const last = lastPanels.current;
-    lastPanels.current = { callOpen, mediaPanelOpen };
-    if (callOpen && !last.callOpen) {
-      closeCanvas();
-      closeComputer();
-    } else if (mediaPanelOpen && !last.mediaPanelOpen && callOpen) {
-      setCallOpen(false);
-    }
-  }, [callOpen, closeCanvas, closeComputer, mediaPanelOpen, setCallOpen]);
-  const callShown = callOpen && !mediaPanelOpen;
+
+  const pluginPanels = useMemo(
+    () => enabledSidePanels(registeredPlugins, clientConfig),
+    [clientConfig]
+  );
+  const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
+  // A plugin's panel belongs to the room it opened in.
+  const [pluginPanel, setPluginPanel] = useState<{ roomId: string; id: string }>();
+  const closePluginPanel = useCallback(() => setPluginPanel(undefined), []);
+
+  const closeCall = () => setCallOpen(false);
+  const closeMembers = () => setMembersOpen(false);
+
+  // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
+  // others, except that the members stay open behind the call and show again when it closes.
+  const panels: PanelEntry[] = [
+    {
+      id: 'computer',
+      open: computerOpen,
+      close: closeComputer,
+      covers: mobile || computerExpanded,
+      render: () =>
+        computerTarget.apiUrl && (
+          <ResizablePanel
+            side="end"
+            storageKey={`mindroom.computer.width:${ownUserId}`}
+            defaultWidth={COMPUTER_DEFAULT_WIDTH}
+            minContentWidth={CONVERSATION_MIN_WIDTH}
+            maxPanelWidth={COMPUTER_MAX_WIDTH}
+            fullWidth={!mobile && computerExpanded}
+            passthrough={mobile}
+            resizeLabel={t('mindroomUi.computer.resize')}
+            collapseLabel={t('mindroomUi.computer.close')}
+            onCollapse={closeComputer}
+            testId="resizable-computer-panel"
+          >
+            <ComputerPanel
+              agents={computerTarget.agents}
+              apiUrl={computerTarget.apiUrl}
+              mx={client}
+              roomId={roomId}
+              threadId={threadId}
+              continuationReady={routeReady}
+              requestedAgent={computer.requestedAgent}
+              onInteractionChange={reportInteraction}
+              onClose={closeComputer}
+              expanded={!mobile && computerExpanded}
+              onToggleExpanded={
+                mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
+              }
+            />
+          </ResizablePanel>
+        ),
+    },
+    {
+      id: 'canvas',
+      open: !!canvas,
+      close: closeCanvas,
+      covers: mobile || !!canvas?.expanded,
+      render: () =>
+        canvas && (
+          <RoomCanvasPanel
+            mx={client}
+            room={room}
+            event={canvas.event}
+            onClose={closeCanvas}
+            expanded={canvas.expanded}
+            onToggleExpanded={() =>
+              setShownCanvas((shown) => shown && { ...shown, expanded: !shown.expanded })
+            }
+            libraries={clientConfig.mindroom?.canvas?.libraries === true}
+          />
+        ),
+    },
+    {
+      id: 'call',
+      open: callOpen,
+      close: closeCall,
+      // The call buttons, a ring and a call started elsewhere open it in the call store.
+      opensElsewhere: true,
+      covers: mobile,
+      render: () => (
+        <ResizablePanel
+          side="end"
+          storageKey={`mindroom.call.width:${ownUserId}`}
+          defaultWidth={CALL_DEFAULT_WIDTH}
+          minContentWidth={CONVERSATION_MIN_WIDTH}
+          maxPanelWidth={CALL_MAX_WIDTH}
+          passthrough={mobile}
+          resizeLabel={t('featureUi.calls.panel.resize')}
+          collapseLabel={t('featureUi.calls.panel.close')}
+          onCollapse={closeCall}
+          testId="resizable-call-panel"
+        >
+          <Suspense fallback={null}>
+            <CallPanel room={room} onClose={closeCall} />
+          </Suspense>
+        </ResizablePanel>
+      ),
+    },
+    ...pluginPanels.map(
+      (panel): PanelEntry => ({
+        id: panel.id,
+        open: pluginPanel?.roomId === roomId && pluginPanel.id === panel.id,
+        close: closePluginPanel,
+        show: () => setPluginPanel({ roomId, id: panel.id }),
+        covers: mobile,
+        render: () => (
+          <ResizablePanel
+            side="end"
+            storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
+            defaultWidth={CALL_DEFAULT_WIDTH}
+            minContentWidth={CONVERSATION_MIN_WIDTH}
+            maxPanelWidth={CALL_MAX_WIDTH}
+            passthrough={mobile}
+            resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
+            collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
+            onCollapse={closePluginPanel}
+            testId="resizable-plugin-panel"
+          >
+            <PluginSidePanel panel={panel} roomId={roomId} onClose={closePluginPanel} />
+          </ResizablePanel>
+        ),
+      })
+    ),
+    {
+      id: 'members',
+      open: membersOpen,
+      close: closeMembers,
+      show: () => setMembersOpen(true),
+      yieldsTo: ['call'],
+      covers: false,
+      render: () => (
+        <ResizableMembersPanel onClose={closeMembers}>
+          <MembersDrawer key={roomId} room={room} members={members} />
+        </ResizableMembersPanel>
+      ),
+    },
+  ];
+  const { shown, request } = useRoomPanels(panels);
+
+  const showCanvas = useCallback(
+    (event: MatrixEvent, expanded = false) =>
+      request('canvas', () => setShownCanvas({ event, expanded, conversation })),
+    [conversation, request]
+  );
+  const onComputerToggle = useCallback(() => {
+    if (computer.open) toggleComputer();
+    else request('computer', toggleComputer);
+  }, [computer.open, request, toggleComputer]);
+  /** The header's toggle of a panel it opens by itself: the members, or a plugin's. */
+  const onPanelToggle = (id: string) => {
+    const panel = panels.find((candidate) => candidate.id === id);
+    if (!panel?.show) return;
+    if (shown?.id === id) panel.close();
+    else request(id, panel.show);
+  };
 
   // While the person controls a computer, agents may not take the view away from it.
   const controlling = computerOpen && computer.interaction.locked;
@@ -340,18 +466,13 @@ function RoomContent() {
     (action: ChatUiAction) => {
       switch (action.action) {
         case 'show_computer':
-          closeCanvas();
-          setMembersOpen(false);
-          showComputer(action.agentUserId);
+          request('computer', () => showComputer(action.agentUserId));
           break;
         case 'show_canvas':
           showCanvas(action.event);
           break;
         case 'open_panel':
-          closeCanvas();
-          closeComputer();
-          setCallOpen(false);
-          setMembersOpen(true);
+          request('members', () => setMembersOpen(true));
           break;
         case 'open_settings':
           setSettingsModal({
@@ -363,15 +484,7 @@ function RoomContent() {
         default:
       }
     },
-    [
-      closeCanvas,
-      closeComputer,
-      setCallOpen,
-      setMembersOpen,
-      setSettingsModal,
-      showCanvas,
-      showComputer,
-    ]
+    [request, setMembersOpen, setSettingsModal, showCanvas, showComputer]
   );
 
   // The Full view shows no thread routes, so an action from a thread brings the threads back.
@@ -403,8 +516,7 @@ function RoomContent() {
   const panelContext = [
     conversation,
     openCanvasId ?? '',
-    computerOpen ? 'computer' : '',
-    membersOpen ? 'members' : '',
+    ...panels.filter((panel) => panel.open).map((panel) => panel.id),
   ].join('\n');
   const onCanvasOpen = useOpenCanvasById(client, room, panelContext, uiActions.activate);
 
@@ -420,12 +532,7 @@ function RoomContent() {
   useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
 
   // On phones a panel covers the conversation; expanded, it takes the conversation's column.
-  const computerCoversConversation = computerOpen && (mobile || computerExpanded);
-  const canvasCoversConversation = !!canvas && (mobile || canvas.expanded);
-  const callCoversConversation = callShown && mobile;
-  const conversationHidden =
-    computerCoversConversation || canvasCoversConversation || callCoversConversation;
-  const membersShown = membersOpen && !computerOpen && !canvas && !callShown;
+  const conversationHidden = !!shown?.covers;
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -436,16 +543,20 @@ function RoomContent() {
   useRoomEscapeReadReceipts({ conversationHidden, hideActivity, roomId, threadId });
 
   const powerLevels = usePowerLevels(room);
-  const headerPanels: HeaderPanelControls = {
+  // The header's side panel controls, whose state the room owns, and the plugins' actions.
+  const headerPanels: RoomViewHeaderProps = {
     computerAvailable: !!computerTarget.apiUrl,
     computerOpen,
     computerShown,
     onComputerToggle,
-    canvasOpen: !!canvas,
     canvases: canvasEnabled && !inCall ? conversationCanvases : undefined,
     openCanvasId,
     onCanvasOpen,
     onCanvasClose: closeCanvas,
+    shownPanel: shown?.id,
+    onPanelToggle,
+    pluginPanels,
+    pluginActions,
     calls: (placement) => (
       <Suspense fallback={null}>
         {placement.at === 'menu' ? (
@@ -457,83 +568,9 @@ function RoomContent() {
     ),
   };
 
-  // One side panel at a time, keyed by which it is: opening or closing one moves it in or out,
-  // and one taking another's place changes width without closing first.
-  let requestedPanel: ReactElement | undefined;
-  if (computerOpen && computerTarget.apiUrl) {
-    requestedPanel = (
-      <ResizablePanel
-        key="computer"
-        side="end"
-        storageKey={`mindroom.computer.width:${ownUserId}`}
-        defaultWidth={COMPUTER_DEFAULT_WIDTH}
-        minContentWidth={CONVERSATION_MIN_WIDTH}
-        maxPanelWidth={COMPUTER_MAX_WIDTH}
-        fullWidth={!mobile && computerExpanded}
-        passthrough={mobile}
-        resizeLabel={t('mindroomUi.computer.resize')}
-        collapseLabel={t('mindroomUi.computer.close')}
-        onCollapse={closeComputer}
-        testId="resizable-computer-panel"
-      >
-        <ComputerPanel
-          agents={computerTarget.agents}
-          apiUrl={computerTarget.apiUrl}
-          mx={client}
-          roomId={roomId}
-          threadId={threadId}
-          continuationReady={routeReady}
-          requestedAgent={computer.requestedAgent}
-          onInteractionChange={reportInteraction}
-          onClose={closeComputer}
-          expanded={!mobile && computerExpanded}
-          onToggleExpanded={mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)}
-        />
-      </ResizablePanel>
-    );
-  } else if (canvas) {
-    requestedPanel = (
-      <RoomCanvasPanel
-        key="canvas"
-        mx={client}
-        room={room}
-        event={canvas.event}
-        onClose={closeCanvas}
-        expanded={canvas.expanded}
-        onToggleExpanded={() =>
-          setShownCanvas((shown) => shown && { ...shown, expanded: !shown.expanded })
-        }
-        libraries={clientConfig.mindroom?.canvas?.libraries === true}
-      />
-    );
-  } else if (callShown) {
-    requestedPanel = (
-      <ResizablePanel
-        key="call"
-        side="end"
-        storageKey={`mindroom.call.width:${ownUserId}`}
-        defaultWidth={CALL_DEFAULT_WIDTH}
-        minContentWidth={CONVERSATION_MIN_WIDTH}
-        maxPanelWidth={CALL_MAX_WIDTH}
-        passthrough={mobile}
-        resizeLabel={t('featureUi.calls.panel.resize')}
-        collapseLabel={t('featureUi.calls.panel.close')}
-        onCollapse={() => setCallOpen(false)}
-        testId="resizable-call-panel"
-      >
-        <Suspense fallback={null}>
-          <CallPanel room={room} onClose={() => setCallOpen(false)} />
-        </Suspense>
-      </ResizablePanel>
-    );
-  } else if (membersShown) {
-    requestedPanel = (
-      <ResizableMembersPanel key="members" onClose={() => setMembersOpen(false)}>
-        <MembersDrawer key={roomId} room={room} members={members} />
-      </ResizableMembersPanel>
-    );
-  }
-  const sidePanel = usePanelSlot(requestedPanel);
+  // The panel shown, keyed by which it is: opening or closing one moves it in or out, and one
+  // taking another's place changes width without closing first.
+  const sidePanel = usePanelSlot(shown && <Fragment key={shown.id}>{shown.render()}</Fragment>);
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>

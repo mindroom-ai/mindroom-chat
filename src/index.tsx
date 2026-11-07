@@ -10,6 +10,7 @@ import './app/i18n/i18n';
 // Before the app routes: a redirect (to sign in, say) must not drop the `?plugins=off` that turns
 // the client plugins off for this load.
 import './app/plugins/registry';
+import { deletePluginStorageOfRemovedAccounts } from './app/plugins/pluginStorage';
 import App from './app/shell/App';
 import {
   isNativeApp,
@@ -87,6 +88,7 @@ const prepareDocument = (): void => {
   runSafely('settings migration', () => {
     migratePrefetchSettingsStorage();
   });
+  runSafely('plugin storage of removed accounts', deletePluginStorageOfRemovedAccounts);
   runSafely('native app links', () => {
     // Capacitor's App plugin reports the SSO and pairing links the native app opens with.
     if (isNativeApp()) registerNativeAppUrlCallbacks(NativeApp);

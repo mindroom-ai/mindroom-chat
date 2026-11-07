@@ -14,7 +14,7 @@ type MockRoomViewProps = {
   computerAvailable?: boolean;
   computerOpen?: boolean;
   computerShown?: boolean;
-  canvasOpen?: boolean;
+  shownPanel?: string;
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
@@ -129,6 +129,9 @@ vi.mock('focus-trap-react', () => ({
 }));
 vi.mock('../../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../../members/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
+vi.mock('../../ui/panels/SidePanel.css', () => ({ Panel: 'panel', Header: 'header' }));
+vi.mock('../../members/PhoneMembersSheet.css', () => ({ Layer: 'layer', Scrim: 'scrim', Panel: 'panel' }));
+vi.mock('../../lib/openOverlay', () => ({ hasOpenOverlay: () => false }));
 
 vi.mock('is-hotkey', () => ({
   isKeyHotkey: vi.fn(() => false),
@@ -289,6 +292,9 @@ vi.mock('../../event-store/threads/recentThreads', () => ({
 vi.mock('../RoomViewHeader', () => ({
   RoomViewHeader: () => React.createElement('mock-room-view-header'),
 }));
+
+// The stubbed window below has no location, which the plugin registry reads as it loads.
+vi.mock('../../plugins/registry', () => ({ registeredPlugins: [] }));
 
 vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 
@@ -1003,10 +1009,10 @@ describe('Room', { timeout: 30_000 }, () => {
     await room.rerender();
     expect(room.canvasOpen()).toBe(true);
     // The header knows the canvas holds the side panel, and its Members button replaces it.
-    expect(roomState.roomViewProps?.canvasOpen).toBe(true);
+    expect(roomState.roomViewProps?.shownPanel).toBe('canvas');
     await act(async () => roomState.roomViewProps?.onCanvasClose?.());
     expect(room.canvasOpen()).toBe(false);
-    expect(roomState.roomViewProps?.canvasOpen).toBe(false);
+    expect(roomState.roomViewProps?.shownPanel).not.toBe('canvas');
     await room.unmount();
   });
 

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readCanvasNoticeTitle, readChatUiAction } from './chatUiProtocol';
 import { agentId, makeUiEvent, makeUiRoom, viewerId } from '../../ui-actions/testUtils';
 
@@ -83,6 +83,21 @@ describe('readChatUiAction', () => {
     [edit, edited, redacted, text, makeUiEvent({}, { event_id: undefined })].forEach((event) => {
       expect(readChatUiAction(event, viewerId, room)).toBeUndefined();
     });
+  });
+
+  it('keeps a request whose bundled edit is another member’s, not the agent’s', () => {
+    const { room } = makeUiRoom();
+    const withBundledEdit = (sender: string) =>
+      makeUiEvent(
+        {},
+        { unsigned: { 'm.relations': { 'm.replace': { event_id: '$edit', sender } } } }
+      );
+
+    expect(readChatUiAction(withBundledEdit(viewerId), viewerId, room)).toMatchObject({
+      eventId: '$request',
+      action: 'show_computer',
+    });
+    expect(readChatUiAction(withBundledEdit(agentId), viewerId, room)).toBeUndefined();
   });
 
   describe('show_canvas', () => {
@@ -212,8 +227,8 @@ describe('readChatUiAction', () => {
     it('ignores an edit from another sender even when the SDK applied it', () => {
       const { room } = makeUiRoom();
       const original = makeUiEvent({ action: 'show_canvas', canvas });
-      // Server-bundled edits reach the event without the SDK's sender check.
-      original.makeReplaced(
+      // The patched SDK applies no edit from another sender; the protocol checks the sender again.
+      vi.spyOn(original, 'replacingEvent').mockReturnValue(
         Object.assign(canvasEdit({ canvas: { title: 'Phish', html: '<p>log in</p>' } }), {
           getSender: () => '@mindroom_second:example.org',
         })

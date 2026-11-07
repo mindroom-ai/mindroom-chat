@@ -441,7 +441,7 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   // Pages load libraries only from jsDelivr's npm path, and only when the deployment allows it.
   const npmScript = 'https://cdn.jsdelivr.net/npm/canvas-probe@1.0.0/probe.js';
   const npmStyle = 'https://cdn.jsdelivr.net/npm/canvas-probe@1.0.0/probe.css';
-  await showCanvas(`<link rel="stylesheet" href="${npmStyle}">
+  const libraryId = await showCanvas(`<link rel="stylesheet" href="${npmStyle}">
 <p id="library">not loaded</p>
 <script src="${npmScript}"></script>
 <script src="https://cdn.jsdelivr.net/gh/canvas/probe@1.0.0/probe.js"></script>
@@ -459,7 +459,12 @@ article{background:var(--mr-surface);border:1px solid var(--mr-border);border-ra
   });
   await page.reload();
   await expect(conversation).toBeVisible();
-  await page.getByRole('button', { name: 'Open canvas', exact: true }).last().click();
+  // The reload first shows the saved sync, which may predate this canvas; the thread's own fetch
+  // adds it, so open this canvas's button rather than whichever one is last so far.
+  await page
+    .locator(`[data-message-id="${libraryId}"]`)
+    .getByRole('button', { name: 'Open canvas', exact: true })
+    .click();
   await expect(frame.locator('#library')).toHaveText('loaded');
   await expect(frame.locator('#library')).toHaveCSS('color', 'rgb(1, 2, 3)');
   await page.waitForTimeout(1_000);

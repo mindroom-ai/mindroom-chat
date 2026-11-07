@@ -50,7 +50,7 @@ export type UseCommandPalettePeople = (text: string, enabled: boolean) => Comman
 export const useStartDirectChat = (): ((userId: string) => Promise<void>) => {
   const client = useMatrixClient();
   const navigate = useNavigate();
-  // Create Chat sets call power levels for the server's default room version too.
+  // Create Chat sets its power levels for the server's default room version too.
   const version = useCapabilities()['m.room_versions']?.default;
   return useCallback(
     async (userId: string) => {

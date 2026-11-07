@@ -1,28 +1,11 @@
-import { useState, type MouseEvent, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
-import {
-  Avatar,
-  Badge,
-  Box,
-  Icon,
-  IconButton,
-  Icons,
-  Text,
-  Tooltip,
-  toRem,
-  type IconSrc,
-  type RectCords,
-} from 'folds';
-import {
-  PopOut,
-  TooltipProvider,
-  ownDirectionLine,
-  revealDirectionControls,
-} from '../ui/directional';
+import { Avatar, Badge, Box, Icons, Text, toRem, type RectCords } from 'folds';
+import { PopOut, ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { RoomTopicViewer } from './RoomTopicViewer';
@@ -54,21 +37,27 @@ import {
 } from '../schedules/RoomSchedulesButton';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
-import { useCallPanel } from '../calls/callStore';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
-import { useMembersDrawer } from '../members/useMembersDrawer';
-import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
-import type { ShortcutId } from '../shortcuts/shortcuts';
+import type { PluginHeaderAction } from '../plugins/headerActions';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
+import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
   hasActiveThreadFilters,
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 import { CompactViewIcon } from './CompactViewIcon';
-import { HeaderActionButton, HeaderTopic } from './RoomViewHeader.css';
+import {
+  HeaderActionButton,
+  HeaderActionEntry,
+  drawnByHeader,
+  showsInRow,
+  type RoomHeaderAction,
+  type RoomHeaderEntry,
+} from './roomHeaderActions';
+import { HeaderTopic } from './RoomViewHeader.css';
 import * as css from './RoomViewHeaderLayout.css';
 
 export type RoomViewHeaderProps = {
@@ -83,13 +72,20 @@ export type RoomViewHeaderProps = {
   /** Whether an agent or the user showed the computer in this conversation before. */
   computerShown?: boolean;
   onComputerToggle?: () => void;
-  canvasOpen?: boolean;
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
   /** The call controls, which the room provides (`HeaderCallButtons`) for where they go. */
   calls?: (placement: HeaderCallPlacement) => ReactNode;
+  /** The side panel beside the room, by id (src/app/ui/panels/roomPanels.ts). */
+  shownPanel?: string;
+  /** Opens the members or a plugin's panel by the room's rule, or closes it while it shows. */
+  onPanelToggle?: (id: string) => void;
+  /** The plugins' side panels, which the room menu offers. */
+  pluginPanels?: readonly { id: string; label: string }[];
+  /** The plugins' header actions, each in the row or the room menu by its placement. */
+  pluginActions?: readonly PluginHeaderAction[];
 };
 
 /**
@@ -100,65 +96,6 @@ export type HeaderCallPlacement =
   | { at: 'header'; phone: boolean }
   | { at: 'menu'; requestClose: () => void };
 
-type HeaderActionProps = {
-  label: string;
-  icon: IconSrc;
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
-  /** For a toggle whose name stays the same in both states. */
-  pressed?: boolean;
-  /** Tints the button, for a mode that is on. */
-  active?: boolean;
-  /** Drawn over the button's corner, such as a count. */
-  badge?: ReactNode;
-  buttonProps?: Record<`data-${string}` | `aria-${string}`, string | boolean | undefined>;
-  /** The keyboard shortcut for the same action, shown in the tooltip. */
-  shortcut?: ShortcutId;
-};
-
-/** An icon-only header button that names itself in a tooltip, as screen readers hear it. */
-function HeaderAction({
-  label,
-  icon,
-  onClick,
-  pressed,
-  active,
-  badge,
-  buttonProps,
-  shortcut,
-}: HeaderActionProps) {
-  return (
-    <TooltipProvider
-      position="Bottom"
-      offset={4}
-      tooltip={
-        <Tooltip>
-          <ShortcutLabel label={label} id={shortcut} size="T200" />
-        </Tooltip>
-      }
-    >
-      {(anchorRef) => (
-        <IconButton
-          ref={anchorRef}
-          size="400"
-          radii="300"
-          variant={active ? 'Primary' : 'Surface'}
-          fill={active ? 'Soft' : 'None'}
-          aria-label={label}
-          aria-pressed={pressed}
-          onClick={onClick}
-          className={HeaderActionButton}
-          style={badge ? { position: 'relative' } : undefined}
-          {...shortcutAttributes(shortcut)}
-          {...buttonProps}
-        >
-          <Icon size="400" src={icon} />
-          {badge}
-        </IconButton>
-      )}
-    </TooltipProvider>
-  );
-}
-
 // On the Members button's top end corner, out of the pointer's way.
 const joinRequestBadgeStyle = {
   position: 'absolute',
@@ -167,8 +104,8 @@ const joinRequestBadgeStyle = {
   pointerEvents: 'none',
 } as const;
 
-// A dot on the filter button's top end corner: filters apply while their bar is hidden.
-const hiddenFiltersDotStyle = {
+// A dot on a button's top end corner, out of the pointer's way; `marker` names it for tests.
+const dotStyle = {
   position: 'absolute',
   top: toRem(6),
   insetInlineEnd: toRem(6),
@@ -177,11 +114,17 @@ const hiddenFiltersDotStyle = {
   padding: 0,
   pointerEvents: 'none',
 } as const;
-
-const rectOf = (event: MouseEvent<HTMLElement>): RectCords => {
-  const { x, y, width, height } = event.currentTarget.getBoundingClientRect();
-  return { x, y, width, height };
-};
+const cornerDot = (marker: `data-${string}`) => (
+  <Badge
+    style={dotStyle}
+    size="200"
+    variant="Primary"
+    fill="Solid"
+    radii="Pill"
+    aria-hidden="true"
+    {...{ [marker]: '' }}
+  />
+);
 
 /** The list a phone's back button leads to from a room the app did not open itself. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
@@ -213,10 +156,11 @@ const useViewSwitch = (room: Room, hasMindroomAgents: boolean | undefined) => {
 };
 
 /**
- * The room header: avatar (a back button on phones), name and topic, then the Compact and Threads
- * switch, the filter bar button, scheduled tasks, canvases, the computer, calls, pinned messages,
- * members and the room menu. Phones keep the back button, the name and the room menu, which offers
- * the rest, so a long name keeps its room; a call that is on keeps its button.
+ * The room header: avatar (a back button on phones), name and topic, then its actions (the Compact
+ * and Threads switch, the filter bar button, scheduled tasks, canvases, the computer, calls, pinned
+ * messages, members, and the plugins' actions) and the room menu, which offers those its row leaves
+ * out. Phones keep the back button, the name and the room menu, so a long name keeps its room; a
+ * call that is on keeps its button.
  */
 export function RoomViewHeader({
   hasMindroomAgents,
@@ -227,12 +171,15 @@ export function RoomViewHeader({
   computerOpen,
   computerShown,
   onComputerToggle,
-  canvasOpen,
   canvases,
   openCanvasId,
   onCanvasOpen,
   onCanvasClose,
   calls,
+  shownPanel,
+  onPanelToggle,
+  pluginPanels = [],
+  pluginActions = [],
 }: RoomViewHeaderProps) {
   const room = useRoom();
   const { t } = useTranslation();
@@ -247,7 +194,6 @@ export function RoomViewHeader({
   const hiddenFiltersActive =
     filterBarHidden && !!threadFilterState && hasActiveThreadFilters(threadFilterState);
   const navigate = useNavigate();
-  const [membersOpen, setMembersOpen] = useMembersDrawer();
   const { navigateRoomThread } = useRoomNavigate();
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
@@ -295,21 +241,8 @@ export function RoomViewHeader({
   const topic = roomTopic && revealDirectionControls(roomTopic);
   const [topicOpen, setTopicOpen] = useState(false);
 
-  // Canvas, computer and call take the side panel's place, so the members panel is hidden
-  // behind them.
-  const [callOpen, setCallOpen] = useCallPanel(room.roomId);
-  const sidePanelTaken = !!computerOpen || !!canvasOpen || callOpen;
-  const membersVisible = membersOpen && !sidePanelTaken;
-  const toggleMembers = () => {
-    if (membersVisible) {
-      setMembersOpen(false);
-      return;
-    }
-    if (computerOpen) onComputerToggle?.();
-    if (canvasOpen) onCanvasClose?.();
-    if (callOpen) setCallOpen(false);
-    setMembersOpen(true);
-  };
+  const membersVisible = shownPanel === 'members';
+  const toggleMembers = () => onPanelToggle?.('members');
   useShortcut('members', () => {
     toggleMembers();
     return true;
@@ -329,15 +262,10 @@ export function RoomViewHeader({
         })
       : membersLabel;
 
-  // The header keeps a Computer button once the computer was shown; phones have no room for it.
   const canToggleComputer = !!computerAvailable && !!onComputerToggle;
-  const computerButton = canToggleComputer && !mobile && (!!computerShown || !!computerOpen);
-  const computerInMenu = canToggleComputer && !computerButton;
-
   const showCanvases = !!canvases && !!onCanvasOpen && !!onCanvasClose;
 
-  // A phone's header keeps only the back button, the name and the room menu: the menu takes the
-  // room's other actions first, each closing it before it acts where the menu's button was.
+  // An action in the room menu closes it before it acts where the menu's button was.
   const closeMenu = () => setMenuAnchor(undefined);
   const fromMenu = (act: (menuButton: RectCords | undefined) => void) => () => {
     const menuButton = menuAnchor;
@@ -357,79 +285,158 @@ export function RoomViewHeader({
       ? t('mindroomUi.threads.mindroomRoomViewHeader.hideCanvas')
       : t('mindroomUi.threads.mindroomRoomViewHeader.showCanvas');
   }
-  // A menu checkbox that is on shows a check where its icon would be.
-  const checkMark = <Icon size="100" src={Icons.Check} />;
-  const computerEntry = computerInMenu && (
-    <MenuEntry
-      icon={Icons.Monitor}
-      label={t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')}
-      onSelect={fromMenu(() => {
-        if (!computerOpen) onComputerToggle?.();
-      })}
-    />
-  );
-  // What only works in the open room: on phones all the header leaves out, else the computer.
-  const roomEntries = mobile ? (
-    <>
-      {viewSwitch && !threadId && (
-        <MenuEntry
-          role="menuitemcheckbox"
-          aria-checked={viewSwitch.compact}
-          icon={CompactViewIcon}
-          after={viewSwitch.compact ? checkMark : undefined}
-          label={t('mindroomUi.threads.mindroomRoomViewHeader.compactView')}
-          data-room-view-switch=""
-          onSelect={fromMenu(viewSwitch.toggle)}
-        />
-      )}
-      {hasFilterBar && (
-        <MenuEntry
-          role="menuitemcheckbox"
-          aria-checked={!filterBarHidden}
-          icon={Icons.Filter}
-          after={filterBarHidden ? undefined : checkMark}
-          label={
-            hiddenFiltersActive
-              ? t('mindroomUi.threads.mindroomRoomViewHeader.threadFiltersActive')
-              : t('mindroomUi.threads.roomThreadOverview.threadFilters')
-          }
-          data-thread-filter-bar-toggle=""
-          onSelect={fromMenu(() => setFilterBarHidden(!filterBarHidden))}
-        />
-      )}
-      {hasMindroomAgents && (
+  const openScheduledThread = (scheduledThreadId: string) =>
+    navigateRoomThread(room.roomId, scheduledThreadId);
+
+  // The header's actions, in the order of its row; the room menu takes, in the same order, those
+  // that do not fit (showsInRow).
+  const listed: (RoomHeaderEntry | false | undefined)[] = [
+    viewSwitch &&
+      !threadId && {
+        id: 'viewSwitch',
+        label: t('mindroomUi.threads.mindroomRoomViewHeader.compactView'),
+        icon: CompactViewIcon,
+        placement: 'auto',
+        pressed: viewSwitch.compact,
+        active: viewSwitch.compact,
+        run: viewSwitch.toggle,
+        marker: 'data-room-view-switch',
+      },
+    hasFilterBar && {
+      id: 'filterBar',
+      label: hiddenFiltersActive
+        ? t('mindroomUi.threads.mindroomRoomViewHeader.threadFiltersActive')
+        : t('mindroomUi.threads.roomThreadOverview.threadFilters'),
+      icon: Icons.Filter,
+      placement: 'auto',
+      // Not tinted: the bar itself shows whether it is on; the dot marks hidden filters.
+      pressed: !filterBarHidden,
+      run: () => setFilterBarHidden(!filterBarHidden),
+      badge: hiddenFiltersActive && cornerDot('data-hidden-filters-dot'),
+      marker: 'data-thread-filter-bar-toggle',
+    },
+    hasMindroomAgents && {
+      id: 'schedules',
+      placement: 'auto',
+      row: <RoomSchedulesButton room={room} onOpenThread={openScheduledThread} />,
+      menu: (
         <RoomSchedulesMenuEntry
           room={room}
           onSelect={fromMenu(() => setSchedulesRoomId(room.roomId))}
         />
-      )}
-      {canvasesHere.length > 0 && (
-        <MenuEntry
-          icon={Icons.Category}
-          label={canvasEntryLabel}
-          aria-haspopup={canvasesHere.length > 1 ? 'menu' : undefined}
-          onSelect={fromMenu((menuButton) => {
-            const [only] = canvasesHere;
-            if (canvasesHere.length > 1) setCanvasMenuAnchor(menuButton);
-            else if (only) chooseCanvas(only.canvasId);
-          })}
-        />
-      )}
-      {pinnedCount > 0 && (
-        <MenuEntry
-          icon={Icons.Pin}
-          label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}
-          aria-haspopup="dialog"
-          onSelect={fromMenu(setPinAnchor)}
-        />
-      )}
-      <MenuEntry icon={Icons.User} label={membersEntryLabel} onSelect={fromMenu(toggleMembers)} />
-      {computerEntry}
-      {calls?.({ at: 'menu', requestClose: closeMenu })}
-    </>
-  ) : (
-    computerEntry || undefined
-  );
+      ),
+    },
+    showCanvases &&
+      canvases.length > 0 && {
+        id: 'canvas',
+        placement: 'auto',
+        row: (
+          <CanvasHeaderButton
+            canvases={canvases}
+            openCanvasId={openCanvasId}
+            onOpen={onCanvasOpen}
+            onClose={onCanvasClose}
+          />
+        ),
+        menu: (
+          <MenuEntry
+            icon={Icons.Category}
+            label={canvasEntryLabel}
+            aria-haspopup={canvasesHere.length > 1 ? 'menu' : undefined}
+            onSelect={fromMenu((menuButton) => {
+              const [only] = canvasesHere;
+              if (canvasesHere.length > 1) setCanvasMenuAnchor(menuButton);
+              else if (only) chooseCanvas(only.canvasId);
+            })}
+          />
+        ),
+      },
+    canToggleComputer && {
+      id: 'computer',
+      label: computerOpen
+        ? t('mindroomUi.threads.mindroomRoomViewHeader.hideComputer')
+        : t('mindroomUi.threads.mindroomRoomViewHeader.showComputer'),
+      icon: Icons.Monitor,
+      // A button once the computer was shown, until then an entry of the room menu.
+      placement: computerShown || computerOpen ? 'auto' : 'menu',
+      active: !!computerOpen,
+      run: () => onComputerToggle?.(),
+    },
+    // The call buttons, which on phones keep only a call that is on (HeaderCallButtons).
+    calls && { id: 'call', placement: 'row', row: calls({ at: 'header', phone: mobile }) },
+    pinnedCount > 0 && {
+      id: 'pins',
+      label: t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages'),
+      icon: Icons.Pin,
+      placement: 'auto',
+      popup: 'dialog',
+      expanded: !!pinAnchor,
+      run: setPinAnchor,
+    },
+    {
+      id: 'members',
+      label: membersEntryLabel,
+      icon: Icons.User,
+      placement: 'auto',
+      shortcut: 'members',
+      badge: pendingRequests > 0 && (
+        <Badge
+          style={joinRequestBadgeStyle}
+          size="200"
+          variant="Primary"
+          fill="Solid"
+          radii="Pill"
+          aria-hidden="true"
+        >
+          <Text size="L400">{pendingRequests}</Text>
+        </Badge>
+      ),
+      run: toggleMembers,
+    },
+    ...pluginPanels.map(
+      ({ id, label }): RoomHeaderAction => ({
+        id: `panel:${id}`,
+        label,
+        icon: Icons.Bulb,
+        placement: 'menu',
+        pressed: shownPanel === id,
+        run: () => onPanelToggle?.(id),
+      })
+    ),
+    ...pluginActions.map(
+      ({ id, label, icon, placement, run }): RoomHeaderAction => ({
+        id: `action:${id}`,
+        label,
+        icon,
+        placement,
+        // A thread whose root the server has not confirmed yet has no id a plugin could use.
+        run: () =>
+          run({
+            roomId: room.roomId,
+            threadId: isConfirmedMatrixEventId(threadId) ? threadId : undefined,
+          }),
+      })
+    ),
+    // The room menu's call entries, for what a phone's row leaves out of the call buttons.
+    calls && {
+      id: 'callEntries',
+      placement: 'auto',
+      menu: calls({ at: 'menu', requestClose: closeMenu }),
+    },
+  ];
+  const entries = listed.filter((entry): entry is RoomHeaderEntry => !!entry);
+  const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
+  const menuEntries = entries.filter((entry) => !inRow(entry));
+  // What only works in the open room, before the room's own actions in the menu.
+  const roomEntries =
+    menuEntries.length > 0 &&
+    menuEntries.map((entry) =>
+      drawnByHeader(entry) ? (
+        <HeaderActionEntry key={entry.id} action={entry} onSelect={fromMenu(entry.run)} />
+      ) : (
+        <Fragment key={entry.id}>{entry.menu}</Fragment>
+      )
+    );
 
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
@@ -484,120 +491,28 @@ export function RoomViewHeader({
       </Box>
       {/* A small gap, so a tinted button never touches its neighbour. */}
       <Box shrink="No" alignItems="Center" gap="100">
-        {viewSwitch && !threadId && !mobile && (
-          <HeaderAction
-            label={t('mindroomUi.threads.mindroomRoomViewHeader.compactView')}
-            icon={CompactViewIcon}
-            pressed={viewSwitch.compact}
-            active={viewSwitch.compact}
-            onClick={viewSwitch.toggle}
-            buttonProps={{ 'data-room-view-switch': '' }}
-          />
-        )}
-        {hasFilterBar && !mobile && (
-          <HeaderAction
-            label={
-              hiddenFiltersActive
-                ? t('mindroomUi.threads.mindroomRoomViewHeader.threadFiltersActive')
-                : t('mindroomUi.threads.roomThreadOverview.threadFilters')
-            }
-            icon={Icons.Filter}
-            // A plain button: the bar itself shows whether it is on; the dot marks hidden filters.
-            pressed={!filterBarHidden}
-            onClick={() => setFilterBarHidden(!filterBarHidden)}
-            badge={
-              hiddenFiltersActive && (
-                <Badge
-                  style={hiddenFiltersDotStyle}
-                  size="200"
-                  variant="Primary"
-                  fill="Solid"
-                  radii="Pill"
-                  aria-hidden="true"
-                  data-hidden-filters-dot=""
-                />
-              )
-            }
-            buttonProps={{ 'data-thread-filter-bar-toggle': '' }}
-          />
-        )}
-        {hasMindroomAgents && !mobile && (
-          <RoomSchedulesButton
-            room={room}
-            onOpenThread={(scheduledThreadId) => navigateRoomThread(room.roomId, scheduledThreadId)}
-          />
-        )}
-        {showCanvases && !mobile && (
-          <CanvasHeaderButton
-            canvases={canvases}
-            openCanvasId={openCanvasId}
-            onOpen={onCanvasOpen}
-            onClose={onCanvasClose}
-          />
-        )}
-        {computerButton && (
-          <HeaderAction
-            label={
-              computerOpen
-                ? t('mindroomUi.threads.mindroomRoomViewHeader.hideComputer')
-                : t('mindroomUi.threads.mindroomRoomViewHeader.showComputer')
-            }
-            icon={Icons.Monitor}
-            active={!!computerOpen}
-            onClick={() => onComputerToggle?.()}
-          />
-        )}
-        {calls?.({ at: 'header', phone: mobile })}
-        {pinnedCount > 0 && !mobile && (
-          <HeaderAction
-            label={t('mindroomUi.threads.mindroomRoomViewHeader.pinnedMessages')}
-            icon={Icons.Pin}
-            onClick={(event) => setPinAnchor(rectOf(event))}
-            buttonProps={{ 'aria-haspopup': 'dialog', 'aria-expanded': !!pinAnchor }}
-          />
-        )}
-        {!mobile && (
-          <HeaderAction
-            label={membersEntryLabel}
-            icon={Icons.User}
-            onClick={() => toggleMembers()}
-            shortcut="members"
-            badge={
-              pendingRequests > 0 && (
-                <Badge
-                  style={joinRequestBadgeStyle}
-                  size="200"
-                  variant="Primary"
-                  fill="Solid"
-                  radii="Pill"
-                  aria-hidden="true"
-                >
-                  <Text size="L400">{pendingRequests}</Text>
-                </Badge>
-              )
-            }
-          />
-        )}
-        <HeaderAction
-          label={t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions')}
-          icon={Icons.VerticalDots}
-          onClick={(event) => setMenuAnchor(rectOf(event))}
-          buttonProps={{ 'aria-haspopup': 'menu', 'aria-expanded': !!menuAnchor }}
-          // On phones a dot marks what the menu now holds: join requests or hidden active filters.
-          badge={
-            mobile &&
-            (pendingRequests > 0 || hiddenFiltersActive) && (
-              <Badge
-                style={hiddenFiltersDotStyle}
-                size="200"
-                variant="Primary"
-                fill="Solid"
-                radii="Pill"
-                aria-hidden="true"
-                data-room-menu-dot=""
-              />
+        {entries
+          .filter(inRow)
+          .map((entry) =>
+            drawnByHeader(entry) ? (
+              <HeaderActionButton key={entry.id} action={entry} />
+            ) : (
+              <Fragment key={entry.id}>{entry.row}</Fragment>
             )
-          }
+          )}
+        <HeaderActionButton
+          action={{
+            label: t('mindroomUi.threads.mindroomRoomViewHeader.moreOptions'),
+            icon: Icons.VerticalDots,
+            popup: 'menu',
+            expanded: !!menuAnchor,
+            run: setMenuAnchor,
+            // A dot marks what the menu holds that a button would show: join requests or hidden
+            // active filters, on phones.
+            badge:
+              menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
+              cornerDot('data-room-menu-dot'),
+          }}
         />
       </Box>
       <PopOut

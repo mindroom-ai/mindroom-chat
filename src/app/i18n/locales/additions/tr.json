@@ -538,6 +538,13 @@
       "resize": "Bilgisayar panelini yeniden boyutlandır",
       "close": "Bilgisayarı kapat"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Yeniden boyutlandır: {{label}}",
+        "close": "Kapat: {{label}}",
+        "failed": "Bu panel çalışmayı durdurdu."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Ajanların burada bir konuşma başlatmak için bahsedilmeye ihtiyaç duyup duymadığını gösterin veya değiştirin (ayarlama/sıfırlama yalnızca oda yöneticileri)."

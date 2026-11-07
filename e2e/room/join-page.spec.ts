@@ -189,7 +189,10 @@ const openPath = (page: Page, to: string) =>
 /**
  * A room left on another device just as the app starts: the start's check of the joined rooms
  * no longer lists it, and its leave reaches this device by sync a moment later. The page the room's
- * link opens still names it, from the state the device kept, and offers to forget it.
+ * link opens still names it, from the state the device kept, and offers to forget it. The check
+ * asks /sync about the rooms the answer misses with a filter of its own, written out in the
+ * request; only the client's sync, by its stored filter, is held back, so the check must find the
+ * leave in its own answer.
  */
 const checkLeftAtStart = async (
   browser: Browser,
@@ -213,12 +216,12 @@ const checkLeftAtStart = async (
         await post(viewer, roomPath(roomId, 'leave'));
       }
       await route.fulfill({ response: await route.fetch() });
-      // The answer arrives before the leave does through sync.
-      setTimeout(() => release(), 1_000);
+      // The answer arrives well before the leave does through sync.
+      setTimeout(() => release(), 2_000);
     }
   );
   await page.route(
-    (url) => url.pathname.endsWith('/v3/sync'),
+    (url) => url.pathname.endsWith('/v3/sync') && !url.searchParams.get('filter')?.startsWith('{'),
     async (route) => {
       try {
         // A long poll may take its full 30 seconds.
