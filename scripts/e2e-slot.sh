@@ -37,7 +37,8 @@
 # Its exit releases it, also on failure or Ctrl-C. `down` takes none.
 set -euo pipefail
 # Everything runs from main, which bash reads whole before it starts: editing this file while a
-# run is in progress (a shared checkout) cannot change what that run executes next.
+# run is in progress (a shared checkout) cannot change what that run executes next. The scripts it
+# sources (scripts/private-dir.sh) or runs are read when the run reaches them.
 main() {
   slot="${1:?slot number}"
   shift
@@ -81,8 +82,8 @@ main() {
   compose() { docker compose -f "$compose_file" "$@"; }
 
   # The slot's MindRoom stack of the agent specs (scripts/agent-stack/stack.py) has its accounts on
-  # the homeserver, so it stops with it.
-  agent_stack_down() { python3 "$repo/scripts/agent-stack/stack.py" "$slot" down >/dev/null 2>&1 || true; }
+  # the homeserver, so it stops with it. A root it refuses is named, and the rest still stops.
+  agent_stack_down() { python3 "$repo/scripts/agent-stack/stack.py" "$slot" down || true; }
 
   if [ "$1" = down ]; then
     compose down --volumes --remove-orphans
@@ -180,7 +181,7 @@ main() {
   fi
   # What the run starts, it stops when it ends, also on failure or Ctrl-C.
   stop_run_services() {
-    if [ "$rtc" = 1 ]; then bash "$rtc_script" "$slot" down >/dev/null 2>&1 || true; fi
+    if [ "$rtc" = 1 ]; then bash "$rtc_script" "$slot" down || true; fi
     if [ "$rtc" = 1 ] && [ "$fresh" = 0 ]; then
       # The homeserver outlives the run: it stops naming the call service that is gone.
       E2E_LIVEKIT_SERVICE_URL='' compose --progress quiet up -d --wait >/dev/null 2>&1 || true
