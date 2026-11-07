@@ -14,14 +14,15 @@ import {
 // denies the older ones as their jobs end; its published jobs state stops changing (the runtime's
 // writes are refused). The thread's counts follow what the server holds while the requests keep
 // coming: the approval bar's Review count is the approvals still pending, and the jobs bar shows
-// the published state, with every job Stopping… once Stop all is pressed. Chromium and WebKit.
+// the published state, with every job Stopping… once Stop all is pressed. The sizes are those of
+// the loop live testing met (105 jobs, about 140 approvals pending). Chromium and WebKit.
 // Set APPROVAL_STORM_SHOTS=<directory> to save the thread at the end.
 const PASSWORD = 'approval-storm-counts-password';
 const SHOTS = process.env.APPROVAL_STORM_SHOTS;
 /** Approval requests the agent sends, and how many stay pending at the end. */
-const REQUESTS = 90;
-const PENDING = 25;
-const JOBS = 30;
+const REQUESTS = 300;
+const PENDING = 140;
+const JOBS = 105;
 
 type Account = { username: string; userId: string; accessToken: string };
 
@@ -126,7 +127,9 @@ test('approval and job counts follow the server during an approval storm @webkit
         tool: 'run_shell_command',
         status: 'awaiting_approval',
         requester_id: viewer.userId,
-        started_at: `2026-11-06T12:00:${String(index).padStart(2, '0')}+00:00`,
+        started_at: `2026-11-06T12:${String(Math.floor(index / 60)).padStart(2, '0')}:${String(
+          index % 60
+        ).padStart(2, '0')}+00:00`,
       })),
     }
   );
