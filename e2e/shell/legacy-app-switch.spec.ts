@@ -35,7 +35,6 @@ const PASSWORD = 'legacy-app-switch-password';
 const RUN = Date.now().toString(36);
 
 test.use({ viewport: { width: 1280, height: 800 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
-test.describe.configure({ mode: 'serial' });
 
 let legacy: string | undefined;
 
