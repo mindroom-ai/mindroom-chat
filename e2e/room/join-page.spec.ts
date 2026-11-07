@@ -145,7 +145,13 @@ const signIn = async (browser: Browser, viewer: Account, options: BrowserContext
   context.setDefaultTimeout(30_000);
   const page = await context.newPage();
   const problems: string[] = [];
-  page.on('pageerror', (error) => problems.push(`page error: ${error.message}`));
+  page.on('pageerror', (error) => {
+    // WebKit reports requests a reload or navigation cuts off ("Fetch API cannot load ... due
+    // to access control checks."), also when the app handles the failure; those are not the app's.
+    if (!/due to access control checks\.$/.test(error.message)) {
+      problems.push(`page error: ${error.message}`);
+    }
+  });
   // The slot has no provisioning service.
   await page.route('**/v1/local-mindroom/connections', (route) =>
     route.fulfill({ json: { connections: [] } })
@@ -366,7 +372,8 @@ const checkPhoneBack = async (browser: Browser, label: string) => {
   const main = page.locator('main');
   const join = main.getByRole('button', { name: 'Join', exact: true });
   const back = main.getByRole('button', { name: 'Back', exact: true });
-  const path = () => decodeURIComponent(new URL(page.url()).pathname);
+  // The path without its trailing slash, which a space's path does not carry.
+  const path = () => decodeURIComponent(new URL(page.url()).pathname).replace(/\/$/, '');
 
   // Opened from the Home list: back returns to it.
   await page.goto('/home/');
@@ -380,21 +387,21 @@ const checkPhoneBack = async (browser: Browser, label: string) => {
   expect(header!.y).toBeLessThan(80);
   await shots(page, `${label}-back`);
   await back.tap();
-  await expect.poll(path).toBe('/home/');
+  await expect.poll(path).toBe('/home');
   await expect(join).toHaveCount(0);
 
   // Opened from outside the app: back leads to the Home list.
   await page.goto(`/home/${encodeURIComponent(linked)}/`);
   await expect(join).toBeVisible({ timeout: 30_000 });
   await back.tap();
-  await expect.poll(path).toBe('/home/');
+  await expect.poll(path).toBe('/home');
   await expect(page.getByText('Team room 1', { exact: true })).toBeVisible();
 
   // A room of a space, opened from outside the app: back leads to the space's list.
   await page.goto(`/${encodeURIComponent(space)}/${encodeURIComponent(spaceRoom)}/`);
   await expect(join).toBeVisible({ timeout: 30_000 });
   await back.tap();
-  await expect.poll(path).toBe(`/${space}/`);
+  await expect.poll(path).toBe(`/${space}`);
   await expect(join).toHaveCount(0);
   expect(problems).toEqual([]);
   await page.context().close();
@@ -408,14 +415,14 @@ test.beforeEach(async () => {
 test('a room left elsewhere as the app starts keeps its name on its page (Chromium)', async ({
   browser,
 }) => {
-  await checkLeftAtStart(browser, 'chromium-desktop', DESKTOP);
+  await checkLeftAtStart(browser, 'left-chromium-desktop', DESKTOP);
 });
 
 test('a room left elsewhere as the app starts keeps its name on its page (WebKit phone)', async () => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   const browser = await launchWebKit();
   try {
-    await checkLeftAtStart(browser, 'webkit-phone', PHONE);
+    await checkLeftAtStart(browser, 'left-webkit-phone', PHONE);
   } finally {
     await browser.close();
   }
@@ -428,14 +435,14 @@ for (const [device, options] of [
   test(`a refused join says why on the room's page and its lobby card (Chromium ${device})`, async ({
     browser,
   }) => {
-    await checkRefusedJoin(browser, `chromium-${device}`, options);
+    await checkRefusedJoin(browser, `refused-chromium-${device}`, options);
   });
 
   test(`a refused join says why on the room's page and its lobby card (WebKit ${device})`, async () => {
     test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     const browser = await launchWebKit();
     try {
-      await checkRefusedJoin(browser, `webkit-${device}`, options);
+      await checkRefusedJoin(browser, `refused-webkit-${device}`, options);
     } finally {
       await browser.close();
     }
@@ -445,28 +452,28 @@ for (const [device, options] of [
 test('a banned person reads who banned them and why on the room page (Chromium desktop)', async ({
   browser,
 }) => {
-  await checkBanned(browser, 'chromium-desktop', DESKTOP);
+  await checkBanned(browser, 'banned-chromium-desktop', DESKTOP);
 });
 
 test('a banned person reads who banned them and why on the room page (WebKit phone)', async () => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   const browser = await launchWebKit();
   try {
-    await checkBanned(browser, 'webkit-phone', PHONE);
+    await checkBanned(browser, 'banned-webkit-phone', PHONE);
   } finally {
     await browser.close();
   }
 });
 
 test("a phone's room page leads back (Chromium)", async ({ browser }) => {
-  await checkPhoneBack(browser, 'chromium-phone');
+  await checkPhoneBack(browser, 'back-chromium-phone');
 });
 
 test("a phone's room page leads back (WebKit)", async () => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   const browser = await launchWebKit();
   try {
-    await checkPhoneBack(browser, 'webkit-phone');
+    await checkPhoneBack(browser, 'back-webkit-phone');
   } finally {
     await browser.close();
   }
