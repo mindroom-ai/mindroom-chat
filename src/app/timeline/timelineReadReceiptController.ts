@@ -31,8 +31,7 @@ import {
 import { isLatestAnchorInReach } from './roomTimelineScroll';
 import { waitForScrollQuiescence } from './scrollQuiescence';
 import { useReaderSees } from './useReaderSees';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { conversationOutOfSightAtom } from '../navigation/conversationCover';
 
 /**
  * How long the bottom anchor must stay out of reach before the view counts as scrolled away, so a
@@ -215,10 +214,9 @@ export const useTimelineReadReceiptController = ({
   });
 
   // A phone's navigation drawer, or a plugin's cover, over the timeline hides it as a window
-  // without the focus does; once it goes, the reader sees the timeline again.
+  // without the focus does; once it goes, the reader sees it again.
   const readerSees = useReaderSees();
-  const navDrawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
-  const covered = useAtomValue(conversationCoveredAtom) || navDrawerOpen;
+  const outOfSight = useAtomValue(conversationOutOfSightAtom);
 
   // The view is gone once it unmounts; a frame it scheduled then reads nothing.
   const mountedRef = useRef(false);
@@ -334,12 +332,12 @@ export const useTimelineReadReceiptController = ({
   );
   useDocumentFocusChange(handleWindowFocus);
   // The drawer or the cover going counts as coming back to the window.
-  const coveredRef = useRef(covered);
+  const coveredRef = useRef(outOfSight);
   useEffect(() => {
     const wasCovered = coveredRef.current;
-    coveredRef.current = covered;
-    if (wasCovered && !covered) handleWindowFocus(document.hasFocus());
-  }, [handleWindowFocus, covered]);
+    coveredRef.current = outOfSight;
+    if (wasCovered && !outOfSight) handleWindowFocus(document.hasFocus());
+  }, [handleWindowFocus, outOfSight]);
 
   // A thread that opens at its newest reply, or gets a reply while the reader sits at its
   // bottom with the window focused, is read.
