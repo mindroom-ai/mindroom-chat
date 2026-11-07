@@ -266,15 +266,17 @@ class CommandLineTests(unittest.TestCase):
         patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
-        self.slot_dir = Path(directory.name) / "slot-7"
+        self.root = Path(directory.name)
+        self.slot_dir = self.root / "slot-7"
         # The usual umask, which lets other users read what a process writes; the tests after these get theirs back.
         self.addCleanup(os.umask, os.umask(0o022))
 
     def main(self, *argv: str) -> object:
+        self.stderr = io.StringIO()
         with (
             mock.patch.object(sys, "argv", ["stack.py", *argv]),
             contextlib.redirect_stdout(io.StringIO()),
-            contextlib.redirect_stderr(io.StringIO()),
+            contextlib.redirect_stderr(self.stderr),
         ):
             try:
                 return stack.main()
@@ -349,6 +351,35 @@ class CommandLineTests(unittest.TestCase):
             ):
                 self.assertEqual(self.main("7", command), 0, command)
             self.assertEqual(self.mode(self.slot_dir), 0o700, command)
+
+    def test_a_missing_root_is_made_the_owners_only(self) -> None:
+        root = self.root / "new" / "agents"
+        with mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": str(root)}):
+            self.assertEqual(self.main("7", "status"), 1)
+        self.assertEqual(self.mode(root), 0o700)
+
+    def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:
+        target = self.root / "target"
+        target.mkdir(mode=0o700)
+        (self.root / "link").symlink_to(target)
+        (self.root / "file").touch(mode=0o600)
+        roots = {
+            "a symlink": (self.root / "link", 0o700, os.geteuid()),
+            "a file": (self.root / "file", 0o700, os.geteuid()),
+            "another user's": (target, 0o700, os.geteuid() + 1),
+            "writable by its group": (target, 0o770, os.geteuid()),
+            "writable by others": (target, 0o707, os.geteuid()),
+        }
+        for name, (root, mode, user) in roots.items():
+            target.chmod(mode)
+            with (
+                self.subTest(name),
+                mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": str(root)}),
+                mock.patch.object(os, "geteuid", return_value=user),
+            ):
+                self.assertEqual(self.main("7", "status"), 1)
+                self.assertIn(f"refusing {root}:", self.stderr.getvalue())
+                self.assertEqual(list(target.iterdir()), [])
 
 
 class SlotTests(unittest.TestCase):

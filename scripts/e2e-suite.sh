@@ -101,13 +101,13 @@ main() {
   mapfile -t rtc_specs < <(git grep -l 'scripts/e2e-rtc\.sh' "$sha" -- e2e | sed "s/^$sha://")
   # The same default as scripts/e2e-slot.sh, whatever $TMPDIR says.
   snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
+  . "$repo/scripts/private-dir.sh"
+  private_dir "$snapshots"
   # Traces, videos and reports of runs untouched for two days go; their logs and results.tsv stay.
-  if [ -d "$snapshots" ]; then
-    find "$snapshots" -mindepth 1 -maxdepth 1 -type d -name 'suite-*' -mmin +2880 -print0 |
-      while IFS= read -r -d '' old; do
-        if [ -z "$resume" ] || ! [ "$old" -ef "$resume" ]; then rm -rf "$old/output" "$old/json"; fi
-      done
-  fi
+  find "$snapshots" -mindepth 1 -maxdepth 1 -type d -name 'suite-*' -mmin +2880 -print0 |
+    while IFS= read -r -d '' old; do
+      if [ -z "$resume" ] || ! [ "$old" -ef "$resume" ]; then rm -rf "$old/output" "$old/json"; fi
+    done
   if [ -n "$resume" ]; then
     run="$resume"
     # A run that left no Playwright report (Docker or the app server failed first) has no result.

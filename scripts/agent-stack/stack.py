@@ -73,6 +73,7 @@ import secrets
 import shutil
 import signal
 import sqlite3
+import stat
 import subprocess
 import sys
 import tarfile
@@ -152,9 +153,19 @@ def ports(slot: int) -> dict[str, int]:
 
 
 def stack_root() -> Path:
+    """The root of the source trees, slots and locks, created when it is missing (owner-only, by main's umask). A root
+    that is not a directory, belongs to another user or that others may write to stops the script, untouched."""
     # Not under $TMPDIR: `nix develop` gives each shell its own, and a slot's stack must be found
     # (and stopped by `scripts/e2e-slot.sh <slot> down`) from every shell on the machine.
-    return Path(os.environ.get("E2E_AGENT_STACK_ROOT") or "/tmp/mindroom-client-agents")
+    root = Path(os.environ.get("E2E_AGENT_STACK_ROOT") or "/tmp/mindroom-client-agents")
+    with contextlib.suppress(FileExistsError):
+        root.mkdir(parents=True)
+    info = root.lstat()
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
+        raise StackError(
+            f"refusing {root}: it must be a directory (not a symlink) of the current user that no one else may write to"
+        )
+    return root
 
 
 @contextlib.contextmanager
@@ -1227,9 +1238,9 @@ def main() -> int:
     args.client_sessions = args.client_sessions or args.computers
     # A slot holds the stack's tokens and keys, so what this script and the stack's processes write is the owner's only.
     os.umask(0o077)
-    slot_dir = stack_root() / f"slot-{args.slot}"
     signal.signal(signal.SIGTERM, exit_on_sigterm)
     try:
+        slot_dir = stack_root() / f"slot-{args.slot}"
         with locked(stack_root() / f"slot-{args.slot}.lock"):
             # Also a slot that an earlier version of this script left readable to others.
             if slot_dir.is_dir():

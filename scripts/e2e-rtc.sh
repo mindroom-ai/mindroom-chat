@@ -18,6 +18,7 @@ set -euo pipefail
 slot="${1:?slot number}"
 action="${2:?up, down or env}"
 cd "$(dirname "$0")/.."
+. scripts/private-dir.sh
 
 livekit_port=$((29200 + slot))
 tcp_port=$((29300 + slot))
@@ -36,7 +37,7 @@ case "$action" in
     echo "export E2E_LIVEKIT_URL=ws://127.0.0.1:$livekit_port"
     ;;
   up)
-    mkdir -p "$state"
+    private_dir "$state"
     if ! docker inspect "$container" >/dev/null 2>&1; then
       docker run -d --rm --name "$container" --network host livekit/livekit-server:latest \
         --bind 127.0.0.1 --port "$livekit_port" --node-ip 127.0.0.1 \
@@ -62,6 +63,7 @@ case "$action" in
     exit 1
     ;;
   down)
+    private_dir "$state"
     docker rm -f "$container" >/dev/null 2>&1 || true
     if [ -s "$state/auth.pid" ]; then kill "$(cat "$state/auth.pid")" 2>/dev/null || true; fi
     rm -rf "$state"
