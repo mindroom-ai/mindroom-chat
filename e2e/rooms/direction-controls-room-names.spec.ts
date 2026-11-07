@@ -247,8 +247,14 @@ const check = async (page: Page, world: World, label: string) => {
   const header = page.getByRole('banner').filter({ has: page.locator('h1') });
   await expectShown(header.locator('h1'), ROOM_NAME_SHOWN);
   await expectShown(header.getByRole('button', { name: /^Where we file/ }), ROOM_TOPIC_SHOWN);
-  await expectShown(main.getByText(/changed the room name to/).first(), ROOM_NAME_SHOWN);
-  await expectShown(main.getByText(/changed the (room )?topic to/).first(), ROOM_TOPIC_SHOWN);
+  await expectShown(
+    main.getByText(/changed the room name to/).filter({ hasText: 'sevihcra' }),
+    ROOM_NAME_SHOWN
+  );
+  await expectShown(
+    main.getByText(/changed the (room )?topic to/).filter({ hasText: 'stpiecer' }),
+    ROOM_TOPIC_SHOWN
+  );
   // The start of the timeline names the room under its header: its topic shows twice.
   const intro = main.getByText(ROOM_TOPIC_SHOWN, { exact: true });
   await expect(intro).toHaveCount(2, { timeout: 30_000 });

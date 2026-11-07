@@ -101,7 +101,7 @@ export function ThreadSummaryMarker({
         </Text>
       </button>
       <span id={descriptionId} hidden>
-        {revealDirectionControls(summaryInfo.summaryText)} {previous}
+        {revealDirectionControls(summaryInfo.summaryText ?? '')} {previous}
       </span>
       {/* folds' PopOut layer covers the screen; as a tooltip it must let the
           pointer through to the marker and the timeline. The tooltip inside,
@@ -119,7 +119,7 @@ export function ThreadSummaryMarker({
               <Text size="T200" priority="300">
                 {provenance}
               </Text>
-              <Text size="T300">{revealDirectionControls(summaryInfo.summaryText)}</Text>
+              <Text size="T300">{revealDirectionControls(summaryInfo.summaryText ?? '')}</Text>
               {previous && (
                 <Text size="T200" priority="300">
                   {previous}
