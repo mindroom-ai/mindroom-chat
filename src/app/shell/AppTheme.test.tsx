@@ -7,6 +7,7 @@ import { DarkTheme, LightTheme, MidnightTheme, SilverTheme, useTheme } from '../
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { putSession, removeSession } from '../matrix/session/sessions';
 import { applyThemeToDom } from '../theme/themeBootstrap';
+import { subscribeAppliedTheme } from '../theme/appliedTheme';
 import { AppTheme } from './App';
 
 vi.mock('../theme/colors.css', () => ({
@@ -118,6 +119,25 @@ describe('AppTheme', () => {
     });
     expect(lastApplied()).toBe(SilverTheme);
     expect(providedTheme(renderer)).toBe(SilverTheme.id);
+  });
+
+  it('tells subscribers the kind of a changed theme once it is applied', () => {
+    installColorScheme(false);
+    signIn();
+    const store = createStore();
+    store.set(settingsAtom, { ...getSettings(), useSystemTheme: false, themeId: SilverTheme.id });
+    renderTheme(store);
+    const heard: Array<[string, unknown]> = [];
+    const unsubscribe = subscribeAppliedTheme((kind) => {
+      heard.push([kind, lastApplied()]);
+    });
+
+    act(() => {
+      store.set(settingsAtom, { ...store.get(settingsAtom), themeId: MidnightTheme.id });
+    });
+    unsubscribe();
+
+    expect(heard).toEqual([['dark', MidnightTheme]]);
   });
 
   it('follows the system switching between light and dark', () => {
