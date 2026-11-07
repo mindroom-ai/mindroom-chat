@@ -1,14 +1,15 @@
 // @ts-check
-// The fixture pages of the e2e stack's plugin directories ($E2E_PLUGIN_DIRS, scripts/agent-stack/stack.py): each
-// directory's e2e/fixtures/ is served at /e2e/plugins/<directory name>/, by the dev server and, through the fixture
-// page build of `scripts/e2e-slot.sh --preview` (vite.config.js), by `vite preview`, as e2e/fixtures/ is served at
-// /e2e/fixtures/. A page's modules import this repository's packages by name and its sources from /src/.
+// The plugin directories of the e2e stack ($E2E_PLUGIN_DIRS, scripts/agent-stack/stack.py) are served at
+// /e2e-plugins/<directory name>/, laid out as each directory is, so a fixture page in its e2e/fixtures/ is at
+// /e2e-plugins/<directory name>/e2e/fixtures/<page>.html. The dev server serves each directory from where it is
+// (`pluginDirectoryServer`); `scripts/e2e-slot.sh --preview` copies them to e2e-plugins/ in its snapshot, where
+// the fixture page build finds their pages (`pluginPageInputs`). A page's modules import this repository's
+// packages by name and its sources from /src/.
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { searchForWorkspaceRoot } from 'vite';
 
-const PAGES = path.join('e2e', 'fixtures');
-const URL_PREFIX = '/e2e/plugins/';
+const URL_PREFIX = '/e2e-plugins/';
 
 /**
  * The directories $E2E_PLUGIN_DIRS names, separated like PATH; a relative one is relative to `repository`.
@@ -29,69 +30,60 @@ export const pluginDirectories = (value, repository) =>
     });
 
 /**
- * The URL of each fixture page of `directories`, by a build input name.
- * @param {string[]} directories
+ * The fixture pages of the plugin directories copied to `copies` (e2e-plugins/ of a snapshot), by a build
+ * input name.
+ * @param {string} copies
  */
-export const pluginPageInputs = (directories) =>
+export const pluginPageInputs = (copies) =>
   Object.fromEntries(
-    directories.flatMap((directory) => {
-      const pages = path.join(directory, PAGES);
-      const name = path.basename(directory);
+    (existsSync(copies) ? readdirSync(copies) : []).flatMap((name) => {
+      const pages = path.join(copies, name, 'e2e', 'fixtures');
       return existsSync(pages)
         ? readdirSync(pages)
             .filter((file) => file.endsWith('.html'))
             .map((file) => [
               `plugin-${name}/${file.slice(0, -'.html'.length)}`,
-              `${URL_PREFIX}${name}/${file}`,
+              path.join(pages, file),
             ])
         : [];
     })
   );
 
 /**
- * Vite plugin: serves and builds the fixture pages of `directories`.
+ * Vite plugin: the dev server serves `directories` at /e2e-plugins/<directory name>/.
  * @param {string[]} directories
  * @returns {import('vite').Plugin}
  */
-export const pluginPages = (directories) => {
-  const pagesByName = new Map();
+export const pluginDirectoryServer = (directories) => {
+  const directoriesByName = new Map();
   directories.forEach((directory) => {
     const name = path.basename(directory);
-    if (pagesByName.has(name))
+    if (directoriesByName.has(name))
       throw new Error(`Two directories of E2E_PLUGIN_DIRS are named ${name}`);
-    pagesByName.set(name, path.join(directory, PAGES));
+    directoriesByName.set(name, directory);
   });
-  let root = '';
   /**
-   * The URL and file of a page or module under /e2e/plugins/, given by its URL or its path under the root.
-   * @param {string} id
+   * The file of a plugin directory that a decoded URL path names, if there is one.
+   * @param {string} url
    */
-  const pageOf = (id) => {
-    const url = id.startsWith(`${root}/`) ? id.slice(root.length) : id;
+  const fileOf = (url) => {
     if (!url.startsWith(URL_PREFIX)) return undefined;
     const [name = '', ...rest] = url.slice(URL_PREFIX.length).split('/');
-    const pages = pagesByName.get(name);
-    const file = pages === undefined ? undefined : path.join(pages, ...rest);
-    return file?.startsWith(pages + path.sep) && existsSync(file) ? { url, file } : undefined;
+    const directory = directoriesByName.get(name);
+    const file = directory === undefined ? undefined : path.join(directory, ...rest);
+    return file?.startsWith(directory + path.sep) && existsSync(file) ? file : undefined;
   };
   return {
-    name: 'mindroom-e2e-plugin-pages',
+    name: 'mindroom-e2e-plugin-directories',
     enforce: 'pre',
     config: () => ({
       server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...directories] } },
     }),
-    configResolved(config) {
-      root = config.root;
-    },
     resolveId(source, importer, options) {
+      // A page's own URLs, which Vite also asks for ahead of the browser.
       const [request = '', ...query] = source.split('?');
-      const page = pageOf(
-        importer && request.startsWith('.') ? path.join(path.dirname(importer), request) : request
-      );
-      // A page keeps a path under the root as its ID, so the build writes it to its URL; its modules are their files.
-      if (page) {
-        return page.file.endsWith('.html') ? `${root}${page.url}` : [page.file, ...query].join('?');
-      }
+      const file = fileOf(request);
+      if (file) return [file, ...query].join('?');
       // A module in a plugin directory imports packages as this repository's own modules do.
       if (
         importer &&
@@ -99,35 +91,36 @@ export const pluginPages = (directories) => {
         !source.includes(':') &&
         directories.some((directory) => importer.startsWith(directory + path.sep))
       ) {
-        return this.resolve(source, path.join(root, 'index.html'), { ...options, skipSelf: true });
+        return this.resolve(source, path.join(process.cwd(), 'index.html'), {
+          ...options,
+          skipSelf: true,
+        });
       }
       return null;
-    },
-    load(id) {
-      const page = id.endsWith('.html') ? pageOf(id) : undefined;
-      return page ? readFileSync(page.file, 'utf8') : null;
     },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const [url = '', ...query] = (req.url ?? '').split('?');
-        let page;
+        let file;
         try {
-          page = pageOf(decodeURI(url));
+          file = fileOf(decodeURI(url));
         } catch {
-          // A malformed escape names no page.
+          // A malformed escape names no file.
         }
-        if (!page || !page.file.endsWith('.html')) {
-          // A page's other files, modules and assets alike, are served from where they are.
-          if (page) req.url = ['/@fs' + encodeURI(page.file), ...query].join('?');
+        if (file === undefined) {
           next();
           return;
         }
-        server
-          .transformIndexHtml(url, readFileSync(page.file, 'utf8'), req.originalUrl)
-          .then((html) => {
-            res.setHeader('Content-Type', 'text/html');
-            res.end(html);
-          }, next);
+        if (!file.endsWith('.html')) {
+          req.url = [`/@fs${encodeURI(file)}`, ...query].join('?');
+          next();
+          return;
+        }
+        // Vite answers a page outside the root with the app, so the page is transformed here, at its URL.
+        server.transformIndexHtml(url, readFileSync(file, 'utf8'), req.originalUrl).then((html) => {
+          res.setHeader('Content-Type', 'text/html');
+          res.end(html);
+        }, next);
       });
     },
   };

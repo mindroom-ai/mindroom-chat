@@ -55,8 +55,9 @@ scripts/e2e-slot.sh snapshot, to the snapshot). Each part of a directory is opti
                                         checks it before the stack starts or is reused, and a failed check refuses the
                                         start with its detail; the backend then loads it and the helper offers its tools.
   e2e/stub-scenarios.json               more scenarios for the stub model (stub_model.py --scenarios).
-  e2e/fixtures/*.html                   fixture pages, which the slot's Chat serves at /e2e/plugins/<directory name>/
-                                        (scripts/e2e-plugin-pages.mjs).
+  e2e/fixtures/*.html                   fixture pages. The slot's Chat serves each directory at
+                                        /e2e-plugins/<directory name>/ (scripts/e2e-plugin-pages.mjs), so a page is at
+                                        /e2e-plugins/<directory name>/e2e/fixtures/<page>.html.
 e2e/fixtures/sample-plugin is one, which e2e/messages/agent-plugin-directory.spec.ts uses.
 """
 

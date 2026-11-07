@@ -8,7 +8,11 @@ import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
-import { pluginDirectories, pluginPageInputs, pluginPages } from './scripts/e2e-plugin-pages.mjs';
+import {
+  pluginDirectories,
+  pluginDirectoryServer,
+  pluginPageInputs,
+} from './scripts/e2e-plugin-pages.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
 import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
@@ -128,8 +132,9 @@ const fixturePageInputs = () =>
       .filter((name) => name.endsWith('.html'))
       .map((name) => [`fixture-${name.slice(0, -'.html'.length)}`, `${fixturePagesDir}${name}`])
   );
-// The plugin directories of the e2e stack (E2E_PLUGIN_DIRS, scripts/agent-stack/stack.py): the dev server and the
-// fixture page build serve their fixture pages at /e2e/plugins/<directory name>/.
+// The plugin directories of the e2e stack (E2E_PLUGIN_DIRS, scripts/agent-stack/stack.py), served at
+// /e2e-plugins/<directory name>/: by the dev server from where they are, and by the fixture page build from the
+// copies `scripts/e2e-slot.sh --preview` makes in e2e-plugins/ (scripts/e2e-plugin-pages.mjs).
 const pluginDirs = pluginDirectories(
   process.env.E2E_PLUGIN_DIRS,
   fileURLToPath(new URL('.', import.meta.url))
@@ -149,7 +154,7 @@ export default defineConfig({
     // (scripts/package-copies.mjs). `?worker` bundles take only `worker.plugins`; the app's one,
     // livekit-client's encryption worker, is a single prebuilt module.
     onePackageCopyPerVersion(),
-    ...(pluginDirs.length ? [pluginPages(pluginDirs)] : []),
+    ...(pluginDirs.length ? [pluginDirectoryServer(pluginDirs)] : []),
     ...(fixturePagesOnly
       ? []
       : [
@@ -187,7 +192,12 @@ export default defineConfig({
       ? {
           emptyOutDir: false,
           copyPublicDir: false,
-          rollupOptions: { input: { ...fixturePageInputs(), ...pluginPageInputs(pluginDirs) } },
+          rollupOptions: {
+            input: {
+              ...fixturePageInputs(),
+              ...pluginPageInputs(fileURLToPath(new URL('./e2e-plugins/', import.meta.url))),
+            },
+          },
         }
       : {}),
   },

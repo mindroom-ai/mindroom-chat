@@ -4,18 +4,18 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, createServer, type Rollup, type ViteDevServer } from 'vite';
+import { createLogger, createServer, type ViteDevServer } from 'vite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   pluginDirectories,
+  pluginDirectoryServer,
   pluginPageInputs,
-  pluginPages,
 } from '../../scripts/e2e-plugin-pages.mjs';
 
 const repository = fileURLToPath(new URL('../..', import.meta.url));
 
-// A plugin directory outside this repository, as a plugin's author has it: one fixture page whose module
-// imports a package by name and a source of this repository from /src/.
+// A plugin directory outside this repository, as a plugin's author has it: one fixture page with an inline
+// script, and a module that imports a package by name and a source of this repository from /src/.
 let outside = '';
 let plugin = '';
 const writePlugin = (directory: string) => {
@@ -23,7 +23,12 @@ const writePlugin = (directory: string) => {
   mkdirSync(pages, { recursive: true });
   writeFileSync(
     path.join(pages, 'page.html'),
-    '<!doctype html><html><body><script type="module" src="./page.ts"></script></body></html>'
+    [
+      '<!doctype html><html><body>',
+      '<script type="module">window.inlineMarker = "inline-page-marker";</script>',
+      '<script type="module" src="./page.ts"></script>',
+      '</body></html>',
+    ].join('\n')
   );
   writeFileSync(
     path.join(pages, 'page.ts'),
@@ -62,25 +67,27 @@ describe('pluginDirectories', () => {
   });
 });
 
-describe('pluginPages', () => {
-  it('builds each page at its URL, under an input name no other page has', () => {
-    const fooBar = path.join(outside, 'foo-bar');
-    const foo = path.join(outside, 'foo');
-    mkdirSync(path.join(fooBar, 'e2e', 'fixtures'), { recursive: true });
-    mkdirSync(path.join(foo, 'e2e', 'fixtures'), { recursive: true });
-    writeFileSync(path.join(fooBar, 'e2e', 'fixtures', 'page.html'), '');
-    writeFileSync(path.join(foo, 'e2e', 'fixtures', 'bar-page.html'), '');
-    expect(pluginPageInputs([plugin, fooBar, foo])).toEqual({
-      'plugin-my-plugin/page': '/e2e/plugins/my-plugin/page.html',
-      'plugin-foo-bar/page': '/e2e/plugins/foo-bar/page.html',
-      'plugin-foo/bar-page': '/e2e/plugins/foo/bar-page.html',
+describe('pluginPageInputs', () => {
+  it('builds the pages of each copy under an input name no other page has', () => {
+    const copies = path.join(outside, 'e2e-plugins');
+    writePlugin(path.join(copies, 'foo-bar'));
+    const foo = path.join(copies, 'foo', 'e2e', 'fixtures');
+    mkdirSync(foo, { recursive: true });
+    writeFileSync(path.join(foo, 'bar-page.html'), '');
+    mkdirSync(path.join(copies, 'no-pages'));
+    expect(pluginPageInputs(copies)).toEqual({
+      'plugin-foo-bar/page': path.join(copies, 'foo-bar', 'e2e', 'fixtures', 'page.html'),
+      'plugin-foo/bar-page': path.join(foo, 'bar-page.html'),
     });
+    expect(pluginPageInputs(path.join(outside, 'no-copies'))).toEqual({});
   });
+});
 
+describe('pluginDirectoryServer', () => {
   it('refuses two directories of one name', () => {
     const twin = path.join(outside, 'twin', 'my-plugin');
     mkdirSync(twin, { recursive: true });
-    expect(() => pluginPages([plugin, twin])).toThrow(
+    expect(() => pluginDirectoryServer([plugin, twin])).toThrow(
       'Two directories of E2E_PLUGIN_DIRS are named my-plugin'
     );
   });
@@ -89,12 +96,21 @@ describe('pluginPages', () => {
     let vite: ViteDevServer;
     let http: Server;
     let origin = '';
+    let errors: string[] = [];
     beforeEach(async () => {
+      errors = [];
       vite = await createServer({
         configFile: false,
         root: repository,
-        logLevel: 'silent',
-        plugins: [pluginPages([plugin, writePlugin(path.join(outside, '50% off plugin'))])],
+        customLogger: {
+          ...createLogger('silent'),
+          error: (message) => {
+            errors.push(message);
+          },
+        },
+        plugins: [
+          pluginDirectoryServer([plugin, writePlugin(path.join(outside, '50% off plugin'))]),
+        ],
         optimizeDeps: { noDiscovery: true },
         server: { middlewareMode: true, hmr: false, watch: null },
       });
@@ -111,15 +127,20 @@ describe('pluginPages', () => {
       await vite.close();
     });
 
-    it('serves a page and its module, which imports from this repository', async () => {
-      const page = await fetch(`${origin}/e2e/plugins/my-plugin/page.html`);
+    it('serves a page, its inline script and its module, which imports from this repository', async () => {
+      const page = await fetch(`${origin}/e2e-plugins/my-plugin/e2e/fixtures/page.html`);
       expect(page.status).toBe(200);
       expect(page.headers.get('content-type')).toBe('text/html');
       const html = await page.text();
       expect(html).toContain('/@vite/client');
-      expect(html).toContain('src="./page.ts"');
 
-      const module = await fetch(`${origin}/e2e/plugins/my-plugin/page.ts`);
+      const inline = /src="([^"]*html-proxy[^"]*)"/.exec(html)?.[1];
+      expect(inline).toBeDefined();
+      expect(await (await fetch(`${origin}${inline ?? ''}`)).text()).toContain(
+        'inline-page-marker'
+      );
+
+      const module = await fetch(`${origin}/e2e-plugins/my-plugin/e2e/fixtures/page.ts`);
       expect(module.status).toBe(200);
       const code = await module.text();
       expect(code).toContain('plugin-page-marker');
@@ -127,19 +148,20 @@ describe('pluginPages', () => {
       expect(code).toContain('/src/app/lib/isRecord.ts');
 
       writeFileSync(path.join(plugin, 'e2e', 'fixtures', 'data.json'), '{"from":"the plugin"}');
-      const data = await fetch(`${origin}/e2e/plugins/my-plugin/data.json`);
+      const data = await fetch(`${origin}/e2e-plugins/my-plugin/e2e/fixtures/data.json`);
       expect(await data.json()).toEqual({ from: 'the plugin' });
-    });
+      // Vite asked for the page's module ahead of the browser, and found it.
+      expect(errors).toEqual([]);
+    }, 30_000);
 
     it('serves a directory whose name a URL escapes', async () => {
-      const page = await fetch(`${origin}/e2e/plugins/50%25%20off%20plugin/page.html`);
-      expect(await page.text()).toContain('src="./page.ts"');
-      const module = await fetch(`${origin}/e2e/plugins/50%25%20off%20plugin/page.ts`);
-      expect(await module.text()).toContain('plugin-page-marker');
-    });
+      const directory = `${origin}/e2e-plugins/50%25%20off%20plugin/e2e/fixtures`;
+      expect(await (await fetch(`${directory}/page.html`)).text()).toContain('src="./page.ts"');
+      expect(await (await fetch(`${directory}/page.ts`)).text()).toContain('plugin-page-marker');
+    }, 30_000);
 
-    it('serves nothing outside the fixture pages', async () => {
-      writeFileSync(path.join(plugin, 'e2e', 'outside.html'), '<p>outside the pages</p>');
+    it('serves nothing outside the plugin directories', async () => {
+      writeFileSync(path.join(outside, 'outside.html'), '<p>outside the plugin</p>');
       // A raw path: a URL would resolve the dot segments before the request goes out.
       const raw = (requestPath: string) =>
         new Promise<string>((resolve, reject) => {
@@ -151,38 +173,10 @@ describe('pluginPages', () => {
             response.on('end', () => resolve(body));
           }).on('error', reject);
         });
-      expect(await raw('/e2e/plugins/my-plugin/../outside.html')).not.toContain(
-        'outside the pages'
+      expect(await raw('/e2e-plugins/my-plugin/../outside.html')).not.toContain(
+        'outside the plugin'
       );
-      expect(await raw('/e2e/plugins/my-plugin/missing.html')).not.toContain('page.ts');
-    });
+      expect(await raw('/e2e-plugins/my-plugin/missing.html')).not.toContain('page.ts');
+    }, 30_000);
   });
-
-  it('writes a built page to its URL', async () => {
-    writeFileSync(
-      path.join(plugin, 'e2e', 'fixtures', 'query.html'),
-      '<!doctype html><html><body><script type="module" src="./page.ts?v=1"></script></body></html>'
-    );
-    const result = (await build({
-      configFile: false,
-      root: repository,
-      logLevel: 'silent',
-      plugins: [pluginPages([plugin])],
-      build: {
-        write: false,
-        outDir: path.join(outside, 'dist'),
-        rollupOptions: { input: pluginPageInputs([plugin]) },
-      },
-    })) as Rollup.RollupOutput;
-    const files = new Map(result.output.map((file) => [file.fileName, file]));
-    const page = files.get('e2e/plugins/my-plugin/page.html');
-    expect(page?.type).toBe('asset');
-    const script = /src="\/(assets\/[^"]+\.js)"/.exec(
-      page?.type === 'asset' ? String(page.source) : ''
-    )?.[1];
-    const chunk = script === undefined ? undefined : files.get(script);
-    expect(chunk?.type === 'chunk' ? chunk.code : '').toContain('plugin-page-marker');
-    // A module the page asks for with a query is found too.
-    expect(files.get('e2e/plugins/my-plugin/query.html')?.type).toBe('asset');
-  }, 60_000);
 });

@@ -20,7 +20,8 @@
 #   --preview           Serve a production build (`vite build`, then `vite preview`) instead of the
 #                       dev server; implies --snapshot. The build also holds the spec fixture pages
 #                       (e2e/fixtures/*.html) and is shared by every slot that tests the same commit;
-#                       with E2E_PLUGIN_DIRS, it also holds their fixture pages and is the run's own.
+#                       with E2E_PLUGIN_DIRS, it also holds their fixture pages (the snapshot gets
+#                       copies of the directories in e2e-plugins/) and is the run's own.
 #                       Specs that import /src/ modules need the dev server.
 #   --fresh             Start the slot's homeserver empty and delete it when the command ends.
 #   --rtc               Start the slot's call service (scripts/e2e-rtc.sh: LiveKit and a MatrixRTC
@@ -113,11 +114,21 @@ main() {
 
     if [ "$preview" = 1 ]; then
       build="$snapshots/builds/$sha"
-      # The fixture pages of the plugin directories (E2E_PLUGIN_DIRS) are built in too, from files no commit
-      # pins, so such a build is this run's own.
+      # The plugin directories (E2E_PLUGIN_DIRS) are copied into the snapshot, where the fixture page
+      # build finds their pages (scripts/e2e-plugin-pages.mjs). No commit pins them, so such a build
+      # is this run's own.
       if [ -n "${E2E_PLUGIN_DIRS:-}" ]; then
         build="$snapshots/builds/slot-$slot"
         rm -rf "$build"
+        mkdir -p "$tree/e2e-plugins"
+        (
+          cd "$tree"
+          IFS=:
+          for dir in $E2E_PLUGIN_DIRS; do
+            [ -n "$dir" ] || continue
+            real="$(cd "$dir" && pwd -P)" && cp -R "$real" "e2e-plugins/$(basename "$real")"
+          done
+        )
       fi
       mkdir -p "$snapshots/builds"
       (

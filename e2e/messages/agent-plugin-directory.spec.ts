@@ -71,7 +71,7 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
 // e2e/fixtures/ pages.
 pageTest("a plugin directory's fixture page is served", async ({ page }) => {
   pageTest.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
-  await page.goto(`/e2e/plugins/${basename(sampleDir ?? '')}/page.html`);
+  await page.goto(`/e2e-plugins/${basename(sampleDir ?? '')}/e2e/fixtures/page.html`);
   await expect(page.getByText("Rendered by the sample plugin's page")).toBeVisible();
 });
 
