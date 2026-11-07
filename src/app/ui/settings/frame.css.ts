@@ -5,20 +5,36 @@ import { color, config, toRem } from 'folds';
 // menu of 32 px rows under a search field, a thin title bar with the page's place in the dialog,
 // and a centered column of sections whose settings are rows of one card, apart by their padding.
 // Right-to-left languages mirror all of it.
+//
+// The Settings dialog keeps one inset, 12 px (S300). The search field, the menu's rows, the search
+// results and Logout stay that far from the dialog's edges and from the divider; so do the page's
+// close button and, on a phone, the menu's title and its close button. The icons, the group
+// headings and the page's breadcrumb start 8 px (S200) further in, 20 px from their column's edge,
+// as the close button's icon does from the end edge. Between the field and the first group, between
+// the groups and above Logout the menu keeps the inset as well.
+
+/** The dialog's inset. */
+const INSET = config.space.S300;
+
+/** The search field's height (folds size 300), which the close button beside it shares. */
+const CONTROL_HEIGHT = toRem(32);
 
 /**
  * The height of the desktop dialog's two title bars, the search field's on top of the menu and the
  * page's beside it, so the field, the page's title and the close button share one line. Only the
- * dialog sets it; a phone's menu and pages and a room's settings pages keep 48 px.
+ * dialog sets it; a room's settings pages keep 48 px.
  */
 const BAR_HEIGHT = '--mr-settings-bar-height';
 
+/** The search field with the inset above and below it: 56 px. */
+const BAR = `calc(${CONTROL_HEIGHT} + 2 * ${INSET})`;
+
 /**
- * About 1000 by 700 px, and a margin smaller than that where the window is. Its title bars are
- * 56 px tall, so the 32 px search field keeps 12 px from the dialog's top edge, as from its side.
+ * About 1000 by 700 px, and a margin smaller than that where the window is. Its title bars keep
+ * the 32 px search field and close button the inset from the dialog's top edge.
  */
 export const SettingsDialog = style({
-  vars: { [BAR_HEIGHT]: toRem(56) },
+  vars: { [BAR_HEIGHT]: BAR },
   selectors: {
     '&&': {
       maxWidth: `min(${toRem(1000)}, calc(100% - 2 * ${config.space.S400}))`,
@@ -28,8 +44,8 @@ export const SettingsDialog = style({
 });
 
 /**
- * The menu column's rows keep 12 px from the dialog's edge and 12 px from the divider: 8 px from
- * the scrolling list's own padding and these 4 px, so the open page's fill sits evenly in the column.
+ * The menu column's rows keep the inset from the dialog's edge and from the divider: 8 px from the
+ * scrolling list's own padding and these 4 px, so the open page's fill sits evenly in the column.
  */
 export const SettingsMenu = style({
   flexGrow: 1,
@@ -44,13 +60,13 @@ globalStyle(`${SettingsMenu} button:not(:hover, :focus-visible, [aria-pressed="t
 
 /**
  * A row of a settings menu (and of the search results and Logout): 32 px tall and 4 px from the
- * next, 10 px from its edge to the icon and 8 px from the icon to the name. The keyboard's focus
- * ring is drawn inside the row, so it never covers the rows beside it.
+ * next, 8 px from its edge to the icon, as in the search field, and 8 px from the icon to the name.
+ * The keyboard's focus ring is drawn inside the row, so it never covers the rows beside it.
  */
 export const SettingsMenuRow = style({
   selectors: {
     '&&': {
-      paddingInline: toRem(10),
+      paddingInline: config.space.S200,
       gap: config.space.S200,
     },
     '& + &': {
@@ -64,21 +80,45 @@ export const SettingsMenuRow = style({
 
 /**
  * A group heading of the menu (You, This app, ...), quiet, starting where the rows' icons do: its
- * row's own 4 px and these 6 px make the rows' 10 px.
+ * row's own 4 px and these 4 px make the rows' 8 px.
  */
 export const SettingsMenuGroupLabel = style({
-  paddingInline: toRem(6),
+  paddingInline: config.space.S100,
 });
 
 /**
- * The search field on top of the menu, aligned with its rows (12 px from either side) and as tall
- * as the page's title bar beside it.
+ * A group of the menu: its heading sits right on its rows, and the inset parts it from the group
+ * above (the first group has the search field's bar above it).
+ */
+export const SettingsMenuGroup = style({
+  selectors: {
+    '& + &': { paddingBlockStart: INSET },
+  },
+});
+
+/** The menu's list starts right under the search field's bar and ends the inset above Logout. */
+export const SettingsMenuList = style({
+  selectors: {
+    '&&': { paddingBlock: `0 ${INSET}` },
+  },
+});
+
+/** A phone's menu title bar: its close button keeps the inset from the end edge. */
+export const SettingsMenuTitle = style({
+  selectors: {
+    '&&': { paddingInlineEnd: INSET },
+  },
+});
+
+/**
+ * The search field on top of the menu, aligned with its rows (the inset from either side) and with
+ * the inset above and below it, so on wider screens it is as tall as the page's title bar beside it.
  */
 export const SettingsSearchHeader = style({
   selectors: {
     '&&': {
-      height: `var(${BAR_HEIGHT}, ${toRem(48)})`,
-      paddingInline: config.space.S300,
+      height: BAR,
+      paddingInline: INSET,
     },
   },
 });
@@ -115,11 +155,11 @@ export const SettingsSearchLocation = style({
   display: 'block',
 });
 
-/** Sign out, under the menu and in line with its rows, in the danger color. */
+/** Sign out, under the menu and in line with its rows, the inset from the bottom edge, in red. */
 export const SettingsMenuFooter = style({
   flexShrink: 0,
-  paddingBlock: config.space.S200,
-  paddingInline: config.space.S300,
+  paddingBlockEnd: INSET,
+  paddingInline: INSET,
 });
 globalStyle(`${SettingsMenuFooter} > button`, { color: color.Critical.Main });
 

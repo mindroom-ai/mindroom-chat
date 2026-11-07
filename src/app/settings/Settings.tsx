@@ -9,7 +9,6 @@ import {
   OverlayCenter,
   Text,
   config,
-  toRem,
 } from 'folds';
 import { MenuItem } from '../ui/glass/GlassPrimitives';
 import FocusTrap from 'focus-trap-react';
@@ -55,8 +54,10 @@ import { SettingsBreadcrumbRoot } from '../ui/settings/SettingsPageFrame';
 import {
   SettingsMenu,
   SettingsMenuFooter,
+  SettingsMenuGroup,
   SettingsMenuGroupLabel,
   SettingsMenuRow,
+  SettingsMenuTitle,
 } from '../ui/settings/frame.css';
 
 type SettingsProps = {
@@ -121,9 +122,9 @@ const useSearchValues = () => {
   );
 };
 
-// A group heading sits at the foot of its short row, close to its own rows and clear of the
-// group above, so the whole menu fits a 700 px dialog.
-const GROUP_HEADING_STYLE = { minHeight: toRem(28), alignItems: 'flex-end', paddingBottom: 2 };
+// A group heading is as tall as its text and sits right on its rows; SettingsMenuGroup parts the
+// groups, so the whole menu fits a 700 px dialog.
+const GROUP_HEADING_STYLE = { minHeight: 0 };
 
 type SettingsMenuListProps = {
   items: SettingsMenuItem[];
@@ -145,7 +146,12 @@ function SettingsMenuList({ items, activePage, onSelect }: SettingsMenuListProps
   return (
     <div className={SettingsMenu}>
       {groups.map((group) => (
-        <div key={group.id} role="group" aria-labelledby={`settings-group-${group.id}`}>
+        <div
+          key={group.id}
+          role="group"
+          aria-labelledby={`settings-group-${group.id}`}
+          className={SettingsMenuGroup}
+        >
           <NavCategoryHeader style={GROUP_HEADING_STYLE}>
             <Text
               id={`settings-group-${group.id}`}
@@ -278,7 +284,7 @@ export function Settings({ initialPage, requestClose }: SettingsProps) {
   const dialogTitle = useMemo(() => ({ label: t('settings.title'), id: titleId }), [t, titleId]);
   const closeLabel = t('featureUi.settings.emojisStickers.globalPacks.close');
   const menuTitle = isMobile && (
-    <PageNavHeader outlined={false}>
+    <PageNavHeader outlined={false} className={SettingsMenuTitle}>
       <Text as="h2" id={titleId} size="H4" truncate style={MENU_TITLE_STYLE}>
         {dialogTitle.label}
       </Text>
