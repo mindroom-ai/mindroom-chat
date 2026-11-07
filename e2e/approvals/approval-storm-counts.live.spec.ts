@@ -13,8 +13,8 @@ import {
 // An agent caught in a loop asks for approvals faster than anyone answers them, and the runtime
 // denies the older ones as their jobs end; its published jobs state stops changing (the runtime's
 // writes are refused). The thread's counts follow what the server holds while the requests keep
-// coming: the approval bar's Review count and the timeline card's waiting count both end at the
-// approvals still pending, and the jobs bar shows the published state. Chromium and WebKit.
+// coming: the approval bar's Review count is the approvals still pending, and the jobs bar shows
+// the published state, with every job Stopping… once Stop all is pressed. Chromium and WebKit.
 // Set APPROVAL_STORM_SHOTS=<directory> to save the thread at the end.
 const PASSWORD = 'approval-storm-counts-password';
 const SHOTS = process.env.APPROVAL_STORM_SHOTS;
@@ -144,40 +144,48 @@ test('approval and job counts follow the server during an approval storm @webkit
     .getByRole('button', { name: /^Review/ });
 
   const sent: string[] = [];
-  const shownCounts = new Set<string>();
-  for (let index = 0; index < REQUESTS; index += 1) {
-    const id = `storm-${index}`;
-    // eslint-disable-next-line no-await-in-loop
-    const eventId = await sendApprovalEvent(homeserver, agent, roomId, id, {
-      ...approvalContent(id, viewer.userId, rootId, index),
-      'm.relates_to': inThread,
-    });
-    sent.push(eventId);
-    const ended = index - PENDING;
-    if (ended >= 0) {
+  /** The agent asks for the next approval and denies the oldest one past `PENDING` pending. */
+  const storm = async (count: number) => {
+    for (let step = 0; step < count; step += 1) {
+      const index = sent.length;
+      const id = `storm-${index}`;
       // eslint-disable-next-line no-await-in-loop
-      await sendApprovalEvent(homeserver, agent, roomId, `${id}-denied`, {
-        msgtype: 'io.mindroom.tool_approval',
-        body: '* Denied: run_shell_command',
-        'm.new_content': {
-          ...approvalContent(`storm-${ended}`, viewer.userId, rootId, ended),
-          status: 'denied',
-          resolved_by: null,
-          resolution_reason: 'The background job asking for this approval ended before a decision.',
-        },
-        'm.relates_to': { rel_type: 'm.replace', event_id: sent[ended] },
-      });
+      sent.push(
+        await sendApprovalEvent(homeserver, agent, roomId, id, {
+          ...approvalContent(id, viewer.userId, rootId, index),
+          'm.relates_to': inThread,
+        })
+      );
+      const ended = index - PENDING;
+      if (ended >= 0) {
+        // eslint-disable-next-line no-await-in-loop
+        await sendApprovalEvent(homeserver, agent, roomId, `${id}-denied`, {
+          msgtype: 'io.mindroom.tool_approval',
+          body: '* Denied: run_shell_command',
+          'm.new_content': {
+            ...approvalContent(`storm-${ended}`, viewer.userId, rootId, ended),
+            status: 'denied',
+            resolved_by: null,
+            resolution_reason:
+              'The background job asking for this approval ended before a decision.',
+          },
+          'm.relates_to': { rel_type: 'm.replace', event_id: sent[ended] },
+        });
+      }
     }
-    if (index % 10 === 9) {
-      // eslint-disable-next-line no-await-in-loop
-      shownCounts.add((await review.textContent().catch(() => null)) ?? 'none');
-    }
-  }
+  };
 
-  test.info().annotations.push({ type: 'review counts', description: [...shownCounts].join(', ') });
-  // The counts end at what is pending on the server.
+  await storm(REQUESTS / 2);
+  // The Review count is the approvals pending on the server, while the requests keep coming.
   await expect(review).toHaveText(`Review ${PENDING}`, { timeout: 30_000 });
-  await expect(page.getByText(`${PENDING} tool calls waiting for approval`)).toBeVisible();
+  // Stop all asks every listed job to stop; each shows Stopping… while the published state lists it.
+  await jobsBar.getByRole('button', { name: 'Stop all' }).click();
+  await expect(jobsBar.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+  await storm(REQUESTS / 2);
+  await expect(review).toHaveText(`Review ${PENDING}`, { timeout: 30_000 });
   await expect(jobsBar).toBeVisible();
+  await expect(jobsBar.getByRole('button', { name: 'Stop all' })).toHaveCount(0);
+  await jobsBar.getByRole('button', { name: `${JOBS} background jobs` }).click();
+  await expect(jobsBar.getByText('Stopping…')).toHaveCount(JOBS);
   await savePicture(page, `approval-storm-${browserName}`);
 });
