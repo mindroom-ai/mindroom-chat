@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react';
 import type { PointerEvent } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useHeldThreadOrder, usePointerOverCards } from './useHeldThreadOrder';
 
 describe('useHeldThreadOrder', () => {
@@ -53,6 +53,124 @@ describe('useHeldThreadOrder', () => {
     // An older page brought $x, whose last reply falls between $b and $c.
     rerender({ ids: ['$a', '$b', '$x', '$c'], held: true });
     expect(result.current).toEqual(['$a', '$b', '$x', '$c']);
+  });
+});
+
+describe('useHeldThreadOrder scrolling', () => {
+  const CARD = 100;
+
+  /** A list scrolled `scrollTop` down, its cards `CARD` px tall in the order `ids`. */
+  const list = (ids: string[], scrollTop: number) => {
+    const view = document.createElement('div');
+    let offset = scrollTop;
+    const writes: number[] = [];
+    Object.defineProperty(view, 'scrollTop', {
+      get: () => offset,
+      set: (value: number) => {
+        writes.push(value);
+        offset = value;
+      },
+    });
+    view.getBoundingClientRect = () => ({ top: 0, bottom: 400 } as DOMRect);
+    const show = (shownIds: string[]) =>
+      view.replaceChildren(
+        ...shownIds.map((id) => {
+          const card = document.createElement('div');
+          card.setAttribute('data-scroll-anchor', id);
+          card.getBoundingClientRect = () => {
+            const top = [...view.children].indexOf(card) * CARD - offset;
+            return { top, bottom: top + CARD } as DOMRect;
+          };
+          return card;
+        })
+      );
+    show(ids);
+    return {
+      view,
+      show,
+      writes,
+      /** The reader scrolls; the browser fires the scroll event at its next frame. */
+      scrollBy: (delta: number) => {
+        offset += delta;
+      },
+    };
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const withoutScrollAnchoring = () =>
+    vi.stubGlobal('CSS', { supports: (property: string) => property !== 'overflow-anchor' });
+
+  it("does not undo the reader's scroll that a render sees before its scroll event", () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, writes, scrollBy } = list(ids, 150);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, true, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    scrollBy(100);
+    // An index refresh renders the same threads before the scroll event fires.
+    rerender({ live: [...ids] });
+    expect(view.scrollTop).toBe(250);
+    expect(writes).toEqual([]);
+  });
+
+  it('keeps the cards in view in place when a card joins above them, without scroll anchoring', () => {
+    withoutScrollAnchoring();
+    const ids = ['$c', '$b', '$a'];
+    const { view, show } = list(ids, 150);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, true, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    show(['$d', ...ids]);
+    rerender({ live: ['$d', ...ids] });
+    expect(view.scrollTop).toBe(250);
+  });
+
+  it('keeps the cards in view in place when a card joins above them while nothing holds the order', () => {
+    withoutScrollAnchoring();
+    const ids = ['$c', '$b', '$a'];
+    const { view, show } = list(ids, 150);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    show(['$d', ...ids]);
+    rerender({ live: ['$d', ...ids] });
+    expect(view.scrollTop).toBe(250);
+  });
+
+  it('keeps its place when the topmost card in view moves to the top, by the card after it', () => {
+    withoutScrollAnchoring();
+    const ids = ['$a', '$b', '$c', '$d', '$e', '$f'];
+    const { view, show, writes } = list(ids, 250);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    // $c, topmost in view, got a reply and leads the live order.
+    const live = ['$c', '$a', '$b', '$d', '$e', '$f'];
+    show(live);
+    rerender({ live });
+    expect(writes).toEqual([]);
+    expect(view.scrollTop).toBe(250);
+  });
+
+  it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
+    vi.stubGlobal('CSS', { supports: () => true });
+    const ids = ['$c', '$b', '$a'];
+    const { view, show, writes } = list(ids, 150);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, true, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    show(['$d', ...ids]);
+    rerender({ live: ['$d', ...ids] });
+    expect(writes).toEqual([]);
   });
 });
 
