@@ -402,6 +402,17 @@ describe('packages the app shares with plugins', () => {
     ]);
   });
 
+  it("resolves react-aria to the app's copy over the one the plugin installed", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['react-aria/usePreventScroll']);
+    // A copy of its own would keep its own scroll lock, overlay stack and focus scopes.
+    installStandIn(dir, 'react-aria');
+    writeFileSync(path.join(dir, 'node_modules/react-aria/usePreventScroll.js'), 'export {};\n');
+    const modules = await bundlePlugin(dir);
+    expect(modules.some((id) => id.startsWith(appCopy('react-aria')))).toBe(true);
+    expect(modules.filter((id) => id.startsWith(`${realpathSync(dir)}/node_modules/`))).toEqual([]);
+  });
+
   it("fails the build for an import the app's copy cannot resolve, naming the plugin and the import", async () => {
     const dir = pluginDir(declaring(), { entry: false });
     importing(dir, ['dayjs/esm/only-in-the-plugin.js']);

@@ -35,7 +35,8 @@ const ENTRIES_MODULE = normalizePath(
  * packages it installed, resolve as the app's own imports do, so that the state each keeps is one
  * (React's hooks, the Matrix SDK's classes and module state, jotai's stores, TanStack Query's
  * client, React Router's router, the translations, folds' theme, focus-trap's stack of traps, dayjs's
- * locale). A plugin that lists one under `dependencies` fails the build.
+ * locale, react-aria's scroll lock, overlay stack and focus scopes). A plugin that lists one under
+ * `dependencies` fails the build.
  */
 export const SHARED_PACKAGES = [
   'react',
@@ -54,6 +55,7 @@ export const SHARED_PACKAGES = [
   'focus-trap',
   'focus-trap-react',
   'dayjs',
+  'react-aria',
 ];
 
 /** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */

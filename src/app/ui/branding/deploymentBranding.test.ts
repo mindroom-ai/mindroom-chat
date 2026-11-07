@@ -69,7 +69,7 @@ describe('resolveDeploymentBranding', () => {
         alt: 'Example Co logo',
         custom: true,
       },
-      footerText: 'Example Co internal chat',
+      footerText: ['Example Co internal chat'],
       footerLinks: [
         { label: 'Imprint', url: 'https://example.test/imprint' },
         { label: 'Help', url: 'mailto:help@example.test' },
@@ -166,7 +166,7 @@ describe('resolveDeploymentBranding', () => {
         },
       },
     });
-    expect(branding.footerText).toBe('<b>Example Co</b>');
+    expect(branding.footerText).toEqual(['<b>Example Co</b>']);
     expect(branding.footerLinks).toEqual([
       { label: 'Imprint', url: 'https://example.test/imprint' },
     ]);
@@ -188,7 +188,38 @@ describe('resolveDeploymentBranding', () => {
     ]);
   });
 
+  it('reads a footer text list as one line with links, keeping a refused link as its label', () => {
+    const { branding, warnings } = resolve({
+      branding: {
+        footer: {
+          text: [
+            { label: 'Example', url: 'https://example.test/source' },
+            ' by ',
+            { label: 'Example Co', url: 'javascript:alert(1)' },
+            { url: 'https://example.test/unlabeled' },
+            '',
+            7,
+          ],
+        },
+      },
+    });
+    expect(branding.footerText).toEqual([
+      { label: 'Example', url: 'https://example.test/source' },
+      ' by ',
+      'Example Co',
+    ]);
+    expect(warnings).toEqual([
+      expect.stringContaining('branding.footer.text[2]'),
+      expect.stringContaining('branding.footer.text[3]'),
+      expect.stringContaining('branding.footer.text[5]'),
+    ]);
+  });
+
   it('treats blank footer text as no text, without a warning', () => {
+    expect(resolve({ branding: { footer: { text: ['  ', ''] } } })).toEqual({
+      branding: DEFAULTS,
+      warnings: [],
+    });
     expect(resolve({ branding: { footer: { text: '  ' } } })).toEqual({
       branding: DEFAULTS,
       warnings: [],
