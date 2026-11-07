@@ -14,10 +14,12 @@ const fakeCacheStorage = () => {
     const entries = stores.get(name) ?? new Map<string, Response>();
     stores.set(name, entries);
     return {
-      put: vi.fn(async (request: Request, response: Response) => {
-        entries.set(request.url, response);
+      put: vi.fn(async (request: Request | string, response: Response) => {
+        entries.set(typeof request === 'string' ? request : request.url, response);
       }),
-      match: vi.fn(async (request: Request) => entries.get(request.url)?.clone()),
+      match: vi.fn(async (request: Request | string) =>
+        entries.get(typeof request === 'string' ? request : request.url)?.clone()
+      ),
       keys: vi.fn(async () => [...entries.keys()].map((url) => new Request(url))),
     };
   });
@@ -122,6 +124,20 @@ describe('fetchLanguageCatalog', () => {
       expect(kept).toHaveLength(0);
     }
     expect(urls('mindroom-languages')).toEqual([url]);
+  });
+
+  it("keeps one copy per language whatever build asked, for the next build's offline start", async () => {
+    const { urls } = fakeCacheStorage();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValueOnce(answer('{"nav":"Startseite"}')));
+    const online = catalogEvent('https://app.example/public/locales/de.json?v=build-1');
+    expect(isLanguageCatalogRequest(online.event.request, WORKER)).toBe(true);
+    await fetchLanguageCatalog(online.event);
+    await Promise.all(online.kept);
+    expect(urls('mindroom-languages')).toEqual(['https://app.example/public/locales/de.json']);
+
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
+    const offline = catalogEvent('https://app.example/public/locales/de.json?v=build-2');
+    expect(await (await fetchLanguageCatalog(offline.event)).text()).toBe('{"nav":"Startseite"}');
   });
 
   it('fails like the network when offline with nothing kept', async () => {

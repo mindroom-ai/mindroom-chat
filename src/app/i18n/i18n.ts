@@ -15,6 +15,7 @@ import {
   toSupportedLanguageCode,
 } from './i18nLanguages';
 import { appUrl } from '../lib/basePath';
+import { APP_BUILD_VERSION } from '../config/appVersion';
 import { formatNumber, localDigits } from '../lib/localDigits';
 
 // The language choice persists under the key i18next's browser detector
@@ -23,8 +24,14 @@ const LANGUAGE_STORAGE_KEY = 'i18nextLng';
 
 const RTL_LANGUAGES = new Set(['ar', 'he', 'fa', 'ur']);
 
+// A catalog's name stays the same from one build to the next, and a deployment may let browsers
+// keep files under public/ for a long time (MindRoom's client chart cached them as immutable for a
+// year), so the URL names the build: the next build's page never reads an earlier build's copy
+// from the browser's HTTP cache, the service worker or a proxy.
 const getLocaleUrl = (language: string): string =>
-  appUrl(`public/locales/${encodeURIComponent(language)}.json`);
+  `${appUrl(`public/locales/${encodeURIComponent(language)}.json`)}?v=${encodeURIComponent(
+    APP_BUILD_VERSION
+  )}`;
 
 const readStoredLanguage = (): string | undefined => {
   try {
