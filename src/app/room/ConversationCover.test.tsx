@@ -268,6 +268,7 @@ describe('a conversation cover', () => {
     show('editors');
     const button = screen.getByRole('button', { name: 'editors button' });
     // Between the editors, the browser moves the focus on to either.
+    button.focus();
     expect(fireEvent.keyDown(button, { key: 'Tab' })).toBe(true);
     expect(fireEvent.keyDown(button, { key: 'Tab', shiftKey: true })).toBe(true);
     // From the last editor, Tab goes round to the first.
