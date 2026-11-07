@@ -1,6 +1,7 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -44,9 +45,10 @@ test('the initial load is the entry with its static imports and the style sheet'
 test('with a manifest, every chunk is listed by its source or chunk name, with its style sheets', () => {
   const dist = fakeDist();
   assert.match(run(dist).stdout, /build with `npx vite build --manifest`/);
+  // Random bytes, so the raw, gzip and brotli sizes of the style sheet differ.
   writeFileSync(
     path.join(dist, 'assets', 'lazy-FFFFFFFF.css'),
-    `.a{color:blue}${' '.repeat(3000)}`
+    `/* ${randomBytes(3000).toString('hex')} */`
   );
   mkdirSync(path.join(dist, '.vite'));
   writeFileSync(
@@ -77,16 +79,20 @@ test('with a manifest, every chunk is listed by its source or chunk name, with i
       '_lazy-!~{001}~.js': { file: 'assets/lazy-FFFFFFFF.css', src: '_lazy-!~{001}~.js' },
     })
   );
-  const { stdout } = run(dist);
+  const out = path.join(dist, 'report.json');
+  const { stdout } = run(dist, '--json', out);
   const listed = stdout.split('\nEvery chunk')[1].split('\n').slice(1).filter(Boolean);
   assert.deepEqual(
     listed.map((line) => line.split(/\s{2,}/)[0]),
     ['index.html (initial)', 'leaf (initial)', 'node_modules/some-pkg/index.js', 'shared (initial)']
   );
-  const bytes = (...names) =>
-    names.reduce((total, name) => total + statSync(path.join(dist, 'assets', name)).size, 0);
-  const raw = `${(bytes('lazy-CCCCCCCC.js', 'lazy-FFFFFFFF.css') / 1024).toFixed(1)} KiB`;
-  assert.equal(listed[2].split(/\s{2,}/)[1], raw);
+  // The lazy chunk's sizes are those of its script and its style sheet together.
+  const files = JSON.parse(readFileSync(out, 'utf8')).rows.filter((row) =>
+    ['assets/lazy-CCCCCCCC.js', 'assets/lazy-FFFFFFFF.css'].includes(row.file)
+  );
+  const kb = (key) =>
+    `${(files.reduce((total, row) => total + row[key], 0) / 1024).toFixed(1)} KiB`;
+  assert.deepEqual(listed[2].split(/\s{2,}/).slice(1), [kb('raw'), kb('gzip'), kb('brotli')]);
 });
 
 test('a budget fails the run only when a size is over it', () => {
