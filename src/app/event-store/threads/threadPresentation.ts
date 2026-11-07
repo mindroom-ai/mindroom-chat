@@ -132,16 +132,7 @@ export const resolveThreadPresentationSnapshot = ({
           : event.getTs() > bundleLatest.ts)
     );
   const bundled = { title: bundle.title, reply: outgrown ? undefined : bundle.reply };
-  const loadedPreviewCandidate = getLatestRenderableVisibleThreadReplyEvent(
-    bundled.reply ? replyEvents.filter((event) => !isThreadSummaryEvent(event)) : replyEvents
-  );
-  // A title can arrive without its reply timeline. Keep the cached reply preview in that case.
-  const loadedPreviewEvent =
-    loadedPreviewCandidate &&
-    isThreadSummaryEvent(loadedPreviewCandidate) &&
-    fallbackLatestReplyPreviewText
-      ? undefined
-      : loadedPreviewCandidate;
+  const loadedPreviewEvent = getLatestRenderableVisibleThreadReplyEvent(replyEvents);
   // The SDK restores the bundled reply before loading the thread timeline.
   // Use it for presentation without treating one event as the full reply count.
   const bundledReply = bundled.reply ?? thread?.replyToEvent;
