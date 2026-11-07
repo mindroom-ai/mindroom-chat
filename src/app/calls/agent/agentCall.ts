@@ -156,6 +156,23 @@ export const createAgentVoiceRoom = async (
 };
 
 /**
+ * Invites the agent, unless the server says it is in the room already: the loaded members can lag
+ * behind the server, as for a call room made a moment ago (its creation invited the agent) that
+ * the agent joined before this device synced the invite, and a joined member cannot be invited.
+ */
+const inviteAgent = async (mx: MatrixClient, roomId: string, agentUserId: string) => {
+  try {
+    await mx.invite(roomId, agentUserId);
+  } catch (error) {
+    const member = await mx
+      .getStateEvent(roomId, StateEvent.RoomMember as never, agentUserId)
+      .catch(() => undefined);
+    const membership: unknown = member?.membership;
+    if (membership !== Membership.Join && membership !== Membership.Invite) throw error;
+  }
+};
+
+/**
  * Re-invites an agent that left and overwrites the previous call's origin.
  * The backend reads this state when the agent joins the call, so it must be written before the call starts.
  */
@@ -169,7 +186,7 @@ export const prepareAgentCallRoom = async (
   await room.loadMembersIfNeeded();
   const membership = room.getMember(agentUserId)?.membership;
   if (membership !== Membership.Join && membership !== Membership.Invite) {
-    await mx.invite(room.roomId, agentUserId);
+    await inviteAgent(mx, room.roomId, agentUserId);
   }
   // A call room made before agents could publish their background jobs gains that power level before the
   // agent hears of the call, so its first jobs are not refused; best effort.

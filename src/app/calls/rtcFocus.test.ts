@@ -4,6 +4,7 @@ import {
   chooseCallService,
   discoverLivekitServiceUrl,
   firstLivekitServiceUrl,
+  requestOwnSfuGrant,
   requestSfuGrant,
   SfuGrantError,
 } from './rtcFocus';
@@ -159,5 +160,60 @@ describe('requestSfuGrant', () => {
     await expect(
       requestSfuGrant('https://rtc.example.org', { roomId: '!r', deviceId: 'D', token }, malformed)
     ).rejects.toBeInstanceOf(SfuGrantError);
+  });
+});
+
+describe('requestOwnSfuGrant', () => {
+  const ownClient = (deviceId: string | null = 'DEVICE') =>
+    ({
+      getDomain: () => 'own.example.org',
+      baseUrl: 'https://matrix.own.example.org',
+      getDeviceId: () => deviceId,
+      getOpenIdToken: vi.fn(async () => ({
+        access_token: 'openid',
+        token_type: 'Bearer',
+        matrix_server_name: 'own.example.org',
+        expires_in: 3600,
+      })),
+      http: { authedRequest: vi.fn(async () => Promise.reject(new Error('404'))) },
+    } as unknown as MatrixClient);
+
+  it("asks the deployment's own service, the one its well-known names", async () => {
+    const fetchFn = vi.fn(async (url: string) =>
+      url.endsWith('/.well-known/matrix/client')
+        ? jsonResponse({
+            'org.matrix.msc4143.rtc_foci': [
+              { type: 'livekit', livekit_service_url: 'https://rtc.own.example.org' },
+            ],
+          })
+        : jsonResponse({ url: 'wss://sfu.own.example.org', jwt: 'jwt' })
+    );
+    vi.stubGlobal('fetch', fetchFn);
+    try {
+      await expect(requestOwnSfuGrant(ownClient(), '!call:own.example.org')).resolves.toEqual({
+        serviceUrl: 'https://rtc.own.example.org',
+        grant: { url: 'wss://sfu.own.example.org', jwt: 'jwt' },
+      });
+      expect(fetchFn).toHaveBeenLastCalledWith(
+        'https://rtc.own.example.org/sfu/get',
+        expect.objectContaining({ method: 'POST' })
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('asks for nothing when the deployment announces no service', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({}))
+    );
+    try {
+      const mx = ownClient();
+      await expect(requestOwnSfuGrant(mx, '!call:own.example.org')).resolves.toBeUndefined();
+      expect(mx.getOpenIdToken).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
