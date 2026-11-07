@@ -223,6 +223,9 @@ const measure = async (
   await page.mouse.move(0, 0);
   // Menus, dialogs and the banner fade or slide in.
   await page.waitForTimeout(500);
+  // "Catching up..." lies over the top of the app while a start catches up, and it may show only
+  // after the check that followed the page load; the surface is measured without it.
+  await synced(page);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
   results[name] = await surfaceShowThrough(page, surface, text);
 };
