@@ -97,7 +97,7 @@ export {
 
 export { EVICTION_TARGET_UTILIZATION, EVICTION_RECENT_OPEN_WINDOW_MS } from './cacheStoreSchema';
 
-export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStoreSummaries';
+export { loadCachedThreadSummaries, saveCachedThreadSummary } from './cacheStoreEncryptedRooms';
 
 export {
   cachedHistoryJoinsBefore,

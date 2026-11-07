@@ -61,6 +61,7 @@ import {
   canPersistDecryptedEvent,
 } from '../cache/eventRepository';
 import { createRoomOfflineController } from './roomOffline';
+import { registerEncryptedRoomCheck } from '../cache/db/cacheStoreEncryptedRooms';
 import type { OfflineConnection } from './offlineConnection';
 
 const LIVE_SYNC_STATES: ReadonlySet<string> = new Set(['PREPARED', 'SYNCING', 'CATCHUP']);
@@ -224,6 +225,7 @@ export const createSyncEngine = ({
   let started = false;
   let liveMode = false;
   let unsubscribePrefetchConfig: (() => void) | undefined;
+  let forgetEncryptedRoomCheck: (() => void) | undefined;
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
@@ -367,6 +369,11 @@ export const createSyncEngine = ({
     activeEngineStops.set(mx, stop);
     started = true;
     offline.start();
+    // The cache keeps no text it read out of an encrypted room's events.
+    forgetEncryptedRoomCheck = registerEncryptedRoomCheck(
+      sessionId,
+      (roomId) => !!mx.getRoom(roomId)?.hasEncryptionStateEvent()
+    );
 
     // Prime liveMode against the current sync state so an engine that
     // starts after a warm client (e.g. hot reload) doesn't have to
@@ -409,6 +416,7 @@ export const createSyncEngine = ({
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
       offline.stop();
       revokeCacheStoreWrites(sessionId);
+      forgetEncryptedRoomCheck?.();
 
       bindableWindow?.removeEventListener('pagehide', handlePageHide);
       bindableDocument?.removeEventListener('visibilitychange', handleVisibilityChange);
