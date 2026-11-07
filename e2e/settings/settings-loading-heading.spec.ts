@@ -7,9 +7,11 @@ import { launchWebKit } from '../helpers/webkit';
 // the section in front of it. That section is no heading and keeps its own type and edges; the
 // headings keep the 15 px semibold section heading style before and after the list arrives.
 // Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
+// Set SETTINGS_HEADING_SHOTS=<directory> to also save the loading page and a room's General page.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-loading-heading-spec-password';
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
+const SHOTS = process.env.SETTINGS_HEADING_SHOTS;
 const DESKTOP = { width: 1280, height: 800 };
 
 test.use({
@@ -45,6 +47,8 @@ const lookOf = (locator: Locator) =>
       };
     })
   );
+
+const browserName = (page: Page) => page.context().browser()?.browserType().name() ?? 'browser';
 
 const HEADING = { fontSize: '15px', fontWeight: '600', paddingInlineStart: '16px' };
 
@@ -111,6 +115,10 @@ const exercise = async (page: Page) => {
       paddingInlineStart: style.paddingInlineStart,
     };
   });
+  if (SHOTS) {
+    await page.mouse.move(0, 0);
+    await dialog.screenshot({ path: `${SHOTS}/privacy-loading-${browserName(page)}.png` });
+  }
   // The section in front of the loading card is not a heading.
   expect(before).not.toBeNull();
   expect(before?.fontSize).not.toBe(HEADING.fontSize);
@@ -155,6 +163,10 @@ test("a room's General page keeps its addresses section on the page's edges", as
   await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
   const content = page.getByRole('dialog').locator('[data-settings-page]');
   await expect(content.getByText('Published Addresses', { exact: true })).toBeVisible();
+  if (SHOTS) {
+    await page.mouse.move(0, 0);
+    await page.getByRole('dialog').screenshot({ path: `${SHOTS}/room-general-chromium.png` });
+  }
   // Every section of the page's column (a box that holds a card) starts on the column's edge.
   const sections = await content.evaluate((element) =>
     [...(element.firstElementChild?.children ?? [])]
