@@ -8,7 +8,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import {
+  createDefaultThreadFilterState,
+  loginToMatrix,
+  seedRoomOverviewState,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
 import { touch } from '../helpers/touch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -35,6 +41,8 @@ const KEYBOARD_VISIBLE = 508;
 const LANDSCAPE_SIZE = { width: 844, height: 390 };
 // What Safari's keyboard leaves of an iPhone held sideways, its toolbars collapsed.
 const LANDSCAPE_KEYBOARD_VISIBLE = 98;
+// The same band once Safari has settled after a turn: a little taller.
+const LANDSCAPE_KEYBOARD_SETTLED = 126;
 // The home indicator's inset at the bottom of an iPhone without a browser toolbar (the iOS app).
 const HOME_INDICATOR = 34;
 const ROOM = 'Release checklist';
@@ -166,6 +174,67 @@ const standInVisualViewport = (context: BrowserContext) =>
       events.dispatchEvent(new Event(eventName));
     };
   });
+
+
+/** DIAG: the timeline's scroll events and the focus changes, for the console. */
+const recordDiagnostics = (context: BrowserContext) =>
+  context.addInitScript(() => {
+    const log: string[] = [];
+    (window as unknown as { __diag: string[] }).__diag = log;
+    const start = performance.now();
+    const at = () => Math.round(performance.now() - start);
+    document.addEventListener(
+      'scroll',
+      (event) => {
+        const target = event.target as HTMLElement;
+        if (!(target instanceof HTMLElement)) return;
+        if (!target.querySelector('[data-testid="room-virtual-inner"]')) return;
+        log.push(
+          `${at()} scroll top=${Math.round(target.scrollTop)} sh=${target.scrollHeight} ch=${target.clientHeight} below=${Math.round(target.scrollHeight - target.scrollTop - target.clientHeight)}`
+        );
+      },
+      { capture: true, passive: true }
+    );
+    document.addEventListener('focusin', (event) => {
+      const t = event.target as HTMLElement;
+      log.push(`${at()} focusin ${t.tagName} ${t.getAttribute('data-editable-name') ?? t.getAttribute('aria-label') ?? ''}`);
+    }, true);
+    document.addEventListener('focusout', (event) => {
+      const t = event.target as HTMLElement;
+      log.push(`${at()} focusout ${t.tagName} ${t.getAttribute('data-editable-name') ?? t.getAttribute('aria-label') ?? ''}`);
+    }, true);
+    const watch = () => {
+      new MutationObserver((records) => {
+        records.forEach((record) =>
+          record.removedNodes.forEach((node) => {
+            if (node instanceof HTMLElement && (node.matches('[data-editable-name="RoomInput"]') || node.querySelector('[data-editable-name="RoomInput"]'))) {
+              log.push(`${at()} removed editable within ${node.tagName}.${node.className}`);
+            }
+          })
+        );
+      }).observe(document.body, { childList: true, subtree: true });
+    };
+    if (document.body) watch();
+    else document.addEventListener('DOMContentLoaded', watch);
+    let lastJump = false;
+    let lastActive = '';
+    const poll = () => {
+      const jump = !!document.querySelector('button[aria-label="Jump to Latest"]');
+      if (jump !== lastJump) log.push(`${at()} jump ${jump}`);
+      lastJump = jump;
+      const a = document.activeElement as HTMLElement | null;
+      const active = a ? `${a.tagName} ${a.getAttribute('data-editable-name') ?? ''}` : 'none';
+      if (active !== lastActive) log.push(`${at()} active ${active}`);
+      lastActive = active;
+      requestAnimationFrame(poll);
+    };
+    requestAnimationFrame(poll);
+  });
+
+const printDiagnostics = async (page: Page, label: string) => {
+  const log = await page.evaluate(() => (window as unknown as { __diag?: string[] }).__diag ?? []);
+  console.log(`DIAG ${label}:\n${log.slice(-120).join('\n')}`);
+};
 
 const textBox = (page: Page) => page.locator('[data-editable-name="RoomInput"]');
 const jumpToLatest = (page: Page) => page.getByRole('button', { name: 'Jump to Latest' });
@@ -392,6 +461,74 @@ const checkRotationWithKeyboard = async (page: Page, world: World, engine: strin
   await expectNewestAboveComposer(page, `${engine} upright again`);
 };
 
+
+/**
+ * Sideways with the keyboard up, Safari widens the band a little after the turn while the rows
+ * measure again at the new width. The browser keeps the scroll position inside the taller area
+ * by scrolling up as much as it grew: that scroll is not the reader's, so the newest message
+ * stays above the composer, with no Jump to Latest.
+ */
+const checkBandChangeAfterTurn = async (page: Page, world: World, engine: string) => {
+  await openRoom(page, world);
+  await readBackAndReturn(page);
+  await textBox(page).tap();
+  await expect(textBox(page)).toBeFocused();
+  await setVisualViewport(page, KEYBOARD_VISIBLE, PHONE_SIZE.height - KEYBOARD_VISIBLE);
+  await expect.poll(() => appHeight(page)).toBe(`${KEYBOARD_VISIBLE}px`);
+  await page.waitForTimeout(1_000);
+
+  await page.evaluate(() => ((window as unknown as { __diag: string[] }).__diag.length = 0));
+  await page.setViewportSize(LANDSCAPE_SIZE);
+  await page.evaluate(
+    async ([band, settled, width]) => {
+      window.__setKeyboardViewport?.(band ?? 0, 0, 'resize', width);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      window.__setKeyboardViewport?.(settled ?? 0, 0, 'resize', width);
+    },
+    [LANDSCAPE_KEYBOARD_VISIBLE, LANDSCAPE_KEYBOARD_SETTLED, LANDSCAPE_SIZE.width] as const
+  );
+  await expect.poll(() => appHeight(page)).toBe(`${LANDSCAPE_KEYBOARD_SETTLED}px`);
+  await page.waitForTimeout(1_500);
+  await printDiagnostics(page, `${engine} band change`);
+  const box = await composerBox(page);
+  const row = await newestRow(page).boundingBox();
+  console.log(`${engine} band change: ${JSON.stringify({ box, row })}`);
+  await expect(jumpToLatest(page), `${engine}: no Jump to Latest after the band changes`).toBeHidden();
+  expect(row && row.y + row.height, `${engine}: the newest message ends above the composer`).toBeLessThanOrEqual(box.top + 1);
+  expect(row && row.y + row.height, `${engine}: the newest message ends near the composer`).toBeGreaterThan(box.top - 40);
+};
+
+/**
+ * In the Compact view a message sent from the composer opens its own thread. When the text box
+ * had the focus (a phone's keyboard was up), the opened thread's composer keeps it, so the
+ * keyboard stays up for the next message.
+ */
+const checkCompactSendKeepsFocus = async (page: Page, world: World, engine: string) => {
+  await seedRoomOverviewState({
+    page,
+    roomId: world.roomId,
+    userId: world.reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(world.roomId)}`);
+  await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 60_000 });
+  await textBox(page).tap();
+  await expect(textBox(page)).toBeFocused();
+  const text = `New thread from the ${engine} cards`;
+  await page.keyboard.type(text);
+  await page.evaluate(() => ((window as unknown as { __diag: string[] }).__diag.length = 0));
+  await page.getByRole('button', { name: 'Send message' }).tap();
+  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(text, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await page.waitForTimeout(1_500);
+  await printDiagnostics(page, `${engine} compact send`);
+  await expect(textBox(page), `${engine}: the opened thread's text box keeps the focus`).toBeFocused();
+};
+
 /**
  * Without a browser toolbar (the iOS app) the home indicator's inset sits under the footer, not
  * inside the composer's box: the box keeps its height and ends above the inset.
@@ -447,6 +584,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   });
   try {
     await standInVisualViewport(context);
+    await recordDiagnostics(context);
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: world.reader.username,
@@ -467,6 +605,8 @@ const CHECKS: [string, Check][] = [
   ['Send keeps the text box focused', checkSendKeepsFocus],
   ['the whole composer shows in the band a sideways keyboard leaves', checkLandscapeKeyboard],
   ['turning the phone with the keyboard up never leaves a blank page', checkRotationWithKeyboard],
+  ['a sideways band that grows after a turn keeps the newest message', checkBandChangeAfterTurn],
+  ['a send from the Compact cards keeps the keyboard up', checkCompactSendKeepsFocus],
 ];
 
 test.beforeEach(async () => {
