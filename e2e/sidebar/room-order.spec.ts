@@ -240,19 +240,6 @@ test("a space's rooms and the rail's spaces move by drag and drop", async ({ pag
     .poll(async () => [...(await railOrder())].sort(), { timeout: 30_000 })
     .toEqual([grove, meadow].sort());
 
-  // The rail: the lower space dragged onto the upper edge of the other goes above it.
-  const [upper, lower] = (await railOrder()) as [string, string];
-  const upperBox = (await railButton(upper).boundingBox())!;
-  const lowerBox = (await railButton(lower).boundingBox())!;
-  await page.mouse.move(lowerBox.x + lowerBox.width / 2, lowerBox.y + lowerBox.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(lowerBox.x + lowerBox.width / 2, lowerBox.y + 4, { steps: 4 });
-  await page.mouse.move(upperBox.x + upperBox.width / 2, upperBox.y + upperBox.height * 0.15, {
-    steps: 12,
-  });
-  await page.mouse.up();
-  await expect.poll(railOrder).toEqual([lower, upper]);
-
   // The space's Rooms section: Fern dragged onto Dahlia takes its place.
   await railButton(grove).click();
   await expect
@@ -266,9 +253,27 @@ test("a space's rooms and the rail's spaces move by drag and drop", async ({ pag
   await row(page, 'Grove', elm).getByRole('link').focus();
   await page.keyboard.press('ControlOrMeta+Shift+ArrowUp');
   await expect.poll(() => rowOrder(page, 'Grove')).toEqual([fern, elm, dahlia]);
+  await expect.poll(() => savedLists(account)).toEqual({ [grove]: [fern, elm, dahlia] });
 
+  // The rail: the lower space dragged onto the upper edge of the other goes above it. Nothing is
+  // clicked right after this drop: the drag library stops every click until 50 ms after the
+  // release, which no page state shows and no person is fast enough to meet.
+  const [upper, lower] = (await railOrder()) as [string, string];
+  const upperBox = (await railButton(upper).boundingBox())!;
+  const lowerBox = (await railButton(lower).boundingBox())!;
+  await page.mouse.move(lowerBox.x + lowerBox.width / 2, lowerBox.y + lowerBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(lowerBox.x + lowerBox.width / 2, lowerBox.y + 4, { steps: 4 });
+  await page.mouse.move(upperBox.x + upperBox.width / 2, upperBox.y + upperBox.height * 0.15, {
+    steps: 12,
+  });
+  await page.mouse.up();
+  await expect.poll(railOrder).toEqual([lower, upper]);
+
+  // Both orders hold after a reload: the rooms' from the account, the rail's from this device.
   await page.reload();
   await expect
     .poll(() => rowOrder(page, 'Grove'), { timeout: 30_000 })
     .toEqual([fern, elm, dahlia]);
+  await expect.poll(railOrder).toEqual([lower, upper]);
 });
