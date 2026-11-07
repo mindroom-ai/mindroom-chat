@@ -34,6 +34,36 @@ const shot = async (page: Page, name: string) => {
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };
 
+/**
+ * The notice is a card floating over the page, which it leaves where it was: past the rail at the
+ * bottom on a desktop, below the top bar on a phone, with nothing painted over it.
+ */
+const floatsInItsCorner = async (page: Page) => {
+  const region = page.locator('[data-new-version-notice]');
+  const card = region.locator(':scope > *');
+  await expect(card).toBeVisible();
+  expect(await region.evaluate((element) => element.getBoundingClientRect().height)).toBe(0);
+  const box = await card.boundingBox();
+  const viewport = page.viewportSize();
+  if (!box || !viewport) throw new Error('the notice card or the viewport has no size');
+  if (viewport.width <= 750) {
+    // Below the phone's 52 px top bar.
+    expect(box.y).toBeGreaterThanOrEqual(52);
+    expect(box.y).toBeLessThan(76);
+  } else {
+    // Past the 66 px rail, at the foot of the room list.
+    expect(box.x).toBeGreaterThanOrEqual(66);
+    expect(viewport.height - (box.y + box.height)).toBeLessThan(32);
+  }
+  expect(
+    await card.evaluate((element) => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      const hit = document.elementFromPoint(x + width / 2, y + height / 2);
+      return hit !== null && element.contains(hit);
+    })
+  ).toBe(true);
+};
+
 const announcesTheNewVersion = async (page: Page, browserName: string) => {
   const user = await registerDisposableUser(`newver_${browserName}_${RUN}`, PASSWORD);
   await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
@@ -48,6 +78,7 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await expect(notice).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
+  await floatsInItsCorner(page);
   await shot(page, `new-version-${browserName}`);
 };
 
