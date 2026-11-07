@@ -17,7 +17,7 @@ How to build the client, serve it, and point it at a homeserver and a MindRoom b
 | `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
 
 - `branding` in `config.json` puts a company's logo, name and footer on the sign-in pages without a new build ([`configuration.md`](configuration.md#branding)).
-- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`).
+- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`); client plugins add a digest of their files to the first.
 
 ## Serve
 
