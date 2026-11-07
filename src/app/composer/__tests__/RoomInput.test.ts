@@ -949,16 +949,16 @@ describe('RoomInput', () => {
     renderer.unmount();
   });
 
-  it('extends the composer surface into the bottom safe area', async () => {
+  it('leaves the bottom safe area to the room footer, outside the composer surface', async () => {
     const { renderer } = await renderRoomInput();
 
-    const editorSurface = renderer.root.find(
+    const paddedForSafeArea = renderer.root.findAll(
       (node) =>
         node.type === 'div' &&
-        node.props.style?.paddingBottom === 'env(safe-area-inset-bottom, 0px)'
+        String(node.props.style?.paddingBottom ?? '').includes('safe-area-inset-bottom')
     );
 
-    expect(editorSurface).toBeTruthy();
+    expect(paddedForSafeArea).toEqual([]);
 
     renderer.unmount();
   });
