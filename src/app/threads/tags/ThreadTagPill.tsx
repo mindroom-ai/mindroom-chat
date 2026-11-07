@@ -50,7 +50,9 @@ export function ThreadTagPill({ name, onRemove }: ThreadTagPillProps) {
       title={name}
       className="thread-tag-pill"
     >
-      <span style={labelStyle}>{name}</span>
+      <span style={labelStyle} dir="auto">
+        {name}
+      </span>
       {onRemove && (
         <button
           type="button"
