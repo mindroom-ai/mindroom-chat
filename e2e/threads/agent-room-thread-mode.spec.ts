@@ -44,9 +44,9 @@ const createAgentRoom = async (stack: AgentStack): Promise<string> => {
         name: `Support desk ${uniqueWord('mode')}`,
         preset: 'private_chat',
         invite: [stack.agents.helper, stack.agents.router],
-        power_level_content_override: {
-          users: { [stack.tester.userId]: 100, [stack.agents.router]: 100 },
-        },
+        // The creator holds the room by its version's rules; the router gets the power to write
+        // the room's state, as in rooms MindRoom creates.
+        power_level_content_override: { users: { [stack.agents.router]: 100 } },
       }),
     }
   );
