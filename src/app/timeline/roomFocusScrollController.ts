@@ -437,6 +437,7 @@ const useThreadOpeningPin = ({
     const scrollArea = scrollRef.current;
     if (!threadId || !scrollArea) return;
     const correction = readMeasurementCorrectionPx?.() ?? 0;
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'openHold', below: scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop, top: scrollArea.scrollTop, sh: scrollArea.scrollHeight, correction, pinnedTop: pinnedPositionRef.current?.top, pinnedCorrection: pinnedPositionRef.current?.correction, suppressed: isThreadOpenBottomPinSuppressed(), threadOpenedAtLatest, threadLatestOpenPending, threadUserScrolled, threadInitialRenderMode, threadEventsLength }) }));
     if (scrollArea.scrollHeight - scrollArea.clientHeight - scrollArea.scrollTop <= 1) {
       pinnedPositionRef.current = { top: scrollArea.scrollTop, correction };
       return;
@@ -590,6 +591,8 @@ const useBottomPinRequests = ({
     const { count, smooth } = scrollToBottomRef.current;
     if (count === seenCountRef.current) return;
     seenCountRef.current = count;
+    const applies = count > 0 && shouldApplyThreadBottomPin(count);
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'pinRequest', count, smooth, applies, top: scrollRef.current?.scrollTop, sh: scrollRef.current?.scrollHeight }) }));
     if (count <= 0 || !shouldApplyThreadBottomPin(count)) return;
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;

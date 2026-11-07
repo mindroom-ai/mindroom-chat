@@ -44,7 +44,13 @@ export const listShrinkNotRendered = (
   inner: HTMLElement | null,
   rows: readonly { index: number; size: number }[],
   rowFoldPx = 0
-): number => Math.max(0, listReach(inner, rows, rowFoldPx)?.px ?? 0);
+): number => {
+  const reach = listReach(inner, rows, rowFoldPx);
+  const result = Math.max(0, reach?.px ?? 0);
+  if (result > 0 && inner)
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'shrink', result, mt: inner.style.marginTop, rowFoldPx, newest: reach?.newest, rows: Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]')).map((tile) => `${tile.dataset.index}:${tile.offsetHeight}`).join(' ') }) }));
+  return result;
+};
 
 /**
  * `listShrinkNotRendered` as it reads once virtual-core takes a new size for the row at `index`,
@@ -85,6 +91,7 @@ export function useListEndClamp(
     if (!scroll || !content || !probe || typeof ResizeObserver === 'undefined') return undefined;
     const observer = new ResizeObserver(() => {
       const end = scroll.scrollHeight - scroll.clientHeight - pendingListShrinkPx();
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'endClamp', end, top: scroll.scrollTop, sh: scroll.scrollHeight }) }));
       if (scroll.scrollTop > end) scroll.scrollTop = Math.max(0, end);
     });
     observer.observe(content);

@@ -289,6 +289,7 @@ export const useTimelineScrollLedgerController = ({
       // this effect; only add the render plan's delta.
       scrollCompensationPxRef.current += foldPx;
       rowFoldPxRef.current += threadLedgerRenderPlan.foldPx + roomLedgerAddedPx;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'fold', thread: threadLedgerRenderPlan.foldPx, probe: threadLedgerRenderPlan.probe, lead: threadLeadingFoldPx, room: roomFoldPxAtRender, roomLedger: roomLedgerFoldPx, added: roomLedgerAddedPx, comp: scrollCompensationPxRef.current, rowFold: rowFoldPxRef.current, n: threadEvents?.length, aIdx: threadLedgerAnchorRef.current?.index, aId: threadLedgerAnchorRef.current?.eventId?.slice(1, 7), aN: threadLedgerAnchorRef.current?.events.length, ids: threadEvents?.slice(0, 5).map((e) => e.getId()?.slice(1, 6)).join(','), aIds: threadLedgerAnchorRef.current?.events.slice(0, 5).map((e) => e.getId()?.slice(1, 6)).join(',') }) }));
       ledgerSettleWantedRef.current = true;
     }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
@@ -457,6 +458,7 @@ export const useTimelineScrollLedgerController = ({
     if (threadLeadingHeld && leadingPx !== threadLeadingPx) {
       // Applied by a synchronous re-render, before this commit paints.
       scrollCompensationPxRef.current += leadingPx - threadLeadingPx;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'leadFold', d: leadingPx - threadLeadingPx, comp: scrollCompensationPxRef.current, rowFold: rowFoldPxRef.current }) }));
       ledgerSettleWantedRef.current = true;
       setLedgerCommitTick((tick) => tick + 1);
     }
@@ -560,6 +562,7 @@ export const useTimelineScrollLedgerController = ({
       }
       scrollCompensationPxRef.current = 0;
       const rowFoldPx = rowFoldPxRef.current;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'settle', cause, px, rowFold: rowFoldPx }) }));
       rowFoldPxRef.current = 0;
       const preSettleScrollTop = scrollElement.scrollTop;
       // Waiting for the write's scroll event would leave the boundary
@@ -608,6 +611,7 @@ export const useTimelineScrollLedgerController = ({
   const handleDroppedCorrection = useCallback(
     (deltaPx: number) => {
       scrollCompensationPxRef.current += deltaPx;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'drop', d: deltaPx, comp: scrollCompensationPxRef.current, rowFold: rowFoldPxRef.current }) }));
       // react-virtual can skip its own update when the visible range is
       // unchanged, so the ledger must force the coherent paint itself.
       setLedgerCommitTick((tick) => tick + 1);

@@ -118,6 +118,7 @@ const useRoomOverlayInsets = (
       area.style.setProperty('--room-header-height', `${header}px`);
       area.style.setProperty('--room-composer-height', `${composer}px`);
       area.style.setProperty('--room-footer-height', `${composer + dock}px`);
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'inset', composer, dock }) }));
     };
     measure();
     const observer = new ResizeObserver(measure);
