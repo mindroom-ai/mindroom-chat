@@ -32,7 +32,7 @@ describe('i18n HTTP backend', () => {
     await i18n.changeLanguage('es');
 
     expect(fetchMock).toHaveBeenCalledWith(
-      '/mindroom/public/locales/es.json',
+      '/mindroom/public/locales/es.json?v=development-build',
       expect.objectContaining({ method: 'GET' })
     );
     expect(i18n.t('settings.general.language.appLanguage')).toBe('Idioma');

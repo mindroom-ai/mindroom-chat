@@ -4,7 +4,9 @@
 // English offline.
 //
 // A catalog has no hash in its name, so the worker answers it from the network and keeps the latest
-// copy for when the network is gone. The kept catalogs also tell which languages this browser's
+// copy for when the network is gone. Pages ask for it with their build version in the query
+// (`?v=<version>`); the kept copy is stored without the query, one per language, so a build's
+// first offline start still finds the copy an earlier build kept. The kept catalogs also tell which languages this browser's
 // pages use: a new worker fetches its own build's overlay chunk for each of them when it installs,
 // so the first offline start after an update has the language in full.
 
@@ -29,6 +31,13 @@ const catalogLanguage = (url: URL, workerUrl: string): string | undefined => {
 export const isLanguageCatalogRequest = (request: Request, workerUrl: string): boolean =>
   request.method === 'GET' && catalogLanguage(new URL(request.url), workerUrl) !== undefined;
 
+/** The URL a catalog is kept under: the request's without its query. */
+const keptUrl = (request: Request): string => {
+  const url = new URL(request.url);
+  url.search = '';
+  return url.href;
+};
+
 const openLanguageCache = async (): Promise<Cache | undefined> => {
   try {
     return await caches.open(LANGUAGE_CACHE);
@@ -44,7 +53,7 @@ export const fetchLanguageCatalog = async (event: CatalogFetchEvent): Promise<Re
   try {
     response = await fetch(request);
   } catch (error) {
-    const kept = await (await openLanguageCache())?.match(request, { ignoreVary: true });
+    const kept = await (await openLanguageCache())?.match(keptUrl(request), { ignoreVary: true });
     if (kept) return kept;
     throw error;
   }
@@ -53,7 +62,7 @@ export const fetchLanguageCatalog = async (event: CatalogFetchEvent): Promise<Re
     event.waitUntil(
       (async () => {
         try {
-          await (await openLanguageCache())?.put(request, copy);
+          await (await openLanguageCache())?.put(keptUrl(request), copy);
         } catch {
           // A full cache only costs this language offline.
         }
