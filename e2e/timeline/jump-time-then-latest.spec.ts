@@ -7,7 +7,7 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { joinRoom, sendRoomMessage } from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { expectRoomCompact } from '../helpers/roomViewSwitch';
 import { onWebKitPage } from '../helpers/webkit';
 
@@ -28,6 +28,7 @@ const NOTES = 240;
 const THREADS = 12;
 /** Tall messages at the live end, as agents' tool results are: rows measured once they render. */
 const REPORTS = 30;
+const UNREAD_REPORTS = 8;
 const report = (index: number) => `Rollout report ${index}: canary results`;
 /** The newest message of the main timeline. */
 const NEWEST = report(REPORTS - 1);
@@ -85,19 +86,32 @@ const firstJumpReachesLatest = async (page: Page, label: string, phone: boolean)
       await send(`Thread ${thread} reply ${reply}: the canary metrics look fine so far.`, rootId);
     }
   }
+  let readUpTo = '';
   for (let index = 0; index < REPORTS; index += 1) {
     const lines = Array.from(
       { length: 14 },
       (_, line) => `ring-${line % 4} host-${index}-${line} latency_p99=${120 + line}ms errors=0`
     ).join('\n');
     // eslint-disable-next-line no-await-in-loop
-    await sendRoomMessage(HOMESERVER, colleague.accessToken, roomId, {
+    const reportId = await sendRoomMessage(HOMESERVER, colleague.accessToken, roomId, {
       msgtype: 'm.text',
       body: `${report(index)}\n\n${lines}`,
       format: 'org.matrix.custom.html',
       formatted_body: `<p>${report(index)}</p><pre><code>${lines}</code></pre>`,
     });
+    if (index === REPORTS - UNREAD_REPORTS - 1) readUpTo = reportId;
   }
+  // The reader read the room on another device up to a few reports before its end, so its New
+  // Messages line sits in the newest rows, as in the rooms of the finding.
+  await matrixFetch(
+    HOMESERVER,
+    `/rooms/${encodeURIComponent(roomId)}/receipt/m.read/${encodeURIComponent(readUpTo)}`,
+    {
+      method: 'POST',
+      accessToken: reader.accessToken,
+      body: JSON.stringify({ thread_id: 'main' }),
+    }
+  );
 
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
