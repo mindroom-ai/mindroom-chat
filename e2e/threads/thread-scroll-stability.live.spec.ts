@@ -33,8 +33,7 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  *   rows on screen stay where they are (they jumped down by the new row's height).
  *
  * Chromium and WebKit (when PLAYWRIGHT_WEBKIT_EXECUTABLE names it), desktop 1440x900 with the
- * wheel and phone 390x844 with touch (Chromium) or a finger's drag (WebKit), classic scrollbars,
- * 25 other rooms.
+ * wheel and phone 390x844 with a finger's drag, classic scrollbars, 25 other rooms.
  */
 
 const THREADS = 120;
@@ -82,8 +81,9 @@ test.describe('scrolling a room with many agent threads', () => {
         await context.addInitScript(instrumentScrolling);
         const page = await context.newPage();
         const cdp = engine === 'chromium' ? await context.newCDPSession(page) : undefined;
-        const input: ScrollInput =
-          viewport === 'desktop' ? 'wheel' : engine === 'chromium' ? 'touch' : 'drag';
+        // Chromium's synthetic touch gestures do not scroll the list at a reading pace, so a phone
+        // moves it by a finger's speed from inside the page, in both engines.
+        const input: ScrollInput = viewport === 'desktop' ? 'wheel' : 'drag';
         await loginWithPassword(page, {
           homeserver: DISPOSABLE_HOMESERVER,
           username: room.reader.username,
@@ -107,7 +107,7 @@ test.describe('scrolling a room with many agent threads', () => {
           .toBeGreaterThanOrEqual(THREADS);
         // The cards of the first screen load their threads.
         await page.waitForTimeout(3_000);
-        const compactAt = await startRecording(page, 'compact', input === 'touch');
+        const compactAt = await startRecording(page, 'compact', false);
         await scrollRoom(page, cdp, input, compactAt, {
           flicks: 0,
           readingSteps: 12,
@@ -127,7 +127,7 @@ test.describe('scrolling a room with many agent threads', () => {
         await open('threaded');
         await expect(page.locator('[data-message-item]').first()).toBeVisible({ timeout: 120_000 });
         await page.waitForTimeout(2_000);
-        const threadsAt = await startRecording(page, 'threaded', input === 'touch');
+        const threadsAt = await startRecording(page, 'threaded', false);
         await scrollRoom(page, cdp, input, threadsAt, {
           flicks: 0,
           readingSteps: 6,
@@ -136,7 +136,7 @@ test.describe('scrolling a room with many agent threads', () => {
         await page.waitForTimeout(1_500);
         // Fresh frames from here: the reader rests while threads land at the top.
         await stopRecording(page);
-        await startRecording(page, 'threaded', input === 'touch');
+        await startRecording(page, 'threaded', false);
         const asker = room.peer;
         for (let index = 0; index < 3; index += 1) {
           const rootId = await send(asker, room.roomId, 'm.room.message', {

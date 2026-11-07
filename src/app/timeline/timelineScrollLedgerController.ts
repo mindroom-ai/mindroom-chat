@@ -247,7 +247,10 @@ export const useTimelineScrollLedgerController = ({
     : [];
   const roomLedgerFoldPx =
     anchoringRoomRows && !resettingLedgerView
-      ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, priceThreadRowForLedger)
+      ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, {
+          price: priceThreadRowForLedger,
+          measured: (key) => !!ledgerFoldSizeCacheRef.current?.has(key),
+        })
       : 0;
   // Room pagination records its exact prepend height before requesting the
   // range update. Keep that debt pending until the matching render commits;
@@ -380,7 +383,6 @@ export const useTimelineScrollLedgerController = ({
   // thread's rows above; the reader's row is recorded at every commit and scroll.
   const roomLedgerViewRef = useRef<{
     keys: readonly (string | number | bigint)[];
-    priceRow: RoomLedgerAnchor['priceRow'];
     listTop: number;
     inset: number;
   }>();
@@ -401,7 +403,13 @@ export const useTimelineScrollLedgerController = ({
     roomLedgerAnchorRef.current =
       index === undefined || key === undefined
         ? undefined
-        : { key, index, keys: view.keys, priceRow: view.priceRow };
+        : {
+            key,
+            index,
+            keys: view.keys,
+            // The sizes the rows above had in this render, measured or estimated.
+            sizes: virtualizerRef.current.measurementsCache.map((row) => row.size),
+          };
   }, []);
   useLayoutEffect(() => {
     const scrollElement = getScrollElement();
@@ -413,7 +421,6 @@ export const useTimelineScrollLedgerController = ({
     }
     roomLedgerViewRef.current = {
       keys: roomRowKeys,
-      priceRow: priceThreadRowForLedger,
       listTop:
         scrollElement.scrollTop -
         (scrollElement.getBoundingClientRect().top -
