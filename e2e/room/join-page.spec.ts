@@ -7,11 +7,20 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { createPrivateRoom, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import {
+  addRoomToSpace,
+  createPrivateRoom,
+  createPrivateSpace,
+  joinRoom,
+  matrixFetch,
+  sendRoomMessage,
+  sendStateEvent,
+} from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The page a room link opens when the person is not in the room. A room left on another device
-// just as the app starts keeps its name there. The person has 25 other rooms; desktop (1280 by
+// just as the app starts keeps its name there. A join the server refuses says why, there and on
+// a space lobby's card. The person has 25 other rooms; desktop (1280 by
 // 800, classic scrollbars) and phone (390 by 844, touch), light and dark, Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set JOIN_PAGE_SHOTS=<directory>
 // for screenshots.
@@ -27,6 +36,10 @@ const PHONE: BrowserContextOptions = {
 };
 const TOPIC = 'Measurements from the north face, and who walks which section next week';
 const LEFT_AT_START = 'Quarry survey';
+const LINKED = 'Open studio';
+const LOBBY_ROOM = 'Garden club';
+/** What the app says for the server's 403, and the start of the server's own words. */
+const REFUSED = "You don't have permission to do this.";
 
 test.use({
   launchOptions: {
@@ -100,6 +113,26 @@ const inviteOnlyRoom = async (owner: Account, member: Account, name: string) => 
   });
   return roomId;
 };
+
+/** A room anyone may join, with a topic and a message from the owner. */
+const publicRoom = async (owner: Account, name: string) => {
+  const roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
+    name,
+    topic: TOPIC,
+    preset: 'public_chat',
+  });
+  await sendRoomMessage(HOMESERVER, owner.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Open evening on Thursday; bring a sketchbook.',
+  });
+  return roomId;
+};
+
+/** From now on only invited people may join the room. */
+const closeRoom = (owner: Account, roomId: string) =>
+  sendStateEvent(HOMESERVER, owner.accessToken, roomId, 'm.room.join_rules', '', {
+    join_rule: 'invite',
+  });
 
 const signIn = async (browser: Browser, viewer: Account, options: BrowserContextOptions) => {
   // The service worker would take requests out of the page's routes (WebKit).
@@ -203,6 +236,68 @@ const checkLeftAtStart = async (
   await page.context().close();
 };
 
+/**
+ * The room closes to invited people after its page or card showed Join: the server refuses the
+ * join, and the page and the card say so, with the server's words, and keep Join for another try.
+ */
+const checkRefusedJoin = async (
+  browser: Browser,
+  label: string,
+  options: BrowserContextOptions
+) => {
+  const touch = !!options.hasTouch;
+  const { owner, viewer } = await seedAccounts(label);
+  const space = await createPrivateSpace(HOMESERVER, owner.accessToken, {
+    name: 'Field notes',
+    topic: 'Everything the field team shares',
+    invite: [viewer.userId],
+  });
+  await joinRoom(HOMESERVER, viewer.accessToken, space);
+  const lobbyRoom = await publicRoom(owner, LOBBY_ROOM);
+  await addRoomToSpace(HOMESERVER, owner.accessToken, space, lobbyRoom);
+  const linked = await publicRoom(owner, LINKED);
+  const { page, problems } = await signIn(browser, viewer, options);
+  const main = page.locator('main');
+  const press = async (name: string, scope = main) => {
+    const button = scope.getByRole('button', { name, exact: true });
+    if (touch) await button.tap();
+    else await button.click();
+  };
+
+  // The page a link to the room opens.
+  await openPath(page, `/home/${encodeURIComponent(linked)}/`);
+  await expect(main.getByRole('button', { name: 'Join', exact: true })).toBeVisible();
+  await closeRoom(owner, linked);
+  await press('Join');
+  const pageAlert = main.getByRole('alert');
+  await expect(pageAlert).toContainText(REFUSED);
+  await expect(pageAlert).toContainText('M_FORBIDDEN');
+  await expect(main.getByRole('button', { name: 'Join', exact: true })).toBeEnabled();
+  await shots(page, `${label}-page-refused`);
+
+  // A card in the space's lobby.
+  await openPath(page, `/${encodeURIComponent(space)}/lobby/`);
+  const card = main.locator(`[data-lobby-entry="${lobbyRoom}"]`);
+  await expect(card.getByRole('button', { name: 'Join', exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await closeRoom(owner, lobbyRoom);
+  await press('Join', card);
+  const cardAlert = card.getByRole('alert');
+  await expect(cardAlert).toContainText(REFUSED);
+  await expect(cardAlert).toContainText('M_FORBIDDEN');
+  await expect(card.getByRole('button', { name: 'Join', exact: true })).toBeEnabled();
+  // The alert stays inside the card, under the room's name.
+  const [cardBox, alertBox] = await Promise.all([card.boundingBox(), cardAlert.boundingBox()]);
+  expect(alertBox!.x).toBeGreaterThanOrEqual(cardBox!.x);
+  expect(alertBox!.x + alertBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width + 0.5);
+  expect(alertBox!.y + alertBox!.height).toBeLessThanOrEqual(cardBox!.y + cardBox!.height + 0.5);
+  await card.scrollIntoViewIfNeeded();
+  await shots(page, `${label}-lobby-refused`);
+  expect(problems).toEqual([]);
+  await page.context().close();
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
   test.setTimeout(240_000);
@@ -223,3 +318,24 @@ test('a room left elsewhere as the app starts keeps its name on its page (WebKit
     await browser.close();
   }
 });
+
+for (const [device, options] of [
+  ['desktop', DESKTOP],
+  ['phone', PHONE],
+] as const) {
+  test(`a refused join says why on the room's page and its lobby card (Chromium ${device})`, async ({
+    browser,
+  }) => {
+    await checkRefusedJoin(browser, `chromium-${device}`, options);
+  });
+
+  test(`a refused join says why on the room's page and its lobby card (WebKit ${device})`, async () => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    const browser = await launchWebKit();
+    try {
+      await checkRefusedJoin(browser, `webkit-${device}`, options);
+    } finally {
+      await browser.close();
+    }
+  });
+}
