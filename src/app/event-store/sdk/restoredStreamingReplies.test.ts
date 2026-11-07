@@ -16,7 +16,10 @@ import { startClient } from '../../matrix/client/clientSyncPolicy';
 import { createSessionId } from '../../matrix/session/sessions';
 import { resetCacheHealthForTesting } from '../cache/cacheHealth';
 import { resetCacheStoreForTesting } from '../cache/db';
-import { saveThreadEventsToCacheCommitted } from '../cache/db/cacheStoreEvents';
+import {
+  saveRoomEventsToCacheCommitted,
+  saveThreadEventsToCacheCommitted,
+} from '../cache/db/cacheStoreEvents';
 import {
   findSavedStreamingReplies,
   restoreStreamingRepliesFromCache,
@@ -177,6 +180,17 @@ describe('streaming replies restored from the saved sync', () => {
     await saveToCache(
       withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9))
     );
+
+    const { firstShown } = await reload([root, placeholder]);
+
+    expect(firstShown).toEqual(['word1 word2 word3']);
+  });
+
+  it('takes the newest copy when the room scope holds a newer one than the thread scope', async () => {
+    await saveToCache(withBundledEdit(placeholder, editOf('$reply', 'word1', 'streaming', 3)));
+    await saveRoomEventsToCacheCommitted(createSessionId(BASE_URL, USER_ID), ROOM_ID, [
+      withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9)),
+    ]);
 
     const { firstShown } = await reload([root, placeholder]);
 

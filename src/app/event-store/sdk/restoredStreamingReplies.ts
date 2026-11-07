@@ -93,19 +93,23 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
     const replies = findSavedStreamingReplies(savedSyncOf(mx));
     if (replies.length === 0) return;
     const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
-    const copies = (
-      await Promise.all(
-        replies.map(({ roomId, eventId, threadId }) =>
-          (threadId
-            ? loadCachedThreadEvent(sessionId, roomId, threadId, eventId)
-            : loadCachedRoomEvent(sessionId, roomId, eventId)
-          ).then(
-            (raw): SavedCopy | undefined => (raw ? { roomId, raw } : undefined),
-            () => undefined
-          )
+    // A reply's copy can be in its thread's scope, in the room's, or in both; the merge below keeps
+    // the newest of them.
+    const reads = replies.flatMap(({ roomId, eventId, threadId }) => {
+      const scopes: Promise<Partial<IEvent> | undefined>[] = [
+        loadCachedRoomEvent(sessionId, roomId, eventId),
+        ...(threadId ? [loadCachedThreadEvent(sessionId, roomId, threadId, eventId)] : []),
+      ];
+      return scopes.map((read) =>
+        read.then(
+          (raw): SavedCopy | undefined => (raw ? { roomId, raw } : undefined),
+          () => undefined
         )
-      )
-    ).filter((copy): copy is SavedCopy => copy !== undefined);
+      );
+    });
+    const copies = (await Promise.all(reads)).filter(
+      (copy): copy is SavedCopy => copy !== undefined
+    );
     if (copies.length === 0) return;
     // The SDK replays the saved sync before its first sync state; the rooms show after that.
     mx.once(ClientEvent.Sync, () => {
