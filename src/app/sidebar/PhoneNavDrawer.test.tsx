@@ -242,20 +242,27 @@ describe('PhoneNavDrawer', () => {
   it('leaves the swipe from the left edge to a room, which goes back with it', () => {
     const store = createStore();
     const onBack = vi.fn();
+    // The shell's drawer listens before any room, as in the app.
+    const page = (room: boolean) => (
+      <Provider store={store}>
+        <MemoryRouter initialEntries={['/home/']}>
+          <PhoneNavDrawer nav={null} />
+          {room && <RoomWithBackSwipe onBack={onBack} />}
+        </MemoryRouter>
+      </Provider>
+    );
     let renderer: ReturnType<typeof create> | undefined;
     act(() => {
-      renderer = create(
-        <Provider store={store}>
-          <MemoryRouter initialEntries={['/home/!room:example.org/']}>
-            <RoomWithBackSwipe onBack={onBack} />
-            <PhoneNavDrawer nav={null} />
-          </MemoryRouter>
-        </Provider>
-      );
+      renderer = create(page(true));
     });
     swipeFromLeftEdge();
     expect(onBack).toHaveBeenCalledTimes(1);
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    // Gone with the room, its swipe brings the drawer out again.
+    act(() => renderer?.update(page(false)));
+    swipeFromLeftEdge();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     act(() => renderer?.unmount());
   });
 });
