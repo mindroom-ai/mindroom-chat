@@ -131,6 +131,13 @@ export const CardMenuButton = style({
       width: '2.5rem',
       height: '2.5rem',
     },
+    // A touch screen keeps :hover on the button tapped last, so after its menu closes the button
+    // would stay tinted; there only the press itself and the keyboard's focus tint it.
+    '(hover: none)': {
+      selectors: {
+        '&:hover:not(:focus-visible, :active)': { backgroundColor: 'transparent' },
+      },
+    },
   },
 });
 
