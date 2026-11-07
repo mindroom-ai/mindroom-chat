@@ -3431,10 +3431,24 @@ index f8afdc4..54cfdfd 100644
          }
  
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
-index fecb644..712ee65 100644
+index fecb644..2886606 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
 +++ b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
-@@ -284,6 +284,8 @@ export class RustBackupManager extends TypedEventEmitter {
+@@ -127,7 +127,12 @@ export class RustBackupManager extends TypedEventEmitter {
+ 
+     // make sure there is only one check going on at a time
+     if (!this.keyBackupCheckInProgress) {
+-      this.keyBackupCheckInProgress = this.doCheckKeyBackup().finally(() => {
++      this.keyBackupCheckInProgress = this.doCheckKeyBackup()
++      // A client stopped during the check has closed the OlmMachine it calls: the check ends unfinished.
++      .catch(e => {
++        if (this.stopped) return null;
++        throw e;
++      }).finally(() => {
+         this.keyBackupCheckInProgress = null;
+       });
+     }
+@@ -284,6 +289,8 @@ export class RustBackupManager extends TypedEventEmitter {
          _this9.serverBackupInfo = undefined;
          return null;
        }
@@ -3443,11 +3457,39 @@ index fecb644..712ee65 100644
        _this9.checkedForBackup = true;
        if (backupInfo && !backupInfo.version) {
          _this9.logger.warn("active backup lacks a useful 'version'; ignoring it");
+@@ -442,6 +449,8 @@ export class RustBackupManager extends TypedEventEmitter {
+               remainingToUploadCount = Math.max(remainingToUploadCount - keysCountInBatch, 0);
+             }
+           } catch (err) {
++            // A client stopped while the server answered has closed its OlmMachine: the loop ends here.
++            if (_this11.stopped) break;
+             numFailures++;
+             _this11.logger.error("Backup: Error processing backup request for rust crypto-sdk", err);
+             if (err instanceof MatrixError) {
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
-index c3e4a37..8ebe7b7 100644
+index c3e4a37..ce9af23 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
 +++ b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
-@@ -313,6 +313,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+@@ -151,9 +151,15 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+ 
+         // make sure there is only one check going on at a time
+         if (!this.keyBackupCheckInProgress) {
+-            this.keyBackupCheckInProgress = this.doCheckKeyBackup().finally(() => {
+-                this.keyBackupCheckInProgress = null;
+-            });
++            this.keyBackupCheckInProgress = this.doCheckKeyBackup()
++                // A client stopped during the check has closed the OlmMachine it calls: the check ends unfinished.
++                .catch((e) => {
++                    if (this.stopped) return null;
++                    throw e;
++                })
++                .finally(() => {
++                    this.keyBackupCheckInProgress = null;
++                });
+         }
+         return this.keyBackupCheckInProgress;
+     }
+@@ -313,6 +319,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
              this.serverBackupInfo = undefined;
              return null;
          }
@@ -3456,6 +3498,41 @@ index c3e4a37..8ebe7b7 100644
          this.checkedForBackup = true;
  
          if (backupInfo && !backupInfo.version) {
+@@ -478,6 +486,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+                         remainingToUploadCount = Math.max(remainingToUploadCount - keysCountInBatch, 0);
+                     }
+                 } catch (err) {
++                    // A client stopped while the server answered has closed its OlmMachine: the loop ends here.
++                    if (this.stopped) break;
+                     numFailures++;
+                     this.logger.error("Backup: Error processing backup request for rust crypto-sdk", err);
+                     if (err instanceof MatrixError) {
+diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/PerSessionKeyBackupDownloader.js b/node_modules/matrix-js-sdk/lib/rust-crypto/PerSessionKeyBackupDownloader.js
+index 9650e58..b689e77 100644
+--- a/node_modules/matrix-js-sdk/lib/rust-crypto/PerSessionKeyBackupDownloader.js
++++ b/node_modules/matrix-js-sdk/lib/rust-crypto/PerSessionKeyBackupDownloader.js
+@@ -420,6 +420,8 @@ export class PerSessionKeyBackupDownloader {
+         _this8.hasConfigurationProblem = true;
+         return null;
+       }
++      // A client stopped during the check has closed its OlmMachine: the download ends here.
++      if (_this8.stopped) return null;
+       _this8.logger.debug("Got current backup version from server: ".concat((_currentServerVersion = currentServerVersion) === null || _currentServerVersion === void 0 ? void 0 : _currentServerVersion.version));
+       if (((_currentServerVersion2 = currentServerVersion) === null || _currentServerVersion2 === void 0 ? void 0 : _currentServerVersion2.algorithm) != "m.megolm_backup.v1.curve25519-aes-sha2") {
+         var _currentServerVersion3;
+diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/PerSessionKeyBackupDownloader.ts b/node_modules/matrix-js-sdk/src/rust-crypto/PerSessionKeyBackupDownloader.ts
+index a434f69..812e1ee 100644
+--- a/node_modules/matrix-js-sdk/src/rust-crypto/PerSessionKeyBackupDownloader.ts
++++ b/node_modules/matrix-js-sdk/src/rust-crypto/PerSessionKeyBackupDownloader.ts
+@@ -444,6 +444,8 @@ export class PerSessionKeyBackupDownloader {
+             this.hasConfigurationProblem = true;
+             return null;
+         }
++        // A client stopped during the check has closed its OlmMachine: the download ends here.
++        if (this.stopped) return null;
+         this.logger.debug(`Got current backup version from server: ${currentServerVersion?.version}`);
+ 
+         if (currentServerVersion?.algorithm != "m.megolm_backup.v1.curve25519-aes-sha2") {
 diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
 index 41c0e07..6052750 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event.js
