@@ -38,14 +38,16 @@ export type LiveUpdate =
 
 export const liveTranscriptAtom = atom<LiveTranscript | undefined>(undefined);
 
-/** `line` among `lines` in the order they were said, in place of an earlier copy of it. */
-const withLine = (lines: TranscriptLine[], line: TranscriptLine): TranscriptLine[] => {
-  const others = lines.filter(({ id }) => id !== line.id);
-  const said = Date.parse(line.saidAt);
-  const after = others.findIndex((other) => Date.parse(other.saidAt) > said);
-  return after === -1
-    ? [...others, line]
-    : [...others.slice(0, after), line, ...others.slice(after)];
+/**
+ * `added` among `lines` in the order they were said, each in place of an earlier copy of it, and
+ * after the lines said at the same time; one sort for the whole batch.
+ */
+const withLines = (lines: TranscriptLine[], added: TranscriptLine[]): TranscriptLine[] => {
+  const ids = new Set(added.map(({ id }) => id));
+  return [...lines.filter(({ id }) => !ids.has(id)), ...added]
+    .map((line) => ({ line, said: Date.parse(line.saidAt) }))
+    .sort((a, b) => a.said - b.said)
+    .map(({ line }) => line);
 };
 
 /** The room's live call after one update. */
@@ -62,7 +64,7 @@ export const applyLiveUpdate = (
       return {
         roomId,
         call: update.live.call,
-        lines: update.live.lines.reduce(withLine, same?.lines ?? []),
+        lines: withLines(same?.lines ?? [], update.live.lines),
         names: { ...same?.names, ...update.live.names },
       };
     }
@@ -72,7 +74,7 @@ export const applyLiveUpdate = (
       return { roomId, call: update.call, lines: [], names: current?.names ?? {} };
     case 'line':
       if (!current?.call || current.call.id !== update.line.callId) return live;
-      return { ...current, lines: withLine(current.lines, update.line) };
+      return { ...current, lines: withLines(current.lines, [update.line]) };
   }
 };
 

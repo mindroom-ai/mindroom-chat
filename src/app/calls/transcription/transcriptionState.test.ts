@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { applyLiveUpdate, pausedByIn, type LiveTranscript } from './transcriptionState';
 import type { TranscriptCall, TranscriptLine } from './api';
 
@@ -49,6 +49,21 @@ describe('applyLiveUpdate', () => {
     expect(updated?.call).toEqual(paused);
     expect(updated?.lines.map(({ id }) => id)).toEqual(['a', 'b', 'c']);
     expect(updated?.names).toEqual({ '@ann:example.org': 'Ann', '@bob:example.org': 'Bob' });
+  });
+
+  it('adds the lines of a full read of a long call in one pass', () => {
+    const lines = Array.from({ length: 2000 }, (_, index) =>
+      line(`line-${index}`, new Date(Date.UTC(2026, 10, 7, 9, 0, index)).toISOString())
+    );
+    const parse = vi.spyOn(Date, 'parse');
+    try {
+      const read = { call: CALL, lines, names: {} };
+      const updated = applyLiveUpdate(undefined, ROOM_ID, { type: 'live', live: read });
+      expect(updated?.lines).toEqual(lines);
+      expect(parse.mock.calls.length).toBeLessThanOrEqual(2 * lines.length);
+    } finally {
+      parse.mockRestore();
+    }
   });
 
   it('takes a read of another call, of none, or in another room as the whole live call', () => {

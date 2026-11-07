@@ -92,6 +92,15 @@ describe('pollLiveCall', () => {
     expect(live).toHaveBeenCalledTimes(5);
   });
 
+  it('starts after the line it is given, as reads that start again do', async () => {
+    const { client, live } = fakeClient([read('call-1', ['line-4']), read('call-1')]);
+    const stop = new AbortController();
+    void pollLiveCall(client, ROOM_ID, 2_000, stop.signal, () => undefined, undefined, 'line-3');
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(live.mock.calls.map(([, after]) => after)).toEqual(['line-3', 'line-4']);
+    stop.abort();
+  });
+
   it('gives a read up after 10 seconds, reports it as a failure, and goes on reading', async () => {
     const live = vi.fn(
       (_roomId: string, _after?: string, signal?: AbortSignal): Promise<LiveCall> =>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -70,24 +70,33 @@ const useLiveCallReads = (room: Room, everyMs: number, wanted: boolean): ReadVie
     [apiUrl, discovered, mx]
   );
   const [view, setView] = useState<ReadView>({ state: 'loading' });
+  /** The last line read of the room, while its lines stay: reads that start again go on from it. */
+  const lastLine = useRef<{ roomId: string; id: string }>();
   useEffect(() => {
     if (!client || !reading) return undefined;
     // What was read of the room stays while reading pauses; another room's goes.
     setView((shown) => (shown.live?.roomId === roomId ? shown : { state: 'loading' }));
+    if (lastLine.current?.roomId !== roomId) lastLine.current = undefined;
     const stop = new AbortController();
     void pollLiveCall(
       client,
       roomId,
       everyMs,
       stop.signal,
-      (live) =>
+      (live) => {
+        const id = live.lines[live.lines.length - 1]?.id;
+        if (id) lastLine.current = { roomId, id };
         setView((shown) => ({
           state: 'live',
           live: applyLiveUpdate(shown.live, roomId, { type: 'live', live }),
-        })),
-      () => setView((shown) => ({ ...shown, state: 'unavailable' }))
+        }));
+      },
+      () => setView((shown) => ({ ...shown, state: 'unavailable' })),
+      lastLine.current?.id
     ).then((outcome) => {
-      if (outcome === 'not-transcribed') setView({ state: 'not-transcribed' });
+      if (outcome !== 'not-transcribed') return;
+      lastLine.current = undefined;
+      setView({ state: 'not-transcribed' });
     });
     return () => stop.abort();
   }, [client, everyMs, reading, roomId]);

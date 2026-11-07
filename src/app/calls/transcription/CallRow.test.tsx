@@ -9,7 +9,7 @@ import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
 import { transcriptPanelAtom } from './transcriptPanel';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
-import type { LiveCall, TranscriptCall } from './api';
+import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
 const ROOM_ID = '!room:example.org';
 const VIEWER = '@ann:example.org';
@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
     onLive: (live: LiveCall) => void;
     /** Ends the reads, as MindRoom saying the room is not transcribed does. */
     finish: (outcome: 'not-transcribed') => void;
+    /** The line the first read asks for the lines after. */
+    after?: string;
   }>,
 }));
 
@@ -40,10 +42,12 @@ vi.mock('./liveCallPoll', () => ({
     _roomId: string,
     everyMs: number,
     signal: AbortSignal,
-    onLive: (live: LiveCall) => void
+    onLive: (live: LiveCall) => void,
+    _onFailure?: unknown,
+    after?: string
   ) =>
     new Promise((finish) => {
-      state.polls.push({ client, everyMs, signal, onLive, finish });
+      state.polls.push({ client, everyMs, signal, onLive, finish, after });
     }),
 }));
 vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
@@ -203,6 +207,28 @@ describe('CallRow', () => {
     // Another call in the room is not this row's.
     act(() => state.polls[1]?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }));
     expect(faces()).toEqual([]);
+  });
+
+  it('reads only the lines after the last one read when it reads again', () => {
+    const line = (id: string, saidAt: string): TranscriptLine => ({
+      id,
+      callId: 'call-1',
+      userId: BOB,
+      saidAt,
+      seconds: 1,
+      kind: 'speech',
+      text: id,
+    });
+    render(LIVE);
+    inView(true);
+    expect(state.polls[0]?.after).toBeUndefined();
+    // MindRoom's order, not the order they were said in, tells the last line read.
+    const lines = [line('line-1', '2026-11-07T09:29:40Z'), line('line-2', '2026-11-07T09:29:30Z')];
+    act(() => state.polls[0]?.onLive({ call: CALL, lines, names: {} }));
+
+    inView(false);
+    inView(true);
+    expect(state.polls[1]?.after).toBe('line-2');
   });
 
   it('shares one sign-in to the server among rows, and after a remount', () => {
