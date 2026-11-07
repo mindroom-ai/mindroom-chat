@@ -145,6 +145,15 @@ describe('registered i18n namespaces', () => {
     expect(load.mock.calls).toEqual([['de'], ['fr']]);
   });
 
+  it('detects the language again for an empty pick', async () => {
+    stubCatalogs();
+    await i18n.changeLanguage('de');
+
+    await i18n.changeLanguage('');
+
+    expect(i18n.language).toBe('en');
+  });
+
   it('shows English for a language whose loader fails', async () => {
     stubCatalogs();
     await registerNamespace(NAMESPACE, ENGLISH, () => {
