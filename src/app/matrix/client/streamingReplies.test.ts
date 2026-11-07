@@ -373,6 +373,21 @@ describe('streaming replies on thread cards', () => {
     expect(f.card().streaming).toBe(true);
   });
 
+  it('counts only the reply sender’s bundled edit as a sign of life', async () => {
+    const now = Date.now();
+    const f = fixture();
+    await f.start();
+    const otherEdit = { ...edit('The notes list', now, 'streaming'), sender: readerId };
+    await f.deliver([
+      withSummary(root(now - 40 * MINUTE), reply(now - 35 * MINUTE)),
+      withEdit(reply(now - 35 * MINUTE), otherEdit),
+    ]);
+    expect(f.card().streaming).toBe(false);
+
+    await f.deliver([withEdit(reply(now - 35 * MINUTE), edit('The notes list', now, 'streaming'))]);
+    expect(f.card().streaming).toBe(true);
+  });
+
   describe('while the room’s thread list is read', () => {
     /** A reload: the cache restores the thread with the summary a mid-stream list read saved. */
     const reload = async (now: number) => {
