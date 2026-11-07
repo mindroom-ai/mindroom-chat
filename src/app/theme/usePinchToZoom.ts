@@ -98,18 +98,19 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
       queueZoom(nextZoom);
     };
 
+    // One finger is no pinch: those touches (every scroll) return before the document query.
     const handleTouchStart = (event: TouchEvent) => {
-      if (shouldIgnorePinch()) return;
+      if (event.touches.length >= 2 && shouldIgnorePinch()) return;
       startTouchPinch(event.touches);
     };
 
     const handleTouchMove = (event: TouchEvent) => {
-      if (shouldIgnorePinch()) return;
       const startDistance = touchStartDistanceRef.current;
       if (event.touches.length < 2 || startDistance === null || startDistance <= 0) {
         touchStartDistanceRef.current = null;
         return;
       }
+      if (shouldIgnorePinch()) return;
       const currentDistance = touchDistance(event.touches);
       if (!Number.isFinite(currentDistance) || currentDistance <= 0) return;
       // The pinch is the app's: the web view neither scrolls nor magnifies the page.
@@ -118,9 +119,8 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
     };
 
     const handleTouchEnd = (event: TouchEvent) => {
-      if (shouldIgnorePinch()) return;
       if (event.touches.length >= 2) {
-        startTouchPinch(event.touches);
+        if (!shouldIgnorePinch()) startTouchPinch(event.touches);
         return;
       }
       touchStartDistanceRef.current = null;

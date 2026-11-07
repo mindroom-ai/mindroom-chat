@@ -98,6 +98,11 @@ select {
   select {
     font-size: 16px !important;
   }
+
+  /* The composer writes at 1rem, under 16 px below 100 % page zoom. */
+  [contenteditable='true'] {
+    font-size: max(16px, 1rem);
+  }
 }
 
 /* A button paints only the fill its own styles give it, not the browser's grey. */

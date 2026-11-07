@@ -78,10 +78,16 @@ export function CompactCardSwipe({
   // `touch-action: pan-y` alone may let iOS start a vertical pan once a
   // sideways swipe drifts; keep the scroller out of a touch the swipe owns.
   // React registers touchmove passively, so this listener is native.
+  // A second finger, also one outside the card, makes the touch a pinch, which changes the page
+  // zoom (theme/usePinchToZoom.ts): the swipe lets go without its action.
   useEffect(() => {
     const track = trackRef.current;
     if (!track) return undefined;
     const handleTouchMove = (event: TouchEvent) => {
+      if (event.touches.length > 1) {
+        if (gestureRef.current) cancelRef.current();
+        return;
+      }
       if (gestureRef.current?.swipe && event.cancelable) event.preventDefault();
     };
     track.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -105,6 +111,9 @@ export function CompactCardSwipe({
     clearTimeout(settleTimerRef.current);
     settleTimerRef.current = setTimeout(settle, SETTLE_FALLBACK_MS);
   };
+
+  const cancelRef = useRef(() => finish(false));
+  cancelRef.current = () => finish(false);
 
   const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     swipedRef.current = false;
