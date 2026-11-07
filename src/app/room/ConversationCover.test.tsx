@@ -246,9 +246,18 @@ describe('a conversation cover', () => {
     fireEvent.keyDown(field, { key: 'Escape' });
     expect(layer()?.textContent).toContain('closable cover');
 
-    fireEvent.keyDown(field, { key: 'Escape' });
+    // The Escape that closes it reaches none of the window's Escape handlers (the room's Escape
+    // read among them), which would act on the conversation the cover hid.
+    const windowEscape = vi.fn();
+    window.addEventListener('keydown', windowEscape);
+    try {
+      fireEvent.keyDown(field, { key: 'Escape' });
+    } finally {
+      window.removeEventListener('keydown', windowEscape);
+    }
     expect(layer()).toBeNull();
     expect(covered()).toBe(false);
+    expect(windowEscape).not.toHaveBeenCalled();
   });
 
   it('shows the first cover in build order whose condition holds, of the plugins config.json leaves on', () => {
