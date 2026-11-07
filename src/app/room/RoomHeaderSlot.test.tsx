@@ -1,4 +1,9 @@
-import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import {
+  act,
+  create,
+  type ReactTestRenderer,
+  type ReactTestRendererJSON,
+} from 'react-test-renderer';
 import type { Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
@@ -11,7 +16,7 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 }));
 
 // Plugins as a build lists them: one shows two things under the header, one only messages, and one
-// fails in the rooms it calls broken, also with a value that is not a component.
+// fails in some rooms (throwing an Error or a string) and lists a value that is not a component.
 vi.mock('../plugins/pluginEntries', () => {
   const named =
     (label: string) =>
@@ -32,6 +37,8 @@ vi.mock('../plugins/pluginEntries', () => {
           roomHeaderSlot: [
             ({ room }: { room: Room }) => {
               if (room.roomId.startsWith('!broken')) throw new Error('boom');
+              // eslint-disable-next-line @typescript-eslint/no-throw-literal
+              if (room.roomId.startsWith('!string')) throw 'not an error';
               return `broken:${room.roomId}`;
             },
             null,
@@ -95,10 +102,11 @@ describe('RoomHeaderSlot', () => {
   });
 
   it("leaves out a component that throws, keeps the others, and reports it under the plugin's tag", () => {
-    const shown = render('!broken:example.org');
-    expect(shown).toContain('first:!broken:example.org');
-    expect(shown).toContain('second:!broken:example.org');
-    expect(shown).not.toContain('broken:!broken');
+    render('!broken:example.org');
+    expect((renderer!.toJSON() as ReactTestRendererJSON).children).toEqual([
+      'first:!broken:example.org',
+      'second:!broken:example.org',
+    ]);
     expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'Error', message: '[plugin broken@0.1.0] boom' }),
       expect.any(String)
@@ -108,6 +116,14 @@ describe('RoomHeaderSlot', () => {
         .mocked(console.error)
         .mock.calls.some(([first]) => String(first).includes('[plugin broken@0.1.0]'))
     ).toBe(true);
+  });
+
+  it('reports under the tag a component that throws something not an Error', () => {
+    expect(render('!string:example.org')).not.toContain('broken:!string');
+    expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '[plugin broken@0.1.0] not an error' }),
+      expect.any(String)
+    );
   });
 
   it('leaves out a value that is not a component, reported under its tag', () => {
