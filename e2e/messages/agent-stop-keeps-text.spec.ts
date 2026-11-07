@@ -97,6 +97,10 @@ test('a stopped reply keeps every word the reader saw when pressing Stop', async
   page,
   stack,
 }) => {
+  // The MindRoom backend writes the cancelled reply from what its last stored edit showed, not from
+  // what its live frames showed since, so the words of up to one update interval are lost. Remove
+  // this line once the backend keeps them.
+  test.fail(true, 'MindRoom ends a stopped reply at its last stored edit (L3-F005)');
   const { shown, kept } = await stopAheadOfStoredText(page, stack);
   expect(kept, 'the cancelled reply ends where the reader saw it end').toBeGreaterThanOrEqual(
     shown
