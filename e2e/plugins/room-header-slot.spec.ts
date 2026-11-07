@@ -126,6 +126,18 @@ const roomShown = async (page: Page) => {
   await expect(page.getByText(SEEDED)).toBeVisible({ timeout: 60_000 });
 };
 
+/**
+ * Where the room timeline's content starts when scrolled to the top: below the inset its scroll
+ * area keeps clear of what floats over it.
+ */
+const conversationTop = (page: Page) =>
+  page.evaluate(() => {
+    const content = document.querySelector('[data-testid="room-virtual-inner"]')?.parentElement;
+    const scroller = content?.parentElement;
+    if (!content || !scroller) throw new Error('Room timeline missing');
+    return scroller.getBoundingClientRect().top + parseFloat(getComputedStyle(content).paddingTop);
+  });
+
 const box = async (locator: Locator) => {
   const found = await locator.boundingBox();
   expect(found).not.toBeNull();
@@ -141,11 +153,12 @@ test("shows the plugin's banner under the room header, across the conversation, 
     await expect(banner(page)).toHaveText(BANNER);
     const header = await box(roomHeader(page));
     const shown = await box(banner(page));
-    const message = await box(page.getByText(SEEDED));
     expect(shown.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
     expect(shown.x).toBeCloseTo(header.x, 0);
     expect(shown.width).toBeCloseTo(header.width, 0);
-    expect(message.y).toBeGreaterThanOrEqual(shown.y + shown.height);
+    await expect
+      .poll(() => conversationTop(page))
+      .toBeGreaterThanOrEqual(shown.y + shown.height - 1);
     await shot(page, 'room-header-slot');
   }));
 
