@@ -1,10 +1,10 @@
 import { ReactNode, useCallback } from 'react';
 import { IconSrc, Icons } from 'folds';
-import { Direction, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Trans, useTranslation } from 'react-i18next';
 import { Membership } from '../matrix/types/room';
 import { getMxIdLocalPart } from '../matrix/matrix';
-import { getMemberDisplayName, getRoomMemberName } from '../matrix/room';
+import { getMemberDisplayName, getRoomMemberName, memberNameBefore } from '../matrix/room';
 
 type ParsedMemberEvent = {
   icon: IconSrc;
@@ -149,24 +149,9 @@ const nameOf = (userId: string | undefined, displayName: string | undefined): st
  */
 const nameBefore = (room: Room, event: MatrixEvent, userId: string): string | undefined => {
   const eventId = event.getId();
-  let timeline = eventId ? room.getTimelineForEvent(eventId) : null;
-  let events = timeline?.getEvents() ?? [];
-  let index = events.findIndex((candidate) => candidate.getId() === eventId);
-  while (timeline) {
-    for (let i = index - 1; i >= 0; i -= 1) {
-      const earlier = events[i];
-      if (earlier?.getType() === 'm.room.member' && earlier.getStateKey() === userId) {
-        const name =
-          readMemberContent(earlier.getContent()).displayname ??
-          readMemberContent(earlier.getPrevContent()).displayname;
-        if (name) return name;
-      }
-    }
-    timeline = timeline.getNeighbouringTimeline(Direction.Backward);
-    events = timeline?.getEvents() ?? [];
-    index = events.length;
-  }
-  return undefined;
+  const timeline = eventId ? room.getTimelineForEvent(eventId) : null;
+  const index = timeline?.getEvents().findIndex((candidate) => candidate.getId() === eventId) ?? 0;
+  return memberNameBefore(timeline, userId, Math.max(index, 0));
 };
 
 type MemberEventFacts = {

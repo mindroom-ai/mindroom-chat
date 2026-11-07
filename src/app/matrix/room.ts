@@ -125,9 +125,86 @@ export const getMemberRawDisplayName = (room: Room, userId: string): string | un
   return name && name !== userId ? name : undefined;
 };
 
-/** `getRoomMemberName` of the room's current member `userId`. */
+const contentName = (content: IContent): string | undefined =>
+  typeof content.displayname === 'string' && content.displayname ? content.displayname : undefined;
+
+/** The name a member event gives, else the name of the member event it replaced. */
+const memberEventName = (event: MatrixEvent): string | undefined =>
+  contentName(event.getContent()) ?? contentName(event.getPrevContent());
+
+/**
+ * The newest name `userId` had in the member events the client has loaded: in `timeline` before
+ * position `end` (all of it by default), then in the timelines before it.
+ */
+export const memberNameBefore = (
+  timeline: EventTimeline | null,
+  userId: string,
+  end = Infinity
+): string | undefined => {
+  let current = timeline;
+  let before = end;
+  while (current) {
+    const events = current.getEvents();
+    for (let index = Math.min(before, events.length) - 1; index >= 0; index -= 1) {
+      const event = events[index];
+      if (event?.getType() === EventType.RoomMember && event.getStateKey() === userId) {
+        const name = memberEventName(event);
+        if (name) return name;
+      }
+    }
+    current = current.getNeighbouringTimeline(Direction.Backward);
+    before = Infinity;
+  }
+  return undefined;
+};
+
+/** A name that reads like a Matrix user ID, as matrix-js-sdk's member names check. */
+const USER_ID_SHAPE = /@.+:.+/;
+
+/** Memberships that end someone's place in the room. */
+const DEPARTED = [Membership.Leave, Membership.Ban];
+
+/** The last names found for gone members, by the member event that took their name. */
+const departedNames = new WeakMap<MatrixEvent, string>();
+
+/**
+ * The name a member who is gone (left, removed or banned) last had, when the event that ended
+ * their membership carries none: a kick, a ban and the leave that lifts a ban do not. Their
+ * earlier messages keep that name rather than their user ID; the ID follows it as
+ * `getRoomMemberName` adds it, when a member of the room shows the same name or it looks like
+ * an ID.
+ */
+const departedMemberName = (room: Room, userId: string): string | undefined => {
+  const gone = room.getMember(userId);
+  if (!gone || !DEPARTED.some((state) => matchesEnum(gone.membership, state))) return undefined;
+  // Stand-in members of tests may come without their events.
+  const ended = gone.events?.member;
+  if (!ended) return undefined;
+  const lastName =
+    departedNames.get(ended) ??
+    memberEventName(ended) ??
+    memberNameBefore(room.getLiveTimeline(), userId);
+  if (!lastName) return undefined;
+  departedNames.set(ended, lastName);
+  const shown = lastName.replace(NAME_DISGUISES, '');
+  if (!shown.trim()) return undefined;
+  const othersShowIt = room.currentState
+    .getUserIdsWithDisplayName(shown)
+    .some((other) => other !== userId);
+  const needsId =
+    othersShowIt ||
+    shown !== lastName ||
+    USER_ID_SHAPE.test(shown) ||
+    takesNamelessLocalpart(room, gone, shown);
+  return needsId ? `${shown} (\u2066${userId}\u2069)` : shown;
+};
+
+/**
+ * `getRoomMemberName` of the room's current member `userId`; for a member who is gone without a
+ * name, the name they last had.
+ */
 export const getMemberDisplayName = (room: Room, userId: string): string | undefined =>
-  getRoomMemberName(room.getMember(userId), room);
+  getRoomMemberName(room.getMember(userId), room) ?? departedMemberName(room, userId);
 
 export const getMemberAvatarMxc = (room: Room, userId: string): string | undefined =>
   room.getMember(userId)?.getMxcAvatarUrl() ?? undefined;
