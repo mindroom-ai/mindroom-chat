@@ -236,10 +236,24 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
   await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });
   await expectCountsHold(page, { [launch]: 3, [retro]: 2 }, 1_500);
 
-  // The Threads page shows the same counts. Going there loads the page again, from the saved sync.
-  // The client saved it right after the redaction and not after the newest reply (only the first
-  // sync of a page and redactions save it), so a card may show the count from between the two
-  // until sync and the thread list bring the newest reply.
+  // A reload starts from the saved sync. The client saved it right after the redaction and not
+  // after the newest reply (only the first sync of a page and redactions save it), so a card may
+  // show the count from between the two until sync and the thread list bring the newest reply. The
+  // event cache's copy of the root, saved before the redaction, still counts the redacted reply;
+  // the room's root must not take its count.
+  await page.reload();
+  await expectSavedThenServerCounts(page, {
+    [launch]: { saved: 2, server: 3 },
+    [retro]: { saved: 2, server: 2 },
+  });
+
+  // The Threads page shows the same counts. Another redaction and reply leave the saved sync behind
+  // again, and going there loads the page again.
+  await redactEvent(HOMESERVER, token, roomId, defined(launchReplies[0], 'the first launch reply'));
+  await expect(cardCount(page, launch)).toHaveText('2', { timeout: 30_000 });
+  await send(replyTo(launch, 'Ops is ready'));
+  await expect(cardCount(page, launch)).toHaveText('3', { timeout: 30_000 });
+  await expectCountsHold(page, { [launch]: 3, [retro]: 2 }, 1_500);
   await page.goto('/threads/');
   await expectSavedThenServerCounts(page, {
     [launch]: { saved: 2, server: 3 },
