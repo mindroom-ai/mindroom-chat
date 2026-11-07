@@ -12,8 +12,8 @@ import {
 import { defined } from '../../src/test/utils/defined';
 
 // Avatars come from MXC everywhere they show (rail, room list, header, members, Compact bars,
-// messages), with or without a service worker to authenticate the media requests, and the model
-// badge of an agent reply sits centred under the agent's avatar.
+// messages), with or without a service worker to authenticate the media requests, and an agent
+// reply's model name sits centred under the agent's avatar, its provider's logo on the corner.
 
 // A disposable local Matrix server with open registration (`just hs-up` or scripts/e2e-slot.sh).
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
@@ -201,35 +201,46 @@ const checkAvatars = async (page: Page, seeded: Seeded) => {
   await expectLoaded(avatar);
   await expectLoaded(page.locator('[data-message-id] img[alt="Avery Viewer"]'));
 
-  // The badge hangs centred under the avatar, at most the avatar column plus a gap each side,
-  // and the name beside the avatar stays clear of both. Measured in one pass, as rows re-render.
+  // The name hangs centred under the avatar, at most 4 px past it on each side and two lines tall,
+  // the provider's logo sits over the avatar's bottom corner on the text's side, and the sender's
+  // name beside the avatar stays clear of all three. Measured in one pass, as rows re-render.
   await expect(reply.getByLabel(/^Model: /)).toBeVisible();
   const layout = () =>
     reply.evaluate((row) => {
-      const box = (selector: string) => row.querySelector(selector)?.getBoundingClientRect();
-      const face = box('img[alt="Research"]');
-      const badge = box('[aria-label^="Model: "]');
+      const image = row.querySelector('img[alt="Research"]');
+      const face = image?.getBoundingClientRect();
+      const mark = image?.closest('[data-user-id]')?.nextElementSibling?.getBoundingClientRect();
+      const button = row.querySelector('[aria-label^="Model: "]');
+      const label = button?.firstElementChild?.getBoundingClientRect();
       const name = [...row.querySelectorAll('button, span')]
         .find((node) => node.textContent === 'Research')
         ?.getBoundingClientRect();
-      if (!face || !badge || !name) return 'missing';
+      if (!face || !mark || !button || !label || !name) return 'missing';
+      const badge = button.getBoundingClientRect();
       return {
         gapBelow: Math.round(badge.top - face.bottom),
         offCentre: Math.round(
           Math.abs(badge.left + badge.width / 2 - (face.left + face.width / 2))
         ),
         widerBy: Math.round(badge.width - face.width),
-        height: Math.round(badge.height),
-        nameClear: name.left >= face.right && name.left >= badge.right - 12,
+        lines: Math.round(label.height / 12),
+        markPastCorner: [
+          Math.round(mark.right - face.right),
+          Math.round(mark.bottom - face.bottom),
+        ],
+        nameClear: name.left >= mark.right && name.left >= badge.right,
       };
     });
   await expect.poll(layout).not.toBe('missing');
   const measured = await layout();
-  expect(measured).toMatchObject({ offCentre: 0, height: 14, nameClear: true });
+  expect(measured).toMatchObject({ offCentre: 0, markPastCorner: [4, 4], nameClear: true });
   if (typeof measured === 'string') throw new Error(measured);
   expect(measured.gapBelow).toBeGreaterThanOrEqual(0);
-  expect(measured.gapBelow).toBeLessThanOrEqual(6);
-  expect(measured.widerBy).toBeLessThanOrEqual(24);
+  expect(measured.gapBelow).toBeLessThanOrEqual(8);
+  // "Claude Sonnet 5.5" is wider than 44 px, so it takes the whole 4 px on each side.
+  expect(measured.widerBy).toBe(8);
+  expect(measured.lines).toBeGreaterThanOrEqual(1);
+  expect(measured.lines).toBeLessThanOrEqual(2);
 };
 
 for (const serviceWorkers of ['allow', 'block'] as const) {
