@@ -154,7 +154,7 @@ const computeBodyPreview = (body: string): ThreadPreview => {
       ? // Drop a split-off lone high surrogate at the cut point.
         withoutToolMarkers.slice(0, PREVIEW_SOURCE_MAX_LENGTH).replace(/[\uD800-\uDBFF]$/, '')
       : withoutToolMarkers;
-  const prose = stripPreviewMarkdown(stripPreviewMath(boundedSource)).replace(/\s+/g, ' ').trim();
+  const prose = stripPreviewMath(boundedSource, stripPreviewMarkdown).replace(/\s+/g, ' ').trim();
 
   if (toolCallCount > 0) {
     const cleanedProse = prose.replace(ORPHAN_SEPARATOR_EDGE_REGEX, '');

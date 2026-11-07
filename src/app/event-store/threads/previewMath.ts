@@ -23,9 +23,9 @@ const SYMBOLS = new Map(
       index % 2 === 0 ? [[word, words[index + 1] ?? '']] : []
     )
 );
-// Commands that only style their argument, which reads as written.
-const STYLE_COMMAND =
-  /^(?:text(?:rm|bf|it|sf|tt)?|math(?:rm|bf|it|sf|tt|bb|cal|frak)|operatorname|boldsymbol|boxed|hat|bar|vec|dot|tilde|overline|underline)$/;
+// Commands that only set the font of their argument, which reads as written.
+const FONT_COMMAND =
+  /^(?:text(?:rm|bf|it|sf|tt)?|math(?:rm|bf|it|sf|tt|bb|cal|frak)|operatorname|boldsymbol|boxed)$/;
 // Commands that only size or tighten what they touch.
 const SILENT_COMMAND = /^(?:left|right|[bB]igg?[lr]?|displaystyle|limits|nolimits|!)$/;
 const SPACE_COMMAND = /^(?:[,:;> ]|quad|qquad)$/;
@@ -57,64 +57,92 @@ const part = (text: string): string => {
   return /^(?:.?|\d+(?:[.,]\d+)?)$/u.test(trimmed) ? trimmed : `(${trimmed})`;
 };
 
-const readTex = (nodes: TexNode[]): string => {
-  let index = 0;
-  // The next node, with the arguments of the command it names.
-  const read = (): string => {
-    const node = nodes[index++];
-    if (node === undefined) return '';
-    if (typeof node !== 'string') return readTex(node);
-    if (node === '^' || node === '_') return node + part(argument());
-    if (node === '&' || node === '~') return ' ';
-    if (!node.startsWith('\\')) return node;
-    const name = node.slice(1);
-    if (/^[dt]?frac$/.test(name)) {
-      const numerator = part(argument());
-      return `${numerator}/${part(argument())}`;
-    }
-    if (name === 'sqrt') return `√${part(argument())}`;
-    if (name === 'begin' || name === 'end') {
-      argument();
-      return '';
-    }
-    if (name === '\\') return '; ';
-    if (STYLE_COMMAND.test(name)) return argument();
-    if (SILENT_COMMAND.test(name)) return '';
-    if (SPACE_COMMAND.test(name)) return ' ';
-    const symbol = SYMBOLS.get(name);
-    if (symbol !== undefined || !/^[A-Za-z]/.test(name)) return symbol ?? name;
-    // Any other command reads as its name, with its braced arguments in parentheses.
-    const args: string[] = [];
-    while (Array.isArray(nodes[index]) || (nodes[index] === ' ' && Array.isArray(nodes[index + 1])))
-      args.push(argument());
-    return args.length > 0 ? `${name}(${args.join(', ')})` : name;
+/**
+ * The formula as plain text, or `undefined` when it holds what the reader does not know: a command
+ * with braced arguments other than a fraction, root or font (an accent, `\binom`, an environment),
+ * a root with an index, a line break, or nothing to read.
+ */
+const readFormula = (tex: string): string | undefined => {
+  let known = true;
+  const readNodes = (nodes: TexNode[]): string => {
+    let index = 0;
+    // The next node after a space.
+    const argument = (): string => {
+      if (nodes[index] === ' ') index += 1;
+      return read();
+    };
+    // A fraction or root keeps parentheses when a script, letter, digit, group or command joins it.
+    const whole = (text: string): string => {
+      const next = nodes[index];
+      const joined =
+        Array.isArray(next) ||
+        (typeof next === 'string' &&
+          (/^[\^_\p{L}\p{N}]$/u.test(next) ||
+            (next.startsWith('\\') &&
+              !SILENT_COMMAND.test(next.slice(1)) &&
+              !SPACE_COMMAND.test(next.slice(1)))));
+      return joined ? `(${text})` : text;
+    };
+    // The next node, with the arguments of the command it names.
+    const read = (): string => {
+      const node = nodes[index++];
+      if (node === undefined) return '';
+      if (typeof node !== 'string') return readNodes(node);
+      if (node === '^' || node === '_') return node + part(argument());
+      if (node === '~') return ' ';
+      if (!node.startsWith('\\')) return node;
+      const name = node.slice(1);
+      if (/^[dt]?frac$/.test(name)) {
+        const numerator = part(argument());
+        return whole(`${numerator}/${part(argument())}`);
+      }
+      if (name === 'sqrt' && nodes[index] !== '[') return whole(`√${part(argument())}`);
+      if (FONT_COMMAND.test(name)) return argument();
+      if (SILENT_COMMAND.test(name)) return '';
+      if (SPACE_COMMAND.test(name)) return ' ';
+      const symbol = SYMBOLS.get(name);
+      if (symbol !== undefined) return symbol;
+      // Any other command reads as its name (`\sin`, `\%`), unless it takes braced arguments.
+      const takesArguments =
+        Array.isArray(nodes[index]) || (nodes[index] === ' ' && Array.isArray(nodes[index + 1]));
+      if (name === 'sqrt' || name === '\\' || (/^[A-Za-z]/.test(name) && takesArguments)) {
+        known = false;
+      }
+      return name;
+    };
+    let text = '';
+    while (index < nodes.length) text += read();
+    return text;
   };
-  // The next node after a space.
-  const argument = (): string => {
-    if (nodes[index] === ' ') index += 1;
-    return read();
-  };
-  let text = '';
-  while (index < nodes.length) {
-    const piece = read();
-    // A row break (`\\`) ends its row without the space before it.
-    text = piece === '; ' ? `${text.trimEnd()}; ` : text + piece;
-  }
-  return text;
+  const text = readNodes(parseTex(tex));
+  return known && text.trim() ? text : undefined;
 };
 
 /**
- * `text` with each formula that messages typeset (`$…$`, `$$…$$`) read as plain text, so a one-line
- * preview shows `a/b` rather than `$\frac{a}{b}$`. Symbols become their characters, styling goes,
- * `^` and `_` stay, and a fraction, root or script of more than one character keeps parentheses.
- * The tokenizer also scans for links, several times the cost of the rest of a preview, so only text
- * that holds a formula goes through it.
+ * `strip`, the Markdown stripping of a one-line preview, applied to `text`, with each formula that
+ * messages typeset (`$…$`, `$$…$$`) read as plain text: the preview shows `a/b` rather than
+ * `$\frac{a}{b}$`. Symbols become their characters, fonts and sizes go, `^` and `_` stay, a part of
+ * a fraction, root or script that is longer than one character keeps parentheses unless it is a
+ * number, and so does a fraction or root that something joins. A formula with anything else stays as
+ * written. Formulas stand in as placeholders while `strip` runs, so its Markdown rules never change
+ * them. The tokenizer also scans for links, several times the cost of the rest of a preview, so only
+ * text that holds a formula goes through it.
  */
-export const stripPreviewMath = (text: string): string =>
-  text.includes('$') && (findInlineLatexMatch(text) ?? findDisplayLatexBlockMatch(text))
-    ? tokenizeTextWithLatex(text)
-        .map((segment) =>
-          segment.type === 'math' ? readTex(parseTex(segment.content)) : segment.content
-        )
-        .join('')
-    : text;
+export const stripPreviewMath = (text: string, strip: (text: string) => string): string => {
+  if (!text.includes('$') || !(findInlineLatexMatch(text) ?? findDisplayLatexBlockMatch(text))) {
+    return strip(text);
+  }
+  const formulas: string[] = [];
+  const marked = tokenizeTextWithLatex(text)
+    .map((segment) => {
+      if (segment.type !== 'math') return segment.content;
+      const { content, displayMode } = segment;
+      formulas.push(readFormula(content) ?? (displayMode ? `$$\n${content}\n$$` : `$${content}$`));
+      return `${formulas.length - 1}`;
+    })
+    .join('');
+  return strip(marked).replace(
+    /(\d+)/g,
+    (placeholder, at: string) => formulas[Number(at)] ?? placeholder
+  );
+};
