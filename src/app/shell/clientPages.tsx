@@ -23,6 +23,8 @@ import { FloatingShell } from '../ui/page/floatingCards.css';
 import './layout/floatingCardsLayout.css';
 import { ClientShell } from './ClientShell';
 import { Space } from '../sidebar/space/Space';
+import { PhoneTopBar } from '../sidebar/PhoneTopBar';
+import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
 
 // The signed-in pages. Router.tsx loads this module on its own, so the sign-in pages start
 // without the code of every signed-in screen; the signed-in client starts its account while
@@ -54,13 +56,17 @@ export { Notifications } from '../notifications/inbox/Notifications';
  */
 export function SignedInChrome() {
   const floating = useFloatingCardsLayout();
+  // Beside the page on wider screens; on phones in the drawer below the top bar.
+  const nav = <CollapsibleSidebarNav />;
   return (
     <ClientBindAtoms>
       <ClientShell>
         <NavigationProvider>
           <FloatingCardsContext.Provider value={floating}>
             <ClientLayout
-              nav={<CollapsibleSidebarNav />}
+              nav={nav}
+              phoneTopBar={<PhoneTopBar />}
+              phoneNavDrawer={<PhoneNavDrawer nav={nav} />}
               className={floating ? FloatingShell : undefined}
             >
               {/* A page whose code is still loading leaves the rail and dialogs in place. */}
@@ -76,28 +82,29 @@ export function SignedInChrome() {
 }
 
 /** A section with its navigation; `navId` names the section whose open page is remembered. */
-export function SectionPage({
-  path,
-  nav,
-  navId,
-}: {
-  path: string;
-  nav: ReactNode;
-  navId?: string;
-}) {
+export function SectionPage({ nav, navId }: { nav: ReactNode; navId?: string }) {
   return (
-    <SectionPageRoot navId={navId} nav={<CollapsiblePageNav path={path}>{nav}</CollapsiblePageNav>}>
+    <SectionPageRoot navId={navId} nav={<CollapsiblePageNav>{nav}</CollapsiblePageNav>}>
       <Outlet />
     </SectionPageRoot>
   );
 }
 
+/**
+ * A section's own page. A phone stays at this address with the section's list out in its drawer,
+ * so where wider screens redirect (a space to its lobby, the Inbox to Invites) a phone shows
+ * `phonePage` in place, and a way back to the list lands here with the drawer out.
+ */
+export function SectionIndex({ page, phonePage }: { page: ReactNode; phonePage: ReactNode }) {
+  return <>{useScreenSizeContext() === ScreenSize.Mobile ? phonePage : page}</>;
+}
+
 /** A space with its navigation; it remembers the page open in that space. */
-export function SpaceSectionPage({ path }: { path: string }) {
+export function SpaceSectionPage() {
   return (
     <SpacePageRoot
       nav={
-        <CollapsiblePageNav path={path}>
+        <CollapsiblePageNav>
           <Space />
         </CollapsiblePageNav>
       }
@@ -105,11 +112,6 @@ export function SpaceSectionPage({ path }: { path: string }) {
       <Outlet />
     </SpacePageRoot>
   );
-}
-
-/** A section's own page: on phones its navigation list fills the screen there instead. */
-export function SectionIndex({ page }: { page: ReactNode }) {
-  return useScreenSizeContext() === ScreenSize.Mobile ? null : <>{page}</>;
 }
 
 export function CreateRoomPage() {
