@@ -2,6 +2,7 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -15,7 +16,8 @@ import { fileURLToPath } from 'node:url';
 import {
   build,
   createServer,
-  type ConfigEnv,
+  optimizeDeps,
+  resolveConfig,
   type Rollup,
   type ServerOptions,
   type UserConfig,
@@ -189,12 +191,7 @@ describe('clientPlugins', () => {
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
     const config = (plugins: string | undefined) =>
-      (
-        clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as (
-          config: UserConfig,
-          env: ConfigEnv
-        ) => UserConfig
-      )({}, { command: 'serve', mode: 'development' });
+      (clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig)();
     expect(config(EXAMPLE).server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
     expect(config(undefined).server).toBeUndefined();
   });
@@ -472,35 +469,63 @@ describe('packages the app shares with plugins', () => {
     expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));
   });
 
-  it("resolves them to the app's copy in the dev server too, for the plugin and the packages it installed", async () => {
+  it("resolves them to the app's copy in the dev server too, for a plugin's own files", async () => {
     const dir = realpathSync(pluginDir(declaring(), { entry: false }));
     importing(dir, ['jotai', 'helper']);
     installStandIn(dir, 'jotai');
-    installStandIn(dir, 'helper', "export * from 'jotai';\n");
+    installStandIn(dir, 'helper');
     const server = await devServer(dir);
-    const isAppCopy = (id: string | undefined) => id?.startsWith(appCopy('jotai')) ?? false;
     try {
       const index = path.join(dir, 'index.js');
-      const helper = path.join(dir, 'node_modules/helper/index.js');
-      expect(isAppCopy((await server.pluginContainer.resolveId('jotai', index))?.id)).toBe(true);
+      const resolved = await server.pluginContainer.resolveId('jotai', index);
+      expect(resolved?.id.startsWith(appCopy('jotai'))).toBe(true);
       // Its other imports resolve in its own directory.
-      expect((await server.pluginContainer.resolveId('helper', index))?.id).toBe(helper);
-      // Its packages as the dev server pre-bundles them, without plugin hooks: their imports and
-      // their CommonJS requires.
-      for (const isRequire of [false, true]) {
-        const resolve = server.config.createResolver({ asSrc: false, scan: true, isRequire });
-        expect(isAppCopy(await resolve('jotai', helper)), `isRequire: ${isRequire}`).toBe(true);
-      }
+      expect((await server.pluginContainer.resolveId('helper', index))?.id).toBe(
+        path.join(dir, 'node_modules/helper/index.js')
+      );
     } finally {
       await server.close();
     }
   });
 
-  it('leaves them as they were in the dev server without plugins', async () => {
+  it("gives the packages a plugin installed, as the dev server pre-bundles them, the module the app's pre-bundle has", async () => {
+    const dir = realpathSync(pluginDir(declaring(), { entry: false }));
+    importing(dir, ['jotai', 'helper', 'required']);
+    installStandIn(dir, 'jotai', 'export const pluginsOwnJotai = true;\n');
+    installStandIn(dir, 'helper', "export * from 'jotai';\n");
+    installStandIn(dir, 'required', "module.exports = require('jotai');\n");
+    const config = await resolveConfig(
+      {
+        configFile: false,
+        root: ROOT,
+        logLevel: 'silent',
+        cacheDir: emptyDir(),
+        plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+        optimizeDeps: { entries: [path.join(dir, 'index.js')] },
+      },
+      'serve'
+    );
+    expect(Object.keys((await optimizeDeps(config, true)).optimized).sort()).toEqual([
+      'helper',
+      'jotai',
+      'required',
+    ]);
+    const deps = path.join(config.cacheDir, 'deps');
+    const code = readdirSync(deps)
+      .filter((name) => name.endsWith('.js'))
+      .map((name) => readFileSync(path.join(deps, name), 'utf8'));
+    // One jotai for the three, the app's ES module: its CommonJS build in `required` would be a
+    // second one, and the plugin's own copy a third.
+    expect(code.filter((text) => text.includes('keyCount'))).toHaveLength(1);
+    expect(code.filter((text) => text.includes('pluginsOwnJotai'))).toEqual([]);
+  });
+
+  it('leaves the imports of files outside the plugins as they were in the dev server', async () => {
+    const plugin = pluginDir(declaring());
     const outside = realpathSync(emptyDir());
     installStandIn(outside, 'jotai');
     importing(outside, ['jotai']);
-    const server = await devServer();
+    const server = await devServer(plugin);
     try {
       const resolved = await server.pluginContainer.resolveId(
         'jotai',

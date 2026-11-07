@@ -58,6 +58,12 @@ export const SHARED_PACKAGES = [
   'react-aria',
 ];
 
+/** The package the app shares that `source` imports, such as `react-aria` for `react-aria/x`. */
+const sharedPackage = (/** @type {string} */ source) => {
+  const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
+  return SHARED_PACKAGES.includes(name) ? name : undefined;
+};
+
 /** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */
 
 /**
@@ -205,17 +211,32 @@ const entriesModule = (plugins) => {
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   const ownerOf = pluginOwner(plugins);
-  let building = false;
+  /**
+   * The dev server pre-bundles the packages a plugin installed with esbuild, without plugin hooks:
+   * there their imports and requires of the packages the app shares resolve as the app imports
+   * them, to the module the app's own pre-bundle has.
+   * @type {import('esbuild').Plugin}
+   */
+  const preBundling = {
+    name: 'mindroom-client-plugins',
+    setup: (build) => {
+      build.onResolve({ filter: /^[\w@]/ }, ({ path: source, importer }) =>
+        sharedPackage(source) && ownerOf(importer)
+          ? build.resolve(source, {
+              kind: 'import-statement',
+              importer: ENTRIES_MODULE,
+              resolveDir: path.dirname(ENTRIES_MODULE),
+            })
+          : undefined
+      );
+    },
+  };
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
-    config: (_config, { command }) => ({
-      resolve: {
-        alias: CLIENT_SDK_ALIAS,
-        // The dev server pre-bundles a plugin's installed packages without plugin hooks, so there
-        // every import of the packages the app shares resolves in the app's directory instead.
-        dedupe: command === 'serve' && plugins.length > 0 ? SHARED_PACKAGES : undefined,
-      },
+    config: () => ({
+      resolve: { alias: CLIENT_SDK_ALIAS },
+      optimizeDeps: { esbuildOptions: { plugins: [preBundling] } },
       // The dev server serves files outside the workspace only from directories it allows, and a
       // list of them replaces its default, the workspace root.
       server:
@@ -227,14 +248,11 @@ export const clientPlugins = (env = process.env) => {
             }
           : undefined,
     }),
-    configResolved: ({ command }) => {
-      building = command === 'build';
-    },
-    // In a build, a plugin's imports of the packages the app shares resolve as the app's own do.
+    // A plugin's imports of the packages the app shares resolve as the app's own do.
     async resolveId(source, importer, options) {
-      if (!building || !importer) return null;
-      const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
-      if (!SHARED_PACKAGES.includes(name)) return null;
+      if (!importer) return null;
+      const name = sharedPackage(source);
+      if (!name) return null;
       const owner = ownerOf(importer);
       if (!owner) return null;
       const resolved = await this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true });
