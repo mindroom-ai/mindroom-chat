@@ -16,9 +16,10 @@
 //
 // `gh release create` makes the release and, with it, the tag on GitHub (lightweight, at the
 // commit). GITHUB_REPOSITORY names the repository, as in GitHub Actions; the default is
-// mindroom-ai/mindroom-chat.
+// mindroom-ai/mindroom-chat. In GitHub Actions, the tag of a release it creates goes to
+// GITHUB_OUTPUT as `tag`, for the Release workflow's image job.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
@@ -338,6 +339,7 @@ export const main = async (argv, env, cwd) => {
     }
   }
   publish(plan, repository);
+  if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `tag=${plan.tag}\n`);
   return 0;
 };
 
