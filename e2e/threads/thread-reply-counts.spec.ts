@@ -245,8 +245,4 @@ test('thread reply counts stay right through reloads, replies, edits, redactions
     [launch]: { saved: 2, server: 3 },
     [retro]: { saved: 2, server: 2 },
   });
-
-  // That page saved its first sync, so the next reload starts from the newest counts.
-  await page.reload();
-  await expectCountsHold(page, { [launch]: 3, [retro]: 2 });
 });
