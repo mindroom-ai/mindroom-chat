@@ -31,7 +31,7 @@ export const pollLiveCall = async (
   everyMs: number,
   signal: AbortSignal,
   onLive: (live: LiveCall) => void,
-  onFailure?: () => void
+  onFailure?: (error: unknown) => void
 ): Promise<'not-transcribed' | undefined> => {
   let after: string | undefined;
   do {
@@ -43,7 +43,7 @@ export const pollLiveCall = async (
     } catch (error) {
       if (signal.aborted) return undefined;
       if (isNotTranscribed(error)) return 'not-transcribed';
-      onFailure?.();
+      onFailure?.(error);
     }
   } while (await sleep(everyMs, signal));
   return undefined;

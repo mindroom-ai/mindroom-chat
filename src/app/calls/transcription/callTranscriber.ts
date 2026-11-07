@@ -394,14 +394,24 @@ export class CallTranscriber {
         return this.client.live(...read);
       },
     };
-    void pollLiveCall(reads, this.options.roomId, LIVE_READ_MS, this.stopReading.signal, (live) => {
-      if (this.ending) return;
-      // A read sent before MindRoom's last answer may tell the call as it was before it: the
-      // answer's call stays, and the read adds only its lines of that call.
-      const answer = answersAtRead === this.answers ? undefined : this.lastAnswer;
-      if (answer && live.call?.id !== answer.id) return;
-      this.options.onUpdate({ type: 'live', live: answer ? { ...live, call: answer } : live });
-    }).then((outcome) => {
+    void pollLiveCall(
+      reads,
+      this.options.roomId,
+      LIVE_READ_MS,
+      this.stopReading.signal,
+      (live) => {
+        if (this.ending) return;
+        // A read sent before MindRoom's last answer may tell the call as it was before it: the
+        // answer's call stays, and the read adds only its lines of that call.
+        const answer = answersAtRead === this.answers ? undefined : this.lastAnswer;
+        if (answer && live.call?.id !== answer.id) return;
+        this.options.onUpdate({ type: 'live', live: answer ? { ...live, call: answer } : live });
+      },
+      (error) => {
+        // A read that fails counts as a failing route: nothing is sent until a check-in is answered.
+        if (isUnavailable(error)) this.becomeUnavailable();
+      }
+    ).then((outcome) => {
       if (outcome === 'not-transcribed') this.turnOff();
     });
   }

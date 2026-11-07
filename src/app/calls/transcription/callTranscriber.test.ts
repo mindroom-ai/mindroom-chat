@@ -531,6 +531,39 @@ describe('CallTranscriber when MindRoom is unavailable', () => {
     expect(t.speeches()).toEqual(['speech 1', 'speech 4']);
   });
 
+  it.each([
+    ['answers with an error', serverError],
+    [
+      'cannot be reached',
+      () => {
+        throw new TypeError('Failed to fetch');
+      },
+    ],
+  ])(
+    'turns unavailable when a read of the live call fails (%s), and the first answered check-in resumes',
+    async (_case, failure) => {
+      const t = setup();
+      t.transcriber.setMicrophone(MIC_A);
+      t.transcriber.start();
+      await advance();
+      t.server.live.mockImplementationOnce(failure);
+
+      await advance(2_000);
+      expect(t.statuses).toEqual(['transcribing', 'unavailable']);
+      expect(t.capture().stopped).toBe(true);
+      t.capture().onStretch(stretch(1));
+      await advance();
+      expect(t.speeches()).toEqual([]);
+
+      // Reading goes on, and the next check-in resumes.
+      await advance(2_000);
+      expect(t.reads()).toBe(3);
+      await advance(16_000);
+      expect(t.statuses).toEqual(['transcribing', 'unavailable', 'transcribing']);
+      expect(t.capture(1).track).toBe(MIC_A);
+    }
+  );
+
   it('turns unavailable when a check-in gets no answer', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
