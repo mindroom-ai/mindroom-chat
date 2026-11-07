@@ -6,6 +6,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { RELEASE_TAG_GLOB } from './calver.mjs';
+import { readClientPlugins } from './client-plugins.mjs';
 
 const COMMIT_HASH = /^[0-9a-f]{7,64}$/i;
 
@@ -97,6 +98,27 @@ const SOURCE_PATHS = [
 ];
 
 /**
+ * Adds the file or directory `relative` in `root` to `hash`: each file's path and contents, in name
+ * order, without the directories `skip` names.
+ * @param {import('node:crypto').Hash} hash
+ * @param {string} root
+ * @param {string} relative
+ * @param {ReadonlySet<string>} [skip]
+ */
+const addFiles = (hash, root, relative, skip = new Set()) => {
+  const full = path.join(root, relative);
+  const stats = statSync(full, { throwIfNoEntry: false });
+  if (stats?.isDirectory()) {
+    readdirSync(full)
+      .filter((name) => !skip.has(name))
+      .sort()
+      .forEach((name) => addFiles(hash, root, path.posix.join(relative, name), skip));
+  } else if (stats?.isFile()) {
+    hash.update(`${relative}\0`).update(readFileSync(full)).update('\0');
+  }
+};
+
+/**
  * `source-` and a digest of the files a build is made from: the same files give the same version,
  * any change another.
  * @param {string} cwd
@@ -104,32 +126,35 @@ const SOURCE_PATHS = [
  */
 export const readSourceVersion = (cwd) => {
   const hash = createHash('sha256');
-  /** @param {string} relative */
-  const add = (relative) => {
-    const full = path.join(cwd, relative);
-    const stats = statSync(full, { throwIfNoEntry: false });
-    if (stats?.isDirectory()) {
-      readdirSync(full)
-        .sort()
-        .forEach((name) => add(path.posix.join(relative, name)));
-    } else if (stats?.isFile()) {
-      hash.update(`${relative}\0`).update(readFileSync(full)).update('\0');
-    }
-  };
-  SOURCE_PATHS.forEach(add);
+  SOURCE_PATHS.forEach((relative) => addFiles(hash, cwd, relative));
   return `source-${hash.digest('hex').slice(0, 16)}`;
 };
+
+/** What a plugin's digest leaves out: its installed packages, for which its lockfile stands, and Git's data. */
+const PLUGIN_SKIP = new Set(['node_modules', '.git']);
 
 /**
  * The build version (resolveBuildVersion). A checkout without Git or provider variables (an
  * archive, a container build that leaves `.git` out) is named after its sources, so its pages
- * still tell a deployment from their own build (src/app/config/appUpdate.ts).
+ * still tell a deployment from their own build (src/app/config/appUpdate.ts). A build with client
+ * plugins (MINDROOM_CLIENT_PLUGINS) adds `-plugins-` and a digest of their files in their order, so
+ * a build whose only change is its plugins is a new version too.
  * @param {Record<string, string | undefined>} env
  * @param {string | undefined} [cwd]
  * @returns {string}
  */
-export const readBuildVersion = (env, cwd) =>
-  resolveBuildVersion(env, readGitCommit(cwd)) ?? readSourceVersion(cwd ?? process.cwd());
+export const readBuildVersion = (env, cwd) => {
+  const version =
+    resolveBuildVersion(env, readGitCommit(cwd)) ?? readSourceVersion(cwd ?? process.cwd());
+  const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
+  if (plugins.length === 0) return version;
+  const hash = createHash('sha256');
+  plugins.forEach(({ id, dir }) => {
+    hash.update(`${id}\0`);
+    addFiles(hash, dir, '.', PLUGIN_SKIP);
+  });
+  return `${version}-plugins-${hash.digest('hex').slice(0, 16)}`;
+};
 
 const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMain) {
