@@ -149,10 +149,7 @@ export const readBuildVersion = (env, cwd) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   if (plugins.length === 0) return version;
   const hash = createHash('sha256');
-  plugins.forEach(({ id, dir }) => {
-    hash.update(`${id}\0`);
-    addFiles(hash, dir, '.', PLUGIN_SKIP);
-  });
+  plugins.forEach(({ dir }) => addFiles(hash, dir, '.', PLUGIN_SKIP));
   return `${version}-plugins-${hash.digest('hex').slice(0, 16)}`;
 };
 
