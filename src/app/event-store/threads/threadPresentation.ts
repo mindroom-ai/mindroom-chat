@@ -126,7 +126,7 @@ export const resolveThreadPresentationSnapshot = ({
   const bundleLatest = bundle.latest;
   const outgrown =
     !!bundleLatest &&
-    [...replyEvents, summaryReply].some(
+    [...replyEvents, thread?.replyToEvent, summaryReply].some(
       (event) =>
         !!event &&
         (event.getId() === bundleLatest.id
