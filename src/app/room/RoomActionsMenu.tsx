@@ -7,9 +7,9 @@ import * as css from './RoomActionsMenu.css';
 
 type RoomActionsMenuProps = RoomActionProps & {
   /**
-   * What only works inside the open room (the room header's menu): on phones what their header
-   * leaves out (view, filters, members and the like), and the computer and calls when the header
-   * does not show them. A section of its own, before the room's actions.
+   * What only works inside the open room (the room header's menu): the header's actions that its
+   * row leaves to the menu (src/app/room/roomHeaderActions.tsx). A section of its own, before the
+   * room's actions.
    */
   roomEntries?: ReactNode;
 };

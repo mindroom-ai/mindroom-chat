@@ -61,7 +61,7 @@ writeFileSync(
 );
 
 test('lists production packages once, sorted, with their license and notice files', () => {
-  const notices = thirdPartyNotices(root);
+  const notices = thirdPartyNotices(root, []);
   const names = [...notices.matchAll(/^={80}\n(.+)$/gm)].map((match) => match[1]);
   assert.deepEqual(names, ['alpha 2.0.0', 'bare 0.1.0', 'zeta 1.0.0']);
   assert.match(
@@ -83,7 +83,7 @@ test('says when a package ships no license file, and names a text it already pri
   lock.packages['node_modules/zulu'] = { version: '1.0.0', license: 'MIT' };
   writeFileSync(lockFile, JSON.stringify(lock));
 
-  const notices = thirdPartyNotices(root);
+  const notices = thirdPartyNotices(root, []);
   assert.match(
     notices,
     /bare 0\.1\.0\nLicense: ISC\nSource: https:\/\/github\.com\/a\/bare\n\nThe package ships no license file; .* by Bob\./
@@ -92,5 +92,66 @@ test('says when a package ships no license file, and names a text it already pri
     notices,
     /zulu 1\.0\.0\nLicense: MIT\n\nFile LICENSE\.txt: the same text as zeta 1\.0\.0's LICENSE above\./
   );
-  assert.equal(thirdPartyNotices(root), notices);
+  assert.equal(thirdPartyNotices(root, []), notices);
+});
+
+test("adds the installed production packages of each client plugin's package-lock.json", () => {
+  const plugin = join(root, 'plugin');
+  install('plugin/node_modules/own-dep', { license: 'MIT' }, { LICENSE: 'Own dep license' });
+  install('plugin/node_modules/own-tool', { license: 'MIT' }, { LICENSE: 'Plugin dev only' });
+  // The app's zeta 1.0.0 again: listed once.
+  install('plugin/node_modules/zeta', { license: 'MIT' }, { LICENSE: MIT });
+  // A package the app shares, installed as a peer dependency: the bundle takes the app's.
+  install('plugin/node_modules/react', { license: 'MIT' }, { LICENSE: 'Plugin copy of react' });
+  writeFileSync(
+    join(plugin, 'package-lock.json'),
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'some-plugin' },
+        'node_modules/own-dep': { version: '0.2.0', license: 'MIT' },
+        'node_modules/own-tool': { version: '1.0.0', dev: true, license: 'MIT' },
+        'node_modules/zeta': { version: '1.0.0', license: 'MIT' },
+        'node_modules/react': { version: '18.3.1', peer: true, license: 'MIT' },
+        // A peer dependency left out of the install (npm ci --omit=peer).
+        'node_modules/left-out': { version: '1.0.0', peer: true, license: 'MIT' },
+      },
+    })
+  );
+
+  const notices = thirdPartyNotices(root, [plugin]);
+  const names = [...notices.matchAll(/^={80}\n(.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(names, [
+    'alpha 2.0.0',
+    'bare 0.1.0',
+    'own-dep 0.2.0',
+    'zeta 1.0.0',
+    'zulu 1.0.0',
+  ]);
+  assert.match(notices, /own-dep 0\.2\.0\nLicense: MIT\n\nFile LICENSE:\n\nOwn dep license\n/);
+  assert.ok(!notices.includes('Plugin dev only') && !notices.includes('Plugin copy of react'));
+});
+
+test('fails for a client plugin that installed packages without a package-lock.json', () => {
+  install('unlocked-plugin/node_modules/own-dep', { license: 'MIT' });
+  const plugin = join(root, 'unlocked-plugin');
+  assert.throws(
+    () => thirdPartyNotices(root, [plugin]),
+    new RegExp(
+      `^Error: MINDROOM_CLIENT_PLUGINS: ${plugin}: has node_modules but no package-lock\\.json`
+    )
+  );
+  // A plugin that installed nothing needs none, even with a tool's cache in node_modules.
+  mkdirSync(join(root, 'bare-plugin/node_modules/.cache'), { recursive: true });
+  assert.doesNotThrow(() => thirdPartyNotices(root, [join(root, 'bare-plugin')]));
+});
+
+test('fails for a lockfile without its packages, naming it', () => {
+  const plugin = join(root, 'old-lock-plugin');
+  mkdirSync(plugin);
+  writeFileSync(join(plugin, 'package-lock.json'), JSON.stringify({ lockfileVersion: 1 }));
+  assert.throws(
+    () => thirdPartyNotices(root, [plugin]),
+    new RegExp(`^Error: ${join(plugin, 'package-lock\\.json')} lists no "packages"`)
+  );
 });
