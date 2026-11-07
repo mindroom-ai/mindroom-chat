@@ -199,6 +199,53 @@ export const resolveThreadPresentationSnapshot = ({
     latestReplyPreviewText
   );
 
+  // CPT-DIAG
+  try {
+    const w = window as unknown as { __CPT_DIAG__?: Map<string, unknown[]> };
+    w.__CPT_DIAG__ ??= new Map();
+    const desc = (e: MatrixEvent | null | undefined) =>
+      e
+        ? {
+            id: e.getId()?.slice(0, 8),
+            body: String((e.getContent() as { body?: unknown }).body ?? '').slice(0, 24),
+            repl: e.replacingEvent()?.getId()?.slice(0, 8),
+            ts: e.getTs(),
+            rts: getThreadPreviewRevisionTs(e),
+            sum: isThreadSummaryEvent(e),
+          }
+        : undefined;
+    const real = thread as unknown as {
+      initialEventsFetched?: boolean;
+      replayEvents?: MatrixEvent[] | null;
+      findEventById?: (id: string) => MatrixEvent | undefined;
+      lastEvent?: MatrixEvent;
+    } | null | undefined;
+    const isReal = typeof real?.findEventById === 'function';
+    const entry = {
+      t: Math.round(performance.now()),
+      src: isReal ? 'sdk' : 'cache',
+      text: latestReplyPreviewText?.slice(0, 24),
+      loaded: replyEvents.map(desc),
+      replyTo: desc(thread?.replyToEvent),
+      replyToInLoaded: !!thread?.replyToEvent && replyEvents.includes(thread.replyToEvent),
+      fb: fallbackLatestReplyPreviewText?.slice(0, 24),
+      fbTs: fallbackLatestReplyTs,
+      fbAct: fallbackLastActivityTs,
+      bTitle: desc(bundle.title),
+      bReply: desc(bundle.reply),
+      bLatest: bundle.latest,
+      outgrown,
+      chosen: latestPreviewEvent === loadedPreviewEvent ? 'loaded' : latestPreviewEvent ? 'bundled/replyTo' : preferCachedReply ? 'cachedPref' : 'fallback',
+      init: real?.initialEventsFetched,
+      replay: real?.replayEvents?.length,
+    };
+    const list = w.__CPT_DIAG__.get(threadRootId) ?? [];
+    list.push(entry);
+    if (list.length > 12) list.shift();
+    w.__CPT_DIAG__.set(threadRootId, list);
+  } catch {
+    // diag only
+  }
   return {
     summaryInfo,
     summaryText: summaryInfo?.summaryText,

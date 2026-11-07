@@ -340,6 +340,24 @@ const shot = async (page: Page, name: string) => {
   await page.screenshot({ path: `${SHOTS}/${name}.png` });
 };
 
+
+const dumpDiag = async (page: Page, stream: Stream, label: string, expected: string) => {
+  const text = (await threadCard(page, stream.rootId).textContent().catch(() => '')) ?? '';
+  if (text.includes(expected)) return;
+  const data = await page.evaluate(
+    ({ root, reply }) => {
+      const w = window as unknown as { __CPT_DIAG__?: Map<string, unknown[]>; __CPT_ADDS__?: { id?: string }[] };
+      return {
+        diag: w.__CPT_DIAG__?.get(root) ?? null,
+        adds: (w.__CPT_ADDS__ ?? []).filter((add) => add.id === reply.slice(0, 8)),
+      };
+    },
+    { root: stream.rootId, reply: stream.replyId }
+  );
+  // eslint-disable-next-line no-console
+  console.log(`CPT-DIAG ${label} item ${stream.index} reply ${stream.replyId.slice(0, 8)} card="${text.slice(0, 120)}"\n${JSON.stringify(data, null, 1)}`);
+};
+
 const report = (description: string) => {
   test.info().annotations.push({ type: 'thread cache', description });
   // eslint-disable-next-line no-console
@@ -403,6 +421,7 @@ const check = async (page: Page, world: World, engine: string) => {
     await expect
       .soft(threadCard(page, stream.rootId), `${engine}: off-screen terminal edit ${stream.index}`)
       .toContainText(`Item ${stream.index} is ready: the notes list the export fix`);
+    await dumpDiag(page, stream, `${engine} live`, `Item ${stream.index} is ready`);
   }
 
   // The others finish while the page is away, and a busy thread pushes their last edits out of
@@ -445,6 +464,7 @@ const check = async (page: Page, world: World, engine: string) => {
           .toContainText(`Item ${stream.index} is ready: the notes list the export fix`, {
             timeout: 10_000,
           });
+        await dumpDiag(page, stream, `${engine} ${pass}`, `Item ${stream.index} is ready`);
         await card.scrollIntoViewIfNeeded();
         await shot(
           page,
@@ -485,6 +505,11 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   });
   try {
     const page = await context.newPage();
+    const throttle = Number(process.env.CPT_CPU_THROTTLE ?? 0);
+    if (throttle > 1 && engine === 'chromium') {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
+    }
     await page.addInitScript((theme) => {
       const settings = JSON.parse(localStorage.getItem('settings') ?? '{}') as Record<
         string,
