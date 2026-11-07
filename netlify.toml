@@ -23,6 +23,14 @@
   status = 200
   force = true
 
+# Files under /public/ are only ever files: a missing one is a 404, not the app shell. A rule
+# that is not forced never applies where a file exists, and the build has no 404.html, so a
+# missing file gets Netlify's own not-found page.
+[[redirects]]
+  from = "/public/*"
+  to = "/404.html"
+  status = 404
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Starts a web client image (Dockerfile) and checks what it serves: the release it was built as in
-# version.json, the app shell on any route, a 404 for a missing build file, the deployment files
-# the start scripts and the build provide, and the cache and framing headers. The Image workflow
-# (.github/workflows/image.yml) runs it on every image before anything is pushed.
+# version.json, the app shell on any route, a 404 for a missing build file or file under /public/,
+# the deployment files the start scripts and the build provide, and the cache and framing headers.
+# The Image workflow (.github/workflows/image.yml) runs it on every image before anything is pushed.
 #
 #   scripts/image-smoke-test.sh <image> <release tag> [docker run options, e.g. --platform linux/arm64]
 set -euo pipefail
@@ -59,6 +59,9 @@ expect "$asset" "$(status "$asset")" '200'
 expect "$asset Cache-Control" "$(header "$asset" Cache-Control)" 'public, max-age=31536000, immutable'
 expect "$asset X-Frame-Options" "$(header "$asset" X-Frame-Options)" 'SAMEORIGIN'
 expect 'a missing build file' "$(status /assets/missing-0000.js)" '404'
+expect '/public/licenses/LICENSE' "$(status /public/licenses/LICENSE)" '200'
+expect '/public/licenses/LICENSE X-Frame-Options' "$(header /public/licenses/LICENSE X-Frame-Options)" 'SAMEORIGIN'
+expect 'a missing file under /public/' "$(status /public/missing.html)" '404'
 
 expect '/config.json' "$(status /config.json)" '200'
 expect '/notices.json' "$(body /notices.json)" '[]'
