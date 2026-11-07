@@ -1,6 +1,6 @@
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { createClient, MatrixEvent, Room, RoomMember } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { getMemberDisplayName } from './room';
+import { getMemberDisplayName, getRoomMemberName } from './room';
 
 const ROOM_ID = '!room:example.org';
 const AGENT = '@mindroom_helper:example.org';
@@ -37,6 +37,17 @@ const roomWith = (...members: Array<[userId: string, displayname?: string]>): Ro
 const rename = (room: Room, userId: string, displayname: string) =>
   room.currentState.setStateEvents([memberEvent(userId, displayname)]);
 
+/**
+ * Members the client learns about only when it loads the room's member list, as in a room whose
+ * sync leaves out members who have not posted lately (lazy-loaded members).
+ */
+const loadLater = (room: Room, ...members: Array<[userId: string, displayname: string]>) => {
+  room.currentState.markOutOfBandMembersStarted();
+  room.currentState.setOutOfBandMembers(
+    members.map(([userId, displayname]) => memberEvent(userId, displayname))
+  );
+};
+
 /** A name with its user ID after it, the ID isolated so it reads left to right in any text. */
 const withId = (name: string, userId: string) => `${name} (\u2066${userId}\u2069)`;
 
@@ -62,6 +73,35 @@ describe('getMemberDisplayName', () => {
     rename(room, EVE, 'Eve');
     expect(getMemberDisplayName(room, EVE)).toBe('Eve');
     expect(getMemberDisplayName(room, AGENT)).toBe('Helper');
+  });
+
+  it('adds the user ID to both members who share a name when one of them is loaded later', () => {
+    // Sam posted long ago, so only the copy's member event came with the sync.
+    const room = roomWith([AGENT, 'Helper'], [OTHER_SAM, 'Sam']);
+    expect(getMemberDisplayName(room, OTHER_SAM)).toBe('Sam');
+    loadLater(room, [SAM, 'Sam']);
+    expect(getMemberDisplayName(room, OTHER_SAM)).toBe(withId('Sam', OTHER_SAM));
+    expect(getMemberDisplayName(room, SAM)).toBe(withId('Sam', SAM));
+    expect(getMemberDisplayName(room, AGENT)).toBe('Helper');
+  });
+
+  it('adds the user ID to both members who share a name when both are loaded later', () => {
+    const room = roomWith([AGENT, 'Helper']);
+    loadLater(room, [SAM, 'Sam'], [OTHER_SAM, 'Sam'], [EVE, 'Helper']);
+    expect(getMemberDisplayName(room, SAM)).toBe(withId('Sam', SAM));
+    expect(getMemberDisplayName(room, OTHER_SAM)).toBe(withId('Sam', OTHER_SAM));
+    expect(getMemberDisplayName(room, EVE)).toBe(withId('Helper', EVE));
+    expect(getMemberDisplayName(room, AGENT)).toBe(withId('Helper', AGENT));
+  });
+
+  it("adds the user ID to a timeline event's sender whose name another member shares now", () => {
+    const room = roomWith([OTHER_SAM, 'Sam']);
+    // The sender as the event recorded them, before anyone else in the room had their name.
+    const sender = new RoomMember(ROOM_ID, OTHER_SAM);
+    sender.setMembershipEvent(memberEvent(OTHER_SAM, 'Sam'));
+    expect(getRoomMemberName(sender, room)).toBe('Sam');
+    loadLater(room, [SAM, 'Sam']);
+    expect(getRoomMemberName(sender, room)).toBe(withId('Sam', OTHER_SAM));
   });
 
   it('adds the user ID to a name shaped like a user ID', () => {
