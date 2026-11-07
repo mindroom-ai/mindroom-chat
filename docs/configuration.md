@@ -184,7 +184,7 @@ A build can include client plugins (`MINDROOM_CLIENT_PLUGINS`, under [Build-time
 | `plugins.<id>.enabled` | boolean | `true` | `false` hides everything the plugin `<id>` contributes, such as its message renderers. |
 | `plugins.<id>.<setting>` | any | none | The plugin's own settings, as it documents them. |
 
-`?plugins=off` in the page address, before any `#` (`https://chat.example.org/?plugins=off`), turns every plugin off for that page load, a quick way to tell whether a problem comes from what a plugin shows. Either way a plugin's code still loads with the app and only what it contributes is hidden, so neither helps when a plugin fails while its code loads, which stops the app from starting.
+`?plugins=off` in the page address, before any `#` (`https://chat.example.org/?plugins=off`), turns every plugin off for that page load, a quick way to tell whether a problem comes from what a plugin shows. Either way a plugin's code still loads with the app and only what it contributes is hidden, so neither helps when a plugin fails while its code loads, which stops the app from starting. A logout in a page load with `?plugins=off` still deletes the plugins' storage for the account, but does not ask the plugins to forget it ([`architecture.md`](architecture.md#client-plugins)).
 
 ### Error reports
 
