@@ -263,6 +263,22 @@ const departedMemberName = (room: Room, userId: string): string | undefined => {
 export const getMemberDisplayName = (room: Room, userId: string): string | undefined =>
   getRoomMemberName(room.getMember(userId), room) ?? departedMemberName(room, userId);
 
+/**
+ * The name to show for `userId` as a sender in places that name senders of rooms the user may not
+ * have opened (the Inbox, system notifications). With lazy-loaded members such a room knows only
+ * the members whose events its sync brought, so a member who copied the name of someone not loaded
+ * yet would read as them. Until the room's member list is loaded the user ID follows every name,
+ * and a sender without one shows as the user ID; once it is loaded, the name
+ * `getMemberDisplayName` gives, else the user ID's localpart.
+ */
+export const getSenderName = (room: Room, userId: string): string => {
+  const name = getMemberDisplayName(room, userId);
+  if (room.membersLoaded()) return name ?? getMxIdLocalPart(userId) ?? userId;
+  if (name === undefined) return userId;
+  // `getMemberDisplayName` may have added the user ID already.
+  return name.endsWith(withUserId('', userId)) ? name : withUserId(name, userId);
+};
+
 export const getMemberAvatarMxc = (room: Room, userId: string): string | undefined =>
   room.getMember(userId)?.getMxcAvatarUrl() ?? undefined;
 

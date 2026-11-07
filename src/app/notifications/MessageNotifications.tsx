@@ -20,8 +20,7 @@ import { useServerSyncApplied } from '../matrix/hooks/useServerSyncApplied';
 import { useSetting } from '../preferences/useSetting';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { settingsAtom } from '../preferences/settings';
-import { getMemberDisplayName } from '../matrix/room';
-import { getMxIdLocalPart } from '../matrix/matrix';
+import { getSenderName } from '../matrix/room';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
 import { createDecryptionWaits, isAwaitingDecryption } from '../matrix/decryptionWaits';
 import { isThreadListTimeline } from '../event-store/timeline/roomLiveEventArrive';
@@ -49,7 +48,8 @@ const shorten = (text: string): string => {
 
 /**
  * The notification's title and text: the room and "sender: preview", or in a direct chat the
- * person and the preview alone.
+ * person and the preview alone. The sender's user ID follows their name while the room's member
+ * list is not loaded, so nobody reads as a member the client has not loaded yet.
  */
 export const describeNotice = (
   room: Room,
@@ -57,8 +57,7 @@ export const describeNotice = (
   direct: boolean,
   t: TFunction
 ): { title: string; body: string } => {
-  const senderName =
-    getMemberDisplayName(room, notice.sender) ?? getMxIdLocalPart(notice.sender) ?? notice.sender;
+  const senderName = getSenderName(room, notice.sender);
   const preview = replaceMatrixUserIdsWithDisplayNames(
     room,
     getLocalizedThreadMessagePreviewText(notice.content, t) ?? '',
@@ -87,24 +86,31 @@ const showNotice = (client: MatrixClient, notice: MessageNotice, settings: Notif
 
   const SystemNotification = typeof window === 'undefined' ? undefined : window.Notification;
   if (!settings.desktop || SystemNotification?.permission !== 'granted') return;
-  const { title, body } = describeNotice(
-    room,
-    notice,
-    settings.directRooms.has(room.roomId),
-    settings.t
-  );
-  // One notification per room: a newer message replaces the one before it.
-  const note = new SystemNotification(title, {
-    body,
-    icon: MINDROOM_FAVICON_SRC,
-    tag: notice.roomId,
-    silent: true,
-  });
-  note.onclick = () => {
-    window.focus();
-    note.close();
-    settings.open(notice);
+  const announce = () => {
+    const { title, body } = describeNotice(
+      room,
+      notice,
+      settings.directRooms.has(room.roomId),
+      settings.t
+    );
+    // One notification per room: a newer message replaces the one before it.
+    const note = new SystemNotification(title, {
+      body,
+      icon: MINDROOM_FAVICON_SRC,
+      tag: notice.roomId,
+      silent: true,
+    });
+    note.onclick = () => {
+      window.focus();
+      note.close();
+      settings.open(notice);
+    };
   };
+  // A room not opened yet may lack the members who have not posted lately, and with them the one
+  // whose name a sender copied; the notification waits for the member list. If the list cannot
+  // load, the sender's user ID follows their name.
+  if (room.membersLoaded()) announce();
+  else room.loadMembersIfNeeded().then(announce, announce);
 };
 
 /**
