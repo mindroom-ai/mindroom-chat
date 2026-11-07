@@ -87,18 +87,19 @@ const seed = async (): Promise<World> => {
   return { reader, colleague, roomId };
 };
 
-/** The scroll area around the room's rows. */
+/**
+ * The scroll area around the room's rows, found in one evaluation: a row a locator found can leave
+ * the list (its virtual window moves on as messages arrive) before a second round trip reaches it,
+ * and a row out of the page has no scroll area.
+ */
 const scrollArea = (page: Page) =>
-  page
-    .locator('[data-message-id]')
-    .first()
-    .evaluateHandle((row) => {
-      let node = row.parentElement;
-      while (node && !['auto', 'scroll'].includes(getComputedStyle(node).overflowY))
-        node = node.parentElement;
-      if (!node) throw new Error('The view has no scroll area');
-      return node;
-    });
+  page.evaluateHandle(() => {
+    let node = document.querySelector('[data-message-id]')?.parentElement ?? null;
+    while (node && !['auto', 'scroll'].includes(getComputedStyle(node).overflowY))
+      node = node.parentElement;
+    if (!node) throw new Error('The view has no scroll area');
+    return node;
+  });
 
 const distanceBelow = (page: Page) =>
   scrollArea(page).then((area) =>

@@ -16,7 +16,11 @@ Without Nix, use Node 24 or newer (`package.json` `engines`; some unit tests fai
 
 The dev server answers `/config.json` with `config.mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
 
-- **Test homeserver.** `just hs-up` starts a disposable Tuwunel homeserver with open registration at `http://127.0.0.1:28008` (server name `matrix.localhost`); `just hs-down` stops it and deletes its data.
+- **Test homeserver.** `just hs-up` starts a disposable Tuwunel homeserver with open registration at `http://127.0.0.1:28008` (server name `matrix.localhost`); `just hs-down` stops it and deletes its data. Every end-to-end run starts the Tuwunel image that `e2e/docker-compose.yaml` pins by release tag and digest: CI, `just hs-up`, slot runs, `scripts/e2e-matrix-up.sh` (unless `MINDROOM_TUWUNEL_IMAGE` names another) and the remote test runners. Server behaviour, such as read and unread counts, changes between releases, so a new release reaches the specs only through a commit that bumps the pin:
+  1. Pick the release (`gh release list -R mindroom-ai/mindroom-tuwunel`) and read its notes.
+  2. Look up the digest of its multi-platform index, which must list `linux/amd64` and `linux/arm64`: `docker buildx imagetools inspect ghcr.io/mindroom-ai/mindroom-tuwunel:<tag>`, or only the digest with `--format '{{.Manifest.Digest}}'`.
+  3. Set the `image:` line of `e2e/docker-compose.yaml` to `ghcr.io/mindroom-ai/mindroom-tuwunel:<tag>@sha256:<digest>`.
+  4. Run the smoke specs of `.github/workflows/ci.yml` (and any spec the release notes touch) against it, and fix the client in the same branch when one fails.
 - **Test backend.** `just agent-stack <slot> up` runs a real MindRoom backend against an end-to-end slot's homeserver, which must already run, with a stub model by default (no model is called); `--model real` or `E2E_AGENT_MODEL=real` calls paid models with the API keys in the environment instead. It needs `uv` and a MindRoom Git checkout (`--checkout` or `E2E_MINDROOM_CHECKOUT`). The agent specs (`e2e/<domain>/agent-*.spec.ts` that use `e2e/helpers/agentStack.ts`) start it themselves and skip without a checkout.
 
 `just --list` shows every recipe; `AGENTS.md` describes them.

@@ -453,6 +453,38 @@ export const roomHaveUnread = (client: MatrixClient, room: Room): boolean => {
   return false;
 };
 
+/**
+ * Whether everything the server counts as unread in the room's main timeline is read by this
+ * client's rule (`isMainTimelineMessageUnread`): roots the user answered in their threads, or
+ * opened on this device. A reply or a thread receipt reads only its thread on the server, so a
+ * root answered from another client stays in the main count until a main receipt reaches it.
+ *
+ * The walk goes back from the newest loaded event to the user's read position or own last
+ * message, and stops at the first message that is unread by the client's rule. The read ones
+ * that notified must cover the whole count: the history not loaded may hold the rest.
+ */
+export const isMainUnreadCountRead = (mx: MatrixClient, room: Room): boolean => {
+  const selfId = mx.getUserId();
+  // Optional calls: room and client stand-ins in tests often have no counts or push actions.
+  const counted = room.getRoomUnreadNotificationCount?.(NotificationCountType.Total) ?? 0;
+  if (!selfId || counted === 0) return false;
+  const timeline = room.getLiveTimeline().getEvents();
+  const readUpToId = room.getEventReadUpTo(selfId);
+  const readTs = getMainTimelineReadTs(room, selfId);
+  let read = 0;
+
+  for (let index = timeline.length - 1; index >= 0 && read < counted; index -= 1) {
+    const event = timeline[index];
+    if (!event) continue;
+    if (event.getId() === readUpToId || event.getTs() <= readTs) break;
+    if (!isUnreadWorthy(event)) continue;
+    if (event.getSender() === selfId) break;
+    if (isMainTimelineMessageUnread(room, event, selfId, readTs)) return false;
+    if (mx.getPushActionsForEvent?.(event)?.notify) read += 1;
+  }
+  return read >= counted;
+};
+
 /** How opening a thread reads its root; see `getThreadRootReadAction`. */
 export type ThreadRootReadAction = 'receipt' | 'seen';
 

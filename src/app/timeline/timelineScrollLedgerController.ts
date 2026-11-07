@@ -17,6 +17,7 @@ import {
   type ReactVirtualizer,
 } from '@tanstack/react-virtual';
 import { threadScrollRange } from './threadScrollRange';
+import { useClampedCorrectionFinish } from './clampedScrollCorrection';
 import { countCacheProbe } from '../event-store/cache/cacheProbe';
 import { createBatchedMeasurementRef, createScrollMountMeasurement } from './batchedMeasurementRef';
 import { installRideTraceRecorder, isRideTraceEnabled } from './rideTraceRecorder';
@@ -524,7 +525,9 @@ export const useTimelineScrollLedgerController = ({
   // until then let the hook judge rows in the layout React rendered.
   const unrenderedCorrectionPxRef = useRef(0);
   const measurementCorrectionPxRef = useRef(0);
+  const noteAppliedCorrection = useClampedCorrectionFinish(getScrollElement);
   const handleAppliedCorrection = useCallback((deltaPx: number) => {
+    noteAppliedCorrection(deltaPx);
     // Only upward movement can look like relinquished opening ownership. A downward growth
     // adjustment can be clamped before React extends the range, so it cannot cancel this sum.
     measurementCorrectionPxRef.current += Math.min(0, deltaPx);
@@ -535,7 +538,7 @@ export const useTimelineScrollLedgerController = ({
       });
     }
     unrenderedCorrectionPxRef.current += deltaPx;
-  }, []);
+  }, [noteAppliedCorrection]);
   const unrenderedCorrectionPx = useCallback(() => unrenderedCorrectionPxRef.current, []);
   const readMeasurementCorrectionPx = useCallback(() => measurementCorrectionPxRef.current, []);
   // A row that changes size where the reader sees it moves the rows after it, which virtual-core

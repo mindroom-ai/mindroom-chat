@@ -8,10 +8,11 @@ import { color, config, toRem } from 'folds';
 //
 // The Settings dialog keeps one inset, 12 px (S300). The search field, the menu's rows, the search
 // results and Logout stay that far from the dialog's edges and from the divider; so do the page's
-// close button and, on a phone, the menu's title and its close button. The icons, the group
-// headings and the page's breadcrumb start 8 px (S200) further in, 20 px from their column's edge,
-// as the close button's icon does from the end edge. Between the field and the first group, between
-// the groups and above Logout the menu keeps the inset as well.
+// close button and, on a phone, the menu's title and its close button. The icons and the group
+// headings start 8 px (S200) further in, 20 px from the column's edge, as the close button's icon
+// does from the end edge; the page's breadcrumb starts where its sections' text does
+// (SettingsPageFrame). Between the field and the first group, between the groups and above Logout
+// the menu keeps the inset as well.
 
 /** The dialog's inset. */
 const INSET = config.space.S300;
@@ -20,9 +21,9 @@ const INSET = config.space.S300;
 const CONTROL_HEIGHT = toRem(32);
 
 /**
- * The height of the desktop dialog's two title bars, the search field's on top of the menu and the
- * page's beside it, so the field, the page's title and the close button share one line. Only the
- * dialog sets it; a room's settings pages keep 48 px.
+ * The height of the desktop dialogs' two title bars, the search field's (or a room's name) on top
+ * of the menu and the page's beside it, so they, the page's title and the close button share one
+ * line. Only the dialogs on wider screens set it; phones keep their 48 and 54 px bars.
  */
 const BAR_HEIGHT = '--mr-settings-bar-height';
 
@@ -30,16 +31,29 @@ const BAR_HEIGHT = '--mr-settings-bar-height';
 const BAR = `calc(${CONTROL_HEIGHT} + 2 * ${INSET})`;
 
 /**
- * About 1000 by 700 px, and a margin smaller than that where the window is. Its title bars keep
- * the 32 px search field and close button the inset from the dialog's top edge.
+ * About 1000 by 740 px, tall enough for the whole menu with Local MindRoom (14 rows in 5 groups),
+ * and a margin smaller than that where the window is. Its title bars keep the 32 px search field
+ * and close button the inset from the dialog's top edge.
  */
 export const SettingsDialog = style({
   vars: { [BAR_HEIGHT]: BAR },
   selectors: {
     '&&': {
       maxWidth: `min(${toRem(1000)}, calc(100% - 2 * ${config.space.S400}))`,
-      maxHeight: `min(${toRem(700)}, calc(100% - 2 * ${config.space.S400}))`,
+      maxHeight: `min(${toRem(740)}, calc(100% - 2 * ${config.space.S400}))`,
     },
+  },
+});
+
+/** A room's (or space's) settings dialog keeps its size and takes the same title bars. */
+export const RoomSettingsDialog = style({
+  vars: { [BAR_HEIGHT]: BAR },
+});
+
+/** On wider screens a room's name over its settings menu, as tall as the page's title bar. */
+export const RoomSettingsMenuTitle = style({
+  selectors: {
+    '&&': { height: BAR },
   },
 });
 

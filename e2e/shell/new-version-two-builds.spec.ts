@@ -79,6 +79,14 @@ const runningEntry = (page: Page) =>
 const controllerScript = (page: Page) =>
   page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? '').catch(() => '');
 
+/** The script URL of the registration's waiting worker; empty when none waits. */
+const waitingScript = (page: Page) =>
+  page
+    .evaluate(
+      async () => (await navigator.serviceWorker.getRegistration('/'))?.waiting?.scriptURL ?? ''
+    )
+    .catch(() => '');
+
 const shot = async (page: Page, name: string) => {
   const directory = process.env.NEW_VERSION_SHOTS;
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
@@ -135,6 +143,15 @@ const longOpenTab = async (page: Page, name: string, deploy: () => void) => {
   // Nothing tells the page; only its five-minute check can.
   await page.clock.fastForward('05:05');
   await expect(announcement(page)).toBeVisible({ timeout: 30_000 });
+  // The second build's worker waits for Reload: it takes over at once only from another app's
+  // worker, and the first build's worker says it is this client's.
+  await expect
+    .poll(() => waitingScript(page), { timeout: 60_000 })
+    .toContain(`version=${encodeURIComponent(versionOf(second!))}`);
+  await page.waitForTimeout(2_000);
+  expect(await controllerScript(page)).toContain(
+    `version=${encodeURIComponent(versionOf(FIRST!))}`
+  );
   await shot(page, `long-open-${name}`);
   await reloadsIntoSecondBuild(page);
 };

@@ -66,7 +66,7 @@ license-check:
     node --test scripts/license-check.test.mjs
     node scripts/license-check.mjs node_modules
 
-# Recompute the Lane P import from a MindRoom Chat checkout and compare it with the import commit; skipped without a path.
+# Recompute the Lane P import from a legacy MindRoom Chat checkout (mindroom-ai/mindroom-chat-legacy) and compare it with the import commit; skipped without a path.
 verify-ported *checkout:
     bash scripts/verify-ported.sh {{checkout}}
 

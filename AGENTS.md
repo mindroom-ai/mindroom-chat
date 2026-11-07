@@ -1,6 +1,6 @@
 # AGENTS.md
 
-mindroom-client is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from MindRoom Chat, and everything else is written fresh without access to the upstream client or MindRoom Chat source.
+MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`), and everything else is written fresh without access to the upstream client or the legacy client's source. Below, "MindRoom Chat" as a source means that legacy client.
 
 ## The two lanes
 
@@ -15,7 +15,7 @@ A file keeps its lane when it moves: the lists keep import-time paths, and `docs
 
 ### Lane C rules
 
-- **Lane C rules (spec section 2).** Never open, search, fetch, or install as source: the upstream client named in `docs/provenance.md` (its GitHub organization, any fork or mirror), MindRoom Chat (`mindroom-ai/mindroom-chat`, `/home/basnijholt/Work/dev/mindroom-chat`, `/tmp/chat-ref`, any other checkout), Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat, and `mindroom/docs/baspowers/`, `mindroom/docs/dev/`. `folds` may be installed and its published API docs and type definitions read.
+- **Lane C rules (spec section 2; where the spec, written before the move, names MindRoom Chat or `mindroom-ai/mindroom-chat`, it means the legacy client).** Never open, search, fetch, or install as source: the upstream client named in `docs/provenance.md` (its GitHub organization, any fork or mirror), the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`, which was `mindroom-ai/mindroom-chat` until 2026-11-07 UTC, when that name passed to this repository; `/home/basnijholt/Work/dev/mindroom-chat`, `/tmp/chat-ref`, any other checkout), Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat, and `mindroom/docs/baspowers/`, `mindroom/docs/dev/`. `folds` may be installed and its published API docs and type definitions read.
 - Allowed inputs: this repository (including Lane P files, but not `FORK_CHANGES.md`), `docs/provenance/seams.tsv`, `docs/design/reference/`, the Matrix specification, library documentation and type definitions, `/home/basnijholt/Work/dev/mindroom/docs/` (other pages) and `/home/basnijholt/Work/dev/mindroom/src/`.
 - Lane C code must pass `just strict` (`tsconfig.strict.json`) and the type-aware ESLint rules that `just lint` applies to Lane C TypeScript.
 
@@ -52,7 +52,7 @@ Every command runs in `nix develop` (Node 24, npm, Chromium as `CHROMIUM_PATH`, 
 | `just build` | production build into `dist/`, with `runtime-config.js`, `authentication-recovery.js`, `version.json`, `sw.js`, and `public/licenses/` (`LICENSE`, `NOTICE`, `licenses/*` and the npm dependencies' `THIRD_PARTY_NOTICES.txt` from `scripts/third-party-notices.mjs`) |
 | `just release [<commit>] [--dry-run] [--yes]` | `scripts/calver.mjs release`: tags GitHub main (or the commit of main given) with the next calendar version `vYYYY.M.N` and publishes its GitHub release, with notes from the commits since the last release; shows the plan and asks first. `.github/workflows/release.yml` does the same after CI passes on main while `release.config.json` says `"autoRelease": true` (`docs/ios-release.md`). Every release publishes the container image `ghcr.io/mindroom-ai/mindroom-chat:YYYY.M.N` (`Dockerfile`, `.github/workflows/image.yml`, `docs/deployment.md`) |
 | `just license-check` | `scripts/license-check.mjs`: fails on any installed package outside the license allowlist; runs its `node --test` suite first |
-| `just verify-ported [chat checkout]` | recomputes both Lane P import waves (`port_files.py --wave N --verify`); prints a notice and passes when no path is given |
+| `just verify-ported [legacy chat checkout]` | recomputes both Lane P import waves (`port_files.py --wave N --verify`); prints a notice and passes when no path is given |
 | `just check-holes` | `scripts/check_holes.py`: each wave's Lane P files differ from the import only in their blanked lines, at the commit that filled them |
 | `just identifier-renames` | `scripts/check-identifier-renames.mjs`: every Lane P line that a commit of `docs/provenance/identifier-renames.tsv` changes differs from the line before only by the names that commit adds to the table (or, in a revert, removes); runs its `node --test` suite first |
 | `just similarity-audit <corpus>...` | jscpd (`--min-tokens 50`) of Lane C files (`src/`, `scripts/`, `e2e/`, root config; both portable lists minus `dropped.tsv` excluded) against each corpus: a directory, or a Git repository as `<dir>@<commit>` (a checkout alone means `@HEAD`), compared as the files tracked at that commit; writes `docs/provenance/audit/<date>/` |
