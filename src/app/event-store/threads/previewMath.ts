@@ -34,7 +34,9 @@ const SPACE_COMMAND = /^(?:[,:;> ]|quad|qquad)$/;
 // Code that the renderer's tokenizer may not find the way Markdown does: a run of two or more
 // backticks, a backtick after a backslash, a tilde fence or an indented line (in a block quote
 // too), or HTML code; and the characters the formulas stand in as.
-const UNCLEAR_CODE = /``|\\`|^[ >]*(?:~~~| {4}|\t)|<(?:code|pre)\b|[\uE000\uE001]/m;
+const UNCLEAR_CODE = /``|\\`|^[ >]*(?:~~~| {4}|\t)|<(?:code|pre)\b|[\uE000\uE001]/im;
+// A number before a fraction, past spaces, spacing and braces: a mixed number (`3\frac{1}{4}`).
+const MIXED_NUMBER = /\d(?:\s|~|[{}]|\\(?:[,:;!> ]|q?quad))*\\[dt]?frac/;
 
 /** A command, a space, one character, or the nodes of a braced group. */
 type TexNode = string | TexNode[];
@@ -80,7 +82,7 @@ const part = (text: string): string => {
  * anything but a space, a sign, a closing bracket or another script follows (`x^(2)3`).
  */
 const readFormula = (tex: string): string | undefined => {
-  const tree = parseTex(tex);
+  const tree = MIXED_NUMBER.test(tex) ? undefined : parseTex(tex);
   if (!tree) return undefined;
   let exact = true;
   const readNodes = (nodes: TexNode[]): string => {
@@ -127,15 +129,10 @@ const readFormula = (tex: string): string | undefined => {
         return node + (script === bare && !endsScript() ? `(${script})` : script);
       }
       if (node === '~') return ' ';
-      if (node === '%') exact = false;
+      if (/^[%&#$]$/.test(node)) exact = false;
       if (!node.startsWith('\\')) return node;
       const name = node.slice(1);
       if (/^[dt]?frac$/.test(name)) {
-        // After a number a fraction makes a mixed number (`3\frac{1}{4}`), which no reading fits.
-        let at = index - 2;
-        while (nodes[at] === ' ' || isCommand(nodes[at], SPACE_COMMAND)) at -= 1;
-        const before = nodes[at];
-        if (Array.isArray(before) || /^\d$/.test(before ?? '')) exact = false;
         const numerator = part(argument());
         return `(${numerator}/${part(argument())})`;
       }
@@ -154,7 +151,10 @@ const readFormula = (tex: string): string | undefined => {
       if (PLAIN_COMMAND.test(name)) {
         skipSpace();
         if (hasMarkup(nodes[index])) exact = false;
-        return argument();
+        const content = argument();
+        // A script after a box or text applies to all of it: `\boxed{1+2}^2` reads `(1+2)^2`.
+        const following = nodes[index] === ' ' ? nodes[index + 1] : nodes[index];
+        return following === '^' || following === '_' ? part(content) : content;
       }
       if (SILENT_COMMAND.test(name)) {
         // `\left.` and `\right.` set no delimiter.
@@ -184,16 +184,17 @@ const readFormula = (tex: string): string | undefined => {
  * shows `(a/b)` rather than `$\frac{a}{b}$`. Symbols and function names read as themselves, text
  * and sizes lose their commands, `^` and `_` stay, and parentheses keep each part of a fraction,
  * root or script together. Any other formula stays as written, and so does every formula of a body
- * whose code the tokenizer may not find: it finds a span between two single backticks and reads no
- * formula after one left open, so a body with other code keeps its formulas as written. Formulas
- * stand in as placeholders while `strip` runs, so its Markdown rules never change them. The
- * tokenizer also scans for links, several times the cost of the rest of a preview, so only text
- * that holds a formula goes through it.
+ * whose code the tokenizer may not find: it pairs single backticks across lines and paragraphs,
+ * which Markdown does not, so a body with other code, or with a line that leaves a backtick
+ * unpaired, keeps its formulas as written. Formulas stand in as placeholders while `strip` runs, so
+ * its Markdown rules never change them. The tokenizer also scans for links, several times the cost
+ * of the rest of a preview, so only text that holds a formula goes through it.
  */
 export const stripPreviewMath = (text: string, strip: (text: string) => string): string => {
   if (
     !text.includes('$') ||
     UNCLEAR_CODE.test(text) ||
+    text.split('\n').some((line) => (line.match(/`/g) ?? []).length % 2 === 1) ||
     !(findInlineLatexMatch(text) ?? findDisplayLatexBlockMatch(text))
   ) {
     return strip(text);
