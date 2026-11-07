@@ -6,7 +6,7 @@ import {
   type Locator,
   type Page,
 } from '@playwright/test';
-import { activeAccountButtonNamePattern } from '../helpers/auth';
+import { activeAccountButton } from '../helpers/auth';
 import { buildLoginPath } from '../env';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
@@ -114,7 +114,7 @@ const signIn = async (page: Page, username: string) => {
   await page.locator('input[name="usernameInput"]').fill(username);
   await page.locator('input[name="passwordInput"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Login' }).click();
-  await expect(page.getByRole('button', { name: activeAccountButtonNamePattern })).toBeVisible({
+  await expect(activeAccountButton(page)).toBeVisible({
     timeout: 120_000,
   });
 };
