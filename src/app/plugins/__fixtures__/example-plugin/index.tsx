@@ -1,7 +1,8 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// A side panel, "Example panel", names the room it is open in.
+// A side panel, "Example panel", names the room it is open in, counts its joined members and says
+// whether a MindRoom agent is among them, through the account's client.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg). Like a plugin outside this repository, it imports the app only through the
 // client SDK.
@@ -13,7 +14,7 @@
 // fills the window and links back.
 import { useEffect } from 'react';
 import { Icons } from 'folds';
-import type { Room } from 'matrix-js-sdk';
+import { KnownMembership, type Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
   usePluginConfig,
@@ -23,6 +24,11 @@ import {
   type ClientPlugin,
   type PluginEvent,
 } from '@mindroom/client-sdk/core';
+import {
+  hasActiveMindroomAgent,
+  useMatrixClient,
+  useRoomMembers,
+} from '@mindroom/client-sdk/matrix';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -98,7 +104,17 @@ function WindowPage() {
 }
 
 function ExamplePanel({ roomId }: { roomId: string }) {
-  return <p>Example panel of {roomId}</p>;
+  const members = useRoomMembers(useMatrixClient(), roomId);
+  const joined = members.filter(({ membership }) => membership === KnownMembership.Join);
+  return (
+    <>
+      <p>Example panel of {roomId}</p>
+      <p>
+        Members: {joined.length}, {hasActiveMindroomAgent(members) ? 'with' : 'without'} a MindRoom
+        agent
+      </p>
+    </>
+  );
 }
 
 const plugin: ClientPlugin = {
