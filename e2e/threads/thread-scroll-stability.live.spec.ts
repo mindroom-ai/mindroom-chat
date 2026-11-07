@@ -107,6 +107,21 @@ test.describe('scrolling a room with many agent threads', () => {
           .toBeGreaterThanOrEqual(THREADS);
         // The cards of the first screen load their threads.
         await page.waitForTimeout(3_000);
+        // A card's age ticks from "now" to "1m" and on; its slot keeps its width, so the title
+        // beside it does not wrap again (on a phone a card lost a line of title as it aged).
+        const ageWidths = await cards
+          .first()
+          .locator('[data-thread-root-id] > :first-child > span')
+          .evaluate((age) => {
+            const label = age.textContent;
+            const widths = ['now', '1m', '9m', '59m', '1h', '23h', '6d'].map((text) => {
+              age.textContent = text;
+              return age.getBoundingClientRect().width;
+            });
+            age.textContent = label;
+            return widths;
+          });
+        expect(Math.max(...ageWidths) - Math.min(...ageWidths), 'age label widths').toBeLessThan(1);
         const compactAt = await startRecording(page, 'compact', false);
         await scrollRoom(page, cdp, input, compactAt, {
           flicks: 0,
