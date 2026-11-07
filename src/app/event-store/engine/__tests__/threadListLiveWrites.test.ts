@@ -217,6 +217,46 @@ describe('engine live writes and the SDK thread lists', () => {
     engine.stop();
   });
 
+  it('persists a redaction that the SDK keeps off every timeline because it does not hold the event', async () => {
+    // The server leaves deleted events out of a thread's relations, so after a reload a deleted
+    // thread reply can be in the cache only. The sync's redaction then names an event the SDK does
+    // not hold, and the SDK puts it on no timeline, so it never came through the timeline event
+    // and the cache kept the deleted reply. The sync still announces each event.
+    const { client, room } = roomWithListedThreads(3);
+    await loadRoomThreads(room);
+    await settle();
+    const { engine, writeThrough } = startEngine(client);
+    const redaction = (eventId: string, targetId: string, ts: number) =>
+      new MatrixEvent({
+        ...message(eventId, ts),
+        type: 'm.room.redaction',
+        redacts: targetId,
+        content: { redacts: targetId },
+      });
+    const persistedIds = () =>
+      vi.mocked(writeThrough.handleLiveEvent).mock.calls.map(([event]) => event.getId());
+
+    const unplaced = redaction('$redact-cached', '$cached-reply', 1_000);
+    await room.addLiveEvents([unplaced], { addToState: false });
+    client.emit(ClientEvent.Event, unplaced);
+    await settle();
+    expect(room.findEventById('$redact-cached')).toBeUndefined();
+    expect(persistedIds().filter((id) => id === '$redact-cached')).toHaveLength(1);
+
+    // A redaction of an event the room holds is on the room's timeline: the announcement adds no
+    // second write.
+    const plain = new MatrixEvent(message('$plain', 1_001));
+    const placed = redaction('$redact-plain', '$plain', 1_002);
+    await room.addLiveEvents([plain, placed], { addToState: false });
+    await settle();
+    const placedWrites = persistedIds().filter((id) => id === '$redact-plain').length;
+    expect(placedWrites).toBeGreaterThan(0);
+    client.emit(ClientEvent.Event, placed);
+    await settle();
+    expect(persistedIds().filter((id) => id === '$redact-plain')).toHaveLength(placedWrites);
+    engine.stop();
+  });
+
   it('persists an own thread root when the server confirms it', async () => {
     // The remote echo updates the local echo in place, without a timeline
     // event; only the thread lists used to save the confirmed root.
