@@ -1,5 +1,6 @@
+import { useEffect, useReducer } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import { MatrixEventEvent, RoomEvent, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { Box, Icon, Icons, Text } from 'folds';
 import { IconButton } from '../ui/glass/GlassPrimitives';
 import { ReplyLayout } from '../messages/layout/layout';
@@ -11,6 +12,36 @@ import {
   replaceMatrixUserIdsWithDisplayNames,
 } from '../event-store/threads/threadMessagePreview';
 import { RoomInputReplyContext } from './RoomInputExtensions';
+import { buildRoomTimelineReplyDraft } from '../timeline/roomTimelineReplyDraft';
+import { isUnreadableYet } from '../matrix/decryptionWaits';
+
+/**
+ * The reply target with its text. A target kept on disk for an encrypted room names its message
+ * only (`replyDraftAtRest`), so after a reload the text comes from the message, once the room has
+ * it and it decrypts; until then the bar says the message is encrypted.
+ */
+const useReplyTargetText = (room: Room, replyDraft: IReplyDraft): IReplyDraft | undefined => {
+  const kept = !!replyDraft.body || replyDraft.previewText !== undefined;
+  const { eventId } = replyDraft;
+  const [, refresh] = useReducer((count: number) => count + 1, 0);
+  useEffect(() => {
+    if (kept) return undefined;
+    // The message, or an edit of it, arrives or decrypts.
+    const onEvent = (event: MatrixEvent) => {
+      if (event.getId() === eventId || event.getRelation()?.event_id === eventId) refresh();
+    };
+    room.on(RoomEvent.Timeline, onEvent);
+    room.client.on(MatrixEventEvent.Decrypted, onEvent);
+    return () => {
+      room.removeListener(RoomEvent.Timeline, onEvent);
+      room.client.removeListener(MatrixEventEvent.Decrypted, onEvent);
+    };
+  }, [eventId, kept, room]);
+  if (kept) return replyDraft;
+  const message = room.findEventById(eventId);
+  if (!message || isUnreadableYet(message)) return undefined;
+  return buildRoomTimelineReplyDraft(room, eventId, false)?.draft;
+};
 
 type RoomInputReplyPreviewProps = {
   room: Room;
@@ -36,11 +67,14 @@ export function RoomInputReplyPreview({
     getMemberDisplayName(room, replyDraft.userId) ??
     getMxIdLocalPart(replyDraft.userId) ??
     replyDraft.userId;
-  const preview = replyDraft.previewText
-    ? replaceMatrixUserIdsWithDisplayNames(room, replyDraft.previewText, '@')
+  const quoted = useReplyTargetText(room, replyDraft);
+  const preview = quoted?.previewText
+    ? replaceMatrixUserIdsWithDisplayNames(room, quoted.previewText, '@')
     : getReplyPreviewText(
         room,
-        { body: replyDraft.body, formatted_body: replyDraft.formattedBody },
+        quoted
+          ? { body: quoted.body, formatted_body: quoted.formattedBody }
+          : { msgtype: 'm.bad.encrypted' },
         t
       );
 

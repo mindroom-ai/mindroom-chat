@@ -9,6 +9,7 @@ import { isRecord } from '../../lib/isRecord';
 import { getImperativeJotaiStore } from '../../lib/state/jotaiStore';
 import { createUserScopedAtomRegistry } from '../../lib/state/userScopedAtomRegistry';
 import { isConfirmedMatrixEventId } from './threadRouteUtils';
+import { isEncryptedRoomOf } from '../../matrix/client/encryptedRoomTextOffDisk';
 
 const RECENT_THREADS = 'recentThreads';
 const RECENT_THREADS_STORE_VERSION = 1;
@@ -96,6 +97,18 @@ const serializeRecentThreads = (entries: RecentThreadItem[]): RecentThreadsStore
   entries,
 });
 
+// A thread of an encrypted room is stored without its text, which the list reads again from the
+// thread's events (P2-e2ee-F011).
+const withoutEncryptedRoomText = (
+  userId: string,
+  entries: RecentThreadItem[]
+): RecentThreadItem[] =>
+  entries.map((entry) =>
+    entry.summaryText !== undefined && isEncryptedRoomOf(userId, entry.roomId)
+      ? { roomId: entry.roomId, threadId: entry.threadId, openedAt: entry.openedAt }
+      : entry
+  );
+
 const getStoreKey = (userId: string): string => `${RECENT_THREADS}:${userId}`;
 
 const createRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
@@ -104,7 +117,8 @@ const createRecentThreadsAtom = (userId: string): RecentThreadsAtom => {
   const baseRecentThreadsAtom = atomWithLocalStorage<RecentThreadItem[]>(
     storeKey,
     (key) => sanitizeRecentThreads(getLocalStorageItem<unknown | null>(key, null)),
-    (key, value) => setLocalStorageItem(key, serializeRecentThreads(value))
+    (key, value) =>
+      setLocalStorageItem(key, serializeRecentThreads(withoutEncryptedRoomText(userId, value)))
   );
 
   const recentThreadsAtom = atom<RecentThreadItem[], [RecentThreadsAction], undefined>(
@@ -238,6 +252,15 @@ export const rekeyRecentThread = (roomId: string, threadId: string, nextThreadId
     threadId,
     nextThreadId,
   });
+};
+
+/** Deletes the text an older version stored for the threads of the account's encrypted rooms. */
+export const forgetEncryptedRecentThreadText = (userId: string) => {
+  const storeKey = getStoreKey(userId);
+  const stored = sanitizeRecentThreads(getLocalStorageItem<unknown | null>(storeKey, null));
+  const kept = withoutEncryptedRoomText(userId, stored);
+  if (kept.every((entry, index) => entry === stored[index])) return;
+  setLocalStorageItem(storeKey, serializeRecentThreads(kept));
 };
 
 export const clearRecentThreadsStore = (userId: string) => {

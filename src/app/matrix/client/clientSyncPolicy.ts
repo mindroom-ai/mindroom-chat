@@ -12,6 +12,9 @@ import { keepStreamingRepliesChecked } from './streamingReplies';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
 import { keepSyncedEdits } from './syncedEdits';
 import { keepUnsentMessages } from './unsentMessages';
+import { keepEncryptedRoomTextOffDisk } from './encryptedRoomTextOffDisk';
+import { forgetEncryptedRecentThreadText } from '../../event-store/threads/recentThreads';
+import { forgetEncryptedReplyText } from '../../composer/roomInputDrafts';
 
 // How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates
 // the client and its stores; the app shell (src/app/shell/ClientRoot.tsx) then calls `startClient`
@@ -98,6 +101,7 @@ export const startClient = async (
     keepSyncedEdits(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);
+    keepEncryptedRoomTextOffDisk(mx, [forgetEncryptedRecentThreadText, forgetEncryptedReplyText]);
   }
   const policy: Partial<IStartClientOpts> = {
     threadSupport: true,
