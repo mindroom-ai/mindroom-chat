@@ -8,7 +8,12 @@ const object = (value: unknown): value is Record<string, unknown> =>
 export const getBundledThreadPreviews = (
   room: Room,
   root: MatrixEvent | undefined
-): { title?: MatrixEvent; reply?: MatrixEvent } => {
+): {
+  title?: MatrixEvent;
+  reply?: MatrixEvent;
+  /** The bundle's own latest thread event and its revision time: when the server sorted it. */
+  latest?: { id: string; ts: number };
+} => {
   if (!root || root.getType?.() === 'm.room.encrypted' || room.hasEncryptionStateEvent?.())
     return {};
   const rootId = root.getId();
@@ -61,7 +66,22 @@ export const getBundledThreadPreviews = (
     // The client's own title rule reads the edited content, as it does for loaded events.
     return isThreadSummaryEvent(event) === title ? event : undefined;
   };
-  return { title: read('io.mindroom.title', true), reply: read('io.mindroom.latest_reply', false) };
+  const latest = bundle.latest_event;
+  const latestRelations =
+    object(latest) && object(latest.unsigned) ? latest.unsigned['m.relations'] : undefined;
+  const latestEdit = object(latestRelations) ? latestRelations['m.replace'] : undefined;
+  const editTs = object(latestEdit) ? latestEdit.origin_server_ts : undefined;
+  const latestTs =
+    object(latest) && typeof latest.origin_server_ts === 'number'
+      ? Math.max(latest.origin_server_ts, typeof editTs === 'number' ? editTs : -Infinity)
+      : undefined;
+  return {
+    title: read('io.mindroom.title', true),
+    reply: read('io.mindroom.latest_reply', false),
+    ...(object(latest) && typeof latest.event_id === 'string' && latestTs !== undefined
+      ? { latest: { id: latest.event_id, ts: latestTs } }
+      : {}),
+  };
 };
 
 export const getThreadPreviewRevisionTs = (event: MatrixEvent): number =>
