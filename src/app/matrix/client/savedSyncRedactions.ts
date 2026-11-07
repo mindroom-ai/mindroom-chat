@@ -1,17 +1,22 @@
 import {
   ClientEvent,
+  EventType,
+  ReceiptType,
   RoomEvent,
   SyncState,
   type MatrixClient,
   type MatrixEvent,
 } from 'matrix-js-sdk';
+import { isRecord } from '../../lib/isRecord';
 
 // The SDK saves its sync store after the first sync of a session and then at most every five
 // minutes. A reload or an offline start in between replays the saved sync, so what changed since
 // the last save was undone until the next sync brought it again (offline: until the client was
-// online again): a message deleted since then came back with its text, and a new display name,
+// online again): a message deleted since then came back with its text, a new display name,
 // avatar, room state or account setting (such as hiding membership changes) went back to its
-// older value. This module saves the store after a sync batch that brought such a change.
+// older value, and a room read on another device came back unread. This module saves the store
+// after a sync batch that brought such a change; for reads, a batch with one of the account's
+// own read receipts, which the server sends to every device of the account.
 //
 // Each save writes the whole sync accumulator, every room of the account. A lone redaction (an
 // agent withdrawing its draft) is saved at once, and redactions that come in a burst (a moderator
@@ -26,11 +31,27 @@ import {
 
 /** The least time between the end of one save and the start of the next, for a redaction. */
 export const REDACTION_SAVE_GAP_MS = 2_000;
-/** The same for other changes: state events and account data. */
+/** The same for other changes: state events, account data and the account's read receipts. */
 export const CHANGE_SAVE_GAP_MS = 10_000;
 
 // The read marker moves with every room read and is kept by the server; it alone saves nothing.
+// The read receipt that comes with it does, as it carries the room's unread counts.
 const UNSAVED_ROOM_ACCOUNT_DATA = new Set(['m.fully_read']);
+
+const READ_RECEIPT_TYPES = new Set<string>([ReceiptType.Read, ReceiptType.ReadPrivate]);
+
+/** Whether a synced `m.receipt` event holds a read receipt of `userId`'s, public or private. */
+const hasOwnReadReceipt = (event: MatrixEvent, userId: string | null): boolean => {
+  const content: unknown = event.getContent();
+  if (!userId || event.getType() !== EventType.Receipt || !isRecord(content)) return false;
+  return Object.values(content).some(
+    (byType) =>
+      isRecord(byType) &&
+      Object.entries(byType).some(
+        ([type, byUser]) => READ_RECEIPT_TYPES.has(type) && isRecord(byUser) && userId in byUser
+      )
+  );
+};
 
 type SyncBatchState = SyncState | null;
 
@@ -130,8 +151,9 @@ const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
   (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
 
 /**
- * Saves the client's sync store after sync batches that brought a redaction, a state event or
- * account data, unless the SDK saves such a batch itself; call it before the client starts.
+ * Saves the client's sync store after sync batches that brought a redaction, a state event,
+ * account data or the account's own read receipt, unless the SDK saves such a batch itself; call
+ * it before the client starts.
  * Returns a function that stops it.
  */
 export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
@@ -196,7 +218,7 @@ export const keepRedactionsInSavedSync = (mx: MatrixClient): (() => void) => {
     // Synced events only: a local event still being sent has a status.
     if (event.status !== null) return;
     if (event.isRedaction()) redactionSinceSave = true;
-    else if (event.isState()) changeSinceSave = true;
+    else if (event.isState() || hasOwnReadReceipt(event, mx.getUserId())) changeSinceSave = true;
   };
 
   const onAccountData = () => {
