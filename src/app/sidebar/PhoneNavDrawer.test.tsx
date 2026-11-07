@@ -12,7 +12,12 @@ vi.mock('react-i18next', async (importOriginal) => ({
   ...(await importOriginal<typeof import('react-i18next')>()),
   useTranslation: () => ({ t: (key: string) => key }),
 }));
-vi.mock('./PhoneNavDrawer.css', () => ({ Scrim: 'scrim', Panel: 'panel', Slot: 'slot' }));
+vi.mock('./PhoneNavDrawer.css', () => ({
+  SheetSlot: 'sheet-slot',
+  Scrim: 'scrim',
+  Panel: 'panel',
+  Slot: 'slot',
+}));
 
 // The data router builds a Request per navigation; under jsdom its signal needs this.
 followRouterSignalsInNode();
