@@ -53,7 +53,8 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
 export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpen] = useAtom(phoneNavDrawerOpenAtom);
   // The section's list portals itself into the slot (`MobileFriendlyPageNav`).
-  const slotRef = useSetAtom(phoneNavSlotAtom);
+  const setSlot = useSetAtom(phoneNavSlotAtom);
+  const slotRef = useRef<HTMLDivElement>(null);
   // A sheet from the end edge (a room's members) portals itself into the layer under the drawer,
   // where focus treats it as a dialog in the body (`overlayFocus`).
   const setSheetSlot = useSetAtom(phoneSheetSlotAtom);
@@ -65,12 +66,17 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     [setSheetSlot]
   );
   const panelRef = useRef<HTMLDivElement>(null);
-  // Motion only after the first frame, so a page that opens with the drawer out does not slide it.
+  // Motion only from the frame after the drawer first shows the stored state, so a page that opens
+  // with the drawer out does not slide it. The page brings it out in a layout effect of the first
+  // commit, but the atom's subscription starts with the passive effects, so the drawer renders it
+  // one commit late: until then the rendered state lags the store.
+  const store = useStore();
   const [animate, setAnimate] = useState(false);
   useEffect(() => {
+    if (animate || store.get(phoneNavDrawerOpenAtom) !== open) return undefined;
     const frame = requestAnimationFrame(() => setAnimate(true));
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [animate, open, store]);
 
   useDrawerFollowsNavigation(setOpen);
   useInert(panelRef, !open);
@@ -90,6 +96,13 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     return () => window.clearTimeout(timer);
   }, [open]);
   const filled = open || sliding;
+  // The slot stays on the page and is offered only while the drawer holds the list, so the list
+  // leaves while it is still on the page: one that remembers the reader's place reads it then.
+  useLayoutEffect(() => {
+    if (!filled) return undefined;
+    setSlot(slotRef.current);
+    return () => setSlot(null);
+  }, [filled, setSlot]);
 
   // Opened with the menu button, the drawer takes the focus from it; brought out by a navigation,
   // it leaves the focus to the page that restores it. Put away around the focus, the focus goes
@@ -162,7 +175,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
         data-animate={animate || undefined}
       >
         {filled && nav}
-        {filled && <div ref={slotRef} className={css.Slot} data-nav-slot />}
+        <div ref={slotRef} className={css.Slot} data-nav-slot />
       </div>
     </>
   );
