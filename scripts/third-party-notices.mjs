@@ -85,11 +85,13 @@ export const thirdPartyNotices = (
       );
     }
     const lock = JSON.parse(readFileSync(lockFile, 'utf8'));
+    if (!lock.packages)
+      throw new Error(`${lockFile} lists no "packages" (npm 7 or newer writes them)`);
     for (const [path, entry] of Object.entries(lock.packages)) {
       if (!path.startsWith('node_modules/') || entry.dev || entry.devOptional || entry.link)
         continue;
-      // A plugin's lockfile also lists what its install left out, such as the peer dependencies the
-      // app shares (npm ci --omit=peer).
+      // A plugin's lockfile also lists what its install left out, such as optional and peer
+      // dependencies (npm ci --omit=optional --omit=peer).
       if (plugin && !existsSync(join(base, path))) continue;
       const name = path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length);
       const key = `${name}@${entry.version}`;

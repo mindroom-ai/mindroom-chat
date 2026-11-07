@@ -61,7 +61,7 @@ writeFileSync(
 );
 
 test('lists production packages once, sorted, with their license and notice files', () => {
-  const notices = thirdPartyNotices(root);
+  const notices = thirdPartyNotices(root, []);
   const names = [...notices.matchAll(/^={80}\n(.+)$/gm)].map((match) => match[1]);
   assert.deepEqual(names, ['alpha 2.0.0', 'bare 0.1.0', 'zeta 1.0.0']);
   assert.match(
@@ -83,7 +83,7 @@ test('says when a package ships no license file, and names a text it already pri
   lock.packages['node_modules/zulu'] = { version: '1.0.0', license: 'MIT' };
   writeFileSync(lockFile, JSON.stringify(lock));
 
-  const notices = thirdPartyNotices(root);
+  const notices = thirdPartyNotices(root, []);
   assert.match(
     notices,
     /bare 0\.1\.0\nLicense: ISC\nSource: https:\/\/github\.com\/a\/bare\n\nThe package ships no license file; .* by Bob\./
@@ -92,7 +92,7 @@ test('says when a package ships no license file, and names a text it already pri
     notices,
     /zulu 1\.0\.0\nLicense: MIT\n\nFile LICENSE\.txt: the same text as zeta 1\.0\.0's LICENSE above\./
   );
-  assert.equal(thirdPartyNotices(root), notices);
+  assert.equal(thirdPartyNotices(root, []), notices);
 });
 
 test("adds the installed production packages of each client plugin's package-lock.json", () => {
@@ -110,7 +110,7 @@ test("adds the installed production packages of each client plugin's package-loc
         'node_modules/own-dep': { version: '0.2.0', license: 'MIT' },
         'node_modules/own-tool': { version: '1.0.0', dev: true, license: 'MIT' },
         'node_modules/zeta': { version: '1.0.0', license: 'MIT' },
-        // A peer dependency the app provides, left out of the install (npm ci --omit=peer).
+        // A peer dependency left out of the install (npm ci --omit=peer).
         'node_modules/react': { version: '18.2.0', peer: true, license: 'MIT' },
       },
     })
@@ -141,4 +141,14 @@ test('fails for a client plugin that installed packages without a package-lock.j
   // A plugin that installed nothing needs none.
   mkdirSync(join(root, 'bare-plugin'));
   assert.doesNotThrow(() => thirdPartyNotices(root, [join(root, 'bare-plugin')]));
+});
+
+test('fails for a lockfile without its packages, naming it', () => {
+  install('old-lock-plugin/node_modules/own-dep', { license: 'MIT' });
+  const plugin = join(root, 'old-lock-plugin');
+  writeFileSync(join(plugin, 'package-lock.json'), JSON.stringify({ lockfileVersion: 1 }));
+  assert.throws(
+    () => thirdPartyNotices(root, [plugin]),
+    new RegExp(`^Error: ${join(plugin, 'package-lock\\.json')} lists no "packages"`)
+  );
 });

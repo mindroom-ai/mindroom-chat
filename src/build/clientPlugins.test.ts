@@ -90,6 +90,11 @@ describe('readClientPlugins', () => {
       /entry "\.\/index\.js" does not exist/,
     ],
     [
+      'a package the app shares under dependencies',
+      () => pluginDir({ ...declaring(), dependencies: { jotai: '^2.0.0' } }),
+      /plugin "some-plugin" lists jotai under dependencies/,
+    ],
+    [
       'a package.json without a version',
       () => pluginDir({ ...declaring(), version: undefined }),
       /package\.json has no "version"/,
@@ -191,8 +196,8 @@ describe('clientPlugins', () => {
 });
 
 describe('packages the app shares with plugins', () => {
-  /** Builds the entries module of the plugin in `dir`, with the packages it imports bundled. */
-  const bundlePlugin = async (dir: string) => {
+  /** Builds the entries module of the plugin in `dir` and `inputs`, with what they import bundled. */
+  const bundlePlugin = async (dir: string, inputs: string[] = []) => {
     const output = (await build({
       configFile: false,
       root: ROOT,
@@ -203,7 +208,7 @@ describe('packages the app shares with plugins', () => {
         write: false,
         minify: false,
         rollupOptions: {
-          input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
+          input: [path.join(ROOT, 'src/app/plugins/pluginEntries.ts'), ...inputs],
           preserveEntrySignatures: 'strict',
         },
       },
@@ -213,17 +218,16 @@ describe('packages the app shares with plugins', () => {
     );
   };
 
-  /** A plugin directory whose index.js imports `source`. */
-  const importing = (source: string): string => {
-    const dir = pluginDir(declaring(), { entry: false });
+  /** Writes index.js in `dir`, importing each of `sources`. */
+  const importing = (dir: string, sources: string[]) =>
     writeFileSync(
       path.join(dir, 'index.js'),
-      `import * as shared from ${JSON.stringify(
-        source
-      )};\nexport default { messageRenderers: [], shared };\n`
+      `${sources
+        .map((source, i) => `import * as m${i} from ${JSON.stringify(source)};`)
+        .join('\n')}\nexport default { messageRenderers: [], ${sources
+        .map((_, i) => `m${i}`)
+        .join(', ')} };\n`
     );
-    return dir;
-  };
 
   /** Installs a package named `name` (a stand-in, not the real one) under `dir`. */
   const installStandIn = (dir: string, name: string, code = 'export const own = true;\n') => {
@@ -235,49 +239,48 @@ describe('packages the app shares with plugins', () => {
     writeFileSync(path.join(dir, 'index.js'), code);
   };
 
+  /** The app's installed copy of `name`, as module ids start with it. */
+  const appCopy = (name: string) => `${realpathSync(path.join(ROOT, 'node_modules', name))}/`;
+
   it("resolves them to the app's copy for a plugin outside the app that installed none", async () => {
-    const modules = await bundlePlugin(importing('jotai'));
-    const appCopy = `${realpathSync(path.join(ROOT, 'node_modules/jotai'))}/`;
-    expect(modules.some((id) => id.startsWith(appCopy))).toBe(true);
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['jotai']);
+    const modules = await bundlePlugin(dir);
+    expect(modules.some((id) => id.startsWith(appCopy('jotai')))).toBe(true);
   });
 
-  it("leaves the app's node_modules above a plugin inside the app's directory to the app", async () => {
-    // The example plugin's JSX imports react/jsx-runtime, which Node finds in the app's node_modules.
-    const modules = await bundlePlugin(EXAMPLE);
-    const appReact = `${realpathSync(path.join(ROOT, 'node_modules/react'))}/`;
-    expect(modules.some((id) => id.startsWith(appReact))).toBe(true);
-  });
-
-  it('fails the build, naming the plugin and the package, when a plugin imports its own copy', async () => {
-    const dir = importing('jotai');
+  it("resolves them to the app's copy over copies the plugin and its packages installed", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['jotai', 'helper']);
+    // jotai installed for the plugin's own tests, and a package with its own TanStack Query.
     installStandIn(path.join(dir, 'node_modules/jotai'), 'jotai');
+    installStandIn(
+      path.join(dir, 'node_modules/helper'),
+      'helper',
+      "export * as query from '@tanstack/react-query';\n"
+    );
+    installStandIn(
+      path.join(dir, 'node_modules/helper/node_modules/@tanstack/react-query'),
+      '@tanstack/react-query'
+    );
     // Listed by a link to its directory: module ids are real paths.
     const link = path.join(emptyDir(), 'plugin');
     symlinkSync(dir, link);
-    await expect(bundlePlugin(link)).rejects.toThrow(
-      `MINDROOM_CLIENT_PLUGINS: ${link} (plugin "some-plugin"): index.js imports jotai from the plugin's own copy (node_modules/jotai).`
-    );
+    const modules = await bundlePlugin(link);
+    expect(modules.some((id) => id.startsWith(appCopy('jotai')))).toBe(true);
+    expect(modules.some((id) => id.startsWith(appCopy('@tanstack/react-query')))).toBe(true);
+    const ownCopies = `${realpathSync(dir)}/node_modules/`;
+    expect(modules.filter((id) => id.startsWith(ownCopies))).toEqual([
+      `${ownCopies}helper/index.js`,
+    ]);
   });
 
-  it.each([
-    ['at the top of its node_modules', 'node_modules/@tanstack/react-query'],
-    [
-      "inside that package's own node_modules",
-      'node_modules/helper/node_modules/@tanstack/react-query',
-    ],
-  ])(
-    "fails the build when a package the plugin installed imports the plugin's own copy %s",
-    async (_case, copy) => {
-      const dir = importing('helper');
-      installStandIn(
-        path.join(dir, 'node_modules/helper'),
-        'helper',
-        "export * as query from '@tanstack/react-query';\n"
-      );
-      installStandIn(path.join(dir, copy), '@tanstack/react-query');
-      await expect(bundlePlugin(dir)).rejects.toThrow(
-        `node_modules/helper/index.js imports @tanstack/react-query from the plugin's own copy (${copy}).`
-      );
-    }
-  );
+  it('leaves the imports of files outside the plugins as they were', async () => {
+    const plugin = pluginDir(declaring());
+    const outside = realpathSync(emptyDir());
+    installStandIn(path.join(outside, 'node_modules/jotai'), 'jotai');
+    importing(outside, ['jotai']);
+    const modules = await bundlePlugin(plugin, [path.join(outside, 'index.js')]);
+    expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));
+  });
 });

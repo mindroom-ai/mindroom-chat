@@ -16,11 +16,11 @@ import { serveBuild } from '../helpers/staticBuildServer';
 
 // Client plugins share the app's React, Matrix SDK and state libraries (SHARED_PACKAGES in
 // scripts/client-plugins.mjs). A production build with a plugin in a directory outside the app,
-// which installed none of them and one dependency of its own: its renderer uses React hooks,
-// TanStack Query's client, matrix-js-sdk and the app's Matrix client, and renders a person's thread
-// reply; the notices the build ships list its own dependency. A build with a plugin that installed
-// its own copy of jotai fails, naming the plugin and jotai. Set PLUGIN_SHOTS=<directory> to save
-// screenshots.
+// which installed a stand-in matrix-js-sdk for its tests and one dependency of its own: its renderer
+// uses React hooks, TanStack Query's client, matrix-js-sdk and the app's Matrix client, and renders
+// a person's thread reply; the notices the build ships list its own dependency. A build with a
+// plugin that lists jotai under dependencies fails, naming the plugin and jotai. Set
+// PLUGIN_SHOTS=<directory> to save screenshots.
 const PASSWORD = 'shared-packages-password';
 const RUN = Date.now().toString(36);
 const SHARED_TEXT = 'Rendered with the shared packages';
@@ -40,13 +40,22 @@ const tempDir = (prefix: string): string => {
 
 const writeJson = (file: string, value: unknown) => writeFileSync(file, JSON.stringify(value));
 
-/** A plugin directory with this id, entry code and files besides (relative path to contents). */
-const plugin = (id: string, entry: string, files: Record<string, string> = {}): string => {
+/**
+ * A plugin directory with this id, entry code, files besides (relative path to contents) and
+ * package.json fields.
+ */
+const plugin = (
+  id: string,
+  entry: string,
+  files: Record<string, string> = {},
+  manifest: Record<string, unknown> = {}
+): string => {
   const dir = tempDir(`mindroom-plugin-${id}-`);
   writeJson(join(dir, 'package.json'), {
     name: `${id}-plugin`,
     version: '1.0.0',
     mindroomClientPlugin: { id, apiVersion: 1, entry: './index.js' },
+    ...manifest,
   });
   writeFileSync(join(dir, 'index.js'), entry);
   for (const [path, text] of Object.entries(files)) {
@@ -118,11 +127,19 @@ test.beforeAll(async () => {
     }),
     'node_modules/plugin-own-dep/index.js': "export const label = 'own dependency';\n",
     'node_modules/plugin-own-dep/LICENSE': OWN_DEP_LICENSE,
+    // Installed for the plugin's tests; the build gives the plugin the app's.
+    'node_modules/matrix-js-sdk/package.json': JSON.stringify({
+      name: 'matrix-js-sdk',
+      version: '0.0.1',
+      main: 'index.js',
+    }),
+    'node_modules/matrix-js-sdk/index.js': 'export class MatrixClient {}\n',
     'package-lock.json': JSON.stringify({
       lockfileVersion: 3,
       packages: {
         '': { name: 'shared-plugin', dependencies: { 'plugin-own-dep': '1.0.0' } },
         'node_modules/plugin-own-dep': { version: '1.0.0', license: 'MIT' },
+        'node_modules/matrix-js-sdk': { version: '0.0.1', dev: true },
       },
     }),
   });
@@ -186,12 +203,17 @@ test("a plugin's renderer uses React hooks, the app's Matrix client and its quer
   }
 });
 
-test('a plugin that installed its own copy of a shared package fails the build, naming both', () => {
-  const ownCopy = plugin('own-jotai', "import { atom } from 'jotai';\nexport default { atom };\n");
+test('a plugin that lists a shared package under dependencies fails the build, naming both', () => {
+  const ownCopy = plugin(
+    'own-jotai',
+    "import { atom } from 'jotai';\nexport default { atom };\n",
+    {},
+    { dependencies: { jotai: '^2.0.0' } }
+  );
   cpSync(resolve('node_modules/jotai'), join(ownCopy, 'node_modules/jotai'), { recursive: true });
   const result = buildWith([ownCopy], tempDir('mindroom-own-copy-build-'));
   expect(result.status).not.toBe(0);
   expect(`${result.stdout}\n${result.stderr}`).toContain(
-    `MINDROOM_CLIENT_PLUGINS: ${ownCopy} (plugin "own-jotai"): index.js imports jotai from the plugin's own copy (node_modules/jotai).`
+    `MINDROOM_CLIENT_PLUGINS: ${ownCopy}: plugin "own-jotai" lists jotai under dependencies, but every plugin gets the app's jotai: list it under peerDependencies instead`
   );
 });
