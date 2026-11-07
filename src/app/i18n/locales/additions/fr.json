@@ -548,6 +548,9 @@
       "descriptions": {
         "reply_mode": "Afficher ou changer si les agents ont besoin d’une mention pour lancer une conversation ici (définir/réinitialiser réservé aux administrateurs du salon)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} tâches en arrière-plan ({{shown}} affichées)"
     }
   },
   "composer": {

@@ -528,6 +528,9 @@
       "descriptions": {
         "reply_mode": "顯示或切換代理程式在此開始對話是否需要被提及（設定/重設僅限房間管理員）。"
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} 個背景工作（顯示 {{shown}} 個）"
     }
   },
   "composer": {

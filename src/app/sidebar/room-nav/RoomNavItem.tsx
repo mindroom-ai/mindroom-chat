@@ -229,7 +229,7 @@ function RoomNavOptions({
 /** A clock after the room's name while an agent runs a background job in the room. */
 function BackgroundJobsMark({ room }: { room: Room }) {
   const { t } = useTranslation();
-  const running = useRoomBackgroundJobs(room).length;
+  const running = useRoomBackgroundJobs(room).total;
   if (running === 0) return null;
   const label = t('mindroomUi.backgroundJobs.inRoom');
   return (

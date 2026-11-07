@@ -538,6 +538,9 @@
       "descriptions": {
         "reply_mode": "Ajanların burada bir konuşma başlatmak için bahsedilmeye ihtiyaç duyup duymadığını gösterin veya değiştirin (ayarlama/sıfırlama yalnızca oda yöneticileri)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} arka plan işi ({{shown}} tanesi gösteriliyor)"
     }
   },
   "composer": {

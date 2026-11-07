@@ -180,7 +180,10 @@ vi.mock('../../ui/IconTooltip', () => ({
 }));
 
 vi.mock('../../background-jobs/useRoomBackgroundJobs', () => ({
-  useRoomBackgroundJobs: () => testState.backgroundJobs,
+  useRoomBackgroundJobs: () => ({
+    jobs: testState.backgroundJobs,
+    total: testState.backgroundJobs.length,
+  }),
 }));
 
 vi.mock('../../matrix/matrix', () => ({
