@@ -21,17 +21,15 @@ export const TimelineFloat = recipe({
       Top: { top: config.space.S300 },
       Bottom: { bottom: config.space.S400 },
     },
+    /**
+     * Pills that do not fit side by side (the unread pills in most languages on a phone) stack:
+     * the second moves under the first instead of squeezing both.
+     */
+    wrap: {
+      true: { flexWrap: 'wrap', justifyContent: 'center' },
+    },
   },
   defaultVariants: { position: 'Top' },
-});
-
-/**
- * The Jump to Unread and Mark as Read pills: when their labels do not fit side by side (most
- * languages on a phone), the second pill moves under the first instead of squeezing both.
- */
-export const UnreadFloat = style({
-  flexWrap: 'wrap',
-  justifyContent: 'center',
 });
 
 /**

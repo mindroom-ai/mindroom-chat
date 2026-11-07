@@ -103,7 +103,7 @@ export function UnreadActions({
   const startInset = `calc(${EXPAND_ALL_START_COLUMN} - ${config.space.S400})`;
   return (
     <div
-      className={`${css.TimelineFloat({ position: 'Top' })} ${css.UnreadFloat}`}
+      className={css.TimelineFloat({ position: 'Top', wrap: true })}
       style={{
         top: `calc(${overlay.controlsTopInset} + ${config.space.S300})`,
         ...(clearStart
