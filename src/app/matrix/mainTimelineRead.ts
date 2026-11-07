@@ -1,5 +1,6 @@
 import { ReceiptType, type MatrixEvent, type Room } from 'matrix-js-sdk';
 import { isSeenThreadRoot } from './seenThreadRoots';
+import { isConversationNotice } from './protocol/conversationNotice';
 
 /**
  * When the user last read the room's main timeline: the newest of their main and unthreaded
@@ -32,11 +33,19 @@ const answeredInThread = (room: Room, event: MatrixEvent, userId: string): boole
 };
 
 /**
+ * Whether the thread lists leave out a notice: one without replies that no agent marked as a
+ * conversation (`isConversationNotice`), such as an agent's status line.
+ */
+const isUnlistedNotice = (event: MatrixEvent): boolean =>
+  event.getContent().msgtype === 'm.notice' && !event.isThreadRoot && !isConversationNotice(event);
+
+/**
  * Whether a message in the main timeline, such as a thread root, is unread for the user: someone
  * else sent it after the user last read the main timeline (`readTs`, see
- * `getMainTimelineReadTs`), the user has not replied in its thread, and has not opened its thread
- * on this device (`isSeenThreadRoot`). The room's unread dot and the unread thread filter both
- * follow this rule, so a room is unread only for what the filter finds.
+ * `getMainTimelineReadTs`), the thread lists show it (not `isUnlistedNotice`), the user has not
+ * replied in its thread, and has not opened its thread on this device (`isSeenThreadRoot`). The
+ * room's unread dot and the unread thread filter both follow this rule, so a room is unread only
+ * for what the filter finds.
  */
 export const isMainTimelineMessageUnread = (
   room: Room,
@@ -47,5 +56,6 @@ export const isMainTimelineMessageUnread = (
   event.getSender() !== userId &&
   !event.isRedacted() &&
   event.getTs() > readTs &&
+  !isUnlistedNotice(event) &&
   !answeredInThread(room, event, userId) &&
   !isSeenThreadRoot(userId, room.roomId, event.getId());
