@@ -1,11 +1,5 @@
-import {
-  expect,
-  test,
-  webkit,
-  type Browser,
-  type BrowserContext,
-  type Page,
-} from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A deployment's own branding on the signed-out pages (config.json `branding`, docs/configuration.md
 // "Branding"): the logo, its dark variant and the title in the sign-in card's header, the footer's
@@ -15,7 +9,6 @@ import {
 // malformed key falls back to it. Set AUTH_BRANDING_SHOTS=<directory> to save every screen.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const SHOTS = process.env.AUTH_BRANDING_SHOTS;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const BRAND_HOST = 'https://brand.example.test';
 
 const LAYOUTS = {
@@ -272,9 +265,9 @@ test('without branding the signed-out pages keep the MindRoom Chat look', async 
 });
 
 test('branding and its defaults in WebKit', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(360_000);
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await checkBranded(browser, baseURL!, 'webkit');
     await checkDefault(browser, baseURL!, 'webkit');
