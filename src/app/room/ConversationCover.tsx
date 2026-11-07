@@ -139,9 +139,10 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
   };
 
   // Escape in the cover closes it when its plugin allows, unless something in it took the key or an
-  // input method is composing.
+  // input method is composing; Escape in a popover its component portals elsewhere is the popover's.
   const closeOnEscape = (event: KeyboardEvent) => {
     if (!cover.close || event.defaultPrevented || isComposingKey(event.nativeEvent)) return;
+    if (!layerRef.current?.contains(event.target as Node)) return;
     event.preventDefault();
     event.stopPropagation();
     try {

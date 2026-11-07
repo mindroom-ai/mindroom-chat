@@ -117,6 +117,7 @@ vi.mock('../plugins/pluginEntries', () => ({
           // A cover without controls of its own, whose popover is portaled into the page's body.
           mocks.cover('portal', {
             Component: () => createPortal(<input aria-label="popover field" />, document.body),
+            close: () => mocks.set('portal', false),
           }),
         ],
       },
@@ -251,13 +252,16 @@ describe('a conversation cover', () => {
     button.tabIndex = 0;
   });
 
-  it("leaves Tab in a popover the cover's component portals elsewhere to the popover", () => {
+  it("leaves Tab and Escape in a popover the cover's component portals elsewhere to the popover", () => {
     renderRoom();
     show('portal');
     const popoverField = screen.getByRole('textbox', { name: 'popover field' });
     popoverField.focus();
     expect(fireEvent.keyDown(popoverField, { key: 'Tab' })).toBe(true);
     expect(document.activeElement).toBe(popoverField);
+    // Escape there is the popover's too: the cover stays.
+    expect(fireEvent.keyDown(popoverField, { key: 'Escape' })).toBe(true);
+    expect(layer()).not.toBeNull();
   });
 
   it('brings the focus back when Tab takes it out of the cover all the same', async () => {
