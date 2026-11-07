@@ -92,6 +92,40 @@ describe('pollLiveCall', () => {
     expect(live).toHaveBeenCalledTimes(5);
   });
 
+  it('gives a read up after 10 seconds, reports it as a failure, and goes on reading', async () => {
+    const live = vi.fn(
+      (_roomId: string, _after?: string, signal?: AbortSignal): Promise<LiveCall> =>
+        live.mock.calls.length > 1
+          ? Promise.resolve(read('call-1'))
+          : new Promise((_resolve, reject) => {
+              signal?.addEventListener('abort', () =>
+                reject(new TranscriptionApiError('Cancelled', 0))
+              );
+            })
+    );
+    const onFailure = vi.fn();
+    const reads: LiveCall[] = [];
+    const stop = new AbortController();
+    const polling = pollLiveCall(
+      { live } as unknown as TranscriptionClient,
+      ROOM_ID,
+      2_000,
+      stop.signal,
+      (answer) => reads.push(answer),
+      onFailure
+    );
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(onFailure).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(onFailure).toHaveBeenCalledWith(expect.objectContaining({ status: 0 }));
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(live).toHaveBeenCalledTimes(2);
+    expect(reads).toEqual([read('call-1')]);
+    stop.abort();
+    await expect(polling).resolves.toBeUndefined();
+  });
+
   it('stops for good when the room is not transcribed', async () => {
     const { client, live } = fakeClient([new TranscriptionApiError('Not found', 404, 'not-found')]);
     await expect(
