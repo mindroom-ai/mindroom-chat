@@ -24,7 +24,11 @@ import * as ringCss from '../../src/app/calls/IncomingCalls.css';
 const params = new URLSearchParams(window.location.search);
 const dark = params.get('theme') === 'dark';
 applyThemeToDom(dark ? DarkTheme : LightTheme);
-document.body.style.margin = '0';
+// The page scrolls (the app's does not), so a full-page screenshot holds every tile.
+for (const element of [document.documentElement, document.body, document.getElementById('root')!]) {
+  element.style.height = 'auto';
+  element.style.overflow = 'visible';
+}
 
 const ROOM_ID = '!deploy-desk:matrix.localhost';
 const ME = '@robin:matrix.localhost';
