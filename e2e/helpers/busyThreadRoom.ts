@@ -728,10 +728,8 @@ export const startRecording = (page: Page, view: RoomView, touchInput: boolean) 
         let element = document.querySelector('[data-message-item]')?.parentElement ?? null;
         while (element) {
           const { overflowY } = getComputedStyle(element);
-          if (
-            (overflowY === 'auto' || overflowY === 'scroll') &&
-            element.scrollHeight > element.clientHeight
-          ) {
+          // The timeline's own scroller, the nearest one: rows on screen move only inside it.
+          if (overflowY === 'auto' || overflowY === 'scroll') {
             scroller = element;
             break;
           }

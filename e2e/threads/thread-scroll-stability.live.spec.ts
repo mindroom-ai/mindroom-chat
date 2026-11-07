@@ -150,7 +150,7 @@ test.describe('scrolling a room with many agent threads', () => {
         });
         await page.waitForTimeout(1_500);
         // Fresh frames from here: the reader rests while threads land at the top.
-        await stopRecording(page);
+        expect((await stopRecording(page)).scrolled, 'the reader scrolled').toBeGreaterThan(900);
         await startRecording(page, 'threaded', false);
         const asker = room.peer;
         for (let index = 0; index < 3; index += 1) {
