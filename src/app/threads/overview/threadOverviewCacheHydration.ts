@@ -11,7 +11,11 @@ import {
   getCompactCachedThreadRootPreviewInfo,
   getCompactThreadRootPreviewInfo,
 } from '../../event-store/threads/compactThreadRootData';
-import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from '../../event-store/cache/eventRepository';
+import {
+  type CachedThreadEventPage,
+  createPreferLiveEventMapper,
+  loadLatestCachedThreadEventsBatch,
+} from '../../event-store/cache/eventRepository';
 import { hasLikelyIncompleteStreamingBody } from '../../event-store/threads/threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from '../../event-store/threads/threadPresentation';
 import { buildThreadCacheCoverage } from '../../event-store/cache/threadCacheCoverage';
@@ -228,7 +232,12 @@ export const resolveCachedOverviewUpdate = ({
   compactThreadRootBodyMap,
 }: ResolveCachedOverviewUpdateOptions): CachedOverviewUpdate | null => {
   // The cached events are only read here; attached to their threads they would stay for good.
-  const mapper = readOnlyEventMapper(room, sdkMapper);
+  // An event the room holds keeps its newer revision and thread summary: the SDK mapper alone
+  // overwrote them with the cached copy's.
+  const mapper = readOnlyEventMapper(
+    room,
+    createPreferLiveEventMapper(room, (rawEvent) => sdkMapper(rawEvent as IEvent))
+  );
   // Capture the SDK revision before the cache mapper gets a chance to reuse
   // and update the same MatrixEvent instance.
   const livePreview = compactThreadRootBodyMap.get(rootId);
