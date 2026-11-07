@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -6,7 +6,8 @@ import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 let root = '';
 beforeEach(() => {
-  root = mkdtempSync(path.join(tmpdir(), 'package-copies-'));
+  // Module ids are real paths, so the modules below are named by one (macOS links /var).
+  root = realpathSync(mkdtempSync(path.join(tmpdir(), 'package-copies-')));
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -20,9 +21,12 @@ const install = (packages: Record<string, [name: string, version: string]>) => {
   }
 };
 
-/** Ends a build whose module graph holds these modules (id, and whether tree-shaking kept it). */
-const endBuild = (modules: Record<string, boolean>, error?: Error) => {
-  const plugin = onePackageCopyPerVersion();
+/**
+ * Ends a build whose module graph holds these modules (id, and whether tree-shaking kept it), with
+ * these client plugin directories.
+ */
+const endBuild = (modules: Record<string, boolean>, error?: Error, pluginDirs?: string[]) => {
+  const plugin = onePackageCopyPerVersion(pluginDirs);
   const buildEnd = plugin.buildEnd as unknown as (this: unknown, error?: Error) => void;
   buildEnd.call(
     {
@@ -79,5 +83,19 @@ describe('onePackageCopyPerVersion', () => {
     };
     expect(() => endBuild(modules, new Error('could not parse a module'))).not.toThrow();
     expect(() => endBuild(modules)).toThrow(/shared@1\.0\.0/);
+  });
+
+  it('leaves out the packages a client plugin installed in its own directory', () => {
+    install({
+      'node_modules/shared': ['shared', '1.0.0'],
+      'plugins/example/node_modules/shared': ['shared', '1.0.0'],
+    });
+    mkdirSync(at('plugins/other'));
+    const modules = {
+      [at('node_modules/shared/index.js')]: true,
+      [at('plugins/example/node_modules/shared/index.js')]: true,
+    };
+    expect(() => endBuild(modules, undefined, [at('plugins/example')])).not.toThrow();
+    expect(() => endBuild(modules, undefined, [at('plugins/other')])).toThrow(/shared@1\.0\.0/);
   });
 });

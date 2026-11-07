@@ -15,6 +15,7 @@ import {
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
 import { defined } from '../../test/utils/defined';
@@ -156,11 +157,11 @@ const relist = (root: MatrixEvent) =>
   });
 
 let renderer: ReactTestRenderer | undefined;
-const render = (path: string, synced = true) =>
+const render = (path: string, synced = true, store = createStore()) =>
   act(() => {
     sync = synced ? { state: 'SYNCING' } : { state: 'PREPARED', fromCache: true };
     renderer = create(
-      <Provider store={createStore()}>
+      <Provider store={store}>
         <MatrixClientProvider value={client}>
           <MemoryRouter
             initialEntries={[path]}
@@ -286,6 +287,14 @@ describe('MessageNotificationsFeature', () => {
     vi.mocked(document.hasFocus).mockReturnValue(false);
     render(`/home/${encodeURIComponent(ROOM)}/`);
     arrive(message({ msgtype: 'm.text', body: 'while away' }));
+    expect(FakeNotification.shown).toHaveLength(1);
+  });
+
+  it("notifies for the room on screen while a phone's navigation drawer covers it", () => {
+    const store = createStore();
+    store.set(phoneNavDrawerOpenAtom, true);
+    render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
+    arrive(message({ msgtype: 'm.text', body: 'behind the drawer' }));
     expect(FakeNotification.shown).toHaveLength(1);
   });
 

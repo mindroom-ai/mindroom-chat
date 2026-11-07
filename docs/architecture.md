@@ -58,6 +58,8 @@ src/
                          timeline/ (timeline model), sdk/ (the only adapters of matrix-js-sdk internals)
     models/              agent model picker, provider icons, model controller, agent device trust check
     ui-actions/          agent-driven UI actions (button, provider, controller)
+    plugins/             client plugins the build lists: the registry, their config.json sections, message
+                         renderers (see "Client plugins" below)
     computer/            the worker computer panel, screen, touchpad, clipboard, API, settings, agent servers
     emoji/               emoji data, recent emoji, skin tone; board/, custom/ packs, packs/ editor, server/, settings/
     editor/              the Slate editor of the composer and of message editing; autocomplete/
@@ -145,7 +147,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 1 | `config`, `i18n`, `preferences`, `routes`, `shortcuts`, `src/sw` |
 | 2 | `diagnostics`, `native`, `ui` |
 | 3 | `matrix`, `theme` |
-| 4 | `avatars`, `models`, `navigation`, `rich-text`, `ui-actions` |
+| 4 | `avatars`, `models`, `navigation`, `plugins`, `rich-text`, `ui-actions` |
 | 5 | `computer`, `emoji`, `event-store` |
 | 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
 | 7 | `background-jobs`, `members`, `messages` |
@@ -164,6 +166,25 @@ Limits:
 
 - Inline type imports (`typeof import('...')`) are not checked by the rule. The one cross-domain use, `shell/Router.tsx` to `room/Room`, points downward.
 - File-level cycles are checked separately: `threads/__tests__/featureOwnership.architecture.test.ts` requires the runtime import graph of `src/app` to be acyclic, apart from one listed cycle, `emoji/emojiData.ts` and `emoji/emoji.ts` (a lazy `import()` and the handover of the emoji tables back). Remove the allowance when that handshake goes.
+
+## Client plugins
+
+A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` names plugin directories ([`configuration.md`](configuration.md#build-time-variables)). Each has its own installed `node_modules`, so this repository's `package.json` and lockfile stay as they are, and a `package.json` that declares the plugin:
+
+```json
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "mindroomClientPlugin": { "id": "my-plugin", "apiVersion": 1, "entry": "./src/index.tsx" }
+}
+```
+
+- `scripts/client-plugins.mjs` checks each declaration, failing the build on one it cannot use, and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry. Without plugins none of their code ships. A plugin's imports resolve in its own directory, React and React DOM excepted (the app's copies), so a package the plugin installed comes from its `node_modules`, even one the app bundles too; the build's check for two copies of one package version (`scripts/package-copies.mjs`) leaves those out.
+- An entry's default export is a `ClientPlugin` (`src/app/plugins/registry.ts`): a list per kind of contribution. `registeredPlugins` freezes them, in the listed order, when its module loads, and `src/index.tsx` loads it before the app routes. A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginConfig.ts`).
+- Message renderers (`src/app/plugins/messageRenderers.ts`) are the first kind: `{ match, Component, trust? }`. `RenderMessageContent` asks them before its own renderers, wherever it renders a message body: timelines, pins, the inbox, and search results short enough to show whole. `match(event)` is pure and synchronous, and sees the content the app renders the message from, latest edit included; `Component` renders it. Only a MindRoom agent on the viewer's homeserver may send the messages a renderer takes, or with `trust: 'server'` anyone on that homeserver. A `match` that throws counts as no match. A `Component` that throws shows the app's own rendering instead, until the message's content changes (as a reply streams in) or another renderer takes it, and the failure is logged and reported with `[plugin <id>@<version>]`.
+- `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions, and `?plugins=off` in the address hides every plugin's for one page load.
+
+`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests.
 
 ## Two lanes of code
 
@@ -184,7 +205,7 @@ node scripts/provenance-paths.cjs lane-p        # every Lane P file where it is 
 
 ## MindRoom event formats
 
-The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are mostly Lane P code. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/room/Room.tsx`, `src/app/timeline/RoomTimeline.tsx`), the message row seam (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderAgentMessageContent.tsx` first. Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
+The MindRoom backend defines the formats its agents send, and the client reads them unchanged. The parsing and rendering are mostly Lane P code. The Lane C side supplies Matrix data and hands events over: the room view seams (`src/app/room/Room.tsx`, `src/app/timeline/RoomTimeline.tsx`), the message row seam (`src/app/timeline/message-rendering/useTimelineMessageFeature.tsx`), and `src/app/messages/content/RenderMessageContent.tsx`, which passes each message to `renderAgentMessageContent.tsx` first, unless a client plugin's renderer takes it ([Client plugins](#client-plugins)). Section 5 of `docs/baspowers/specs/2026-11-02-clean-room-client-design.md` gives the backend source for each format.
 
 | Format | Shape | Read in (under `src/app/`) |
 |---|---|---|

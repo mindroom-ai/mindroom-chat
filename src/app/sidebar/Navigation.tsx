@@ -7,7 +7,6 @@ import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useNavToActivePathMapper } from '../routes/useNavToActivePathMapper';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useSpace } from '../matrix/hooks/useSpace';
-import { MobileFriendlyClientNav } from './MobileFriendly';
 import { SidebarNav } from './SidebarNav';
 import {
   DesktopPageNav,
@@ -23,7 +22,7 @@ import { useShortcut } from '../shortcuts/useShortcut';
 /**
  * Owns whether the page navigation (the room list beside the content) is collapsed. The choice
  * is saved per account and applies wherever navigation and content share the screen; phones
- * always show the navigation as its own page and keep the saved choice for later.
+ * keep the navigation in their drawer and the saved choice for later.
  */
 export function NavigationProvider({ children }: { children: ReactNode }) {
   const userId = useMatrixClient().getUserId() ?? '';
@@ -111,12 +110,10 @@ export function CollapsibleSidebarNav() {
   );
 
   return (
-    <MobileFriendlyClientNav>
-      <SidebarNav
-        footer={canCollapse ? <PageNavToggle /> : undefined}
-        onPageNavSelect={handlePageNavSelect}
-      />
-    </MobileFriendlyClientNav>
+    <SidebarNav
+      footer={canCollapse ? <PageNavToggle /> : undefined}
+      onPageNavSelect={handlePageNavSelect}
+    />
   );
 }
 

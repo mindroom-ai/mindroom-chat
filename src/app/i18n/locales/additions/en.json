@@ -438,6 +438,10 @@
     "roomActions": {
       "noInvitePermission": "You don't have permission to invite",
       "searchEncrypted": "Not available in encrypted rooms"
+    },
+    "phoneNav": {
+      "search": "Search",
+      "navigation": "Navigation"
     }
   },
   "mindroomUi": {
