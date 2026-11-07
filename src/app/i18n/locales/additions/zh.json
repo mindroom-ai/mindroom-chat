@@ -434,6 +434,12 @@
     "phoneNav": {
       "search": "搜索",
       "navigation": "导航"
+    },
+    "subRooms": {
+      "newSubRoom": "新建子房间",
+      "description": "{{name}} 的成员可以加入，{{name}} 中的智能体会自行加入。",
+      "noPermission": "您无法更改 {{name}} 下列出的房间",
+      "takeOff": "从 {{name}} 移除"
     }
   },
   "mindroomUi": {

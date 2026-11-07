@@ -450,6 +450,12 @@
     "phoneNav": {
       "search": "Cerca",
       "navigation": "Navigazione"
+    },
+    "subRooms": {
+      "newSubRoom": "Nuova sottostanza",
+      "description": "I membri di {{name}} possono entrarvi, e gli agenti in {{name}} vi entrano da soli.",
+      "noPermission": "Non puoi modificare le stanze elencate sotto {{name}}",
+      "takeOff": "Rimuovi da {{name}}"
     }
   },
   "mindroomUi": {

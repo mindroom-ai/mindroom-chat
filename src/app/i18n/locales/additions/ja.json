@@ -434,6 +434,12 @@
     "phoneNav": {
       "search": "検索",
       "navigation": "ナビゲーション"
+    },
+    "subRooms": {
+      "newSubRoom": "新しいサブルーム",
+      "description": "{{name}} のメンバーが参加でき、{{name}} のエージェントは自動で参加します。",
+      "noPermission": "{{name}} の下に表示するルームを変更する権限がありません",
+      "takeOff": "{{name}} から外す"
     }
   },
   "mindroomUi": {

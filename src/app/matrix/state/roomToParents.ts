@@ -1,6 +1,9 @@
 /**
- * Which Spaces contain each room, from the `m.space.child` state of the Spaces the client knows.
- * A child counts only while its event has a non-empty `via`, as the Matrix spec defines.
+ * Which Spaces and chat rooms list each room, from the `m.space.child` state of the rooms the
+ * client knows. A child counts only while its event has a non-empty `via`, as the Matrix spec
+ * defines. A chat room's child is a sub-room only while it is a joined room, not a Space, that
+ * names the chat room back as its canonical `m.space.parent`, the rule MindRoom's agents follow
+ * to join it; one link alone leaves the room where it was.
  */
 import { useEffect } from 'react';
 import { atom, type WritableAtom, useSetAtom } from 'jotai';
@@ -18,9 +21,9 @@ import { matchesEnum } from '../../lib/matchesEnum';
 
 type RoomToParentsAction =
   | { type: 'INITIALIZE'; roomToParents: RoomToParents }
-  /** Sets the children of one Space. */
+  /** Sets the children of one Space or chat room. */
   | { type: 'PUT'; parent: string; children: string[] }
-  /** Forgets a Space, for example after leaving it. */
+  /** Forgets a Space or chat room, for example after leaving it. */
   | { type: 'DELETE'; parent: string };
 
 type RoomToParentsAtom = WritableAtom<RoomToParents, [RoomToParentsAction], void>;
@@ -55,7 +58,7 @@ const setSpaceChildren = (
   return next ?? roomToParents;
 };
 
-/** Room ID to the IDs of the Spaces that list it as a child. */
+/** Room ID to the IDs of the Spaces and chat rooms that list it as a child. */
 export const roomToParentsAtom: RoomToParentsAtom = atom<
   RoomToParents,
   [RoomToParentsAction],
@@ -77,23 +80,38 @@ export const roomToParentsAtom: RoomToParentsAtom = atom<
   }
 );
 
+const hasVia = (content: Record<string, unknown>): boolean => {
+  const { via } = content;
+  return Array.isArray(via) && via.length > 0 && via.every((server) => typeof server === 'string');
+};
+
 /** The rooms a Space lists as children. */
 export const getSpaceChildIds = (space: Room): string[] =>
   space.currentState
     .getStateEvents(StateEvent.SpaceChild)
-    .filter((event) => {
-      const { via } = event.getContent();
-      return (
-        Array.isArray(via) &&
-        via.length > 0 &&
-        via.every((server) => typeof server === 'string') &&
-        !!event.getStateKey()
-      );
-    })
+    .filter((event) => hasVia(event.getContent()) && !!event.getStateKey())
     .map((event) => event.getStateKey() as string);
 
-const isTrackedSpace = (room: Room): boolean => {
-  if (!room.isSpaceRoom()) return false;
+const isJoined = (room: Room): boolean => matchesEnum(room.getMyMembership(), KnownMembership.Join);
+
+/** Whether `child` names `parentId` as its canonical parent (`m.space.parent`). */
+const namesParent = (child: Room, parentId: string): boolean => {
+  const content = child.currentState.getStateEvents(StateEvent.SpaceParent, parentId)?.getContent();
+  return content?.canonical === true && hasVia(content);
+};
+
+/** The children `room` adds to the map: every child of a Space, the sub-rooms of a chat room. */
+const getChildIds = (mx: MatrixClient, room: Room): string[] => {
+  const children = getSpaceChildIds(room);
+  if (room.isSpaceRoom()) return children;
+  return children.filter((childId) => {
+    const child = mx.getRoom(childId);
+    return !!child && isJoined(child) && !child.isSpaceRoom() && namesParent(child, room.roomId);
+  });
+};
+
+const isTrackedParent = (room: Room): boolean => {
+  if (!room.isSpaceRoom()) return isJoined(room);
   const membership = room.getMyMembership();
   return (
     !matchesEnum(membership, KnownMembership.Invite) &&
@@ -101,7 +119,13 @@ const isTrackedSpace = (room: Room): boolean => {
   );
 };
 
-/** Builds the parents of every room and follows Space changes for the current account. */
+/** The rooms `room` names as parents (`m.space.parent`), whose sub-rooms it may be one of. */
+const getNamedParents = (mx: MatrixClient, room: Room): Room[] =>
+  room.currentState
+    .getStateEvents(StateEvent.SpaceParent)
+    .flatMap((event) => mx.getRoom(event.getStateKey() ?? '') ?? []);
+
+/** Builds the parents of every room and follows their changes for the current account. */
 export const useBindRoomToParentsAtom = (
   mx: MatrixClient,
   parentsAtom: RoomToParentsAtom = roomToParentsAtom
@@ -111,41 +135,50 @@ export const useBindRoomToParentsAtom = (
   useEffect(() => {
     const roomToParents: RoomToParents = new Map();
     mx.getRooms()
-      .filter(isTrackedSpace)
-      .forEach((space) => {
-        getSpaceChildIds(space).forEach((childId) => {
+      .filter(isTrackedParent)
+      .forEach((parent) => {
+        getChildIds(mx, parent).forEach((childId) => {
           const parents = roomToParents.get(childId) ?? new Set<string>();
-          parents.add(space.roomId);
+          parents.add(parent.roomId);
           roomToParents.set(childId, parents);
         });
       });
     setParents({ type: 'INITIALIZE', roomToParents });
 
-    const putSpace = (space: Room) =>
-      setParents({ type: 'PUT', parent: space.roomId, children: getSpaceChildIds(space) });
-    const handleRoom = (room: Room) => {
-      if (isTrackedSpace(room)) putSpace(room);
+    const putParent = (parent: Room) => {
+      if (isTrackedParent(parent)) {
+        setParents({ type: 'PUT', parent: parent.roomId, children: getChildIds(mx, parent) });
+      }
+    };
+    // A room's own list, and the lists of the chat rooms it names as parents, which it may join,
+    // leave or come into the client's store as a sub-room of.
+    const putRoom = (room: Room) => {
+      putParent(room);
+      getNamedParents(mx, room).forEach(putParent);
     };
     const handleMembership = (room: Room, membership: string) => {
-      if (!room.isSpaceRoom()) return;
-      if (matchesEnum(membership, KnownMembership.Join)) putSpace(room);
+      if (matchesEnum(membership, KnownMembership.Join)) putParent(room);
       else setParents({ type: 'DELETE', parent: room.roomId });
+      getNamedParents(mx, room).forEach(putParent);
     };
     const handleStateEvent = (event: MatrixEvent) => {
-      if (!matchesEnum(event.getType(), StateEvent.SpaceChild)) return;
-      const roomId = event.getRoomId();
-      const space = roomId ? mx.getRoom(roomId) : null;
-      if (space && isTrackedSpace(space)) putSpace(space);
+      const room = mx.getRoom(event.getRoomId() ?? '');
+      if (!room) return;
+      if (matchesEnum(event.getType(), StateEvent.SpaceChild)) putParent(room);
+      if (matchesEnum(event.getType(), StateEvent.SpaceParent)) {
+        const parent = mx.getRoom(event.getStateKey() ?? '');
+        if (parent) putParent(parent);
+      }
     };
     const handleDeleteRoom = (roomId: string) => setParents({ type: 'DELETE', parent: roomId });
 
     mx.on(RoomStateEvent.Events, handleStateEvent);
-    mx.on(ClientEvent.Room, handleRoom);
+    mx.on(ClientEvent.Room, putRoom);
     mx.on(RoomEvent.MyMembership, handleMembership);
     mx.on(ClientEvent.DeleteRoom, handleDeleteRoom);
     return () => {
       mx.removeListener(RoomStateEvent.Events, handleStateEvent);
-      mx.removeListener(ClientEvent.Room, handleRoom);
+      mx.removeListener(ClientEvent.Room, putRoom);
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
       mx.removeListener(ClientEvent.DeleteRoom, handleDeleteRoom);
     };

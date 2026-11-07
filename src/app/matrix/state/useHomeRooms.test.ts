@@ -25,6 +25,25 @@ describe('getHomeSearchRooms', () => {
     ).toEqual(['!root:example.org']);
   });
 
+  it('keeps the sub-rooms of rooms outside spaces, and drops those of rooms inside one', () => {
+    const mx = {
+      getRoom: (roomId: string) => (roomId === '!space:example.org' ? roomOfType('m.space') : null),
+    } as never;
+
+    expect(
+      getHomeSearchRooms(
+        mx,
+        ['!room:example.org', '!room-sub:example.org', '!space-room-sub:example.org'],
+        new Set(),
+        new Map([
+          ['!room-sub:example.org', new Set(['!room:example.org'])],
+          ['!space-room-sub:example.org', new Set(['!space-room:example.org'])],
+          ['!space-room:example.org', new Set(['!space:example.org'])],
+        ])
+      )
+    ).toEqual(['!room:example.org', '!room-sub:example.org']);
+  });
+
   it('keeps the server emoji room out of the search scope', () => {
     const mx = {
       getRoom: (roomId: string) =>

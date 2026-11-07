@@ -1,4 +1,4 @@
-import { ReactNode, Suspense, lazy, useMemo, useState } from 'react';
+import { Fragment, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import { Navigate, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -12,6 +12,9 @@ import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import { RoomNavItem } from '../room-nav/RoomNavItem';
+import { SubRoomRows, nestSubRooms, withSubRooms } from '../room-nav/SubRoomRows';
+import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { JoinBeforeNavigate } from '../../rooms/join/JoinBeforeNavigate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../navigation/useResolvedRoomIdOrAlias';
@@ -345,20 +348,41 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
+  const roomToParents = useAtomValue(roomToParentsAtom);
   const roomsByName = useMemo(() => sortRoomIdsByName(client, ownRooms), [client, ownRooms]);
+  // The sub-rooms of the space's own rooms show under them, A to Z.
+  const tree = useMemo(
+    () => nestSubRooms(roomsByName, sortRoomIdsByName(client, spaceRooms), roomToParents),
+    [client, roomsByName, spaceRooms, roomToParents]
+  );
   // Like Home: A to Z until the person drags a room, then their order.
-  const roomOrder = useRoomOrder(space.roomId, roomsByName);
+  const roomOrder = useRoomOrder(space.roomId, tree.top);
+  const shownRoomIds = useMemo(
+    () => withSubRooms(roomOrder.roomIds, tree),
+    [roomOrder.roomIds, tree]
+  );
   const sortedRooms = useMemo(
     () =>
-      // A collapsed category still shows the selected room.
-      roomsClosed
-        ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
-        : roomOrder.roomIds,
-    [roomOrder.roomIds, roomsClosed, selectedRoomId]
+      // A collapsed category still shows the selected room, on its own.
+      roomsClosed ? shownRoomIds.filter((roomId) => roomId === selectedRoomId) : roomOrder.roomIds,
+    [shownRoomIds, roomOrder.roomIds, roomsClosed, selectedRoomId]
   );
-  useRoomListShortcuts(sortedRooms, selectedRoomId, (roomId) =>
-    getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId))
+  const spaceRoomPath = (roomId: string) =>
+    getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
+  useRoomListShortcuts(roomsClosed ? sortedRooms : shownRoomIds, selectedRoomId, spaceRoomPath);
+  const renderSubRoom = (room: Room) => (
+    <RoomNavItem
+      room={room}
+      selected={room.roomId === selectedRoomId}
+      linkPath={spaceRoomPath(room.roomId)}
+      notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
+      spaceId={space.roomId}
+    />
   );
+  const previewPath = (roomId: string, viaServers: string[]) =>
+    withSearchParam(getSpaceRoomPath(spaceIdOrAlias, roomId), {
+      viaServers: viaServers.join(','),
+    });
 
   return (
     <PageNav label={title}>
@@ -400,17 +424,23 @@ export function Space() {
               {sortedRooms.map((roomId) => {
                 const room = client.getRoom(roomId);
                 return room ? (
-                  <SortableRoomRow
-                    key={roomId}
-                    room={room}
-                    selected={roomId === selectedRoomId}
-                    linkPath={getSpaceRoomPath(
-                      spaceIdOrAlias,
-                      getCanonicalAliasOrRoomId(client, roomId)
+                  <Fragment key={roomId}>
+                    <SortableRoomRow
+                      room={room}
+                      selected={roomId === selectedRoomId}
+                      linkPath={spaceRoomPath(roomId)}
+                      notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
+                      spaceId={space.roomId}
+                    />
+                    {!roomsClosed && (
+                      <SubRoomRows
+                        parent={room}
+                        tree={tree}
+                        renderRoom={renderSubRoom}
+                        previewPath={previewPath}
+                      />
                     )}
-                    notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
-                    spaceId={space.roomId}
-                  />
+                  </Fragment>
                 ) : null;
               })}
             </SortableRoomList>

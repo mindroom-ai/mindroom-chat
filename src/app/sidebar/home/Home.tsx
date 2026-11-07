@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
-import { useAtom, useSetAtom } from 'jotai';
+import type { Room } from 'matrix-js-sdk';
+import { useAtom, useAtomValue, useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
@@ -19,6 +20,9 @@ import { JoinAddressPrompt } from '../../rooms/join/JoinAddressPrompt';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
 import { HOME_ROOM_LIST, useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import { RoomNavItem } from '../room-nav/RoomNavItem';
+import { SubRoomRows, nestSubRooms, withSubRooms } from '../room-nav/SubRoomRows';
+import { roomToParentsAtom } from '../../matrix/state/roomToParents';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import {
@@ -157,20 +161,38 @@ export function Home() {
   const isCategoryClosed = (categoryId: string) => closedCategories.has(categoryId);
   const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
+  const roomToParents = useAtomValue(roomToParentsAtom);
   const roomsByName = useMemo(() => sortRoomIdsByName(client, homeRooms), [client, homeRooms]);
+  // Sub-rooms show under their room, A to Z.
+  const tree = useMemo(
+    () => nestSubRooms(roomsByName, roomsByName, roomToParents),
+    [roomsByName, roomToParents]
+  );
   // A to Z until the person drags a room; then their order, on every device.
-  const roomOrder = useRoomOrder(HOME_ROOM_LIST, roomsByName);
+  const roomOrder = useRoomOrder(HOME_ROOM_LIST, tree.top);
+  const shownRoomIds = useMemo(
+    () => withSubRooms(roomOrder.roomIds, tree),
+    [roomOrder.roomIds, tree]
+  );
   const listedRoomIds = useMemo(
     () =>
-      // A collapsed category still shows the selected room.
-      roomsClosed
-        ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
-        : roomOrder.roomIds,
-    [roomOrder.roomIds, roomsClosed, selectedRoomId]
+      // A collapsed category still shows the selected room, on its own.
+      roomsClosed ? shownRoomIds.filter((roomId) => roomId === selectedRoomId) : roomOrder.roomIds,
+    [shownRoomIds, roomOrder.roomIds, roomsClosed, selectedRoomId]
   );
-  useRoomListShortcuts(listedRoomIds, selectedRoomId, (roomId) =>
-    getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId))
+  const homeRoomPath = (roomId: string) =>
+    getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId));
+  useRoomListShortcuts(roomsClosed ? listedRoomIds : shownRoomIds, selectedRoomId, homeRoomPath);
+  const renderSubRoom = (room: Room) => (
+    <RoomNavItem
+      room={room}
+      linkPath={homeRoomPath(room.roomId)}
+      selected={room.roomId === selectedRoomId}
+      notificationMode={getRoomNotificationMode(notificationPreferences, room.roomId)}
+    />
   );
+  const previewPath = (roomId: string, viaServers: string[]) =>
+    withSearchParam(getHomeRoomPath(roomId), { viaServers: viaServers.join(',') });
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.
@@ -277,13 +299,21 @@ export function Home() {
                       >
                         <SortableRoomRow
                           room={room}
-                          linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
+                          linkPath={homeRoomPath(room.roomId)}
                           selected={roomId === selectedRoomId}
                           notificationMode={getRoomNotificationMode(
                             notificationPreferences,
                             room.roomId
                           )}
                         />
+                        {!roomsClosed && (
+                          <SubRoomRows
+                            parent={room}
+                            tree={tree}
+                            renderRoom={renderSubRoom}
+                            previewPath={previewPath}
+                          />
+                        )}
                       </VirtualTile>
                     );
                   })}

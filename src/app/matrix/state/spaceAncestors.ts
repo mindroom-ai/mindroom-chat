@@ -1,9 +1,10 @@
-/** Room ID to the IDs of the Spaces that list it as a child (`roomToParentsAtom`). */
+/** Room ID to the IDs of the Spaces and chat rooms that list it as a child (`roomToParentsAtom`). */
 type ParentsByRoom = ReadonlyMap<string, ReadonlySet<string>>;
 
 /**
- * The Spaces above `roomId` at any depth, nearest first (parents, then grandparents). A loop in
- * the space tree ends the walk; the room itself is never listed.
+ * The Spaces above `roomId` at any depth, nearest first (parents, then grandparents), with the
+ * chat rooms a sub-room sits under. A loop in the tree ends the walk; the room itself is never
+ * listed.
  */
 export const getAncestorSpaceIds = (parentsByRoom: ParentsByRoom, roomId: string): string[] => {
   const ancestors: string[] = [];

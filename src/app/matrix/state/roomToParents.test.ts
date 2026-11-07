@@ -3,7 +3,15 @@ import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { createStore, Provider } from 'jotai';
 import { enableMapSet } from 'immer';
 import { afterEach, describe, expect, it } from 'vitest';
-import { MatrixClient, MatrixEvent, MemoryStore, Room, RoomStateEvent } from 'matrix-js-sdk';
+import {
+  KnownMembership,
+  MatrixClient,
+  MatrixEvent,
+  MemoryStore,
+  Room,
+  RoomEvent,
+  RoomStateEvent,
+} from 'matrix-js-sdk';
 import { roomToParentsAtom, useBindRoomToParentsAtom } from './roomToParents';
 
 enableMapSet();
@@ -100,5 +108,132 @@ describe('useBindRoomToParentsAtom', () => {
 
     expect(parentsOf('!room:example.org')).toBeUndefined();
     expect(parentsOf('!other:example.org')).toEqual(new Set(['!space:example.org']));
+  });
+});
+
+const stateEvent = (roomId: string, type: string, stateKey: string, content: object) =>
+  new MatrixEvent({
+    type,
+    state_key: stateKey,
+    sender: ME,
+    room_id: roomId,
+    event_id: `$${roomId}-${type}-${stateKey}-${JSON.stringify(content)}`,
+    content,
+  });
+
+const PARENT = '!parent:example.org';
+const CHILD = '!child:example.org';
+const canonicalBackLink = { canonical: true, via: ['example.org'] };
+
+type ChatRoomsOptions = {
+  parentMembership?: string;
+  childMembership?: string;
+  childIsSpace?: boolean;
+  listed?: boolean;
+  backLink?: object;
+};
+
+/** A chat room and a room it may list, both joined unless told otherwise. */
+const setupChatRooms = ({
+  parentMembership = KnownMembership.Join,
+  childMembership = KnownMembership.Join,
+  childIsSpace = false,
+  listed = true,
+  backLink = canonicalBackLink,
+}: ChatRoomsOptions = {}) => {
+  const mx = new MatrixClient({
+    baseUrl: 'https://example.org',
+    userId: ME,
+    store: new MemoryStore(),
+  });
+  const makeRoom = (roomId: string, membership: string, state: MatrixEvent[]) => {
+    const room = new Room(roomId, mx, ME);
+    room.currentState.setStateEvents(state);
+    room.updateMyMembership(membership);
+    mx.reEmitter.reEmit(room, [RoomStateEvent.Events, RoomEvent.MyMembership]);
+    mx.store.storeRoom(room);
+    return room;
+  };
+  const parent = makeRoom(
+    PARENT,
+    parentMembership,
+    listed ? [stateEvent(PARENT, 'm.space.child', CHILD, { via: ['example.org'] })] : []
+  );
+  const child = makeRoom(CHILD, childMembership, [
+    ...(childIsSpace ? [stateEvent(CHILD, 'm.room.create', '', { type: 'm.space' })] : []),
+    ...(Object.keys(backLink).length > 0
+      ? [stateEvent(CHILD, 'm.space.parent', PARENT, backLink)]
+      : []),
+  ]);
+  const store = createStore();
+  const Binder = () => {
+    useBindRoomToParentsAtom(mx, roomToParentsAtom);
+    return null;
+  };
+  act(() => {
+    renderer = create(React.createElement(Provider, { store }, React.createElement(Binder)));
+  });
+  const setState = (room: Room, type: string, stateKey: string, content: object) =>
+    act(() => {
+      room.currentState.setStateEvents([stateEvent(room.roomId, type, stateKey, content)]);
+    });
+  const childParents = () => store.get(roomToParentsAtom).get(CHILD);
+  return { parent, child, setState, childParents };
+};
+
+describe('useBindRoomToParentsAtom with a chat room as parent', () => {
+  it('lists a room under a chat room that lists it and that it names as its canonical parent', () => {
+    const { childParents } = setupChatRooms();
+
+    expect(childParents()).toEqual(new Set([PARENT]));
+  });
+
+  it.each<[string, ChatRoomsOptions]>([
+    ['the room does not name the chat room back', { backLink: {} }],
+    [
+      'the room names the chat room as a parent that is not canonical',
+      { backLink: { via: ['example.org'] } },
+    ],
+    ['the back link has no servers', { backLink: { canonical: true, via: [] } }],
+    ['only the room names the chat room, which does not list it', { listed: false }],
+    ['the listed room is a Space', { childIsSpace: true }],
+    ['the account has not joined the chat room', { parentMembership: KnownMembership.Invite }],
+  ])('leaves a room at top level when %s', (_case, options) => {
+    const { childParents } = setupChatRooms(options);
+
+    expect(childParents()).toBeUndefined();
+  });
+
+  it('lists the room once it names the chat room back', () => {
+    const { child, setState, childParents } = setupChatRooms({ backLink: {} });
+
+    setState(child, 'm.space.parent', PARENT, canonicalBackLink);
+
+    expect(childParents()).toEqual(new Set([PARENT]));
+  });
+
+  it('lists the room once the account joins it', () => {
+    const { child, childParents } = setupChatRooms({ childMembership: KnownMembership.Leave });
+    expect(childParents()).toBeUndefined();
+
+    act(() => child.updateMyMembership(KnownMembership.Join));
+
+    expect(childParents()).toEqual(new Set([PARENT]));
+  });
+
+  it('puts the room back at top level when the chat room takes it off its list', () => {
+    const { parent, setState, childParents } = setupChatRooms();
+
+    setState(parent, 'm.space.child', CHILD, {});
+
+    expect(childParents()).toBeUndefined();
+  });
+
+  it('forgets the chat room when the account leaves it', () => {
+    const { parent, childParents } = setupChatRooms();
+
+    act(() => parent.updateMyMembership(KnownMembership.Leave));
+
+    expect(childParents()).toBeUndefined();
   });
 });

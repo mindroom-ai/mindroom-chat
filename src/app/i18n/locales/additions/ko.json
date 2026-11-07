@@ -434,6 +434,12 @@
     "phoneNav": {
       "search": "검색",
       "navigation": "탐색"
+    },
+    "subRooms": {
+      "newSubRoom": "새 하위 방",
+      "description": "{{name}}의 멤버가 참여할 수 있으며, {{name}}의 에이전트는 스스로 참여합니다.",
+      "noPermission": "{{name}} 아래에 표시되는 방을 변경할 수 없습니다",
+      "takeOff": "{{name}}에서 제거"
     }
   },
   "mindroomUi": {

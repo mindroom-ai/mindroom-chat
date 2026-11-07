@@ -458,6 +458,12 @@
     "phoneNav": {
       "search": "Поиск",
       "navigation": "Навигация"
+    },
+    "subRooms": {
+      "newSubRoom": "Новая подкомната",
+      "description": "Участники {{name}} могут войти в неё, а агенты из {{name}} входят сами.",
+      "noPermission": "Вы не можете изменять комнаты, перечисленные в {{name}}",
+      "takeOff": "Убрать из {{name}}"
     }
   },
   "mindroomUi": {
