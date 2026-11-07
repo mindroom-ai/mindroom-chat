@@ -13,18 +13,20 @@ import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
-// On a phone (390 by 844, touch) a finger resting about half a second on a message opens the
-// message's menu where it rests, as a right click does with a mouse: iOS Safari fires no
-// contextmenu for a long press. A short tap, a finger that drifts more than 10 px, and a scroll
-// during the press open nothing, and once the menu is open the lift does not click. Playwright has
-// no long press, so the spec sends the touch events itself, as real TouchEvents where the engine
-// can build them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, in WebKit.
+// On a phone (390 by 844, touch) a finger resting about half a second on a message's text is the
+// platform's long press: iOS selects the word under it, with its handles and Copy bar, so the app
+// opens no menu and leaves the text selectable. Resting on the message off its text (the empty
+// space at the row's start) opens the message's menu where it rests, as a right click does with a
+// mouse: iOS Safari fires no contextmenu for a long press. A short tap, a finger that drifts more
+// than 10 px, and a scroll during the press open nothing, and once the menu is open the lift does
+// not click. Playwright has no long press, so the spec sends the touch events itself, as real
+// TouchEvents where the engine can build them. Checked in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 // P2-macos-safari-F001: iOS also selected a word under the resting finger and showed its Copy and
 // Look Up bar over the menu, or selected the menu's first entry once it opened there. While a
-// press rests no text on the page is selectable, a selection the platform makes meanwhile is gone
-// once the menu opens, the menu's text is never selectable, and the page is selectable again after
-// the lift. Checked on a phone and on a tablet.
+// press that may open the menu rests no text on the page is selectable, a selection the platform
+// makes meanwhile is gone once the menu opens, the menu's text is never selectable, and the page
+// is selectable again after the lift. Checked on a phone and on a tablet.
 // Set LONG_PRESS_SHOTS=<directory> to save the open menu.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-long-press-spec-password';
@@ -121,13 +123,16 @@ type Step =
 type Probe = { pageSelect: string; textSelect: string; selected: string };
 
 /**
- * One finger on the middle of `target`, driven through `steps`. Answers whether the lift's
- * default was prevented and how the events were built.
+ * One finger on `target`, driven through `steps`: on its middle, or 8 px inside its start edge
+ * halfway down. Answers where the finger rested, whether the lift's default was prevented and how
+ * the events were built.
  */
-const touch = async (target: Locator, steps: Step[]) => {
+const touch = async (target: Locator, steps: Step[], spot: 'middle' | 'start' = 'middle') => {
   const box = await target.boundingBox();
   if (!box) throw new Error('nothing to touch');
-  return target.evaluate(
+  const x = spot === 'start' ? box.x + 8 : box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  const result = await target.evaluate(
     async (element, { x, y, plan }) => {
       let real = true;
       const fire = (type: string, dx: number, dy: number, lifted: boolean) => {
@@ -204,8 +209,9 @@ const touch = async (target: Locator, steps: Step[]) => {
       }
       return { liftAllowed, real, probes };
     },
-    { x: box.x + box.width / 2, y: box.y + box.height / 2, plan: steps }
+    { x, y, plan: steps }
   );
+  return { ...result, x, y };
 };
 
 const message = (page: Page, body: string) =>
@@ -242,50 +248,83 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
   await expect(row).toBeVisible({ timeout: 60_000 });
   const text = row.getByText(LAST, { exact: true });
 
-  // A short tap opens no menu, and its lift may click.
-  const tap = await touch(text, [{ type: 'start' }, { type: 'wait', ms: 120 }, { type: 'end' }]);
+  // A long press on the text is the platform's: no menu opens, the lift may click, and the text
+  // stays selectable throughout, for the platform to select the word under the finger.
+  const onText = await touch(text, [
+    { type: 'start' },
+    { type: 'wait', ms: 200 },
+    { type: 'probe' },
+    { type: 'wait', ms: 450 },
+    { type: 'probe' },
+    { type: 'end' },
+  ]);
+  console.log(`${engine} long press on text: ${JSON.stringify(onText)}`);
+  expect(onText.liftAllowed, `${engine}: the lift after a press on text may click`).toBe(true);
+  await expectNoMenu(page, row, `${engine} after a long press on text`);
+  for (const probe of onText.probes) {
+    expect(probe.pageSelect, `${engine}: the page stays selectable`).not.toBe('none');
+    expect(probe.textSelect, `${engine}: the text stays selectable`).not.toBe('none');
+  }
+
+  // Off the text, at the row's empty start, a short tap opens no menu, and its lift may click.
+  const tap = await touch(
+    row,
+    [{ type: 'start' }, { type: 'wait', ms: 120 }, { type: 'end' }],
+    'start'
+  );
   console.log(`${engine} tap: ${JSON.stringify(tap)}`);
   expect(tap.liftAllowed, `${engine}: a tap's lift may click`).toBe(true);
   await expectNoMenu(page, row, `${engine} after a tap`);
 
   // A finger that drifts 15 px is dragging, not pressing.
-  await touch(text, [
-    { type: 'start' },
-    { type: 'wait', ms: 150 },
-    { type: 'move', dx: 0, dy: 15 },
-    { type: 'wait', ms: 600 },
-    { type: 'end' },
-  ]);
+  await touch(
+    row,
+    [
+      { type: 'start' },
+      { type: 'wait', ms: 150 },
+      { type: 'move', dx: 0, dy: 15 },
+      { type: 'wait', ms: 600 },
+      { type: 'end' },
+    ],
+    'start'
+  );
   await expectNoMenu(page, row, `${engine} after a drift`);
 
   // A scroll during the press, without the finger reporting a move, cancels it too.
-  await touch(text, [
-    { type: 'start' },
-    { type: 'wait', ms: 150 },
-    { type: 'scroll', by: -40 },
-    { type: 'wait', ms: 600 },
-    { type: 'end' },
-    { type: 'scroll', by: 40 },
-  ]);
+  await touch(
+    row,
+    [
+      { type: 'start' },
+      { type: 'wait', ms: 150 },
+      { type: 'scroll', by: -40 },
+      { type: 'wait', ms: 600 },
+      { type: 'end' },
+      { type: 'scroll', by: 40 },
+    ],
+    'start'
+  );
   await expectNoMenu(page, row, `${engine} after a scroll`);
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect(row).toBeVisible();
 
-  // A long press opens the menu where the finger rests; small jitter is allowed. The platform
-  // selects the text under the finger while it rests, if it can.
-  const box = await text.boundingBox();
-  const press = await touch(text, [
-    { type: 'probe' },
-    { type: 'start' },
-    { type: 'wait', ms: 200 },
-    { type: 'move', dx: 3, dy: -2 },
-    { type: 'select' },
-    { type: 'probe' },
-    { type: 'wait', ms: 450 },
-    { type: 'probe' },
-    { type: 'end' },
-    { type: 'probe' },
-  ]);
+  // A long press there opens the menu where the finger rests; small jitter is allowed. The
+  // platform selects text near the finger while it rests, if it can.
+  const press = await touch(
+    row,
+    [
+      { type: 'probe' },
+      { type: 'start' },
+      { type: 'wait', ms: 200 },
+      { type: 'move', dx: 3, dy: -2 },
+      { type: 'select' },
+      { type: 'probe' },
+      { type: 'wait', ms: 450 },
+      { type: 'probe' },
+      { type: 'end' },
+      { type: 'probe' },
+    ],
+    'start'
+  );
   console.log(`${engine} long press: ${JSON.stringify(press)}`);
   const { more, entry } = menuOf(page, row);
   await expect(entry, `${engine}: a long press opens the message menu`).toBeVisible();
@@ -329,8 +368,7 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
     const { left, right, top, bottom } = box.getBoundingClientRect();
     return { left, right, top, bottom };
   });
-  if (!box) throw new Error('no message text');
-  const finger = { x: box.x + box.width / 2 + 3, y: box.y + box.height / 2 - 2 };
+  const finger = { x: press.x + 3, y: press.y - 2 };
   console.log(`${engine} menu ${JSON.stringify(menu)} finger ${JSON.stringify(finger)}`);
   const near = (value: number, ...edges: number[]) =>
     Math.min(...edges.map((edge) => Math.abs(edge - value)));
@@ -399,12 +437,17 @@ test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test('a long press opens the message menu on a phone (Chromium)', async ({ browser, baseURL }) => {
+test('a long press selects message text and opens the menu off it on a phone (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
   test.setTimeout(300_000);
   await run(browser, baseURL, 'chromium');
 });
 
-test('a long press opens the message menu on a phone (WebKit)', async ({ baseURL }) => {
+test('a long press selects message text and opens the menu off it on a phone (WebKit)', async ({
+  baseURL,
+}) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   const browser = await launchWebKit();
@@ -415,12 +458,17 @@ test('a long press opens the message menu on a phone (WebKit)', async ({ baseURL
   }
 });
 
-test('a long press opens the message menu on a tablet (Chromium)', async ({ browser, baseURL }) => {
+test('a long press selects message text and opens the menu off it on a tablet (Chromium)', async ({
+  browser,
+  baseURL,
+}) => {
   test.setTimeout(300_000);
   await run(browser, baseURL, 'chromium', 'tablet');
 });
 
-test('a long press opens the message menu on a tablet (WebKit)', async ({ baseURL }) => {
+test('a long press selects message text and opens the menu off it on a tablet (WebKit)', async ({
+  baseURL,
+}) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
   const browser = await launchWebKit();

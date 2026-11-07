@@ -70,6 +70,37 @@ export const editableActiveElement = (): boolean => {
   );
 };
 
+/**
+ * Whether the reader can select text of `target`, the element under a viewport point, within
+ * `reach` CSS pixels of that point. The empty space beside a line's end, a button's label and
+ * text styled unselectable do not count. WebKit and Blink inherit `user-select`, so the target's
+ * own value holds its ancestors' `none`.
+ */
+export const selectableTextNear = (
+  target: EventTarget,
+  x: number,
+  y: number,
+  reach: number
+): boolean => {
+  if (!(target instanceof Element) || target.closest('button')) return false;
+  const style = getComputedStyle(target);
+  const select =
+    style.getPropertyValue('-webkit-user-select') || style.getPropertyValue('user-select');
+  if (select === 'none') return false;
+  const range = document.createRange();
+  return Array.from(target.childNodes).some((node) => {
+    if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim()) return false;
+    range.selectNodeContents(node);
+    return Array.from(range.getClientRects()).some(
+      (line) =>
+        x >= line.left - reach &&
+        x <= line.right + reach &&
+        y >= line.top - reach &&
+        y <= line.bottom + reach
+    );
+  });
+};
+
 /** Whether `child` is fully inside the visible part of `scrollElement`. */
 export const isInScrollView = (scrollElement: HTMLElement, child: HTMLElement): boolean => {
   const view = scrollElement.getBoundingClientRect();
