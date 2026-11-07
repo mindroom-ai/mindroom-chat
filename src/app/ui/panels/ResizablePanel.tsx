@@ -13,6 +13,8 @@ import {
   type PanelPhase,
   usePanelPresence,
 } from './panelPresence';
+import { PanelFrameStrip, usePanelFrame } from './PanelFrame';
+import { STRIP_WIDTH } from './PanelFrame.css';
 import * as css from './ResizablePanel.css';
 
 const MIN_WIDTH = 200;
@@ -79,9 +81,14 @@ export function ResizablePanel({
   const presence = usePanelPresence();
   const phase = presence?.phase ?? 'shown';
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
-  // Beside the content a panel opens and closes by moving its width; phones and full-width
-  // panels switch at once.
-  const moves = !fullWidth && !passthrough && !mobile;
+  // A room's side panel in its frame (PanelFrame) fills the room or folds to its tab as the frame
+  // says.
+  const frame = usePanelFrame();
+  const full = fullWidth || frame?.layout === 'filled';
+  const folded = frame?.layout === 'folded';
+  // Beside the content a panel opens and closes by moving its width; phones, full-width and
+  // folded panels switch at once.
+  const moves = !full && !folded && !passthrough && !mobile;
   const motionRef = useRef<Animation>();
   const phaseSeen = useRef<PanelPhase>('shown');
   /** The width a released drag left on screen, which the next commit moves from. */
@@ -94,12 +101,12 @@ export function ResizablePanel({
   const minWidth = Math.min(MIN_WIDTH, maxWidth);
   const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth);
   const width =
-    previewWidth === undefined || fullWidth ? settledWidth : Math.min(previewWidth, maxWidth);
+    previewWidth === undefined || full ? settledWidth : Math.min(previewWidth, maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
   const contentWidth = Math.max(width, minWidth);
   const collapseOnRelease =
-    !fullWidth && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
+    !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
@@ -162,7 +169,7 @@ export function ResizablePanel({
   }, [lastWidth, register]);
 
   useLayoutEffect(() => {
-    if (fullWidth || passthrough) {
+    if (full || passthrough) {
       dragRef.current = undefined;
       setPreviewWidth(undefined);
       return undefined;
@@ -182,7 +189,7 @@ export function ResizablePanel({
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [fullWidth, passthrough, maxPanelWidth, minContentWidth]);
+  }, [full, passthrough, maxPanelWidth, minContentWidth]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
@@ -258,23 +265,31 @@ export function ResizablePanel({
 
   let contentStyle: CSSProperties | undefined;
   if (passthrough) contentStyle = { display: 'contents' };
-  else if (!fullWidth) {
-    contentStyle = { ['--mr-panel-content-width' as string]: `${contentWidth}px` };
+  // Folded, the content stays mounted out of sight (a call or a computer keeps its connection).
+  else if (folded) contentStyle = { display: 'none' };
+  else if (!full) {
+    const strip = frame ? STRIP_WIDTH : 0;
+    contentStyle = { ['--mr-panel-content-width' as string]: `${contentWidth - strip}px` };
   }
+  let panelStyle: CSSProperties | undefined = { width };
+  if (passthrough) panelStyle = { display: 'contents' };
+  else if (full) panelStyle = { width: '100%' };
+  else if (folded) panelStyle = undefined;
 
   return (
     <div
       ref={panelRef}
       className={css.Panel}
-      style={passthrough ? { display: 'contents' } : { width: fullWidth ? '100%' : width }}
+      style={panelStyle}
       data-testid={testId}
       data-side={side}
       data-collapse-preview={collapseOnRelease || undefined}
     >
       <div style={contentStyle}>{children}</div>
+      {frame && <PanelFrameStrip frame={frame} />}
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      {!fullWidth && !passthrough && (
+      {!full && !folded && !passthrough && (
         <div
           className={css.Handle}
           role="separator"

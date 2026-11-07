@@ -536,7 +536,8 @@
     },
     "computer": {
       "resize": "कंप्यूटर पैनल का आकार बदलें",
-      "close": "कंप्यूटर बंद करें"
+      "close": "कंप्यूटर बंद करें",
+      "title": "कंप्यूटर"
     },
     "plugins": {
       "sidePanel": {
@@ -544,6 +545,11 @@
         "close": "{{label}} बंद करें",
         "failed": "इस पैनल ने काम करना बंद कर दिया है।"
       }
+    },
+    "sidePanel": {
+      "fill": "रूम को {{label}} से भरें",
+      "fold": "{{label}} को किनारे पर मोड़ें",
+      "unfold": "{{label}} खोलें"
     },
     "commands": {
       "descriptions": {

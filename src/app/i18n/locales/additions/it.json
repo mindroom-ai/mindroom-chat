@@ -546,7 +546,8 @@
     },
     "computer": {
       "resize": "Ridimensiona il pannello del computer",
-      "close": "Chiudi il computer"
+      "close": "Chiudi il computer",
+      "title": "Computer"
     },
     "plugins": {
       "sidePanel": {
@@ -554,6 +555,11 @@
         "close": "Chiudi {{label}}",
         "failed": "Questo pannello ha smesso di funzionare."
       }
+    },
+    "sidePanel": {
+      "fill": "Riempi la stanza con {{label}}",
+      "fold": "Piega {{label}} sul bordo",
+      "unfold": "Dispiega {{label}}"
     },
     "commands": {
       "descriptions": {

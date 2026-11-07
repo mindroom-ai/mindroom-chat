@@ -1,6 +1,5 @@
 import {
   type ComponentProps,
-  Fragment,
   type ReactNode,
   Suspense,
   useCallback,
@@ -27,9 +26,10 @@ import { MembersDrawer } from '../members/MembersDrawer';
 import { hasActiveMindroomAgent, isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
 import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ResizableMembersPanel } from '../members/ResizableMembersPanel';
-import { PanelRow } from '../members/PanelRow';
+import { PanelRow, useMembersOverlay } from '../members/PanelRow';
 import { CONVERSATION_MIN_WIDTH, ResizablePanel } from '../ui/panels/ResizablePanel';
 import { usePanelSlot } from '../ui/panels/panelPresence';
+import { PanelFrameProvider } from '../ui/panels/PanelFrame';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
 import { enabledSidePanels } from '../plugins/sidePanels';
@@ -135,10 +135,14 @@ const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
 
 /** A canvas on screen and the conversation it was opened in. */
-type ShownCanvas = { event: MatrixEvent; expanded: boolean; conversation: string };
+type ShownCanvas = { event: MatrixEvent; conversation: string };
 
-/** A side panel of the room: whether it takes the conversation's place, and what it shows. */
+/**
+ * A side panel of the room: its name on its frame, whether it takes the conversation's place, and
+ * what it shows.
+ */
 type PanelEntry = RoomPanel & {
+  label: string;
   covers: boolean;
   render: () => ReactNode;
   /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
@@ -261,10 +265,6 @@ function RoomContent() {
     reportInteraction,
   } = computer;
   const computerOpen = computer.open && !!computerTarget.apiUrl;
-  const [computerExpanded, setComputerExpanded] = useState(false);
-  useEffect(() => {
-    if (!computerOpen) setComputerExpanded(false);
-  }, [computerOpen]);
   const computerShown = useComputerShown(client, roomId, threadId);
 
   const canvasEnabled = clientConfig.mindroom?.canvas?.enabled === true;
@@ -290,15 +290,18 @@ function RoomContent() {
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
+  const membersOverlay = useMembersOverlay();
 
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
-  // others, except that the members stay open behind the call and show again when it closes.
+  // others, except that the members stay open behind the call and show again when it closes. The
+  // computer and a canvas have their own Expand, which fills the room as their frame's Fill does.
   const panels: PanelEntry[] = [
     {
       id: 'computer',
       open: computerOpen,
       close: closeComputer,
-      covers: mobile || computerExpanded,
+      label: t('mindroomUi.computer.title'),
+      covers: mobile,
       render: () =>
         computerTarget.apiUrl && (
           <ResizablePanel
@@ -307,7 +310,6 @@ function RoomContent() {
             defaultWidth={COMPUTER_DEFAULT_WIDTH}
             minContentWidth={CONVERSATION_MIN_WIDTH}
             maxPanelWidth={COMPUTER_MAX_WIDTH}
-            fullWidth={!mobile && computerExpanded}
             passthrough={mobile}
             resizeLabel={t('mindroomUi.computer.resize')}
             collapseLabel={t('mindroomUi.computer.close')}
@@ -324,10 +326,8 @@ function RoomContent() {
               requestedAgent={computer.requestedAgent}
               onInteractionChange={reportInteraction}
               onClose={closeComputer}
-              expanded={!mobile && computerExpanded}
-              onToggleExpanded={
-                mobile ? undefined : () => setComputerExpanded((expanded) => !expanded)
-              }
+              expanded={layout === 'filled'}
+              onToggleExpanded={mobile ? undefined : () => toggleFilled('computer')}
             />
           </ResizablePanel>
         ),
@@ -336,7 +336,8 @@ function RoomContent() {
       id: 'canvas',
       open: !!canvas,
       close: closeCanvas,
-      covers: mobile || !!canvas?.expanded,
+      label: t('mindroomUi.canvases.canvas'),
+      covers: mobile,
       render: () =>
         canvas && (
           <RoomCanvasPanel
@@ -344,10 +345,8 @@ function RoomContent() {
             room={room}
             event={canvas.event}
             onClose={closeCanvas}
-            expanded={canvas.expanded}
-            onToggleExpanded={() =>
-              setShownCanvas((shown) => shown && { ...shown, expanded: !shown.expanded })
-            }
+            expanded={layout === 'filled'}
+            onToggleExpanded={() => toggleFilled('canvas')}
             libraries={clientConfig.mindroom?.canvas?.libraries === true}
           />
         ),
@@ -358,6 +357,7 @@ function RoomContent() {
       close: closeCall,
       // The call buttons, a ring and a call started elsewhere open it in the call store.
       opensElsewhere: true,
+      label: t('featureUi.calls.panel.title'),
       covers: mobile,
       render: () => (
         <ResizablePanel
@@ -384,6 +384,7 @@ function RoomContent() {
         open: pluginPanel?.roomId === roomId && pluginPanel.id === panel.id,
         close: closePluginPanel,
         show: () => setPluginPanel({ roomId, id: panel.id }),
+        label: panel.label,
         covers: mobile,
         render: () => (
           <ResizablePanel
@@ -409,6 +410,7 @@ function RoomContent() {
       close: closeMembers,
       show: () => setMembersOpen(true),
       yieldsTo: ['call'],
+      label: t('mindroomUi.threads.mindroomRoomViewHeader.members'),
       covers: false,
       render: () => (
         <ResizableMembersPanel onClose={closeMembers}>
@@ -417,12 +419,23 @@ function RoomContent() {
       ),
     },
   ];
-  const { shown, request } = useRoomPanels(panels);
+  const { shown, layout: shownLayout, setLayout, request } = useRoomPanels(roomId, panels);
+  // Beside the conversation the shown panel has a frame, which fills the room with it or folds it
+  // to a tab at the room's edge. Phones, and the members over a room too narrow for them beside it,
+  // show the panel over the conversation as before, with no frame.
+  const framed = !mobile && !(shown?.id === 'members' && membersOverlay);
+  const layout = framed ? shownLayout : 'beside';
+  function toggleFilled(id: string) {
+    setLayout(id, layout === 'filled' ? 'beside' : 'filled');
+  }
 
   const showCanvas = useCallback(
-    (event: MatrixEvent, expanded = false) =>
-      request('canvas', () => setShownCanvas({ event, expanded, conversation })),
-    [conversation, request]
+    (event: MatrixEvent, filled = false) =>
+      request('canvas', () => {
+        setShownCanvas({ event, conversation });
+        if (filled) setLayout('canvas', 'filled');
+      }),
+    [conversation, request, setLayout]
   );
   const onComputerToggle = useCallback(() => {
     if (computer.open) toggleComputer();
@@ -527,8 +540,8 @@ function RoomContent() {
   );
   useCanvasOpenRequest(client, room, canvasEnabled, openRequestedCanvas);
 
-  // On phones a panel covers the conversation; expanded, it takes the conversation's column.
-  const conversationHidden = !!shown?.covers;
+  // On phones a panel covers the conversation; filling the room, it takes the conversation's place.
+  const conversationHidden = !!shown?.covers || layout === 'filled';
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -565,7 +578,20 @@ function RoomContent() {
 
   // The panel shown, keyed by which it is: opening or closing one moves it in or out, and one
   // taking another's place changes width without closing first.
-  const sidePanel = usePanelSlot(shown && <Fragment key={shown.id}>{shown.render()}</Fragment>);
+  const sidePanel = usePanelSlot(
+    shown && (
+      <PanelFrameProvider
+        key={shown.id}
+        value={
+          framed
+            ? { label: shown.label, layout, setLayout: (next) => setLayout(shown.id, next) }
+            : undefined
+        }
+      >
+        {shown.render()}
+      </PanelFrameProvider>
+    )
+  );
 
   return (
     <PowerLevelsContextProvider value={powerLevels}>

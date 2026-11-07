@@ -546,7 +546,8 @@
     },
     "computer": {
       "resize": "Cambiar el tamaño del panel del ordenador",
-      "close": "Cerrar el ordenador"
+      "close": "Cerrar el ordenador",
+      "title": "Ordenador"
     },
     "plugins": {
       "sidePanel": {
@@ -554,6 +555,11 @@
         "close": "Cerrar {{label}}",
         "failed": "Este panel dejó de funcionar."
       }
+    },
+    "sidePanel": {
+      "fill": "Llenar la sala con {{label}}",
+      "fold": "Plegar {{label}} al borde",
+      "unfold": "Desplegar {{label}}"
     },
     "commands": {
       "descriptions": {

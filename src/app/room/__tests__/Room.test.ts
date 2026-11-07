@@ -130,6 +130,12 @@ vi.mock('focus-trap-react', () => ({
 vi.mock('../../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../../members/ResizableMembersPanel.css', () => ({ MobileOverlay: 'mobile-overlay' }));
 vi.mock('../../ui/panels/SidePanel.css', () => ({ Panel: 'panel', Header: 'header' }));
+vi.mock('../../ui/panels/PanelFrame.css', () => ({ STRIP_WIDTH: 40 }));
+// The frame's strip draws with folds, which this test mocks; Room.sidePanels.test.tsx presses it.
+vi.mock('../../ui/panels/PanelFrame', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../ui/panels/PanelFrame')>()),
+  PanelFrameStrip: () => null,
+}));
 
 vi.mock('is-hotkey', () => ({
   isKeyHotkey: vi.fn(() => false),

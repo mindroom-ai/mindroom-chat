@@ -526,7 +526,8 @@
     },
     "computer": {
       "resize": "コンピューターパネルのサイズを変更",
-      "close": "コンピューターを閉じる"
+      "close": "コンピューターを閉じる",
+      "title": "コンピューター"
     },
     "plugins": {
       "sidePanel": {
@@ -534,6 +535,11 @@
         "close": "{{label}} を閉じる",
         "failed": "このパネルは動作を停止しました。"
       }
+    },
+    "sidePanel": {
+      "fill": "{{label}} をルーム全体に広げる",
+      "fold": "{{label}} を端にたたむ",
+      "unfold": "{{label}} を開く"
     },
     "commands": {
       "descriptions": {

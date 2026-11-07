@@ -26,6 +26,7 @@ const { mx, room, state } = vi.hoisted(() => {
       members,
       config: {} as ClientConfig,
       view: undefined as RoomViewProps | undefined,
+      computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       roomId: '!room:example.org',
     },
     mx: {
@@ -63,7 +64,12 @@ vi.mock('../members/useMembersDrawer', async () => {
   const membersOpenAtom = atom(false);
   return { membersOpenAtom, useMembersDrawer: () => useAtom(membersOpenAtom) };
 });
-vi.mock('../computer/ComputerPanel', () => ({ ComputerPanel: () => null }));
+vi.mock('../computer/ComputerPanel', () => ({
+  ComputerPanel: (props: typeof state.computer) => {
+    state.computer = props;
+    return null;
+  },
+}));
 vi.mock('../canvas/RoomCanvasPanel', () => ({
   RoomCanvasPanel: () => <div data-testid="room-canvas-panel" />,
 }));
@@ -234,6 +240,7 @@ describe('the side panels of a room', () => {
     store.set(callPanelRoomAtom, undefined);
     store.set(membersOpenAtom, false);
     state.view = undefined;
+    state.computer = undefined;
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -342,6 +349,75 @@ describe('the side panels of a room', () => {
     expect(screen.queryByTestId('room-view')).toBeNull();
     await act(async () => screen.getByRole('button', { name: 'Close Notes' }).click());
     expect(screen.queryByTestId('room-view')).not.toBeNull();
+  });
+
+  const conversation = () => screen.queryByTestId('room-view');
+  const frameButton = (name: string) => screen.queryByRole('button', { name });
+
+  it.each([
+    ['members', 'members', 'Members'],
+    ["a plugin's panel", 'notes/panel', 'Notes'],
+  ])(
+    '%s fills the room and folds to a tab, per room, and the conversation follows',
+    async (_panel, id, label) => {
+      const fill = `Fill the room with ${label}`;
+      const fold = `Fold ${label} to the edge`;
+      const unfold = `Unfold ${label}`;
+      const showRoom = await renderRoom();
+      await act(async () => state.view?.onPanelToggle?.(id));
+      expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('false');
+
+      // Filling the room, the panel takes the conversation's place until Fill is pressed again.
+      await act(async () => frameButton(fill)?.click());
+      expect(conversation()).toBeNull();
+      expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('true');
+      await act(async () => frameButton(fill)?.click());
+      expect(conversation()).not.toBeNull();
+
+      // Folded, it stays open as a tab at the room's edge beside the whole conversation.
+      await act(async () => frameButton(fold)?.click());
+      expect(conversation()).not.toBeNull();
+      expect(frameButton(unfold)).not.toBeNull();
+      expect(frameButton(fill)).toBeNull();
+      expect(state.view?.shownPanel).toBe(id);
+
+      // Another room has its own layout; back here the panel is still folded.
+      await showRoom('!other:example.org');
+      expect(frameButton(unfold)).toBeNull();
+      await showRoom(room.roomId);
+      expect(frameButton(unfold)).not.toBeNull();
+      await act(async () => frameButton(unfold)?.click());
+      expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('false');
+      expect(conversation()).not.toBeNull();
+
+      // Opened again, a panel shows beside the conversation.
+      await act(async () => frameButton(fold)?.click());
+      await act(async () => state.view?.onPanelToggle?.(id));
+      await act(async () => state.view?.onPanelToggle?.(id));
+      expect(frameButton(fill)).not.toBeNull();
+    }
+  );
+
+  it('fills the room with the computer from its own Expand, as from its Fill', async () => {
+    await renderRoom();
+    await open('computer');
+    await act(async () =>
+      screen.getByRole('button', { name: 'Fill the room with Computer' }).click()
+    );
+    expect(conversation()).toBeNull();
+    // The frame and the computer's own Expand share the layout.
+    expect(state.computer?.expanded).toBe(true);
+    await act(async () => state.computer?.onToggleExpanded?.());
+    expect(conversation()).not.toBeNull();
+    expect(frameButton('Fill the room with Computer')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('gives a panel no frame on phones, where it covers the conversation as before', async () => {
+    await renderRoom(ScreenSize.Mobile);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).not.toBeNull();
+    expect(frameButton('Fill the room with Notes')).toBeNull();
+    expect(frameButton('Fold Notes to the edge')).toBeNull();
   });
 
   it("lists the plugins' panels for the header, but none of a plugin config.json turns off", async () => {

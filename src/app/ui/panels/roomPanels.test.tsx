@@ -13,19 +13,23 @@ const panelsOf = (
 const closed = (panels: RoomPanel[]) =>
   panels.filter((panel) => vi.mocked(panel.close).mock.calls.length > 0).map((panel) => panel.id);
 
+/** The rule in room `room` over `panels`, as a room renders it. */
+const roomPanels = ({ room = '!a', panels }: { room?: string; panels: readonly RoomPanel[] }) =>
+  useRoomPanels(room, panels);
+
 describe('useRoomPanels', () => {
   it('shows the first open panel in their order', () => {
-    const { result, rerender } = renderHook(useRoomPanels<RoomPanel>, {
-      initialProps: panelsOf({ b: true, c: true }),
+    const { result, rerender } = renderHook(roomPanels, {
+      initialProps: { panels: panelsOf({ b: true, c: true }) },
     });
     expect(result.current.shown?.id).toBe('b');
-    rerender(panelsOf({}));
+    rerender({ panels: panelsOf({}) });
     expect(result.current.shown).toBeUndefined();
   });
 
   it('opens a panel after closing every other one that does not yield to it', () => {
     const panels = panelsOf({ a: true, c: true }, { c: { yieldsTo: ['b'] } });
-    const { result } = renderHook(() => useRoomPanels(panels));
+    const { result } = renderHook(() => useRoomPanels('!a', panels));
     const show = vi.fn(() => expect(closed(panels)).toEqual(['a']));
     act(() => result.current.request('b', show));
     expect(show).toHaveBeenCalledOnce();
@@ -33,27 +37,63 @@ describe('useRoomPanels', () => {
 
   it('closes the others the same way when a panel opens elsewhere, and only then', () => {
     const options = { b: { opensElsewhere: true }, c: { yieldsTo: ['b'] } };
-    const { rerender } = renderHook(useRoomPanels<RoomPanel>, {
-      initialProps: panelsOf({ b: true }, options),
+    const { rerender } = renderHook(roomPanels, {
+      initialProps: { panels: panelsOf({ b: true }, options) },
     });
     // Open from the start: nothing to make room for.
     const first = panelsOf({ a: true, b: true, c: true }, options);
-    rerender(first);
+    rerender({ panels: first });
     expect(closed(first)).toEqual([]);
 
     const closedAgain = panelsOf({ a: true, c: true }, options);
-    rerender(closedAgain);
+    rerender({ panels: closedAgain });
     const reopened = panelsOf({ a: true, b: true, c: true }, options);
-    rerender(reopened);
+    rerender({ panels: reopened });
     expect(closed(reopened)).toEqual(['a']);
   });
 
   it('leaves the others alone when a panel opens by its own state without opensElsewhere', () => {
-    const { rerender } = renderHook(useRoomPanels<RoomPanel>, {
-      initialProps: panelsOf({ a: true }),
+    const { rerender } = renderHook(roomPanels, {
+      initialProps: { panels: panelsOf({ a: true }) },
     });
     const next = panelsOf({ a: true, b: true });
-    rerender(next);
+    rerender({ panels: next });
     expect(closed(next)).toEqual([]);
+  });
+
+  it("keeps each room's layout of a panel while it stays open, also while it is hidden", () => {
+    const { result, rerender } = renderHook(roomPanels, {
+      initialProps: { panels: panelsOf({ b: true }) },
+    });
+    expect(result.current.layout).toBe('beside');
+    act(() => result.current.setLayout('b', 'folded'));
+    expect(result.current.layout).toBe('folded');
+
+    // Another room shows its own b beside, and gets its own layout.
+    rerender({ room: '!b', panels: panelsOf({ b: true }) });
+    expect(result.current.layout).toBe('beside');
+    act(() => result.current.setLayout('b', 'filled'));
+    expect(result.current.layout).toBe('filled');
+
+    // Back in the first room, hidden for a while behind a, b is folded again.
+    rerender({ panels: panelsOf({ a: true, b: true }) });
+    expect(result.current.shown?.id).toBe('a');
+    expect(result.current.layout).toBe('beside');
+    rerender({ panels: panelsOf({ b: true }) });
+    expect(result.current.layout).toBe('folded');
+  });
+
+  it('opens a panel beside the conversation again, by a request or from elsewhere', () => {
+    const options = { b: { opensElsewhere: true } };
+    const { result, rerender } = renderHook(roomPanels, {
+      initialProps: { panels: panelsOf({ a: true }, options) },
+    });
+    act(() => result.current.setLayout('a', 'filled'));
+    act(() => result.current.request('a', () => undefined));
+    expect(result.current.layout).toBe('beside');
+
+    act(() => result.current.setLayout('b', 'folded'));
+    rerender({ panels: panelsOf({ b: true }, options) });
+    expect(result.current.layout).toBe('beside');
   });
 });

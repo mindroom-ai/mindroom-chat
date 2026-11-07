@@ -526,7 +526,8 @@
     },
     "computer": {
       "resize": "Ubah ukuran panel komputer",
-      "close": "Tutup komputer"
+      "close": "Tutup komputer",
+      "title": "Komputer"
     },
     "plugins": {
       "sidePanel": {
@@ -534,6 +535,11 @@
         "close": "Tutup {{label}}",
         "failed": "Panel ini berhenti berfungsi."
       }
+    },
+    "sidePanel": {
+      "fill": "Penuhi ruang dengan {{label}}",
+      "fold": "Lipat {{label}} ke tepi",
+      "unfold": "Buka lipatan {{label}}"
     },
     "commands": {
       "descriptions": {

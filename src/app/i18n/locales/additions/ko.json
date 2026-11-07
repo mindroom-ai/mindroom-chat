@@ -526,7 +526,8 @@
     },
     "computer": {
       "resize": "컴퓨터 패널 크기 조절",
-      "close": "컴퓨터 닫기"
+      "close": "컴퓨터 닫기",
+      "title": "컴퓨터"
     },
     "plugins": {
       "sidePanel": {
@@ -534,6 +535,11 @@
         "close": "{{label}} 닫기",
         "failed": "이 패널이 작동을 멈췄습니다."
       }
+    },
+    "sidePanel": {
+      "fill": "{{label}}(으)로 방 채우기",
+      "fold": "{{label}} 가장자리로 접기",
+      "unfold": "{{label}} 펼치기"
     },
     "commands": {
       "descriptions": {
