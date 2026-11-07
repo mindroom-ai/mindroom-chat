@@ -3,7 +3,7 @@
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import type { Room } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import type { PluginEvent } from '@mindroom/client-sdk/core';
+import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
 import plugin from './index';
 
@@ -49,6 +49,16 @@ describe('example plugin', () => {
   it('labels a greeting with the label its config.json section sets', async () => {
     const view = await renderGreeting({ config: { label: 'From config' }, language: 'de' });
     expect(view.getByText('From config: Hello')).toBeTruthy();
+  });
+
+  it('keeps values in its storage for the account signed in', async () => {
+    function Stored() {
+      const storage = usePluginStorage('example');
+      const kept = storage.setItem('note', 'kept');
+      return <p>{`${String(kept)}: ${storage.getItem('note') ?? 'nothing'}`}</p>;
+    }
+    const view = await renderPluginComponent(<Stored />, { id: 'example', plugin });
+    expect(view.getByText('true: kept')).toBeTruthy();
   });
 
   it('names the open room under the header', async () => {
