@@ -138,11 +138,11 @@ export const stripPreviewMath = (text: string, strip: (text: string) => string):
       if (segment.type !== 'math') return segment.content;
       const { content, displayMode } = segment;
       formulas.push(readFormula(content) ?? (displayMode ? `$$\n${content}\n$$` : `$${content}$`));
-      return `${formulas.length - 1}`;
+      return `\uE000${formulas.length - 1}\uE001`;
     })
     .join('');
   return strip(marked).replace(
-    /(\d+)/g,
+    /\uE000(\d+)\uE001/g,
     (placeholder, at: string) => formulas[Number(at)] ?? placeholder
   );
 };
