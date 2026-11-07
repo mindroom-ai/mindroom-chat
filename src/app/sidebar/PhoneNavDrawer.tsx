@@ -1,12 +1,12 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
-import { useLocation, useMatches, useNavigationType } from 'react-router-dom';
+import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
+import { useLocation, useNavigationType } from 'react-router-dom';
 import {
   nextPhoneNavDrawerOpen,
   phoneNavDrawerOpenAtom,
+  phoneNavSectionRootAtom,
   phoneNavSlotAtom,
 } from '../navigation/phoneNavDrawer';
-import { isSectionRootHandle } from '../routes/sectionRoot';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { useInert } from '../lib/hooks/useInert';
 import { PHONE_NAV_DRAWER_ID, PHONE_NAV_MENU_BUTTON_ID } from './PhoneTopBar';
@@ -34,13 +34,14 @@ const overlayOpen = (): boolean =>
 const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean) => void) => {
   const { key } = useLocation();
   const action = useNavigationType();
-  const sectionRoot = useMatches().some((match) => isSectionRootHandle(match.handle));
-  const wasSectionRoot = useRef(false);
+  // Read from the store: the page marks itself in a layout effect of the same commit, before this
+  // one runs; the value rendered here can lag that by a render.
+  const store = useStore();
+  const rootKey = useAtomValue(phoneNavSectionRootAtom);
   useLayoutEffect(() => {
-    const fromSectionRoot = wasSectionRoot.current;
-    wasSectionRoot.current = sectionRoot;
-    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action, fromSectionRoot));
-  }, [key, sectionRoot, action, setOpen]);
+    const sectionRoot = store.get(phoneNavSectionRootAtom) === key;
+    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action));
+  }, [key, rootKey, action, setOpen, store]);
 };
 
 /**

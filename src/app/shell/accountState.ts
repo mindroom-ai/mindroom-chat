@@ -18,7 +18,11 @@ import { lastExitedThreadAtom } from '../threads/lastExitedThread';
 import { createRoomModalAtom } from '../navigation/createRoomModal';
 import { createSpaceModalAtom } from '../navigation/createSpaceModal';
 import { imageViewerOpenAtom } from '../navigation/imageViewerState';
-import { phoneNavDrawerOpenAtom, phoneNavSlotAtom } from '../navigation/phoneNavDrawer';
+import {
+  phoneNavDrawerOpenAtom,
+  phoneNavSectionRootAtom,
+  phoneNavSlotAtom,
+} from '../navigation/phoneNavDrawer';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { allInvitesAtom } from '../matrix/state/inviteList';
 import { allRoomsAtom } from '../matrix/state/roomList';
@@ -86,6 +90,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   toInitial(imageViewerOpenAtom),
   toInitial(phoneNavDrawerOpenAtom),
   toInitial(phoneNavSlotAtom),
+  toInitial(phoneNavSectionRootAtom),
 ];
 
 /** Forgets everything {@link ACCOUNT_STATE} lists. */

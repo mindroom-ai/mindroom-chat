@@ -31,7 +31,7 @@
 
 ---
 
-### Task 1: Drawer state, open/close rule, section-root route handle
+### Task 1: Drawer state, open/close rule, section-root route handle (later replaced: the index page marks its entry, `useMarkPhoneSectionRoot`; see the spec)
 
 **Files:**
 - Create: `src/app/navigation/phoneNavDrawer.ts`, `src/app/navigation/phoneNavDrawer.test.ts`

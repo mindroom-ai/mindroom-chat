@@ -419,6 +419,28 @@ test('chromium: a short room link opens the room with the drawer away', async ({
     await expectAt(page, { room: seeded.garden }, 'the short link opens the room');
     await expect(page).toHaveURL(/\/home\//);
     await expectDrawer(page, false, 'with the drawer away');
+
+    // A room the account has not joined shows its join page at that address, not the drawer.
+    const owner = await matrixFetch<{ access_token: string }>(HOMESERVER, '/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        username: `drawer_owner_${RUN}`,
+        password: PASSWORD,
+        auth: { type: 'm.login.dummy' },
+      }),
+    });
+    const { room_id: open } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
+      method: 'POST',
+      accessToken: owner.access_token,
+      body: JSON.stringify({ preset: 'public_chat', name: 'Open Workshop' }),
+    });
+    await page.goto(`/${encodeURIComponent(open)}/`);
+    await expect(
+      page.getByRole('main').getByRole('button', { name: 'Join', exact: true })
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+    await expectDrawer(page, false, 'the join page shows without the drawer');
   } finally {
     await context.close();
   }

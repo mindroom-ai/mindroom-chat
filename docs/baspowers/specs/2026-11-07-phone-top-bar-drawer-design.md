@@ -37,13 +37,14 @@ On phones the rail leaves out its own search and account buttons, which the bar 
 - Motion: the panel slides from the start edge (`transform`, the app's 280 ms motion token) and the scrim fades; mirrored in right-to-left; reduced motion shortens it app-wide. The closed drawer is `inert` and `visibility: hidden`, and drops the rail and the list once it has slid out, as phones had them unmounted inside a room before (page-wide text queries and hidden duplicates stay as they were).
 - Open state: `phoneNavDrawerOpenAtom` in `navigation/phoneNavDrawer.ts`, so lower layers (edge swipes) can read it.
 - When it opens and closes:
-  - Every navigation (new location key) to a section root opens it. Section roots are the section index routes, marked with a route `handle` in `shell/Router.tsx` and read with `useMatches()`, so `/threads/` is not mistaken for a space.
+  - Every navigation (new location key) to a section root opens it. A section root is a history entry whose section index page is shown: `SectionIndex` marks it (`useMarkPhoneSectionRoot`), so `/threads/` is not mistaken for a space, and an address that only looks like a space's (a short room link that redirects, a room to join) is not one either.
   - A push or pop to any other page closes it. A replace keeps it as it was (alias canonicalization and address clean-ups happen while it is out), except a replace that leads away from a section's own page: that is a redirect, such as a short room link (`/!room/`) that first matched a space's address, and closes it.
   - Activating a link inside the drawer closes it, also when the link leads to the URL already shown (a replace).
   - The menu button, a tap on the scrim, Escape (after a menu or dialog over it had the key) and a swipe toward the start edge on the panel close it.
   - On first render it follows the same rule without motion.
 - Focus: opened with the menu button, the drawer takes the focus; brought out by a navigation, it leaves the focus to the page's own restoring; put away around the focus, it returns the focus to the menu button. Escape reaches it in the capture phase wherever the focus is. The menu button keeps one name ("Navigation"); `aria-expanded` says whether the drawer is out, and its unread dot is its description.
 - Edge swipes (`navigation/useEdgeSwipe.ts`) do nothing while the drawer is open.
+- While the drawer covers a room, the room's read receipts wait as they do for a window without the focus (`timeline/timelineReadReceiptController.ts`), and the room is read again when the drawer goes. Skip to content puts the drawer away before it moves the focus.
 
 ### Section index pages (`shell/Router.tsx`, `shell/clientPages.tsx`)
 

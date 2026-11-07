@@ -11,7 +11,6 @@ import type { ClientConfig } from '../config/useClientConfig';
 import { ConnectPage } from '../local-mindroom/ConnectPage';
 import { setAfterLoginRedirectPath } from '../routes/afterLoginRedirectPath';
 import { useHistoryStackRecorder } from '../routes/historyStack';
-import { SECTION_ROOT_HANDLE } from '../routes/sectionRoot';
 import {
   resolveProtectedRouteRedirect,
   resolveRootRouteRedirect,
@@ -212,14 +211,14 @@ export const createRouter = (clientConfig: ClientConfig) => {
           }
         />
         <Route path={HOME_PATH} element={<SectionPage navId="home" nav={<Home />} />}>
-          <Route index handle={SECTION_ROOT_HANDLE} element={<WelcomePage />} />
+          <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={HOME_CREATE_PATH} element={<CreateRoomPage />} />
           <Route path={HOME_JOIN_PATH} element={<JoinAddressPage />} />
           <Route path={HOME_SEARCH_PATH} element={<HomeSearchPage />} />
           <Route path={HOME_ROOM_PATH} element={<RoomPage />} />
         </Route>
         <Route path={DIRECT_PATH} element={<SectionPage navId="direct" nav={<Direct />} />}>
-          <Route index handle={SECTION_ROOT_HANDLE} element={<WelcomePage />} />
+          <Route index element={<SectionIndex page={<WelcomePage />} />} />
           <Route path={DIRECT_CREATE_PATH} element={<DirectCreate />} />
           <Route path={DIRECT_ROOM_PATH} element={<RoomPage />} />
         </Route>
@@ -241,7 +240,7 @@ export const createRouter = (clientConfig: ClientConfig) => {
           }
         />
         <Route path={EXPLORE_PATH} element={<SectionPage nav={<ExploreNav />} />}>
-          <Route index handle={SECTION_ROOT_HANDLE} element={<FeaturedRooms />} />
+          <Route index element={<SectionIndex page={<FeaturedRooms />} />} />
           <Route path={EXPLORE_FEATURED_PATH} element={<FeaturedRooms />} />
           <Route path={EXPLORE_SERVER_PATH} element={<PublicRooms />} />
         </Route>
@@ -249,7 +248,6 @@ export const createRouter = (clientConfig: ClientConfig) => {
           {/* The Inbox opens on Invites; phones stay here, its list out over Invites. */}
           <Route
             index
-            handle={SECTION_ROOT_HANDLE}
             element={
               <SectionIndex
                 page={<Navigate to={INBOX_INVITES_PATH} replace />}
@@ -271,7 +269,6 @@ export const createRouter = (clientConfig: ClientConfig) => {
           {/* A space opens on its lobby; phones stay here, its room list out over the lobby. */}
           <Route
             index
-            handle={SECTION_ROOT_HANDLE}
             element={<SectionIndex page={<Navigate to="lobby" replace />} phonePage={<Lobby />} />}
           />
           <Route path={SPACE_LOBBY_PATH} element={<Lobby />} />

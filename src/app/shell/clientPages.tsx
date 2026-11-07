@@ -22,6 +22,7 @@ import { FloatingCardsContext, useFloatingCardsLayout } from '../ui/page/floatin
 import { FloatingShell } from '../ui/page/floatingCards.css';
 import './layout/floatingCardsLayout.css';
 import { ClientShell } from './ClientShell';
+import { useMarkPhoneSectionRoot } from '../navigation/phoneNavDrawer';
 import { Space } from '../sidebar/space/Space';
 import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
@@ -95,7 +96,15 @@ export function SectionPage({ nav, navId }: { nav: ReactNode; navId?: string }) 
  * so where wider screens redirect (a space to its lobby, the Inbox to Invites) a phone shows
  * `phonePage` in place, and a way back to the list lands here with the drawer out.
  */
-export function SectionIndex({ page, phonePage }: { page: ReactNode; phonePage: ReactNode }) {
+export function SectionIndex({
+  page,
+  phonePage = page,
+}: {
+  page: ReactNode;
+  phonePage?: ReactNode;
+}) {
+  // It is the section's own page, where a phone's drawer comes out.
+  useMarkPhoneSectionRoot();
   return <>{useScreenSizeContext() === ScreenSize.Mobile ? phonePage : page}</>;
 }
 

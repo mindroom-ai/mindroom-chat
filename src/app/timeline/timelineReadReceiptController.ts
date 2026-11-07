@@ -7,6 +7,7 @@ import {
   type SetStateAction,
 } from 'react';
 import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { useAtomValue } from 'jotai';
 import { useDebounce } from '../lib/hooks/useDebounce';
 import { useDocumentFocusChange } from '../lib/hooks/useDocumentFocusChange';
 import {
@@ -29,6 +30,7 @@ import {
 } from '../event-store/timeline/timelineScrollUtils';
 import { isLatestAnchorInReach } from './roomTimelineScroll';
 import { waitForScrollQuiescence } from './scrollQuiescence';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 /**
  * How long the bottom anchor must stay out of reach before the view counts as scrolled away, so a
@@ -210,6 +212,15 @@ export const useTimelineReadReceiptController = ({
     unreadInfo,
   });
 
+  // A phone's navigation drawer over the timeline hides it as a window without the focus does;
+  // once the drawer goes, the reader sees it again.
+  const navDrawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
+  const navDrawerOpenRef = useLatestRef(navDrawerOpen);
+  const readerSees = useCallback(
+    () => document.hasFocus() && !navDrawerOpenRef.current,
+    [navDrawerOpenRef]
+  );
+
   // The view is gone once it unmounts; a frame it scheduled then reads nothing.
   const mountedRef = useRef(false);
   useEffect(() => {
@@ -228,10 +239,10 @@ export const useTimelineReadReceiptController = ({
       if (!mountedRef.current || context.room.roomId !== roomId || context.threadId !== threadId)
         return false;
       const anchor = atBottomAnchorRef.current;
-      if (!anchor || !atLiveEndRef.current || !document.hasFocus()) return false;
+      if (!anchor || !atLiveEndRef.current || !readerSees()) return false;
       return isLatestAnchorInReach(anchor, getScrollElement(), latestAtTopRef.current);
     },
-    [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement, latestAtTopRef]
+    [atBottomAnchorRef, atLiveEndRef, contextRef, getScrollElement, latestAtTopRef, readerSees]
   );
 
   const confirmScrolledAway = useCallback(
@@ -265,7 +276,7 @@ export const useTimelineReadReceiptController = ({
     // loaded there: Jump to Latest stays offered.
     if (!report.isIntersecting || !atLiveEndRef.current) return;
     setAtBottom(true);
-    if (!document.hasFocus()) return;
+    if (!readerSees()) return;
     const context = contextRef.current;
     if (context.threadId) readThreadOnceLanded(context, stillReading);
     else readRoomOnNextFrame(context, readUptoEventIdRef.current, stillReading);
@@ -283,7 +294,7 @@ export const useTimelineReadReceiptController = ({
 
   const handleWindowFocus = useCallback(
     (inFocus: boolean) => {
-      if (!inFocus || !atBottomRef.current) return;
+      if (!inFocus || navDrawerOpenRef.current || !atBottomRef.current) return;
       const context = contextRef.current;
       if (context.threadId) {
         if (atLiveEndRef.current) readThreadOnceLanded(context, stillReading);
@@ -312,14 +323,29 @@ export const useTimelineReadReceiptController = ({
         else readOnceLanded(MARKER_JUMP_RESTS);
       });
     },
-    [atBottomRef, atLiveEndRef, contextRef, getScrollElement, readUptoEventIdRef, stillReading]
+    [
+      atBottomRef,
+      atLiveEndRef,
+      contextRef,
+      getScrollElement,
+      navDrawerOpenRef,
+      readUptoEventIdRef,
+      stillReading,
+    ]
   );
   useDocumentFocusChange(handleWindowFocus);
+  // The drawer going counts as coming back to the window.
+  const coveredRef = useRef(navDrawerOpen);
+  useEffect(() => {
+    const wasCovered = coveredRef.current;
+    coveredRef.current = navDrawerOpen;
+    if (wasCovered && !navDrawerOpen) handleWindowFocus(document.hasFocus());
+  }, [handleWindowFocus, navDrawerOpen]);
 
   // A thread that opens at its newest reply, or gets a reply while the reader sits at its
   // bottom with the window focused, is read.
   useEffect(() => {
-    if (!threadId || !atBottom || !timelineAtLiveEnd || !document.hasFocus()) return;
+    if (!threadId || !atBottom || !timelineAtLiveEnd || !readerSees()) return;
     readThreadOnceLanded(contextRef.current, stillReading);
   }, [
     atBottom,
