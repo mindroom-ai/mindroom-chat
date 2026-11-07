@@ -244,7 +244,8 @@ describe('a voice call transcript message', () => {
   });
 
   it("shows each speaker's time from the call's start beside their name", () => {
-    const at = [0, 4, 9, 52, 140];
+    // Within the call's 125 seconds.
+    const at = [0, 4, 9, 52, 100];
     render(
       transcriptContent({
         ...VALID,
@@ -265,7 +266,7 @@ describe('a voice call transcript message', () => {
       ['0:00', 'PT0S'],
       ['0:09', 'PT9S'],
       ['0:52', 'PT52S'],
-      ['2:20', 'PT140S'],
+      ['1:40', 'PT100S'],
     ]);
   });
 
