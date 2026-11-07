@@ -202,6 +202,9 @@
       "messageIn": "{{room}}의 메시지",
       "threadIn": "{{room}}의 스레드",
       "messageElsewhere": "다른 방의 메시지"
+    },
+    "deviceVerification": {
+      "acceptStalled": "다른 세션이 응답하지 않았습니다. 이 창을 닫고 확인을 다시 시작하세요."
     }
   },
   "featureUi": {

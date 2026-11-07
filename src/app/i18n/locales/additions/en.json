@@ -206,6 +206,9 @@
       "messageIn": "Message in {{room}}",
       "threadIn": "Thread in {{room}}",
       "messageElsewhere": "Message in another room"
+    },
+    "deviceVerification": {
+      "acceptStalled": "The other session did not answer. Close this and start the verification again."
     }
   },
   "featureUi": {

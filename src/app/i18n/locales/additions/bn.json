@@ -206,6 +206,9 @@
       "messageIn": "{{room}}-এ বার্তা",
       "threadIn": "{{room}}-এ থ্রেড",
       "messageElsewhere": "অন্য একটি রুমে বার্তা"
+    },
+    "deviceVerification": {
+      "acceptStalled": "অন্য সেশনটি সাড়া দেয়নি। এটি বন্ধ করে আবার যাচাইকরণ শুরু করুন।"
     }
   },
   "featureUi": {
