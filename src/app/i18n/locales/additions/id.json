@@ -434,6 +434,12 @@
     "phoneNav": {
       "search": "Cari",
       "navigation": "Navigasi"
+    },
+    "subRooms": {
+      "newSubRoom": "Subruang Baru",
+      "description": "Anggota {{name}} dapat bergabung, dan agen di {{name}} bergabung dengan sendirinya.",
+      "noPermission": "Anda tidak dapat mengubah ruang yang tercantum di bawah {{name}}",
+      "takeOff": "Hapus dari {{name}}"
     }
   },
   "mindroomUi": {

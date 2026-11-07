@@ -450,6 +450,12 @@
     "phoneNav": {
       "search": "Buscar",
       "navigation": "Navegación"
+    },
+    "subRooms": {
+      "newSubRoom": "Nueva subsala",
+      "description": "Los miembros de {{name}} pueden unirse, y los agentes de {{name}} se unen por sí solos.",
+      "noPermission": "No puedes cambiar las salas que figuran bajo {{name}}",
+      "takeOff": "Quitar de {{name}}"
     }
   },
   "mindroomUi": {

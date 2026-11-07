@@ -6,7 +6,8 @@ import { useServerEmojiRoom } from './server/useServerEmojiRoom';
 
 /**
  * The rooms whose image packs the emoji and sticker pickers offer in `roomId`: the room itself,
- * its parent spaces, and the homeserver's shared emoji room when the account has joined it.
+ * its parent spaces and the chat rooms a sub-room sits under, and the homeserver's shared emoji
+ * room when the account has joined it.
  */
 export const useImagePackRooms = (
   roomId: string,

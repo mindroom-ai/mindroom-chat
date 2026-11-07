@@ -1,4 +1,4 @@
-import { ReactNode, Suspense, lazy, useMemo, useState } from 'react';
+import { Fragment, ReactNode, Suspense, lazy, useMemo, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Line, Text } from 'folds';
 import type { IconSrc } from 'folds';
 import { Navigate, useMatch, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -10,8 +10,9 @@ import { ownDirectionLine, revealDirectionControls } from '../../ui/directional'
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
-import { useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import { RoomNavItem } from '../room-nav/RoomNavItem';
+import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
 import { JoinBeforeNavigate } from '../../rooms/join/JoinBeforeNavigate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../navigation/useResolvedRoomIdOrAlias';
@@ -34,7 +35,6 @@ import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
-import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
@@ -329,7 +329,8 @@ export function Space() {
   const title = revealDirectionControls(useRoomName(space));
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
-  // Mark as Read covers the rooms of the sub-spaces too; the list shows only the space's own.
+  // Mark as Read covers the rooms of the sub-spaces too; the list shows the space's own rooms,
+  // with their sub-rooms.
   const spaceRooms = useVisibleRooms(useSpaceNavigationRooms(space.roomId));
   const ownRooms = useVisibleRooms(useSpaceOwnRooms(space.roomId));
   const joinedSubspaces = useJoinedSubspaces(space.roomId);
@@ -346,19 +347,35 @@ export function Space() {
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
   const roomsByName = useMemo(() => sortRoomIdsByName(client, ownRooms), [client, ownRooms]);
-  // Like Home: A to Z until the person drags a room, then their order.
-  const roomOrder = useRoomOrder(space.roomId, roomsByName);
-  const sortedRooms = useMemo(
-    () =>
-      // A collapsed category still shows the selected room.
-      roomsClosed
-        ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
-        : roomOrder.roomIds,
-    [roomOrder.roomIds, roomsClosed, selectedRoomId]
+  // The sub-rooms of the space's own rooms come from its rooms at any depth.
+  const spaceRoomsByName = useMemo(
+    () => sortRoomIdsByName(client, spaceRooms),
+    [client, spaceRooms]
   );
-  useRoomListShortcuts(sortedRooms, selectedRoomId, (roomId) =>
-    getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId))
+  const spaceRoomPath = (roomId: string) =>
+    getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
+  const {
+    tree,
+    roomOrder,
+    listedRoomIds: sortedRooms,
+  } = useSubRoomList(
+    space.roomId,
+    roomsByName,
+    spaceRoomsByName,
+    roomsClosed,
+    selectedRoomId,
+    spaceRoomPath
   );
+  // A room's row, the same at top level and under the room it sits under.
+  const rowProps = (room: Room) => ({
+    room,
+    selected: room.roomId === selectedRoomId,
+    linkPath: spaceRoomPath(room.roomId),
+    notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
+    spaceId: space.roomId,
+  });
+  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} />;
+  const previewPath = (roomId: string) => getSpaceRoomPath(spaceIdOrAlias, roomId);
 
   return (
     <PageNav label={title}>
@@ -400,17 +417,17 @@ export function Space() {
               {sortedRooms.map((roomId) => {
                 const room = client.getRoom(roomId);
                 return room ? (
-                  <SortableRoomRow
-                    key={roomId}
-                    room={room}
-                    selected={roomId === selectedRoomId}
-                    linkPath={getSpaceRoomPath(
-                      spaceIdOrAlias,
-                      getCanonicalAliasOrRoomId(client, roomId)
+                  <Fragment key={roomId}>
+                    <SortableRoomRow {...rowProps(room)} />
+                    {!roomsClosed && (
+                      <SubRoomRows
+                        parent={room}
+                        tree={tree}
+                        renderRoom={renderSubRoom}
+                        previewPath={previewPath}
+                      />
                     )}
-                    notificationMode={getRoomNotificationMode(notificationPreferences, roomId)}
-                    spaceId={space.roomId}
-                  />
+                  </Fragment>
                 ) : null;
               })}
             </SortableRoomList>

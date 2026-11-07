@@ -11,6 +11,7 @@ const entries = vi.hoisted(() => {
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
   const banner = (): null => null;
   const headerSlot = [banner];
+  const cover = { covers: () => false, subscribe: () => () => undefined, Component };
   const forgotten: string[] = [];
   const page = { path: 'board', Component: (): null => null };
   return {
@@ -21,6 +22,7 @@ const entries = vi.hoisted(() => {
     actions: [action, autoAction],
     banner,
     headerSlot,
+    cover,
     list: [
       {
         id: 'alpha',
@@ -31,6 +33,7 @@ const entries = vi.hoisted(() => {
           sidePanels: 'not a list',
           headerActions: 'not a list',
           roomHeaderSlot: banner,
+          conversationCovers: cover,
           forgetAccount: 'not a function',
         },
       },
@@ -59,6 +62,14 @@ const entries = vi.hoisted(() => {
             autoAction,
           ],
           roomHeaderSlot: headerSlot,
+          conversationCovers: [
+            cover,
+            null,
+            { ...cover, covers: true },
+            { ...cover, subscribe: undefined },
+            { ...cover, Component: undefined },
+            { ...cover, close: 'not a function' },
+          ],
           forgotten,
           // A method of the plugin object, which it calls with the plugin as `this`.
           forgetAccount(this: { forgotten: string[] }, userId: string) {
@@ -100,6 +111,9 @@ describe('registeredPlugins', () => {
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
+    // A cover needs its condition, a subscription and a component, and Escape's close is a function.
+    expect(plugins[0]?.conversationCovers).toEqual([]);
+    expect(plugins[1]?.conversationCovers).toEqual([entries.cover]);
     // So does a `forgetAccount` that is not a function.
     expect(plugins[0]?.forgetAccount).toBeUndefined();
     await plugins[1]?.forgetAccount?.('@alice:example.org');
@@ -116,6 +130,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.headerActions)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
+      expect(Object.isFrozen(plugin.conversationCovers)).toBe(true);
     }
     // The plugin's own list stays as it was.
     expect(Object.isFrozen(entries.headerSlot)).toBe(false);
