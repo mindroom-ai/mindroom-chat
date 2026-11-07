@@ -217,6 +217,10 @@ describe('a conversation cover', () => {
     const field = screen.getByRole('textbox', { name: 'closable field' });
     fireEvent.keyDown(field, { key: 'a' });
     expect(layer()?.textContent).toContain('closable cover');
+    // Escape that ends an input method's composition belongs to it.
+    fireEvent.keyDown(field, { key: 'Escape', isComposing: true });
+    fireEvent.keyDown(field, { key: 'Escape', keyCode: 229 });
+    expect(layer()?.textContent).toContain('closable cover');
     field.addEventListener('keydown', (event) => event.preventDefault(), { once: true });
     fireEvent.keyDown(field, { key: 'Escape' });
     expect(layer()?.textContent).toContain('closable cover');

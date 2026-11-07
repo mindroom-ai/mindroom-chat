@@ -22,6 +22,7 @@ import type { ConversationCover as PluginCover } from '../plugins/conversationCo
 import { isPluginEnabled } from '../plugins/pluginConfig';
 import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins } from '../plugins/registry';
+import { isComposingKey } from '../shortcuts/shortcuts';
 import { headerInset } from '../ui/styles/RoomOverlay.css';
 
 /** A plugin's cover and its plugin's tag. */
@@ -92,9 +93,11 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
     };
   }, []);
 
-  // Escape in the cover closes it when its plugin allows, unless something in it took the key.
+  // Escape in the cover closes it when its plugin allows, unless something in it took the key or an
+  // input method is composing.
   const closeOnEscape = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    if (event.key !== 'Escape' || event.defaultPrevented || isComposingKey(event.nativeEvent))
+      return;
     event.preventDefault();
     event.stopPropagation();
     cover.close?.(room);
