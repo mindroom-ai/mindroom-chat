@@ -31,20 +31,39 @@ const makeEvent = (content: IContent, extra: Partial<Record<string, unknown>> = 
 
 type Actions = { notify: boolean; tweaks?: { sound?: string; highlight?: boolean } };
 
-const setup = (actions: Actions | null, known: MatrixEvent[] = [], read: string[] = []) => {
+/**
+ * A client and a room that finds the `known` events, in which the account read `read` (by receipt
+ * order) and whose threads hold the account's receipts `threadReceipts` (thread ID: event ID).
+ */
+const setup = (
+  actions: Actions | null,
+  known: MatrixEvent[] = [],
+  read: string[] = [],
+  threadReceipts: Record<string, string> = {}
+) => {
   const getPushActionsForEvent = vi.fn<(event: MatrixEvent) => Actions | null>(() => actions);
   const client = {
     getUserId: () => ME,
     getPushActionsForEvent,
     getRooms: () => [],
   } as unknown as MatrixClient;
+  const hasUserReadEvent = vi.fn(
+    (userId: string, id: string) => userId === ME && read.includes(id)
+  );
   const room = {
     roomId: ROOM,
     getMyMembership: () => 'join',
     findEventById: (id: string) => known.find((event) => event.getId() === id),
-    hasUserReadEvent: (userId: string, id: string) => userId === ME && read.includes(id),
+    hasUserReadEvent,
+    getThread: (threadId: string) =>
+      threadId in threadReceipts
+        ? {
+            getReadReceiptForUserId: (userId: string) =>
+              userId === ME ? { eventId: threadReceipts[threadId] } : null,
+          }
+        : null,
   } as unknown as Room;
-  return { client, room, getPushActionsForEvent };
+  return { client, room, getPushActionsForEvent, hasUserReadEvent };
 };
 
 const loud: Actions = { notify: true, tweaks: { sound: 'default', highlight: true } };
@@ -147,6 +166,43 @@ describe('readMessageNotice', () => {
         'io.mindroom.stream_status': 'completed',
       });
       expect(judged.getId()).toBe(reply.getId());
+    });
+
+    // The server counts a finished reply as new from the edit that finished it, and the reader's
+    // client sends a receipt on that edit only when the reader sees the reply finish.
+    it('notifies when it completes after the reader saw only its start, here or elsewhere', () => {
+      const reply = streamed();
+      const edit = finish(reply);
+      // The receipt the reader's client sent while the reply streamed names the reply.
+      const { client, room } = setup(loud, [reply, edit], [defined(reply.getId(), 'reply id')]);
+      expect(readMessageNotice(client, room, edit, NOW)).toMatchObject({
+        eventId: reply.getId(),
+        threadId: '$root',
+      });
+    });
+
+    it('stays quiet once a receipt reads the edit that finished it', () => {
+      const reply = streamed();
+      const edit = finish(reply);
+      const read = [defined(reply.getId(), 'reply id'), defined(edit.getId(), 'edit id')];
+      const { client, room } = setup(loud, [reply, edit], read);
+      expect(readMessageNotice(client, room, edit, NOW)).toBeUndefined();
+    });
+
+    it('in a thread this device never opened, is read only by a receipt naming its last edit', () => {
+      // The SDK holds the edits of such a thread back, so the room cannot find the edit.
+      const reply = streamed();
+      const edit = finish(reply);
+      const replyId = defined(reply.getId(), 'reply id');
+      const glanced = setup(loud, [reply], [replyId], { $root: replyId });
+      expect(readMessageNotice(glanced.client, glanced.room, edit, NOW)).toMatchObject({
+        eventId: replyId,
+      });
+      // Asked about an event it cannot find, the SDK warns that this should not happen.
+      expect(glanced.hasUserReadEvent).not.toHaveBeenCalledWith(ME, edit.getId());
+
+      const watched = setup(loud, [reply], [replyId], { $root: defined(edit.getId(), 'edit id') });
+      expect(readMessageNotice(watched.client, watched.room, edit, NOW)).toBeUndefined();
     });
 
     it('stays quiet for a placeholder still in progress, whatever its msgtype', () => {
