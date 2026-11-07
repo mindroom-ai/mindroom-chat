@@ -9,6 +9,7 @@ import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { getMemberAvatarMxc, getSenderName } from '../matrix/room';
 import { getMxIdLocalPart, mxcUrlToHttp } from '../matrix/matrix';
+import { NameWithUserId } from '../matrix/NameWithUserId';
 import { nameInitials } from '../lib/common';
 import { ExpandIcon } from '../ui/panels/panelIcons';
 import type { CallParticipant, CallVideoTrack } from './RoomCall';
@@ -119,7 +120,8 @@ export function ScreenTile({ room, participant }: { room: Room; participant: Cal
   const { name } = useCallMemberProfile(room, participant.userId);
   const videoRef = useRef<HTMLVideoElement>(null);
   if (!participant.screen) return null;
-  const label = t('featureUi.calls.panel.screenOf', { name });
+  const screenOf = (shown: string) => t('featureUi.calls.panel.screenOf', { name: shown });
+  const label = screenOf(name);
   const fullScreenLabel = t('featureUi.calls.panel.fullScreen');
   return (
     <li
@@ -131,9 +133,7 @@ export function ScreenTile({ room, participant }: { room: Room; participant: Cal
       <TileVideo track={participant.screen} className={css.ScreenVideo} videoRef={videoRef} />
       <span className={css.TileLabel}>
         <Icon size="50" src={Icons.ScreenShare} />
-        <Text as="span" size="T200" truncate>
-          {label}
-        </Text>
+        <NameWithUserId name={name} userId={participant.userId} text={screenOf} size="T200" />
       </span>
       {typeof document !== 'undefined' && document.fullscreenEnabled && (
         <TooltipProvider
@@ -170,7 +170,8 @@ export function ScreenTile({ room, participant }: { room: Room; participant: Cal
 export function CallTile({ room, participant }: { room: Room; participant: CallParticipant }) {
   const { t } = useTranslation();
   const { name } = useCallMemberProfile(room, participant.userId);
-  const label = participant.local ? t('featureUi.calls.panel.you', { name }) : name;
+  const you = (shown: string) => t('featureUi.calls.panel.you', { name: shown });
+  const label = participant.local ? you(name) : name;
   return (
     <li
       className={css.Tile}
@@ -185,9 +186,15 @@ export function CallTile({ room, participant }: { room: Room; participant: CallP
         <CallMemberAvatar room={room} userId={participant.userId} className={css.TileAvatar} />
       )}
       {!participant.connected && !participant.local && (
-        <Text className={css.TileStatus} size="T200" priority="300">
-          {t('featureUi.calls.panel.waitingFor', { name })}
-        </Text>
+        <span className={css.TileStatus}>
+          <NameWithUserId
+            name={name}
+            userId={participant.userId}
+            text={(shown) => t('featureUi.calls.panel.waitingFor', { name: shown })}
+            size="T200"
+            priority="300"
+          />
+        </span>
       )}
       <span className={css.TileLabel}>
         {!participant.microphone && (
@@ -198,9 +205,12 @@ export function CallTile({ room, participant }: { room: Room; participant: CallP
             role="img"
           />
         )}
-        <Text as="span" size="T200" truncate>
-          {label}
-        </Text>
+        <NameWithUserId
+          name={name}
+          userId={participant.userId}
+          text={participant.local ? you : undefined}
+          size="T200"
+        />
       </span>
     </li>
   );
