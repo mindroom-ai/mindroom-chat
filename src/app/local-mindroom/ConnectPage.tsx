@@ -18,7 +18,8 @@ import { withAddAccountSearch } from '../navigation/addAccount';
 import { getConnectPath, getLoginPath, getRootPath } from '../routes/pathUtils';
 import { getMxIdServer } from '../matrix/matrix';
 import { formatRelativeTime } from '../lib/time';
-import { MINDROOM_AUTH_BRANDING } from '../account/auth/authUi';
+import { BrandLogo } from '../account/auth/BrandLogo';
+import { deploymentBranding } from '../ui/branding/deploymentBranding';
 import {
   approveLocalMindroomPairCode,
   getLocalMindroomErrorMessage,
@@ -71,12 +72,10 @@ function ConnectCard({ children }: { children: React.ReactNode }) {
         <Box className={css.AuthCard} direction="Column">
           <Header className={css.AuthHeader} size="600" variant="Surface" appearance="plain">
             <Box grow="Yes" alignItems="Center" gap="300">
-              <img
-                className={css.AuthLogo}
-                src={MINDROOM_AUTH_BRANDING.logoSrc}
-                alt={MINDROOM_AUTH_BRANDING.logoAlt}
-              />
-              <Text size="H3">{MINDROOM_AUTH_BRANDING.appName}</Text>
+              <BrandLogo className={css.AuthLogo} />
+              <Text size="H3" truncate>
+                {deploymentBranding(useClientConfig()).title}
+              </Text>
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column" gap="500">

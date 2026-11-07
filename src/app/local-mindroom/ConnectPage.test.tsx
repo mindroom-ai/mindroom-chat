@@ -56,6 +56,8 @@ vi.mock('../account/auth/styles.css', () => ({
   AuthLogo: 'auth-logo',
 }));
 
+vi.mock('../account/auth/BrandLogo', () => ({ BrandLogo: () => null }));
+
 vi.mock('../ui/particle-background/PersistentParticleBackground', () => ({
   ParticleBackgroundSurface: () => null,
   usePersistentParticleBackground: () => false,
