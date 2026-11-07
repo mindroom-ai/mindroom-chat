@@ -32,7 +32,9 @@ export const Row = style({
   display: 'flex',
   minWidth: 0,
   flexWrap: 'wrap',
-  columnGap: config.space.S400,
+  // With the button's start padding, 14 px between the duration and the count: the row fits a
+  // 390 px phone in German.
+  columnGap: config.space.S200,
 });
 
 /** The phone icon, "Voice call" and the duration. */
@@ -74,7 +76,7 @@ export const Toggle = style({
   textAlign: 'start',
   // The chevron's slot ends the row; its empty half pads the button's end.
   paddingInlineEnd: 0,
-  paddingInlineStart: config.space.S200,
+  paddingInlineStart: toRem(6),
   borderRadius: config.radii.R300,
   paddingBlock: 0,
   selectors: {

@@ -407,8 +407,8 @@
       "transcript": {
         "title": "Sprachanruf",
         "transcript": "Transkript",
-        "turns_one": "{{count}} Redebeitrag",
-        "turns_other": "{{count}} Redebeiträge"
+        "turns_one": "{{count}} Beitrag",
+        "turns_other": "{{count}} Beiträge"
       }
     },
     "room": {
