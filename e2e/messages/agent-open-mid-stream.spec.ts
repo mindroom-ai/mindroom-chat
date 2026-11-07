@@ -118,6 +118,8 @@ const openMidStream = async (
   const samples = await page.evaluate(
     () => (window as unknown as { replySamples: Sample[] }).replySamples
   );
+  // eslint-disable-next-line no-console
+  console.log(`FIRSTPAINT ${test.info().project.name} ${reload ? 'reload' : 'fresh'} ${test.info().title.slice(0, 30)} first=${samples[0]?.at?.toFixed(0)} ${JSON.stringify(samples.slice(0, 3).map(({ at, words, thinking }) => [Math.round(at), words, thinking]))}`);
   // The row's first paint already has the reply's text: no placeholder, no empty row.
   expect(
     samples.filter(({ words, thinking }) => thinking || words === 0),
