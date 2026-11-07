@@ -181,7 +181,15 @@ const describeMemberEvent = (event: MatrixEvent, room?: Room): MemberEventFacts 
     kind: getMemberEventKind(current, previous, selfChange),
     userName,
     prevUserName: nameOf(targetId, previous.displayname),
-    senderName: selfChange ? userName : nameOf(senderId, getRoomMemberName(event.sender, room)),
+    // The sender as the event's state knew them, else as the room knows them now: a timeline
+    // built before their member event arrived (a room joined from an invite) has no name for them.
+    senderName: selfChange
+      ? userName
+      : nameOf(
+          senderId,
+          getRoomMemberName(event.sender, room) ??
+            (room && senderId ? getMemberDisplayName(room, senderId) : undefined)
+        ),
     reason: current.reason ? `(${current.reason})` : '',
   };
 };
