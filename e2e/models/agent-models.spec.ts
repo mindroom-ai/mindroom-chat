@@ -112,3 +112,34 @@ test(
     await expect(chip).toHaveText('Room default', { timeout: 10_000 });
   }
 );
+
+test(
+  'a !model typed as soon as a thread opens reaches the thread model chip',
+  { tag: '@webkit' },
+  async ({ page, stack }) => {
+    const { first, second } = stack.models;
+    const word = uniqueWord('earlymodel');
+    const rootId = await startThread(stack, `${word} first question`);
+    await waitForAgentReply(stack, rootId, (body) => body.includes('first question'), {
+      modelId: first.id,
+    });
+    // A fresh load of the finished thread, then the command at once, while the chip's discovery
+    // runs. The live test saw the chip appear 12 s after the thread opened, as "Room default",
+    // although the router had already confirmed the switch.
+    await openThread(page, stack, rootId);
+    const chip = page.getByRole('button', { name: 'Choose model' });
+    const chipWhenTyped = (await chip.isVisible()) ? await chip.innerText() : 'none';
+    await sendFromComposer(page, `!model ${second.key}`);
+    await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(chip, `the chip read "${chipWhenTyped}" when the command was typed`).toHaveText(
+      second.displayName,
+      { timeout: 10_000 }
+    );
+    await shot(page, `early-model-chip-${test.info().project.name}`);
+    // The answer from before the command does not come back when the discovery window ends.
+    await page.waitForTimeout(13_000);
+    await expect(chip).toHaveText(second.displayName);
+  }
+);
