@@ -103,9 +103,10 @@ export const useHeldThreadOrder = (
   useLayoutEffect(() => {
     shownRef.current = shown;
     const view = viewRef?.current;
-    if (!view) return;
+    // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
+    if (!view || browserAnchorsScroll()) return;
     const before = cardsInViewRef.current;
-    if (before && view.scrollTop > 0 && !browserAnchorsScroll()) {
+    if (before && view.scrollTop > 0) {
       const scrolled = view.scrollTop - before.scrollTop;
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
       const anchor = before.cards
@@ -125,7 +126,7 @@ export const useHeldThreadOrder = (
   // The reader's own scrolling moves the cards; the next commit compares from there.
   useEffect(() => {
     const view = viewRef?.current;
-    if (!view) return undefined;
+    if (!view || browserAnchorsScroll()) return undefined;
     const record = () => {
       cardsInViewRef.current = cardsInView(view, shownRef.current);
     };
