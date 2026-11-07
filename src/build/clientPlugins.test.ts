@@ -271,6 +271,26 @@ describe('packages the app shares with plugins', () => {
     );
   });
 
+  it("gives a plugin's CommonJS package the builds of the shared packages the app imports", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['helper']);
+    installStandIn(
+      dir,
+      'helper',
+      "module.exports = [require('jotai'), require('@tanstack/react-query')];\n"
+    );
+    const modules = await bundlePlugin(dir, [
+      path.join(ROOT, 'src/build/__fixtures__/appImports.ts'),
+    ]);
+    expect(modules).toContain(`${realpathSync(dir)}/node_modules/helper/index.js`);
+    // One build of each, the module the app imports: a second build would be a second copy.
+    for (const copy of [appCopy('jotai'), appCopy('@tanstack/react-query')]) {
+      const builds = modules.filter((id) => id.startsWith(copy)).map((id) => path.extname(id));
+      expect(builds.length).toBeGreaterThan(0);
+      expect(new Set(builds).size).toBe(1);
+    }
+  });
+
   it('leaves the imports of files outside the plugins as they were', async () => {
     const plugin = pluginDir(declaring());
     const outside = realpathSync(emptyDir());
