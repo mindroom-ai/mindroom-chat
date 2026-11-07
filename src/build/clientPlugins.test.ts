@@ -12,7 +12,14 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, createServer, type ConfigEnv, type Rollup, type UserConfig } from 'vite';
+import {
+  build,
+  createServer,
+  type ConfigEnv,
+  type Rollup,
+  type ServerOptions,
+  type UserConfig,
+} from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { clientPlugins, pluginOwner, readClientPlugins } from '../../scripts/client-plugins.mjs';
 import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
@@ -44,6 +51,20 @@ const buildOutput = async (
 /** The chunks of an in-memory build of the entries module and `inputs`, with these build variables. */
 const buildEntries = async (...args: Parameters<typeof buildOutput>) =>
   (await buildOutput(...args)).flatMap((file) => (file.type === 'chunk' ? [file] : []));
+
+/**
+ * A dev server with the plugins MINDROOM_CLIENT_PLUGINS (`plugins`) lists and these server options,
+ * without pre-bundling.
+ */
+const devServer = (plugins?: string, server: ServerOptions = { middlewareMode: true }) =>
+  createServer({
+    configFile: false,
+    root: ROOT,
+    logLevel: 'silent',
+    plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins })],
+    server: { ...server, hmr: false, watch: null },
+    optimizeDeps: { noDiscovery: true, include: [] },
+  });
 
 /** Packages, which builds that check the entries module and the plugins' own files leave out. */
 const packages = (id: string) =>
@@ -313,14 +334,7 @@ describe("a plugin's public/ directory", () => {
       ),
       'secret.txt': 'secret',
     });
-    const vite = await createServer({
-      configFile: false,
-      root: ROOT,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
-      optimizeDeps: { noDiscovery: true, include: [] },
-    });
+    const vite = await devServer(dir, { host: '127.0.0.1', port: 0 });
     await vite.listen();
     const { port } = vite.httpServer!.address() as AddressInfo;
     const get = (pathname: string) => fetch(`http://127.0.0.1:${port}${pathname}`);
@@ -458,17 +472,6 @@ describe('packages the app shares with plugins', () => {
     expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));
   });
 
-  /** A dev server with the plugins MINDROOM_CLIENT_PLUGINS (`plugins`) lists, without pre-bundling. */
-  const devServer = (plugins?: string) =>
-    createServer({
-      configFile: false,
-      root: ROOT,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins })],
-      server: { middlewareMode: true, hmr: false, watch: null },
-      optimizeDeps: { noDiscovery: true, include: [] },
-    });
-
   it("resolves them to the app's copy in the dev server too, for the plugin and the packages it installed", async () => {
     const dir = realpathSync(pluginDir(declaring(), { entry: false }));
     importing(dir, ['jotai', 'helper']);
@@ -478,14 +481,12 @@ describe('packages the app shares with plugins', () => {
     const isAppCopy = (id: string | undefined) => id?.startsWith(appCopy('jotai')) ?? false;
     try {
       const index = path.join(dir, 'index.js');
+      const helper = path.join(dir, 'node_modules/helper/index.js');
       expect(isAppCopy((await server.pluginContainer.resolveId('jotai', index))?.id)).toBe(true);
       // Its other imports resolve in its own directory.
-      expect((await server.pluginContainer.resolveId('helper', index))?.id).toBe(
-        path.join(dir, 'node_modules/helper/index.js')
-      );
+      expect((await server.pluginContainer.resolveId('helper', index))?.id).toBe(helper);
       // Its packages as the dev server pre-bundles them, without plugin hooks: their imports and
       // their CommonJS requires.
-      const helper = path.join(dir, 'node_modules/helper/index.js');
       for (const isRequire of [false, true]) {
         const resolve = server.config.createResolver({ asSrc: false, scan: true, isRequire });
         expect(isAppCopy(await resolve('jotai', helper)), `isRequire: ${isRequire}`).toBe(true);
