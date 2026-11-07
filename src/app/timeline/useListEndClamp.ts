@@ -6,8 +6,11 @@ import { type RefObject, useEffect } from 'react';
  * the list tells: its newest mounted row with a height ends what the reader sees. Mounted rows
  * after it (hidden events) take none and keep their old places until that render; rows after it
  * that the list does not mount still hold the room that render gave them, their size in `rows`
- * (virtual-core's rows, one per index). The offset ledger places the rows its margin moves the list
- * away from, so the list ends that margin past its newest row, and rows it moves keep their places.
+ * (virtual-core's rows, one per index). The offset ledger's margin is not pending shrink: it lifts
+ * the list and its rows together (each row is placed at its virtual offset, and the list's height
+ * is their total), so the list still ends at its newest row. Counted, a page of older rows folded
+ * above a reader at the newest one read as that page's height of shrink, and the end clamp threw
+ * the reader to the top.
  */
 export const listShrinkNotRendered = (
   inner: HTMLElement | null,
@@ -28,9 +31,8 @@ export const listShrinkNotRendered = (
   const unmountedAfter = rows
     .slice(indexOf(newest) + 1)
     .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
-  const ledgerMargin = parseFloat(inner.style.marginTop) || 0;
   const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
-  return Math.max(0, reach - ledgerMargin - unmountedAfter);
+  return Math.max(0, reach - unmountedAfter);
 };
 
 /**
