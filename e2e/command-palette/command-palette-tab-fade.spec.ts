@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -9,6 +8,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // On a phone the palette's tab row is wider than the screen and scrolls sideways. It fades out
 // at each edge it has more tabs beyond: the end at first, both edges in the middle, the start at
@@ -18,7 +18,6 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'command-palette-tab-fade-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.COMMAND_PALETTE_TAB_FADE_SHOTS;
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -144,7 +143,7 @@ const checkDesktop = async (browser: Browser) => {
 };
 
 const inWebKit = async (check: (browser: Browser) => Promise<void>) => {
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await check(browser);
   } finally {
@@ -171,7 +170,7 @@ test('a row that fits shows no fade', async ({ browser }) => {
 
 test.describe('WebKit', () => {
   test.beforeEach(() => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   });
   test('the fades on a phone', () => inWebKit((browser) => checkPhone(browser, 'webkit')));
   test('the fades in Arabic', () => inWebKit((browser) => checkPhone(browser, 'webkit', 'ar')));

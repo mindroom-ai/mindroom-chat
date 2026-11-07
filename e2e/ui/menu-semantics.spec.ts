@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Every menu reachable from the main views is a WAI-ARIA menu: `getByRole('menu')` finds it while
 // it is open, its rows are menu items, the first row takes focus as it opens from the keyboard
@@ -14,7 +15,6 @@ import { createPrivateRoom, joinRoom, loginToMatrix, sendRoomMessage } from '../
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-semantics-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 const AXE_PATH = path.join(process.cwd(), 'node_modules/axe-core/axe.min.js');
@@ -255,12 +255,12 @@ for (const [title, viewport, check] of CHECKS) {
   });
 
   test(`${title} (WebKit)`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(240_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     let own: Browser | undefined;
     try {
-      own = await webkit.launch({ executablePath: WEBKIT, args: [] });
+      own = await launchWebKit();
       const context = await own.newContext({ viewport, hasTouch: touch, baseURL });
       await check(await context.newPage(), 'w');
     } finally {

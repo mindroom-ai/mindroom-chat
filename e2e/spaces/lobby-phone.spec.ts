@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Page,
@@ -18,6 +17,7 @@ import {
   setAccountData,
 } from '../helpers/matrix';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A space's lobby on a phone (390 by 844, touch): a tap anywhere on a room's card opens the room,
 // with no separate Open Room button; a room the person is not in keeps its Join button, which a
@@ -28,7 +28,6 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'lobby-phone-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.LOBBY_PHONE_SHOTS;
 const SPACE_NAME = 'Field Notes';
 const LONG_ROOM = 'Quarterly planning for the customer onboarding experience redesign';
@@ -268,7 +267,7 @@ const checkDesktop = async (browser: Browser, engine: string) => {
 };
 
 const inWebKit = async (check: (browser: Browser, engine: string) => Promise<void>) => {
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await check(browser, 'webkit');
   } finally {
@@ -305,7 +304,7 @@ test('a desktop lobby keeps the Open Room button', async ({ browser }) => {
 
 test.describe('WebKit', () => {
   test.beforeEach(() => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   });
   test('lobby cards on a phone', () => inWebKit((browser) => checkCards(browser, 'webkit')));
   test('lobby cards in Arabic', () => inWebKit((browser) => checkCards(browser, 'webkit', 'ar')));

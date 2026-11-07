@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The composer's suggestion menus (mentions, emoji, commands) show which row Enter picks: they
 // are listboxes, the row Enter or Tab would take is the selected option and is highlighted, and
@@ -12,7 +13,6 @@ import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'autocomplete-active-row-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 
@@ -161,12 +161,12 @@ for (const phone of [false, true]) {
   });
 
   test(`${TITLE} (WebKit, ${device})`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(240_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     let own: Browser | undefined;
     try {
-      own = await webkit.launch({ executablePath: WEBKIT, args: [] });
+      own = await launchWebKit();
       const context = await own.newContext({ viewport, hasTouch: phone, baseURL });
       await activeRowShows(await context.newPage(), `w${device[0]}`, !phone);
     } finally {

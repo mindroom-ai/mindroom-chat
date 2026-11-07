@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
 import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The Settings dialog over a busy room: its menu column is inset evenly (the search field, the
 // group headings, the rows and Logout leave as much space at the dialog's edge as at the divider
@@ -13,7 +14,6 @@ import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matr
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'settings-surface-spec-password';
 const SHOTS = process.env.SETTINGS_SURFACE_SHOTS;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
 const ROOM_COUNT = 26;
@@ -313,10 +313,9 @@ test('the Settings menu is inset evenly and its surface hides the room behind it
 test('the Settings menu is inset evenly and its surface hides the room behind it (WebKit)', async ({
   baseURL,
 }, testInfo) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.slow();
-  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: DESKTOP, baseURL });
     await checkSurface(

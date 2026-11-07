@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { contrastRatio, sampleScreenshot, type Rgba } from '../helpers/glassVisual';
 import { matrixFetch } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The small text of the sign-in screen (the card's notes and the credits under it) and of the
 // "Connecting to server" screen (its line and the app name; the loading screen has the same) keeps at least
@@ -13,7 +14,6 @@ import { matrixFetch } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'auth-text-contrast-spec-password';
 const SHOTS = process.env.AUTH_CONTRAST_SHOTS;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SIZES = { desktop: { width: 1440, height: 900 }, phone: { width: 390, height: 844 } };
 const THEMES = ['dark-theme', 'light-theme'];
 
@@ -243,9 +243,9 @@ test('small text on the sign-in and startup screens stands out from the art', as
 test('small text on the sign-in and startup screens stands out from the art (WebKit)', async ({
   baseURL,
 }, testInfo) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({
       viewport: SIZES.desktop,

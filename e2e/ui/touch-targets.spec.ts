@@ -3,7 +3,6 @@ import path from 'node:path';
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -12,6 +11,7 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // On a phone (390 by 844, touch) the small controls get a hit area a finger can find: 44 px tall,
 // and 44 px wide where the next control is far enough, else up to the middle of the gap, so two
@@ -25,7 +25,6 @@ import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/m
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-targets-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.TOUCH_TARGET_SHOTS;
 const TARGET = 44;
 
@@ -393,10 +392,9 @@ test('small controls take a 44 px hit area on a phone (Chromium)', async ({ brow
 });
 
 test('small controls take a 44 px hit area on a phone (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
-  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {

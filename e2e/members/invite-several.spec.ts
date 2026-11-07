@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, matrixFetch } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The invite dialog stays open after an invitation, so a person can invite several people in a
 // row; it says who was invited and clears the field for the next one. Runs in Chromium and, when
@@ -10,7 +11,6 @@ import { loginToMatrix, matrixFetch } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'invite-several-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const VIEWPORT = { width: 1280, height: 800 };
 
 // AGENT_UI_SHOTS=<directory> also saves screenshots of the result.
@@ -114,10 +114,9 @@ test(`${TITLE} (Chromium)`, async ({ page }) => {
 });
 
 test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: VIEWPORT, baseURL });
     await inviteTwoInOneDialog(await context.newPage(), 'w');

@@ -1,6 +1,7 @@
-import { expect, test, webkit, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { buildLoginPath } from '../env';
 import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A press on the button of an open menu closes the menu and leaves it closed. The menu's focus
 // trap closes it as the press starts (a click outside it); the click that ends the press then
@@ -10,7 +11,6 @@ import { createPrivateRoom, loginToMatrix } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-trigger-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 const STARTUP_MS = 120_000;
@@ -128,12 +128,12 @@ for (const touch of [false, true]) {
   });
 
   test(`${TITLE} (WebKit, ${device})`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(240_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     let own: Browser | undefined;
     try {
-      own = await webkit.launch({ executablePath: WEBKIT, args: [] });
+      own = await launchWebKit();
       const context = await own.newContext({ viewport, hasTouch: touch, baseURL });
       await pressTwice(await context.newPage(), touch ? 'wp' : 'wd', touch);
     } finally {

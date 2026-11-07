@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -21,6 +20,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // An agent streams its reply as one message that `m.replace` edits keep growing; the edit whose
 // `io.mindroom.stream_status` is terminal finishes it. The server counts the finished reply as a
@@ -40,7 +40,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'stream-finish-receipt-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.STREAM_RECEIPT_SHOTS;
 const ROOM_NAME = 'Release Desk';
 const OTHER_ROOM_NAME = 'Design Desk';
@@ -530,10 +529,9 @@ test('a streamed reply the reader watches finish gets a receipt (Chromium)', asy
 });
 
 test('a streamed reply the reader watches finish gets a receipt (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(420_000);
-  // The runner adds the project's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {

@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A message's More Options menu and reaction picker open above its toolbar when the message is
 // in the lower half of the window, the place of the newest messages, instead of beside it over
@@ -11,7 +12,6 @@ import { loginToMatrix, sendRoomMessage } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-placement-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.MESSAGE_MENU_SHOTS;
 
 test.use({
@@ -164,10 +164,9 @@ test(`${TITLE} (Chromium)`, async ({ page }) => {
 });
 
 test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: DESKTOP, baseURL });
     await menusOpenAbove(await context.newPage(), 'w', DESKTOP);

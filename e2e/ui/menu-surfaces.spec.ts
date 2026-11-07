@@ -1,9 +1,10 @@
 import { writeFile } from 'node:fs/promises';
-import { expect, test, webkit, type Locator, type Page, type TestInfo } from '@playwright/test';
+import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { surfaceShowThrough } from '../helpers/surfaceShowThrough';
 import { pressPaletteShortcut } from '../helpers/paletteShortcut';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Menus, popovers and dialogs over a busy room are tinted nearly opaque: the room's text behind
 // them shows only as a faint blur, and their own labels keep 4.5:1 against what shows through.
@@ -14,7 +15,6 @@ import { pressPaletteShortcut } from '../helpers/paletteShortcut';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'menu-surfaces-spec-password';
 const SHOTS = process.env.MENU_SURFACE_SHOTS;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1440, height: 900 };
 const PHONE = { width: 390, height: 844 };
 const ROOM = 'Project room';
@@ -217,9 +217,9 @@ test('menus and dialogs hide the room behind them', async ({ page }, testInfo) =
 });
 
 test('menus and dialogs hide the room behind them (WebKit)', async ({ baseURL }, testInfo) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: DESKTOP, baseURL });
     await checkSurfaces(await context.newPage(), 'menu_surfaces_webkit', 'webkit', testInfo);

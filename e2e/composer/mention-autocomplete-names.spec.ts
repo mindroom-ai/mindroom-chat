@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A mention suggestion shows the member's whole name on a phone; their Matrix ID beside it gives
 // way first. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in
@@ -9,7 +10,6 @@ import { joinRoom, loginToMatrix, matrixFetch } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'mention-names-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const PHONE = { width: 390, height: 844 };
 const SHOTS = process.env.MENTION_NAMES_SHOTS;
 
@@ -109,10 +109,9 @@ test(`${TITLE} (Chromium)`, async ({ browser, baseURL }) => {
 });
 
 test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(180_000);
-  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: PHONE, hasTouch: true, baseURL });
     await wholeNameShows(await context.newPage(), 'w');

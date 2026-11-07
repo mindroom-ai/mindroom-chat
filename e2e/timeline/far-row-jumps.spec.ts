@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type BrowserContextOptions,
   type Page,
   type TestInfo,
@@ -16,6 +15,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Jumps within a room to a message far above the view. In the Threads view the room's whole
 // history is loaded, so the message is in the room's rows but its row is not mounted: a click on
@@ -28,7 +28,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'far-row-jumps-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.FAR_ROW_JUMP_SHOTS;
 
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
@@ -254,10 +253,9 @@ for (const [form, options] of [
       });
 
       test(`${title} (WebKit, ${form})`, async ({ baseURL }, testInfo) => {
-        test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+        test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
         test.setTimeout(240_000);
-        // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-        const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+        const browser = await launchWebKit();
         try {
           const context = await browser.newContext({ ...options, baseURL });
           await check(await context.newPage(), 'webkit', form, testInfo);

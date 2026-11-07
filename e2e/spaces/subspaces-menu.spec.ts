@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Page,
@@ -16,6 +15,7 @@ import {
   sendRoomMessage,
   setAccountData,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A space that holds sub-spaces lists only its own rooms. A Sub-spaces button near the top of its
 // room list opens a menu of the sub-spaces (avatar, name, a dot while one has unread messages);
@@ -27,7 +27,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'subspaces-menu-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.SUBSPACES_MENU_SHOTS;
 const PARENT = 'Field Notes';
 const PARENT_ROOMS = ['Harbor Plans', 'Garden Club', 'Book Swap'];
@@ -247,7 +246,7 @@ const checkPhone = async (browser: Browser, engine: string, language?: string) =
 };
 
 const inWebKit = async (check: (browser: Browser, engine: string) => Promise<void>) => {
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await check(browser, 'webkit');
   } finally {
@@ -284,7 +283,7 @@ test('on a phone in Arabic', async ({ browser }) => {
 
 test.describe('WebKit', () => {
   test.beforeEach(() => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   });
   test('the menu on a desktop', () => inWebKit((browser) => checkDesktop(browser, 'webkit')));
   test('the menu by keyboard', () => inWebKit((browser) => checkKeyboard(browser, 'webkit')));

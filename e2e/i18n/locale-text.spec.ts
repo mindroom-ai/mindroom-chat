@@ -1,6 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -11,6 +11,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Text reads as each language writes it, on a real homeserver: a mention keeps its "@" in front
 // inside right-to-left text, an agent's model badge keeps the start of the model name in
@@ -21,7 +22,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'locale-text-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.LOCALE_TEXT_SHOTS;
 const MODEL = 'Stub Fast Reasoning';
 const DESK = 'Planning desk';
@@ -263,10 +263,9 @@ for (const phone of [false, true]) {
   });
 
   test(`text reads as each language writes it, WebKit ${device}`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
+    test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
     test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
-    // The file's launch options carry a Chromium flag that WebKit refuses.
-    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    const browser = await launchWebKit();
     try {
       await check(browser, 'webkit', phone, baseURL);
     } finally {

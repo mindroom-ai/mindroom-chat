@@ -1,4 +1,4 @@
-import { expect, test, webkit, type Browser, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A thread without an AI summary shows the start of its first message as the banner's title,
 // instead of "Thread View": one line of plain text (markdown gone, a mention as the person's name),
@@ -19,7 +20,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'thread-banner-root-title-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const COLLEAGUE_NAME = 'Sam Rivera';
 const longBody = (mention: string) =>
   `**Release checklist** for ${mention}: confirm the staging database migration ran cleanly, ` +
@@ -276,10 +276,9 @@ for (const phone of [true, false]) {
   test(`the banner titles an unsummarized thread by its first message, WebKit ${device}`, async ({
     baseURL,
   }, testInfo) => {
-    test.skip(!WEBKIT, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
+    test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
     test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}`);
-    // The file's launch options carry a Chromium flag that WebKit refuses.
-    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    const browser = await launchWebKit();
     try {
       await check(browser, 'webkit', phone, (name) => testInfo.outputPath(name), baseURL);
     } finally {

@@ -1,13 +1,13 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Page,
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A room row whose name is cut off shows the whole name in a tooltip while a mouse rests on it,
 // as the rail's space buttons do. A tap on a touch screen opens the room and shows no tooltip.
@@ -18,7 +18,6 @@ import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'room-name-tooltip-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.ROOM_NAME_TOOLTIP_SHOTS;
 const LONG = 'Weekly sync with the platform infrastructure reliability working group';
 const LONG_ROOMS = [
@@ -184,7 +183,7 @@ const checkTaps = async (browser: Browser) => {
 };
 
 const inWebKit = async (check: (browser: Browser) => Promise<void>) => {
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await check(browser);
   } finally {
@@ -223,7 +222,7 @@ test('a tap on a touch screen shows no tooltip', async ({ browser }) => {
 
 test.describe('WebKit', () => {
   test.beforeEach(() => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   });
   test('the tooltip on hover', () => inWebKit(checkDesktop));
   test('the tooltip in Arabic', () => inWebKit(checkRightToLeft));

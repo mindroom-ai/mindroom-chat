@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Jump to Latest from the top of a room's history raises no "ResizeObserver loop completed with
 // undelivered notifications." page error. Rows that settle after they mount (link previews that
@@ -15,7 +16,6 @@ import { joinRoom, loginToMatrix, sendRoomMessage, type MatrixSession } from '..
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'resize-loop-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 const LOOP_ERROR = /ResizeObserver loop/;
@@ -159,12 +159,12 @@ test(`${TITLE} (Chromium)`, async ({ page }) => {
 
 for (const phone of [false, true]) {
   test(`${TITLE} (WebKit, ${phone ? 'phone' : 'desktop'})`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(300_000);
     // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
     let browser: Browser | undefined;
     try {
-      browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+      browser = await launchWebKit();
       const context = await browser.newContext({
         viewport: phone ? PHONE : DESKTOP,
         hasTouch: phone,

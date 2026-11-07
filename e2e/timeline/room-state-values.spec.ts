@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // The rows for a new room name or topic quote what it changed to, a long topic stays on one line
 // cut with an ellipsis (the whole text in the row's tooltip), a removal says so, and the quoted
@@ -11,7 +12,6 @@ import { loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'state-values-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.STATE_VALUES_SHOTS;
 const DESKTOP = { viewport: { width: 1280, height: 800 }, hasTouch: false };
 const PHONE = { viewport: { width: 390, height: 844 }, hasTouch: true };
@@ -245,10 +245,9 @@ for (const [label, screen] of [
   });
 
   test(`${TITLE} (WebKit, ${label})`, async ({ baseURL }) => {
-    test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     test.setTimeout(240_000);
-    // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-    const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+    const browser = await launchWebKit();
     try {
       const context = await browser.newContext({ ...screen, baseURL });
       await checkRows(await context.newPage(), screen, `w${label[0]}`);

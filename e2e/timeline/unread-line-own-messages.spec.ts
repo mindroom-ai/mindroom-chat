@@ -1,7 +1,8 @@
-import { expect, test, webkit, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, loginToMatrix, matrixFetch, sendRoomMessage } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A message the reader sends is read: the "New Messages" line never stands above it. The reader
 // sends from the composer at the bottom of a read room, scrolls up, and another account writes;
@@ -13,7 +14,6 @@ const PASSWORD = 'unread-own-spec-password';
 const RUN = Date.now().toString(36);
 const HISTORY = 60;
 const VIEWPORT = { width: 1280, height: 800 };
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 
 test.use({
   viewport: VIEWPORT,
@@ -183,10 +183,9 @@ test(`${TITLE} (Chromium)`, async ({ page }) => {
 });
 
 test(`${TITLE} (WebKit)`, async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     const context = await browser.newContext({ viewport: VIEWPORT, baseURL });
     await ownMessageIsRead(await context.newPage(), 'w');

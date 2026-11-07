@@ -1,4 +1,4 @@
-import { expect, test, webkit, type Browser, type BrowserContextOptions } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContextOptions } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import {
   addRoomToSpace,
@@ -7,6 +7,7 @@ import {
   matrixFetch,
   setAccountData,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // On a phone a room fills the screen, and its back chevron returns to the list it was opened
 // from. The browser's own back (Android's back button, iOS's edge swipe in Safari) must then go
@@ -16,7 +17,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-back-path-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
   hasTouch: true,
@@ -103,9 +103,9 @@ test('after the back chevron, the browser back leaves the list, not into the roo
 });
 
 test('the same back path in WebKit', async () => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(120_000);
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await checkBackPath(browser, 'webkit');
   } finally {

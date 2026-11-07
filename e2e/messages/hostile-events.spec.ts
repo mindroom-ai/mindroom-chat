@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Locator,
@@ -19,6 +18,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Every event from the network is untrusted input. A member of a room sends events whose content
 // has the wrong shape (an edit whose `m.new_content` is not an object, a relation whose event ID
@@ -33,7 +33,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'hostile-events-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.HOSTILE_EVENTS_SHOTS;
 const ROOM_NAME = 'Field Station';
 const FILLER_ROOMS = 24;
@@ -419,10 +418,9 @@ test('events of any shape from a member render safely (Chromium)', async ({ brow
 });
 
 test('events of any shape from a member render safely (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
-  // The runner adds the project's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {

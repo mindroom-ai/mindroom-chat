@@ -1,7 +1,6 @@
 import {
   expect,
   test,
-  webkit,
   type Browser,
   type BrowserContextOptions,
   type Page,
@@ -20,6 +19,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // In the Compact view a new message opens its own thread at once, while the server has not yet
 // confirmed it. Until then the thread's root has only its local ID, which no reply can point at.
@@ -32,7 +32,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'reply-before-root-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const SHOTS = process.env.PENDING_ROOT_SHOTS;
 const ROOM_NAME = 'Release Desk';
 const FILLER_ROOMS = 24;
@@ -331,10 +330,9 @@ test('a reply written before its thread root is confirmed is kept and sent after
 test('a reply written before its thread root is confirmed is kept and sent after it (WebKit)', async ({
   baseURL,
 }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(300_000);
-  // The runner adds the project's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {

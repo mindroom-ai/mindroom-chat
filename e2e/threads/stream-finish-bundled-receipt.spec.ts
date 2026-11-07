@@ -1,4 +1,4 @@
-import { expect, test, webkit, type Browser, type Page, type Request, type Response } from '@playwright/test';
+import { expect, test, type Browser, type Page, type Request, type Response } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -11,6 +11,7 @@ import {
   sendRoomMessage,
   type MatrixSession,
 } from '../helpers/matrix';
+import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Replies that finished streaming while the reader was away, read half-way on another device. A
 // fresh client learns of a finished reply from the server with its newest edit bundled, and a
@@ -23,7 +24,6 @@ import {
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'stream-finish-bundled-receipt-spec-password';
 const RUN = Date.now().toString(36);
-const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ROOM_NAME = 'Ops Review';
 /** More than the first sync's timeline window. */
 const LATER_MESSAGES = 40;
@@ -206,10 +206,9 @@ test('receipts on bundled finishing edits go to the room (Chromium)', async ({ b
 });
 
 test('receipts on bundled finishing edits go to the room (WebKit)', async ({ baseURL }) => {
-  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
-  // The runner adds the project's launch options, whose Chromium flag WebKit refuses.
-  const browser = await webkit.launch({ executablePath: WEBKIT, args: [] });
+  const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
   } finally {
