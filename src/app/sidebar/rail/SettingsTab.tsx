@@ -1,6 +1,6 @@
 import { type MouseEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import FocusTrap from 'focus-trap-react';
-import { Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
+import { Avatar, IconButton, Overlay, OverlayBackdrop, OverlayCenter, Text } from 'folds';
 import { useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -111,10 +111,18 @@ const useCachedActiveAvatar = (
 };
 
 /**
- * The account button at the foot of the icon rail: the active account's avatar, which opens the
- * account menu (Settings, the other accounts, Add Account, Manage Accounts).
+ * The account button at the foot of the icon rail, or with `inTopBar` at the end of a phone's top
+ * bar: the active account's avatar, which opens the account menu (Settings, the other accounts,
+ * Add Account, Manage Accounts).
  */
-export function SettingsTab() {
+export function SettingsTab({
+  inTopBar = false,
+  className,
+}: {
+  inTopBar?: boolean;
+  /** Classes of the top bar's button. */
+  className?: string;
+}) {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -211,44 +219,71 @@ export function SettingsTab() {
 
   const label = t('featureUi.accountMenu.open', { name: displayName });
 
-  // The active account carries the rail's selection mark; its menu opens beside it.
+  const avatar = (
+    <UserAvatar
+      userId={userId}
+      src={avatarSrc}
+      alt={displayName}
+      renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
+    />
+  );
+  const accountMenu = menuButton && (
+    <AccountMenu
+      anchor={menuButton}
+      active={{ userId, displayName, avatarUrl: avatarSrc }}
+      others={otherAccounts}
+      onOpenSettings={openSettings}
+      onSwitchAccount={handleSwitch}
+      onAddAccount={handleAddAccount}
+      onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
+      onClose={closeMenu}
+      below={inTopBar}
+    />
+  );
+
+  // In the rail the active account carries the selection mark and its menu opens beside it; in
+  // the top bar the menu opens below the avatar.
   return (
     <>
-      <SidebarItem active>
-        <SidebarItemTooltip tooltip={label}>
-          {(triggerRef) => (
-            <SidebarAvatar
-              as="button"
-              ref={triggerRef}
-              aria-label={label}
-              aria-haspopup="menu"
-              aria-expanded={!!menuButton}
-              // The signed-in account, not an open page.
-              aria-current="true"
-              onClick={toggleAccountMenu}
-            >
-              <UserAvatar
-                userId={userId}
-                src={avatarSrc}
-                alt={displayName}
-                renderFallback={() => <Text size="H6">{nameInitials(displayName)}</Text>}
-              />
-            </SidebarAvatar>
-          )}
-        </SidebarItemTooltip>
-        {menuButton && (
-          <AccountMenu
-            anchor={menuButton}
-            active={{ userId, displayName, avatarUrl: avatarSrc }}
-            others={otherAccounts}
-            onOpenSettings={openSettings}
-            onSwitchAccount={handleSwitch}
-            onAddAccount={handleAddAccount}
-            onManageAccounts={otherAccounts.length > 0 ? () => setSwitcherOpen(true) : undefined}
-            onClose={closeMenu}
-          />
-        )}
-      </SidebarItem>
+      {inTopBar ? (
+        <>
+          <IconButton
+            className={className}
+            size="400"
+            radii="Pill"
+            variant="Background"
+            aria-label={label}
+            aria-haspopup="menu"
+            aria-expanded={!!menuButton}
+            onClick={toggleAccountMenu}
+          >
+            <Avatar size="200" radii="Pill">
+              {avatar}
+            </Avatar>
+          </IconButton>
+          {accountMenu}
+        </>
+      ) : (
+        <SidebarItem active>
+          <SidebarItemTooltip tooltip={label}>
+            {(triggerRef) => (
+              <SidebarAvatar
+                as="button"
+                ref={triggerRef}
+                aria-label={label}
+                aria-haspopup="menu"
+                aria-expanded={!!menuButton}
+                // The signed-in account, not an open page.
+                aria-current="true"
+                onClick={toggleAccountMenu}
+              >
+                {avatar}
+              </SidebarAvatar>
+            )}
+          </SidebarItemTooltip>
+          {accountMenu}
+        </SidebarItem>
+      )}
       {switcherOpen && (
         <Modal500 requestClose={() => setSwitcherOpen(false)} fillPhoneScreen fitContent narrow>
           <AccountSwitcher

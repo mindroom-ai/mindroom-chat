@@ -43,7 +43,7 @@ export function PageMain({ children }: { children: ReactNode }) {
 export function PageRoot({ nav, children, main }: PageRootProps) {
   const mobile = useScreenSizeContext() === ScreenSize.Mobile;
   const surfaceClass = useInheritSurfaceClass();
-  // On mobile the navigation and the page take turns on screen, so nothing divides them.
+  // On mobile the navigation is in a drawer over the page, so nothing divides them.
   const divider =
     nav && !mobile ? (
       <Line className={PageDivider} direction="Vertical" size="300" variant="Background" />

@@ -186,7 +186,11 @@ test('agent requests open the active conversation and leave passive history butt
   expect(sessions).toHaveLength(3);
   expect(sessions[2]).toMatchObject({ agent_user_id: otherAgent.user_id });
   const bounds = await panel.boundingBox();
-  expect(bounds).toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
+  // The whole page below a phone's top bar.
+  const bar = await page.evaluate(
+    () => document.querySelector('[data-phone-top-bar]')?.getBoundingClientRect().bottom ?? 0
+  );
+  expect(bounds).toMatchObject({ x: 0, y: bar, width: 390, height: 844 - bar });
   await page.screenshot({ path: testInfo.outputPath('mobile-agent-computer.png') });
 
   // Removing deployment trust keeps a fresh request passive, with its button still usable.

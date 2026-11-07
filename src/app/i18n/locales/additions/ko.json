@@ -430,6 +430,10 @@
     "roomActions": {
       "noInvitePermission": "초대할 권한이 없습니다",
       "searchEncrypted": "암호화된 방에서는 사용할 수 없습니다"
+    },
+    "phoneNav": {
+      "search": "검색",
+      "navigation": "탐색"
     }
   },
   "mindroomUi": {

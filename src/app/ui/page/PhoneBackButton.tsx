@@ -115,9 +115,9 @@ export function BackToListButton(props: NavigateBackProps) {
 }
 
 /**
- * Leads a full-screen page on phones, where a section's list and its pages take turns on screen:
- * the chevron returns to the list, or leaves a thread. Wider screens show both side by side, so
- * it renders nothing there.
+ * Leads a full-screen page on phones, whose section list is in the navigation drawer: the chevron
+ * returns to the list (the section's own page, where the drawer holds it out), or leaves a thread.
+ * Wider screens show both side by side, so it renders nothing there.
  */
 export function PhoneBackButton(props: PhoneBackButtonProps) {
   const { t } = useTranslation();

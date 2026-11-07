@@ -1,7 +1,9 @@
 import React from 'react';
 import { act, create } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Provider, createStore } from 'jotai';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 const {
   keyHotkeyMock,
@@ -84,6 +86,26 @@ describe('useRoomEscapeReadReceipts', () => {
 
     expect(markRoomAndThreadsAsReadMock).not.toHaveBeenCalled();
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
+  });
+
+  it("marks nothing read while a phone's navigation drawer covers the conversation", () => {
+    keyHotkeyMock.mockReturnValue(true);
+    // Its own store: other cases' harnesses stay mounted on the default one.
+    const store = createStore();
+    store.set(phoneNavDrawerOpenAtom, true);
+    const renderer = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(Harness, { threadId: '$thread' })
+      )
+    );
+    act(() => {
+      state.handler?.({} as KeyboardEvent);
+    });
+    expect(markThreadAsReadMock).not.toHaveBeenCalled();
+    expect(markMainTimelineAsReadMock).not.toHaveBeenCalled();
+    act(() => renderer.unmount());
   });
 
   it('marks only the main timeline read on Escape outside a thread, never the threads', () => {
