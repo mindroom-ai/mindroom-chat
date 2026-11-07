@@ -201,6 +201,8 @@ const fakeContainer = (registration: unknown) => {
 describe('reloadForNewVersion', () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // The server still publishes this page's version unless a test says otherwise.
+    vi.stubGlobal('fetch', publishes(BUILD));
   });
 
   afterEach(() => {
@@ -274,6 +276,75 @@ describe('reloadForNewVersion', () => {
     await vi.advanceTimersByTimeAsync(1);
     await reloading;
     expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('unregisters the worker and reloads once when the server now has an app whose worker never takes over', async () => {
+    vi.stubGlobal('fetch', publishes('legacy-build'));
+    const { worker } = fakeWorker('installed');
+    const reload = vi.fn();
+    const unregister = vi.fn(async () => {
+      expect(reload).not.toHaveBeenCalled();
+      return true;
+    });
+    fakeContainer({ waiting: worker, installing: null, unregister });
+    const { reloadForNewVersion, TAKE_OVER_TIMEOUT_MS } = await loadAppUpdate();
+
+    const reloading = reloadForNewVersion({ reload });
+    await vi.advanceTimersByTimeAsync(TAKE_OVER_TIMEOUT_MS);
+    await reloading;
+
+    expect(worker.postMessage).toHaveBeenCalledWith({ type: 'takeOver' });
+    expect(unregister).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it('unregisters the worker when the new one fails to install or to register', async () => {
+    vi.stubGlobal('fetch', publishes('build-2'));
+    const reload = vi.fn();
+    const { worker } = fakeWorker('redundant');
+    const failedInstall = {
+      waiting: null,
+      installing: worker,
+      unregister: vi.fn(async () => true),
+    };
+    fakeContainer(failedInstall);
+    await (await loadAppUpdate()).reloadForNewVersion({ reload });
+
+    const failedRegister = { waiting: null, installing: null, unregister: vi.fn(async () => true) };
+    const container = fakeContainer(failedRegister);
+    container.register.mockRejectedValue(new TypeError('Failed to register a ServiceWorker'));
+    const update = await loadAppUpdate();
+    await update.checkForNewVersion();
+    await update.reloadForNewVersion({ reload });
+
+    expect(failedInstall.unregister).toHaveBeenCalledOnce();
+    expect(failedRegister.unregister).toHaveBeenCalledOnce();
+    expect(reload).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps the worker when the new one cannot take over and the server is out of reach or has this version', async () => {
+    const reload = vi.fn();
+    for (const fetchMock of [
+      vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))),
+      publishes(BUILD),
+    ]) {
+      vi.stubGlobal('fetch', fetchMock);
+      const { worker } = fakeWorker('installed');
+      const unregister = vi.fn(async () => true);
+      fakeContainer({ waiting: worker, installing: null, unregister });
+      // eslint-disable-next-line no-await-in-loop
+      const { reloadForNewVersion, TAKE_OVER_TIMEOUT_MS } = await loadAppUpdate();
+
+      const reloading = reloadForNewVersion({ reload });
+      // eslint-disable-next-line no-await-in-loop
+      await vi.advanceTimersByTimeAsync(TAKE_OVER_TIMEOUT_MS);
+      // eslint-disable-next-line no-await-in-loop
+      await reloading;
+
+      expect(fetchMock).toHaveBeenCalledOnce();
+      expect(unregister).not.toHaveBeenCalled();
+    }
+    expect(reload).toHaveBeenCalledTimes(2);
   });
 
   it('just reloads without a service worker, a registration or a worker to hand over to', async () => {
