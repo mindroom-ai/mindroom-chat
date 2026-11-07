@@ -302,10 +302,13 @@ export const createSyncEngine = ({
 
   // The SDK keeps the edits of a thread it has not fetched off every timeline, to replay when the
   // thread opens, so they never come through the timeline event: a reply that streamed in a thread
-  // the reader had not opened stayed in the cache as its placeholder. The sync announces every
-  // event once the room has taken it; an edit then on no timeline is persisted from here.
-  const handleUnplacedEdit = (event: MatrixEvent) => {
-    if (!liveMode || event.status || event.getRelation()?.rel_type !== RelationType.Replace) return;
+  // the reader had not opened stayed in the cache as its placeholder. A redaction of an event the
+  // SDK does not hold is on no timeline either: a thread reply the server deleted, which /relations
+  // leaves out, stayed in the cache. The sync announces every event once the room has taken it; an
+  // edit or a redaction then on no timeline is persisted from here.
+  const handleUnplacedEvent = (event: MatrixEvent) => {
+    if (!liveMode || event.status) return;
+    if (!event.isRedaction() && event.getRelation()?.rel_type !== RelationType.Replace) return;
     const roomId = event.getRoomId();
     const room = roomId ? mx.getRoom(roomId) : undefined;
     const eventId = event.getId();
@@ -417,7 +420,7 @@ export const createSyncEngine = ({
 
     mx.on(ClientEvent.Sync, handleSync);
     mx.on(RoomEvent.Timeline, handleTimeline);
-    mx.on(ClientEvent.Event, handleUnplacedEdit);
+    mx.on(ClientEvent.Event, handleUnplacedEvent);
     mx.on(RoomEvent.Redaction, handleRedaction);
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
     mx.on(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
@@ -446,7 +449,7 @@ export const createSyncEngine = ({
       // destructive account cleanup may delete these stores immediately.
       mx.removeListener(ClientEvent.Sync, handleSync);
       mx.removeListener(RoomEvent.Timeline, handleTimeline);
-      mx.removeListener(ClientEvent.Event, handleUnplacedEdit);
+      mx.removeListener(ClientEvent.Event, handleUnplacedEvent);
       mx.removeListener(RoomEvent.Redaction, handleRedaction);
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
       mx.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
