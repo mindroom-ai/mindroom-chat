@@ -225,7 +225,9 @@ export function RoomDeveloperToolsPage({
         />
       </SettingsCard>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${TOOLS}.data`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${TOOLS}.data`)}
+        </Text>
         <SettingsCard>
           <SettingTile
             title={t(`${TOOLS}.newMessageEvent`)}
@@ -243,7 +245,9 @@ export function RoomDeveloperToolsPage({
         </SettingsCard>
       </Box>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${TOOLS}.roomState`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${TOOLS}.roomState`)}
+        </Text>
         <SettingsCard>
           <SettingTile
             title={t(`${TOOLS}.stateEventsOfTheRoom`)}
@@ -264,7 +268,9 @@ export function RoomDeveloperToolsPage({
         </SettingsCard>
       </Box>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${TOOLS}.accountData`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${TOOLS}.accountData`)}
+        </Text>
         <SettingsCard>
           <SettingTile
             title={t(`${TOOLS}.accountData`)}
