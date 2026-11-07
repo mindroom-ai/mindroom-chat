@@ -16,6 +16,7 @@ import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 import { MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
 import { defined } from '../../test/utils/defined';
@@ -296,6 +297,15 @@ describe('MessageNotificationsFeature', () => {
     render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
     arrive(message({ msgtype: 'm.text', body: 'behind the drawer' }));
     expect(FakeNotification.shown).toHaveLength(1);
+  });
+
+  it("notifies, with the chime, for the room on screen while a plugin's cover hides its conversation", () => {
+    const store = createStore();
+    store.set(conversationCoveredAtom, true);
+    render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
+    arrive(message({ msgtype: 'm.text', body: 'under the cover' }));
+    expect(FakeNotification.shown).toHaveLength(1);
+    expect(playChime).toHaveBeenCalledTimes(1);
   });
 
   it('notifies for an encrypted message whose key arrives after a first failed decryption', async () => {
