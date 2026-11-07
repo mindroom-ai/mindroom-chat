@@ -86,9 +86,11 @@ export function ResizablePanel({
   const frame = usePanelFrame();
   const full = fullWidth || frame?.layout === 'filled';
   const folded = frame?.layout === 'folded';
+  /** Beside the content, at a width of its own: the splitter resizes it. */
+  const resizable = !full && !folded && !passthrough;
   // Beside the content a panel opens and closes by moving its width; phones, full-width and
   // folded panels switch at once.
-  const moves = !full && !folded && !passthrough && !mobile;
+  const moves = resizable && !mobile;
   const motionRef = useRef<Animation>();
   const phaseSeen = useRef<PanelPhase>('shown');
   /** The width a released drag left on screen, which the next commit moves from. */
@@ -168,8 +170,9 @@ export function ResizablePanel({
     };
   }, [lastWidth, register]);
 
+  // Without the splitter (full width, folded, or no box of its own) a drag on it ends.
   useLayoutEffect(() => {
-    if (full || passthrough) {
+    if (!resizable) {
       dragRef.current = undefined;
       setPreviewWidth(undefined);
       return undefined;
@@ -189,7 +192,7 @@ export function ResizablePanel({
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [full, passthrough, maxPanelWidth, minContentWidth]);
+  }, [resizable, maxPanelWidth, minContentWidth]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
@@ -270,10 +273,10 @@ export function ResizablePanel({
     const own = full ? `calc(100% - ${strip}px)` : `${contentWidth - strip}px`;
     contentStyle = { ['--mr-panel-content-width' as string]: own };
   }
-  let panelStyle: CSSProperties | undefined = { width };
+  let panelStyle: CSSProperties | undefined;
   if (passthrough) panelStyle = { display: 'contents' };
   else if (full) panelStyle = { width: '100%' };
-  else if (folded) panelStyle = undefined;
+  else if (!folded) panelStyle = { width };
 
   return (
     <div
@@ -293,7 +296,7 @@ export function ResizablePanel({
       </div>
       {/* A focusable separator implements the adjustable splitter pattern. */}
       {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
-      {!full && !folded && !passthrough && (
+      {resizable && (
         <div
           className={css.Handle}
           role="separator"
