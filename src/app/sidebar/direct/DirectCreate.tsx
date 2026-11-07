@@ -33,7 +33,7 @@ export function DirectCreate() {
   const [failed, setFailed] = useState(false);
   // On phones the title moves into a title bar that leads back to Direct Messages.
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  // The room gets the server's default version, whose pinned levels the call override repeats.
+  // The room gets the server's default version, whose pinned levels createDirectRoom repeats.
   const roomVersion = useCapabilities()['m.room_versions']?.default;
 
   const existingRoomId = requestedUserId ? findDirectRoom(client, requestedUserId) : undefined;

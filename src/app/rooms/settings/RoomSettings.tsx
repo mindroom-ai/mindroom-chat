@@ -21,6 +21,7 @@ import { RoomMembersPage } from './RoomMembersPage';
 import { RoomPermissionsPage } from './permissions/RoomPermissionsPage';
 import { RoomPacksPage } from './RoomPacksPage';
 import { RoomDeveloperToolsPage } from './developer-tools/RoomDeveloperToolsPage';
+import { revealDirectionControls } from '../../ui/directional';
 
 const NAVIGATION = 'featureUi.roomSettings.navigation';
 
@@ -127,7 +128,7 @@ export function RoomSettings(props: {
   const { room, openOn, space = false, requestClose } = props;
   const { t } = useTranslation();
   const screen = useScreenSizeContext();
-  const roomName = useRoomName(room);
+  const roomName = revealDirectionControls(useRoomName(room));
   const [page, setPage] = useState<RoomSettingsPage | undefined>(() => firstPage(openOn, screen));
   const phone = screen === ScreenSize.Mobile;
 

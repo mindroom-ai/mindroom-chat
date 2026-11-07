@@ -31,6 +31,11 @@ services:
       # The MatrixRTC authorization service the call specs start (scripts/e2e-rtc.sh); the server
       # announces it as `org.matrix.msc4143.rtc_foci` and in `/rtc/transports`. Empty: no calls.
       TUWUNEL_WELL_KNOWN__LIVEKIT_URL: ${E2E_LIVEKIT_SERVICE_URL:-}
+      # Bind each OpenID token to the audience it was requested for, and say so in /versions
+      # (`io.mindroom.openid_audience`): a MindRoom backend signs Chat in to its client sessions only
+      # on such a homeserver (scripts/agent-stack/stack.py --client-sessions). Tokens requested
+      # without an audience, as for calls, stay unbound.
+      TUWUNEL_MINDROOM_OPENID_AUDIENCE: 'true'
       # Specs show display names, so skip the default suffix added at registration.
       TUWUNEL_NEW_USER_DISPLAYNAME_SUFFIX: ''
       # Specs sign the same accounts in again and again; a 0 rate turns a login limit off.

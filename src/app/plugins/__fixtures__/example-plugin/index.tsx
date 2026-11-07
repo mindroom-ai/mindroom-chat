@@ -1,8 +1,14 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`). Like a plugin outside this repository, it imports the app
-// only through the client SDK.
-import { usePluginConfig, type ClientPlugin, type PluginEvent } from '@mindroom/client-sdk/core';
+// section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
+// A side panel, "Example panel", names the room it is open in. Like a plugin outside this
+// repository, it imports the app only through the client SDK.
+import {
+  usePluginConfig,
+  usePluginTranslation,
+  type ClientPlugin,
+  type PluginEvent,
+} from '@mindroom/client-sdk/core';
 
 const greetingText = (event: PluginEvent): string | undefined => {
   const greeting = event.content['com.example.greeting'];
@@ -12,13 +18,14 @@ const greetingText = (event: PluginEvent): string | undefined => {
 
 function Greeting({ event }: { event: PluginEvent }) {
   const config = usePluginConfig('example');
+  const t = usePluginTranslation('example');
   const label =
     typeof config === 'object' &&
     config !== null &&
     'label' in config &&
     typeof config.label === 'string'
       ? config.label
-      : 'Example plugin';
+      : t('label');
   return (
     <div data-example-plugin>
       {label}: {greetingText(event)}
@@ -26,8 +33,18 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
+function ExamplePanel({ roomId }: { roomId: string }) {
+  return <p>Example panel of {roomId}</p>;
+}
+
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  translations: {
+    en: { label: 'Example plugin' },
+    load: async (language) =>
+      language === 'de' ? (await import('./locales/de.json')).default : undefined,
+  },
 };
 
 export default plugin;
