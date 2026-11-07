@@ -231,6 +231,41 @@ describe('fresh-device bundled thread presentation', () => {
     expect(value.latestReplyPreviewText).toBeUndefined();
   });
 
+  it('drops a bundled reply once the device knows newer thread events than the bundle', () => {
+    // The root was listed while the reply was a placeholder; the SDK has followed the thread since.
+    const shape = summaryShape();
+    const placeholder = reply('$reply', 'Thinking...', 2000);
+    shape.latest_event = placeholder;
+    shape['io.mindroom.latest_reply'] = placeholder;
+    const { room, root } = fixture(shape);
+    const live = new MatrixEvent({ ...placeholder, room_id: roomId });
+    live.makeReplaced(
+      new MatrixEvent({
+        ...reply('$step', '* Checking the notes', 3000),
+        room_id: roomId,
+        content: {
+          'm.new_content': { msgtype: 'm.text', body: 'Checking the notes' },
+          'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+        },
+      })
+    );
+    const read = (replyToEvent: MatrixEvent) =>
+      resolveThreadPresentationSnapshot({
+        room,
+        threadRootId: rootId,
+        rootEvent: root,
+        thread: { rootEvent: root, events: [], replyToEvent },
+      });
+    // A newer revision of the bundle's latest event.
+    expect(read(live).latestReplyPreviewText).toBe('Checking the notes');
+    // A newer thread event: the placeholder is no longer the latest reply anyone knows.
+    const title = new MatrixEvent({
+      ...reply('$late-title', 'Notes', 4000, true),
+      room_id: roomId,
+    });
+    expect(read(title).latestReplyPreviewText).toBeUndefined();
+  });
+
   it('reads titles and replies as the server sorts them, whoever sent the title', () => {
     // Any member's m.notice with an object marker is a title; every other thread event is a reply.
     const shape = summaryShape();
