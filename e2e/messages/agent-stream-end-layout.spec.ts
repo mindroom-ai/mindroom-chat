@@ -91,6 +91,11 @@ const scrollLogInit = () => {
         .join(' ');
       const key = `${inner.style.height}|${inner.style.marginTop}|${rows}`;
       if (key !== lastList) {
+        const before = new Map(lastList.split('|')[2]?.split(' ').map((part) => [part.split(':')[0], part.split(':')[1]?.split('@')[0]]) ?? []);
+        const changed = Array.from(inner.querySelectorAll<HTMLElement>(':scope > [data-index]'))
+          .filter((row) => before.has(row.dataset.index ?? '') && before.get(row.dataset.index ?? '') !== String(row.offsetHeight))
+          .map((row) => ({ index: row.dataset.index, html: row.innerHTML.replace(/\s+/g, ' ').slice(0, 4000), text: row.innerText.slice(0, 400) }));
+        if (changed.length) w.__seLog.push({ t: performance.now(), k: 'rowChange', changed });
         lastList = key;
         w.__seLog.push({ t: performance.now(), k: 'list', h: inner.style.height, mt: inner.style.marginTop, rows });
       }
