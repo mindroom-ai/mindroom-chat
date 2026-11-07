@@ -6,7 +6,6 @@ import React, {
   ReactNode,
   SyntheticEvent,
   useEffect,
-  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -15,14 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
 import { isTag, isText } from 'domhandler';
 import type { ChildNode, Element } from 'domhandler';
-import {
-  RoomStateEvent,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-  type RoomMember,
-  type RoomState,
-} from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs';
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -44,12 +36,13 @@ import {
 import { LinkFaviconContext } from '../../rich-text/MessageLink';
 import { CheckedMessageLink } from '../../rich-text/CheckedMessageLink';
 import { stripBidiControls } from '../../rich-text/linkDestination';
+import { revealDirectionControls } from '../../ui/directional';
 import { containsSpoiler } from '../../rich-text/linkFaviconPolicy';
 import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
-import { getMemberDisplayName } from '../../matrix/room';
+import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
 import { PrismCode } from '../../rich-text/code/ReactPrism';
 import { WithKatex } from '../../rich-text/lazyKatex';
 import {
@@ -170,27 +163,7 @@ function UserMentionName({
   room: Room | null;
   userId: string;
 }) {
-  const [, refresh] = useReducer((count: number) => count + 1, 0);
-  const name = room ? getMemberDisplayName(room, userId) : undefined;
-  const known = name !== undefined;
-  useEffect(() => {
-    if (!room || known) return undefined;
-    let active = true;
-    const onMember = (_event: MatrixEvent, state: RoomState, member: RoomMember) => {
-      if (state.roomId === room.roomId && member.userId === userId) refresh();
-    };
-    client.on(RoomStateEvent.Members, onMember);
-    room
-      .loadMembersIfNeeded()
-      .then(() => {
-        if (active) refresh();
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-      client.removeListener(RoomStateEvent.Members, onMember);
-    };
-  }, [client, room, userId, known]);
+  const name = useMemberDisplayName(client, room, userId);
   return <>{name ? `@${name}` : userId}</>;
 }
 
@@ -372,6 +345,16 @@ type CodeBlockProps = {
   highlightRegex?: RegExp;
 };
 
+/** Parser options that also show the direction controls of text as code points. */
+const revealingText = (opts: HTMLReactParserOptions): HTMLReactParserOptions => ({
+  ...opts,
+  replace: (node) => {
+    if (!isText(node)) return opts.replace?.(node);
+    const shown = revealDirectionControls(node.data);
+    return shown === node.data ? opts.replace?.(node) : <>{shown}</>;
+  },
+});
+
 /**
  * A fenced code block: a header with the language (as an icon when there is one) or the block's
  * `data-label`, and buttons to wrap lines, expand a long block and copy the code; then the code,
@@ -397,7 +380,9 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
     (language && getCodeBlockLanguageIconToken(language)) ||
     (labelExtension && getCodeBlockLanguageIconToken(labelExtension)) ||
     undefined;
-  const code = textContent(codeElement ? codeElement.children : children).replace(/\n$/, '');
+  // The block shows its direction controls as code points; Copy copies the code as it is.
+  const source = textContent(codeElement ? codeElement.children : children).replace(/\n$/, '');
+  const code = revealDirectionControls(source);
   const formatted = !codeElement && opts !== undefined && children.some((child) => isTag(child));
   const searchMatch = highlightRegex !== undefined && toGlobal(highlightRegex).test(code);
 
@@ -415,7 +400,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   };
 
   const copy = async () => {
-    const done = await copyToClipboard(code);
+    const done = await copyToClipboard(source);
     setCopied(done);
     clearTimeout(copiedTimer.current);
     if (done) copiedTimer.current = setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
@@ -430,7 +415,7 @@ export function CodeBlock({ children = [], opts, highlightRegex }: CodeBlockProp
   if (formatted && opts) {
     body = (
       <code id={CODE_BLOCK_CONTENT_ID} className={css.CodeBlockInternal} style={codeStyle}>
-        {domToReact(children, opts)}
+        {domToReact(children, revealingText(opts))}
       </code>
     );
   } else if (searchMatch) {
@@ -722,7 +707,10 @@ export const getReactCustomHtmlParser = (
         case 'code':
           return (
             <code {...props} className={classNames(css.Code, props.className)}>
-              {renderStyledText(textContent(children), params.highlightRegex)}
+              {renderStyledText(
+                revealDirectionControls(textContent(children)),
+                params.highlightRegex
+              )}
             </code>
           );
         case 'a': {

@@ -19,7 +19,7 @@ describe('agentDisplayName', () => {
         ]),
         'assistant'
       )
-    ).toBe('Assistant');
+    ).toBe('\u2068Assistant\u2069');
     expect(
       agentDisplayName(
         roomWith([
@@ -28,7 +28,7 @@ describe('agentDisplayName', () => {
         ]),
         'assistant'
       )
-    ).toBe('Assistant');
+    ).toBe('\u2068Assistant\u2069');
   });
 
   it('falls back to the agent name when no member matches', () => {
@@ -37,6 +37,6 @@ describe('agentDisplayName', () => {
         roomWith([{ userId: '@mindroom_assistant_pro:example.org', name: 'Assistant Pro' }]),
         'assistant'
       )
-    ).toBe('assistant');
+    ).toBe('\u2068assistant\u2069');
   });
 });
