@@ -343,6 +343,8 @@ const check = async (page: Page, world: World, label: string) => {
   await expectShown(main, ROOM_NAME_SHOWN);
   await expectShown(main, ROOM_TOPIC_SHOWN);
   await shot(page, `${label}-lobby`);
+  // Probe: a loaded runner's slower checks.
+  await page.waitForTimeout(400);
   // The rail tab and the space's list. A phone keeps both in its navigation drawer, which leaving
   // the Home list put away: it drops them once it has slid out (320 ms), so a check that comes
   // later finds neither. The phone opens it here, from the closed state the lobby leaves it in.
