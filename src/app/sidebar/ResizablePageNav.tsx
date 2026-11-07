@@ -30,10 +30,10 @@ export function ResizablePageNav({
   );
 }
 
-export function CollapsiblePageNav({ path, children }: { path: string; children: ReactNode }) {
+export function CollapsiblePageNav({ children }: { children: ReactNode }) {
   const { canCollapse, setCollapsed } = useDesktopPageNav();
   return (
-    <MobileFriendlyPageNav path={path}>
+    <MobileFriendlyPageNav>
       <ResizablePageNav onCollapse={canCollapse ? () => setCollapsed(true) : undefined}>
         {children}
       </ResizablePageNav>

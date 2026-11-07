@@ -446,6 +446,10 @@
     "roomActions": {
       "noInvitePermission": "Não tem permissão para convidar",
       "searchEncrypted": "Indisponível em salas encriptadas"
+    },
+    "phoneNav": {
+      "search": "Pesquisar",
+      "navigation": "Navegação"
     }
   },
   "mindroomUi": {

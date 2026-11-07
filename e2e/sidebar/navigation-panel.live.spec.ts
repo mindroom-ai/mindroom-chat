@@ -55,8 +55,9 @@ for (const mobile of [false, true]) {
             const bounds = await panel.boundingBox();
             return bounds ? { x: Math.round(bounds.x), width: Math.round(bounds.width) } : null;
           })
-          // The persistent icon rail occupies the first 66 px of the phone viewport.
-          .toEqual({ x: 66, width: page.viewportSize()!.width - 66 });
+          // In the navigation drawer (56 px short of the screen's edge, 420 px at most), beside
+          // the 66 px icon rail.
+          .toEqual({ x: 66, width: Math.min(page.viewportSize()!.width - 56, 420) - 66 });
         await expect(page.locator('body')).toHaveJSProperty(
           'scrollWidth',
           page.viewportSize()!.width
