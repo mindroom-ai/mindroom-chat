@@ -152,9 +152,6 @@ export const useCallPanel = (roomId: string) => {
   return [open, setOpen] as const;
 };
 
-/** The call panel: a chunk of its own, loaded when a panel opens or a call button is reached. */
-export const loadCallPanel = () => import('./CallPanel');
-
 /**
  * The call engine with LiveKit: a chunk of its own, loaded when a call starts or an agent's call
  * button is reached.

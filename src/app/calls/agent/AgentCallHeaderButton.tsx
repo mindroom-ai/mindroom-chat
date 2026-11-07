@@ -17,7 +17,8 @@ import {
 } from './agentCallCandidates';
 import { usePresenceStatuses } from './agentPresence';
 import { useAgentCaller } from './agentCaller';
-import { loadCallEngine, loadCallPanel } from '../callStore';
+import { loadCallEngine } from '../callStore';
+import { loadCallPanel } from '../loadCallPanel';
 
 type AgentCallHeaderButtonProps = {
   /** The open thread; the call is offered to the agents that took part in it. */

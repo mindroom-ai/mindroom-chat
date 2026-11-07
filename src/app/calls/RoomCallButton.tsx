@@ -4,13 +4,8 @@ import { Badge, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../ui/directional';
 import { preloadOnIntent } from '../lib/preloadOnIntent';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import {
-  isActiveCallShownIn,
-  loadCallPanel,
-  useActiveCall,
-  useCallPanel,
-  useRoomCallMembers,
-} from './callStore';
+import { isActiveCallShownIn, useActiveCall, useCallPanel, useRoomCallMembers } from './callStore';
+import { loadCallPanel } from './loadCallPanel';
 import { callUserIds } from './callMemberships';
 
 // On the button's top end corner, like the Members button's join requests.
