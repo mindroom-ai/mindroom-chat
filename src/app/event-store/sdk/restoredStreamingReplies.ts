@@ -5,8 +5,11 @@ import {
   TERMINAL_STREAM_STATUSES,
 } from '../../matrix/protocol/aiRun';
 import { createSessionId } from '../../matrix/session/sessions';
-import { loadCachedEventAcrossRoomScopes } from '../cache/db/cacheStoreEvents';
-import { createPreferLiveEventMapper } from '../cache/eventRepository';
+import {
+  createPreferLiveEventMapper,
+  loadCachedRoomEvent,
+  loadCachedThreadEvent,
+} from '../cache/eventRepository';
 
 // The SDK saves its sync after the first sync of a session and then about every five minutes, so a
 // reload restores a streaming reply as it was then: often its "Thinking" placeholder, and in a
@@ -24,7 +27,8 @@ type SavedEvent = Partial<IEvent> & { unsigned?: { 'm.relations'?: Record<string
 /** The SDK's sync accumulator: the saved timeline of each joined room. */
 type SavedSync = { joinRooms?: Record<string, { _timeline?: { event: SavedEvent }[] }> };
 
-type SavedReply = { roomId: string; eventId: string };
+/** A reply of the saved sync; `threadId` names the thread whose cache scope holds it. */
+type SavedReply = { roomId: string; eventId: string; threadId?: string };
 
 type SavedCopy = { roomId: string; raw: Partial<IEvent> };
 
@@ -36,12 +40,12 @@ const streamStatusOf = (content: unknown): string | undefined =>
     ? getStreamStatusFromContent(content as Record<string, unknown>)
     : undefined;
 
-/** The id of the event an edit replaces, if `event` is an edit. */
-const editTargetOf = (event: SavedEvent): string | undefined => {
+/** The id of the event `event` relates to with `relType`, if it does. */
+const relatedId = (event: SavedEvent, relType: string): string | undefined => {
   const relation = event.content?.['m.relates_to'] as
     | { rel_type?: string; event_id?: unknown }
     | undefined;
-  return relation?.rel_type === RelationType.Replace && typeof relation.event_id === 'string'
+  return relation?.rel_type === relType && typeof relation.event_id === 'string'
     ? relation.event_id
     : undefined;
 };
@@ -52,7 +56,7 @@ const editTargetOf = (event: SavedEvent): string | undefined => {
  */
 export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedReply[] =>
   Object.entries(sync?.joinRooms ?? {}).flatMap(([roomId, room]) => {
-    const replies = new Set<string>();
+    const replies = new Map<string, string | undefined>();
     const streaming = new Set<string>();
     const finished = new Set<string>();
     const note = (eventId: string, status: string | undefined) => {
@@ -60,14 +64,14 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
       if (status && TERMINAL_STREAM_STATUSES.has(status)) finished.add(eventId);
     };
     (room._timeline ?? []).forEach(({ event }) => {
-      const target = editTargetOf(event);
+      const target = relatedId(event, RelationType.Replace);
       if (target) {
         note(target, streamStatusOf(event.content));
         return;
       }
       const eventId = event.event_id;
       if (typeof eventId !== 'string') return;
-      replies.add(eventId);
+      replies.set(eventId, relatedId(event, RelationType.Thread));
       note(eventId, streamStatusOf(event.content));
       const bundled = event.unsigned?.['m.relations']?.[RelationType.Replace] as
         | SavedEvent
@@ -75,8 +79,8 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
       note(eventId, streamStatusOf(bundled?.content));
     });
     return [...replies]
-      .filter((eventId) => streaming.has(eventId) && !finished.has(eventId))
-      .map((eventId) => ({ roomId, eventId }));
+      .filter(([eventId]) => streaming.has(eventId) && !finished.has(eventId))
+      .map(([eventId, threadId]) => ({ roomId, eventId, ...(threadId ? { threadId } : {}) }));
   });
 
 /**
@@ -91,8 +95,11 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
     const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
     const copies = (
       await Promise.all(
-        replies.map(({ roomId, eventId }) =>
-          loadCachedEventAcrossRoomScopes(sessionId, roomId, eventId).then(
+        replies.map(({ roomId, eventId, threadId }) =>
+          (threadId
+            ? loadCachedThreadEvent(sessionId, roomId, threadId, eventId)
+            : loadCachedRoomEvent(sessionId, roomId, eventId)
+          ).then(
             (raw) => (raw ? { roomId, raw } : undefined),
             () => undefined
           )

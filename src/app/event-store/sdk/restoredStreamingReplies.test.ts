@@ -224,6 +224,6 @@ describe('streaming replies restored from the saved sync', () => {
       findSavedStreamingReplies({
         joinRooms: { [ROOM_ID]: { _timeline: timeline.map((item) => ({ event: item })) } },
       })
-    ).toEqual([{ roomId: ROOM_ID, eventId: '$reply' }]);
+    ).toEqual([{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }]);
   });
 });
