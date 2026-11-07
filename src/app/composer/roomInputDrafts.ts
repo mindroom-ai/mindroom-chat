@@ -17,6 +17,7 @@ import {
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
 import { createUploadAtom, type TUploadAtom, type TUploadItem } from '../matrix/state/upload';
+import { isEncryptedRoomOf } from '../matrix/client/encryptedRoomTextOffDisk';
 
 // TUploadItem is declared with the upload state; this seam keeps exporting it (seams.tsv).
 export type { TUploadItem } from '../matrix/state/upload';
@@ -68,13 +69,19 @@ const DRAFT_STORAGE_PREFIX = 'roomInputDraft:';
 export const getRoomInputDraftKey = (userId: string, roomId: string, threadId?: string): string =>
   JSON.stringify(threadId === undefined ? [userId, roomId] : [userId, roomId, threadId]);
 
-const getDraftUserId = (draftKey: string): string | undefined => {
+/** The account, room and thread a draft key names. */
+const parseDraftKey = (draftKey: string): unknown[] => {
   try {
     const parsed: unknown = JSON.parse(draftKey);
-    return Array.isArray(parsed) && typeof parsed[0] === 'string' ? parsed[0] : undefined;
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
-    return undefined;
+    return [];
   }
+};
+
+const getDraftUserId = (draftKey: string): string | undefined => {
+  const [userId] = parseDraftKey(draftKey);
+  return typeof userId === 'string' ? userId : undefined;
 };
 
 const isTextNode = (node: Record<string, unknown>): boolean =>
@@ -197,12 +204,42 @@ const isReplyDraft = (value: unknown): value is IReplyDraft =>
   isOptionalString(value.previewText) &&
   (value.relation === undefined || isRecord(value.relation));
 
+/**
+ * A reply target as it goes to disk. In an encrypted room it names the message only, without the
+ * text read out of it (P2-e2ee-F011); the reply bar reads that again from the message.
+ */
+export const replyDraftAtRest = (
+  userId: string,
+  roomId: string,
+  draft: IReplyDraft | undefined
+): IReplyDraft | undefined =>
+  draft && isEncryptedRoomOf(userId, roomId)
+    ? { userId: draft.userId, eventId: draft.eventId, body: '', relation: draft.relation }
+    : draft;
+
 /** Keeps the reply target of an account's composer in a room for the next page, or forgets it. */
 export const keepReplyDraft = (
   userId: string,
   roomId: string,
   draft: IReplyDraft | undefined
-): void => writeStoredJson(roomStorageKey(REPLY_STORAGE_PREFIX, userId, roomId), draft);
+): void =>
+  writeStoredJson(
+    roomStorageKey(REPLY_STORAGE_PREFIX, userId, roomId),
+    replyDraftAtRest(userId, roomId, draft)
+  );
+
+/** Deletes the text an older version kept with the reply targets of the account's encrypted rooms. */
+export const forgetEncryptedReplyText = (userId: string): void => {
+  getStorageKeysSafe(getSafeLocalStorage()).forEach((storageKey) => {
+    if (!storageKey.startsWith(REPLY_STORAGE_PREFIX)) return;
+    const [owner, roomId] = parseDraftKey(storageKey.slice(REPLY_STORAGE_PREFIX.length));
+    if (owner !== userId || typeof roomId !== 'string') return;
+    const kept = readStoredJson(storageKey);
+    if (!isReplyDraft(kept) || !isEncryptedRoomOf(userId, roomId)) return;
+    if (!kept.body && kept.formattedBody === undefined && kept.previewText === undefined) return;
+    writeStoredJson(storageKey, replyDraftAtRest(userId, roomId, kept));
+  });
+};
 
 /**
  * Gives a room's composer back the reply target it had before a reload, unless it has one: the

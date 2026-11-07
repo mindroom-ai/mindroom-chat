@@ -4,6 +4,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { MatrixClient } from 'matrix-js-sdk';
 import {
   pendingVoiceSendDraftAtom,
+  replyDraftAtRest,
   type IReplyDraft,
   type PendingVoiceSendDraft,
 } from '../roomInputDrafts';
@@ -78,7 +79,7 @@ const saveVoiceDraft = async (userId: string, draft: PendingVoiceSendDraft): Pro
       errorMessage: draft.errorMessage,
       roomId: context.roomId,
       threadId: context.threadId,
-      replyDraft: context.replyDraft,
+      replyDraft: replyDraftAtRest(userId, context.roomId, context.replyDraft),
       threadingEnabled: context.threadingEnabled,
       signalBridgedRoom: context.signalBridgedRoom,
     })
