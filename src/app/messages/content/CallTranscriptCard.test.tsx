@@ -480,6 +480,19 @@ describe('a voice call transcript message', () => {
       expect(container.textContent).toContain(NOTES);
     });
 
+    it('shows its body as text when nothing of the call could be transcribed', () => {
+      render(
+        {
+          ...notesContent({ duration_seconds: 120, turns: [] }),
+          body: 'Call · 2 min. Nothing could be transcribed.',
+        },
+        ROUTER
+      );
+
+      expect(card()).toBeNull();
+      expect(container.textContent).toContain('Call · 2 min. Nothing could be transcribed.');
+    });
+
     it('shows the one-line summary once, in the header, without a notes model', () => {
       render({ ...notesContent(PEOPLE), body: 'Call · 12 min' }, ROUTER);
 
