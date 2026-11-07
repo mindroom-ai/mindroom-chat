@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
-import { useLocation, useNavigationType } from 'react-router-dom';
+import { NavigationType, useLocation, useNavigationType } from 'react-router-dom';
 import {
   nextPhoneNavDrawerOpen,
   phoneNavDrawerOpenAtom,
@@ -37,7 +37,8 @@ const overlayOpen = (): boolean =>
 /** The drawer follows navigation: out at a section's own page, away on any other. */
 const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean) => void) => {
   const { key, pathname } = useLocation();
-  // An alias address shows no page until it turns into a room ID (a replace): that step decides.
+  // An alias address shows no page until it turns into a room ID (a replace): that step decides,
+  // as the navigation that opened the alias (a push from Search, a pop back) would have.
   const resolvingAlias = pathnameContainsAliasRoute(pathname);
   const action = useNavigationType();
   // Read from the store: the page marks itself in a layout effect of the same commit, before this
@@ -45,12 +46,19 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
   const store = useStore();
   const rootKey = useAtomValue(phoneNavSectionRootAtom);
   const wasSectionRoot = useRef(false);
+  const aliasAction = useRef<NavigationType>();
   useLayoutEffect(() => {
-    if (resolvingAlias) return;
+    if (resolvingAlias) {
+      // The alias's own clean-ups replace it too; the first navigation to it counts.
+      if (action !== NavigationType.Replace || !aliasAction.current) aliasAction.current = action;
+      return;
+    }
+    const decidingAction = aliasAction.current ?? action;
+    aliasAction.current = undefined;
     const sectionRoot = store.get(phoneNavSectionRootAtom) === key;
     const fromSectionRoot = wasSectionRoot.current;
     wasSectionRoot.current = sectionRoot;
-    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action, fromSectionRoot));
+    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, decidingAction, fromSectionRoot));
   }, [key, rootKey, action, resolvingAlias, setOpen, store]);
 };
 

@@ -111,4 +111,29 @@ describe('PhoneNavDrawer', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     act(() => renderer?.unmount());
   });
+
+  it('goes away when a room picked by its alias opens over another room', async () => {
+    const store = createStore();
+    const router = createMemoryRouter([{ path: '*', element: <PhoneNavDrawer nav={null} /> }], {
+      initialEntries: ['/home/!alder:example.org/'],
+    });
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <RouterProvider router={router} />
+        </Provider>
+      );
+    });
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    // Search opens the room by its alias, which then turns into the room ID by a replace.
+    await act(async () => {
+      await router.navigate('/home/%23birch%3Aexample.org/');
+    });
+    await act(async () => {
+      await router.navigate('/home/!birch:example.org/', { replace: true });
+    });
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    act(() => renderer?.unmount());
+  });
 });
