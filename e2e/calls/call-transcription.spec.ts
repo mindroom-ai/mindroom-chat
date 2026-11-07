@@ -156,9 +156,12 @@ const openLobby = (page: Page, stack: AgentStack) =>
 
 /** The router's row in the default view's list (Compact): its card shows the row itself. */
 const listedRow = async (page: Page) => {
-  const row = page.locator('[data-scroll-anchor] [data-call-row]');
+  const card = page
+    .locator('[data-scroll-anchor]')
+    .filter({ has: page.locator('[data-call-row]') });
+  const row = card.locator('[data-call-row]');
   await expect(row).toContainText('Call in progress', { timeout: 60_000 });
-  return row;
+  return { card, row };
 };
 
 /** Joins the call from the open call panel, once MindRoom transcribes it. */
@@ -214,18 +217,15 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     // The guest finds the call on in the row, with the tester in it as the row reads it (every 5
     // seconds while in view), and joins from the row.
     await openLobby(guest.page, stack);
-    const guestRow = await listedRow(guest.page);
+    const { row: guestRow } = await listedRow(guest.page);
     await expect(guestRow.locator('[data-call-row-member]')).toHaveCount(1, { timeout: 30_000 });
     await guestRow.getByRole('button', { name: 'Join', exact: true }).click();
     await joinCall(guest.page, guest.userId);
 
     // For the tester the row has both in the call and no Join for the call this device is in; its
     // Transcript opens the live transcript in the call panel's place.
-    const row = await listedRow(page);
-    const rowId = await page
-      .locator('[data-scroll-anchor]')
-      .filter({ has: row })
-      .getAttribute('data-scroll-anchor');
+    const { card: listed, row } = await listedRow(page);
+    const rowId = await listed.getAttribute('data-scroll-anchor');
     await expect(row.locator('[data-call-row-member]')).toHaveCount(2, { timeout: 30_000 });
     await expect(row.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
     await row.getByRole('button', { name: 'Transcript', exact: true }).click();
