@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -39,6 +39,54 @@ test('the initial load is the entry with its static imports and the style sheet'
   );
   assert.equal(summary.entry, 'assets/index-AAAAAAAA.js');
   assert.equal(summary.initialFiles, 4);
+});
+
+test('with a manifest, every chunk is listed by its source or chunk name, with its style sheets', () => {
+  const dist = fakeDist();
+  assert.match(run(dist).stdout, /build with `npx vite build --manifest`/);
+  writeFileSync(
+    path.join(dist, 'assets', 'lazy-FFFFFFFF.css'),
+    `.a{color:blue}${' '.repeat(3000)}`
+  );
+  mkdirSync(path.join(dist, '.vite'));
+  writeFileSync(
+    path.join(dist, '.vite', 'manifest.json'),
+    JSON.stringify({
+      // A package that node_modules links to outside the project root.
+      '../../deps/0123/node_modules/some-pkg/index.js': {
+        file: 'assets/lazy-CCCCCCCC.js',
+        src: '../../deps/0123/node_modules/some-pkg/index.js',
+        isDynamicEntry: true,
+        css: ['assets/lazy-FFFFFFFF.css'],
+      },
+      '_shared-BBBBBBBB.js': {
+        file: 'assets/shared-BBBBBBBB.js',
+        name: 'shared',
+        imports: ['_leaf-DDDDDDDD.js'],
+      },
+      '_leaf-DDDDDDDD.js': { file: 'assets/leaf-DDDDDDDD.js', name: 'leaf' },
+      'index.html': {
+        file: 'assets/index-AAAAAAAA.js',
+        src: 'index.html',
+        isEntry: true,
+        imports: ['_shared-BBBBBBBB.js'],
+        dynamicImports: ['../../deps/0123/node_modules/some-pkg/index.js'],
+        css: ['assets/index-EEEEEEEE.css'],
+      },
+      // A style sheet that the bundler keys like a chunk.
+      '_lazy-!~{001}~.js': { file: 'assets/lazy-FFFFFFFF.css', src: '_lazy-!~{001}~.js' },
+    })
+  );
+  const { stdout } = run(dist);
+  const listed = stdout.split('\nEvery chunk')[1].split('\n').slice(1).filter(Boolean);
+  assert.deepEqual(
+    listed.map((line) => line.split(/\s{2,}/)[0]),
+    ['index.html (initial)', 'leaf (initial)', 'node_modules/some-pkg/index.js', 'shared (initial)']
+  );
+  const bytes = (...names) =>
+    names.reduce((total, name) => total + statSync(path.join(dist, 'assets', name)).size, 0);
+  const raw = `${(bytes('lazy-CCCCCCCC.js', 'lazy-FFFFFFFF.css') / 1024).toFixed(1)} KiB`;
+  assert.equal(listed[2].split(/\s{2,}/)[1], raw);
 });
 
 test('a budget fails the run only when a size is over it', () => {
