@@ -1,4 +1,5 @@
 import {
+  ClientEvent,
   createClient,
   MatrixEvent,
   SyncState,
@@ -126,19 +127,19 @@ describe('edits in a thread the app has not opened', () => {
     const thread = room.getThread(rootId)!;
     expect(thread.initialEventsFetched).toBe(false);
 
+    // As sync delivers a batch: the room takes the events, then the client announces each.
+    const deliver = async (events: MatrixEvent[]) => {
+      await room.addLiveEvents(events, { addToState: false });
+      events.forEach((event) => client.emit(ClientEvent.Event, event));
+      await settle();
+    };
+
     // The reply streams and finishes, then the agent titles the thread.
-    await room.addLiveEvents([edit('$step', 20, 'Checking the merged changes.')], {
-      addToState: false,
-    });
-    await settle();
-    await room.addLiveEvents(
-      [
-        edit('$final', 30, 'The notes list the export fix.'),
-        new MatrixEvent(message('$title', 31, { msgtype: 'm.notice', body: 'Notes', ...inThread })),
-      ],
-      { addToState: false }
-    );
-    await settle();
+    await deliver([edit('$step', 20, 'Checking the merged changes.')]);
+    await deliver([
+      edit('$final', 30, 'The notes list the export fix.'),
+      new MatrixEvent(message('$title', 31, { msgtype: 'm.notice', body: 'Notes', ...inThread })),
+    ]);
 
     // The stream's edits are saved once they pause, the newest of each reply, or when the engine
     // stops.
