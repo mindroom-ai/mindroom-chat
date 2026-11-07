@@ -2,7 +2,9 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in.
-// Under the room header it shows "Example banner in <room name>".
+// Under the room header it shows "Example banner in <room name>" and a button, "Show example
+// cover", that covers the room's conversation with "Example cover of <room name>" until its Close
+// button or Escape closes it.
 import type { Room } from 'matrix-js-sdk';
 import type { ClientPlugin } from '../../registry';
 import type { PluginEvent } from '../../messageRenderers';
@@ -44,9 +46,51 @@ function ExamplePanel({ roomId }: { roomId: string }) {
   return <p>Example panel of {roomId}</p>;
 }
 
+// The rooms whose cover is open, and who wants to hear when that changes.
+const coveredRooms = new Set<string>();
+const coverListeners = new Set<() => void>();
+const setCovered = (roomId: string, covered: boolean) => {
+  if (covered) coveredRooms.add(roomId);
+  else coveredRooms.delete(roomId);
+  coverListeners.forEach((listener) => listener());
+};
+
+function CoverButton({ room }: { room: Room }) {
+  return (
+    <button type="button" onClick={() => setCovered(room.roomId, true)}>
+      Show example cover
+    </button>
+  );
+}
+
+function ExampleCover({ room }: { room: Room }) {
+  return (
+    <div data-example-plugin-cover style={{ padding: 16 }}>
+      <h2>Example cover of {room.name}</h2>
+      <input aria-label="Example cover note" />
+      <button type="button" onClick={() => setCovered(room.roomId, false)}>
+        Close example cover
+      </button>
+    </div>
+  );
+}
+
 const plugin: ClientPlugin = {
+  conversationCovers: [
+    {
+      covers: (room) => coveredRooms.has(room.roomId),
+      subscribe: (_room, onChange) => {
+        coverListeners.add(onChange);
+        return () => {
+          coverListeners.delete(onChange);
+        };
+      },
+      Component: ExampleCover,
+      close: (room) => setCovered(room.roomId, false),
+    },
+  ],
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
-  roomHeaderSlot: [RoomBanner],
+  roomHeaderSlot: [RoomBanner, CoverButton],
   sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
   translations: {
     en: { label: 'Example plugin' },
