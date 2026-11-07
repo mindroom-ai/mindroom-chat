@@ -4,10 +4,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { putSession } from '../session/sessions';
 import { getRoomUnreadAction } from './roomToUnread';
 
-// A room is unread only for what its thread lists show. A notice in the main timeline shows there
-// once its thread has replies, or before that when a MindRoom agent on the active account's
-// homeserver marked it as a conversation (`io.mindroom.conversation: true`); any other notice
-// leaves the room read.
+// A room with a MindRoom agent shows its thread lists, and is unread only for what they show. A
+// notice in the main timeline shows there once its thread has replies, or before that when a
+// MindRoom agent on the active account's homeserver marked it as a conversation
+// (`io.mindroom.conversation: true`); any other notice leaves such a room read. A room without an
+// agent shows its whole conversation, so every notice there counts.
 const ROOM_ID = '!room:example.org';
 const READER = '@reader:example.org';
 const AGENT = '@mindroom_reporter:example.org';
@@ -60,9 +61,13 @@ const message = ({
       : {}),
   });
 
-/** A room the reader last read before `event`; the server counts `count` unread messages. */
-const room = (event: MatrixEvent, count = 0) => ({
+/**
+ * A room the reader last read before `event`, where `members` are joined; the server counts
+ * `count` unread messages.
+ */
+const room = (event: MatrixEvent, count = 0, members = [READER, AGENT]) => ({
   roomId: ROOM_ID,
+  getMembers: () => members.map((userId) => ({ userId, membership: 'join' })),
   findEventById: () => undefined,
   getEventReadUpTo: () => null,
   getLiveTimeline: () => ({ getEvents: () => [event] }),
@@ -80,8 +85,9 @@ const client = (notifies = false) => ({
   getUserId: () => READER,
 });
 
-const isUnread = (event: MatrixEvent, count = 0, notifies = false): boolean =>
-  getRoomUnreadAction(client(notifies) as never, room(event, count) as never).type === 'PUT';
+const isUnread = (event: MatrixEvent, count = 0, notifies = false, members?: string[]): boolean =>
+  getRoomUnreadAction(client(notifies) as never, room(event, count, members) as never).type ===
+  'PUT';
 
 describe('getRoomUnreadAction for notices', () => {
   it.each([
@@ -101,6 +107,10 @@ describe('getRoomUnreadAction for notices', () => {
     { what: "an agent's message", event: { sender: AGENT, msgtype: 'm.text' }, unread: true },
   ])('$what makes the room unread: $unread', ({ event, unread }) => {
     expect(isUnread(message(event))).toBe(unread);
+  });
+
+  it('counts every notice in a room without a MindRoom agent', () => {
+    expect(isUnread(message({ sender: PERSON }), 0, false, [READER, PERSON])).toBe(true);
   });
 
   it('leaves the room read when the push rules notify for a notice no thread list shows', () => {
