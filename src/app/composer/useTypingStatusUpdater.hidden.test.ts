@@ -55,6 +55,7 @@ describe('useTypingStatusUpdater with activity hidden', () => {
       [ROOM, true, TYPING_TIMEOUT_MS],
       [ROOM, false, TYPING_TIMEOUT_MS],
     ]);
+    updater.unmount();
   });
 });
 

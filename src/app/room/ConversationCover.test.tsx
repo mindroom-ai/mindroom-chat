@@ -37,7 +37,7 @@ const mocks = vi.hoisted(() => {
     ),
     ...extra,
   });
-  return { open, listeners, set, cover, reportBoundaryError: vi.fn() };
+  return { open, set, cover, reportBoundaryError: vi.fn() };
 });
 
 vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
@@ -45,8 +45,9 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
   reportBoundaryError: mocks.reportBoundaryError,
 }));
 
-// Plugins as a build lists them: one whose cover throws once open, one whose condition and
-// subscription throw, one with a cover Escape closes, and one with a cover Escape leaves.
+// Plugins as a build lists them: `broken`, with a cover that throws once open and one whose
+// condition and subscription throw; `example`, with a cover Escape closes; and `other`, with a cover
+// Escape leaves and one that puts the focus in its own field.
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -132,10 +133,9 @@ vi.mock('../composer/RoomInput', () => ({
 }));
 
 afterEach(() => {
+  // Unmounting stops every subscription, so closing the covers needs only the set emptied.
   cleanup();
-  act(() => {
-    ['broken', 'closable', 'fixed', 'autofocus'].forEach((name) => mocks.set(name, false));
-  });
+  mocks.open.clear();
   mocks.reportBoundaryError.mockReset();
   vi.restoreAllMocks();
 });
@@ -234,7 +234,7 @@ describe('a conversation cover', () => {
     show('fixed', false);
 
     show('closable');
-    // Escape that something in the cover handled stays there.
+    // Another key does not close it.
     const field = screen.getByRole('textbox', { name: 'closable field' });
     fireEvent.keyDown(field, { key: 'a' });
     expect(layer()?.textContent).toContain('closable cover');
@@ -242,6 +242,7 @@ describe('a conversation cover', () => {
     fireEvent.keyDown(field, { key: 'Escape', isComposing: true });
     fireEvent.keyDown(field, { key: 'Escape', keyCode: 229 });
     expect(layer()?.textContent).toContain('closable cover');
+    // Escape that something in the cover handled stays there.
     field.addEventListener('keydown', (event) => event.preventDefault(), { once: true });
     fireEvent.keyDown(field, { key: 'Escape' });
     expect(layer()?.textContent).toContain('closable cover');

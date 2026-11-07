@@ -8,7 +8,6 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
-  type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { createRoom } from '../helpers/createRoom';
 import { joinRoom, sendRoomMessage } from '../helpers/matrix';
@@ -20,8 +19,7 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // Escape closes. While the cover shows, the reader's client sends no read receipt for a message
 // that arrives, no typing notice (and ends the one it sent), attaches no dropped file, and keeps
 // the focus out of the conversation; closing it gives the focus back to the composer and restores
-// all four. Set
-// PLUGIN_SHOTS=<directory> to save screenshots.
+// all four. Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'conversation-cover-password';
 const RUN = Date.now().toString(36);
@@ -100,7 +98,7 @@ test('while the example cover shows the room sends no receipt or typing notice, 
   browser,
 }) => {
   const reader = await registerDisposableUser(`cover_reader_${RUN}`, PASSWORD);
-  const writer: DisposableUser = await registerDisposableUser(`cover_writer_${RUN}`, PASSWORD);
+  const writer = await registerDisposableUser(`cover_writer_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: ROOM_NAME,
     invite: [writer.userId],
