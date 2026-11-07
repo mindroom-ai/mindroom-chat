@@ -25,13 +25,12 @@ import { watchRoomThreads } from '../watchRoomThreads';
 // still waiting for it, and the card, would lose it. The watcher keeps the reply each unopened
 // thread last summarized for as long as the thread stays unopened.
 
-/** The reply each unopened thread last summarized. */
+/** The reply each unopened thread last summarized; the watcher drops it once the thread opens. */
 const summarizedReplies = new WeakMap<object, MatrixEvent>();
 
 type SummarizedThread = {
   id?: string;
   replyToEvent?: MatrixEvent | null;
-  initialEventsFetched?: boolean;
 };
 
 /** A reply the thread's summary may name: not its root, nor its title notice. */
@@ -49,7 +48,7 @@ export const getThreadSummaryReply = (
 ): MatrixEvent | undefined => {
   if (!thread) return undefined;
   const summarized = thread.replyToEvent ?? undefined;
-  if (isSummarizedReply(thread, summarized) || thread.initialEventsFetched) return summarized;
+  if (isSummarizedReply(thread, summarized)) return summarized;
   return summarizedReplies.get(thread) ?? summarized;
 };
 
