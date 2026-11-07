@@ -21,7 +21,12 @@ const state = vi.hoisted(() => ({
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
   /** Each time the row reads the live call. */
-  polls: [] as Array<{ everyMs: number; signal: AbortSignal; onLive: (live: LiveCall) => void }>,
+  polls: [] as Array<{
+    client: unknown;
+    everyMs: number;
+    signal: AbortSignal;
+    onLive: (live: LiveCall) => void;
+  }>,
 }));
 
 vi.mock('./useTranscriptionServer', () => ({
@@ -29,14 +34,14 @@ vi.mock('./useTranscriptionServer', () => ({
 }));
 vi.mock('./liveCallPoll', () => ({
   pollLiveCall: (
-    _client: unknown,
+    client: unknown,
     _roomId: string,
     everyMs: number,
     signal: AbortSignal,
     onLive: (live: LiveCall) => void
   ) =>
     new Promise(() => {
-      state.polls.push({ everyMs, signal, onLive });
+      state.polls.push({ client, everyMs, signal, onLive });
     }),
 }));
 vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
@@ -196,6 +201,18 @@ describe('CallRow', () => {
     // Another call in the room is not this row's.
     act(() => state.polls[1]?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }));
     expect(faces()).toEqual([]);
+  });
+
+  it('shares one sign-in to the server among rows, and after a remount', () => {
+    render(LIVE);
+    inView(true);
+    act(() => root.unmount());
+    root = createRoot(container);
+    render(LIVE);
+    inView(true);
+
+    expect(state.polls).toHaveLength(2);
+    expect(state.polls[1]?.client).toBe(state.polls[0]?.client);
   });
 
   it('shows who is in the call this device is in as its transcriber reads it', () => {

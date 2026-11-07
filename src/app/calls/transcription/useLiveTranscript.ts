@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import type { Room } from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
 import { useActiveCall } from '../callStore';
@@ -30,23 +30,30 @@ export type LiveTranscriptView = {
 
 type ReadView = Omit<LiveTranscriptView, 'ownCall'>;
 
-/**
- * The room's live call, read every `everyMs` while `reading`. One sign-in serves every read while
- * the room's server stays the same.
- */
+/** One client per Matrix client and server, so rows, panels and remounts share its sign-in. */
+const clients = new WeakMap<MatrixClient, Map<string, TranscriptionClient>>();
+
+const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => {
+  const servers = clients.get(mx) ?? new Map<string, TranscriptionClient>();
+  clients.set(mx, servers);
+  const key = `${discovered ? 'discovered' : 'configured'} ${apiUrl}`;
+  const client =
+    servers.get(key) ??
+    new TranscriptionClient({
+      apiUrl,
+      getOpenIdToken: () => requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
+    });
+  servers.set(key, client);
+  return client;
+};
+
+/** The room's live call, read every `everyMs` while `reading`. */
 const useLiveCallReads = (room: Room, everyMs: number, reading: boolean): ReadView => {
   const mx = useMatrixClient();
   const { roomId } = room;
   const { apiUrl, discovered } = useTranscriptionServer(mx, room);
   const client = useMemo(
-    () =>
-      apiUrl
-        ? new TranscriptionClient({
-            apiUrl,
-            getOpenIdToken: () =>
-              requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
-          })
-        : undefined,
+    () => (apiUrl ? sharedClient(mx, apiUrl, discovered) : undefined),
     [apiUrl, discovered, mx]
   );
   const [view, setView] = useState<ReadView>({ state: 'loading' });
