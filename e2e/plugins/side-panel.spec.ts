@@ -7,6 +7,7 @@ import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import {
   CORE_PANELS,
+  checkPanelFrame,
   closePanel,
   openPanel,
   openPanelRoom,
@@ -98,6 +99,31 @@ test("the example plugin's side panel opens, yields and closes as the core panel
     await expect(menuEntry(page)).toHaveAttribute('aria-checked', 'true');
     await menuEntry(page).click();
     await expect(panelLocator(page, 'plugin')).toHaveCount(0);
+  } finally {
+    // The page's live sync may still be in a route.
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+    await server.close();
+  }
+});
+
+test("the example plugin's side panel fills the room and folds to a tab, per room", async ({
+  browser,
+}, testInfo) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    const room = await openPanelRoom(context, page);
+    await openExamplePanel(page, room);
+    await checkPanelFrame(page, testInfo, room, {
+      panel: panelLocator(page, 'plugin'),
+      label: 'Example panel',
+      inOtherRoom: false,
+    });
+    await expect(page.getByText(`Example panel of ${room.roomId}`)).toBeVisible();
   } finally {
     // The page's live sync may still be in a route.
     await context.unrouteAll({ behavior: 'ignoreErrors' });

@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 import { loginWithPassword } from './auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -7,6 +13,7 @@ import {
   type DisposableUser,
 } from './disposableAccounts';
 import {
+  createPrivateRoom,
   createThreadFixture,
   joinRoom,
   registerAgentAccount,
@@ -146,4 +153,76 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
   const scope = panel === 'members' ? roomHeader(page) : panelLocator(page, panel);
   await scope.getByRole('button', { name: names[panel], exact: true }).click();
   await expect(panelLocator(page, panel)).toHaveCount(0);
+};
+
+const widthOf = async (locator: Locator): Promise<number> =>
+  (await locator.boundingBox())?.width ?? 0;
+
+/** Opens another room of the viewer, `name`, from the room list, and waits for its header. */
+const showRoom = async (page: Page, name: string) => {
+  await page.getByRole('link', { name, exact: true }).first().click();
+  await expect(roomHeader(page).getByRole('heading', { name, exact: true })).toBeVisible();
+};
+
+/**
+ * Takes the shown side panel (`panel`, titled `label`) through its frame's layouts in the room
+ * `room` opened: it fills the room in the conversation's place, comes back beside it, folds to a
+ * tab at the room's edge beside the whole conversation, stays folded while another room shows, and
+ * comes back from its tab. `inOtherRoom` says whether the panel shows in the other room too (the
+ * members, which are open in every room); there it shows beside the conversation. Saves a
+ * screenshot of each layout under `testInfo`'s output, named after `label`.
+ */
+export const checkPanelFrame = async (
+  page: Page,
+  testInfo: TestInfo,
+  room: PanelRoom,
+  { panel, label, inOtherRoom }: { panel: Locator; label: string; inOtherRoom: boolean }
+) => {
+  const shot = (layout: string) =>
+    page.screenshot({ path: testInfo.outputPath(`${label}-${layout}.png`.replaceAll(' ', '-')) });
+  const fill = panel.getByRole('button', { name: `Fill the room with ${label}`, exact: true });
+  const fold = panel.getByRole('button', { name: `Fold ${label} to the edge`, exact: true });
+  const tab = panel.getByRole('button', { name: `Unfold ${label}`, exact: true });
+  const conversation = roomHeader(page);
+  const otherRoom = `Elsewhere ${room.roomId.slice(1, 9)}`;
+  await createPrivateRoom(HOMESERVER, room.viewer.accessToken, { name: otherRoom });
+
+  await expect(fill).toHaveAttribute('aria-pressed', 'false');
+  const besideWidth = await widthOf(panel);
+  const conversationWidth = await widthOf(conversation);
+  await shot('beside');
+
+  await fill.click();
+  await expect(conversation).toHaveCount(0);
+  await expect(fill).toHaveAttribute('aria-pressed', 'true');
+  expect(await widthOf(panel)).toBeGreaterThan(besideWidth + conversationWidth - 20);
+  await shot('filled');
+  await fill.click();
+  await expect(conversation).toBeVisible();
+  await expect.poll(() => widthOf(panel)).toBe(besideWidth);
+  expect(await widthOf(conversation)).toBe(conversationWidth);
+
+  await fold.click();
+  await expect(tab).toBeVisible();
+  await expect(tab).toHaveText(label);
+  await expect(fill).toHaveCount(0);
+  const tabWidth = await widthOf(panel);
+  expect(tabWidth).toBeLessThan(60);
+  // The conversation takes the room's width but for the tab.
+  expect(await widthOf(conversation)).toBeGreaterThan(conversationWidth + besideWidth - 60);
+  await shot('folded');
+
+  // Another room has its own layout: the members show there beside its conversation.
+  await showRoom(page, otherRoom);
+  await expect(tab).toHaveCount(0);
+  if (inOtherRoom) await expect(fill).toHaveAttribute('aria-pressed', 'false');
+  else await expect(panel).toHaveCount(0);
+  await showRoom(page, 'Side panels');
+  await expect(tab).toBeVisible();
+  expect(await widthOf(panel)).toBe(tabWidth);
+
+  await tab.click();
+  await expect(fill).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => widthOf(panel)).toBe(besideWidth);
+  await expect(conversation).toBeVisible();
 };
