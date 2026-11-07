@@ -224,6 +224,10 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     expect(lineBox!.y).toBeLessThan(firstUnread!.y);
     expect(lineBox!.y).toBeGreaterThan(lastRead!.y);
     await shots(page, `${label}-people-room`);
+  } catch (error) {
+    // A WebKit page is not the test's own, so Playwright keeps no screenshot of it.
+    await page.screenshot({ path: test.info().outputPath(`${label}-failed.png`) }).catch(() => {});
+    throw error;
   } finally {
     await context.close();
   }
