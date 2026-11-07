@@ -657,6 +657,11 @@ export const saveRoomEventsToCacheCommitted = async (
   // skip further writes silently. Deletes stay ungated (they only
   // shrink storage). The eventRepository seam no longer wraps this
   // call in its own gate/catch.
+  const orcIds = [...collectExplicitRedactedEventIds(rawEvents)].map((id) => id.slice(1, 7));
+  const orc = (step: string, extra?: unknown) =>
+    // eslint-disable-next-line no-console
+    orcIds.length > 0 && console.debug('[orc]', 'room-save', step, orcIds.join(','), JSON.stringify(extra ?? ''), Math.round(performance.now()));
+  orc('enter', { writable: isCacheWritable(), lease: isCacheStoreWriteLeaseCurrent(writeLease), n: rawEvents.length });
   if (!isCacheWritable() || !isCacheStoreWriteLeaseCurrent(writeLease)) return false;
 
   // ISSUE-207 P2 review: the entire body (including the openCacheStore
@@ -667,7 +672,9 @@ export const saveRoomEventsToCacheCommitted = async (
     // A limited sync's hole is recorded before any room event lands, so
     // a page closed meanwhile cannot leave events around an unmarked hole.
     await whenRoomCacheGapsSaved(sessionId, roomId);
+    orc('gaps-saved');
     const db = await openCacheStore(sessionId);
+    orc('db', { db: !!db, lease: isCacheStoreWriteLeaseCurrent(writeLease) });
     if (!db || !isCacheStoreWriteLeaseCurrent(writeLease)) return false;
 
     const redactedEventIds = collectExplicitRedactedEventIds(rawEvents);
@@ -678,9 +685,11 @@ export const saveRoomEventsToCacheCommitted = async (
       // written by the scrub itself, so an already-marked id was fully
       // repaired on its first save and re-scrubbing is pure work.
       const unscrubbedIds = await collectRedactedIdsWithoutMarker(db, roomId, redactedEventIds);
+      orc('unscrubbed', { n: unscrubbedIds.size, lease: isCacheStoreWriteLeaseCurrent(writeLease) });
       if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
       if (unscrubbedIds.size > 0)
         await runScrubRedactedRelationsTxn(db, roomId, unscrubbedIds, redactedTombstones);
+      orc('scrubbed');
     }
     if (!isCacheStoreWriteLeaseCurrent(writeLease)) return false;
     if (normalizedEvents.length === 0) return true;
@@ -1256,6 +1265,8 @@ export const saveThreadEventsToCacheCommitted = async (
 
     const redactionEvidence = rootEvent ? [...rawEvents, rootEvent] : rawEvents;
     const redactedEventIds = collectExplicitRedactedEventIds(redactionEvidence);
+    // eslint-disable-next-line no-console
+    if (redactedEventIds.size > 0) console.debug('[orc]', 'thread-save', threadId.slice(1, 7), [...redactedEventIds].map((id) => id.slice(1, 7)).join(','), Math.round(performance.now()));
     const redactedTombstones = collectRedactedTombstones(redactionEvidence);
     const normalizedEvents = filterPageableCachedThreadEvents(
       normalizeCachedThreadEvents(rawEvents),

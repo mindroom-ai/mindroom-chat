@@ -243,6 +243,8 @@ export const createEngineWriteThrough = (
       // component controller set this; we intentionally do not.
       fallbackThreadId: undefined,
     });
+    // eslint-disable-next-line no-console
+    console.debug('[orc]', 'plan', meta.kind, event.getAssociatedId()?.slice(1, 7), JSON.stringify({ target: !!cleanupPlan?.targetEvent, thread: cleanupPlan?.threadCacheTargetId?.slice(1, 7), fallback: cleanupPlan?.threadTargetFromFallback, del: cleanupPlan?.deleteRecords, lease: isCacheStoreWriteLeaseCurrent(lease) }), Math.round(performance.now()));
     if (!cleanupPlan) return;
     forgetRedactedThreadSummaries(sessionId, room.roomId, new Set([cleanupPlan.redactedEventId]));
 

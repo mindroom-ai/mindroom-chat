@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import { devices, expect, test, webkit, type BrowserContext, type Page } from '@playwright/test';
 import { getHomeserver, getPrimaryCredentials, hasPrimaryCredentials } from '../env';
 import { readSessionStore } from '../helpers/accounts';
@@ -459,6 +460,11 @@ test.describe('persisted historical room content', () => {
       test.skip(!hasPrimaryCredentials(), 'Local Matrix credentials required');
       const homeserver = getHomeserver();
       let fixture: OfflineFixture | undefined;
+      const orcLines: string[] = [];
+      const start = Date.now();
+      context.on('console', (message) => {
+        if (message.text().startsWith('[orc]')) orcLines.push(`${Date.now() - start} ${message.text()}`);
+      });
       try {
         fixture = await createOfflineFixture(homeserver);
         const { cacheDbName, sdkDbName, threadUrl, savedSync } = await warmHistoricalContent(
@@ -564,6 +570,7 @@ test.describe('persisted historical room content', () => {
         }
 
         await installOfflineFreshnessGates(context, fullBody, fixture.imageUri, [...imageBytes]);
+        orcLines.push(`${Date.now() - start} spec: reopen`);
         await page.goto(threadUrl);
         await expandFullBody(page, fixture);
         await expect
@@ -573,6 +580,7 @@ test.describe('persisted historical room content', () => {
           .poll(() => page.evaluate(() => window.__offlineFreshness.heldImages))
           .toBeGreaterThan(0);
         await page.evaluate(() => window.__offlineFreshness.releaseNetwork());
+        orcLines.push(`${Date.now() - start} spec: network released`);
 
         const expectedCache = {
           oldBytes: 0,
@@ -624,6 +632,7 @@ test.describe('persisted historical room content', () => {
         };
         await expect.poll(snapshot).toEqual(expectedCache);
         await expectCurrent(page);
+        orcLines.push(`${Date.now() - start} spec: first snapshot matched`);
         await page.evaluate(() => window.__offlineFreshness.releaseOldWork());
         // Completion is observed after repository writes and stale image publication/disposal.
         await expect
@@ -668,6 +677,7 @@ test.describe('persisted historical room content', () => {
             .catch(() => undefined);
         }
         if (fixture) await forgetFixtureRoom(homeserver, fixture);
+        writeFileSync(test.info().outputPath('orc-log.txt'), orcLines.join('\n'));
       }
     });
   }
