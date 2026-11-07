@@ -127,7 +127,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "ルームを忘れる"
+      "forget": "ルームを忘れる",
+      "banned": "このルームへの参加を禁止されています。"
     },
     "userRoomProfile": {
       "editProfile": "プロフィールを編集"

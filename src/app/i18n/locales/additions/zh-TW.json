@@ -127,7 +127,8 @@
       "newMessage": "{{sender}}：{{body}}"
     },
     "roomCard": {
-      "forget": "忘記房間"
+      "forget": "忘記房間",
+      "banned": "你已被禁止進入此房間。"
     },
     "userRoomProfile": {
       "editProfile": "編輯個人資料"

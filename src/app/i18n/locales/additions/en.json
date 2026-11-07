@@ -130,7 +130,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "Forget Room"
+      "forget": "Forget Room",
+      "banned": "You are banned from this room."
     },
     "userRoomProfile": {
       "editProfile": "Edit Profile"

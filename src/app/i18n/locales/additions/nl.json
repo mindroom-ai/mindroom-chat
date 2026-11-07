@@ -130,7 +130,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "Kamer vergeten"
+      "forget": "Kamer vergeten",
+      "banned": "Je bent verbannen uit deze kamer."
     },
     "userRoomProfile": {
       "editProfile": "Profiel bewerken"

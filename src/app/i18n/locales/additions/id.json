@@ -127,7 +127,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "Lupakan ruang"
+      "forget": "Lupakan ruang",
+      "banned": "Anda dilarang masuk ke ruang ini."
     },
     "userRoomProfile": {
       "editProfile": "Edit profil"

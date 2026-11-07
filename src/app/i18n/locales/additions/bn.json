@@ -130,7 +130,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "রুম ভুলে যান"
+      "forget": "রুম ভুলে যান",
+      "banned": "আপনাকে এই রুম থেকে নিষিদ্ধ করা হয়েছে।"
     },
     "userRoomProfile": {
       "editProfile": "প্রোফাইল সম্পাদনা করুন"

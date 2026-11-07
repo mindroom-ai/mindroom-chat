@@ -142,7 +142,8 @@
       "newMessage": "⁨{{sender}}⁩: ⁨{{body}}⁩"
     },
     "roomCard": {
-      "forget": "نسيان الغرفة"
+      "forget": "نسيان الغرفة",
+      "banned": "أنت محظور من هذه الغرفة."
     },
     "userRoomProfile": {
       "editProfile": "تعديل الملف الشخصي"

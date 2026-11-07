@@ -3,7 +3,9 @@ import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from '
 import { Trans, useTranslation } from 'react-i18next';
 import {
   ClientEvent,
+  EventType,
   JoinRule,
+  Method,
   type Room,
   RoomEvent,
   RoomType,
@@ -30,6 +32,7 @@ import { getHomePath } from '../../routes/pathUtils';
 import { isRoomAlias } from '../../matrix/matrix';
 import { declineInvite } from '../../notifications/inbox/declineInvite';
 import { useAlive } from '../../lib/hooks/useAlive';
+import { isRecord } from '../../lib/isRecord';
 
 type JoinBeforeNavigateProps = {
   roomIdOrAlias: string;
@@ -178,28 +181,112 @@ function KnownRoomActions({ roomId }: { roomId: string }) {
   );
 }
 
+/** Who removed this account from the room (`name`) and why, when the removal says. */
+function RemovalLines({
+  by,
+  name,
+  reason,
+}: {
+  by: 'bannedBy' | 'kickedBy';
+  name?: string;
+  reason: unknown;
+}) {
+  const bold = { b: <b /> };
+  const hasReason = typeof reason === 'string' && reason.trim() !== '';
+  if (!name && !hasReason) return null;
+  return (
+    <Box direction="Column" gap="100">
+      {name && (
+        <Text size="T200">
+          <Trans
+            i18nKey={`sharedUi.userModeration.${by}` as const}
+            values={{ name }}
+            components={bold}
+          />
+        </Text>
+      )}
+      {hasReason && (
+        <Text size="T200">
+          <Trans i18nKey="sharedUi.userModeration.reason" values={{ reason }} components={bold} />
+        </Text>
+      )}
+    </Box>
+  );
+}
+
 /** Who removed this account from the room, and why, from its own member event. */
 function RemovalNote({ room }: { room: Room }) {
   const own = room.getMember(room.myUserId);
   const event = own?.events.member;
   const sender = event?.getSender();
   if (!own || !event || !sender || sender === own.userId) return null;
-  const reason = event.getContent().reason;
-  const by = own.membership === Membership.Ban ? 'bannedBy' : 'kickedBy';
-  const bold = { b: <b /> };
   return (
-    <Box direction="Column" gap="100">
-      <Text size="T200">
-        <Trans
-          i18nKey={`sharedUi.userModeration.${by}` as const}
-          values={{ name: getMemberDisplayName(room, sender) ?? sender }}
-          components={bold}
-        />
+    <RemovalLines
+      by={own.membership === Membership.Ban ? 'bannedBy' : 'kickedBy'}
+      name={getMemberDisplayName(room, sender) ?? sender}
+      reason={event.getContent().reason}
+    />
+  );
+}
+
+/** A ban as the account's own member event in the room tells it: who banned it, and why. */
+type Ban = { sender?: string; reason?: unknown };
+
+/**
+ * The account's member event in a room it is banned from, as the server keeps it: a banned former
+ * member may read the room's state as of its ban. The full event names who banned it (servers
+ * that ignore `format=event` answer the content alone). Undefined while it loads or when the
+ * server will not say.
+ */
+const useServerBan = (roomId: string, skip: boolean): Ban | undefined => {
+  const client = useMatrixClient();
+  const [ban, setBan] = useState<Ban>();
+  useEffect(() => {
+    if (skip) return undefined;
+    let current = true;
+    const path = `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+      EventType.RoomMember
+    )}/${encodeURIComponent(client.getSafeUserId())}`;
+    client.http
+      .authedRequest<unknown>(Method.Get, path, { format: 'event' })
+      .then((answer) => {
+        if (!current || !isRecord(answer)) return;
+        const content = isRecord(answer.content) ? answer.content : answer;
+        if (content.membership !== Membership.Ban) return;
+        setBan({
+          sender: typeof answer.sender === 'string' ? answer.sender : undefined,
+          reason: content.reason,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [client, roomId, skip]);
+  return ban;
+};
+
+/**
+ * Why there is no way in for an account banned from the room: it says so, and who banned it and
+ * why, from the room this device kept, else from the server.
+ */
+function BanNote({ roomId }: { roomId: string }) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { room } = useMyMembership(roomId);
+  const kept = room?.getMember(client.getSafeUserId())?.membership === Membership.Ban;
+  const fromServer = useServerBan(roomId, kept);
+  return (
+    <Box direction="Column" gap="200">
+      <Text size="T300" style={{ color: color.Critical.Main }}>
+        {t('sharedUi.roomCard.banned')}
       </Text>
-      {typeof reason === 'string' && reason.trim() && (
-        <Text size="T200">
-          <Trans i18nKey="sharedUi.userModeration.reason" values={{ reason }} components={bold} />
-        </Text>
+      {room && kept ? (
+        <RemovalNote room={room} />
+      ) : (
+        fromServer && (
+          <RemovalLines by="bannedBy" name={fromServer.sender} reason={fromServer.reason} />
+        )
       )}
     </Box>
   );
@@ -277,6 +364,8 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
     !invited && (joinRule === JoinRule.Knock || joinRule === ('knock_restricted' as JoinRule));
   // A space reads as one: its initials on a rounded square and "Space" beside the member count.
   const isSpace = summary.room_type === RoomType.Space;
+  const { membership: keptMembership } = useMyMembership(roomId);
+  const banned = summary.membership === Membership.Ban || keptMembership === Membership.Ban;
 
   return (
     <Box
@@ -324,7 +413,9 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
         </Text>
       )}
       <InvitedBy roomId={roomId} />
-      {blocked ? (
+      {banned ? (
+        <BanNote roomId={roomId} />
+      ) : blocked ? (
         <Text size="T300" style={{ color: color.Critical.Main }}>
           {t('sharedUi.roomCard.accessUnavailable')}
         </Text>

@@ -127,7 +127,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "방 잊기"
+      "forget": "방 잊기",
+      "banned": "이 방에서 차단되었습니다."
     },
     "userRoomProfile": {
       "editProfile": "프로필 편집"
