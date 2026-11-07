@@ -56,6 +56,7 @@ const getPairingErrorMessage = (error: unknown, t: TFunction): string => {
 
 function ConnectCard({ children }: { children: React.ReactNode }) {
   const persistentParticle = usePersistentParticleBackground();
+  const branding = deploymentBranding(useClientConfig());
 
   return (
     <Scroll variant="Background" visibility="Hover" size="300" hideTrack>
@@ -73,9 +74,11 @@ function ConnectCard({ children }: { children: React.ReactNode }) {
           <Header className={css.AuthHeader} size="600" variant="Surface" appearance="plain">
             <Box grow="Yes" alignItems="Center" gap="300">
               <BrandLogo className={css.AuthLogo} />
-              <Text size="H3" truncate>
-                {deploymentBranding(useClientConfig()).title}
-              </Text>
+              {branding.showTitle && (
+                <Text size="H3" truncate>
+                  {branding.title}
+                </Text>
+              )}
             </Box>
           </Header>
           <Box className={css.AuthCardContent} direction="Column" gap="500">

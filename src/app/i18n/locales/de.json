@@ -1276,7 +1276,7 @@
       "matchingUsers_other": "{{count}} passende Benutzer"
     },
     "mindRoomSplashScreen": {
-      "loading": "MindRoom Chat wird geladen"
+      "loading": "{{appName}} wird geladen"
     },
     "commands": {
       "CommandMe": "Aktionsnachricht senden",

@@ -222,11 +222,20 @@ export function AuthLayout() {
       <Surface as="main" className={classNames(css.AuthCard, glassOverBackdrop)}>
         <Header className={css.AuthHeader} size="600" variant="Surface">
           <Box grow="Yes" alignItems="Center" gap="300">
-            <BrandLogo className={css.AuthLogo} />
-            {/* The page's one heading; each page's own title is a paragraph under the server. */}
-            <Text as="h1" size="H3" truncate>
-              {branding.title}
-            </Text>
+            {/* The page's one heading; each page's own title is a paragraph under the server. An
+                empty title leaves the logo alone as the heading, named by its alt text. */}
+            {branding.showTitle ? (
+              <>
+                <BrandLogo className={css.AuthLogo} />
+                <Text as="h1" size="H3" truncate>
+                  {branding.title}
+                </Text>
+              </>
+            ) : (
+              <h1 className={css.AuthLogoHeading}>
+                <BrandLogo className={css.AuthLogo} />
+              </h1>
+            )}
           </Box>
         </Header>
         <Box className={css.AuthCardContent} direction="Column" gap="500">
