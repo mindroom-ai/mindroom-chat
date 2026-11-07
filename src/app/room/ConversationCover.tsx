@@ -6,6 +6,7 @@ import {
   useCallback,
   useLayoutEffect,
   useMemo,
+  useReducer,
   useRef,
   useState,
   useSyncExternalStore,
@@ -17,6 +18,7 @@ import { color } from 'folds';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { useInert } from '../lib/hooks/useInert';
+import { tabbablesOf } from '../lib/overlayFocus';
 import { conversationCoveredAtom } from '../navigation/conversationCover';
 import type { ConversationCover as PluginCover } from '../plugins/conversationCovers';
 import { isPluginEnabled } from '../plugins/pluginConfig';
@@ -44,39 +46,34 @@ const LAYER_STYLE: CSSProperties = {
   outline: 'none',
 };
 
-/** Whether a cover's condition holds in the room; one that throws does not. */
-const holds = ({ cover }: TaggedCover, room: Room): boolean => {
-  try {
-    return cover.covers(room) === true;
-  } catch {
-    return false;
-  }
+/** Where the focus is, and the page's selection, which holds the composer's caret. */
+const readFocus = () => {
+  const selection = document.getSelection();
+  return {
+    focused: document.activeElement,
+    caret: selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined,
+  };
 };
 
 type CoverLayerProps = {
   entry: TaggedCover;
   room: Room;
   conversationRef: RefObject<HTMLElement>;
-  onFailure: () => void;
+  onFailure: (thrown: unknown, componentStack?: string | null) => void;
 };
 
 /**
  * A cover over the conversation. While it shows, the conversation under it is inert, and read
  * receipts, typing notices and file drops wait (`conversationCoveredAtom`). The focus moves into it
- * as it shows, and goes back where it was when it goes, unless the person has moved it elsewhere.
+ * as it shows, Tab and Shift+Tab go round inside it, and the focus goes back where it was when it
+ * goes, unless the person has moved it elsewhere.
  */
-function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }: CoverLayerProps) {
+function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: CoverLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const setCovered = useSetAtom(conversationCoveredAtom);
-  // Where the focus was, and the page's selection, which holds the composer's caret (a click in the
-  // cover moves it): read as the cover first renders, before a field of its own takes the focus.
-  const [before] = useState(() => {
-    const selection = document.getSelection();
-    return {
-      focused: document.activeElement,
-      caret: selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined,
-    };
-  });
+  // Where the focus was (a click in the cover moves the caret): read as the cover first renders,
+  // before a field of its own takes the focus.
+  const [before] = useState(readFocus);
   // Before the focus effect: no longer inert when the focus moves back.
   useInert(conversationRef, true);
   useLayoutEffect(() => {
@@ -84,6 +81,9 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
     return () => setCovered(false);
   }, [setCovered]);
   useLayoutEffect(() => {
+    // A cover that took over from another (in the next room, or after one that failed) rendered
+    // while the focus was in that one, which has given the focus back by now.
+    if (!before.focused?.isConnected) Object.assign(before, readFocus());
     const layer = layerRef.current;
     if (layer && !layer.contains(document.activeElement)) layer.focus({ preventScroll: true });
     // Focus the person moved out of the cover stays there: once this commit is done, React gives
@@ -99,14 +99,34 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
     };
   }, [before]);
 
+  // Tab and Shift+Tab go round inside the cover: from its last control (or its first, or itself)
+  // to the other end, unless something in it took the key.
+  const keepTabInside = (event: KeyboardEvent) => {
+    const layer = layerRef.current;
+    if (!layer || event.defaultPrevented) return;
+    const controls = tabbablesOf(layer);
+    const first = controls[0];
+    const last = controls[controls.length - 1];
+    const active = document.activeElement;
+    const wrapTo = event.shiftKey
+      ? (active === layer || active === first) && (last ?? layer)
+      : (active === last || !last) && (first ?? layer);
+    if (!wrapTo) return;
+    event.preventDefault();
+    wrapTo.focus({ preventScroll: true });
+  };
+
   // Escape in the cover closes it when its plugin allows, unless something in it took the key or an
   // input method is composing.
   const closeOnEscape = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' || event.defaultPrevented || isComposingKey(event.nativeEvent))
-      return;
+    if (!cover.close || event.defaultPrevented || isComposingKey(event.nativeEvent)) return;
     event.preventDefault();
     event.stopPropagation();
-    cover.close?.(room);
+    try {
+      cover.close(room);
+    } catch (thrown) {
+      onFailure(thrown);
+    }
   };
 
   const { Component } = cover;
@@ -116,16 +136,14 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
       tabIndex={-1}
       data-conversation-cover
       style={LAYER_STYLE}
-      onKeyDown={cover.close ? closeOnEscape : undefined}
+      onKeyDown={(event) => {
+        if (event.key === 'Tab') keepTabInside(event);
+        else if (event.key === 'Escape') closeOnEscape(event);
+      }}
     >
       <ErrorBoundary
         fallback={null}
-        onError={(thrown: unknown, info) => {
-          // eslint-disable-next-line no-console
-          console.error(`[plugin ${tag}] its conversation cover failed`, thrown);
-          reportBoundaryError(pluginFailure(tag, thrown), info.componentStack);
-          onFailure();
-        }}
+        onError={(thrown: unknown, info) => onFailure(thrown, info.componentStack)}
       >
         {/* A component that loads its code waits here, not in place of the room. */}
         <Suspense fallback={null}>
@@ -139,9 +157,9 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
 /**
  * What client plugins draw over the room's conversation (docs/architecture.md "Client plugins"):
  * of the `conversationCovers` of the plugins config.json leaves on, the first in build order whose
- * condition holds, under the header and its slot. One that throws goes and is reported under its
- * plugin's tag, and the next whose condition holds shows instead; the view mounts this afresh in
- * each room, where the failed one tries again.
+ * condition holds, under the header and its slot. One that throws (its condition, subscription,
+ * close or component) goes and is reported under its plugin's tag, and the next whose condition
+ * holds shows instead; the view mounts this afresh in each room, where the failed one tries again.
  */
 export function ConversationCover({
   room,
@@ -161,30 +179,58 @@ export function ConversationCover({
       ),
     [config]
   );
-  const [failed, setFailed] = useState<readonly TaggedCover[]>([]);
+  // The covers that failed in this room, each taken away once it has.
+  const failedRef = useRef(new Set<TaggedCover>());
+  const [, refresh] = useReducer((count: number) => count + 1, 0);
+  const fail = useCallback(
+    (entry: TaggedCover, thrown: unknown, componentStack?: string | null) => {
+      failedRef.current.add(entry);
+      // eslint-disable-next-line no-console
+      console.error(`[plugin ${entry.tag}] its conversation cover failed`, thrown);
+      reportBoundaryError(pluginFailure(entry.tag, thrown), componentStack);
+      refresh();
+    },
+    []
+  );
 
   const subscribe = useCallback(
     (onChange: () => void) => {
-      const stops = enabled.map(({ cover }) => {
+      const stops = enabled.map((entry) => {
         try {
-          return cover.subscribe(room, onChange);
-        } catch {
+          return entry.cover.subscribe(room, onChange);
+        } catch (thrown) {
+          fail(entry, thrown);
           return undefined;
         }
       });
       return () =>
-        stops.forEach((stop) => {
+        stops.forEach((stop, index) => {
           try {
             stop?.();
-          } catch {
-            // A plugin that cannot stop listening only hears changes it no longer needs.
+          } catch (thrown) {
+            fail(enabled[index]!, thrown);
           }
         });
     },
-    [enabled, room]
+    [enabled, fail, room]
   );
+  // A condition is asked while the room renders, where it cannot fail its cover yet: what it threw
+  // waits for the commit.
+  const thrownRef = useRef(new Map<TaggedCover, unknown>());
+  const holds = (entry: TaggedCover): boolean => {
+    try {
+      return entry.cover.covers(room) === true;
+    } catch (thrown) {
+      thrownRef.current.set(entry, thrown);
+      return false;
+    }
+  };
+  useLayoutEffect(() => {
+    thrownRef.current.forEach((thrown, entry) => fail(entry, thrown));
+    thrownRef.current.clear();
+  });
   const shown = useSyncExternalStore(subscribe, () =>
-    enabled.find((entry) => !failed.includes(entry) && holds(entry, room))
+    enabled.find((entry) => !failedRef.current.has(entry) && holds(entry))
   );
 
   if (!shown) return null;
@@ -194,7 +240,7 @@ export function ConversationCover({
       entry={shown}
       room={room}
       conversationRef={conversationRef}
-      onFailure={() => setFailed((list) => [...list, shown])}
+      onFailure={(thrown, componentStack) => fail(shown, thrown, componentStack)}
     />
   );
 }

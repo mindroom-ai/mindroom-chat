@@ -33,6 +33,7 @@ const mocks = vi.hoisted(() => {
       <div>
         <p>{`${name} cover`}</p>
         <input aria-label={`${name} field`} />
+        <button type="button">{`${name} button`}</button>
       </div>
     ),
     ...extra,
@@ -45,9 +46,9 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
   reportBoundaryError: mocks.reportBoundaryError,
 }));
 
-// Plugins as a build lists them: `broken`, with a cover that throws once open and one whose
-// condition and subscription throw; `example`, with a cover Escape closes; and `other`, with a cover
-// Escape leaves and one that puts the focus in its own field.
+// Plugins as a build lists them: `broken`, with a cover that throws once open, one whose condition
+// throws, one whose subscription throws and one whose subscription's stop throws; `example`, with a cover Escape closes; `other`, with a cover
+// Escape leaves and one that puts the focus in its own field; and `faulty`, whose close throws.
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -64,8 +65,20 @@ vi.mock('../plugins/pluginEntries', () => ({
             covers: () => {
               throw new Error('no answer');
             },
+            subscribe: () => () => undefined,
+            Component: () => 'never shown',
+          },
+          {
+            covers: () => false,
             subscribe: () => {
               throw new Error('no listening');
+            },
+            Component: () => 'never shown',
+          },
+          {
+            covers: () => false,
+            subscribe: () => () => {
+              throw new Error('no stop');
             },
             Component: () => 'never shown',
           },
@@ -90,6 +103,19 @@ vi.mock('../plugins/pluginEntries', () => ({
           // A cover that puts the focus in its own field as it shows.
           mocks.cover('autofocus', {
             Component: () => <input aria-label="autofocus field" autoFocus />,
+          }),
+        ],
+      },
+    },
+    {
+      id: 'faulty',
+      version: '3.0.0',
+      plugin: {
+        conversationCovers: [
+          mocks.cover('faulty', {
+            close: () => {
+              throw new Error('no close');
+            },
           }),
         ],
       },
@@ -156,12 +182,59 @@ const covered = () => getDefaultStore().get(conversationCoveredAtom);
 
 describe('a conversation cover', () => {
   it('shows nothing while no condition holds, and leaves the conversation as it is', () => {
-    renderRoom();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { unmount } = renderRoom();
     expect(layer()).toBeNull();
     expect(conversation().inert).toBeFalsy();
     expect(covered()).toBe(false);
-    // The condition that throws covers nothing, and the room still renders.
+    // The covers whose condition, subscription or its stop throws cover nothing, and each is
+    // reported once.
     expect(screen.queryByText('never shown')).toBeNull();
+    const reported = () =>
+      mocks.reportBoundaryError.mock.calls.map(([error]) => (error as Error).message).sort();
+    expect(reported()).toEqual([
+      '[plugin broken@0.1.0] no answer',
+      '[plugin broken@0.1.0] no listening',
+    ]);
+    unmount();
+    expect(reported()).toEqual([
+      '[plugin broken@0.1.0] no answer',
+      '[plugin broken@0.1.0] no listening',
+      '[plugin broken@0.1.0] no stop',
+    ]);
+  });
+
+  it('keeps Tab and Shift+Tab inside the cover', () => {
+    // jsdom lays nothing out; the cover counts only controls that take up room.
+    vi.spyOn(HTMLElement.prototype, 'getClientRects').mockReturnValue([{}] as never);
+    renderRoom();
+    show('fixed');
+    const field = screen.getByRole('textbox', { name: 'fixed field' });
+    const button = screen.getByRole('button', { name: 'fixed button' });
+    // From the cover itself, or its first control, Shift+Tab goes round to its last control.
+    expect(fireEvent.keyDown(layer()!, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(document.activeElement).toBe(button);
+    field.focus();
+    expect(fireEvent.keyDown(field, { key: 'Tab', shiftKey: true })).toBe(false);
+    expect(document.activeElement).toBe(button);
+    // From its last control, Tab goes round to its first.
+    expect(fireEvent.keyDown(button, { key: 'Tab' })).toBe(false);
+    expect(document.activeElement).toBe(field);
+    // Between them, the browser moves the focus.
+    expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(true);
+  });
+
+  it("takes away a cover whose close throws on Escape, and reports it under its plugin's tag", () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    renderRoom();
+    show('faulty');
+    fireEvent.keyDown(layer()!, { key: 'Escape' });
+    expect(layer()).toBeNull();
+    expect(covered()).toBe(false);
+    expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '[plugin faulty@3.0.0] no close' }),
+      undefined
+    );
   });
 
   it('covers the conversation while its condition holds, out of reach, and moves the focus in and back', () => {
@@ -212,6 +285,18 @@ describe('a conversation cover', () => {
     show('autofocus');
     expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'autofocus field' }));
     show('autofocus', false);
+    expect(document.activeElement).toBe(composer());
+  });
+
+  it('gives the focus back also after one cover took over from another', () => {
+    renderRoom();
+    composer().focus();
+    show('fixed');
+    // Earlier in build order, it takes the place of the shown one, and then gives it back.
+    show('closable');
+    show('closable', false);
+    expect(layer()?.textContent).toContain('fixed cover');
+    show('fixed', false);
     expect(document.activeElement).toBe(composer());
   });
 

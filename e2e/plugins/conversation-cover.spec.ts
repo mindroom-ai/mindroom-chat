@@ -18,8 +18,7 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // button under the room header covers the conversation with "Example cover of <room name>", which
 // Escape closes. While the cover shows, the reader's client sends no read receipt for a message
 // that arrives, no typing notice (and ends the one it sent), attaches no dropped file, and keeps
-// the focus out of the conversation; closing it gives the focus back to the composer and restores
-// all four. Set PLUGIN_SHOTS=<directory> to save screenshots.
+// the focus in the cover; closing it gives the focus back to the composer and restores all four. Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'conversation-cover-password';
 const RUN = Date.now().toString(36);
@@ -143,15 +142,17 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await expect(timeline.getByText(`Arrived under the cover ${RUN}`)).toBeAttached({
       timeout: 60_000,
     });
-    // Typing in the cover does not tell the room. The conversation, between the button and the
-    // cover's field in the page, is out of Tab's reach either way.
+    // Typing in the cover does not tell the room. Tab and Shift+Tab go round inside the cover.
     const note = page.getByRole('textbox', { name: 'Example cover note' });
+    const closeButton = cover.getByRole('button', { name: 'Close example cover' });
     await note.fill('a note');
     await page.keyboard.type(' more');
     await page.keyboard.press('Shift+Tab');
-    await expect(opener).toBeFocused();
+    await expect(closeButton).toBeFocused();
     await page.keyboard.press('Tab');
     await expect(note).toBeFocused();
+    await page.keyboard.press('Tab');
+    await expect(closeButton).toBeFocused();
     await cover.getByRole('heading').click();
     expect(await focusInCover(page)).toBe(true);
     // A file dropped on the cover is not attached.
