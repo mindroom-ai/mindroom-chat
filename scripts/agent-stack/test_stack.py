@@ -1,4 +1,4 @@
-"""Tests of scripts/agent-stack/stack.py that need no backend: its configs, provider keys, usage summary and joins."""
+"""Tests of scripts/agent-stack/stack.py that need no backend."""
 
 from __future__ import annotations
 
@@ -270,10 +270,9 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(self.main("100", "status"), 2)
 
     def test_computers_bring_the_client_session_settings(self) -> None:
-        started: list[argparse.Namespace] = []
-        with mock.patch.object(stack, "up", lambda _slot, args: started.append(args) or {}):
+        with mock.patch.object(stack, "up", return_value={}) as up:
             self.assertEqual(self.main("5", "up", "--computers"), 0)
-        self.assertTrue(started[0].client_sessions)
+        self.assertTrue(up.call_args.args[1].client_sessions)
 
 
 class SlotTests(unittest.TestCase):
@@ -363,7 +362,7 @@ class WorkerImageTests(unittest.TestCase):
         git = ["git", "-C", str(self.checkout), "-c", "user.name=Test", "-c", "user.email=test@example.org"]
         for command in (["init", "-q"], ["add", "."], ["-c", "commit.gpgsign=false", "commit", "-qm", "worker"]):
             subprocess.run([*git, *command], check=True)
-        self.sha = subprocess.run([*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+        self.sha = stack.git(self.checkout, "rev-parse", "HEAD")
         (self.root / "bin").mkdir()
         (self.root / "bin" / "docker").write_text(FAKE_DOCKER)
         (self.root / "bin" / "docker").chmod(0o755)
