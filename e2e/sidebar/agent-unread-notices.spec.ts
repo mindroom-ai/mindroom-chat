@@ -7,13 +7,13 @@ import {
   createEncryptedAgentRoom,
   expect,
   openLobby,
+  openNewSession,
   readRouterWelcome,
-  routeClientConfig,
   routerToken,
   sendFromComposer,
-  signIn,
   test,
   uniqueWord,
+  type AgentStack,
 } from '../helpers/agentStack';
 
 // A room with a MindRoom agent is unread only for what its thread lists show. A notice that does
@@ -26,6 +26,14 @@ import {
 /** The room's row in the room list; `data-highlight` says whether it shows as unread. */
 const roomRow = (page: Page, name: string): Locator =>
   page.locator('[data-highlight]').filter({ has: page.getByRole('link', { name }) });
+
+/** The router sends a notice to the room, with the conversation mark when `marked`. */
+const sendNotice = (stack: AgentStack, roomId: string, body: string, marked: boolean) =>
+  sendRoomMessage(stack.homeserver, routerToken(stack), roomId, {
+    msgtype: 'm.notice',
+    body,
+    ...(marked ? { 'io.mindroom.conversation': true } : {}),
+  });
 
 test("an agent's notice makes its room unread only when marked", async ({ page, stack }) => {
   test.setTimeout(300_000);
@@ -46,15 +54,8 @@ test("an agent's notice makes its room unread only when marked", async ({ page, 
     });
   }
 
-  const agent = routerToken(stack);
-  const send = (roomId: string, body: string, marked: boolean) =>
-    sendRoomMessage(stack.homeserver, agent, roomId, {
-      msgtype: 'm.notice',
-      body,
-      ...(marked ? { 'io.mindroom.conversation': true } : {}),
-    });
-  await send(ids.unmarked, `${word} indexing finished`, false);
-  await send(ids.marked, `${word} weekly report`, true);
+  await sendNotice(stack, ids.unmarked, `${word} indexing finished`, false);
+  await sendNotice(stack, ids.marked, `${word} weekly report`, true);
 
   // The unmarked notice was sent first, so the client holds it once the marked one shows.
   const expectRooms = async () => {
@@ -111,9 +112,7 @@ test('a notice in an encrypted agent room leaves the room read once it decrypts'
     });
   }
 
-  const personPage = await (await browser.newContext({ storageState: undefined })).newPage();
-  await routeClientConfig(personPage, stack);
-  await signIn(personPage, stack, person);
+  const personPage = await openNewSession(browser, stack, {}, person);
   await personPage.goto(`/home/${encodeURIComponent(ids.sealed)}`, { timeout: 180_000 });
   await expect(composer(personPage)).toBeVisible({ timeout: 90_000 });
   await sendFromComposer(personPage, `/notice ${word} build finished`);
@@ -133,24 +132,29 @@ test('a notice in an encrypted agent room leaves the room read once it decrypts'
 
   // The anchor's marked notice was sent after the encrypted one, so the tester's client holds
   // both once the anchor room shows unread; the encrypted room then reads once its notice decrypts.
-  await sendRoomMessage(stack.homeserver, routerToken(stack), ids.anchor, {
-    msgtype: 'm.notice',
-    body: `${word} weekly report`,
-    'io.mindroom.conversation': true,
-  });
-  await expect(roomRow(page, rooms.anchor)).toHaveAttribute('data-highlight', 'true', {
-    timeout: 90_000,
-  });
-  let read = 0;
-  await expect
-    .poll(
-      async () => {
-        const shown = await roomRow(page, rooms.sealed).getAttribute('data-highlight');
-        read = shown === 'false' ? read + 1 : 0;
-        return read >= 3;
-      },
-      { timeout: 60_000, intervals: [1000], message: 'the encrypted room stays read' }
-    )
-    .toBe(true);
+  await sendNotice(stack, ids.anchor, `${word} weekly report`, true);
+  const expectSealedRead = async () => {
+    await expect(roomRow(page, rooms.anchor)).toHaveAttribute('data-highlight', 'true', {
+      timeout: 90_000,
+    });
+    let read = 0;
+    await expect
+      .poll(
+        async () => {
+          const shown = await roomRow(page, rooms.sealed).getAttribute('data-highlight');
+          read = shown === 'false' ? read + 1 : 0;
+          return read >= 3;
+        },
+        { timeout: 60_000, intervals: [1000], message: 'the encrypted room stays read' }
+      )
+      .toBe(true);
+  };
+
+  // Arriving live, and again after a reload, where the stored notice decrypts once more.
+  await expectSealedRead();
   await page.screenshot({ path: test.info().outputPath('unread-notices-encrypted.png') });
+  await page.reload({ timeout: 180_000 });
+  await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+  await expectSealedRead();
+  await page.screenshot({ path: test.info().outputPath('unread-notices-encrypted-reload.png') });
 });

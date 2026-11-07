@@ -166,19 +166,20 @@ export const signIn = async (
 };
 
 /**
- * A page signed in to the tester's account on a device of its own: a new session that has not been
- * verified and holds no room keys, so it cannot read encrypted rooms yet.
+ * A page signed in to an account (the tester's by default) on a device of its own: for the tester, a
+ * new session that has not been verified and holds no room keys, so it cannot read encrypted rooms yet.
  */
 export const openNewSession = async (
   browser: Browser,
   stack: AgentStack,
-  options: BrowserContextOptions
+  options: BrowserContextOptions,
+  account: { username: string; password: string } = stack.tester
 ): Promise<Page> => {
   // Playwright gives a new context the project's options it does not set, the tester's saved
   // session among them; a key set to undefined counts as set.
   const page = await (await browser.newContext({ storageState: undefined, ...options })).newPage();
   await routeClientConfig(page, stack);
-  await signIn(page, stack);
+  await signIn(page, stack, account);
   return page;
 };
 
