@@ -153,13 +153,13 @@ def ports(slot: int) -> dict[str, int]:
 
 
 def stack_root() -> Path:
-    """The root of the source trees, slots and locks, created when it is missing (owner-only, by main's umask). A root
-    that is not a directory, belongs to another user or that others may write to stops the script, untouched."""
+    """The root of the source trees, slots and locks, created owner-only when it is missing. A root that is not a
+    directory, belongs to another user or that others may write to stops the script, untouched."""
     # Not under $TMPDIR: `nix develop` gives each shell its own, and a slot's stack must be found
     # (and stopped by `scripts/e2e-slot.sh <slot> down`) from every shell on the machine.
     root = Path(os.environ.get("E2E_AGENT_STACK_ROOT") or "/tmp/mindroom-client-agents")
     with contextlib.suppress(FileExistsError):
-        root.mkdir(parents=True)
+        root.mkdir(mode=0o700, parents=True)
     info = root.lstat()
     if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.geteuid() or info.st_mode & 0o022:
         raise StackError(

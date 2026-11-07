@@ -352,10 +352,12 @@ class CommandLineTests(unittest.TestCase):
                 self.assertEqual(self.main("7", command), 0, command)
             self.assertEqual(self.mode(self.slot_dir), 0o700, command)
 
-    def test_a_missing_root_is_made_the_owners_only(self) -> None:
+    def test_a_missing_root_is_made_the_owners_only_whatever_the_umask(self) -> None:
         root = self.root / "new" / "agents"
+        # A umask that lets the group write, as many systems give their users.
+        os.umask(0o002)
         with mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": str(root)}):
-            self.assertEqual(self.main("7", "status"), 1)
+            self.assertEqual(stack.stack_root(), root)
         self.assertEqual(self.mode(root), 0o700)
 
     def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:

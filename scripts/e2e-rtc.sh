@@ -63,8 +63,8 @@ case "$action" in
     exit 1
     ;;
   down)
-    private_dir "$state"
     docker rm -f "$container" >/dev/null 2>&1 || true
+    private_dir "$state"
     if [ -s "$state/auth.pid" ]; then kill "$(cat "$state/auth.pid")" 2>/dev/null || true; fi
     rm -rf "$state"
     ;;
