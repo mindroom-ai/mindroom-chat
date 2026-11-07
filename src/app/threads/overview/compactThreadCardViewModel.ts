@@ -182,7 +182,12 @@ export const buildCompactThreadCardViewModelFromRecord = ({
         : replaceMatrixUserIdsWithDisplayNames(room, presentation.lastSenderDisplayName)
       : undefined) ??
     (previewSenderId ? getMxIdLocalPart(previewSenderId) ?? previewSenderId : undefined);
-  const previewText = lastSenderName
+  // A root nobody answered, which the card titles with its own text, says so rather than repeat it.
+  const repeatsTitle =
+    presentation.messageCount === 0 && !replyPreviewText && !presentation.summaryText;
+  const previewText = repeatsTitle
+    ? t?.('mindroomUi.threads.compactThreadCardViewModel.noRepliesYet') ?? 'No replies yet'
+    : lastSenderName
     ? `${lastSenderName}: ${truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT)}`
     : truncateText(latestPreviewText, PREVIEW_TEXT_LIMIT);
   const attentionState = getCompactThreadAttentionState({
