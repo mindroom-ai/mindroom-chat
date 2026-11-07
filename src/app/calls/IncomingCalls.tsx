@@ -96,7 +96,7 @@ function RingAlerts({
   return null;
 }
 
-function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
+export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
   const { t } = useTranslation();
   const line = useRingLine(room, ring);
   return (
