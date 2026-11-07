@@ -147,6 +147,21 @@ const setup = (lazyLoadMembers = false) => {
     mx.emit(ClientEvent.Event, event);
     return event;
   };
+  const message = (sender: string, body: string, id: string) =>
+    mx.emit(
+      ClientEvent.Event,
+      new MatrixEvent({
+        event_id: id,
+        type: 'm.room.message',
+        sender,
+        room_id: room.roomId,
+        content: {
+          msgtype: 'm.text',
+          body,
+          'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+        },
+      })
+    );
   return {
     mx,
     room,
@@ -163,6 +178,7 @@ const setup = (lazyLoadMembers = false) => {
     request,
     discover,
     ack,
+    message,
   };
 };
 afterEach(() => {
@@ -775,21 +791,7 @@ describe('model mutation acknowledgement', () => {
     const h = setup();
     await h.discover();
     expect(h.snapshot().override).toBeNull();
-    const message = (sender: string, body: string, id: string) =>
-      h.mx.emit(
-        ClientEvent.Event,
-        new MatrixEvent({
-          event_id: id,
-          type: 'm.room.message',
-          sender,
-          room_id: h.room.roomId,
-          content: {
-            msgtype: 'm.text',
-            body,
-            'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
-          },
-        })
-      );
+    const { message } = h;
     const asked = h.queued.length;
     message(viewer, '!model fast', '$typed');
     await flush();
@@ -810,6 +812,26 @@ describe('model mutation acknowledgement', () => {
     h.response(h.request(), { selection: { override: null, inherited: [] } });
     await flush();
     expect(h.snapshot().override).toBeNull();
+  });
+  it('shows the first answer before its window ends, and follows a !model typed inside it', async () => {
+    const h = setup();
+    h.controller.subscribe(h.room, '$root', () => {});
+    await flush();
+    h.response(h.request());
+    await flush();
+    // The chip shows the thread's selection at once rather than when the 12 s window ends.
+    expect(h.snapshot()).toMatchObject({ eligible: true, override: null, loading: true });
+    const asked = h.queued.length;
+    h.message(viewer, '!model fast', '$typed');
+    h.message(router, '✅ This thread now uses `fast`.', '$answer');
+    await flush();
+    expect(h.queued.length).toBe(asked + 1);
+    h.response(h.request(), { selection: { override: 'fast', inherited: [] } });
+    await flush();
+    expect(h.snapshot().override).toBe('fast');
+    // The answer from before the command never comes back when the window ends.
+    await vi.advanceTimersByTimeAsync(12000);
+    expect(h.snapshot()).toMatchObject({ eligible: true, override: 'fast', loading: false });
   });
   it('refreshes after timeout and prevents older discovery replacing acknowledged selection', async () => {
     const h = setup();
