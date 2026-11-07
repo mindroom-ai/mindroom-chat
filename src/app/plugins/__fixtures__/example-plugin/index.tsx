@@ -2,10 +2,12 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in.
-// Under the room header it shows "Example banner in <room name>". Like a plugin outside this
-// repository, it imports the app only through the client SDK.
+// Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
+// (public/mark.svg). Like a plugin outside this repository, it imports the app only through the
+// client SDK.
 import type { Room } from 'matrix-js-sdk';
 import {
+  pluginPublicUrl,
   usePluginConfig,
   usePluginTranslation,
   type ClientPlugin,
@@ -38,6 +40,13 @@ function Greeting({ event }: { event: PluginEvent }) {
 function RoomBanner({ room }: { room: Room }) {
   return (
     <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
+      <img
+        src={`${pluginPublicUrl('example')}mark.svg`}
+        alt=""
+        width={16}
+        height={16}
+        style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
+      />
       Example banner in {room.name}
     </div>
   );
