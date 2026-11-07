@@ -41,6 +41,7 @@ On phones the rail leaves out its own search and account buttons, which the bar 
   - A push or pop to any other page closes it. A replace keeps it as it was (a room's address clean-ups happen while it is out), except a replace that leaves a shown section page (an account restored from another tab); a section page that gives way without a navigation (a space left while it is shown) closes it too.
   - Activating a link inside the drawer closes it, also when the link leads to the URL already shown (a replace).
   - The menu button, a tap on the scrim, Escape (after a menu or dialog over it had the key) and a swipe toward the start edge on the panel close it.
+  - An alias address (`/#alias:server/`) shows no page until it turns into a room ID by a replace; that replace decides as the navigation that opened the alias would have (a push from Search closes the drawer, a space's alias still opens it at the space's page).
   - On first render it follows the same rule without motion.
 - Focus: opened with the menu button, the drawer takes the focus; brought out by a navigation, it leaves the focus to the page's own restoring; put away around the focus, it returns the focus to the menu button. Escape reaches it in the capture phase wherever the focus is. The menu button keeps one name ("Navigation"); `aria-expanded` says whether the drawer is out, and its unread dot is its description.
 - Edge swipes (`navigation/useEdgeSwipe.ts`) do nothing while the drawer is open.
