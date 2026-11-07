@@ -16,6 +16,7 @@ How to build the client, serve it, and point it at a homeserver and a MindRoom b
 | `version.json` | the build version, polled by running clients, whose service worker then installs a new deployment for the next start |
 | `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
 
+- `branding` in `config.json` puts a company's logo, name and footer on the sign-in pages without a new build ([`configuration.md`](configuration.md#branding)).
 - `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`).
 
 ## Serve
