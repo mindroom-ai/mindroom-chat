@@ -86,6 +86,8 @@ for (const [router, hashRouter] of [
   test(`the plugin's page opens a room and its thread, and links to them, with the ${router}`, async ({
     browser,
   }) => {
+    // Several page loads: the sign-in, the links and Back with the browser router, and the reload.
+    test.setTimeout(3 * 60_000);
     const { person, roomId, rootId, replyId } = seeded!;
     writeFileSync(
       join(build!, 'config.json'),
@@ -158,11 +160,13 @@ for (const [router, hashRouter] of [
       await page.evaluate(() => {
         (window as { beforeReload?: boolean }).beforeReload = true;
       });
+      const reloaded = page.waitForEvent('load');
       await page.getByRole('button', { name: 'Reload into the new version' }).click();
-      await expect
-        .poll(() => page.evaluate(() => (window as { beforeReload?: boolean }).beforeReload))
-        .toBeUndefined();
+      await reloaded;
       await expect(examplePage).toBeVisible({ timeout: 30_000 });
+      expect(
+        await page.evaluate(() => (window as { beforeReload?: boolean }).beforeReload)
+      ).toBeUndefined();
     } finally {
       await context.close();
       await server.close();

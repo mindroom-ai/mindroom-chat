@@ -74,6 +74,22 @@ describe('example plugin', () => {
     expect(view.getByText('Fill the window').getAttribute('href')).toBe('/p/example/window');
   });
 
+  it('links its room page to the room and to its thread under a router', async () => {
+    const page = plugin.pages?.find(({ path }) => path === 'rooms/:roomId/:threadId');
+    if (!page) throw new Error('the example plugin has no room page');
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <page.Component params={{ roomId: '!lobby:example.org', threadId: '$root:example.org' }} />
+      </MemoryRouter>,
+      { id: 'example', plugin }
+    );
+    const href = (name: string) => view.getByRole('link', { name }).getAttribute('href');
+    expect(href('Link to the room')).toBe('/home/!lobby%3Aexample.org');
+    expect(href('Link to the thread')).toBe(
+      '/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org'
+    );
+  });
+
   it('names the open room under the header', async () => {
     if (!Banner) throw new Error('the example plugin has nothing under the room header');
     const room = { roomId: '!lobby:example.org', name: 'Lobby' } as Room;
