@@ -57,10 +57,11 @@ describe('migrate-thread-tags script helpers', () => {
 
   // The client names a tag's sender unless the sender is the person the tag names or a MindRoom
   // agent on the viewer's homeserver, and the migration's writes come from the account running it,
-  // so the migration may write only what that account's view of the room keeps unchanged.
+  // so the migration may write only what keeps the tags the same on every member's homeserver.
   describe('whose writes keep the tags a room shows', () => {
     const ALICE = '@alice:example.org';
     const OPERATOR = '@operator:example.org';
+    const ROUTER = '@mindroom_router:example.org';
     const legacyResolved = (sender: string, setBy: string) => ({
       type: MINDROOM_THREAD_TAGS_EVENT,
       state_key: '$root',
@@ -80,10 +81,7 @@ describe('migrate-thread-tags script helpers', () => {
     });
 
     it('keeps the person when a MindRoom agent of the homeserver runs it', () => {
-      expect(resolvers([legacyResolved(ALICE, ALICE)], '@mindroom_router:example.org')).toEqual([
-        ALICE,
-        ALICE,
-      ]);
+      expect(resolvers([legacyResolved(ALICE, ALICE)], ROUTER)).toEqual([ALICE, ALICE]);
     });
 
     it('keeps the tags when every write names the account running it', () => {
@@ -96,17 +94,13 @@ describe('migrate-thread-tags script helpers', () => {
     it.each([OPERATOR, '@mindroom_helper:elsewhere.example'])(
       'would name the person a tag from %s claims, where the room shows its sender, even run by an agent',
       (sender) => {
-        expect(resolvers([legacyResolved(sender, ALICE)], '@mindroom_router:example.org')).toEqual([
-          sender,
-          ALICE,
-        ]);
+        expect(resolvers([legacyResolved(sender, ALICE)], ROUTER)).toEqual([sender, ALICE]);
       }
     );
 
     it('would name the agent running it to the members of another homeserver', () => {
-      const runAs = '@mindroom_router:example.org';
       const changed = (events: Parameters<typeof collectRoomState>[0]) => {
-        const collected = collectRoomState(events, runAs);
+        const collected = collectRoomState(events, ROUTER);
         return changedThreads(collected, buildMigrationPlans(collected));
       };
       const member = (userId: string, membership: string) => ({
