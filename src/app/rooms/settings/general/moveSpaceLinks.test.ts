@@ -177,8 +177,8 @@ describe('moveSpaceLinks', () => {
     );
   });
 
-  it('reports a child the new room could not list', async () => {
-    const { client } = fakeClient(
+  it('reports a child the new room could not list, which keeps its old parent', async () => {
+    const { client, sendStateEvent } = fakeClient(
       {
         '!old': fakeRoom({ 'm.space.child': { '!sub': { via: ['s'] } } }),
         '!sub': fakeRoom({ 'm.space.parent': { '!old': { via: ['s'], canonical: true } } }),
@@ -188,5 +188,6 @@ describe('moveSpaceLinks', () => {
     );
 
     await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual(['!sub']);
+    expect(sendStateEvent.mock.calls).not.toContainEqual(['!sub', 'm.space.parent', {}, '!old']);
   });
 });
