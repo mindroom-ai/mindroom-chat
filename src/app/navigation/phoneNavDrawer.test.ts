@@ -16,7 +16,7 @@ describe('nextPhoneNavDrawerOpen', () => {
     }
   });
 
-  it('stays as it was through a redirect, such as a space root to its lobby', () => {
+  it('stays as it was through an address clean-up elsewhere, such as an alias rewritten', () => {
     expect(nextPhoneNavDrawerOpen(true, false, 'REPLACE')).toBe(true);
     expect(nextPhoneNavDrawerOpen(false, false, 'REPLACE')).toBe(false);
   });

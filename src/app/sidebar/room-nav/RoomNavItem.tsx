@@ -179,10 +179,7 @@ function RoomNavOptions({
     const button = buttonRef.current;
     if (!menuOpen || !button) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.target !== button) return;
-      // Handled: Escape closes this menu only, not a drawer the list is in.
-      event.preventDefault();
-      onAnchorChange(undefined);
+      if (event.key === 'Escape' && event.target === button) onAnchorChange(undefined);
     };
     window.addEventListener('keydown', onKeyDown, true);
     return () => window.removeEventListener('keydown', onKeyDown, true);

@@ -122,7 +122,10 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     if (!panel) return undefined;
     let start: { x: number; y: number } | undefined;
     let last: { x: number; y: number } | undefined;
-    const closeOnLink = (event: Event) => {
+    const closeOnLink = (event: MouseEvent) => {
+      // Not a click that goes nowhere (a drag's end) or opens elsewhere (a modifier, a middle button).
+      if (event.defaultPrevented || event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       if (event.target instanceof Element && event.target.closest('a[href]')) setOpen(false);
     };
     const pointOf = (event: globalThis.TouchEvent) => {
