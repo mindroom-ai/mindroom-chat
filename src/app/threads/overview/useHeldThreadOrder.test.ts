@@ -160,6 +160,23 @@ describe('useHeldThreadOrder scrolling', () => {
     expect(view.scrollTop).toBe(250);
   });
 
+  it("does not move the list on top of another script's scroll, such as the list reopening on a card", () => {
+    withoutScrollAnchoring();
+    const ids = ['$c', '$b', '$a'];
+    const { view, show, writes } = list(ids, 150);
+    const { rerender } = renderHook(
+      ({ live }) => useHeldThreadOrder(live, false, { current: view }),
+      { initialProps: { live: ids } }
+    );
+    // A card lands above, and another script already scrolled by as much to keep its card in view.
+    show(['$d', ...ids]);
+    view.scrollTop = 250;
+    writes.length = 0;
+    rerender({ live: ['$d', ...ids] });
+    expect(writes).toEqual([]);
+    expect(view.scrollTop).toBe(250);
+  });
+
   it("leaves the cards in view to the browser's scroll anchoring where it has one", () => {
     vi.stubGlobal('CSS', { supports: () => true });
     const ids = ['$c', '$b', '$a'];
