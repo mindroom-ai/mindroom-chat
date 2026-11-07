@@ -10,11 +10,9 @@ import { ownDirectionLine, revealDirectionControls } from '../../ui/directional'
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
-import { useRoomOrder } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
 import { RoomNavItem } from '../room-nav/RoomNavItem';
-import { SubRoomRows, nestSubRooms, withSubRooms } from '../room-nav/SubRoomRows';
-import { chatRoomParentsAtom, roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
 import { JoinBeforeNavigate } from '../../rooms/join/JoinBeforeNavigate';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useResolvedRoomIdOrAlias } from '../../navigation/useResolvedRoomIdOrAlias';
@@ -37,7 +35,6 @@ import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
-import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
@@ -349,30 +346,26 @@ export function Space() {
   const spaceIdOrAlias = getCanonicalAliasOrRoomId(client, space.roomId);
   const lobbySelected = useMatch(SPACE_LOBBY_PATH) !== null;
 
-  const roomToParents = useAtomValue(roomToParentsAtom);
-  const chatRooms = useAtomValue(chatRoomParentsAtom);
   const roomsByName = useMemo(() => sortRoomIdsByName(client, ownRooms), [client, ownRooms]);
-  // The sub-rooms of the space's own rooms show under them, A to Z.
-  const tree = useMemo(
-    () =>
-      nestSubRooms(roomsByName, sortRoomIdsByName(client, spaceRooms), roomToParents, chatRooms),
-    [client, roomsByName, spaceRooms, roomToParents, chatRooms]
-  );
-  // Like Home: A to Z until the person drags a room, then their order.
-  const roomOrder = useRoomOrder(space.roomId, tree.top);
-  const shownRoomIds = useMemo(
-    () => withSubRooms(roomOrder.roomIds, tree),
-    [roomOrder.roomIds, tree]
-  );
-  const sortedRooms = useMemo(
-    () =>
-      // A collapsed category still shows the selected room, on its own.
-      roomsClosed ? shownRoomIds.filter((roomId) => roomId === selectedRoomId) : roomOrder.roomIds,
-    [shownRoomIds, roomOrder.roomIds, roomsClosed, selectedRoomId]
+  // The sub-rooms of the space's own rooms come from its rooms at any depth.
+  const spaceRoomsByName = useMemo(
+    () => sortRoomIdsByName(client, spaceRooms),
+    [client, spaceRooms]
   );
   const spaceRoomPath = (roomId: string) =>
     getSpaceRoomPath(spaceIdOrAlias, getCanonicalAliasOrRoomId(client, roomId));
-  useRoomListShortcuts(roomsClosed ? sortedRooms : shownRoomIds, selectedRoomId, spaceRoomPath);
+  const {
+    tree,
+    roomOrder,
+    listedRoomIds: sortedRooms,
+  } = useSubRoomList(
+    space.roomId,
+    roomsByName,
+    spaceRoomsByName,
+    roomsClosed,
+    selectedRoomId,
+    spaceRoomPath
+  );
   // A room's row, the same at top level and under the room it sits under.
   const rowProps = (room: Room) => ({
     room,

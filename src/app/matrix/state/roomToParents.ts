@@ -18,6 +18,7 @@ import {
 } from 'matrix-js-sdk';
 import { type RoomToParents, StateEvent } from '../types/room';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { isJoined } from './roomList';
 
 type RoomToParentsAction =
   /** `chatRooms`: the parents that are chat rooms, not Spaces. */
@@ -110,8 +111,6 @@ export const getSpaceChildIds = (space: Room): string[] =>
     .getStateEvents(StateEvent.SpaceChild)
     .filter((event) => hasVia(event.getContent()) && !!event.getStateKey())
     .map((event) => event.getStateKey() as string);
-
-const isJoined = (room: Room): boolean => matchesEnum(room.getMyMembership(), KnownMembership.Join);
 
 /** Whether `child` names `parentId` as its canonical parent (`m.space.parent`). */
 const namesParent = (child: Room, parentId: string): boolean => {
