@@ -26,7 +26,7 @@ const SYMBOLS = new Map(
 // Function names, which read as themselves.
 const FUNCTION_NAME =
   /^(?:(?:arc)?(?:sin|cos|tan|cot|sec|csc)h?|log|ln|lg|exp|lim|max|min|sup|inf|det|gcd|deg|dim|arg|ker|Pr)$/;
-// Commands whose argument, without markup of its own, reads as written: text, upright letters, a box.
+// Commands whose argument reads as written when it has no markup: text, upright letters, a box.
 const PLAIN_COMMAND = /^(?:text|textrm|mathrm|mathit|boxed)$/;
 // Commands that only size or tighten what they touch.
 const SILENT_COMMAND = /^(?:left|right|[bB]igg?[lr]?|displaystyle|limits|nolimits|!)$/;
@@ -45,7 +45,7 @@ type TexNode = string | TexNode[];
 const parseTex = (tex: string): TexNode[] | undefined => {
   const parents: TexNode[][] = [];
   let group: TexNode[] = [];
-  for (const [token] of tex.matchAll(/\\(?:[A-Za-z]+|[\s\S]?)|\s+|[\s\S]/gu)) {
+  for (const [token] of tex.matchAll(/\\(?:[A-Za-z]+|[\s\S])|\s+|[\s\S]/gu)) {
     if (token === '{') {
       const child: TexNode[] = [];
       group.push(child);
@@ -68,6 +68,10 @@ const isCommand = (node: TexNode | undefined, pattern: RegExp): boolean =>
 const hasMarkup = (node: TexNode | undefined): boolean =>
   Array.isArray(node) ? node.some(hasMarkup) : node === '^' || node === '_' || isCommand(node, /./);
 
+// A letter, digit, group or command, which would run into a function name beside it.
+const runsIntoName = (node: TexNode | undefined): boolean =>
+  typeof node === 'string' ? /^[\p{L}\p{N}\\]/u.test(node) : node !== undefined;
+
 // A part of more than one character keeps its extent in parentheses, unless it is a number.
 const part = (text: string): string => {
   const trimmed = text.trim();
@@ -75,21 +79,23 @@ const part = (text: string): string => {
 };
 
 /**
- * The formula as plain text, or `undefined` when any of it has no exact reading here: a command
- * other than those above, a missing or empty argument, a script that is a lone sign, a root with an
- * index, a mixed number, a line break, a comment, a stray `&`, `#` or `$`, braces that do not
- * pair, or nothing to read. A fraction
- * always keeps parentheses (`(a/b)`), and so do a root's radicand (`√(x)`) and a bare script that
- * anything but a space, a sign, a closing bracket or another script follows (`x^(2)3`).
+ * The formula as plain text where its reading is exact: symbols and function names read as
+ * themselves, text and sizes lose their commands, and `^` and `_` stay. A fraction always keeps
+ * parentheses (`(a/b)`), and so do a root's radicand (`√(x)`) and a bare script that anything but a
+ * space, a sign, a closing bracket or another script follows (`x^(2)3`). `undefined` when any of it
+ * has no exact reading here: a command other than those above, a missing or empty argument, a
+ * script that is a lone sign, a root with an index, a mixed number, a line break, a comment, a
+ * stray `&`, `#` or `$`, braces that do not pair, or nothing to read.
  */
 const readFormula = (tex: string): string | undefined => {
-  const tree = MIXED_NUMBER.test(tex) ? undefined : parseTex(tex);
-  if (!tree) return undefined;
+  const tree = parseTex(tex);
+  if (!tree || MIXED_NUMBER.test(tex)) return undefined;
   let exact = true;
   const readNodes = (nodes: TexNode[]): string => {
     let index = 0;
-    const skipSpace = () => {
+    const skipSpace = (): TexNode | undefined => {
       if (nodes[index] === ' ') index += 1;
+      return nodes[index];
     };
     // The next node after a space; a missing or empty argument has no exact reading.
     const argument = (): string => {
@@ -114,21 +120,15 @@ const readFormula = (tex: string): string | undefined => {
         isCommand(node, SPACE_COMMAND)
       );
     };
-    // Whether a letter, digit, group or command follows, which would run into a function name.
-    const joins = (): boolean => {
-      const node = next();
-      return typeof node === 'string' ? /^[\p{L}\p{N}\\]/u.test(node) : node !== undefined;
-    };
     // The next node, with the arguments of the command it names.
     const read = (): string => {
       const node = nodes[index++];
       if (node === undefined) return '';
       if (typeof node !== 'string') return readNodes(node);
       if (node === '^' || node === '_') {
-        const bare = argument().trim();
-        if (/^[!-/:-@[-`{-~]$/.test(bare)) exact = false;
-        const script = part(bare);
-        return node + (script === bare && !endsScript() ? `(${script})` : script);
+        const script = argument().trim();
+        if (/^[!-/:-@[-`{-~]$/.test(script)) exact = false;
+        return node + (part(script) === script && endsScript() ? script : `(${script})`);
       }
       if (node === '~') return ' ';
       if (/^[%&#$]$/.test(node)) exact = false;
@@ -139,20 +139,17 @@ const readFormula = (tex: string): string | undefined => {
         return `(${numerator}/${part(argument())})`;
       }
       if (name === 'sqrt') {
-        skipSpace();
-        if (nodes[index] === '[') exact = false;
+        if (skipSpace() === '[') exact = false;
         return `√(${argument().trim()})`;
       }
       if (FUNCTION_NAME.test(name) || (name === 'operatorname' && Array.isArray(nodes[index]))) {
         // Spaces keep a function apart from its neighbours (`a\cos\theta` reads `a cos θ`).
-        const before = nodes[index - 2];
+        const spaced = runsIntoName(nodes[index - 2]);
         const word = name === 'operatorname' ? read() : name;
-        const spaced = Array.isArray(before) || /^[\p{L}\p{N}\\]/u.test(before ?? '');
-        return `${spaced ? ' ' : ''}${word}${joins() ? ' ' : ''}`;
+        return `${spaced ? ' ' : ''}${word}${runsIntoName(next()) ? ' ' : ''}`;
       }
       if (PLAIN_COMMAND.test(name)) {
-        skipSpace();
-        if (hasMarkup(nodes[index])) exact = false;
+        if (hasMarkup(skipSpace())) exact = false;
         const content = argument();
         // A script after a box or text applies to all of it: `\boxed{1+2}^2` reads `(1+2)^2`.
         const following = nodes[index] === ' ' ? nodes[index + 1] : nodes[index];
@@ -160,10 +157,7 @@ const readFormula = (tex: string): string | undefined => {
       }
       if (SILENT_COMMAND.test(name)) {
         // `\left.` and `\right.` set no delimiter.
-        if (name === 'left' || name === 'right') {
-          skipSpace();
-          if (nodes[index] === '.') index += 1;
-        }
+        if ((name === 'left' || name === 'right') && skipSpace() === '.') index += 1;
         return '';
       }
       if (SPACE_COMMAND.test(name)) return ' ';
@@ -182,15 +176,14 @@ const readFormula = (tex: string): string | undefined => {
 
 /**
  * `strip`, the Markdown stripping of a one-line preview, applied to `text`, with each formula that
- * messages typeset (`$…$`, `$$…$$`) read as plain text where its reading is exact: the preview
- * shows `(a/b)` rather than `$\frac{a}{b}$`. Symbols and function names read as themselves, text
- * and sizes lose their commands, `^` and `_` stay, and parentheses keep each part of a fraction,
- * root or script together. Any other formula stays as written, and so does every formula of a body
- * whose code the tokenizer may not find: it pairs single backticks across lines and paragraphs,
- * which Markdown does not, so a body with other code, or with a line that leaves a backtick
- * unpaired, keeps its formulas as written. Formulas stand in as placeholders while `strip` runs, so
- * its Markdown rules never change them. The tokenizer also scans for links, several times the cost
- * of the rest of a preview, so only text that holds a formula goes through it.
+ * messages typeset (`$…$`, `$$…$$`) read as plain text where `readFormula` reads it exactly: the
+ * preview shows `(a/b)` rather than `$\frac{a}{b}$`. Any other formula stays as written, and so
+ * does every formula of a body whose code the tokenizer may not find: it pairs single backticks
+ * across lines and paragraphs, which Markdown does not, so a body with other code, or with a line
+ * that leaves a backtick unpaired, keeps its formulas as written. Formulas stand in as placeholders
+ * while `strip` runs, so its Markdown rules never change them. The tokenizer also scans for links,
+ * several times the cost of the rest of a preview, so only text that holds a formula goes through
+ * it.
  */
 export const stripPreviewMath = (text: string, strip: (text: string) => string): string => {
   if (
