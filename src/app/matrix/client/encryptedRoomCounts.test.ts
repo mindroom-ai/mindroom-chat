@@ -308,6 +308,85 @@ describe('unread counts of an encrypted room', () => {
     expect(f.totalCount()).toBe(1);
   });
 
+  // Regression (P2-e2ee-F001): the client's receipt on a reply the reader watched to its end
+  // names the reply's terminal edit, and the SDK passes over a receipt on an event no timeline
+  // holds. The reply, and every event of the thread before it, counted as unread when it
+  // decrypted after the server's last count: after a reload, on keys arriving late, and on a new
+  // session that has no keys. The server, and the client's own receipt, say it is read.
+  const readTerminalEdit = (ts: number) => ({
+    type: 'm.receipt',
+    content: { '$edit-done': { 'm.read': { [ME]: { ts, thread_id: ROOT } } } },
+  });
+
+  it('count no reply whose terminal edit the reader has a receipt on', async () => {
+    const f = await fixture(true);
+    await f.deliver(
+      [
+        encrypted(ROOT, ME, 1),
+        encrypted(REPLY, AGENT, 2, inThread),
+        encrypted('$edit-done', AGENT, 5, editsReply),
+      ],
+      [readTerminalEdit(6)]
+    );
+    await f.decrypt(f.find(ROOT), clear[ROOT]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$edit-done'), editContent('cancelled'));
+    expect(f.threadCount()).toBe(0);
+    expect(f.totalCount()).toBe(0);
+  });
+
+  it('count a reply finished after the receipt on an earlier reply's terminal edit', async () => {
+    const f = await fixture(true);
+    // The reader watched the first reply to its end, then left before the follow-up finished.
+    await f.deliver(
+      [
+        encrypted(ROOT, ME, 1),
+        encrypted(REPLY, AGENT, 2, inThread),
+        encrypted('$edit-done', AGENT, 5, editsReply),
+        encrypted('$follow-up', ME, 7, inThread),
+        encrypted('$reply-2', AGENT, 8, inThread),
+        encrypted('$edit-2-done', AGENT, 9, { rel_type: 'm.replace', event_id: '$reply-2' }),
+      ],
+      [readTerminalEdit(6)]
+    );
+    for (const id of [ROOT, REPLY, '$follow-up', '$reply-2']) {
+      await f.decrypt(f.find(id), id === ROOT || id === '$follow-up' ? clear[ROOT] : clear[REPLY]);
+    }
+    await f.decrypt(f.find('$edit-done'), editContent('completed'));
+    expect(f.threadCount()).toBe(0);
+    await f.decrypt(f.find('$edit-2-done'), {
+      ...editContent('completed'),
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply-2' },
+    });
+    expect(f.threadCount()).toBe(1);
+  });
+
+  it('count nothing a new session cannot decrypt before the receipt on a terminal edit', async () => {
+    const f = await fixture(true);
+    await f.deliver(
+      [
+        encrypted(ROOT, ME, 1),
+        encrypted(REPLY, AGENT, 2, inThread),
+        encrypted('$edit-done', AGENT, 5, editsReply),
+        encrypted('$title', AGENT, 6, inThread),
+      ],
+      [readTerminalEdit(7)]
+    );
+    for (const id of [ROOT, REPLY, '$edit-done', '$title']) await f.decrypt(f.find(id), undefined);
+    expect(f.threadCount()).toBe(0);
+    expect(f.totalCount()).toBe(0);
+  });
+
+  it('count no reply a new session cannot decrypt while it still streams', async () => {
+    const f = await fixture(true);
+    // The stream status of the reply's first message is in the clear; the server counts it not.
+    const pending = encrypted(REPLY, AGENT, 2, inThread);
+    pending.content['io.mindroom.stream_status'] = 'pending';
+    await f.deliver([encrypted(ROOT, ME, 1), pending]);
+    await f.decrypt(f.find(REPLY), undefined);
+    expect(f.threadCount()).toBe(0);
+  });
+
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
     // A reply in the room's main timeline (a room in room mode), read at its start.
