@@ -635,19 +635,21 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
       pressedPointer.current = evt.pointerType;
     };
+    const toolbarRef = useRef<HTMLDivElement>(null);
     // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
     // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the
-    // row and kept the toolbar open over the message above it.
+    // row and kept the toolbar open over the message above it. A tap on one of the toolbar's own
+    // buttons keeps it: Chromium focuses the button on the tap's mousedown, and a toolbar hidden
+    // then is gone before the click, so Reply did nothing.
     const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) => {
       const pointer = pressedPointer.current;
       pressedPointer.current = undefined;
+      const tapped =
+        evt.target === evt.currentTarget || !!toolbarRef.current?.contains(evt.target);
       setFocusInside(
-        isKeyboardFocus(evt.target) ||
-          pointer === undefined ||
-          (pointer !== 'mouse' && evt.target === evt.currentTarget)
+        isKeyboardFocus(evt.target) || pointer === undefined || (pointer !== 'mouse' && tapped)
       );
     };
-    const toolbarRef = useRef<HTMLDivElement>(null);
     // The inline editor has its own buttons, so the toolbar stays away while it is open.
     const toolbarVisible = !edit && (pointerInside || focusInside || !!menuAnchor || !!emojiAnchor);
     const useAuthentication = useMediaAuthentication();
