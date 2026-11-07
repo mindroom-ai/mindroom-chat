@@ -1,3 +1,5 @@
+import type { ComponentType } from 'react';
+import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
@@ -5,6 +7,8 @@ import { pluginEntries, type PluginEntry } from './pluginEntries';
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
+  /** Components shown under the room header, given the open room; each renders there or nothing. */
+  roomHeaderSlot?: readonly ComponentType<{ room: Room }>[];
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -12,10 +16,12 @@ export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly roomHeaderSlot: readonly ComponentType<{ room: Room }>[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
+  const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   return Object.freeze({
     id,
     tag: `${id}@${version}`,
@@ -25,6 +31,8 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
         : []
     ),
+    // Its slot renders each entry in a boundary, so one that is no component only fails there.
+    roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
   });
 };
 

@@ -3,14 +3,25 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const entries = vi.hoisted(() => {
   const renderer = { match: () => true, Component: (): null => null };
+  const banner = (): null => null;
+  const headerSlot = [banner];
   return {
     renderer,
+    banner,
+    headerSlot,
     list: [
-      { id: 'alpha', version: '1.0.0', plugin: { messageRenderers: 'not a list' } },
+      {
+        id: 'alpha',
+        version: '1.0.0',
+        plugin: { messageRenderers: 'not a list', roomHeaderSlot: banner },
+      },
       {
         id: 'beta',
         version: '2.1.0',
-        plugin: { messageRenderers: [renderer, null, { Component: (): null => null }] },
+        plugin: {
+          messageRenderers: [renderer, null, { Component: (): null => null }],
+          roomHeaderSlot: headerSlot,
+        },
       },
     ],
   };
@@ -35,6 +46,8 @@ describe('registeredPlugins', () => {
     // A contribution that is not a list counts as none, and so does a renderer without `match`.
     expect(plugins[0]?.messageRenderers).toEqual([]);
     expect(plugins[1]?.messageRenderers).toEqual([entries.renderer]);
+    expect(plugins[0]?.roomHeaderSlot).toEqual([]);
+    expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
   });
 
   it('is frozen when its module loads', async () => {
@@ -43,7 +56,10 @@ describe('registeredPlugins', () => {
     for (const plugin of plugins) {
       expect(Object.isFrozen(plugin)).toBe(true);
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
+      expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
     }
+    // The plugin's own list stays as it was.
+    expect(Object.isFrozen(entries.headerSlot)).toBe(false);
   });
 
   it('lists none for a load whose address says ?plugins=off', async () => {
