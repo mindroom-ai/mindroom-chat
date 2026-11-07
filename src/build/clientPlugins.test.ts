@@ -458,19 +458,23 @@ describe('packages the app shares with plugins', () => {
     expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));
   });
 
+  /** A dev server with the plugins MINDROOM_CLIENT_PLUGINS (`plugins`) lists, without pre-bundling. */
+  const devServer = (plugins?: string) =>
+    createServer({
+      configFile: false,
+      root: ROOT,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins })],
+      server: { middlewareMode: true, hmr: false, watch: null },
+      optimizeDeps: { noDiscovery: true, include: [] },
+    });
+
   it("resolves them to the app's copy in the dev server too, for the plugin and the packages it installed", async () => {
     const dir = realpathSync(pluginDir(declaring(), { entry: false }));
     importing(dir, ['jotai', 'helper']);
     installStandIn(dir, 'jotai');
     installStandIn(dir, 'helper', "export * from 'jotai';\n");
-    const server = await createServer({
-      configFile: false,
-      root: ROOT,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      server: { middlewareMode: true, hmr: false, watch: null },
-      optimizeDeps: { noDiscovery: true, include: [] },
-    });
+    const server = await devServer(dir);
     const isAppCopy = (id: string | undefined) => id?.startsWith(appCopy('jotai')) ?? false;
     try {
       const index = path.join(dir, 'index.js');
@@ -486,6 +490,22 @@ describe('packages the app shares with plugins', () => {
         const resolve = server.config.createResolver({ asSrc: false, scan: true, isRequire });
         expect(isAppCopy(await resolve('jotai', helper)), `isRequire: ${isRequire}`).toBe(true);
       }
+    } finally {
+      await server.close();
+    }
+  });
+
+  it('leaves them as they were in the dev server without plugins', async () => {
+    const outside = realpathSync(emptyDir());
+    installStandIn(outside, 'jotai');
+    importing(outside, ['jotai']);
+    const server = await devServer();
+    try {
+      const resolved = await server.pluginContainer.resolveId(
+        'jotai',
+        path.join(outside, 'index.js')
+      );
+      expect(resolved?.id).toBe(path.join(outside, 'node_modules/jotai/index.js'));
     } finally {
       await server.close();
     }
