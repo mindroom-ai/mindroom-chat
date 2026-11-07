@@ -92,7 +92,8 @@ def tool_scenarios(files: list[Path]) -> dict[str, list[tuple[str, dict]]]:
 
 
 def has_tag(text: str, tag: str) -> bool:
-    return re.search(re.escape(tag) + r"(?![a-z_])", text) is not None
+    """Whether `text` holds the whole hashtag: #shell is not in #shell2 or #shell-check."""
+    return re.search(re.escape(tag) + r"(?![\w-])", text) is not None
 
 
 def text_of(content: object) -> str:

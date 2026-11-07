@@ -340,6 +340,8 @@ def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
                 [str(venv_bin / "mindroom"), "plugins", "check", "--json", str(directory)],
                 capture_output=True,
                 text=True,
+                # Provider keys reach the backend's process only (the docstring).
+                env={name: value for name, value in os.environ.items() if name not in PROVIDER_KEYS},
             )
             try:
                 report = json.loads(result.stdout)

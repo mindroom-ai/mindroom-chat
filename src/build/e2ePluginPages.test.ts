@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer as createHttpServer, get, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -19,7 +19,7 @@ const repository = fileURLToPath(new URL('../..', import.meta.url));
 let outside = '';
 let plugin = '';
 beforeEach(() => {
-  outside = mkdtempSync(path.join(tmpdir(), 'e2e-plugin-pages-'));
+  outside = realpathSync(mkdtempSync(path.join(tmpdir(), 'e2e-plugin-pages-')));
   plugin = path.join(outside, 'my-plugin');
   const pages = path.join(plugin, 'e2e', 'fixtures');
   mkdirSync(pages, { recursive: true });
@@ -46,6 +46,12 @@ describe('pluginDirectories', () => {
     ).toEqual([path.join(repository, 'e2e/fixtures/sample-plugin'), plugin]);
   });
 
+  it('names each directory by its real path, as Vite names the modules in it', () => {
+    const link = path.join(outside, 'linked-plugin');
+    symlinkSync(plugin, link);
+    expect(pluginDirectories(link, repository)).toEqual([plugin]);
+  });
+
   it('refuses a directory that is not there', () => {
     expect(() => pluginDirectories(path.join(outside, 'missing'), repository)).toThrow(
       `E2E_PLUGIN_DIRS names ${path.join(outside, 'missing')}, which is not a directory`
@@ -54,13 +60,18 @@ describe('pluginDirectories', () => {
 });
 
 describe('pluginPages', () => {
-  it('builds each page at its URL', () => {
-    expect(pluginPageInputs([plugin, path.join(repository, 'e2e/fixtures/sample-plugin')])).toEqual(
-      {
-        'plugin-my-plugin-page': '/e2e/plugins/my-plugin/page.html',
-        'plugin-sample-plugin-page': '/e2e/plugins/sample-plugin/page.html',
-      }
-    );
+  it('builds each page at its URL, under an input name no other page has', () => {
+    const fooBar = path.join(outside, 'foo-bar');
+    const foo = path.join(outside, 'foo');
+    mkdirSync(path.join(fooBar, 'e2e', 'fixtures'), { recursive: true });
+    mkdirSync(path.join(foo, 'e2e', 'fixtures'), { recursive: true });
+    writeFileSync(path.join(fooBar, 'e2e', 'fixtures', 'page.html'), '');
+    writeFileSync(path.join(foo, 'e2e', 'fixtures', 'bar-page.html'), '');
+    expect(pluginPageInputs([plugin, fooBar, foo])).toEqual({
+      'plugin-my-plugin/page': '/e2e/plugins/my-plugin/page.html',
+      'plugin-foo-bar/page': '/e2e/plugins/foo-bar/page.html',
+      'plugin-foo/bar-page': '/e2e/plugins/foo/bar-page.html',
+    });
   });
 
   it('refuses two directories of one name', () => {
@@ -111,6 +122,10 @@ describe('pluginPages', () => {
       expect(code).toContain('plugin-page-marker');
       expect(code).toContain('/node_modules/classnames/');
       expect(code).toContain('/src/app/lib/isRecord.ts');
+
+      writeFileSync(path.join(plugin, 'e2e', 'fixtures', 'data.json'), '{"from":"the plugin"}');
+      const data = await fetch(`${origin}/e2e/plugins/my-plugin/data.json`);
+      expect(await data.json()).toEqual({ from: 'the plugin' });
     });
 
     it('serves nothing outside the fixture pages', async () => {

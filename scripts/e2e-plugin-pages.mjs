@@ -3,7 +3,7 @@
 // directory's e2e/fixtures/ is served at /e2e/plugins/<directory name>/, by the dev server and, through the fixture
 // page build of `scripts/e2e-slot.sh --preview` (vite.config.js), by `vite preview`, as e2e/fixtures/ is served at
 // /e2e/fixtures/. A page's modules import this repository's packages by name and its sources from /src/.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { searchForWorkspaceRoot } from 'vite';
 
@@ -12,6 +12,7 @@ const URL_PREFIX = '/e2e/plugins/';
 
 /**
  * The directories $E2E_PLUGIN_DIRS names, separated like PATH; a relative one is relative to `repository`.
+ * Each is its real path, as the module IDs Vite resolves in it are.
  * @param {string | undefined} value
  * @param {string} repository
  */
@@ -24,7 +25,7 @@ export const pluginDirectories = (value, repository) =>
       if (!existsSync(directory) || !statSync(directory).isDirectory()) {
         throw new Error(`E2E_PLUGIN_DIRS names ${directory}, which is not a directory`);
       }
-      return directory;
+      return realpathSync(directory);
     });
 
 /**
@@ -40,7 +41,7 @@ export const pluginPageInputs = (directories) =>
         ? readdirSync(pages)
             .filter((file) => file.endsWith('.html'))
             .map((file) => [
-              `plugin-${name}-${file.slice(0, -'.html'.length)}`,
+              `plugin-${name}/${file.slice(0, -'.html'.length)}`,
               `${URL_PREFIX}${name}/${file}`,
             ])
         : [];
@@ -105,9 +106,11 @@ export const pluginPages = (directories) => {
     },
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
-        const [url = ''] = (req.url ?? '').split('?');
-        const page = url.endsWith('.html') ? pageOf(url) : undefined;
-        if (!page) {
+        const [url = '', ...query] = (req.url ?? '').split('?');
+        const page = pageOf(url);
+        if (!page || !page.file.endsWith('.html')) {
+          // A page's other files, modules and assets alike, are served from where they are.
+          if (page) req.url = ['/@fs' + page.file, ...query].join('?');
           next();
           return;
         }

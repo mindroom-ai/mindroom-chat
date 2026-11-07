@@ -403,7 +403,7 @@ SAMPLE_PLUGIN = stack.REPOSITORY / "e2e" / "fixtures" / "sample-plugin"
 # Stands in for the backend's `mindroom` command: `plugins check --json <dir>` answers what the directory's
 # check.json says, on stdout, with the exit code in check.code (MindRoom's own: 0 compatible, 1 failed).
 FAKE_MINDROOM = """#!/bin/sh
-echo "$*" >> "$(dirname "$0")/mindroom.log"
+echo "$* ${OPENAI_API_KEY:-without keys}" >> "$(dirname "$0")/mindroom.log"
 cat "$4/check.json"
 exit "$(cat "$4/check.code")"
 """
@@ -441,8 +441,10 @@ class PluginDirTests(unittest.TestCase):
         greeter = self.plugin("greeter", report, scenarios=True)
         pages_only = self.root / "pages-only"
         (pages_only / "e2e" / "fixtures").mkdir(parents=True)
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-secret"}):
+            checked = stack.check_plugin_dirs(self.venv_bin, [greeter, pages_only])
         self.assertEqual(
-            stack.check_plugin_dirs(self.venv_bin, [greeter, pages_only]),
+            checked,
             [
                 {
                     "dir": str(greeter),
@@ -453,8 +455,9 @@ class PluginDirTests(unittest.TestCase):
                 {"dir": str(pages_only), "plugin": None, "tools": [], "scenarios": None},
             ],
         )
-        # Only the directory with a plugin is checked.
-        self.assertEqual((self.venv_bin / "mindroom.log").read_text(), f"plugins check --json {greeter}\n")
+        # Only the directory with a plugin is checked, and the provider keys stay out of the check.
+        log = (self.venv_bin / "mindroom.log").read_text()
+        self.assertEqual(log, f"plugins check --json {greeter} without keys\n")
 
     def test_a_plugin_that_fails_its_check_refuses_the_start_with_the_detail(self) -> None:
         broken = self.plugin("broken", {"status": "failed", "detail": "Plugin module not found: tools.py"}, 1)
@@ -562,6 +565,15 @@ class StubScenarioTests(unittest.TestCase):
         self.assertEqual(kind, "text")
         self.assertIn("Finished **samplegreet** after 1 tool call(s)", text)
         self.assertIn("Hello Ada, from the sample plugin", text)
+
+    def test_a_hashtag_matches_only_whole(self) -> None:
+        greet = self.scenarios(
+            {"#greet": [["sample_greet", {"name": "Ada"}]], "#greet2": [["sample_greet", {"name": "Bob"}]]}
+        )
+        shell = self.scenarios({"#shell-check": [["sample_greet", {"name": "Cy"}]]})
+        scenarios = stub_model.tool_scenarios([greet, shell])
+        for text, name in (("#greet2", "Bob"), ("#greet, please", "Ada"), ("run #shell-check", "Cy")):
+            self.assertEqual(stub_model.plan(chat(text), scenarios), ("tool", "sample_greet", {"name": name}), text)
 
     def test_a_broken_file_is_named(self) -> None:
         for content in ("{not json", [["#a"]], {"#a": [["only-a-name"]]}, {"#a": 5}):

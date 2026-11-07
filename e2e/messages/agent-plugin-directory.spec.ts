@@ -28,8 +28,8 @@ test.describe.configure({ timeout: 300_000 });
 const REPOSITORY = fileURLToPath(new URL('../..', import.meta.url));
 const STACK_SCRIPT = join(REPOSITORY, 'scripts/agent-stack/stack.py');
 
-/** The directory of E2E_PLUGIN_DIRS that holds the sample plugin, as the stack names it. */
-const sampleDir = (process.env.E2E_PLUGIN_DIRS ?? '')
+/** The directory of E2E_PLUGIN_DIRS that holds the sample plugin, by its real path, as the stack names it. */
+const sampleEntry = (process.env.E2E_PLUGIN_DIRS ?? '')
   .split(delimiter)
   .filter(Boolean)
   .map((entry) => resolve(REPOSITORY, entry))
@@ -40,13 +40,15 @@ const sampleDir = (process.env.E2E_PLUGIN_DIRS ?? '')
       (JSON.parse(readFileSync(manifest, 'utf8')) as { name?: unknown }).name === 'e2e-sample'
     );
   });
+const sampleDir = sampleEntry === undefined ? undefined : realpathSync(sampleEntry);
 
 test("a plugin directory's scenario drives the stub to its plugin's tool", async ({
   page,
   stack,
 }) => {
   test.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
-  const dir = realpathSync(sampleDir ?? '');
+  test.skip(stack.model === 'real', "A plugin directory's scenarios drive the stub model only");
+  const dir = sampleDir ?? '';
   expect(stack.pluginDirs).toContainEqual({
     dir,
     plugin: 'e2e-sample',
