@@ -10,19 +10,25 @@ type ResizeCallback = (entries: ResizeObserverEntry[]) => void;
 const ROOM = '!room:example';
 
 const createScroller = () => {
-  const scrollListeners = new Set<() => void>();
+  const listeners = new Map<string, Set<() => void>>();
+  const listenersOf = (type: string) => {
+    if (!listeners.has(type)) listeners.set(type, new Set());
+    return listeners.get(type) as Set<() => void>;
+  };
   const scroller = {
     scrollHeight: 1000,
     clientHeight: 400,
     offsetHeight: 400,
     scrollTop: 600,
-    addEventListener: (_type: string, listener: () => void) => scrollListeners.add(listener),
-    removeEventListener: (_type: string, listener: () => void) => scrollListeners.delete(listener),
+    addEventListener: (type: string, listener: () => void) => listenersOf(type).add(listener),
+    removeEventListener: (type: string, listener: () => void) =>
+      listenersOf(type).delete(listener),
     scrollTo: vi.fn(({ top }: { top: number }) => {
       scroller.scrollTop = top;
       scroller.scroll();
     }),
-    scroll: () => scrollListeners.forEach((listener) => listener()),
+    dispatch: (type: string) => listenersOf(type).forEach((listener) => listener()),
+    scroll: () => scroller.dispatch('scroll'),
   };
   return scroller;
 };
@@ -121,6 +127,25 @@ describe('useFollowContentGrowth', () => {
     grow(80);
 
     expect(scroller.scrollTop).toBe(800);
+  });
+
+  it('keeps following a reply whose rows reach the list in a later pass than its frames', () => {
+    // Under load the list renders a reply's rows a pass late: the pass that follows the last
+    // frames' growth comes after the finishing edit, whose own growth then lands in a pass with
+    // no frame since the one before.
+    grow(34);
+    grow(35, { frame: false });
+
+    expect(scroller.scrollTop).toBe(669);
+  });
+
+  it('leaves a block the reader expands in place once the reply stopped streaming', () => {
+    grow(34);
+    scroller.dispatch('pointerdown');
+    grow(200, { frame: false });
+
+    expect(scroller.scrollTo).toHaveBeenCalledTimes(1);
+    expect(scroller.scrollTop).toBe(634);
   });
 
   it('keeps following when the scroll a shrinking composer causes is reported after the content grew', () => {
