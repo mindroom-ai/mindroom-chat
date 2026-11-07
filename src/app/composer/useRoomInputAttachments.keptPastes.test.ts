@@ -3,6 +3,7 @@ import React, { createRef } from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { createEditor, type Descendant } from 'slate';
+import { withInlineElements } from '../editor/utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
 import type { TUploadItem, TUploadMetadata } from '../matrix/state/upload';
@@ -69,7 +70,8 @@ afterEach(async () => {
 const openRestoredDraft = async () => {
   const store = createStore();
   store.set(roomIdToMsgDraftAtomFamily(getRoomInputDraftKey(USER, ROOM_ID)), draftWithPaste());
-  const editor = createEditor();
+  // The composer's editor treats a paste chip as an inline void element.
+  const editor = withInlineElements(createEditor());
   editor.children = [{ type: 'paragraph', children: [{ text: '' }] } as Descendant];
   const room = { roomId: ROOM_ID, name: 'Log review', hasEncryptionStateEvent: () => false };
   let feature!: ReturnType<typeof useRoomInputAttachments>;
