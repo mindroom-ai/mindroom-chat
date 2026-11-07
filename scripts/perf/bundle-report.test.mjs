@@ -1,11 +1,12 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 
 const script = fileURLToPath(new URL('./bundle-report.mjs', import.meta.url));
 
@@ -109,4 +110,52 @@ test('a budget fails the run only when a size is over it', () => {
   const over = run(dist, '--budget', budget);
   assert.equal(over.status, 1);
   assert.match(over.stdout, /FAIL initial JS gzip/);
+});
+
+test("with MINDROOM_CLIENT_PLUGINS, each plugin's minified and gzip size from the source maps", async () => {
+  const { SourceMapGenerator } = await import('source-map-js');
+  const dist = fakeDist();
+  const plugin = realpathSync(mkdtempSync(path.join(tmpdir(), 'bundle-report-plugin-')));
+  writeFileSync(
+    path.join(plugin, 'package.json'),
+    JSON.stringify({
+      name: 'example-plugin',
+      version: '1.0.0',
+      mindroomClientPlugin: { id: 'example', apiVersion: 1, entry: './index.js' },
+    })
+  );
+  writeFileSync(path.join(plugin, 'index.js'), 'export default {};\n');
+  // Listed by a link to its directory, as a build may list it: source maps name real paths.
+  const link = path.join(mkdtempSync(path.join(tmpdir(), 'bundle-report-link-')), 'plugin');
+  symlinkSync(plugin, link);
+  const env = { ...process.env, MINDROOM_CLIENT_PLUGINS: link };
+  const report = () =>
+    spawnSync(process.execPath, [script, dist, '--json', path.join(dist, 'report.json')], {
+      encoding: 'utf8',
+      env,
+    });
+  assert.match(report().stdout, /build with `npx vite build --sourcemap`/);
+
+  // The lazy chunk: the app's code, then the plugin's and a package it installed, on two lines.
+  const assets = path.join(dist, 'assets');
+  const lines = ['const app=1;const plug=2;', 'const own=3;'];
+  writeFileSync(path.join(assets, 'lazy-CCCCCCCC.js'), lines.join('\n'));
+  const map = new SourceMapGenerator({ file: 'lazy-CCCCCCCC.js' });
+  const from = (file) => path.relative(assets, file);
+  for (const [line, column, source] of [
+    [1, 0, from(path.join(dist, '../src/app/main.js'))],
+    [1, 12, from(path.join(plugin, 'index.js'))],
+    [2, 0, from(path.join(plugin, 'node_modules/own/index.js'))],
+  ]) {
+    map.addMapping({ generated: { line, column }, original: { line: 1, column: 0 }, source });
+  }
+  writeFileSync(path.join(assets, 'lazy-CCCCCCCC.js.map'), map.toString());
+
+  const result = report();
+  assert.equal(result.status, 0, result.stderr);
+  const own = 'const plug=2;const own=3;';
+  const expected = { raw: own.length, gzip: gzipSync(own, { level: 9 }).length };
+  const { summary } = JSON.parse(readFileSync(path.join(dist, 'report.json'), 'utf8'));
+  assert.deepEqual(summary.clientPlugins, { example: expected });
+  assert.match(result.stdout, /\nexample\s+0\.0 KiB\s+0\.0 KiB\n/);
 });

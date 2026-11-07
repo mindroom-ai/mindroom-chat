@@ -8,9 +8,10 @@
 // load later and are listed as other chunks; with the manifest of `vite build --manifest`, every
 // chunk is also listed under a name that stays the same between builds. --sources attributes
 // each initial chunk's bytes to packages and app folders through the build's source maps
-// (`vite build --sourcemap`).
+// (`vite build --sourcemap`). With MINDROOM_CLIENT_PLUGINS set as for the build, the source maps
+// also give the minified and gzip size of what each client plugin adds, its packages included.
 // --budget fails (exit 1) when a gzip size goes over the limits in the given JSON file.
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
@@ -161,7 +162,7 @@ if (existsSync(manifestFile)) {
   );
 }
 
-// Bytes of each generated chunk per source file, read from its source map's mappings.
+// The code of each generated chunk per source file, read from its source map's mappings.
 const attribute = async (file) => {
   const mapFile = `${file}.map`;
   try {
@@ -174,18 +175,19 @@ const attribute = async (file) => {
   const lines = readFileSync(file, 'utf8').split('\n');
   const owners = new Map();
   let previous = null;
-  const add = (source, bytes) => owners.set(source, (owners.get(source) ?? 0) + bytes);
+  const add = (source, line, from, to) =>
+    owners.set(source, (owners.get(source) ?? '') + lines[line - 1].slice(from, to));
   consumer.eachMapping((mapping) => {
     if (previous && previous.line === mapping.generatedLine)
-      add(previous.source, mapping.generatedColumn - previous.column);
-    else if (previous) add(previous.source, lines[previous.line - 1].length - previous.column);
+      add(previous.source, previous.line, previous.column, mapping.generatedColumn);
+    else if (previous) add(previous.source, previous.line, previous.column);
     previous = {
       line: mapping.generatedLine,
       column: mapping.generatedColumn,
       source: mapping.source ?? '(none)',
     };
   });
-  if (previous) add(previous.source, lines[previous.line - 1].length - previous.column);
+  if (previous) add(previous.source, previous.line, previous.column);
   return owners;
 };
 const group = (source) => {
@@ -201,14 +203,47 @@ if (sourcesFlag >= 0) {
     // eslint-disable-next-line no-await-in-loop
     const owners = await attribute(path.join(dist, row.file));
     if (!owners) continue;
-    for (const [source, bytes] of owners)
-      groups.set(group(source), (groups.get(group(source)) ?? 0) + bytes);
+    for (const [source, code] of owners)
+      groups.set(group(source), (groups.get(group(source)) ?? 0) + code.length);
   }
   const ranked = [...groups].sort((a, b) => b[1] - a[1]);
   summary.initialSources = Object.fromEntries(ranked);
   console.log(`\nInitial JS by package or app folder (minified bytes), top 40:`);
   for (const [name, bytes] of ranked.slice(0, 40))
     console.log(`${name.padEnd(58)} ${kb(bytes).padStart(12)}`);
+}
+
+// What each client plugin adds: the code of every chunk whose source is in the plugin's directory.
+if (process.env.MINDROOM_CLIENT_PLUGINS) {
+  const { readClientPlugins } = await import('../client-plugins.mjs');
+  const plugins = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS).map(({ id, dir }) => ({
+    id,
+    root: `${realpathSync(dir)}/`,
+    code: '',
+  }));
+  let mapped = false;
+  for (const row of rows.filter((row) => row.file.endsWith('.js'))) {
+    const file = path.join(dist, row.file);
+    // eslint-disable-next-line no-await-in-loop
+    const owners = await attribute(file);
+    mapped ||= owners !== null;
+    for (const [source, code] of owners ?? []) {
+      const original = path.resolve(path.dirname(file), source);
+      const plugin = plugins.find(({ root }) => original.startsWith(root));
+      if (plugin) plugin.code += code;
+    }
+  }
+  if (mapped) {
+    summary.clientPlugins = Object.fromEntries(
+      plugins.map(({ id, code }) => [id, { raw: code.length, gzip: gzipSync(code, { level: 9 }).length }])
+    );
+    console.log(`\nClient plugins (minified JS, from the source maps):`);
+    console.log(`${'plugin'.padEnd(58)} ${'raw'.padStart(12)} ${'gzip'.padStart(11)}`);
+    for (const [id, { raw, gzip }] of Object.entries(summary.clientPlugins))
+      console.log(`${id.padEnd(58)} ${kb(raw).padStart(12)} ${kb(gzip).padStart(11)}`);
+  } else {
+    console.log('\nTo list what each client plugin adds, build with `npx vite build --sourcemap`.');
+  }
 }
 
 if (jsonOut) writeFileSync(jsonOut, `${JSON.stringify({ summary, rows }, null, 2)}\n`);

@@ -18,9 +18,9 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // scripts/client-plugins.mjs). A production build with a plugin in a directory outside the app,
 // which installed a stand-in matrix-js-sdk for its tests and one dependency of its own: its renderer
 // uses React hooks, TanStack Query's client, matrix-js-sdk and the app's Matrix client, and renders
-// a person's thread reply; the notices the build ships list its own dependency. A build with a
-// plugin that lists jotai under dependencies fails, naming the plugin and jotai. Set
-// PLUGIN_SHOTS=<directory> to save screenshots.
+// a person's thread reply; the notices the build ships list its own dependency, and the bundle
+// report its size. A build with a plugin that lists jotai under dependencies fails, naming the
+// plugin and jotai. Set PLUGIN_SHOTS=<directory> to save screenshots and the bundle report.
 const PASSWORD = 'shared-packages-password';
 const RUN = Date.now().toString(36);
 const SHARED_TEXT = 'Rendered with the shared packages';
@@ -67,7 +67,7 @@ const plugin = (
 
 /** Runs the production build with these plugins into `outDir`. */
 const buildWith = (plugins: string[], outDir: string) =>
-  spawnSync('npx', ['vite', 'build', '--outDir', outDir, '--emptyOutDir'], {
+  spawnSync('npx', ['vite', 'build', '--outDir', outDir, '--emptyOutDir', '--sourcemap'], {
     env: { ...process.env, MINDROOM_CLIENT_PLUGINS: plugins.join(',') },
     encoding: 'utf8',
     timeout: 9 * 60_000,
@@ -114,6 +114,7 @@ export default {
 `;
 
 let build: string | undefined;
+let sharedPlugin: string | undefined;
 let seeded: { person: DisposableUser; roomId: string; rootId: string; replyId: string } | undefined;
 
 test.beforeAll(async () => {
@@ -143,6 +144,7 @@ test.beforeAll(async () => {
       },
     }),
   });
+  sharedPlugin = shared;
   build = tempDir('mindroom-shared-packages-build-');
   const result = buildWith([shared], build);
   if (result.status !== 0) {
@@ -171,6 +173,24 @@ test("the notices the build ships list the plugin's own dependency", () => {
   expect(notices).toContain(
     `plugin-own-dep 1.0.0\nLicense: MIT\n\nFile LICENSE:\n\n${OWN_DEP_LICENSE}`
   );
+});
+
+test("the bundle report gives the plugin's minified and gzip size", () => {
+  const out = join(build!, 'bundle-report.json');
+  const result = spawnSync(
+    process.execPath,
+    ['scripts/perf/bundle-report.mjs', build!, '--json', out],
+    { env: { ...process.env, MINDROOM_CLIENT_PLUGINS: sharedPlugin! }, encoding: 'utf8' }
+  );
+  expect(result.status, result.stderr).toBe(0);
+  const directory = process.env.PLUGIN_SHOTS;
+  if (directory) writeFileSync(`${directory}/bundle-report.txt`, result.stdout);
+  const { summary } = JSON.parse(readFileSync(out, 'utf8')) as {
+    summary: { clientPlugins: Record<string, { raw: number; gzip: number }> };
+  };
+  expect(summary.clientPlugins.shared?.raw).toBeGreaterThan(0);
+  expect(summary.clientPlugins.shared?.gzip).toBeGreaterThan(0);
+  expect(result.stdout).toMatch(/\nClient plugins .*\n.*\nshared\s+\d+\.\d KiB\s+\d+\.\d KiB\n/);
 });
 
 test("a plugin's renderer uses React hooks, the app's Matrix client and its query client", async ({
