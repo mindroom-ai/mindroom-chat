@@ -366,7 +366,7 @@ describe('CallRow', () => {
     }
   );
 
-  it('stays live, as posted, on a device that knows no MindRoom server for the room', () => {
+  it('stays live, as posted, without Transcript, on a device that knows no MindRoom server for the room', () => {
     state.apiUrl = undefined;
     render(LIVE);
     inView(true);
@@ -374,7 +374,7 @@ describe('CallRow', () => {
     expect(state.polls).toHaveLength(0);
     expect(container.textContent).toContain('Call in progress');
     expect(button('Join')).toBeDefined();
-    expect(button('Transcript')).toBeDefined();
+    expect(button('Transcript')).toBeUndefined();
   });
 
   it('tells, with the live call, whether this device knows a MindRoom server for the room', () => {

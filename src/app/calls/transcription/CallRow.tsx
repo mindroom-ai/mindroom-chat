@@ -66,7 +66,7 @@ function EndedCallRow({ room, rowEvent, row }: RowProps) {
  * never edits the row of a call MindRoom no longer has (transcripts turned off, MindRoom down for
  * more than a day, the router gone): a read that says the room is not transcribed, or names no
  * live call or another one, shows the row as ended, without how long it lasted. A device that knows
- * no MindRoom server for the room reads nothing, and the row stays as posted.
+ * no MindRoom server for the room reads nothing: the row stays as posted, without Transcript.
  */
 function LiveCallRow({ room, row }: RowProps) {
   const { t } = useTranslation();
@@ -137,18 +137,20 @@ function LiveCallRow({ room, row }: RowProps) {
               <Text size="B300">{t('featureUi.call.prescreenControls.join')}</Text>
             </Button>
           )}
-          <Button
-            size="300"
-            radii="Pill"
-            variant="Secondary"
-            fill="Soft"
-            onClick={() => {
-              showRoom();
-              openTranscriptPanel(store, room.roomId);
-            }}
-          >
-            <Text size="B300">{t('featureUi.calls.transcript.transcript')}</Text>
-          </Button>
+          {serverKnown && (
+            <Button
+              size="300"
+              radii="Pill"
+              variant="Secondary"
+              fill="Soft"
+              onClick={() => {
+                showRoom();
+                openTranscriptPanel(store, room.roomId);
+              }}
+            >
+              <Text size="B300">{t('featureUi.calls.transcript.transcript')}</Text>
+            </Button>
+          )}
         </div>
       )}
     </div>
