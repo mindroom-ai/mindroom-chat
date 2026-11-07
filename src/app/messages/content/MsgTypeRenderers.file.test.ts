@@ -120,6 +120,32 @@ describe('MFile', () => {
     ).toEqual(['Open release-notes.txt', 'Download release-notes.txt']);
     renderer.unmount();
   });
+
+  it('shows a file name with its direction controls as code points and passes the name on as it is', () => {
+    const fileName = 'invoice\u202efdp.exe';
+    const passedOn: string[] = [];
+    const renderer = create(
+      React.createElement(MFile, {
+        content: {
+          msgtype: MsgType.File,
+          body: fileName,
+          url: 'mxc://example.org/invoice',
+          info: { mimetype: 'application/octet-stream', size: 2400 },
+        } as never,
+        renderFileContent: ({ body }) => {
+          passedOn.push(body);
+          return null;
+        },
+      })
+    );
+    const name = renderer.root.findByProps({ className: 'FileName' });
+    expect(name.props.title).toBe('invoice<U+202E>fdp.exe');
+    expect(JSON.stringify(renderer.toJSON())).toContain('invoice<U+202E>fdp.exe');
+    expect(JSON.stringify(renderer.toJSON())).not.toMatch(/\u202e/);
+    // Saving and opening keep the name the sender gave.
+    expect(passedOn).toEqual([fileName]);
+    renderer.unmount();
+  });
 });
 
 describe('MImage', () => {
