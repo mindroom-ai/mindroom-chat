@@ -20,10 +20,7 @@ const stubCatalogs = (held: string[] = []) => {
     if (held.includes(language)) {
       await new Promise<void>((resolve) => releases.set(language, resolve));
     }
-    return new Response(JSON.stringify(CATALOGS[language] ?? {}), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return Response.json(CATALOGS[language] ?? {});
   });
   vi.stubGlobal('fetch', fetchMock);
   return { fetchMock, release: (language: string) => releases.get(language)?.() };
@@ -86,7 +83,6 @@ describe('registered i18n namespaces', () => {
     i18n.on('languageChanged', changes);
 
     await registerNamespace(NAMESPACE, ENGLISH, async () => ({ greeting: 'Hallo' }));
-    i18n.off('languageChanged', changes);
 
     expect(translate('greeting')).toBe('Hallo');
     expect(changes).not.toHaveBeenCalled();
@@ -152,6 +148,23 @@ describe('registered i18n namespaces', () => {
     await i18n.changeLanguage('');
 
     expect(i18n.language).toBe('en');
+  });
+
+  it('finishes a change of language whose app catalog fails to load, in English', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/de.json')) return new Response('', { status: 404 });
+        throw new TypeError('Failed to fetch');
+      })
+    );
+
+    await i18n.changeLanguage('de');
+    expect(i18n.t('nav.home')).toBe('Home');
+    await i18n.changeLanguage('fr');
+
+    expect(i18n.language).toBe('fr');
+    expect(i18n.t('nav.home')).toBe('Home');
   });
 
   it('shows English for a language whose loader fails', async () => {
