@@ -31,6 +31,8 @@ type AccountMenuProps = {
   /** Opens the accounts dialog, which can also remove an account; absent with one account. */
   onManageAccounts?: () => void;
   onClose: () => void;
+  /** Where the menu opens: beside the rail (default) or below a phone's top bar. */
+  below?: boolean;
 };
 
 const twoLineRow = { blockSize: 'auto', minBlockSize: toRem(44), paddingBlock: config.space.S100 };
@@ -77,6 +79,7 @@ export function AccountMenu({
   onAddAccount,
   onManageAccounts,
   onClose,
+  below = false,
 }: AccountMenuProps) {
   const { t } = useTranslation();
   const nameId = useId();
@@ -198,5 +201,13 @@ export function AccountMenu({
     </FocusTrap>
   );
 
-  return <PopOut anchor={anchorRect} position="Right" align="End" offset={8} content={menu} />;
+  return (
+    <PopOut
+      anchor={anchorRect}
+      position={below ? 'Bottom' : 'Right'}
+      align="End"
+      offset={8}
+      content={menu}
+    />
+  );
 }

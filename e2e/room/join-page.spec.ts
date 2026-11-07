@@ -402,7 +402,9 @@ const checkPhoneBack = async (browser: Browser, label: string) => {
   await expect(join).toBeVisible({ timeout: 30_000 });
   await back.tap();
   await expect.poll(path).toBe(`/${space}`);
-  await expect(join).toHaveCount(0);
+  // The space's own page: its list out in the drawer over the lobby, whose cards offer Join.
+  await expect(page.getByTestId('resizable-page-nav')).toBeVisible();
+  await expect(main.locator('[data-lobby-entry]').first()).toBeAttached();
   expect(problems).toEqual([]);
   await page.context().close();
 };
