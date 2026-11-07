@@ -48,6 +48,7 @@ import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracke
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
 import { createBackfillScheduler, type BackfillScheduler } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
+import { saveUnopenedThreadEdits } from './unopenedThreadEditSaves';
 import {
   DEFAULT_PREFETCH_SCOPE,
   resolveRoomPrefetchTier,
@@ -224,6 +225,7 @@ export const createSyncEngine = ({
   let started = false;
   let liveMode = false;
   let unsubscribePrefetchConfig: (() => void) | undefined;
+  let stopUnopenedThreadEdits: (() => void) | undefined;
   const bindableWindow = getBindableWindow();
   const bindableDocument = getBindableDocument();
 
@@ -381,6 +383,11 @@ export const createSyncEngine = ({
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
     mx.on(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
     mx.on(MatrixEventEvent.Decrypted, handleDecrypted);
+    stopUnopenedThreadEdits = saveUnopenedThreadEdits(mx, (room, thread, edits) => {
+      if (!liveMode) return false;
+      effectivePersist.persistThreadEventCache(room, thread.id, edits, thread.rootEvent);
+      return true;
+    });
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
@@ -407,6 +414,8 @@ export const createSyncEngine = ({
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
       mx.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
+      stopUnopenedThreadEdits?.();
+      stopUnopenedThreadEdits = undefined;
       offline.stop();
       revokeCacheStoreWrites(sessionId);
 
