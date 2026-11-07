@@ -112,7 +112,7 @@ describe('thread previews of math', () => {
     );
     expect(preview('> ~~~\n> $\\frac{a}{b}$\n> ~~~\n\nand $x^2$')).toBe('$\\frac{a}{b}$ and $x^2$');
     expectKept('<code>$\\frac{a}{b}$</code> and $x^2$');
-    expect(preview('- ~~~\n  $\\frac{a}{b}$\n  ~~~\n\nThen $x^2$.')).toBe('$\\frac{a}{b}$ Then $x^2$.');
+    expect(preview('- ~~~\n  $\\frac{a}{b}$\n\nThen $x^2$.')).toBe('$\\frac{a}{b}$ Then $x^2$.');
     expect(preview('A backslash (`\\`) starts `$\\frac{a}{b}$`, shown as $\\frac{a}{b}$.')).toBe(
       'A backslash (\\) starts $\\frac{a}{b}$, shown as $\\frac{a}{b}$.'
     );
