@@ -86,6 +86,15 @@ const openMidStream = async (
     `samples after the load: ${JSON.stringify(samples)}`
   ).toEqual([]);
   const shown = samples.map(({ words }) => words).filter((words) => words > 0);
+  if (reload) {
+    // A reload paints what the page saved, which may trail the server's last edit; from there the
+    // reply only grows.
+    expect(
+      shown.filter((words, index) => index > 0 && words < shown[index - 1]),
+      `word counts after the load: ${shown.join(' ')}`
+    ).toEqual([]);
+    return;
+  }
   // Nothing much older than the edit the server had before the page loaded: the first paint may
   // trail it by a few words, never by an edit interval (5 s, 20 words).
   expect(Math.min(...shown), `word counts after the load: ${shown.join(' ')}`).toBeGreaterThan(
