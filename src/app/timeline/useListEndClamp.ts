@@ -30,7 +30,7 @@ export const listShrinkNotRendered = (
     .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
   const ledgerMargin = parseFloat(inner.style.marginTop) || 0;
   const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
-  const result = Math.max(0, reach - ledgerMargin - unmountedAfter);
+  const result = Math.max(0, reach - unmountedAfter);
   if (result > 30) {
     const w = window as unknown as { __ltfpLog?: unknown[] };
     (w.__ltfpLog ??= []).push({
