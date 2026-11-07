@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
+import type { Room } from 'matrix-js-sdk';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { JOBS_HOLD_MS, useJobsHeldBetweenCalls } from './useJobsHeldBetweenCalls';
+
+// Whether the agent's reply in the jobs' thread streams.
+let streaming = false;
+vi.mock('../event-store/threads/useThreadStreamingState', () => ({
+  useThreadStreamingState: () => streaming,
+  getThreadStreamingState: () => streaming,
+}));
 
 const job = (jobId: string): BackgroundJob => ({
   jobId,
@@ -18,7 +26,7 @@ let shown: string[] = [];
 let renderer: ReactTestRenderer | undefined;
 
 function Probe({ jobs, view }: { jobs: BackgroundJob[]; view: string | null }) {
-  shown = useJobsHeldBetweenCalls(jobs, view, (jobId) => jobId === 'sent').map(
+  shown = useJobsHeldBetweenCalls(jobs, view, (jobId) => jobId === 'sent', {} as Room).map(
     (held) => held.jobId
   );
   return null;
@@ -37,7 +45,29 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer?.unmount());
   renderer = undefined;
+  streaming = false;
   vi.useRealTimers();
+});
+
+it('lets the bar go as soon as the reply that ran the jobs finishes', () => {
+  streaming = true;
+  show([job('first')]);
+  show(NONE);
+  expect(shown).toEqual(['first']);
+  // The reply's final edit arrives; its thread no longer streams.
+  streaming = false;
+  show(NONE);
+  expect(shown).toEqual([]);
+});
+
+it('holds the last call while the reply still streams', () => {
+  streaming = true;
+  show([job('first')]);
+  show(NONE);
+  act(() => {
+    vi.advanceTimersByTime(JOBS_HOLD_MS - 1);
+  });
+  expect(shown).toEqual(['first']);
 });
 
 it('keeps the last call between two calls and shows the next one at once', () => {

@@ -44,7 +44,7 @@ export function BackgroundJobsBar({ room, threadId, canCancel }: BackgroundJobsB
   const roomJobs = useRoomBackgroundJobs(room);
   const sent = useSentCancels(room.roomId);
   const viewJobs = useMemo(() => jobsInView(roomJobs, threadId), [roomJobs, threadId]);
-  const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId));
+  const jobs = useJobsHeldBetweenCalls(viewJobs, threadId, (jobId) => sent.has(jobId), room);
   const [failures, setFailures] = useState<ReadonlyMap<string, Failure>>(new Map());
   const bar = useRef<HTMLDivElement>(null);
   const several = jobs.length > 1;
