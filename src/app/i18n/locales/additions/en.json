@@ -563,6 +563,13 @@
       "resize": "Resize computer panel",
       "close": "Close computer"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Resize {{label}}",
+        "close": "Close {{label}}",
+        "failed": "This panel stopped working."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Show or switch whether agents need a mention to start a conversation here (set/reset require a room admin)."

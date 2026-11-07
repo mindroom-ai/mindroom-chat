@@ -553,6 +553,13 @@
       "resize": "调整计算机面板大小",
       "close": "关闭计算机"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "调整{{label}}的大小",
+        "close": "关闭{{label}}",
+        "failed": "此面板已停止工作。"
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "显示或切换智能体在此开始对话是否需要被提及（设置/重置仅限房间管理员）。"

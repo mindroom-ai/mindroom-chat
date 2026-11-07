@@ -56,6 +56,17 @@ and always with --model real) transcribes with OpenAI's speech-to-text and has G
 `notes` model entry beside the stub models, or the real models' own `luna`), with OPENAI_API_KEY from the
 environment. `usage` and `down` count the notes model's tokens but not speech-to-text's cost: it has no `LLM usage`
 line in the backend log.
+
+$E2E_PLUGIN_DIRS names plugin directories, separated like PATH; a relative one is relative to this repository (in a
+scripts/e2e-slot.sh snapshot, to the snapshot). Each part of a directory is optional:
+  mindroom.plugin.json and its modules  a MindRoom plugin (MindRoom's docs/plugins.md). `mindroom plugins check --json`
+                                        checks it before the stack starts or is reused, and a failed check refuses the
+                                        start with its detail; the backend then loads it and the helper offers its tools.
+  e2e/stub-scenarios.json               more scenarios for the stub model (stub_model.py --scenarios).
+  e2e/fixtures/*.html                   fixture pages. The slot's Chat serves each directory at
+                                        /e2e-plugins/<directory name>/ (scripts/e2e-plugin-pages.mjs), so a page is at
+                                        /e2e-plugins/<directory name>/e2e/fixtures/<page>.html.
+e2e/fixtures/sample-plugin is one, which e2e/messages/agent-plugin-directory.spec.ts uses.
 """
 
 from __future__ import annotations
@@ -81,6 +92,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from matrix_http import http_json, register
 
 HERE = Path(__file__).resolve().parent
+REPOSITORY = HERE.parents[1]
 DEFAULT_CHECKOUT = "/home/basnijholt/Work/dev/mindroom"
 SERVER_NAME = "matrix.localhost"
 TESTER_PASSWORD = "agent-stack-password"
@@ -122,6 +134,9 @@ CALLS_EXTRA = "matrix_calls"
 # from the commit with this Dockerfile (docs/tools/worker-computer.md).
 DOCKER_EXTRA = "docker"
 WORKER_DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
+# The parts of a plugin directory that this script reads ($E2E_PLUGIN_DIRS, see the docstring).
+PLUGIN_MANIFEST = "mindroom.plugin.json"
+PLUGIN_SCENARIOS = "e2e/stub-scenarios.json"
 TRANSCRIPTION_MODES = ("stub", "real")
 # The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
 # model writes them, and a real-model stack has its own GPT-6 Luna write them.
@@ -328,6 +343,48 @@ def worker_image(checkout: Path, sha: str) -> str:
         if archive.wait() != 0 or build.returncode != 0:
             raise StackError(f"building {image} failed:\n{build.stderr[-3000:]}")
     return image
+
+
+def plugin_dir_paths() -> list[Path]:
+    """The directories $E2E_PLUGIN_DIRS names."""
+    entries = os.environ.get("E2E_PLUGIN_DIRS", "").split(os.pathsep)
+    return [(REPOSITORY / entry).resolve() for entry in entries if entry]
+
+
+def check_plugin_dirs(venv_bin: Path, directories: list[Path]) -> list[dict]:
+    """Each plugin directory as the state records it: its MindRoom plugin's name and tools, which
+    `mindroom plugins check --json` reports, and its scenario file. A plugin that fails the check refuses the start."""
+    checked = []
+    for directory in directories:
+        if not directory.is_dir():
+            raise StackError(f"E2E_PLUGIN_DIRS names {directory}, which is not a directory")
+        plugin, tools = None, []
+        if (directory / PLUGIN_MANIFEST).is_file():
+            result = subprocess.run(
+                [str(venv_bin / "mindroom"), "plugins", "check", "--json", str(directory)],
+                capture_output=True,
+                text=True,
+                # Provider keys reach the backend's process only (the docstring).
+                env={name: value for name, value in os.environ.items() if name not in PROVIDER_KEYS},
+            )
+            try:
+                report = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                # A MindRoom without --json says why on stderr only.
+                report = {"status": "failed", "detail": result.stderr.strip()[-3000:]}
+            if report.get("status") != "compatible":
+                raise StackError(f"the plugin in {directory} failed `mindroom plugins check`: {report.get('detail')}")
+            plugin, tools = report["name"], report["tools"]
+        scenarios = directory / PLUGIN_SCENARIOS
+        checked.append(
+            {
+                "dir": str(directory),
+                "plugin": plugin,
+                "tools": tools,
+                "scenarios": str(scenarios) if scenarios.is_file() else None,
+            }
+        )
+    return checked
 
 
 # Processes
@@ -569,8 +626,10 @@ def config_yaml(
     approval_expiry_days: float,
     calls: dict | None = None,
     computers: bool = False,
+    plugin_dirs: list[dict] | None = None,
     transcription: dict | None = None,
 ) -> str:
+    plugin_dirs = plugin_dirs or []
     agent_tools = """      - shell
       - scheduler
       - thread_summary
@@ -579,6 +638,10 @@ def config_yaml(
       - thread_model
       - chat_ui:
           enable_show_canvas: true"""
+    # The backend loads the plugin directories' plugins, and the helper offers their tools.
+    agent_tools += "".join(f"\n      - {tool}" for directory in plugin_dirs for tool in directory["tools"])
+    plugin_paths = "".join(f"  - path: {json.dumps(d['dir'])}\n" for d in plugin_dirs if d["plugin"])
+    plugins = f"plugins:\n{plugin_paths}" if plugin_paths else ""
     # A Worker Computer is a browser in a worker of one person and agent; every other tool stays in the backend.
     worker_defaults = "  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n" if computers else ""
     if computers:
@@ -654,7 +717,7 @@ room_defaults:
 
 timezone: UTC
 memory: none
-{calls_yaml(calls, transcription)}{voice_yaml(transcription, stub_url)}"""
+{plugins}{calls_yaml(calls, transcription)}{voice_yaml(transcription, stub_url)}"""
 
 
 SHELL_REVIEW = '''import json
@@ -869,11 +932,16 @@ def transcription_setting(args: argparse.Namespace, checkout: Path, sha: str) ->
 
 
 def started_with(
-    state: dict, args: argparse.Namespace, sha: str, homeserver: str, transcription: dict | None = None
+    state: dict,
+    args: argparse.Namespace,
+    sha: str,
+    homeserver: str,
+    plugin_dirs: list[dict] | None = None,
+    transcription: dict | None = None,
 ) -> bool:
-    """Whether a stack's state comes from a start with this model, calls, call transcripts, client sessions, computers
-    and approval expiry, of this commit, on this homeserver; a state without clientSessions or computers counts as one
-    started without them."""
+    """Whether a stack's state comes from a start with this model, calls, call transcripts, client sessions, computers,
+    approval expiry and plugin directories (as check_plugin_dirs reports them), of this commit, on this homeserver; a
+    state without clientSessions, computers or pluginDirs counts as one started without them."""
     return (
         state.get("model", "stub") == args.model
         and state.get("calls") == calls_setting(args)
@@ -881,9 +949,17 @@ def started_with(
         and state.get("clientSessions", False) == args.client_sessions
         and state.get("computers", False) == args.computers
         and state.get("approvalExpiryDays") == args.approval_expiry_days
+        and state.get("pluginDirs", []) == (plugin_dirs or [])
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
     )
+
+
+def backend_bin(checkout: Path, sha: str, args: argparse.Namespace) -> Path:
+    """The bin directory of the commit's environment, with the extras --calls (matrix_calls) and --computers (docker)
+    need."""
+    extras = (*((CALLS_EXTRA,) if args.calls else ()), *((DOCKER_EXTRA,) if args.computers else ()))
+    return prepare_source(checkout, sha, extras) / ".venv" / "bin"
 
 
 def up(slot: int, args: argparse.Namespace) -> dict:
@@ -897,11 +973,15 @@ def up(slot: int, args: argparse.Namespace) -> dict:
     sha = resolve_commit(checkout, args.ref)
     calls = calls_setting(args)
     transcription = transcription_setting(args, checkout, sha)
+    # Before the stack is reused or stopped: a broken plugin leaves a running stack as it is, and a plugin that gained
+    # a tool restarts it.
+    directories = plugin_dir_paths()
+    plugin_dirs = check_plugin_dirs(backend_bin(checkout, sha, args), directories) if directories else []
     slot_dir = stack_root() / f"slot-{slot}"
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
-        and started_with(state, args, sha, homeserver, transcription)
+        and started_with(state, args, sha, homeserver, plugin_dirs, transcription)
         and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
         and token_is_valid(homeserver, state.get("routerToken"))
     ):
@@ -927,7 +1007,7 @@ def up(slot: int, args: argparse.Namespace) -> dict:
         )
     stop(slot_dir)
     try:
-        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, transcription)
+        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, plugin_dirs, transcription)
     except BaseException:
         # Whatever this start launched stops; its logs stay in the slot directory until the next start.
         stop_processes(slot_dir)
@@ -943,14 +1023,14 @@ def start(
     port: dict[str, int],
     slot_dir: Path,
     keys: dict[str, str],
+    plugin_dirs: list[dict],
     transcription: dict | None,
 ) -> dict:
-    """Starts the stack; `keys` (paid models only) go to the backend's process environment and nowhere else."""
+    """Starts the stack with the checked `plugin_dirs`; `keys` (paid models only) go to the backend's process
+    environment and nowhere else."""
     calls = calls_setting(args)
-    extras = (*((CALLS_EXTRA,) if calls else ()), *((DOCKER_EXTRA,) if args.computers else ()))
-    source = prepare_source(checkout, sha, extras)
+    venv_bin = backend_bin(checkout, sha, args)
     image = worker_image(checkout, sha) if args.computers else None
-    venv_bin = source / ".venv" / "bin"
     real = args.model == "real"
     agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)
@@ -974,7 +1054,14 @@ def start(
     config_path = slot_dir / "config.yaml"
     config_path.write_text(
         config_yaml(
-            args.model, tester_id, stub_url, args.approval_expiry_days, calls, args.computers, transcription
+            args.model,
+            tester_id,
+            stub_url,
+            args.approval_expiry_days,
+            calls,
+            args.computers,
+            plugin_dirs,
+            transcription,
         )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
@@ -1018,6 +1105,7 @@ def start(
         "computers": args.computers,
         # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
         "approvalExpiryDays": args.approval_expiry_days,
+        "pluginDirs": plugin_dirs,
         "sha": sha,
         "checkout": str(checkout),
         "namespace": namespace,
@@ -1042,6 +1130,7 @@ def start(
                 state["stubRequests"],
                 "--tag",
                 str(slot_dir),
+                *(arg for d in plugin_dirs if d["scenarios"] for arg in ("--scenarios", d["scenarios"])),
             ],
             cwd=slot_dir,
             env=env,

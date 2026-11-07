@@ -553,6 +553,13 @@
       "resize": "컴퓨터 패널 크기 조절",
       "close": "컴퓨터 닫기"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "{{label}} 크기 조절",
+        "close": "{{label}} 닫기",
+        "failed": "이 패널이 작동을 멈췄습니다."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "여기서 에이전트가 대화를 시작하려면 멘션이 필요한지 표시하거나 변경합니다 (설정/초기화는 방 관리자 전용)."

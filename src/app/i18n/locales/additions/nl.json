@@ -563,6 +563,13 @@
       "resize": "Grootte van het computerpaneel wijzigen",
       "close": "Computer sluiten"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Grootte van {{label}} wijzigen",
+        "close": "{{label}} sluiten",
+        "failed": "Dit paneel werkt niet meer."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Toon of wijzig of agents hier een vermelding nodig hebben om een gesprek te beginnen (instellen/herstellen alleen kamerbeheerders)."

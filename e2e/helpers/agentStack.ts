@@ -23,7 +23,8 @@ import { matrixFetch, sendRoomMessage } from './matrix';
  * The first spec of a run starts the stack (a minute, several the first time a MindRoom commit is installed);
  * later specs reuse it until `python3 scripts/agent-stack/stack.py <slot> down` or `scripts/e2e-slot.sh <slot> down`.
  * The specs skip themselves when there is no MindRoom checkout (E2E_MINDROOM_CHECKOUT, default
- * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port.
+ * /home/basnijholt/Work/dev/mindroom) or no homeserver on the slot's port. E2E_PLUGIN_DIRS adds plugin
+ * directories to the stack (stack.py's docstring), and a stack started with other ones restarts.
  */
 
 /** One of the thread's two models: its config key, provider model ID and the name clients show. */
@@ -50,6 +51,11 @@ export type AgentStack = {
   /** The helper's voice calls (`--calls`), or null. */
   calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
   /**
+   * The plugin directories of E2E_PLUGIN_DIRS: each one's MindRoom plugin (its manifest name, or null without one),
+   * the tools the helper took from it, and its stub-model scenario file or null.
+   */
+  pluginDirs?: { dir: string; plugin: string | null; tools: string[]; scenarios: string | null }[];
+  /**
    * Call transcripts (`calls.transcripts`): `stub` speech-to-text is a stand-in that answers from
    * each recording's length, `real` is OpenAI's (`--transcription real`); and the model that writes
    * the notes. Null for a MindRoom without them.
@@ -65,7 +71,9 @@ export type MatrixEvent = {
   content: Record<string, unknown>;
 };
 
-const STACK_SCRIPT = fileURLToPath(new URL('../../scripts/agent-stack/stack.py', import.meta.url));
+export const STACK_SCRIPT = fileURLToPath(
+  new URL('../../scripts/agent-stack/stack.py', import.meta.url)
+);
 const EXIT_NO_CHECKOUT = 3;
 const EXIT_NO_HOMESERVER = 4;
 const EXIT_NO_KEYS = 5;

@@ -3,12 +3,9 @@ import { createStore, Provider } from 'jotai';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { getSettings, settingsAtom } from '../preferences/settings';
-import { RoomViewHeader } from './RoomViewHeader';
+import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import type { RoomViewMode } from '../navigation/roomViewMode';
-import {
-  createDefaultThreadFilterState,
-  type ThreadFilterState,
-} from '../event-store/threads/roomThreadOverviewModel';
+import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 
 const { view, screen, navigate } = vi.hoisted(() => ({
   view: {
@@ -72,8 +69,6 @@ vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
 vi.mock('../navigation/useRoomSettingsState', () => ({ useOpenRoomSettings: () => vi.fn() }));
-vi.mock('../calls/callStore', () => ({ useCallPanel: () => [false, vi.fn()] }));
-vi.mock('../members/useMembersDrawer', () => ({ useMembersDrawer: () => [false, vi.fn()] }));
 vi.mock('../schedules/RoomSchedulesButton', () => ({
   RoomSchedulesButton: () => null,
   RoomSchedulesMenuEntry: () => null,
@@ -103,15 +98,9 @@ const renderHeader = ({
   mode = 'compact',
   hidden = false,
   hasMindroomAgents = true,
-  threadId,
   threadFilterState = createDefaultThreadFilterState(),
-}: {
-  mode?: RoomViewMode;
-  hidden?: boolean;
-  hasMindroomAgents?: boolean;
-  threadId?: string;
-  threadFilterState?: ThreadFilterState;
-} = {}) => {
+  ...props
+}: RoomViewHeaderProps & { mode?: RoomViewMode; hidden?: boolean } = {}) => {
   act(() => renderer?.unmount());
   view.mode = mode;
   const store = createStore();
@@ -121,8 +110,8 @@ const renderHeader = ({
       <Provider store={store}>
         <RoomViewHeader
           hasMindroomAgents={hasMindroomAgents}
-          threadId={threadId}
           threadFilterState={threadFilterState}
+          {...props}
         />
       </Provider>
     );
@@ -207,17 +196,18 @@ describe('the room header view switch', () => {
   });
 });
 
+const buttons = (match: (node: ReactTestInstance) => boolean): ReactTestInstance[] =>
+  renderer?.root.findAll((node) => node.type === 'button' && match(node)) ?? [];
+
+const openMenu = () => {
+  const [more] = buttons((node) => node.props['aria-label'] === 'More Options');
+  if (!more) throw new Error('no More Options button');
+  act(() => {
+    more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+  });
+};
+
 describe("a phone's room header", () => {
-  const openMenu = () => {
-    const [more] =
-      renderer?.root.findAll(
-        (node) => node.type === 'button' && node.props['aria-label'] === 'More Options'
-      ) ?? [];
-    if (!more) throw new Error('no More Options button');
-    act(() => {
-      more.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
-    });
-  };
   const entry = (name: string): ReactTestInstance | undefined =>
     byData(name).find((node) => node.type === 'button');
 
@@ -308,5 +298,57 @@ describe("a phone's room header", () => {
     renderHeader();
     swipeFromLeftEdge();
     expect(navigate).not.toHaveBeenCalled();
+  });
+});
+
+describe("the room header's side panel controls", () => {
+  const PLUGIN_PANELS = [
+    { id: 'notes/panel', label: 'Notes' },
+    { id: 'tasks/panel', label: 'Tasks' },
+  ];
+  const textOf = (node: ReactTestInstance): string =>
+    node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
+  /** The room menu's plugin panel entries: label and whether each is checked. */
+  const panelEntries = () =>
+    buttons(
+      (node) =>
+        node.props.role === 'menuitemcheckbox' &&
+        PLUGIN_PANELS.some(({ label }) => textOf(node) === label)
+    ).map((node) => [textOf(node), node.props['aria-checked'] as boolean]);
+
+  it.each(['Desktop', 'Mobile'])(
+    "offers the plugins' panels in the room menu on %s, marking the one shown",
+    (size) => {
+      screen.size = size;
+      const onPanelToggle = vi.fn();
+      renderHeader({ pluginPanels: PLUGIN_PANELS, shownPanel: 'tasks/panel', onPanelToggle });
+      expect(panelEntries()).toEqual([]);
+
+      openMenu();
+      expect(panelEntries()).toEqual([
+        ['Notes', false],
+        ['Tasks', true],
+      ]);
+      const [notes] = buttons((node) => textOf(node) === 'Notes');
+      act(() => {
+        notes?.props.onClick();
+      });
+      expect(onPanelToggle).toHaveBeenCalledWith('notes/panel');
+      // Choosing an entry closes the menu.
+      expect(panelEntries()).toEqual([]);
+    }
+  );
+
+  it('names the members button after whether the members show', () => {
+    const onPanelToggle = vi.fn();
+    renderHeader({ shownPanel: 'members', onPanelToggle });
+    const [hide] = buttons((node) => node.props['aria-label'] === 'Hide Members');
+    act(() => {
+      hide?.props.onClick();
+    });
+    expect(onPanelToggle).toHaveBeenCalledWith('members');
+
+    renderHeader({ shownPanel: 'call', onPanelToggle });
+    expect(buttons((node) => node.props['aria-label'] === 'Show Members')).toHaveLength(1);
   });
 });

@@ -563,6 +563,13 @@
       "resize": "Größe des Computerbereichs ändern",
       "close": "Computer schließen"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Größe von {{label}} ändern",
+        "close": "{{label}} schließen",
+        "failed": "Dieser Bereich funktioniert nicht mehr."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Zeige oder wechsle, ob Agenten hier eine Erwähnung brauchen, um ein Gespräch zu beginnen (Setzen/Zurücksetzen nur Raumadministratoren)."

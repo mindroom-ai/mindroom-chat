@@ -11,6 +11,7 @@ import {
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
+import { isConversationNotice } from './conversationNotice';
 import {
   findThreadRootEvent,
   getPreferredVisibleThreadReplyEvents,
@@ -83,7 +84,9 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   const eventId = event?.getId();
   if (!event || !eventId) return false;
   if (!isVisibleThreadTextMessageEventType(event.getType())) return false;
-  if (isNoticeMessage(event) && !isCallRowEvent(event)) return false;
+  if (isNoticeMessage(event) && !isCallRowEvent(event) && !isConversationNotice(event)) {
+    return false;
+  }
   if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
   if (event.threadRootId && event.threadRootId !== eventId) return false;
   if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;

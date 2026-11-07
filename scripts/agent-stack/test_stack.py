@@ -1,8 +1,9 @@
-"""Tests of scripts/agent-stack/stack.py that need no backend."""
+"""Tests of scripts/agent-stack/stack.py and stub_model.py that need no backend."""
 
 from __future__ import annotations
 
 import argparse
+import asyncio
 import contextlib
 import io
 import json
@@ -20,6 +21,10 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import stack  # noqa: E402
+
+# The stub runs in the backend's environment, which has aiohttp; these tests reach it through a stand-in.
+with mock.patch.dict(sys.modules, {"aiohttp": mock.MagicMock()}):
+    import stub_model  # noqa: E402
 
 TESTER = "@tester_t1:matrix.localhost"
 STUB_URL = "http://127.0.0.1:29716/v1"
@@ -488,10 +493,10 @@ class TranscriptionTests(unittest.TestCase):
         sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
         state = {"model": "stub", "calls": None, "sha": sha, "homeserver": homeserver, "approvalExpiryDays": 0.0003}
         transcribed = {**state, "transcription": self.STUB}
-        self.assertTrue(stack.started_with(transcribed, up_args(), sha, homeserver, self.STUB))
-        self.assertFalse(stack.started_with(transcribed, up_args(), sha, homeserver, self.REAL))
+        self.assertTrue(stack.started_with(transcribed, up_args(), sha, homeserver, transcription=self.STUB))
+        self.assertFalse(stack.started_with(transcribed, up_args(), sha, homeserver, transcription=self.REAL))
         self.assertFalse(stack.started_with(transcribed, up_args(), sha, homeserver))
-        self.assertFalse(stack.started_with(state, up_args(), sha, homeserver, self.STUB))
+        self.assertFalse(stack.started_with(state, up_args(), sha, homeserver, transcription=self.STUB))
 
     def test_only_the_notes_model_is_priced_beside_stub_models(self) -> None:
         notes = json.dumps(
@@ -505,6 +510,217 @@ class TranscriptionTests(unittest.TestCase):
         self.assertAlmostEqual(summary["models"]["notes"]["usd"], round((1000 * 0.1 + 100 * 0.5) / 1e6, 4))
         self.assertTrue(stack.paid({"model": "stub", "transcription": self.REAL}))
         self.assertFalse(stack.paid({"model": "stub", "transcription": self.STUB}))
+
+
+SAMPLE_PLUGIN = stack.REPOSITORY / "e2e" / "fixtures" / "sample-plugin"
+SAMPLE_SCENARIOS = SAMPLE_PLUGIN / "e2e" / "stub-scenarios.json"
+
+# Stands in for the backend's `mindroom` command: `plugins check --json <dir>` answers what the directory's
+# check.json says, on stdout, with the exit code in check.code (MindRoom's own: 0 compatible, 1 failed).
+FAKE_MINDROOM = """#!/bin/sh
+echo "$* ${OPENAI_API_KEY:-without keys}" >> "$(dirname "$0")/mindroom.log"
+cat "$4/check.json"
+exit "$(cat "$4/check.code")"
+"""
+
+
+class PluginDirTests(unittest.TestCase):
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.venv_bin = self.root / "bin"
+        self.venv_bin.mkdir()
+        (self.venv_bin / "mindroom").write_text(FAKE_MINDROOM)
+        (self.venv_bin / "mindroom").chmod(0o755)
+
+    def plugin(self, name: str, report: dict, code: int = 0, scenarios: bool = False) -> Path:
+        directory = self.root / name
+        (directory / "e2e").mkdir(parents=True)
+        (directory / "mindroom.plugin.json").write_text(json.dumps({"name": name}))
+        (directory / "check.json").write_text(json.dumps(report))
+        (directory / "check.code").write_text(str(code))
+        if scenarios:
+            (directory / "e2e" / "stub-scenarios.json").write_text("{}")
+        return directory
+
+    def test_the_directories_come_from_the_environment_relative_to_this_repository(self) -> None:
+        value = os.pathsep.join(["e2e/fixtures/sample-plugin", str(self.root), ""])
+        with mock.patch.dict(os.environ, {"E2E_PLUGIN_DIRS": value}):
+            self.assertEqual(stack.plugin_dir_paths(), [SAMPLE_PLUGIN, self.root.resolve()])
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(stack.plugin_dir_paths(), [])
+
+    def test_a_checked_plugin_brings_its_name_tools_and_scenarios(self) -> None:
+        report = {"status": "compatible", "name": "greeter", "tools": ["greeter"], "hooks": [], "skills": []}
+        greeter = self.plugin("greeter", report, scenarios=True)
+        pages_only = self.root / "pages-only"
+        (pages_only / "e2e" / "fixtures").mkdir(parents=True)
+        with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-test-secret"}):
+            checked = stack.check_plugin_dirs(self.venv_bin, [greeter, pages_only])
+        self.assertEqual(
+            checked,
+            [
+                {
+                    "dir": str(greeter),
+                    "plugin": "greeter",
+                    "tools": ["greeter"],
+                    "scenarios": str(greeter / "e2e" / "stub-scenarios.json"),
+                },
+                {"dir": str(pages_only), "plugin": None, "tools": [], "scenarios": None},
+            ],
+        )
+        # Only the directory with a plugin is checked, and the provider keys stay out of the check.
+        log = (self.venv_bin / "mindroom.log").read_text()
+        self.assertEqual(log, f"plugins check --json {greeter} without keys\n")
+
+    def test_a_plugin_that_fails_its_check_refuses_the_start_with_the_detail(self) -> None:
+        broken = self.plugin("broken", {"status": "failed", "detail": "Plugin module not found: tools.py"}, 1)
+        with self.assertRaises(stack.StackError) as raised:
+            stack.check_plugin_dirs(self.venv_bin, [broken])
+        self.assertEqual(
+            str(raised.exception),
+            f"the plugin in {broken} failed `mindroom plugins check`: Plugin module not found: tools.py",
+        )
+
+    def test_a_check_without_json_refuses_the_start_with_its_error(self) -> None:
+        # A MindRoom from before `plugins check --json` prints a usage error on stderr only.
+        (self.venv_bin / "mindroom").write_text("#!/bin/sh\necho \"No such option: --json\" >&2\nexit 2\n")
+        old = self.plugin("old", {})
+        with self.assertRaises(stack.StackError) as raised:
+            stack.check_plugin_dirs(self.venv_bin, [old])
+        self.assertIn("failed `mindroom plugins check`: No such option: --json", str(raised.exception))
+
+    def test_a_directory_that_is_not_there_refuses_the_start(self) -> None:
+        with self.assertRaises(stack.StackError) as raised:
+            stack.check_plugin_dirs(self.venv_bin, [self.root / "missing"])
+        self.assertIn("E2E_PLUGIN_DIRS names", str(raised.exception))
+
+    def test_the_backend_loads_the_plugins_and_the_helper_offers_their_tools(self) -> None:
+        plugin_dirs = [
+            {"dir": "/plugins/greeter", "plugin": "greeter", "tools": ["greeter", "waver"], "scenarios": None},
+            {"dir": "/plugins/pages", "plugin": None, "tools": [], "scenarios": None},
+        ]
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, plugin_dirs=plugin_dirs)
+        self.assertIn('\nplugins:\n  - path: "/plugins/greeter"\n', config)
+        self.assertNotIn("/plugins/pages", config)
+        helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
+        self.assertIn("          enable_show_canvas: true\n      - greeter\n      - waver\n", helper)
+        self.assertIn("    tools: [shell]\n\nrouter:", scout)
+        self.assertNotIn("plugins:", stack.config_yaml("stub", TESTER, STUB_URL, 0.0003))
+
+    def test_a_running_stack_is_reused_only_with_the_plugin_dirs_it_started_with(self) -> None:
+        sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
+        plugin_dirs = [{"dir": "/plugins/greeter", "plugin": "greeter", "tools": ["greeter"], "scenarios": None}]
+        state = {
+            "model": "stub",
+            "calls": None,
+            "approvalExpiryDays": 0.0003,
+            "sha": sha,
+            "homeserver": homeserver,
+            "pluginDirs": plugin_dirs,
+        }
+        self.assertTrue(stack.started_with(state, up_args(), sha, homeserver, plugin_dirs))
+        self.assertFalse(stack.started_with(state, up_args(), sha, homeserver))
+        grown = [{**plugin_dirs[0], "tools": ["greeter", "waver"]}]
+        self.assertFalse(stack.started_with(state, up_args(), sha, homeserver, grown))
+        without = {key: value for key, value in state.items() if key != "pluginDirs"}
+        self.assertTrue(stack.started_with(without, up_args(), sha, homeserver))
+        self.assertFalse(stack.started_with(without, up_args(), sha, homeserver, plugin_dirs))
+
+    def test_a_broken_plugin_leaves_the_running_stack_alone(self) -> None:
+        with (
+            mock.patch.dict(os.environ, {"E2E_PLUGIN_DIRS": str(self.root), "E2E_AGENT_STACK_ROOT": str(self.root)}),
+            mock.patch.object(stack, "resolve_checkout", return_value=self.root),
+            mock.patch.object(stack, "http_json", return_value=(200, {})),
+            mock.patch.object(stack, "resolve_commit", return_value="a" * 40),
+            mock.patch.object(stack, "prepare_source", return_value=self.root) as prepare,
+            mock.patch.object(stack, "check_plugin_dirs", side_effect=stack.StackError("broken")) as check,
+            mock.patch.object(stack, "stop") as stop,
+            mock.patch.object(stack, "start") as start,
+        ):
+            with self.assertRaises(stack.StackError):
+                stack.up(42, up_args(calls="http://127.0.0.1:29542", computers=True, checkout=None, ref=None))
+        prepare.assert_called_once_with(self.root, "a" * 40, ("matrix_calls", "docker"))
+        check.assert_called_once_with(self.root / ".venv" / "bin", [self.root.resolve()])
+        stop.assert_not_called()
+        start.assert_not_called()
+
+
+TOOLS = [{"type": "function", "function": {"name": "sample_greet"}}]
+
+
+def chat(text: str, *later: dict) -> dict:
+    """A request whose person wrote `text`, with the sample plugin's tool, followed by `later` messages."""
+    return {"model": "stub-fast", "messages": [{"role": "user", "content": text}, *later], "tools": TOOLS}
+
+
+class StubScenarioTests(unittest.TestCase):
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+
+    def scenarios(self, content: object) -> Path:
+        path = self.root / f"scenarios-{len(list(self.root.iterdir()))}.json"
+        path.write_text(content if isinstance(content, str) else json.dumps(content))
+        return path
+
+    def test_a_file_adds_scenarios_next_to_the_built_in_ones(self) -> None:
+        override = self.scenarios({"#SHELL": [["run_shell_command", {"args": "echo replaced"}]]})
+        scenarios = stub_model.tool_scenarios([SAMPLE_SCENARIOS, override])
+        self.assertEqual(scenarios["#samplegreet"], [("sample_greet", {"name": "Ada"})])
+        self.assertEqual(scenarios["#shell"], [("run_shell_command", {"args": "echo replaced"})])
+        self.assertEqual(scenarios["#multi"], stub_model.TOOL_SCENARIOS["#multi"])
+
+    def test_a_file_scenario_calls_its_tool_and_then_reports_the_result(self) -> None:
+        scenarios = stub_model.tool_scenarios([SAMPLE_SCENARIOS])
+        self.assertEqual(
+            stub_model.plan(chat("please #samplegreet"), scenarios), ("tool", "sample_greet", {"name": "Ada"})
+        )
+        # A file's hashtag in the latest message decides over a built-in one earlier in the turn.
+        turn = chat("#shell", {"role": "user", "content": "now #samplegreet"})
+        self.assertEqual(stub_model.plan(turn, scenarios), ("tool", "sample_greet", {"name": "Ada"}))
+        result = {"role": "tool", "content": "Hello Ada, from the sample plugin"}
+        kind, text = stub_model.plan(chat("please #samplegreet", result), scenarios)
+        self.assertEqual(kind, "text")
+        self.assertIn("Finished **samplegreet** after 1 tool call(s)", text)
+        self.assertIn("Hello Ada, from the sample plugin", text)
+
+    def test_a_hashtag_matches_only_whole(self) -> None:
+        greet = self.scenarios(
+            {"#greet": [["sample_greet", {"name": "Ada"}]], "#greet2": [["sample_greet", {"name": "Bob"}]]}
+        )
+        shell = self.scenarios({"#shell-check": [["sample_greet", {"name": "Cy"}]]})
+        scenarios = stub_model.tool_scenarios([greet, shell])
+        for text, name in (("#greet2", "Bob"), ("#greet, please", "Ada"), ("run #shell-check", "Cy")):
+            self.assertEqual(stub_model.plan(chat(text), scenarios), ("tool", "sample_greet", {"name": name}), text)
+
+    def test_a_broken_file_is_named(self) -> None:
+        for content in ("{not json", [["#a"]], {"#a": [["only-a-name"]]}, {"#a": 5}):
+            path = self.scenarios(content)
+            with self.assertRaises(ValueError) as raised:
+                stub_model.tool_scenarios([path])
+            self.assertTrue(str(raised.exception).startswith(f"{path}: "), raised.exception)
+        with self.assertRaises(ValueError):
+            stub_model.tool_scenarios([self.root / "missing.json"])
+
+    def answer(self, scenario_files: list[Path], body: dict) -> dict:
+        """The stub's non-streamed answer to `body`, as it hands it to aiohttp."""
+        stub = stub_model.Stub(self.root / "requests.jsonl", scenario_files)
+        request = mock.Mock(json=mock.AsyncMock(return_value=body))
+        with mock.patch.object(stub_model, "web") as web:
+            asyncio.run(stub.completions(request))
+        return web.json_response.call_args.args[0]["choices"][0]["message"]
+
+    def test_the_stub_answers_with_the_scenarios_of_its_files(self) -> None:
+        message = self.answer([SAMPLE_SCENARIOS], chat("#samplegreet"))
+        self.assertEqual(message["tool_calls"][0]["function"]["name"], "sample_greet")
+
+    def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:
+        broken = self.scenarios("{not json")
+        message = self.answer([broken], chat("#samplegreet"))
+        self.assertTrue(message["content"].startswith(f"The stub could not read its scenarios: {broken}: "))
 
 
 if __name__ == "__main__":

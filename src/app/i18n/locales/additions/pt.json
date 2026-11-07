@@ -573,6 +573,13 @@
       "resize": "Redimensionar o painel do computador",
       "close": "Fechar o computador"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Redimensionar {{label}}",
+        "close": "Fechar {{label}}",
+        "failed": "Este painel parou de funcionar."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Mostrar ou mudar se os agentes precisam de uma menção para iniciar uma conversa aqui (definir/repor requer um administrador da sala)."
