@@ -21,9 +21,9 @@ const INSET = config.space.S300;
 const CONTROL_HEIGHT = toRem(32);
 
 /**
- * The height of the desktop dialog's two title bars, the search field's on top of the menu and the
- * page's beside it, so the field, the page's title and the close button share one line. Only the
- * dialog sets it; a room's settings pages keep 48 px.
+ * The height of the desktop dialogs' two title bars, the search field's (or a room's name) on top
+ * of the menu and the page's beside it, so they, the page's title and the close button share one
+ * line. Only the dialogs on wider screens set it; phones keep their 48 and 54 px bars.
  */
 const BAR_HEIGHT = '--mr-settings-bar-height';
 
@@ -42,6 +42,18 @@ export const SettingsDialog = style({
       maxWidth: `min(${toRem(1000)}, calc(100% - 2 * ${config.space.S400}))`,
       maxHeight: `min(${toRem(730)}, calc(100% - 2 * ${config.space.S400}))`,
     },
+  },
+});
+
+/** A room's (or space's) settings dialog keeps its size and takes the same title bars. */
+export const RoomSettingsDialog = style({
+  vars: { [BAR_HEIGHT]: BAR },
+});
+
+/** On wider screens a room's name over its settings menu, as tall as the page's title bar. */
+export const RoomSettingsMenuTitle = style({
+  selectors: {
+    '&&': { height: BAR },
   },
 });
 
