@@ -132,10 +132,11 @@ const applyDocumentLanguage = (language: string): void => {
 
 // The language asked for last. This i18next version applies each change of language once its loads
 // finish, so an earlier change whose loads finish later would replace it: it is asked for again.
+// An empty one asks the detector, as none does.
 let requestedLanguage: string | undefined;
 
 i18n.on('languageChanging', (language: string | undefined) => {
-  requestedLanguage = language;
+  requestedLanguage = language || undefined;
 });
 
 i18n.on('languageChanged', (language) => {
@@ -179,7 +180,9 @@ void i18n
 /**
  * Adds a namespace beside the app's own catalog, such as a plugin's `plugin.<id>`: its English
  * strings apply at once, and `load` gives another language's strings while that language is in use.
- * Resolves once the strings of the language in use, or of the one being switched to, have loaded.
+ * Register it before anything loads the namespace, such as `useTranslation` with it: a language
+ * loaded earlier keeps showing English. Resolves once the strings of the language in use, or of the
+ * one being switched to, have loaded.
  */
 export const registerNamespace = async (
   namespace: string,
