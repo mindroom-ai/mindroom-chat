@@ -10,6 +10,7 @@ import { relistThreadsAfterGaps } from './threadListGaps';
 import { keepUnopenedThreadEditsShown } from './unopenedThreadEdits';
 import { keepStreamingRepliesChecked } from './streamingReplies';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
+import { keepSyncedEdits } from './syncedEdits';
 import { keepUnsentMessages } from './unsentMessages';
 
 // How the client syncs. The startup orchestrator (src/app/account/lifecycle/initMatrix.ts) creates
@@ -94,6 +95,7 @@ export const startClient = async (
     relistThreadsAfterGaps(mx);
     keepRedactionsInSavedSync(mx);
     dropRoomsForgottenElsewhere(mx);
+    keepSyncedEdits(mx);
     keepEncryptedRoomCounts(mx);
     keepUnsentMessages(mx);
   }
