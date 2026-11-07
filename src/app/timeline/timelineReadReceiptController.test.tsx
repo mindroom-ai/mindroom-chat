@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { getDefaultStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Direction, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
@@ -9,6 +10,7 @@ import {
   markThreadAsRead,
 } from '../notifications/readReceipts';
 import { useTimelineReadReceiptController } from './timelineReadReceiptController';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 
 vi.mock('../notifications/readReceipts', () => ({
   markMainTimelineAsRead: vi.fn(),
@@ -463,6 +465,30 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       focusWindow();
       runFrames();
       expect(markThreadAsRead).not.toHaveBeenCalled();
+    });
+
+    it('leaves a reply unread while a phone navigation drawer covers it, then reads it', () => {
+      const store = getDefaultStore();
+      const rows = [
+        { getId: () => '$thread' },
+        { getId: () => '$reply-1' },
+      ] as unknown as MatrixEvent[];
+      const options = optionsWith({ ...openThread, threadEvents: rows });
+      act(() => store.set(phoneNavDrawerOpenAtom, true));
+      try {
+        mount(options);
+        runFrames();
+        const moreRows = [...rows, { getId: () => '$reply-2' } as unknown as MatrixEvent];
+        rerender({ ...options, threadEventsLength: 3, threadEvents: moreRows });
+        runFrames();
+        expect(markThreadAsRead).not.toHaveBeenCalled();
+
+        act(() => store.set(phoneNavDrawerOpenAtom, false));
+        runFrames();
+        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
+      } finally {
+        act(() => store.set(phoneNavDrawerOpenAtom, false));
+      }
     });
 
     it('is read on the next frame when it opens there, and again for each new reply', () => {

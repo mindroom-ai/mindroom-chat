@@ -454,6 +454,10 @@
     "roomActions": {
       "noInvitePermission": "У вас нет прав на приглашение",
       "searchEncrypted": "Недоступно в зашифрованных комнатах"
+    },
+    "phoneNav": {
+      "search": "Поиск",
+      "navigation": "Навигация"
     }
   },
   "mindroomUi": {
