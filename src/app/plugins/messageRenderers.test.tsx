@@ -17,6 +17,7 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   tag: `${id}@1.0.0`,
   messageRenderers,
   roomHeaderSlot: [],
+  conversationCovers: [],
   sidePanels: [],
 });
 

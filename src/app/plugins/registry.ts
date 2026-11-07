@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react';
 import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
+import { isConversationCover, type ConversationCover } from './conversationCovers';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
@@ -11,6 +12,7 @@ export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
+  conversationCovers?: readonly ConversationCover[];
   messageRenderers?: readonly MessageRenderer[];
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
   sidePanels?: readonly SidePanel[];
@@ -21,6 +23,7 @@ export type ClientPlugin = {
 export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
+  readonly conversationCovers: readonly ConversationCover[];
   readonly messageRenderers: readonly MessageRenderer[];
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
@@ -30,6 +33,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
+  const covers = isRecord(plugin) ? plugin.conversationCovers : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -43,6 +47,9 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     // Its slot renders each entry in a boundary, so one that is no component only fails there.
     roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
+    conversationCovers: Object.freeze(
+      Array.isArray(covers) ? covers.filter(isConversationCover) : []
+    ),
   });
 };
 

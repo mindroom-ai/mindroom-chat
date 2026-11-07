@@ -7,11 +7,13 @@ const entries = vi.hoisted(() => {
   const panel = { id: 'notes', label: 'Notes', Component };
   const banner = (): null => null;
   const headerSlot = [banner];
+  const cover = { covers: () => false, subscribe: () => () => undefined, Component };
   return {
     renderer,
     panel,
     banner,
     headerSlot,
+    cover,
     list: [
       {
         id: 'alpha',
@@ -20,6 +22,7 @@ const entries = vi.hoisted(() => {
           messageRenderers: 'not a list',
           sidePanels: 'not a list',
           roomHeaderSlot: banner,
+          conversationCovers: cover,
         },
       },
       {
@@ -35,6 +38,14 @@ const entries = vi.hoisted(() => {
             { id: 'empty', label: 'Empty' },
           ],
           roomHeaderSlot: headerSlot,
+          conversationCovers: [
+            cover,
+            null,
+            { ...cover, covers: true },
+            { ...cover, subscribe: undefined },
+            { ...cover, Component: undefined },
+            { ...cover, close: 'not a function' },
+          ],
         },
       },
     ],
@@ -65,6 +76,9 @@ describe('registeredPlugins', () => {
     expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
+    // A cover needs its condition, a subscription and a component, and Escape's close is a function.
+    expect(plugins[0]?.conversationCovers).toEqual([]);
+    expect(plugins[1]?.conversationCovers).toEqual([entries.cover]);
   });
 
   it('is frozen when its module loads', async () => {
@@ -75,6 +89,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
+      expect(Object.isFrozen(plugin.conversationCovers)).toBe(true);
     }
     // The plugin's own list stays as it was.
     expect(Object.isFrozen(entries.headerSlot)).toBe(false);
