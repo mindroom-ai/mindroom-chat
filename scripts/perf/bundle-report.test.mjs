@@ -58,32 +58,29 @@ test('with a manifest, every chunk is listed by its source or chunk name, with i
       '../../deps/0123/node_modules/some-pkg/index.js': {
         file: 'assets/lazy-CCCCCCCC.js',
         src: '../../deps/0123/node_modules/some-pkg/index.js',
-        isDynamicEntry: true,
         css: ['assets/lazy-FFFFFFFF.css'],
       },
-      '_shared-BBBBBBBB.js': {
-        file: 'assets/shared-BBBBBBBB.js',
-        name: 'shared',
-        imports: ['_leaf-DDDDDDDD.js'],
-      },
+      '_shared-BBBBBBBB.js': { file: 'assets/shared-BBBBBBBB.js', name: 'shared' },
       '_leaf-DDDDDDDD.js': { file: 'assets/leaf-DDDDDDDD.js', name: 'leaf' },
       'index.html': {
         file: 'assets/index-AAAAAAAA.js',
         src: 'index.html',
-        isEntry: true,
-        imports: ['_shared-BBBBBBBB.js'],
-        dynamicImports: ['../../deps/0123/node_modules/some-pkg/index.js'],
         css: ['assets/index-EEEEEEEE.css'],
       },
       // A style sheet that the bundler keys like a chunk.
-      '_lazy-!~{001}~.js': { file: 'assets/lazy-FFFFFFFF.css', src: '_lazy-!~{001}~.js' },
+      '_lazy-!~{001}~.js': { file: 'assets/lazy-FFFFFFFF.css' },
     })
   );
   const out = path.join(dist, 'report.json');
   const { stdout } = run(dist, '--json', out);
-  const listed = stdout.split('\nEvery chunk')[1].split('\n').slice(1).filter(Boolean);
+  const listed = stdout
+    .split('\nEvery chunk')[1]
+    .split('\n')
+    .slice(1)
+    .filter(Boolean)
+    .map((line) => line.split(/\s{2,}/));
   assert.deepEqual(
-    listed.map((line) => line.split(/\s{2,}/)[0]),
+    listed.map(([name]) => name),
     ['index.html (initial)', 'leaf (initial)', 'node_modules/some-pkg/index.js', 'shared (initial)']
   );
   // The lazy chunk's sizes are those of its script and its style sheet together.
@@ -92,7 +89,7 @@ test('with a manifest, every chunk is listed by its source or chunk name, with i
   );
   const kb = (key) =>
     `${(files.reduce((total, row) => total + row[key], 0) / 1024).toFixed(1)} KiB`;
-  assert.deepEqual(listed[2].split(/\s{2,}/).slice(1), [kb('raw'), kb('gzip'), kb('brotli')]);
+  assert.deepEqual(listed[2].slice(1), [kb('raw'), kb('gzip'), kb('brotli')]);
 });
 
 test('a budget fails the run only when a size is over it', () => {

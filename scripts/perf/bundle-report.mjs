@@ -136,7 +136,7 @@ if (existsSync(manifestFile)) {
       const files = [chunk.file, ...(chunk.css ?? [])].map((file) => byFile.get(file));
       const name = chunk.src?.replace(/^.*?(?=node_modules\/)/, '') ?? chunk.name;
       return {
-        file: initial.has(path.join(dist, chunk.file)) ? `${name} (initial)` : name,
+        file: files[0].initial ? `${name} (initial)` : name,
         raw: sum(files, 'raw'),
         gzip: sum(files, 'gzip'),
         brotli: sum(files, 'brotli'),
