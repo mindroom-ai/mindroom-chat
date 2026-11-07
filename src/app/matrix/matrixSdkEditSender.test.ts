@@ -234,7 +234,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     expect(body(event)).toBe('The forklift is back.');
   });
 
-  it('shows the bundled edit again once a pending edit that took its place in the bundle is cancelled', async () => {
+  it('shows the bundled edit again once a pending edit that took its bundle place is cancelled', async () => {
     const { event, pending, cancel } = await withPendingEdit(
       [bundled(newestEdit())],
       edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.')
