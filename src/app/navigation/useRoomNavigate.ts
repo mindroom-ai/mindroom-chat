@@ -63,6 +63,7 @@ export const useRoomNavigate = () => {
   const navigate = useNavigate();
   const selectedSpaceId = useSelectedSpace();
 
+  /** The app path of a room, at `eventId` when given, in the section the room opens in. */
   const roomPath = useCallback(
     (roomId: string, eventId?: string) =>
       getRoomPath(client, roomToParents, directChats, selectedSpaceId, roomId, eventId),
@@ -124,6 +125,7 @@ export const useRoomNavigate = () => {
       navigateRoomThread,
       navigateRoomThreadDirect,
       navigateSpace,
+      roomPath,
     }),
     [
       navigatePath,
@@ -132,6 +134,7 @@ export const useRoomNavigate = () => {
       navigateRoomThread,
       navigateRoomThreadDirect,
       navigateSpace,
+      roomPath,
     ]
   );
 };
