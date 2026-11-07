@@ -36,7 +36,8 @@ const isRuntimeHandOffPath = (pathname: string): boolean =>
 /**
  * The signed-in layout: the sidebar navigation beside the routed page. It
  * remembers the route each session last showed, and replaces room alias
- * routes with room ID routes before the page renders.
+ * routes with room ID routes, holding the page back until an alias the
+ * client does not know is resolved.
  */
 export function ClientLayout({ nav, className, children }: ClientLayoutProps) {
   const mx = useMatrixClient();
@@ -47,7 +48,13 @@ export function ClientLayout({ nav, className, children }: ClientLayoutProps) {
 
   const hasAlias = pathnameContainsAliasRoute(pathname);
   const [resolvedAliasPath, setResolvedAliasPath] = useState<string>();
-  const waitingForAlias = hasAlias && resolvedAliasPath !== pathname;
+  // The app's own links name rooms by their aliases, which the client knows: the page renders at
+  // once and stays mounted while the room ID route replaces the address, so a thread a send opens
+  // keeps the composer and its focus. Only an alias the homeserver must resolve holds the page.
+  const waitingForAlias =
+    hasAlias &&
+    resolvedAliasPath !== pathname &&
+    pathnameContainsAliasRoute(canonicalizeSessionPathname(mx, pathname));
 
   useEffect(() => {
     if (!sessionId || isRuntimeHandOffPath(pathname)) return;
