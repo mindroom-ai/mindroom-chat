@@ -17,7 +17,12 @@ import {
   type IconSrc,
   type RectCords,
 } from 'folds';
-import { PopOut, TooltipProvider, ownDirectionLine } from '../ui/directional';
+import {
+  PopOut,
+  TooltipProvider,
+  ownDirectionLine,
+  revealDirectionControls,
+} from '../ui/directional';
 import { PageHeader } from '../ui/page/Page';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { RoomTopicViewer } from './RoomTopicViewer';
@@ -284,8 +289,10 @@ export function RoomViewHeader({
   const avatarSrc = pictureMxc
     ? mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 72, 72, 'crop') ?? undefined
     : undefined;
-  const roomName = useRoomName(room);
-  const topic = useRoomTopic(room);
+  // Direction controls in the name and topic show as code points, so they cannot reorder them.
+  const roomName = revealDirectionControls(useRoomName(room));
+  const roomTopic = useRoomTopic(room);
+  const topic = roomTopic && revealDirectionControls(roomTopic);
   const [topicOpen, setTopicOpen] = useState(false);
 
   // Canvas, computer and call take the side panel's place, so the members panel is hidden

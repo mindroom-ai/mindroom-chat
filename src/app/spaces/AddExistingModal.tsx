@@ -29,6 +29,7 @@ import { nameInitials } from '../lib/common';
 import { compareNames } from '../lib/nameOrder';
 import { CreateDialogFrame } from '../ui/CreateDialogFrame';
 import { addSpaceChild } from './lobby/spaceChildren';
+import { revealDirectionControls } from '../ui/directional';
 
 /** Which of the user's joined rooms the picker lists. */
 type AddExistingKind = 'rooms' | 'spaces';
@@ -90,11 +91,11 @@ function CandidateRow({ room, chosen, onToggle }: CandidateRowProps) {
         />
       </Avatar>
       <Text size="T300" truncate style={{ flexGrow: 1 }}>
-        {room.name}
+        {revealDirectionControls(room.name)}
       </Text>
       <Checkbox
         variant="Primary"
-        aria-label={room.name}
+        aria-label={revealDirectionControls(room.name)}
         checked={chosen}
         // folds leaves onChange out of its Checkbox type; the change event toggles the choice.
         readOnly

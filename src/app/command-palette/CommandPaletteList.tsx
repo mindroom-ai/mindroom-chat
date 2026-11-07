@@ -3,7 +3,7 @@ import React, { useEffect, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { type TFunction } from 'i18next';
 import { UnreadBadge } from '../ui/UnreadBadge';
-import { ownDirectionLine } from '../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
 import { UserAvatar } from '../avatars/UserAvatar';
 import { nameInitials } from '../lib/common';
 import { isMindroomAgentUserId } from '../matrix/protocol/agentIdentity';
@@ -55,7 +55,7 @@ const getItemTitle = (item: CommandPaletteItem, t: TFunction): string => {
       return item.title;
     case 'room':
     case 'space':
-      return item.name;
+      return revealDirectionControls(item.name);
     case 'user':
       return item.typedId
         ? t('commandPalette.peopleSearch.messageUserId', { userId: item.userId })
@@ -63,7 +63,7 @@ const getItemTitle = (item: CommandPaletteItem, t: TFunction): string => {
     case 'start-chat':
       return t('commandPalette.startChat.title', { name: item.displayName });
     case 'thread':
-      return item.summaryText;
+      return revealDirectionControls(item.summaryText);
     case 'message':
       return item.senderName;
     default:
@@ -77,7 +77,7 @@ const getItemDescription = (item: CommandPaletteItem, t: TFunction): string | un
       return item.description;
     case 'room':
     case 'space':
-      return item.topic ?? item.canonicalAlias;
+      return revealDirectionControls(item.topic ?? item.canonicalAlias ?? '') || undefined;
     case 'user':
       // A typed ID is the title already; under it goes the name its profile has, if any.
       if (item.typedId) return item.displayName === item.localpart ? undefined : item.displayName;
@@ -85,7 +85,7 @@ const getItemDescription = (item: CommandPaletteItem, t: TFunction): string | un
     case 'start-chat':
       return t('commandPalette.startChat.description', { userId: item.userId });
     case 'thread':
-      return item.roomName;
+      return revealDirectionControls(item.roomName);
     case 'message':
       return item.snippet;
     default:
@@ -184,12 +184,12 @@ function MessageRowText({ item }: { item: CommandPaletteMessageItem }) {
         <span className={css.RowTitle} {...ownDirectionLine}>{item.senderName}</span>
         {/* Room, then thread, in the interface's order; each name keeps its own direction. */}
         <span className={css.RowPlace}>
-          <bdi>{item.roomName}</bdi>
+          <bdi>{revealDirectionControls(item.roomName)}</bdi>
           {thread !== undefined && <> › <bdi>{thread}</bdi></>}
         </span>
         <MessageTime timestamp={item.timestamp} />
       </span>
-      <span className={css.RowDescription} {...ownDirectionLine}>{markMatches(item.snippet, item.highlights)}</span>
+      <span className={css.RowDescription} {...ownDirectionLine}>{markMatches(revealDirectionControls(item.snippet), item.highlights)}</span>
     </span>
   );
 }

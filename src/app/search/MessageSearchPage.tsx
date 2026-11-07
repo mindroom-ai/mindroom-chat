@@ -11,6 +11,7 @@ import { useSpaceSearchRooms } from '../matrix/state/useSpaceSearchRooms';
 import { HOME_PATH } from '../routes/paths';
 import { getSpacePath } from '../routes/pathUtils';
 import { MessageSearch, type MessageSearchProps } from './MessageSearch';
+import { revealDirectionControls } from '../ui/directional';
 
 type SearchPageProps = Omit<MessageSearchProps, 'scrollRef'> & {
   /** The section list a phone's back arrow returns to. */
@@ -58,7 +59,7 @@ export function HomeSearchPage() {
 export function SpaceSearchPage() {
   const space = useSpace();
   const rooms = useSpaceSearchRooms(space.roomId);
-  const spaceName = useRoomName(space);
+  const spaceName = revealDirectionControls(useRoomName(space));
   return (
     <SearchPage
       backTo={getSpacePath(space.roomId)}
