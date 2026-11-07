@@ -8,7 +8,7 @@ import { PageNav, PageNavContent, PageNavHeader, PageRoot } from '../../ui/page/
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
 import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
 import { RoomSettingsPage } from '../../navigation/roomSettingsState';
-import { SettingsMenu, SettingsMenuRow } from '../../ui/settings/frame.css';
+import { RoomSettingsMenuTitle, SettingsMenu, SettingsMenuRow } from '../../ui/settings/frame.css';
 import { SettingsCard } from '../../ui/settings/SettingsCard';
 import { SettingsPageFrame } from '../../ui/settings/SettingsPageFrame';
 import { OfflineRoomSettings } from './general/OfflineRoomSettings';
@@ -163,7 +163,7 @@ export function RoomSettings(props: {
 
   // The page menu scrolls beneath the room's name.
   const title = (
-    <PageNavHeader outlined={false}>
+    <PageNavHeader outlined={false} className={phone ? undefined : RoomSettingsMenuTitle}>
       <Box grow="Yes" alignItems="Center">
         <Text as="h2" size="H4" truncate>
           {roomName}
