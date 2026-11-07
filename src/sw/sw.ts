@@ -10,6 +10,10 @@
 //
 // An upgrade waits until no page of the previous build is left, unless a page posts
 // `{ type: 'takeOver' }` (src/app/config/appUpdate.ts, when the person reloads for the new version).
+// A worker that replaces another app's worker (the legacy app this origin served before) takes
+// over at once instead: that worker never hands its pages over, so they would keep the other app
+// through every reload. A new worker tells the two apart by asking the active one
+// `{ type: 'identify' }` over a message port; this client's workers answer, the other app's do not.
 
 import {
   cleanupOutdatedCaches,
@@ -46,14 +50,19 @@ type FetchEventLike = ExtendableEventLike & {
   request: Request;
   respondWith: (response: Promise<Response>) => void;
 };
-type MessageEventLike = { data: unknown; source?: { id?: string; url?: string } | null };
+type MessageEventLike = {
+  data: unknown;
+  ports?: readonly MessagePort[];
+  source?: { id?: string; url?: string } | null;
+};
+type WorkerLike = { postMessage: (message: unknown, transfer: Transferable[]) => void };
 /** What the build wrote into the worker (scripts/precache-plan.mjs); absent in development. */
 type BuildInventory = { files: string[]; localeOverlays: Record<string, string> };
 type ServiceWorkerScope = {
   __WB_MANIFEST: Array<PrecacheEntry | string>;
   __MINDROOM_BUILD_INVENTORY?: BuildInventory;
   location: { href: string; origin: string };
-  registration: { active: unknown; unregister: () => Promise<boolean> };
+  registration: { active: WorkerLike | null; unregister: () => Promise<boolean> };
   clients: {
     claim: () => Promise<void>;
     get: (id: string) => Promise<WorkerClient | undefined>;
@@ -85,8 +94,35 @@ const supportsNonDisruptiveUpdates = (() => {
   }
 })();
 
+/** What this client's workers answer `{ type: 'identify' }` with. */
+const WORKER_IDENTITY = { app: 'mindroom-client' };
+/** How long an installing worker waits for the active one to say it is this client's. */
+const IDENTIFY_TIMEOUT_MS = 5_000;
+
+/** Whether `worker` is this client's: it answers `identify` in time. */
+const isThisClientsWorker = (worker: WorkerLike): Promise<boolean> =>
+  new Promise((resolve) => {
+    const channel = new MessageChannel();
+    const finish = (ours: boolean) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      resolve(ours);
+    };
+    const timer = setTimeout(() => finish(false), IDENTIFY_TIMEOUT_MS);
+    channel.port1.onmessage = ({ data }: MessageEvent<unknown>) => {
+      const { app } = (data ?? {}) as { app?: unknown };
+      finish(app === WORKER_IDENTITY.app);
+    };
+    try {
+      worker.postMessage({ type: 'identify' }, [channel.port2]);
+    } catch {
+      finish(false);
+    }
+  });
+
 self.addEventListener('install', (event) => {
-  if (self.registration.active && !supportsNonDisruptiveUpdates) {
+  const { active } = self.registration;
+  if (active && !supportsNonDisruptiveUpdates) {
     // Queue the unregister but do not wait for it: it only completes after this install ends.
     void self.registration.unregister().catch(() => false);
     event.waitUntil(Promise.resolve());
@@ -94,11 +130,15 @@ self.addEventListener('install', (event) => {
   }
   event.waitUntil(
     (async () => {
-      await precacheController.install(event as never);
+      const [, upgradesThisClient] = await Promise.all([
+        precacheController.install(event as never),
+        active ? isThisClientsWorker(active) : false,
+      ]);
       // This build's overlay for each language the pages used, for the first offline start.
       await keepLanguageOverlays(buildInventory?.localeOverlays, self.location.href);
-      // A first install takes over at once; an upgrade waits until no page uses the old worker.
-      if (!self.registration.active) await self.skipWaiting();
+      // A first install takes over at once, and so does one that replaces another app's worker; an
+      // upgrade of this client's worker waits until no page uses the old one.
+      if (!upgradesThisClient) await self.skipWaiting();
     })()
   );
 });
@@ -210,8 +250,14 @@ const resolvePendingSession = (clientId: string, session?: MediaSession): void =
 };
 
 self.addEventListener('message', (event) => {
-  const { data, source } = event;
-  if (!data || typeof data !== 'object' || !source?.id || !isSameOriginSource(source)) return;
+  const { data, ports, source } = event;
+  if (!data || typeof data !== 'object') return;
+  // A new worker of this origin, while it installs, asks whether this one is this client's.
+  if ((data as Record<string, unknown>).type === 'identify') {
+    ports?.[0]?.postMessage(WORKER_IDENTITY);
+    return;
+  }
+  if (!source?.id || !isSameOriginSource(source)) return;
   const message = data as Record<string, unknown>;
   // A waiting worker takes over now; its activation then claims every open page.
   if (message.type === 'takeOver') {
