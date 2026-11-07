@@ -514,6 +514,14 @@ describe('the side panels of a room', () => {
     expect(Object.keys(localStorage).filter((key) => key.includes(':side-panel/'))).toEqual([]);
     await renderRoom();
     expect(board()).toBeNull();
+
+    // Nor does a late close forget what the room remembers.
+    await act(async () => controls.board?.open('kept'));
+    const keptThen = controls.board;
+    cleanup();
+    await act(async () => keptThen?.close());
+    await renderRoom();
+    expect(screen.getByText('Board request "kept"')).toBeTruthy();
   });
 
   it("gives a plugin's code no panels outside a room's page", async () => {
