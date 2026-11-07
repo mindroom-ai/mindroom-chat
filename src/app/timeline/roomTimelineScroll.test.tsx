@@ -11,6 +11,7 @@ import type { EventTimeline } from 'matrix-js-sdk';
 import {
   heldListHeight,
   useGestureBottomPins,
+  useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
   useTimelineRowJumps,
@@ -415,6 +416,23 @@ describe('useLatestRowPin and the virtual list', () => {
     expect(room.list.scrollState).toBeNull();
   });
 
+  it('keeps it when the scroll area grows and the browser moves the position up as much', () => {
+    // A phone held sideways with its keyboard up: Safari widens the band above the keyboard by
+    // 28 px while the rows measure again at the new width. The browser keeps the position inside
+    // the taller area by moving it up 28 px, and by that scroll event the rows have grown 258 px.
+    const room = pinnedList();
+    room.element.clientHeight += 28;
+    room.element.scrollTop -= 28;
+    room.element.scrollHeight += 258;
+    act(() => room.fire('scroll'));
+    expect(room.list.scrollState).toEqual({ index: 19 });
+
+    // A scroll up from there moves the view's lower edge: the reader's.
+    room.element.scrollTop -= 200;
+    act(() => room.fire('scroll'));
+    expect(room.list.scrollState).toBeNull();
+  });
+
   it('never counts less than no room below when the list has rendered the shrink', () => {
     // macOS Chromium: React has rendered the list 120 px shorter, but its rows still measure a
     // 120 px shrink for a scroll event; the next correction then moves the position up by 120.
@@ -708,6 +726,32 @@ describe('useRowsGeneration', () => {
     show([context]);
     show([context, live]);
     expect(counts).toEqual([0, 0, 1, 2, 2]);
+  });
+});
+
+describe('useLatestPinAsked', () => {
+  it('is true only in the render that a bottom pin asked for since the last commit', () => {
+    const asked: boolean[] = [];
+    const pins: { current: ScrollToBottomState } = { current: { count: 0, smooth: false } };
+    function Rows({ step }: { step: number }) {
+      asked.push(useLatestPinAsked(pins));
+      return step;
+    }
+    let renderer: ReactTestRenderer | undefined;
+    const show = (step: number) =>
+      act(() => {
+        if (renderer) renderer.update(createElement(Rows, { step }));
+        else renderer = create(createElement(Rows, { step }));
+      });
+
+    show(0);
+    show(1);
+    // Jump to Latest: the pin comes with the render of the newest rows.
+    pins.current = { count: 1, smooth: false };
+    show(2);
+    // The next render, a page or a measurement, asks for nothing new.
+    show(3);
+    expect(asked).toEqual([false, false, true, false]);
   });
 });
 

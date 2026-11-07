@@ -1,5 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { spawnSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -39,6 +40,64 @@ test('the initial load is the entry with its static imports and the style sheet'
   );
   assert.equal(summary.entry, 'assets/index-AAAAAAAA.js');
   assert.equal(summary.initialFiles, 4);
+});
+
+test('with a manifest, every chunk is listed by its source or chunk name, with its style sheets', () => {
+  const dist = fakeDist();
+  assert.match(run(dist).stdout, /build with `npx vite build --manifest`/);
+  // Random bytes, so the raw, gzip and brotli sizes of the style sheet differ.
+  writeFileSync(
+    path.join(dist, 'assets', 'lazy-FFFFFFFF.css'),
+    `/* ${randomBytes(3000).toString('hex')} */`
+  );
+  // A `?worker` bundle, which the manifest does not record.
+  writeFileSync(path.join(dist, 'assets', 'some.worker-WWWWWWWW.js'), 'onmessage=()=>{};');
+  mkdirSync(path.join(dist, '.vite'));
+  writeFileSync(
+    path.join(dist, '.vite', 'manifest.json'),
+    JSON.stringify({
+      // A package that node_modules links to outside the project root.
+      '../../deps/0123/node_modules/some-pkg/index.js': {
+        file: 'assets/lazy-CCCCCCCC.js',
+        src: '../../deps/0123/node_modules/some-pkg/index.js',
+        css: ['assets/lazy-FFFFFFFF.css'],
+      },
+      '_shared-BBBBBBBB.js': { file: 'assets/shared-BBBBBBBB.js', name: 'shared' },
+      '_leaf-DDDDDDDD.js': { file: 'assets/leaf-DDDDDDDD.js', name: 'leaf' },
+      'index.html': {
+        file: 'assets/index-AAAAAAAA.js',
+        src: 'index.html',
+        css: ['assets/index-EEEEEEEE.css'],
+      },
+      // A style sheet that the bundler keys like a chunk.
+      '_lazy-!~{001}~.js': { file: 'assets/lazy-FFFFFFFF.css' },
+    })
+  );
+  const out = path.join(dist, 'report.json');
+  const { stdout } = run(dist, '--json', out);
+  const listed = stdout
+    .split('\nEvery chunk')[1]
+    .split('\n')
+    .slice(1)
+    .filter(Boolean)
+    .map((line) => line.split(/\s{2,}/));
+  assert.deepEqual(
+    listed.map(([name]) => name),
+    [
+      'index.html (initial)',
+      'leaf (initial)',
+      'node_modules/some-pkg/index.js',
+      'shared (initial)',
+      'some.worker',
+    ]
+  );
+  // The lazy chunk's sizes are those of its script and its style sheet together.
+  const files = JSON.parse(readFileSync(out, 'utf8')).rows.filter((row) =>
+    ['assets/lazy-CCCCCCCC.js', 'assets/lazy-FFFFFFFF.css'].includes(row.file)
+  );
+  const kb = (key) =>
+    `${(files.reduce((total, row) => total + row[key], 0) / 1024).toFixed(1)} KiB`;
+  assert.deepEqual(listed[2].slice(1), [kb('raw'), kb('gzip'), kb('brotli')]);
 });
 
 test('a budget fails the run only when a size is over it', () => {

@@ -38,7 +38,7 @@ import {
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
 import { SequenceCard } from '../../ui/SequenceCard';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
@@ -495,7 +495,7 @@ export function Notifications() {
                   <Box alignItems="Center" gap="200">
                     <NotificationGroupAvatar room={room} />
                     <Text size="H5" truncate style={{ flexGrow: 1 }} {...ownDirectionLine}>
-                      {room.name}
+                      {revealDirectionControls(room.name)}
                     </Text>
                     {roomNotifications.some((notification) => !notification.read) && (
                       <MarkRoomReadChip roomId={room.roomId} onMarked={reload} />

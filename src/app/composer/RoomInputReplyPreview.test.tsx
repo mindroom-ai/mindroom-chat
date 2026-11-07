@@ -74,3 +74,12 @@ it('previews a message body without its Markdown', () => {
     '"Done with config.yaml"'
   );
 });
+
+it('shows the direction controls of a message or a canvas title as code points', () => {
+  expect(renderPreview({ body: 'Open invoice‮txt.exe‬ now.' })).toContain(
+    '"Open invoice<U+202E>txt.exe<U+202C> now."'
+  );
+  expect(renderPreview({ body: 'Interactive panel', previewText: 'Plan‮ weiver‬' })).toContain(
+    '"Plan<U+202E> weiver<U+202C>"'
+  );
+});
