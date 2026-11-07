@@ -14,14 +14,20 @@ export const Header = style({ position: 'absolute', inset: '0 0 auto', zIndex: 6
 // The thread banner already offers the way back, so on short screens it is the
 // only bar; the room header returns once the thread closes.
 export const HeaderInThread = style({ '@media': { [shortViewport]: { display: 'none' } } });
-// Read receipts give way to messages on short screens. The composer pads
-// itself for the safe area, so the footer only keeps a small gap below it.
+// Read receipts give way to messages on short screens, where the footer keeps a small gap
+// below the composer. The footer ends above the home indicator: its safe area stays outside
+// the composer's box.
 export const Footer = style({
   position: 'absolute',
   inset: 'auto 0 0',
   zIndex: 4,
   pointerEvents: 'none',
-  '@media': { [shortViewport]: { paddingBottom: config.space.S200 } },
+  paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+  '@media': {
+    [shortViewport]: {
+      paddingBottom: `max(${config.space.S200}, env(safe-area-inset-bottom, 0px))`,
+    },
+  },
 });
 globalStyle(`${Footer} > *`, { pointerEvents: 'auto' });
 export const Following = style({ '@media': { [shortViewport]: { display: 'none' } } });
