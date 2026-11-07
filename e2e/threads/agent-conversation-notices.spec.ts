@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { Locator, Page } from '@playwright/test';
 import { sendRoomMessage } from '../helpers/matrix';
 import {
@@ -7,9 +5,9 @@ import {
   expect,
   messageRow,
   openLobby,
+  routerToken,
   test,
   uniqueWord,
-  type AgentStack,
 } from '../helpers/agentStack';
 import { setRoomCompact } from '../helpers/roomViewSwitch';
 
@@ -20,11 +18,6 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
 // (scripts/agent-stack/stack.py) with the stub model, where the router is that agent; MindRoom's
 // agents never answer a notice, so each notice stays a conversation without replies. Skips without
 // a MindRoom checkout.
-
-/** The router's access token, from the stack's state file; the stack keeps it out of its output. */
-const routerToken = (stack: AgentStack): string =>
-  (JSON.parse(readFileSync(join(stack.dir, 'state.json'), 'utf8')) as { routerToken: string })
-    .routerToken;
 
 const card = (page: Page, rootId: string): Locator =>
   page.locator(`button[data-thread-root-id="${rootId}"]`);

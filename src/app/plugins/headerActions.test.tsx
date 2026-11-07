@@ -23,6 +23,7 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
   tag: `${id}@1.0.0`,
   conversationCovers: [],
   messageRenderers: [],
+  pages: [],
   roomHeaderSlot: [],
   sidePanels: [],
   headerActions,

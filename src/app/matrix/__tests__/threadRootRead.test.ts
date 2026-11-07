@@ -126,6 +126,23 @@ describe('reading a thread root', () => {
     expect(getThreadRootReadAction(client(), room, root1)).toBe('receipt');
   });
 
+  it('sends the receipt over a later notice that no thread list shows', () => {
+    const notice = new MatrixEvent({
+      content: { body: 'Indexing finished', msgtype: 'm.notice' },
+      event_id: '$notice',
+      origin_server_ts: 4000,
+      room_id: '!room:example.org',
+      sender: '@mindroom_reporter:example.org',
+      type: 'm.room.message',
+    });
+    const room = makeRoom({ main: [older, root1, notice], receiptTs: 2000 });
+    const withAgent = {
+      ...room,
+      getMembers: () => [{ userId: notice.getSender(), membership: 'join' }],
+    } as unknown as Room;
+    expect(getThreadRootReadAction(client(), withAgent, root1)).toBe('receipt');
+  });
+
   it("stops at the reader's own message, since everything before it was read", () => {
     const own = message('$own', 2500, ME);
     const room = makeRoom({ main: [message('$unread', 2000, ALICE), own, root1] });

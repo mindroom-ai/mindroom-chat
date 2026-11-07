@@ -4,6 +4,7 @@ import { isRecord } from '../lib/isRecord';
 import { isHeaderAction, type HeaderAction } from './headerActions';
 import { isConversationCover, type ConversationCover } from './conversationCovers';
 import type { MessageRenderer } from './messageRenderers';
+import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
@@ -15,6 +16,7 @@ export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
 export type ClientPlugin = {
   conversationCovers?: readonly ConversationCover[];
   messageRenderers?: readonly MessageRenderer[];
+  pages?: readonly PluginPage[];
   /** Deletes what the plugin keeps for `userId` outside its storage (`pluginStorage.ts`). */
   forgetAccount?: (userId: string) => void | Promise<void>;
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
@@ -29,6 +31,7 @@ export type RegisteredPlugin = {
   readonly tag: string;
   readonly conversationCovers: readonly ConversationCover[];
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly pages: readonly PluginPage[];
   readonly forgetAccount?: ClientPlugin['forgetAccount'];
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
@@ -37,6 +40,7 @@ export type RegisteredPlugin = {
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
+  const pages = isRecord(plugin) ? plugin.pages : undefined;
   const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
   const actions = isRecord(plugin) ? plugin.headerActions : undefined;
@@ -49,6 +53,13 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     messageRenderers: Object.freeze(
       Array.isArray(renderers)
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
+        : []
+    ),
+    pages: Object.freeze(
+      Array.isArray(pages)
+        ? pages.filter(
+            (page) => isRecord(page) && typeof page.path === 'string' && !!page.Component
+          )
         : []
     ),
     forgetAccount:

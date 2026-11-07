@@ -13,8 +13,10 @@ const entries = vi.hoisted(() => {
   const headerSlot = [banner];
   const cover = { covers: () => false, subscribe: () => () => undefined, Component };
   const forgotten: string[] = [];
+  const page = { path: 'board', Component: (): null => null };
   return {
     renderer,
+    page,
     forgotten,
     panel,
     actions: [action, autoAction],
@@ -27,6 +29,7 @@ const entries = vi.hoisted(() => {
         version: '1.0.0',
         plugin: {
           messageRenderers: 'not a list',
+          pages: {},
           sidePanels: 'not a list',
           headerActions: 'not a list',
           roomHeaderSlot: banner,
@@ -39,6 +42,7 @@ const entries = vi.hoisted(() => {
         version: '2.1.0',
         plugin: {
           messageRenderers: [renderer, null, { Component }],
+          pages: [page, null, { path: 'other' }, { path: 7, Component: (): null => null }],
           sidePanels: [
             panel,
             null,
@@ -96,6 +100,9 @@ describe('registeredPlugins', () => {
     // A contribution that is not a list counts as none, and so does a renderer without `match`.
     expect(plugins[0]?.messageRenderers).toEqual([]);
     expect(plugins[1]?.messageRenderers).toEqual([entries.renderer]);
+    // So does a page without a path or a component.
+    expect(plugins[0]?.pages).toEqual([]);
+    expect(plugins[1]?.pages).toEqual([entries.page]);
     // A side panel needs an id, a label and a component.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
@@ -119,6 +126,7 @@ describe('registeredPlugins', () => {
     for (const plugin of plugins) {
       expect(Object.isFrozen(plugin)).toBe(true);
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
+      expect(Object.isFrozen(plugin.pages)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
       expect(Object.isFrozen(plugin.headerActions)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
