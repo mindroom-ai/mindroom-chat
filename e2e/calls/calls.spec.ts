@@ -8,8 +8,8 @@ import { defined } from '../../src/test/utils/defined';
 // carries sound both ways (encrypted too), mutes, shows video and survives a reload; a group
 // room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
 // start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
-// moment, and on a ring's Answer); and a call to a MindRoom agent, which runs in the agent call
-// room with the conversation as its origin; and a call whose panel could not load, ended from that
+// moment, and on a ring's Answer); a call to a MindRoom agent, which runs in the agent call room
+// with the conversation as its origin; and a call whose panel could not load, ended from that
 // panel's failure view. Needs the slot's LiveKit server and authorization service
 // (scripts/e2e-rtc.sh), which --rtc starts before the slot's homeserver and stops afterwards:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/calls/calls.spec.ts
