@@ -49,6 +49,7 @@ import type { ScrollToBottomState } from './roomFocusScrollController';
 import { useRoomLocalEchoRefresh } from './roomLocalEchoRefresh';
 import { isNearLatestEnd } from './roomTimelineScroll';
 import { getLiveCollapsibleMessageExpandId } from './threadCollapsibleMessages';
+import { useReaderSees } from './useReaderSees';
 
 type LiveRenderOptions = {
   /** The newest "at bottom" state (Jump to Latest hidden); it follows the scroll with a delay. */
@@ -103,9 +104,6 @@ type LiveRenderOptions = {
 /** An edit changes a row that is already there; it never becomes a row of its own. */
 const isEdit = (event: MatrixEvent): boolean =>
   event.getRelation()?.rel_type === RelationType.Replace;
-
-/** Without a `document` (a unit test in Node) the window counts as not focused. */
-const documentHasFocus = (): boolean => typeof document !== 'undefined' && document.hasFocus();
 
 /** Measured now, not taken from the "at bottom" state, which lags behind the reader's scroll. */
 const isNearBottomNow = (area: HTMLElement): boolean =>
@@ -194,6 +192,8 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     threadResolutionMap,
     unreadInfo,
   } = options;
+  // Automatic read receipts wait while the window has no focus or a phone's drawer covers the room.
+  const readerSees = useReaderSees();
 
   // A reply decrypted after the reader left its thread was not watched there.
   const openThreadIdRef = useLatestRef(threadId);
@@ -283,7 +283,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     if (openThreadIdRef.current !== openThreadId) return;
     if (!finishesStreamedThreadReply(event, openThreadId)) return;
     const area = scrollRef.current;
-    if (!area || !atLiveEndRef.current || !atBottomRef.current || !documentHasFocus()) return;
+    if (!area || !atLiveEndRef.current || !atBottomRef.current || !readerSees()) return;
     if (!isNearBottomNow(area)) return;
     void markThreadAsRead(mx, room.roomId, openThreadId, hideActivity, event);
   };
@@ -319,7 +319,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     whenDecrypted(reply, () => {
       const area = scrollRef.current;
       if (!reply.threadRootId || openThreadIdRef.current || !area || !atLiveEndRef.current) return;
-      if (!atBottomRef.current || !documentHasFocus()) return;
+      if (!atBottomRef.current || !readerSees()) return;
       if (!isNearLatestEnd(area, !!latestAtTopRef?.current)) return;
       const shown = isRenderableEvent(
         reply,
@@ -385,7 +385,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     // has just scrolled away.
     const area = scrollRef.current;
     const followsLiveEnd = atLiveEnd && !!area && isNearLatestEnd(area, !!latestAtTopRef?.current);
-    if (followsLiveEnd && atBottomRef.current && documentHasFocus()) {
+    if (followsLiveEnd && atBottomRef.current && readerSees()) {
       void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     } else if (isRoomRow) {
       // The "New messages" line goes above the first message the reader has not seen. Only a
@@ -439,7 +439,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     // send the view followed counts before the at-bottom state catches up.
     const sent = event.status === null || event.status === EventStatus.SENT;
     const followed = followedSendsRef.current.has(event);
-    if (!initial && sent && !threadId && (followed || atBottomRef.current) && documentHasFocus()) {
+    if (!initial && sent && !threadId && (followed || atBottomRef.current) && readerSees()) {
       void markMainTimelineAsRead(mx, room.roomId, hideActivity);
     }
     // Only the first report of a pending thread reply pins, before its row renders, so the pin

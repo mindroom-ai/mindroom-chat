@@ -438,6 +438,10 @@
     "roomActions": {
       "noInvitePermission": "আপনার আমন্ত্রণ জানানোর অনুমতি নেই",
       "searchEncrypted": "এনক্রিপ্ট করা রুমে উপলভ্য নয়"
+    },
+    "phoneNav": {
+      "search": "অনুসন্ধান",
+      "navigation": "নেভিগেশন"
     }
   },
   "mindroomUi": {
