@@ -84,6 +84,9 @@ export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: rea
   });
 
   const shown = panels.find((panel) => panel.open);
-  const layout = (shown && layouts[shown.id]?.[room]) ?? 'beside';
+  // A panel that has just opened elsewhere shows beside the conversation from its first render; the
+  // effect above then keeps it so.
+  const openedElsewhere = !!shown?.opensElsewhere && !wasOpen.current[room]?.has(shown.id);
+  const layout = (shown && !openedElsewhere && layouts[shown.id]?.[room]) || 'beside';
   return { shown, layout, setLayout, request };
 }

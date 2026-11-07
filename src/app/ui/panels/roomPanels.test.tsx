@@ -127,6 +127,25 @@ describe('useRoomPanels', () => {
     expect(result.current.layout).toBe('beside');
   });
 
+  it('shows a panel opened elsewhere beside the conversation from its first render', () => {
+    const options = { b: { opensElsewhere: true } };
+    const layouts: string[] = [];
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useRoomPanelsIn>[0]) => {
+        const rule = useRoomPanelsIn(props);
+        layouts.push(rule.layout);
+        return rule;
+      },
+      { initialProps: { panels: panelsOf({ b: true }, options) } }
+    );
+    act(() => result.current.setLayout('b', 'filled'));
+    rerender({ panels: panelsOf({}, options) });
+    layouts.length = 0;
+    rerender({ panels: panelsOf({ b: true }, options) });
+    expect(layouts).not.toContain('filled');
+    expect(result.current.layout).toBe('beside');
+  });
+
   it('opens a panel beside the conversation again, by a request or from elsewhere', () => {
     const options = { b: { opensElsewhere: true } };
     const { result, rerender } = renderHook(useRoomPanelsIn, {
