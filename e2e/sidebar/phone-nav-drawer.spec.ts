@@ -9,6 +9,7 @@ import {
   sendRoomMessage,
 } from '../helpers/matrix';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { cornersOf, pageCardRadius } from '../helpers/cardCorners';
 
 // On a phone a top bar stays above every page: a menu button, a search field that opens the
 // command palette and names its shortcut, and the account. The menu button slides a drawer in from
@@ -357,19 +358,6 @@ for (const engine of ENGINES) {
 
 // A tablet held upright is still narrow enough for the drawer (750 px and below).
 const TABLET = { width: 744, height: 1133 };
-// Wide enough for the page to float as a card beside the rail.
-const DESKTOP = { width: 1280, height: 800 };
-
-/** An element's corner radii in px: top-left, top-right, bottom-right, bottom-left. */
-const cornersOf = (element: Element) => {
-  const style = getComputedStyle(element);
-  return [
-    style.borderTopLeftRadius,
-    style.borderTopRightRadius,
-    style.borderBottomRightRadius,
-    style.borderBottomLeftRadius,
-  ].map((radius) => parseFloat(radius));
-};
 
 /**
  * Whatever rules the top bar off from the page: a border or shadow of its own, a pseudo-element,
@@ -442,18 +430,7 @@ for (const engine of ENGINES) {
         }
 
         // The page card's corner, where the page floats beside the rail.
-        await page.setViewportSize(DESKTOP);
-        await expect(menuButton(page)).toHaveCount(0);
-        const card = await page.evaluate(() => {
-          const main = document.querySelector('main[data-page-main]');
-          const surface = Array.from(main?.querySelectorAll('*') ?? []).find(
-            (element) =>
-              element.getBoundingClientRect().width > 400 &&
-              parseFloat(getComputedStyle(element).borderBottomRightRadius) > 0
-          );
-          return surface ? parseFloat(getComputedStyle(surface).borderBottomRightRadius) : 0;
-        });
-        expect(card, 'the page floats as a rounded card on a wide screen').toBeGreaterThan(0);
+        const card = await pageCardRadius(page);
 
         for (const viewport of [PHONE.viewport, TABLET]) {
           /* eslint-disable no-await-in-loop -- one size after the other on one page. */
