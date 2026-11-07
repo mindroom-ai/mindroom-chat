@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
 
 /** The plugin API this client implements; each plugin declares the one it was written for. */
-export const CLIENT_PLUGIN_API_VERSION = 1;
+const CLIENT_PLUGIN_API_VERSION = 1;
 
 const KEBAB_CASE = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const ENTRIES_MODULE = normalizePath(
@@ -90,18 +90,14 @@ export const readClientPlugins = (list) => {
  * What src/app/plugins/pluginEntries.ts becomes: an import of each plugin's entry, in order.
  * @param {ClientPluginInfo[]} plugins
  */
-const entriesModule = (plugins) =>
-  [
-    ...plugins.map(({ entry }, index) => `import plugin${index} from ${JSON.stringify(entry)};`),
-    `export const pluginEntries = [${plugins
-      .map(
-        ({ id, version }, index) =>
-          `{ id: ${JSON.stringify(id)}, version: ${JSON.stringify(
-            version
-          )}, plugin: plugin${index} }`
-      )
-      .join(', ')}];`,
-  ].join('\n');
+const entriesModule = (plugins) => {
+  const imports = plugins.map(({ entry }, i) => `import plugin${i} from ${JSON.stringify(entry)};`);
+  const entries = plugins.map(
+    ({ id, version }, i) =>
+      `{ id: ${JSON.stringify(id)}, version: ${JSON.stringify(version)}, plugin: plugin${i} }`
+  );
+  return `${imports.join('\n')}\nexport const pluginEntries = [${entries.join(', ')}];\n`;
+};
 
 /**
  * @param {Record<string, string | undefined>} [env]
