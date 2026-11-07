@@ -241,6 +241,8 @@ export const useTimelineScrollLedgerController = ({
   // Anchored room rows: rows a render puts above the reader's first visible row are folded,
   // whatever put them there (a new thread at the top, a page that widened the window).
   const roomLedgerAnchorRef = useRef<RoomLedgerAnchor>();
+  // The live instance: its size cache is the one its measurements read, also between commits.
+  const roomVirtualizerRef = useRef<ReactVirtualizer<HTMLDivElement, Element>>();
   const anchoringRoomRows = !threadId && !!anchorRoomRows;
   const roomRowKeys = anchoringRoomRows
     ? Array.from({ length: itemCount }, (_, index) => getItemKey(index))
@@ -248,8 +250,9 @@ export const useTimelineScrollLedgerController = ({
   const roomLedgerFoldPx =
     anchoringRoomRows && !resettingLedgerView
       ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, {
-          price: priceThreadRowForLedger,
-          measured: (key) => !!ledgerFoldSizeCacheRef.current?.has(key),
+          price: (key, index) =>
+            roomVirtualizerRef.current?.itemSizeCache.get(key) ?? estimateSize(index),
+          measured: (key) => !!roomVirtualizerRef.current?.itemSizeCache.has(key),
         })
       : 0;
   // Room pagination records its exact prepend height before requesting the
@@ -335,6 +338,7 @@ export const useTimelineScrollLedgerController = ({
   );
 
   useLayoutEffect(() => {
+    roomVirtualizerRef.current = virtualizer;
     ledgerFoldSizeCacheRef.current = virtualizer.itemSizeCache;
     roomFoldPriceRef.current = priceThreadRowForLedger;
     virtualizerRef.current = virtualizer;
