@@ -210,6 +210,9 @@
       "messageIn": "Mensagem em {{room}}",
       "threadIn": "Tópico em {{room}}",
       "messageElsewhere": "Mensagem noutra sala"
+    },
+    "deviceVerification": {
+      "acceptStalled": "A outra sessão não respondeu. Feche isto e inicie a verificação novamente."
     }
   },
   "featureUi": {
