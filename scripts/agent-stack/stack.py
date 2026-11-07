@@ -31,7 +31,7 @@ environment and nothing else; no file this script writes holds one. The backend 
 so set $E2E_AGENT_STACK_ROOT to a private directory for a real-model stack. `down` writes the stack's model calls and
 tokens to $E2E_AGENT_STACK_ROOT/usage/ before it deletes the stack.
 
---calls SERVICE_URL (or $E2E_AGENT_CALLS) makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
+--calls SERVICE_URL makes the helper answer MatrixRTC voice calls on the MatrixRTC authorization
 service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime OpenAI voice model: gpt-realtime-2.1-mini
 (--calls-profile realtime, the default) or gpt-live-1 (live). It needs OPENAI_API_KEY in the environment, which, like
 the real model's keys, reaches only the backend's process; the stub models keep a placeholder key of their own. The
