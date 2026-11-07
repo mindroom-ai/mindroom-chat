@@ -62,6 +62,6 @@ test('a thread card reads the math of its messages as plain text', async ({ page
   await page.screenshot({ path: testInfo.outputPath('thread-preview-math.png') });
   await expect(card).toContainText('How do I solve ax^2 + bx + c = 0 for x?');
   await expect(card).toContainText(
-    'Use the quadratic formula: x = (-b ± √(b^2 - 4ac))/(2a) whenever a ≠ 0.'
+    'Use the quadratic formula: x = ((-b ± √(b^2 - 4ac))/(2a)) whenever a ≠ 0.'
   );
 });

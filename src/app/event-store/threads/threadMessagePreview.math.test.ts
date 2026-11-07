@@ -6,7 +6,7 @@ const preview = (body: string) => getThreadMessagePreviewText({ msgtype: 'm.text
 
 describe('thread previews of math', () => {
   it('read a formula as plain text instead of its TeX source', () => {
-    expect(preview('The ratio is $\\frac{a}{b}$.')).toBe('The ratio is a/b.');
+    expect(preview('The ratio is $\\frac{a}{b}$.')).toBe('The ratio is (a/b).');
   });
 
   it('read the inline and display math of an agent answer', () => {
@@ -14,7 +14,7 @@ describe('thread previews of math', () => {
       preview(
         'The roots of $ax^2 + bx + c = 0$ are\n\n$$\nx = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}\n$$\n\nwhenever $a \\neq 0$.'
       )
-    ).toBe('The roots of ax^2 + bx + c = 0 are x = (-b ± √(b^2 - 4ac))/(2a) whenever a ≠ 0.');
+    ).toBe('The roots of ax^2 + bx + c = 0 are x = ((-b ± √(b^2 - 4ac))/(2a)) whenever a ≠ 0.');
   });
 
   it('read the math of a body the backend formatted around a tool call', () => {
@@ -23,38 +23,46 @@ describe('thread previews of math', () => {
     );
   });
 
-  it('read symbols, fonts and scripts', () => {
+  it('read symbols, functions, text and scripts', () => {
     expect(preview('$e^{i\\pi} + 1 = 0$')).toBe('e^(iπ) + 1 = 0');
-    expect(preview('$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$')).toBe('∑_(i=1)^n i = (n(n+1))/2');
+    expect(preview('$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$')).toBe('∑_(i=1)^n i = ((n(n+1))/2)');
     expect(preview('$\\text{speed} = \\dfrac{\\text{distance}}{\\mathrm{time}}$')).toBe(
-      'speed = (distance)/(time)'
+      'speed = ((distance)/(time))'
     );
-    expect(preview('So $P(A \\mid B) \\approx 0.3$.')).toBe('So P(A | B) ≈ 0.3.');
-    expect(preview('$\\|x\\|_2 \\leq |y|$')).toBe('‖x‖_2 ≤ |y|');
+    expect(preview('So $P(A \\mid B) \\approx 0.3$ and $\\phi \\ne \\varphi$.')).toBe(
+      'So P(A | B) ≈ 0.3 and ϕ ≠ φ.'
+    );
+    expect(preview('$\\|x\\|_2 \\leq |y|$ and $a\\cos\\theta + \\sin(x)$')).toBe(
+      '‖x‖_2 ≤ |y| and a cos θ + sin(x)'
+    );
   });
 
-  it('keep a fraction or root whole where a script, letter or command joins it', () => {
-    expect(preview('$\\frac{2}{3}^{2} = \\frac{4}{9}$')).toBe('(2/3)^2 = 4/9');
-    expect(preview('$E_k = \\frac{1}{2}mv^2$')).toBe('E_k = (1/2)mv^2');
-    expect(preview('$\\sqrt{x}^2 + \\left(\\frac{a}{b}\\right)^2 + \\frac{1}{n}\\sum x$')).toBe(
-      '(√x)^2 + (a/b)^2 + (1/n)∑ x'
+  it('keep the parts of fractions, roots and scripts together', () => {
+    expect(preview('$\\frac{2}{3}^{2} = \\frac{4}{9}$ and $\\frac{2}{3} ^2$')).toBe(
+      '(2/3)^2 = (4/9) and (2/3) ^2'
+    );
+    expect(preview('$E_k = \\frac{1}{2}mv^2$ and $3\\frac{1}{4} - 1/\\frac{1}{2}$')).toBe(
+      'E_k = (1/2)mv^2 and 3(1/4) - 1/(1/2)'
+    );
+    expect(preview('$\\sqrt{x}^2 + x^{2}2^{x} + \\frac{1}{n}\\sum x$')).toBe(
+      '√(x)^2 + x^(2)2^x + (1/n)∑ x'
     );
   });
 
   it('read sizing, spacing, escaped characters and unbalanced braces', () => {
     expect(preview('$\\left( \\frac {1}  {x+1} \\right)^{10}\\,\\text{and}~\\sin x$')).toBe(
-      '( 1/(x+1) )^10 and sin x'
+      '( (1/(x+1)) )^10 and sin x'
     );
     expect(preview('$50\\%$ of $\\{1, 2\\}$')).toBe('50% of {1, 2}');
-    expect(preview('$\\frac{1}{2$ and $a}b$ and $x^$')).toBe('1/2 and ab and x^');
+    expect(preview('$\\frac{1}{2$ and $a}b$ and $x^$')).toBe('(1/2) and ab and x^');
   });
 
   it('keep a formula as written when the reader does not know all of it', () => {
-    expect(preview('$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$')).toBe(
-      '$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$'
+    expect(preview('$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$ and $\\mathcal{F} \\ne F$')).toBe(
+      '$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$ and $\\mathcal{F} \\ne F$'
     );
-    expect(preview('$\\sqrt[3]{8} = 2$, $a \\\\ b$ and ${}$')).toBe(
-      '$\\sqrt[3]{8} = 2$, $a \\\\ b$ and ${}$'
+    expect(preview('$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$')).toBe(
+      '$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$'
     );
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
@@ -71,5 +79,13 @@ describe('thread previews of math', () => {
       'Run echo $HOME or $\\frac{a}{b}$ here.'
     );
     expect(preview('Plain text stays plain.')).toBe('Plain text stays plain.');
+  });
+
+  it('keep every formula of a body with code the tokenizer cannot find as written', () => {
+    expect(preview('See ``$\\frac{a}{b}$`` and $x^2$.')).toBe('See `$\\frac{a}{b}$` and $x^2$.');
+    expect(preview('~~~\n$\\frac{a}{b}$\n~~~\nand $x^2$')).toBe('$\\frac{a}{b}$ and $x^2$');
+    expect(preview('Example:\n\n    $\\frac{a}{b}$\n\nand $x^2$')).toBe(
+      'Example: $\\frac{a}{b}$ and $x^2$'
+    );
   });
 });
