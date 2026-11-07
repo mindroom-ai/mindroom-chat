@@ -24,8 +24,10 @@ vi.mock('./app/account/lifecycle/indexedDbLossRecovery', () => ({
   readRecoveryReloadAge: () => undefined,
 }));
 vi.mock('./app/theme/themeBootstrap', () => ({
-  applyThemeToDom: vi.fn(),
   resolveInitialTheme: vi.fn(),
+}));
+vi.mock('./app/theme/appliedTheme', () => ({
+  applyAppTheme: vi.fn(),
 }));
 vi.mock('./app/timeline/rideTraceRecorder', () => ({
   bootstrapRideTraceFlagFromUrl: vi.fn(),
