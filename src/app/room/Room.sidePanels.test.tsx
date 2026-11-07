@@ -490,6 +490,18 @@ describe('the side panels of a room', () => {
     expect(board()).not.toBeNull();
   });
 
+  it("does nothing for a plugin's late call after the room's page has gone", async () => {
+    signIn();
+    withCards();
+    await renderRoom();
+    const boardThen = controls.board;
+    cleanup();
+    await act(async () => boardThen?.open('late'));
+    expect(Object.keys(localStorage).filter((key) => key.includes(':side-panel/'))).toEqual([]);
+    await renderRoom();
+    expect(board()).toBeNull();
+  });
+
   it("gives a plugin's code no panels outside a room's page", async () => {
     render(<Card panel="panel" />);
     expect(controls.panel).toBeUndefined();
