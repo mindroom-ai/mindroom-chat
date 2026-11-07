@@ -4,8 +4,12 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
-import { putSession, removeSession } from '../matrix/session/sessions';
-import { forgetAccountInPlugins, usePluginStorage } from './pluginStorage';
+import { SESSION_STORE_KEY, putSession, removeSession } from '../matrix/session/sessions';
+import {
+  deletePluginStorageOfRemovedAccounts,
+  forgetAccountInPlugins,
+  usePluginStorage,
+} from './pluginStorage';
 
 // Two plugins whose `forgetAccount` the tests set.
 const forget = vi.hoisted(() => vi.fn<(pluginId: string, userId: string) => unknown>());
@@ -151,4 +155,40 @@ describe('forgetAccountInPlugins', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(done).toBe(true);
   });
+});
+
+describe('deletePluginStorageOfRemovedAccounts', () => {
+  /** A value a plugin wrote for `userId` in another tab as the account signed out there. */
+  const writtenInAnotherTab = (userId: string) =>
+    localStorage.setItem(`mindroom.plugin:${encodeURIComponent(userId)}/notes/draft`, 'Raced');
+
+  it('deletes the plugin storage of accounts without a stored login, and keeps the rest', () => {
+    storageOf('notes', BOB).setItem('draft', 'Bob writes');
+    storageOf('notes', LOOKALIKE).setItem('draft', 'Someone else');
+    localStorage.setItem('unrelated', 'kept');
+    removeSession(signIn(ALICE).sessionId);
+    writtenInAnotherTab(ALICE);
+
+    deletePluginStorageOfRemovedAccounts();
+
+    expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
+    expect(storageOf('notes', BOB).getItem('draft')).toBe('Bob writes');
+    expect(storageOf('notes', LOOKALIKE).getItem('draft')).toBe('Someone else');
+    expect(localStorage.getItem('unrelated')).toBe('kept');
+  });
+
+  it.each([
+    ["a newer version's list", { version: 99, sessions: [] }],
+    ['an entry of a newer kind', { version: 1, sessions: [{ kind: 'newer' }] }],
+  ])(
+    'keeps all of it while the account list holds %s, which this version cannot read',
+    (_, list) => {
+      writtenInAnotherTab(ALICE);
+      localStorage.setItem(SESSION_STORE_KEY, JSON.stringify(list));
+
+      deletePluginStorageOfRemovedAccounts();
+
+      expect(storageOf('notes', ALICE).getItem('draft')).toBe('Raced');
+    }
+  );
 });

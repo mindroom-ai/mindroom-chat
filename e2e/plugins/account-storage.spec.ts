@@ -131,6 +131,13 @@ test("signing out deletes the account's plugin storage and the plugin forgets th
     expect(await page.evaluate(() => sessionStorage.getItem('example-plugin.forgot'))).toBe(
       alice.userId
     );
+    // A value another tab wrote for her past its check as she signed out goes when the app starts.
+    await page.evaluate(
+      (key) => localStorage.setItem(key, 'Raced'),
+      `mindroom.plugin:${encodeURIComponent(alice.userId)}/example/raced`
+    );
+    await page.reload();
+    expect(await pluginKeysOf(page, alice.userId)).toEqual([]);
 
     await loginWithPassword(page, { homeserver: HOMESERVER, ...bob });
     await expect(await openSeenMark(page)).toHaveCount(0);
