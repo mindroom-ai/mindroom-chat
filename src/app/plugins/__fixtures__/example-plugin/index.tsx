@@ -2,8 +2,9 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in.
-// Under the room header it shows "Example banner in <room name>". Like a plugin outside this
-// repository, it imports the app only through the client SDK.
+// Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
+// (public/mark.svg). Like a plugin outside this repository, it imports the app only through the
+// client SDK.
 // A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
@@ -14,6 +15,7 @@ import { useEffect } from 'react';
 import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import {
+  pluginPublicUrl,
   usePluginConfig,
   usePluginRouteHref,
   usePluginStorage,
@@ -65,6 +67,13 @@ function Greeting({ event }: { event: PluginEvent }) {
 function RoomBanner({ room }: { room: Room }) {
   return (
     <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
+      <img
+        src={`${pluginPublicUrl('example')}mark.svg`}
+        alt=""
+        width={16}
+        height={16}
+        style={{ marginInlineEnd: 8, verticalAlign: 'middle' }}
+      />
       Example banner in {room.name}
     </div>
   );

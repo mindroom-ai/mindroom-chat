@@ -61,58 +61,6 @@ describe('getSearchResultPreviewText', () => {
     ).toBe('Message was redacted.');
   });
 
-  it('uses bundled unsigned replacements for edited previews', () => {
-    expect(
-      getSearchResultPreviewText({
-        type: MessageEvent.RoomMessage,
-        content: {
-          body: 'old body',
-          msgtype: MsgType.Text,
-        },
-        unsigned: {
-          'm.relations': {
-            [RelationType.Replace]: {
-              content: {
-                body: 'wrapper body',
-                msgtype: MsgType.Text,
-                'm.new_content': {
-                  body: 'final body',
-                  msgtype: MsgType.Text,
-                },
-              },
-            },
-          },
-        },
-      } as never)
-    ).toBe('final body');
-  });
-
-  it('marks bundled unsigned replacements as edited', () => {
-    expect(
-      isSearchResultEdited({
-        type: MessageEvent.RoomMessage,
-        content: {
-          body: 'old body',
-          msgtype: MsgType.Text,
-        },
-        unsigned: {
-          'm.relations': {
-            [RelationType.Replace]: {
-              content: {
-                body: 'wrapper body',
-                msgtype: MsgType.Text,
-                'm.new_content': {
-                  body: 'final body',
-                  msgtype: MsgType.Text,
-                },
-              },
-            },
-          },
-        },
-      } as never)
-    ).toBe(true);
-  });
-
   it('returns bundled unsigned replacement content for text renderers', () => {
     expect(
       getSearchResultEffectiveContent({
@@ -140,6 +88,40 @@ describe('getSearchResultPreviewText', () => {
       body: 'final body',
       msgtype: MsgType.Text,
     });
+  });
+
+  // Only a message's sender can edit it (Matrix specification, "Event replacements").
+  const withBundledEditBy = (editSender: string) =>
+    ({
+      type: MessageEvent.RoomMessage,
+      sender: '@author:example.org',
+      content: { body: 'The forklift is charged.', msgtype: MsgType.Text },
+      unsigned: {
+        'm.relations': {
+          [RelationType.Replace]: {
+            sender: editSender,
+            content: {
+              body: '* The forklift is broken.',
+              msgtype: MsgType.Text,
+              'm.new_content': { body: 'The forklift is broken.', msgtype: MsgType.Text },
+            },
+          },
+        },
+      },
+    } as never);
+
+  it('ignores an edit another sender bundled with the message', () => {
+    const event = withBundledEditBy('@other:example.org');
+
+    expect(getSearchResultPreviewText(event)).toBe('The forklift is charged.');
+    expect(isSearchResultEdited(event)).toBe(false);
+  });
+
+  it('shows the edit the message’s sender bundled with it', () => {
+    const event = withBundledEditBy('@author:example.org');
+
+    expect(getSearchResultPreviewText(event)).toBe('The forklift is broken.');
+    expect(isSearchResultEdited(event)).toBe(true);
   });
 
   it('truncates oversized preview bodies', () => {

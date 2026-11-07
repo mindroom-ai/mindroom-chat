@@ -137,6 +137,7 @@ describe('useCommandPaletteMessages', () => {
       'm.relations': {
         'm.replace': {
           event_id: '$edit',
+          sender: hit.result.sender,
           content: { body: `* ${body}`, 'm.new_content': { msgtype: 'm.text', body } },
         },
       },

@@ -1,4 +1,5 @@
 import { IEvent, MatrixEvent, RelationType } from 'matrix-js-sdk';
+import { isRecord } from '../lib/isRecord';
 
 type StructuredCloneGlobal = typeof globalThis & {
   structuredClone?: <T>(value: T) => T;
@@ -81,3 +82,17 @@ export const isSameSenderEditEvent = (
   targetEvent: MatrixEvent,
   editEvent: MatrixEvent | undefined
 ): editEvent is MatrixEvent => !!editEvent && editEvent.getSender() === targetEvent.getSender();
+
+/**
+ * The edit a server bundled with a raw event (`unsigned['m.relations']['m.replace']`), when the
+ * event's own sender made it: only a message's sender can edit it, as our SDK patch's
+ * `getServerAggregatedRelation` rules for mapped events.
+ */
+export const getSameSenderBundledEdit = (event: {
+  sender?: unknown;
+  unsigned?: unknown;
+}): Partial<IEvent> | undefined => {
+  const relations = isRecord(event.unsigned) ? event.unsigned['m.relations'] : undefined;
+  const edit = isRecord(relations) ? relations[RelationType.Replace] : undefined;
+  return isRecord(edit) && edit.sender === event.sender ? (edit as Partial<IEvent>) : undefined;
+};
