@@ -6,9 +6,10 @@ import {
   isZeroReplyStandaloneThreadRootEvent,
 } from './compactThreadRootData';
 
-// An agent can start a conversation with a notice, such as a card or a report. The thread lists
-// show a notice only when its content says `io.mindroom.conversation: true` and a MindRoom agent on
-// the viewer's homeserver sent it; every other notice stays out of them.
+// An agent can start a conversation with a notice, such as a card or a report. Before anyone
+// replies, the thread lists show a notice only when its content says
+// `io.mindroom.conversation: true` and a MindRoom agent on the viewer's homeserver sent it; every
+// other such notice stays out.
 const VIEWER = '@reader:example.org';
 const AGENT = '@mindroom_reporter:example.org';
 const FOREIGN_AGENT = '@mindroom_reporter:elsewhere.example';
