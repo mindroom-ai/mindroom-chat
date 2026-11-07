@@ -21,6 +21,7 @@ import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
+import { JoinFailure } from '../../rooms/JoinFailure';
 import { pressCardAction } from '../../lib/cardAction';
 import { AddExistingModal } from '../AddExistingModal';
 import { useDraggableItem } from './DnD';
@@ -190,6 +191,7 @@ export function SpaceItemCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const authenticated = useMediaAuthentication();
   const client = useMatrixClient();
+  const [joinFailure, setJoinFailure] = useState<unknown>();
   useDraggableItem(item, cardRef, canReorder ? onDragging : undefined);
 
   const { roomId } = item;
@@ -240,13 +242,15 @@ export function SpaceItemCard({
     : undefined;
   const access = resolveLobbyItemAccess(summary?.join_rule, !!summary, membership);
 
-  // A click anywhere on the heading of a space the person is not in does what its chip does.
+  // A click anywhere on the heading of a space the person is not in does what its chip does. A
+  // join the server refused says why on a line of its own under the heading.
   return (
     <Box
       ref={cardRef}
       className={css.SpaceItemCard({ outlined: true })}
       alignItems="Center"
       gap="200"
+      wrap={joinFailure !== undefined ? 'Wrap' : undefined}
       onClick={pressCardAction}
     >
       {loading ? (
@@ -275,10 +279,14 @@ export function SpaceItemCard({
             membership={membership}
             viaServers={item.content.via}
             chipClassName={css.HeaderChip}
+            onJoinFailure={setJoinFailure}
           />
         </>
       )}
       {options}
+      {joinFailure !== undefined && (
+        <JoinFailure error={joinFailure} style={{ flexBasis: '100%' }} />
+      )}
     </Box>
   );
 }

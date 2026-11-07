@@ -5,8 +5,7 @@ import type { JoinRule } from 'matrix-js-sdk';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { ownDirectionLine } from '../../ui/directional';
 import { RoomAccessControl } from '../RoomAccessControl';
-import { ErrorDetail } from '../../ui/ErrorDetail';
-import { describeKnownError } from '../../lib/describeError';
+import { JoinFailure } from '../JoinFailure';
 import { nameInitials } from '../../lib/common';
 import { isRoomId } from '../../matrix/matrix';
 import * as css from './JoinRoom.css';
@@ -170,13 +169,7 @@ export function JoinRoomRow({
                 >
                   <Text size="B300">{label}</Text>
                 </Button>
-                {failure !== undefined && (
-                  <Text role="alert" size="T200" className={css.RowError}>
-                    {describeKnownError(t, failure) ??
-                      t('sharedUi.roomCard.failedToJoinUnknownError')}
-                    <ErrorDetail error={failure} />
-                  </Text>
-                )}
+                {failure !== undefined && <JoinFailure error={failure} className={css.RowError} />}
               </>
             );
           }}

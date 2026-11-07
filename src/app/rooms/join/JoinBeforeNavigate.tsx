@@ -15,6 +15,7 @@ import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { RoomSummaryLoader, type RoomSummaryState } from '../RoomSummaryLoader';
 import { useLocalRoomSummary } from '../useLocalRoomSummary';
 import { RoomAccessControl } from '../RoomAccessControl';
+import { JoinFailure } from '../JoinFailure';
 import * as roomCardCss from '../RoomCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSyncState } from '../../matrix/hooks/useSyncState';
@@ -363,6 +364,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
                     : t('sharedUi.roomCard.join')}
                 </Text>
               </Button>
+              {access.joinError !== undefined && <JoinFailure error={access.joinError} />}
             </>
           )}
         </RoomAccessControl>
