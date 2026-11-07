@@ -8,6 +8,7 @@ import {
   phoneNavSlotAtom,
 } from '../navigation/phoneNavDrawer';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
+import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
 import { PHONE_NAV_DRAWER_ID, PHONE_NAV_MENU_BUTTON_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
@@ -35,7 +36,9 @@ const overlayOpen = (): boolean =>
 
 /** The drawer follows navigation: out at a section's own page, away on any other. */
 const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean) => void) => {
-  const { key } = useLocation();
+  const { key, pathname } = useLocation();
+  // An alias address shows no page until it turns into a room ID (a replace): that step decides.
+  const resolvingAlias = pathnameContainsAliasRoute(pathname);
   const action = useNavigationType();
   // Read from the store: the page marks itself in a layout effect of the same commit, before this
   // one runs; the value rendered here can lag that by a render.
@@ -43,11 +46,12 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
   const rootKey = useAtomValue(phoneNavSectionRootAtom);
   const wasSectionRoot = useRef(false);
   useLayoutEffect(() => {
+    if (resolvingAlias) return;
     const sectionRoot = store.get(phoneNavSectionRootAtom) === key;
     const fromSectionRoot = wasSectionRoot.current;
     wasSectionRoot.current = sectionRoot;
     setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action, fromSectionRoot));
-  }, [key, rootKey, action, setOpen, store]);
+  }, [key, rootKey, action, resolvingAlias, setOpen, store]);
 };
 
 /**

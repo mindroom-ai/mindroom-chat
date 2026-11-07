@@ -83,4 +83,32 @@ describe('PhoneNavDrawer', () => {
     act(() => renderer?.unmount());
     page.remove();
   });
+
+  it('stays out through a space alias while the address turns into the space ID', async () => {
+    const store = createStore();
+    const router = createMemoryRouter([{ path: '*', element: <PhoneNavDrawer nav={null} /> }], {
+      initialEntries: ['/!garden:example.org/'],
+    });
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <RouterProvider router={router} />
+        </Provider>
+      );
+    });
+    act(() => store.set(phoneNavSectionRootAtom, router.state.location.key));
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    // A tap on another space in the rail opens its alias, which shows no page until it resolves.
+    await act(async () => {
+      await router.navigate('/%23fields%3Aexample.org/');
+    });
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    await act(async () => {
+      await router.navigate('/!fields:example.org/', { replace: true });
+    });
+    act(() => store.set(phoneNavSectionRootAtom, router.state.location.key));
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
+    act(() => renderer?.unmount());
+  });
 });
