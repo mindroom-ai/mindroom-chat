@@ -96,6 +96,12 @@ describe('listShrinkAfterResize', () => {
     expect(listShrinkAfterResize(shrunk(724), rows([68, 3626, 308, 0, 40]), 0, 4, -40)).toBe(102);
   });
 
+  it('counts the newest row at the whole pixels virtual-core measures it in', () => {
+    // On screen the reply is 245.5 px tall; virtual-core takes 246 px for it.
+    const inner = list(684, [{ index: 2, top: 376, height: 245.5 }]);
+    expect(listShrinkAfterResize(inner, rows([68, 3626, 308]), 0, 2, -62)).toBe(62);
+  });
+
   it('cannot tell for a row above the newest one, whose rows below have not moved yet', () => {
     expect(listShrinkAfterResize(shrunk(), rows([68, 3626, 308, 0]), 0, 1, -30)).toBeUndefined();
   });

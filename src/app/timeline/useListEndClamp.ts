@@ -1,6 +1,10 @@
 import { type RefObject, useEffect } from 'react';
 
-/** `listShrinkNotRendered` before it drops below 0, with the newest row and the mounted rows. */
+/**
+ * `listShrinkNotRendered` before it drops below 0, with the newest row, the mounted rows, and how
+ * much more than its height on screen virtual-core counts for the newest row, which it measures
+ * in whole pixels.
+ */
 const listReach = (
   inner: HTMLElement | null,
   rows: readonly { index: number; size: number }[],
@@ -22,8 +26,14 @@ const listReach = (
     .slice(indexOf(newest) + 1)
     .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
   const ledgerMargin = (parseFloat(inner.style.marginTop) || 0) + rowFoldPx;
-  const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
-  return { px: reach - ledgerMargin - unmountedAfter, newest: indexOf(newest), mounted };
+  const { bottom, height } = newest.getBoundingClientRect();
+  const reach = inner.getBoundingClientRect().bottom - bottom;
+  return {
+    px: reach - ledgerMargin - unmountedAfter,
+    newest: indexOf(newest),
+    mounted,
+    roundingPx: Math.round(height) - height,
+  };
 };
 
 /**
@@ -50,7 +60,8 @@ export const listShrinkNotRendered = (
  * `listShrinkNotRendered` as it reads once virtual-core takes a new size for the row at `index`,
  * when the rendered rows already show that size: the row is mounted at or after the newest row
  * with a height, or after it and not mounted, its old size still counted in `rows`. A row above
- * the newest one moves the rows after it only when React renders them: undefined.
+ * the newest one moves the rows after it only when React renders them: undefined. The newest row
+ * counts at the whole pixels virtual-core gives it, so the list's next height matches.
  */
 export const listShrinkAfterResize = (
   inner: HTMLElement | null,
@@ -61,7 +72,8 @@ export const listShrinkAfterResize = (
 ): number | undefined => {
   const reach = listReach(inner, rows, rowFoldPx);
   if (!reach || index < reach.newest) return undefined;
-  return reach.mounted.has(index) ? reach.px : reach.px - deltaPx;
+  const px = reach.px - reach.roundingPx;
+  return reach.mounted.has(index) ? px : px - deltaPx;
 };
 
 /**
