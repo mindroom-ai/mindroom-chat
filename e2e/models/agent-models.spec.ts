@@ -133,11 +133,13 @@ test(
     await expect(page.getByText(`This thread now uses ${second.key}`)).toBeVisible({
       timeout: 60_000,
     });
+    // Scratch: the same moment on both builds, after the discovery window has ended.
+    await page.waitForTimeout(14_000);
+    await shot(page, `early-model-chip-${test.info().project.name}`);
     await expect(chip, `the chip read "${chipWhenTyped}" when the command was typed`).toHaveText(
       second.displayName,
       { timeout: 10_000 }
     );
-    await shot(page, `early-model-chip-${test.info().project.name}`);
     // The answer from before the command does not come back when the discovery window ends.
     await page.waitForTimeout(13_000);
     await expect(chip).toHaveText(second.displayName);
