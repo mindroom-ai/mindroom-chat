@@ -71,7 +71,9 @@ function AccountDataViewer() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${DATA}.accountData`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${DATA}.accountData`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="accountData"
@@ -135,7 +137,9 @@ export function DeveloperTools({ requestClose }: SettingsPageProps) {
   return (
     <SettingsPageFrame title={t('settings.nav.developerTools')} requestClose={requestClose}>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t(`${TOOLS}.options`)}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t(`${TOOLS}.options`)}
+        </Text>
         <SettingsCard>
           <SettingTile
             focusId="developerTools"

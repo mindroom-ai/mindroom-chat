@@ -314,7 +314,9 @@ function ThirdPartyNotices() {
 function AboutSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{title}</Text>
+      <Text size="L400" data-settings-heading="">
+        {title}
+      </Text>
       <SequenceCard
         variant="SurfaceVariant"
         className={SequenceCardStyle}
