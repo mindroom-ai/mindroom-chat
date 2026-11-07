@@ -206,7 +206,7 @@ The e2e scripts set these; they are listed so their effect is not a surprise.
 | `E2E_APP_PORT`, `E2E_MATRIX_PORT` | App and homeserver ports of an end-to-end slot (`scripts/e2e-slot.sh`). A slot's dev server keeps its own Vite cache. |
 | `E2E_NO_WATCH` | `1` makes the dev server serve files as they were at its start. |
 | `E2E_PORT`, `E2E_SERVER_COMMAND`, `E2E_REUSE_EXISTING_SERVER` | Override Playwright's app port, server command, and whether it reuses a server already listening (`playwright.config.ts`). |
-| `E2E_SNAPSHOT_ROOT`, `E2E_MAX_CONCURRENT` | Where slot snapshots, builds and run tokens live, and how many slot runs go at once (README). |
+| `E2E_SNAPSHOT_ROOT`, `E2E_MAX_CONCURRENT` | Where slot snapshots, builds and run tokens live, and how many slot runs go at once ([`development.md`](development.md#end-to-end-specs)). |
 
 The variables the specs themselves read are listed at the top of `e2e/global-setup.ts`.
 

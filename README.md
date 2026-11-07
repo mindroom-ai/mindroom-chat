@@ -1,121 +1,127 @@
+<div align="center">
+
+<img src="public/res/branding/mindroom-logo.png" alt="MindRoom logo" width="120">
+
 # MindRoom Client
 
-MindRoom Client is an Apache-2.0 [Matrix](https://matrix.org) client for [MindRoom](https://github.com/mindroom-ai/mindroom), which runs AI agents as Matrix users in your chat rooms. It is a web app (React, TypeScript, Vite) on `matrix-js-sdk` with its Rust crypto, served as static files, and it has iOS and Android shells built with Capacitor. In its interface the app calls itself MindRoom Chat.
+**The chat app for [MindRoom](https://github.com/mindroom-ai/mindroom): AI agents that live in your Matrix rooms.**
 
-[`docs/provenance.md`](docs/provenance.md) explains where each file came from, and [`AGENTS.md`](AGENTS.md) holds the rules for changing code here.
+[![CI](https://github.com/mindroom-ai/mindroom-client/actions/workflows/ci.yml/badge.svg)](https://github.com/mindroom-ai/mindroom-client/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+[![Built on Matrix](https://img.shields.io/badge/built%20on-Matrix-000000?logo=matrix&logoColor=white)](https://matrix.org)
+[![Platforms](https://img.shields.io/badge/platforms-web%20%7C%20iOS%20%7C%20macOS%20%7C%20Android-6f42c1)](#native-apps)
 
-## Features
+[Website](https://mindroom.chat) · [Docs](https://docs.mindroom.chat/) · [MindRoom backend](https://github.com/mindroom-ai/mindroom) · [Run it](#quick-start) · [Self-host](#self-host)
 
-- Sign-in with a password or single sign-on, registration, and several accounts side by side.
-- Rooms, direct messages, spaces, invites, and an Explore page for public room directories.
-- Threads: the Compact view shows one card per thread under a filter bar (count, status filters, sort, search, tags); the Full view shows the whole timeline. An open thread fills the main area under a banner where you rename, tag, pin or resolve it.
-- MindRoom agent replies: streaming status, tool calls, model and usage details, tool approval cards, and thread titles written by the agents.
-- Agent canvases (HTML pages in sandboxed frames), the agent's computer (a remote desktop panel), schedules, background jobs, Connections, and pairing with a Local MindRoom.
-- A rich-text composer with Markdown, mentions, emoji, custom emoji and stickers, attachments, and voice messages.
-- End-to-end encryption with device verification, key backup and a recovery key.
-- Calls over LiveKit (MatrixRTC), a command palette, message search, an Inbox for notifications and invites, and bug reports.
-- 17 languages (Arabic is right to left), light and dark themes, and a start from cache when offline.
+<img src="docs/screenshots/desktop-threads.png" alt="The Launch War Room in the Compact view: thread cards titled by agents, with tags, an approval request and a resolved thread, beside the room's members" width="900">
+
+</div>
+
+## What it is
+
+[MindRoom](https://github.com/mindroom-ai/mindroom) runs AI agents as ordinary users on a [Matrix](https://matrix.org) homeserver, so people and agents share the same rooms. Any Matrix client can talk to them. This one is built for them: every conversation is a thread you can title, tag, pin and resolve; agent replies stream in live with their tool calls, model and usage; and a tool call that your MindRoom's [tool approval](https://docs.mindroom.chat/tool-approval/) rules hold back waits until you approve it.
+
+It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, macOS and Android apps built from the same code with Capacitor. In its interface the app calls itself **MindRoom Chat**.
+
+## Highlights
+
+- 🧵 **Threads first.** The Compact view shows one card per thread under a filter bar (status and sort, plus tags and search in the advanced filters); the Threads view shows the room's timeline with each thread behind a badge under its first message. Agents title their threads, and you rename, tag, pin or resolve them.
+- ⚡ **Live agent replies.** Watch a reply stream in, with each tool call, the model it ran on and its token usage.
+- ✋ **You stay in charge.** A tool call that MindRoom's [tool approval](https://docs.mindroom.chat/tool-approval/) rules gate waits on a card where you review its arguments. Calls that no rule matches run without asking unless `tool_approval.default` is `require_approval`.
+- 🖼️ **More than text.** Agent canvases (HTML pages in sandboxed frames, when `config.json` turns them on), the agent's computer as a remote desktop panel, schedules, background jobs, Connections, and pairing with a MindRoom on your own machine.
+- ✍️ **A rich composer.** Markdown, mentions, emoji, custom emoji and stickers, attachments and voice messages.
+- 🔒 **End-to-end encryption.** Private rooms you create here are encrypted by default, with device verification, key backup and a recovery key. Rooms that MindRoom creates for its agents start unencrypted unless their [room policy](https://docs.mindroom.chat/rooms/#room-policy) sets `encrypted: true`.
+- 📞 **Calls.** Voice and video calls and screen sharing over MatrixRTC (LiveKit).
+- 👥 **Every account.** Sign in with a password or single sign-on, register, and keep several accounts side by side.
+- 🔎 **Find anything.** A command palette, message search, an Inbox for notifications and invites, and an Explore page for public room directories.
+- 🌍 **For everyone.** 17 languages (Arabic right to left), light and dark themes, keyboard shortcuts, and a start from cache when you are offline.
+- 🐞 **Bug reports** from inside the app.
+- 🔓 **Open source.** Apache-2.0, with any Matrix homeserver.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/desktop-thread-tools.png" alt="The Research agent answers in a thread after two tool calls, with a Markdown table comparing Q3 churn to SaaS benchmarks"></td>
+    <td width="50%"><img src="docs/screenshots/desktop-approval-dark.png" alt="In the dark theme, the Code agent waits for approval before it runs a shell command, with a Review button above the composer"></td>
+  </tr>
+  <tr>
+    <td align="center">Tool calls, tables and the model behind each reply</td>
+    <td align="center">Approval rules hold a tool call until you review it</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/phone-threads.png" alt="The thread cards of the Launch War Room on a phone"></td>
+    <td width="33%"><img src="docs/screenshots/phone-thread-dark.png" alt="On a phone in the dark theme, the Research agent's answer with its tool calls and a table that scrolls sideways"></td>
+    <td width="33%"><img src="docs/screenshots/phone-approval.png" alt="On a phone, the Code agent waits for approval of a shell command"></td>
+  </tr>
+  <tr>
+    <td align="center">Threads on the phone</td>
+    <td align="center">Agent answers, in the dark theme</td>
+    <td align="center">Approvals on the go</td>
+  </tr>
+</table>
 
 ## Quick start
 
-The Nix dev shell provides Node 24, npm, Python 3, `just`, Git and Chromium (`CHROMIUM_PATH`). Docker is needed for the test homeserver.
-
 ```bash
-nix develop
-just install   # npm ci; applies patches/ with patch-package
+nix develop    # Node 24, npm, Python 3, just, and Chromium on Linux
+just install   # npm ci
 just dev       # http://127.0.0.1:4200
 ```
 
-Without Nix, use Node 24 or newer (`package.json` `engines`; some unit tests fail on Node 22), Python 3, `just` and Docker, and set `CHROMIUM_PATH` for the end-to-end specs.
+Without Nix, use Node 24 or newer and run `npm ci` and `npm run dev`.
 
-The dev server answers `/config.json` with `config.mindroom.json`, so the sign-in page offers `mindroom.chat` and `matrix.org`. Type any other homeserver into the Server field: a server name is looked up through `/.well-known/matrix/client`, and a URL works too. Plain HTTP is accepted only for localhost and private network addresses.
+The sign-in page offers `mindroom.chat` and `matrix.org`, and takes any other homeserver too. To talk to agents, sign in to the homeserver your MindRoom backend uses; its agents are ordinary Matrix accounts there, and chat needs nothing else. New to MindRoom? Start with its [Getting Started guide](https://docs.mindroom.chat/getting-started/), or [try hosted MindRoom](https://mindroom.chat/#hosted).
 
-`just --list` shows every recipe; `AGENTS.md` describes each one.
+## Self-host
 
-## Homeserver and MindRoom backend
+`just build` writes a static site to `dist/`. Serve it over HTTPS from the root of an origin, answer every path that is not a file with `index.html`, send the framing headers that [`docs/deployment.md`](docs/deployment.md#serve) describes, and replace `config.json` to choose the homeservers people may sign in to and where the MindRoom API lives.
 
-- **Homeserver.** `config.json` decides which homeservers the sign-in page offers and whether people may type their own (`homeserverList`, `defaultHomeserver`, `allowCustomHomeservers`). For local work, `just hs-up` starts a disposable Tuwunel homeserver with open registration at `http://127.0.0.1:28008` (server name `matrix.localhost`); `just hs-down` stops it and deletes its data.
-- **MindRoom agents.** A MindRoom backend (`mindroom run`) signs its agents in to a homeserver as ordinary Matrix accounts (`@mindroom_<name>:<server>`). Sign the client in to the same homeserver and talk to the agents in their rooms; chat needs nothing else.
-- **MindRoom API.** Agent computers and Connections talk to the backend's HTTP API. Each agent publishes the backend's origin (its `MINDROOM_PUBLIC_URL`) as `io.mindroom.server` room state, and the client uses it. Set `mindroom.computers.apiUrl` in `config.json` to pin one origin instead; each user can override it in Settings > General > Computers.
-- **Local MindRoom.** Pairing a MindRoom that runs on someone's own machine goes through the provisioning service at `sidebar.mindRoomProvisioningUrl` (default: the account's homeserver).
-- **Test backend.** `just agent-stack <slot> up` runs a real backend with a stub model (no model is called) against an end-to-end slot's homeserver; the agent specs (`e2e/<domain>/agent-*.spec.ts` that use `e2e/helpers/agentStack.ts`) start it themselves.
+```bash
+just build
+cd dist && python3 ../serve.py 8090   # plain HTTP on every interface: for trying a build
+```
 
-Every `config.json` key, its default and its effect: [`docs/configuration.md`](docs/configuration.md).
+`serve.py` adds the `index.html` fallback and the framing headers but no HTTPS; keep its port off untrusted networks and put an HTTPS server in front of any deployment.
 
-## Checks
+[`docs/deployment.md`](docs/deployment.md) covers the build output, the service worker, framing headers and the nginx start scripts; [`docs/configuration.md`](docs/configuration.md) lists every `config.json` key.
+
+## Native apps
+
+The iOS, iPadOS, Mac Catalyst and Android apps wrap the same build with [Capacitor](https://capacitorjs.com) (app ID `chat.mindroom.app`; on Android `com.mindroom_ai.app`). [`docs/development.md`](docs/development.md#native-shells) shows how to build them, and [`docs/ios-release.md`](docs/ios-release.md) how releases reach the App Store.
+
+## Development
 
 | Command | What it does |
 |---|---|
-| `just check` | The full local check (CI, `.github/workflows/ci.yml`, runs `typecheck`, `strict`, `lint` and `test`): `typecheck`, `strict`, `lint`, `test`, `script-tests`, `license-check`, and the provenance checks (`verify-ported`, `check-holes` and the overlap check of `docs/provenance.md`; the ones that need an outside checkout skip without it) |
-| `just typecheck` | `tsc` over the app sources without tests; must report 0 errors |
-| `just strict` | `tsc` with `tsconfig.strict.json`; fails on errors in Lane C files only |
-| `just lint` | ESLint, with type-aware rules for Lane C TypeScript |
-| `just test [files]` | Vitest unit tests (next to the code as `*.test.ts(x)`; DOM tests opt in with `// @vitest-environment jsdom`) |
-| `just typecheck-tests` | `tsc` over everything, tests and `e2e/` included; reports its errors without failing |
+| `just dev` | Vite dev server on `http://127.0.0.1:4200` |
+| `just check` | The full local check: types, strict types, lint, unit tests, script tests, licenses and provenance |
+| `just test [files]` | Vitest unit tests, next to the code as `*.test.ts(x)` |
+| `just hs-up` / `just hs-down` | Start or remove a disposable Tuwunel homeserver for the end-to-end specs |
+| `just e2e [specs]` | Playwright end-to-end specs |
 
-### End-to-end specs
+[`docs/development.md`](docs/development.md) covers setup, the checks, the end-to-end specs and their parallel slots, and a real MindRoom backend with a stub model for the agent specs. Read [`AGENTS.md`](AGENTS.md) before you change code: it holds the rules and describes the `just` recipes.
 
-The specs in `e2e/` run in Playwright with the Chromium from `CHROMIUM_PATH`. `e2e/global-setup.ts` lists the environment variables they read. Without `E2E_USERNAME`, it registers its own accounts on the local test homeserver and seeds a fixture room.
+### A clean-room rebuild
 
-```bash
-just hs-up
-just e2e e2e/account/password-login.spec.ts   # starts the dev server on port 4200 unless one is running
-just hs-down
-```
-
-Several runs can share a machine through slots. Slot `n` has its own homeserver on port 28100+n and its own app port 4300+n:
-
-```bash
-just e2e-slot 3 npx playwright test e2e/account/password-login.spec.ts             # dev server on the working tree
-just e2e-slot 3 --snapshot npx playwright test e2e/account/password-login.spec.ts  # dev server on a clean copy of HEAD
-just e2e-slot 3 --preview npx playwright test e2e/account/password-login.spec.ts   # production build of HEAD
-just e2e-slot 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts  # with the slot's call service
-just e2e-slot 3 down                                                        # stop the slot, delete its data
-```
-
-- `--snapshot[=<rev>]` copies a commit (default `HEAD`) to `$E2E_SNAPSHOT_ROOT/slot-<n>` and runs the command there with an empty homeserver, so uncommitted edits never reach the run. `--preview` also builds that commit and serves it with `vite preview`. Specs that import `/src/` modules need the dev server (`--snapshot` without `--preview`).
-- `E2E_MAX_CONCURRENT` (default 6, `0` for no limit) caps how many slot runs go at once, over every shell that uses the same `E2E_SNAPSHOT_ROOT` (default `/tmp/mindroom-client-e2e`).
-- `just e2e-suite --slots 25-28 --out results.tsv [specs] [-- <playwright options>]` runs every spec file (or the given ones) of one commit, each in its own `--preview` slot run, and writes one TSV row per spec (passed, failed, skipped, first error, flaky, seconds, server, load average, and the tests skipped for a missing service, fixture, account or setting, which the summary names). The call specs get their slot's call service. `--rev <rev>` picks another commit, `--dev` uses the dev server for all specs, and `--resume <run directory>` finishes an interrupted run. Playwright options default to `--retries 1`.
-- `scripts/e2e-rtc.sh <slot> up|down|env` starts LiveKit and a MatrixRTC authorization service for the call specs; `e2e-slot --rtc` starts it before the slot's homeserver, which announces it, and stops it after the command.
-
-## Build and deploy
-
-`just build` writes a static site to `dist/`:
-
-| File | Purpose |
-|---|---|
-| `index.html`, `assets/`, `res/`, `sound/`, `public/locales/`, `manifest.json` | the app |
-| `config.json` | a copy of `config.mindroom.json`; replace it per deployment ([`docs/configuration.md`](docs/configuration.md)) |
-| `runtime-config.js` | sets the deployment globals before the app starts (base path, service worker, sign-in recovery) |
-| `authentication-recovery.js` | recovers sign-in behind an authenticating proxy |
-| `sw.js` | the service worker: precaches what a signed-in start needs for offline starts, keeps the build's other files and the language catalogs once a page has loaded them, fetches authenticated media |
-| `version.json` | the build version, polled by running clients, whose service worker then installs a new deployment for the next start |
-| `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
-
-To deploy, serve `dist/` from the root of an origin and answer every path that is not a file with `index.html`; with `hashRouter.enabled` in `config.json`, routes live after `#` and no rewrite is needed. `config.json`, `runtime-config.js`, `authentication-recovery.js` and `version.json` are not precached by the service worker, so a deployment can change them without a new build. The precache holds the app shell, the code, styles and images of a signed-in start and the crypto wasm (`scripts/precache-plan.mjs`); other files under `assets/` (chunks loaded on demand, sounds, the thinking marks) and the catalogs under `public/locales/` are kept the first time a page loads them, and a new build's worker keeps the kept files its build still has. A page still open from the previous build therefore loads its on-demand chunks from the server: when a deployment removed them, the page says a new version is available and its Reload starts the new build (`src/app/config/appUpdate.ts`). Keep the previous build's `assets/` files for a while after a deployment to spare open pages even that. The build is not usable under a sub-path: its asset URLs start at `/`.
-
-Who may frame the app is a response header, not part of the build (values in `scripts/frame-headers.json`, rule in `scripts/frame-headers.mjs`): `Content-Security-Policy: frame-ancestors 'self'` and `X-Frame-Options: SAMEORIGIN` on every path, and `frame-ancestors 'none'` with `X-Frame-Options: DENY` on the pairing page, in every spelling the router renders it under (`/connect`, `/CONNECT/`, `/%63onnect`, under a base path). `vite preview`, `serve.py` and the nginx start script `docker-entrypoint.d/40-frame-headers.sh` send them, and the service worker gives the pairing page its own when it answers from the cached app shell. `netlify.toml` sends them too, but its rules name only `/connect` and `/connect/`, so other spellings may get `'self'` there on a first visit.
-
-- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`).
-- `cd dist && python3 ../serve.py 8090` serves a build with the `index.html` fallback. It generates its own `runtime-config.js` from `APP_BASE_PATH` and `APP_ENABLE_SERVICE_WORKER`.
-- The repository has no Dockerfile. `docker-entrypoint.d/` holds start scripts for an image based on the official `nginx` image, with `dist/` in `/usr/share/nginx/html` and the build's `runtime-config.js` copied to `/opt/mindroom/runtime-config.js`. `99-runtime-config.sh` writes `runtime-config.js` from `APP_BASE_PATH`, `APP_ENABLE_SERVICE_WORKER`, `APP_AUTHENTICATION_RECOVERY_PROBE_URL` and `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL`, then appends the build's own. `40-frame-headers.sh` writes `/etc/nginx/conf.d/mindroom-frame-headers.conf`, which sends the framing headers from the `http` block; a `server` or `location` with an `add_header` of its own must `include /etc/nginx/mindroom-frame-headers.inc`, because nginx then drops the inherited headers. The nginx site needs the same `index.html` fallback.
-
-## Native shells
-
-`capacitor.config.ts` (app ID `chat.mindroom.app`) points both shells at `dist/`.
-
-- **iOS** (macOS with Xcode and CocoaPods): `npm run build:ios` builds and writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it (set `MINDROOM_COMPUTER_API_URL` to pin the computer API). Then `npx cap sync ios` and open `ios/App/App.xcworkspace` in Xcode. Xcode Cloud runs `ios/App/ci_scripts/`, which version the app from the release tags. `scripts/build-macos-app.sh [--sign]` builds the Mac Catalyst app; `ios/App/fastlane/screenshots/README.md` covers App Store screenshots.
-- **Android**: `npm run build`, then `npx cap sync android`, then build `android/` with Android Studio or Gradle.
+MindRoom Client succeeds MindRoom Chat, an earlier MindRoom client that was a fork of another Matrix client under AGPL-3.0. Files whose lines Bas Nijholt wrote for MindRoom Chat were brought over, and he licenses his lines in them under Apache-2.0 for this project (third-party material keeps its own license; see [`NOTICE`](NOTICE)); everything else was written fresh, without the source of the earlier client or the one it forked. Checks keep it that way: no commit may share code with that upstream client. [`docs/provenance.md`](docs/provenance.md) records where every file came from.
 
 ## Documentation
 
-- [`docs/configuration.md`](docs/configuration.md): `config.json`, `runtime-config.js` and build variables.
-- [`docs/ios-release.md`](docs/ios-release.md): calendar versions `vYYYY.M.N`, `just release`, the automatic release switch in `release.config.json`, Xcode Cloud builds, and moving the App Store app to this repository.
-- [`docs/architecture.md`](docs/architecture.md): folders, the two code lanes, and how the MindRoom event formats are handled.
-- [`AGENTS.md`](AGENTS.md): rules and the full recipe list.
-- [`docs/provenance.md`](docs/provenance.md): where the code came from.
-- [`docs/design/reference/`](docs/design/reference/): the screenshots the app is compared with.
+| Page | Covers |
+|---|---|
+| [`docs/development.md`](docs/development.md) | setup, checks, end-to-end specs, native shells |
+| [`docs/deployment.md`](docs/deployment.md) | the build, serving it, homeserver and MindRoom backend |
+| [`docs/configuration.md`](docs/configuration.md) | `config.json`, `runtime-config.js` and build variables |
+| [`docs/architecture.md`](docs/architecture.md) | folders, layers, the two code lanes, and the MindRoom event formats |
+| [`docs/ios-release.md`](docs/ios-release.md) | calendar versions `vYYYY.M.N`, `just release`, Xcode Cloud and the App Store app |
+| [`docs/provenance.md`](docs/provenance.md) | where the code came from |
+| [`docs/design/reference/`](docs/design/reference/) | the screenshots the app is compared with |
+| [`AGENTS.md`](AGENTS.md) | rules for changing code, and the `just` recipes |
 
 ## License
 
-Apache-2.0. See `LICENSE` and `NOTICE`.
+[Apache-2.0](LICENSE). [`NOTICE`](NOTICE) lists third-party material and its licenses.
