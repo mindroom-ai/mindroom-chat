@@ -132,23 +132,36 @@ describe('moveSpaceLinks', () => {
     expect(sendStateEvent.mock.calls.map(([roomId]) => roomId)).not.toContain('!unjoined');
   });
 
-  it("lists a Space's rooms in the new Space, whether or not the account is in them", async () => {
-    const { client, sendStateEvent } = fakeClient({
-      '!old': fakeRoom(
-        { 'm.space.child': { '!room': { via: ['s'] }, '!unjoined': { via: ['s'] } } },
-        'join',
-        true
-      ),
-      '!room': fakeRoom({ 'm.space.parent': { '!old': { via: ['s'], canonical: true } } }),
-    });
+  it("lists a Space's rooms in the new Space; their own links to it are best effort", async () => {
+    const { client, sendStateEvent } = fakeClient(
+      {
+        '!old': fakeRoom(
+          {
+            'm.space.child': {
+              '!room': { via: ['s'] },
+              '!theirs': { via: ['s'] },
+              '!unjoined': { via: ['s'] },
+            },
+          },
+          'join',
+          true
+        ),
+        '!room': fakeRoom({ 'm.space.parent': { '!old': { via: ['s'], canonical: true } } }),
+        '!theirs': fakeRoom({ 'm.space.parent': { '!old': { via: ['s'] } } }),
+      },
+      (roomId) =>
+        roomId === '!theirs' ? Promise.reject(new Error('M_FORBIDDEN')) : Promise.resolve({})
+    );
 
     await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual([]);
 
     expect(sendStateEvent.mock.calls).toEqual(
       expect.arrayContaining([
         ['!new', 'm.space.child', { via: ['s'] }, '!room'],
+        ['!new', 'm.space.child', { via: ['s'] }, '!theirs'],
         ['!new', 'm.space.child', { via: ['s'] }, '!unjoined'],
         ['!room', 'm.space.parent', { via: ['s'], canonical: true }, '!new'],
+        ['!theirs', 'm.space.parent', { via: ['s'] }, '!new'],
       ])
     );
   });
