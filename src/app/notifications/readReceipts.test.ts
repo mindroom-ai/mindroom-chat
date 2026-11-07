@@ -77,6 +77,33 @@ describe('markMainTimelineAsRead', () => {
     });
     expect(mx.sendReadReceipt).not.toHaveBeenCalled();
   });
+
+  it('reads the events a sync adds one by one with one receipt on the newest', async () => {
+    // A limited sync adds its events one at a time, and each arrival asks for a read.
+    const events: MatrixEvent[] = [];
+    const room = makeRoom(events);
+    const mx = makeClient(room);
+    const reads = ['$gap-1', '$gap-2', '$gap-3'].map((id, index) => {
+      events.push(makeMessageEvent(id, index + 1));
+      return markMainTimelineAsRead(mx as never, ROOM_ID, false);
+    });
+    await Promise.all(reads);
+
+    expect(mx.sendReceipt).toHaveBeenCalledTimes(1);
+    expect(mx.sendReceipt).toHaveBeenCalledWith(events[2], ReceiptType.Read, {
+      thread_id: MAIN_ROOM_TIMELINE,
+    });
+  });
+
+  it('sends no receipt on an event before the reader’s receipt', async () => {
+    // The newest event outside threads comes before the event the reader's receipt is on.
+    const room = makeRoom([makeMessageEvent('$main', 1), makeThreadReplyEvent('$reply', 2)]);
+    room.getEventReadUpTo.mockReturnValue('$reply' as never);
+    const mx = makeClient(room);
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
+  });
 });
 
 describe('markThreadAsRead', () => {
