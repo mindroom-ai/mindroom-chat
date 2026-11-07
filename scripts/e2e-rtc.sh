@@ -2,7 +2,7 @@
 # Start or stop a LiveKit server and a MatrixRTC authorization service for one end-to-end slot,
 # so the call specs can place real calls.
 #
-# Usage: scripts/e2e-rtc.sh <slot 0-50> up|down|env
+# Usage: scripts/e2e-rtc.sh <slot 0-99> up|down|env
 #   up    start both (LiveKit in Docker, e2e/rtc/authorization-service.mjs in the background)
 #   down  stop both
 #   env   print the variables the slot's homeserver and specs read
