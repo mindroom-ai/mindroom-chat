@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import {
   bodyOf,
@@ -47,6 +48,48 @@ const openMidStream = async (
   // A page that received the edit saves it a second later (edits are coalesced before they are
   // written); the reload comes after that, so the page has saved what it showed.
   if (reload) await page.waitForTimeout(2_000);
+  const dumpCache = () =>
+    page.evaluate(async (replyId) => {
+      const out: unknown[] = [];
+      const dbs = await indexedDB.databases();
+      for (const { name } of dbs) {
+        if (!name) continue;
+        const db = await new Promise<IDBDatabase>((res, rej) => {
+          const r = indexedDB.open(name);
+          r.onsuccess = () => res(r.result);
+          r.onerror = () => rej(r.error);
+        });
+        for (const store of Array.from(db.objectStoreNames)) {
+          const all = await new Promise<unknown[]>((res) => {
+            try {
+              const r = db.transaction(store, 'readonly').objectStore(store).getAll();
+              r.onsuccess = () => res(r.result as unknown[]);
+              r.onerror = () => res([]);
+            } catch {
+              res([]);
+            }
+          });
+          for (const rec of all) {
+            const text = JSON.stringify(rec);
+            if (text.includes(replyId)) out.push({ db: name, store, len: text.length, rec: text.slice(0, 400), tail: text.slice(-300) });
+          }
+        }
+        db.close();
+      }
+      const probe = (window as unknown as { __MINDROOM_CACHE_PROBE__?: { snapshot: () => Record<string, number> } }).__MINDROOM_CACHE_PROBE__?.snapshot();
+      return { out, probe: probe && { editCompactions: probe.editCompactions, editCompactionTargetMisses: probe.editCompactionTargetMisses, threadSaveCalls: probe.threadSaveCalls } };
+    }, editedEvent.event_id);
+  const beforeReload = reload ? await dumpCache() : undefined;
+  const diag: unknown[] = [];
+  await page.addInitScript(() => localStorage.setItem('mindroom.debug.timeline', '1'));
+  page.on('console', (msg) => {
+    if (!msg.text().includes('timeline-debug')) return;
+    void Promise.all(msg.args().map((a) => a.jsonValue().catch(() => '?'))).then((args) => diag.push({ t: Date.now(), args }));
+  });
+  page.on('request', (r) => {
+    if (/relations|\/event\/|\/sync/.test(r.url())) diag.push({ t: Date.now(), req: r.url().replace(/^.*\/_matrix\/client/, '').slice(0, 160) });
+  });
+  diag.push({ t: Date.now(), goto: true });
 
   // Record the reply row's word count, and whether it shows the thinking placeholder, at every
   // change, from the page load on.
@@ -79,6 +122,7 @@ const openMidStream = async (
   const samples = await page.evaluate(
     () => (window as unknown as { replySamples: Sample[] }).replySamples
   );
+  writeFileSync(test.info().outputPath('diag.json'), JSON.stringify({ beforeReload, diag, samples }, null, 1));
   // The row's first paint already has the reply's text: no placeholder, no empty row.
   expect(
     samples.filter(({ words, thinking }) => thinking || words === 0),
