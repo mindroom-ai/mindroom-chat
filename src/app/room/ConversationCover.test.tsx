@@ -1,14 +1,14 @@
 // @vitest-environment jsdom
-import type { ReactNode } from 'react';
+import { type ReactNode, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
-import { getDefaultStore } from 'jotai';
+import { getDefaultStore, useAtomValue } from 'jotai';
 import { createClient, Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../config/useClientConfig';
-import { conversationCoveredAtom } from '../navigation/conversationCover';
+import { conversationCoveredAtom, conversationHiddenAtom } from '../navigation/conversationCover';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { RoomView } from './RoomView';
 
@@ -205,6 +205,26 @@ const composer = () => screen.getByRole('textbox', { name: 'Message', hidden: tr
 const conversation = () => composer().closest<HTMLElement>('[style*="contents"]')!;
 const covered = () => getDefaultStore().get(conversationCoveredAtom);
 
+/**
+ * A composer popover portaled into the body, as the emoji board is: while open it takes the focus
+ * back from anywhere else, as its focus trap does, and it closes as the conversation hides.
+ */
+function TrappingPopover() {
+  const hidden = useAtomValue(conversationHiddenAtom);
+  const fieldRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (hidden) return undefined;
+    const takeBack = (event: FocusEvent) => {
+      if (event.target !== fieldRef.current) fieldRef.current?.focus();
+    };
+    document.addEventListener('focusin', takeBack);
+    return () => document.removeEventListener('focusin', takeBack);
+  }, [hidden]);
+  return hidden
+    ? null
+    : createPortal(<input ref={fieldRef} aria-label="board search" />, document.body);
+}
+
 describe('a conversation cover', () => {
   it('shows nothing while no condition holds, and leaves the conversation as it is', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
@@ -362,6 +382,19 @@ describe('a conversation cover', () => {
     expect(conversation().hasAttribute('aria-hidden')).toBe(false);
     expect(covered()).toBe(false);
     expect(document.activeElement).toBe(composer());
+  });
+
+  it('takes the focus from a composer popover that held it, once that closed as the cover showed', async () => {
+    render(
+      <ClientConfigProvider value={{}}>
+        <RoomView room={room} />
+        <TrappingPopover />
+      </ClientConfigProvider>
+    );
+    screen.getByRole('textbox', { name: 'board search' }).focus();
+    await act(async () => mocks.set('fixed', true));
+    expect(screen.queryByRole('textbox', { name: 'board search' })).toBeNull();
+    expect(layer()!.contains(document.activeElement)).toBe(true);
   });
 
   it('gives the composer back its caret with the focus', () => {
