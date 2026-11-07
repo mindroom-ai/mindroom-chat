@@ -453,25 +453,31 @@ function RoomContent() {
   const shownId = shown?.id;
   const now = useLatestRef({ roomId, shownId });
   const alive = useAlive();
+  // `open` and `close` keep their identity while the room shows, so a plugin's effect that opens its
+  // panel runs again only in another room.
+  const openPluginPanel = useCallback<PluginPanelControls['open']>(
+    (id, panelRequest) => {
+      if (
+        alive() &&
+        now.current.roomId === roomId &&
+        pluginPanels.some((panel) => panel.id === id)
+      ) {
+        request(id, () => showPluginPanel(id, panelRequest));
+      }
+    },
+    [alive, now, pluginPanels, request, roomId, showPluginPanel]
+  );
+  const closeShownPluginPanel = useCallback<PluginPanelControls['close']>(
+    (id) => {
+      if (alive() && now.current.roomId === roomId && now.current.shownId === id) {
+        closePluginPanel();
+      }
+    },
+    [alive, closePluginPanel, now, roomId]
+  );
   const pluginPanelControls = useMemo<PluginPanelControls>(
-    () => ({
-      shown: shownId,
-      open: (id, panelRequest) => {
-        if (
-          alive() &&
-          now.current.roomId === roomId &&
-          pluginPanels.some((panel) => panel.id === id)
-        ) {
-          request(id, () => showPluginPanel(id, panelRequest));
-        }
-      },
-      close: (id) => {
-        if (alive() && now.current.roomId === roomId && now.current.shownId === id) {
-          closePluginPanel();
-        }
-      },
-    }),
-    [alive, closePluginPanel, now, pluginPanels, request, roomId, showPluginPanel, shownId]
+    () => ({ shown: shownId, open: openPluginPanel, close: closeShownPluginPanel }),
+    [closeShownPluginPanel, openPluginPanel, shownId]
   );
 
   const showCanvas = useCallback(

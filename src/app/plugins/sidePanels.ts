@@ -66,10 +66,12 @@ export type RoomSidePanelControl = {
   isOpen: boolean;
   /**
    * Opens it as the room menu does, taking the side panel from any other, or keeps it open, and
-   * hands its `Component` `request`. A panel that `remember`s keeps the request as JSON.
+   * hands its `Component` `request`. A panel that `remember`s keeps the request as JSON. It keeps
+   * its identity while the room shows, so an effect that opens the panel depends on it, not on the
+   * whole object, which changes with `isOpen`.
    */
   open: (request?: unknown) => void;
-  /** Closes it, if the room shows it. */
+  /** Closes it, if the room shows it; it keeps its identity as `open` does. */
   close: () => void;
 };
 
@@ -84,13 +86,17 @@ export const useRoomSidePanel = (
 ): RoomSidePanelControl | undefined => {
   const controls = useContext(PluginPanelControlsContext);
   const id = `${pluginId}/${panelId}`;
-  return useMemo(
+  const roomOpen = controls?.open;
+  const roomClose = controls?.close;
+  const actions = useMemo(
     () =>
-      controls && {
-        isOpen: controls.shown === id,
-        open: (request?: unknown) => controls.open(id, request),
-        close: () => controls.close(id),
+      roomOpen &&
+      roomClose && {
+        open: (request?: unknown) => roomOpen(id, request),
+        close: () => roomClose(id),
       },
-    [controls, id]
+    [id, roomClose, roomOpen]
   );
+  const isOpen = controls?.shown === id;
+  return useMemo(() => actions && { ...actions, isOpen }, [actions, isOpen]);
 };
