@@ -68,7 +68,16 @@ type CoverLayerProps = {
 function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }: CoverLayerProps) {
   const layerRef = useRef<HTMLDivElement>(null);
   const setCovered = useSetAtom(conversationCoveredAtom);
-  // Before the focus effect: inert before the focus moves in, no longer when it moves back.
+  // Where the focus was, and the page's selection, which holds the composer's caret (a click in the
+  // cover moves it): read as the cover first renders, before a field of its own takes the focus.
+  const [before] = useState(() => {
+    const selection = document.getSelection();
+    return {
+      focused: document.activeElement,
+      caret: selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined,
+    };
+  });
+  // Before the focus effect: no longer inert when the focus moves back.
   useInert(conversationRef, true);
   useLayoutEffect(() => {
     setCovered(true);
@@ -76,22 +85,19 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
   }, [setCovered]);
   useLayoutEffect(() => {
     const layer = layerRef.current;
-    const before = document.activeElement;
-    // The page's selection holds the composer's caret, and a click in the cover moves it.
-    const selection = document.getSelection();
-    const caret = selection?.rangeCount ? selection.getRangeAt(0).cloneRange() : undefined;
-    if (layer && !layer.contains(before)) layer.focus({ preventScroll: true });
+    if (layer && !layer.contains(document.activeElement)) layer.focus({ preventScroll: true });
     // Focus the person moved out of the cover stays there: once this commit is done, React gives
     // the focus back to the element that had it when that is still in the page.
     return () => {
-      if (!(before instanceof HTMLElement) || !before.isConnected) return;
-      before.focus({ preventScroll: true });
+      const { focused, caret } = before;
+      if (!(focused instanceof HTMLElement) || !focused.isConnected) return;
+      focused.focus({ preventScroll: true });
       // Only a caret in that element: one elsewhere could take the focus with it.
-      if (!caret || !before.contains(caret.startContainer)) return;
+      if (!caret || !focused.contains(caret.startContainer)) return;
       document.getSelection()?.removeAllRanges();
       document.getSelection()?.addRange(caret);
     };
-  }, []);
+  }, [before]);
 
   // Escape in the cover closes it when its plugin allows, unless something in it took the key or an
   // input method is composing.

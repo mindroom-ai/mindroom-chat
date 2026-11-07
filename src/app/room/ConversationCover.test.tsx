@@ -80,7 +80,19 @@ vi.mock('../plugins/pluginEntries', () => ({
         ],
       },
     },
-    { id: 'other', version: '2.0.0', plugin: { conversationCovers: [mocks.cover('fixed')] } },
+    {
+      id: 'other',
+      version: '2.0.0',
+      plugin: {
+        conversationCovers: [
+          mocks.cover('fixed'),
+          // A cover that puts the focus in its own field as it shows.
+          mocks.cover('autofocus', {
+            Component: () => <input aria-label="autofocus field" autoFocus />,
+          }),
+        ],
+      },
+    },
   ],
 }));
 
@@ -122,7 +134,7 @@ vi.mock('../composer/RoomInput', () => ({
 afterEach(() => {
   cleanup();
   act(() => {
-    ['broken', 'closable', 'fixed'].forEach((name) => mocks.set(name, false));
+    ['broken', 'closable', 'fixed', 'autofocus'].forEach((name) => mocks.set(name, false));
   });
   mocks.reportBoundaryError.mockReset();
   vi.restoreAllMocks();
@@ -192,6 +204,15 @@ describe('a conversation cover', () => {
     expect(document.activeElement).toBe(composer());
     const caret = document.getSelection()!;
     expect([caret.anchorNode, caret.anchorOffset]).toEqual([text, 3]);
+  });
+
+  it("gives the focus back also when the cover's own field took it as it showed", () => {
+    renderRoom();
+    composer().focus();
+    show('autofocus');
+    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'autofocus field' }));
+    show('autofocus', false);
+    expect(document.activeElement).toBe(composer());
   });
 
   it('leaves the focus where the person moved it when the cover goes', () => {
