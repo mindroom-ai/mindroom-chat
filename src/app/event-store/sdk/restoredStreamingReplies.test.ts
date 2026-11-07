@@ -17,7 +17,10 @@ import { createSessionId } from '../../matrix/session/sessions';
 import { resetCacheHealthForTesting } from '../cache/cacheHealth';
 import { resetCacheStoreForTesting } from '../cache/db';
 import { saveThreadEventsToCacheCommitted } from '../cache/db/cacheStoreEvents';
-import { findSavedStreamingReplies, restoreStreamingRepliesFromCache } from './restoredStreamingReplies';
+import {
+  findSavedStreamingReplies,
+  restoreStreamingRepliesFromCache,
+} from './restoredStreamingReplies';
 
 const BASE_URL = 'https://matrix.example';
 const USER_ID = '@reader:example';
@@ -171,7 +174,9 @@ describe('streaming replies restored from the saved sync', () => {
   });
 
   it('first shows the newer text the event cache saved for a reply restored as a placeholder', async () => {
-    await saveToCache(withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9)));
+    await saveToCache(
+      withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9))
+    );
 
     const { firstShown } = await reload([root, placeholder]);
 
@@ -196,7 +201,9 @@ describe('streaming replies restored from the saved sync', () => {
   });
 
   it('shows the placeholder without the cache read (the defect this fixes)', async () => {
-    await saveToCache(withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9)));
+    await saveToCache(
+      withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9))
+    );
 
     const { firstShown } = await reload([root, placeholder], { readCache: false });
 
