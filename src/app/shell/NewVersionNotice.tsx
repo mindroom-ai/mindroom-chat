@@ -34,6 +34,8 @@ export function NewVersionNotice() {
   const listSlot = useAtomValue(listNoticeSlotAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
+  // The card's life: due (a new version is known), held back while a phone's drawer covers its
+  // place, come in, leaving once dismissed (from where it was), then gone for the page.
   const [dismissed, setDismissed] = useState(false);
   // Dismissed, the card leaves from where it was, even if the list closes meanwhile.
   const [leftFrom, setLeftFrom] = useState<{ slot: HTMLElement | null; placement: Placement }>();

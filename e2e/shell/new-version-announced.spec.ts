@@ -8,6 +8,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { previewBuildDir, serveBuild } from '../helpers/staticBuildServer';
 import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { putPhoneDrawerAway } from '../helpers/phoneDrawer';
 
 // A deployment while the app is open (L7-F018). A page that already loaded every part it uses has
 // nothing fail to load, and said nothing until the person reloaded on their own. The page must
@@ -103,7 +104,7 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
     // waits, and comes in once the drawer has gone.
     await page.waitForTimeout(1_000);
     await expect(page.locator('[data-new-version-card]')).toHaveCount(0);
-    await page.keyboard.press('Escape');
+    await putPhoneDrawerAway(page);
   }
   await expect(notice).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();

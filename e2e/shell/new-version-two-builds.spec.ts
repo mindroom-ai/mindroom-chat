@@ -12,6 +12,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { previewBuildDir, serveBuild } from '../helpers/staticBuildServer';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { putPhoneDrawerAway } from '../helpers/phoneDrawer';
 
 // A deployment replaces one build with the next while the app is open, with the service worker on
 // (the production default). The commit's preview build is the first; the spec builds the same tree
@@ -138,6 +139,7 @@ const reloadsIntoSecondBuild = async (page: Page) => {
 const longOpenTab = async (page: Page, name: string, deploy: () => void) => {
   await page.clock.install();
   await signInOnFirstBuild(page, name);
+  await putPhoneDrawerAway(page);
   await expect(announcement(page)).toHaveCount(0);
   deploy();
   // Nothing tells the page; only its five-minute check can.
@@ -166,6 +168,7 @@ const reloadAfterDeployment = async (page: Page, name: string, deploy: () => voi
     timeout: 60_000,
   });
   expect(await runningEntry(page)).toBe(entryOf(FIRST!));
+  await putPhoneDrawerAway(page);
   await expect(announcement(page)).toBeVisible({ timeout: 15_000 });
   await shot(page, `reload-${name}`);
   await reloadsIntoSecondBuild(page);

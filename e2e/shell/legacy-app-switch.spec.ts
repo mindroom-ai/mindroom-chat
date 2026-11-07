@@ -12,6 +12,7 @@ import {
 } from '../helpers/disposableAccounts';
 import { previewBuildDir, serveBuild } from '../helpers/staticBuildServer';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
+import { putPhoneDrawerAway } from '../helpers/phoneDrawer';
 
 // The production origin switches from the legacy MindRoom Chat app to this client, and may switch
 // back. Both apps are served from one origin by one static server whose files flip from one build
@@ -175,6 +176,7 @@ const rollback = async (page: Page, name: string, flip: () => void) => {
   await expect
     .poll(() => controllerScript(page), { timeout: 60_000 })
     .toContain(`version=${encodeURIComponent(versionOf(CURRENT!))}`);
+  await putPhoneDrawerAway(page);
   flip();
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   const notice = page.locator('[data-new-version-card]');

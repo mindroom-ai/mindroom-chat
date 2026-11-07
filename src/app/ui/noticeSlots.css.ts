@@ -11,7 +11,8 @@ import { config } from 'folds';
 // never wider than the panel; the notice keeps its own distance from the sides.
 export const ListSlot = style({
   position: 'absolute',
-  zIndex: 1,
+  // Over the list's scrollbar (z-index 2, earlier in the panel), so the card takes its own taps.
+  zIndex: 2,
   insetInline: 0,
   insetBlockEnd: 0,
   display: 'flex',

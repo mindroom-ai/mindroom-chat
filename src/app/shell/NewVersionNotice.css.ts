@@ -37,6 +37,7 @@ const motionFrom = (enter: string, leave: string) => ({
 });
 
 const listMotion = motionFrom(enterFromBelow, leaveDownward);
+const listEndGap = `max(${config.space.S200}, var(--mr-panel-handle-inset, 0px))`;
 const pageMotion = motionFrom(enterFromAbove, leaveUpward);
 
 // The live region at the top of the app's content box (NoticeLayoutContent), as wide as the box
@@ -59,8 +60,10 @@ export const Card = recipe({
       list: {
         ...listMotion,
         flexShrink: 0,
-        inlineSize: `calc(var(--mr-panel-content-width, 100%) - 2 * ${config.space.S200})`,
-        marginInline: config.space.S200,
+        // Clear of the splitter, which reaches --mr-panel-handle-inset at most into the list.
+        inlineSize: `calc(var(--mr-panel-content-width, 100%) - ${config.space.S200} - ${listEndGap})`,
+        marginInlineStart: config.space.S200,
+        marginInlineEnd: listEndGap,
         // Its place clips it at the list's sides, S200 away: a shadow that ends within them.
         selectors: {
           ...listMotion.selectors,

@@ -5,8 +5,10 @@ import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import { ResizablePageNav } from './ResizablePageNav';
 import { ResizablePanel } from '../ui/panels/ResizablePanel';
 
-// The notice places are tested in ui/noticeSlots.test.tsx.
-vi.mock('../ui/noticeSlots', () => ({ NoticeSlot: () => null }));
+// The notice places are tested in ui/noticeSlots.test.tsx; here, where the list offers one.
+vi.mock('../ui/noticeSlots', () => ({
+  NoticeSlot: ({ place }: { place: string }) => <i data-notice-slot={place} />,
+}));
 vi.mock('../ui/panels/ResizablePanel.css', () => ({ Panel: 'panel', Handle: 'handle' }));
 vi.mock('../ui/page/Page', () => ({
   PageNav: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -200,6 +202,16 @@ describe('ResizablePanel at the member edge', () => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('ResizablePageNav', () => {
+  it('offers the notice place beside the page, and none in a phone drawer', () => {
+    const wide = renderPanel(ScreenSize.Tablet);
+    expect(wide.renderer.root.findAllByProps({ 'data-notice-slot': 'list' })).toHaveLength(1);
+    act(() => wide.renderer.unmount());
+
+    const phone = renderPanel(ScreenSize.Mobile);
+    expect(phone.renderer.root.findAllByProps({ 'data-notice-slot': 'list' })).toHaveLength(0);
+    act(() => phone.renderer.unmount());
+  });
+
   it.each(['mouse', 'touch', 'pen'])(
     'previews collapse with %s, commits on release, and preserves the previous width',
     (pointerType) => {
