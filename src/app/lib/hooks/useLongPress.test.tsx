@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { LONG_PRESS_MS, useLongPress } from './useLongPress';
+import { LONG_PRESS_MS, SELECTION_HOLD_MS, useLongPress } from './useLongPress';
 
 function Row({
   onLongPress,
@@ -15,6 +15,7 @@ function Row({
 }
 
 const finger = (x: number, y: number) => ({ clientX: x, clientY: y, identifier: 1 });
+const pageSelect = () => document.documentElement.style.getPropertyValue('user-select');
 
 describe('useLongPress', () => {
   beforeEach(() => vi.useFakeTimers());
@@ -114,11 +115,10 @@ describe('useLongPress', () => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
     });
     expect(onLongPress).not.toHaveBeenCalled();
-    expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+    expect(pageSelect()).toBe('');
   });
 
-  it('holds the page unselectable from the touch to the lift, also for nested presses', () => {
-    const pageSelect = () => document.documentElement.style.getPropertyValue('user-select');
+  it('holds the page unselectable from a resting finger to the lift, also for nested presses', () => {
     const onLongPress = vi.fn();
     function Nested() {
       const outer = useLongPress(onLongPress, () => true);
@@ -132,17 +132,48 @@ describe('useLongPress', () => {
     const view = render(<Nested />);
     const inner = view.container.querySelector('span') as HTMLElement;
     fireEvent.touchStart(inner, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(SELECTION_HOLD_MS);
+    });
     expect(pageSelect()).toBe('none');
     act(() => {
-      vi.advanceTimersByTime(LONG_PRESS_MS);
+      vi.advanceTimersByTime(LONG_PRESS_MS - SELECTION_HOLD_MS);
     });
     expect(pageSelect()).toBe('none');
     fireEvent.touchEnd(inner, { touches: [] });
     expect(pageSelect()).toBe('');
 
-    // A short tap releases it too.
+    // A finger that rested and lifts before the press fires releases it too.
     fireEvent.touchStart(inner, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(SELECTION_HOLD_MS);
+    });
+    expect(pageSelect()).toBe('none');
     fireEvent.touchEnd(inner, { touches: [] });
+    expect(pageSelect()).toBe('');
+  });
+
+  it('leaves the page alone under a finger that scrolls or taps before it rests', () => {
+    const { row } = setup();
+    fireEvent.touchStart(row, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(SELECTION_HOLD_MS - 1);
+    });
+    expect(pageSelect()).toBe('');
+    fireEvent.touchMove(row, { touches: [finger(40, 90)] });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(pageSelect()).toBe('');
+
+    fireEvent.touchStart(row, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(100);
+    });
+    fireEvent.touchEnd(row, { touches: [] });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
     expect(pageSelect()).toBe('');
   });
 
