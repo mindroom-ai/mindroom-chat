@@ -13,10 +13,10 @@ import { closeClient } from './closeClient';
 
 // An account switch closes the client and with it the Rust crypto machine, while the machine's
 // key backup work may still be running: the check of the server's backup, the upload of new keys
-// to it, and a key download that waits for that check. These tests run that work with the real
-// SDK and Rust crypto against a homeserver kept in memory, close the client at each point where
-// the work waits, and expect it to end there instead of calling into the closed machine (which
-// throws "null pointer passed to rust").
+// to it, a key download that waits for that check, and the check of a backup key that another
+// session sent. These tests run that work with the real SDK and Rust crypto against a homeserver
+// kept in memory, close the client at each point where the work waits, and expect it to end there
+// instead of calling into the closed machine (which throws "null pointer passed to rust").
 
 type MachineMethod = (...args: unknown[]) => Promise<unknown>;
 
@@ -39,11 +39,18 @@ const pause = (ms: number) =>
 
 /**
  * A started client whose server has a key backup that this device trusts (it holds the backup's
- * decryption key, as after a recovery key unlock). The server holds the client's first backup
- * check until `releaseCheck`, and every key upload until `answerUpload`.
+ * decryption key, as after a recovery key unlock). The server holds the client's backup checks
+ * until `releaseCheck`, and every key upload until `answerUpload`. With `keyInInbox`, the
+ * backup's key waits in the machine's inbox as the client starts, as when another session sent
+ * it just before the last close.
  */
-const startWithServerBackup = async () => {
+const startWithServerBackup = async ({ keyInInbox = false } = {}) => {
   const key = BackupDecryptionKey.createRandomKey();
+  if (keyInInbox) {
+    vi.spyOn(OlmMachine.prototype, 'getSecretsFromInbox').mockResolvedValue(
+      new Set([key.toBase64()])
+    );
+  }
   const backupInfo = {
     version: '1',
     algorithm: 'm.megolm_backup.v1.curve25519-aes-sha2',
@@ -68,7 +75,7 @@ const startWithServerBackup = async () => {
     if (closed) requestsAfterClose.push(`${init?.method ?? 'GET'} ${pathname}`);
     if (pathname.endsWith('/room_keys/version')) {
       checks += 1;
-      if (checks === 1) await checkHeld;
+      await checkHeld;
       return json(backupInfo);
     }
     if (pathname.endsWith('/room_keys/keys')) {
@@ -102,7 +109,7 @@ const startWithServerBackup = async () => {
     logger: logger as unknown as Logger,
   });
   await client.initRustCrypto({ useIndexedDB: false });
-  await vi.waitFor(() => expect(checks).toBe(1));
+  await vi.waitFor(() => expect(checks).toBeGreaterThan(0));
   const crypto = client.getCrypto() as unknown as CryptoInternals;
   await crypto.olmMachine.saveBackupDecryptionKey(key, backupInfo.version);
 
@@ -130,6 +137,7 @@ const startWithServerBackup = async () => {
     close,
     closeAfter,
     isClosed: () => closed,
+    checks: () => checks,
     uploads: () => uploads,
   };
 };
@@ -202,6 +210,18 @@ describe('closing a client during its key backup work', () => {
 
     expect(backup.isClosed()).toBe(true);
     expect(callsAfterClose).toBe(0);
+    expect(rejections).toEqual([]);
+  });
+
+  it('ends the check of a backup key waiting in the inbox when the client closes first', async () => {
+    const backup = await startWithServerBackup({ keyInInbox: true });
+    // The backup check and the check of the waiting key both wait for the server.
+    await vi.waitFor(() => expect(backup.checks()).toBe(2));
+    backup.close();
+    backup.releaseCheck();
+    await pause(200);
+
+    expect(backup.logged.filter((line) => line.includes('null pointer'))).toEqual([]);
     expect(rejections).toEqual([]);
   });
 });
