@@ -94,3 +94,51 @@ test('says when a package ships no license file, and names a text it already pri
   );
   assert.equal(thirdPartyNotices(root), notices);
 });
+
+test("adds the installed production packages of each client plugin's package-lock.json", () => {
+  const plugin = join(root, 'plugin');
+  install('plugin/node_modules/own-dep', { license: 'MIT' }, { LICENSE: 'Own dep license' });
+  install('plugin/node_modules/own-tool', { license: 'MIT' }, { LICENSE: 'Plugin dev only' });
+  // The app's zeta 1.0.0 again: listed once.
+  install('plugin/node_modules/zeta', { license: 'MIT' }, { LICENSE: MIT });
+  writeFileSync(
+    join(plugin, 'package-lock.json'),
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: {
+        '': { name: 'some-plugin' },
+        'node_modules/own-dep': { version: '0.2.0', license: 'MIT' },
+        'node_modules/own-tool': { version: '1.0.0', dev: true, license: 'MIT' },
+        'node_modules/zeta': { version: '1.0.0', license: 'MIT' },
+        // A peer dependency the app provides, left out of the install (npm ci --omit=peer).
+        'node_modules/react': { version: '18.2.0', peer: true, license: 'MIT' },
+      },
+    })
+  );
+
+  const notices = thirdPartyNotices(root, [plugin]);
+  const names = [...notices.matchAll(/^={80}\n(.+)$/gm)].map((match) => match[1]);
+  assert.deepEqual(names, [
+    'alpha 2.0.0',
+    'bare 0.1.0',
+    'own-dep 0.2.0',
+    'zeta 1.0.0',
+    'zulu 1.0.0',
+  ]);
+  assert.match(notices, /own-dep 0\.2\.0\nLicense: MIT\n\nFile LICENSE:\n\nOwn dep license\n/);
+  assert.ok(!notices.includes('Plugin dev only'));
+});
+
+test('fails for a client plugin that installed packages without a package-lock.json', () => {
+  install('unlocked-plugin/node_modules/own-dep', { license: 'MIT' });
+  const plugin = join(root, 'unlocked-plugin');
+  assert.throws(
+    () => thirdPartyNotices(root, [plugin]),
+    new RegExp(
+      `^Error: MINDROOM_CLIENT_PLUGINS: ${plugin}: has node_modules but no package-lock\\.json`
+    )
+  );
+  // A plugin that installed nothing needs none.
+  mkdirSync(join(root, 'bare-plugin'));
+  assert.doesNotThrow(() => thirdPartyNotices(root, [join(root, 'bare-plugin')]));
+});

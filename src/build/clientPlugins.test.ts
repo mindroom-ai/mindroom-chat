@@ -1,4 +1,12 @@
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -178,5 +186,78 @@ describe('clientPlugins', () => {
     // Two copies of one linkifyjs version are bundled; the plugin's own counts as the plugin's.
     await expect(bundle([own])).resolves.toBeDefined();
     await expect(bundle([])).rejects.toThrow(`linkifyjs@${version}`);
+  });
+});
+
+describe('packages the app shares with plugins', () => {
+  /** Builds the entries module of the plugin in `dir`, with the packages it imports bundled. */
+  const bundlePlugin = async (dir: string) => {
+    const output = (await build({
+      configFile: false,
+      root: ROOT,
+      publicDir: false,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+      build: {
+        write: false,
+        minify: false,
+        rollupOptions: {
+          input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
+          preserveEntrySignatures: 'strict',
+        },
+      },
+    })) as Rollup.RollupOutput;
+    return output.output.flatMap((file) =>
+      file.type === 'chunk' ? Object.keys(file.modules) : []
+    );
+  };
+
+  /** A plugin directory whose index.js imports `source`. */
+  const importing = (source: string): string => {
+    const dir = pluginDir(declaring(), { entry: false });
+    writeFileSync(
+      path.join(dir, 'index.js'),
+      `import * as shared from ${JSON.stringify(
+        source
+      )};\nexport default { messageRenderers: [], shared };\n`
+    );
+    return dir;
+  };
+
+  /** Installs a package named `name` (a stand-in, not the real one) under `dir`. */
+  const installStandIn = (dir: string, name: string, code = 'export const own = true;\n') => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({ name, version: '0.0.1', main: 'index.js' })
+    );
+    writeFileSync(path.join(dir, 'index.js'), code);
+  };
+
+  it("resolves them to the app's copy for a plugin outside the app that installed none", async () => {
+    const modules = await bundlePlugin(importing('jotai'));
+    const appCopy = `${realpathSync(path.join(ROOT, 'node_modules/jotai'))}/`;
+    expect(modules.some((id) => id.startsWith(appCopy))).toBe(true);
+  });
+
+  it('fails the build, naming the plugin and the package, when a plugin imports its own copy', async () => {
+    const dir = importing('jotai');
+    installStandIn(path.join(dir, 'node_modules/jotai'), 'jotai');
+    await expect(bundlePlugin(dir)).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${dir} (plugin "some-plugin"): index.js imports jotai from the plugin's own copy`
+    );
+  });
+
+  it("fails the build when a package the plugin installed imports the plugin's own copy", async () => {
+    const dir = importing('helper');
+    installStandIn(
+      path.join(dir, 'node_modules/helper'),
+      'helper',
+      "export * as query from '@tanstack/react-query';\n"
+    );
+    installStandIn(path.join(dir, 'node_modules/@tanstack/react-query'), '@tanstack/react-query');
+    await expect(bundlePlugin(dir)).rejects.toThrow(
+      "node_modules/helper/index.js imports @tanstack/react-query from the plugin's own copy"
+    );
   });
 });

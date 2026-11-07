@@ -26,8 +26,11 @@ function makeTree(packages) {
   return nodeModules;
 }
 
-function run(nodeModules) {
-  const result = spawnSync('node', [script, nodeModules], { encoding: 'utf8' });
+function run(nodeModules, env = {}) {
+  const result = spawnSync('node', [script, nodeModules], {
+    encoding: 'utf8',
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: '', ...env },
+  });
   return { status: result.status, output: result.stdout + result.stderr };
 }
 
@@ -133,4 +136,29 @@ test('exits 2 when the directory does not exist', () => {
   const { status, output } = run(path.join(tmpdir(), 'license-check-no-such-dir'));
   assert.equal(status, 2);
   assert.match(output, /not a directory/);
+});
+
+test('checks the packages each client plugin in MINDROOM_CLIENT_PLUGINS installed', () => {
+  const nodeModules = makeTree({ app: { name: 'app', version: '1.0.0', license: 'MIT' } });
+  const plugin = path.dirname(
+    makeTree({
+      'plugin-ok': { name: 'plugin-ok', version: '1.0.0', license: 'MIT' },
+      'plugin-gpl': { name: 'plugin-gpl', version: '2.0.0', license: 'GPL-3.0-only' },
+    })
+  );
+  writeFileSync(
+    path.join(plugin, 'package.json'),
+    JSON.stringify({
+      name: 'some-plugin',
+      version: '1.0.0',
+      mindroomClientPlugin: { id: 'some-plugin', apiVersion: 1, entry: './index.js' },
+    })
+  );
+  writeFileSync(path.join(plugin, 'index.js'), 'export default {};\n');
+  assert.equal(run(nodeModules).status, 0);
+  const { status, output } = run(nodeModules, { MINDROOM_CLIENT_PLUGINS: plugin });
+  assert.equal(status, 1);
+  assert.match(output, /^plugin-gpl@2\.0\.0 GPL-3\.0-only \(client plugin some-plugin\)$/m);
+  assert.doesNotMatch(output, /plugin-ok@/);
+  assert.match(output, /1 of 3 packages/);
 });
