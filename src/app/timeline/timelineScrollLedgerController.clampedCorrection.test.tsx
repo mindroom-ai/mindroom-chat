@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import React, { useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
