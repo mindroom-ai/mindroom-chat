@@ -8,7 +8,13 @@ import {
 } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
-import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import {
+  createDefaultThreadFilterState,
+  loginToMatrix,
+  seedRoomOverviewState,
+  sendRoomMessage,
+  type MatrixSession,
+} from '../helpers/matrix';
 import { touch } from '../helpers/touch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
@@ -18,9 +24,9 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // both when the browser keeps the page full height and shrinks only the visual viewport (Safari on
 // iOS, played here by a stand-in visualViewport) and when it shrinks the page itself (the iOS
 // app's web view, Chrome on Android). Tapping Send keeps the text box focused, so the keyboard
-// stays up for the next message. Checked in a room with 40 messages among 25 rooms, on a phone
-// (390 by 844, touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
-// WebKit, in WebKit.
+// stays up for the next message, also when the send opens a thread from the Compact cards. Checked
+// in a room with an address and 40 messages among 25 rooms, on a phone (390 by 844, touch), in
+// Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'phone-keyboard-spec-password';
 const RUN = Date.now().toString(36);
@@ -103,7 +109,10 @@ const message = (index: number) =>
       : 'still open; I will post again once the last two items are checked'
   }.`;
 
-/** 25 other rooms, and one room with 40 messages, more than a phone shows at once. */
+/**
+ * 25 other rooms, and one room with 40 messages, more than a phone shows at once. The room has an
+ * address, as a space's lobby does, so the app's links to it name its alias.
+ */
 const seed = async (name: string) => {
   const reader = await registerAndLogin(name);
   await Promise.all(
@@ -111,7 +120,10 @@ const seed = async (name: string) => {
       createRoom(HOMESERVER, reader.accessToken, { name: `Team room ${index + 1}` })
     )
   );
-  const roomId = await createRoom(HOMESERVER, reader.accessToken, { name: ROOM });
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: ROOM,
+    alias: `release-checklist-${reader.username}`,
+  });
   for (let index = 1; index <= 40; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
@@ -282,6 +294,41 @@ const checkSendKeepsFocus = async (page: Page, world: World, engine: string) => 
   await expect(page.getByText(text, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await expect(textBox(page)).not.toContainText(text);
   await expect(textBox(page), `${engine}: the text box keeps the focus after Send`).toBeFocused();
+};
+
+/**
+ * In the Compact view a message sent from the composer opens its own thread, at the room's
+ * address. The text box had the focus (the keyboard was up), and the opened thread's composer
+ * keeps it, so the keyboard stays up for the reply.
+ */
+const checkCompactSendKeepsFocus = async (page: Page, world: World, engine: string) => {
+  await seedRoomOverviewState({
+    page,
+    roomId: world.roomId,
+    userId: world.reader.userId,
+    viewMode: 'compact',
+    filterState: createDefaultThreadFilterState(),
+  });
+  await page.evaluate((to) => {
+    window.history.pushState(null, '', to);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }, `/home/${encodeURIComponent(world.roomId)}`);
+  await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 60_000 });
+  await textBox(page).tap();
+  await expect(textBox(page)).toBeFocused();
+  const text = `A new thread from the ${engine} cards`;
+  await page.keyboard.type(text);
+  await page.getByRole('button', { name: 'Send message' }).tap();
+  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(text, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  // Until the server confirms the root, the thread has its local ID; then the address takes the
+  // confirmed one.
+  await expect.poll(() => new URL(page.url()).searchParams.get('threadId')).toMatch(/^\$/);
+  await expect(textBox(page)).not.toContainText(text);
+  await expect(
+    textBox(page),
+    `${engine}: the opened thread's text box keeps the focus`
+  ).toBeFocused();
 };
 
 const appHeight = (page: Page) =>
@@ -467,6 +514,7 @@ const CHECKS: [string, Check][] = [
   ['Send keeps the text box focused', checkSendKeepsFocus],
   ['the whole composer shows in the band a sideways keyboard leaves', checkLandscapeKeyboard],
   ['turning the phone with the keyboard up never leaves a blank page', checkRotationWithKeyboard],
+  ['a send from the Compact cards keeps the keyboard up', checkCompactSendKeepsFocus],
 ];
 
 test.beforeEach(async () => {
