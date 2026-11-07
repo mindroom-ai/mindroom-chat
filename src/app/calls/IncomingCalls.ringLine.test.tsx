@@ -5,7 +5,7 @@ import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import type { IncomingRing } from './callRings';
-import { useRingLine } from './IncomingCalls';
+import { RingCard, useRingLine } from './IncomingCalls';
 
 const ME = '@me:example.org';
 const ROOM_ID = '!desk:example.org';
@@ -23,6 +23,12 @@ vi.mock('react-i18next', async () => {
   const { translateFromEn } = await import('../../test/utils/i18n');
   return { useTranslation: () => ({ t: translateFromEn }) };
 });
+// Desktop notifications on, notification sounds off.
+vi.mock('../preferences/useSetting', () => ({
+  useSetting: (_atom: unknown, key: string) => [key === 'showNotifications'],
+}));
+vi.mock('./CallTile', () => ({ CallMemberAvatar: () => null }));
+vi.mock('./IncomingCalls.css', () => ({ Card: 'card' }));
 
 let eventCount = 0;
 
@@ -59,8 +65,10 @@ const unopenedRoom = (...members: Array<[userId: string, displayname: string]>) 
   room.recalculate();
   vi.spyOn(mx, 'getRoom').mockImplementation((roomId) => (roomId === ROOM_ID ? room : null));
   let arrive: () => void = () => undefined;
-  const list = new Promise<boolean>((resolve) => {
+  let fail: () => void = () => undefined;
+  const list = new Promise<boolean>((resolve, reject) => {
     arrive = () => resolve(true);
+    fail = () => reject(new Error('offline'));
   });
   vi.spyOn(room, 'loadMembersIfNeeded').mockReturnValue(list);
   /** The client loads the room's member list, which brings members who have not posted lately. */
@@ -71,7 +79,11 @@ const unopenedRoom = (...members: Array<[userId: string, displayname: string]>) 
     );
     await act(async () => arrive());
   };
-  return { room, listArrives };
+  /** The member list cannot load: the client has only the members its sync brought. */
+  const listFails = async () => {
+    await act(async () => fail());
+  };
+  return { room, listArrives, listFails };
 };
 
 const ring = (sender: string): IncomingRing => ({
@@ -143,5 +155,73 @@ describe('useRingLine', () => {
 
     await listArrives([AGENT, 'Desk Helper']);
     expect(lines()).toEqual([`${withId('Desk Helper', AGENT_COPY)} is calling`]);
+  });
+});
+
+type ShownNotification = { title: string; body: string };
+
+/**
+ * Shows a direct chat ring from `sender` while the window is in the background, and returns the
+ * system notifications it raised so far.
+ */
+const ringInBackground = (room: Room, sender: string) => {
+  const shown: ShownNotification[] = [];
+  class RecordedNotification {
+    static permission = 'granted';
+
+    onclick: (() => void) | null = null;
+
+    constructor(title: string, options?: { body?: string }) {
+      shown.push({ title, body: options?.body ?? '' });
+    }
+
+    close() {}
+  }
+  vi.stubGlobal('Notification', RecordedNotification);
+  vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+  const store = createStore();
+  store.set(mDirectAtom, { type: 'INITIALIZE', rooms: new Set([ROOM_ID]) });
+  act(() => {
+    renderer = create(
+      <Provider store={store}>
+        <RingCard
+          room={room}
+          ring={ring(sender)}
+          onAnswer={() => undefined}
+          onDecline={() => undefined}
+          onIgnore={() => undefined}
+          onOpen={() => undefined}
+        />
+      </Provider>
+    );
+  });
+  return shown;
+};
+
+describe('the system notification of a ring', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('waits for the member list and then names the caller as the ring card does', async () => {
+    const { room, listArrives } = unopenedRoom([HOST, 'Jordan Host']);
+    const shown = ringInBackground(room, HOST);
+    // A notification cannot change its text once shown, so none shows with the user ID that
+    // the ring card drops as soon as the list arrives.
+    expect(shown).toEqual([]);
+
+    await listArrives([REAL, 'Morgan Lee']);
+    expect(shown).toEqual([{ title: 'Incoming Call', body: 'Jordan Host is calling' }]);
+  });
+
+  it("shows the caller's user ID when the member list cannot load", async () => {
+    const { room, listFails } = unopenedRoom([HOST, 'Jordan Host']);
+    const shown = ringInBackground(room, HOST);
+    expect(shown).toEqual([]);
+
+    await listFails();
+    expect(shown).toEqual([
+      { title: 'Incoming Call', body: `${withId('Jordan Host', HOST)} is calling` },
+    ]);
   });
 });
