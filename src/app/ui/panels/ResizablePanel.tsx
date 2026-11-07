@@ -265,7 +265,7 @@ export function ResizablePanel({
 
   let contentStyle: CSSProperties | undefined;
   if (passthrough) contentStyle = { display: 'contents' };
-  else if (!full && !folded) {
+  else if (!full) {
     const strip = frame ? STRIP_WIDTH : 0;
     contentStyle = { ['--mr-panel-content-width' as string]: `${contentWidth - strip}px` };
   }
