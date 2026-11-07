@@ -101,6 +101,8 @@ test("adds the installed production packages of each client plugin's package-loc
   install('plugin/node_modules/own-tool', { license: 'MIT' }, { LICENSE: 'Plugin dev only' });
   // The app's zeta 1.0.0 again: listed once.
   install('plugin/node_modules/zeta', { license: 'MIT' }, { LICENSE: MIT });
+  // A package the app shares, installed as a peer dependency: the bundle takes the app's.
+  install('plugin/node_modules/react', { license: 'MIT' }, { LICENSE: 'Plugin copy of react' });
   writeFileSync(
     join(plugin, 'package-lock.json'),
     JSON.stringify({
@@ -110,8 +112,9 @@ test("adds the installed production packages of each client plugin's package-loc
         'node_modules/own-dep': { version: '0.2.0', license: 'MIT' },
         'node_modules/own-tool': { version: '1.0.0', dev: true, license: 'MIT' },
         'node_modules/zeta': { version: '1.0.0', license: 'MIT' },
+        'node_modules/react': { version: '18.3.1', peer: true, license: 'MIT' },
         // A peer dependency left out of the install (npm ci --omit=peer).
-        'node_modules/react': { version: '18.2.0', peer: true, license: 'MIT' },
+        'node_modules/left-out': { version: '1.0.0', peer: true, license: 'MIT' },
       },
     })
   );
@@ -126,7 +129,7 @@ test("adds the installed production packages of each client plugin's package-loc
     'zulu 1.0.0',
   ]);
   assert.match(notices, /own-dep 0\.2\.0\nLicense: MIT\n\nFile LICENSE:\n\nOwn dep license\n/);
-  assert.ok(!notices.includes('Plugin dev only'));
+  assert.ok(!notices.includes('Plugin dev only') && !notices.includes('Plugin copy of react'));
 });
 
 test('fails for a client plugin that installed packages without a package-lock.json', () => {
@@ -138,8 +141,8 @@ test('fails for a client plugin that installed packages without a package-lock.j
       `^Error: MINDROOM_CLIENT_PLUGINS: ${plugin}: has node_modules but no package-lock\\.json`
     )
   );
-  // A plugin that installed nothing needs none.
-  mkdirSync(join(root, 'bare-plugin'));
+  // A plugin that installed nothing needs none, even with a tool's cache in node_modules.
+  mkdirSync(join(root, 'bare-plugin/node_modules/.cache'), { recursive: true });
   assert.doesNotThrow(() => thirdPartyNotices(root, [join(root, 'bare-plugin')]));
 });
 

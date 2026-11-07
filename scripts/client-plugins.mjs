@@ -132,7 +132,7 @@ const entriesModule = (plugins) => {
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   // Module ids are real paths.
-  const roots = plugins.map(({ dir }) => `${realpathSync(dir)}/`);
+  const roots = plugins.map((plugin) => ({ plugin, root: `${realpathSync(plugin.dir)}/` }));
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
@@ -149,12 +149,20 @@ export const clientPlugins = (env = process.env) => {
           }
         : undefined,
     // A plugin's imports of the packages the app shares resolve as the app's own imports do.
-    resolveId(source, importer, options) {
+    async resolveId(source, importer, options) {
       const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
-      const fromPlugin = importer && roots.some((root) => importer.startsWith(root));
-      return fromPlugin && SHARED_PACKAGES.includes(name)
-        ? this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true })
-        : null;
+      const owner = SHARED_PACKAGES.includes(name)
+        ? roots.find(({ root }) => importer?.startsWith(root))
+        : undefined;
+      if (!importer || !owner) return null;
+      const resolved = await this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true });
+      if (!resolved) {
+        const file = path.relative(owner.root, importer);
+        this.error(
+          `MINDROOM_CLIENT_PLUGINS: ${owner.plugin.dir}: ${file} imports ${source}, which the app's ${name} does not have`
+        );
+      }
+      return resolved;
     },
     load: (id) =>
       plugins.length > 0 && normalizePath(id.split('?')[0] ?? id) === ENTRIES_MODULE

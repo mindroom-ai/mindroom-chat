@@ -275,6 +275,17 @@ describe('packages the app shares with plugins', () => {
     ]);
   });
 
+  it("fails the build for an import the app's copy cannot resolve, naming the plugin and the import", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['dayjs/esm/only-in-the-plugin.js']);
+    installStandIn(path.join(dir, 'node_modules/dayjs'), 'dayjs');
+    mkdirSync(path.join(dir, 'node_modules/dayjs/esm'));
+    writeFileSync(path.join(dir, 'node_modules/dayjs/esm/only-in-the-plugin.js'), 'export {};\n');
+    await expect(bundlePlugin(dir)).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: index.js imports dayjs/esm/only-in-the-plugin.js, which the app's dayjs does not have`
+    );
+  });
+
   it('leaves the imports of files outside the plugins as they were', async () => {
     const plugin = pluginDir(declaring());
     const outside = realpathSync(emptyDir());

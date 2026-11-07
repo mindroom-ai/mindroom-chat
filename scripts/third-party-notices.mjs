@@ -16,7 +16,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readClientPlugins } from './client-plugins.mjs';
+import { SHARED_PACKAGES, readClientPlugins } from './client-plugins.mjs';
 
 /** Where the notices live in the build output and on the dev server. */
 export const THIRD_PARTY_NOTICES_FILE = 'public/licenses/THIRD_PARTY_NOTICES.txt';
@@ -79,7 +79,10 @@ export const thirdPartyNotices = (
   const addLocked = (/** @type {string} */ base, plugin = false) => {
     const lockFile = join(base, 'package-lock.json');
     if (plugin && !existsSync(lockFile)) {
-      if (!existsSync(join(base, 'node_modules'))) return;
+      const modules = join(base, 'node_modules');
+      // A node_modules with only dot entries, such as a tool's .cache, holds no installed packages.
+      if (!existsSync(modules) || readdirSync(modules).every((name) => name.startsWith('.')))
+        return;
       throw new Error(
         `MINDROOM_CLIENT_PLUGINS: ${base}: has node_modules but no package-lock.json, which the third-party notices read; install its packages with npm`
       );
@@ -90,10 +93,11 @@ export const thirdPartyNotices = (
     for (const [path, entry] of Object.entries(lock.packages)) {
       if (!path.startsWith('node_modules/') || entry.dev || entry.devOptional || entry.link)
         continue;
-      // A plugin's lockfile also lists what its install left out, such as optional and peer
-      // dependencies (npm ci --omit=optional --omit=peer).
-      if (plugin && !existsSync(join(base, path))) continue;
       const name = path.slice(path.lastIndexOf('node_modules/') + 'node_modules/'.length);
+      // A plugin's lockfile also lists what its install left out, such as optional and peer
+      // dependencies (npm ci --omit=optional --omit=peer), and its copies of the packages the app
+      // shares, which the bundle takes from the app.
+      if (plugin && (SHARED_PACKAGES.includes(name) || !existsSync(join(base, path)))) continue;
       const key = `${name}@${entry.version}`;
       if (!packages.has(key))
         packages.set(key, { name, version: entry.version, dir: join(base, path) });
