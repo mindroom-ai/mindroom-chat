@@ -65,7 +65,9 @@ export type MatrixEvent = {
   content: Record<string, unknown>;
 };
 
-const STACK_SCRIPT = fileURLToPath(new URL('../../scripts/agent-stack/stack.py', import.meta.url));
+export const STACK_SCRIPT = fileURLToPath(
+  new URL('../../scripts/agent-stack/stack.py', import.meta.url)
+);
 const EXIT_NO_CHECKOUT = 3;
 const EXIT_NO_HOMESERVER = 4;
 const EXIT_NO_KEYS = 5;

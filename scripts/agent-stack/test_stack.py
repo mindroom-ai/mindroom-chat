@@ -399,6 +399,7 @@ class WorkerImageTests(unittest.TestCase):
 
 
 SAMPLE_PLUGIN = stack.REPOSITORY / "e2e" / "fixtures" / "sample-plugin"
+SAMPLE_SCENARIOS = SAMPLE_PLUGIN / "e2e" / "stub-scenarios.json"
 
 # Stands in for the backend's `mindroom` command: `plugins check --json <dir>` answers what the directory's
 # check.json says, on stdout, with the exit code in check.code (MindRoom's own: 0 compatible, 1 failed).
@@ -419,11 +420,11 @@ class PluginDirTests(unittest.TestCase):
         (self.venv_bin / "mindroom").write_text(FAKE_MINDROOM)
         (self.venv_bin / "mindroom").chmod(0o755)
 
-    def plugin(self, name: str, report: object, code: int = 0, scenarios: bool = False) -> Path:
+    def plugin(self, name: str, report: dict, code: int = 0, scenarios: bool = False) -> Path:
         directory = self.root / name
         (directory / "e2e").mkdir(parents=True)
         (directory / "mindroom.plugin.json").write_text(json.dumps({"name": name}))
-        (directory / "check.json").write_text(report if isinstance(report, str) else json.dumps(report))
+        (directory / "check.json").write_text(json.dumps(report))
         (directory / "check.code").write_text(str(code))
         if scenarios:
             (directory / "e2e" / "stub-scenarios.json").write_text("{}")
@@ -432,9 +433,9 @@ class PluginDirTests(unittest.TestCase):
     def test_the_directories_come_from_the_environment_relative_to_this_repository(self) -> None:
         value = os.pathsep.join(["e2e/fixtures/sample-plugin", str(self.root), ""])
         with mock.patch.dict(os.environ, {"E2E_PLUGIN_DIRS": value}):
-            self.assertEqual(stack.plugin_dirs(), [SAMPLE_PLUGIN, self.root.resolve()])
+            self.assertEqual(stack.plugin_dir_paths(), [SAMPLE_PLUGIN, self.root.resolve()])
         with mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(stack.plugin_dirs(), [])
+            self.assertEqual(stack.plugin_dir_paths(), [])
 
     def test_a_checked_plugin_brings_its_name_tools_and_scenarios(self) -> None:
         report = {"status": "compatible", "name": "greeter", "tools": ["greeter"], "hooks": [], "skills": []}
@@ -471,7 +472,7 @@ class PluginDirTests(unittest.TestCase):
     def test_a_check_without_json_refuses_the_start_with_its_error(self) -> None:
         # A MindRoom from before `plugins check --json` prints a usage error on stderr only.
         (self.venv_bin / "mindroom").write_text("#!/bin/sh\necho \"No such option: --json\" >&2\nexit 2\n")
-        old = self.plugin("old", "")
+        old = self.plugin("old", {})
         with self.assertRaises(stack.StackError) as raised:
             stack.check_plugin_dirs(self.venv_bin, [old])
         self.assertIn("failed `mindroom plugins check`: No such option: --json", str(raised.exception))
@@ -545,15 +546,14 @@ class StubScenarioTests(unittest.TestCase):
         return path
 
     def test_a_file_adds_scenarios_next_to_the_built_in_ones(self) -> None:
-        sample = SAMPLE_PLUGIN / "e2e" / "stub-scenarios.json"
         override = self.scenarios({"#SHELL": [["run_shell_command", {"args": "echo replaced"}]]})
-        scenarios = stub_model.tool_scenarios([sample, override])
+        scenarios = stub_model.tool_scenarios([SAMPLE_SCENARIOS, override])
         self.assertEqual(scenarios["#samplegreet"], [("sample_greet", {"name": "Ada"})])
         self.assertEqual(scenarios["#shell"], [("run_shell_command", {"args": "echo replaced"})])
         self.assertEqual(scenarios["#multi"], stub_model.TOOL_SCENARIOS["#multi"])
 
     def test_a_file_scenario_calls_its_tool_and_then_reports_the_result(self) -> None:
-        scenarios = stub_model.tool_scenarios([SAMPLE_PLUGIN / "e2e" / "stub-scenarios.json"])
+        scenarios = stub_model.tool_scenarios([SAMPLE_SCENARIOS])
         self.assertEqual(
             stub_model.plan(chat("please #samplegreet"), scenarios), ("tool", "sample_greet", {"name": "Ada"})
         )
@@ -593,7 +593,7 @@ class StubScenarioTests(unittest.TestCase):
         return web.json_response.call_args.args[0]["choices"][0]["message"]
 
     def test_the_stub_answers_with_the_scenarios_of_its_files(self) -> None:
-        message = self.answer([SAMPLE_PLUGIN / "e2e" / "stub-scenarios.json"], chat("#samplegreet"))
+        message = self.answer([SAMPLE_SCENARIOS], chat("#samplegreet"))
         self.assertEqual(message["tool_calls"][0]["function"]["name"], "sample_greet")
 
     def test_the_stub_says_in_its_reply_that_a_file_is_broken(self) -> None:

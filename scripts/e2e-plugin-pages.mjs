@@ -30,12 +30,13 @@ export const pluginDirectories = (value, repository) =>
     });
 
 /**
- * The fixture pages of the plugin directories copied to `copies` (e2e-plugins/ of a snapshot), by a build
+ * The fixture pages of the plugin directories copied to e2e-plugins/ of `repository` (a snapshot), by a build
  * input name.
- * @param {string} copies
+ * @param {string} repository
  */
-export const pluginPageInputs = (copies) =>
-  Object.fromEntries(
+export const pluginPageInputs = (repository) => {
+  const copies = path.join(repository, URL_PREFIX);
+  return Object.fromEntries(
     (existsSync(copies) ? readdirSync(copies) : []).flatMap((name) => {
       const pages = path.join(copies, name, 'e2e', 'fixtures');
       return existsSync(pages)
@@ -48,6 +49,7 @@ export const pluginPageInputs = (copies) =>
         : [];
     })
   );
+};
 
 /**
  * Vite plugin: the dev server serves `directories` at /e2e-plugins/<directory name>/.
@@ -70,8 +72,9 @@ export const pluginDirectoryServer = (directories) => {
     if (!url.startsWith(URL_PREFIX)) return undefined;
     const [name = '', ...rest] = url.slice(URL_PREFIX.length).split('/');
     const directory = directoriesByName.get(name);
-    const file = directory === undefined ? undefined : path.join(directory, ...rest);
-    return file?.startsWith(directory + path.sep) && existsSync(file) ? file : undefined;
+    if (directory === undefined) return undefined;
+    const file = path.join(directory, ...rest);
+    return file.startsWith(directory + path.sep) && existsSync(file) ? file : undefined;
   };
   return {
     name: 'mindroom-e2e-plugin-directories',

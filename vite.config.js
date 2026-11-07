@@ -122,8 +122,8 @@ const modulesTarget = (() => {
 const linkedModules = modulesTarget === modulesLink ? [] : [modulesTarget];
 
 // E2E_FIXTURE_PAGES=1 is the second build `scripts/e2e-slot.sh --preview` runs into the same output:
-// only the spec fixture pages (e2e/fixtures/*.html), so the app bundle and the service worker's
-// precache list stay exactly as they ship.
+// only the spec fixture pages (e2e/fixtures/*.html, and the plugin directories' copies in e2e-plugins/), so the
+// app bundle and the service worker's precache list stay exactly as they ship.
 const fixturePagesOnly = process.env.E2E_FIXTURE_PAGES === '1';
 const fixturePagesDir = fileURLToPath(new URL('./e2e/fixtures/', import.meta.url));
 const fixturePageInputs = () =>
@@ -132,13 +132,10 @@ const fixturePageInputs = () =>
       .filter((name) => name.endsWith('.html'))
       .map((name) => [`fixture-${name.slice(0, -'.html'.length)}`, `${fixturePagesDir}${name}`])
   );
-// The plugin directories of the e2e stack (E2E_PLUGIN_DIRS, scripts/agent-stack/stack.py), served at
-// /e2e-plugins/<directory name>/: by the dev server from where they are, and by the fixture page build from the
-// copies `scripts/e2e-slot.sh --preview` makes in e2e-plugins/ (scripts/e2e-plugin-pages.mjs).
-const pluginDirs = pluginDirectories(
-  process.env.E2E_PLUGIN_DIRS,
-  fileURLToPath(new URL('.', import.meta.url))
-);
+// The plugin directories of the e2e stack (E2E_PLUGIN_DIRS), which the dev server serves
+// (scripts/e2e-plugin-pages.mjs).
+const repository = fileURLToPath(new URL('.', import.meta.url));
+const pluginDirs = pluginDirectories(process.env.E2E_PLUGIN_DIRS, repository);
 
 export default defineConfig({
   ...(slotPort ? { cacheDir: `node_modules/.vite-slot-${slotPort}` } : {}),
@@ -195,7 +192,7 @@ export default defineConfig({
           rollupOptions: {
             input: {
               ...fixturePageInputs(),
-              ...pluginPageInputs(fileURLToPath(new URL('./e2e-plugins/', import.meta.url))),
+              ...pluginPageInputs(repository),
             },
           },
         }

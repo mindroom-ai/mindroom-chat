@@ -322,7 +322,7 @@ def worker_image(checkout: Path, sha: str) -> str:
     return image
 
 
-def plugin_dirs() -> list[Path]:
+def plugin_dir_paths() -> list[Path]:
     """The directories $E2E_PLUGIN_DIRS names."""
     entries = os.environ.get("E2E_PLUGIN_DIRS", "").split(os.pathsep)
     return [(REPOSITORY / entry).resolve() for entry in entries if entry]
@@ -862,9 +862,11 @@ def started_with(
     )
 
 
-def source_extras(args: argparse.Namespace) -> tuple[str, ...]:
-    """The MindRoom extras the stack's backend needs: matrix_calls for --calls, docker for --computers."""
-    return (*((CALLS_EXTRA,) if args.calls else ()), *((DOCKER_EXTRA,) if args.computers else ()))
+def backend_bin(checkout: Path, sha: str, args: argparse.Namespace) -> Path:
+    """The bin directory of the commit's environment, with the extras --calls (matrix_calls) and --computers (docker)
+    need."""
+    extras = (*((CALLS_EXTRA,) if args.calls else ()), *((DOCKER_EXTRA,) if args.computers else ()))
+    return prepare_source(checkout, sha, extras) / ".venv" / "bin"
 
 
 def up(slot: int, args: argparse.Namespace) -> dict:
@@ -879,17 +881,13 @@ def up(slot: int, args: argparse.Namespace) -> dict:
     calls = calls_setting(args)
     # Before the stack is reused or stopped: a broken plugin leaves a running stack as it is, and a plugin that gained
     # a tool restarts it.
-    directories = plugin_dirs()
-    checked = (
-        check_plugin_dirs(prepare_source(checkout, sha, source_extras(args)) / ".venv" / "bin", directories)
-        if directories
-        else []
-    )
+    directories = plugin_dir_paths()
+    plugin_dirs = check_plugin_dirs(backend_bin(checkout, sha, args), directories) if directories else []
     slot_dir = stack_root() / f"slot-{slot}"
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
-        and started_with(state, args, sha, homeserver, checked)
+        and started_with(state, args, sha, homeserver, plugin_dirs)
         and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
         and token_is_valid(homeserver, state.get("routerToken"))
     ):
@@ -913,7 +911,7 @@ def up(slot: int, args: argparse.Namespace) -> dict:
         )
     stop(slot_dir)
     try:
-        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, checked)
+        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, plugin_dirs)
     except BaseException:
         # Whatever this start launched stops; its logs stay in the slot directory until the next start.
         stop_processes(slot_dir)
@@ -934,9 +932,8 @@ def start(
     """Starts the stack with the checked `plugin_dirs`; `keys` (real model or calls only) go to the backend's process
     environment and nowhere else."""
     calls = calls_setting(args)
-    source = prepare_source(checkout, sha, source_extras(args))
+    venv_bin = backend_bin(checkout, sha, args)
     image = worker_image(checkout, sha) if args.computers else None
-    venv_bin = source / ".venv" / "bin"
     real = args.model == "real"
     agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)

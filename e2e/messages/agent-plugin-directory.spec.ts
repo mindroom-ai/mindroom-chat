@@ -15,19 +15,20 @@ import {
   expect,
   messageRow,
   openThread,
+  STACK_SCRIPT,
   startThread,
   test,
   uniqueWord,
   waitForAgentReply,
 } from '../helpers/agentStack';
 
-// The agent stack with a plugin directory (scripts/agent-stack/stack.py's docstring). The first test needs
-// E2E_PLUGIN_DIRS to name e2e/fixtures/sample-plugin, or a copy of it, for the stack and the app server alike:
+// The agent stack with a plugin directory (scripts/agent-stack/stack.py's docstring). The first two tests need
+// E2E_PLUGIN_DIRS to name e2e/fixtures/sample-plugin, or a copy of it: the first for the stack, the second for
+// the app server:
 //   E2E_PLUGIN_DIRS=e2e/fixtures/sample-plugin just e2e-slot 3 --preview npx playwright test <this spec>
 test.describe.configure({ timeout: 300_000 });
 
 const REPOSITORY = fileURLToPath(new URL('../..', import.meta.url));
-const STACK_SCRIPT = join(REPOSITORY, 'scripts/agent-stack/stack.py');
 
 /** The directory of E2E_PLUGIN_DIRS that holds the sample plugin, by its real path, as the stack names it. */
 const sampleEntry = (process.env.E2E_PLUGIN_DIRS ?? '')
@@ -71,7 +72,9 @@ test("a plugin directory's scenario drives the stub to its plugin's tool", async
 // e2e/fixtures/ pages.
 pageTest("a plugin directory's fixture page is served", async ({ page }) => {
   pageTest.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
-  await page.goto(`/e2e-plugins/${basename(sampleDir ?? '')}/e2e/fixtures/page.html`);
+  await page.goto(
+    `/e2e-plugins/${encodeURIComponent(basename(sampleDir ?? ''))}/e2e/fixtures/page.html`
+  );
   await expect(page.getByText("Rendered by the sample plugin's page")).toBeVisible();
 });
 

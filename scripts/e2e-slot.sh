@@ -123,7 +123,9 @@ main() {
         mkdir -p "$tree/e2e-plugins"
         (
           cd "$tree"
+          # Split on ":" only: a name such as plugin[1] stays itself, as it does for Vite and stack.py.
           IFS=:
+          set -f
           for dir in $E2E_PLUGIN_DIRS; do
             [ -n "$dir" ] || continue
             real="$(cd "$dir" && pwd -P)" && cp -R "$real" "e2e-plugins/$(basename "$real")"
@@ -132,7 +134,7 @@ main() {
       fi
       mkdir -p "$snapshots/builds"
       (
-        # One build per commit; slots that start together wait for the first one.
+        # One build per commit (per run with E2E_PLUGIN_DIRS); slots that start together wait for the first one.
         flock 9
         if [ ! -e "$build/.complete" ]; then
           echo "e2e-slot $slot: building ${sha:0:12} into $build" >&2

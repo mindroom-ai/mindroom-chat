@@ -75,19 +75,17 @@ describe('pluginPageInputs', () => {
     mkdirSync(foo, { recursive: true });
     writeFileSync(path.join(foo, 'bar-page.html'), '');
     mkdirSync(path.join(copies, 'no-pages'));
-    expect(pluginPageInputs(copies)).toEqual({
+    expect(pluginPageInputs(outside)).toEqual({
       'plugin-foo-bar/page': path.join(copies, 'foo-bar', 'e2e', 'fixtures', 'page.html'),
       'plugin-foo/bar-page': path.join(foo, 'bar-page.html'),
     });
-    expect(pluginPageInputs(path.join(outside, 'no-copies'))).toEqual({});
+    expect(pluginPageInputs(plugin)).toEqual({});
   });
 });
 
 describe('pluginDirectoryServer', () => {
   it('refuses two directories of one name', () => {
-    const twin = path.join(outside, 'twin', 'my-plugin');
-    mkdirSync(twin, { recursive: true });
-    expect(() => pluginDirectoryServer([plugin, twin])).toThrow(
+    expect(() => pluginDirectoryServer([plugin, path.join(outside, 'twin', 'my-plugin')])).toThrow(
       'Two directories of E2E_PLUGIN_DIRS are named my-plugin'
     );
   });
@@ -176,7 +174,8 @@ describe('pluginDirectoryServer', () => {
       expect(await raw('/e2e-plugins/my-plugin/../outside.html')).not.toContain(
         'outside the plugin'
       );
-      expect(await raw('/e2e-plugins/my-plugin/missing.html')).not.toContain('page.ts');
+      // A file that is not there is left to the app.
+      expect(await raw('/e2e-plugins/my-plugin/missing.html')).toContain('/src/index.tsx');
     }, 30_000);
   });
 });
