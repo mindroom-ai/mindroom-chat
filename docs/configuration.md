@@ -4,7 +4,7 @@ A deployment configures the client in three places:
 
 1. `config.json`, fetched each time the app starts. It holds nearly every setting.
 2. `runtime-config.js`, a script that sets a few window globals before the app loads.
-3. Environment variables at build time, for the version and the iOS bundle.
+3. Environment variables at build time, for the version, the iOS bundle and client plugins.
 
 The homeserver adds a few settings of its own through `/.well-known/matrix/client` (last section).
 
@@ -175,6 +175,17 @@ A `welcome` text equal to its English default is shown translated into the app l
 | `mindroom.computers.apiUrl` | string (origin) | `""` | Origin of the MindRoom backend for agent computers and Connections, for example `https://mindroom.example.org`. It must be HTTPS (HTTP only for localhost and private addresses) with no path, query or credentials; any other value counts as unset. Unset, the client uses the origin the room's agents publish as `io.mindroom.server` state. A value a user saves in Settings > General > Computers wins over both, and an empty value there turns computers off on that device. |
 | `mindroom.uiActions.autoOpenFromHomeservers` | string[] (server names) | none | Agents whose user ID is on one of these servers may open panels in the client without a click (`io.mindroom.ui_action` events: show the computer, show a canvas, open the members panel, open a Settings section). Only events that arrive live, within 60 seconds, while the app is in the foreground count. Without the key no agent can. |
 
+### Client plugins
+
+A build can include client plugins (`MINDROOM_CLIENT_PLUGINS`, under [Build-time variables](#build-time-variables)). Each has a section of its own under `plugins`, named by its id, which it reads whenever it renders, so the section applies as the settings above do.
+
+| Key | Type | Default | Effect |
+|---|---|---|---|
+| `plugins.<id>.enabled` | boolean | `true` | `false` hides everything the plugin `<id>` contributes, such as its message renderers. |
+| `plugins.<id>.<setting>` | any | none | The plugin's own settings, as it documents them. |
+
+`?plugins=off` in the page address, before any `#` (`https://chat.example.org/?plugins=off`), turns every plugin off for that page load, a quick way to tell whether a problem comes from what a plugin shows. Either way a plugin's code still loads with the app and only what it contributes is hidden, so neither helps when a plugin fails while its code loads, which stops the app from starting.
+
 ### Error reports
 
 | Key | Type | Default | Effect |
@@ -260,6 +271,7 @@ Read only by the iOS app. Push stays off unless `enabled` is `true`, `appId` is 
 |---|---|---|
 | `MINDROOM_BUILD_VERSION` | `scripts/build-version.mjs` | Build version in `version.json` and the service worker URL. Otherwise Netlify's `COMMIT_REF`, then `GITHUB_SHA`, then the checked-out Git commit, then Netlify's `DEPLOY_ID`; with none of them the app reports `development-build`. |
 | `MINDROOM_RELEASE_VERSION` | `scripts/build-version.mjs` | Release name shown in Settings > About and in `version.json`. Otherwise the nearest release tag `vYYYY.M.N` as `git describe` names it (`v2026.11.3`, or `v2026.11.3-4-g1a2b3c4` four commits later), else `v<package version>`. A build from `git archive` has no tags to describe: pass the name in. iOS builds pass the app's version (`docs/ios-release.md`). |
+| `MINDROOM_CLIENT_PLUGINS` | `scripts/client-plugins.mjs` | Client plugins to build in: their directories, absolute and comma-separated, each with its own installed `node_modules` and a `package.json` that declares the plugin ([`architecture.md`](architecture.md#client-plugins)). The build fails, naming the directory, when one has no readable `package.json`, no `version` or no `mindroomClientPlugin` declaration, an id that is not kebab-case or that another listed plugin has, an `apiVersion` other than 1, or an entry that does not exist. Unset, no plugin code ships. The notices the build ships (`public/licenses/`) and `just license-check` cover this repository's dependencies, not a plugin's, and the build version (`MINDROOM_BUILD_VERSION`) names this repository's sources only: a rebuild that changes only plugins needs a new `MINDROOM_BUILD_VERSION`, or open apps offer no update and keep the old plugins until all their tabs have closed. The image build takes it as a build argument, for directories inside the build stage: `--build-arg MINDROOM_CLIENT_PLUGINS=/src/plugins/example` for a plugin the build context holds at `plugins/example`. |
 | `MINDROOM_COMPUTER_API_URL` | `scripts/ios-client-config.mjs` (`npm run build:ios`) | Written into the iOS bundle's `mindroom.computers.apiUrl`. An empty value leaves it unset, so the app uses the origin the room's agents publish; it does not turn computers off. |
 
 `npm run build:ios` writes `dist/config.json` from `config.mindroom.json` with `config.mindroom.ios.json` merged over it: objects merge key by key, and any other value replaces the base one. The shipped iOS overlay turns canvases and canvas libraries on. The Android build uses `config.mindroom.json` as it is.
