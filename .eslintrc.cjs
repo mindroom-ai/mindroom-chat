@@ -227,7 +227,7 @@ const LAYERS = [
   ['settings'],
   ['sidebar'],
   ['shell'],
-  ['src/index.tsx'],
+  ['src/index.tsx', 'src/client-sdk'],
 ];
 const domainDir = (domain) => (domain.startsWith('src/') ? `./${domain}` : `./src/app/${domain}`);
 // One zone per domain: it may import nothing of its own layer or above. The entry point, alone at
