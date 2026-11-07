@@ -109,6 +109,13 @@ const openMidStream = async (
     });
   }, editedEvent.event_id);
 
+  const diag: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.text().includes('restore-diag')) diag.push(msg.text().replace('[restore-diag] ', ''));
+  });
+  await page.addInitScript((id) => {
+    (window as unknown as { __diagReplyId?: string }).__diagReplyId = id;
+  }, editedEvent.event_id);
   await page.goto(threadUrl(stack, rootId), { timeout: 180_000 });
   const reply = messageRow(page, editedEvent.event_id);
   await expect(reply).toBeVisible({ timeout: 90_000 });
@@ -118,6 +125,8 @@ const openMidStream = async (
   const samples = await page.evaluate(
     () => (window as unknown as { replySamples: Sample[] }).replySamples
   );
+  // eslint-disable-next-line no-console
+  console.log(`FIRSTPAINT ${test.info().project.name} saved=${saved} ${JSON.stringify(samples.slice(0, 3).map(({ at, words }) => [Math.round(at), words]))} DIAG ${diag.join(' | ')}`);
   // The row's first paint already has the reply's text: no placeholder, no empty row.
   expect(
     samples.filter(({ words, thinking }) => thinking || words === 0),

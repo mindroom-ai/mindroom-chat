@@ -1,4 +1,4 @@
-import { ClientEvent, RelationType, type IEvent, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEventEvent, RelationType, RoomEvent, ThreadEvent, type IEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
   getStreamStatusFromContent,
@@ -37,6 +37,35 @@ type SavedReply = { roomId: string; eventId: string; threadId?: string };
 
 type SavedCopy = { roomId: string; threadId?: string; raw: Partial<IEvent> };
 
+
+const dw = (e: MatrixEvent | undefined | null) => (String(e?.getContent()?.body ?? '').match(/word\d+/g) ?? []).length;
+const dst = () => (new Error().stack ?? '').split('\n').slice(2, 9).map((l) => l.trim().replace(/^.*\/assets\//, '').slice(0, 40)).join(' < ');
+// eslint-disable-next-line no-console
+const dlog = (m: string) => console.info(`[restore-diag] t=${Math.round(performance.now())} ${m}`);
+const installDiag = (mx: MatrixClient) => {
+  const id = (window as unknown as { __diagReplyId?: string }).__diagReplyId;
+  if (!id) return;
+  const watched = new WeakSet<MatrixEvent>();
+  const watch = (ev: MatrixEvent, how: string) => {
+    if (ev.getId() !== id || watched.has(ev)) return;
+    watched.add(ev);
+    dlog(`seen ${how} words=${dw(ev)} status=${ev.status} ${dst()}`);
+    ev.on(MatrixEventEvent.Replaced, () => dlog(`replaced inst=${how} words=${dw(ev)} edit=${ev.replacingEvent()?.getId()?.slice(0, 8)} ${dst()}`));
+  };
+  mx.on(ClientEvent.Event, (ev) => watch(ev, 'client-event'));
+  mx.on(RoomEvent.Timeline, (ev) => watch(ev, 'timeline'));
+  mx.on(ThreadEvent.NewReply, (_t, ev) => watch(ev, 'new-reply'));
+  mx.once(ClientEvent.Sync, (state) => {
+    mx.getRooms().forEach((room) => {
+      const ev = room.findEventById(id);
+      dlog(`first-sync ${state} found=${!!ev} words=${dw(ev)} threads=${room.getThreads().length}`);
+      if (ev) watch(ev, 'first-sync');
+      room.getThreads().forEach((th) => {
+        if (th.replyToEvent?.getId() === id) { dlog(`summary words=${dw(th.replyToEvent)}`); watch(th.replyToEvent, 'summary'); }
+      });
+    });
+  });
+};
 const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
   (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
 
@@ -95,7 +124,9 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
  */
 export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promise<void> => {
   try {
+    installDiag(mx);
     const replies = findSavedStreamingReplies(savedSyncOf(mx));
+    dlog(`candidates ${replies.length}`);
     if (replies.length === 0) return;
     const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
     // A reply's copy can be in its thread's scope, in the room's, or in both; the merge below keeps
@@ -127,6 +158,7 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
           const reply = mapEvent({ ...raw, room_id: roomId });
           const thread = threadId ? room.getThread(threadId) : null;
           const edit = reply.replacingEvent();
+          dlog(`applied words=${dw(reply)} thread=${!!thread}`);
           if (thread && edit) holdCachedEditInUnopenedThread(thread, edit);
         } catch {
           // A copy that cannot be merged leaves the reply as the saved sync had it.
