@@ -34,6 +34,9 @@ test.use({
 });
 
 const PHONE = { width: 390, height: 844 };
+// WebKit plays Safari on an iPhone, so the timeline takes its iOS paths there.
+const IPHONE_SAFARI =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1';
 
 /** The composer's box top and the bottom of the reply's row, read now. */
 const replyEnd = (page: Page, eventId: string) =>
@@ -140,23 +143,27 @@ test('a reply that finishes taller than a phone thread ends in view (WebKit)', a
   try {
     browser = await launchWebKit();
     const state = webKitState(stack);
-    const signedIn = existsSync(state);
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
-      hasTouch: true,
-      baseURL,
-      storageState: signedIn ? state : undefined,
-    });
-    const page = await context.newPage();
-    await routeClientConfig(page, stack);
-    if (!signedIn) {
+    if (!existsSync(state)) {
       // Signed in at a desktop's width, where the account button that tells it is done shows.
+      const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, baseURL });
+      const page = await context.newPage();
+      await routeClientConfig(page, stack);
       await signIn(page, stack);
       mkdirSync(dirname(state), { recursive: true });
       await context.storageState({ path: state, indexedDB: true });
+      await context.close();
     }
-    await page.setViewportSize(PHONE);
-    await watchPhoneThreadFinish(page, stack, 'webkit');
+    const phone = await browser.newContext({
+      viewport: PHONE,
+      hasTouch: true,
+      isMobile: true,
+      userAgent: IPHONE_SAFARI,
+      baseURL,
+      storageState: state,
+    });
+    const phonePage = await phone.newPage();
+    await routeClientConfig(phonePage, stack);
+    await watchPhoneThreadFinish(phonePage, stack, 'webkit');
   } finally {
     await browser?.close();
   }

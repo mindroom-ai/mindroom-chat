@@ -27,6 +27,9 @@ const RUN = Date.now().toString(36);
 
 const PHONE_SIZE = { width: 390, height: 844 };
 const PHONE: BrowserContextOptions = { viewport: PHONE_SIZE, hasTouch: true, isMobile: true };
+// WebKit plays Safari on an iPhone, so the timeline takes its iOS paths there.
+const IPHONE_SAFARI =
+  'Mozilla/5.0 (iPhone; CPU iPhone OS 26_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.5 Mobile/15E148 Safari/604.1';
 // The visible height an iPhone's keyboard leaves in portrait.
 const KEYBOARD_VISIBLE = 508;
 const LANDSCAPE_SIZE = { width: 844, height: 390 };
@@ -416,10 +419,10 @@ const checkHomeIndicatorInset = async (page: Page, world: World) => {
 };
 
 /** A page in a new phone context; Chromium on macOS now and then starts one without touch. */
-const newPhonePage = async (browser: Browser, baseURL: string | undefined) => {
+const newPhonePage = async (browser: Browser, options: BrowserContextOptions) => {
   for (let attempt = 1; attempt < 3; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const context = await browser.newContext({ ...PHONE, baseURL });
+    const context = await browser.newContext({ ...PHONE, ...options });
     // eslint-disable-next-line no-await-in-loop
     const page = await context.newPage();
     // eslint-disable-next-line no-await-in-loop
@@ -427,7 +430,7 @@ const newPhonePage = async (browser: Browser, baseURL: string | undefined) => {
     // eslint-disable-next-line no-await-in-loop
     await context.close();
   }
-  const context = await browser.newContext({ ...PHONE, baseURL });
+  const context = await browser.newContext({ ...PHONE, ...options });
   return { context, page: await context.newPage() };
 };
 
@@ -438,7 +441,10 @@ let accounts = 0;
 const run = async (browser: Browser, baseURL: string | undefined, engine: string, check: Check) => {
   accounts += 1;
   const world = await seed(`reader${accounts}_${engine}`);
-  const { context, page } = await newPhonePage(browser, baseURL);
+  const { context, page } = await newPhonePage(browser, {
+    baseURL,
+    ...(engine === 'webkit' ? { userAgent: IPHONE_SAFARI } : {}),
+  });
   try {
     await standInVisualViewport(context);
     await loginWithPassword(page, {
