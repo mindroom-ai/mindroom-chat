@@ -48,9 +48,16 @@ describe('useInitializeShownThread near a list view', () => {
     vi.unstubAllGlobals();
   });
 
-  it('counts a card a screen above or below its list view as shown, so its thread loads before it scrolls in', () => {
-    const list = {} as Element;
-    expect(observeCards({ current: list })).toEqual([
+  it('counts a card a screen above or below its list view as shown once the list scrolls', () => {
+    const list = new EventTarget() as unknown as Element;
+    const observers = observeCards({ current: list });
+    // A list nobody scrolled loads only the cards on screen.
+    expect(observers).toEqual([{ root: undefined, rootMargin: undefined, observed: [{}, {}] }]);
+    act(() => {
+      list.dispatchEvent(new Event('scroll'));
+    });
+    expect(observers).toEqual([
+      { root: undefined, rootMargin: undefined, observed: [{}, {}] },
       { root: list, rootMargin: '100% 0px', observed: [{}, {}] },
     ]);
   });
