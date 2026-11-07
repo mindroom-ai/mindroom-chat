@@ -627,11 +627,49 @@ describe('useEventTimelineLoader', () => {
     expect(absoluteIndex).toBe(0);
   });
 
-  it('loads an event with a row of its own alone', async () => {
+  it('brings a page on each side of a row the server sent alone before it reports the load', async () => {
+    // Alone, the row would sit at the bottom of the view, and a jump to it could not aim it.
     const holder = makeTimeline('holder', [message('$target')], {
       back: 'before',
       forward: 'after',
     });
+    const { client, getEventTimeline, paginateEventTimeline } = makeClient();
+    getEventTimeline.mockResolvedValue(sdk(holder));
+    paginateEventTimeline.mockImplementation(async (_timeline, { backwards }) => {
+      if (backwards) {
+        holder.events.unshift(...messages('$earlier', 2));
+        holder.backToken = null;
+      } else {
+        holder.events.push(...messages('$later', 2));
+        holder.forwardToken = null;
+      }
+      return true;
+    });
+    const { room } = makeRoom(false);
+    const onLoad = vi.fn<LoadHandler>();
+    const { view } = mountLoader({
+      client,
+      room,
+      onLoad,
+      onError: vi.fn(),
+      filterOpts: fullViewFilters(room),
+    });
+
+    await act(() => view.load('$target'));
+
+    expect(paginateEventTimeline).toHaveBeenCalledTimes(2);
+    expect(onLoad).toHaveBeenCalledTimes(1);
+    const [, chain, absoluteIndex] = onLoad.mock.calls[0] ?? [];
+    expect(
+      chain?.flatMap((timeline) => timeline.getEvents().map((event) => event.getId()))
+    ).toEqual(['$earlier0', '$earlier1', '$target', '$later0', '$later1']);
+    expect(absoluteIndex).toBe(2);
+  });
+
+  it('loads nothing more around an event that comes with rows around it', async () => {
+    const { older, holder } = loadedChain();
+    holder.backToken = 'before';
+    older.backToken = 'before';
     const { client, getEventTimeline, paginateEventTimeline } = makeClient();
     getEventTimeline.mockResolvedValue(sdk(holder));
     const { room } = makeRoom(false);
