@@ -114,7 +114,8 @@ const seed = async (engine: string) => {
   });
   await joinRoom(HOMESERVER, helper.accessToken, roomId);
   const roots: string[] = [];
-  for (const [question] of THREADS) {
+  const titles: { rootId: string; title: string }[] = [];
+  for (const [question, title] of THREADS) {
     // eslint-disable-next-line no-await-in-loop
     const rootId = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
       msgtype: 'm.text',
@@ -127,9 +128,10 @@ const seed = async (engine: string) => {
       ...inThread(rootId),
     });
     roots.push(rootId);
+    titles.push({ rootId, title });
   }
   // The titles come last, as MindRoom writes them once a reply is done.
-  for (const [index, [, title]] of THREADS.entries()) {
+  for (const { rootId, title } of titles) {
     // eslint-disable-next-line no-await-in-loop
     await sendRoomMessage(HOMESERVER, helper.accessToken, roomId, {
       msgtype: 'm.notice',
@@ -141,7 +143,7 @@ const seed = async (engine: string) => {
         generated_at: new Date().toISOString(),
         message_count: 2,
       },
-      ...inThread(roots[index]),
+      ...inThread(rootId),
     });
   }
   return { reader, roomId, roots };

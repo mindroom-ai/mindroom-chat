@@ -292,6 +292,7 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
   await expect(more).toHaveAttribute('aria-pressed', 'true');
   expect(press.liftAllowed, `${engine}: the lift after the menu opens does not click`).toBe(false);
   const [before, resting, opened, lifted] = press.probes;
+  if (!before || !resting || !opened || !lifted) throw new Error(`${engine}: four probes`);
   expect(before.pageSelect, `${engine}: the page is selectable before the press`).not.toBe('none');
   // The platform's own long-press selection finds nothing to select while the finger rests.
   expect(resting.pageSelect, `${engine}: no text is selectable during the press`).toBe('none');
