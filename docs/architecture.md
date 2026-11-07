@@ -167,6 +167,25 @@ Limits:
 - Inline type imports (`typeof import('...')`) are not checked by the rule. The one cross-domain use, `shell/Router.tsx` to `room/Room`, points downward.
 - File-level cycles are checked separately: `threads/__tests__/featureOwnership.architecture.test.ts` requires the runtime import graph of `src/app` to be acyclic, apart from one listed cycle, `emoji/emojiData.ts` and `emoji/emoji.ts` (a lazy `import()` and the handover of the emoji tables back). Remove the allowance when that handshake goes.
 
+## Client plugins
+
+A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` names plugin directories ([`configuration.md`](configuration.md#build-time-variables)). Each has its own installed `node_modules`, so this repository's `package.json` and lockfile stay as they are, and a `package.json` that declares the plugin:
+
+```json
+{
+  "name": "my-plugin",
+  "version": "1.0.0",
+  "mindroomClientPlugin": { "id": "my-plugin", "apiVersion": 1, "entry": "./src/index.tsx" }
+}
+```
+
+- `scripts/client-plugins.mjs` checks each declaration (the build fails on a duplicate or malformed id, another `apiVersion` or a missing entry) and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry. Without plugins none of their code ships.
+- An entry's default export is a `ClientPlugin` (`src/app/plugins/registry.ts`): a list per kind of contribution. `registeredPlugins` freezes them, in the listed order, when its module loads, and `src/index.tsx` loads it before the app routes. A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginConfig.ts`).
+- Message renderers (`src/app/plugins/messageRenderers.ts`) are the first kind: `{ match, Component, trust? }`. `RenderMessageContent` asks them before its own renderers, wherever a message body renders (timelines, pins, the inbox, search results). `match(event)` is pure and synchronous, and sees the message's content as the app shows it, latest edit included; `Component` renders it. Only a MindRoom agent on the viewer's homeserver may send the messages a renderer takes, or with `trust: 'server'` anyone on that homeserver. A `match` that throws counts as no match. A `Component` that throws shows the app's own rendering instead, and the failure is logged and reported with `[plugin <id>@<version>]`.
+- `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions, and `?plugins=off` in the address hides every plugin's for one page load.
+
+`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests.
+
 ## Two lanes of code
 
 Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) records how each came to be, and [`AGENTS.md`](../AGENTS.md) holds the rules for editing them.
