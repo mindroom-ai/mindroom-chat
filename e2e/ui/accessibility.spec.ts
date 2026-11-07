@@ -497,14 +497,14 @@ test.describe.serial('keyboard and accessibility', () => {
     expect(await sidePaddings(topic.locator('header').first())).toEqual({ left: 8, right: 16 });
     await page.keyboard.press('Escape');
     await expect(topic).toHaveCount(0);
-    // Settings keep the close button 24 px from the dialog's end edge, as settings.png does at
-    // the right in English.
+    // Settings keep the close button the dialog's 12 px inset from its end edge, at the right in
+    // English and at the left here.
     await accountButton(page, 'ar').click();
     await page.getByRole('menuitem', { name: label('ar', 'settings.title'), exact: true }).click();
     const settings = page.getByRole('dialog', { name: label('ar', 'settings.title') });
     await expect(settings).toBeVisible();
     const closeLabel = label('ar', 'featureUi.settings.emojisStickers.globalPacks.close');
-    expect((await insetWithin(settings, `button[aria-label="${closeLabel}"]`)).left).toBe(24);
+    expect((await insetWithin(settings, `button[aria-label="${closeLabel}"]`)).left).toBe(12);
     await page.keyboard.press('Escape');
     await expect(settings).toHaveCount(0);
   });
