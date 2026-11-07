@@ -25,7 +25,8 @@ import {
   installIndexedDbLossRecovery,
   readRecoveryReloadAge,
 } from './app/account/lifecycle/indexedDbLossRecovery';
-import { applyThemeToDom, resolveInitialTheme } from './app/theme/themeBootstrap';
+import { resolveInitialTheme } from './app/theme/themeBootstrap';
+import { applyAppTheme } from './app/theme/appliedTheme';
 import { bootstrapRideTraceFlagFromUrl } from './app/timeline/rideTraceRecorder';
 import { migratePrefetchSettingsStorage } from './app/event-store/engine/prefetchSettingsStorage';
 import { migrateLegacyIOSPushEnabled } from './app/notifications/push/iosPush';
@@ -77,7 +78,7 @@ const startDiagnostics = (): void => {
 };
 
 const prepareDocument = (): void => {
-  runSafely('theme', () => applyThemeToDom(resolveInitialTheme()));
+  runSafely('theme', () => applyAppTheme(resolveInitialTheme()));
   runSafely('ride trace flag', () => bootstrapRideTraceFlagFromUrl());
   // The legacy push flag moves first, so the settings store migration sees it.
   runSafely('push setting migration', () => {
