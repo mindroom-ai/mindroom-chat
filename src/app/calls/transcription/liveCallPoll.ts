@@ -26,7 +26,7 @@ export const sleep = (ms: number, signal: AbortSignal): Promise<boolean> =>
  * undefined once aborted.
  */
 export const pollLiveCall = async (
-  client: TranscriptionClient,
+  client: Pick<TranscriptionClient, 'live'>,
   roomId: string,
   everyMs: number,
   signal: AbortSignal,

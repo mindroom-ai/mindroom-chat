@@ -637,6 +637,55 @@ describe('CallTranscriber live call', () => {
   });
 });
 
+describe('CallTranscriber live call sent before an answer', () => {
+  const paused = { ...CALL, pausedBy: '@ann:example.org' };
+
+  it("keeps the call a Pause answered when a read sent before the answer arrives after it, with the read's lines", async () => {
+    const t = setup();
+    t.transcriber.start();
+    await advance();
+    const read = pending<Response>();
+    t.server.live.mockImplementationOnce(() => read.promise);
+    await advance(2_000);
+    expect(t.reads()).toBe(2);
+
+    await t.transcriber.pause(true);
+    read.resolve(json({ call: CALL, lines: [LINE], names: { '@ann:example.org': 'Ann' } }));
+    await advance();
+    expect(t.updates.slice(-2)).toEqual([
+      { type: 'call', call: paused },
+      {
+        type: 'live',
+        live: { call: paused, lines: [LINE], names: { '@ann:example.org': 'Ann' } },
+      },
+    ]);
+
+    // A read sent after the answer tells the call as it is.
+    await advance(2_000);
+    expect(t.updates.at(-1)).toEqual({ type: 'live', live: { call: CALL, lines: [], names: {} } });
+  });
+
+  it('keeps the call a join answered when a read sent before it arrives after it', async () => {
+    const t = setup();
+    t.transcriber.start();
+    await advance();
+    const read = pending<Response>();
+    t.server.live.mockImplementationOnce(() => read.promise);
+    t.server.join.mockImplementationOnce(() => json({ call: paused }));
+    await advance(18_000);
+    expect(t.joins()).toBe(1);
+    await advance(2_000);
+    expect(t.joins()).toBe(2);
+
+    read.resolve(json({ call: CALL, lines: [], names: {} }));
+    await advance();
+    expect(t.updates.at(-1)).toEqual({
+      type: 'live',
+      live: { call: paused, lines: [], names: {} },
+    });
+  });
+});
+
 describe('CallTranscriber Pause', () => {
   const paused = { ...CALL, pausedBy: '@ann:example.org' };
 

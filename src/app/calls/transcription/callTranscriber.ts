@@ -109,6 +109,12 @@ export class CallTranscriber {
   /** A check-in on its way. */
   private joining?: Promise<void>;
 
+  /** Joins and Pause requests MindRoom answered so far. */
+  private answers = 0;
+
+  /** The call MindRoom answered the last of them with. */
+  private lastAnswer?: TranscriptCall;
+
   /** Stops reading the live call. */
   private readonly stopReading = new AbortController();
 
@@ -226,6 +232,8 @@ export class CallTranscriber {
    */
   private applyAnswer(call: TranscriptCall): void {
     if (this.ending) return;
+    this.answers += 1;
+    this.lastAnswer = call;
     this.options.onUpdate({ type: 'call', call });
     if (call.pausedBy) this.setPaused(true);
   }
@@ -378,15 +386,22 @@ export class CallTranscriber {
   private readLive(): void {
     if (this.reading || this.ending) return;
     this.reading = true;
-    void pollLiveCall(
-      this.client,
-      this.options.roomId,
-      LIVE_READ_MS,
-      this.stopReading.signal,
-      (live) => {
-        if (!this.ending) this.options.onUpdate({ type: 'live', live });
-      }
-    ).then((outcome) => {
+    // How many answers there were when the read on its way was sent.
+    let answersAtRead = 0;
+    const reads = {
+      live: (...read: Parameters<TranscriptionClient['live']>) => {
+        answersAtRead = this.answers;
+        return this.client.live(...read);
+      },
+    };
+    void pollLiveCall(reads, this.options.roomId, LIVE_READ_MS, this.stopReading.signal, (live) => {
+      if (this.ending) return;
+      // A read sent before MindRoom's last answer may tell the call as it was before it: the
+      // answer's call stays, and the read adds only its lines of that call.
+      const answer = answersAtRead === this.answers ? undefined : this.lastAnswer;
+      if (answer && live.call?.id !== answer.id) return;
+      this.options.onUpdate({ type: 'live', live: answer ? { ...live, call: answer } : live });
+    }).then((outcome) => {
       if (outcome === 'not-transcribed') this.turnOff();
     });
   }
