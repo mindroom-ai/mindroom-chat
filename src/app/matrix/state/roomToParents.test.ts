@@ -226,13 +226,25 @@ describe('useBindRoomToParentsAtom with a chat room as parent', () => {
     expect(childParents()).toEqual(new Set([PARENT]));
   });
 
-  it('lists the room once the account joins it', () => {
+  it('counts a listed room the account has not joined on the listing alone, as a Space does', () => {
     const { child, childParents } = setupChatRooms({ childMembership: KnownMembership.Leave });
-    expect(childParents()).toBeUndefined();
+    expect(childParents()).toEqual(new Set([PARENT]));
 
     act(() => child.updateMyMembership(KnownMembership.Join));
 
     expect(childParents()).toEqual(new Set([PARENT]));
+  });
+
+  it('drops a listed room once the account joins it and it does not name the chat room back', () => {
+    const { child, childParents } = setupChatRooms({
+      childMembership: KnownMembership.Leave,
+      backLink: {},
+    });
+    expect(childParents()).toEqual(new Set([PARENT]));
+
+    act(() => child.updateMyMembership(KnownMembership.Join));
+
+    expect(childParents()).toBeUndefined();
   });
 
   it('puts the room back at top level when the chat room takes it off its list', () => {

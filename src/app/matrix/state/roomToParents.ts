@@ -1,12 +1,13 @@
 /**
  * Which Spaces and chat rooms list each room, from the `m.space.child` state of the rooms the
  * client knows. A child counts only while its event has a non-empty `via`, as the Matrix spec
- * defines. A chat room's child is a sub-room only while it is a joined room, not a Space, that
- * names the chat room back as its canonical `m.space.parent`, the rule MindRoom's agents follow
- * to join it; one link alone leaves the room where it was.
+ * defines. A chat room's joined child is a sub-room only while it is not a Space and names the
+ * chat room back as its canonical `m.space.parent`, the rule MindRoom's agents follow to join it;
+ * one link alone leaves a joined room where it was. A listed room the account has not joined
+ * counts on the listing alone, as a Space's children do.
  */
 import { useEffect } from 'react';
-import { atom, type WritableAtom, useSetAtom } from 'jotai';
+import { atom, type WritableAtom, useSetAtom, useStore } from 'jotai';
 import {
   ClientEvent,
   KnownMembership,
@@ -118,13 +119,18 @@ const namesParent = (child: Room, parentId: string): boolean => {
   return content?.canonical === true && hasVia(content);
 };
 
-/** The children `room` adds to the map: every child of a Space, the sub-rooms of a chat room. */
+/**
+ * The children `room` adds to the map: every child of a Space, the sub-rooms of a chat room. A
+ * listed room the account has not joined counts on the listing alone, as a Space's children do,
+ * until it joins and its own state shows whether it names the chat room back.
+ */
 const getChildIds = (mx: MatrixClient, room: Room): string[] => {
   const children = getSpaceChildIds(room);
   if (room.isSpaceRoom()) return children;
   return children.filter((childId) => {
     const child = mx.getRoom(childId);
-    return !!child && isJoined(child) && !child.isSpaceRoom() && namesParent(child, room.roomId);
+    if (child?.isSpaceRoom()) return false;
+    return !child || !isJoined(child) || namesParent(child, room.roomId);
   });
 };
 
@@ -137,21 +143,12 @@ const isTrackedParent = (room: Room): boolean => {
   );
 };
 
-/**
- * The chat rooms `room` names as parents (`m.space.parent`), whose sub-rooms it may be one of. A
- * Space's children never depend on their own state.
- */
-const getNamedChatRooms = (mx: MatrixClient, room: Room): Room[] =>
-  room.currentState
-    .getStateEvents(StateEvent.SpaceParent)
-    .flatMap((event) => mx.getRoom(event.getStateKey() ?? '') ?? [])
-    .filter((parent) => !parent.isSpaceRoom());
-
 /** Builds the parents of every room and follows their changes for the current account. */
 export const useBindRoomToParentsAtom = (
   mx: MatrixClient,
   parentsAtom: RoomToParentsAtom = roomToParentsAtom
 ) => {
+  const store = useStore();
   const setParents = useSetAtom(parentsAtom);
 
   useEffect(() => {
@@ -178,16 +175,23 @@ export const useBindRoomToParentsAtom = (
         chatRoom: !parent.isSpaceRoom(),
       });
     };
-    // A room's own list, and the lists of the chat rooms it names as parents, which it may join,
-    // leave or come into the client's store as a sub-room of.
+    // The rooms that list `room`, since a chat room's list depends on its membership and state.
+    const putListingRooms = (room: Room) =>
+      store
+        .get(parentsAtom)
+        .get(room.roomId)
+        ?.forEach((parentId) => {
+          const parent = mx.getRoom(parentId);
+          if (parent) putParent(parent);
+        });
     const putRoom = (room: Room) => {
       putParent(room);
-      getNamedChatRooms(mx, room).forEach(putParent);
+      putListingRooms(room);
     };
     const handleMembership = (room: Room, membership: string) => {
       if (matchesEnum(membership, KnownMembership.Join)) putParent(room);
       else setParents({ type: 'DELETE', parent: room.roomId });
-      getNamedChatRooms(mx, room).forEach(putParent);
+      putListingRooms(room);
     };
     const handleStateEvent = (event: MatrixEvent) => {
       const room = mx.getRoom(event.getRoomId() ?? '');
@@ -210,5 +214,5 @@ export const useBindRoomToParentsAtom = (
       mx.removeListener(RoomEvent.MyMembership, handleMembership);
       mx.removeListener(ClientEvent.DeleteRoom, handleDeleteRoom);
     };
-  }, [mx, setParents]);
+  }, [mx, setParents, store, parentsAtom]);
 };
