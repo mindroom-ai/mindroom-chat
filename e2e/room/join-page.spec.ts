@@ -21,7 +21,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // The page a room link opens when the person is not in the room. A room left on another device
 // just as the app starts keeps its name there. A join the server refuses says why, there and on
 // a space lobby's card. A person banned from the room reads that they are, who banned them and
-// why, whether this device knew the room or not. The person has 25 other rooms; desktop (1280 by
+// why, whether this device knew the room or not. On a phone, where the page fills the screen,
+// a back button leads to where the person came from, or to the list the page belongs to. The person has 25 other rooms; desktop (1280 by
 // 800, classic scrollbars) and phone (390 by 844, touch), light and dark, Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. Set JOIN_PAGE_SHOTS=<directory>
 // for screenshots.
@@ -346,6 +347,59 @@ const checkBanned = async (browser: Browser, label: string, options: BrowserCont
   await page.context().close();
 };
 
+/**
+ * A phone shows the room's page alone. Its back button returns to the page it was opened from;
+ * opened from outside the app, it leads to the list the page sits in (Home, or the space).
+ */
+const checkPhoneBack = async (browser: Browser, label: string) => {
+  const { owner, viewer } = await seedAccounts(label);
+  const linked = await publicRoom(owner, LINKED);
+  const space = await createPrivateSpace(HOMESERVER, owner.accessToken, {
+    name: 'Field notes',
+    topic: 'Everything the field team shares',
+    invite: [viewer.userId],
+  });
+  await joinRoom(HOMESERVER, viewer.accessToken, space);
+  const spaceRoom = await publicRoom(owner, LOBBY_ROOM);
+  await addRoomToSpace(HOMESERVER, owner.accessToken, space, spaceRoom);
+  const { page, problems } = await signIn(browser, viewer, PHONE);
+  const main = page.locator('main');
+  const join = main.getByRole('button', { name: 'Join', exact: true });
+  const back = main.getByRole('button', { name: 'Back', exact: true });
+  const path = () => decodeURIComponent(new URL(page.url()).pathname);
+
+  // Opened from the Home list: back returns to it.
+  await page.goto('/home/');
+  await expect(page.getByText('Team room 1', { exact: true })).toBeVisible({ timeout: 30_000 });
+  await openPath(page, `/home/${encodeURIComponent(linked)}/`);
+  await expect(join).toBeVisible();
+  await expect(back).toBeVisible();
+  const header = await back.boundingBox();
+  // In the page's header, at its start.
+  expect(header!.x).toBeLessThan(40);
+  expect(header!.y).toBeLessThan(80);
+  await shots(page, `${label}-back`);
+  await back.tap();
+  await expect.poll(path).toBe('/home/');
+  await expect(join).toHaveCount(0);
+
+  // Opened from outside the app: back leads to the Home list.
+  await page.goto(`/home/${encodeURIComponent(linked)}/`);
+  await expect(join).toBeVisible({ timeout: 30_000 });
+  await back.tap();
+  await expect.poll(path).toBe('/home/');
+  await expect(page.getByText('Team room 1', { exact: true })).toBeVisible();
+
+  // A room of a space, opened from outside the app: back leads to the space's list.
+  await page.goto(`/${encodeURIComponent(space)}/${encodeURIComponent(spaceRoom)}/`);
+  await expect(join).toBeVisible({ timeout: 30_000 });
+  await back.tap();
+  await expect.poll(path).toBe(`/${space}/`);
+  await expect(join).toHaveCount(0);
+  expect(problems).toEqual([]);
+  await page.context().close();
+};
+
 test.beforeEach(async () => {
   test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
   test.setTimeout(240_000);
@@ -399,6 +453,20 @@ test('a banned person reads who banned them and why on the room page (WebKit pho
   const browser = await launchWebKit();
   try {
     await checkBanned(browser, 'webkit-phone', PHONE);
+  } finally {
+    await browser.close();
+  }
+});
+
+test("a phone's room page leads back (Chromium)", async ({ browser }) => {
+  await checkPhoneBack(browser, 'chromium-phone');
+});
+
+test("a phone's room page leads back (WebKit)", async () => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  const browser = await launchWebKit();
+  try {
+    await checkPhoneBack(browser, 'webkit-phone');
   } finally {
     await browser.close();
   }
