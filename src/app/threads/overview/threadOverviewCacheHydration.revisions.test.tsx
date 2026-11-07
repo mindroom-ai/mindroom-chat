@@ -136,6 +136,54 @@ it('lets a cached final reply replace a title notice previewed after it', () => 
   expect(update?.nextReplyPreviewText).toBe('The release notes are ready.');
 });
 
+it('stores the cached reply even when the card already shows the same text', () => {
+  // The card may show it from a bundle on its root event; another copy of that root, without the
+  // bundle, then still needs the cached reply.
+  const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
+  const room = new Room('!room:example.org', mx, '@reader:example.org');
+  const reply = {
+    event_id: '$reply',
+    room_id: room.roomId,
+    sender: '@agent:example.org',
+    origin_server_ts: 1000,
+    type: 'm.room.message',
+    content: {
+      msgtype: 'm.text',
+      body: 'Thinking...',
+      'm.relates_to': { rel_type: 'm.thread', event_id: '$root' },
+    },
+  };
+  const edit = {
+    ...reply,
+    event_id: '$terminal-edit',
+    origin_server_ts: 2000,
+    content: {
+      msgtype: 'm.text',
+      body: '* The release notes are ready.',
+      'm.new_content': { msgtype: 'm.text', body: 'The release notes are ready.' },
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply' },
+    },
+  };
+  const presentation = {
+    ...resolveThreadPresentationSnapshot({ room, threadRootId: '$root' }),
+    latestReplyPreviewText: 'The release notes are ready.',
+    latestReplyTs: 2000,
+    lastSenderId: '@agent:example.org',
+  };
+  const update = resolveCachedOverviewUpdate({
+    rootId: '$root',
+    room,
+    mapper: mx.getEventMapper(),
+    cachedPage: { events: [reply, edit], hasMoreBefore: false },
+    currentRecord: { presentation, status: { lastActivityTs: 2000 } } as ThreadRecord,
+    showCompactRoomView: true,
+    compactCachedThreadRootBodyMap: new Map(),
+    compactThreadRootBodyMap: new Map(),
+  });
+  expect(update?.nextReplyPreviewText).toBe('The release notes are ready.');
+  expect(update?.nextLastSenderId).toBe('@agent:example.org');
+});
+
 it('announces committed changes only, scoped to the reader, and ignores an older replay', async () => {
   const sessionId = 'preview-change-notifications';
   const roomId = '!room:example.org';
