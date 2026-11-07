@@ -4,7 +4,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { createClient, Room } from 'matrix-js-sdk';
 import type { Editor } from 'slate';
 import { Editable, Slate } from 'slate-react';
+import { getDefaultStore } from 'jotai';
 import { afterEach, expect, it, vi } from 'vitest';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { runShortcut } from '../shortcuts/useShortcut';
 import { RoomView } from './RoomView';
 
@@ -94,4 +96,16 @@ it('leaves a letter whose keydown another handler cancelled where it was typed',
   game.addEventListener('keydown', (event) => event.preventDefault());
   pressA(game);
   expect(document.activeElement).toBe(game);
+});
+
+it("leaves a letter, and Escape, alone while a side panel takes the conversation's place", () => {
+  getDefaultStore().set(conversationBehindPanelAtom, true);
+  try {
+    render(<RoomView room={room} />);
+    pressA(document.body);
+    expect(pressEscape()).toBe(false);
+    expect(document.activeElement).toBe(document.body);
+  } finally {
+    getDefaultStore().set(conversationBehindPanelAtom, false);
+  }
 });
