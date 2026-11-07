@@ -81,6 +81,34 @@ const watchList = (page: Page, eventId: string) =>
             } ${button.getAttribute('aria-expanded')}`
         )
         .join(', ')}`;
+    // TEMPORARY: the React components from the line up to the collapsible content, with keys.
+    const chain = (node: Element) => {
+      const key = Object.keys(node).find((name) => name.startsWith('__reactFiber$'));
+      const names: string[] = [];
+      type Fiber = { type?: unknown; key?: string | null; return?: Fiber; stateNode?: unknown };
+      for (
+        let fiber = key ? ((node as unknown as Record<string, Fiber>)[key] as Fiber) : undefined;
+        fiber && names.length < 60;
+        fiber = fiber.return
+      ) {
+        const { type } = fiber;
+        const name =
+          typeof type === 'string'
+            ? type
+            : typeof type === 'function'
+            ? (type as { displayName?: string; name: string }).displayName ??
+              (type as { name: string }).name
+            : type && typeof type === 'object'
+            ? `obj:${String((type as { displayName?: string }).displayName ?? Object.keys(type).join('|'))}`
+            : String(type);
+        names.push(fiber.key ? `${name}#${fiber.key}` : name);
+        if (fiber.stateNode instanceof Element && fiber.stateNode.hasAttribute('data-message-id'))
+          break;
+      }
+      return names.join(' < ');
+    };
+    const startButton = find();
+    if (startButton) watch.closed.push(`start chain: ${chain(startButton)}`);
     let last: string | undefined;
     new MutationObserver(() => {
       try {
@@ -88,7 +116,7 @@ const watchList = (page: Page, eventId: string) =>
         const state = !button
           ? elsewhere()
           : !button.hasAttribute('data-watched-list')
-          ? drawnAgain(button)
+          ? `${drawnAgain(button)}; chain: ${chain(button)}`
           : button.getAttribute('aria-expanded') !== 'true'
           ? 'closed'
           : undefined;
