@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createLogger, createServer, type ViteDevServer } from 'vite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  pluginCopies,
   pluginDirectories,
   pluginDirectoryServer,
   pluginPageInputs,
@@ -40,6 +41,17 @@ const writePlugin = (directory: string) => {
   );
   return directory;
 };
+/** Gives a plugin directory its own installed copy of a package its page imports. */
+const ownPackages = (directory: string) => {
+  const classNames = path.join(directory, 'node_modules', 'classnames');
+  mkdirSync(classNames, { recursive: true });
+  writeFileSync(
+    path.join(classNames, 'package.json'),
+    JSON.stringify({ name: 'classnames', version: '0.0.1', main: 'index.js' })
+  );
+  writeFileSync(path.join(classNames, 'index.js'), 'module.exports = () => "own";');
+  return directory;
+};
 beforeEach(() => {
   outside = realpathSync(mkdtempSync(path.join(tmpdir(), 'e2e-plugin-pages-')));
   plugin = writePlugin(path.join(outside, 'my-plugin'));
@@ -68,6 +80,12 @@ describe('pluginDirectories', () => {
 });
 
 describe('pluginPageInputs', () => {
+  it('lists the copies of a snapshot', () => {
+    const copy = writePlugin(path.join(outside, 'e2e-plugins', 'my-plugin'));
+    expect(pluginCopies(outside)).toEqual([copy]);
+    expect(pluginCopies(plugin)).toEqual([]);
+  });
+
   it('builds the pages of each copy under an input name no other page has', () => {
     const copies = path.join(outside, 'e2e-plugins');
     writePlugin(path.join(copies, 'foo-bar'));
@@ -107,7 +125,11 @@ describe('pluginDirectoryServer', () => {
           },
         },
         plugins: [
-          pluginDirectoryServer([plugin, writePlugin(path.join(outside, '50% off plugin'))]),
+          pluginDirectoryServer([
+            plugin,
+            writePlugin(path.join(outside, '50% off plugin')),
+            ownPackages(writePlugin(path.join(outside, 'own-packages'))),
+          ]),
         ],
         optimizeDeps: { noDiscovery: true },
         server: { middlewareMode: true, hmr: false, watch: null },
@@ -150,6 +172,13 @@ describe('pluginDirectoryServer', () => {
       expect(await data.json()).toEqual({ from: 'the plugin' });
       // Vite asked for the page's module ahead of the browser, and found it.
       expect(errors).toEqual([]);
+    }, 30_000);
+
+    it("resolves a package from the directory's own node_modules first", async () => {
+      const code = await (
+        await fetch(`${origin}/e2e-plugins/own-packages/e2e/fixtures/page.ts`)
+      ).text();
+      expect(code).toContain('/own-packages/node_modules/classnames/');
     }, 30_000);
 
     it('serves a directory whose name a URL escapes', async () => {

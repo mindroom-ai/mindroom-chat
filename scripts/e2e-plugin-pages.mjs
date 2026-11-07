@@ -3,8 +3,8 @@
 // /e2e-plugins/<directory name>/, laid out as each directory is, so a fixture page in its e2e/fixtures/ is at
 // /e2e-plugins/<directory name>/e2e/fixtures/<page>.html. The dev server serves each directory from where it is
 // (`pluginDirectoryServer`); `scripts/e2e-slot.sh --preview` copies them to e2e-plugins/ in its snapshot, where
-// the fixture page build finds their pages (`pluginPageInputs`). A page's modules import this repository's
-// packages by name and its sources from /src/.
+// the fixture page build finds their pages (`pluginPageInputs`). A page's modules import packages from their
+// directory's node_modules, else from this repository's, and this repository's sources from /src/.
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { searchForWorkspaceRoot } from 'vite';
@@ -30,26 +30,32 @@ export const pluginDirectories = (value, repository) =>
     });
 
 /**
- * The fixture pages of the plugin directories copied to e2e-plugins/ of `repository` (a snapshot), by a build
- * input name.
+ * The copies of the plugin directories in e2e-plugins/ of `repository` (a snapshot).
  * @param {string} repository
  */
-export const pluginPageInputs = (repository) => {
+export const pluginCopies = (repository) => {
   const copies = path.join(repository, URL_PREFIX);
-  return Object.fromEntries(
-    (existsSync(copies) ? readdirSync(copies) : []).flatMap((name) => {
-      const pages = path.join(copies, name, 'e2e', 'fixtures');
+  return existsSync(copies) ? readdirSync(copies).map((name) => path.join(copies, name)) : [];
+};
+
+/**
+ * The fixture pages of the plugin directories' copies in `repository`, by a build input name.
+ * @param {string} repository
+ */
+export const pluginPageInputs = (repository) =>
+  Object.fromEntries(
+    pluginCopies(repository).flatMap((copy) => {
+      const pages = path.join(copy, 'e2e', 'fixtures');
       return existsSync(pages)
         ? readdirSync(pages)
             .filter((file) => file.endsWith('.html'))
             .map((file) => [
-              `plugin-${name}/${file.slice(0, -'.html'.length)}`,
+              `plugin-${path.basename(copy)}/${file.slice(0, -'.html'.length)}`,
               path.join(pages, file),
             ])
         : [];
     })
   );
-};
 
 /**
  * Vite plugin: the dev server serves `directories` at /e2e-plugins/<directory name>/.
@@ -82,22 +88,27 @@ export const pluginDirectoryServer = (directories) => {
     config: () => ({
       server: { fs: { allow: [searchForWorkspaceRoot(process.cwd()), ...directories] } },
     }),
-    resolveId(source, importer, options) {
+    async resolveId(source, importer, options) {
       // A page's own URLs, which Vite also asks for ahead of the browser.
       const [request = '', ...query] = source.split('?');
       const file = fileOf(request);
       if (file) return [file, ...query].join('?');
-      // A module in a plugin directory imports packages as this repository's own modules do.
+      // A module in a plugin directory imports a package from the directory's own node_modules, else from
+      // this repository's, as its copy in a --preview snapshot does.
       if (
         importer &&
         /^[\w@]/.test(source) &&
         !source.includes(':') &&
         directories.some((directory) => importer.startsWith(directory + path.sep))
       ) {
-        return this.resolve(source, path.join(process.cwd(), 'index.html'), {
-          ...options,
-          skipSelf: true,
-        });
+        const own = await this.resolve(source, importer, { ...options, skipSelf: true });
+        return (
+          own ??
+          this.resolve(source, path.join(process.cwd(), 'index.html'), {
+            ...options,
+            skipSelf: true,
+          })
+        );
       }
       return null;
     },

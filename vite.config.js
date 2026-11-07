@@ -10,6 +10,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { clientPlugins, readClientPlugins } from './scripts/client-plugins.mjs';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import {
+  pluginCopies,
   pluginDirectories,
   pluginDirectoryServer,
   pluginPageInputs,
@@ -159,7 +160,8 @@ export default defineConfig({
     // The build fails when the app's chunks hold two copies of one package version
     // (scripts/package-copies.mjs). `?worker` bundles take only `worker.plugins`; the app's one,
     // livekit-client's encryption worker, is a single prebuilt module.
-    onePackageCopyPerVersion(clientPluginDirs),
+    // The plugin directories' copies of `e2e-slot.sh --preview` keep their own packages too.
+    onePackageCopyPerVersion([...clientPluginDirs, ...pluginCopies(repository)]),
     ...(pluginDirs.length ? [pluginDirectoryServer(pluginDirs)] : []),
     ...(fixturePagesOnly
       ? []
