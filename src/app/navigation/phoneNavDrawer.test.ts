@@ -20,4 +20,10 @@ describe('nextPhoneNavDrawerOpen', () => {
     expect(nextPhoneNavDrawerOpen(true, false, 'REPLACE')).toBe(true);
     expect(nextPhoneNavDrawerOpen(false, false, 'REPLACE')).toBe(false);
   });
+
+  it('closes when a section root redirects elsewhere, as a short room link does', () => {
+    expect(nextPhoneNavDrawerOpen(true, false, 'REPLACE', true)).toBe(false);
+    // A space root rewritten to its canonical address stays a root.
+    expect(nextPhoneNavDrawerOpen(true, true, 'REPLACE', true)).toBe(true);
+  });
 });

@@ -37,7 +37,8 @@ function MenuButton() {
   const [open, setOpen] = useAtom(phoneNavDrawerOpenAtom);
   const unread = useRoomsUnread(useAtomValue(allRoomsAtom), roomToUnreadAtom);
   const unreadId = useId();
-  const hasUnread = !!unread && unread.total > 0;
+  // Any unread room, also one whose messages notify nobody, as the rail's badges count them.
+  const hasUnread = !!unread;
   return (
     <div className={css.MenuButtonFrame}>
       <IconButton

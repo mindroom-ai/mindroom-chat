@@ -408,3 +408,18 @@ test('chromium: Escape closes a menu over the drawer and leaves the drawer out',
     await context.close();
   }
 });
+
+test('chromium: a short room link opens the room with the drawer away', async ({ browser }) => {
+  test.setTimeout(180_000);
+  const seeded = await seed('chromium', 'short');
+  const { context, page } = await signIn(browser, seeded);
+  try {
+    // `/!room/` first matches a space's address, then redirects to the room in Home.
+    await page.goto(`/${encodeURIComponent(seeded.garden)}/`);
+    await expectAt(page, { room: seeded.garden }, 'the short link opens the room');
+    await expect(page).toHaveURL(/\/home\//);
+    await expectDrawer(page, false, 'with the drawer away');
+  } finally {
+    await context.close();
+  }
+});

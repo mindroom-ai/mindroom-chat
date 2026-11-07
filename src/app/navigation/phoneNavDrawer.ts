@@ -10,14 +10,16 @@ export const phoneNavSlotAtom = atom<HTMLElement | null>(null);
 /**
  * Whether the drawer is out after a navigation: arriving at a section's own page opens it, since
  * that page's list is what the person came for; moving on to any other page closes it. A replace
- * keeps it as it was, because redirects (a space's root to its lobby) and address clean-ups replace
- * the page while the drawer is out.
+ * keeps it as it was (address clean-ups replace the page while the drawer is out), except one that
+ * leads away from a section's own page: a redirect, such as a short room link that first matched
+ * a space's address, was not a visit to the list.
  */
 export const nextPhoneNavDrawerOpen = (
   open: boolean,
   sectionRoot: boolean,
-  action: NavigationType | `${NavigationType}`
+  action: NavigationType | `${NavigationType}`,
+  fromSectionRoot = false
 ): boolean => {
   if (sectionRoot) return true;
-  return action === 'REPLACE' ? open : false;
+  return action === 'REPLACE' && !fromSectionRoot ? open : false;
 };

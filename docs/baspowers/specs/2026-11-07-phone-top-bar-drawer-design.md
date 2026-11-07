@@ -24,9 +24,9 @@ The layout keeps one element tree on every size, so a phone turned sideways (Tab
 
 ### Top bar (`sidebar/PhoneTopBar.tsx`)
 
-- Menu button at the start: opens and closes the drawer, `aria-expanded`, `aria-controls` the drawer. A dot marks unread messages in any room (`allRoomsAtom` through `useRoomsUnread`), in the highlight color when one mentions the person.
-- Search field: a button styled as a field (search icon, "Search", and the palette's shortcut label from `commandPaletteShortcut.ts` in a `kbd` badge) that closes the drawer and opens the command palette (`commandPaletteOpenAtom`).
-- The account avatar at the end: the rail's account button (`SettingsTab`) in a top-bar form, its menu opening below it. The drawer closes first.
+- Menu button at the start: opens and closes the drawer, `aria-expanded`, `aria-controls` the drawer. A dot marks any unread room (`allRoomsAtom` through `useRoomsUnread`, as the rail's badges count them), in the highlight color when one mentions the person.
+- Search field: a button styled as a field (search icon, "Search", and the palette's shortcut label from `commandPaletteShortcut.ts` in a `kbd` badge) that opens the command palette (`commandPaletteOpenAtom`) over the drawer, which stays as it was: picking a place in the palette navigates and so puts it away.
+- The account avatar at the end: the rail's account button (`SettingsTab`) in a top-bar form, its menu opening below it, over the drawer, which stays out (Settings opened from it returns to the same list).
 
 On phones the rail leaves out its own search and account buttons, which the bar now holds.
 
@@ -38,7 +38,7 @@ On phones the rail leaves out its own search and account buttons, which the bar 
 - Open state: `phoneNavDrawerOpenAtom` in `navigation/phoneNavDrawer.ts`, so lower layers (edge swipes) can read it.
 - When it opens and closes:
   - Every navigation (new location key) to a section root opens it. Section roots are the section index routes, marked with a route `handle` in `shell/Router.tsx` and read with `useMatches()`, so `/threads/` is not mistaken for a space.
-  - A push or pop to any other page closes it. A replace keeps it as it was: redirects (a space's root to its lobby, the Inbox to Invites) and alias canonicalization happen while it is open.
+  - A push or pop to any other page closes it. A replace keeps it as it was (alias canonicalization and address clean-ups happen while it is out), except a replace that leads away from a section's own page: that is a redirect, such as a short room link (`/!room/`) that first matched a space's address, and closes it.
   - Activating a link inside the drawer closes it, also when the link leads to the URL already shown (a replace).
   - The menu button, a tap on the scrim, Escape (after a menu or dialog over it had the key) and a swipe toward the start edge on the panel close it.
   - On first render it follows the same rule without motion.

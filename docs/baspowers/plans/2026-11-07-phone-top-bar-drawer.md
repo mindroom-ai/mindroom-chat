@@ -73,7 +73,7 @@
 - Produces: `PhoneTopBar()`.
 - Consumes: Task 1 atom; `commandPaletteOpenAtom`, `getCommandPaletteShortcutLabel`, `getCommandPaletteAriaKeyShortcuts`; `allRoomsAtom`, `useRoomsUnread`, `roomToUnreadAtom`.
 
-- [ ] Step 1: test (jsdom): renders a button named "Search" whose text includes `getCommandPaletteShortcutLabel()`; clicking it sets `commandPaletteOpenAtom` to `'all'` and the drawer atom to false; the menu button toggles the drawer atom and has `aria-expanded`.
+- [ ] Step 1: test (jsdom): renders a button named "Search" whose text includes `getCommandPaletteShortcutLabel()`; clicking it sets `commandPaletteOpenAtom` to `'all'` (the drawer stays as it was; see the spec); the menu button toggles the drawer atom and has `aria-expanded`.
 - [ ] Step 2: implement: 52 px bar, `paddingInline: S200`, gap S200, bottom border; menu `IconButton` with a three-line icon (`M4 6h16M4 12h16M4 18h16`, stroke 2), dot when unread; search button flex 1, 36 px, radius 300, border, icon, label, `kbd` badge; `SettingsTab placement="bar"` at the end.
 - [ ] Step 3: run on a runner, pass; commit.
 

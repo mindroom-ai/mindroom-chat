@@ -19,7 +19,11 @@ const CLOSE_SWIPE_DISTANCE = 56;
 
 const isRightToLeft = (element: Element): boolean => getComputedStyle(element).direction === 'rtl';
 
-/** Whether a menu, listbox or dialog is open: Escape is theirs then. Most portal into `body`. */
+/**
+ * Whether a menu, listbox or dialog is open: Escape is theirs then. Broader than
+ * `hasBlockingPortalOverlay`, which sees only the portal container: folds menus portal into
+ * `body`, and the drawer, which closes on Escape before the page sees it, must leave every one.
+ */
 const overlayOpen = (): boolean =>
   hasBlockingPortalOverlay() ||
   document.querySelector(
@@ -31,8 +35,11 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
   const { key } = useLocation();
   const action = useNavigationType();
   const sectionRoot = useMatches().some((match) => isSectionRootHandle(match.handle));
+  const wasSectionRoot = useRef(false);
   useLayoutEffect(() => {
-    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action));
+    const fromSectionRoot = wasSectionRoot.current;
+    wasSectionRoot.current = sectionRoot;
+    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action, fromSectionRoot));
   }, [key, sectionRoot, action, setOpen]);
 };
 

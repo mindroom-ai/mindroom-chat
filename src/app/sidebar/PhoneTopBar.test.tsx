@@ -99,6 +99,13 @@ describe('PhoneTopBar', () => {
         (node) => node.type === 'span' && 'data-highlight' in node.props
       )
     ).toHaveLength(0);
+    // A room with unread messages but nothing that notifies still shows the dot.
+    unread.value = { total: 0, highlight: 0 };
+    expect(
+      renderBar().renderer.root.findAll(
+        (node) => node.type === 'span' && 'data-highlight' in node.props
+      )
+    ).toHaveLength(1);
     unread.value = { total: 3, highlight: 1 };
     const [dot] = renderBar().renderer.root.findAll(
       (node) => node.type === 'span' && 'data-highlight' in node.props
