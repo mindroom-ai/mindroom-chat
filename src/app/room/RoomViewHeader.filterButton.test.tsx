@@ -7,13 +7,14 @@ import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 
-const { view, screen, navigate } = vi.hoisted(() => ({
+const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
     mode: 'compact' as RoomViewMode,
     setViewMode: (() => undefined) as (mode: string) => void,
   },
   screen: { size: 'Desktop' },
   navigate: vi.fn(),
+  pins: { ids: [] as string[] },
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
@@ -64,7 +65,8 @@ vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new S
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ action: () => false, event: () => false }),
 }));
-vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => [] }));
+vi.mock('../event-store/threads/useThreadPinning', () => ({ usePinnedEventIds: () => pins.ids }));
+vi.mock('../messages/pins/RoomPinMenu', () => ({ RoomPinMenu: () => <div data-pin-list="" /> }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoomThread: vi.fn() }),
 }));
@@ -92,6 +94,7 @@ afterEach(() => {
   renderer = undefined;
   screen.size = 'Desktop';
   navigate.mockReset();
+  pins.ids = [];
 });
 
 const renderHeader = ({
@@ -350,5 +353,114 @@ describe("the room header's side panel controls", () => {
 
     renderHeader({ shownPanel: 'call', onPanelToggle });
     expect(buttons((node) => node.props['aria-label'] === 'Show Members')).toHaveLength(1);
+  });
+});
+
+describe("the room header's actions", () => {
+  const textOf = (node: ReactTestInstance): string =>
+    node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
+  /** Every action on: an agent room in Compact with a canvas, the computer, calls, pins, a plugin panel. */
+  const renderEverything = () => {
+    pins.ids = ['$pinned'];
+    renderHeader({
+      computerAvailable: true,
+      computerShown: true,
+      onComputerToggle: vi.fn(),
+      canvases: [
+        {
+          canvasId: '$canvas',
+          roomId: '!room:example.org',
+          threadId: '$thread',
+          agentUserId: '@mindroom_helper:example.org',
+          title: 'Plans',
+          createdTs: 1,
+          revisionId: '$canvas',
+          updatedTs: 1,
+          shared: false,
+        },
+      ],
+      onCanvasOpen: vi.fn(),
+      onCanvasClose: vi.fn(),
+      calls: (placement) =>
+        placement.at === 'menu' ? (
+          <button type="button">Start a call</button>
+        ) : (
+          !placement.phone && <button type="button" aria-label="Start a call" />
+        ),
+      pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
+      onPanelToggle: vi.fn(),
+    });
+  };
+  const rowLabels = () =>
+    buttons((node) => typeof node.props['aria-label'] === 'string').map(
+      (node) => node.props['aria-label'] as string
+    );
+  /** The room menu's entries before the ones every room menu shares (Invite first among them). */
+  const roomEntries = () => {
+    const entries = buttons((node) => !node.props['aria-label']).map(textOf);
+    return entries.slice(
+      0,
+      entries.findIndex((entry) => entry.startsWith('Invite'))
+    );
+  };
+
+  it('puts every action in the row of a wide header, in order', () => {
+    renderEverything();
+    expect(rowLabels()).toEqual([
+      'Compact view',
+      'Thread filters',
+      'Show Canvas',
+      'Show Computer',
+      'Start a call',
+      'Pinned Messages',
+      'Show Members',
+      'More Options',
+    ]);
+    openMenu();
+    expect(roomEntries()).toEqual(['Notes']);
+  });
+
+  it("folds a phone's actions into the room menu, in order", () => {
+    screen.size = 'Mobile';
+    renderEverything();
+    expect(rowLabels()).toEqual(['Back', 'More Options']);
+    openMenu();
+    expect(roomEntries()).toEqual([
+      'Compact view',
+      'Thread filters',
+      'Show Canvas',
+      'Pinned Messages',
+      'Show Members',
+      'Show Computer',
+      'Notes',
+      'Start a call',
+    ]);
+  });
+
+  it('opens the pinned messages from the row and from the room menu', () => {
+    pins.ids = ['$pinned'];
+    renderHeader();
+    const [pinsButton] = buttons((node) => node.props['aria-label'] === 'Pinned Messages');
+    expect(pinsButton?.props['aria-expanded']).toBe(false);
+    act(() => {
+      pinsButton?.props.onClick({ currentTarget: { getBoundingClientRect: () => ({}) } });
+    });
+    expect(byData('data-pin-list')).toHaveLength(1);
+    expect(
+      buttons((node) => node.props['aria-label'] === 'Pinned Messages')[0]?.props['aria-expanded']
+    ).toBe(true);
+
+    screen.size = 'Mobile';
+    renderHeader();
+    expect(byData('data-pin-list')).toHaveLength(0);
+    openMenu();
+    const [entry] = buttons((node) => textOf(node) === 'Pinned Messages');
+    expect(entry?.props['aria-haspopup']).toBe('dialog');
+    act(() => {
+      entry?.props.onClick();
+    });
+    expect(byData('data-pin-list')).toHaveLength(1);
+    // Choosing the entry closed the menu.
+    expect(buttons((node) => textOf(node) === 'Pinned Messages')).toHaveLength(0);
   });
 });
