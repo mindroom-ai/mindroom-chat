@@ -58,6 +58,7 @@ const THEMES = list('PERF_THEMES', 'light');
 const THROTTLES = list('PERF_CPU_THROTTLE', '1,4').map(Number);
 const TRACE = process.env.PERF_TRACE === '1';
 const FRAMES = process.env.PERF_FRAMES === '1';
+const PROFILE = process.env.PERF_PROFILE === '1';
 const ASSERT = process.env.PERF_ASSERT === '1';
 const OUT_DIR = 'test-results/perf';
 const PASSWORD = 'thread-scroll-jitter-password';
@@ -451,6 +452,9 @@ const instrument = () => {
       dScroll: number;
       appDelta: number;
       inputAge: number;
+      dHeight?: number;
+      mounted?: number;
+      first?: string;
       rows: string[];
     }[],
     heightChanges: [] as {
@@ -467,6 +471,7 @@ const instrument = () => {
     scrolled: 0,
     prev: new Map<string, Row>(),
     prevTop: 0,
+    prevHeight: 0,
     last: 0,
   };
   (window as unknown as { __jitter: typeof state }).__jitter = state;
@@ -675,6 +680,11 @@ const instrument = () => {
               dScroll: Math.round(dScroll),
               appDelta: Math.round(appDelta),
               inputAge: Math.round(inputAge),
+              dHeight: Math.round(scroller.scrollHeight - state.prevHeight),
+              mounted: scroller.querySelectorAll(state.rowSelector).length,
+              first: (
+                scroller.querySelector(state.rowSelector)?.getAttribute(state.keyAttribute) ?? ''
+              ).slice(0, 12),
               rows: moved
                 .filter((row) => Math.abs(row.d - (quiet ? 0 : median)) >= 2)
                 .slice(0, 4)
@@ -685,6 +695,7 @@ const instrument = () => {
       }
       state.prev = current;
       state.prevTop = top;
+      state.prevHeight = scroller.scrollHeight;
     }
     requestAnimationFrame(tick);
   };
@@ -709,6 +720,9 @@ type JitterState = {
     dScroll: number;
     appDelta: number;
     inputAge: number;
+    dHeight?: number;
+    mounted?: number;
+    first?: string;
     rows: string[];
   }[];
   heightChanges: {
@@ -772,6 +786,7 @@ const startRecording = (page: Page, view: View, touchInput: boolean) =>
         scrolled: 0,
         prev: new Map(),
         prevTop: scroller.scrollTop,
+        prevHeight: scroller.scrollHeight,
         last: 0,
         recording: true,
       });
@@ -1009,6 +1024,11 @@ test.describe('thread scroll jitter', () => {
                     });
                   }
                   const touchInput = viewport === 'phone' && engine === 'chromium';
+                  if (cdp && PROFILE) {
+                    await cdp.send('Profiler.enable');
+                    await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
+                    await cdp.send('Profiler.start');
+                  }
                   const at = await startRecording(page, view, touchInput);
                   const started = Date.now();
                   await scrollRoom(page, cdp, touchInput, at);
@@ -1027,6 +1047,10 @@ test.describe('thread scroll jitter', () => {
                     );
                   }
                   if (cdp && TRACE) await stopTrace(cdp, `${OUT_DIR}/${name}.trace.json`);
+                  if (cdp && PROFILE) {
+                    const { profile } = await cdp.send('Profiler.stop');
+                    writeFileSync(`${OUT_DIR}/${name}.cpuprofile`, JSON.stringify(profile));
+                  }
                   await load.stop();
                   const loafScripts = new Map<string, number>();
                   state.loaf.forEach((frame) =>
