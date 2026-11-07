@@ -116,7 +116,9 @@ describe('thread previews of math', () => {
     expect(preview('A backslash (`\\`) starts `$\\frac{a}{b}$`, shown as $\\frac{a}{b}$.')).toBe(
       'A backslash (\\) starts $\\frac{a}{b}$, shown as $\\frac{a}{b}$.'
     );
-    expect(preview('```markdown\n```latex\n$\\frac{1}{2}$\n```\n```')).toBe('```latex $\\frac{1}{2}$');
+    expect(preview('```markdown\n```latex\n$\\frac{1}{2}$\n```\n```')).toBe(
+      '```latex $\\frac{1}{2}$'
+    );
     expect(preview('Press ` then $x^2$')).toBe('Press ` then $x^2$');
     expect(preview('\uE0000\uE001 and $x^2$')).toBe('\uE0000\uE001 and $x^2$');
   });
