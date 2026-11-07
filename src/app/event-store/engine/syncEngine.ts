@@ -25,7 +25,7 @@
  * equivalent per event, just wider in coverage.
  */
 
-import { ClientEvent, RoomEvent, MatrixEventEvent, RelationType } from 'matrix-js-sdk';
+import { ClientEvent, RoomEvent, MatrixEventEvent } from 'matrix-js-sdk';
 import type {
   ClientEventHandlerMap,
   MatrixClient,
@@ -291,25 +291,6 @@ export const createSyncEngine = ({
     effectiveWriteThrough.handleLiveEvent(event, room, meta);
   };
 
-  // The SDK keeps the edits of a thread it has not fetched off every timeline, to replay when the
-  // thread opens, so they never come through the timeline event: a reply that streamed in a thread
-  // the reader had not opened stayed in the cache as its placeholder. The sync announces every
-  // event once the room has taken it; an edit then on no timeline is persisted from here.
-  const handleUnplacedEdit = (event: MatrixEvent) => {
-    if (!liveMode || event.status || event.getRelation()?.rel_type !== RelationType.Replace) return;
-    const roomId = event.getRoomId();
-    const room = roomId ? mx.getRoom(roomId) : undefined;
-    const eventId = event.getId();
-    if (!room || !eventId || room.findEventById(eventId)) return;
-    rememberEventCacheWriteLease(event, captureCacheStoreWriteLease(sessionId, room.roomId));
-    effectiveWriteThrough.handleLiveEvent(event, room, {
-      kind: 'timeline',
-      roomId: room.roomId,
-      liveEvent: true,
-      toStartOfTimeline: false,
-    });
-  };
-
   const handleDecrypted = (event: MatrixEvent) => {
     const roomId = event.getRoomId();
     const room = roomId ? mx.getRoom(roomId) : undefined;
@@ -396,7 +377,6 @@ export const createSyncEngine = ({
 
     mx.on(ClientEvent.Sync, handleSync);
     mx.on(RoomEvent.Timeline, handleTimeline);
-    mx.on(ClientEvent.Event, handleUnplacedEdit);
     mx.on(RoomEvent.Redaction, handleRedaction);
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
     mx.on(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
@@ -423,7 +403,6 @@ export const createSyncEngine = ({
       // destructive account cleanup may delete these stores immediately.
       mx.removeListener(ClientEvent.Sync, handleSync);
       mx.removeListener(RoomEvent.Timeline, handleTimeline);
-      mx.removeListener(ClientEvent.Event, handleUnplacedEdit);
       mx.removeListener(RoomEvent.Redaction, handleRedaction);
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
       mx.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
