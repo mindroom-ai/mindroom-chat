@@ -118,3 +118,24 @@ describe('buildRecentThreadViewModelFromRecord', () => {
     expect(viewModel.summaryText.endsWith('...')).toBe(true);
   });
 });
+
+describe('direction controls in a recent thread', () => {
+  it('shows the room name and summary with code points and keeps the summary to save exact', () => {
+    const viewModel = buildRecentThreadViewModelFromRecord({
+      record: makeRecord({
+        threadRootId: '$old-thread-id',
+        presentation: {
+          ...makeRecord().presentation,
+          recentThreadSummaryText: 'Audit of ‮xslx.exe‬ before Friday',
+        },
+      }),
+      room: makeRoom(),
+      roomName: 'Payroll ‮sevihcra‬',
+      storedThreadId: '$old-thread-id',
+      openedAt: 123,
+    });
+    expect(viewModel.roomName).toBe('Payroll <U+202E>sevihcra<U+202C>');
+    expect(viewModel.summaryText).toBe('Audit of <U+202E>xslx.exe<U+202C> before Friday');
+    expect(viewModel.persistableSummaryText).toBe('Audit of ‮xslx.exe‬ before Friday');
+  });
+});

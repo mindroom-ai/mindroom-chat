@@ -13,7 +13,12 @@ import {
   config,
   toRem,
 } from 'folds';
-import { PopOut, TooltipProvider, ownDirectionLine } from '../../ui/directional';
+import {
+  PopOut,
+  TooltipProvider,
+  ownDirectionLine,
+  revealDirectionControls,
+} from '../../ui/directional';
 import { Menu } from '../../ui/glass/GlassPrimitives';
 import type { RectCords } from 'folds';
 import FocusTrap from 'focus-trap-react';
@@ -98,7 +103,7 @@ export function LobbyHeader({
   showProfile = true,
 }: LobbyHeaderProps) {
   const space = useSpace();
-  const spaceName = useRoomName(space);
+  const spaceName = revealDirectionControls(useRoomName(space));
   const avatarSrc = useSpaceAvatarSrc(space);
   const client = useMatrixClient();
   const screenSize = useScreenSizeContext();

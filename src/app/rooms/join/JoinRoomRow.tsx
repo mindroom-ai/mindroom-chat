@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Avatar, Button, Spinner, Text } from 'folds';
 import type { JoinRule } from 'matrix-js-sdk';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { RoomAccessControl } from '../RoomAccessControl';
 import { JoinFailure } from '../JoinFailure';
 import { nameInitials } from '../../lib/common';
@@ -81,9 +81,11 @@ export function JoinRoomRow({
     </Button>
   );
 
+  // Direction controls in the name and topic show as code points, so they cannot reorder them.
+  const shownName = revealDirectionControls(name);
   const details = [
     typeof memberCount === 'number' ? t('sharedUi.roomCard.members', { count: memberCount }) : '',
-    topic?.trim() ?? '',
+    revealDirectionControls(topic?.trim() ?? ''),
   ]
     .filter(Boolean)
     .join(' · ');
@@ -101,7 +103,7 @@ export function JoinRoomRow({
         </Avatar>
         <span className={css.RowText}>
           <Text as="span" size="T300" truncate {...ownDirectionLine}>
-            <b>{name}</b>
+            <b>{shownName}</b>
           </Text>
           {details && (
             <Text as="span" size="T200" priority="300" truncate>
@@ -116,7 +118,7 @@ export function JoinRoomRow({
         <RoomAccessControl
           roomIdOrAlias={roomIdOrAlias}
           roomId={roomId}
-          roomName={name}
+          roomName={shownName}
           joinRule={joinRule}
           viaServers={viaServers}
           fallback={
