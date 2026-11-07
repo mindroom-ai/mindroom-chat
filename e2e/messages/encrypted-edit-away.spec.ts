@@ -288,6 +288,111 @@ const readUndecryptableEdit = (writerBrowser: Browser, readerBrowser: Browser, l
     { serviceWorkers: 'block' }
   );
 
+/**
+ * Gives every edit sent from now on a Megolm session nobody has, wherever the server sends it to
+ * the reader (alone or bundled with its message), so the reader can never decrypt it. Edits sent
+ * before keep their keys, also when a reload brings them again.
+ */
+const withholdNewEditKeys = async (context: BrowserContext) => {
+  const since = Date.now();
+  const rewrite = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      value.forEach(rewrite);
+      return;
+    }
+    if (!value || typeof value !== 'object') return;
+    const record = value as Record<string, unknown>;
+    const content = record.content as Record<string, unknown> | undefined;
+    const relation = content?.['m.relates_to'] as { rel_type?: string } | undefined;
+    const sentLater =
+      typeof record.origin_server_ts === 'number' && record.origin_server_ts >= since;
+    if (relation?.rel_type === 'm.replace' && sentLater && content && 'session_id' in content) {
+      content.session_id = 'withheld-session-of-this-spec';
+    }
+    Object.values(record).forEach(rewrite);
+  };
+  await context.route(`${HOMESERVER}/_matrix/client/**`, async (route) => {
+    const response = await route.fetch({ timeout: 0 });
+    const text = await response.text();
+    if (!text.includes('m.replace')) {
+      await route.fulfill({ response, body: text });
+      return;
+    }
+    const json: unknown = JSON.parse(text);
+    rewrite(json);
+    await route.fulfill({ response, json });
+  });
+};
+
+/**
+ * Regression (P2-e2ee-F006): a message edited once, then edited again with an edit the reader
+ * cannot decrypt, while the reader has the room open. The row kept the readable edit but showed
+ * the note on the newer one only after a reload.
+ */
+const watchUndecryptableEdit = async (
+  readerBrowser: Browser,
+  writerBrowser: Browser,
+  label: string
+) => {
+  const id = `${Date.now().toString(36)}${label}`;
+  const reader = `live_a_${id}`;
+  const writer = `live_b_${id}`;
+  const roomId = await encryptedRoom(reader, writer);
+  const original = `Pinned target ${id}`;
+  const edited = `Pinned target ${id} first edit`;
+  const unreadable = `Pinned target ${id} second edit`;
+  const viewport = { width: 1280, height: 800 };
+  const baseURL = test.info().project.use.baseURL;
+  const readerContext = await readerBrowser.newContext({
+    viewport,
+    baseURL,
+    serviceWorkers: 'block',
+  });
+  const writerContext = await writerBrowser.newContext({ viewport, baseURL });
+  const edit = async (page: Page, from: string, to: string) => {
+    const composer = page.locator('[data-editable-name="RoomInput"]');
+    await composer.press('ArrowUp');
+    const editBox = page.locator('[contenteditable="true"]').filter({ hasText: from });
+    await expect(editBox).toBeFocused();
+    await editBox.press('ControlOrMeta+a');
+    await page.keyboard.insertText(to);
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(rowWith(page, to)).toBeVisible();
+  };
+  try {
+    const readerPage = await signedIn(readerContext, reader);
+    await openFullRoom(readerPage, roomId);
+    const writerPage = await signedIn(writerContext, writer);
+    await openFullRoom(writerPage, roomId);
+    await send(writerPage, original);
+    await edit(writerPage, original, edited);
+    const row = rowWith(readerPage, edited).first();
+    await expect(row).toBeVisible({ timeout: 30_000 });
+
+    await withholdNewEditKeys(readerContext);
+    // The reader's /sync that is open already escapes the route: the writer's typing ends it, and
+    // the next one goes through the route.
+    const routedSync = readerPage.waitForRequest((request) => request.url().includes('/sync?'));
+    const composer = writerPage.locator('[data-editable-name="RoomInput"]');
+    await composer.click();
+    await writerPage.keyboard.insertText('x');
+    await routedSync;
+    await composer.press('Backspace');
+    await edit(writerPage, edited, unreadable);
+    // The row keeps the edit it can read and says at once that a newer one could not be read.
+    await expect(row.locator('[data-edit-not-decrypted]')).toHaveText(
+      "A newer edit couldn't be decrypted",
+      { timeout: 20_000 }
+    );
+    await expect(row).not.toContainText(unreadable);
+    if (SHOTS) await readerPage.screenshot({ path: `${SHOTS}/F006-${label}-live-note.png` });
+  } finally {
+    await readerContext.unrouteAll({ behavior: 'ignoreErrors' });
+    await readerContext.close();
+    await writerContext.close();
+  }
+};
+
 test.describe('an encrypted message edited while the reader was away', () => {
   test.beforeEach(async () => {
     test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
@@ -321,6 +426,27 @@ test.describe('an encrypted message edited while the reader was away', () => {
     const webkit = await launchWebKit();
     try {
       await readUndecryptableEdit(browser, webkit, 'webkit');
+    } finally {
+      await webkit.close();
+    }
+  });
+});
+
+test.describe('an encrypted message edited while the reader watches', () => {
+  test.beforeEach(async () => {
+    test.skip(!(await homeserverIsUp()), `No homeserver at ${HOMESERVER}; run \`just hs-up\``);
+    test.setTimeout(360_000);
+  });
+
+  test('notes an edit it cannot decrypt at once (Chromium)', async ({ browser }) => {
+    await watchUndecryptableEdit(browser, browser, 'chromium');
+  });
+
+  test('notes an edit it cannot decrypt at once (WebKit)', async ({ browser }) => {
+    test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+    const webkit = await launchWebKit();
+    try {
+      await watchUndecryptableEdit(webkit, browser, 'webkit');
     } finally {
       await webkit.close();
     }
