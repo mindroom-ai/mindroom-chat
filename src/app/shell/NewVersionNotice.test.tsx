@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { LEAVE_MS, NewVersionNotice } from './NewVersionNotice';
 
@@ -39,6 +40,7 @@ describe('NewVersionNotice', () => {
     update.reloadForNewVersion.mockClear();
     getDefaultStore().set(listNoticeSlotAtom, null);
     getDefaultStore().set(pageNoticeSlotAtom, null);
+    getDefaultStore().set(phoneNavDrawerOpenAtom, false);
     document.body.innerHTML = '';
   });
 
@@ -105,5 +107,24 @@ describe('NewVersionNotice', () => {
 
     act(() => store.set(pageNoticeSlotAtom, null));
     expect(liveRegion(container).querySelector('[data-new-version-card="page"]')).toBeTruthy();
+  });
+
+  it('comes in on a phone only once the drawer has gone, so it is read out, and then stays', () => {
+    update.state.version = 'build-2';
+    const page = document.body.appendChild(document.createElement('div'));
+    page.setAttribute('data-phone', '');
+    const store = getDefaultStore();
+    act(() => {
+      store.set(pageNoticeSlotAtom, page);
+      store.set(phoneNavDrawerOpenAtom, true);
+    });
+    render(<NewVersionNotice />);
+    expect(page.querySelector('[data-new-version-card]')).toBeNull();
+
+    act(() => store.set(phoneNavDrawerOpenAtom, false));
+    expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
+
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
   });
 });

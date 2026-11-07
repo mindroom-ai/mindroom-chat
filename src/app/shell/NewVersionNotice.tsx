@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAtomValue } from 'jotai';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { getNewVersion, reloadForNewVersion, subscribeToNewVersion } from '../config/appUpdate';
+import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { PageSlot } from '../ui/noticeSlots.css';
 import { Surface } from '../ui/glass/GlassPrimitives';
@@ -30,12 +31,20 @@ export function NewVersionNotice() {
   const version = useNewVersion();
   const listSlot = useAtomValue(listNoticeSlotAtom);
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
+  const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const [dismissed, setDismissed] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [reloading, setReloading] = useState(false);
-  const shown = version !== undefined && !dismissed;
   const slot = listSlot ?? pageSlot;
   const placement = listSlot ? 'list' : 'page';
+  // A phone's drawer or members sheet covers the page's place and makes it inert, where an
+  // assistive technology would not read the card out: it comes in once they have gone, and then
+  // stays (under them, inert, should they come back).
+  const covered = phoneLayerOpen && !listSlot && pageSlot?.hasAttribute('data-phone') === true;
+  const [cameIn, setCameIn] = useState(false);
+  const due = version !== undefined && !dismissed;
+  if (due && !covered && !cameIn) setCameIn(true);
+  const shown = due && cameIn;
 
   useEffect(() => {
     if (!leaving) return undefined;

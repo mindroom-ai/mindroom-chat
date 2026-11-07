@@ -1,6 +1,7 @@
 import { keyframes, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { color, config, toRem } from 'folds';
+import { glassShadow } from '../ui/styles/Glass.css';
 import { motion } from '../ui/styles/Motion.css';
 
 // The card comes in from the edge it is placed at, a little smaller and faded, and leaves the same
@@ -34,6 +35,7 @@ const motionFrom = (enter: string, leave: string) => ({
   },
 });
 
+const listMotion = motionFrom(enterFromBelow, leaveDownward);
 const pageMotion = motionFrom(enterFromAbove, leaveUpward);
 
 // The live region at the top of the app's content box (NoticeLayoutContent), as wide as the box
@@ -54,10 +56,15 @@ export const Card = recipe({
   variants: {
     placement: {
       list: {
-        ...motionFrom(enterFromBelow, leaveDownward),
+        ...listMotion,
         flexShrink: 0,
         inlineSize: `calc(var(--mr-panel-content-width, 100%) - 2 * ${config.space.S200})`,
         marginInline: config.space.S200,
+        // Its place clips it at the list's sides, S200 away: a shadow that ends within them.
+        selectors: {
+          ...listMotion.selectors,
+          '&&&': { vars: { [glassShadow]: `0 ${toRem(2)} ${toRem(6)} ${color.Other.Shadow}` } },
+        },
         display: 'grid',
         gridTemplateColumns: 'auto minmax(0, 1fr) auto',
         gridTemplateAreas: '"mark text dismiss" ". action action"',

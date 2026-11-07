@@ -95,8 +95,8 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   // The person comes back to the tab.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   if ((page.viewportSize()?.width ?? 0) <= 750) {
-    // A phone's drawer, out on a section's own page, slides over the page and the notice with it.
-    await expect(page.locator('[data-new-version-card]')).toBeAttached({ timeout: 15_000 });
+    // A phone's drawer, out on a section's own page, covers the page: the notice comes in once
+    // it has gone.
     await page.keyboard.press('Escape');
   }
   await expect(notice).toBeVisible({ timeout: 15_000 });
