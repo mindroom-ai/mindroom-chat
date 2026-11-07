@@ -46,8 +46,8 @@ e2e/docker-compose.yaml does not set; on any other, POST /api/client-sessions an
 
 --computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
-from the commit (a few minutes), and only the helper's browser_mcp runs in a worker. It needs Docker and sets the
-settings of --client-sessions too, since Chat opens a computer from the same origin.
+from the commit (a few minutes), and only the helper's browser_mcp runs in a worker. It needs Docker and implies
+--client-sessions, since Chat opens a computer through the same origin settings.
 """
 
 from __future__ import annotations
@@ -357,8 +357,8 @@ def provider_keys() -> dict[str, str]:
 
 
 def option_env(slot: int, client_sessions: bool, image: str | None) -> list[str]:
-    """The .env lines of --client-sessions, and of --computers, whose Docker workers run `image`."""
-    if not (client_sessions or image):
+    """The .env lines of --client-sessions, and of --computers (which implies it), whose Docker workers run `image`."""
+    if not client_sessions:
         return []
     port = ports(slot)
     # The slot's Chat may call the API's client sessions, plugin routes and computers, and the API's URL is the OpenID
@@ -782,12 +782,13 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
 
 
 def started_with(state: dict, args: argparse.Namespace, sha: str, homeserver: str) -> bool:
-    """Whether a stack's state comes from a start with these options, of this commit, on this homeserver."""
+    """Whether a stack's state comes from a start with this model, calls, client sessions and computers, of this
+    commit, on this homeserver; a state written before the last two existed has neither."""
     return (
         state.get("model", "stub") == args.model
         and state.get("calls") == calls_setting(args)
-        and state.get("clientSessions") == args.client_sessions
-        and state.get("computers") == args.computers
+        and state.get("clientSessions", False) == args.client_sessions
+        and state.get("computers", False) == args.computers
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
     )
@@ -1121,7 +1122,7 @@ def main() -> int:
         "--computers",
         action="store_true",
         help="the helper gets a Worker Computer, in a Docker worker built from the same commit; implies "
-        "--client-sessions' settings",
+        "--client-sessions",
     )
     parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
@@ -1140,6 +1141,8 @@ def main() -> int:
         parser.error(f"--model must be one of {', '.join(MODES)}")
     if not 0 <= args.slot <= 99:
         parser.error("slot must be 0-99")
+    # Chat opens a computer through the same origin settings as a client session.
+    args.client_sessions = args.client_sessions or args.computers
     slot_dir = stack_root() / f"slot-{args.slot}"
     signal.signal(signal.SIGTERM, exit_on_sigterm)
     try:
