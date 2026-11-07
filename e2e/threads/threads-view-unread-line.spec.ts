@@ -21,8 +21,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // The Threads view of a room with an agent lists the newest thread first, where it opens and
 // where the reader reads. A "New messages" line there would mark the newest row, not the place
 // where the reader stopped, so the view draws none and offers no Jump to Unread or Mark as Read
-// pills, as MindRoom Chat does; a room read oldest first still draws the line where the unread
-// messages start. Each room holds 30 read and 30 unread messages, among 25 rooms; desktop (1280
+// pills, as MindRoom Chat does; a room read oldest first still offers Jump to Unread, which leads
+// to the line where the unread messages start. Each room holds 30 read and 30 unread messages, among 25 rooms; desktop (1280
 // by 800, classic scrollbars) and phone (390 by 844, touch), Chromium and, when
 // PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, WebKit. The page sends no read receipt,
 // so the rooms stay unread. Set UNREAD_LINE_SHOTS=<directory> for screenshots.
@@ -202,8 +202,13 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     expect(boundarySeen, 'the rows where read and unread meet were shown').toBe(true);
 
     // A room of people, read oldest first: the line sits right above the first unread message.
+    // It opens at its newest messages and offers Jump to Unread, which leads to the line.
     await page.goto(`/home/${encodeURIComponent(peopleRoom)}/`);
-    await expect(line).toBeVisible({ timeout: 60_000 });
+    const jump = page.getByRole('button', { name: 'Jump to Unread', exact: true });
+    await expect(jump).toBeVisible({ timeout: 60_000 });
+    if (options.hasTouch) await jump.tap();
+    else await jump.click();
+    await expect(line).toBeVisible({ timeout: 30_000 });
     const [lineBox, firstUnread, lastRead] = await Promise.all([
       line.boundingBox(),
       page
