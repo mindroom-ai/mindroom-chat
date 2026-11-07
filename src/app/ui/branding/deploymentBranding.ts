@@ -18,9 +18,14 @@ export type FooterTextPart = string | PoweredByLink;
 
 /** What the signed-out pages show, after the configured values are checked. */
 export type DeploymentBranding = {
-  /** The name in the sign-in card's header, on the pairing page and on the loading screens. */
+  /**
+   * The name in the sign-in card's header, on the pairing page and on the loading screens. For an
+   * empty `branding.title` it is the configured logo's alt text, as a wordmark logo shows it.
+   */
   title: string;
-  /** The configured title, which the browser tab shows too; undefined leaves the tab as it is. */
+  /** False for an empty `branding.title`: the card's header shows the logo alone, as its heading. */
+  showTitle: boolean;
+  /** The configured name, which the browser tab shows too; undefined leaves the tab as it is. */
   pageTitle: string | undefined;
   logo: {
     src: string;
@@ -175,10 +180,14 @@ export const resolveDeploymentBranding = (
     warn('branding must be an object; keeping the default look.');
   }
 
-  const pageTitle = textOf(branding.title);
-  if (branding.title !== undefined && pageTitle === undefined) {
-    warn('branding.title must be a non-empty text; keeping the default title.');
+  const configuredTitle = textOf(branding.title);
+  // An empty title shows none beside the logo; a wordmark logo already shows the name.
+  const showTitle = typeof branding.title !== 'string' || configuredTitle !== undefined;
+  if (branding.title !== undefined && typeof branding.title !== 'string') {
+    warn('branding.title must be a text; keeping the default title.');
   }
+  const logo = resolveLogo(branding.logo, origin, warn);
+  const pageTitle = configuredTitle ?? (!showTitle && logo.custom ? logo.alt : undefined);
 
   let footerText: FooterTextPart[] | undefined;
   let footerLinks: PoweredByLink[] = [];
@@ -199,8 +208,9 @@ export const resolveDeploymentBranding = (
 
   return {
     title: pageTitle ?? MINDROOM_APP_NAME,
+    showTitle,
     pageTitle,
-    logo: resolveLogo(branding.logo, origin, warn),
+    logo,
     footerText,
     footerLinks,
     poweredBy,
