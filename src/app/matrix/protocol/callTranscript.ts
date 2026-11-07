@@ -4,9 +4,11 @@ import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentId
 
 /**
  * The structured transcript MindRoom adds to the message it posts after a voice call, beside the
- * plain and HTML bodies other clients show: `{ duration_seconds, turns: [{ sender, text }] }`,
- * each turn one speaker's words by Matrix user ID, in the order they were spoken. Any member can
- * write it into a message, so it counts only from an agent (`AGENT_ONLY_CONTENT_KEYS`).
+ * plain and HTML bodies other clients show:
+ * `{ duration_seconds, turns: [{ sender, text, offset_seconds? }] }`, each turn one speaker's words
+ * by Matrix user ID, in the order they were spoken, with when the turn began in seconds from the
+ * call's start (newer MindRoom versions only). Any member can write it into a message, so it
+ * counts only from an agent (`AGENT_ONLY_CONTENT_KEYS`).
  */
 export const CALL_TRANSCRIPT_KEY = 'io.mindroom.call_transcript';
 
@@ -22,7 +24,12 @@ export const CALL_TRANSCRIPT_TURN_PREVIEW_LENGTH = 1000;
 /** Longest call the card shows, in seconds: a week. */
 const MAX_DURATION_SECONDS = 7 * 24 * 3600;
 
-export type CallTranscriptTurn = { sender: string; text: string };
+export type CallTranscriptTurn = {
+  sender: string;
+  text: string;
+  /** Whole seconds from the call's start to the turn's; missing in older transcripts. */
+  offsetSeconds?: number;
+};
 
 export type CallTranscript = {
   /** Whole seconds from the start of the call to its end. */
@@ -30,10 +37,18 @@ export type CallTranscript = {
   turns: CallTranscriptTurn[];
 };
 
-/** A run of turns by one speaker; `index` is its first turn's place in the transcript. */
-export type CallTranscriptGroup = { sender: string; texts: string[]; index: number };
+/**
+ * A run of turns by one speaker; `index` is its first turn's place in the transcript and
+ * `offsetSeconds` that turn's time, when it has one.
+ */
+export type CallTranscriptGroup = {
+  sender: string;
+  texts: string[];
+  index: number;
+  offsetSeconds?: number;
+};
 
-const isTurn = (value: unknown): value is CallTranscriptTurn => {
+const isTurn = (value: unknown): value is Record<string, unknown> & CallTranscriptTurn => {
   if (!isRecord(value)) return false;
   const { sender, text } = value;
   return (
@@ -42,10 +57,20 @@ const isTurn = (value: unknown): value is CallTranscriptTurn => {
 };
 
 /**
+ * A turn's time, or undefined when it is not a whole number of seconds within the call: then the
+ * turn shows no time.
+ */
+const readOffset = (value: unknown, duration: number): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= duration
+    ? value
+    : undefined;
+
+/**
  * The transcript in `content`, or undefined when it is missing or malformed in any part (then the
  * message renders as its HTML, which carries the same turns): a duration that is not a number of
  * seconds up to a week, no turns or more than the card shows, a turn without a user ID and text
- * of its own, or more text than the card shows.
+ * of its own, or more text than the card shows. A turn's time is optional: one that is missing or
+ * outside the call is left out, and the turn still shows.
  */
 export const readCallTranscript = (
   content: Record<string, unknown>
@@ -69,7 +94,11 @@ export const readCallTranscript = (
   if (length > CALL_TRANSCRIPT_MAX_TOTAL_LENGTH) return undefined;
   return {
     durationSeconds: Math.round(duration),
-    turns: turns.map(({ sender, text }) => ({ sender, text })),
+    turns: turns.map(({ sender, text, offset_seconds: offset }) => ({
+      sender,
+      text,
+      offsetSeconds: readOffset(offset, duration),
+    })),
   };
 };
 
@@ -90,14 +119,17 @@ export const callTranscriptSpeakersTrusted = (
     isMindroomAgentUserId(sender) ? sender === poster : isJoinedMember(sender)
   );
 
-/** Consecutive turns by one speaker under one name, as a chat groups messages. */
+/**
+ * Consecutive turns by one speaker under one name, as a chat groups messages; a group takes its
+ * first turn's time.
+ */
 export const groupCallTranscriptTurns = (
   turns: readonly CallTranscriptTurn[]
 ): CallTranscriptGroup[] =>
-  turns.reduce<CallTranscriptGroup[]>((groups, { sender, text }, index) => {
+  turns.reduce<CallTranscriptGroup[]>((groups, { sender, text, offsetSeconds }, index) => {
     const last = groups[groups.length - 1];
     if (last?.sender === sender) last.texts.push(text);
-    else groups.push({ sender, texts: [text], index });
+    else groups.push({ sender, texts: [text], index, offsetSeconds });
     return groups;
   }, []);
 

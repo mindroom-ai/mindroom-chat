@@ -236,3 +236,35 @@ describe('mergeArgumentFields', () => {
     });
   });
 });
+
+describe('direction controls in arguments', () => {
+  const RLO = '\u202e';
+  const PDF = '\u202c';
+  const CONTROL = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/;
+  const command = `echo hello ${RLO}; echo pwned #${PDF} done`;
+  const shown = 'echo hello <U+202E>; echo pwned #<U+202C> done';
+
+  it('shows them as code points in values, keys, lists, JSON and raw text', () => {
+    expect(toArgumentFields({ args: command })).toEqual({
+      fields: [{ key: 'args', value: { kind: 'text', text: shown } }],
+    });
+    expect(toArgumentFields({ [`a${RLO}b`]: ['x', `y${PDF}`] })).toEqual({
+      fields: [{ key: 'a<U+202E>b', value: { kind: 'scalar', text: 'x, y<U+202C>' } }],
+    });
+    const nested = toArgumentFields({ options: { deep: { note: command } } });
+    expect(JSON.stringify(nested)).not.toMatch(CONTROL);
+    expect(JSON.stringify(nested)).toContain('<U+202E>');
+    expect(toArgumentFields(command)).toEqual({ raw: shown });
+  });
+
+  it('shows them as code points in tool-call previews and summaries', () => {
+    expect(toToolArgumentFields(`args=${command}`)).toEqual({
+      fields: [{ key: 'args', value: { kind: 'text', text: shown } }],
+    });
+    expect(toToolArgumentFields(command)).toEqual({ raw: shown });
+    expect(summarizeArguments({ command })).toBe(`command ${shown}`);
+    expect(JSON.stringify(mergeArgumentFields([{ args: command }, { args: 'ls' }]))).not.toMatch(
+      CONTROL
+    );
+  });
+});

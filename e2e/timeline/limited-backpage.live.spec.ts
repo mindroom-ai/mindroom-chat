@@ -85,6 +85,9 @@ for (const engine of ['chromium', 'webkit'] as const) {
           const backgroundPage = gate();
           const firstPageStarted = gate();
           const directPageFailed = gate();
+          const syncReleased = gate();
+          let holdSync = false;
+          let heldSyncs = 0;
           const pages: { kind: string; completed: boolean }[] = [];
           const activeTokens = new Map<string, number>();
           const oldTokens = new Set<string>();
@@ -203,6 +206,14 @@ for (const engine of ['chromium', 'webkit'] as const) {
                 else activeTokens.set(token, remaining);
               }
             });
+            // While `holdSync` is set, the client's next /sync waits (see the limited sync below).
+            await page.route(/\/_matrix\/client\/v\d+\/sync\?/, async (route) => {
+              if (holdSync) {
+                heldSyncs += 1;
+                await syncReleased.promise;
+              }
+              await route.continue();
+            });
             await loginWithPassword(page, {
               homeserver,
               username: viewer.username,
@@ -249,6 +260,19 @@ for (const engine of ['chromium', 'webkit'] as const) {
             // The actual tokened command must be running before the limited sync arrives.
             await page.waitForTimeout(600);
             renameRequested = true;
+            // The limited sync: the client's next /sync waits while the room gets more events
+            // than one sync brings (20), so the server marks the room's timeline limited. A
+            // profile change alone no longer does (Tuwunel v1.9.4-mindroom.27 keeps the join
+            // position). One event wakes the sync the client is waiting on, so the next one waits.
+            const sendHidden = (txnId: string) =>
+              matrixFetch(
+                homeserver,
+                `/rooms/${encodeURIComponent(roomId)}/send/io.mindroom.test.hidden/${txnId}`,
+                { method: 'PUT', accessToken: viewer.accessToken, body: JSON.stringify({ txnId }) }
+              );
+            holdSync = true;
+            await sendHidden('wake');
+            await expect.poll(() => heldSyncs).toBeGreaterThan(0);
             await matrixFetch(
               homeserver,
               `/profile/${encodeURIComponent(viewer.userId)}/displayname`,
@@ -267,6 +291,9 @@ for (const engine of ['chromium', 'webkit'] as const) {
                 body: JSON.stringify({ version: 1, hideMembershipEvents: true }),
               }
             );
+            await Promise.all(Array.from({ length: 25 }, (_, index) => sendHidden(`gap-${index}`)));
+            holdSync = false;
+            syncReleased.release();
             await expect
               .poll(() => pages.some((entry) => entry.kind === 'direct-failure'), {
                 timeout: 20_000,
@@ -320,6 +347,7 @@ for (const engine of ['chromium', 'webkit'] as const) {
             });
             oldPage.release();
             backgroundPage.release();
+            syncReleased.release();
             await Promise.all(context.pages().map((page) => page.unrouteAll({ behavior: 'wait' })));
             await context.close();
             await host?.close();

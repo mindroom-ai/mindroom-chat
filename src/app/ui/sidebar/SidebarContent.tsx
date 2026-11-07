@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { Box } from 'folds';
+import * as css from './SidebarContent.css';
 
 type RailSections = {
   /** The rail items that scroll when the window is short. */
@@ -8,11 +9,14 @@ type RailSections = {
   sticky: ReactNode;
 };
 
-/** Splits the rail into a scrolling part and a part pinned to its foot. */
+/**
+ * Splits the rail into a scrolling part and a part pinned to its foot. On a phone in landscape the
+ * rail scrolls as a whole and the foot group scrolls with it (SidebarScrollPart).
+ */
 export function SidebarContent({ scrollable, sticky }: RailSections) {
   return (
     <>
-      <Box direction="Column" grow="Yes" style={{ minHeight: 0 }}>
+      <Box direction="Column" grow="Yes" className={css.SidebarScrollPart}>
         {scrollable}
       </Box>
       <Box

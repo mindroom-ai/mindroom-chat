@@ -42,6 +42,7 @@ import { ApprovalArgumentFields } from '../../approvals/ApprovalArgumentFields';
 import { toToolArgumentFields } from '../../approvals/argumentFields';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
+import { revealDirectionControls } from '../../ui/directional';
 import type { HtmlReactParserOptionsSource } from '../../rich-text/htmlReactParserOptions';
 
 type BlockTagName = 'think' | 'debug' | 'system' | 'plan' | 'analysis' | 'research';
@@ -194,13 +195,14 @@ type ToolBlockRenderData = {
 // How many of a running call's last output lines show under its tool calls.
 const TOOL_OUTPUT_LINES = 6;
 
+// A tool's name, arguments and output show their direction controls as code points.
 const asToolTraceText = (value: unknown): string | undefined =>
-  typeof value === 'string' ? value.trim() || undefined : undefined;
+  typeof value === 'string' ? revealDirectionControls(value.trim()) || undefined : undefined;
 
 // Output drops leading blank lines but keeps its first line's indentation, as in YAML or a tree listing.
 const asToolOutput = (value: unknown): string | undefined =>
   typeof value === 'string'
-    ? value.replace(/^(?:[ \t\r]*\n)+/, '').trimEnd() || undefined
+    ? revealDirectionControls(value.replace(/^(?:[ \t\r]*\n)+/, '').trimEnd()) || undefined
     : undefined;
 
 const buildToolRefRenderData = (
