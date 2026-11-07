@@ -112,6 +112,15 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
 };
 
 /** Accepts the invite on its Inbox card, reached from the rail as people do, without a reload. */
+/**
+ * Reloads once the saved sync holds the join: the client saves it within 10 s of a state change.
+ * The next start replays that copy, which has no invite state to fall back on.
+ */
+const reloadFromSavedSync = async (page: Page) => {
+  await page.waitForTimeout(12_000);
+  await page.reload();
+};
+
 const acceptFromInbox = async (page: Page, roomLabel: string) => {
   await page.getByRole('button', { name: 'Inbox', exact: true }).first().click();
   const card = page.locator('[data-invite-room-id]').filter({ hasText: roomLabel });
@@ -150,8 +159,7 @@ const acceptedFromInbox = async (page: Page, browserName: string) => {
   await acceptFromInbox(page, roomName);
   await openRoom(page, 'Home', roomId, new RegExp(roomName));
   await expectHostKnown(page, people, body);
-  // A reload starts from the saved sync, which must keep the host too.
-  await page.reload();
+  await reloadFromSavedSync(page);
   await expectHostKnown(page, people, body);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/inbox-accept-${browserName}.png` });
 };
@@ -168,7 +176,7 @@ const acceptedOnInvitePage = async (page: Page, browserName: string) => {
     .first()
     .click({ timeout: 30_000 });
   await expectHostKnown(page, people, body);
-  await page.reload();
+  await reloadFromSavedSync(page);
   await expectHostKnown(page, people, body);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/invite-page-join-${browserName}.png` });
 };
@@ -184,8 +192,7 @@ const directChatNamedAfterHost = async (page: Page, browserName: string) => {
   await expect(page.getByRole('link', { name: new RegExp(HOST_NAME) }).first()).toBeVisible();
   await expectHostKnown(page, people, body);
   await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
-  // A reload starts from the saved sync, which must keep the host too.
-  await page.reload();
+  await reloadFromSavedSync(page);
   await expectHostKnown(page, people, body);
   await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: HOST_NAME, level: 1 })).toBeVisible();
