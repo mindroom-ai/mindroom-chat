@@ -117,4 +117,11 @@ test('agents publish their room state in a room made with Create Room', async ({
     );
   }
   expect(roomLog(stack, roomId).filter((line) => REFUSED_WRITE.test(line))).toEqual([]);
+
+  // The open thread shows the helper's tag.
+  const banner = page.locator('[data-thread-context-banner]');
+  await expect(banner.getByRole('button', { name: 'Remove stub-tag tag' })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.screenshot({ path: test.info().outputPath('created-room-thread.png') });
 });
