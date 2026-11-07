@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readCanvasNoticeTitle, readChatUiAction } from './chatUiProtocol';
 import { agentId, makeUiEvent, makeUiRoom, viewerId } from '../../ui-actions/testUtils';
 
@@ -212,8 +212,8 @@ describe('readChatUiAction', () => {
     it('ignores an edit from another sender even when the SDK applied it', () => {
       const { room } = makeUiRoom();
       const original = makeUiEvent({ action: 'show_canvas', canvas });
-      // Server-bundled edits reach the event without the SDK's sender check.
-      original.makeReplaced(
+      // The patched SDK applies no edit from another sender; the protocol checks the sender again.
+      vi.spyOn(original, 'replacingEvent').mockReturnValue(
         Object.assign(canvasEdit({ canvas: { title: 'Phish', html: '<p>log in</p>' } }), {
           getSender: () => '@mindroom_second:example.org',
         })
