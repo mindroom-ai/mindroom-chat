@@ -101,11 +101,12 @@ function ReplyDetailsHeader({
 }
 
 type AiRunControlsProps = {
-  info: AiRunInfo;
+  /** The reply's run details; without them there is no dialog and the children get no controls. */
+  info: AiRunInfo | undefined;
   eventId?: string;
   /** The message element; focus returns there when the dialog closes. */
   forwardedRef?: Ref<HTMLDivElement>;
-  children: (controls: AiRunControlsRenderProps) => ReactNode;
+  children: (controls: AiRunControlsRenderProps | undefined) => ReactNode;
 };
 
 /** Owns the Reply details dialog of an agent reply; the children render its triggers. */
@@ -128,32 +129,36 @@ export function AiRunControls({
 
   return (
     <>
-      {children(controls)}
-      <ModalLayer
-        open={open}
-        onClose={closeDetails}
-        focus={{
-          initialFocus: () => closeRef.current ?? false,
-          setReturnFocus: () => getRefElement(forwardedRef) ?? false,
-        }}
-      >
-        <Dialog
-          className={glassDenseOverBackdrop}
-          variant="Background"
-          role="dialog"
-          aria-modal="true"
-          aria-label={title}
-          // As wide as the details, which set their own width for desktop and phone.
-          style={{ width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }}
+      {children(info && controls)}
+      {info && (
+        <ModalLayer
+          open={open}
+          onClose={closeDetails}
+          focus={{
+            initialFocus: () => closeRef.current ?? false,
+            setReturnFocus: () => getRefElement(forwardedRef) ?? false,
+          }}
         >
-          <PageScroll
-            header={<ReplyDetailsHeader title={title} onClose={closeDetails} closeRef={closeRef} />}
-            className={css.ReplyDetailsScroll}
+          <Dialog
+            className={glassDenseOverBackdrop}
+            variant="Background"
+            role="dialog"
+            aria-modal="true"
+            aria-label={title}
+            // As wide as the details, which set their own width for desktop and phone.
+            style={{ width: 'fit-content', maxWidth: 'calc(100vw - 24px)' }}
           >
-            <ReplyDetails info={info} eventId={eventId} />
-          </PageScroll>
-        </Dialog>
-      </ModalLayer>
+            <PageScroll
+              header={
+                <ReplyDetailsHeader title={title} onClose={closeDetails} closeRef={closeRef} />
+              }
+              className={css.ReplyDetailsScroll}
+            >
+              <ReplyDetails info={info} eventId={eventId} />
+            </PageScroll>
+          </Dialog>
+        </ModalLayer>
+      )}
     </>
   );
 }
