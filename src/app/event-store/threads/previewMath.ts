@@ -153,9 +153,10 @@ const readFormula = (tex: string): string | undefined => {
       if (PLAIN_COMMAND.test(name)) {
         if (hasMarkup(skipSpace())) exact = false;
         const content = argument();
-        // A script after a box or text applies to all of it: `\boxed{1+2}^2` reads `(1+2)^2`.
+        // A script after a box applies to all of it, as its frame shows: `\boxed{1+2}^2` reads
+        // `(1+2)^2`. After text it reads as the text's own, as it shows: `\text{CO}_2` is CO₂.
         const following = nodes[index] === ' ' ? nodes[index + 1] : nodes[index];
-        return following === '^' || following === '_' ? part(content) : content;
+        return name === 'boxed' && (following === '^' || following === '_') ? part(content) : content;
       }
       if (SILENT_COMMAND.test(name)) {
         // `\left.` and `\right.` set no delimiter.
