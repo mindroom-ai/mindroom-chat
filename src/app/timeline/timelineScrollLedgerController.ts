@@ -377,12 +377,17 @@ export const useTimelineScrollLedgerController = ({
   const anchorRoomLedgerAt = useCallback((scrollTop: number) => {
     const view = roomLedgerViewRef.current;
     if (!view || !anchorRoomRowsRef.current?.()) {
+      // eslint-disable-next-line no-console
+      if (roomLedgerAnchorRef.current) console.log('[room-ledger] anchor off', scrollTop);
       roomLedgerAnchorRef.current = undefined;
       return;
     }
     const instance = virtualizerRef.current;
     const offset = scrollTop + view.inset - view.listTop;
     const item = instance.getVirtualItemForOffset(offset);
+    if (!item || item.start > offset)
+      // eslint-disable-next-line no-console
+      console.log('[room-ledger] no anchor', JSON.stringify({ offset, start: item?.start, listTop: view.listTop, inset: view.inset, scrollTop }));
     roomLedgerAnchorRef.current =
       item && item.start <= offset
         ? {
@@ -414,6 +419,21 @@ export const useTimelineScrollLedgerController = ({
         measured: instance.itemSizeCache.has(key),
       }))
     );
+    if (instance.measurementsCache.length !== (roomLedgerAnchorRef.current?.rows.length ?? -1) || foldPx !== 0)
+      // eslint-disable-next-line no-console
+      console.log(
+        '[room-ledger]',
+        JSON.stringify({
+          fold: Math.round(foldPx),
+          anchor: roomLedgerAnchorRef.current?.index ?? null,
+          was: roomLedgerAnchorRef.current?.rows.length ?? null,
+          now: instance.measurementsCache.length,
+          first: String(instance.measurementsCache[0]?.key ?? '').slice(0, 10),
+          st: scrollElement.scrollTop,
+          comp: scrollCompensationPxRef.current,
+          t: Math.round(performance.now()),
+        })
+      );
     if (Math.abs(foldPx) >= 0.5) {
       scrollCompensationPxRef.current += foldPx;
       ledgerSettleWantedRef.current = true;
