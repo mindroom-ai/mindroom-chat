@@ -67,6 +67,9 @@ function ProvidedTheme() {
   return <div data-theme={useTheme().id} />;
 }
 
+/** The case's tree, unmounted after it so that it cannot react to a later case's changes. */
+let mounted: ReactTestRenderer | undefined;
+
 const renderTheme = (store = createStore()): ReactTestRenderer => {
   let renderer!: ReactTestRenderer;
   act(() => {
@@ -78,6 +81,7 @@ const renderTheme = (store = createStore()): ReactTestRenderer => {
       </JotaiProvider>
     );
   });
+  mounted = renderer;
   return renderer;
 };
 
@@ -101,6 +105,8 @@ describe('AppTheme', () => {
   });
 
   afterEach(() => {
+    act(() => mounted?.unmount());
+    mounted = undefined;
     window.localStorage.clear();
   });
 
