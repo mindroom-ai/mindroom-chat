@@ -187,7 +187,13 @@ type ComposerIconButtonProps = {
   onPress: (event: React.MouseEvent<HTMLButtonElement>) => void | Promise<unknown>;
   /** No other control beside it, so its touch hit area takes the full 44 px width. */
   alone?: boolean;
+  /** A press leaves the focus in the text box, so a phone keeps its keyboard up. */
+  keepsTextFocus?: boolean;
 };
+
+// Pressing a button moves the focus to it (or, where buttons take no focus, out of the text box),
+// which closes a phone's keyboard.
+const keepTextFocus = (event: React.MouseEvent) => event.preventDefault();
 
 /** An icon-only composer button, named by its tooltip and its aria-label alike. */
 function ComposerIconButton({
@@ -198,6 +204,7 @@ function ComposerIconButton({
   directional,
   onPress,
   alone,
+  keepsTextFocus,
 }: ComposerIconButtonProps) {
   return (
     <IconTooltip position="Top" label={label}>
@@ -209,6 +216,7 @@ function ComposerIconButton({
           // its own failure.
           // eslint-disable-next-line @typescript-eslint/no-misused-promises
           onClick={onPress}
+          onMouseDown={keepsTextFocus ? keepTextFocus : undefined}
           aria-label={label}
           aria-pressed={pressed}
           variant={variant}
@@ -800,6 +808,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
                 variant="Primary"
                 onPress={handleSend}
                 alone={phone}
+                keepsTextFocus
               />
             </>
           }
