@@ -37,7 +37,7 @@ const REPLIES = [
   'The vendor sent the signed order form this morning, so procurement can close the ticket.',
   'Thanks!',
   'I moved the kickoff call to Thursday at 10:00 so the regional leads can join.',
-];
+] as const;
 
 /** The message toolbars on screen, by the reaction button only they have. */
 const toolbars = (page: Page) =>
