@@ -55,8 +55,9 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
     [StateEvent.GroupCallMemberPrefix]: 0,
     // State MindRoom's agents and router publish; they join with no power. Server, jobs and
     // auto-approve state is keyed by its sender's own user ID, which Matrix accepts only from that
-    // user. The rooms MindRoom creates open the same types, except the thread mode, which their
-    // router writes as an admin.
+    // user; any member may write thread tags and the thread mode. The rooms MindRoom creates open
+    // the same types but the thread mode, which their router writes as an admin; the router of a
+    // room made here is not known when it is made.
     'io.mindroom.server': 0,
     [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
     [MINDROOM_AUTO_APPROVE_EVENT]: 0,
