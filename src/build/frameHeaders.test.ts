@@ -1,12 +1,10 @@
-import { execFileSync, spawn } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { frameHeaders, framingHeaders, isPairingPagePath } from '../../scripts/frame-headers.mjs';
 import policy from '../../scripts/frame-headers.json';
+import { withServePy } from './test-utils/servePy';
 
 type Middleware = (
   req: { url?: string },
@@ -113,49 +111,22 @@ describe('scripts/frame_headers.py (serve.py)', () => {
     );
   });
 
-  // Starts Python and serve.py and waits for it to listen: well under a second, but over 5 s on a
-  // loaded machine, so this test gets 30 s.
+  // Starts Python and serve.py (test-utils/servePy.ts), so this test gets 30 s.
   it('is what serve.py sends, on the app shell and on files alike', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'serve-py-'));
-    writeFileSync(join(root, 'index.html'), '<!doctype html><title>app</title>');
-    writeFileSync(join(root, 'pdf-frame.html'), '<!doctype html><title>pdf</title>');
-    const port = await new Promise<number>((resolve) => {
-      const probe = createServer().listen(0, '127.0.0.1', () => {
-        const address = probe.address();
-        probe.close(() => resolve(typeof address === 'object' && address ? address.port : 0));
-      });
-    });
-    const server = spawn('python3', [repoFile('serve.py'), String(port)], {
-      cwd: root,
-      stdio: 'ignore',
-    });
-    try {
-      const headersOf = async (path: string) => {
-        for (let attempt = 0; ; attempt += 1) {
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            const response = await fetch(`http://127.0.0.1:${port}${path}`);
-            return {
-              'Content-Security-Policy': response.headers.get('content-security-policy'),
-              'X-Frame-Options': response.headers.get('x-frame-options'),
-            };
-          } catch (error) {
-            if (attempt > 50) throw error;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => {
-              setTimeout(resolve, 100);
-            });
-          }
-        }
-      };
+    const files = {
+      'index.html': '<!doctype html><title>app</title>',
+      'pdf-frame.html': '<!doctype html><title>pdf</title>',
+    };
+    await withServePy(files, async (request) => {
       for (const path of ['/', '/pdf-frame.html', '/home/', '/connect/?code=AB', '/CONNECT']) {
-        // eslint-disable-next-line no-await-in-loop
-        expect(await headersOf(path), path).toEqual(framingHeaders(path.split('?')[0] ?? path));
+        const { headers } = await request(path);
+        const sent = {
+          'Content-Security-Policy': headers.get('content-security-policy'),
+          'X-Frame-Options': headers.get('x-frame-options'),
+        };
+        expect(sent, path).toEqual(framingHeaders(path.split('?')[0] ?? path));
       }
-    } finally {
-      server.kill();
-      rmSync(root, { recursive: true, force: true });
-    }
+    });
   }, 30_000);
 });
 
