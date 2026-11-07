@@ -343,16 +343,21 @@ const check = async (page: Page, world: World, label: string) => {
   await expectShown(main, ROOM_NAME_SHOWN);
   await expectShown(main, ROOM_TOPIC_SHOWN);
   await shot(page, `${label}-lobby`);
-  await expectShown(page.locator(`[data-id="${spaceId}"]`).first(), SPACE_NAME_SHOWN);
-  if (!phone) {
-    await expectShown(
-      page
-        .locator('nav')
-        .getByText(/^Finance /)
-        .first(),
-      SPACE_NAME_SHOWN
-    );
+  // The rail tab and the space's list. A phone keeps both in its navigation drawer, which leaving
+  // the Home list put away: it drops them once it has slid out (320 ms), so a check that comes
+  // later finds neither. The phone opens it here, from the closed state the lobby leaves it in.
+  if (phone) {
+    const menu = page.locator('#phone-nav-menu-button');
+    await expect(menu).toHaveAttribute('aria-expanded', 'false');
+    await menu.click();
+    await expect(menu).toHaveAttribute('aria-expanded', 'true');
   }
+  const drawer = page.locator('#phone-nav-drawer');
+  const railTab = (phone ? drawer : page.locator('body')).locator(`[data-id="${spaceId}"]`);
+  await expectShown(railTab.first(), SPACE_NAME_SHOWN);
+  const spaceList = (phone ? drawer : page.locator('nav')).getByText(/^Finance /);
+  await expectShown(spaceList.first(), SPACE_NAME_SHOWN);
+  await shot(page, `${label}-space-navigation`);
 };
 
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
