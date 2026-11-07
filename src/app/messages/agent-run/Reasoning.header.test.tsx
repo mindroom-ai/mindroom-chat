@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { act, create, type ReactTestInstance, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Icon, Icons } from 'folds';
@@ -79,5 +80,35 @@ describe('reasoning header', () => {
       { icon: 'chevron', className: 'Chevron', hidden: true },
     ]);
     expect(button.props['aria-expanded']).toBe(true);
+  });
+
+  it('keeps the body and its state when warm-up lines or reasoning come and go', () => {
+    const Body = () => {
+      const [first] = useState(() => Math.random());
+      return <p data-first={first}>Answer</p>;
+    };
+    const body = <Body />;
+    const show = (extra: Record<string, unknown>) => (
+      <>
+        {withReasoning(
+          { body: 'Answer', 'io.mindroom.stream_status': 'streaming', ...extra },
+          body,
+          {}
+        )}
+      </>
+    );
+    act(() => {
+      renderer = create(show({}));
+    });
+    const first = renderer!.root.findByType('p').props['data-first'];
+    for (const extra of [
+      { 'io.mindroom.live_activity': 'Starting the worker' },
+      {},
+      { 'io.mindroom.live_reasoning': 'Thinking it over' },
+      {},
+    ]) {
+      act(() => renderer!.update(show(extra)));
+      expect(renderer!.root.findByType('p').props['data-first']).toBe(first);
+    }
   });
 });

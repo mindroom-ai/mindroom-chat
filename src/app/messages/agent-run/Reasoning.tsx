@@ -177,11 +177,13 @@ export const withReasoning = (
   const live = liveText !== undefined && (!final || streaming) ? liveText : undefined;
   const activity = nonEmptyString(content[LIVE_ACTIVITY_KEY]);
 
-  if (live === undefined && !final && activity === undefined) return body;
-
+  // One shape with or without reasoning and activity, so the body keeps its place, and the state
+  // inside it such as an open tool-call list, when warm-up lines or reasoning come and go.
   return (
     <>
-      <ReasoningHeader live={live} final={final} htmlReactParserOptions={htmlReactParserOptions} />
+      {(live !== undefined || !!final) && (
+        <ReasoningHeader live={live} final={final} htmlReactParserOptions={htmlReactParserOptions} />
+      )}
       {body}
       {activity !== undefined && <LiveActivity text={activity} />}
     </>
