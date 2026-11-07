@@ -35,14 +35,15 @@ describe('thread previews of math', () => {
     expect(preview('$\\|x\\|_2 \\leq |y|$ and $a\\cos\\theta + \\sin(x)$')).toBe(
       '‖x‖_2 ≤ |y| and a cos θ + sin(x)'
     );
+    expect(preview('$x\\operatorname{sgn}(x) + \\operatorname{tr}A$')).toBe('x sgn(x) + tr A');
   });
 
   it('keep the parts of fractions, roots and scripts together', () => {
     expect(preview('$\\frac{2}{3}^{2} = \\frac{4}{9}$ and $\\frac{2}{3} ^2$')).toBe(
       '(2/3)^2 = (4/9) and (2/3) ^2'
     );
-    expect(preview('$E_k = \\frac{1}{2}mv^2$ and $3\\frac{1}{4} - 1/\\frac{1}{2}$')).toBe(
-      'E_k = (1/2)mv^2 and 3(1/4) - 1/(1/2)'
+    expect(preview('$E_k = \\frac{1}{2}mv^2$ and $1/\\frac{1}{2}$')).toBe(
+      'E_k = (1/2)mv^2 and 1/(1/2)'
     );
     expect(preview('$\\sqrt{x}^2 + x^{2}2^{x} + \\frac{1}{n}\\sum x$')).toBe(
       '√(x)^2 + x^(2)2^x + (1/n)∑ x'
@@ -50,14 +51,18 @@ describe('thread previews of math', () => {
     expect(preview('$x_1x_2 + 2^n{x} + a_{1,2} + \\left(x^2\\right)$')).toBe(
       'x_(1)x_2 + 2^(n)x + a_(1,2) + (x^2)'
     );
+    expect(preview('$\\log_{10}1000 + 2^{10}x + x^2\\!3 + e^x(1+x) + {x+1}^2$')).toBe(
+      'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x) + (x+1)^2'
+    );
+    expect(preview('$\\left.2x\\right|_0^1 = 2$')).toBe('2x|_0^1 = 2');
   });
 
-  it('read sizing, spacing, escaped characters and unbalanced braces', () => {
+  it('read sizing, spacing and escaped characters', () => {
     expect(preview('$\\left( \\frac {1}  {x+1} \\right)^{10}\\,\\text{and}~\\sin x$')).toBe(
       '( (1/(x+1)) )^10 and sin x'
     );
     expect(preview('$50\\%$ of $\\{1, 2\\}$')).toBe('50% of {1, 2}');
-    expect(preview('$\\frac{1}{2$ and $a}b$ and $x^$')).toBe('(1/2) and ab and x^');
+    expect(preview('$x^$')).toBe('x^');
   });
 
   it('keep a formula as written when the reader does not know all of it', () => {
@@ -68,6 +73,9 @@ describe('thread previews of math', () => {
       '$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$'
     );
     expect(preview('$\\operatorname*{arg\\,max}_x f$')).toBe('$\\operatorname*{arg\\,max}_x f$');
+    expect(preview('$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$')).toBe(
+      '$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$'
+    );
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
     );
@@ -93,6 +101,10 @@ describe('thread previews of math', () => {
     );
     expect(preview('Example:\n\n    $\\frac{a}{b}$\n\nand $x^2$')).toBe(
       'Example: $\\frac{a}{b}$ and $x^2$'
+    );
+    expect(preview('> ~~~\n> $\\frac{a}{b}$\n> ~~~\n\nand $x^2$')).toBe('$\\frac{a}{b}$ and $x^2$');
+    expect(preview('<code>$\\frac{a}{b}$</code> and $x^2$')).toBe(
+      '<code>$\\frac{a}{b}$</code> and $x^2$'
     );
   });
 });
