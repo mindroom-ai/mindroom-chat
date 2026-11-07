@@ -104,7 +104,7 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
   const keepTabInside = (event: KeyboardEvent) => {
     const layer = layerRef.current;
     if (!layer || event.defaultPrevented) return;
-    const controls = tabbablesOf(layer);
+    const controls = tabbablesOf(layer).filter((control) => control.tabIndex >= 0);
     const first = controls[0];
     const last = controls[controls.length - 1];
     const active = document.activeElement;
@@ -193,11 +193,32 @@ export function ConversationCover({
     []
   );
 
+  // A condition is asked while the room renders, or as React checks a change, where it cannot fail
+  // its cover yet: what it threw waits for the commit, or for the check to end.
+  const thrownRef = useRef(new Map<TaggedCover, unknown>());
+  const holds = (entry: TaggedCover): boolean => {
+    try {
+      return entry.cover.covers(room) === true;
+    } catch (thrown) {
+      thrownRef.current.set(entry, thrown);
+      return false;
+    }
+  };
+  const failThrown = useCallback(() => {
+    thrownRef.current.forEach((thrown, entry) => fail(entry, thrown));
+    thrownRef.current.clear();
+  }, [fail]);
+  useLayoutEffect(failThrown);
+
   const subscribe = useCallback(
     (onChange: () => void) => {
+      const changed = () => {
+        onChange();
+        failThrown();
+      };
       const stops = enabled.map((entry) => {
         try {
-          return entry.cover.subscribe(room, onChange);
+          return entry.cover.subscribe(room, changed);
         } catch (thrown) {
           fail(entry, thrown);
           return undefined;
@@ -212,23 +233,8 @@ export function ConversationCover({
           }
         });
     },
-    [enabled, fail, room]
+    [enabled, fail, failThrown, room]
   );
-  // A condition is asked while the room renders, where it cannot fail its cover yet: what it threw
-  // waits for the commit.
-  const thrownRef = useRef(new Map<TaggedCover, unknown>());
-  const holds = (entry: TaggedCover): boolean => {
-    try {
-      return entry.cover.covers(room) === true;
-    } catch (thrown) {
-      thrownRef.current.set(entry, thrown);
-      return false;
-    }
-  };
-  useLayoutEffect(() => {
-    thrownRef.current.forEach((thrown, entry) => fail(entry, thrown));
-    thrownRef.current.clear();
-  });
   const shown = useSyncExternalStore(subscribe, () =>
     enabled.find((entry) => !failedRef.current.has(entry) && holds(entry))
   );

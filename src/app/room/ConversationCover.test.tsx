@@ -47,7 +47,8 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 }));
 
 // Plugins as a build lists them: `broken`, with a cover that throws once open, one whose condition
-// throws, one whose subscription throws and one whose subscription's stop throws; `example`, with a cover Escape closes; `other`, with a cover
+// throws, one whose subscription throws, one whose subscription's stop throws and one whose
+// condition throws later; `example`, with a cover Escape closes; `other`, with a cover
 // Escape leaves and one that puts the focus in its own field; and `faulty`, whose close throws.
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
@@ -75,6 +76,13 @@ vi.mock('../plugins/pluginEntries', () => ({
             },
             Component: () => 'never shown',
           },
+          // Its condition throws once its plugin changes something, without a new render.
+          mocks.cover('flaky', {
+            covers: () => {
+              if (mocks.open.has('flaky')) throw new Error('flaky');
+              return false;
+            },
+          }),
           {
             covers: () => false,
             subscribe: () => () => {
@@ -196,8 +204,16 @@ describe('a conversation cover', () => {
       '[plugin broken@0.1.0] no answer',
       '[plugin broken@0.1.0] no listening',
     ]);
+    // A condition that throws when its plugin says something changed is reported at once.
+    show('flaky');
+    expect(reported()).toEqual([
+      '[plugin broken@0.1.0] flaky',
+      '[plugin broken@0.1.0] no answer',
+      '[plugin broken@0.1.0] no listening',
+    ]);
     unmount();
     expect(reported()).toEqual([
+      '[plugin broken@0.1.0] flaky',
       '[plugin broken@0.1.0] no answer',
       '[plugin broken@0.1.0] no listening',
       '[plugin broken@0.1.0] no stop',
@@ -222,6 +238,10 @@ describe('a conversation cover', () => {
     expect(document.activeElement).toBe(field);
     // Between them, the browser moves the focus.
     expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(true);
+    // A control Tab skips does not count: the field is then the last as well as the first.
+    button.tabIndex = -1;
+    expect(fireEvent.keyDown(field, { key: 'Tab' })).toBe(false);
+    expect(document.activeElement).toBe(field);
   });
 
   it("takes away a cover whose close throws on Escape, and reports it under its plugin's tag", () => {
