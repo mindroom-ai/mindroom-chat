@@ -237,7 +237,8 @@ const checkAvatars = async (page: Page, seeded: Seeded) => {
   if (typeof measured === 'string') throw new Error(measured);
   expect(measured.gapBelow).toBeGreaterThanOrEqual(0);
   expect(measured.gapBelow).toBeLessThanOrEqual(8);
-  expect(measured.widerBy).toBeLessThanOrEqual(8);
+  // "Claude Sonnet 5.5" is wider than 44 px, so it takes the whole 4 px on each side.
+  expect(measured.widerBy).toBe(8);
   expect(measured.lines).toBeGreaterThanOrEqual(1);
   expect(measured.lines).toBeLessThanOrEqual(2);
 };

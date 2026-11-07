@@ -34,10 +34,11 @@ import { launchWebKit } from '../helpers/webkit';
 // side (44 px at 100 % zoom), so the thread's minimap strips in the gutter before the avatar never
 // cross it (L8-F003, design decision #7); the provider's logo sits on the avatar's corner.
 // A long model name wraps onto a second line and is cut there with an ellipsis; the full name
-// shows when the badge gets keyboard focus or a tap. Checked in a thread of seven questions and eight agent replies among 25 rooms,
-// on a desktop (1440 by 900) at 100 % and 150 % page zoom, light and dark, English and Arabic,
-// and on a phone (390 by 844, touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
-// Playwright's WebKit, in WebKit. Set DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
+// shows when the badge gets keyboard focus or a tap. Checked in a thread of seven questions and
+// eight agent replies among 25 rooms, on a desktop (1440 by 900) at 100 % and 150 % page zoom,
+// light and dark, English and Arabic, and on a phone (390 by 844, touch), in Chromium and, when
+// PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit. Set
+// DESIGN_CHOICES_SHOTS=<directory> to save screenshots.
 const WEBKIT = process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE;
 const ENGINES = ['chromium', ...(WEBKIT ? ['webkit'] : [])] as const;
 const ROOM_NAME = 'Launch planning';
@@ -113,7 +114,8 @@ const badgeProblem = (page: Page, zoom: number, minimap: boolean) =>
       const view = scroller.getBoundingClientRect();
       const end = scroller.scrollHeight - scroller.clientHeight;
       let seen = 0;
-      // Steps smaller than the 14 px badge plus a 2 px strip, so no crossing slips between two.
+      // Steps no taller than a 12 px line of the name plus a 2 px strip, so no crossing slips
+      // between two.
       for (let top = 0; top <= end + 12; top += 12) {
         scroller.scrollTop = Math.min(top, end);
         // eslint-disable-next-line no-await-in-loop

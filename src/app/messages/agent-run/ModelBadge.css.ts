@@ -49,6 +49,7 @@ export const Badge = style({
   boxSizing: 'border-box',
   margin: 0,
   padding: 0,
+  inlineSize: 'max-content',
   maxInlineSize: widestName,
   border: 'none',
   borderRadius: config.radii.R300,
@@ -68,8 +69,9 @@ export const Badge = style({
   },
   '@media': {
     '(pointer: coarse)': {
-      minInlineSize: toRem(44),
-      minBlockSize: toRem(44),
+      // Pixels, so a smaller page zoom never shrinks the target.
+      minInlineSize: 44,
+      minBlockSize: 44,
     },
   },
 });
