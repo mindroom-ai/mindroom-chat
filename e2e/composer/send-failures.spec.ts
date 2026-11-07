@@ -616,6 +616,59 @@ const offlineReloadKeepsMessage = async (browser: Browser, layout: Layout, label
 };
 
 /**
+ * Two messages written while the homeserver cannot be reached come back after a reload as unsent
+ * rows. They are the person's own, so no New Messages line goes above them, neither then nor
+ * after Retry sends them.
+ */
+const restoredUnsentRowsAreNotNew = async (browser: Browser, layout: Layout, label: string) => {
+  const world = await seed(`unsentline_${label}`);
+  const { context, page } = await openPage(browser, layout, world);
+  page.on('dialog', (dialog) => {
+    void dialog.accept();
+  });
+  const unreachable = (route: Route) => route.abort('internetdisconnected');
+  try {
+    const first = `Nl ${label} the pilot boards at the outer buoy`;
+    const second = `Nl ${label} keep berth four clear until noon`;
+    const newMessages = page.getByText('New Messages', { exact: true });
+    await expect(newMessages).toHaveCount(0);
+    await page.route(`${HOMESERVER}/**`, unreachable);
+    await send(page, layout, first);
+    await send(page, layout, second);
+    await expect(rowOf(page, second).locator('[data-pending-send-icon]')).toBeVisible();
+    await page.reload();
+    await expect(composerOf(page)).toBeVisible({ timeout: 60_000 });
+    await expect(failedActionsOf(rowOf(page, first))).toBeVisible({ timeout: 30_000 });
+    await expect(failedActionsOf(rowOf(page, second))).toBeVisible();
+    await shot(page, `${label}-1-restored`);
+    await expect(newMessages).toHaveCount(0);
+
+    await page.unroute(`${HOMESERVER}/**`, unreachable);
+    await expectReconnected(page);
+    for (const text of [first, second]) {
+      // eslint-disable-next-line no-await-in-loop
+      await press(
+        layout,
+        failedActionsOf(rowOf(page, text)).getByRole('button', { name: 'Retry' })
+      );
+      // eslint-disable-next-line no-await-in-loop
+      await expect(failedActionsOf(rowOf(page, text))).toHaveCount(0, { timeout: 30_000 });
+    }
+    await expect
+      .poll(
+        async () =>
+          (await serverBodies(world)).filter((body) => body === first || body === second).length,
+        { timeout: 30_000 }
+      )
+      .toBe(2);
+    await shot(page, `${label}-2-retried`);
+    await expect(newMessages).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
+};
+
+/**
  * In a thread, the server refuses a reply (403) and then rate-limits one (429, two minutes): each
  * keeps its row, Not sent, with why in words and the server's own words below, and nothing comes
  * back into the composer.
@@ -687,6 +740,7 @@ const SCENARIOS = [
   ],
   ['a message written offline is kept across an offline reload', offlineReloadKeepsMessage],
   ['a thread reply the server refuses or rate-limits says why', refusedRepliesSayWhy],
+  ['restored unsent messages get no New Messages line', restoredUnsentRowsAreNotNew],
 ] as const;
 
 for (const [title, scenario] of SCENARIOS) {
