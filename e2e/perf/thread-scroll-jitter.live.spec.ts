@@ -232,12 +232,21 @@ test.describe('thread scroll jitter', () => {
                           .__threadRecordBuilds ?? 0
                     );
                   const buildsBefore = await builds();
+                  await page.evaluate(() => {
+                    const w = window as unknown as Record<string, unknown>;
+                    w.__threadRecordCauses = {};
+                    w.__surfaceCauses = {};
+                  });
                   const at = await startRecording(page, view, input === 'touch');
                   const started = Date.now();
                   await scrollRoom(page, cdp, input, at);
                   const elapsed = Date.now() - started;
                   const state = await stopRecording(page);
                   const rebuilds = (await builds()) - buildsBefore;
+                  const causes = await page.evaluate(() => {
+                    const w = window as unknown as Record<string, unknown>;
+                    return { records: w.__threadRecordCauses, surface: w.__surfaceCauses };
+                  });
                   if (cdp && FRAMES) {
                     await cdp.send('Page.stopScreencast');
                     mkdirSync(`${OUT_DIR}/${name}-frames`, { recursive: true });
@@ -275,6 +284,7 @@ test.describe('thread scroll jitter', () => {
                     scrolledPx: Math.round(state.scrolled),
                     rebuilds,
                     rebuildsPerSecond: Math.round((rebuilds / (elapsed / 1000)) * 10) / 10,
+                    causes,
                     frames: state.frames.length,
                     frameP50: percentile(state.frames, 50),
                     frameP95: percentile(state.frames, 95),
