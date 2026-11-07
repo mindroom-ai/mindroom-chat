@@ -204,7 +204,9 @@ const run = async (
     await page.waitForTimeout(HOLD_MS + 4_000);
     if (SHOTS) {
       mkdirSync(SHOTS, { recursive: true });
-      await page.screenshot({ path: path.join(SHOTS, `card-previews-${engine}-${deviceName}.png`) });
+      await page.screenshot({
+        path: path.join(SHOTS, `card-previews-${engine}-${deviceName}.png`),
+      });
     }
     const previews = await page.evaluate(() => [
       ...(window as unknown as { cardPreviews: Set<string> }).cardPreviews,
@@ -250,10 +252,7 @@ test('cards never preview a title notice on a phone (WebKit)', async ({ baseURL 
   }
 });
 
-test('cards never preview a title notice on a desktop (Chromium)', async ({
-  browser,
-  baseURL,
-}) => {
+test('cards never preview a title notice on a desktop (Chromium)', async ({ browser, baseURL }) => {
   test.setTimeout(300_000);
   await run(browser, baseURL, 'chromium', DESKTOP, 'desktop');
 });
