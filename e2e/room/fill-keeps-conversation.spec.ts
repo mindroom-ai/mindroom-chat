@@ -84,12 +84,13 @@ const readerPlace = async (page: Page) =>
 test('a side panel filling the room keeps the conversation under it as it was', async ({
   context,
   page,
-}) => {
+}, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(5 * 60_000);
   await context.grantPermissions(['microphone']);
   const room = await openPanelRoom(context, page);
   const receipts = recordReceipts(page);
+  const shot = (name: string) => page.screenshot({ path: testInfo.outputPath(`${name}.png`) });
   const fill = panelLocator(page, 'call').getByRole('button', {
     name: 'Fill the room with Call',
     exact: true,
@@ -101,11 +102,21 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   await expect(discard.or(recordingError).first()).toBeVisible({ timeout: 15_000 });
   test.skip(await recordingError.isVisible(), 'This browser offers no microphone to record from');
 
-  // Filled, the room shows the call alone; a reply that arrives meanwhile gets no receipt.
+  // Filled, the room shows the call alone; back beside the conversation, the recording goes on.
   await openPanel(page, room, 'call');
+  await shot('recording');
   await fill.click();
   await expect(fill).toHaveAttribute('aria-pressed', 'true');
   await expect(discard).toBeHidden();
+  await shot('filled');
+  await fill.click();
+  await expect(discard).toBeVisible();
+  await shot('unfolded');
+
+  // A reply that arrives while the call fills the room gets no receipt, until the conversation
+  // shows again.
+  await fill.click();
+  await expect(fill).toHaveAttribute('aria-pressed', 'true');
   const unseen = await reply(room, 'Arrived while the call fills the room');
   await expect(page.getByText('Arrived while the call fills the room').last()).toBeAttached({
     timeout: 60_000,
@@ -113,12 +124,11 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   // A receipt goes out on the next frame after a message arrives: give it a few.
   await page.waitForTimeout(2_000);
   expect(receipts).not.toContain(unseen);
-
-  // Back beside the conversation: the recording is still going, the reply is read, and the
-  // recording is sent.
   await fill.click();
-  await expect(discard).toBeVisible();
   await expect.poll(() => receipts).toContain(unseen);
+
+  // The recording, still going, is sent.
+  await expect(discard).toBeVisible();
   await page.getByRole('button', { name: 'Send message', exact: true }).click();
   await expect.poll(() => voiceMessages(room), { timeout: 45_000 }).toBe(1);
 
