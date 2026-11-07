@@ -18,7 +18,7 @@ import {
   type CallTranscriptGroup,
 } from '../../matrix/protocol/callTranscript';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
-import { formatCallDuration } from '../../lib/time';
+import { formatCallDuration, formatCallOffset } from '../../lib/time';
 import { nameInitials } from '../../lib/common';
 import { ownDirectionLine, textDirection } from '../../ui/directional';
 import { LoneTouchTarget } from '../../ui/styles/TouchTarget.css';
@@ -99,11 +99,14 @@ type GroupProps = {
   linkifyOpts: LinkifyOpts;
 };
 
-/** One speaker's run of turns: their avatar and name as the room knows them, then the text. */
+/**
+ * One speaker's run of turns: their avatar and name as the room knows them, beside it when they
+ * began to speak in the call (when the transcript says), then the text.
+ */
 function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProps) {
   const client = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
-  const { sender, texts } = group;
+  const { sender, texts, offsetSeconds } = group;
   const name = (room && getMemberDisplayName(room, sender)) ?? getMxIdLocalPart(sender) ?? sender;
   const avatarMxc = room ? getMemberAvatarMxc(room, sender) : undefined;
   const avatarSrc = avatarMxc
@@ -132,16 +135,29 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
         />
       </Avatar>
       <div className={css.GroupBody}>
-        <Text
-          as="span"
-          size="T300"
-          truncate
-          className={css.Name}
-          data-call-transcript-name=""
-          {...ownDirectionLine}
-        >
-          {name}
-        </Text>
+        <div className={css.NameLine}>
+          <Text
+            as="span"
+            size="T300"
+            truncate
+            className={css.Name}
+            data-call-transcript-name=""
+            {...ownDirectionLine}
+          >
+            {name}
+          </Text>
+          {offsetSeconds !== undefined && (
+            <Text
+              as="span"
+              size="T200"
+              priority="300"
+              className={css.Time}
+              data-call-transcript-time=""
+            >
+              <time dateTime={`PT${offsetSeconds}S`}>{formatCallOffset(offsetSeconds)}</time>
+            </Text>
+          )}
+        </div>
         {texts.map((text, index) => (
           <TurnText
             // Turns never move within a group, so their place is their identity.
@@ -158,9 +174,10 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
 }
 
 /**
- * A finished voice call (`io.mindroom.call_transcript`): the phone icon, "Voice call" and how
- * long it lasted, then the transcript behind a button that says how many turns it holds. Open,
- * it reads like a chat: each run of turns by one speaker under their avatar and name.
+ * A finished voice call (`io.mindroom.call_transcript`) on one row: the phone icon, "Voice call"
+ * and how long it lasted, then at the row's end the transcript's button, which says how many
+ * turns it holds. Open, the transcript reads like a chat below the row: each run of turns by one
+ * speaker under their avatar and name.
  */
 export function CallTranscriptCard({
   transcript,
@@ -175,6 +192,8 @@ export function CallTranscriptCard({
   const client = useMatrixClient();
   const headerId = useId();
   const turnsId = useId();
+  const toggleLabelId = useId();
+  const toggleCountId = useId();
   const { durationSeconds, turns } = transcript;
   const [open, setOpen] = useState(
     () =>
@@ -211,35 +230,38 @@ export function CallTranscriptCard({
       dir={i18n.dir()}
       data-call-transcript=""
     >
-      <div id={headerId} className={css.Header} data-call-transcript-header="">
-        <Icon size="100" src={Icons.Phone} aria-hidden />
-        <Text as="span" size="T300" className={css.Title}>
-          {t('featureUi.calls.transcript.title')}
-        </Text>
-        <Text as="span" size="T300" priority="300">
-          {formatCallDuration(durationSeconds, language)}
-        </Text>
+      <div className={css.Row}>
+        <div id={headerId} className={css.Header} data-call-transcript-header="">
+          <span className={css.IconSlot}>
+            <Icon size="100" src={Icons.Phone} aria-hidden />
+          </span>
+          <Text as="span" size="T300" className={`${css.Label} ${css.Title}`}>
+            {t('featureUi.calls.transcript.title')}
+          </Text>
+          <Text as="span" size="T300" priority="300" className={css.Label}>
+            {formatCallDuration(durationSeconds, language)}
+          </Text>
+        </div>
+        {/* Named "Transcript, N turns"; only the count shows, beside the call it belongs to. */}
+        <button
+          type="button"
+          className={`${css.Toggle} ${LoneTouchTarget}`}
+          aria-expanded={open}
+          aria-controls={turnsId}
+          aria-labelledby={`${toggleLabelId} ${toggleCountId}`}
+          onClick={() => setOpen((shown) => !shown)}
+        >
+          <span id={toggleLabelId} hidden>
+            {t('featureUi.calls.transcript.transcript')}
+          </span>
+          <Text as="span" size="T300" id={toggleCountId} className={css.Label}>
+            {t('featureUi.calls.transcript.turns', { count: turns.length })}
+          </Text>
+          <span className={css.IconSlot}>
+            <Icon size="50" src={open ? Icons.ChevronTop : Icons.ChevronBottom} aria-hidden />
+          </span>
+        </button>
       </div>
-      <button
-        type="button"
-        className={`${css.Toggle} ${LoneTouchTarget}`}
-        aria-expanded={open}
-        aria-controls={turnsId}
-        onClick={() => setOpen((shown) => !shown)}
-      >
-        <Icon
-          size="50"
-          src={open ? Icons.ChevronBottom : Icons.ChevronRight}
-          data-directional={open ? undefined : true}
-          aria-hidden
-        />
-        <Text as="span" size="T300">
-          {t('featureUi.calls.transcript.transcript')}
-        </Text>
-        <Text as="span" size="T200" priority="300">
-          {t('featureUi.calls.transcript.turns', { count: turns.length })}
-        </Text>
-      </button>
       {open && (
         <ol id={turnsId} className={css.Turns}>
           {groups.map((group) => (
