@@ -3,6 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Room } from 'matrix-js-sdk';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import type { SlashCommand } from './commands/useCommands';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
@@ -16,6 +17,7 @@ type EditorProps = {
 const state = vi.hoisted(() => ({
   editorProps: undefined as EditorProps | undefined,
   mentionHasSuggestions: true,
+  mentionShown: false,
   startSendSession: vi.fn(async () => undefined),
   commands: {} as Record<string, SlashCommand>,
   resetEditor: vi.fn(),
@@ -75,6 +77,12 @@ vi.mock('../editor/autocomplete/UserMentionAutocomplete', () => ({
     onSuggestionsChange?: (hasSuggestions: boolean) => void;
   }) => {
     useEffect(() => onSuggestionsChange?.(state.mentionHasSuggestions), [onSuggestionsChange]);
+    useEffect(() => {
+      state.mentionShown = true;
+      return () => {
+        state.mentionShown = false;
+      };
+    }, []);
     return null;
   },
 }));
@@ -190,6 +198,29 @@ describe('composer', () => {
     await pressEnterAfterMention();
     expect(state.editorProps?.editableName).toBe('RoomInput');
     expect(state.editorProps?.placeholder).toBeTruthy();
+  });
+
+  it('closes the mention menu as a side panel hides the conversation, so Tab picks nothing', async () => {
+    state.mentionHasSuggestions = true;
+    const { RoomInput } = await import('./RoomInput');
+    const room = { roomId: '!room:example.org', name: 'Room' } as unknown as Room;
+    const store = createStore();
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <RoomInput
+            editor={{ children: [] } as never}
+            fileDropContainerRef={createRef()}
+            roomId={room.roomId}
+            room={room}
+          />
+        </Provider>
+      );
+    });
+    act(() => state.editorProps?.onKeyUp?.());
+    expect(state.mentionShown).toBe(true);
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(state.mentionShown).toBe(false);
   });
 
   it('leaves Enter to the mention menu while it shows suggestions', async () => {
