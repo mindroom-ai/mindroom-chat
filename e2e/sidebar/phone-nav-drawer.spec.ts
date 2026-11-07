@@ -423,3 +423,22 @@ test('chromium: a short room link opens the room with the drawer away', async ({
     await context.close();
   }
 });
+
+test('chromium: Skip to content puts the drawer away and lands in the page', async ({
+  browser,
+}) => {
+  test.setTimeout(180_000);
+  const { context, page } = await signIn(browser, await seed('chromium', 'skip'));
+  try {
+    await expectDrawer(page, true, 'Home opens with the drawer out');
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expectDrawer(page, false, 'the skip link puts the drawer away');
+    await expect
+      .poll(() => page.evaluate(() => !!document.activeElement?.closest('main')))
+      .toBe(true);
+  } finally {
+    await context.close();
+  }
+});
