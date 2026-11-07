@@ -11,12 +11,9 @@ import {
   type Room,
 } from 'matrix-js-sdk';
 import type { Thread } from 'matrix-js-sdk/lib/models/thread';
-import {
-  getStreamStatusFromContent,
-  hasTerminalStreamMetadata,
-  TERMINAL_STREAM_STATUSES,
-} from '../protocol/aiRun';
+import { getStreamStatusFromContent, TERMINAL_STREAM_STATUSES } from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
+import { getFinishingEdit } from './finishingEdits';
 
 // The server cannot read an encrypted event, so in an encrypted room the SDK takes the server's
 // unread count only when it is 0 and otherwise counts each event itself as it decrypts. Counting
@@ -42,9 +39,6 @@ const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
   RelationType.Annotation,
 ]);
 
-/** Terminal edits remembered per reply; the oldest are forgotten first. */
-const FINISHING_EDITS_LIMIT = 5000;
-
 type Counts = { total: number; highlight: number };
 
 const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => {
@@ -52,11 +46,6 @@ const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => 
   const relation: unknown = event.getWireContent()['m.relates_to'];
   return isRecord(relation) ? relation : undefined;
 };
-
-/** The stream status MindRoom keeps in the clear, else the one in the decrypted content. */
-const streamStatusOf = (event: MatrixEvent): string | undefined =>
-  getStreamStatusFromContent(event.getWireContent()) ??
-  (event.isDecryptionFailure() ? undefined : getStreamStatusFromContent(event.getContent()));
 
 /** A reply's first event while MindRoom streams it; the server counts only its terminal edit. */
 const isStreamedReply = (event: MatrixEvent): boolean => {
@@ -67,12 +56,6 @@ const isStreamedReply = (event: MatrixEvent): boolean => {
       ? undefined
       : getStreamStatusFromContent(event.getOriginalContent()));
   return !!status && !TERMINAL_STREAM_STATUSES.has(status);
-};
-
-const isFinishingEdit = (edit: MatrixEvent): boolean => {
-  const status = streamStatusOf(edit);
-  if (status) return TERMINAL_STREAM_STATUSES.has(status);
-  return !edit.isDecryptionFailure() && hasTerminalStreamMetadata(edit.getContent());
 };
 
 /** Whether the server counts `event` as a message of its own. */
@@ -229,25 +212,7 @@ const recount = (
  * events the client can read; call it before the client starts. Returns a function that stops it.
  */
 export const keepEncryptedRoomCounts = (mx: MatrixClient): (() => void) => {
-  // The edits that finished replies, by reply: the SDK puts an edit on its reply only once it
-  // decrypted it, and not on a reply it does not hold yet.
-  const finishingEdits = new Map<string, MatrixEvent>();
-  const finishingEdit = (reply: MatrixEvent): MatrixEvent | undefined => {
-    const replyId = reply.getId();
-    const candidates = [reply.replacingEvent(), replyId ? finishingEdits.get(replyId) : undefined];
-    return candidates.reduce<MatrixEvent | undefined>((newest, edit) => {
-      if (!edit || edit.getSender() !== reply.getSender() || !isFinishingEdit(edit)) return newest;
-      return !newest || edit.getTs() > newest.getTs() ? edit : newest;
-    }, undefined);
-  };
-  const rememberEdit = (event: MatrixEvent) => {
-    const relation = relationOf(event);
-    if (relation?.rel_type !== RelationType.Replace || typeof relation.event_id !== 'string')
-      return;
-    if (!isFinishingEdit(event)) return;
-    if (finishingEdits.size >= FINISHING_EDITS_LIMIT) finishingEdits.clear();
-    finishingEdits.set(relation.event_id, event);
-  };
+  const finishingEdit = (reply: MatrixEvent) => getFinishingEdit(mx, reply);
 
   const queued = new Set<string>();
   const schedule = (roomId: string | undefined) => {
@@ -259,10 +224,7 @@ export const keepEncryptedRoomCounts = (mx: MatrixClient): (() => void) => {
       if (room?.hasEncryptionStateEvent()) recount(mx, room, finishingEdit);
     });
   };
-  const onEvent = (event: MatrixEvent) => {
-    rememberEdit(event);
-    schedule(event.getRoomId());
-  };
+  const onEvent = (event: MatrixEvent) => schedule(event.getRoomId());
   const onRoomChange = (_event: MatrixEvent, room: Room | undefined) => schedule(room?.roomId);
 
   // An event can reach its thread after the sync announced it, so a timeline change counts too.

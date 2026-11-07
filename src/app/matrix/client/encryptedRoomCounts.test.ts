@@ -12,6 +12,7 @@ import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { keepEncryptedRoomCounts } from './encryptedRoomCounts';
+import { keepFinishingEdits } from './finishingEdits';
 
 // Regression (L5-F012): in an encrypted room the SDK counts unread messages itself as they decrypt.
 // An agent's reply that the reader read half-way, then finished while the reader was elsewhere,
@@ -175,7 +176,10 @@ const fixture = async (keep: boolean) => {
   });
   (mx as MatrixClient & { serverVersionsPromise?: Promise<unknown> }).serverVersionsPromise =
     Promise.resolve({ versions: ['v1.4'], unstable_features: {} });
-  if (keep) keepEncryptedRoomCounts(mx);
+  if (keep) {
+    keepFinishingEdits(mx);
+    keepEncryptedRoomCounts(mx);
+  }
 
   /** Answers the client's next /sync with these events of the room. */
   const deliver = async (events: IEvent[], ephemeral: unknown[] = []) => {

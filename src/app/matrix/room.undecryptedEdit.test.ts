@@ -2,7 +2,7 @@ import { MatrixEvent } from 'matrix-js-sdk';
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { describe, expect, it, vi } from 'vitest';
-import { getEditedEvent, getLatestMessageContent, hasTerminalEditInTheClear } from './room';
+import { getEditedEvent, getLatestMessageContent } from './room';
 
 // Regression (L5-F009): the SDK puts an edit the server bundles with a reply on the reply before it
 // decrypts the edit, and the reply's content then reads as empty: the first agent reply in a new
@@ -97,36 +97,5 @@ describe('a reply whose newest edit cannot be decrypted yet', () => {
     target.makeReplaced(unreadable);
     await unreadable.attemptDecryption(keyArrivesLater('word1 word2') as never);
     expect(shownBody(target, [readable, unreadable])).toBe('word1');
-  });
-});
-
-// Regression (P2-e2ee-F002): a device without the room's keys showed a stopped reply as streaming
-// for good. MindRoom keeps the stream status of each edit outside its encrypted payload.
-describe('a reply whose edits cannot be decrypted', () => {
-  const withClearStatus = (id: string, ts: number, status: string): MatrixEvent => {
-    const edit = encryptedEdit(id, ts);
-    edit.getWireContent()['io.mindroom.stream_status'] = status;
-    return edit;
-  };
-  const undecryptable = async (edit: MatrixEvent) => {
-    await edit.attemptDecryption({
-      decryptEvent: vi.fn(async () => {
-        throw new DecryptionError(
-          DecryptionFailureCode.MEGOLM_UNKNOWN_INBOUND_SESSION_ID,
-          'no key'
-        );
-      }),
-    } as never);
-    return edit;
-  };
-
-  it('ends its stream when its newest edit says so in the clear', async () => {
-    const streaming = await undecryptable(withClearStatus('$edit-1', 2, 'streaming'));
-    const stopped = await undecryptable(withClearStatus('$edit-2', 3, 'cancelled'));
-    const finished = (edits: MatrixEvent[]) =>
-      hasTerminalEditInTheClear('$reply', reply(), relationsOf(edits) as never);
-    expect(finished([streaming])).toBe(false);
-    expect(finished([stopped, streaming])).toBe(true);
-    expect(finished([])).toBe(false);
   });
 });

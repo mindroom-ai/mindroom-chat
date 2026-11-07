@@ -12,15 +12,11 @@ import {
 import { STOP_REACTION_KEYS } from '../../matrix/protocol/stopReaction';
 import { getShallowSerializedReplacementEvent, isSameSenderEditEvent } from '../../matrix/editEvent';
 import { getActiveAnnotationsByKey } from '../../matrix/protocol/reactionAnnotations';
-import {
-  getEditedEvent,
-  getEventReactions,
-  getLatestMessageContent,
-  hasTerminalEditInTheClear,
-} from '../../matrix/room';
+import { getEditedEvent, getEventReactions, getLatestMessageContent } from '../../matrix/room';
 import { DEFAULT_THREAD_TAIL_EVENT_COUNT, getThreadTailEvents } from '../../matrix/thread';
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isStreamingReplyCurrent } from '../../matrix/client/streamingReplies';
+import { getFinishingEdit } from '../../matrix/client/finishingEdits';
 
 type ThreadStreamingSnapshot = {
   isStreaming: boolean;
@@ -113,11 +109,11 @@ export const isEventStreaming = (
   // stream statuses; the local check only adds the record-form fallback.
   // Diverging here wedges a permanent spinner while the stop chip (gated on
   // the shared helper) is hidden.
-  const eventId = mEvent.getId();
+  // A device without the room's keys reads the finishing edit's status in the clear.
   const terminalMetadata =
     hasTerminalStreamMetadata(content) ||
     (streamStatus && TERMINAL_STREAM_STATUSES.has(streamStatus)) ||
-    (!!eventId && hasTerminalEditInTheClear(eventId, mEvent, timelineSet));
+    !!getFinishingEdit(timelineSet?.room?.client, mEvent);
 
   if (hasStopReaction(relations) && !terminalMetadata) {
     return true;
