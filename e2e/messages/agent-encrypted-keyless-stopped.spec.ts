@@ -94,6 +94,9 @@ const keylessShowsFinished = async (
     await fresh.waitForTimeout(3_000);
     if (SHOTS) await fresh.screenshot({ path: `${SHOTS}/keyless-thread-${engine}.png` });
     await expect(fresh.getByText(/A newer edit couldn.t be decrypted/)).toHaveCount(0);
+    // Regression (P2-e2ee-F003): the thread has no approval, but its reply could not be
+    // decrypted, and a bar said "Some approval history could not be decrypted."
+    await expect(fresh.getByText(/approval history could not be decrypted/)).toHaveCount(0);
   } finally {
     writeFileSync(test.info().outputPath('card.log'), `${log.join('\n')}\n`);
     await fresh.context().close();
