@@ -56,9 +56,6 @@ export const Card = style([
     textAlign: 'start',
     cursor: 'pointer',
     transition: transition(['background-color', 'border-color']),
-    ':hover': {
-      backgroundColor: color.SurfaceVariant.ContainerHover,
-    },
     ':focus-visible': {
       outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
       outlineOffset: '1px',
@@ -66,8 +63,15 @@ export const Card = style([
   },
 ]);
 
-globalStyle(`${CardShell}:hover ${Card}, ${CardShell}:focus-within ${Card}`, {
+globalStyle(`${CardShell}:focus-within ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
+});
+
+// A touch screen keeps :hover on the card tapped last; only a pointer that can hover tints it.
+globalStyle(`${CardShell}:hover ${Card}, ${Card}:hover`, {
+  '@media': {
+    '(hover: hover)': { backgroundColor: color.SurfaceVariant.ContainerHover },
+  },
 });
 
 export const CardAction = style({
