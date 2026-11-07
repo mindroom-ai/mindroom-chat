@@ -5,7 +5,8 @@ import {
   ParticleBackgroundSurface,
   usePersistentParticleBackground,
 } from '../particle-background/PersistentParticleBackground';
-import { useDeploymentBranding } from '../branding/deploymentBranding';
+import { useLoadedOrCachedClientConfig } from '../../config/ClientConfigLoader';
+import { deploymentBranding } from '../branding/deploymentBranding';
 import {
   ParticleTextBackdrop,
   ParticleTextQuiet,
@@ -22,8 +23,10 @@ type SplashScreenProps = {
 export function SplashScreen({ children, background }: SplashScreenProps) {
   const persistentBackground = usePersistentParticleBackground();
   const customBackground = background !== undefined && background !== null && background !== false;
-  // The deployment's name once its configuration has loaded; MindRoom Chat's while it loads.
-  const { title } = useDeploymentBranding();
+  // The deployment's name, from its configuration or the last one this browser loaded. Before any
+  // has loaded the name is unknown, and naming MindRoom Chat could name another deployment's app.
+  const config = useLoadedOrCachedClientConfig();
+  const title = config && deploymentBranding(config).title;
 
   return (
     <Box
@@ -39,13 +42,15 @@ export function SplashScreen({ children, background }: SplashScreenProps) {
         {children}
       </Box>
       <Box justifyContent="Center" className={css.SplashScreenFooter}>
-        <Text
-          size="H2"
-          align="Center"
-          className={classNames(ParticleTextQuiet, ParticleTextBackdrop)}
-        >
-          {title}
-        </Text>
+        {title && (
+          <Text
+            size="H2"
+            align="Center"
+            className={classNames(ParticleTextQuiet, ParticleTextBackdrop)}
+          >
+            {title}
+          </Text>
+        )}
       </Box>
     </Box>
   );

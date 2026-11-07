@@ -1276,7 +1276,7 @@
       "matchingUsers_other": "{{count}} overeenkomende gebruikers"
     },
     "mindRoomSplashScreen": {
-      "loading": "MindRoom Chat laden"
+      "loading": "{{appName}} laden"
     },
     "commands": {
       "CommandMe": "Actiebericht verzenden",
