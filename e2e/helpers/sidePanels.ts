@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  type TestInfo,
+} from '@playwright/test';
 import { loginWithPassword } from './auth';
 import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
@@ -7,6 +13,7 @@ import {
   type DisposableUser,
 } from './disposableAccounts';
 import {
+  createPrivateRoom,
   createThreadFixture,
   joinRoom,
   registerAgentAccount,
@@ -23,6 +30,8 @@ import { alignUiActionSync } from './uiActionSync';
 // through the page, never reached: the call panel opens without a call).
 
 export const CORE_PANELS = ['computer', 'canvas', 'call', 'members'] as const;
+/** The name of the room the viewer opens the panels in. */
+const PANEL_ROOM = 'Side panels';
 type CorePanel = (typeof CORE_PANELS)[number];
 
 const COMPUTER_API = 'http://127.0.0.1:28179';
@@ -35,7 +44,7 @@ const seedPanelRoom = async (): Promise<PanelRoom> => {
   const viewer = await registerDisposableUser(`panels_${suffix}`, randomUUID());
   const agent = await registerAgentAccount(HOMESERVER, 'panels');
   const fixture = await createThreadFixture(HOMESERVER, viewer.accessToken, {
-    name: 'Side panels',
+    name: PANEL_ROOM,
     topic: 'One side panel at a time',
     rootBody: 'Show me around',
     replyBody: 'The panels of this conversation',
@@ -146,4 +155,88 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
   const scope = panel === 'members' ? roomHeader(page) : panelLocator(page, panel);
   await scope.getByRole('button', { name: names[panel], exact: true }).click();
   await expect(panelLocator(page, panel)).toHaveCount(0);
+};
+
+const widthOf = async (locator: Locator): Promise<number> =>
+  (await locator.boundingBox())?.width ?? 0;
+
+/** Opens another room of the viewer, `name`, from the room list, and waits for its header. */
+const showRoom = async (page: Page, name: string) => {
+  await page.getByRole('link', { name, exact: true }).first().click();
+  await expect(roomHeader(page).getByRole('heading', { name, exact: true })).toBeVisible();
+};
+
+/**
+ * Takes the shown side panel (`panel`, titled `label`) through its frame's layouts in the room
+ * `room` opened: it fills the room in the conversation's place, comes back beside it, folds to a
+ * tab at the room's edge beside the whole conversation, stays folded while another room, where it
+ * is not open, shows, and comes back from its tab. Saves a screenshot of each layout under
+ * `testInfo`'s output, named after `label`.
+ */
+export const checkPanelFrame = async (
+  page: Page,
+  testInfo: TestInfo,
+  room: PanelRoom,
+  { panel, label }: { panel: Locator; label: string }
+) => {
+  const shot = (layout: string) =>
+    page.screenshot({ path: testInfo.outputPath(`${label}-${layout}.png`.replaceAll(' ', '-')) });
+  const fill = panel.getByRole('button', { name: `Fill the room with ${label}`, exact: true });
+  const fold = panel.getByRole('button', { name: `Fold ${label} to the edge`, exact: true });
+  const tab = panel.getByRole('button', { name: `Unfold ${label}`, exact: true });
+  const conversation = roomHeader(page);
+  const otherRoom = `Elsewhere ${room.roomId.slice(1, 9)}`;
+  await createPrivateRoom(HOMESERVER, room.viewer.accessToken, {
+    name: otherRoom,
+    topic: 'Another room',
+  });
+
+  await expect(fill).toHaveAttribute('aria-pressed', 'false');
+  // The panel has moved in to its width.
+  await panel.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished))
+  );
+  const besideWidth = await widthOf(panel);
+  const conversationWidth = await widthOf(conversation);
+  await shot('beside');
+
+  await fill.click();
+  await expect(conversation).toHaveCount(0);
+  await expect(fill).toHaveAttribute('aria-pressed', 'true');
+  expect(await widthOf(panel)).toBeGreaterThan(besideWidth + conversationWidth - 20);
+  // The panel's own content ends where the panel does, its end edge (its Close) in view.
+  const end = async (locator: Locator) => {
+    const box = (await locator.boundingBox())!;
+    return box.x + box.width;
+  };
+  expect(await end(panel.locator(':scope > :first-child > :last-child'))).toBeLessThanOrEqual(
+    (await end(panel)) + 1
+  );
+  await shot('filled');
+  await fill.click();
+  await expect(conversation).toBeVisible();
+  await expect.poll(() => widthOf(panel)).toBe(besideWidth);
+  expect(await widthOf(conversation)).toBe(conversationWidth);
+
+  await fold.click();
+  await expect(tab).toBeVisible();
+  await expect(tab).toHaveText(label);
+  await expect(fill).toHaveCount(0);
+  const tabWidth = await widthOf(panel);
+  expect(tabWidth).toBeLessThan(60);
+  // The conversation takes the room's width but for the tab.
+  expect(await widthOf(conversation)).toBeGreaterThan(conversationWidth + besideWidth - 60);
+  await shot('folded');
+
+  // Another room shows without it; back in its room it is still folded.
+  await showRoom(page, otherRoom);
+  await expect(panel).toHaveCount(0);
+  await showRoom(page, PANEL_ROOM);
+  await expect(tab).toBeVisible();
+  expect(await widthOf(panel)).toBe(tabWidth);
+
+  await tab.click();
+  await expect(fill).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => widthOf(panel)).toBe(besideWidth);
+  await expect(conversation).toBeVisible();
 };
