@@ -18,9 +18,10 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. The plugin's storage notes
 // each greeting an account saw, and a greeting seen in an earlier page load shows "Seen before".
-// When Alice signs out, the app deletes her plugin storage and asks the plugin to forget her: Bob,
-// signing in next in the same browser, finds nothing of hers, and neither does Alice when she
-// signs in again. Set PLUGIN_SHOTS=<directory> to save screenshots.
+// When Alice signs out, the app deletes her plugin storage, which the plugin's component in neither
+// of her tabs writes back as it unmounts, and asks the plugin to forget her: Bob, signing in next
+// in the same browser, finds nothing of hers, and neither does Alice when she signs in again. Set
+// PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'plugin-storage-password';
 const RUN = Date.now().toString(36);
@@ -116,11 +117,16 @@ test("signing out deletes the account's plugin storage and the plugin forgets th
     // The plugin keeps what it stored for Alice across page loads.
     await expect(await openSeenMark(page)).toHaveText('Seen before');
     await shot(page, 'alice-seen-before');
+    // A second tab shows it too; its plugin component saves again as the logout unmounts it.
+    const other = await context.newPage();
+    await expect(await openSeenMark(other)).toHaveText('Seen before');
 
     // The last logout deletes the account's local data, then reloads the app.
     const reloaded = page.waitForEvent('load');
     await logoutActiveAccount(page);
     await reloaded;
+    await expect(other).toHaveURL(/\/login\//, { timeout: 60_000 });
+    await other.close();
     expect(await pluginKeysOf(page, alice.userId)).toEqual([]);
     expect(await page.evaluate(() => sessionStorage.getItem('example-plugin.forgot'))).toBe(
       alice.userId
