@@ -32,7 +32,20 @@ const publishedMode = async (stack: AgentStack, roomId: string): Promise<string 
   }
 };
 
-/** A room of the tester's with the helper and the router, which may write the room's state. */
+const joinedMembers = async (stack: AgentStack, roomId: string): Promise<string[]> => {
+  const { joined } = await matrixFetch<{ joined: Record<string, unknown> }>(
+    stack.homeserver,
+    `/rooms/${encodeURIComponent(roomId)}/joined_members`,
+    { accessToken: stack.tester.accessToken }
+  );
+  return Object.keys(joined);
+};
+
+/**
+ * A room of the tester's with the router, which may write the room's state, and then the helper.
+ * The router publishes the mode when a responder's membership changes in a room it is in; joining
+ * a room it was invited to does not publish (MindRoom main 42e66ba76), so the router goes first.
+ */
 const createAgentRoom = async (stack: AgentStack): Promise<string> => {
   const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
     stack.homeserver,
@@ -43,13 +56,21 @@ const createAgentRoom = async (stack: AgentStack): Promise<string> => {
       body: JSON.stringify({
         name: `Support desk ${uniqueWord('mode')}`,
         preset: 'private_chat',
-        invite: [stack.agents.helper, stack.agents.router],
+        invite: [stack.agents.router],
         // The creator holds the room by its version's rules; the router gets the power to write
         // the room's state, as in rooms MindRoom creates.
         power_level_content_override: { users: { [stack.agents.router]: 100 } },
       }),
     }
   );
+  await expect
+    .poll(() => joinedMembers(stack, roomId), { timeout: 60_000, message: 'the router joins' })
+    .toContain(stack.agents.router);
+  await matrixFetch(stack.homeserver, `/rooms/${encodeURIComponent(roomId)}/invite`, {
+    method: 'POST',
+    accessToken: stack.tester.accessToken,
+    body: JSON.stringify({ user_id: stack.agents.helper }),
+  });
   return roomId;
 };
 
