@@ -630,14 +630,22 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
         if (!inside) setFocusInside(false);
       },
     });
-    const mousePressed = useRef(false);
+    // The kind of pointer that pressed in the row, until the focus that press gives arrives.
+    const pressedPointer = useRef<string>();
     const noteRowPointer = (evt: PointerEvent<HTMLDivElement>) => {
-      mousePressed.current = evt.pointerType === 'mouse';
+      pressedPointer.current = evt.pointerType;
     };
+    // Focus from the keyboard, or from a tap on the message itself, shows the toolbar. A tap on one
+    // of the row's controls, such as a streaming reply's Stop, does not: the focus stayed in the
+    // row and kept the toolbar open over the message above it.
     const noteRowFocus = (evt: FocusEvent<HTMLDivElement>) => {
-      const fromMouse = mousePressed.current;
-      mousePressed.current = false;
-      setFocusInside(!fromMouse || isKeyboardFocus(evt.target));
+      const pointer = pressedPointer.current;
+      pressedPointer.current = undefined;
+      setFocusInside(
+        isKeyboardFocus(evt.target) ||
+          pointer === undefined ||
+          (pointer !== 'mouse' && evt.target === evt.currentTarget)
+      );
     };
     const toolbarRef = useRef<HTMLDivElement>(null);
     // The inline editor has its own buttons, so the toolbar stays away while it is open.
