@@ -108,9 +108,7 @@ const readByOwnReceipts = (
   if (unthreadedTs !== undefined && unthreadedTs >= event.getTs()) return true;
   const context = threadId ? room.getThread(threadId) : room;
   const receipts = [ReceiptType.Read, ReceiptType.ReadPrivate].flatMap((receiptType) =>
-    [true, false].map((realOnly) =>
-      context?.getReadReceiptForUserId(userId, realOnly, receiptType)
-    )
+    [true, false].map((realOnly) => context?.getReadReceiptForUserId(userId, realOnly, receiptType))
   );
   return receipts.some((receipt) => {
     if (!receipt) return false;
