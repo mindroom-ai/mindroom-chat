@@ -14,6 +14,7 @@ import {
 } from '../event-store/threads/threadMessagePreview';
 import { RoomInputReplyContext } from './RoomInputExtensions';
 import { isUnreadableYet } from '../matrix/decryptionWaits';
+import { revealDirectionControls } from '../ui/directional';
 
 /**
  * The content of the message replied to, for the bar's preview. A reply target kept on disk for an
@@ -55,7 +56,7 @@ type RoomInputReplyPreviewProps = {
 /**
  * The bar above the composer naming the message being replied to, with a one-line preview of
  * it. A preview text the draft brings (a canvas title) shows as written; a body shows without
- * its Markdown. Mentions read as the members' names.
+ * its Markdown. Mentions read as the members' names, and direction controls as code points.
  */
 export function RoomInputReplyPreview({
   room,
@@ -70,7 +71,11 @@ export function RoomInputReplyPreview({
     replyDraft.userId;
   const quoted = useQuotedContent(room, replyDraft);
   const preview = replyDraft.previewText
-    ? replaceMatrixUserIdsWithDisplayNames(room, replyDraft.previewText, '@')
+    ? replaceMatrixUserIdsWithDisplayNames(
+        room,
+        revealDirectionControls(replyDraft.previewText),
+        '@'
+      )
     : getReplyPreviewText(room, quoted, t);
 
   return (
