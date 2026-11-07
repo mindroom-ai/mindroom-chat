@@ -4,6 +4,7 @@ import {
   ClientEvent,
   createClient,
   EventType,
+  MatrixEvent,
   RelationType,
   SyncState,
   type IEvent,
@@ -195,6 +196,43 @@ describe('streaming replies restored from the saved sync', () => {
     const { firstShown } = await reload([root, placeholder]);
 
     expect(firstShown).toEqual(['word1 word2 word3']);
+  });
+
+  it('keeps the cached text when the SDK maps an older summary of the reply again', async () => {
+    await saveToCache(
+      withBundledEdit(placeholder, editOf('$reply', 'word1 word2 word3', 'streaming', 9))
+    );
+    const { client } = await reload([root, placeholder]);
+    const room = client.getRoom(ROOM_ID)!;
+    const reply = room.findEventById('$reply')!;
+    const applied: (string | undefined)[] = [];
+    const makeReplaced = reply.makeReplaced.bind(reply);
+    vi.spyOn(reply, 'makeReplaced').mockImplementation((edit) => {
+      applied.push(edit?.getId());
+      makeReplaced(edit);
+    });
+
+    // A thread list read mid-stream: the root's summary bundles the reply with an older edit,
+    // which the SDK's event mapper puts back on the live reply.
+    const olderSummary = withBundledEdit(placeholder, editOf('$reply', 'word1', 'streaming', 3));
+    room.getThread('$root')!.refreshListedRoot(
+      new MatrixEvent({
+        ...root,
+        unsigned: {
+          'm.relations': {
+            [RelationType.Thread]: {
+              count: 1,
+              current_user_participated: false,
+              latest_event: olderSummary,
+            },
+          },
+        },
+      })
+    );
+
+    await vi.waitFor(() => expect(applied).toContain('$edit-3'));
+    await vi.waitFor(() => expect(reply.getContent().body).toBe('word1 word2 word3'));
+    expect(applied.at(-1)).toBe('$edit-9');
   });
 
   it('keeps a newer edit the saved sync holds over an older cached one', async () => {
