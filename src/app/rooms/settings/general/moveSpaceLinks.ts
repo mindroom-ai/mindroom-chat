@@ -14,8 +14,9 @@ const hasVia = (content: Record<string, unknown> | undefined): boolean =>
  * replacement instead (`m.space.child`), and the replacement gets the old room's `m.space.parent`
  * links; each is best effort, since a space this account may not change keeps its old child, which
  * the tombstone then leads on from. The replacement also lists the old room's children, and each
- * child that names the old room as its parent names the replacement too, so a sub-room stays
- * under its room. A Space lists its rooms on its own, so their links back to it are best effort,
+ * child that names the old room as its parent names the replacement instead, the old link going
+ * once the new one is in place, so a sub-room moves under the replacement and no longer counts as
+ * under the old room. A Space lists its rooms on its own, so their links back to it are best effort,
  * as when a room is added to one; a chat room's sub-room needs its own link to the replacement as
  * well. Resolves to the children that did not come along: one the replacement could not list, and
  * for a chat room one that refused the new parent or that this account has not joined.
@@ -57,7 +58,9 @@ export const moveSpaceLinks = async (
       ? stateOf(child, StateEvent.SpaceParent, oldRoomId)?.getContent()
       : undefined;
     const link = hasVia(parent)
-      ? send(childId, StateEvent.SpaceParent, parent as object, newRoomId)
+      ? send(childId, StateEvent.SpaceParent, parent as object, newRoomId).then(() =>
+          send(childId, StateEvent.SpaceParent, {}, oldRoomId)
+        )
       : undefined;
     try {
       await Promise.all([
