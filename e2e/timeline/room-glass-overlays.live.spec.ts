@@ -233,6 +233,13 @@ for (const width of [390, 1280]) {
         await expect(page.getByRole('tooltip')).toHaveCount(0);
         // eslint-disable-next-line no-await-in-loop
         await messageScroll.getByRole('scrollbar').hover();
+        // The rows measured above the view after that jump wait in a top margin on the list until
+        // scrolling rests, and then move into scrollTop. A wheel in the frame of that write scrolls
+        // from the offset before it, and Chromium adds its distance to the new one: the view stopped
+        // the margin (20 px) short of the top. The view comes to rest, and the screenshot paints a
+        // frame of it, before the gesture.
+        // eslint-disable-next-line no-await-in-loop
+        await expect(messages).toHaveCSS('margin-top', '0px');
         // eslint-disable-next-line no-await-in-loop
         await page.screenshot({ path: testInfo.outputPath(`${mode}-overlays.png`) });
         // eslint-disable-next-line no-await-in-loop
