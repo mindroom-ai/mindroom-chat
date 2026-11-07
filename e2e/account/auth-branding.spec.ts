@@ -238,14 +238,20 @@ const checkDefault = async (browser: Browser, baseURL: string, browserName: stri
 /** A wordmark logo already shows the name: an empty title shows none beside it. */
 const WORDMARK = { title: '', logo: { src: `${BRAND_HOST}/logo-light.svg`, alt: 'Example Co' } };
 
-/** The visible size of the header's name: its text's box, which a visually hidden name lacks. */
+/** The largest area the header shows `name` in as text: 0 when no text of it shows. */
 const nameBox = (page: Page, name: string) =>
-  header(page)
-    .getByText(name, { exact: true })
-    .evaluate((element) => {
-      const box = element.getBoundingClientRect();
-      return Math.round(box.width) * Math.round(box.height);
-    });
+  header(page).evaluate((element, text) => {
+    const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+    let largest = 0;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.textContent?.includes(text)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      const box = range.getBoundingClientRect();
+      largest = Math.max(largest, Math.round(box.width) * Math.round(box.height));
+    }
+    return largest;
+  }, name);
 
 const checkWordmark = async (browser: Browser, baseURL: string, browserName: string) => {
   for (const layout of Object.keys(LAYOUTS) as Layout[]) {
