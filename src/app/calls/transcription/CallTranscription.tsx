@@ -31,8 +31,6 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   const request = useAtomValue(pauseRequestAtom);
   const live = useAtomValue(liveTranscriptAtom);
   const paused = request !== undefined || !!pausedByIn(live, roomId);
-  /** Pause and Resume requests MindRoom has not answered yet. */
-  const unanswered = useRef(0);
 
   const transcriberRef = useRef<CallTranscriber>();
   const latest = useRef({ track, paused });
@@ -42,6 +40,8 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
     if (!apiUrl) return undefined;
     let current = true;
     let transcriber: CallTranscriber | undefined;
+    /** This call's Pause and Resume requests MindRoom has not answered yet. */
+    let unanswered = 0;
     store.set(callTranscriptionAtom, { roomId, status: 'joining' });
     // Loaded on the first call MindRoom may transcribe, with the speech finder and the routes.
     import('./callTranscriber').then(
@@ -71,10 +71,22 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
         if (current) store.set(callTranscriptionAtom, undefined);
       }
     );
+    // Pause pressed here goes to MindRoom; once it answered (or refused) every request of this
+    // call, the request ends. Answers that come after the call never touch another call's.
+    const unsubscribe = store.sub(pauseRequestAtom, () => {
+      const request = store.get(pauseRequestAtom);
+      if (request === undefined) return;
+      unanswered += 1;
+      void (transcriber?.pause(request) ?? Promise.resolve()).finally(() => {
+        unanswered -= 1;
+        if (current && unanswered === 0) store.set(pauseRequestAtom, undefined);
+      });
+    });
     // A page that goes away leaves MindRoom's call at once, so nobody stays listed in it.
     const pageHide = () => transcriber?.leaveNow();
     window.addEventListener('pagehide', pageHide);
     return () => {
+      unsubscribe();
       window.removeEventListener('pagehide', pageHide);
       current = false;
       transcriberRef.current = undefined;
@@ -92,17 +104,6 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   useEffect(() => {
     transcriberRef.current?.setPaused(paused);
   }, [paused]);
-
-  // Pause pressed here goes to MindRoom; once it answered (or refused) every request, the request
-  // ends.
-  useEffect(() => {
-    if (request === undefined) return;
-    unanswered.current += 1;
-    void (transcriberRef.current?.pause(request) ?? Promise.resolve()).finally(() => {
-      unanswered.current -= 1;
-      if (unanswered.current === 0) store.set(pauseRequestAtom, undefined);
-    });
-  }, [request, store]);
 
   return null;
 }

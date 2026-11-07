@@ -360,6 +360,33 @@ describe('CallTranscription', () => {
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
   });
 
+  it("keeps a call's Pause pressed here when an earlier call's request is answered", async () => {
+    const { store, set } = mount();
+    set({ phase: 'connected', microphoneTrack: MIC_A });
+    await loaded();
+    const first = only();
+    const firstAnswer = pending();
+    first.pause.mockImplementationOnce(() => firstAnswer.promise);
+    act(() => store.set(pauseRequestAtom, true));
+
+    // Leave while MindRoom has not answered, join another call and pause it.
+    act(() => store.set(activeCallAtom, undefined));
+    const next = fakeCall();
+    act(() =>
+      store.set(activeCallAtom, { kind: 'room', call: next.call } as unknown as ActiveCall)
+    );
+    next.set({ phase: 'connected', microphoneTrack: MIC_A });
+    await loaded();
+    const second = defined(made[1], 'the second transcriber');
+    second.pause.mockImplementationOnce(() => pending().promise);
+    act(() => store.set(pauseRequestAtom, true));
+    expect(second.pause).toHaveBeenLastCalledWith(true);
+
+    await act(async () => firstAnswer.resolve());
+    expect(store.get(pauseRequestAtom)).toBe(true);
+    expect(second.setPaused).toHaveBeenLastCalledWith(true);
+  });
+
   it('shows the state MindRoom reports after a refused Pause, which resumes listening', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });

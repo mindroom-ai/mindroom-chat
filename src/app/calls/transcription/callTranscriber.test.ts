@@ -379,6 +379,38 @@ describe('CallTranscriber in a room MindRoom does not transcribe', () => {
     expect(t.reads()).toBe(1);
   });
 
+  it.each([
+    ['a failed Pause request', 'pause', serverError],
+    ['a failed check-in', 'join', serverError],
+    [
+      'an answered Pause request',
+      'pause',
+      () => json({ call: { ...CALL, pausedBy: '@ann:example.org' } }),
+    ],
+  ] as const)(
+    'stays off, for good, when %s arrives after a read said the room is not transcribed',
+    async (_case, route, late) => {
+      const t = setup();
+      t.transcriber.setMicrophone(MIC_A);
+      t.transcriber.start();
+      await advance();
+      const answer = pending<Response>();
+      t.server[route].mockImplementationOnce(() => answer.promise);
+      if (route === 'pause') void t.transcriber.pause(true);
+      else await advance(20_000);
+      t.server.live.mockImplementationOnce(() =>
+        json({ error: 'Not here.', code: 'not-found' }, 404)
+      );
+      await advance(2_000);
+      expect(t.statuses).toEqual(['transcribing', 'off']);
+
+      answer.resolve(late());
+      await advance(60_000);
+      expect(t.statuses).toEqual(['transcribing', 'off']);
+      expect(t.updates.filter((update) => update.type === 'call')).toHaveLength(1);
+    }
+  );
+
   it('stays silent when the server refuses the sign-in', async () => {
     const t = setup();
     t.server.session.mockImplementation(() => json({ detail: 'not bound' }, 403));

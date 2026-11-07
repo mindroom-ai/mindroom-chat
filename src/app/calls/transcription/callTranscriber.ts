@@ -232,8 +232,16 @@ export class CallTranscriber {
     void this.end();
   }
 
+  /**
+   * Ending, or off for good: an answer that arrives now hands nothing on, and no answer ever
+   * brings the status back from off.
+   */
+  private get disposed(): boolean {
+    return this.ending || this.status === 'off';
+  }
+
   private setStatus(status: TranscriberStatus): void {
-    if (this.status === status) return;
+    if (this.status === status || this.status === 'off') return;
     this.status = status;
     if (!this.ending) this.options.onStatus(status, this.callId);
   }
@@ -243,7 +251,7 @@ export class CallTranscriber {
    * before it starts or the controls follow.
    */
   private applyAnswer(call: TranscriptCall): void {
-    if (this.ending) return;
+    if (this.disposed) return;
     this.answers += 1;
     this.lastAnswer = call;
     this.options.onUpdate({ type: 'call', call });
@@ -360,7 +368,7 @@ export class CallTranscriber {
       for (let attempt = 0; ; attempt += 1) {
         try {
           const line = await this.client.speech(callId, stretch, timeout.signal);
-          if (line && !this.ending) this.options.onUpdate({ type: 'line', line });
+          if (line && !this.disposed) this.options.onUpdate({ type: 'line', line });
           return;
         } catch (error) {
           if (timeout.signal.aborted) {
@@ -420,7 +428,7 @@ export class CallTranscriber {
       LIVE_READ_MS,
       this.stopReading.signal,
       (live) => {
-        if (this.ending) return;
+        if (this.disposed) return;
         // A read sent before MindRoom's last answer may tell the call as it was before it: the
         // answer's call stays, and the read adds only its lines of that call.
         const answer = answersAtRead === this.answers ? undefined : this.lastAnswer;
