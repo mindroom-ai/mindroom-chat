@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Run a real MindRoom backend, driven by a stub model or a real one, against one end-to-end slot's homeserver.
 
-Usage: python3 scripts/agent-stack/stack.py <slot 0-50> up|down|status|usage [--model stub|real]
-       [--calls SERVICE_URL [--calls-profile realtime|live]] [--checkout DIR] [--ref REV]
+Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real]
+       [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions] [--computers] [--checkout DIR]
+       [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
   down    stop the slot's stack and delete its storage (a real-model stack first saves its usage, see below)
@@ -19,8 +20,8 @@ test account never meet accounts an earlier start left on the homeserver. The mo
 scripts/agent-stack/stub_model.py, an OpenAI-compatible server that never calls a real model.
 
 Ports for slot N: homeserver 28100+N (slot 0: 28008, as scripts/e2e-slot.sh), MindRoom API 29600+N, stub
-model 29700+N. Exit codes: 3 no MindRoom checkout, 4 no homeserver, 5 no provider keys for --model real,
-1 anything else.
+model 29700+N; each range holds 100 ports, so slots 0-99 never share one. Exit codes: 3 no MindRoom checkout,
+4 no homeserver, 5 no provider keys for --model real, 1 anything else.
 
 --model real (or $E2E_AGENT_MODEL=real) runs the helper on Claude Haiku 5.5, with GPT-6 Luna as the thread's other
 model, the router's and the thread summaries' model. The helper's instructions turn the stub's hashtags into a script
@@ -36,6 +37,17 @@ service at that URL (the slot's scripts/e2e-rtc.sh service), with a realtime Ope
 the real model's keys, reaches only the backend's process; the stub models keep a placeholder key of their own. The
 backend then runs from an environment with MindRoom's matrix_calls extra ($E2E_AGENT_STACK_ROOT/src/<sha>-matrix_calls).
 `usage` and `down` also report the voice models' tokens, which the backend keeps in the helper's session database.
+
+--client-sessions lets the slot's Chat (http://127.0.0.1:4300+N, slot 0: 4200) sign in to the backend's client
+sessions, which plugin routes accept: the Chat origin goes into MINDROOM_COMPUTER_ALLOWED_ORIGINS, and the API's URL
+into MINDROOM_PUBLIC_URL, which makes it the OpenID audience and the origin the agents publish. Sign-in also needs a
+homeserver that binds OpenID tokens, MindRoom's Tuwunel with TUWUNEL_MINDROOM_OPENID_AUDIENCE=true, which
+e2e/docker-compose.yaml does not set; on any other, POST /api/client-sessions answers 403.
+
+--computers gives the helper a Worker Computer (MindRoom's docs/tools/worker-computer.md): MindRoom runs Docker
+workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
+from the commit (a few minutes), and only the helper's browser_mcp runs in a worker. It needs Docker and implies
+--client-sessions, since Chat opens a computer through the same origin settings.
 """
 
 from __future__ import annotations
@@ -98,6 +110,10 @@ CALL_PROFILES = {
     "live": {"backend": "live", "model": "gpt-live-1"},
 }
 CALLS_EXTRA = "matrix_calls"
+# Worker Computers (--computers) run in MindRoom's Docker workers, which need its docker extra and an image built
+# from the commit with this Dockerfile (docs/tools/worker-computer.md).
+DOCKER_EXTRA = "docker"
+WORKER_DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
 
 
 class StackError(Exception):
@@ -111,8 +127,11 @@ def log(message: str) -> None:
 
 
 def ports(slot: int) -> dict[str, int]:
+    """The slot's ports; each service has a range of 100, so slots 0-99 never share one."""
     return {
         "matrix": 28008 if slot == 0 else 28100 + slot,
+        # The slot's Chat (scripts/e2e-slot.sh), the origin client sessions and computers admit.
+        "app": 4200 if slot == 0 else 4300 + slot,
         "api": 29600 + slot,
         "stub": 29700 + slot,
     }
@@ -266,6 +285,28 @@ def prepare_source(checkout: Path, sha: str, extras: tuple[str, ...] = ()) -> Pa
     return source
 
 
+def worker_image(checkout: Path, sha: str) -> str:
+    """The Docker image of the commit's Worker Computers, built once: MindRoom refuses a worker whose protocol differs
+    from the backend's."""
+    image = f"mindroom-client-e2e-worker:{sha[:12]}"
+    with locked(stack_root() / "src" / f"{sha}-worker.lock"):
+        if subprocess.run(["docker", "image", "inspect", image], capture_output=True).returncode == 0:
+            return image
+        log(f"building the worker image {image} (the first time takes a few minutes)")
+        archive = subprocess.Popen(["git", "-C", str(checkout), "archive", sha], stdout=subprocess.PIPE)
+        # Closing this end once the build ends stops an archive the build did not read to its end.
+        with archive.stdout:
+            build = subprocess.run(
+                ["docker", "build", "--quiet", "--tag", image, "--file", WORKER_DOCKERFILE, "-"],
+                stdin=archive.stdout,
+                capture_output=True,
+                text=True,
+            )
+        if archive.wait() != 0 or build.returncode != 0:
+            raise StackError(f"building {image} failed:\n{build.stderr[-3000:]}")
+    return image
+
+
 # Processes
 
 
@@ -314,6 +355,29 @@ def start_process(command: list[str], *, cwd: Path, env: dict[str, str], log_pat
 def provider_keys() -> dict[str, str]:
     """The provider keys of this script's environment, for a real-model backend's process environment only."""
     return {name: os.environ[name] for name in PROVIDER_KEYS if os.environ.get(name)}
+
+
+def option_env(slot: int, client_sessions: bool, image: str | None) -> list[str]:
+    """The .env lines of --client-sessions, and of --computers (which implies it), whose Docker workers run `image`."""
+    if not client_sessions:
+        return []
+    port = ports(slot)
+    # The slot's Chat may call the API's client sessions, plugin routes and computers, and the API's URL is the OpenID
+    # audience and the origin the agents publish, so a token Chat binds to it signs Chat in.
+    lines = [
+        f"MINDROOM_PUBLIC_URL=http://127.0.0.1:{port['api']}",
+        f'MINDROOM_COMPUTER_ALLOWED_ORIGINS=["http://127.0.0.1:{port["app"]}"]',
+    ]
+    if image:
+        lines += [
+            "MINDROOM_WORKER_BACKEND=docker",
+            f"MINDROOM_DOCKER_WORKER_IMAGE={image}",
+            "MINDROOM_DOCKER_WORKER_SECURITY_POLICY=computer",
+            "MINDROOM_WORKER_COMPUTER_ENABLED=true",
+            # MindRoom derives each worker's token from it.
+            f"MINDROOM_SANDBOX_PROXY_TOKEN={secrets.token_hex(16)}",
+        ]
+    return lines
 
 
 def stub_models_yaml(stub_url: str) -> str:
@@ -437,7 +501,12 @@ calls:
 
 
 def config_yaml(
-    mode: str, tester_id: str, stub_url: str, approval_expiry_days: float, calls: dict | None = None
+    mode: str,
+    tester_id: str,
+    stub_url: str,
+    approval_expiry_days: float,
+    calls: dict | None = None,
+    computers: bool = False,
 ) -> str:
     agent_tools = """      - shell
       - scheduler
@@ -447,6 +516,10 @@ def config_yaml(
       - thread_model
       - chat_ui:
           enable_show_canvas: true"""
+    # A Worker Computer is a browser in a worker of one person and agent; every other tool stays in the backend.
+    worker_defaults = "  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n" if computers else ""
+    if computers:
+        agent_tools += "\n      - browser_mcp"
     if mode == "real":
         # JSON strings are YAML flow scalars, so the script needs no escaping of its own.
         instructions = "\n".join(f"      - {json.dumps(line)}" for line in REAL_INSTRUCTIONS)
@@ -507,7 +580,7 @@ background_tool_jobs:
 
 defaults:
   markdown: true
-{summary_model}
+{worker_defaults}{summary_model}
 administrators:
   - "{tester_id}"
 room_defaults:
@@ -709,6 +782,19 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
     }
 
 
+def started_with(state: dict, args: argparse.Namespace, sha: str, homeserver: str) -> bool:
+    """Whether a stack's state comes from a start with this model, calls, client sessions and computers, of this
+    commit, on this homeserver; a state without clientSessions or computers counts as one started without them."""
+    return (
+        state.get("model", "stub") == args.model
+        and state.get("calls") == calls_setting(args)
+        and state.get("clientSessions", False) == args.client_sessions
+        and state.get("computers", False) == args.computers
+        and state.get("sha") == sha
+        and state.get("homeserver") == homeserver
+    )
+
+
 def up(slot: int, args: argparse.Namespace) -> dict:
     checkout = resolve_checkout(args.checkout)
     port = ports(slot)
@@ -723,17 +809,14 @@ def up(slot: int, args: argparse.Namespace) -> dict:
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
-        and state.get("model", "stub") == args.model
-        and state.get("calls") == calls
-        and state.get("sha") == sha
-        and state.get("homeserver") == homeserver
+        and started_with(state, args, sha, homeserver)
         and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
         and token_is_valid(homeserver, state.get("routerToken"))
     ):
         return state
     if state:
         log(
-            "the stack is stale (other commit, model or calls, stopped, a start that failed, or its homeserver was "
+            "the stack is stale (other commit, model or options, stopped, a start that failed, or its homeserver was "
             "reset); "
             "restarting it"
         )
@@ -769,7 +852,9 @@ def start(
 ) -> dict:
     """Starts the stack; `keys` (real model or calls only) go to the backend's process environment and nowhere else."""
     calls = calls_setting(args)
-    source = prepare_source(checkout, sha, (CALLS_EXTRA,) if calls else ())
+    extras = (*((CALLS_EXTRA,) if calls else ()), *((DOCKER_EXTRA,) if args.computers else ()))
+    source = prepare_source(checkout, sha, extras)
+    image = worker_image(checkout, sha) if args.computers else None
     venv_bin = source / ".venv" / "bin"
     real = args.model == "real"
     agents = AGENTS[args.model]
@@ -792,7 +877,9 @@ def start(
     (slot_dir / "stub").mkdir()
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
-    config_path.write_text(config_yaml(args.model, tester_id, stub_url, args.approval_expiry_days, calls))
+    config_path.write_text(
+        config_yaml(args.model, tester_id, stub_url, args.approval_expiry_days, calls, args.computers)
+    )
     api_url = f"http://127.0.0.1:{port['api']}"
     (slot_dir / ".env").write_text(
         "\n".join(
@@ -804,6 +891,7 @@ def start(
                 *([] if keys else ["OPENAI_API_KEY=stub-key-no-model-is-called"]),
                 f"MINDROOM_API_KEY={secrets.token_hex(16)}",
                 "MINDROOM_AUTO_BUILD_FRONTEND=0",
+                *option_env(slot, args.client_sessions, image),
                 "",
             ]
         )
@@ -828,6 +916,8 @@ def start(
         "model": args.model,
         "models": MODELS[args.model],
         "calls": calls,
+        "clientSessions": args.client_sessions,
+        "computers": args.computers,
         "sha": sha,
         "checkout": str(checkout),
         "namespace": namespace,
@@ -1024,6 +1114,18 @@ def main() -> int:
         help="the helper's voice: realtime (gpt-realtime-2.1-mini, the default) or live (gpt-live-1)",
     )
     parser.add_argument(
+        "--client-sessions",
+        action="store_true",
+        help="the slot's Chat may sign in to the backend's plugin routes with client sessions (needs a homeserver "
+        "that binds OpenID tokens)",
+    )
+    parser.add_argument(
+        "--computers",
+        action="store_true",
+        help="the helper gets a Worker Computer, in a Docker worker built from the same commit; implies "
+        "--client-sessions",
+    )
+    parser.add_argument(
         "--checkout", help=f"MindRoom checkout (default $E2E_MINDROOM_CHECKOUT or {DEFAULT_CHECKOUT})"
     )
     parser.add_argument(
@@ -1038,8 +1140,10 @@ def main() -> int:
     args = parser.parse_args()
     if args.model not in MODES:
         parser.error(f"--model must be one of {', '.join(MODES)}")
-    if not 0 <= args.slot <= 50:
-        parser.error("slot must be 0-50")
+    if not 0 <= args.slot <= 99:
+        parser.error("slot must be 0-99")
+    # Chat opens a computer through the same origin settings as a client session.
+    args.client_sessions = args.client_sessions or args.computers
     slot_dir = stack_root() / f"slot-{args.slot}"
     signal.signal(signal.SIGTERM, exit_on_sigterm)
     try:
