@@ -127,6 +127,7 @@ import { useThreadOpeningReveal } from './useThreadOpeningReveal';
 import { useViewScopedFlag } from './roomTimelineViewScope';
 import {
   heldListHeight,
+  isNearLatestEnd,
   useGestureBottomPins,
   useLatestRowPin,
   useRowsGeneration,
@@ -776,8 +777,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
     !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
   // Replaced room rows (not added ones) start the ledger over, as another room does.
   const rowsGeneration = useRowsGeneration(timeline.linkedTimelines);
+  // The Threads view, newest first, keeps a reader who scrolled down where they are while threads
+  // land at its top; a reader at the top sees them arrive.
+  const anchorBelowLatestEnd = useCallback(() => {
+    const scrollArea = getScrollElement();
+    return !!scrollArea && !isNearLatestEnd(scrollArea, true);
+  }, [getScrollElement]);
   const ledger = useTimelineScrollLedgerController({
     alive,
+    anchorRoomRows: latestAtTop ? anchorBelowLatestEnd : undefined,
     estimateSize,
     getItemKey,
     getScrollElement,

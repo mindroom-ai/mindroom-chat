@@ -1,0 +1,42 @@
+import { describe, expect, it } from 'vitest';
+import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
+
+const price = (key: string | number | bigint) => (String(key).startsWith('$tall') ? 300 : 100);
+const anchorAt = (keys: string[], key: string): RoomLedgerAnchor => ({
+  key,
+  index: keys.indexOf(key),
+  keys,
+  priceRow: price,
+});
+
+describe('planRoomLedgerRender', () => {
+  const rows = ['$a', '$b', '$c', '$d', '$e'];
+
+  it('folds rows that land above the reader', () => {
+    expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$new', ...rows], price)).toBe(100);
+    expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$tall', '$new', ...rows], price)).toBe(400);
+  });
+
+  it('folds a thread that moves above the reader from below', () => {
+    expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$e', '$a', '$b', '$c', '$d'], price)).toBe(
+      100
+    );
+  });
+
+  it('takes back the height of rows that leave the space above the reader', () => {
+    expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$a', '$c', '$d', '$e'], price)).toBe(-100);
+  });
+
+  it('holds by the next row when the reader’s own row moves to the top', () => {
+    expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$c', '$a', '$b', '$d', '$e'], price)).toBe(
+      0
+    );
+  });
+
+  it('folds nothing for rows that change below the reader, or without an anchor', () => {
+    expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$a', '$b', '$c', '$x', '$e'], price)).toBe(
+      0
+    );
+    expect(planRoomLedgerRender(undefined, ['$new', ...rows], price)).toBe(0);
+  });
+});
