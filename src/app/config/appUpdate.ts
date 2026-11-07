@@ -16,6 +16,12 @@
 // left (src/sw/sw.ts), and the old worker answers the reload with its own shell. So a reload for the
 // new version asks the waiting worker to take over first, staging it if the version monitor
 // (src/app/config/appVersion.ts) has not yet, and reloads once it controls the page.
+//
+// The server may now publish another app, such as the legacy app after a rollback, whose worker
+// never takes over when asked. Every reload would then come back to this build with the same
+// notice. So when the new worker does not install or take over, and the server answers with
+// another version than this page's, the page unregisters its worker and the reload comes from the
+// server. Offline, the worker stays: the reload needs it.
 
 import {
   APP_BUILD_VERSION,
@@ -141,25 +147,29 @@ const waitWhile = (worker: ServiceWorker, state: ServiceWorkerState, timeoutMs: 
     worker.addEventListener('statechange', onChange);
   });
 
-/** Resolves on the next controller change of `container`, or after `timeoutMs`. */
+/** Resolves true on the next controller change of `container`, false after `timeoutMs`. */
 const waitForNewController = (container: ServiceWorkerContainer, timeoutMs: number) =>
-  new Promise<void>((resolve) => {
-    const done = () => {
+  new Promise<boolean>((resolve) => {
+    const finish = (changed: boolean) => {
       clearTimeout(timer);
-      container.removeEventListener('controllerchange', done);
-      resolve();
+      container.removeEventListener('controllerchange', onChange);
+      resolve(changed);
     };
-    const timer = setTimeout(done, timeoutMs);
-    container.addEventListener('controllerchange', done);
+    const onChange = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    container.addEventListener('controllerchange', onChange);
   });
 
-/** Hands this page to the new build's worker; resolves when it controls the page or cannot. */
-const handOverToNewWorker = async (timeoutMs: number): Promise<void> => {
+/**
+ * Hands this page to the new build's worker. Resolves false when the new worker failed to install
+ * or did not take over in time, and true otherwise, including when there was nothing to hand over.
+ */
+const handOverToNewWorker = async (timeoutMs: number): Promise<boolean> => {
   const container = typeof navigator === 'undefined' ? undefined : navigator.serviceWorker;
-  if (!container) return;
+  if (!container) return true;
   const scope = ensureBasePathTrailingSlash(getAppBasePath());
   let registration = await container.getRegistration(scope);
-  if (!registration) return;
+  if (!registration) return true;
   let worker = registration.waiting ?? registration.installing;
   if (!worker && newVersion !== undefined) {
     // The version monitor stages a new build every five minutes at most; this one cannot wait.
@@ -170,12 +180,33 @@ const handOverToNewWorker = async (timeoutMs: number): Promise<void> => {
     });
     worker = registration.waiting ?? registration.installing;
   }
-  if (!worker) return;
+  if (!worker) return true;
   await waitWhile(worker, 'installing', timeoutMs);
-  if (worker.state !== 'installed') return;
+  // An activating or activated worker claims the page itself.
+  if (worker.state === 'activating' || worker.state === 'activated') return true;
+  if (worker.state !== 'installed') return false;
   const takenOver = waitForNewController(container, timeoutMs);
   worker.postMessage({ type: 'takeOver' });
-  await takenOver;
+  return takenOver;
+};
+
+/**
+ * Unregisters this page's worker when the server publishes another version than this page's, so
+ * the reload comes from the server rather than from this build's shell.
+ */
+const retireWorker = async (): Promise<void> => {
+  const published = await fetchPublishedAppVersion();
+  if (!published || published === APP_BUILD_VERSION) return;
+  const registration = await navigator.serviceWorker.getRegistration(
+    ensureBasePathTrailingSlash(getAppBasePath())
+  );
+  await registration?.unregister();
+};
+
+/** Hands the page to the new worker, or retires the current one when the new one cannot take it. */
+const prepareWorkerForReload = async (timeoutMs: number): Promise<void> => {
+  const handedOver = await handOverToNewWorker(timeoutMs).catch(() => false);
+  if (!handedOver) await retireWorker();
 };
 
 /**
@@ -187,7 +218,7 @@ export const reloadForNewVersion = async ({
   reload = () => window.location.reload(),
 }: { timeoutMs?: number; reload?: () => void } = {}): Promise<void> => {
   try {
-    await Promise.all([handOverToNewWorker(timeoutMs), refetchFailedModules(timeoutMs)]);
+    await Promise.all([prepareWorkerForReload(timeoutMs), refetchFailedModules(timeoutMs)]);
   } catch {
     // Without the new worker the reload still runs; a page the old one serves can retry.
   }
