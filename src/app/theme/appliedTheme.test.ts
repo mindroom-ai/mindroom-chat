@@ -21,7 +21,7 @@ describe('applyAppTheme', () => {
   });
 
   it('marks the root element for the startup theme as well', () => {
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query }));
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
     applyAppTheme(SilverTheme);
 
     applyAppTheme(resolveInitialTheme('/login/'));

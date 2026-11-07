@@ -6,11 +6,12 @@ import {
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
 
-// The root element says whether the applied theme is light or dark (`data-theme-kind`) from the
-// first frame on, and code that subscribes with `subscribeAppliedTheme` hears each theme once it
-// is on the page. Settings switch between a fixed Light and Dark theme and the system's, whose
-// preference the browser emulates. The spec loads the theme module from the dev server, so it
-// shares the app's instance (scripts/e2e-suite.sh runs specs that import /src/ on the dev server).
+// The root element says whether the applied theme is light or dark (`data-theme-kind`), from
+// before the app first renders, and code that subscribes with `subscribeAppliedTheme` hears each
+// theme once it is on the page. Settings switch between a fixed Light and Dark theme and the
+// system's, whose preference the browser emulates. The spec loads the theme module from the dev
+// server, so it shares the app's instance (scripts/e2e-suite.sh runs specs that import /src/ on
+// the dev server).
 const APPLIED_THEME_MODULE = '/src/app/theme/appliedTheme.ts';
 const PASSWORD = 'theme-kind-spec-password';
 const RUN = Date.now().toString(36);
@@ -79,11 +80,7 @@ test('the root element names the theme kind, and subscribers hear each theme onc
   await recordStartup(page);
   await page.emulateMedia({ colorScheme: 'dark' });
   const user = await registerDisposableUser(`theme_kind_${RUN}`, PASSWORD);
-  await loginWithPassword(page, {
-    homeserver: HOMESERVER,
-    username: user.username,
-    password: PASSWORD,
-  });
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
 
   // The startup theme, the system's, marked the root element before the app first rendered.
   const root = page.locator('html');
@@ -101,17 +98,14 @@ test('the root element names the theme kind, and subscribers hear each theme onc
     .getByRole('button', { name: 'Appearance', exact: true })
     .click();
   const systemTheme = dialog.locator('[data-setting-id="systemTheme"]').getByRole('switch');
-  const pickTheme = async (name: string) => {
-    await dialog.locator('[data-setting-id="theme"]').getByRole('button').click();
-    await page.getByRole('menuitemradio', { name, exact: true }).click();
-  };
 
   // System theme off: the fixed theme, Light until another is picked.
   await systemTheme.click();
   await expect(root).toHaveAttribute('data-theme-kind', 'light');
   await expect.poll(() => heardThemes(page)).toEqual([LIGHT]);
 
-  await pickTheme('Dark');
+  await dialog.locator('[data-setting-id="theme"]').getByRole('button').click();
+  await page.getByRole('menuitemradio', { name: 'Dark', exact: true }).click();
   await expect(root).toHaveAttribute('data-theme-kind', 'dark');
   await expect.poll(() => heardThemes(page)).toEqual([LIGHT, DARK]);
 
