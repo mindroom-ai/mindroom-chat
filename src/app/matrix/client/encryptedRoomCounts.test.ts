@@ -313,9 +313,14 @@ describe('unread counts of an encrypted room', () => {
   // holds. The reply, and every event of the thread before it, counted as unread when it
   // decrypted after the server's last count: after a reload, on keys arriving late, and on a new
   // session that has no keys. The server, and the client's own receipt, say it is read.
+  // With the reader's receipts in other threads, as clients with threads send them: the SDK takes
+  // a thread older than every threaded receipt as read.
   const readTerminalEdit = (ts: number) => ({
     type: 'm.receipt',
-    content: { '$edit-done': { 'm.read': { [ME]: { ts, thread_id: ROOT } } } },
+    content: {
+      '$edit-done': { 'm.read': { [ME]: { ts, thread_id: ROOT } } },
+      $elsewhere: { 'm.read': { [ME]: { ts: 1, thread_id: '$other' } } },
+    },
   });
 
   it('count no reply whose terminal edit the reader has a receipt on', async () => {
@@ -330,7 +335,7 @@ describe('unread counts of an encrypted room', () => {
     );
     await f.decrypt(f.find(ROOT), clear[ROOT]);
     await f.decrypt(f.find(REPLY), clear[REPLY]);
-    await f.decrypt(f.find('$edit-done'), editContent('cancelled'));
+    await f.decrypt(f.find('$edit-done'), editContent('completed'));
     expect(f.threadCount()).toBe(0);
     expect(f.totalCount()).toBe(0);
   });
@@ -382,7 +387,11 @@ describe('unread counts of an encrypted room', () => {
     // The stream status of the reply's first message is in the clear; the server counts it not.
     const pending = encrypted(REPLY, AGENT, 2, inThread);
     pending.content['io.mindroom.stream_status'] = 'pending';
-    await f.deliver([encrypted(ROOT, ME, 1), pending]);
+    const readElsewhere = {
+      type: 'm.receipt',
+      content: { $elsewhere: { 'm.read': { [ME]: { ts: 1, thread_id: '$other' } } } },
+    };
+    await f.deliver([encrypted(ROOT, ME, 1), pending], [readElsewhere]);
     await f.decrypt(f.find(REPLY), undefined);
     expect(f.threadCount()).toBe(0);
   });
