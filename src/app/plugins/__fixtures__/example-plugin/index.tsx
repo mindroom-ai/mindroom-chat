@@ -2,7 +2,7 @@
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in, counts its joined members and says
-// whether a MindRoom agent is among them, through the account's client.
+// whether a MindRoom agent has joined or is invited, through the account's client.
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg). Like a plugin outside this repository, it imports the app only through the
 // client SDK.
