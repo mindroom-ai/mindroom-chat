@@ -38,7 +38,7 @@ beforeEach(() => {
 });
 
 describe.each(FORMATS)('the resolver of a $format resolved tag', ({ stateKey, content }) => {
-  const resolverOf = (sender: string | undefined) =>
+  const tagsOf = (sender: string | undefined) =>
     aggregateThreadTagEvents([
       new MatrixEvent({
         type: MINDROOM_THREAD_TAGS_EVENT,
@@ -49,7 +49,8 @@ describe.each(FORMATS)('the resolver of a $format resolved tag', ({ stateKey, co
         room_id: '!room:example.org',
         origin_server_ts: 1,
       }),
-    ]).get('$root')?.tags[RESOLVED_TAG]?.set_by;
+    ]).get('$root')?.tags;
+  const resolverOf = (sender: string) => tagsOf(sender)?.[RESOLVED_TAG]?.set_by;
 
   it.each([
     ['the person who sent it, naming themselves', ALICE, ALICE],
@@ -66,6 +67,6 @@ describe.each(FORMATS)('the resolver of a $format resolved tag', ({ stateKey, co
   });
 
   it('is nobody without a sender, which leaves the thread unresolved', () => {
-    expect(resolverOf(undefined)).toBeUndefined();
+    expect(tagsOf(undefined)).toBeUndefined();
   });
 });
