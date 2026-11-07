@@ -10,7 +10,8 @@ import { openPanel, openPanelRoom, panelLocator, type PanelRoom } from '../helpe
 // it as it was, against the disposable homeserver: a voice message being recorded goes on and is
 // sent once the panel is back beside the conversation, no read receipt goes out for a message that
 // arrives while the panel fills the room (one does once the conversation shows again), and the
-// reader is where they were in the thread.
+// reader is where they were in the thread. On a phone, where a panel covers the conversation, the
+// recording goes on under it too.
 
 test.use({
   viewport: { width: 1600, height: 1000 },
@@ -81,6 +82,16 @@ const readerPlace = async (page: Page) =>
     };
   });
 
+/** Starts a voice message in the composer; skips the test where the browser has no microphone. */
+const startRecording = async (page: Page) => {
+  const discard = page.getByRole('button', { name: 'Discard voice recording' });
+  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
+  const recordingError = page.getByText('Voice Recording Error', { exact: true });
+  await expect(discard.or(recordingError).first()).toBeVisible({ timeout: 15_000 });
+  test.skip(await recordingError.isVisible(), 'This browser offers no microphone to record from');
+  return discard;
+};
+
 test('a side panel filling the room keeps the conversation under it as it was', async ({
   context,
   page,
@@ -95,12 +106,7 @@ test('a side panel filling the room keeps the conversation under it as it was', 
     name: 'Fill the room with Call',
     exact: true,
   });
-  const discard = page.getByRole('button', { name: 'Discard voice recording' });
-
-  await page.getByRole('button', { name: 'Record voice message', exact: true }).click();
-  const recordingError = page.getByText('Voice Recording Error', { exact: true });
-  await expect(discard.or(recordingError).first()).toBeVisible({ timeout: 15_000 });
-  test.skip(await recordingError.isVisible(), 'This browser offers no microphone to record from');
+  const discard = await startRecording(page);
 
   // Filled, the room shows the call alone; back beside the conversation, the recording goes on.
   await openPanel(page, room, 'call');
@@ -154,4 +160,31 @@ test('a side panel filling the room keeps the conversation under it as it was', 
   await expect(fill).toHaveAttribute('aria-pressed', 'false');
   await page.waitForTimeout(1_500);
   expect(await readerPlace(page)).toEqual(before);
+});
+
+test('on a phone, a side panel over the conversation keeps the recording under it', async ({
+  browser,
+}) => {
+  test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
+  test.setTimeout(5 * 60_000);
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    await context.grantPermissions(['microphone']);
+    const page = await context.newPage();
+    const room = await openPanelRoom(context, page);
+    const discard = await startRecording(page);
+    await openPanel(page, room, 'computer');
+    await expect(discard).toBeHidden();
+    await page.screenshot({ path: test.info().outputPath('phone-covered.png') });
+    await panelLocator(page, 'computer')
+      .getByRole('button', { name: 'Close computer', exact: true })
+      .click();
+    await expect(discard).toBeVisible();
+  } finally {
+    await context.close();
+  }
 });
