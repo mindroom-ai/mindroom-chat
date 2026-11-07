@@ -17,7 +17,8 @@ const makeTagEvent = (stateKey: string, content: Record<string, unknown>): Matri
     event_id: `$tags-${nextEventNumber}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    // The person a tag names sent it.
+    sender: typeof content.set_by === 'string' ? content.set_by : '@alice:example.org',
     state_key: stateKey,
     type: MINDROOM_THREAD_TAGS_EVENT,
   });

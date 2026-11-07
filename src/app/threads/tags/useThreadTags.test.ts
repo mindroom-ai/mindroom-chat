@@ -82,7 +82,8 @@ const makePerTagEvent = (threadRootId: string, tagName: string, content: Record<
     event_id: `$per-tag-${threadRootId}-${tagName}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    // The person a tag names sent it.
+    sender: typeof content.set_by === 'string' ? content.set_by : '@alice:example.org',
     state_key: buildPerTagStateKey(threadRootId, tagName),
     type: MINDROOM_THREAD_TAGS_EVENT,
   });
