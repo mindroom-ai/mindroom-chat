@@ -72,7 +72,8 @@ every transcript not yet posted; while it is off nothing is read from or posted 
   A call with no speech posts nothing; a call whose speech could not be transcribed at all posts the message with no
   turns and a body saying so. Afterwards the call's lines are deleted. A message not posted within a day of the end, or
   in a room the router has left, is given up and its lines deleted, so the server never keeps them indefinitely; that
-  holds after MindRoom was down for longer, too.
+  holds after MindRoom was down for longer, too. A day after its end MindRoom does nothing more for a call: no message,
+  no row edit.
 - **Pause.** Anyone in the call can pause transcription, and anyone in it can resume it; the call records who paused.
   It stays paused until someone resumes or the call ends. While paused, speech is refused, and so is a stretch that
   overlapped a paused period, whenever it arrives; a stretch counts from when its app says it began until it arrives, so
