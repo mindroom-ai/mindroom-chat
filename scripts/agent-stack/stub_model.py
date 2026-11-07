@@ -18,6 +18,7 @@ The person's latest message picks a scenario by hashtag:
   #expire      untag_thread, whose approval expires quickly
   #schedule    a reminder in 150 s     #schedulesoon   a reminder in 20 s
   #canvas      show_canvas with a page that submits a color
+  #canvasrtl   the same page, titled in Arabic around a Latin file name
   #job         a shell call that runs 45 s as a background job
 
 Anything else gets a short echo naming the model ("Hello from **stub-fast**. You said: <message>").
@@ -65,6 +66,7 @@ TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
     "#schedulesoon": [("schedule", {"request": "in 20 seconds remind me to stretch", "new_thread": False})],
     "#schedule": [("schedule", {"request": "in 150 seconds remind me to stretch", "new_thread": False})],
     "#canvas": [("show_canvas", {"title": "Stub canvas", "html": CANVAS_PAGE})],
+    "#canvasrtl": [("show_canvas", {"title": "لوحة التخطيط deploy.yaml للإطلاق", "html": CANVAS_PAGE})],
     "#job": [
         ("run_shell_command", {"args": "sleep 45; echo background job finished", "background_after": 0})
     ],
