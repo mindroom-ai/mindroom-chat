@@ -301,7 +301,8 @@ class PrePushTests(Fixture):
 
     def test_a_missing_cache_directory_and_its_missing_parents_are_the_owners_only_whatever_the_umask(self) -> None:
         home = self.tmp / "home"
-        home.mkdir(mode=0o755)
+        home.mkdir()
+        home.chmod(0o755)
         self.addCleanup(os.umask, os.umask(0o002))
         tip = commit(self.repo, {"src/app/own.ts": CLEAN}, "clean")
         result = self.run_checker(tip, HOME=str(home), XDG_CACHE_HOME="")
