@@ -26,7 +26,8 @@ import { callUserIds } from './callMemberships';
 import { browserSharesScreens, browserSupportsCalls, useCallSupport } from './callSupport';
 import { allowMembersToCall, readCallAccess, type CallAccess } from './callAccess';
 import { CallControl, DeviceControl } from './CallControls';
-import { CallMemberAvatar, CallTile, ScreenTile } from './CallTile';
+import { CallMemberAvatar } from './CallTile';
+import { CallStage } from './CallStage';
 import * as css from './CallPanel.css';
 import { revealDirectionControls } from '../ui/directional';
 
@@ -176,7 +177,7 @@ const usePhaseLabel = (state: CallState): string | undefined => {
   return t('featureUi.calls.panel.inCall', { count: people });
 };
 
-/** The call this device is in: everyone's tiles, notices, and the controls. */
+/** The call this device is in: notices, the stage, and the controls. */
 function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => void }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
@@ -226,18 +227,16 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
         off={!state.microphone}
         onClick={() => void call.setMicrophone(!state.microphone)}
       />
-      {!agentCall && (
-        <CallControl
-          label={
-            state.camera
-              ? t('featureUi.call.controls.stopCamera')
-              : t('featureUi.call.controls.startCamera')
-          }
-          icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
-          onClick={() => void call.setCamera(!state.camera)}
-        />
-      )}
-      {!agentCall && browserSharesScreens() && (
+      <CallControl
+        label={
+          state.camera
+            ? t('featureUi.call.controls.stopCamera')
+            : t('featureUi.call.controls.startCamera')
+        }
+        icon={state.camera ? Icons.VideoCamera : Icons.VideoCameraMute}
+        onClick={() => void call.setCamera(!state.camera)}
+      />
+      {browserSharesScreens() && (
         <CallControl
           label={
             state.screenShare
@@ -319,23 +318,13 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
       )}
       {access.canLetMembersIn && <MembersCannotCallNotice room={call.room} />}
       {!finished && (
-        <ul className={css.Tiles} aria-label={t('featureUi.calls.panel.participants')}>
-          {state.participants
-            .filter((participant) => participant.screen)
-            .map((participant) => (
-              <ScreenTile
-                key={`${participant.key}:screen`}
-                room={call.room}
-                participant={participant}
-              />
-            ))}
-          {state.participants.map((participant) => (
-            <CallTile key={participant.key} room={call.room} participant={participant} />
-          ))}
-          {awaitedAgent && (
-            <CallTile key={awaitedAgent.key} room={call.room} participant={awaitedAgent} />
-          )}
-        </ul>
+        <CallStage
+          room={call.room}
+          participants={state.participants}
+          awaited={awaitedAgent}
+          speakerView={false}
+          microphone={state.microphone}
+        />
       )}
     </PanelShell>
   );

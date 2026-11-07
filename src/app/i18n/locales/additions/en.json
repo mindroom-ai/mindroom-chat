@@ -412,6 +412,11 @@
         "transcript": "Transcript",
         "turns_one": "{{count}} turn",
         "turns_other": "{{count}} turns"
+      },
+      "stage": {
+        "speaking": "{{name}} is speaking",
+        "listening": "Listening",
+        "muted": "You are muted"
       }
     },
     "room": {
