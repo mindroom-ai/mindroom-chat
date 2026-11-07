@@ -188,6 +188,17 @@ describe('the room header view switch', () => {
     return { pressed: viewSwitch.props['aria-pressed'], next: setViewMode.mock.calls[0]?.[0] };
   };
 
+  it('tints the switch while the room shows Compact', () => {
+    const tint = () =>
+      renderer?.root.findAll(
+        (node) => node.props['aria-label'] === 'Compact view' && 'variant' in node.props
+      )[0]?.props.variant;
+    renderHeader({ mode: 'compact' });
+    expect(tint()).toBe('Primary');
+    renderHeader({ mode: 'threaded' });
+    expect(tint()).toBe('Surface');
+  });
+
   it('goes between Compact and Threads in rooms with and without agents', () => {
     expect(switchTo('compact', true)).toEqual({ pressed: true, next: 'threaded' });
     expect(switchTo('threaded', true)).toEqual({ pressed: false, next: 'compact' });
@@ -382,11 +393,12 @@ describe("the room header's actions", () => {
       ],
       onCanvasOpen: vi.fn(),
       onCanvasClose: vi.fn(),
+      // A call is on: a phone's row keeps its button, the menu offers the rest.
       calls: (placement) =>
         placement.at === 'menu' ? (
-          <button type="button">Start a call</button>
+          <button type="button">Call Helper</button>
         ) : (
-          !placement.phone && <button type="button" aria-label="Start a call" />
+          <button type="button" aria-label={placement.phone ? 'Join the call' : 'Start a call'} />
         ),
       pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
       onPanelToggle: vi.fn(),
@@ -424,7 +436,7 @@ describe("the room header's actions", () => {
   it("folds a phone's actions into the room menu, in the row's order", () => {
     screen.size = 'Mobile';
     renderEverything();
-    expect(rowLabels()).toEqual(['Back', 'More Options']);
+    expect(rowLabels()).toEqual(['Back', 'Join the call', 'More Options']);
     openMenu();
     expect(roomEntries()).toEqual([
       'Compact view',
@@ -434,7 +446,7 @@ describe("the room header's actions", () => {
       'Pinned Messages',
       'Show Members',
       'Notes',
-      'Start a call',
+      'Call Helper',
     ]);
   });
 
