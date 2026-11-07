@@ -33,6 +33,7 @@ import { usePanelSlot } from '../ui/panels/panelPresence';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
 import { enabledSidePanels } from '../plugins/sidePanels';
+import { usePluginHeaderActions } from '../plugins/headerActions';
 import { ComputerPanel } from '../computer/ComputerPanel';
 import type { ComputerAgent } from '../computer/types';
 import { useComputerApiUrl } from '../computer/useComputerApiUrl';
@@ -286,6 +287,7 @@ function RoomContent() {
     () => enabledSidePanels(registeredPlugins, clientConfig),
     [clientConfig]
   );
+  const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
   // A plugin's panel belongs to the room it opened in.
   const [pluginPanel, setPluginPanel] = useState<{ roomId: string; id: string }>();
   const closePluginPanel = useCallback(() => setPluginPanel(undefined), []);
@@ -541,7 +543,7 @@ function RoomContent() {
   useRoomEscapeReadReceipts({ conversationHidden, hideActivity, roomId, threadId });
 
   const powerLevels = usePowerLevels(room);
-  // The header's side panel controls; the room owns their state.
+  // The header's side panel controls, whose state the room owns, and the plugins' actions.
   const headerPanels: RoomViewHeaderProps = {
     computerAvailable: !!computerTarget.apiUrl,
     computerOpen,
@@ -554,6 +556,7 @@ function RoomContent() {
     shownPanel: shown?.id,
     onPanelToggle,
     pluginPanels,
+    pluginActions,
     calls: (placement) => (
       <Suspense fallback={null}>
         {placement.at === 'menu' ? (

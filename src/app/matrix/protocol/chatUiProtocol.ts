@@ -144,9 +144,9 @@ export type LatestCanvas = {
 
 /**
  * The canvas an edit shows, when it is a valid update of the request; otherwise undefined.
- * Canvas updates are edits by the original sender. The SDK applies some edits (server-bundled
- * ones, thread backfill) without checking their sender, so this checks it again, and an edit may
- * change only the canvas itself; anything else keeps the original canvas.
+ * Canvas updates are edits by the original sender. The SDK applies only those, but callers also
+ * pass edits read from the timeline, so this checks the sender too, and an edit may change only
+ * the canvas itself; anything else keeps the original canvas.
  */
 export const readCanvasEdit = (
   edit: MatrixEvent | null | undefined,
