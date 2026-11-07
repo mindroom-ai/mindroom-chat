@@ -13,15 +13,19 @@ import { onWebKitPage, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // Leaving a thread opened from a link brings its root into view in the Threads view, whose newest
 // thread is at the top, as it does in Compact: the view came back at its top and left the root
-// about 1,000 px further down (live-test finding P2-lane4-F013). A room with an agent and 30
-// threads, the linked one 25 rows down, among 25 rooms, with classic scrollbars; desktop (1280 by
-// 800) and phone (390 by 844, touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
+// about 1,000 px further down (live-test finding P2-lane4-F013). The room comes back in a window
+// around the root, off the live end, and pages of newer history put threads above the reader
+// after the jump: the root stays in view while they land. A room with an agent and 150 threads,
+// the linked one 130 rows down and older than the first sync, among 25 rooms, with classic
+// scrollbars; pages of newer history take 1.5 s, as on a slow connection. Desktop (1280 by 800)
+// and phone (390 by 844, touch), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
 // Playwright's WebKit, in WebKit. Set THREADS_EXIT_SHOTS=<directory> for screenshots.
 const PASSWORD = 'threads-view-deep-link-exit-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const SHOTS = process.env.THREADS_EXIT_SHOTS;
-const TOPICS = 30;
-const LINKED = 6;
+const TOPICS = 150;
+const LINKED = 20;
+const NEWER_PAGE_DELAY_MS = 1_500;
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 800 } };
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -110,6 +114,16 @@ const rootShownAfterExit = async (page: Page, label: string) => {
   const banner = page.locator('[data-thread-context-banner]');
   await expect(banner).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(`Noted topic ${LINKED};`).first()).toBeVisible({ timeout: 30_000 });
+  // Pages of newer history arrive late, after the jump to the root has come to rest.
+  await page.route(
+    (url) => url.pathname.endsWith('/messages') && url.searchParams.get('dir') === 'f',
+    async (route) => {
+      await new Promise((resolve) => {
+        setTimeout(resolve, NEWER_PAGE_DELAY_MS);
+      });
+      await route.continue();
+    }
+  );
   await banner.getByRole('button').first().click();
   await expect(banner).toHaveCount(0, { timeout: 20_000 });
   await expectRoomCompact(page, false, 20_000);
@@ -119,8 +133,8 @@ const rootShownAfterExit = async (page: Page, label: string) => {
       timeout: 15_000,
     })
     .toBe(true);
-  // It stays: nothing hands the view back to the newest threads.
-  await page.waitForTimeout(1_500);
+  // It stays while the newer pages land: nothing hands the view to other threads.
+  await page.waitForTimeout(NEWER_PAGE_DELAY_MS + 2_500);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/threads-exit-${label}.png` });
   expect(await rowShown(page, topic(LINKED)), `the root stays shown (${label})`).toBe(true);
 };
