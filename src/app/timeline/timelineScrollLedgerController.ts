@@ -96,6 +96,8 @@ export type TimelineScrollLedgerController = {
   readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
+  /** The part of the ledger that its planned folds brought with their own height, in px. */
+  readRowFoldPx: () => number;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
@@ -206,6 +208,10 @@ export const useTimelineScrollLedgerController = ({
   // Rows that a later render adds above it are folded, whatever added them.
   const threadLedgerAnchorRef = useRef<ThreadLedgerAnchor>();
   const ledgerSettleWantedRef = useRef(false);
+  // The part of the ledger that rows added above the reader (or the content above the rows) brought
+  // with their own height, until the next settle: it lifts the list without changing the scroll
+  // content, so it is no room the list will give up (`listShrinkNotRendered`).
+  const rowFoldPxRef = useRef(0);
   // Fold pricing must use the previous committed cache. Reading the current
   // virtualizer during render would create a TDZ and couple planning to a
   // mutable instance.
@@ -275,6 +281,7 @@ export const useTimelineScrollLedgerController = ({
       // Preserve measurement corrections that arrived between render and
       // this effect; only add the render plan's delta.
       scrollCompensationPxRef.current += foldPx;
+      rowFoldPxRef.current += foldPx;
       ledgerSettleWantedRef.current = true;
     }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
@@ -442,6 +449,7 @@ export const useTimelineScrollLedgerController = ({
     if (threadLeadingHeld && leadingPx !== threadLeadingPx) {
       // Applied by a synchronous re-render, before this commit paints.
       scrollCompensationPxRef.current += leadingPx - threadLeadingPx;
+      rowFoldPxRef.current += leadingPx - threadLeadingPx;
       ledgerSettleWantedRef.current = true;
       setLedgerCommitTick((tick) => tick + 1);
     }
@@ -544,6 +552,8 @@ export const useTimelineScrollLedgerController = ({
         return;
       }
       scrollCompensationPxRef.current = 0;
+      const rowFoldPx = rowFoldPxRef.current;
+      rowFoldPxRef.current = 0;
       const preSettleScrollTop = scrollElement.scrollTop;
       // Waiting for the write's scroll event would leave the boundary
       // direction baseline stale (Safari can suppress/coalesce it), so the
@@ -558,6 +568,7 @@ export const useTimelineScrollLedgerController = ({
         // arrived after the pre-read — this restore (and the zero-write
         // above) must then become a compare-and-swap against the live ref.
         scrollCompensationPxRef.current = px;
+        rowFoldPxRef.current = rowFoldPx;
         ledgerSettleWantedRef.current = true;
         setLedgerCommitTick((tick) => tick + 1);
         return;
@@ -846,6 +857,7 @@ export const useTimelineScrollLedgerController = ({
     if (resettingLedgerView) {
       compensationResetKeyRef.current = ledgerViewKey;
       scrollCompensationPxRef.current = 0;
+      rowFoldPxRef.current = 0;
       pendingRoomFoldPxRef.current = 0;
       ledgerGenerationRef.current += 1;
       compensationSettleArmedRef.current = false;
@@ -864,11 +876,14 @@ export const useTimelineScrollLedgerController = ({
     virtualizer,
   ]);
 
+  const readRowFoldPx = useCallback(() => rowFoldPxRef.current, []);
+
   return {
     endSettleDiscardWatch,
     holdThreadBannerResize,
     ledgerPxAtRender,
     measureElement,
+    readRowFoldPx,
     threadLeadingRef,
     unrenderedCorrectionPx,
     unrenderedRowMove,
