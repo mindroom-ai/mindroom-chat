@@ -211,32 +211,34 @@ const entriesModule = (plugins) => {
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   const ownerOf = pluginOwner(plugins);
-  /**
-   * The dev server pre-bundles the packages a plugin installed with esbuild, without plugin hooks:
-   * there their imports and requires of the packages the app shares resolve as the app imports
-   * them, to the module the app's own pre-bundle has.
-   * @type {import('esbuild').Plugin}
-   */
-  const preBundling = {
-    name: 'mindroom-client-plugins',
-    setup: (build) => {
-      build.onResolve({ filter: /^[\w@]/ }, ({ path: source, importer }) =>
-        sharedPackage(source) && ownerOf(importer)
-          ? build.resolve(source, {
-              kind: 'import-statement',
-              importer: ENTRIES_MODULE,
-              resolveDir: path.dirname(ENTRIES_MODULE),
-            })
-          : undefined
-      );
-    },
-  };
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
     config: () => ({
       resolve: { alias: CLIENT_SDK_ALIAS },
-      optimizeDeps: { esbuildOptions: { plugins: [preBundling] } },
+      // The dev server pre-bundles the packages a plugin installed with esbuild, without plugin
+      // hooks: there their imports and requires of the packages the app shares resolve as the app
+      // imports them, to the module the app's own pre-bundle has.
+      optimizeDeps: {
+        esbuildOptions: {
+          plugins: [
+            {
+              name: 'mindroom-client-plugins',
+              setup: (build) => {
+                build.onResolve({ filter: /^[\w@]/ }, ({ path: source, importer }) =>
+                  sharedPackage(source) && ownerOf(importer)
+                    ? build.resolve(source, {
+                        kind: 'import-statement',
+                        importer: ENTRIES_MODULE,
+                        resolveDir: path.dirname(ENTRIES_MODULE),
+                      })
+                    : undefined
+                );
+              },
+            },
+          ],
+        },
+      },
       // The dev server serves files outside the workspace only from directories it allows, and a
       // list of them replaces its default, the workspace root.
       server:
