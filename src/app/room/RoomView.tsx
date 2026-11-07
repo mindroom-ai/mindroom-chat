@@ -122,8 +122,8 @@ const useRoomOverlayInsets = (
   }, [areaRef, dockRef, footerRef, headerRef, threadId]);
 };
 
-// Dialogs, menus, lists and regions marked `data-keeps-typing` keep their own typing (fields,
-// type-ahead).
+// Dialogs, menus and lists keep their own typing (fields, type-ahead), and so does a region
+// marked `data-keeps-typing`.
 const OWNS_TYPING_SELECTOR =
   '[role="dialog"], [role="menu"], [role="listbox"], [data-keeps-typing]';
 const focusOwnsTyping = (): boolean =>
