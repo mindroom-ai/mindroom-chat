@@ -23,7 +23,10 @@ export type PluginPage = {
 /** The page of an enabled plugin that the address shows, and its params. */
 export type MatchedPluginPage = { page: PluginPage; params: PluginPageProps['params'] };
 
-/** The app's path of a plugin's page: `path` (concrete, without a leading `/`) under its root. */
+/**
+ * The app's path of a plugin's page: `path` (concrete, its segments encoded, without a leading `/`)
+ * under its root.
+ */
 export const pluginRoutePath = (pluginId: string, path = ''): string =>
   generatePath(PLUGIN_PAGE_PATH, { pluginId, '*': path });
 
@@ -43,7 +46,9 @@ export const usePluginPage = (): MatchedPluginPage | undefined => {
   const match = useMatch(PLUGIN_PAGE_PATH);
   const plugin = match && registeredPlugins.find(({ id }) => id === match.params.pluginId);
   if (!plugin || !isPluginEnabled(config, plugin.id)) return undefined;
-  const rest = `/${match.params['*'] ?? ''}`;
+  // The rest of the address as React Router has it, with `%2F` inside a segment kept, as in the
+  // splat param it is not.
+  const rest = match.pathname.slice(match.pathnameBase.length) || '/';
   for (const page of plugin.pages) {
     const found = matchPath({ path: page.path, end: true }, rest);
     if (found) return { page, params: found.params };

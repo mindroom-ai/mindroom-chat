@@ -70,12 +70,12 @@ describe('usePluginRouteHref', () => {
     return <a href={usePluginRouteHref('example', 'board')}>Board</a>;
   }
   const hrefWith = (createRouter: typeof createBrowserRouter, basename: string) => {
-    render(
-      <RouterProvider
-        router={createRouter([{ path: '*', element: <BoardLink /> }], { basename })}
-      />
-    );
-    return screen.getByRole('link', { name: 'Board' }).getAttribute('href');
+    const router = createRouter([{ path: '*', element: <BoardLink /> }], { basename });
+    render(<RouterProvider router={router} />);
+    const href = screen.getByRole('link', { name: 'Board' }).getAttribute('href');
+    cleanup();
+    router.dispose();
+    return href;
   };
 
   it("adds the browser router's base path", () => {
@@ -96,6 +96,7 @@ describe('usePluginPage', () => {
     expect(pageAt('/p/example/')).toEqual({ page: home, params: {} });
     expect(pageAt('/p/example')).toEqual({ page: home, params: {} });
     expect(pageAt('/p/example/items/a%20b/')).toEqual({ page: item, params: { itemId: 'a b' } });
+    expect(pageAt('/p/example/items/a%2Fb')).toEqual({ page: item, params: { itemId: 'a/b' } });
   });
 
   it('finds none for an unknown plugin or path, or outside the plugin root', () => {
