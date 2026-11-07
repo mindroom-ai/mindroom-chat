@@ -1,7 +1,7 @@
 import { ClientEvent, MatrixEvent, type MatrixClient } from 'matrix-js-sdk';
 import { EventEmitter } from 'events';
 import { describe, expect, it } from 'vitest';
-import { getFinishingEdit, keepSyncedEdits } from './syncedEdits';
+import { getFinishingEdit, getSyncedEdit, keepSyncedEdits } from './syncedEdits';
 
 // Regression (P2-e2ee-F002): a device without the room's keys showed a stopped reply as streaming
 // for good. The SDK never puts an edit it cannot decrypt on its reply, but MindRoom keeps each
@@ -48,5 +48,7 @@ describe('the edit that finished a reply', () => {
 
     mx.emit(ClientEvent.Event, edit('$stopped', 4, 'cancelled'));
     expect(getFinishingEdit(reply)?.getId()).toBe('$stopped');
+    // The newest edit, whoever sent it; the rows keep to their sender's.
+    expect(getSyncedEdit('$reply')?.getId()).toBe('$stopped');
   });
 });
