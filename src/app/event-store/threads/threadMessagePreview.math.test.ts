@@ -23,17 +23,20 @@ describe('thread previews of math', () => {
     );
   });
 
-  it('read symbols, styled text, scripts, other commands and aligned rows', () => {
+  it('read symbols, fonts and scripts', () => {
     expect(preview('$e^{i\\pi} + 1 = 0$')).toBe('e^(iπ) + 1 = 0');
     expect(preview('$\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}$')).toBe('∑_(i=1)^n i = (n(n+1))/2');
     expect(preview('$\\text{speed} = \\dfrac{\\text{distance}}{\\mathrm{time}}$')).toBe(
       'speed = (distance)/(time)'
     );
-    expect(preview('So $P(A \\mid B) \\approx 0.3$ and $\\binom {5}{2} = 10$.')).toBe(
-      'So P(A | B) ≈ 0.3 and binom(5, 2) = 10.'
-    );
-    expect(preview('$$\n\\begin{aligned}\nx + y &= 10 \\\\\nx - y &= 2\n\\end{aligned}\n$$')).toBe(
-      'x + y = 10; x - y = 2'
+    expect(preview('So $P(A \\mid B) \\approx 0.3$.')).toBe('So P(A | B) ≈ 0.3.');
+  });
+
+  it('keep a fraction or root whole where a script, letter or command joins it', () => {
+    expect(preview('$\\frac{2}{3}^{2} = \\frac{4}{9}$')).toBe('(2/3)^2 = 4/9');
+    expect(preview('$E_k = \\frac{1}{2}mv^2$')).toBe('E_k = (1/2)mv^2');
+    expect(preview('$\\sqrt{x}^2 + \\left(\\frac{a}{b}\\right)^2 + \\frac{1}{n}\\sum x$')).toBe(
+      '(√x)^2 + (a/b)^2 + (1/n)∑ x'
     );
   });
 
@@ -43,6 +46,22 @@ describe('thread previews of math', () => {
     );
     expect(preview('$50\\%$ of $\\{1, 2\\}$')).toBe('50% of {1, 2}');
     expect(preview('$\\frac{1}{2$ and $a}b$ and $x^$')).toBe('1/2 and ab and x^');
+  });
+
+  it('keep a formula as written when the reader does not know all of it', () => {
+    expect(preview('$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$')).toBe(
+      '$\\bar{x} \\neq x$ and $\\binom {5}{2} = 10$'
+    );
+    expect(preview('$\\sqrt[3]{8} = 2$, $a \\\\ b$ and ${}$')).toBe(
+      '$\\sqrt[3]{8} = 2$, $a \\\\ b$ and ${}$'
+    );
+    expect(
+      preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')
+    ).toBe('$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$');
+  });
+
+  it('keep Markdown rules away from a formula', () => {
+    expect(preview('$- x$ is negative\n$|x|$\n$> 0$')).toBe('- x is negative |x| > 0');
   });
 
   it('leave prices, code and text without math as written', () => {
