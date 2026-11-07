@@ -3,7 +3,6 @@ import {
   MatrixEvent,
   MatrixEventEvent,
   NotificationCountType,
-  ReceiptType,
   RelationType,
   type MatrixClient,
   type Room,
@@ -29,14 +28,9 @@ import { isRecord } from '../../lib/isRecord';
 //   message by its text, and again each time it decrypted it, so a reply that finished while the
 //   reader was away showed 3 unread after a reload where the server counted 1 (and the thread's
 //   title notice, which the client rightly leaves out).
-// - A receipt on an event no timeline holds, such as the terminal edit of a reply the reader
-//   watched to its end, means nothing to the SDK (P2-e2ee-F001). The server takes it as reading
-//   everything up to it. When the reply, or any event of its thread, decrypted after the server's
-//   last count (after a reload, on keys arriving late, on a new session without keys), the SDK and
-//   this module counted it as unread, and no sync took it back.
 // This module counts the finished reply and takes back the SDK's count of an edit or reaction it
-// cannot decrypt, of a message that still streams and of an event the user's receipts read. Its
-// listener runs after the SDK's own, which the client adds when it is made.
+// cannot decrypt and of a message that still streams. Its listener runs after the SDK's own, which
+// the client adds when it is made.
 
 /** Relations that never count as unread messages of their own. */
 const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
@@ -93,43 +87,8 @@ const stillStreams = (event: MatrixEvent): boolean => {
 };
 
 /**
- * Whether the user's receipts read `event`, as the server takes them: a receipt in its thread (or
- * the main timeline) on it or on a later event, or an unthreaded one sent after it. A receipt can
- * name an edit, which no timeline holds; it was sent when the edit was read.
- */
-const readByOwnReceipts = (
-  room: Room,
-  threadId: string | undefined,
-  userId: string,
-  event: MatrixEvent
-): boolean => {
-  const unthreadedTs = room.getLastUnthreadedReceiptFor(userId)?.ts;
-  if (unthreadedTs !== undefined && unthreadedTs >= event.getTs()) return true;
-  const context = threadId ? room.getThread(threadId) : room;
-  return [ReceiptType.Read, ReceiptType.ReadPrivate].some((receiptType) => {
-    const receipt = context?.getReadReceiptForUserId(userId, false, receiptType);
-    if (!receipt) return false;
-    if (receipt.eventId === event.getId()) return true;
-    const readTs =
-      (context?.findEventById(receipt.eventId) ?? room.findEventById(receipt.eventId))?.getTs() ??
-      receipt.data.ts;
-    return readTs >= event.getTs();
-  });
-};
-
-/** Whether the server counts no such event: an edit, a reaction or a message that still streams. */
-const uncountedByServer = (event: MatrixEvent): boolean => {
-  const relationType = relationOf(event)?.rel_type;
-  return (
-    (typeof relationType === 'string' && UNCOUNTED_RELATIONS.has(relationType)) ||
-    stillStreams(event)
-  );
-};
-
-/**
- * Takes back what the SDK counted for a decrypted event, under the same conditions it counts (the
- * event is in the room, unread to the SDK, and its push actions notify), when the server counts no
- * such event or the user's receipts read it.
+ * Takes back what the SDK counted for a decrypted event, under the same conditions it counts: the
+ * event is in the room, unread, and its push actions notify.
  */
 const takeBackSdkCount = (mx: MatrixClient, room: Room, event: MatrixEvent): void => {
   const userId = mx.getUserId();
@@ -140,8 +99,35 @@ const takeBackSdkCount = (mx: MatrixClient, room: Room, event: MatrixEvent): voi
     const thread = room.getThread(threadId);
     if (!thread || thread.hasUserReadEvent(userId, eventId)) return;
   } else if (room.hasUserReadEvent(userId, eventId)) return;
-  if (!uncountedByServer(event) && !readByOwnReceipts(room, threadId, userId, event)) return;
   changeCounts(room, threadId, mx.getPushActionsForEvent(event), -1);
+};
+
+/** An edit or reaction the SDK could not decrypt counts as nothing. */
+const uncountUndecryptableRelation = (mx: MatrixClient, room: Room, event: MatrixEvent): void => {
+  const relationType = relationOf(event)?.rel_type;
+  if (typeof relationType === 'string' && UNCOUNTED_RELATIONS.has(relationType)) {
+    takeBackSdkCount(mx, room, event);
+  }
+};
+
+/** Whether the user's receipt in the reply's thread (or the room) reaches `edit`. */
+const hasReadEdit = (
+  room: Room,
+  threadId: string | undefined,
+  userId: string,
+  edit: MatrixEvent
+): boolean => {
+  const context = threadId ? room.getThread(threadId) : room;
+  // As the SDK does: without the thread there are no receipts to tell, so nothing counts.
+  if (!context) return true;
+  const readUpTo = context.getEventReadUpTo(userId);
+  if (!readUpTo) return false;
+  if (readUpTo === edit.getId()) return true;
+  // A receipt can name an edit, which no timeline holds; it was sent when it was read.
+  const readTs =
+    (context.findEventById(readUpTo) ?? room.findEventById(readUpTo))?.getTs() ??
+    context.getReadReceiptForUserId(userId)?.data.ts;
+  return readTs !== undefined && readTs >= edit.getTs();
 };
 
 /**
@@ -164,9 +150,7 @@ const countFinishedReply = (
   const reply = room.findEventById(relation.event_id);
   if (!reply || reply.getSender() !== edit.getSender()) return;
   const threadId = countedThreadOf(reply);
-  // As the SDK does: without the thread there are no receipts to tell, so nothing counts.
-  if (threadId && !room.getThread(threadId)) return;
-  if (readByOwnReceipts(room, threadId, userId, edit)) return;
+  if (hasReadEdit(room, threadId, userId, edit)) return;
 
   if (counted.size >= COUNTED_EDITS_LIMIT) counted.clear();
   counted.add(editId);
@@ -193,10 +177,9 @@ export const keepEncryptedRoomCounts = (mx: MatrixClient): (() => void) => {
     const roomId = event.getRoomId();
     const room = roomId ? mx.getRoom(roomId) : null;
     if (!room?.hasEncryptionStateEvent()) return;
-    takeBackSdkCount(mx, room, event);
-    if (!event.isDecryptionFailure() && !stillStreams(event)) {
-      countFinishedReply(mx, room, event, counted);
-    }
+    if (event.isDecryptionFailure()) uncountUndecryptableRelation(mx, room, event);
+    else if (stillStreams(event)) takeBackSdkCount(mx, room, event);
+    else countFinishedReply(mx, room, event, counted);
   };
   mx.on(MatrixEventEvent.Decrypted, onDecrypted);
   return () => {
