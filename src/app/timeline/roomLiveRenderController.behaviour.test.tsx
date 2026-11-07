@@ -8,11 +8,13 @@ import {
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
+import { getDefaultStore } from 'jotai';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
 import type { RoomUnreadInfo, Timeline } from '../event-store/timeline/timelinePagination';
 import { markMainTimelineAsRead, markThreadAsRead } from '../notifications/readReceipts';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import {
   finishesStreamedThreadReply,
   useRoomLiveRenderController,
@@ -278,6 +280,19 @@ describe('useRoomLiveRenderController, room view', () => {
     expect(view.setUnreadInfo).not.toHaveBeenCalled();
     expect(view.ranges()).toEqual([{ start: 0, end: 11 }]);
     expect(view.pin()).toEqual({ count: 1, smooth: true });
+  });
+
+  it('leaves a live message unread while a phone navigation drawer covers the room', () => {
+    vi.stubGlobal('document', { hasFocus: () => true });
+    act(() => getDefaultStore().set(phoneNavDrawerOpenAtom, true));
+    try {
+      const view = renderController();
+      view.arrive(makeEvent('$news'), true);
+      expect(markMainTimelineAsRead).not.toHaveBeenCalled();
+      expect(view.setUnreadInfo).toHaveBeenCalledTimes(1);
+    } finally {
+      act(() => getDefaultStore().set(phoneNavDrawerOpenAtom, false));
+    }
   });
 
   it('records where the unread part starts when the window has no focus', () => {

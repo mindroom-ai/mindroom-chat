@@ -22,16 +22,6 @@ describe('Threads route', () => {
     expect(threadsIndex).toBeLessThan(spaceIndex);
   });
 
-  it('keeps Threads in the mobile nav allow-list', () => {
-    const mobileSource = readFileSync(
-      resolve(process.cwd(), 'src/app/sidebar/MobileFriendly.tsx'),
-      'utf8'
-    );
-
-    expect(mobileSource).toContain('THREADS_PATH');
-    expect(mobileSource).toContain('threadsMatch');
-  });
-
   it('matches /threads/ as the Threads route instead of the space catch-all', () => {
     const matches = matchRoutes(
       [

@@ -7,6 +7,9 @@ import '@fontsource/inter/variable.css';
 import './index.css';
 import './app/theme/Typography.css';
 import './app/i18n/i18n';
+// Before the app routes: a redirect (to sign in, say) must not drop the `?plugins=off` that turns
+// the client plugins off for this load.
+import './app/plugins/registry';
 import App from './app/shell/App';
 import {
   isNativeApp,
@@ -206,6 +209,14 @@ const startServiceWorker = (): void => {
   });
   recoverServiceWorkerControl().catch(() => undefined);
 };
+
+// A server answers a path it has no file for with this page, so a frame of this origin whose page
+// is gone (the PDF viewer's frame page, say) would start a second copy of the app, on the same
+// account and storage as the page around it. There it stops before any startup step: only its
+// modules have loaded.
+if (window.frameElement !== null) {
+  throw new Error('MindRoom does not start inside a frame of its own origin');
+}
 
 // Before anything else runs: failures from here on wait for the configuration, which decides
 // whether they become error reports.
