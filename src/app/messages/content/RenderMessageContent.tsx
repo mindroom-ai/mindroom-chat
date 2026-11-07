@@ -1,8 +1,9 @@
-import { ReactNode, useMemo } from 'react';
+import { ReactElement, ReactNode, useMemo } from 'react';
 import { MatrixEvent, MsgType } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Box } from 'folds';
+import { ErrorBoundary } from 'react-error-boundary';
 import {
   MAudio,
   MBadEncrypted,
@@ -41,6 +42,12 @@ import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
 import { CallTranscriptCard } from './CallTranscriptCard';
+import {
+  useMessageRenderer,
+  type MatchedRenderer,
+  type PluginEvent,
+} from '../../plugins/messageRenderers';
+import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
 
 const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
 
@@ -98,10 +105,10 @@ const getCaption = (content: Content): string | undefined => {
 };
 
 /**
- * The body of one timeline event. MindRoom's renderer goes first (agent replies, tool calls,
- * approvals, summaries, long text); standard Matrix message types follow.
+ * The app's own rendering of one timeline event's body. MindRoom's renderer goes first (agent
+ * replies, tool calls, approvals, summaries, long text); standard Matrix message types follow.
  */
-export function RenderMessageContent({
+function CoreMessageContent({
   mEvent,
   eventId,
   roomId,
@@ -331,4 +338,58 @@ export function RenderMessageContent({
       if (msgType === 'm.bad.encrypted') return <MBadEncrypted />;
       return eventType === 'm.room.encrypted' ? <MNotDecrypted /> : <UnsupportedContent />;
   }
+}
+
+/** A client plugin's rendering of a message; if it fails, `fallback` (core's) shows instead. */
+function PluginMessageContent({
+  plugin: { tag, renderer },
+  event,
+  fallback,
+}: {
+  plugin: MatchedRenderer;
+  event: PluginEvent;
+  fallback: ReactElement;
+}) {
+  const { Component } = renderer;
+  return (
+    <ErrorBoundary
+      fallback={fallback}
+      onError={(error, info) => {
+        // eslint-disable-next-line no-console
+        console.error(`[plugin ${tag}] failed to render a message; core renders it`, error);
+        reportBoundaryError(
+          { name: error.name, message: `[plugin ${tag}] ${error.message}`, stack: error.stack },
+          info.componentStack
+        );
+      }}
+    >
+      <Component event={event} />
+    </ErrorBoundary>
+  );
+}
+
+/**
+ * The body of one timeline event: a client plugin's rendering when one of its message renderers
+ * takes the event (src/app/plugins/messageRenderers.ts), else the app's own.
+ */
+export function RenderMessageContent(props: RenderMessageContentProps) {
+  const { mEvent, eventId, roomId, eventType, getContent } = props;
+  const viewerId = useMatrixClient().getUserId() ?? undefined;
+  const sender = mEvent?.getSender();
+  const event: PluginEvent | undefined = sender
+    ? {
+        eventId: eventId ?? mEvent?.getId(),
+        roomId: roomId ?? mEvent?.getRoomId(),
+        type: eventType ?? mEvent?.getType(),
+        sender,
+        content: getContent<Content>(),
+      }
+    : undefined;
+  const plugin = useMessageRenderer(event, viewerId);
+  const core = <CoreMessageContent {...props} />;
+  return plugin && event ? (
+    <PluginMessageContent plugin={plugin} event={event} fallback={core} />
+  ) : (
+    core
+  );
 }

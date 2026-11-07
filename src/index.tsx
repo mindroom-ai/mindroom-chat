@@ -7,6 +7,9 @@ import '@fontsource/inter/variable.css';
 import './index.css';
 import './app/theme/Typography.css';
 import './app/i18n/i18n';
+// Before the app routes: a redirect (to sign in, say) must not drop the `?plugins=off` that turns
+// the client plugins off for this load.
+import './app/plugins/registry';
 import App from './app/shell/App';
 import {
   isNativeApp,
