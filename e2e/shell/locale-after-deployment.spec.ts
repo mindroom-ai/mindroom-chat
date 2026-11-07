@@ -109,11 +109,14 @@ const germanOnFirstBuild = async (page: Page, name: string) => {
   expect(await runningEntry(page)).toBe(entryOf(FIRST!));
 };
 
-/** Without a service worker: a plain reload after the deployment runs the second build. */
-const reloadWithoutWorker = async (page: Page, name: string, deploy: () => void) => {
+/**
+ * Without a service worker: opening the app again after the deployment runs the second build. A
+ * navigation, as a relaunch or a new tab makes: WebKit's reload revalidates every file it loads.
+ */
+const reopenWithoutWorker = async (page: Page, name: string, deploy: () => void) => {
   await germanOnFirstBuild(page, name);
   deploy();
-  await page.reload();
+  await page.goto(page.url());
   await expect.poll(() => runningEntry(page), { timeout: 60_000 }).toBe(entryOf(second!));
   await expect(homeTab(page, NEXT_HOME).or(homeTab(page, HOME))).toBeVisible({ timeout: 60_000 });
   await shot(page, `${name}-after-deployment`);
@@ -122,14 +125,14 @@ const reloadWithoutWorker = async (page: Page, name: string, deploy: () => void)
 
 const noWorker: BrowserContextOptions = { serviceWorkers: 'block' };
 
-test('a reload after a deployment shows the new build’s translations (Chromium, no worker)', async ({
+test('opening the app after a deployment shows the new build’s translations (Chromium, no worker)', async ({
   browser,
 }) => {
   test.setTimeout(240_000);
   await withDeployment(async (origin, deploy) => {
     const context = await browser.newContext({ ...noWorker, baseURL: origin });
     try {
-      await reloadWithoutWorker(await context.newPage(), 'chromium-plain', deploy);
+      await reopenWithoutWorker(await context.newPage(), 'chromium-plain', deploy);
     } finally {
       await context.close();
     }
@@ -169,7 +172,7 @@ test('the new version notice reloads into the new build’s translations (Chromi
   });
 });
 
-test('a reload after a deployment shows the new build’s translations (WebKit phone, no worker)', async () => {
+test('opening the app after a deployment shows the new build’s translations (WebKit phone, no worker)', async () => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   await withDeployment(async (origin, deploy) => {
@@ -181,7 +184,7 @@ test('a reload after a deployment shows the new build’s translations (WebKit p
         viewport: { width: 390, height: 844 },
         hasTouch: true,
       });
-      await reloadWithoutWorker(await context.newPage(), 'webkit-plain', deploy);
+      await reopenWithoutWorker(await context.newPage(), 'webkit-plain', deploy);
     } finally {
       await webkit.close();
     }
