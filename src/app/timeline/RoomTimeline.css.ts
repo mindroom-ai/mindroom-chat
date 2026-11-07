@@ -25,8 +25,20 @@ export const TimelineFloat = recipe({
   defaultVariants: { position: 'Top' },
 });
 
-/** A floating pill (Jump to Latest, Jump to Unread, Mark as Read): 44 px tall to a finger. */
-export const FloatingAction = style(touchTarget('4px'));
+/**
+ * The Jump to Unread and Mark as Read pills: when their labels do not fit side by side (most
+ * languages on a phone), the second pill moves under the first instead of squeezing both.
+ */
+export const UnreadFloat = style({
+  flexWrap: 'wrap',
+  justifyContent: 'center',
+});
+
+/**
+ * A floating pill (Jump to Latest, Jump to Unread, Mark as Read): 44 px tall to a finger. Its
+ * label keeps one line; only a pill wider than the whole float shortens it with an ellipsis.
+ */
+export const FloatingAction = style([touchTarget('4px'), { minWidth: 0, maxWidth: '100%' }]);
 
 /** "[+all]": 16 px of text in a 1 px rim, 18 px tall, as thread-light.png shows it. */
 const expandAllPillHeight = `calc(${toRem(16)} + 2px)`;

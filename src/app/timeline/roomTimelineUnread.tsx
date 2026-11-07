@@ -86,7 +86,8 @@ export const useMarkRoomAsRead = (
 
 /**
  * The Jump to Unread and Mark as Read pills, under the room header, centered; `clearStart` centers
- * them past the start column where "[+all]" sits meanwhile, at the same height (a phone).
+ * them past the start column where "[+all]" sits meanwhile, at the same height (a phone). Pills
+ * that do not fit side by side stack.
  */
 export function UnreadActions({
   onJumpToUnread,
@@ -102,7 +103,7 @@ export function UnreadActions({
   const startInset = `calc(${EXPAND_ALL_START_COLUMN} - ${config.space.S400})`;
   return (
     <div
-      className={css.TimelineFloat({ position: 'Top' })}
+      className={`${css.TimelineFloat({ position: 'Top' })} ${css.UnreadFloat}`}
       style={{
         top: `calc(${overlay.controlsTopInset} + ${config.space.S300})`,
         ...(clearStart
