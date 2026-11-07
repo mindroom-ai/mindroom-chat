@@ -1,7 +1,7 @@
 // `@mindroom/client-sdk/testing`, the client SDK's subpath for a plugin's unit tests, which run in
 // the app's vitest (docs/architecture.md "Client plugins"). Only tests import it, never code that
 // ships. Like `/core` it only grows, and each addition raises CLIENT_PLUGIN_API_VERSION.
-import { cleanup, render, type RenderResult } from '@testing-library/react';
+import { cleanup, render } from '@testing-library/react';
 import { createElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach } from 'vitest';
 import { ClientConfigProvider, type ClientConfig } from '../app/config/useClientConfig';
@@ -26,7 +26,7 @@ export const renderPluginComponent = async (
     config,
     language = 'en',
   }: { id: string; plugin: ClientPlugin; config?: unknown; language?: string }
-): Promise<RenderResult> => {
+) => {
   registerPluginTranslations(id, plugin.translations);
   await i18n.changeLanguage(language);
   const clientConfig = { plugins: { [id]: config } } as unknown as ClientConfig;
