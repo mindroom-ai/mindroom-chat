@@ -36,6 +36,7 @@ describe('thread previews of math', () => {
       '‖x‖_2 ≤ |y| and a cos θ + sin(x)'
     );
     expect(preview('$x\\operatorname{sgn}(x) + \\operatorname{tr}A$')).toBe('x sgn(x) + tr A');
+    expect(preview('$a \\cdot b$ for $x_1, x_2 \\in S$')).toBe('a ⋅ b for x_1, x_2 ∈ S');
   });
 
   it('keep the parts of fractions, roots and scripts together', () => {
@@ -54,7 +55,7 @@ describe('thread previews of math', () => {
     expect(preview('$\\log_{10}1000 + 2^{10}x + x^2\\!3 + e^x(1+x)$')).toBe(
       'log_(10)1000 + 2^(10)x + x^(2)3 + e^(x)(1+x)'
     );
-    expect(preview('$\\left.2x\\right|_0^1 = 2$')).toBe('2x|_0^1 = 2');
+    expect(preview('$\\left.2x\\right|_0^1 = 2$ and $x^{2}.5$')).toBe('2x|_0^1 = 2 and x^(2).5');
   });
 
   it('read sizing, spacing and escaped characters', () => {
@@ -62,7 +63,7 @@ describe('thread previews of math', () => {
       '( (1/(x+1)) )^10 and sin x'
     );
     expect(preview('$50\\%$ of $\\{1, 2\\}$')).toBe('50% of {1, 2}');
-    expect(preview('$x^$')).toBe('x^');
+    expect(preview('$\\displaystyle.5 + \\left .x\\right.$')).toBe('.5 + x');
   });
 
   it('keep a formula as written when the reader does not know all of it', () => {
@@ -75,6 +76,12 @@ describe('thread previews of math', () => {
     expect(preview('$\\operatorname*{arg\\,max}_x f$')).toBe('$\\operatorname*{arg\\,max}_x f$');
     expect(preview('$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$')).toBe(
       '$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$'
+    );
+    expect(preview('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${3}\\frac{1}{4}$ and $2^(n-1)$')).toBe(
+      '$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${3}\\frac{1}{4}$ and $2^(n-1)$'
+    );
+    expect(preview('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$')).toBe(
+      '$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$'
     );
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
@@ -106,5 +113,11 @@ describe('thread previews of math', () => {
     expect(preview('<code>$\\frac{a}{b}$</code> and $x^2$')).toBe(
       '<code>$\\frac{a}{b}$</code> and $x^2$'
     );
+    expect(preview('A backslash (`\\`) starts `$\\frac{a}{b}$`, shown as $\\frac{a}{b}$.')).toBe(
+      'A backslash (\\) starts $\\frac{a}{b}$, shown as $\\frac{a}{b}$.'
+    );
+    expect(preview('```markdown\n```latex\n$\\frac{1}{2}$\n```\n```')).toBe('```latex $\\frac{1}{2}$');
+    expect(preview('Press ` then $x^2$')).toBe('Press ` then $x^2$');
+    expect(preview('\uE0000\uE001 and $x^2$')).toBe('\uE0000\uE001 and $x^2$');
   });
 });
