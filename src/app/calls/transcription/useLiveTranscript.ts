@@ -26,9 +26,11 @@ export type LiveTranscriptView = {
   live?: LiveTranscript;
   /** It is the call this device is in, transcribed here. */
   ownCall: boolean;
+  /** This device knows the room's MindRoom server, so `not-transcribed` is MindRoom's answer. */
+  serverKnown: boolean;
 };
 
-type ReadView = Omit<LiveTranscriptView, 'ownCall'>;
+type ReadView = Pick<LiveTranscriptView, 'state' | 'live'>;
 
 /** One client per Matrix client and server, so rows, panels and remounts share its sign-in. */
 const clients = new WeakMap<MatrixClient, Map<string, TranscriptionClient>>();
@@ -60,7 +62,11 @@ const usePageShown = () =>
  * The room's live call, read every `everyMs` while `wanted` and the page shows, and at once when
  * it shows again.
  */
-const useLiveCallReads = (room: Room, everyMs: number, wanted: boolean): ReadView => {
+const useLiveCallReads = (
+  room: Room,
+  everyMs: number,
+  wanted: boolean
+): Omit<LiveTranscriptView, 'ownCall'> => {
   const mx = useMatrixClient();
   const reading = usePageShown() && wanted;
   const { roomId } = room;
@@ -100,7 +106,7 @@ const useLiveCallReads = (room: Room, everyMs: number, wanted: boolean): ReadVie
     });
     return () => stop.abort();
   }, [client, everyMs, reading, roomId]);
-  return client ? view : { state: 'not-transcribed' };
+  return client ? { ...view, serverKnown: true } : { state: 'not-transcribed', serverKnown: false };
 };
 
 /**
@@ -126,8 +132,10 @@ export const useLiveTranscript = (
 
   if (ownStatus) {
     const live = shared?.roomId === roomId ? shared : undefined;
-    if (ownStatus === 'unavailable') return { state: 'unavailable', live, ownCall: true };
-    return { state: live ? 'live' : 'loading', live, ownCall: true };
+    if (ownStatus === 'unavailable') {
+      return { state: 'unavailable', live, ownCall: true, serverKnown: true };
+    }
+    return { state: live ? 'live' : 'loading', live, ownCall: true, serverKnown: true };
   }
   return { ...read, ownCall: false };
 };

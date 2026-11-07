@@ -18,7 +18,6 @@ import { CallMemberAvatar } from '../CallTile';
 import { nameInCall } from './transcriptionState';
 import { openTranscriptPanel } from './transcriptPanel';
 import { useLiveTranscript } from './useLiveTranscript';
-import { useTranscriptionServer } from './useTranscriptionServer';
 import * as css from './CallRow.css';
 
 type RowProps = { room: Room; rowEvent: MatrixEvent; row: CallRowContent };
@@ -86,10 +85,9 @@ function LiveCallRow({ room, row }: RowProps) {
     undefined,
     useCallback(() => rowRef.current, [])
   );
-  const { state, live } = useLiveTranscript(room, READ_MS, inView);
+  const { state, live, serverKnown } = useLiveTranscript(room, READ_MS, inView);
   const shownCall = isActiveCallShownIn(useActiveCall(), room.roomId);
   const people = live?.call?.id === row.callId ? live.call.members : [];
-  const serverKnown = !!useTranscriptionServer(useMatrixClient(), room).apiUrl;
   const ended =
     (state === 'not-transcribed' && serverKnown) || (!!live && live.call?.id !== row.callId);
 

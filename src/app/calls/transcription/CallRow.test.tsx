@@ -3,8 +3,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { act } from 'react-dom/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStore, Provider } from 'jotai';
-import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
 import { CallRow } from './CallRow';
+import { useLiveTranscript, type LiveTranscriptView } from './useLiveTranscript';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
 import { transcriptPanelAtom } from './transcriptPanel';
@@ -348,6 +349,19 @@ describe('CallRow', () => {
     expect(container.textContent).toContain('Call in progress');
     expect(button('Join')).toBeDefined();
     expect(button('Transcript')).toBeDefined();
+  });
+
+  it('tells, with the live call, whether this device knows a MindRoom server for the room', () => {
+    const views: LiveTranscriptView[] = [];
+    function Probe() {
+      views.push(useLiveTranscript(room as unknown as Room, 5_000, false));
+      return null;
+    }
+    act(() => root.render(<Probe />));
+    expect(views.at(-1)?.serverKnown).toBe(true);
+    state.apiUrl = undefined;
+    act(() => root.render(<Probe key="again" />));
+    expect(views.at(-1)?.serverKnown).toBe(false);
   });
 
   it('links to the transcript message in its thread once the router names it', () => {
