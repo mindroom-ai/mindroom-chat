@@ -43,13 +43,36 @@ const watchList = (page: Page, eventId: string) =>
           `[data-message-id="${id}"] [data-message-disclosure] > button[aria-expanded]`
         ),
       ].find((button) => /\d+ tool calls?\b/.test(button.textContent ?? ''));
-    find()?.setAttribute('data-watched-list', '');
+    // The button and every element up to the reply's row carry a mark, so a list drawn again
+    // names the element whose subtree was drawn again.
+    for (
+      let element: Element | null = find() ?? null;
+      element && !element.hasAttribute('data-message-id');
+      element = element.parentElement
+    ) {
+      element.setAttribute('data-watched-list', '');
+    }
+    const describe = (element: Element) =>
+      `${element.tagName.toLowerCase()}${[...element.attributes]
+        .filter(({ name }) => name !== 'data-watched-list' && name !== 'style')
+        .map(({ name, value }) => `[${name}=${value.slice(0, 40)}]`)
+        .join('')}`;
+    const drawnAgain = (button: Element) => {
+      let root: Element = button;
+      while (root.parentElement && !root.parentElement.hasAttribute('data-watched-list')) {
+        if (root.parentElement.hasAttribute('data-message-id')) break;
+        root = root.parentElement;
+      }
+      return `drawn again (${button.getAttribute('aria-expanded')}) from ${describe(root)} in ${
+        root.parentElement ? describe(root.parentElement) : 'nothing'
+      }`;
+    };
     new MutationObserver(() => {
       const button = find();
       const state = !button
         ? 'gone'
         : !button.hasAttribute('data-watched-list')
-        ? `drawn again (${button.getAttribute('aria-expanded')})`
+        ? drawnAgain(button)
         : button.getAttribute('aria-expanded') !== 'true'
         ? 'closed'
         : undefined;
@@ -102,8 +125,8 @@ for (const viewport of VIEWPORTS) {
         await expect(line).toContainText('Ran 3 tool calls', { timeout: 30_000 });
         // Past the live frames' freshness the reply shows its final edit.
         await page.waitForTimeout(13_000);
-        await expect(reply.getByText('echo step three', { exact: true })).toBeVisible();
         expect(await closedMoments(page)).toEqual([]);
+        await expect(reply.getByText('echo step three', { exact: true })).toBeVisible();
         await expect(line).toHaveAttribute('aria-expanded', 'true');
       }
     );
@@ -132,10 +155,10 @@ for (const viewport of VIEWPORTS) {
 
         await waitForAgentReply(stack, rootId, () => true, { timeout: 120_000 });
         await page.waitForTimeout(13_000);
+        expect(await closedMoments(page)).toEqual([]);
         await expect(reply.locator('[data-tool-index="1"]')).toContainText(
           'echo needs-approval: deploy the stub'
         );
-        expect(await closedMoments(page)).toEqual([]);
         await expect(line).toHaveAttribute('aria-expanded', 'true');
       }
     );
