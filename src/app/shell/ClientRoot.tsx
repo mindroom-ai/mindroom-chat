@@ -39,7 +39,6 @@ import { CapabilitiesProvider } from '../matrix/hooks/useCapabilities';
 import { MediaConfigProvider } from '../matrix/hooks/useMediaConfig';
 import { createSyncEngine, SyncEngineProvider } from '../event-store/engine';
 import type { SyncEngine } from '../event-store/engine';
-import { registerEncryptedRoomCheck } from '../event-store/cache/db/cacheStoreEncryptedRooms';
 import {
   useLivePrefetchConfig,
   usePrefetchConfigSubscription,
@@ -519,15 +518,6 @@ function ClientSession({ session, children }: ClientSessionProps) {
       if (opened) closeClient(opened);
     };
   }, [session.sessionId, attempt]);
-
-  // The offline cache keeps no text it read out of an encrypted room's events.
-  useEffect(() => {
-    if (!mx) return undefined;
-    return registerEncryptedRoomCheck(
-      session.sessionId,
-      (roomId) => !!mx.getRoom(roomId)?.hasEncryptionStateEvent()
-    );
-  }, [mx, session.sessionId]);
 
   // The effects below are declared in the order they must subscribe: the engine
   // first, then the startup listeners, and only then the sync loop starts.
