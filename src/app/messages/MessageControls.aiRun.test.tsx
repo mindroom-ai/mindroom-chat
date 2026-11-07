@@ -8,8 +8,6 @@ vi.mock('../ui/ModalLayer', () => ({
     open ? <div data-modal="">{children}</div> : null,
 }));
 vi.mock('./reply/ReplyDetails', () => ({ ReplyDetails: () => null }));
-vi.mock('./MessageControls.css', () => ({ ReplyDetailsScroll: 'ReplyDetailsScroll' }));
-vi.mock('../ui/styles/Glass.css', () => ({ glassDenseOverBackdrop: 'glass' }));
 
 /** A row with state of its own, as an open tool-call list is. */
 function Row({ controls }: { controls: AiRunControlsRenderProps | undefined }) {
