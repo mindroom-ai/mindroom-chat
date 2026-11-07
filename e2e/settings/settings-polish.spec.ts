@@ -251,12 +251,12 @@ const pageLines = (dialog: Locator) =>
     };
   });
 
-/** Checks the rows of a settings menu: 32 px tall, 4 px apart, 10 px to the icon, 8 px to the name. */
+/** Checks the rows of a settings menu: 32 px tall, 4 px apart, 8 px to the icon, 8 px to the name. */
 const expectMenuRows = (rows: RowMetrics[], open: string) => {
   expect(rows.length).toBeGreaterThan(3);
   for (const row of rows) {
     expect(row.height, row.label).toBeCloseTo(32, 0);
-    expect(row.edge, row.label).toBeCloseTo(10, 0);
+    expect(row.edge, row.label).toBeCloseTo(8, 0);
     expect(row.iconGap, row.label).toBeCloseTo(8, 0);
     if (row.gapAfter !== null) expect(row.gapAfter, row.label).toBeCloseTo(4, 0);
     // Only the open page reads in full color while the pointer is away.
