@@ -483,6 +483,35 @@ describe("the room header's actions", () => {
     expect(roomEntries()).toEqual([]);
   });
 
+  it('announces what the buttons open, the members shortcut, and a check on a shown panel', () => {
+    renderEverything();
+    const button = (label: string) =>
+      buttons((node) => node.props['aria-label'] === label)[0]?.props ?? {};
+    expect(button('Pinned Messages')['aria-haspopup']).toBe('dialog');
+    expect(button('Show Members')['aria-keyshortcuts']).toBeTruthy();
+    expect(button('More Options')).toMatchObject({
+      'aria-haspopup': 'menu',
+      'aria-expanded': false,
+    });
+    openMenu();
+    expect(button('More Options')['aria-expanded']).toBe(true);
+    const checks = () =>
+      renderer?.root
+        .findAll(
+          (node) =>
+            node.props.role === 'menuitemcheckbox' && 'label' in node.props && 'after' in node.props
+        )
+        .map((node) => !!node.props.after);
+    expect(checks()).toEqual([false]);
+
+    renderHeader({
+      pluginPanels: [{ id: 'notes/panel', label: 'Notes' }],
+      shownPanel: 'notes/panel',
+    });
+    openMenu();
+    expect(checks()).toEqual([true]);
+  });
+
   it('opens the pinned messages from the row and from the room menu', () => {
     pins.ids = ['$pinned'];
     renderHeader();
