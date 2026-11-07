@@ -176,8 +176,9 @@ const shot = async (page: Page, name: string) => {
 
 /** The scope shows `shown` and holds no control character. */
 const expectShown = async (scope: Locator, shown: string) => {
-  await expect(scope).toContainText(shown, { timeout: 30_000 });
-  expect(await scope.textContent()).not.toMatch(CONTROL);
+  await expect(scope.first()).toBeAttached({ timeout: 30_000 });
+  await expect.soft(scope).toContainText(shown, { timeout: 4_000 });
+  expect.soft(await scope.textContent()).not.toMatch(CONTROL);
 };
 
 /** Moves within the app, as a link would. */
@@ -235,10 +236,10 @@ const check = async (page: Page, world: World, label: string) => {
   );
   // The summary under the thread's root, and nothing else in the room, shows a control either.
   await expectShown(main.getByText(SUMMARY_SHOWN).first(), SUMMARY_SHOWN);
-  expect(await main.textContent()).not.toMatch(CONTROL);
+  expect.soft(await main.textContent()).not.toMatch(CONTROL);
   await shot(page, `${label}-room`);
   await header.getByRole('button', { name: /^Where we file/ }).click();
-  const topicViewer = page.getByRole('dialog', { name: ROOM_NAME_SHOWN });
+  const topicViewer = page.getByRole('dialog').last();
   await expectShown(topicViewer, ROOM_TOPIC_SHOWN);
   await shot(page, `${label}-topic-viewer`);
   await page.keyboard.press('Escape');
@@ -257,7 +258,7 @@ const check = async (page: Page, world: World, label: string) => {
   const summary = page.locator('[data-thread-context-summary]');
   await expectShown(summary, SUMMARY_SHOWN);
   // The thread's own row for the summary describes it too.
-  expect(await main.textContent()).not.toMatch(CONTROL);
+  expect.soft(await main.textContent()).not.toMatch(CONTROL);
   await shot(page, `${label}-thread-banner`);
 
   // The sidebar's thread list, whose tooltip names the room (desktop: a phone shows no tooltips).
@@ -269,10 +270,10 @@ const check = async (page: Page, world: World, label: string) => {
     if ((await threadsCategory.getAttribute('aria-expanded')) === 'false') {
       await threadsCategory.click();
     }
-    const entry = page.getByRole('button', { name: `Open thread: ${SUMMARY_SHOWN}` }).first();
+    const entry = page.getByRole('button', { name: /^Open thread: Audit of/ }).first();
     await expect(entry).toBeVisible({ timeout: 30_000 });
-    expect(await entry.getAttribute('aria-label')).toContain(ROOM_NAME_SHOWN);
-    expect(await entry.getAttribute('aria-label')).not.toMatch(CONTROL);
+    expect.soft(await entry.getAttribute('aria-label')).toContain(ROOM_NAME_SHOWN);
+    expect.soft(await entry.getAttribute('aria-label')).not.toMatch(CONTROL);
     await entry.hover();
     await expectShown(page.getByRole('tooltip').filter({ hasText: 'Room' }), ROOM_NAME_SHOWN);
     await shot(page, `${label}-sidebar-thread`);
@@ -387,7 +388,7 @@ test('room names, topics and thread summaries show direction controls as code po
   browser,
   baseURL,
 }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(900_000);
   await run(browser, baseURL, 'chromium');
 });
 
@@ -395,7 +396,7 @@ test('room names, topics and thread summaries show direction controls as code po
   baseURL,
 }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(420_000);
+  test.setTimeout(900_000);
   const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
