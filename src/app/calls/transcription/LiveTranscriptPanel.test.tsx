@@ -234,6 +234,14 @@ describe('LiveTranscriptPanel', () => {
     expect(container.textContent).toContain('Calls in this room are not transcribed.');
   });
 
+  it('says only that transcripts are unavailable when nothing could be read yet', () => {
+    state.apiUrl = 'https://mindroom.example.org';
+    render();
+    act(() => state.polls[0]?.onFailure?.());
+    expect(container.textContent).toContain('Transcripts are unavailable');
+    expect(container.textContent).not.toContain('No call is on in this room.');
+  });
+
   it('says transcripts are unavailable while MindRoom cannot be reached', () => {
     const store = inCall();
     store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'unavailable' });

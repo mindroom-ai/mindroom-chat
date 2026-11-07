@@ -141,7 +141,10 @@ export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: ()
   }, [lineCount]);
 
   let content;
-  if (state === 'not-transcribed') {
+  if (state === 'unavailable' && !live) {
+    // Nothing could be read yet: the notice says all there is.
+    content = null;
+  } else if (state === 'not-transcribed') {
     content = (
       <Text size="T300" priority="300">
         {t('featureUi.calls.transcription.notTranscribed')}
