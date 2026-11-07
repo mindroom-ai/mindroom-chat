@@ -30,7 +30,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     ),
     forgetAccount:
       isRecord(plugin) && typeof plugin.forgetAccount === 'function'
-        ? (plugin.forgetAccount as ClientPlugin['forgetAccount'])
+        ? (plugin.forgetAccount.bind(plugin) as ClientPlugin['forgetAccount'])
         : undefined,
   });
 };
