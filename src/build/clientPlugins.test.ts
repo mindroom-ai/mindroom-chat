@@ -11,9 +11,9 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, type Rollup, type UserConfig } from 'vite';
+import { build, createServer, type Rollup, type UserConfig } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
-import { clientPlugins, readClientPlugins } from '../../scripts/client-plugins.mjs';
+import { clientPlugins, pluginOwner, readClientPlugins } from '../../scripts/client-plugins.mjs';
 import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
@@ -278,5 +278,56 @@ describe('packages the app shares with plugins', () => {
     importing(outside, ['jotai']);
     const modules = await bundlePlugin(plugin, [path.join(outside, 'index.js')]);
     expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));
+  });
+});
+
+describe('pluginOwner', () => {
+  it('names the innermost plugin directory that holds a file, unless the app inside it does', () => {
+    const top = realpathSync(emptyDir());
+    for (const dir of ['outer/inner', 'outer/app'])
+      mkdirSync(path.join(top, dir), { recursive: true });
+    const outer = { id: 'outer', dir: path.join(top, 'outer') };
+    const inner = { id: 'inner', dir: path.join(top, 'outer/inner') };
+    // The app as a submodule of the outer plugin's repository.
+    const ownerOf = pluginOwner([outer, inner], `${path.join(top, 'outer/app')}/`);
+    const owner = (file: string) => ownerOf(path.join(top, file))?.plugin.id;
+    expect(owner('outer/index.js')).toBe('outer');
+    expect(owner('outer/inner/node_modules/jotai/index.js')).toBe('inner');
+    expect(owner('outer/app/node_modules/jotai/index.js')).toBeUndefined();
+    expect(owner('elsewhere/index.js')).toBeUndefined();
+    // A plugin inside the app is the plugin's.
+    expect(
+      pluginOwner([inner], `${path.join(top, 'outer')}/`)(path.join(inner.dir, 'x.js'))?.root
+    ).toBe(`${inner.dir}/`);
+  });
+});
+
+describe('the dev server', () => {
+  it("resolves a plugin's imports in its own directory, as before", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    writeFileSync(path.join(dir, 'index.js'), "export * from 'jotai';\n");
+    mkdirSync(path.join(dir, 'node_modules/jotai'), { recursive: true });
+    writeFileSync(
+      path.join(dir, 'node_modules/jotai/package.json'),
+      JSON.stringify({ name: 'jotai', version: '0.0.1', main: 'index.js' })
+    );
+    writeFileSync(path.join(dir, 'node_modules/jotai/index.js'), 'export const own = true;\n');
+    const server = await createServer({
+      configFile: false,
+      root: ROOT,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+      server: { middlewareMode: true, hmr: false, watch: null },
+      optimizeDeps: { noDiscovery: true, include: [] },
+    });
+    try {
+      const resolved = await server.pluginContainer.resolveId(
+        'jotai',
+        path.join(realpathSync(dir), 'index.js')
+      );
+      expect(resolved?.id).toBe(path.join(realpathSync(dir), 'node_modules/jotai/index.js'));
+    } finally {
+      await server.close();
+    }
   });
 });

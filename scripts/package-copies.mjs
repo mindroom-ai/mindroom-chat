@@ -4,9 +4,9 @@
 // their path, so the app can bundle two copies of one version: its code twice, and module state
 // (focus tracking, caches) that each copy keeps apart. The build fails on that and names the
 // copies; the fix belongs in the dependencies, so that npm installs one copy.
-import { readFileSync, realpathSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { SHARED_PACKAGES } from './client-plugins.mjs';
+import { SHARED_PACKAGES, pluginOwner } from './client-plugins.mjs';
 
 // The installed package that holds a module: its path up to the last `node_modules/<name>`.
 const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
@@ -27,8 +27,7 @@ export const onePackageCopyPerVersion = (pluginDirs = []) => ({
   apply: 'build',
   buildEnd(error) {
     if (error) return;
-    // Module ids are real paths.
-    const plugins = pluginDirs.map((dir) => ({ dir, root: `${realpathSync(dir)}/` }));
+    const ownerOf = pluginOwner(pluginDirs.map((dir) => ({ dir })));
     /** @type {Set<string>} */
     const dirs = new Set();
     for (const id of this.getModuleIds()) {
@@ -44,15 +43,15 @@ export const onePackageCopyPerVersion = (pluginDirs = []) => ({
     for (const dir of dirs) {
       const { name, version } = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'));
       const where = path.relative(process.cwd(), dir);
-      const plugin = plugins.find(({ root }) => dir.startsWith(root));
-      if (!plugin) {
+      const owner = ownerOf(dir);
+      if (!owner) {
         const key = `${name}@${version}`;
         copies.set(key, [...(copies.get(key) ?? []), where]);
         continue;
       }
       // Only what the plugin installed: its directory may also hold the app, as a submodule.
-      if (dir.startsWith(`${plugin.root}node_modules/`) && SHARED_PACKAGES.includes(name))
-        shared.push(`  ${name}: ${where} (client plugin ${plugin.dir})`);
+      if (dir.startsWith(`${owner.root}node_modules/`) && SHARED_PACKAGES.includes(name))
+        shared.push(`  ${name}: ${where} (client plugin ${owner.plugin.dir})`);
     }
     if (shared.length > 0)
       this.error(

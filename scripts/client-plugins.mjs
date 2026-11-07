@@ -111,6 +111,30 @@ export const readClientPlugins = (list) => {
   return plugins;
 };
 
+// The app's own directory, which a plugin directory may hold (the app as a submodule of the plugin's
+// repository).
+const APP_ROOT = `${realpathSync(fileURLToPath(new URL('..', import.meta.url)))}/`;
+
+/**
+ * Which of `plugins` a file belongs to: the innermost plugin directory that holds it, unless the app's
+ * own directory inside that plugin directory holds it. Paths are real paths, as module ids and source
+ * maps name them.
+ * @template {{ dir: string }} P
+ * @param {P[]} plugins
+ * @param {string} [appRoot]
+ * @returns {(file: string) => { plugin: P, root: string } | undefined}
+ */
+export const pluginOwner = (plugins, appRoot = APP_ROOT) => {
+  const roots = plugins
+    .map((plugin) => ({ plugin, root: `${realpathSync(plugin.dir)}/` }))
+    .sort((a, b) => b.root.length - a.root.length);
+  return (file) => {
+    const owner = roots.find(({ root }) => file.startsWith(root));
+    const inApp = owner && appRoot.startsWith(owner.root) && file.startsWith(appRoot);
+    return inApp ? undefined : owner;
+  };
+};
+
 /**
  * What src/app/plugins/pluginEntries.ts becomes: an import of each plugin's entry, in order.
  * @param {ClientPluginInfo[]} plugins
@@ -130,8 +154,10 @@ const entriesModule = (plugins) => {
  */
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
-  // Module ids are real paths.
-  const roots = plugins.map((plugin) => ({ plugin, root: `${realpathSync(plugin.dir)}/` }));
+  const ownerOf = pluginOwner(plugins);
+  // The dev server pre-bundles a plugin's installed packages without plugin hooks, so only builds
+  // redirect: a plugin and its packages then always resolve the same copy.
+  let building = false;
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
@@ -147,12 +173,15 @@ export const clientPlugins = (env = process.env) => {
             },
           }
         : undefined,
-    // A plugin's imports of the packages the app shares resolve as the app's own imports do.
+    configResolved: ({ command }) => {
+      building = command === 'build';
+    },
+    // In a build, a plugin's imports of the packages the app shares resolve as the app's own do.
     async resolveId(source, importer, options) {
-      if (!importer) return null;
+      if (!building || !importer) return null;
       const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
       if (!SHARED_PACKAGES.includes(name)) return null;
-      const owner = roots.find(({ root }) => importer.startsWith(root));
+      const owner = ownerOf(importer);
       if (!owner) return null;
       const resolved = await this.resolve(source, ENTRIES_MODULE, { ...options, skipSelf: true });
       if (!resolved) {

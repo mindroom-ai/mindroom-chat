@@ -11,7 +11,7 @@
 // (`vite build --sourcemap`). With MINDROOM_CLIENT_PLUGINS set as for the build, the source maps
 // also give the minified and gzip size of what each client plugin adds, its packages included.
 // --budget fails (exit 1) when a gzip size goes over the limits in the given JSON file.
-import { existsSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
@@ -216,12 +216,13 @@ if (sourcesFlag >= 0) {
 
 // What each client plugin adds: the code of every chunk whose source is in the plugin's directory.
 if (process.env.MINDROOM_CLIENT_PLUGINS) {
-  const { readClientPlugins } = await import('../client-plugins.mjs');
+  const { pluginOwner, readClientPlugins } = await import('../client-plugins.mjs');
   const plugins = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS).map(({ id, dir }) => ({
     id,
-    root: `${realpathSync(dir)}/`,
+    dir,
     code: '',
   }));
+  const ownerOf = pluginOwner(plugins);
   let mapped = false;
   for (const row of jsRows) {
     const file = path.join(dist, row.file);
@@ -229,9 +230,8 @@ if (process.env.MINDROOM_CLIENT_PLUGINS) {
     const owners = await attribute(file);
     mapped ||= owners !== null;
     for (const [source, code] of owners ?? []) {
-      const original = path.resolve(path.dirname(file), source);
-      const plugin = plugins.find(({ root }) => original.startsWith(root));
-      if (plugin) plugin.code += code;
+      const owner = ownerOf(path.resolve(path.dirname(file), source));
+      if (owner) owner.plugin.code += code;
     }
   }
   if (mapped) {
