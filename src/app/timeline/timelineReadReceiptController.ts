@@ -350,6 +350,7 @@ export const useTimelineReadReceiptController = ({
   }, [
     atBottom,
     contextRef,
+    readerSees,
     stillReading,
     threadEventsLength,
     threadId,

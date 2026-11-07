@@ -435,9 +435,7 @@ test('chromium: a short room link opens the room with the drawer away', async ({
       body: JSON.stringify({ preset: 'public_chat', name: 'Open Workshop' }),
     });
     await page.goto(`/${encodeURIComponent(open)}/`);
-    await expect(
-      page.getByRole('main').getByRole('button', { name: 'Join', exact: true })
-    ).toBeVisible({
+    await expect(page.getByRole('button', { name: 'Join', exact: true })).toBeVisible({
       timeout: 30_000,
     });
     await expectDrawer(page, false, 'the join page shows without the drawer');
