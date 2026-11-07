@@ -40,10 +40,10 @@ const recordReceipts = (page: Page): Receipt[] => {
   const receipts: Receipt[] = [];
   page.on('request', (request: Request) => {
     if (request.method() !== 'POST') return;
-    const match = /\/receipt\/m\.read(?:\.private)?\/([^/?]+)/.exec(request.url());
-    if (!match) return;
+    const eventId = /\/receipt\/m\.read(?:\.private)?\/([^/?]+)/.exec(request.url())?.[1];
+    if (!eventId) return;
     const body = (request.postDataJSON() ?? {}) as { thread_id?: string };
-    receipts.push({ eventId: decodeURIComponent(match[1]), threadId: body.thread_id });
+    receipts.push({ eventId: decodeURIComponent(eventId), threadId: body.thread_id });
   });
   return receipts;
 };
