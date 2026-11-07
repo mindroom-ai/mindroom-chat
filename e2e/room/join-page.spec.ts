@@ -121,10 +121,10 @@ const inviteOnlyRoom = async (owner: Account, member: Account, name: string) => 
 
 /** A room anyone may join, with a topic and a message from the owner. */
 const publicRoom = async (owner: Account, name: string) => {
-  const roomId = await createPrivateRoom(HOMESERVER, owner.accessToken, {
-    name,
-    topic: TOPIC,
-    preset: 'public_chat',
+  const { room_id: roomId } = await matrixFetch<{ room_id: string }>(HOMESERVER, '/createRoom', {
+    method: 'POST',
+    accessToken: owner.accessToken,
+    body: JSON.stringify({ name, topic: TOPIC, preset: 'public_chat' }),
   });
   await sendRoomMessage(HOMESERVER, owner.accessToken, roomId, {
     msgtype: 'm.text',
