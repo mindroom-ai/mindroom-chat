@@ -450,6 +450,12 @@
     "phoneNav": {
       "search": "Rechercher",
       "navigation": "Navigation"
+    },
+    "subRooms": {
+      "newSubRoom": "Nouveau sous-salon",
+      "description": "Les membres de {{name}} peuvent le rejoindre, et les agents de {{name}} le rejoignent d’eux-mêmes.",
+      "noPermission": "Vous ne pouvez pas modifier les salons listés sous {{name}}",
+      "takeOff": "Retirer de {{name}}"
     }
   },
   "mindroomUi": {

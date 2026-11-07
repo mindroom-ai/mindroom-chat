@@ -365,8 +365,9 @@ const composerUncovered = (page: Page) =>
 /** The bottom of the room's floating header (its top when it is not shown). */
 const headerBottom = (page: Page) =>
   page.evaluate(() => {
-    // The room area holds the floating header first and the footer last.
-    const area = document.querySelector('[data-room-footer]')?.parentElement;
+    // The room area holds the floating header first, then the conversation, which ends in the
+    // footer.
+    const area = document.querySelector('[data-room-footer]')?.parentElement?.parentElement;
     const header = area?.firstElementChild?.getBoundingClientRect();
     return header ? header.top + header.height : NaN;
   });

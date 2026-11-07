@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import type { IconSrc } from 'folds';
+import type { Room } from 'matrix-js-sdk';
 import { useAtom, useSetAtom } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -17,8 +18,10 @@ import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { VirtualTile } from '../../ui/VirtualTile';
 import { JoinAddressPrompt } from '../../rooms/join/JoinAddressPrompt';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
-import { HOME_ROOM_LIST, useRoomOrder } from '../room-nav/roomOrder';
+import { HOME_ROOM_LIST } from '../room-nav/roomOrder';
 import { SortableRoomList, SortableRoomRow } from '../room-nav/SortableRoomList';
+import { RoomNavItem } from '../room-nav/RoomNavItem';
+import { SubRoomRows, useSubRoomList } from '../room-nav/SubRoomRows';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
 import {
@@ -43,7 +46,6 @@ import { ThreadNavCategory } from '../threads/ThreadNavCategory';
 import { RecentlyOpenedNavCategory } from '../threads/RecentlyOpenedNavCategory';
 import { MarkRoomsReadMenuItem } from '../../notifications/MarkRoomsReadMenuItem';
 import { commandPaletteOpenAtom } from '../../command-palette/commandPaletteState';
-import { useRoomListShortcuts } from '../useRoomListShortcuts';
 import { MenuEntry, MenuGroup } from '../../ui/MenuEntry';
 import { getHomeCreatePath, getHomeRoomPath, withSearchParam } from '../../routes/pathUtils';
 import { NavOptionsMenu } from '../../ui/nav/NavOptionsMenu';
@@ -158,25 +160,32 @@ export function Home() {
   const handleCategoryClick = useCategoryHandler(setClosedCategories, isCategoryClosed);
 
   const roomsByName = useMemo(() => sortRoomIdsByName(client, homeRooms), [client, homeRooms]);
-  // A to Z until the person drags a room; then their order, on every device.
-  const roomOrder = useRoomOrder(HOME_ROOM_LIST, roomsByName);
-  const listedRoomIds = useMemo(
-    () =>
-      // A collapsed category still shows the selected room.
-      roomsClosed
-        ? roomOrder.roomIds.filter((roomId) => roomId === selectedRoomId)
-        : roomOrder.roomIds,
-    [roomOrder.roomIds, roomsClosed, selectedRoomId]
+  const homeRoomPath = (roomId: string) =>
+    getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId));
+  const { tree, roomOrder, listedRoomIds } = useSubRoomList(
+    HOME_ROOM_LIST,
+    roomsByName,
+    roomsByName,
+    roomsClosed,
+    selectedRoomId,
+    homeRoomPath
   );
-  useRoomListShortcuts(listedRoomIds, selectedRoomId, (roomId) =>
-    getHomeRoomPath(getCanonicalAliasOrRoomId(client, roomId))
-  );
+  // A room's row, the same at top level and under the room it sits under.
+  const rowProps = (room: Room) => ({
+    room,
+    linkPath: homeRoomPath(room.roomId),
+    selected: room.roomId === selectedRoomId,
+    notificationMode: getRoomNotificationMode(notificationPreferences, room.roomId),
+  });
+  const renderSubRoom = (room: Room) => <RoomNavItem {...rowProps(room)} />;
 
   // The list reopens where it was left: after a space, or a room or thread that took a phone's
   // whole screen.
   const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(client.getSafeUserId(), 'home'), {
     getScrollElement: () => listScrollRef.current,
     count: listedRoomIds.length,
+    // A room's tile grows with the sub-rooms under it, so its height goes with the room.
+    getItemKey: (index) => listedRoomIds[index] ?? index,
     estimateSize: () => ROOM_ROW_HEIGHT,
     overscan: 10,
   });
@@ -275,15 +284,15 @@ export function Home() {
                         virtualItem={item}
                         ref={virtualizer.measureElement}
                       >
-                        <SortableRoomRow
-                          room={room}
-                          linkPath={getHomeRoomPath(getCanonicalAliasOrRoomId(client, room.roomId))}
-                          selected={roomId === selectedRoomId}
-                          notificationMode={getRoomNotificationMode(
-                            notificationPreferences,
-                            room.roomId
-                          )}
-                        />
+                        <SortableRoomRow {...rowProps(room)} />
+                        {!roomsClosed && (
+                          <SubRoomRows
+                            parent={room}
+                            tree={tree}
+                            renderRoom={renderSubRoom}
+                            previewPath={getHomeRoomPath}
+                          />
+                        )}
                       </VirtualTile>
                     );
                   })}

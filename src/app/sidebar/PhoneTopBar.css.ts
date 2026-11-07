@@ -5,8 +5,8 @@ import { touchTarget } from '../ui/styles/touchTarget';
 /** The bar's height; the drawer starts right below it. */
 export const phoneTopBarHeight = toRem(52);
 
-// A phone's top bar: menu, search and account in one row on the rail's colour, ruled off from the
-// page below.
+// A phone's top bar: menu, search and account in one row on the rail's colour. No line rules it off:
+// the page below starts on its own surface colour, and the drawer, in the bar's colour, meets it.
 export const PhoneTopBar = style([
   DefaultReset,
   {
@@ -18,7 +18,6 @@ export const PhoneTopBar = style([
     paddingInline: config.space.S200,
     backgroundColor: color.Background.Container,
     color: color.Background.OnContainer,
-    borderBlockEnd: `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`,
   },
 ]);
 
@@ -45,7 +44,7 @@ export const UnreadDot = style({
   },
 });
 
-/** The search field's outline, a hairline in the colour of the bar's rule. */
+/** The search field's outline, a hairline in the bar's line colour. */
 const fieldOutline = `${config.borderWidth.B300} solid ${color.Background.ContainerLine}`;
 
 /** The search field: a button drawn as a text field, filling the room between the two buttons. */
