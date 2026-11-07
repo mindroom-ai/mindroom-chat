@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildMigrationPlans,
+  changesVisibleTags,
   collectRoomState,
   predictMergedStateAfterMigration,
 } from '../../../scripts/migrate-thread-tags.mjs';
@@ -101,5 +102,24 @@ describe('migrate-thread-tags script helpers', () => {
         ]);
       }
     );
+
+    it('would name the agent running it to the members of another homeserver', () => {
+      const runAs = '@mindroom_router:example.org';
+      const refuses = (events: Parameters<typeof collectRoomState>[0]) => {
+        const collected = collectRoomState(events, runAs);
+        return changesVisibleTags(collected, buildMigrationPlans(collected));
+      };
+      const member = (userId: string, membership: string) => ({
+        type: 'm.room.member',
+        state_key: userId,
+        sender: userId,
+        content: { membership },
+      });
+      const tag = legacyResolved(ALICE, ALICE);
+      const bob = '@bob:elsewhere.example';
+      expect(refuses([tag, member(ALICE, 'join')])).toBe(false);
+      expect(refuses([tag, member(bob, 'leave')])).toBe(false);
+      expect(refuses([tag, member(bob, 'join')])).toBe(true);
+    });
   });
 });
