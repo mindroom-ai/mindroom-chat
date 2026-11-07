@@ -129,6 +129,8 @@ const distanceBelowView = (element: HTMLElement): number =>
 type LatestRowRequestOptions = {
   /** Whether opening this room shows its newest row (not its unread marker or an event). */
   opensAtLatest: boolean;
+  /** Whether the route focuses an event (a permalink, or the root of a thread just left). */
+  focusesEvent?: boolean;
   /** Whether the room's newest row is its first (`scrollToLatestEnd`). */
   latestAtTop?: boolean;
   roomId: string;
@@ -157,6 +159,7 @@ type LatestRowRequestOptions = {
  */
 const useLatestRowRequest = ({
   opensAtLatest,
+  focusesEvent = false,
   latestAtTop,
   roomId,
   scrollElement,
@@ -176,10 +179,11 @@ const useLatestRowRequest = ({
   useLayoutEffect(() => {
     if (viewRef.current === committedView) return;
     viewRef.current = committedView;
-    // Another room opens as the first one did; another view of the same room at its newest row.
-    requestRef.current = roomRef.current === roomId || opensAtLatest;
+    // Another room opens as the first one did; another view of the same room at its newest row,
+    // unless it focuses an event: leaving a thread opened from a link comes back to its root.
+    requestRef.current = (roomRef.current === roomId && !focusesEvent) || opensAtLatest;
     roomRef.current = roomId;
-  }, [committedView, opensAtLatest, roomId]);
+  }, [committedView, focusesEvent, opensAtLatest, roomId]);
   // Every commit compares the count as it is then: a render that React bails out of keeps the
   // count it read without running its effects, so effect dependencies would miss that pin.
   useLayoutEffect(() => {

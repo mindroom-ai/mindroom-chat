@@ -1297,6 +1297,7 @@ export function RoomTimeline(props: RoomTimelineProps) {
     // unless its newest row is first.
     opensAtLatest:
       !eventId && (latestAtTop || !(unreadInfo?.scrollTo && unreadInfo.inLiveTimeline)),
+    focusesEvent: !!eventId,
     latestAtTop,
     roomId: room.roomId,
     scrollElement,
