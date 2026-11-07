@@ -6,7 +6,7 @@ import { useAtomValue } from 'jotai';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
-import { PopOut, ownDirectionLine } from '../../ui/directional';
+import { PopOut, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
 import { NavButton, NavItem, NavItemContent } from '../../ui/nav/NavItem';
 import { UnreadBadge, UnreadBadgeCenter } from '../../ui/UnreadBadge';
@@ -33,7 +33,7 @@ function SubspaceEntry({ room, unread, onSelect }: SubspaceEntryProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const authenticated = useMediaAuthentication();
-  const name = useRoomName(room);
+  const name = revealDirectionControls(useRoomName(room));
   const avatarMxc = useRoomAvatar(room);
   const src = avatarMxc
     ? mxcUrlToHttp(client, avatarMxc, authenticated, AVATAR_SIZE, AVATAR_SIZE, 'crop') ?? undefined

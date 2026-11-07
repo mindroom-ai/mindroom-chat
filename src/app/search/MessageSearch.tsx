@@ -26,7 +26,7 @@ import {
   color,
   config,
 } from 'folds';
-import { PopOut } from '../ui/directional';
+import { PopOut, revealDirectionControls } from '../ui/directional';
 import { ChoiceMenu } from '../ui/ChoiceMenu';
 import { RoomAvatar } from '../avatars/RoomAvatar';
 import { ScrollTopContainer } from '../ui/ScrollTopContainer';
@@ -266,7 +266,7 @@ export function MessageSearch({
         <Box alignItems="Center" gap="200" className={css.GroupTitle}>
           {room && <ResultRoomAvatar room={room} />}
           <Text as="h2" size="H5" truncate>
-            {room?.name ?? row.roomId}
+            {revealDirectionControls(room?.name ?? row.roomId)}
           </Text>
         </Box>
       );
@@ -406,14 +406,16 @@ export function MessageSearch({
                 type="button"
                 variant="Secondary"
                 radii="Pill"
-                aria-label={t('thread.aria.removeTagFilter', { tag: name })}
+                aria-label={t('thread.aria.removeTagFilter', {
+                  tag: revealDirectionControls(name),
+                })}
                 after={<Icon size="50" src={Icons.Cross} />}
                 onClick={() =>
                   chooseRooms(pickedRooms.filter((r) => r.roomId !== roomId).map((r) => r.roomId))
                 }
               >
                 <Text size="T200" truncate className={css.RoomChipName}>
-                  {name}
+                  {revealDirectionControls(name)}
                 </Text>
               </Chip>
             );
