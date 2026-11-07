@@ -1,5 +1,5 @@
 import React from 'react';
-import { RoomEvent, ThreadEvent } from 'matrix-js-sdk';
+import { MatrixEventEvent, RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
@@ -16,10 +16,29 @@ const OVERVIEW_EVENTS = [
   ThreadEvent.Delete,
 ];
 
+const fakeEmitter = () => {
+  const listeners = new Map<string, Set<Listener>>();
+  return {
+    on: (name: string, listener: Listener) => {
+      const named = listeners.get(name) ?? new Set<Listener>();
+      named.add(listener);
+      listeners.set(name, named);
+    },
+    removeListener: (name: string, listener: Listener) => {
+      listeners.get(name)?.delete(listener);
+    },
+    emit: (name: string, ...args: unknown[]) => {
+      [...(listeners.get(name) ?? [])].forEach((listener) => listener(...args));
+    },
+    count: (name: string) => listeners.get(name)?.size ?? 0,
+  };
+};
+
 const fakeRoom = (roomId: string) => {
   const listeners = new Map<string, Set<Listener>>();
   return {
     roomId,
+    client: fakeEmitter(),
     on: (name: string, listener: Listener) => {
       const named = listeners.get(name) ?? new Set<Listener>();
       named.add(listener);
@@ -36,8 +55,9 @@ const fakeRoom = (roomId: string) => {
 };
 type FakeRoom = ReturnType<typeof fakeRoom>;
 
-const fakeEvent = (eventId: string, threadRootId?: string) => ({
+const fakeEvent = (eventId: string, threadRootId?: string, roomId = '!room:example.org') => ({
   getId: () => eventId,
+  getRoomId: () => roomId,
   isThreadRoot: false,
   threadRootId,
   getAssociatedId: () => undefined,
@@ -90,6 +110,37 @@ const renderCounter = async (room: FakeRoom, threadId?: string) => {
 };
 
 describe('useThreadOverviewRefreshCounter subscriptions', () => {
+  // Regression (P2-e2ee-F005): WebKit decrypted a thread's newest reply after the cards were drawn,
+  // and the card kept an older reply's preview for good.
+  it('counts a thread event of this room that decrypts, once per batch', async () => {
+    const room = fakeRoom('!room:example.org');
+    const view = await renderCounter(room);
+
+    await act(async () => {
+      room.client.emit(MatrixEventEvent.Decrypted, fakeEvent('$reply', '$root'));
+      room.client.emit(MatrixEventEvent.Decrypted, fakeEvent('$edit', '$root'));
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(view.counter()).toBe(1);
+
+    await act(async () => {
+      room.client.emit(MatrixEventEvent.Decrypted, fakeEvent('$plain'));
+      room.client.emit(
+        MatrixEventEvent.Decrypted,
+        fakeEvent('$other', '$root', '!other:example.org')
+      );
+      await new Promise((resolve) => {
+        setTimeout(resolve, 0);
+      });
+    });
+    expect(view.counter()).toBe(1);
+
+    await view.unmount();
+    expect(room.client.count(MatrixEventEvent.Decrypted)).toBe(0);
+  });
+
   it('counts added timeline events of this room that concern a thread', async () => {
     const room = fakeRoom('!room:example.org');
     const other = fakeRoom('!other:example.org');
