@@ -52,6 +52,22 @@ const serveNotices = async (page: Page, notices: unknown) => {
 
 const banners = (page: Page) => page.getByRole('status').locator('[data-notice-level]');
 
+// Each banner is the topmost element at its centre, so nothing drawn over the page (such as the
+// sign-in page's particle background) hides it or takes its clicks.
+const expectBannersOnTop = async (page: Page) => {
+  const covered = await banners(page).evaluateAll((rows) =>
+    rows
+      .filter((row) => {
+        const box = row.getBoundingClientRect();
+        return !row.contains(
+          document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)
+        );
+      })
+      .map((row) => row.getAttribute('data-notice-level'))
+  );
+  expect(covered).toEqual([]);
+};
+
 for (const theme of ['light', 'dark'] as const) {
   test(`notice banners at phone width in ${theme} mode`, async ({ page }, testInfo) => {
     await page.emulateMedia({ colorScheme: theme });
@@ -61,6 +77,7 @@ for (const theme of ['light', 'dark'] as const) {
     await page.goto('/');
 
     await expect(banners(page)).toHaveCount(3);
+    await expectBannersOnTop(page);
     const status = page.getByRole('status').first();
     await expect(status.getByRole('link', { name: 'Status' })).toHaveAttribute(
       'href',
@@ -148,6 +165,7 @@ test('notice banners at desktop width, with dismissal and removal', async ({ pag
   await page.goto('/');
 
   await expect(banners(page)).toHaveCount(3);
+  await expectBannersOnTop(page);
   await page.screenshot({ path: testInfo.outputPath('notices-desktop-light.png') });
 
   await banners(page).first().getByRole('button', { name: 'Dismiss notice' }).click();
