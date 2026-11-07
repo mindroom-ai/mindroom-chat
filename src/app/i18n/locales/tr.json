@@ -1272,7 +1272,7 @@
       "matchingUsers_other": "{{count}} eşleşen kullanıcı"
     },
     "mindRoomSplashScreen": {
-      "loading": "MindRoom Chat yükleniyor"
+      "loading": "{{appName}} yükleniyor"
     },
     "commands": {
       "CommandMe": "Eylem mesajı gönder",

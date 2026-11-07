@@ -77,6 +77,9 @@ export const AuthLogoCustom = style({
   maxInlineSize: toRem(160),
 });
 
+/** The page's heading when it is the logo alone: a wordmark that shows the name. */
+export const AuthLogoHeading = style([DefaultReset, { display: 'flex' }]);
+
 /** The card's title bar with the logo and the app name. */
 export const AuthHeader = style({
   padding: `0 ${config.space.S400}`,
