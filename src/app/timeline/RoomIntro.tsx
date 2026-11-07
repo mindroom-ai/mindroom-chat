@@ -8,6 +8,7 @@ import { useRoomAvatar, useRoomName, useRoomTopic } from '../matrix/hooks/useRoo
 import { nameInitials } from '../lib/common';
 import { mxcUrlToHttp } from '../matrix/matrix';
 import { getDirectPartnerId } from '../matrix/room';
+import { revealDirectionControls } from '../ui/directional';
 
 type RoomIntroProps = {
   room: Room;
@@ -17,10 +18,12 @@ type RoomIntroProps = {
 export function RoomIntro({ room }: RoomIntroProps) {
   const mx = useMatrixClient();
   const authenticatedMedia = useMediaAuthentication();
-  const name = useRoomName(room);
+  // Direction controls in the name and topic show as code points, so they cannot reorder them.
+  const name = revealDirectionControls(useRoomName(room));
   // A direct chat starts with the other person, as its header shows them.
   const withPerson = useIsDirectRoom();
-  const topic = useRoomTopic(room);
+  const roomTopic = useRoomTopic(room);
+  const topic = roomTopic && revealDirectionControls(roomTopic);
   const pictureMxc = useRoomAvatar(room, withPerson);
   const avatarSrc = pictureMxc
     ? mxcUrlToHttp(mx, pictureMxc, authenticatedMedia, 96, 96, 'crop') ?? undefined

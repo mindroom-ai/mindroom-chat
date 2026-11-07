@@ -2,11 +2,13 @@ import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
+import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
   sidePanels?: readonly SidePanel[];
+  translations?: PluginTranslations;
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -20,6 +22,7 @@ export type RegisteredPlugin = {
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
+  registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
     tag: `${id}@${version}`,

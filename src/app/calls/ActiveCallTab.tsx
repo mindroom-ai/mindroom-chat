@@ -6,6 +6,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { callHomeRoomId, callPanelRoomAtom, useCallState, type ActiveCall } from './callStore';
 import * as css from './CallTab.css';
+import { revealDirectionControls } from '../ui/directional';
 
 /** The rail's green call button: back to the call's conversation, with its panel open. */
 export function ActiveCallTab({ active }: { active: ActiveCall }) {
@@ -14,7 +15,7 @@ export function ActiveCallTab({ active }: { active: ActiveCall }) {
   const setPanelRoom = useSetAtom(callPanelRoomAtom);
   const state = useCallState(active.call);
   const homeRoomId = callHomeRoomId(active);
-  const name = useRoomName(active.call.room);
+  const name = revealDirectionControls(useRoomName(active.call.room));
   const label = t('featureUi.calls.rail.returnToCall', { room: name });
   const speaking = state.participants.some((participant) => participant.speaking);
 

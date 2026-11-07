@@ -6,7 +6,7 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { PageNav, PageNavContent, PageNavHeader } from '../../ui/page/Page';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { NavButton, NavCategory, NavItem, NavItemContent, NavLink } from '../../ui/nav/NavItem';
 import { NavCategoryHeader } from '../../ui/nav/NavCategoryHeader';
 import { RoomNavCategoryButton } from '../room-nav/RoomNavCategoryButton';
@@ -174,7 +174,7 @@ type SpaceHeaderProps = {
 function ParentSpaceBack({ parent, others }: { parent: Room; others: Room[] }) {
   const { t } = useTranslation();
   const client = useMatrixClient();
-  const name = useRoomName(parent);
+  const name = revealDirectionControls(useRoomName(parent));
   const listPath = (room: Room) => getSpacePath(getCanonicalAliasOrRoomId(client, room.roomId));
   return (
     <BackToListButton
@@ -189,7 +189,7 @@ function SpaceHeader({ roomIds, onSortByName }: SpaceHeaderProps) {
   const { t } = useTranslation();
   const client = useMatrixClient();
   const space = useSpace();
-  const name = useRoomName(space);
+  const name = revealDirectionControls(useRoomName(space));
   const permissions = useRoomPermissions(useRoomCreators(space), usePowerLevels(space));
   const canInvite = permissions.action('invite', client.getUserId() ?? '');
   const openSpaceSettings = useOpenSpaceSettings();
@@ -326,7 +326,7 @@ export function Space() {
   const client = useMatrixClient();
   const { t } = useTranslation();
   const space = useSpace();
-  const title = useRoomName(space);
+  const title = revealDirectionControls(useRoomName(space));
   // On a phone, opening the list keeps the remembered room for the next visit.
   useNavToActivePathMapper(space.roomId, true);
   // Mark as Read covers the rooms of the sub-spaces too; the list shows only the space's own.

@@ -17,7 +17,7 @@ How to build the client, serve it, and point it at a homeserver and a MindRoom b
 | `public/licenses/` | `LICENSE`, `NOTICE` and third-party license texts |
 
 - `branding` in `config.json` puts a company's logo, name and footer on the sign-in pages without a new build ([`configuration.md`](configuration.md#branding)).
-- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`).
+- `MINDROOM_BUILD_VERSION` and `MINDROOM_RELEASE_VERSION` set the version the build reports (otherwise taken from Git: the commit, and the nearest release tag `vYYYY.M.N`); client plugins add a digest of their files to the first.
 
 ## Serve
 
@@ -59,7 +59,7 @@ Pin a release and move the pin to update; a running page notices the new `versio
 - `docker-entrypoint.d/`, run by nginx's entrypoint before it starts. `99-runtime-config.sh` writes `runtime-config.js` from `APP_BASE_PATH`, `APP_ENABLE_SERVICE_WORKER`, `APP_AUTHENTICATION_RECOVERY_PROBE_URL` and `APP_AUTHENTICATION_RECOVERY_NAVIGATION_URL`, then appends the build's own, kept in `/opt/mindroom/runtime-config.js`. `40-frame-headers.sh` writes `/etc/nginx/conf.d/mindroom-frame-headers.conf`, which sends the framing headers from the `http` block; a `server` or `location` with an `add_header` of its own must `include /etc/nginx/mindroom-frame-headers.inc`, because nginx then drops the inherited headers, as `docker/default.conf` does.
 - The MindRoom Helm chart starts `nginx` itself, as user 101 with a read-only root file system, mounts its own site config over `docker/default.conf` and answers `runtime-config.js` itself, so the start scripts do not run there; its README lists the settings.
 
-`docker build -t mindroom-chat .` builds the image from a checkout; pass `--build-arg MINDROOM_BUILD_VERSION=<tag> --build-arg MINDROOM_RELEASE_VERSION=<tag>` to name its version, since `.git` stays out of the build (otherwise it reports a digest of its sources and `v` plus the package version). The app is built once, on the build machine's platform, and copied into each platform's nginx image.
+`docker build -t mindroom-chat .` builds the image from a checkout; pass `--build-arg MINDROOM_BUILD_VERSION=<tag> --build-arg MINDROOM_RELEASE_VERSION=<tag>` to name its version, since `.git` stays out of the build (otherwise it reports a digest of its sources and `v` plus the package version). With client plugins (`--build-arg MINDROOM_CLIENT_PLUGINS=<directories in the build stage>`, [`configuration.md`](configuration.md#build-time-variables)) the version gets `-plugins-` and a digest of their files. The app is built once, on the build machine's platform, and copied into each platform's nginx image.
 
 ## Homeserver and MindRoom backend
 

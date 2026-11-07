@@ -14,7 +14,7 @@ import { isKeyHotkey } from 'is-hotkey';
 import { type IContent, type Room } from 'matrix-js-sdk';
 import type { Descendant, Editor } from 'slate';
 import { Box, Icon, Icons, IconSrc, RectCords, Text, color, config } from 'folds';
-import { PopOut } from '../ui/directional';
+import { PopOut, revealDirectionControls } from '../ui/directional';
 import { Editor as SlateEditor } from 'slate';
 import { getPrevWorldRange, isEmptyEditor, resetEditor, resetEditorHistory } from '../editor/utils';
 import { CustomEditor } from '../editor/Editor';
@@ -680,7 +680,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           >
             <Icon size="400" src={Icons.File} />
             <Text size="H5" align="Center">
-              {t('composer.dropFiles', { roomName: room.name || t('composer.roomFallback') })}
+              {t('composer.dropFiles', {
+                roomName: room.name
+                  ? revealDirectionControls(room.name)
+                  : t('composer.roomFallback'),
+              })}
             </Text>
             <Text size="T300" align="Center">
               {t('composer.dropFilesHint')}
