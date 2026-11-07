@@ -61,8 +61,10 @@ const lateKeyBackupAnswer = async (page: Page, browserName: string) => {
   // From here the server answers a key backup check only when the spec lets it. The context's
   // route also sees what the app's service worker fetches.
   const held: Route[] = [];
-  await page.context().route(KEY_BACKUP_VERSION, (route) => {
-    held.push(route);
+  let answering = false;
+  await page.context().route(KEY_BACKUP_VERSION, async (route) => {
+    if (answering) await route.continue();
+    else held.push(route);
   });
   await switchTo(page, first);
   await expectShellOf(page, first, firstRoom);
@@ -71,7 +73,7 @@ const lateKeyBackupAnswer = async (page: Page, browserName: string) => {
   // Away again while the first account's check still waits; then the server answers it.
   await switchTo(page, second);
   await expectShellOf(page, second, secondRoom);
-  await page.context().unroute(KEY_BACKUP_VERSION);
+  answering = true;
   await Promise.all(held.splice(0).map((route) => route.continue()));
   // An error from the answered check shows within moments; give it some time.
   await page.waitForTimeout(3_000);
