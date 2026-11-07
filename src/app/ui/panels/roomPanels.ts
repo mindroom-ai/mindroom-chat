@@ -58,15 +58,18 @@ export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: rea
   const setLayout = useCallback(
     (id: string, layout: PanelLayout) =>
       setLayouts((all) => ({ ...all, [id]: { ...all[id], [latest.current.room]: layout } })),
-    []
+    [latest]
   );
-  const request = useCallback((id: string, show: () => void) => {
-    const { room: here, panels: current } = latest.current;
-    makeRoomFor(current, id);
-    const open = current.some((panel) => panel.id === id && panel.open);
-    setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : opened(all, id)));
-    show();
-  }, []);
+  const request = useCallback(
+    (id: string, show: () => void) => {
+      const { room: here, panels: current } = latest.current;
+      makeRoomFor(current, id);
+      const open = current.some((panel) => panel.id === id && panel.open);
+      setLayouts((all) => (open && all[id]?.[here] === 'filled' ? all : opened(all, id)));
+      show();
+    },
+    [latest]
+  );
 
   // The panels open when each room last showed: a panel already open when its room shows again
   // did not open elsewhere.
