@@ -8,6 +8,7 @@ import {
   DISPOSABLE_HOMESERVER as HOMESERVER,
   disposableHomeserverIsUp,
   registerDisposableUser,
+  type DisposableUser,
 } from '../helpers/disposableAccounts';
 import { buildLoginPath } from '../env';
 import { createRoom } from '../helpers/createRoom';
@@ -31,7 +32,13 @@ const PERSON_BODY = 'Plain body of a person';
 test.use({ viewport: { width: 1280, height: 800 } });
 test.describe.configure({ mode: 'serial' });
 
-type Seed = { username: string; roomId: string; rootId: string; agentId: string; personId: string };
+type Seed = {
+  person: DisposableUser;
+  roomId: string;
+  rootId: string;
+  agentReplyId: string;
+  personMessageId: string;
+};
 
 let build: string | undefined;
 let shippedConfig: Record<string, unknown> = {};
@@ -51,10 +58,7 @@ test.beforeAll(async () => {
       `the build with the example plugin failed:\n${(result.stderr || result.stdout).slice(-3000)}`
     );
   }
-  shippedConfig = JSON.parse(readFileSync(join(build, 'config.json'), 'utf8')) as Record<
-    string,
-    unknown
-  >;
+  shippedConfig = JSON.parse(readFileSync(join(build, 'config.json'), 'utf8'));
 
   const person = await registerDisposableUser(`plugin_person_${RUN}`, PASSWORD);
   const agent = await registerAgentAccount(HOMESERVER, 'greeter');
@@ -68,19 +72,19 @@ test.beforeAll(async () => {
     body: 'Greet me, please.',
   });
   const inThread = { 'm.relates_to': { rel_type: 'm.thread', event_id: rootId } };
-  const agentId = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
+  const agentReplyId = await sendRoomMessage(HOMESERVER, agent.accessToken, roomId, {
     msgtype: 'm.text',
     body: AGENT_BODY,
     'com.example.greeting': { text: GREETING },
     ...inThread,
   });
-  const personId = await sendRoomMessage(HOMESERVER, person.accessToken, roomId, {
+  const personMessageId = await sendRoomMessage(HOMESERVER, person.accessToken, roomId, {
     msgtype: 'm.text',
     body: PERSON_BODY,
     'com.example.greeting': { text: 'Not from an agent' },
     ...inThread,
   });
-  seeded = { username: person.username, roomId, rootId, agentId, personId };
+  seeded = { person, roomId, rootId, agentReplyId, personMessageId };
 });
 
 test.afterAll(() => {
@@ -91,16 +95,29 @@ test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-/** Serves the build with `plugins` as config.json's plugin sections; each call gets a new origin. */
-const serve = (plugins: Record<string, unknown>) => {
+/**
+ * Serves the build, with `plugins` as config.json's plugin sections, on a new origin, and runs
+ * `check` in a page of a new browser context there.
+ */
+const onBuild = async (
+  browser: Browser,
+  plugins: Record<string, unknown>,
+  check: (page: Page, data: Seed) => Promise<void>
+) => {
   writeFileSync(join(build!, 'config.json'), JSON.stringify({ ...shippedConfig, plugins }));
-  return serveBuild(build!);
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await check(page, seeded!);
+  } finally {
+    await context.close();
+    await server.close();
+  }
 };
 
-const newPage = async (browser: Browser, origin: string) => {
-  const context = await browser.newContext({ baseURL: origin });
-  return { context, page: await context.newPage() };
-};
+const signIn = (page: Page, { person }: Seed) =>
+  loginWithPassword(page, { homeserver: HOMESERVER, ...person });
 
 const threadPath = ({ roomId, rootId }: Seed) =>
   `/home/${encodeURIComponent(roomId)}?threadId=${encodeURIComponent(rootId)}`;
@@ -114,8 +131,8 @@ const row = (page: Page, eventId: string) => page.locator(`[data-message-id="${e
 
 /** Waits for the thread's replies, then returns the agent's reply row. */
 const agentReply = async (page: Page, data: Seed) => {
-  await expect(row(page, data.personId)).toContainText(PERSON_BODY, { timeout: 60_000 });
-  return row(page, data.agentId);
+  await expect(row(page, data.personMessageId)).toContainText(PERSON_BODY, { timeout: 60_000 });
+  return row(page, data.agentReplyId);
 };
 
 const expectCoreRendering = async (page: Page, data: Seed, name: string) => {
@@ -125,58 +142,31 @@ const expectCoreRendering = async (page: Page, data: Seed, name: string) => {
   await shot(page, name);
 };
 
-test("an agent's reply renders through the plugin, a person's message as the app renders it", async ({
+test("an agent's reply renders through the plugin, a person's message as the app renders it", ({
   browser,
-}) => {
-  const data = seeded!;
-  const server = await serve({ example: { label: 'From config' } });
-  const { context, page } = await newPage(browser, server.origin);
-  try {
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: data.username,
-      password: PASSWORD,
-    });
+}) =>
+  onBuild(browser, { example: { label: 'From config' } }, async (page, data) => {
+    await signIn(page, data);
     await page.goto(threadPath(data));
     const reply = await agentReply(page, data);
     await expect(reply.locator('[data-example-plugin]')).toHaveText(`From config: ${GREETING}`);
     await expect(reply).not.toContainText(AGENT_BODY);
     await shot(page, 'plugin');
-    await expect(row(page, data.personId).locator('[data-example-plugin]')).toHaveCount(0);
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+    await expect(row(page, data.personMessageId).locator('[data-example-plugin]')).toHaveCount(0);
+  }));
 
-test('?plugins=off shows the reply as the app renders it', async ({ browser }) => {
-  const data = seeded!;
-  const server = await serve({});
-  const { context, page } = await newPage(browser, server.origin);
-  try {
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: data.username,
-      password: PASSWORD,
-    });
+test('?plugins=off shows the reply as the app renders it', ({ browser }) =>
+  onBuild(browser, {}, async (page, data) => {
+    await signIn(page, data);
     await page.goto(`${threadPath(data)}&plugins=off`);
     await expectCoreRendering(page, data, 'plugins-off');
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+  }));
 
-test('?plugins=off on the sign-in page holds for the rest of that page load', async ({
-  browser,
-}) => {
-  const data = seeded!;
-  const server = await serve({});
-  const { context, page } = await newPage(browser, server.origin);
-  try {
+test('?plugins=off on the sign-in page holds for the rest of that page load', ({ browser }) =>
+  onBuild(browser, {}, async (page, data) => {
     await page.goto(`${buildLoginPath(HOMESERVER)}?plugins=off`);
-    await page.locator('input[name="usernameInput"]').fill(data.username);
-    await page.locator('input[name="passwordInput"]').fill(PASSWORD);
+    await page.locator('input[name="usernameInput"]').fill(data.person.username);
+    await page.locator('input[name="passwordInput"]').fill(data.person.password);
     await page.evaluate(() => {
       (window as { pluginSpecLoad?: boolean }).pluginSpecLoad = true;
     });
@@ -192,28 +182,11 @@ test('?plugins=off on the sign-in page holds for the rest of that page load', as
       true
     );
     expect(new URL(page.url()).searchParams.get('plugins')).toBeNull();
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+  }));
 
-test('plugins.example.enabled: false shows the reply as the app renders it', async ({
-  browser,
-}) => {
-  const data = seeded!;
-  const server = await serve({ example: { enabled: false, label: 'From config' } });
-  const { context, page } = await newPage(browser, server.origin);
-  try {
-    await loginWithPassword(page, {
-      homeserver: HOMESERVER,
-      username: data.username,
-      password: PASSWORD,
-    });
+test('plugins.example.enabled: false shows the reply as the app renders it', ({ browser }) =>
+  onBuild(browser, { example: { enabled: false, label: 'From config' } }, async (page, data) => {
+    await signIn(page, data);
     await page.goto(threadPath(data));
     await expectCoreRendering(page, data, 'plugin-disabled');
-  } finally {
-    await context.close();
-    await server.close();
-  }
-});
+  }));

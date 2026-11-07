@@ -3,6 +3,7 @@ import { MatrixEvent, type IContent, type MatrixClient } from 'matrix-js-sdk';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../../matrix/hooks/useMatrixClient';
 import { ClientConfigProvider, type ClientConfig } from '../../config/useClientConfig';
+import type { PluginEvent } from '../../plugins/messageRenderers';
 import { RenderMessageContent } from './RenderMessageContent';
 
 const mocks = vi.hoisted(() => ({ reportBoundaryError: vi.fn() }));
@@ -13,11 +14,10 @@ vi.mock('../../bug-reports/error-reporting/errorReporting', async (importOrigina
 
 // Two plugins as a build lists them: one renders greetings, the other fails on what it matches.
 vi.mock('../../plugins/pluginEntries', () => {
-  type Shown = { event: { content: Record<string, unknown> } & Record<string, unknown> };
-  const greeting = ({ event }: Shown) =>
-    `plugin:${String(event.content['com.example.greeting'])} from ${String(
-      event.sender
-    )} in ${String(event.roomId)} (${String(event.eventId)}, ${String(event.type)})`;
+  const greeting = ({ event }: { event: PluginEvent }) =>
+    `plugin:${String(event.content['com.example.greeting'])} from ${event.sender} in ${String(
+      event.roomId
+    )} (${String(event.eventId)}, ${String(event.type)})`;
   return {
     pluginEntries: [
       {
@@ -26,7 +26,7 @@ vi.mock('../../plugins/pluginEntries', () => {
         plugin: {
           messageRenderers: [
             {
-              match: (event: Shown['event']) =>
+              match: (event: PluginEvent) =>
                 typeof event.content['com.example.greeting'] === 'string',
               Component: greeting,
             },
@@ -39,14 +39,14 @@ vi.mock('../../plugins/pluginEntries', () => {
         plugin: {
           messageRenderers: [
             {
-              match: (event: Shown['event']) => event.content.explode === true,
+              match: (event: PluginEvent) => event.content.explode === true,
               Component: () => {
                 throw new Error('boom');
               },
             },
             {
               // Throws something that is not an Error.
-              match: (event: Shown['event']) => event.content.explode === 'string',
+              match: (event: PluginEvent) => event.content.explode === 'string',
               Component: () => {
                 // eslint-disable-next-line @typescript-eslint/no-throw-literal
                 throw 'not an error';

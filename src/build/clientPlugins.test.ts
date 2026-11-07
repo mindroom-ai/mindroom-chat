@@ -1,17 +1,27 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, type Rollup, type UserConfig } from 'vite';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { clientPlugins, readClientPlugins } from '../../scripts/client-plugins.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const EXAMPLE = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
 
+const madeDirs: string[] = [];
+afterAll(() => madeDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
+
+/** A new, empty directory, removed after the tests. */
+const emptyDir = (): string => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'client-plugin-'));
+  madeDirs.push(dir);
+  return dir;
+};
+
 /** A new plugin directory with this package.json (raw text when a string) and an index.js entry. */
 const pluginDir = (manifest: unknown, { entry = true } = {}): string => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'client-plugin-'));
+  const dir = emptyDir();
   writeFileSync(
     path.join(dir, 'package.json'),
     typeof manifest === 'string' ? manifest : JSON.stringify(manifest)
@@ -47,11 +57,7 @@ describe('readClientPlugins', () => {
       () => 'plugins/example',
       /plugins\/example: not an absolute directory/,
     ],
-    [
-      'a directory without package.json',
-      () => mkdtempSync(path.join(tmpdir(), 'client-plugin-')),
-      /cannot read package\.json/,
-    ],
+    ['a directory without package.json', emptyDir, /cannot read package\.json/],
     ['a package.json that does not parse', () => pluginDir('{'), /cannot read package\.json/],
     [
       'a package.json without the declaration',
@@ -124,7 +130,9 @@ describe('clientPlugins', () => {
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
     const config = (plugins: string | undefined) =>
-      (clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig | undefined)();
+      (
+        clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig | undefined
+      )();
     expect(config(EXAMPLE)?.server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
     expect(config(undefined)).toBeUndefined();
   });
