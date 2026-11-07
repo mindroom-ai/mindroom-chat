@@ -11,7 +11,7 @@ MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for Mind
 
 A file keeps its lane when it moves: the lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch) maps each moved file to its current path; a later move appends its rows the same way (`docs/provenance.md` "Moves"). `node scripts/provenance-paths.cjs lane <path>` prints a file's lane.
 
-`docs/provenance.md` describes both lanes, and every session that works in this repository adds a row to its session log (the appendix at its end).
+`docs/provenance.md` describes both lanes. Its session log (the appendix at its end) covers the clean-room rewrite and is closed: sessions no longer add rows to it.
 
 ### Lane C rules
 

@@ -143,7 +143,7 @@ The orchestrating session (Claude Opus 5.5, 2026-11-02) ran MindRoom Chat `fc3a5
 
 ## Appendix: session log
 
-Every session that works in this repository adds a row here. Each row is that session's own report: "Sources consulted" is what the session says it read, and "no MindRoom Chat or upstream client source" (in its several wordings) is its own statement, not an independent check. The overlap check and the similarity audit check the code itself.
+Sessions added a row here during the clean-room rewrite. The log closed on 2026-11-07; sessions no longer add rows. Each row is that session's own report: "Sources consulted" is what the session says it read, and "no MindRoom Chat or upstream client source" (in its several wordings) is its own statement, not an independent check. The overlap check and the similarity audit check the code itself.
 
 | Date | Session | Model | Task | Sources consulted |
 |---|---|---|---|---|
