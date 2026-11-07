@@ -23,11 +23,10 @@ A file keeps its lane when it moves: the lists keep import-time paths, and `docs
 
 - **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
 
-### Lane P edit rules
+### Lane P files
 
-- **Lane P files** (listed in `docs/provenance/portable.tsv`, `portable-wave2.tsv` and `portable-wave3.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, delete code for dropped features (Simple Mode, Element Call, the filter bar's view buttons), or rename an identifier as `docs/provenance/identifier-renames.tsv` records it (`just identifier-renames` proves such a commit changes nothing else in Lane P). Never rewrite their logic.
-- Do not run Prettier or any other formatter over a Lane P file.
-- **Seams:** a seam's implementation is new code. A seam may move, be renamed, merged or deleted like any Lane C module: every Lane P import of it is re-pointed with it (an allowed Lane P edit), and the names Lane P call sites use keep types that satisfy them. A deleted or merged seam gets a `docs/provenance/seams-dropped.tsv` row.
+- **Lane P files** (listed in `docs/provenance/portable.tsv`, `portable-wave2.tsv` and `portable-wave3.tsv`) are edited like any other file; the lists only record where they came from.
+- **Seams:** a seam's implementation is new code. A seam may move, be renamed, merged or deleted like any Lane C module: every Lane P import of it is re-pointed with it, and the names Lane P call sites use keep types that satisfy them. A deleted or merged seam gets a `docs/provenance/seams-dropped.tsv` row.
 
 ## Licenses and product
 
