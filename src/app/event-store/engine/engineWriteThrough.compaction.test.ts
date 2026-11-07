@@ -165,6 +165,31 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(0);
   });
 
+  it('persists the newest edit with its target, which the SDK leaves unedited in a thread nobody opened', async () => {
+    // The SDK buffers the edits of a thread it has not fetched and applies none of them, so the
+    // target alone would be saved as its first version (the streaming placeholder).
+    const threadId = '$thread-root';
+    const target = makeEvent('$target', { threadRootId: threadId });
+    const room = makeRoom((id) => (id === '$target' ? target : undefined));
+    const writer = createEngineWriteThrough({ sessionId: 'session' });
+    const edits = [1, 2, 3].map((i) =>
+      makeEvent(`$edit-${i}`, {
+        threadRootId: threadId,
+        ts: i,
+        relation: { rel_type: RelationType.Replace, event_id: '$target' },
+      })
+    );
+    edits.forEach((edit) =>
+      writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta())
+    );
+
+    advance(2000);
+    await waitForDebounce();
+
+    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edits[2]]);
+  });
+
   it('coalesces N rapid edits into one target upsert', async () => {
     const threadId = '$thread-root';
     const target = makeEvent('$target', { threadRootId: threadId });
