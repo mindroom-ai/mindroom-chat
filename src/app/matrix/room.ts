@@ -4,14 +4,12 @@ import {
   EventType,
   NotificationCountType,
   RelationType,
-  RoomStateEvent,
   type EventTimelineSet,
   type IContent,
   type MatrixClient,
   type MatrixEvent,
   type Room,
   type RoomMember,
-  type RoomState,
 } from 'matrix-js-sdk';
 import type { Relations } from 'matrix-js-sdk/lib/models/relations';
 import { removeHiddenChars } from 'matrix-js-sdk/lib/utils';
@@ -98,50 +96,44 @@ const takesNamelessLocalpart = (room: Room, member: RoomMember, name: string): b
         shownName(other) === undefined
     );
 
-/**
- * The user IDs of a room state's members by the name they show, compared as matrix-js-sdk compares
- * names (`removeHiddenChars`: hidden characters out, look-alike letters folded): everyone but
- * members who left or were banned. The SDK's own clash check (`RoomMember.disambiguate`) fails in
- * lazy-loaded rooms: it files a member loaded later under their name with the user ID already
- * added, so the member they clash with keeps a plain name, and of two members loaded later it
- * marks only the second. This index is built from the members as they are and dropped whenever
- * one changes, members loaded later included.
- */
-const nameIndexes = new WeakMap<RoomState, Map<string, string[]>>();
-const watchedStates = new WeakSet<RoomState>();
+/** Each member's shown name as names are compared, kept while their display name stays. */
+const comparableNames = new WeakMap<RoomMember, { raw: string; name: string }>();
 
-const getNameIndex = (state: RoomState): Map<string, string[]> => {
-  const cached = nameIndexes.get(state);
-  if (cached) return cached;
-  if (!watchedStates.has(state)) {
-    watchedStates.add(state);
-    const drop = () => {
-      nameIndexes.delete(state);
-    };
-    state.on(RoomStateEvent.Members, drop);
-    state.on(RoomStateEvent.Update, drop);
-  }
-  const index = new Map<string, string[]>();
-  state.getMembers().forEach((member) => {
-    if (
-      matchesEnum(member.membership, Membership.Leave) ||
-      matchesEnum(member.membership, Membership.Ban)
-    ) {
-      return;
-    }
-    const name = shownName(member);
-    const key = name === undefined ? '' : removeHiddenChars(name);
-    if (key) index.set(key, [...(index.get(key) ?? []), member.userId]);
-  });
-  nameIndexes.set(state, index);
-  return index;
+/**
+ * A member's shown name as matrix-js-sdk compares names (`removeHiddenChars`: hidden characters
+ * out, look-alike letters folded); empty without a name.
+ */
+const comparableName = (member: RoomMember): string => {
+  const cached = comparableNames.get(member);
+  if (cached && cached.raw === member.rawDisplayName) return cached.name;
+  const shown = shownName(member);
+  const name = shown === undefined ? '' : removeHiddenChars(shown);
+  comparableNames.set(member, { raw: member.rawDisplayName, name });
+  return name;
 };
 
-/** Whether another member of `room` shows a name that reads like `name`. */
-const sharesName = (room: Room, member: RoomMember, name: string): boolean =>
-  (getNameIndex(room.currentState).get(removeHiddenChars(name)) ?? []).some(
-    (userId) => userId !== member.userId
+/**
+ * Whether another member of `room` shows a name that reads like `member`'s, among everyone but
+ * members who left or were banned. Decided from the room's members as they are now, because the
+ * SDK's own clash check (`RoomMember.disambiguate`) fails in lazy-loaded rooms: it files a member
+ * loaded later under their name with the user ID already added, so the member they clash with
+ * keeps a plain name, and of two members loaded later it marks only the second.
+ */
+const sharesName = (room: Room, member: RoomMember): boolean => {
+  const name = comparableName(member);
+  // Stand-ins for a room in tests may hold no member list.
+  const members = room.getMembers?.() ?? [];
+  return (
+    name !== '' &&
+    members.some(
+      (other) =>
+        other.userId !== member.userId &&
+        !matchesEnum(other.membership, Membership.Leave) &&
+        !matchesEnum(other.membership, Membership.Ban) &&
+        comparableName(other) === name
+    )
   );
+};
 
 /**
  * The name the room shows for a member as the sender of something, or undefined when they have
@@ -162,7 +154,7 @@ export const getRoomMemberName = (
   const clashes =
     member.disambiguate ||
     name !== member.rawDisplayName ||
-    (!!room && (sharesName(room, member, name) || takesNamelessLocalpart(room, member, name)));
+    (!!room && (sharesName(room, member) || takesNamelessLocalpart(room, member, name)));
   return clashes ? `${name} (\u2066${member.userId}\u2069)` : name;
 };
 
