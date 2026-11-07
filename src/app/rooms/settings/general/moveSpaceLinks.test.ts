@@ -75,7 +75,7 @@ describe('moveSpaceLinks', () => {
     expect(sendStateEvent).toHaveBeenCalledTimes(2);
   });
 
-  it("lists the old room's children in the new room, and points the sub-rooms at it", async () => {
+  it("lists the old room's children in the new room, and moves the sub-rooms' parent to it", async () => {
     const { client, sendStateEvent } = fakeClient({
       '!old': fakeRoom({
         'm.space.child': {
@@ -95,10 +95,18 @@ describe('moveSpaceLinks', () => {
         ['!new', 'm.space.child', { via: ['s'], order: 'a' }, '!sub'],
         ['!new', 'm.space.child', { via: ['s'] }, '!plain'],
         ['!sub', 'm.space.parent', { via: ['s'], canonical: true }, '!new'],
+        ['!sub', 'm.space.parent', {}, '!old'],
       ])
     );
+    // The old link goes only once the new one is in place.
+    const calls = sendStateEvent.mock.calls.map((call) => JSON.stringify(call));
+    expect(calls.indexOf(JSON.stringify(['!sub', 'm.space.parent', {}, '!old']))).toBeGreaterThan(
+      calls.indexOf(
+        JSON.stringify(['!sub', 'm.space.parent', { via: ['s'], canonical: true }, '!new'])
+      )
+    );
     // A room that did not name the old room gets no parent, and a removed child stays removed.
-    expect(sendStateEvent).toHaveBeenCalledTimes(3);
+    expect(sendStateEvent).toHaveBeenCalledTimes(4);
   });
 
   it('reports the children it could not point at the new room', async () => {
@@ -130,6 +138,8 @@ describe('moveSpaceLinks', () => {
     expect(sendStateEvent.mock.calls.filter(([roomId]) => roomId === '!new')).toHaveLength(4);
     expect(sendStateEvent.mock.calls.map(([roomId]) => roomId)).not.toContain('!left');
     expect(sendStateEvent.mock.calls.map(([roomId]) => roomId)).not.toContain('!unjoined');
+    // A room that refused the new parent keeps its old one.
+    expect(sendStateEvent.mock.calls).not.toContainEqual(['!theirs', 'm.space.parent', {}, '!old']);
   });
 
   it("lists a Space's rooms in the new Space; their own links to it are best effort", async () => {
@@ -161,6 +171,7 @@ describe('moveSpaceLinks', () => {
         ['!new', 'm.space.child', { via: ['s'] }, '!theirs'],
         ['!new', 'm.space.child', { via: ['s'] }, '!unjoined'],
         ['!room', 'm.space.parent', { via: ['s'], canonical: true }, '!new'],
+        ['!room', 'm.space.parent', {}, '!old'],
         ['!theirs', 'm.space.parent', { via: ['s'] }, '!new'],
       ])
     );
