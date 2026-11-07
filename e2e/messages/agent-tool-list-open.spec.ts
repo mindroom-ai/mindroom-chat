@@ -30,21 +30,22 @@ const toolLine = (row: Locator): Locator =>
   row.getByRole('button', { name: /\d+ tool calls?\b/ });
 
 /**
- * Marks the open list's button and records, on every change to the page, whether the reply still
- * shows that same button open. A new button means the list was drawn again and lost its state.
+ * Marks the open list's button, and every element up to the reply's row, and records each change
+ * of what the reply shows: the same button closed, a button drawn again (naming the element whose
+ * subtree was drawn again) or no button at all (naming where tool-call buttons are instead).
  */
 const watchList = (page: Page, eventId: string) =>
   page.evaluate((id) => {
     const watch: ListWatch = { closed: [] };
     (window as unknown as { listWatch: ListWatch }).listWatch = watch;
+    const started = performance.now();
+    const isToolLine = (button: Element) => /\d+ tool calls?\b/.test(button.textContent ?? '');
     const find = () =>
       [
-        ...document.querySelectorAll<HTMLButtonElement>(
+        ...document.querySelectorAll(
           `[data-message-id="${id}"] [data-message-disclosure] > button[aria-expanded]`
         ),
-      ].find((button) => /\d+ tool calls?\b/.test(button.textContent ?? ''));
-    // The button and every element up to the reply's row carry a mark, so a list drawn again
-    // names the element whose subtree was drawn again.
+      ].find(isToolLine);
     for (
       let element: Element | null = find() ?? null;
       element && !element.hasAttribute('data-message-id');
@@ -67,16 +68,35 @@ const watchList = (page: Page, eventId: string) =>
         root.parentElement ? describe(root.parentElement) : 'nothing'
       }`;
     };
+    const elsewhere = () =>
+      `gone; rows ${document.querySelectorAll(`[data-message-id="${id}"]`).length}; lines ${[
+        ...document.querySelectorAll('button[aria-expanded]'),
+      ]
+        .filter(isToolLine)
+        .map(
+          (button) =>
+            `${button.closest('[data-message-id]')?.getAttribute('data-message-id') ?? 'no row'} ${
+              button.parentElement ? describe(button.parentElement) : ''
+            } ${button.getAttribute('aria-expanded')}`
+        )
+        .join(', ')}`;
+    let last: string | undefined;
     new MutationObserver(() => {
-      const button = find();
-      const state = !button
-        ? 'gone'
-        : !button.hasAttribute('data-watched-list')
-        ? drawnAgain(button)
-        : button.getAttribute('aria-expanded') !== 'true'
-        ? 'closed'
-        : undefined;
-      if (state && watch.closed.at(-1) !== state) watch.closed.push(state);
+      try {
+        const button = find();
+        const state = !button
+          ? elsewhere()
+          : !button.hasAttribute('data-watched-list')
+          ? drawnAgain(button)
+          : button.getAttribute('aria-expanded') !== 'true'
+          ? 'closed'
+          : undefined;
+        if (state !== last && state !== undefined)
+          watch.closed.push(`${Math.round(performance.now() - started)} ms: ${state}`);
+        last = state;
+      } catch (error) {
+        watch.closed.push(`watcher failed: ${String(error)}`);
+      }
     }).observe(document.body, {
       subtree: true,
       childList: true,
