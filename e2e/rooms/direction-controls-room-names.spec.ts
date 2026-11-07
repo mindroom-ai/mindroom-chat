@@ -176,7 +176,7 @@ const shot = async (page: Page, name: string) => {
 
 /** The scope shows `shown` and holds no control character. */
 const expectShown = async (scope: Locator, shown: string) => {
-  await expect(scope.first()).toBeAttached({ timeout: 30_000 });
+  await expect.soft(scope.first()).toBeAttached({ timeout: 20_000 });
   await expect.soft(scope).toContainText(shown, { timeout: 4_000 });
   expect.soft(await scope.textContent()).not.toMatch(CONTROL);
 };
@@ -235,7 +235,7 @@ const check = async (page: Page, world: World, label: string) => {
     ROOM_TOPIC_SHOWN
   );
   // The summary under the thread's root, and nothing else in the room, shows a control either.
-  await expectShown(main.getByText(SUMMARY_SHOWN).first(), SUMMARY_SHOWN);
+  await expectShown(main.getByText(/^Audit of/).first(), SUMMARY_SHOWN);
   expect.soft(await main.textContent()).not.toMatch(CONTROL);
   await shot(page, `${label}-room`);
   await header.getByRole('button', { name: /^Where we file/ }).click();
