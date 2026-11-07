@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, type Rollup, type UserConfig } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { clientPlugins, readClientPlugins } from '../../scripts/client-plugins.mjs';
+import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const EXAMPLE = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
@@ -141,5 +142,42 @@ describe('clientPlugins', () => {
     const code = await bundleEntries({});
     expect(code).not.toContain('com.example.greeting');
     expect(code).toMatch(/pluginEntries = \[\]/);
+  });
+
+  it('builds a plugin that installed its own copy of a package the app bundles too', async () => {
+    // The plugin's own clsx, the version the app's node_modules holds.
+    const own = pluginDir(declaring(), { entry: false });
+    cpSync(path.join(ROOT, 'node_modules/clsx'), path.join(own, 'node_modules/clsx'), {
+      recursive: true,
+    });
+    writeFileSync(
+      path.join(own, 'index.js'),
+      "import { clsx } from 'clsx';\nexport default { messageRenderers: [], clsx };\n"
+    );
+    const bundle = (pluginDirs: string[]) =>
+      build({
+        configFile: false,
+        root: ROOT,
+        publicDir: false,
+        logLevel: 'silent',
+        plugins: [
+          clientPlugins({ MINDROOM_CLIENT_PLUGINS: own }),
+          onePackageCopyPerVersion(pluginDirs),
+        ],
+        build: {
+          write: false,
+          rollupOptions: {
+            // The plugin's entries and the app's own clsx.
+            input: [
+              path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
+              path.join(ROOT, 'node_modules/clsx/dist/clsx.mjs'),
+            ],
+            preserveEntrySignatures: 'strict',
+          },
+        },
+      });
+    // Two copies of clsx 2.1.1 are bundled; the plugin's own counts as the plugin's.
+    await expect(bundle([own])).resolves.toBeDefined();
+    await expect(bundle([])).rejects.toThrow(/clsx@2\.1\.1/);
   });
 });

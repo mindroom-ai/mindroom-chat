@@ -7,7 +7,7 @@ import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import { clientPlugins } from './scripts/client-plugins.mjs';
+import { clientPlugins, readClientPlugins } from './scripts/client-plugins.mjs';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
 import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
@@ -96,6 +96,12 @@ const serviceWorkerPlugin = VitePWA({
   manifest: false,
 });
 
+// The client plugins MINDROOM_CLIENT_PLUGINS lists: the packages each installed in its own directory
+// are its own, which the one-copy check leaves out until plugins share the app's.
+const clientPluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS).map(
+  ({ dir }) => dir
+);
+
 // The app's own sources: JSX through the React plugin, `.css.ts` files through vanilla-extract.
 const sourcePlugins = [react(), vanillaExtractPlugin()];
 
@@ -144,7 +150,7 @@ export default defineConfig({
     // The build fails when the app's chunks hold two copies of one package version
     // (scripts/package-copies.mjs). `?worker` bundles take only `worker.plugins`; the app's one,
     // livekit-client's encryption worker, is a single prebuilt module.
-    onePackageCopyPerVersion(),
+    onePackageCopyPerVersion(clientPluginDirs),
     ...(fixturePagesOnly
       ? []
       : [

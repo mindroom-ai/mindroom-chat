@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Browser, type Page } from '@playwright/test';
@@ -20,8 +20,9 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // carries the plugin's content key renders through the plugin, with the label from the plugin's
 // config.json section; a person's message with the same key renders as the app renders it.
 // `?plugins=off`, on the page itself or on the sign-in page the session started from, and
-// `plugins.example.enabled: false` show the app's own rendering of the reply instead. Set
-// PLUGIN_SHOTS=<directory> to save screenshots.
+// `plugins.example.enabled: false` show the app's own rendering of the reply instead. A second
+// plugin installed its own copy of a package the app bundles too, which the build accepts as the
+// plugin's. Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'client-plugin-password';
 const RUN = Date.now().toString(36);
@@ -41,6 +42,7 @@ type Seed = {
 };
 
 let build: string | undefined;
+let ownPackages: string | undefined;
 let shippedConfig: Record<string, unknown> = {};
 let seeded: Seed | undefined;
 
@@ -48,14 +50,30 @@ test.beforeAll(async () => {
   if (!(await disposableHomeserverIsUp())) return;
   test.setTimeout(10 * 60_000);
   build = mkdtempSync(join(tmpdir(), 'mindroom-plugin-build-'));
+  ownPackages = mkdtempSync(join(tmpdir(), 'mindroom-plugin-own-packages-'));
+  cpSync(resolve('node_modules/linkifyjs'), join(ownPackages, 'node_modules/linkifyjs'), {
+    recursive: true,
+  });
+  writeFileSync(
+    join(ownPackages, 'package.json'),
+    JSON.stringify({
+      name: 'own-packages-plugin',
+      version: '1.0.0',
+      mindroomClientPlugin: { id: 'own-packages', apiVersion: 1, entry: './index.js' },
+    })
+  );
+  writeFileSync(
+    join(ownPackages, 'index.js'),
+    "import { find } from 'linkifyjs';\nexport default { messageRenderers: [], find };\n"
+  );
   const result = spawnSync('npx', ['vite', 'build', '--outDir', build, '--emptyOutDir'], {
-    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: PLUGIN },
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: `${PLUGIN},${ownPackages}` },
     encoding: 'utf8',
     timeout: 9 * 60_000,
   });
   if (result.status !== 0) {
     throw new Error(
-      `the build with the example plugin failed:\n${(result.stderr || result.stdout).slice(-3000)}`
+      `the build with the plugins failed:\n${(result.stderr || result.stdout).slice(-3000)}`
     );
   }
   shippedConfig = JSON.parse(readFileSync(join(build, 'config.json'), 'utf8'));
@@ -88,7 +106,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(() => {
-  if (build) rmSync(build, { recursive: true, force: true });
+  for (const dir of [build, ownPackages]) if (dir) rmSync(dir, { recursive: true, force: true });
 });
 
 test.beforeEach(async () => {
