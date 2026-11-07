@@ -47,7 +47,8 @@ IMPORTS = re.compile(
 )
 MIN_LEN, MIN_RUN = 8, 3
 SNAPSHOT_TAGS = ["v1.8.2", "v2.2.6", "v3.2.0", "v4.0.0", "v4.10.2", "v4.12.8"]
-CACHE = Path(tempfile.gettempdir()) / "upstream-overlap-cache"
+# The user's cache directory, the same from every shell (nix develop gives each shell its own TMPDIR).
+CACHE = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "upstream-overlap"
 
 
 def git(repo, *args, text=True):
@@ -68,6 +69,15 @@ def corpus_head(corpus):
         return git(corpus, "rev-parse", "--all").split()[0]
     except (subprocess.CalledProcessError, IndexError):
         sys.exit(f"upstream-overlap: {corpus} is not a git clone of the upstream client with commits; nothing was checked")
+
+
+def make_cache():
+    """CACHE and the parents it lacks, owner-only whatever the umask: mkdir's mode covers only the last one."""
+    umask = os.umask(0o077)
+    try:
+        CACHE.mkdir(mode=0o700, parents=True, exist_ok=True)
+    finally:
+        os.umask(umask)
 
 
 def write_atomic(path, data):
@@ -145,7 +155,7 @@ def strip_imports(text):
 
 
 def corpus_lines(corpus):
-    CACHE.mkdir(exist_ok=True)
+    make_cache()
     head = corpus_head(corpus)
     rules = hashlib.sha256((IMPORTS.pattern + "".join(t.pattern for t in TRIVIAL) + str(MIN_LEN)).encode()).hexdigest()[:12]
     cached = CACHE / f"corpus-{head}-{rules}.json"
@@ -269,7 +279,7 @@ def corpus_windows(corpus):
     for text in read_blobs(corpus, list(blobs)).values():
         found.update(windows([t for t, _, _ in tokens(text)]))
     data.extend(sorted(found))
-    CACHE.mkdir(exist_ok=True)
+    make_cache()
     write_atomic(cached, data.tobytes())
     return found
 
