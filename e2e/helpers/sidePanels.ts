@@ -185,7 +185,10 @@ export const checkPanelFrame = async (
   const tab = panel.getByRole('button', { name: `Unfold ${label}`, exact: true });
   const conversation = roomHeader(page);
   const otherRoom = `Elsewhere ${room.roomId.slice(1, 9)}`;
-  await createPrivateRoom(HOMESERVER, room.viewer.accessToken, { name: otherRoom });
+  await createPrivateRoom(HOMESERVER, room.viewer.accessToken, {
+    name: otherRoom,
+    topic: 'Another room',
+  });
 
   await expect(fill).toHaveAttribute('aria-pressed', 'false');
   // The panel has moved in to its width.
