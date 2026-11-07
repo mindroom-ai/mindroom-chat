@@ -343,6 +343,8 @@ const check = async (page: Page, world: World, label: string) => {
   await expectShown(main, ROOM_NAME_SHOWN);
   await expectShown(main, ROOM_TOPIC_SHOWN);
   await shot(page, `${label}-lobby`);
+  // Probe: a loaded runner's slower checks.
+  await page.waitForTimeout(400);
   await expectShown(page.locator(`[data-id="${spaceId}"]`).first(), SPACE_NAME_SHOWN);
   if (!phone) {
     await expectShown(
