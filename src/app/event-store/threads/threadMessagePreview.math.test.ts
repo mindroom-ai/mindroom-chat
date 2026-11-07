@@ -84,6 +84,9 @@ describe('thread previews of math', () => {
     expectKept('$3~\\frac{1}{4}$, $3\\!\\frac{1}{4}$ and $3{\\frac{1}{4}}$');
     expectKept('$3{\\displaystyle\\frac{1}{4}}$');
     expectKept('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$');
+    expectKept('$x^^y$ and $x_ ^y$');
+    // A chain of scripts reads as written without recursing once per script.
+    expectKept(`$x${'^'.repeat(1990)}y$`);
     expectKept('$x^{}y$, $\\frac{}{}$ and $\\sqrt{}$');
     expectKept('$a & b$ or $a # b$');
     expect(preview('$$\nx\n$$ and $$\ny\n$$')).toBe('$$ x $$ and $$ y $$');
