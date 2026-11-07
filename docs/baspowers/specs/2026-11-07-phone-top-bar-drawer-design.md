@@ -38,7 +38,7 @@ On phones the rail leaves out its own search and account buttons, which the bar 
 - Open state: `phoneNavDrawerOpenAtom` in `navigation/phoneNavDrawer.ts`, so lower layers (edge swipes) can read it.
 - When it opens and closes:
   - Every navigation (new location key) to a section root opens it. A section root is a history entry whose section index page is shown: `SectionIndex` marks it (`useMarkPhoneSectionRoot`), so `/threads/` is not mistaken for a space, and an address that only looks like a space's (a short room link that redirects, a room to join) is not one either.
-  - A push or pop to any other page closes it. A replace keeps it as it was (alias canonicalization and address clean-ups happen while it is out). A section page that gives way without a navigation (a space left while it is shown) closes it.
+  - A push or pop to any other page closes it. A replace keeps it as it was (a room's address clean-ups happen while it is out), except a replace that leaves a shown section page (an account restored from another tab); a section page that gives way without a navigation (a space left while it is shown) closes it too.
   - Activating a link inside the drawer closes it, also when the link leads to the URL already shown (a replace).
   - The menu button, a tap on the scrim, Escape (after a menu or dialog over it had the key) and a swipe toward the start edge on the panel close it.
   - On first render it follows the same rule without motion.

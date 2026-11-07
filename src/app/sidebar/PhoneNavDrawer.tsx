@@ -20,15 +20,18 @@ const CLOSE_SWIPE_DISTANCE = 56;
 const isRightToLeft = (element: Element): boolean => getComputedStyle(element).direction === 'rtl';
 
 /**
- * Whether a menu, listbox or dialog is open: Escape is theirs then. Broader than
+ * Whether a menu, listbox or dialog is open over the drawer: Escape is theirs then. Broader than
  * `hasBlockingPortalOverlay`, which sees only the portal container: folds menus portal into
  * `body`, and the drawer, which closes on Escape before the page sees it, must leave every one.
+ * One left open in the inert page below (a popover the drawer came out over) does not count.
  */
 const overlayOpen = (): boolean =>
   hasBlockingPortalOverlay() ||
-  document.querySelector(
-    '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]'
-  ) !== null;
+  Array.from(
+    document.querySelectorAll(
+      '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]'
+    )
+  ).some((overlay) => !overlay.closest('[inert]'));
 
 /** The drawer follows navigation: out at a section's own page, away on any other. */
 const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean) => void) => {
@@ -38,17 +41,12 @@ const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean
   // one runs; the value rendered here can lag that by a render.
   const store = useStore();
   const rootKey = useAtomValue(phoneNavSectionRootAtom);
-  const shown = useRef<{ key: string; sectionRoot: boolean }>();
+  const wasSectionRoot = useRef(false);
   useLayoutEffect(() => {
     const sectionRoot = store.get(phoneNavSectionRootAtom) === key;
-    const before = shown.current;
-    shown.current = { key, sectionRoot };
-    // The section's page gave way on the spot (a space left while open shows its join page).
-    if (before?.key === key && before.sectionRoot && !sectionRoot) {
-      setOpen(() => false);
-      return;
-    }
-    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action));
+    const fromSectionRoot = wasSectionRoot.current;
+    wasSectionRoot.current = sectionRoot;
+    setOpen((open) => nextPhoneNavDrawerOpen(open, sectionRoot, action, fromSectionRoot));
   }, [key, rootKey, action, setOpen, store]);
 };
 

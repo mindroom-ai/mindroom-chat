@@ -26,15 +26,18 @@ export const useMarkPhoneSectionRoot = (): void => {
 };
 
 /**
- * Whether the drawer is out after a navigation: arriving at a section's own page opens it, since
- * that page's list is what the person came for; moving on to any other page closes it. A replace
- * keeps it as it was, because address clean-ups replace the page while the drawer is out.
+ * Whether the drawer is out after a navigation or a change of the shown page: arriving at a
+ * section's own page opens it, since that page's list is what the person came for; moving on to
+ * any other page closes it. A replace keeps it as it was, because a room's address clean-ups
+ * replace the page while the drawer is out, unless the replace leaves a section page the drawer
+ * came out for (an account restored from another tab, a space left while shown).
  */
 export const nextPhoneNavDrawerOpen = (
   open: boolean,
   sectionRoot: boolean,
-  action: NavigationType | `${NavigationType}`
+  action: NavigationType | `${NavigationType}`,
+  fromSectionRoot: boolean
 ): boolean => {
   if (sectionRoot) return true;
-  return action === 'REPLACE' ? open : false;
+  return action === 'REPLACE' && !fromSectionRoot ? open : false;
 };

@@ -57,4 +57,30 @@ describe('PhoneNavDrawer', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
     act(() => renderer?.unmount());
   });
+
+  it('closes on Escape though a popover stays in the inert page below', () => {
+    const store = createStore();
+    const router = createMemoryRouter([{ path: '*', element: <PhoneNavDrawer nav={null} /> }], {
+      initialEntries: ['/home/!room:example.org/'],
+    });
+    const page = document.createElement('div');
+    page.setAttribute('inert', '');
+    page.innerHTML = '<div role="dialog">Thread statistics</div>';
+    document.body.append(page);
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <Provider store={store}>
+          <RouterProvider router={router} />
+        </Provider>
+      );
+    });
+    act(() => store.set(phoneNavDrawerOpenAtom, true));
+    act(() => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    });
+    expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
+    act(() => renderer?.unmount());
+    page.remove();
+  });
 });
