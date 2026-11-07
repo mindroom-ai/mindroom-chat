@@ -6,6 +6,7 @@ import {
   type MatrixEvent,
 } from 'matrix-js-sdk';
 import {
+  ACTIVE_STREAM_STATUSES,
   getStreamStatusFromContent,
   hasTerminalStreamMetadata,
   TERMINAL_STREAM_STATUSES,
@@ -50,6 +51,22 @@ export const getFinishingEdit = (reply: MatrixEvent): MatrixEvent | undefined =>
     if (!edit || edit.getSender() !== reply.getSender() || !isFinishingEdit(edit)) return newest;
     return !newest || edit.getTs() > newest.getTs() ? edit : newest;
   }, undefined);
+};
+
+/**
+ * Whether the agent's reply `reply` still streams by the server's word: the stream status that its
+ * newest edit the client has, or the reply itself before any edit, carries in the clear. A device
+ * that signed in after the reply started cannot decrypt the reply, and may hold none of its edits
+ * but those since; it reads the state here (P2-e2ee-F009). Undefined when they say neither.
+ */
+export const isStreamingByServer = (reply: MatrixEvent): boolean | undefined => {
+  if (getFinishingEdit(reply)) return false;
+  const replyId = reply.getId();
+  const edit = replyId ? newestEdits.get(replyId) : undefined;
+  const newest = edit && edit.getSender() === reply.getSender() ? edit : reply;
+  const status = getStreamStatusFromContent(newest.getWireContent?.() ?? {});
+  if (!status || TERMINAL_STREAM_STATUSES.has(status)) return status ? false : undefined;
+  return ACTIVE_STREAM_STATUSES.has(status) ? true : undefined;
 };
 
 const keepNewer = (edits: Map<string, MatrixEvent>, eventId: string, edit: MatrixEvent) => {
