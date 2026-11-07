@@ -17,8 +17,9 @@ import { launchWebKit } from '../helpers/webkit';
 // iOS Safari zooms the page into a text field whose text is smaller than 16 px when the field
 // takes the focus, and leaves the page zoomed. The app's fields wrote at 15 px, so on an iPhone
 // signing in or searching zoomed the whole app. On a phone (390 by 844, touch) every text field
-// writes at 16 px or more: the sign-in fields and the invite dialog's search. A desktop keeps the
-// fields' own size. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
+// writes at 16 px or more: the sign-in fields and the invite dialog's search. At a smaller Page Zoom
+// the fields shrink with the page, as the composer does. A desktop keeps the fields' own size.
+// Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit. Set TEXT_FIELD_SHOTS=<directory> to save the screens.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-text-field-size-spec-password';
@@ -144,6 +145,23 @@ const sizes = async (
   }
 };
 
+/** The server field's size on a phone whose Page Zoom is 75 %. */
+const zoomedSize = async (browser: Browser, baseURL: string | undefined) => {
+  const { context, page } = await newPage(browser, { ...PHONE, baseURL });
+  try {
+    await page.addInitScript(() => {
+      const stored = JSON.parse(localStorage.getItem('settings') ?? '{}') as object;
+      localStorage.setItem('settings', JSON.stringify({ ...stored, pageZoom: 75 }));
+    });
+    await page.goto(buildLoginPath(HOMESERVER, false));
+    const input = page.locator('input[name="serverInput"]');
+    await expect(input).toBeVisible({ timeout: 30_000 });
+    return await fontSize(input);
+  } finally {
+    await context.close();
+  }
+};
+
 const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
   const username = await seed(engine);
   const phone = await sizes(browser, baseURL, PHONE, username, `${engine}-phone`);
@@ -155,9 +173,11 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   const desktop = await sizes(browser, baseURL, DESKTOP, username, `${engine}-desktop`);
   // A desktop keeps the size the fields were designed with, smaller than the phone's.
   expect(desktop.serverInput, `${engine}: the desktop keeps its own size`).toBeLessThan(16);
+  // 75 % of the 16 px root size, the composer's size at that zoom.
+  expect(await zoomedSize(browser, baseURL), `${engine}: fields follow Page Zoom`).toBe(12);
 };
 
-test('text fields are large enough that iOS does not zoom into them (Chromium)', async ({
+test('text fields on touch screens write at the root size (Chromium)', async ({
   browser,
   baseURL,
 }) => {
@@ -165,9 +185,7 @@ test('text fields are large enough that iOS does not zoom into them (Chromium)',
   await run(browser, baseURL, 'chromium');
 });
 
-test('text fields are large enough that iOS does not zoom into them (WebKit)', async ({
-  baseURL,
-}) => {
+test('text fields on touch screens write at the root size (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
