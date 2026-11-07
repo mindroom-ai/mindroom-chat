@@ -47,6 +47,47 @@ describe('readCallTranscript', () => {
     });
   });
 
+  it("reads each turn's time from the call's start, in whole seconds", () => {
+    const content = withTranscript({
+      duration_seconds: 125,
+      turns: [
+        { sender: PERSON, text: 'Can you hear me?', offset_seconds: 0 },
+        { sender: AGENT, text: 'Yes.', offset_seconds: 4.7 },
+        { sender: PERSON, text: 'Bye.', offset_seconds: 125 },
+      ],
+    });
+    expect(readCallTranscript(content)?.turns.map((each) => each.offsetSeconds)).toEqual([
+      0, 4, 125,
+    ]);
+  });
+
+  it('reads a transcript without times, as older MindRoom versions send it', () => {
+    const transcript = readCallTranscript(
+      withTranscript({ duration_seconds: 60, turns: [turn(PERSON, 'Hello'), turn(AGENT, 'Hi')] })
+    );
+    expect(transcript?.turns).toHaveLength(2);
+    expect(transcript?.turns.every((each) => each.offsetSeconds === undefined)).toBe(true);
+  });
+
+  it.each([
+    ['a string', '12'],
+    ['null', null],
+    ['a negative number', -1],
+    ['NaN', Number.NaN],
+    ['an infinite number', Infinity],
+    ['a time after the call ended', 61],
+  ])('drops a time that is %s and keeps the turn', (_, offset) => {
+    const transcript = readCallTranscript(
+      withTranscript({
+        duration_seconds: 60,
+        turns: [{ sender: PERSON, text: 'Hello', offset_seconds: offset }, turn(AGENT, 'Hi')],
+      })
+    );
+    expect(transcript?.turns[0]).toEqual({ sender: PERSON, text: 'Hello' });
+    expect(transcript?.turns[0]?.offsetSeconds).toBeUndefined();
+    expect(transcript?.turns).toHaveLength(2);
+  });
+
   it('answers undefined without the key, so the message renders as before', () => {
     expect(readCallTranscript({ msgtype: 'm.text', body: 'hi' })).toBeUndefined();
   });
@@ -158,6 +199,17 @@ describe('groupCallTranscriptTurns', () => {
       { sender: PERSON, texts: ['Great.'], index: 3 },
       { sender: AGENT, texts: ['What can I do?', 'I am listening.'], index: 4 },
     ]);
+  });
+
+  it("gives a group its first turn's time", () => {
+    const groups = groupCallTranscriptTurns([
+      { sender: PERSON, text: 'Hi', offsetSeconds: 2 },
+      { sender: PERSON, text: 'Are you there?', offsetSeconds: 6 },
+      { sender: AGENT, text: 'Yes.' },
+      { sender: AGENT, text: 'Go ahead.', offsetSeconds: 12 },
+      { sender: PERSON, text: 'Great.', offsetSeconds: 15 },
+    ]);
+    expect(groups.map((group) => group.offsetSeconds)).toEqual([2, undefined, 15]);
   });
 
   it('answers no groups for no turns', () => {
