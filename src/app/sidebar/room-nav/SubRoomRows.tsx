@@ -141,7 +141,7 @@ export function SubRoomRows({ parent, tree, renderRoom, previewPath }: SubRoomRo
   if (joined.length === 0 && toJoin.length === 0) return null;
 
   return (
-    <div style={{ paddingInlineStart: config.space.S400 }}>
+    <div data-sub-rooms-of={parent.roomId} style={{ paddingInlineStart: config.space.S400 }}>
       {joined.map((room) => (
         <Fragment key={room.roomId}>
           {renderRoom(room)}
