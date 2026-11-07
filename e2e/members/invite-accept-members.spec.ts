@@ -81,8 +81,10 @@ const signIn = async (page: Page, guest: DisposableUser) => {
 const expectHostKnown = async (page: Page, { host }: People, body: string) => {
   const message = page.getByText(body, { exact: true }).first();
   await expect(message).toBeVisible({ timeout: 30_000 });
-  const membersButton = page.getByRole('button', { name: 'Members', exact: true });
-  if ((await membersButton.getAttribute('aria-pressed')) !== 'true') await membersButton.click();
+  // The header's button says Hide Members while the panel is open.
+  const showMembers = page.getByRole('button', { name: 'Members', exact: true });
+  await expect(showMembers.or(page.getByRole('button', { name: 'Hide Members' }))).toBeVisible();
+  if (await showMembers.isVisible()) await showMembers.click();
   const hostRow = page.locator(`button[data-user-id="${host.userId}"]`);
   await expect(hostRow).toHaveText(HOST_NAME, { timeout: 20_000 });
   // The host created the room, so the panel lists them under its top role.
@@ -92,27 +94,41 @@ const expectHostKnown = async (page: Page, { host }: People, body: string) => {
   await expect(timeline.getByText(localpart(host.userId), { exact: true })).toHaveCount(0);
 };
 
+/** Accepts the invite on its Inbox card, reached from the rail as people do, without a reload. */
 const acceptFromInbox = async (page: Page, roomLabel: string) => {
-  await page.goto('/inbox/invites/');
+  await page.getByRole('button', { name: 'Inbox', exact: true }).first().click();
   const card = page.locator('[data-invite-room-id]').filter({ hasText: roomLabel });
   await card.first().getByRole('button', { name: 'Accept', exact: true }).click({ timeout: 30_000 });
   await expect(card).toHaveCount(0, { timeout: 30_000 });
 };
 
-/** Opens the room from the rail's section and its room list, without loading the page again. */
-const openRoom = async (page: Page, section: 'Home' | 'Direct Messages', name: RegExp) => {
+/**
+ * Opens the room from the rail's section and its room list, without loading the page again; the
+ * section may open on the room already.
+ */
+const openRoom = async (
+  page: Page,
+  section: 'Home' | 'Direct Messages',
+  roomId: string,
+  name: RegExp
+) => {
   await page.getByRole('button', { name: section, exact: true }).first().click();
-  await page.getByRole('link', { name }).first().click({ timeout: 30_000 });
+  const inRoom = () => decodeURIComponent(page.url()).includes(roomId);
+  await expect(async () => {
+    if (!inRoom()) await page.getByRole('link', { name }).first().click({ timeout: 5_000 });
+    expect(inRoom()).toBe(true);
+  }).toPass({ timeout: 30_000 });
 };
 
 const acceptedFromInbox = async (page: Page, browserName: string) => {
   const people = await registerPeople(`inbox_${browserName}`);
   const roomName = `Accept probe ${browserName} ${RUN}`;
   const body = `Welcome to the accept probe ${browserName}`;
-  await inviteGuest(people, roomName, body);
+  // The guest is signed in when the invite arrives, as people usually are.
   await signIn(page, people.guest);
+  const roomId = await inviteGuest(people, roomName, body);
   await acceptFromInbox(page, roomName);
-  await openRoom(page, 'Home', new RegExp(roomName));
+  await openRoom(page, 'Home', roomId, new RegExp(roomName));
   await expectHostKnown(page, people, body);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/inbox-accept-${browserName}.png` });
   await page.reload();
@@ -134,11 +150,12 @@ const acceptedOnInvitePage = async (page: Page, browserName: string) => {
 const directChatNamedAfterHost = async (page: Page, browserName: string) => {
   const people = await registerPeople(`dm_${browserName}`);
   const body = `Hi there, a direct message ${browserName}`;
-  await inviteGuest(people, undefined, body);
   await signIn(page, people.guest);
+  const roomId = await inviteGuest(people, undefined, body);
   await acceptFromInbox(page, HOST_NAME);
   // The direct chat is listed and titled with the host's name, never their Matrix ID.
-  await openRoom(page, 'Direct Messages', new RegExp(HOST_NAME));
+  await openRoom(page, 'Direct Messages', roomId, new RegExp(HOST_NAME));
+  await expect(page.getByRole('link', { name: new RegExp(HOST_NAME) }).first()).toBeVisible();
   await expectHostKnown(page, people, body);
   await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/direct-accept-${browserName}.png` });
