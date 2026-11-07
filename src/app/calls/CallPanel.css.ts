@@ -125,9 +125,12 @@ export const TileVideo = style({
   background: color.Other.Shadow,
 });
 
-// The name sits on a dark scrim, readable on video and on the plain tile alike.
+// The name sits on a dark scrim, readable on video and on the plain tile alike. A user ID after
+// the name wraps onto a line of its own when the tile is too narrow for both (NameWithUserId).
 export const TileLabel = style(
   lined('row', space.S100, {
+    flexWrap: 'wrap',
+    rowGap: 0,
     position: 'absolute',
     insetInlineStart: space.S100,
     insetBlockEnd: space.S100,
@@ -141,12 +144,18 @@ export const TileLabel = style(
   })
 );
 
-export const TileStatus = style({
-  position: 'absolute',
-  insetBlockStart: space.S100,
-  insetInline: space.S100,
-  textAlign: 'center',
-});
+// "Waiting for ..." over the tile's top, centered; a user ID after the name wraps as in the label.
+export const TileStatus = style(
+  lined('row', space.S100, {
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    rowGap: 0,
+    position: 'absolute',
+    insetBlockStart: space.S100,
+    insetInline: space.S100,
+    textAlign: 'center',
+  })
+);
 
 // Before joining: who is in the call, the toggles and Join, in the middle of the panel.
 export const Prescreen = style({
