@@ -237,11 +237,39 @@ export const resolveThreadPresentationSnapshot = ({
       outgrown,
       chosen: latestPreviewEvent === loadedPreviewEvent ? 'loaded' : latestPreviewEvent ? 'bundled/replyTo' : preferCachedReply ? 'cachedPref' : 'fallback',
       init: real?.initialEventsFetched,
-      replay: real?.replayEvents?.length,
+      replay: real?.replayEvents?.map((edit) => ({
+        target: edit.getAssociatedId()?.slice(0, 8),
+        body: String(((edit.getContent() as { 'm.new_content'?: { body?: unknown } })['m.new_content'] ?? {}).body ?? '').slice(0, 24),
+        ts: edit.getTs(),
+      })),
+      lastEv: desc(real?.lastEvent),
+      found: (() => {
+        const ids = new Set<string>();
+        if (bundle.latest?.id) ids.add(bundle.latest.id);
+        real?.replayEvents?.forEach((edit) => {
+          const id = edit.getAssociatedId();
+          if (id) ids.add(id);
+        });
+        return [...ids].map((id) => {
+          const ev = isReal ? real?.findEventById?.(id) : undefined;
+          return {
+            id: id.slice(0, 8),
+            ev: desc(ev),
+            inLive: !!ev && !!thread?.events?.includes(ev),
+          };
+        });
+      })(),
+      segs: isReal
+        ? (thread as unknown as { getUnfilteredTimelineSet: () => { getTimelines: () => unknown[] } })
+            .getUnfilteredTimelineSet()
+            .getTimelines().length
+        : undefined,
     };
     const list = w.__CPT_DIAG__.get(threadRootId) ?? [];
-    list.push(entry);
-    if (list.length > 12) list.shift();
+    const key = (value: unknown) => JSON.stringify({ ...(value as object), t: 0 });
+    const previous = list[list.length - 1];
+    if (!previous || key(previous) !== key(entry)) list.push(entry);
+    if (list.length > 40) list.shift();
     w.__CPT_DIAG__.set(threadRootId, list);
   } catch {
     // diag only

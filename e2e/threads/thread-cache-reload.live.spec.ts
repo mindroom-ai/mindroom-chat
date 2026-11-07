@@ -343,7 +343,7 @@ const shot = async (page: Page, name: string) => {
 
 const dumpDiag = async (page: Page, stream: Stream, label: string, expected: string) => {
   const text = (await threadCard(page, stream.rootId).textContent().catch(() => '')) ?? '';
-  if (text.includes(expected)) return;
+  if (text.includes(expected) && stream.index !== 1) return;
   const data = await page.evaluate(
     ({ root, reply }) => {
       const w = window as unknown as { __CPT_DIAG__?: Map<string, unknown[]>; __CPT_ADDS__?: { id?: string }[] };
