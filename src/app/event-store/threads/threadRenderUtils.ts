@@ -154,9 +154,17 @@ type MeasurementScrollCorrectionHookDeps = {
   viewportTopOffset?: (scrollOffset: number) => number | undefined;
   // virtual-core writes an applied correction at once, but reports rows where
   // they were when React last rendered them: the caller sums the corrections
-  // applied since then and renders them before the browser paints.
-  onAppliedCorrection?: (deltaPx: number) => void;
+  // applied since then and renders them before the browser paints. `atEnd`
+  // marks one that keeps the reader at the list's end (`pastEndCorrection`),
+  // which moves no row.
+  onAppliedCorrection?: (deltaPx: number, atEnd: boolean) => void;
   unrenderedCorrectionPx?: () => number;
+  // The part of those `atEnd` marked.
+  unrenderedEndCorrectionPx?: () => number;
+  // How much higher the list will end once React renders it, once virtual-core
+  // takes the row's new size, when the rendered rows already show that size
+  // (`listShrinkAfterResize`); undefined when they do not.
+  listEndShrinkPx?: (index: number, deltaPx: number) => number | undefined;
 };
 
 /**
@@ -247,7 +255,7 @@ export const buildMeasurementScrollCorrectionHook =
     if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
-    if (apply) onAppliedCorrection?.(delta);
+    if (apply) onAppliedCorrection?.(delta, false);
     return apply;
   };
 
