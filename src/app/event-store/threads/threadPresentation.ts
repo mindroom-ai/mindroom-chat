@@ -126,7 +126,7 @@ export const resolveThreadPresentationSnapshot = ({
   const bundleLatest = bundle.latest;
   const outgrown =
     !!bundleLatest &&
-    [...replyEvents, summaryReply].some(
+    [...replyEvents, thread?.replyToEvent, summaryReply].some(
       (event) =>
         !!event &&
         (event.getId() === bundleLatest.id
@@ -234,6 +234,11 @@ export const resolveThreadPresentationSnapshot = ({
       loaded: replyEvents.map(desc),
       replyTo: desc(thread?.replyToEvent),
       sumReply: desc(summaryReply),
+      rootSame: rootEvent === undefined ? 'noRoot' : rootEvent === thread?.rootEvent,
+      tBundle: (() => {
+        const b = getBundledThreadPreviews(room, thread?.rootEvent);
+        return { reply: desc(b.reply), latest: b.latest, title: desc(b.title) };
+      })(),
       replyToInLoaded: !!thread?.replyToEvent && replyEvents.includes(thread.replyToEvent),
       fb: fallbackLatestReplyPreviewText?.slice(0, 24),
       fbTs: fallbackLatestReplyTs,
