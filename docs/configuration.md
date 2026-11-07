@@ -45,7 +45,7 @@ A company can put its own logo, name and footer on the signed-out pages without 
 | `branding.logo.src` | string (URL) | the MindRoom Chat logo | The logo in the card's header: an `https` URL, or a path on the app's own origin such as `/branding/logo.svg`, served beside `config.json`. Shown 28 pixels high and as wide as its proportions make it, up to 160 pixels. It is loaded without a referrer; if it does not load, the default logo is shown. |
 | `branding.logo.srcDark` | string (URL) | `src` | The logo in dark themes, under the same rules. Signed out, the app follows the system's light or dark setting. |
 | `branding.logo.alt` | string | `MindRoom Chat Logo` | Required with `src`: what screen readers say for the logo. |
-| `branding.footer.text` | string | none | A line of plain text under the card, before the credits. Markup is shown as written, not rendered. |
+| `branding.footer.text` | string, or a list of strings and `{label, url}` links | none | A line under the card, before the credits. A list is read in order as one line, its links inside the text, each opened in a new tab, with `url` an absolute `http`, `https` or `mailto` address: `[{"label": "Example", "url": "https://example.com/source"}, " by ", {"label": "Example Co", "url": "https://www.example.com"}]` shows "Example by Example Co" with both names linked. Text keeps its spaces as written. Markup is shown as written, not rendered. |
 | `branding.footer.links` | `{label, url}[]` | `[]` | Links after the Support, Privacy and Terms links, each opened in a new tab. `url` must be an absolute `http`, `https` or `mailto` address. |
 
 The credits and the Support, Privacy and Terms links stay under `auth` (above); `"poweredBy": []` hides the "Powered by" line. The footer shows, in this order: `branding.footer.text`, the credits, Support, Privacy, Terms, then `branding.footer.links`.
@@ -55,7 +55,7 @@ Values are checked when the configuration loads. A value that fails keeps its de
 - `branding` that is not an object: the whole look stays the default.
 - A blank or non-text `title`: the default title.
 - A `logo` without `alt` text, or whose `src` is not an `https` URL or on the app's own origin (`http` elsewhere, `data:`, `blob:`, `javascript:` and others are refused): the default logo. A refused `srcDark` makes dark themes show `src`.
-- A `footer` that is not an object, or `text` that is not text: no footer text.
+- A `footer` that is not an object, or `text` that is neither text nor a list: no footer text. In a `text` list, a link whose `url` is refused shows its label as plain text, and an entry without a label is left out.
 - A link without a label or with another scheme, in `branding.footer.links` or `auth.poweredBy`: that link is left out, the others stay.
 
 Not covered by `branding`: the loading screen of the very first start (before any configuration has loaded, so it names MindRoom Chat), the welcome page (`welcome.*` below), the favicon, the web app manifest and home screen icons, notification titles, the device name a sign-in gives the session (`MindRoom Chat Web`), and the native apps' names.
