@@ -49,7 +49,9 @@ export function BlockedUsers() {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t(`${KEY}.blockedUsers`)}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t(`${KEY}.blockedUsers`)}
+      </Text>
       <SettingsCard>
         <SettingTile
           focusId="blockedUsers"

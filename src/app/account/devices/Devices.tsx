@@ -352,7 +352,9 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
       <>
         {thisDevice && (
           <Box direction="Column" gap="100">
-            <Text size="L400">{t('featureUi.settings.devices.current')}</Text>
+            <Text size="L400" data-settings-heading="">
+              {t('featureUi.settings.devices.current')}
+            </Text>
             <SettingsCard>
               <DeviceRow
                 focusId="currentSession"
@@ -369,7 +371,7 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
         )}
         {others.length > 0 && (
           <Box direction="Column" gap="100">
-            <Box alignItems="Center" gap="200">
+            <Box alignItems="Center" gap="200" data-settings-heading="">
               <Text size="L400">{t(`${OTHERS}.others`)}</Text>
               {unverifiedOthers > 0 && (
                 <Badge variant="Warning" fill="Soft" radii="Pill">
@@ -420,7 +422,9 @@ export function DeviceSettings({ trust }: { trust: OwnDeviceTrust | undefined })
       {trust && <SecuritySettings trust={trust} />}
       {dashboardUrl && (
         <Box direction="Column" gap="100">
-          <Text size="L400">{t(`${OTHERS}.deviceDashboard`)}</Text>
+          <Text size="L400" data-settings-heading="">
+            {t(`${OTHERS}.deviceDashboard`)}
+          </Text>
           <SettingsCard>
             <SettingTile
               title={t(`${OTHERS}.deviceDashboard`)}

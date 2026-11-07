@@ -328,10 +328,7 @@ const measure = (dialog: Locator) =>
       const content = element.querySelector('[data-settings-page]');
       if (content) {
         const cards = [...content.querySelectorAll('[data-sequence-card]')];
-        // A section before a card that is still loading is not a heading.
-        const headings = [
-          ...content.querySelectorAll(':not([data-sequence-card]):has(+ [data-sequence-card])'),
-        ].filter((heading) => !heading.querySelector('[data-sequence-card]'));
+        const headings = [...content.querySelectorAll('[data-settings-heading]')];
         const cardOf = (heading: Element) => heading.nextElementSibling!.getBoundingClientRect();
         const advanced = [...content.querySelectorAll('button[aria-expanded][aria-controls]')].find(
           (button) => !button.closest('[data-sequence-card]')

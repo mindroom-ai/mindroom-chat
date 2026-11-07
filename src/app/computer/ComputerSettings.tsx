@@ -74,7 +74,9 @@ export function ComputerSettings({ className }: { className?: string }) {
 
   return (
     <Box gap="100" direction="Column">
-      <Text size="L400">{t('settings.general.computers.sectionTitle')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('settings.general.computers.sectionTitle')}
+      </Text>
       <SequenceCard direction="Column" gap="400" variant="SurfaceVariant" className={className}>
         <SettingTile
           focusId="computerServer"

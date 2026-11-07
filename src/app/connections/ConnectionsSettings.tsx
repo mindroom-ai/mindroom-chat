@@ -23,7 +23,9 @@ export function ConnectionsSettings({ className }: { className?: string }) {
 
   return (
     <Box direction="Column" gap="100">
-      <Text size="L400">{t('settings.general.connections.sectionTitle')}</Text>
+      <Text size="L400" data-settings-heading="">
+        {t('settings.general.connections.sectionTitle')}
+      </Text>
       <SequenceCard className={className} variant="SurfaceVariant" direction="Column" gap="400">
         <SettingTile
           focusId="connectedAccounts"
