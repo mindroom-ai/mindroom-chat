@@ -564,6 +564,28 @@ describe('CallTranscriber when MindRoom is unavailable', () => {
     }
   );
 
+  it('goes on with the later uploads and the leave when a callback throws during an upload', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    t.server.speech.mockImplementationOnce(serverError);
+    const push = t.statuses.push.bind(t.statuses);
+    t.statuses.push = () => {
+      throw new Error('The view is gone.');
+    };
+    t.capture().onStretch(stretch(1));
+    await advance();
+    t.statuses.push = push;
+
+    await advance(20_000);
+    defined(t.captures.at(-1), 'a capture').onStretch(stretch(2));
+    await advance();
+    expect(t.speeches()).toEqual(['speech 1', 'speech 2']);
+    await expect(t.transcriber.end()).resolves.toBeUndefined();
+    expect(t.steps().at(-1)).toBe('leave');
+  });
+
   it('turns unavailable when a check-in gets no answer', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);

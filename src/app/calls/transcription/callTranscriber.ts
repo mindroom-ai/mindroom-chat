@@ -336,9 +336,10 @@ export class CallTranscriber {
     const { callId } = this;
     if (this.status !== 'transcribing' || !callId) return;
     const generation = this.uploadGeneration;
-    this.uploads = this.uploads.then(() =>
-      generation === this.uploadGeneration ? this.upload(callId, stretch) : undefined
-    );
+    // An upload that throws (a callback that failed) holds up neither the next ones nor the leave.
+    this.uploads = this.uploads
+      .then(() => (generation === this.uploadGeneration ? this.upload(callId, stretch) : undefined))
+      .catch(() => undefined);
   }
 
   private async upload(callId: string, stretch: SpeechStretch): Promise<void> {
