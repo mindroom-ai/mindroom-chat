@@ -80,6 +80,30 @@ const floatsInItsPlace = async (page: Page, anchorBefore: Box) => {
     .toBe(true);
 };
 
+/**
+ * In the page's notice place (a phone's), a sync status comes under the card: the card stays where
+ * it is while the pill shows and after it has gone, and the two never overlap.
+ */
+const staysPutUnderTheSyncPill = async (page: Page) => {
+  const card = page.locator('[data-new-version-card]');
+  const pill = page.getByTestId('client-sync-status');
+  const before = await card.boundingBox();
+  const unreachable = `${HOMESERVER}/**`;
+  await page.context().route(unreachable, (route) => route.abort('internetdisconnected'));
+  await expect(pill).toContainText('Connection Lost!', { timeout: 60_000 });
+  await pill.evaluate((element) =>
+    Promise.all(element.getAnimations().map((animation) => animation.finished))
+  );
+  const during = await card.boundingBox();
+  const under = await pill.boundingBox();
+  if (!before || !during || !under) throw new Error('the card or the pill has no size');
+  expect(during).toEqual(before);
+  expect(under.y).toBeGreaterThanOrEqual(during.y + during.height);
+  await page.context().unroute(unreachable);
+  await expect(pill).toHaveCount(0, { timeout: 60_000 });
+  expect(await card.boundingBox()).toEqual(before);
+};
+
 const announcesTheNewVersion = async (page: Page, browserName: string) => {
   const user = await registerDisposableUser(`newver_${browserName}_${RUN}`, PASSWORD);
   await loginWithPassword(page, { homeserver: HOMESERVER, ...user });
@@ -110,6 +134,7 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
   await floatsInItsPlace(page, anchorBefore);
   await shot(page, `new-version-${browserName}`);
+  if ((page.viewportSize()?.width ?? 0) <= 750) await staysPutUnderTheSyncPill(page);
 };
 
 const withDeployment = async (run: (origin: string) => Promise<void>) => {

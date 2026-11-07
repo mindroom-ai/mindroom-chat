@@ -292,8 +292,8 @@ test('the thread header says whose tool calls run without approval cards, and un
   });
   await expect(sidewaysTitle).toBeVisible();
   await expect(sidewaysChip).toBeVisible();
-  // The new session's sync bar sits above the banner until it has caught up; the banner then moves
-  // up by the bar's height, so the chip and the title are measured after that.
+  // The new session says "Catching up..." over the top of the room until it has caught up; the chip
+  // and the title are measured after it has gone, with nothing over them.
   await expect(landscape.getByText(/^Catching up/)).toHaveCount(0);
   expect(Math.abs((await middle(sidewaysChip)) - (await middle(sidewaysTitle)))).toBeLessThan(3);
   expect(await leftOf(sidewaysChip, sidewaysOptions)).toBe(true);

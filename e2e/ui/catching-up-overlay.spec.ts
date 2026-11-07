@@ -111,7 +111,7 @@ const check = async (
     const listed = frames.filter((frame): frame is { band: boolean; top: number } =>
       Number.isFinite(frame.top)
     );
-    // The list was there while the band showed and after it went.
+    // The list was there while the pill showed and after it went.
     expect(listed.some((frame) => frame.band)).toBe(true);
     expect(listed.some((frame) => !frame.band)).toBe(true);
     const tops = [...new Set(listed.map((frame) => frame.top))];
