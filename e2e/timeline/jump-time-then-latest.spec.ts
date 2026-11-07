@@ -26,8 +26,11 @@ const FIRST_NOTE = 'First entry in the release log';
 /** More than the client loads ahead (one sync and one page of 200), as in a long room. */
 const NOTES = 240;
 const THREADS = 12;
+/** Tall messages at the live end, as agents' tool results are: rows measured once they render. */
+const REPORTS = 30;
+const report = (index: number) => `Rollout report ${index}: canary results`;
 /** The newest message of the main timeline. */
-const NEWEST = `Release thread ${THREADS - 1}: what blocks the rollout to the next ring?`;
+const NEWEST = report(REPORTS - 1);
 
 test.use({ viewport: { width: 1440, height: 900 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
@@ -82,11 +85,26 @@ const firstJumpReachesLatest = async (page: Page, label: string, phone: boolean)
       await send(`Thread ${thread} reply ${reply}: the canary metrics look fine so far.`, rootId);
     }
   }
+  for (let index = 0; index < REPORTS; index += 1) {
+    const lines = Array.from(
+      { length: 14 },
+      (_, line) => `ring-${line % 4} host-${index}-${line} latency_p99=${120 + line}ms errors=0`
+    ).join('\n');
+    // eslint-disable-next-line no-await-in-loop
+    await sendRoomMessage(HOMESERVER, colleague.accessToken, roomId, {
+      msgtype: 'm.text',
+      body: `${report(index)}\n\n${lines}`,
+      format: 'org.matrix.custom.html',
+      formatted_body: `<p>${report(index)}</p><pre><code>${lines}</code></pre>`,
+    });
+  }
 
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
   await expectRoomCompact(page, true);
-  await expect(page.getByText(NEWEST, { exact: true }).first()).toBeVisible({ timeout: 60_000 });
+  await expect(
+    page.getByText(`Release thread ${THREADS - 1}: what blocks`, { exact: false }).first()
+  ).toBeVisible({ timeout: 60_000 });
 
   const header = page.getByRole('banner').filter({ has: page.locator('h1') });
   await header.getByRole('button', { name: 'More Options' }).click();
