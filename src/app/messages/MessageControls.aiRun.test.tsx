@@ -31,7 +31,9 @@ describe('AiRunControls', () => {
     });
     const row = () => renderer.root.findByType('button');
     expect(row().props.children).toBe('without details');
-    act(() => row().props.onClick());
+    act(() => {
+      row().props.onClick();
+    });
     expect(row().props['data-opened']).toBe(true);
 
     act(() => renderer.update(render({ status: 'completed' })));

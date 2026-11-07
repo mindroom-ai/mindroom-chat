@@ -67,7 +67,7 @@ describe('notices', () => {
       const [opened] = React.useState(() => ({ body }));
       return React.createElement('span', { 'data-first-body': opened.body }, body);
     };
-    const message = (msgtype: string, body: string) =>
+    const message = (msgtype: MsgType, body: string) =>
       React.createElement(msgtype === MsgType.Notice ? MNotice : MText, {
         content: { msgtype, body },
         renderBody: ({ body: text }) => React.createElement(Body, { body: text }),
