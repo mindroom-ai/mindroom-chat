@@ -40,12 +40,13 @@ const expectSpellCheckOff = async (
   const composer = page.locator('[data-editable-name="RoomInput"]');
   await composer.click();
   await page.keyboard.type('Fenmark wants the ringdown fit from data/run-42.csv for Q3');
-  // `spellcheck` reflects what the browser does with the box: on unless the box or a parent turns it off.
-  expect(await composer.evaluate((box: HTMLElement) => box.spellcheck)).toBe(false);
   if (SHOTS) {
-    await page.waitForTimeout(500);
+    // The browser checks the words once typing pauses.
+    await page.waitForTimeout(1_000);
     await composer.screenshot({ path: `${SHOTS}/composer-${engine}.png` });
   }
+  // `spellcheck` reflects what the browser does with the box: on unless the box or a parent turns it off.
+  expect(await composer.evaluate((box: HTMLElement) => box.spellcheck)).toBe(false);
 
   // Up in an empty composer edits one's last message.
   await page.keyboard.press('ControlOrMeta+a');
