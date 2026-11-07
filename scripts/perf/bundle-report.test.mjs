@@ -27,7 +27,12 @@ const fakeDist = () => {
   return dist;
 };
 
-const run = (...args) => spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' });
+// No client plugins unless a test lists them (MINDROOM_CLIENT_PLUGINS adds their sizes).
+const run = (...args) =>
+  spawnSync(process.execPath, [script, ...args], {
+    encoding: 'utf8',
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: '' },
+  });
 
 test('the initial load is the entry with its static imports and the style sheet', () => {
   const dist = fakeDist();

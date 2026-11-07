@@ -184,7 +184,10 @@ test("the bundle report gives the plugin's minified and gzip size", () => {
   );
   expect(result.status, result.stderr).toBe(0);
   const directory = process.env.PLUGIN_SHOTS;
-  if (directory) writeFileSync(`${directory}/bundle-report.txt`, result.stdout);
+  if (directory) {
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(`${directory}/bundle-report.txt`, result.stdout);
+  }
   const { summary } = JSON.parse(readFileSync(out, 'utf8')) as {
     summary: { clientPlugins: Record<string, { raw: number; gzip: number }> };
   };
