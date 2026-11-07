@@ -3,8 +3,12 @@ import { globalStyle, type StyleRule } from '@vanilla-extract/css';
 /** The smallest hit area a finger gets, as the platform guidelines put it. */
 const MIN_TARGET = '44px';
 
-/** How far the layer reaches out on one axis: until the area is 44 px, `reach` at most. */
-const grow = (reach: string) => `min(0px, max(calc((100% - ${MIN_TARGET}) / 2), -${reach}))`;
+/**
+ * How far the layer reaches out on one axis: until the area is 44 px, `reach` at most. `reach` may
+ * be a length or a theme variable; a minus sign before `var()` is not CSS, so `calc` negates it.
+ */
+const grow = (reach: string) =>
+  `min(0px, max(calc((100% - ${MIN_TARGET}) / 2), calc(-1 * ${reach})))`;
 
 type TouchTargetOptions = {
   /** How far the layer may reach out along the block axis, for controls stacked closer. */
