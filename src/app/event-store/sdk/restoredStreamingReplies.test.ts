@@ -285,4 +285,17 @@ describe('streaming replies restored from the saved sync', () => {
       })
     ).toEqual([{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }]);
   });
+
+  it('does not take another sender’s bundled edit as the end of a reply', () => {
+    const othersDone = withBundledEdit(placeholder, {
+      ...editOf('$reply', 'Done', 'completed', 6),
+      sender: USER_ID,
+    });
+
+    expect(
+      findSavedStreamingReplies({
+        joinRooms: { [ROOM_ID]: { _timeline: [{ event: root }, { event: othersDone }] } },
+      })
+    ).toEqual([{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }]);
+  });
 });

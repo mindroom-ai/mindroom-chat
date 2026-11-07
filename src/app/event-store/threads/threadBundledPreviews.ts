@@ -1,4 +1,5 @@
 import { MatrixEvent, type IEvent, type Room } from 'matrix-js-sdk';
+import { getSameSenderBundledEdit } from '../../matrix/editEvent';
 import { isThreadSummaryEvent } from '../../matrix/protocol/threadSummary';
 
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -67,10 +68,7 @@ export const getBundledThreadPreviews = (
     return isThreadSummaryEvent(event) === title ? event : undefined;
   };
   const latest = bundle.latest_event;
-  const latestRelations =
-    object(latest) && object(latest.unsigned) ? latest.unsigned['m.relations'] : undefined;
-  const latestEdit = object(latestRelations) ? latestRelations['m.replace'] : undefined;
-  const editTs = object(latestEdit) ? latestEdit.origin_server_ts : undefined;
+  const editTs = object(latest) ? getSameSenderBundledEdit(latest)?.origin_server_ts : undefined;
   const latestTs =
     object(latest) && typeof latest.origin_server_ts === 'number'
       ? Math.max(latest.origin_server_ts, typeof editTs === 'number' ? editTs : -Infinity)
