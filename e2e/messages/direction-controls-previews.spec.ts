@@ -296,16 +296,6 @@ const check = async (page: Page, world: World, label: string) => {
   await expectShown(main.getByText(liveFileShown).first(), liveFileShown);
   await shot(page, `${label}-inbox`);
 
-  // The Threads page: the thread's room, its title (the message) and its newest reply (the file).
-  await go(page, '/threads/');
-  const threadCard = main.locator(`button[data-thread-root-id="${rootId}"]`);
-  await expect(threadCard).toBeVisible({ timeout: 60_000 });
-  const threadsRow = threadCard.locator('xpath=..');
-  await expectShown(threadsRow, ROOM_NAME_SHOWN);
-  await expectShown(threadCard, PLAIN_SHOWN);
-  await expectShown(threadCard, `${MEMBER_NAME}: ${FILE_NAME_SHOWN}`);
-  await shot(page, `${label}-threads-page`);
-
   // The room in its Threads view: the quotes above the reader's replies.
   await seedRoomOverviewState({
     page,
@@ -335,6 +325,17 @@ const check = async (page: Page, world: World, label: string) => {
   await shot(page, `${label}-composer-reply-file`);
   await page.getByRole('button', { name: 'Cancel reply' }).click();
   await expect(replyBar).toBeHidden();
+
+  // The Threads page, which lists the threads of rooms the reader has opened: the thread's room,
+  // its title (the message) and its newest reply (the file).
+  await go(page, '/threads/');
+  const threadCard = main.locator(`button[data-thread-root-id="${rootId}"]`);
+  await expect(threadCard).toBeVisible({ timeout: 60_000 });
+  const threadsRow = threadCard.locator('xpath=..');
+  await expectShown(threadsRow, ROOM_NAME_SHOWN);
+  await expectShown(threadCard, PLAIN_SHOWN);
+  await expectShown(threadCard, `${MEMBER_NAME}: ${FILE_NAME_SHOWN}`);
+  await shot(page, `${label}-threads-page`);
 
   // The room in its Compact view: the thread's card and the file's card.
   await seedRoomOverviewState({
