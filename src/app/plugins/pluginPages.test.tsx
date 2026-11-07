@@ -22,11 +22,7 @@ import {
 const registry = vi.hoisted((): RegisteredPlugin[] => []);
 vi.mock('./registry', () => ({ registeredPlugins: registry }));
 
-const page = (path: string, fillsWindow?: boolean): PluginPage => ({
-  path,
-  Component: () => null,
-  fillsWindow,
-});
+const page = (path: string): PluginPage => ({ path, Component: () => null });
 
 const plugin = (id: string, ...pages: PluginPage[]): RegisteredPlugin => ({
   id,
@@ -91,7 +87,7 @@ describe('usePluginRouteHref', () => {
 describe('usePluginPage', () => {
   it("finds the page of the address's plugin, with the params of its path", () => {
     const home = page('');
-    const item = page('items/:itemId', true);
+    const item = page('items/:itemId');
     registry.push(plugin('other', page('items/:itemId')), plugin('example', home, item));
     expect(pageAt('/p/example/')).toEqual({ page: home, params: {} });
     expect(pageAt('/p/example')).toEqual({ page: home, params: {} });
@@ -124,17 +120,10 @@ describe('PluginPageRoute', () => {
     expect(screen.getByRole('main')).toBeTruthy();
   });
 
-  it.each([
-    ['an unknown plugin', '/p/missing/items/42', {}],
-    ['an unknown path', '/p/example/other', {}],
-    [
-      'a plugin config.json turns off',
-      '/p/example/items/42',
-      withPlugins({ example: { enabled: false } }),
-    ],
-  ])('says "Page not found" for %s', (_, url, config) => {
+  // usePluginPage's tests cover each address that finds no page.
+  it('says "Page not found" where no page is found', () => {
     registry.push(plugin('example', { path: 'items/:itemId', Component: Item }));
-    render(<PluginPageRoute />, { wrapper: at(url, config) });
+    render(<PluginPageRoute />, { wrapper: at('/p/example/other') });
     expect(screen.getByRole('heading', { name: 'Page not found' })).toBeTruthy();
     expect(screen.queryByText(/^Item/)).toBeNull();
   });

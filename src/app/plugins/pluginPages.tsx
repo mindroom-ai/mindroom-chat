@@ -34,7 +34,7 @@ export const pluginRoutePath = (pluginId: string, path = ''): string =>
  * The `href` of a plugin's page, as `pluginRoutePath` gives it, with the base path the app is
  * served under, or after `#` with the hash router.
  */
-export const usePluginRouteHref = (pluginId: string, path = ''): string =>
+export const usePluginRouteHref = (pluginId: string, path?: string): string =>
   useHref(pluginRoutePath(pluginId, path));
 
 /**
@@ -50,7 +50,7 @@ export const usePluginPage = (): MatchedPluginPage | undefined => {
   // splat param it is not.
   const rest = match.pathname.slice(match.pathnameBase.length) || '/';
   for (const page of plugin.pages) {
-    const found = matchPath({ path: page.path, end: true }, rest);
+    const found = matchPath(page.path, rest);
     if (found) return { page, params: found.params };
   }
   return undefined;
