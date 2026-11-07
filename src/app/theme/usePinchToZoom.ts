@@ -26,7 +26,8 @@ export const usePinchToZoom = (pageZoom: number, setPageZoom: (zoom: number) => 
 
   useEffect(() => {
     pageZoomRef.current = pageZoom;
-    pendingZoomRef.current = null;
+    // A zoom the fingers reached while this one was being stored still waits for its frame.
+    if (pendingZoomRef.current === pageZoom) pendingZoomRef.current = null;
   }, [pageZoom]);
 
   useEffect(() => {
