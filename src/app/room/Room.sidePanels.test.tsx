@@ -519,6 +519,15 @@ describe('the side panels of a room', () => {
     expect(screen.getByText('Board request "kept"')).toBeTruthy();
   });
 
+  it("leaves the call of the room left when a plugin's layout effect opens a panel in the next room", async () => {
+    const showRoom = await renderRoom();
+    await open('call');
+    state.inView = <OpensAtOnce />;
+    await showRoom('!other:example.org');
+    expect(screen.getByText('Notes request "at once"')).toBeTruthy();
+    expect(store.get(callPanelRoomAtom)).toBe(room.roomId);
+  });
+
   it("does nothing for a plugin's late call after the room's page has gone", async () => {
     signIn();
     withCards();
