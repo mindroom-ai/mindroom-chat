@@ -8,8 +8,8 @@ work; it describes what the software does and the contract between the two sides
 
 - In a room where MindRoom's router is a member, a call between people is transcribed: each person's words appear
   under their name, live, while the call goes on.
-- Anyone in the call can hold **Pause**. While anyone holds it nothing anyone says is transcribed, and the live
-  transcript shows a gap ("Paused").
+- Anyone in the call can **pause** transcription for everyone, and anyone in it can resume it. While paused nothing
+  anyone says is transcribed, and the live transcript shows a gap ("Paused").
 - When the call starts, the room gets a call row ("Call started"). While the call is live the row shows who is in it,
   with **Join** and **Transcript**.
 - When the call ends, the router posts one message in the call row's thread: the call's notes (what it was about,
@@ -28,8 +28,8 @@ work; it describes what the software does and the contract between the two sides
 - **Each person's app transcribes its own voice.** The app listens to the microphone track it already publishes to the
   call, cuts it into stretches of speech, and sends each stretch to MindRoom, which transcribes it. The speaker's name
   is the signed-in session's, never a guess; calls stay end-to-end encrypted; nobody extra joins the call.
-- **Live updates come over one authenticated server-sent-events stream per room**, read with `fetch` and a bearer
-  token (no token in any URL).
+- **Live updates come from polling**: an app in the call, or showing a live call, reads it every few seconds with a
+  bearer token (no token in any URL). No stream to keep open, cap or reconnect.
 
 ## The server (MindRoom)
 
@@ -49,13 +49,12 @@ Changes apply to the next request, without a restart.
 ### A call
 
 - A call belongs to one Matrix room; a room has at most one live call. Two people starting at once get the same call.
-- **Who is in it.** A person is in the call while their app checks in (any request from it to the call) at least every
-  60 seconds; apps send a heartbeat every 20 seconds. People in the room's MatrixRTC call membership who never use this
-  feature (another Matrix app) are listed as in the call too, but are not transcribed. Because homeservers without
-  delayed leave events can leave a crashed app's MatrixRTC membership in place for hours, a membership created before
-  that person's app was last in a call in this room does not count. An app that leaves is out at once.
-- **Ending.** A call ends when nobody is in it, checked when someone leaves and every 15 seconds while it is live (the
-  room's MatrixRTC state read through the router). A failed state read never ends a call.
+- **Who is in it.** A person is in the call while their app checks in (`calls.join`, `pause` or `speech` for the call)
+  at least every 60 seconds; apps send a heartbeat every 20 seconds. An app that leaves is out at once. Only people
+  whose apps take part are in the call: people on other Matrix apps are neither listed nor transcribed. MatrixRTC
+  membership is not consulted.
+- **Ending.** A call ends when nobody is in it, checked when someone leaves and every 15 seconds while it is live. After
+  MindRoom starts, apps get a full minute to check in before anyone counts as gone.
 - **The row.** When a call starts, the router posts a notice in the room: body `Call started`, content
   `io.mindroom.call: {"call_id": "<id>"}`. It wakes no agent and notifies nobody. If the router is not ready, it is
   posted once it is. When the call ends, the router edits the row (`m.replace`, still a notice): body
@@ -68,9 +67,9 @@ Changes apply to the next request, without a restart.
   MindRoom's existing large-message sidecar, as voice agents' transcripts do. It wakes no agent, notifies nobody, and
   neutralises mentions in the notes. A failed post or failed notes are retried once after 60 seconds; then the
   transcript is posted without notes. A call with no speech posts nothing. Afterwards the call's lines are deleted.
-- **Pause.** Anyone in the call can take a hold and release it; leaving releases it. While any hold exists, speech is
-  refused, and so is a stretch that overlapped a hold, whenever it arrives. Each pause appears once in the live
-  transcript as a gap.
+- **Pause.** Anyone in the call can pause transcription, and anyone in it can resume it; the call records who paused.
+  It stays paused until someone resumes or the call ends. While paused, speech is refused, and so is a stretch that
+  overlapped a paused period, whenever it arrives. Each pause appears once in the live transcript as a gap.
 - **Speech.** WAV, 16-bit PCM, mono, at most 30 seconds by its header and 1 MB; never written to disk (not even a
   temporary file); from a person currently in the call through their app; one stretch in flight per person and at most
   240 a minute (refusals say when to try again with `Retry-After`). A stretch said before its call ended is accepted
@@ -91,13 +90,12 @@ Under `/api/call-transcripts/v1`, with MindRoom's client sessions (`Authorizatio
 | --- | --- |
 | `POST /rooms/{room_id}/calls.join` | `{"call": Call}`: the live call, started if none; also the heartbeat |
 | `POST /calls/{call_id}/leave` | `{}` |
-| `POST /calls/{call_id}/pause` `{"holding": bool}` | `{"call": Call}` |
+| `POST /calls/{call_id}/pause` `{"paused": bool}` | `{"call": Call}` |
 | `POST /calls/{call_id}/speech` multipart `audio` (WAV), `startedAt` (ISO time) | `{"line": Line \| null}` (a line, a gap, or null when no words were heard) |
-| `GET /rooms/{room_id}/calls.live` | `{"call": Call \| null, "lines": [Line], "names": {userId: displayName \| null}}` |
-| `GET /rooms/{room_id}/calls.events` | `text/event-stream`: each event's `data` is JSON: `ready` (what `calls.live` answers), `call` (a Call), `line` (a Line), `ended` (`{"callId"}`), and a comment every 20 s |
+| `GET /rooms/{room_id}/calls.live?after=<line id>` | `{"call": Call \| null, "lines": [Line], "names": {userId: displayName \| null}}`; `lines` are those after `after` (all without it) |
 
 `Call`: `id`, `roomId`, `rowEventId` (null until posted), `startedAt`, `endedAt` (null while live), `members` (user
-IDs in the call now), `holds` (user IDs holding Pause), `transcribedBy` (user IDs whose apps are in). `Line`: `id`,
+IDs whose apps are in the call now), `pausedBy` (user ID, or null when not paused). `Line`: `id`,
 `callId`, `userId`, `saidAt`, `seconds`, `kind` (`speech` or `gap`), `text` (speech) or `reason` (`paused` or
 `not-transcribed`). Refusals: HTTP status with `{"error": "<sentence>", "code": "<forbidden|not-found|invalid|paused|too-many-requests|unavailable|too-large>"}`.
 
@@ -108,7 +106,8 @@ IDs in the call now), `holds` (user IDs holding Pause), `transcribedBy` (user ID
   speech in the microphone track it publishes, and uploads each stretch. A muted microphone sends nothing. Switching
   microphones follows the new track. When the call ends on this device: stop listening, let queued uploads finish
   (each gives up after 30 seconds), then leave; a new join to the same room waits for that leave. A refused stretch
-  (`too-many-requests`) is retried once after `Retry-After` (at most 10 s).
+  (`too-many-requests`) is retried once after `Retry-After` (at most 10 s). While in the call it reads `calls.live`
+  every 2 seconds (with `after`) for new lines and the paused state.
 - **Finding speech.** 16 kHz mono 16-bit. A stretch starts once speech has lasted about 60 ms and keeps about 300 ms
   from before it, so the first syllable isn't clipped; it ends after about 700 ms of quiet (keeping about 200 ms of
   it) or at 25 seconds (longer speech continues in the next stretch). Stretches with less than about 200 ms of speech
@@ -120,18 +119,17 @@ IDs in the call now), `holds` (user IDs holding Pause), `transcribedBy` (user ID
   whose cross-origin rules refuse these routes), stay silent while the heartbeat keeps trying. A 404 or 403 means this
   room isn't transcribed: show nothing, send nothing. A refused join (`too-many-requests`) is retried after
   `Retry-After`, silently.
-- **Pause** sits in the call's controls: held down (pointer or Space/Enter), released on pointer up, cancel or leave,
-  key up, focus loss, window blur, the page being hidden, and unmount. A click that comes without a press (screen
-  readers, voice control, switch access) toggles a hold instead, until clicked again; it is released the same ways.
-  Holds are per person, but a device only ever releases a hold it took. Pressing pauses this device's capture at once,
-  before the server answers. Held looks like the call controls' warning state, with "Paused by Ann" naming who holds
-  it. A refused hold shows as not held and resumes capture; a refused release is retried until the server no longer
-  lists the hold. Holds come from the server (stream and pause answers), never from heartbeat answers.
-- **Live transcript** opens in the room's side panel from Transcript (in the controls and on the row): lines under
-  display names, gaps, who is in the call, and a line saying the call is transcribed. Pause is also in its header
+- **Pause** sits in the call's controls: a toggle button (an ordinary button, so keyboards and assistive technology
+  work as usual) that pauses or resumes transcription for everyone. Pausing stops this device's capture at once, before
+  the server answers. Paused looks like the call controls' warning state, with "Paused by Ann" naming who paused. A
+  refused request shows the state the server reports. The paused state comes from the server's answers and polls.
+- **Live transcript** opens in the room's side panel from Transcript (in the controls and on the row), reading the live
+  call every 2 seconds while open: lines under display names, gaps, who is in the call, and a line saying the call is
+  transcribed. Pause is also in its header
   while it shows this device's call. Closing it brings back the call panel if it replaced it.
 - **The row** (`io.mindroom.call`, from a MindRoom agent only) renders from its latest edit in the timeline and in the
-  thread lists: live (unedited), who is in the call, Join, Transcript; ended, how long it lasted and, once known, a link
+  thread lists: live (unedited), who is in the call (a visible live row reads the live call every 5 seconds), Join,
+  Transcript; ended, how long it lasted and, once known, a link
   to the transcript message (`transcript_event_id`) in its thread. The transcript message itself uses the existing
   transcript card, with the notes as its text; for a message carrying `io.mindroom.call_notes` from a MindRoom agent,
   speakers who were in the room but have left still count as trusted, so the transcript stays visible.
