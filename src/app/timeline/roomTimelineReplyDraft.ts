@@ -1,6 +1,6 @@
 import { RelationType } from 'matrix-js-sdk';
-import type { IContent, IEventRelation, MatrixEvent, Room } from 'matrix-js-sdk';
-import { getEditedEvent } from '../matrix/room';
+import type { IEventRelation, Room } from 'matrix-js-sdk';
+import { getQuotedContent } from '../matrix/quotedContent';
 import type { IReplyDraft } from '../composer/roomInputDrafts';
 import { readCanvasNoticeTitle } from '../matrix/protocol/chatUiProtocol';
 
@@ -8,19 +8,6 @@ import { readCanvasNoticeTitle } from '../matrix/protocol/chatUiProtocol';
 export type RoomTimelineReplyDraft = {
   draft: IReplyDraft;
   threadRootId: string;
-};
-
-const isContentRecord = (value: unknown): value is IContent =>
-  typeof value === 'object' && value !== null && !Array.isArray(value);
-
-/**
- * The content a reply quotes: the replacement content of the message's newest edit when there is
- * one, otherwise the message's own content (the decrypted one, for an encrypted message).
- */
-const contentToQuote = (room: Room, eventId: string, message: MatrixEvent): IContent => {
-  const edit = getEditedEvent(eventId, message, room.getUnfilteredTimelineSet());
-  const replacement: unknown = edit?.getContent()['m.new_content'];
-  return isContentRecord(replacement) ? replacement : message.getContent();
 };
 
 /**
@@ -41,7 +28,7 @@ export const buildRoomTimelineReplyDraft = (
   const userId = message?.getSender();
   if (!message || !userId) return undefined;
 
-  const content = contentToQuote(room, eventId, message);
+  const content = getQuotedContent(room, eventId, message);
   const text: unknown = content.body;
   if (typeof text !== 'string') return undefined;
 
