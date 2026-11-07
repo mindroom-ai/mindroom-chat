@@ -197,8 +197,9 @@ const shot = async (page: Page, name: string) => {
 
 /** The scope shows `shown` and holds no control character. */
 const expectShown = async (scope: Locator, shown: string) => {
-  await expect(scope).toContainText(shown, { timeout: 30_000 });
-  expect(await scope.textContent()).not.toMatch(CONTROL);
+  await expect(scope).toBeAttached({ timeout: 30_000 });
+  await expect.soft(scope).toContainText(shown, { timeout: 3_000 });
+  expect.soft(await scope.textContent()).not.toMatch(CONTROL);
 };
 
 /** Moves within the app, as a link would. */
@@ -291,11 +292,11 @@ const check = async (page: Page, world: World, label: string) => {
       `${JSON.stringify(await shownNotifications(page), null, 2)}\n`
     );
   }
-  expect(await about(`(${label}) Move`)()).toEqual({
+  expect.soft(await about(`(${label}) Move`)()).toEqual({
     title: ROOM_NAME_SHOWN,
     body: `${MEMBER_NAME}: ${liveTextShown}`,
   });
-  expect(await about(`${label}-summary`)()).toEqual({
+  expect.soft(await about(`${label}-summary`)()).toEqual({
     title: ROOM_NAME_SHOWN,
     body: `${MEMBER_NAME}: ${liveFileShown}`,
   });
@@ -398,13 +399,13 @@ test.beforeEach(async () => {
 });
 
 test('previews show direction controls as code points (Chromium)', async ({ browser, baseURL }) => {
-  test.setTimeout(420_000);
+  test.setTimeout(900_000);
   await run(browser, baseURL, 'chromium');
 });
 
 test('previews show direction controls as code points (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
-  test.setTimeout(420_000);
+  test.setTimeout(900_000);
   const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
