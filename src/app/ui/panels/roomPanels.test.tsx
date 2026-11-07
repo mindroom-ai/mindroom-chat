@@ -88,6 +88,20 @@ describe('useRoomPanels', () => {
     expect(result.current.layout).toBe('folded');
   });
 
+  it('keeps a panel opened elsewhere as it was when its room shows again', () => {
+    const options = { b: { opensElsewhere: true } };
+    const { result, rerender } = renderHook(useRoomPanelsIn, {
+      initialProps: { panels: panelsOf({ b: true }, options) },
+    });
+    act(() => result.current.setLayout('b', 'folded'));
+    // Another room, where b is not open, and back: b did not open again.
+    rerender({ room: '!b', panels: panelsOf({}, options) });
+    const again = panelsOf({ b: true }, options);
+    rerender({ panels: again });
+    expect(closed(again)).toEqual([]);
+    expect(result.current.layout).toBe('folded');
+  });
+
   it('opens a panel beside the conversation again, by a request or from elsewhere', () => {
     const options = { b: { opensElsewhere: true } };
     const { result, rerender } = renderHook(useRoomPanelsIn, {

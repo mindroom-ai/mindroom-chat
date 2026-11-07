@@ -58,11 +58,13 @@ export function useRoomPanels<Panel extends RoomPanel>(room: string, panels: rea
     [setLayout]
   );
 
-  const wasOpen = useRef<ReadonlySet<string>>();
+  // The panels open when each room last showed: a panel already open when its room shows again
+  // did not open elsewhere.
+  const wasOpen = useRef<Record<string, ReadonlySet<string>>>({});
   useEffect(() => {
     const open = new Set(panels.filter((panel) => panel.open).map((panel) => panel.id));
-    const before = wasOpen.current ?? open;
-    wasOpen.current = open;
+    const before = wasOpen.current[room] ?? open;
+    wasOpen.current[room] = open;
     panels.forEach((panel) => {
       if (panel.opensElsewhere && panel.open && !before.has(panel.id)) {
         makeRoomFor(panels, panel.id);
