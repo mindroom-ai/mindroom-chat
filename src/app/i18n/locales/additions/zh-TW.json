@@ -202,6 +202,9 @@
       "messageIn": "{{room}} 中的訊息",
       "threadIn": "{{room}} 中的討論串",
       "messageElsewhere": "其他房間中的訊息"
+    },
+    "deviceVerification": {
+      "acceptStalled": "另一個工作階段沒有回應。請關閉此視窗並重新開始驗證。"
     }
   },
   "featureUi": {
