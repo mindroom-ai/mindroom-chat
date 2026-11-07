@@ -39,7 +39,7 @@ import {
   type ThreadLedgerAnchor,
   type ThreadLedgerEvent,
 } from './threadScrollLedger';
-import { planRoomLedgerRender, type RoomLedgerAnchor } from './roomScrollLedger';
+import { planRoomLedgerFold, type RoomLedgerAnchor } from './roomScrollLedger';
 
 type VirtualItemKey = string | number | bigint;
 
@@ -238,23 +238,11 @@ export const useTimelineScrollLedgerController = ({
   const threadLeadingHeld =
     !resettingLedgerView && !!threadId && threadLedgerAnchorRef.current?.threadId === threadId;
   const threadLeadingFoldPx = threadLeadingHeld ? threadLeadingPx - committedLeading.px : 0;
-  // Anchored room rows: rows a render puts above the reader's first visible row are folded,
-  // whatever put them there (a new thread at the top, a page that widened the window).
+  // Anchored room rows (`anchorRoomRows`): every commit folds what its layout put above the
+  // reader's first visible row, whatever put it there, so a page that widened the window at its
+  // start is priced there too.
   const roomLedgerAnchorRef = useRef<RoomLedgerAnchor>();
-  // The live instance: its size cache is the one its measurements read, also between commits.
-  const roomVirtualizerRef = useRef<ReactVirtualizer<HTMLDivElement, Element>>();
   const anchoringRoomRows = !threadId && !!anchorRoomRows;
-  const roomRowKeys = anchoringRoomRows
-    ? Array.from({ length: itemCount }, (_, index) => getItemKey(index))
-    : [];
-  const roomLedgerFoldPx =
-    anchoringRoomRows && !resettingLedgerView
-      ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, {
-          price: (key, index) =>
-            roomVirtualizerRef.current?.itemSizeCache.get(key) ?? estimateSize(index),
-          measured: (key) => !!roomVirtualizerRef.current?.itemSizeCache.has(key),
-        })
-      : 0;
   // Room pagination records its exact prepend height before requesting the
   // range update. Keep that debt pending until the matching render commits;
   // abandoned concurrent renders neither lose nor double-apply it. Anchored
@@ -268,14 +256,12 @@ export const useTimelineScrollLedgerController = ({
     : scrollCompensationPxRef.current +
       threadLedgerRenderPlan.foldPx +
       threadLeadingFoldPx +
-      roomFoldPxAtRender +
-      roomLedgerFoldPx;
+      roomFoldPxAtRender;
 
   useLayoutEffect(() => {
     if (resettingLedgerView) return;
 
-    const foldPx =
-      threadLedgerRenderPlan.foldPx + threadLeadingFoldPx + roomFoldPxAtRender + roomLedgerFoldPx;
+    const foldPx = threadLedgerRenderPlan.foldPx + threadLeadingFoldPx + roomFoldPxAtRender;
     if (foldPx !== 0) {
       // Preserve measurement corrections that arrived between render and
       // this effect; only add the render plan's delta.
@@ -291,7 +277,6 @@ export const useTimelineScrollLedgerController = ({
     pendingRoomFoldPxRef,
     resettingLedgerView,
     roomFoldPxAtRender,
-    roomLedgerFoldPx,
     threadLeadingFoldPx,
     threadLedgerRenderPlan,
   ]);
@@ -338,7 +323,6 @@ export const useTimelineScrollLedgerController = ({
   );
 
   useLayoutEffect(() => {
-    roomVirtualizerRef.current = virtualizer;
     ledgerFoldSizeCacheRef.current = virtualizer.itemSizeCache;
     roomFoldPriceRef.current = priceThreadRowForLedger;
     virtualizerRef.current = virtualizer;
@@ -383,13 +367,9 @@ export const useTimelineScrollLedgerController = ({
     },
     [readerTopOffset]
   );
-  // The room's rows, where the list sits in the scroll content and the headers' inset, as for a
-  // thread's rows above; the reader's row is recorded at every commit and scroll.
-  const roomLedgerViewRef = useRef<{
-    keys: readonly (string | number | bigint)[];
-    listTop: number;
-    inset: number;
-  }>();
+  // Where the room's list sits in the scroll content and the headers' inset, as for a thread's
+  // rows above; the reader's row is recorded at every commit and scroll.
+  const roomLedgerViewRef = useRef<{ listTop: number; inset: number }>();
   const anchorRoomRowsRef = useRef(anchorRoomRows);
   useLayoutEffect(() => {
     anchorRoomRowsRef.current = anchorRoomRows;
@@ -400,31 +380,46 @@ export const useTimelineScrollLedgerController = ({
       roomLedgerAnchorRef.current = undefined;
       return;
     }
+    const instance = virtualizerRef.current;
     const offset = scrollTop + view.inset - view.listTop;
-    const item = virtualizerRef.current.getVirtualItemForOffset(offset);
-    const index = item && item.start <= offset ? item.index : undefined;
-    const key = index === undefined ? undefined : view.keys[index];
+    const item = instance.getVirtualItemForOffset(offset);
     roomLedgerAnchorRef.current =
-      index === undefined || key === undefined
-        ? undefined
-        : {
-            key,
-            index,
-            keys: view.keys,
-            // The sizes the rows above had in this render, measured or estimated.
-            sizes: virtualizerRef.current.measurementsCache.map((row) => row.size),
-          };
+      item && item.start <= offset
+        ? {
+            index: item.index,
+            rows: instance.measurementsCache.map(({ key, size }) => ({
+              key,
+              size,
+              measured: instance.itemSizeCache.has(key),
+            })),
+          }
+        : undefined;
   }, []);
   useLayoutEffect(() => {
     const scrollElement = getScrollElement();
     const inner = virtualInnerRef.current;
-    if (!anchoringRoomRows || !scrollElement || !inner) {
+    if (!anchoringRoomRows || resettingLedgerView || !scrollElement || !inner) {
       roomLedgerViewRef.current = undefined;
       roomLedgerAnchorRef.current = undefined;
       return;
     }
+    // What this layout put above the reader's row since the last one: folded by a synchronous
+    // re-render, before this commit paints.
+    const instance = virtualizerRef.current;
+    const foldPx = planRoomLedgerFold(
+      roomLedgerAnchorRef.current,
+      instance.measurementsCache.map(({ key, size }) => ({
+        key,
+        size,
+        measured: instance.itemSizeCache.has(key),
+      }))
+    );
+    if (Math.abs(foldPx) >= 0.5) {
+      scrollCompensationPxRef.current += foldPx;
+      ledgerSettleWantedRef.current = true;
+      setLedgerCommitTick((tick) => tick + 1);
+    }
     roomLedgerViewRef.current = {
-      keys: roomRowKeys,
       listTop:
         scrollElement.scrollTop -
         (scrollElement.getBoundingClientRect().top -
