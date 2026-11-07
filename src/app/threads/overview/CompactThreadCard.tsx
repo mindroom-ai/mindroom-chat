@@ -11,14 +11,22 @@ import { FailedSendIndicator, PendingSendIndicator } from '../../ui/PendingSendI
 import { ThreadStreamingDot } from '../ThreadStreamingDot';
 import { ThreadTagPill } from '../tags/ThreadTagPill';
 import { ownDirectionBlock } from '../../ui/directional';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { OverflowChip } from '../ThreadContextBanner.css';
 
 export type CompactThreadCardProps = {
   viewModel: CompactThreadCardViewModel;
   onClick: (threadRootId: string, summaryText?: string) => void;
 };
 
+// As many whole tags as the thread banner shows, then a count of the rest.
+const DESKTOP_MAX_TAGS = 3;
+const MOBILE_MAX_TAGS = 2;
+
 function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
   const { t } = useTranslation();
+  const maxTags =
+    useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
   const {
     id,
     titleText,
@@ -156,9 +164,14 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
             <span className={css.ResolutionBylineLabel}>{resolvedByLabel}</span>
           </Text>
         )}
-        {tags.map((tagName) => (
+        {tags.slice(0, maxTags).map((tagName) => (
           <ThreadTagPill key={tagName} name={tagName} />
         ))}
+        {tags.length > maxTags && (
+          <span className={OverflowChip} title={tags.slice(maxTags).join(', ')}>
+            +{tags.length - maxTags}
+          </span>
+        )}
         {isStreaming && (
           <Text as="span" className={css.StreamingStatus} size="T200" priority="300">
             <ThreadStreamingDot aria-hidden="true" />
