@@ -239,17 +239,15 @@ const check = async (
   }
 };
 
+test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
+
 test.beforeEach(async () => {
   test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
 });
 
-test.describe('desktop, Chromium', () => {
-  test.use({ launchOptions: CHROMIUM_WITH_SCROLLBARS });
-
-  test('rooms read on another device stay read through a reload', async ({ browser, baseURL }) => {
-    test.setTimeout(180_000);
-    await check(browser, baseURL, 'chromium', DESKTOP);
-  });
+test('rooms read on another device stay read through a reload', async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
+  await check(browser, baseURL, 'chromium', DESKTOP);
 });
 
 test('rooms read on another device stay read through a reload (WebKit, phone)', async ({
