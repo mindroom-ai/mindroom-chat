@@ -292,9 +292,22 @@ describe("a plugin's public/ directory", () => {
     );
   });
 
-  it('is served by the dev server at the same paths, anything else there as a 404', async () => {
+  it('is served by the dev server as it is, at the same paths, anything else there as a 404', async () => {
     const dir = pluginDir(declaring());
-    writeFiles(dir, { 'public/sub/page.html': '<p>A page</p>', 'secret.txt': 'secret' });
+    const files = {
+      'sub/page.html': ['<p>A page</p>', 'text/html; charset=utf-8'],
+      'worker.js': [
+        "self.onmessage = () => postMessage('ok');\n",
+        'application/javascript; charset=utf-8',
+      ],
+      'C#-guide.txt': ['A guide', 'text/plain; charset=utf-8'],
+    };
+    writeFiles(dir, {
+      ...Object.fromEntries(
+        Object.entries(files).map(([name, [text]]) => [`public/${name}`, text])
+      ),
+      'secret.txt': 'secret',
+    });
     const vite = await createServer({
       configFile: false,
       root: ROOT,
@@ -307,10 +320,14 @@ describe("a plugin's public/ directory", () => {
     const { port } = vite.httpServer!.address() as AddressInfo;
     const get = (pathname: string) => fetch(`http://127.0.0.1:${port}${pathname}`);
     try {
-      const page = await get('/public/plugins/some-plugin/sub/page.html');
-      expect(page.status).toBe(200);
-      expect(page.headers.get('content-type')).toMatch(/^text\/html/);
-      expect(await page.text()).toBe('<p>A page</p>');
+      for (const [name, [text, type]] of Object.entries(files)) {
+        const response = await get(
+          `/public/plugins/some-plugin/${name.split('/').map(encodeURIComponent).join('/')}`
+        );
+        expect(response.status, name).toBe(200);
+        expect(response.headers.get('content-type'), name).toBe(type);
+        expect(await response.text(), name).toBe(text);
+      }
       for (const missing of [
         '/public/plugins/some-plugin/sub/missing.html',
         '/public/plugins/some-plugin/..%2fsecret.txt',
@@ -319,6 +336,8 @@ describe("a plugin's public/ directory", () => {
       ]) {
         expect((await get(missing)).status, missing).toBe(404);
       }
+      // Every other path is Vite's.
+      expect(await (await get('/index.html')).text()).toContain('<div id="root"');
     } finally {
       await vite.close();
     }

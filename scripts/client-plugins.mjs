@@ -10,6 +10,7 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { contentType } from 'mime-types';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
 
 /**
@@ -257,30 +258,33 @@ export const clientPlugins = (env = process.env) => {
         }
       }
     },
-    // The dev server serves the same files at the same paths, as it serves any file (scripts, style
-    // sheets and files without an extension through its transforms), and anything else under
+    // The dev server serves the same files at the same paths, as they are (Vite's own file serving
+    // would run scripts and style sheets through its transforms), and anything else under
     // public/plugins/ as a 404.
     configureServer: (server) => {
       const prefix = `/${PUBLIC_FILES}/`;
       server.middlewares.use((req, res, next) => {
         const [pathname = ''] = (req.url ?? '').split('?');
-        if (pathname.startsWith(prefix)) {
-          const [id, ...parts] = pathname.slice(prefix.length).split('/');
-          const plugin = plugins.find((other) => other.id === id);
-          let name = '';
-          try {
-            name = decodeURIComponent(parts.join('/'));
-          } catch {
-            // A malformed escape names no file.
-          }
-          if (!plugin || !pluginPublicFiles(plugin.dir).includes(name)) {
-            res.statusCode = 404;
-            res.end();
-            return;
-          }
-          req.url = `/@fs${encodeURI(normalizePath(path.join(plugin.dir, 'public', name)))}`;
+        if (!pathname.startsWith(prefix)) {
+          next();
+          return;
         }
-        next();
+        const [id, ...parts] = pathname.slice(prefix.length).split('/');
+        const plugin = plugins.find((other) => other.id === id);
+        let name = '';
+        try {
+          name = decodeURIComponent(parts.join('/'));
+        } catch {
+          // A malformed escape names no file.
+        }
+        if (plugin && pluginPublicFiles(plugin.dir).includes(name)) {
+          const type = contentType(path.extname(name)) || 'application/octet-stream';
+          res.setHeader('Content-Type', type);
+          res.end(readFileSync(path.join(plugin.dir, 'public', name)));
+        } else {
+          res.statusCode = 404;
+          res.end();
+        }
       });
     },
   };
