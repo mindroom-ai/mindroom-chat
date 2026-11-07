@@ -9,6 +9,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
+import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
 import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
@@ -83,8 +84,9 @@ const serviceWorkerPlugin = VitePWA({
     globPatterns: ['**/*.{js,css,html,wasm,woff2,png,svg,webp,avif,jpg,jpeg,gif,ico}'],
     globIgnores: precacheGlobIgnores,
     manifestTransforms: [startup.manifestTransform],
-    // Writes the build inventory into the worker (scripts/precache-plan.mjs).
-    buildPlugins: { vite: [startup.workerPlugin] },
+    // Writes the build inventory into the worker (scripts/precache-plan.mjs), and fails on two
+    // copies of one package version there too.
+    buildPlugins: { vite: [startup.workerPlugin, onePackageCopyPerVersion()] },
   },
   srcDir: path.dirname(SW_ENTRY),
   filename: path.basename(SW_ENTRY),
@@ -136,6 +138,8 @@ export default defineConfig({
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),
     ...sourcePlugins,
+    // The build fails when it bundles two copies of one package version (scripts/package-copies.mjs).
+    onePackageCopyPerVersion(),
     ...(fixturePagesOnly
       ? []
       : [
