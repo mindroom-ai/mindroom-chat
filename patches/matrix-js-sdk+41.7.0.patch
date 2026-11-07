@@ -1529,7 +1529,7 @@ index 871875d..5c586ee 100644
          if (recursionSupport === ServerSupport.Unsupported) {
              return Promise.all(
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
-index 217e159..469de8f 100644
+index 217e159..6357641 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 +++ b/node_modules/matrix-js-sdk/lib/rust-crypto/rust-crypto.js
 @@ -31,7 +31,7 @@ import { OutgoingRequestProcessor } from "./OutgoingRequestProcessor.js";
@@ -1644,7 +1644,16 @@ index 217e159..469de8f 100644
            unusedFallbackKeys: setUnusedFallbackKeys
          });
        }
-@@ -2128,6 +2153,13 @@ export class RustCrypto extends TypedEventEmitter {
+@@ -2004,6 +2029,8 @@ export class RustCrypto extends TypedEventEmitter {
+         }
+       }
+ 
++      // A client stopped during the check has closed its OlmMachine: the secrets wait for its next start.
++      if (_this71.stopped) return;
+       // Important to call this after handling the secrets as good hygiene.
+       yield _this71.olmMachine.deleteSecretsFromInbox(name);
+     })();
+@@ -2128,6 +2155,13 @@ export class RustCrypto extends TypedEventEmitter {
      })();
    }
  }
@@ -1658,7 +1667,7 @@ index 217e159..469de8f 100644
  class EventDecryptor {
    constructor(logger, olmMachine, perSessionBackupDownloader) {
      this.logger = logger;
-@@ -2147,7 +2179,9 @@ class EventDecryptor {
+@@ -2147,7 +2181,9 @@ class EventDecryptor {
        // then, if the key turns up while decryption is in progress (and
        // decryption fails), we will schedule a retry.
        // (fixes https://github.com/vector-im/element-web/issues/5001)
@@ -1669,7 +1678,7 @@ index 217e159..469de8f 100644
        var trustRequirement;
        switch (isolationMode.kind) {
          case DeviceIsolationModeKind.AllDevicesIsolationMode:
-@@ -2199,7 +2233,9 @@ class EventDecryptor {
+@@ -2199,7 +2235,9 @@ class EventDecryptor {
  
      // If the error looks like it might be recoverable from backup, queue up a request to try that.
      if (err.code === RustSdkCryptoJs.DecryptionErrorCode.MissingRoomKey || err.code === RustSdkCryptoJs.DecryptionErrorCode.UnknownMessageIndex) {
@@ -1681,7 +1690,7 @@ index 217e159..469de8f 100644
        // If the server is telling us our membership at the time the event
        // was sent, and it isn't "join", we use a different error code.
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
-index fa3b8f0..e19bf45 100644
+index fa3b8f0..df24717 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 +++ b/node_modules/matrix-js-sdk/src/rust-crypto/rust-crypto.ts
 @@ -72,7 +72,7 @@ import {
@@ -1809,7 +1818,16 @@ index fa3b8f0..e19bf45 100644
                  unusedFallbackKeys: setUnusedFallbackKeys,
              });
          }
-@@ -2270,6 +2307,12 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+@@ -2144,6 +2181,8 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
+             }
+         }
+ 
++        // A client stopped during the check has closed its OlmMachine: the secrets wait for its next start.
++        if (this.stopped) return;
+         // Important to call this after handling the secrets as good hygiene.
+         await this.olmMachine.deleteSecretsFromInbox(name);
+     }
+@@ -2270,6 +2309,12 @@ export class RustCrypto extends TypedEventEmitter<RustCryptoEvents, CryptoEventH
      }
  }
  
@@ -1822,7 +1840,7 @@ index fa3b8f0..e19bf45 100644
  class EventDecryptor {
      /**
       * Events which we couldn't decrypt due to unknown sessions / indexes.
-@@ -2294,7 +2337,9 @@ class EventDecryptor {
+@@ -2294,7 +2339,9 @@ class EventDecryptor {
          // then, if the key turns up while decryption is in progress (and
          // decryption fails), we will schedule a retry.
          // (fixes https://github.com/vector-im/element-web/issues/5001)
@@ -1833,7 +1851,7 @@ index fa3b8f0..e19bf45 100644
  
          let trustRequirement;
  
-@@ -2356,7 +2401,9 @@ class EventDecryptor {
+@@ -2356,7 +2403,9 @@ class EventDecryptor {
              err.code === RustSdkCryptoJs.DecryptionErrorCode.MissingRoomKey ||
              err.code === RustSdkCryptoJs.DecryptionErrorCode.UnknownMessageIndex
          ) {
@@ -3308,7 +3326,7 @@ index f8afdc4..54cfdfd 100644
          }
  
 diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
-index fecb644..2886606 100644
+index fecb644..d2d0d9b 100644
 --- a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
 +++ b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
 @@ -127,7 +127,12 @@ export class RustBackupManager extends TypedEventEmitter {
@@ -3325,7 +3343,16 @@ index fecb644..2886606 100644
          this.keyBackupCheckInProgress = null;
        });
      }
-@@ -284,6 +289,8 @@ export class RustBackupManager extends TypedEventEmitter {
+@@ -154,6 +159,8 @@ export class RustBackupManager extends TypedEventEmitter {
+         _this4.logger.warn("handleBackupSecretReceived: Error checking for latest key backup", e);
+         return false;
+       }
++      // A client stopped while the server answered has closed its OlmMachine: the secret stays unhandled.
++      if (_this4.stopped) return false;
+       if (!((_latestBackupInfo = latestBackupInfo) !== null && _latestBackupInfo !== void 0 && _latestBackupInfo.version)) {
+         // There is no server-side key backup.
+         // This decryption key is useless to us.
+@@ -284,6 +291,8 @@ export class RustBackupManager extends TypedEventEmitter {
          _this9.serverBackupInfo = undefined;
          return null;
        }
@@ -3334,7 +3361,7 @@ index fecb644..2886606 100644
        _this9.checkedForBackup = true;
        if (backupInfo && !backupInfo.version) {
          _this9.logger.warn("active backup lacks a useful 'version'; ignoring it");
-@@ -442,6 +449,8 @@ export class RustBackupManager extends TypedEventEmitter {
+@@ -442,6 +451,8 @@ export class RustBackupManager extends TypedEventEmitter {
                remainingToUploadCount = Math.max(remainingToUploadCount - keysCountInBatch, 0);
              }
            } catch (err) {
@@ -3344,7 +3371,7 @@ index fecb644..2886606 100644
              _this11.logger.error("Backup: Error processing backup request for rust crypto-sdk", err);
              if (err instanceof MatrixError) {
 diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
-index c3e4a37..ce9af23 100644
+index c3e4a37..7d678b1 100644
 --- a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
 +++ b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
 @@ -151,9 +151,15 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
@@ -3366,7 +3393,16 @@ index c3e4a37..ce9af23 100644
          }
          return this.keyBackupCheckInProgress;
      }
-@@ -313,6 +319,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+@@ -175,6 +181,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+             this.logger.warn("handleBackupSecretReceived: Error checking for latest key backup", e);
+             return false;
+         }
++        // A client stopped while the server answered has closed its OlmMachine: the secret stays unhandled.
++        if (this.stopped) return false;
+ 
+         if (!latestBackupInfo?.version) {
+             // There is no server-side key backup.
+@@ -313,6 +321,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
              this.serverBackupInfo = undefined;
              return null;
          }
@@ -3375,7 +3411,7 @@ index c3e4a37..ce9af23 100644
          this.checkedForBackup = true;
  
          if (backupInfo && !backupInfo.version) {
-@@ -478,6 +486,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+@@ -478,6 +488,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
                          remainingToUploadCount = Math.max(remainingToUploadCount - keysCountInBatch, 0);
                      }
                  } catch (err) {
