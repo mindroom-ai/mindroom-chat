@@ -31,15 +31,16 @@ const BAR_HEIGHT = '--mr-settings-bar-height';
 const BAR = `calc(${CONTROL_HEIGHT} + 2 * ${INSET})`;
 
 /**
- * About 1000 by 700 px, and a margin smaller than that where the window is. Its title bars keep
- * the 32 px search field and close button the inset from the dialog's top edge.
+ * About 1000 by 730 px, tall enough for the whole menu with Local MindRoom (14 rows in 5 groups),
+ * and a margin smaller than that where the window is. Its title bars keep the 32 px search field
+ * and close button the inset from the dialog's top edge.
  */
 export const SettingsDialog = style({
   vars: { [BAR_HEIGHT]: BAR },
   selectors: {
     '&&': {
       maxWidth: `min(${toRem(1000)}, calc(100% - 2 * ${config.space.S400}))`,
-      maxHeight: `min(${toRem(700)}, calc(100% - 2 * ${config.space.S400}))`,
+      maxHeight: `min(${toRem(730)}, calc(100% - 2 * ${config.space.S400}))`,
     },
   },
 });
