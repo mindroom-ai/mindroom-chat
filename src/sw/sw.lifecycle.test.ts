@@ -45,6 +45,8 @@ type PredecessorWorker = EventTarget & { state: string };
 type LoadOptions = {
   hasActiveWorker: boolean;
   supportsNonDisruptiveUpdates: boolean;
+  /** The active worker is another app's, which answers nothing; by default it is this client's. */
+  activeWorkerIsOtherApp?: boolean;
 };
 
 // This is the activation contract used by the deployed predecessor monitor.
@@ -70,6 +72,7 @@ const waitForPredecessorWorkerActivation = (worker: PredecessorWorker): Promise<
 const loadServiceWorker = async ({
   hasActiveWorker,
   supportsNonDisruptiveUpdates,
+  activeWorkerIsOtherApp = false,
 }: LoadOptions) => {
   vi.resetModules();
   Object.values(precacheSpies).forEach((spy) => spy.mockClear());
@@ -97,11 +100,17 @@ const loadServiceWorker = async ({
   } as unknown as Promise<boolean>;
   const unregister = vi.fn(() => unregisterResult);
   const supportQuery = supportsNonDisruptiveUpdates ? '?non-disruptive-update=1' : '';
+  // This client's active worker runs the same script, so its message listener answers.
+  const activeWorker = {
+    postMessage: vi.fn((data: unknown, ports: MessagePort[]) => {
+      if (!activeWorkerIsOtherApp) listeners.get('message')?.({ data, ports, source: null });
+    }),
+  };
   const scope = {
     __WB_MANIFEST: [{ url: 'index.html', revision: 'test' }],
     registration: {
       scope: `${APP_ORIGIN}/`,
-      active: hasActiveWorker ? {} : null,
+      active: hasActiveWorker ? activeWorker : null,
       unregister,
     },
     location: { href: `${APP_ORIGIN}/sw.js${supportQuery}`, origin: APP_ORIGIN },
@@ -127,6 +136,7 @@ const loadServiceWorker = async ({
   };
 
   return {
+    activeWorker,
     client,
     clients,
     dispatchExtendableEvent,
@@ -184,18 +194,42 @@ describe('service worker upgrade lifecycle', () => {
   });
 
   it('leaves later marked upgrades waiting until the browser can activate them safely', async () => {
-    const { clients, dispatchExtendableEvent, scope } = await loadServiceWorker({
+    const { activeWorker, clients, dispatchExtendableEvent, scope } = await loadServiceWorker({
       hasActiveWorker: true,
       supportsNonDisruptiveUpdates: true,
     });
 
     await dispatchExtendableEvent('install');
+    expect(activeWorker.postMessage).toHaveBeenCalledWith({ type: 'identify' }, [
+      expect.any(MessagePort),
+    ]);
     expect(scope.registration.unregister).not.toHaveBeenCalled();
     expect(precacheSpies.install).toHaveBeenCalledOnce();
     expect(scope.skipWaiting).not.toHaveBeenCalled();
 
     await dispatchExtendableEvent('activate');
     expect(precacheSpies.activate).toHaveBeenCalledOnce();
+    expect(clients.claim).toHaveBeenCalledOnce();
+  });
+
+  it("takes over at once from another app's worker, which never hands its pages over", async () => {
+    vi.useFakeTimers();
+    const { activeWorker, clients, dispatchExtendableEvent, scope } = await loadServiceWorker({
+      hasActiveWorker: true,
+      supportsNonDisruptiveUpdates: true,
+      activeWorkerIsOtherApp: true,
+    });
+
+    const installing = dispatchExtendableEvent('install');
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(scope.skipWaiting).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await installing;
+    expect(activeWorker.postMessage).toHaveBeenCalledOnce();
+    expect(precacheSpies.install).toHaveBeenCalledOnce();
+    expect(scope.skipWaiting).toHaveBeenCalledOnce();
+
+    await dispatchExtendableEvent('activate');
     expect(clients.claim).toHaveBeenCalledOnce();
   });
 
