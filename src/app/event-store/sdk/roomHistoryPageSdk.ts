@@ -34,16 +34,18 @@ export const splitTimelinePage = (
 
 /**
  * One page of the room's own history at `edge`, loaded as `MatrixClient.paginateEventTimeline`
- * loads it, with one difference: the page's thread replies, which the SDK drops, are kept with
- * `edge` for the Classic view, and decrypted in an encrypted room; they wait there for the cache
- * (`takePageThreadEvents`). Resolves to whether more history lies that way.
+ * loads it, with two differences: events the timeline would refuse are kept as relations only
+ * (`splitTimelinePage`), and with `keepReplies` (the Classic view) the page's thread replies,
+ * which the SDK drops, are kept with `edge`, and decrypted in an encrypted room; they wait there
+ * for the cache (`takePageThreadEvents`). Resolves to whether more history lies that way.
  */
-export const paginateRoomKeepingReplies = (
+export const paginateRoomHistory = (
   mx: MatrixClient,
   room: Room,
   edge: EventTimeline,
   backwards: boolean,
-  limit: number
+  limit: number,
+  keepReplies: boolean
 ): Promise<boolean> => {
   const dir = backwards ? Direction.Backward : Direction.Forward;
   const pending = edge.paginationRequests[dir];
@@ -70,13 +72,15 @@ export const paginateRoomKeepingReplies = (
       [...unknownRelations, ...relations].forEach((event) =>
         room.relations.aggregateChildEvent(event)
       );
-      if (room.hasEncryptionStateEvent()) {
-        await Promise.all(
-          threadedEvents.map((event) => mx.decryptEventIfNeeded(event).catch(() => undefined))
-        );
+      if (keepReplies) {
+        if (room.hasEncryptionStateEvent()) {
+          await Promise.all(
+            threadedEvents.map((event) => mx.decryptEventIfNeeded(event).catch(() => undefined))
+          );
+        }
+        const kept = keepHistoryReplies(room, edge, threadedEvents);
+        holdPageThreadEvents(room, edge, threadedEvents, kept);
       }
-      const kept = keepHistoryReplies(room, edge, threadedEvents);
-      holdPageThreadEvents(room, edge, threadedEvents, kept);
       const atEnd = response.end === undefined || response.end === response.start;
       // The forward token stays, so a gappy sync can still be filled.
       if (backwards && atEnd) edge.setPaginationToken(null, dir);
