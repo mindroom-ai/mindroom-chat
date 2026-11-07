@@ -548,6 +548,13 @@
       "resize": "Cambiar el tamaño del panel del ordenador",
       "close": "Cerrar el ordenador"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Cambiar el tamaño de {{label}}",
+        "close": "Cerrar {{label}}",
+        "failed": "Este panel dejó de funcionar."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Mostrar o cambiar si los agentes necesitan una mención para iniciar una conversación aquí (establecer/restablecer requiere un administrador de la sala)."
