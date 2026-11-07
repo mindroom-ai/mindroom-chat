@@ -8,6 +8,7 @@ import {
   type MatrixEvent,
 } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
+import { matchesEnum } from '../../lib/matchesEnum';
 
 // The SDK saves its sync store after the first sync of a session and then at most every five
 // minutes. A reload or an offline start in between replays the saved sync, so what changed since
@@ -43,7 +44,8 @@ const READ_RECEIPT_TYPES = new Set<string>([ReceiptType.Read, ReceiptType.ReadPr
 /** Whether a synced `m.receipt` event holds a read receipt of `userId`'s, public or private. */
 const hasOwnReadReceipt = (event: MatrixEvent, userId: string | null): boolean => {
   const content: unknown = event.getContent();
-  if (!userId || event.getType() !== EventType.Receipt || !isRecord(content)) return false;
+  if (!userId || !matchesEnum(event.getType(), EventType.Receipt) || !isRecord(content))
+    return false;
   return Object.values(content).some(
     (byType) =>
       isRecord(byType) &&
