@@ -2,6 +2,7 @@ import { lazy, type ComponentType, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import type { Room } from 'matrix-js-sdk';
+import { useAtomValue } from 'jotai';
 import { Icons, Spinner } from 'folds';
 import { MenuEntry } from '../ui/MenuEntry';
 import { MarkRoomReadMenuItem } from '../notifications/MarkRoomReadMenuItem';
@@ -18,11 +19,13 @@ import { useRoomCreators } from '../matrix/hooks/useRoomCreators';
 import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { useStateEvent } from '../matrix/hooks/useStateEvent';
 import { StateEvent } from '../matrix/types/room';
+import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { useOpenRoomSettings } from '../navigation/useRoomSettingsState';
 import { getCanonicalAliasOrRoomId, isRoomAlias } from '../matrix/matrix';
 import { getMatrixToRoom } from '../matrix/matrix-to';
 import { getViaServers } from '../matrix/via-servers';
 import { copyToClipboard } from '../lib/dom';
+import { revealDirectionControls } from '../ui/directional';
 import { getHomeSearchPath, getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
 
 // Each room row has a menu: its dialogs load the first time someone opens one.
@@ -37,6 +40,18 @@ const JumpToTime = lazy(() =>
 const LeaveRoomPrompt = lazy(() =>
   import('../rooms/LeaveRoomPrompt').then((module) => ({ default: module.LeaveRoomPrompt }))
 );
+const CreateSubRoomDialog = lazy(() =>
+  import('../rooms/create/CreateSubRoomDialog').then((module) => ({
+    default: module.CreateSubRoomDialog,
+  }))
+);
+
+/** Whether the signed-in user may change which rooms `room` lists (`m.space.child`). */
+const useCanListRooms = (room: Room): boolean => {
+  const client = useMatrixClient();
+  const permissions = useRoomPermissions(useRoomCreators(room), usePowerLevels(room));
+  return permissions.stateEvent(StateEvent.SpaceChild, client.getSafeUserId());
+};
 
 /** A dialog an entry opens; it outlives the menu, and `close` ends it. */
 export type RoomActionDialog = (close: () => void) => ReactNode;
@@ -111,6 +126,83 @@ function InviteEntry({ room, close, showDialog }: RoomActionProps) {
         showDialog((done) => <InviteUserPrompt room={room} requestClose={done} />);
       }}
     />
+  );
+}
+
+/** Opens New Sub-room for a chat room; a space lists its rooms in its lobby instead. */
+function NewSubRoomEntry({ room, spaceId, close, showDialog }: RoomActionProps) {
+  const { t } = useTranslation();
+  const allowed = useCanListRooms(room);
+  if (room.isSpaceRoom()) return null;
+  return (
+    <MenuEntry
+      icon={Icons.Plus}
+      label={t('featureUi.subRooms.newSubRoom')}
+      disabledReason={
+        allowed
+          ? undefined
+          : t('featureUi.subRooms.noPermission', { name: revealDirectionControls(room.name) })
+      }
+      onSelect={() => {
+        close();
+        showDialog((done) => (
+          <CreateSubRoomDialog parent={room} spaceId={spaceId} requestClose={done} />
+        ));
+      }}
+    />
+  );
+}
+
+/**
+ * Takes the room off the list of a chat room it is a sub-room of: an empty `m.space.child` there.
+ * The room keeps naming that room as its parent, which MindRoom's agents read to leave it.
+ */
+function TakeOffParentEntry({
+  room,
+  parent,
+  close,
+}: {
+  room: Room;
+  parent: Room;
+  close: () => void;
+}) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const allowed = useCanListRooms(parent);
+  const name = revealDirectionControls(parent.name);
+  return (
+    <MenuEntry
+      icon={Icons.ArrowGoLeft}
+      directional
+      label={t('featureUi.subRooms.takeOff', { name })}
+      disabledReason={allowed ? undefined : t('featureUi.subRooms.noPermission', { name })}
+      onSelect={() => {
+        close();
+        void client.sendStateEvent(
+          parent.roomId,
+          StateEvent.SpaceChild as never,
+          {} as never,
+          room.roomId
+        );
+      }}
+    />
+  );
+}
+
+/** Take Off, for each chat room the room is a sub-room of. */
+function TakeOffEntry({ room, close }: RoomActionProps) {
+  const client = useMatrixClient();
+  const parents = [...(useAtomValue(roomToParentsAtom).get(room.roomId) ?? [])].flatMap(
+    (roomId) => client.getRoom(roomId) ?? []
+  );
+  return (
+    <>
+      {parents
+        .filter((parent) => !parent.isSpaceRoom())
+        .map((parent) => (
+          <TakeOffParentEntry key={parent.roomId} room={room} parent={parent} close={close} />
+        ))}
+    </>
   );
 }
 
@@ -229,12 +321,14 @@ export const ROOM_ACTIONS: readonly (readonly RoomAction[])[] = [
     { id: 'markRead', Entry: MarkReadEntry },
     { id: 'notifications', Entry: NotificationsEntry },
     { id: 'invite', Entry: InviteEntry },
+    { id: 'newSubRoom', Entry: NewSubRoomEntry },
     { id: 'copyLink', Entry: CopyLinkEntry },
     { id: 'settings', Entry: SettingsEntry },
     { id: 'search', Entry: SearchEntry },
     { id: 'jumpToTime', Entry: JumpToTimeEntry },
   ],
   [
+    { id: 'takeOff', Entry: TakeOffEntry },
     { id: 'archive', Entry: ArchiveEntry },
     { id: 'leave', Entry: LeaveEntry },
   ],

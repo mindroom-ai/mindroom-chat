@@ -2,7 +2,9 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
+import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { roomToParentsAtom } from '../matrix/state/roomToParents';
 import { MenuEntry } from '../ui/MenuEntry';
 import { getSpaceSearchPath, withSearchParam } from '../routes/pathUtils';
 import { ROOM_ACTIONS } from './roomActions';
@@ -10,9 +12,12 @@ import { RoomActionsMenu, useRoomActionDialog } from './RoomActionsMenu';
 
 const state = vi.hoisted(() => ({
   canInvite: true,
+  canListRooms: true,
   encrypted: false,
   navigate: vi.fn(),
   openSettings: vi.fn(),
+  sendStateEvent: vi.fn(() => Promise.resolve({})),
+  rooms: {} as Record<string, unknown>,
 }));
 
 vi.mock('react-router-dom', async (importOriginal) => ({
@@ -20,12 +25,20 @@ vi.mock('react-router-dom', async (importOriginal) => ({
   useNavigate: () => state.navigate,
 }));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({
-  useMatrixClient: () => ({ getSafeUserId: () => '@me:example.org' }),
+  useMatrixClient: () => ({
+    getSafeUserId: () => '@me:example.org',
+    getRoom: (roomId: string) => state.rooms[roomId] ?? null,
+    sendStateEvent: state.sendStateEvent,
+  }),
 }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({ usePowerLevels: () => ({}) }));
 vi.mock('../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => new Set() }));
 vi.mock('../matrix/hooks/useRoomPermissions', () => ({
-  useRoomPermissions: () => ({ action: () => state.canInvite, event: () => false }),
+  useRoomPermissions: () => ({
+    action: () => state.canInvite,
+    event: () => false,
+    stateEvent: (type: string) => type === 'm.space.child' && state.canListRooms,
+  }),
 }));
 vi.mock('../matrix/hooks/useStateEvent', () => ({
   useStateEvent: () => (state.encrypted ? {} : undefined),
@@ -80,6 +93,11 @@ vi.mock('../rooms/LeaveRoomPrompt', () => ({
     </div>
   ),
 }));
+vi.mock('../rooms/create/CreateSubRoomDialog', () => ({
+  CreateSubRoomDialog: ({ spaceId }: { spaceId?: string }) => (
+    <div role="dialog" aria-label="New Sub-room" data-space={spaceId} />
+  ),
+}));
 vi.mock('../timeline/jump-to-time/JumpToTime', () => ({
   JumpToTime: ({ threadId }: { threadId?: string }) => (
     <div role="dialog" aria-label="Jump to Time" data-thread={threadId} />
@@ -89,7 +107,11 @@ vi.mock('../timeline/jump-to-time/JumpToTime', () => ({
 // The real menu and rows, with their roles.
 vi.unmock('../ui/glass/GlassPrimitives');
 
-const room = { roomId: '!room:example.org' } as unknown as Room;
+const room = {
+  roomId: '!room:example.org',
+  name: 'Orchard',
+  isSpaceRoom: () => false,
+} as unknown as Room;
 
 /** A room menu as an entry point shows it, with its dialog beside it as the entry points do. */
 function Harness(props: {
@@ -132,6 +154,7 @@ const SHARED = [
   'Mark as Read',
   'Notifications',
   'Invite',
+  'New Sub-room',
   'Copy Link',
   'Room Settings',
   'Message Search',
@@ -143,15 +166,27 @@ const SHARED = [
 afterEach(() => {
   cleanup();
   state.canInvite = true;
+  state.canListRooms = true;
   state.encrypted = false;
+  state.rooms = {};
+  getDefaultStore().set(roomToParentsAtom, { type: 'INITIALIZE', roomToParents: new Map() });
   vi.clearAllMocks();
 });
 
 describe('the shared room actions', () => {
   it('lists every room action in one order, in two groups', () => {
     expect(ROOM_ACTIONS.map((group) => group.map(({ id }) => id))).toEqual([
-      ['markRead', 'notifications', 'invite', 'copyLink', 'settings', 'search', 'jumpToTime'],
-      ['archive', 'leave'],
+      [
+        'markRead',
+        'notifications',
+        'invite',
+        'newSubRoom',
+        'copyLink',
+        'settings',
+        'search',
+        'jumpToTime',
+      ],
+      ['takeOff', 'archive', 'leave'],
     ]);
     render(<Harness />);
     expect(rows()).toEqual(SHARED);
@@ -220,5 +255,79 @@ describe('the shared room actions', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Confirm leave' }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(onLeft).toHaveBeenCalledOnce();
+  });
+
+  it('opens New Sub-room in the space the room is listed in', async () => {
+    const close = vi.fn();
+    render(<Harness spaceId="!space:example.org" close={close} />);
+    fireEvent.click(screen.getByRole('menuitem', { name: 'New Sub-room' }));
+    expect(close).toHaveBeenCalledOnce();
+    const dialog = await screen.findByRole('dialog', { name: 'New Sub-room' });
+    expect(dialog.dataset.space).toBe('!space:example.org');
+  });
+
+  it('keeps New Sub-room in its place, disabled with the reason, for someone who may not list rooms', async () => {
+    state.canListRooms = false;
+    render(<Harness />);
+    expect(rows()).toEqual(
+      SHARED.map((name) =>
+        name === 'New Sub-room'
+          ? "New Sub-room (You can't change the rooms listed under Orchard)"
+          : name
+      )
+    );
+    fireEvent.click(screen.getByRole('menuitem', { name: 'New Sub-room' }));
+    await Promise.resolve();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('has no New Sub-room in the menu of a space', () => {
+    const space = { roomId: '!space:example.org', isSpaceRoom: () => true } as unknown as Room;
+    render(
+      <RoomActionsMenu room={space} submenuSide="Right" close={vi.fn()} showDialog={vi.fn()} />
+    );
+    expect(rows()).not.toContain('New Sub-room');
+  });
+
+  it("takes a sub-room off its parent room's list, and leaves its own link to the parent", () => {
+    state.rooms['!parent:example.org'] = {
+      roomId: '!parent:example.org',
+      name: 'Garden',
+      isSpaceRoom: () => false,
+    };
+    state.rooms['!space:example.org'] = { roomId: '!space:example.org', isSpaceRoom: () => true };
+    getDefaultStore().set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([
+        ['!room:example.org', new Set(['!space:example.org', '!parent:example.org'])],
+      ]),
+    });
+    const close = vi.fn();
+    render(<Harness close={close} />);
+    expect(rows()).toEqual([...SHARED.slice(0, -2), 'Remove from Garden', ...SHARED.slice(-2)]);
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Garden' }));
+
+    expect(close).toHaveBeenCalledOnce();
+    expect(state.sendStateEvent.mock.calls).toEqual([
+      ['!parent:example.org', 'm.space.child', {}, '!room:example.org'],
+    ]);
+  });
+
+  it('keeps Take Off, disabled with the reason, for someone who may not change the parent', () => {
+    state.canListRooms = false;
+    state.rooms['!parent:example.org'] = {
+      roomId: '!parent:example.org',
+      name: 'Garden',
+      isSpaceRoom: () => false,
+    };
+    getDefaultStore().set(roomToParentsAtom, {
+      type: 'INITIALIZE',
+      roomToParents: new Map([['!room:example.org', new Set(['!parent:example.org'])]]),
+    });
+    render(<Harness />);
+    expect(rows()).toContain("Remove from Garden (You can't change the rooms listed under Garden)");
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove from Garden' }));
+    expect(state.sendStateEvent).not.toHaveBeenCalled();
   });
 });
