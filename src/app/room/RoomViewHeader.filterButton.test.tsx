@@ -213,6 +213,8 @@ describe('the room header view switch', () => {
 
 const buttons = (match: (node: ReactTestInstance) => boolean): ReactTestInstance[] =>
   renderer?.root.findAll((node) => node.type === 'button' && match(node)) ?? [];
+const textOf = (node: ReactTestInstance): string =>
+  node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
 
 const openMenu = () => {
   const [more] = buttons((node) => node.props['aria-label'] === 'More Options');
@@ -321,8 +323,6 @@ describe("the room header's side panel controls", () => {
     { id: 'notes/panel', label: 'Notes' },
     { id: 'tasks/panel', label: 'Tasks' },
   ];
-  const textOf = (node: ReactTestInstance): string =>
-    node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
   /** The room menu's plugin panel entries: label and whether each is checked. */
   const panelEntries = () =>
     buttons(
@@ -369,8 +369,6 @@ describe("the room header's side panel controls", () => {
 });
 
 describe("the room header's actions", () => {
-  const textOf = (node: ReactTestInstance): string =>
-    node.children.map((child) => (typeof child === 'string' ? child : textOf(child))).join('');
   /** Every action on: an agent room in Compact with a canvas, the computer, calls, pins, a plugin panel. */
   const renderEverything = () => {
     pins.ids = ['$pinned'];

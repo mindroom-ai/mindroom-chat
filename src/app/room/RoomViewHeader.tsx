@@ -104,8 +104,8 @@ const joinRequestBadgeStyle = {
   pointerEvents: 'none',
 } as const;
 
-// A dot on the filter button's top end corner: filters apply while their bar is hidden.
-const hiddenFiltersDotStyle = {
+// A dot on a button's top end corner, out of the pointer's way; `marker` names it for tests.
+const dotStyle = {
   position: 'absolute',
   top: toRem(6),
   insetInlineEnd: toRem(6),
@@ -114,6 +114,17 @@ const hiddenFiltersDotStyle = {
   padding: 0,
   pointerEvents: 'none',
 } as const;
+const cornerDot = (marker: `data-${string}`) => (
+  <Badge
+    style={dotStyle}
+    size="200"
+    variant="Primary"
+    fill="Solid"
+    radii="Pill"
+    aria-hidden="true"
+    {...{ [marker]: '' }}
+  />
+);
 
 /** The list a phone's back button leads to from a room the app did not open itself. */
 const sectionPathOf = (spacePathId: string | undefined, isDirect: boolean): string => {
@@ -278,8 +289,7 @@ export function RoomViewHeader({
     navigateRoomThread(room.roomId, scheduledThreadId);
 
   // The header's actions, in the order of its row; the room menu takes, in the same order, those
-  // that do not fit (showsInRow). A phone's row keeps only the back button, the name and the room
-  // menu, so a long name keeps its room, and a call that is on.
+  // that do not fit (showsInRow).
   const listed: (RoomHeaderEntry | false | undefined)[] = [
     viewSwitch &&
       !threadId && {
@@ -302,17 +312,7 @@ export function RoomViewHeader({
       // Not tinted: the bar itself shows whether it is on; the dot marks hidden filters.
       pressed: !filterBarHidden,
       run: () => setFilterBarHidden(!filterBarHidden),
-      badge: hiddenFiltersActive && (
-        <Badge
-          style={hiddenFiltersDotStyle}
-          size="200"
-          variant="Primary"
-          fill="Solid"
-          radii="Pill"
-          aria-hidden="true"
-          data-hidden-filters-dot=""
-        />
-      ),
+      badge: hiddenFiltersActive && cornerDot('data-hidden-filters-dot'),
       marker: 'data-thread-filter-bar-toggle',
     },
     hasMindroomAgents && {
@@ -428,17 +428,15 @@ export function RoomViewHeader({
   const inRow = (entry: RoomHeaderEntry) => showsInRow(entry.placement, mobile);
   const menuEntries = entries.filter((entry) => !inRow(entry));
   // What only works in the open room, before the room's own actions in the menu.
-  const roomEntries = menuEntries.length > 0 && (
-    <>
-      {menuEntries.map((entry) =>
-        drawnByHeader(entry) ? (
-          <HeaderActionEntry key={entry.id} action={entry} onSelect={fromMenu(entry.run)} />
-        ) : (
-          <Fragment key={entry.id}>{entry.menu}</Fragment>
-        )
-      )}
-    </>
-  );
+  const roomEntries =
+    menuEntries.length > 0 &&
+    menuEntries.map((entry) =>
+      drawnByHeader(entry) ? (
+        <HeaderActionEntry key={entry.id} action={entry} onSelect={fromMenu(entry.run)} />
+      ) : (
+        <Fragment key={entry.id}>{entry.menu}</Fragment>
+      )
+    );
 
   return (
     // Inside the main landmark a header is no banner by itself; the room's title bar stays one,
@@ -511,17 +509,9 @@ export function RoomViewHeader({
             run: setMenuAnchor,
             // A dot marks what the menu holds that a button would show: join requests or hidden
             // active filters, on phones.
-            badge: menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) && (
-              <Badge
-                style={hiddenFiltersDotStyle}
-                size="200"
-                variant="Primary"
-                fill="Solid"
-                radii="Pill"
-                aria-hidden="true"
-                data-room-menu-dot=""
-              />
-            ),
+            badge:
+              menuEntries.some((entry) => drawnByHeader(entry) && !!entry.badge) &&
+              cornerDot('data-room-menu-dot'),
           }}
         />
       </Box>

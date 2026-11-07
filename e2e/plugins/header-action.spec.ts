@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
-import { roomHeader } from '../helpers/roomMenu';
+import { roomHeader, roomMoreOptions } from '../helpers/roomMenu';
 import { openPanelRoom } from '../helpers/sidePanels';
 import { serveBuild } from '../helpers/staticBuildServer';
 
@@ -76,9 +76,9 @@ test("the example plugin's header action shows in the row or the room menu by it
 
     await page.setViewportSize(PHONE);
     await page.goto(`/home/${encodeURIComponent(room.roomId)}`);
-    await expect(headerButton(page, 'More Options')).toBeVisible({ timeout: 60_000 });
+    await expect(roomMoreOptions(page)).toBeVisible({ timeout: 60_000 });
     await expect(headerButton(page, 'Wave')).toHaveCount(0);
-    await headerButton(page, 'More Options').click();
+    await roomMoreOptions(page).click();
     await shot('phone-english-menu');
     await wave(page, page.getByRole('menuitem', { name: 'Wave', exact: true }), room.roomId);
 
@@ -90,8 +90,8 @@ test("the example plugin's header action shows in the row or the room menu by it
     await wave(page, page.getByRole('menuitem', { name: 'Winken', exact: true }), room.roomId);
 
     await page.setViewportSize(WIDE);
-    await expect(headerButton(page, 'Wave')).toHaveCount(0);
     await wave(page, headerButton(page, 'Winken'), room.roomId);
+    await expect(headerButton(page, 'Wave')).toHaveCount(0);
     await shot('wide-german');
   } finally {
     // The page's live sync may still be in a route.

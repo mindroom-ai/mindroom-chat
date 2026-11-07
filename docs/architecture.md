@@ -190,7 +190,7 @@ A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` nam
 - Header actions (`src/app/plugins/headerActions.ts`) are the fourth kind: `{ id, label, icon, placement?, run }`. Each is one of the room header's actions (`src/app/room/roomHeaderActions.tsx`), which the core ones are too: `placement` puts it in the room menu (`menu`, the default) or in the header's row of buttons where there is room, which a phone's header has not (`auto`); the room menu offers, in the row's order, every action its row leaves out. `label` is a key of the plugin's strings, shown in the app's language as the button's tooltip and name or as the entry's text; `icon` is drawn as folds draws its icons (`Icons.Star`); `run({ roomId, threadId })` runs it in the open room, and in the thread open there once the server has its root. A `run` that throws, or whose promise rejects, is logged with `[plugin <id>@<version>]`.
 - `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions, and `?plugins=off` in the address hides every plugin's for one page load.
 
-`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests, with a message renderer, a side panel and a header action.
+`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests, with a contribution of each kind and its strings in English and German.
 
 ## Two lanes of code
 

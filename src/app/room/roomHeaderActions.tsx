@@ -6,11 +6,8 @@ import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { HeaderActionButton as headerActionButton } from './RoomViewHeader.css';
 
-/**
- * Where an action of the room header shows: in the header's row of buttons, in its room menu, or
- * in the row when there is room for it, which a phone's header has not (`auto`).
- */
-export type HeaderActionPlacement = 'row' | 'menu' | 'auto';
+/** Where an action of the room header shows: see `showsInRow`. */
+type HeaderActionPlacement = 'row' | 'menu' | 'auto';
 
 /**
  * The room header's one overflow rule: an action shows in the header's row when its placement is
@@ -54,7 +51,7 @@ export type RoomHeaderAction = {
  * An action whose controls draw themselves, as they keep state of their own: its buttons for the
  * row and its entries for the room menu, placed by the same rule.
  */
-export type RoomHeaderControls = {
+type RoomHeaderControls = {
   id: string;
   placement: HeaderActionPlacement;
   row?: ReactNode;

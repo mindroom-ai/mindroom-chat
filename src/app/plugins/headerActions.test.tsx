@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { Icons } from 'folds';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
@@ -28,8 +28,6 @@ const plugin = (id: string, headerActions: HeaderAction[]): RegisteredPlugin => 
 });
 
 describe('usePluginHeaderActions', () => {
-  let headerActions: typeof import('./headerActions');
-
   beforeEach(async () => {
     vi.resetModules();
     // i18next keeps one instance for the process: each test sets up its own.
@@ -49,7 +47,7 @@ describe('usePluginHeaderActions', () => {
   });
 
   it("lists the actions of the plugins config.json leaves on, each named <plugin>/<id>, in the menu by default, and logs a run that throws or rejects with the plugin's tag", async () => {
-    headerActions = await import('./headerActions');
+    const { usePluginHeaderActions } = await import('./headerActions');
     const failure = new Error('no');
     const thrown = action({
       id: 'throw',
@@ -61,7 +59,7 @@ describe('usePluginHeaderActions', () => {
     const rejected = action({ id: 'reject', run: () => Promise.reject(failure) });
     const config = { plugins: { off: { enabled: false } } } as unknown as ClientConfig;
     const { result } = renderHook(() =>
-      headerActions.usePluginHeaderActions(
+      usePluginHeaderActions(
         [
           plugin('off', [action()]),
           plugin('demo', [action(), thrown, rejected]),
@@ -104,20 +102,17 @@ describe('usePluginHeaderActions', () => {
       },
     });
     const { default: i18n } = await import('../i18n/i18n');
-    headerActions = await import('./headerActions');
+    const { usePluginHeaderActions } = await import('./headerActions');
     const { registeredPlugins } = await import('./registry');
-    function Labels() {
-      const actions = headerActions.usePluginHeaderActions(registeredPlugins, undefined);
-      return <p>{actions.map(({ label }) => label).join(', ')}</p>;
-    }
+    const { result } = renderHook(() => usePluginHeaderActions(registeredPlugins, undefined));
+    const labels = () => result.current.map(({ label }) => label);
 
-    const { container } = render(<Labels />);
-    expect(container.textContent).toBe('Wave');
+    expect(labels()).toEqual(['Wave']);
     release();
     await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
-    expect(container.textContent).toBe('Winken');
+    expect(labels()).toEqual(['Winken']);
 
     await act(() => i18n.changeLanguage('en'));
-    expect(container.textContent).toBe('Wave');
+    expect(labels()).toEqual(['Wave']);
   });
 });

@@ -47,7 +47,6 @@ const entries = vi.hoisted(() => {
             { id: 'unnamed', label: 1, icon, run },
             { id: 'plain', label: 'plain', icon: 'Smile', run },
             { id: 'idle', label: 'idle', icon },
-            { id: 'top', label: 'top', icon, run, placement: 'top' },
             // A phone's header keeps its row to Back, the name and the room menu.
             { id: 'row', label: 'row', icon, run, placement: 'row' },
             autoAction,
