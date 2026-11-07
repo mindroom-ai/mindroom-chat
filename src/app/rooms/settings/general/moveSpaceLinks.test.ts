@@ -4,9 +4,14 @@ import { moveSpaceLinks } from './moveSpaceLinks';
 
 type Content = Record<string, unknown>;
 
-/** A room stand-in whose live state answers `getStateEvents`; joined unless `membership` says. */
-const fakeRoom = (state: Record<string, Record<string, Content>>, membership = 'join') => ({
+/** A room stand-in whose live state answers `getStateEvents`; a joined chat room unless told. */
+const fakeRoom = (
+  state: Record<string, Record<string, Content>>,
+  membership = 'join',
+  space = false
+) => ({
   getMyMembership: () => membership,
+  isSpaceRoom: () => space,
   getLiveTimeline: () => ({
     getState: () => ({
       getStateEvents: (type: string, stateKey?: string) => {
@@ -125,6 +130,27 @@ describe('moveSpaceLinks', () => {
     expect(sendStateEvent.mock.calls.filter(([roomId]) => roomId === '!new')).toHaveLength(4);
     expect(sendStateEvent.mock.calls.map(([roomId]) => roomId)).not.toContain('!left');
     expect(sendStateEvent.mock.calls.map(([roomId]) => roomId)).not.toContain('!unjoined');
+  });
+
+  it("lists a Space's rooms in the new Space, whether or not the account is in them", async () => {
+    const { client, sendStateEvent } = fakeClient({
+      '!old': fakeRoom(
+        { 'm.space.child': { '!room': { via: ['s'] }, '!unjoined': { via: ['s'] } } },
+        'join',
+        true
+      ),
+      '!room': fakeRoom({ 'm.space.parent': { '!old': { via: ['s'], canonical: true } } }),
+    });
+
+    await expect(moveSpaceLinks(client, '!old', '!new', [])).resolves.toEqual([]);
+
+    expect(sendStateEvent.mock.calls).toEqual(
+      expect.arrayContaining([
+        ['!new', 'm.space.child', { via: ['s'] }, '!room'],
+        ['!new', 'm.space.child', { via: ['s'] }, '!unjoined'],
+        ['!room', 'm.space.parent', { via: ['s'], canonical: true }, '!new'],
+      ])
+    );
   });
 
   it('reports a child the new room could not list', async () => {

@@ -14,6 +14,7 @@ type Content = Record<string, unknown>;
 const fakeRoom = (name: string, state: Record<string, Record<string, Content>>) => ({
   name,
   getMyMembership: () => 'join',
+  isSpaceRoom: () => false,
   getLiveTimeline: () => ({
     getState: () => ({
       getStateEvents: (type: string, stateKey?: string) => {
