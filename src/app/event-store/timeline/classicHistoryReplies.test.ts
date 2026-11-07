@@ -86,7 +86,12 @@ describe('paginateRoomHistory', () => {
 
   it('keeps no replies for the other views, and a redaction of an older event stays out quietly', async () => {
     const { mx, room, edge } = setup([
-      { ...raw('$redaction', 4), type: 'm.room.redaction', redacts: '$gone', content: {} },
+      {
+        ...raw('$redaction', 4),
+        type: 'm.room.redaction',
+        redacts: '$gone',
+        content: {},
+      } as IRoomEvent,
       raw('$reply', 3, inThread),
       raw('$root', 2),
       raw('$gone', 1),
