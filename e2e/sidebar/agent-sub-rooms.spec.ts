@@ -61,11 +61,13 @@ const expectUnderParent = async (page: Page, parentId: string, subName: string) 
   await expect(homeRooms(page).getByRole('link', { name: subName })).toHaveCount(1);
 };
 
-const expectAtTopLevel = async (page: Page, subId: string) => {
+const expectAtTopLevel = async (page: Page, subId: string, subName: string) => {
   await expect(homeRooms(page).locator(`[data-room-id="${subId}"]`)).toBeVisible({
     timeout: 60_000,
   });
-  await expect(page.locator(`[data-sub-rooms-of] [data-room-id="${subId}"]`)).toHaveCount(0);
+  await expect(
+    page.locator('[data-sub-rooms-of]').getByRole('link', { name: subName })
+  ).toHaveCount(0);
 };
 
 // Set SUB_ROOM_SHOTS=<directory> to save what the creator and the member see at each step.
@@ -141,8 +143,8 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   await roomMoreOptions(page).click();
   await page.getByRole('menuitem', { name: `Remove from ${parentName}`, exact: true }).click();
   await goHome(page);
-  await expectAtTopLevel(page, subId);
-  await expectAtTopLevel(memberPage, subId);
+  await expectAtTopLevel(page, subId, subName);
+  await expectAtTopLevel(memberPage, subId, subName);
   await shot(page, '4-creator-removed');
   await shot(memberPage, '5-member-removed');
   await expect

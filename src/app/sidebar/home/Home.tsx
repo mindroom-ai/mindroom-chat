@@ -184,6 +184,8 @@ export function Home() {
   const virtualizer = useNavVirtualizer(makeNavScrollMemoryKey(client.getSafeUserId(), 'home'), {
     getScrollElement: () => listScrollRef.current,
     count: listedRoomIds.length,
+    // A room's tile grows with the sub-rooms under it, so its height goes with the room.
+    getItemKey: (index) => listedRoomIds[index] ?? index,
     estimateSize: () => ROOM_ROW_HEIGHT,
     overscan: 10,
   });

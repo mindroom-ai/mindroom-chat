@@ -7,8 +7,9 @@ import { getHomeRoomPath } from '../../routes/pathUtils';
 // A room row keeps state of its own, such as an open Leave prompt. When the list changes under
 // it, that state must stay with its room, not with the row's position.
 
-const { listed, passthrough } = vi.hoisted(() => ({
+const { listed, passthrough, virtualizerKeys } = vi.hoisted(() => ({
   listed: { roomIds: [] as string[] },
+  virtualizerKeys: { keyOf: undefined as ((index: number) => unknown) | undefined },
   passthrough: ({ children }: { children?: React.ReactNode }) => <div>{children}</div>,
 }));
 
@@ -76,12 +77,18 @@ vi.mock('../../routes/useNavToActivePathMapper', () => ({
 vi.mock('../../ui/nav/navScrollMemory', () => ({
   makeNavScrollMemoryKey: () => 'home',
   // Every row is on screen.
-  useNavVirtualizer: (_key: string, { count }: { count: number }) => ({
-    getTotalSize: () => count * 36,
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 36 })),
-    measureElement: () => undefined,
-  }),
+  useNavVirtualizer: (
+    _key: string,
+    { count, getItemKey }: { count: number; getItemKey?: (index: number) => unknown }
+  ) => {
+    virtualizerKeys.keyOf = getItemKey;
+    return {
+      getTotalSize: () => count * 36,
+      getVirtualItems: () =>
+        Array.from({ length: count }, (_, index) => ({ index, key: index, start: index * 36 })),
+      measureElement: () => undefined,
+    };
+  },
 }));
 vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../matrix/hooks/useRoomsNotificationPreferences')>()),
@@ -138,5 +145,14 @@ describe('Home room rows', () => {
     expect(shown.map((row) => row.room)).toEqual(['!apples', '!bees', '!compost']);
     shown.forEach((row) => expect(row.first).toBe(row.room));
     shown.forEach((row) => expect(row.link).toBe(getHomeRoomPath(row.room)));
+  });
+
+  it('measure rows by room, whose height grows with the sub-rooms under them', () => {
+    listed.roomIds = ['!bees', '!compost'];
+    act(() => {
+      renderer = create(<Home />);
+    });
+
+    expect([0, 1].map((index) => virtualizerKeys.keyOf?.(index))).toEqual(['!bees', '!compost']);
   });
 });
