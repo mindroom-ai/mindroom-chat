@@ -6,6 +6,7 @@ import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
 import { RoomCall, type RoomCallOptions } from './RoomCall';
 import { getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
 import { withdrawOwnMemberships } from './callResume';
+import { sendCallKey } from './callKeyProvider';
 import { defined } from '../../test/utils/defined';
 
 /** What the fake LiveKit modules and the device lock record, shared with the module mocks. */
@@ -96,6 +97,7 @@ vi.mock('./callKeyProvider', () => ({
       fakes.keys.push({ key, keyIndex, identity });
     };
   },
+  sendCallKey: vi.fn(async () => undefined),
 }));
 
 vi.mock('./rtcFocus', async (importOriginal) => {
@@ -225,6 +227,8 @@ beforeEach(() => {
   vi.mocked(getLivekitServiceUrl).mockClear();
   vi.mocked(requestSfuGrant).mockClear();
   vi.mocked(withdrawOwnMemberships).mockClear();
+  vi.mocked(sendCallKey).mockReset();
+  vi.mocked(sendCallKey).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -629,6 +633,22 @@ const emitKey = (
   );
 
 describe('RoomCall media keys', () => {
+  it("uses only this call's own keys, not those an earlier call's key manager still makes", async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    fakes.keys.length = 0;
+
+    // The key manager of a call this device left stays with the room's session and keeps
+    // rotating its key for the identity it joined with then.
+    emitKey(session, 9, 3, { userId: ME, deviceId: DEVICE, memberId: OWN_IDENTITY }, OWN_IDENTITY);
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+    await settle();
+
+    expect(fakes.keys.map(({ keyIndex, identity }) => [keyIndex, identity])).toEqual([
+      [0, OWN_IDENTITY],
+    ]);
+  });
+
   it('sets its own key again once the media connected', async () => {
     const connected = pending();
     fakes.connect = () => connected.promise;
@@ -647,5 +667,78 @@ describe('RoomCall media keys', () => {
     expect(fakes.keys.map(({ keyIndex, identity }) => [keyIndex, identity])).toEqual([
       [0, OWN_IDENTITY],
     ]);
+  });
+
+  it('sends its own key once more to a device whose key arrived, once per membership and key', async () => {
+    const { call, session, mx } = setup({ encrypted: true });
+    await call.join();
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE, 7)]);
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+    // Nothing goes before a key of theirs shows their Olm session works.
+    expect(sendCallKey).not.toHaveBeenCalled();
+
+    emitKey(session, 5, 0, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+    emitKey(session, 6, 1, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE, 7)]);
+
+    expect(sendCallKey).toHaveBeenCalledTimes(1);
+    expect(sendCallKey).toHaveBeenCalledWith(mx, {
+      roomId: ROOM_ID,
+      key: new Uint8Array([1]),
+      keyIndex: 0,
+      memberId: OWN_IDENTITY,
+      to: expect.objectContaining({ userId: OTHER, deviceId: OTHER_DEVICE }),
+    });
+
+    // A new own key, and the same device joining again, each get it once more.
+    emitKey(session, 2, 1, joinedAs(session), OWN_IDENTITY);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE, 9)]);
+    expect(vi.mocked(sendCallKey).mock.calls.map(([, sent]) => [sent.keyIndex])).toEqual([
+      [0],
+      [1],
+      [1],
+    ]);
+  });
+
+  it('sends its own key to a device whose media joined, waiting for its membership', async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+
+    onlyMediaRoom().emit('ParticipantConnected', { identity: OTHER_IDENTITY });
+    expect(sendCallKey).not.toHaveBeenCalled();
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+
+    expect(sendCallKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries a failed send twice more, and sends nothing after the call is left', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(sendCallKey).mockRejectedValue(new Error('no Olm session'));
+      const { call, session } = setup({ encrypted: true });
+      await call.join();
+      session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+      emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+      emitKey(session, 5, 0, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(sendCallKey).toHaveBeenCalledTimes(3);
+
+      await call.leave();
+      emitKey(session, 7, 1, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(sendCallKey).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sends nothing in a call without encryption', async () => {
+    const { call, session } = setup();
+    await call.join();
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+    onlyMediaRoom().emit('ParticipantConnected', { identity: OTHER_IDENTITY });
+
+    expect(sendCallKey).not.toHaveBeenCalled();
   });
 });
