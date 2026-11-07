@@ -29,7 +29,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // order text shows in without showing themselves: a room named `Payroll <U+202E>sevihcra<U+202C>`
 // reads as "Payroll archives". Wherever the app shows a room's or a space's name or topic, or a
 // thread's summary, each control shows as its code point: the room header and its topic viewer,
-// the start of the timeline and its rename row, the thread banner, room settings, message search,
+// the timeline's rename rows and thread summary, the thread banner, room settings, message search,
 // the command palette, an incoming call, the space's lobby, sidebar and rail tab, and the
 // sidebar's thread tooltip. Against the disposable homeserver of a slot, on a phone (390 by 844,
 // touch) and a desktop (1280 by 800), in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names
@@ -235,7 +235,7 @@ const check = async (page: Page, world: World, label: string) => {
   const phone = label.endsWith('phone');
   const main = page.locator('main');
 
-  // The room: its header, the topic viewer, the start of the timeline and its rename row.
+  // The room: its header, the topic viewer, the rename rows and the thread's summary.
   await seedRoomOverviewState({
     page,
     roomId,
@@ -255,10 +255,8 @@ const check = async (page: Page, world: World, label: string) => {
     main.getByText(/changed the (room )?topic to/).filter({ hasText: 'stpiecer' }),
     ROOM_TOPIC_SHOWN
   );
-  // The start of the timeline names the room under its header: its topic shows twice.
-  const intro = main.getByText(ROOM_TOPIC_SHOWN, { exact: true });
-  await expect(intro).toHaveCount(2, { timeout: 30_000 });
-  await intro.last().scrollIntoViewIfNeeded();
+  // The summary under the thread's root, and nothing else in the room, shows a control either.
+  await expectShown(main.getByText(SUMMARY_SHOWN).first(), SUMMARY_SHOWN);
   expect(await main.textContent()).not.toMatch(CONTROL);
   await shot(page, `${label}-room`);
   await header.getByRole('button', { name: /^Where we file/ }).click();
