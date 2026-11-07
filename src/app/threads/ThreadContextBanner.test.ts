@@ -60,6 +60,7 @@ const bannerMocks = vi.hoisted(() => ({
   useThreadTags: vi.fn(),
   useMutateThreadTags: vi.fn(),
   useThreadHeaderInfo: vi.fn(),
+  useCachedThreadRoot: vi.fn(),
 }));
 
 vi.mock('folds', async () => {
@@ -129,6 +130,10 @@ vi.mock('@tabler/icons-react', async () => {
 
 vi.mock('./useThreadRootEvent', () => ({
   useThreadRootEvent: bannerMocks.useThreadRootEvent,
+}));
+
+vi.mock('../event-store/sdk/cachedThreadRoots', () => ({
+  useCachedThreadRoot: bannerMocks.useCachedThreadRoot,
 }));
 
 vi.mock('./tags/useThreadTags', () => ({
@@ -372,6 +377,7 @@ describe('ThreadContextBanner rendering', () => {
     pinningMocks.canPin = false;
     pinningMocks.setPinned.mockReset();
     bannerMocks.useThreadRootEvent.mockReturnValue('$root');
+    bannerMocks.useCachedThreadRoot.mockReturnValue(undefined);
     bannerMocks.useThreadTags.mockReturnValue({
       tags: {},
       displayTags: [],
@@ -712,6 +718,44 @@ describe('ThreadContextBanner rendering', () => {
       text(summarized.root.findByProps({ 'data-thread-context-summary': 'true' }))
     ).toBe('Staging deploy plan');
     summarized.unmount();
+  });
+
+  it('titles a thread the SDK does not know by its cached first message', () => {
+    // Offline, the SDK holds neither the thread nor its root; the event cache does.
+    bannerMocks.useCachedThreadRoot.mockReturnValue(
+      new MatrixEvent({
+        event_id: '$root',
+        type: 'm.room.message',
+        room_id: '!room:example.org',
+        sender: '@bob:example.org',
+        origin_server_ts: 1,
+        content: { msgtype: 'm.text', body: 'Harbor schedule for the week' },
+      })
+    );
+    const banner = create(
+      React.createElement(
+        Provider,
+        { store },
+        React.createElement(ThreadContextBanner, {
+          room: {
+            roomId: '!room:example.org',
+            getThread: () => undefined,
+            findEventById: () => undefined,
+            getUnfilteredTimelineSet: () => undefined,
+            getMember: () => undefined,
+            hasEncryptionStateEvent: () => false,
+            on: vi.fn(),
+            removeListener: vi.fn(),
+          } as unknown as Room,
+          threadId: '$root',
+          onExitThread: vi.fn(),
+        })
+      )
+    );
+    const title = banner.root.findByProps({ 'data-thread-context-root-title': 'true' });
+    expect(text(title)).toBe('Harbor schedule for the week');
+    expect(JSON.stringify(banner.toJSON())).not.toContain('Thread View');
+    banner.unmount();
   });
 
   it('offers + tag only next to existing tags', () => {
