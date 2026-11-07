@@ -1,16 +1,10 @@
-import {
-  ClientEvent,
-  RelationType,
-  ThreadEvent,
-  type IEvent,
-  type MatrixClient,
-  type Room,
-} from 'matrix-js-sdk';
+import { ClientEvent, RelationType, type IEvent, type MatrixClient } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
   getStreamStatusFromContent,
   TERMINAL_STREAM_STATUSES,
 } from '../../matrix/protocol/aiRun';
+import { holdCachedEditInUnopenedThread } from '../../matrix/client/unopenedThreadEdits';
 import { createSessionId } from '../../matrix/session/sessions';
 import {
   createPreferLiveEventMapper,
@@ -27,11 +21,11 @@ import {
 //
 // So the replies the saved sync holds as still streaming are read from the event cache while the
 // client's stores open, and each restored reply takes the cache's newer revision as soon as the
-// saved sync is replayed, before the app shows any room. In a thread nobody opened, the cached
-// edit joins the edits the thread holds back (`replayEvents`): `unopenedThreadEdits.ts` shows the
-// newest of them on every update of the thread, also after the SDK maps an older summary of the
-// reply again (a root's bundled latest reply, which puts its older edit back on the reply), and
-// the SDK replays them when the thread opens.
+// saved sync is replayed, before the app shows any room. In a thread nobody opened, the edit the
+// reply then shows also counts among the edits the thread holds back (`unopenedThreadEdits.ts`),
+// which every update of the thread puts back on the reply newest first: the SDK maps older copies
+// of a reply onto it again (a root's bundled latest reply, read from a thread list mid-stream), and
+// its event mapper applies such a copy's older edit.
 
 type SavedEvent = Partial<IEvent> & { unsigned?: { 'm.relations'?: Record<string, unknown> } };
 
@@ -95,29 +89,6 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
   });
 
 /**
- * Adds the edit bundled with a cached reply to the edits its unopened thread holds back, and
- * announces the thread so the newest of them shows. Returns false when the thread has opened (or
- * is unknown), or the copy carries no edit.
- */
-const holdBackInUnopenedThread = (
-  mx: MatrixClient,
-  room: Room,
-  threadId: string | undefined,
-  raw: SavedEvent
-): boolean => {
-  const thread = threadId ? room.getThread(threadId) : null;
-  const edit = raw.unsigned?.['m.relations']?.[RelationType.Replace] as SavedEvent | undefined;
-  if (!thread || thread.initialEventsFetched || !thread.replayEvents || !edit?.event_id) {
-    return false;
-  }
-  if (!thread.replayEvents.some((held) => held.getId() === edit.event_id)) {
-    thread.replayEvents.push(mx.getEventMapper()({ ...edit, room_id: room.roomId }));
-  }
-  thread.emit(ThreadEvent.Update, thread);
-  return true;
-};
-
-/**
  * Reads the cache's copy of every reply the client's saved sync holds as still streaming, and has
  * the SDK's restored reply take the newer revision when the saved sync is replayed. Call it after
  * the sync store started and before the client starts; it never rejects.
@@ -151,10 +122,12 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
         const room = mx.getRoom(roomId);
         if (!room || !raw.event_id || !room.findEventById(raw.event_id)) return;
         try {
-          if (!holdBackInUnopenedThread(mx, room, threadId, raw)) {
-            // The same merge a thread's cache read makes: the newer revision wins, never an older.
-            createPreferLiveEventMapper(room, mx.getEventMapper())({ ...raw, room_id: roomId });
-          }
+          const mapEvent = createPreferLiveEventMapper(room, mx.getEventMapper());
+          // The same merge a thread's cache read makes: the newer revision wins, never an older.
+          const reply = mapEvent({ ...raw, room_id: roomId });
+          const thread = threadId ? room.getThread(threadId) : null;
+          const edit = reply.replacingEvent();
+          if (thread && edit) holdCachedEditInUnopenedThread(thread, edit);
         } catch {
           // A copy that cannot be merged leaves the reply as the saved sync had it.
         }
