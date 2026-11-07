@@ -138,7 +138,9 @@ export default defineConfig({
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),
     ...sourcePlugins,
-    // The build fails when it bundles two copies of one package version (scripts/package-copies.mjs).
+    // The build fails when the app's chunks hold two copies of one package version
+    // (scripts/package-copies.mjs). `?worker` bundles take only `worker.plugins`; the app's one,
+    // livekit-client's encryption worker, is a single prebuilt module.
     onePackageCopyPerVersion(),
     ...(fixturePagesOnly
       ? []

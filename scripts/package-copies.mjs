@@ -26,8 +26,8 @@ export const onePackageCopyPerVersion = () => ({
     const dirs = new Set();
     for (const id of this.getModuleIds()) {
       // Virtual modules (`\0` ids) are not files of a package.
-      const dir =
-        !id.startsWith('\0') && this.getModuleInfo(id)?.isIncluded && PACKAGE_DIR.exec(id)?.[1];
+      if (id.startsWith('\0') || !this.getModuleInfo(id)?.isIncluded) continue;
+      const dir = PACKAGE_DIR.exec(id)?.[1];
       if (dir) dirs.add(dir);
     }
     /** @type {Map<string, string[]>} name@version and the directories it is bundled from */
@@ -41,7 +41,7 @@ export const onePackageCopyPerVersion = () => ({
     if (duplicates.length > 0)
       this.error(
         [
-          'The bundle holds more than one copy of these package versions. npm puts a copy inside each dependent whose range the top-level version does not satisfy; change the dependencies in package.json so that one copy satisfies them all:',
+          'The bundle holds more than one copy of these package versions. npm puts a copy inside each dependent whose range the top-level version does not satisfy: change the dependencies in package.json so that one copy satisfies them all, or run npm ci if node_modules is older than package-lock.json.',
           ...duplicates.map(([key, list]) => `  ${key}: ${list.join(', ')}`),
         ].join('\n')
       );
