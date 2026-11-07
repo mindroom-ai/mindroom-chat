@@ -8,10 +8,13 @@ import type { LocaleTree } from '../i18n/englishResources';
 // app's own catalogs come from the deployment (fetch, stubbed here).
 const ENGLISH = { label: 'Example plugin', greeting: { hello: 'Hello, {{name}}' } };
 const GERMAN = { label: 'Beispiel-Plugin', greeting: { hello: 'Hallo, {{name}}' } };
-type Strings = typeof ENGLISH;
 
 const plugins = vi.hoisted(() => ({ entries: [] as unknown[] }));
 vi.mock('./pluginEntries', () => ({ pluginEntries: plugins.entries }));
+
+/** A loader with strings for German only. */
+const germanOnly = () =>
+  vi.fn(async (language: string) => (language === 'de' ? GERMAN : undefined));
 
 /** A loader whose strings for German arrive only once `release` is called. */
 const heldLoader = () => {
@@ -62,7 +65,7 @@ describe('plugin translations', () => {
   };
 
   function Label() {
-    const t = translations.usePluginTranslation<Strings>('demo');
+    const t = translations.usePluginTranslation('demo');
     return (
       <p>
         {t('label')} / {t('greeting.hello', { name: 'Ada' })}
@@ -90,8 +93,7 @@ describe('plugin translations', () => {
 
   it('shows English at once and follows each change of language', async () => {
     stubCatalogs();
-    const { load, release } = heldLoader();
-    release();
+    const load = germanOnly();
     await loadPage({ demo: { translations: { en: ENGLISH, load } } });
 
     const { container } = render(<Label />);
@@ -125,13 +127,12 @@ describe('plugin translations', () => {
 
   it('translates outside React in the language in use when called', async () => {
     stubCatalogs();
-    const { load, release } = heldLoader();
-    release();
+    const load = germanOnly();
     await loadPage({ demo: { translations: { en: ENGLISH, load } } });
-    const t = translations.getPluginTranslation<Strings>('demo');
+    const t = translations.getPluginTranslation('demo');
 
     expect(t('label')).toBe('Example plugin');
-    // @ts-expect-error The keys are the plugin's own.
+    // The keys are the plugin's own.
     expect(t('nav.home')).toBe('nav.home');
     await i18n.changeLanguage('de');
     expect(t('greeting.hello', { name: 'Ada' })).toBe('Hallo, Ada');
@@ -147,7 +148,7 @@ describe('plugin translations', () => {
 
     await i18n.changeLanguage('de');
 
-    expect(translations.getPluginTranslation<Strings>('demo')('label')).toBe('Example plugin');
+    expect(translations.getPluginTranslation('demo')('label')).toBe('Example plugin');
     expect(i18n.hasResourceBundle('en', 'plugin.demo')).toBe(true);
     expect(i18n.hasResourceBundle('en', 'plugin.bad')).toBe(false);
     expect(i18n.hasResourceBundle('en', 'plugin.none')).toBe(false);

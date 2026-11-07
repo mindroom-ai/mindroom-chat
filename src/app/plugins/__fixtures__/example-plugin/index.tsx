@@ -16,7 +16,7 @@ const greetingText = (event: PluginEvent): string | undefined => {
 
 function Greeting({ event }: { event: PluginEvent }) {
   const config = usePluginConfig('example');
-  const t = usePluginTranslation<typeof english>('example');
+  const t = usePluginTranslation('example');
   const label =
     typeof config === 'object' &&
     config !== null &&
