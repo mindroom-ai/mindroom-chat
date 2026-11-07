@@ -274,11 +274,12 @@ export class TranscriptionClient {
 
   /**
    * Leaves at once with the session already held, for a page that goes away: the request outlives
-   * the page. Without a session nothing is sent, as there is no time to sign in.
+   * the page. Without a session, or once it has run out, nothing is sent, as there is no time to
+   * sign in.
    */
   leaveNow(callId: string): void {
     const { session } = this;
-    if (!session) return;
+    if (!session || session.expiresAt <= Date.now()) return;
     void this.fetch(`${this.apiUrl}${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
       method: 'POST',
       keepalive: true,

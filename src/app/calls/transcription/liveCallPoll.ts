@@ -25,7 +25,7 @@ export const sleep = (ms: number, signal: AbortSignal): Promise<boolean> =>
  * Reads the room's live call every `everyMs` until `signal` aborts, handing on each read. Each read
  * asks only for the lines after the last one read, and the first after `from`, the last line that
  * earlier reads read; MindRoom answers all of a new call's lines for a line of another call. A read
- * that fails or takes longer than 10 seconds is reported (`onFailure`) and the next one tries again.
+ * that fails or takes over 10 seconds is reported (`onFailure`) and the next one tries again.
  * Resolves `not-transcribed` as soon as MindRoom says the room is not transcribed (404 or 403), and
  * undefined once aborted.
  */

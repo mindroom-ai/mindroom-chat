@@ -222,6 +222,24 @@ describe('TranscriptionClient routes', () => {
     ]);
   });
 
+  it('leaves at once with the session it holds, and sends nothing once that has run out', async () => {
+    const server = fakeServer();
+    server.lasting.seconds = 120;
+    server.route.mockImplementation(() => json({ call: CALL }));
+    const { api } = client(server);
+    await api.join(ROOM_ID);
+
+    vi.setSystemTime(NOW + 119_000);
+    api.leaveNow('call-1');
+    const leave = server.calls()[1];
+    expect(leave?.init.keepalive).toBe(true);
+    expect(leave && bearer(leave)).toBe('Bearer session-1');
+
+    vi.setSystemTime(NOW + 120_000);
+    api.leaveNow('call-1');
+    expect(server.calls()).toHaveLength(2);
+  });
+
   it('sends a stretch as a multipart WAV file with when it started', async () => {
     const server = fakeServer();
     server.route.mockImplementation(() => json({ line: LINE }));
