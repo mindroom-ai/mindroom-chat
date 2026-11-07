@@ -152,18 +152,14 @@ export const resolveFetchedRelationOverviewUpdate = ({
         cachedPresentation.latestReplyTs >= currentReplyTs
       : newestTs !== undefined && newestTs >= liveActivityTs) ||
     !currentPresentation?.latestReplyPreviewText;
-  const nextReplyPreviewText =
-    shouldUseFetchedReplyMetadata &&
-    cachedPresentation.latestReplyPreviewText &&
-    cachedPresentation.latestReplyPreviewText !== currentPresentation?.latestReplyPreviewText
-      ? cachedPresentation.latestReplyPreviewText
-      : undefined;
-  const nextLastSenderId =
-    shouldUseFetchedReplyMetadata &&
-    cachedPresentation.lastSenderId &&
-    cachedPresentation.lastSenderId !== currentPresentation?.lastSenderId
-      ? cachedPresentation.lastSenderId
-      : undefined;
+  // Stored even when the card shows the same reply: it may show it from a bundle on its root event,
+  // which another copy of the root does not carry. The metadata keeps an equal value as it is.
+  const nextReplyPreviewText = shouldUseFetchedReplyMetadata
+    ? cachedPresentation.latestReplyPreviewText || undefined
+    : undefined;
+  const nextLastSenderId = shouldUseFetchedReplyMetadata
+    ? cachedPresentation.lastSenderId || undefined
+    : undefined;
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
   const nextMessageCount =
@@ -265,18 +261,14 @@ export const resolveCachedOverviewUpdate = ({
         cachedPresentation.latestReplyTs >= currentReplyTs
       : cachedActivityTs !== undefined && cachedActivityTs >= liveActivityTs) ||
     !currentPresentation?.latestReplyPreviewText;
-  const nextReplyPreviewText =
-    shouldUseCachedReplyMetadata &&
-    cachedPresentation.latestReplyPreviewText &&
-    cachedPresentation.latestReplyPreviewText !== currentPresentation?.latestReplyPreviewText
-      ? cachedPresentation.latestReplyPreviewText
-      : undefined;
-  const nextLastSenderId =
-    shouldUseCachedReplyMetadata &&
-    cachedPresentation.lastSenderId &&
-    cachedPresentation.lastSenderId !== currentPresentation?.lastSenderId
-      ? cachedPresentation.lastSenderId
-      : undefined;
+  // Stored even when the card shows the same reply: it may show it from a bundle on its root event,
+  // which another copy of the root does not carry. The metadata keeps an equal value as it is.
+  const nextReplyPreviewText = shouldUseCachedReplyMetadata
+    ? cachedPresentation.latestReplyPreviewText || undefined
+    : undefined;
+  const nextLastSenderId = shouldUseCachedReplyMetadata
+    ? cachedPresentation.lastSenderId || undefined
+    : undefined;
   const currentMessageCount =
     currentPresentation?.messageCount ?? currentRecord?.status.replyCount ?? 0;
   const nextMessageCount =
