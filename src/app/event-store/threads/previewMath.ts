@@ -1,4 +1,8 @@
-import { tokenizeTextWithLatex } from '../../rich-text/math';
+import {
+  findDisplayLatexBlockMatch,
+  findInlineLatexMatch,
+  tokenizeTextWithLatex,
+} from '../../rich-text/math';
 
 // The commands that stand for one character, as `name character` pairs.
 const SYMBOLS = new Map(
@@ -103,9 +107,11 @@ const readTex = (nodes: TexNode[]): string => {
  * `text` with each formula that messages typeset (`$…$`, `$$…$$`) read as plain text, so a one-line
  * preview shows `a/b` rather than `$\frac{a}{b}$`. Symbols become their characters, styling goes,
  * `^` and `_` stay, and a fraction, root or script of more than one character keeps parentheses.
+ * The tokenizer also scans for links, several times the cost of the rest of a preview, so only text
+ * that holds a formula goes through it.
  */
 export const stripPreviewMath = (text: string): string =>
-  text.includes('$')
+  text.includes('$') && (findInlineLatexMatch(text) ?? findDisplayLatexBlockMatch(text))
     ? tokenizeTextWithLatex(text)
         .map((segment) =>
           segment.type === 'math' ? readTex(parseTex(segment.content)) : segment.content
