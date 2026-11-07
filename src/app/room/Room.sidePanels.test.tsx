@@ -125,6 +125,14 @@ vi.mock('../plugins/pluginEntries', () => ({
             },
           },
           {
+            id: 'opaque',
+            label: 'Opaque',
+            Component: () => {
+              // A value with no way to become text.
+              throw Object.create(null);
+            },
+          },
+          {
             id: 'waiting',
             label: 'Waiting',
             Component: () => {
@@ -341,6 +349,7 @@ describe('the side panels of a room', () => {
     expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
       ['notes/panel', 'Notes'],
       ['broken/panel', 'Broken'],
+      ['broken/opaque', 'Opaque'],
       ['broken/waiting', 'Waiting'],
     ]);
     cleanup();
@@ -349,8 +358,18 @@ describe('the side panels of a room', () => {
     await renderRoom();
     expect(state.view?.pluginPanels?.map(({ id }) => id)).toEqual([
       'broken/panel',
+      'broken/opaque',
       'broken/waiting',
     ]);
+  });
+
+  it("keeps the room when a plugin's panel throws a value that cannot become text", async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('broken/opaque'));
+    const panel = screen.getByRole('region', { name: 'Opaque' });
+    expect(panel.textContent).toContain('This panel stopped working.');
+    expect(screen.queryByTestId('room-view')).not.toBeNull();
   });
 
   it("keeps the room on screen while a plugin's panel waits for its code", async () => {

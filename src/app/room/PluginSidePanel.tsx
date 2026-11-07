@@ -6,6 +6,16 @@ import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporti
 import type { RoomSidePanel } from '../plugins/sidePanels';
 import { Header, Panel } from '../ui/panels/SidePanel.css';
 
+/** What a plugin threw, as an Error: it may throw anything, even a value with no text form. */
+const asError = (thrown: unknown): Error => {
+  if (thrown instanceof Error) return thrown;
+  try {
+    return new Error(String(thrown));
+  } catch {
+    return new Error('a value that cannot be shown as text');
+  }
+};
+
 /**
  * A plugin's side panel: its title and Close above what the plugin shows. A plugin that fails says
  * so in the panel, which can still be closed.
@@ -47,8 +57,7 @@ export function PluginSidePanel({
           onError={(thrown: unknown, info) => {
             // eslint-disable-next-line no-console
             console.error(`[plugin ${tag}] its side panel failed`, thrown);
-            // A plugin may throw anything, not only an Error.
-            const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+            const error = asError(thrown);
             reportBoundaryError(
               {
                 name: error.name,
