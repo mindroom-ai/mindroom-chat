@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { expect, test, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createThreadFixture, joinRoom, matrixFetch, sendRoomMessage } from '../helpers/matrix';
 import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
@@ -9,6 +9,8 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
 // viewport, and a long title wraps instead of being cut at the screen's edge. On a desktop the
 // list stays a table. Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names it, WebKit; phone
 // 390x844 with touch, light and dark. Set CANVASES_SHOTS=<directory> for screenshots.
+// The page names each canvas's agent by its display name, also on a device that has not loaded
+// the room's members since it started (live-test pass 2, P2-lane9-F004).
 
 // Explicit opt-in to an isolated, disposable local Matrix server with open registration.
 const homeserver = process.env.E2E_UI_ACTIONS_HOMESERVER;
@@ -19,9 +21,20 @@ const LONG_TOKEN = 'canvasoffmw4fjk96a6lq9xk2';
 
 test.use({ video: 'off' });
 
-type Fixture = { username: string; password: string; roomName: string; agentName: string };
+type Fixture = {
+  username: string;
+  password: string;
+  roomName: string;
+  agentName: string;
+  roomId: string;
+  rootId: string;
+};
 
-const seed = async (): Promise<Fixture> => {
+/**
+ * `later` messages from the viewer follow the canvases, so a sync that loads members lazily leaves
+ * out the agent, who spoke before the window it sends.
+ */
+const seed = async (later = 0): Promise<Fixture> => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const password = randomUUID();
   const register = (username: string) =>
@@ -63,7 +76,20 @@ const seed = async (): Promise<Fixture> => {
     });
   await showCanvas('Packing list for the coast trip', fixture.rootId);
   await showCanvas('Morning briefing', null);
-  return { username, password, roomName, agentName: 'Planner' };
+  for (let index = 0; index < later; index += 1) {
+    await sendRoomMessage(homeserver!, viewer.access_token, fixture.roomId, {
+      msgtype: 'm.text',
+      body: `Later note ${index + 1} about the trip, with a few more words to fill the line.`,
+    });
+  }
+  return {
+    username,
+    password,
+    roomName,
+    agentName: 'Planner',
+    roomId: fixture.roomId,
+    rootId: fixture.rootId,
+  };
 };
 
 const routeConfig = (context: BrowserContext) =>
@@ -180,6 +206,69 @@ test('the Canvases page fits a phone in WebKit', async () => {
     await openCanvases(page, fixture);
     await expectRowsInside(page, fixture, 'WebKit phone');
     await shot(page, 'canvases-phone-webkit');
+  } finally {
+    await browser.close();
+  }
+});
+
+/**
+ * A fresh sign-in opens the canvas's thread, which lists the canvas, and then starts again on the
+ * Canvases page: the room's members are not loaded in that start, and the agent spoke before the
+ * window of the room that sync sends. The page still names the agent as the rest of the app does.
+ */
+const checkAgentName = async (browser: Browser, engine: string) => {
+  const fixture = await seed(30);
+  const context = await browser.newContext({
+    ...PHONE,
+    baseURL: test.info().project.use.baseURL,
+  });
+  try {
+    await routeConfig(context);
+    const page = await context.newPage();
+    await loginWithPassword(page, {
+      homeserver: homeserver!,
+      username: fixture.username,
+      password: fixture.password,
+    });
+    await page.goto(
+      `/home/${encodeURIComponent(fixture.roomId)}?threadId=${encodeURIComponent(fixture.rootId)}`
+    );
+    await expect(page.getByText('The trip conversation', { exact: true }).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    // The thread's events reach the canvas list after they load.
+    await page.waitForTimeout(2_000);
+    await page.goto('/canvases/');
+    const row = page
+      .getByTestId('canvases-view')
+      .locator('tbody tr')
+      .filter({ hasText: 'Packing list for the coast trip' });
+    await expect(row).toHaveCount(1, { timeout: 30_000 });
+    await expect(row.getByText(fixture.agentName, { exact: true }), engine).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(row).not.toContainText('mindroom_planner_');
+    // The thread's name follows once the thread is read; the screenshot waits for it.
+    await expect(row).toContainText(LONG_TOKEN, { timeout: 30_000 });
+    await shot(page, `canvases-agent-name-${engine}`);
+  } finally {
+    await context.close();
+  }
+};
+
+test('the Canvases page names the agent after a fresh start (Chromium phone)', async ({
+  browser,
+}) => {
+  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  await checkAgentName(browser, 'chromium');
+});
+
+test('the Canvases page names the agent after a fresh start (WebKit phone)', async () => {
+  test.skip(!homeserver, 'Set E2E_UI_ACTIONS_HOMESERVER to a disposable local Matrix server.');
+  test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE not set');
+  const browser = await launchWebKit();
+  try {
+    await checkAgentName(browser, 'webkit');
   } finally {
     await browser.close();
   }

@@ -189,6 +189,8 @@ type Seed = Awaited<ReturnType<typeof seed>>;
 const seed = async () => {
   const run = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
   const word = `zorblax${lettersOf(run)}`;
+  // A second word, late in a short Arabic message.
+  const rtlWord = `quillmot${lettersOf(run)}`;
   const viewer = await register('palette_viewer', run, 'Robin Park');
   const people = await Promise.all(
     [
@@ -257,10 +259,16 @@ const seed = async () => {
     threadRoots['Ops Handbook']
   );
   await send(setareh, rooms['Sunset Crew']!, 'Sunset photos are in the album.');
+  await send(
+    setareh,
+    rooms['Sunset Crew']!,
+    `بالتأكيد. ارتفع معدل الاستخدام بنسبة 12% وتم إصلاح الخطأ ${rtlWord} في الإصدار الأخير.`
+  );
 
   return {
     viewer,
     word,
+    rtlWord,
     rooms,
     encryptedRoom,
     threadHit,
@@ -561,6 +569,29 @@ test.describe('on a phone', () => {
     await expect(page).toHaveURL(
       new RegExp(encodeURIComponent(seeded!.rooms['Release Planning']!))
     );
+  });
+});
+
+test.describe('on a phone, in right-to-left text', () => {
+  test.use({ hasTouch: true });
+
+  test('a late match in a short message shows in its snippet', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page);
+    await openPalette(page);
+    await field(page).fill(seeded!.rtlWord);
+    const hit = options(page, 'message').first();
+    await expect(hit).toBeVisible({ timeout: 30_000 });
+    const match = hit.locator('mark').first();
+    await expect(match).toHaveText(seeded!.rtlWord);
+    // The snippet's line clips what does not fit; the match lies inside it.
+    const inView = await match.evaluate((element) => {
+      const line = element.parentElement!.getBoundingClientRect();
+      const own = element.getBoundingClientRect();
+      return own.left >= line.left - 1 && own.right <= line.right + 1;
+    });
+    await shoot(page, 'phone-rtl-snippet');
+    expect(inView, 'the match shows inside the snippet line').toBe(true);
   });
 });
 

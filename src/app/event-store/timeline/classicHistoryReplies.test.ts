@@ -1,4 +1,5 @@
 import { Direction, MatrixClient, MatrixEvent, Room, type IRoomEvent } from 'matrix-js-sdk';
+import { logger } from 'matrix-js-sdk/lib/logger';
 import { describe, expect, it, vi } from 'vitest';
 import { getEditedEvent } from '../../matrix/room';
 import {
@@ -6,7 +7,7 @@ import {
   getShownHistoryReplies,
   takePageThreadEvents,
 } from './classicHistoryReplies';
-import { paginateRoomKeepingReplies } from '../sdk/roomHistoryPageSdk';
+import { paginateRoomHistory } from '../sdk/roomHistoryPageSdk';
 
 const ROOM_ID = '!room:example.org';
 
@@ -58,7 +59,7 @@ const FILTERS = {
   hideNickAvatarEvents: false,
 };
 
-describe('paginateRoomKeepingReplies', () => {
+describe('paginateRoomHistory', () => {
   it('keeps the thread replies of a room page, which the SDK drops, with their edits', async () => {
     const { mx, room, edge, request } = setup([
       raw('$edit', 4, editOf('$reply')),
@@ -67,7 +68,7 @@ describe('paginateRoomKeepingReplies', () => {
       raw('$note', 1),
     ]);
 
-    await expect(paginateRoomKeepingReplies(mx, room, edge, true, 50)).resolves.toBe(true);
+    await expect(paginateRoomHistory(mx, room, edge, true, 50, true)).resolves.toBe(true);
 
     expect(request).toHaveBeenCalledWith(ROOM_ID, 'older', 50, Direction.Backward, undefined);
     expect(edge.getEvents().map((event) => event.getId())).toEqual(['$note', '$root']);
@@ -79,20 +80,43 @@ describe('paginateRoomKeepingReplies', () => {
 
     // The same reply again (a page asked twice) is kept once.
     edge.setPaginationToken('older', Direction.Backward);
-    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+    await paginateRoomHistory(mx, room, edge, true, 50, true);
     expect(getHistoryReplies([edge])).toHaveLength(1);
+  });
+
+  it('keeps no replies for the other views, and a redaction of an older event stays out quietly', async () => {
+    const { mx, room, edge } = setup([
+      {
+        ...raw('$redaction', 4),
+        type: 'm.room.redaction',
+        redacts: '$gone',
+        content: {},
+      } as IRoomEvent,
+      raw('$reply', 3, inThread),
+      raw('$root', 2),
+      raw('$gone', 1),
+    ]);
+    const warn = vi.spyOn(logger, 'warn');
+
+    await paginateRoomHistory(mx, room, edge, true, 50, false);
+
+    const warnings = warn.mock.calls.map((args) => args.join(' '));
+    warn.mockRestore();
+    expect(warnings.filter((text) => /cannot be added|does not belong/.test(text))).toEqual([]);
+    expect(edge.getEvents().map((event) => event.getId())).toEqual(['$gone', '$root']);
+    expect(getHistoryReplies([edge])).toEqual([]);
   });
 
   it('shows an edit that came with a newer page once its reply arrives', async () => {
     const { mx, room, edge, request } = setup([raw('$edit', 4, editOf('$reply')), raw('$b', 3)]);
-    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+    await paginateRoomHistory(mx, room, edge, true, 50, true);
     request.mockImplementation(async () => ({
       chunk: [raw('$reply', 2, inThread), raw('$root', 1)],
       start: 'oldest',
       end: undefined,
     }));
 
-    await expect(paginateRoomKeepingReplies(mx, room, edge, true, 50)).resolves.toBe(false);
+    await expect(paginateRoomHistory(mx, room, edge, true, 50, true)).resolves.toBe(false);
 
     const [reply] = getHistoryReplies([edge]) as [MatrixEvent];
     await vi.waitFor(() => expect(reply.replacingEvent()?.getId()).toBe('$edit'));
@@ -103,7 +127,7 @@ describe('paginateRoomKeepingReplies', () => {
 describe('takePageThreadEvents', () => {
   it('hands the cache each page thread events once, with a reaction that came before its reply', async () => {
     const { mx, room, edge, request } = setup([reactionTo('$reply'), raw('$b', 4)]);
-    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+    await paginateRoomHistory(mx, room, edge, true, 50, true);
     // The reaction's reply, and so its thread, is not known yet.
     expect(takePageThreadEvents(edge)).toEqual([]);
 
@@ -112,7 +136,7 @@ describe('takePageThreadEvents', () => {
       start: 'oldest',
       end: undefined,
     }));
-    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+    await paginateRoomHistory(mx, room, edge, true, 50, true);
 
     const held = takePageThreadEvents(edge);
     expect(held.map((event) => [event.getId(), event.threadRootId])).toEqual([
@@ -131,7 +155,7 @@ describe('getShownHistoryReplies', () => {
       raw('$root', 2),
       raw('$note', 1),
     ]);
-    await paginateRoomKeepingReplies(mx, room, edge, true, 50);
+    await paginateRoomHistory(mx, room, edge, true, 50, true);
 
     expect(getShownHistoryReplies(room, [edge], FILTERS).map((event) => event.getId())).toEqual([
       '$reply',

@@ -15,6 +15,7 @@ import {
   selectAutoApproveWindows,
 } from '../../matrix/protocol/autoApproveContract';
 import * as css from './AutoApproveChip.css';
+import { IsolatedText } from '../../ui/directional';
 
 // setTimeout fires at once past this many milliseconds, so a later end is reached in steps.
 const MAX_TIMER_MS = 2_147_483_647;
@@ -85,7 +86,7 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
         }}
       >
         <Icon className={css.ChipIcon} src={Icons.Warning} size="50" aria-hidden="true" />
-        {label}
+        <IsolatedText text={label} />
       </button>
       {open && (
         <ApprovalDialog
@@ -99,7 +100,11 @@ export function AutoApproveChip({ room, threadId }: { room: Room; threadId: stri
             const time = formatEnd(expiresAt, now, language, hour24Clock);
             return (
               <ApprovalGroup key={requesterId}>
-                <b>{own ? t('mindroomUi.autoApprove.you') : userDisplayName(room, requesterId)}</b>
+                <b>
+                  <IsolatedText
+                    text={own ? t('mindroomUi.autoApprove.you') : userDisplayName(room, requesterId)}
+                  />
+                </b>
                 <small>
                   {own
                     ? t('mindroomUi.autoApprove.ownUntil', { time })

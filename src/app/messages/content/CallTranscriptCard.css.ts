@@ -23,36 +23,62 @@ export const CallCard = style([
   },
 ]);
 
+/**
+ * The card's one row: the call at its start, the transcript's button at its end. A row too narrow
+ * for both (a very large text size) puts the button under the call rather than overflow the card.
+ */
+export const Row = style({
+  alignItems: 'center',
+  display: 'flex',
+  minWidth: 0,
+  flexWrap: 'wrap',
+  // With the button's start padding, 14 px between the duration and the count: the row fits a
+  // 390 px phone in German.
+  columnGap: config.space.S200,
+});
+
+/** The phone icon, "Voice call" and the duration. */
 export const Header = style({
-  rowGap: toRem(2),
+  minWidth: 0,
   display: 'flex',
   columnGap: config.space.S200,
-  flexWrap: 'wrap',
-  minWidth: 0,
   alignItems: 'center',
 });
 
+/**
+ * An icon's place: as wide as a speaker's avatar, so the phone sits over the avatars and the
+ * title starts where the speakers' names do, and the chevron gets the same room at the end.
+ */
+export const IconSlot = style({
+  display: 'inline-flex',
+  justifyContent: 'center',
+  inlineSize: AVATAR,
+  flexShrink: 0,
+  alignItems: 'center',
+  blockSize: AVATAR,
+});
+
+/** The row's words stay on one line each. */
+export const Label = style({ whiteSpace: 'nowrap' });
+
 export const Title = style({ fontWeight: 500 });
 
-/** The transcript's open and close button: a quiet line under the header. */
+/** The transcript's open and close button: the turn count and a chevron, at the row's end. */
 export const Toggle = style({
-  gap: config.space.S100,
+  marginInlineStart: 'auto',
   font: 'inherit',
-  border: 0,
-  display: 'inline-flex',
-  alignSelf: 'flex-start',
-  color: 'inherit',
-  background: 'none',
   alignItems: 'center',
-  textAlign: 'start',
-  // No percentage width: a button with one does not count towards the card's width, which
-  // then wraps its labels.
+  border: 0,
+  color: 'inherit',
+  display: 'inline-flex',
+  background: 'none',
   cursor: 'pointer',
-  // The chevron lines up with the phone icon above it.
-  marginInlineStart: toRem(-4),
-  paddingInline: toRem(4),
+  textAlign: 'start',
+  // The chevron's slot ends the row; its empty half pads the button's end.
+  paddingInlineEnd: 0,
+  paddingInlineStart: toRem(6),
   borderRadius: config.radii.R300,
-  paddingBlock: toRem(2),
+  paddingBlock: 0,
   selectors: {
     '&:hover': { background: quiet.ContainerHover },
     '&:active': { background: quiet.ContainerActive },
@@ -96,9 +122,25 @@ export const GroupBody = style({
   gap: toRem(2),
 });
 
+/** The name, then the time: a long name ends in an ellipsis and leaves the time in view. */
+export const NameLine = style({
+  columnGap: config.space.S200,
+  display: 'flex',
+  maxWidth: '100%',
+  alignItems: 'baseline',
+  minWidth: 0,
+});
+
 // As wide as its words but never wider than the group: a long name ends in an ellipsis instead of
 // running out of the card.
-export const Name = style({ fontWeight: 600, maxWidth: '100%' });
+export const Name = style({ fontWeight: 600, minWidth: 0, maxWidth: '100%' });
+
+/** When the speaker began, from the call's start: quiet, with digits of one width. */
+export const Time = style({
+  whiteSpace: 'nowrap',
+  fontVariantNumeric: 'tabular-nums',
+  flexShrink: 0,
+});
 
 /** Spoken text keeps its line breaks and wraps anywhere rather than overflow the card. */
 export const Text = style({

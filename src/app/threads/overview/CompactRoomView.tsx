@@ -1,5 +1,6 @@
 import React, {
   type MutableRefObject,
+  type RefObject,
   lazy,
   Suspense,
   useCallback,
@@ -50,6 +51,7 @@ type ThreadActionsMenuState = {
 
 type CompactThreadCardRowProps = {
   roomId: string;
+  scrollRootRef: RefObject<HTMLDivElement>;
   viewModel: CompactThreadCardViewModel;
   pinned: boolean;
   showResolveAction: boolean;
@@ -70,6 +72,7 @@ type CompactThreadCardRowProps = {
 const CompactThreadCardRow = React.memo(
   ({
     roomId,
+    scrollRootRef,
     viewModel,
     pinned,
     showResolveAction,
@@ -87,7 +90,7 @@ const CompactThreadCardRow = React.memo(
     onOpenMenu,
   }: CompactThreadCardRowProps) => {
     const rootId = viewModel.id.threadRootId;
-    const shownRef = useInitializeShownThread(roomId, rootId);
+    const shownRef = useInitializeShownThread(roomId, rootId, scrollRootRef);
 
     return (
       <div
@@ -337,6 +340,7 @@ export function CompactRoomView({
       <CompactThreadCardRow
         key={rootId}
         roomId={room.roomId}
+        scrollRootRef={viewRef}
         viewModel={viewModel}
         pinned={pinned}
         showResolveAction={showResolveAction}

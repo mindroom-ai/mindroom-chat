@@ -147,6 +147,19 @@ describe('useCommandPaletteMessages', () => {
     expect(result.current.items[0]?.snippet).toBe('The walrus plan: see the list and run it.');
   });
 
+  it('starts a snippet a few words before a late match, in right-to-left text too', async () => {
+    const { result } = renderMessages('walrus');
+    await waitFor(() => expect(pending).toHaveLength(1));
+    const body =
+      'بالتأكيد. ارتفع معدل الاستخدام بنسبة 12% وتم إصلاح الخطأ WALRUS-88 في الإصدار الأخير.';
+    await act(async () => pending[0]?.resolve(responseWith('$arabic', body)));
+    await waitFor(() => expect(result.current.status).toBe('done'));
+
+    const snippet = result.current.items[0]?.snippet ?? '';
+    expect(snippet).toBe('…وتم إصلاح الخطأ WALRUS-88 في الإصدار الأخير.');
+    expect(snippet.indexOf('WALRUS')).toBeLessThan(21);
+  });
+
   it('reports a failed search as an error', async () => {
     const { result } = renderMessages('walrus');
     await waitFor(() => expect(pending).toHaveLength(1));
