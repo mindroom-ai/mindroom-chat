@@ -193,13 +193,16 @@ describe('a conversation cover', () => {
   it('closes on Escape in the cover when its plugin allows it, and only then', () => {
     renderRoom();
     show('fixed');
-    fireEvent.keyDown(layer()!, { key: 'Escape' });
+    // Not taken from whatever else listens for it.
+    expect(fireEvent.keyDown(layer()!, { key: 'Escape' })).toBe(true);
     expect(layer()?.textContent).toContain('fixed cover');
     show('fixed', false);
 
     show('closable');
     // Escape that something in the cover handled stays there.
     const field = screen.getByRole('textbox', { name: 'closable field' });
+    fireEvent.keyDown(field, { key: 'a' });
+    expect(layer()?.textContent).toContain('closable cover');
     field.addEventListener('keydown', (event) => event.preventDefault(), { once: true });
     fireEvent.keyDown(field, { key: 'Escape' });
     expect(layer()?.textContent).toContain('closable cover');

@@ -67,15 +67,16 @@ describe("useTypingStatusUpdater under a plugin's cover", () => {
     const updater = mountUpdater(false);
     updater.type(true);
     act(() => getDefaultStore().set(conversationCoveredAtom, true));
+    const ended = [
+      [ROOM, true, TYPING_TIMEOUT_MS],
+      [ROOM, false, TYPING_TIMEOUT_MS],
+    ];
+    expect(updater.calls).toEqual(ended);
     updater.type(true);
+    expect(updater.calls).toEqual(ended);
     act(() => getDefaultStore().set(conversationCoveredAtom, false));
     updater.type(true);
+    expect(updater.calls).toEqual([...ended, [ROOM, true, TYPING_TIMEOUT_MS]]);
     updater.unmount();
-    expect(updater.calls).toEqual([
-      [ROOM, true, TYPING_TIMEOUT_MS],
-      [ROOM, false, TYPING_TIMEOUT_MS],
-      [ROOM, true, TYPING_TIMEOUT_MS],
-      [ROOM, false, TYPING_TIMEOUT_MS],
-    ]);
   });
 });

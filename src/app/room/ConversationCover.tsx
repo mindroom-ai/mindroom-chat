@@ -77,9 +77,9 @@ function CoverLayer({ entry: { cover, tag }, room, conversationRef, onFailure }:
     const layer = layerRef.current;
     const before = document.activeElement;
     if (layer && !layer.contains(before)) layer.focus({ preventScroll: true });
+    // Focus the person moved out of the cover stays there: once this commit is done, React gives
+    // the focus back to the element that had it when that is still in the page.
     return () => {
-      const active = document.activeElement;
-      if (active && active !== document.body && !layer?.contains(active)) return;
       if (before instanceof HTMLElement && before.isConnected)
         before.focus({ preventScroll: true });
     };

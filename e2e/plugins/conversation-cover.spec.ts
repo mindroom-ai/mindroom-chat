@@ -19,7 +19,8 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // button under the room header covers the conversation with "Example cover of <room name>", which
 // Escape closes. While the cover shows, the reader's client sends no read receipt for a message
 // that arrives, no typing notice (and ends the one it sent), attaches no dropped file, and keeps
-// the focus out of the conversation; closing it gives the focus back and restores all four. Set
+// the focus out of the conversation; closing it gives the focus back to the composer and restores
+// all four. Set
 // PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'conversation-cover-password';
@@ -123,11 +124,13 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     const cover = page.locator('[data-conversation-cover]');
     const opener = page.getByRole('button', { name: 'Show example cover' });
 
-    // Typing in the composer tells the room; the cover showing ends that.
+    // Typing in the composer tells the room; the cover showing ends that. The button is pressed
+    // from script, as a plugin of its own accord would open its cover, so the focus is still in
+    // the composer when the cover shows.
     await composer.click();
     await page.keyboard.type('draft');
     await expect.poll(() => activity.typing).toEqual([true]);
-    await opener.click();
+    await opener.evaluate((button) => (button as HTMLButtonElement).click());
     await expect(cover).toContainText(`Example cover of ${ROOM_NAME}`);
     await expect.poll(() => activity.typing).toEqual([true, false]);
     await expect.poll(() => focusInCover(page)).toBe(true);
@@ -138,7 +141,8 @@ test('while the example cover shows the room sends no receipt or typing notice, 
       msgtype: 'm.text',
       body: `Arrived under the cover ${RUN}`,
     });
-    await expect(page.getByText(`Arrived under the cover ${RUN}`)).toBeAttached({
+    const timeline = page.getByTestId('room-virtual-inner');
+    await expect(timeline.getByText(`Arrived under the cover ${RUN}`)).toBeAttached({
       timeout: 60_000,
     });
     // Typing in the cover, and Tab through it, neither tells the room nor reaches the conversation.
@@ -162,18 +166,17 @@ test('while the example cover shows the room sends no receipt or typing notice, 
     await expect(page.getByText(DROPPED)).toHaveCount(0);
     await expect(composer).toHaveText('draft');
 
-    // Escape closes it: the focus goes back to its button and the message under it is read.
+    // Escape closes it: the focus goes back to the composer and the message under it is read.
     await page.keyboard.press('Escape');
     await expect(cover).toHaveCount(0);
-    await expect(opener).toBeFocused();
+    await expect(composer).toBeFocused();
     await expect.poll(() => activity.receipts).toContain(hidden);
     const seen = await sendRoomMessage(HOMESERVER, writer.accessToken, roomId, {
       msgtype: 'm.text',
       body: `Arrived in view ${RUN}`,
     });
-    await expect(page.getByText(`Arrived in view ${RUN}`)).toBeVisible({ timeout: 60_000 });
+    await expect(timeline.getByText(`Arrived in view ${RUN}`)).toBeVisible({ timeout: 60_000 });
     await expect.poll(() => activity.receipts).toContain(seen);
-    await composer.click();
     await page.keyboard.type(' again');
     await expect.poll(() => activity.typing).toEqual([true, false, true]);
     await dropFile(page.locator('[data-room-footer]'));
