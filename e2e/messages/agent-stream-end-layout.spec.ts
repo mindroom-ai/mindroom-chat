@@ -443,6 +443,7 @@ const withChromiumPhone = async (
   let context: BrowserContext | undefined;
   try {
     context = await browser.newContext({ viewport: PHONE, hasTouch: true, storageState, baseURL });
+    await context.addInitScript(scrollLogInit);
     const page = await context.newPage();
     await routeClientConfig(page, stack);
     await run(page);
