@@ -84,7 +84,7 @@ describe('readClientPlugins', () => {
   });
 
   it('reads the id, version and entry of each listed directory, in order', () => {
-    // The example needs client SDK 4; the other was written for 1, which this client still builds.
+    // The example needs client SDK 5; the other was written for 1, which this client still builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
       { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
@@ -112,8 +112,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 5 })),
-      /plugin "some-plugin" needs client SDK apiVersion 5; this client provides 4/,
+      () => pluginDir(declaring({ apiVersion: 6 })),
+      /plugin "some-plugin" needs client SDK apiVersion 6; this client provides 5/,
     ],
     [
       'an apiVersion that is not a number',
