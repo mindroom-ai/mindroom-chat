@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -36,12 +36,6 @@ const openRoom = async (page: Page, name: string) => {
   return { composer, message };
 };
 
-/** The composer's text, without the placeholder an empty composer shows. */
-const composerText = (composer: Locator) =>
-  composer.evaluate((element) =>
-    Array.from(element.querySelectorAll('[data-slate-string]'), (node) => node.textContent).join('')
-  );
-
 /**
  * Adds a focusable region over the room that writes each key it gets into itself, as a terminal
  * or a game would take them: marked to keep its typing, or cancelling each key it takes.
@@ -76,7 +70,7 @@ test('a region marked data-keeps-typing keeps the keys typed in it', async ({ pa
   await page.screenshot({ path: testInfo.outputPath('marked-region.png') });
   await expect(terminal).toHaveText('ls');
   await expect(terminal).toBeFocused();
-  expect(await composerText(composer)).toBe('');
+  await expect(composer.locator('[data-slate-string]')).toHaveCount(0);
 });
 
 test('a key that a handler cancels stays where it was typed', async ({ page }, testInfo) => {
@@ -87,7 +81,7 @@ test('a key that a handler cancels stays where it was typed', async ({ page }, t
   await page.screenshot({ path: testInfo.outputPath('cancelling-handler.png') });
   await expect(game).toHaveText('wasd');
   await expect(game).toBeFocused();
-  expect(await composerText(composer)).toBe('');
+  await expect(composer.locator('[data-slate-string]')).toHaveCount(0);
 });
 
 test('a letter typed on the timeline starts a message in the composer', async ({
@@ -98,5 +92,5 @@ test('a letter typed on the timeline starts a message in the composer', async ({
   await page.keyboard.type('hello', { delay: 50 });
   await page.screenshot({ path: testInfo.outputPath('timeline.png') });
   await expect(composer).toBeFocused();
-  await expect.poll(() => composerText(composer)).toBe('hello');
+  await expect(composer).toHaveText('hello');
 });
