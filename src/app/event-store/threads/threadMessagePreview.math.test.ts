@@ -41,6 +41,9 @@ describe('thread previews of math', () => {
       'x sgn(x) + tr A + ln x'
     );
     expect(preview('$a \\cdot b$ for $x_1, x_2 \\in S$')).toBe('a ⋅ b for x_1, x_2 ∈ S');
+    expect(preview('$\\text{CO}_2$, $9.8\\,\\text{m/s}^2$ and $\\mathrm{SO}_4^{2-}$')).toBe(
+      'CO_2, 9.8 m/s^2 and SO_4^(2-)'
+    );
   });
 
   it('keep the parts of fractions, roots and scripts together', () => {
