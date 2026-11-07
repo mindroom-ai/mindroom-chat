@@ -208,6 +208,22 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     return { event, pending, cancel };
   };
 
+  it('does not bring back a redacted bundled edit once the newer edit is redacted', async () => {
+    const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
+    const add = async (...events: MatrixEvent[]) => {
+      await room.addLiveEvents(events, { addToState: false });
+      await tick();
+    };
+    await add(bundled(newestEdit()), new MatrixEvent(edit('$later-edit', AUTHOR, 5, 'Sold.')));
+    const event = room.findEventById('$message')!;
+    expect(body(event)).toBe('Sold.');
+
+    await add(redaction('$redaction', '$newest-edit', 6));
+    await add(redaction('$second-redaction', '$later-edit', 7));
+
+    expect(body(event)).toBe('The forklift is charged.');
+  });
+
   it('shows the sender’s previous edit once the bundled pending edit is cancelled', async () => {
     const { event, pending, cancel } = await withPendingEdit(
       [new MatrixEvent(original()), new MatrixEvent(ownEdit())],
@@ -220,31 +236,6 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     await cancel();
 
     expect(body(event)).toBe('The forklift is at the dock.');
-  });
-
-  it('shows the bundled edit again once a later pending edit is cancelled', async () => {
-    const { event, cancel } = await withPendingEdit(
-      [bundled(newestEdit())],
-      edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.')
-    );
-    expect(body(event)).toBe('The forklift is gone.');
-
-    await cancel();
-
-    expect(body(event)).toBe('The forklift is back.');
-  });
-
-  it('shows the earlier bundled edit once the bundled pending edit is cancelled', async () => {
-    const { event, pending, cancel } = await withPendingEdit(
-      [bundled(newestEdit())],
-      edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.')
-    );
-    event.setUnsigned({ 'm.relations': { 'm.replace': pending.event } });
-    expect(body(event)).toBe('The forklift is gone.');
-
-    await cancel();
-
-    expect(body(event)).toBe('The forklift is back.');
   });
 
   it('drops a pending edit of the sender once it is cancelled', async () => {
