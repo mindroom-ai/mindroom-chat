@@ -98,7 +98,8 @@ test('agents publish their room state in a room made with Create Room', async ({
   // auto-approve window in it, which the router publishes.
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   await mentionHelper(page, stack, 'tag this thread #tag');
-  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 90_000 });
+  const banner = page.locator('[data-thread-context-banner]');
+  await expect(banner).toBeVisible({ timeout: 90_000 });
   await mentionHelper(page, stack, 'run the export #job');
   await sendFromComposer(page, '!auto_approve 30');
 
@@ -119,7 +120,6 @@ test('agents publish their room state in a room made with Create Room', async ({
   expect(roomLog(stack, roomId).filter((line) => REFUSED_WRITE.test(line))).toEqual([]);
 
   // The open thread shows the helper's tag.
-  const banner = page.locator('[data-thread-context-banner]');
   await expect(banner.getByRole('button', { name: 'Remove stub-tag tag' })).toBeVisible({
     timeout: 30_000,
   });
