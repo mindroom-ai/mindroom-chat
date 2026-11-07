@@ -1,6 +1,9 @@
 import { keyframes, style, type StyleRule } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import { Header as SidePanelHeader, Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
+import {
+  Header as SidePanelHeader,
+  Panel as SidePanelPanel,
+} from '../ui/panels/SidePanel.css';
 
 const { space, radii, borderWidth } = config;
 
