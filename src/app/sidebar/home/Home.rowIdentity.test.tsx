@@ -36,6 +36,11 @@ vi.mock('../../ui/nav/NavCategoryHeader', () => ({
 vi.mock('../../ui/VirtualTile', () => ({ VirtualTile: passthrough }));
 vi.mock('../../rooms/join/JoinAddressPrompt', () => ({ JoinAddressPrompt: () => null }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
+// The rows under a room read its state, which these rooms do not have.
+vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../room-nav/SubRoomRows')>()),
+  SubRoomRows: () => null,
+}));
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
   // Remembers the room it first showed, as RoomNavItem remembers which prompt is open.
@@ -77,7 +82,8 @@ vi.mock('../../ui/nav/navScrollMemory', () => ({
     measureElement: () => undefined,
   }),
 }));
-vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
+vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useRoomsNotificationPreferences')>()),
   getRoomNotificationMode: () => undefined,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));

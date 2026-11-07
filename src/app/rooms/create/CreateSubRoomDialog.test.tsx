@@ -81,7 +81,9 @@ describe('CreateSubRoomDialog', () => {
     });
     const root = renderer!.root;
 
-    act(() => root.findByType('input').props.onChange({ currentTarget: { value: 'Ideas' } }));
+    act(() => {
+      root.findByType('input').props.onChange({ currentTarget: { value: 'Ideas' } });
+    });
     await act(async () => root.findByType('form').props.onSubmit({ preventDefault: vi.fn() }));
 
     const request = createRoom.mock.calls[0]?.[0];

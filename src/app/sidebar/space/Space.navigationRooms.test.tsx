@@ -81,6 +81,11 @@ vi.mock('../../ui/nav/NavCategoryHeader', () => ({
   NavCategoryHeader: passthrough,
 }));
 vi.mock('../room-nav/RoomNavCategoryButton', () => ({ RoomNavCategoryButton: passthrough }));
+// The rows under a room read its state, which these rooms do not have.
+vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../room-nav/SubRoomRows')>()),
+  SubRoomRows: () => null,
+}));
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
   SortableRoomRow: ({ room }: { room: { roomId: string } }) => <div data-row-room={room.roomId} />,
@@ -104,7 +109,8 @@ vi.mock('../../matrix/hooks/useRoomCreators', () => ({ useRoomCreators: () => ne
 vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({ action: () => false }),
 }));
-vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', () => ({
+vi.mock('../../matrix/hooks/useRoomsNotificationPreferences', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../matrix/hooks/useRoomsNotificationPreferences')>()),
   getRoomNotificationMode: () => undefined,
   useRoomsNotificationPreferencesContext: () => ({}),
 }));
