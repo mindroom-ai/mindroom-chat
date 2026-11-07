@@ -90,7 +90,11 @@ const readFormula = (tex: string): string | undefined => {
     const joins = (brackets = false): boolean => {
       let at = index;
       let next = nodes[at];
-      while (typeof next === 'string' && next.startsWith('\\') && SILENT_COMMAND.test(next.slice(1))) {
+      while (
+        typeof next === 'string' &&
+        next.startsWith('\\') &&
+        SILENT_COMMAND.test(next.slice(1))
+      ) {
         at += 1;
         next = nodes[at];
       }
