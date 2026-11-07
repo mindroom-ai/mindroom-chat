@@ -4,6 +4,7 @@ import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import { conversationOutOfSightAtom } from '../navigation/conversationCover';
 import type { AgentServer } from '../computer/agentServer';
 import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import * as membersDrawer from '../members/useMembersDrawer';
@@ -37,6 +38,8 @@ const { mx, room, state } = vi.hoisted(() => {
       servers: [] as AgentServer[],
       bindsOpenIdTokens: false,
       view: undefined as RoomViewProps | undefined,
+      /** How many times the conversation mounted. */
+      mounts: 0,
       computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       canvas: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
       roomId: '!room:example.org',
@@ -64,12 +67,17 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({}),
   useSearchParams: () => [new URLSearchParams('threadId=%24thread')],
 }));
-vi.mock('./RoomView', () => ({
-  RoomView: (props: RoomViewProps) => {
-    state.view = props;
-    return <div data-testid="room-view" />;
-  },
-}));
+vi.mock('./RoomView', async () => {
+  const { useState } = await vi.importActual<typeof import('react')>('react');
+  return {
+    RoomView: (props: RoomViewProps) => {
+      state.view = props;
+      // Which mount of the conversation this is: one that stays keeps its draft and recording.
+      const [mount] = useState(() => (state.mounts += 1));
+      return <div data-testid="room-view" data-mount={mount} />;
+    },
+  };
+});
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
 vi.mock('../members/useMembersDrawer', async () => {
   const { atom, useAtom } = await vi.importActual<typeof import('jotai')>('jotai');
@@ -259,6 +267,7 @@ describe('the side panels of a room', () => {
     state.servers = [];
     state.bindsOpenIdTokens = false;
     state.view = undefined;
+    state.mounts = 0;
     state.computer = undefined;
     state.canvas = undefined;
     state.roomId = room.roomId;
@@ -396,14 +405,25 @@ describe('the side panels of a room', () => {
     await renderRoom(ScreenSize.Mobile);
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
     expect(notes()).not.toBeNull();
-    expect(screen.queryByTestId('room-view')).toBeNull();
+    expect(hidden()).toBe(true);
     expect(screen.queryByRole('button', { name: 'Fill the room with Notes' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Fold Notes to the edge' })).toBeNull();
     await act(async () => screen.getByRole('button', { name: 'Close Notes' }).click());
-    expect(screen.queryByTestId('room-view')).not.toBeNull();
+    expect(hidden()).toBe(false);
   });
 
-  const conversation = () => screen.queryByTestId('room-view');
+  /**
+   * Whether the conversation is hidden behind the panel shown: out of reach (inert) and out of
+   * sight, so no read receipt goes out for it. Hidden or not, it is the one that first mounted, with
+   * its draft and a recording in progress.
+   */
+  const hidden = () => {
+    const view = screen.getByTestId('room-view');
+    const outOfSight = store.get(conversationOutOfSightAtom);
+    expect(view.dataset.mount).toBe('1');
+    expect(view.parentElement?.inert).toBe(outOfSight);
+    return outOfSight;
+  };
   const frameButton = (name: string) => screen.queryByRole('button', { name });
 
   /** Opens or closes a panel with a frame as its users do: the call from the call store. */
@@ -426,16 +446,17 @@ describe('the side panels of a room', () => {
       await toggleFramed(id);
       expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('false');
 
-      // Filling the room, the panel takes the conversation's place until Fill is pressed again.
+      // Filling the room, the panel takes the conversation's place until Fill is pressed again;
+      // the conversation stays under it as it was.
       await act(async () => frameButton(fill)?.click());
-      expect(conversation()).toBeNull();
+      expect(hidden()).toBe(true);
       expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('true');
       await act(async () => frameButton(fill)?.click());
-      expect(conversation()).not.toBeNull();
+      expect(hidden()).toBe(false);
 
       // Folded, it stays open as a tab at the room's edge beside the whole conversation.
       await act(async () => frameButton(fold)?.click());
-      expect(conversation()).not.toBeNull();
+      expect(hidden()).toBe(false);
       expect(frameButton(unfold)).not.toBeNull();
       expect(frameButton(fill)).toBeNull();
       expect(state.view?.shownPanel).toBe(id);
@@ -447,7 +468,7 @@ describe('the side panels of a room', () => {
       expect(frameButton(unfold)).not.toBeNull();
       await act(async () => frameButton(unfold)?.click());
       expect(frameButton(fill)?.getAttribute('aria-pressed')).toBe('false');
-      expect(conversation()).not.toBeNull();
+      expect(hidden()).toBe(false);
 
       // Opened again, a panel shows beside the conversation.
       await act(async () => frameButton(fold)?.click());
@@ -463,11 +484,11 @@ describe('the side panels of a room', () => {
     await act(async () =>
       screen.getByRole('button', { name: 'Fill the room with Computer' }).click()
     );
-    expect(conversation()).toBeNull();
+    expect(hidden()).toBe(true);
     // The frame and the computer's own Expand share the layout.
     expect(state.computer?.expanded).toBe(true);
     await act(async () => state.computer?.onToggleExpanded?.());
-    expect(conversation()).not.toBeNull();
+    expect(hidden()).toBe(false);
     expect(frameButton('Fill the room with Computer')?.getAttribute('aria-pressed')).toBe('false');
   });
 
@@ -477,14 +498,14 @@ describe('the side panels of a room', () => {
     await act(async () => state.computer?.onToggleExpanded?.());
     await agentRequest('show_computer');
     expect(state.computer?.expanded).toBe(true);
-    expect(conversation()).toBeNull();
+    expect(hidden()).toBe(true);
 
     await open('canvas');
     await act(async () => state.canvas?.onToggleExpanded?.());
-    expect(conversation()).toBeNull();
+    expect(hidden()).toBe(true);
     await open('canvas');
     expect(state.canvas?.expanded).toBe(false);
-    expect(conversation()).not.toBeNull();
+    expect(hidden()).toBe(false);
   });
 
   it('gives the members no frame: their header button shows and hides them', async () => {
