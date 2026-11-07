@@ -532,6 +532,7 @@
     "cancelReply": "返信をキャンセル",
     "moreActions": "その他の操作",
     "lostFiles": "この下書きでは保持されませんでした: {{files}}。送信する前にもう一度添付してください。",
+    "lostPastes": "貼り付けたテキストはこの下書きに保持されませんでした。送信する前にもう一度貼り付けてください。",
     "dismissLostFiles": "閉じる"
   },
   "commandPalette": {

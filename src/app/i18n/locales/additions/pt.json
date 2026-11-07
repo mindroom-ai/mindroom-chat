@@ -552,6 +552,7 @@
     "cancelReply": "Cancelar resposta",
     "moreActions": "Mais ações",
     "lostFiles": "Não mantidos com este rascunho: {{files}}. Anexe-os novamente antes de enviar.",
+    "lostPastes": "O texto colado não foi mantido com este rascunho. Cole-o novamente antes de enviar.",
     "dismissLostFiles": "Dispensar"
   },
   "commandPalette": {

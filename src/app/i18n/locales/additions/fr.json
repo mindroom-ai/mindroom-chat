@@ -552,6 +552,7 @@
     "cancelReply": "Annuler la réponse",
     "moreActions": "Plus d’actions",
     "lostFiles": "Non conservés avec ce brouillon : {{files}}. Joignez-les à nouveau avant l’envoi.",
+    "lostPastes": "Le texte collé n’a pas été conservé avec ce brouillon. Collez-le à nouveau avant l’envoi.",
     "dismissLostFiles": "Ignorer"
   },
   "commandPalette": {

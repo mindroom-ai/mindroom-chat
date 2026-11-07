@@ -144,6 +144,37 @@ const lostFilesStyle = (): React.CSSProperties => ({
   paddingBlockEnd: config.space.S200,
 });
 
+/** A warning above the composer about what a reload could not keep, until dismissed. */
+function LostNotice({
+  text,
+  dismissLabel,
+  onDismiss,
+}: {
+  text: string;
+  dismissLabel: string;
+  onDismiss: () => void;
+}) {
+  return (
+    <Box role="status" alignItems="Center" gap="200" style={lostFilesStyle()}>
+      <Icon size="100" src={Icons.Warning} style={{ flexShrink: 0 }} />
+      <Text size="T300" style={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
+        {text}
+      </Text>
+      {/* A long list of names wraps; the button keeps its size beside it. */}
+      <IconButton
+        style={{ flexShrink: 0 }}
+        size="300"
+        radii="300"
+        variant="SurfaceVariant"
+        aria-label={dismissLabel}
+        onClick={onDismiss}
+      >
+        <Icon size="50" src={Icons.Cross} />
+      </IconButton>
+    </Box>
+  );
+}
+
 type ComposerIconButtonProps = {
   label: string;
   icon: IconSrc;
@@ -295,6 +326,7 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       fileDropContainerRef,
       createUploadItems,
     });
+    const { settlePastes, dismissLostPastes } = attachments;
     const transport = useRoomInputUploadTransport(mx, store, room);
 
     const clearReplyDraft = useCallback(
@@ -429,10 +461,16 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
         await runActingCommand(acting);
         return;
       }
+      // A paste chip whose text a reload lost leaves the draft with a notice instead of sending.
+      const settled = settlePastes();
+      if (settled !== true && !(await settled)) return;
       if (holdForRoot({ kind: 'message' })) return;
       const textContent = buildTextContent();
-      // Sending the text answers the notice of files a reload lost.
-      if (textContent) dismissLostFiles();
+      // Sending the text answers the notices of files and pastes a reload lost.
+      if (textContent) {
+        dismissLostFiles();
+        dismissLostPastes();
+      }
       setSubmitPending(true);
       try {
         if (await voice.submitIfActive(textContent)) return;
@@ -447,11 +485,13 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
       buildTextContent,
       commands,
       dismissLostFiles,
+      dismissLostPastes,
       editor,
       holdForRoot,
       runActingCommand,
       sendTypingStatus,
       sessions,
+      settlePastes,
       t,
       voice,
     ]);
@@ -645,23 +685,18 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
           </Text>
         )}
         {lostFileNames.length > 0 && (
-          <Box role="status" alignItems="Center" gap="200" style={lostFilesStyle()}>
-            <Icon size="100" src={Icons.Warning} style={{ flexShrink: 0 }} />
-            <Text size="T300" style={{ flexGrow: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
-              {t('composer.lostFiles', { files: lostFileNames.join(', ') })}
-            </Text>
-            {/* A long list of names wraps; the button keeps its size beside it. */}
-            <IconButton
-              style={{ flexShrink: 0 }}
-              size="300"
-              radii="300"
-              variant="SurfaceVariant"
-              aria-label={t('composer.dismissLostFiles')}
-              onClick={dismissLostFiles}
-            >
-              <Icon size="50" src={Icons.Cross} />
-            </IconButton>
-          </Box>
+          <LostNotice
+            text={t('composer.lostFiles', { files: lostFileNames.join(', ') })}
+            dismissLabel={t('composer.dismissLostFiles')}
+            onDismiss={dismissLostFiles}
+          />
+        )}
+        {attachments.lostPastes && (
+          <LostNotice
+            text={t('composer.lostPastes')}
+            dismissLabel={t('composer.dismissLostFiles')}
+            onDismiss={attachments.dismissLostPastes}
+          />
         )}
         {voice.renderRecorder(() => void handleSend())}
         <CustomEditor

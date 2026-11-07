@@ -532,6 +532,7 @@
     "cancelReply": "取消回复",
     "moreActions": "更多操作",
     "lostFiles": "未随此草稿保留：{{files}}。发送前请重新添加附件。",
+    "lostPastes": "粘贴的文本未随此草稿保留。发送前请重新粘贴。",
     "dismissLostFiles": "关闭"
   },
   "commandPalette": {

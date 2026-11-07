@@ -552,6 +552,7 @@
     "cancelReply": "Annulla risposta",
     "moreActions": "Altre azioni",
     "lostFiles": "Non conservati con questa bozza: {{files}}. Allegali di nuovo prima di inviare.",
+    "lostPastes": "Il testo incollato non è stato conservato con questa bozza. Incollalo di nuovo prima di inviare.",
     "dismissLostFiles": "Ignora"
   },
   "commandPalette": {

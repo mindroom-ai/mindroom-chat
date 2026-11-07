@@ -532,6 +532,7 @@
     "cancelReply": "Batalkan balasan",
     "moreActions": "Tindakan lainnya",
     "lostFiles": "Tidak disimpan bersama draf ini: {{files}}. Lampirkan lagi sebelum mengirim.",
+    "lostPastes": "Teks yang ditempel tidak disimpan bersama draf ini. Tempel lagi sebelum mengirim.",
     "dismissLostFiles": "Tutup"
   },
   "commandPalette": {

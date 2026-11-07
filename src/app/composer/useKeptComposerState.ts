@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useState } from 'react';
 import { useAtomValue, useStore } from 'jotai';
+import { isPasteFileName } from '../matrix/protocol/pasteAttachmentMarker';
 import {
   keepReplyDraft,
   keepStagedFileNames,
@@ -19,12 +20,16 @@ type KeptComposerState = {
 /**
  * What a room's composer keeps across a reload besides its text: the message being replied to
  * comes back, and the files staged before, which cannot be kept, are named, so nobody sends the
- * text alone without noticing.
+ * text alone without noticing. Large pastes are not among them: their text is kept with the draft
+ * (`keptPastes.ts`), and the composer's attachments put them back.
  */
 export const useKeptComposerState = (userId: string, roomId: string): KeptComposerState => {
   const store = useStore();
   const itemsAtom = roomIdToUploadItemsAtomFamily(roomId);
-  const stagedCount = useAtomValue(itemsAtom).length;
+  // Pastes the composer puts back do not answer the notice of the other files.
+  const stagedCount = useAtomValue(itemsAtom).filter(
+    (item) => !isPasteFileName(item.originalFile.name)
+  ).length;
 
   // Before the first paint, so the reply bar shows with the restored text.
   useLayoutEffect(() => {
@@ -38,7 +43,8 @@ export const useKeptComposerState = (userId: string, roomId: string): KeptCompos
   // Names kept while nothing is staged here are files the page before had.
   useLayoutEffect(() => {
     const staged = store.get(roomIdToUploadItemsAtomFamily(roomId)).length > 0;
-    setLost({ roomId, names: userId && !staged ? readKeptFileNames(userId, roomId) : [] });
+    const kept = userId && !staged ? readKeptFileNames(userId, roomId) : [];
+    setLost({ roomId, names: kept.filter((name) => !isPasteFileName(name)) });
   }, [roomId, store, userId]);
   // Attaching files again answers the notice.
   useEffect(() => {

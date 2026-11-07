@@ -10,23 +10,21 @@ import {
 } from 'react';
 import { useAtomValue, useStore } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
-import type { Descendant, Editor } from 'slate';
+import { Transforms, type Descendant, type Editor } from 'slate';
 import { moveCursor } from '../editor/utils';
 import { toMatrixCustomHTML, toPlainText } from '../editor/output';
-import {
-  UploadBoard,
-  UploadBoardContent,
-  UploadBoardHeader,
-} from './upload/UploadBoard';
+import { UploadBoard, UploadBoardContent, UploadBoardHeader } from './upload/UploadBoard';
 import { UploadCardRenderer } from './upload/UploadCardRenderer';
 import { useFileDropZone } from '../lib/hooks/useFileDrop';
 import { useFilePicker } from '../lib/hooks/useFilePicker';
 import {
+  getRoomInputDraftKey,
   roomIdToMsgDraftAtomFamily,
   keepStagedFileNames,
   roomIdToUploadItemsAtomFamily,
   roomUploadAtomFamily,
 } from './roomInputDrafts';
+import { forgetPastesOutsideDraft, keepPasteText, readKeptPasteTexts } from './keptPastes';
 import {
   createUploadFamilyObserverAtom,
   type TUploadItem,
@@ -40,12 +38,14 @@ import {
   createPasteId,
   createPasteMarker,
   getPasteFileName,
+  getPasteIdFromFileName,
 } from '../matrix/protocol/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import type { AttachmentSnapshot, RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
+  isRoomInputPasteMarkerElement,
 } from './RoomInputExtensions';
 
 type CreateRoomInputUploadItems = (
@@ -76,9 +76,22 @@ type RoomInputAttachments = {
   onEditorChange: () => void;
   pickFiles: () => void;
   dropZoneVisible: boolean;
+  /** A paste chip of the draft lost its text in a reload and left the draft. */
+  lostPastes: boolean;
+  /** Hides the lost pastes' notice. */
+  dismissLostPastes: () => void;
+  /**
+   * Before a send: gives each paste chip without its file the text kept for it, or takes the chip
+   * out of the draft with the notice. False when a chip went, so the person sees what changed;
+   * true at once when every chip has its file.
+   */
+  settlePastes: () => true | Promise<boolean>;
 };
 
 const isPasteItem = (item: TUploadItem): boolean => !!item.metadata.mindroomPasteAttachment;
+
+const pasteFileNameOf = (item: TUploadItem): string | undefined =>
+  item.metadata.mindroomPasteAttachment?.fileName;
 
 /** The same array while it holds the same files, so observers built from it stay put. */
 const useStableFiles = (files: TUploadContent[]): TUploadContent[] => {
@@ -310,6 +323,106 @@ export const useRoomInputAttachments = ({
     );
   }, [access]);
 
+  // Large pastes keep their text with the draft (keptPastes.ts), so a draft that comes back after
+  // a reload gets its paste files back. A chip whose text was not kept leaves the draft with a
+  // notice: no chip sends without its file. Restores run one after another.
+  const [lostPastes, setLostPastes] = useState(false);
+  const pasteRestores = useRef({ last: Promise.resolve(true), pending: 0 });
+  // The paste chips in the editor whose file is not staged.
+  const missingPastes = useCallback((): string[] => {
+    const staged = new Set(access.snapshot().staged.map(pasteFileNameOf));
+    return [...getRoomInputPasteMarkerFileNames(current.current.editor.children)].filter(
+      (fileName) => !staged.has(fileName)
+    );
+  }, [access]);
+  const restorePastes = useCallback((): Promise<boolean> => {
+    const restore = async (): Promise<boolean> => {
+      const { roomId: restoreRoomId, draftKey: restoreDraftKey } = current.current;
+      const wanted = missingPastes();
+      if (wanted.length === 0 || !userId) return true;
+      const texts = await readKeptPasteTexts(userId, wanted);
+      const items = await createUploadItems(
+        [...texts].map(([fileName, text]) => new File([text], fileName, { type: 'text/plain' })),
+        (file) => ({
+          markedAsSpoiler: false,
+          mindroomPasteAttachment: {
+            id: getPasteIdFromFileName(file.name) ?? file.name,
+            chars: texts.get(file.name)?.length ?? 0,
+            fileName: file.name,
+          },
+        })
+      );
+      const {
+        roomId: activeRoomId,
+        draftKey: activeDraftKey,
+        editor: activeEditor,
+      } = current.current;
+      if (
+        !mounted.current ||
+        activeRoomId !== restoreRoomId ||
+        activeDraftKey !== restoreDraftKey
+      ) {
+        return true;
+      }
+      const stillMissing = new Set(missingPastes());
+      const usable = items.filter(
+        (item) => !item.prepError && stillMissing.has(pasteFileNameOf(item) ?? '')
+      );
+      access.append(activeRoomId, usable);
+      usable.forEach((item) => stillMissing.delete(pasteFileNameOf(item) ?? ''));
+      if (stillMissing.size === 0) return true;
+      Transforms.removeNodes(activeEditor, {
+        at: [],
+        match: (node) => isRoomInputPasteMarkerElement(node) && stillMissing.has(node.fileName),
+      });
+      setLostPastes(true);
+      return false;
+    };
+    const restores = pasteRestores.current;
+    restores.pending += 1;
+    const next = restores.last.then(restore, restore).finally(() => {
+      restores.pending -= 1;
+    });
+    restores.last = next.catch(() => true);
+    return next;
+  }, [access, createUploadItems, missingPastes, userId]);
+  const restorePastesRef = useRef(restorePastes);
+  restorePastesRef.current = restorePastes;
+
+  // The draft this composer shows now, restored from storage after a reload above all.
+  useEffect(() => {
+    setLostPastes(false);
+    restorePastesRef
+      .current()
+      .then(() => {
+        const {
+          roomId: activeRoomId,
+          draftKey: activeDraftKey,
+          editor: activeEditor,
+        } = current.current;
+        if (!userId || !mounted.current || activeRoomId !== roomId || activeDraftKey !== draftKey) {
+          return undefined;
+        }
+        // The texts of pastes the draft no longer holds (sent, or deleted) are not needed again.
+        return forgetPastesOutsideDraft(
+          userId,
+          draftKey ?? getRoomInputDraftKey(userId, roomId),
+          getRoomInputPasteMarkerFileNames(activeEditor.children)
+        );
+      })
+      .catch(() => undefined);
+  }, [draftKey, roomId, userId]);
+
+  // Synchronous when there is nothing to settle, so a plain send starts in the same task.
+  const settlePastes = useCallback(
+    (): true | Promise<boolean> =>
+      pasteRestores.current.pending === 0 && missingPastes().length === 0
+        ? true
+        : restorePastesRef.current(),
+    [missingPastes]
+  );
+  const dismissLostPastes = useCallback(() => setLostPastes(false), []);
+
   const stageFiles = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return;
@@ -344,6 +457,12 @@ export const useRoomInputAttachments = ({
             raw: createPasteMarker(marker),
           }) as Descendant);
 
+      // The text is kept with the draft too, so a reload does not lose it.
+      if (!item.prepError && userId) {
+        const keptDraftKey = pasteDraftKey ?? getRoomInputDraftKey(userId, pasteRoomId);
+        keepPasteText(userId, keptDraftKey, fileName, text).catch(() => undefined);
+      }
+
       if (current.current.roomId === pasteRoomId && current.current.draftKey === pasteDraftKey) {
         access.append(pasteRoomId, items);
         const activeEditor = current.current.editor;
@@ -370,7 +489,7 @@ export const useRoomInputAttachments = ({
       }
       notify();
     },
-    [access, createUploadItems, keepNames, notify, store]
+    [access, createUploadItems, keepNames, notify, store, userId]
   );
 
   const onPaste = useCallback(
@@ -474,5 +593,15 @@ export const useRoomInputAttachments = ({
       </UploadBoard>
     ) : null;
 
-  return { access, board, onPaste, onEditorChange, pickFiles, dropZoneVisible };
+  return {
+    access,
+    board,
+    onPaste,
+    onEditorChange,
+    pickFiles,
+    dropZoneVisible,
+    lostPastes,
+    dismissLostPastes,
+    settlePastes,
+  };
 };
