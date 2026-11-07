@@ -116,9 +116,22 @@ export const resolveThreadPresentationSnapshot = ({
   fallbackLatestReplyTs,
   fallbackLastActivityTs,
 }: ResolveThreadPresentationSnapshotOptions): ThreadPresentationSnapshot => {
-  const bundled = getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
+  const bundle = getBundledThreadPreviews(room, rootEvent ?? thread?.rootEvent);
   const cachedReplyTs = fallbackLatestReplyTs ?? fallbackLastActivityTs;
   const replyEvents = visibleReplyEvents ?? getPreferredVisibleThreadReplyEvents(thread);
+  // A root fetched earlier keeps the server's previews of that moment. Once this device knows a
+  // newer thread event, or a newer revision of the bundle's latest one, its reply is out of date.
+  const bundleLatest = bundle.latest;
+  const outgrown =
+    !!bundleLatest &&
+    [...replyEvents, thread?.replyToEvent].some(
+      (event) =>
+        !!event &&
+        (event.getId() === bundleLatest.id
+          ? getThreadPreviewRevisionTs(event) > bundleLatest.ts
+          : event.getTs() > bundleLatest.ts)
+    );
+  const bundled = { title: bundle.title, reply: outgrown ? undefined : bundle.reply };
   const loadedPreviewCandidate = getLatestRenderableVisibleThreadReplyEvent(
     bundled.reply ? replyEvents.filter((event) => !isThreadSummaryEvent(event)) : replyEvents
   );
