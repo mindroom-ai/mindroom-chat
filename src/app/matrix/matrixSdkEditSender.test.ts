@@ -7,6 +7,7 @@ import {
   type IEvent,
 } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
+import { getEditedEvent, getLatestMessageContent } from './room';
 
 // Only a message's sender can edit it (Matrix specification, "Event replacements"). The SDK's own
 // aggregation of live edits ignores another sender's edit, and our SDK patch makes
@@ -56,6 +57,11 @@ const bundled = (replacement: Partial<IEvent>) =>
 const body = (event: MatrixEvent) => event.getContent().body as unknown;
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** The text the timeline renders for the message, which also reads the edit bundled with it. */
+const rendered = (room: Room, event: MatrixEvent) =>
+  getLatestMessageContent(event, getEditedEvent('$message', event, room.getUnfilteredTimelineSet()))
+    .body as unknown;
 
 const live = async (...events: MatrixEvent[]) => {
   const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
@@ -182,11 +188,27 @@ describe('SDK edits older than the sender’s bundled edit', () => {
 
     await add(redaction('$redaction', '$newest-edit', 5));
     expect(body(event)).toBe('The forklift is at the dock.');
+    expect(rendered(room, event)).toBe('The forklift is at the dock.');
     expect(event.replacingEvent()?.getId()).toBe('$own-edit');
 
     await add(redaction('$second-redaction', '$own-edit', 6));
     expect(event.replacingEvent()).toBeNull();
     expect(body(event)).toBe('The forklift is charged.');
+    expect(rendered(room, event)).toBe('The forklift is charged.');
+  });
+
+  it('keeps the bundled edit when an older edit of the sender is redacted', async () => {
+    const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
+    const add = async (...events: MatrixEvent[]) => {
+      await room.addLiveEvents(events, { addToState: false });
+      await tick();
+    };
+    await add(bundled(newestEdit()), new MatrixEvent(ownEdit()));
+    await add(redaction('$redaction', '$own-edit', 5));
+    const event = room.findEventById('$message')!;
+
+    expect(body(event)).toBe('The forklift is back.');
+    expect(rendered(room, event)).toBe('The forklift is back.');
   });
 
   /** The message after `events` arrive live, with the sender's edit `raw` pending on it. */
@@ -205,7 +227,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
       room.updatePendingEvent(pending, EventStatus.CANCELLED);
       await tick();
     };
-    return { event, pending, cancel };
+    return { room, event, pending, cancel };
   };
 
   it('does not bring back a redacted bundled edit once the newer edit is redacted', async () => {
@@ -225,7 +247,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
   });
 
   it('shows the sender’s previous edit once the bundled pending edit is cancelled', async () => {
-    const { event, pending, cancel } = await withPendingEdit(
+    const { room, event, pending, cancel } = await withPendingEdit(
       [new MatrixEvent(original()), new MatrixEvent(ownEdit())],
       edit('~pending-edit', AUTHOR, 4, 'The forklift is back.')
     );
@@ -236,6 +258,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     await cancel();
 
     expect(body(event)).toBe('The forklift is at the dock.');
+    expect(rendered(room, event)).toBe('The forklift is at the dock.');
   });
 
   it('drops a pending edit of the sender once it is cancelled', async () => {

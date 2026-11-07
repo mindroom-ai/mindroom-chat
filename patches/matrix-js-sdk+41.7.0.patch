@@ -3396,22 +3396,26 @@ index 19a2f43..d7c247c 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..1da7b1e 100644
+index 6be66bb..c5aed05 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
-@@ -291,7 +291,10 @@ export class Relations extends TypedEventEmitter {
-       // the all-knowning server tells us that the event at some point had
-       // this timestamp for its replacement, so any following replacement should definitely not be less
-       var replaceRelation = _this4.targetEvent.getServerAggregatedRelation(RelationType.Replace);
--      var minTs = replaceRelation === null || replaceRelation === void 0 ? void 0 : replaceRelation.origin_server_ts;
-+      // MindRoom: only while that replacement is not one of these relations. Once it is, they decide
-+      // alone, so after it is redacted or cancelled the sender's older edits count again.
-+      var bundledId = replaceRelation === null || replaceRelation === void 0 ? void 0 : replaceRelation.event_id;
-+      var minTs = bundledId && _this4.relationEventIds.has(bundledId) ? undefined : replaceRelation === null || replaceRelation === void 0 ? void 0 : replaceRelation.origin_server_ts;
-       var lastReplacement = _this4.getRelations().reduce((last, event) => {
-         if (event.getSender() !== _this4.targetEvent.getSender()) {
-           return last;
-@@ -357,6 +360,15 @@ export class Relations extends TypedEventEmitter {
+@@ -102,6 +102,7 @@ export class Relations extends TypedEventEmitter {
+           // Remove the redacted annotation from aggregation by key
+           _this.removeAnnotationFromAggregation(redactedEvent);
+         } else if (_this.relationType === RelationType.Replace) {
++          _this.dropBundledEdit(redactedEvent);
+           yield _this.updateTargetEventReplacement();
+         }
+         redactedEvent.removeListener(MatrixEventEvent.BeforeRedaction, _this.onBeforeRedaction);
+@@ -170,6 +171,7 @@ export class Relations extends TypedEventEmitter {
+       if (_this3.relationType === RelationType.Annotation) {
+         _this3.removeAnnotationFromAggregation(event);
+       } else if (_this3.relationType === RelationType.Replace) {
++        _this3.dropBundledEdit(event);
+         yield _this3.updateTargetEventReplacement();
+       }
+       _this3.emit(RelationsEvent.Remove, event);
+@@ -357,9 +359,33 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -3427,23 +3431,45 @@ index 6be66bb..1da7b1e 100644
        targetEvent.makeReplaced(lastReplacement !== null && lastReplacement !== void 0 ? lastReplacement : undefined);
      })();
    }
++  /**
++   * MindRoom: a redacted or cancelled edit is no longer the edit bundled with the target event, so
++   * its time stops hiding the sender's older edits and nothing reads it from the bundle any more.
++   */
++  dropBundledEdit(edit) {
++    var _this$targetEvent, _relations$RelationTy;
++    var unsigned = (_this$targetEvent = this.targetEvent) === null || _this$targetEvent === void 0 ? void 0 : _this$targetEvent.getUnsigned();
++    var relations = unsigned === null || unsigned === void 0 ? void 0 : unsigned["m.relations"];
++    if (!unsigned || (relations === null || relations === void 0 || (_relations$RelationTy = relations[RelationType.Replace]) === null || _relations$RelationTy === void 0 ? void 0 : _relations$RelationTy.event_id) !== edit.getId()) return;
++    var rest = Object.assign({}, relations);
++    delete rest[RelationType.Replace];
++    this.targetEvent.setUnsigned(Object.assign({}, unsigned, {
++      "m.relations": rest
++    }));
++  }
+   maybeEmitCreated() {
+     if (this.creationEmitted) {
+       return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..a400a0d 100644
+index 77ba3b3..054a5e2 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
-@@ -307,7 +307,10 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
-         // the all-knowning server tells us that the event at some point had
-         // this timestamp for its replacement, so any following replacement should definitely not be less
-         const replaceRelation = this.targetEvent.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
--        const minTs = replaceRelation?.origin_server_ts;
-+        // MindRoom: only while that replacement is not one of these relations. Once it is, they decide
-+        // alone, so after it is redacted or cancelled the sender's older edits count again.
-+        const bundledId = replaceRelation?.event_id;
-+        const minTs = bundledId && this.relationEventIds.has(bundledId) ? undefined : replaceRelation?.origin_server_ts;
+@@ -133,6 +133,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+         if (this.relationType === RelationType.Annotation) {
+             this.removeAnnotationFromAggregation(event);
+         } else if (this.relationType === RelationType.Replace) {
++            this.dropBundledEdit(event);
+             await this.updateTargetEventReplacement();
+         }
  
-         const lastReplacement = this.getRelations().reduce<MatrixEvent | null>((last, event) => {
-             if (event.getSender() !== this.targetEvent!.getSender()) {
-@@ -374,6 +377,15 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -243,6 +244,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+             // Remove the redacted annotation from aggregation by key
+             this.removeAnnotationFromAggregation(redactedEvent);
+         } else if (this.relationType === RelationType.Replace) {
++            this.dropBundledEdit(redactedEvent);
+             await this.updateTargetEventReplacement();
+         }
+ 
+@@ -374,9 +376,31 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
@@ -3459,6 +3485,22 @@ index 77ba3b3..a400a0d 100644
          targetEvent.makeReplaced(lastReplacement ?? undefined);
      }
  
++    /**
++     * MindRoom: a redacted or cancelled edit is no longer the edit bundled with the target event, so
++     * its time stops hiding the sender's older edits and nothing reads it from the bundle any more.
++     */
++    private dropBundledEdit(edit: MatrixEvent): void {
++        const unsigned = this.targetEvent?.getUnsigned();
++        const relations = unsigned?.["m.relations"];
++        if (!unsigned || relations?.[RelationType.Replace]?.event_id !== edit.getId()) return;
++        const rest = { ...relations };
++        delete rest[RelationType.Replace];
++        this.targetEvent!.setUnsigned({ ...unsigned, "m.relations": rest });
++    }
++
+     private maybeEmitCreated(): void {
+         if (this.creationEmitted) {
+             return;
 diff --git a/node_modules/matrix-js-sdk/lib/event-mapper.js b/node_modules/matrix-js-sdk/lib/event-mapper.js
 index b0db891..4a98359 100644
 --- a/node_modules/matrix-js-sdk/lib/event-mapper.js
