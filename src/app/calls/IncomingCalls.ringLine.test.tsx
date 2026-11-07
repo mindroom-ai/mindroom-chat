@@ -83,7 +83,8 @@ const ring = (sender: string): IncomingRing => ({
 });
 
 function RingLine({ room, sender }: { room: Room; sender: string }) {
-  return <>{useRingLine(room, ring(sender))}</>;
+  const { caller, line } = useRingLine(room, ring(sender));
+  return <>{line(caller)}</>;
 }
 
 let renderer: ReactTestRenderer | undefined;

@@ -8,6 +8,7 @@ import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
 import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { getSenderName } from '../matrix/room';
+import { NameWithUserId } from '../matrix/NameWithUserId';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
@@ -33,19 +34,27 @@ type RingCardProps = {
 };
 
 /**
- * "Maya is calling", or "Maya is calling in Planning" outside a direct chat. The room may be one
- * the user never opened, whose member list is not loaded: until it is, the caller's user ID
- * follows their name, so nobody rings as a member the client has not loaded yet.
+ * The caller's name and the line that names them: "Maya is calling", or "Maya is calling in
+ * Planning" outside a direct chat. The room may be one the user never opened, whose member list
+ * is not loaded: until it is, the caller's user ID follows their name, so nobody rings as a member
+ * the client has not loaded yet.
  */
-export const useRingLine = (room: Room, ring: IncomingRing): string => {
+export const useRingLine = (
+  room: Room,
+  ring: IncomingRing
+): { caller: string; line: (caller: string) => string } => {
   const { t } = useTranslation();
   useLoadedRoomMembers(useMatrixClient(), [room.roomId]);
-  const name = getSenderName(room, ring.sender);
+  const caller = getSenderName(room, ring.sender);
   const roomName = revealDirectionControls(useRoomName(room));
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
-  return direct
-    ? t('featureUi.calls.incoming.calling', { name })
-    : t('featureUi.calls.incoming.callingIn', { name, room: roomName });
+  return {
+    caller,
+    line: (name) =>
+      direct
+        ? t('featureUi.calls.incoming.calling', { name })
+        : t('featureUi.calls.incoming.callingIn', { name, room: roomName }),
+  };
 };
 
 const windowHasFocus = (): boolean => document.visibilityState === 'visible' && document.hasFocus();
@@ -98,7 +107,7 @@ function RingAlerts({
 
 export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: RingCardProps) {
   const { t } = useTranslation();
-  const line = useRingLine(room, ring);
+  const { caller, line } = useRingLine(room, ring);
   return (
     <Surface
       className={css.Card}
@@ -107,7 +116,7 @@ export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: 
       aria-describedby={`incoming-call-${ring.eventId}`}
       data-incoming-call={room.roomId}
     >
-      <RingAlerts ring={ring} line={line} onOpen={onOpen} />
+      <RingAlerts ring={ring} line={line(caller)} onOpen={onOpen} />
       <Box alignItems="Center" gap="300">
         <CallMemberAvatar room={room} userId={ring.sender} size="400" />
         <Box direction="Column" style={{ minWidth: 0 }}>
@@ -116,9 +125,9 @@ export function RingCard({ room, ring, onAnswer, onDecline, onIgnore, onOpen }: 
               ? t('featureUi.calls.incoming.videoCall')
               : t('featureUi.calls.incoming.voiceCall')}
           </Text>
-          <Text id={`incoming-call-${ring.eventId}`} size="H5" truncate>
-            {line}
-          </Text>
+          <Box id={`incoming-call-${ring.eventId}`} wrap="Wrap" gap="100" style={{ rowGap: 0 }}>
+            <NameWithUserId name={caller} userId={ring.sender} text={line} size="H5" />
+          </Box>
         </Box>
       </Box>
       <Box gap="200" justifyContent="End" wrap="Wrap">
