@@ -13,7 +13,7 @@ const failedStartAccountPattern = /Failed to start account/i;
 
 /**
  * The active account's button. A phone has two while its drawer is out, the top bar's and the
- * rail's, which open the same menu; this is the first one shown.
+ * rail's, which open the same menu; this takes the first in the page, the top bar's on a phone.
  */
 export const activeAccountButton = (page: Page) =>
   page.getByRole('button', { name: activeAccountButtonNamePattern }).first();

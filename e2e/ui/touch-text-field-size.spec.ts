@@ -177,7 +177,7 @@ const run = async (browser: Browser, baseURL: string | undefined, engine: string
   expect(await zoomedSize(browser, baseURL), `${engine}: fields follow Page Zoom`).toBe(12);
 };
 
-test('text fields are large enough that iOS does not zoom into them (Chromium)', async ({
+test('text fields on touch screens write at the root size (Chromium)', async ({
   browser,
   baseURL,
 }) => {
@@ -185,9 +185,7 @@ test('text fields are large enough that iOS does not zoom into them (Chromium)',
   await run(browser, baseURL, 'chromium');
 });
 
-test('text fields are large enough that iOS does not zoom into them (WebKit)', async ({
-  baseURL,
-}) => {
+test('text fields on touch screens write at the root size (WebKit)', async ({ baseURL }) => {
   test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
   test.setTimeout(240_000);
   // The runner adds the file's launch options, whose Chromium flag WebKit refuses.
