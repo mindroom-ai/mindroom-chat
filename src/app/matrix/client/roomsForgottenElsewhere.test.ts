@@ -48,6 +48,13 @@ describe('dropRoomsForgottenElsewhere', () => {
 
     client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
     await settle();
+    expect(client.getJoinedRooms).toHaveBeenCalledTimes(1);
+    // The room stays until two more batches from the server have not brought its leave.
+    client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    await settle();
+    expect(client.deleted).toEqual([]);
+    client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    await settle();
     expect(client.deleted).toEqual(['!forgotten:example.org']);
     expect(client.accumulateRooms).toHaveBeenCalledWith({
       rooms: { leave: { '!forgotten:example.org': {} } },
@@ -62,6 +69,32 @@ describe('dropRoomsForgottenElsewhere', () => {
     expect(client.getJoinedRooms).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a room left on another device while the server was asked, which sync then brings as left', async () => {
+    const rooms: FakeRoom[] = [
+      { roomId: '!kept:example.org', membership: KnownMembership.Join },
+      { roomId: '!left:example.org', membership: KnownMembership.Join },
+    ];
+    // Left elsewhere just before the server answered: the answer no longer lists it, and its
+    // leave reaches this client only with a later batch.
+    const client = makeClient(rooms, () => ['!kept:example.org']);
+    dropRoomsForgottenElsewhere(client.mx);
+    client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+    await settle();
+    expect(client.getJoinedRooms).toHaveBeenCalledTimes(1);
+
+    // A batch that the server put together before the leave.
+    client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    await settle();
+    // The next one brings the leave: the SDK keeps the room, with its state, as left.
+    rooms[1]!.membership = KnownMembership.Leave;
+    client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Syncing);
+    await settle();
+    expect(client.deleted).toEqual([]);
+    expect(client.accumulateRooms).not.toHaveBeenCalled();
+    expect(client.store.removeRoom).not.toHaveBeenCalled();
+    expect(rooms.map((room) => room.roomId)).toEqual(['!kept:example.org', '!left:example.org']);
+  });
+
   it('keeps a room joined while the server was asked, and does nothing when all are listed', async () => {
     const rooms: FakeRoom[] = [{ roomId: '!kept:example.org', membership: KnownMembership.Join }];
     const client = makeClient(rooms, () => {
@@ -70,8 +103,11 @@ describe('dropRoomsForgottenElsewhere', () => {
       return ['!kept:example.org'];
     });
     dropRoomsForgottenElsewhere(client.mx);
-    client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
-    await settle();
+    for (let batch = 0; batch < 3; batch += 1) {
+      client.emitter.emit(ClientEvent.Sync, SyncState.Syncing, SyncState.Prepared);
+      // eslint-disable-next-line no-await-in-loop
+      await settle();
+    }
     expect(client.deleted).toEqual([]);
     expect(client.accumulateRooms).not.toHaveBeenCalled();
     expect(client.store.save).not.toHaveBeenCalled();
