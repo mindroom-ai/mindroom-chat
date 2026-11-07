@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { chooseFromAccountMenu, loginWithPassword } from '../helpers/auth';
-import { matrixFetch } from '../helpers/matrix';
+import { createPrivateRoom, matrixFetch } from '../helpers/matrix';
 import { launchWebKit } from '../helpers/webkit';
 
 // Privacy & security while its session list loads: the list is a card with a spinner, right after
@@ -48,14 +48,25 @@ const lookOf = (locator: Locator) =>
 
 const HEADING = { fontSize: '15px', fontWeight: '600', paddingInlineStart: '16px' };
 
-const exercise = async (page: Page) => {
+/** A fresh account signed in on `page`; returns its access token for setting up rooms. */
+const signIn = async (page: Page, room?: string) => {
   await page.setViewportSize(DESKTOP);
   const username = `loadhead_${Date.now().toString(36)}`;
-  await matrixFetch(HOMESERVER, '/register', {
-    method: 'POST',
-    body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
-  });
+  const { access_token: accessToken } = await matrixFetch<{ access_token: string }>(
+    HOMESERVER,
+    '/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({ username, password: PASSWORD, auth: { type: 'm.login.dummy' } }),
+    }
+  );
+  const roomId = room ? await createPrivateRoom(HOMESERVER, accessToken, { name: room }) : '';
   await loginWithPassword(page, { homeserver: HOMESERVER, username, password: PASSWORD });
+  return roomId;
+};
+
+const exercise = async (page: Page) => {
+  await signIn(page);
 
   // Hold the session list until the loading state is measured.
   let release: () => void = () => undefined;
@@ -131,5 +142,37 @@ test('a section in front of a loading card keeps its own style (WebKit)', async 
     await exercise(page);
   } finally {
     await browser.close();
+  }
+});
+
+test("a room's General page keeps its addresses section on the page's edges", async ({ page }) => {
+  test.skip(!(await homeserverIsUp()), `homeserver ${HOMESERVER} is not running`);
+  // The addresses section stands right before the offline card, a card with no heading of its own.
+  const roomId = await signIn(page, 'Project room 1');
+  await page.goto(`/home/${encodeURIComponent(roomId)}`);
+  const roomHeader = page.locator('header').filter({ hasText: 'Project room 1' });
+  await roomHeader.getByRole('button').last().click();
+  await page.getByRole('menuitem', { name: 'Room Settings', exact: true }).click();
+  const content = page.getByRole('dialog').locator('[data-settings-page]');
+  await expect(content.getByText('Published Addresses', { exact: true })).toBeVisible();
+  // Every section of the page's column (a box that holds a card) starts on the column's edge.
+  const sections = await content.evaluate((element) =>
+    [...(element.firstElementChild?.children ?? [])]
+      .filter((child) => child.querySelector('[data-sequence-card]'))
+      .map((child) => ({
+        text: (child.textContent ?? '').trim().slice(0, 40),
+        paddingInlineStart: getComputedStyle(child).paddingInlineStart,
+        fontWeight: getComputedStyle(child).fontWeight,
+      }))
+  );
+  expect(sections.length).toBeGreaterThan(2);
+  for (const section of sections) {
+    expect(section, section.text).toMatchObject({ paddingInlineStart: '0px' });
+    expect(section.fontWeight, section.text).not.toBe(HEADING.fontWeight);
+  }
+  // Its headings, Addresses among them, share one look.
+  for (const name of ['Profile', 'Options', 'Addresses', 'Advanced Options']) {
+    const [look] = await lookOf(content.getByText(name, { exact: true }).first());
+    expect(look, name).toMatchObject(HEADING);
   }
 });
