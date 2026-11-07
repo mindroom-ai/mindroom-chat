@@ -57,12 +57,12 @@ const isTurn = (value: unknown): value is Record<string, unknown> & CallTranscri
 };
 
 /**
- * A turn's time in whole seconds (fractions round down), or undefined when it is not a number of
- * seconds within the call: then the turn shows no time.
+ * A turn's time, or undefined when it is not a whole number of seconds within the call: then the
+ * turn shows no time.
  */
 const readOffset = (value: unknown, duration: number): number | undefined =>
-  typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= duration
-    ? Math.floor(value)
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= duration
+    ? value
     : undefined;
 
 /**
