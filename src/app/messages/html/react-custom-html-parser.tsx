@@ -120,7 +120,9 @@ const renderStyledText = (text: string, highlightRegex?: RegExp): StyledText => 
 
 /**
  * Message text with its `$math$` and `$$math$$` rendered, emoji scaled, search matches marked and
- * URLs linked (unless `linkify` is false). Text in backticks stays as written.
+ * URLs linked (unless `linkify` is false). Text in backticks stays as written. Bidirectional
+ * controls show as code points (`<U+202E>`), so the text reads in the order it holds; Copy Text
+ * copies the message as it is.
  */
 export const renderTextWithLatex = (
   text: string,
@@ -131,9 +133,10 @@ export const renderTextWithLatex = (
     keyPrefix?: string;
   }
 ): ReactNode => {
-  const render = () => renderTextWithMatrixMath(text, { ...params, renderStyledText });
+  const shown = revealDirectionControls(text);
+  const render = () => renderTextWithMatrixMath(shown, { ...params, renderStyledText });
   // Only text with a dollar sign can hold math, which typesets once KaTeX has loaded.
-  return text.includes('$') ? <WithKatex render={render} /> : render();
+  return shown.includes('$') ? <WithKatex render={render} /> : render();
 };
 
 /** Props for a mention link: it opens in a new tab unless the click handler handles it. */
