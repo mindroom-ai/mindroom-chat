@@ -243,6 +243,11 @@ const run = async (newContext: () => Promise<BrowserContext>, engine: string) =>
   const context = await newContext();
   try {
     const page = await context.newPage();
+    const throttle = Number(process.env.CARD_PREVIEW_CPU_THROTTLE ?? 0);
+    if (throttle > 1 && engine === 'chromium') {
+      const cdp = await context.newCDPSession(page);
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: throttle });
+    }
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: world.reader.username,
