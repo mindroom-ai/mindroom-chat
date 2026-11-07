@@ -154,12 +154,13 @@ const latinLetterOnLeft = (scope: Locator): Promise<boolean> =>
   scope.evaluate((element, name) => {
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const start = node.textContent?.indexOf(name) ?? -1;
+      const text = node;
+      const start = text.textContent?.indexOf(name) ?? -1;
       if (start === -1) continue;
       const range = document.createRange();
       const left = (offset: number) => {
-        range.setStart(node!, offset);
-        range.setEnd(node!, offset + 1);
+        range.setStart(text, offset);
+        range.setEnd(text, offset + 1);
         return range.getBoundingClientRect().left;
       };
       return left(start + name.length - 1) < left(start);
