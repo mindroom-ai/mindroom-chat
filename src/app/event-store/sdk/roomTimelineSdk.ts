@@ -15,6 +15,7 @@ import {
 import { resolveHydratedRoomBeforeToken } from '../cache/eventCacheTokenUtils';
 import { getLiveTimeline } from '../timeline/timelinePagination';
 import { adoptCachedThreadRoot } from './cachedThreadRoots';
+import { splitTimelinePage } from './roomHistoryPageSdk';
 
 /** Restore the thread catalogue without implying contiguous room history. */
 export function restoreCachedRoomThreads(
@@ -86,6 +87,7 @@ export async function prependCachedRoomTimeline({
   const [timelineEvents, , unknownRelations] = showThreadRepliesInRoom
     ? [events, [], []]
     : room.partitionThreadedEvents(events);
+  const [placed, relations] = splitTimelinePage(room, timelineEvents);
 
   // Room's declaration omits null, but EventTimelineSet accepts it as room-start proof.
   (
@@ -97,7 +99,7 @@ export async function prependCachedRoomTimeline({
       paginationToken?: string | null
     ) => void
   )(
-    timelineEvents,
+    placed,
     true,
     false,
     firstTimeline,
@@ -111,7 +113,7 @@ export async function prependCachedRoomTimeline({
     false
   );
   reconcileRelationEventsWithAggregation(
-    unknownRelations,
+    [...unknownRelations, ...relations],
     [{ relations: room.relations }],
     undefined,
     redactedRelationTargets
