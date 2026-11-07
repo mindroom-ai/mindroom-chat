@@ -115,7 +115,8 @@ const clients: MatrixClient[] = [];
 
 /** A real SDK client against a fake homeserver whose /sync answers come from `deliver`. */
 const fixture = ({ replies, saved, cachedVersions = true }: FixtureOptions) => {
-  const server = { replies: [...replies] };
+  // `pageGate`, while set, holds the answers for the thread's reply pages.
+  const server: { replies: IEvent[]; pageGate?: Promise<void> } = { replies: [...replies] };
   const pendingSyncs: unknown[] = [];
   const waitingSyncs: Array<(response: Response) => void> = [];
   let batch = 0;
@@ -152,6 +153,7 @@ const fixture = ({ replies, saved, cachedVersions = true }: FixtureOptions) => {
       if (path.endsWith('/threads')) return json({ chunk: [summarizedRoot(server.replies)] });
       if (path.endsWith(`/event/${rootId}`)) return json(summarizedRoot(server.replies));
       if (path.includes(`/relations/${rootId}`)) {
+        await server.pageGate;
         return json({ chunk: [...server.replies].reverse() });
       }
       throw new Error(`Unexpected request ${path}`);
@@ -348,6 +350,33 @@ describe('thread reply counts', () => {
 
     await f.deliver([edit(4, 'edited', 201)]);
     expect(f.thread().length).toBe(3);
+  });
+
+  it('counts a reply once when sync brings it while the thread opens', async () => {
+    const replies = [reply(1), reply(2), reply(3)];
+    const f = fixture({ replies });
+    await f.start();
+    await f.deliver([summarizedRoot(replies), ...replies]);
+
+    // A fourth reply reaches the server. The opening thread reads the root, whose summary counts
+    // it, and sync brings the reply before the thread's first page.
+    f.server.replies.push(reply(4));
+    let releasePage = () => {};
+    f.server.pageGate = new Promise<void>((resolve) => {
+      releasePage = resolve;
+    });
+    const opening = f.thread().initialize();
+    await settle();
+    await f.deliver([reply(4)]);
+    expect(f.thread().length).toBe(4);
+    expect(f.shownCount()).toBe(4);
+
+    releasePage();
+    await opening;
+    await settle();
+    expect(f.thread().initialEventsFetched).toBe(true);
+    expect(f.thread().length).toBe(4);
+    expect(f.shownCount()).toBe(4);
   });
 
   it('agrees with the server thread list', async () => {
