@@ -12,7 +12,7 @@ import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, createServer, type Rollup, type UserConfig } from 'vite';
+import { build, createServer, type ConfigEnv, type Rollup, type UserConfig } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
 import { clientPlugins, pluginOwner, readClientPlugins } from '../../scripts/client-plugins.mjs';
 import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
@@ -168,7 +168,12 @@ describe('clientPlugins', () => {
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
     const config = (plugins: string | undefined) =>
-      (clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig)();
+      (
+        clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as (
+          config: UserConfig,
+          env: ConfigEnv
+        ) => UserConfig
+      )({}, { command: 'serve', mode: 'development' });
     expect(config(EXAMPLE).server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
     expect(config(undefined).server).toBeUndefined();
   });
@@ -452,6 +457,39 @@ describe('packages the app shares with plugins', () => {
     const modules = await bundlePlugin(plugin, [path.join(outside, 'index.js')]);
     expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));
   });
+
+  it("resolves them to the app's copy in the dev server too, for the plugin and the packages it installed", async () => {
+    const dir = realpathSync(pluginDir(declaring(), { entry: false }));
+    importing(dir, ['jotai', 'helper']);
+    installStandIn(dir, 'jotai');
+    installStandIn(dir, 'helper', "export * from 'jotai';\n");
+    const server = await createServer({
+      configFile: false,
+      root: ROOT,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+      server: { middlewareMode: true, hmr: false, watch: null },
+      optimizeDeps: { noDiscovery: true, include: [] },
+    });
+    const isAppCopy = (id: string | undefined) => id?.startsWith(appCopy('jotai')) ?? false;
+    try {
+      const index = path.join(dir, 'index.js');
+      expect(isAppCopy((await server.pluginContainer.resolveId('jotai', index))?.id)).toBe(true);
+      // Its other imports resolve in its own directory.
+      expect((await server.pluginContainer.resolveId('helper', index))?.id).toBe(
+        path.join(dir, 'node_modules/helper/index.js')
+      );
+      // Its packages as the dev server pre-bundles them, without plugin hooks: their imports and
+      // their CommonJS requires.
+      const helper = path.join(dir, 'node_modules/helper/index.js');
+      for (const isRequire of [false, true]) {
+        const resolve = server.config.createResolver({ asSrc: false, scan: true, isRequire });
+        expect(isAppCopy(await resolve('jotai', helper)), `isRequire: ${isRequire}`).toBe(true);
+      }
+    } finally {
+      await server.close();
+    }
+  });
 });
 
 describe('pluginOwner', () => {
@@ -472,35 +510,5 @@ describe('pluginOwner', () => {
     expect(
       pluginOwner([inner], `${path.join(top, 'outer')}/`)(path.join(inner.dir, 'x.js'))?.root
     ).toBe(`${inner.dir}/`);
-  });
-});
-
-describe('the dev server', () => {
-  it("resolves a plugin's imports in its own directory, as before", async () => {
-    const dir = pluginDir(declaring(), { entry: false });
-    writeFileSync(path.join(dir, 'index.js'), "export * from 'jotai';\n");
-    mkdirSync(path.join(dir, 'node_modules/jotai'), { recursive: true });
-    writeFileSync(
-      path.join(dir, 'node_modules/jotai/package.json'),
-      JSON.stringify({ name: 'jotai', version: '0.0.1', main: 'index.js' })
-    );
-    writeFileSync(path.join(dir, 'node_modules/jotai/index.js'), 'export const own = true;\n');
-    const server = await createServer({
-      configFile: false,
-      root: ROOT,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      server: { middlewareMode: true, hmr: false, watch: null },
-      optimizeDeps: { noDiscovery: true, include: [] },
-    });
-    try {
-      const resolved = await server.pluginContainer.resolveId(
-        'jotai',
-        path.join(realpathSync(dir), 'index.js')
-      );
-      expect(resolved?.id).toBe(path.join(realpathSync(dir), 'node_modules/jotai/index.js'));
-    } finally {
-      await server.close();
-    }
   });
 });

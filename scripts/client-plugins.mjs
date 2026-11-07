@@ -205,14 +205,17 @@ const entriesModule = (plugins) => {
 export const clientPlugins = (env = process.env) => {
   const plugins = readClientPlugins(env.MINDROOM_CLIENT_PLUGINS);
   const ownerOf = pluginOwner(plugins);
-  // The dev server pre-bundles a plugin's installed packages without plugin hooks, so only builds
-  // redirect: a plugin and its packages then always resolve the same copy.
   let building = false;
   return {
     name: 'mindroom-client-plugins',
     enforce: 'pre',
-    config: () => ({
-      resolve: { alias: CLIENT_SDK_ALIAS },
+    config: (_config, { command }) => ({
+      resolve: {
+        alias: CLIENT_SDK_ALIAS,
+        // The dev server pre-bundles a plugin's installed packages without plugin hooks, so there
+        // every import of the packages the app shares resolves in the app's directory instead.
+        dedupe: command === 'serve' && plugins.length > 0 ? SHARED_PACKAGES : undefined,
+      },
       // The dev server serves files outside the workspace only from directories it allows, and a
       // list of them replaces its default, the workspace root.
       server:
