@@ -93,8 +93,10 @@ const browserAnchorsScroll = (): boolean =>
  * in view stay where they are, held or not, as Chromium's scroll anchoring keeps them by itself:
  * the list scrolls only in browsers without it (WebKit, so iOS too). It keeps the topmost card in
  * view that kept its place; a card that moved up past others (it got a reply, in the live order)
- * leaves its place to the next. A card's move counts from where the reader's own scrolling took
- * it: the scroll offset can change before its scroll event records the cards again.
+ * leaves its place to the next. It acts only on a render that finds the scroll offset where it
+ * recorded the cards: a scroll since then, the reader's (whose scroll event comes at the next
+ * frame) or another script's (the list reopening on a card it left from), is not a move, and the
+ * cards are recorded again.
  */
 export const useHeldThreadOrder = (
   liveRootIds: string[],
@@ -115,8 +117,7 @@ export const useHeldThreadOrder = (
     // With scroll anchoring the browser keeps the cards in place, and nothing needs recording.
     if (!view || browserAnchorsScroll()) return;
     const before = cardsInViewRef.current;
-    if (before && view.scrollTop > 0) {
-      const scrolled = view.scrollTop - before.scrollTop;
+    if (before && view.scrollTop > 0 && view.scrollTop === before.scrollTop) {
       const cards = [...view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')];
       const anchor = before.cards
         .filter(({ rootId }) => keptPlace(rootId, before.order, shown))
@@ -125,9 +126,7 @@ export const useHeldThreadOrder = (
           card: cards.find((element) => element.getAttribute('data-scroll-anchor') === rootId),
         }))
         .find(({ card }) => card);
-      const moved = anchor?.card
-        ? anchor.card.getBoundingClientRect().top + scrolled - anchor.top
-        : 0;
+      const moved = anchor?.card ? anchor.card.getBoundingClientRect().top - anchor.top : 0;
       if (Math.abs(moved) >= 0.5) view.scrollTop += moved;
     }
     cardsInViewRef.current = cardsInView(view, shown);
