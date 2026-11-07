@@ -104,6 +104,26 @@ describe('markMainTimelineAsRead', () => {
 
     expect(mx.sendReceipt).not.toHaveBeenCalled();
   });
+
+  it('sends no receipt on an event older than a receipt whose event is not loaded', async () => {
+    // A reload restores the room in steps: the receipt names an event that is not back yet.
+    const room = {
+      ...makeRoom([makeMessageEvent('$older', 5)]),
+      getEventReadUpTo: vi.fn(() => '$newest'),
+      getReadReceiptForUserId: vi.fn(() => ({ eventId: '$newest', data: { ts: 9 } })),
+    };
+    const mx = makeClient(room as never);
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+    expect(mx.sendReceipt).not.toHaveBeenCalled();
+
+    // A message sent after that receipt is read.
+    const later = makeMessageEvent('$later', 12);
+    room.getLiveTimeline.mockReturnValue({ getEvents: () => [later] } as never);
+    await markMainTimelineAsRead(mx as never, ROOM_ID, false);
+    expect(mx.sendReceipt).toHaveBeenCalledWith(later, ReceiptType.Read, {
+      thread_id: MAIN_ROOM_TIMELINE,
+    });
+  });
 });
 
 describe('markThreadAsRead', () => {
