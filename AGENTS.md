@@ -1,6 +1,6 @@
 # AGENTS.md
 
-MindRoom Chat (`mindroom-ai/mindroom-chat`; `mindroom-ai/mindroom-client` until 2026-11-07, now private) is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`), and everything else is written fresh without access to the upstream client or the legacy client's source. Below, "MindRoom Chat" as a source means that legacy client.
+MindRoom Chat (`mindroom-ai/mindroom-chat`; `mindroom-ai/mindroom-client` until 2026-11-07 UTC, now private) is an Apache-2.0 web client for MindRoom, built on `matrix-js-sdk` with its Rust crypto. It is a clean-room rebuild: files whose lines `git blame` credits to Bas Nijholt (at least 95% of each) are ported from the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`), and everything else is written fresh without access to the upstream client or the legacy client's source. Below, "MindRoom Chat" as a source means that legacy client.
 
 ## The two lanes
 
@@ -15,7 +15,7 @@ A file keeps its lane when it moves: the lists keep import-time paths, and `docs
 
 ### Lane C rules
 
-- **Lane C rules (spec section 2).** Never open, search, fetch, or install as source: the upstream client named in `docs/provenance.md` (its GitHub organization, any fork or mirror), the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`, which was `mindroom-ai/mindroom-chat` until 2026-11-07, when that name passed to this repository; `/home/basnijholt/Work/dev/mindroom-chat`, `/tmp/chat-ref`, any other checkout), Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat, and `mindroom/docs/baspowers/`, `mindroom/docs/dev/`. `folds` may be installed and its published API docs and type definitions read.
+- **Lane C rules (spec section 2).** Never open, search, fetch, or install as source: the upstream client named in `docs/provenance.md` (its GitHub organization, any fork or mirror), the legacy MindRoom Chat client (`mindroom-ai/mindroom-chat-legacy`, which was `mindroom-ai/mindroom-chat` until 2026-11-07 UTC, when that name passed to this repository; `/home/basnijholt/Work/dev/mindroom-chat`, `/tmp/chat-ref`, any other checkout), Element Web, Element X, Element Call, FluffyChat, Nheko, Fractal, NeoChat, SchildiChat, and `mindroom/docs/baspowers/`, `mindroom/docs/dev/`. `folds` may be installed and its published API docs and type definitions read.
 - Allowed inputs: this repository (including Lane P files, but not `FORK_CHANGES.md`), `docs/provenance/seams.tsv`, `docs/design/reference/`, the Matrix specification, library documentation and type definitions, `/home/basnijholt/Work/dev/mindroom/docs/` (other pages) and `/home/basnijholt/Work/dev/mindroom/src/`.
 - Lane C code must pass `just strict` (`tsconfig.strict.json`) and the type-aware ESLint rules that `just lint` applies to Lane C TypeScript.
 
