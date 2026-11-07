@@ -40,7 +40,7 @@ import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
-import { conversationHiddenAtom } from '../navigation/conversationCover';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -258,10 +258,10 @@ export function ThreadContextBanner({
     setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
-  // Not a thread hidden under a plugin's cover or behind a side panel.
-  const conversationHidden = useAtomValue(conversationHiddenAtom);
+  // Not a thread that a side panel in the conversation's place hides.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useShortcut('resolveThread', () => {
-    if (conversationHidden || resolveDisabled || !mutableThreadRootId || isPinned) return false;
+    if (behindPanel || resolveDisabled || !mutableThreadRootId || isPinned) return false;
     handleToggleResolve();
     return true;
   });

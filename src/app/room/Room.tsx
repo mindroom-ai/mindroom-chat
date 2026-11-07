@@ -570,6 +570,11 @@ function RoomContent() {
   useLayoutEffect(() => {
     if (!conversationHidden) return undefined;
     setBehindPanel(true);
+    // Focus left in it, as in the composer when a click on Fill does not take the focus (Safari),
+    // goes: a browser need not move it off an element that turns inert, and keys would reach it.
+    const conversation = conversationRef.current;
+    const focused = conversation?.ownerDocument.activeElement;
+    if (focused && conversation?.contains(focused)) (focused as HTMLElement).blur();
     return () => setBehindPanel(false);
   }, [conversationHidden, setBehindPanel]);
 

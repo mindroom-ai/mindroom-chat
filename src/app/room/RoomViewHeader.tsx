@@ -2,6 +2,7 @@ import { Fragment, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import FocusTrap from 'focus-trap-react';
+import { useAtomValue } from 'jotai';
 import classNames from 'classnames';
 import type { Room } from 'matrix-js-sdk';
 import { Avatar, Badge, Box, Icons, Text, toRem, type RectCords } from 'folds';
@@ -22,6 +23,7 @@ import { useRoomPermissions } from '../matrix/hooks/useRoomPermissions';
 import { usePinnedEventIds as useRoomPinnedEvents } from '../event-store/threads/useThreadPinning';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useEdgeSwipeBack } from '../navigation/useEdgeSwipeBack';
+import { conversationBehindPanelAtom } from '../navigation/conversationCover';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { getCanonicalAliasOrRoomId, mxcUrlToHttp } from '../matrix/matrix';
@@ -243,7 +245,10 @@ export function RoomViewHeader({
 
   const membersVisible = shownPanel === 'members';
   const toggleMembers = () => onPanelToggle?.('members');
+  // Not while a side panel in the conversation's place hides this header.
+  const behindPanel = useAtomValue(conversationBehindPanelAtom);
   useShortcut('members', () => {
+    if (behindPanel) return false;
     toggleMembers();
     return true;
   });
