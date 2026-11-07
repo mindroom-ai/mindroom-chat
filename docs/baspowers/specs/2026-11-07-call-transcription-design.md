@@ -44,7 +44,8 @@ work; it describes what the software does and the contract between the two sides
 | `languages` | `[]` | Language codes, hints for speech-to-text (the first is sent). |
 
 Speech-to-text uses MindRoom's existing voice-message settings (`voice.stt`: provider, model, host, credentials).
-Changes apply to the next request, without a restart.
+Changes apply to the next request, without a restart. Turning `enabled` off ends live calls and deletes the lines of
+every transcript not yet posted; while it is off nothing is read from or posted to Matrix.
 
 ### A call
 
@@ -55,8 +56,7 @@ Changes apply to the next request, without a restart.
   membership is not consulted.
 - **Ending.** A call ends when nobody is in it, checked when someone leaves and every 15 seconds while it is live; it
   ended at its apps' last check-in or leave, not when that was noticed. After MindRoom starts, apps get a full minute to
-  check in before anyone counts as gone. A request that left the call cannot bring its sender back into it: a heartbeat
-  that arrived before its sender's leave neither rejoins nor starts a call.
+  check in before anyone counts as gone.
 - **The row.** When a call starts, the router posts a notice in the room: body `Call started`, content
   `io.mindroom.call: {"call_id": "<id>"}`. It wakes no agent and notifies nobody. If the router is not ready, it is
   posted once it is. When the call ends, the router edits the row (`m.replace`, still a notice): body
@@ -71,7 +71,8 @@ Changes apply to the next request, without a restart.
   tried once more after 60 seconds, then the transcript is posted without them; a failed post is retried every minute.
   A call with no speech posts nothing; a call whose speech could not be transcribed at all posts the message with no
   turns and a body saying so. Afterwards the call's lines are deleted. A message not posted within a day of the end, or
-  in a room the router has left, is given up and its lines deleted, so the server never keeps them indefinitely.
+  in a room the router has left, is given up and its lines deleted, so the server never keeps them indefinitely; that
+  holds after MindRoom was down for longer, too.
 - **Pause.** Anyone in the call can pause transcription, and anyone in it can resume it; the call records who paused.
   It stays paused until someone resumes or the call ends. While paused, speech is refused, and so is a stretch that
   overlapped a paused period, whenever it arrives; a stretch counts from when its app says it began until it arrives, so
@@ -80,8 +81,8 @@ Changes apply to the next request, without a restart.
 - **Speech.** WAV, 16-bit PCM, mono, at most 30 seconds by its header and 1 MB; never written to disk (not even a
   temporary file); from a person currently in the call through their app; one stretch in flight per person and at most
   240 a minute (refusals say when to try again with `Retry-After`). A stretch said before its call ended is accepted
-  until MindRoom starts writing the transcript message; once the notes are written no more is taken, so the notes always
-  match the transcript. A stretch that fails to transcribe becomes a gap ("Not transcribed"); one in
+  for 20 seconds after the end (until the transcript message is due) and never later, so everything accepted is in the
+  posted transcript and its notes. A stretch that fails to transcribe becomes a gap ("Not transcribed"); one in
   which no words were heard adds nothing. The call goes on.
 - **Who may do what.** Starting or joining needs permission to post messages in the room (Matrix power levels);
   heartbeats from someone already in the call do not re-check it. Reading the live call needs room membership. A call's
