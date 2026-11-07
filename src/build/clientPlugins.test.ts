@@ -1,4 +1,4 @@
-import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -145,14 +145,16 @@ describe('clientPlugins', () => {
   });
 
   it('builds a plugin that installed its own copy of a package the app bundles too', async () => {
-    // The plugin's own clsx, the version the app's node_modules holds.
+    // The plugin's own copy of linkifyjs, a dependency of the app, in the version the app installed.
+    const appCopy = path.join(ROOT, 'node_modules/linkifyjs');
+    const { version, module: entry } = JSON.parse(
+      readFileSync(path.join(appCopy, 'package.json'), 'utf8')
+    ) as { version: string; module: string };
     const own = pluginDir(declaring(), { entry: false });
-    cpSync(path.join(ROOT, 'node_modules/clsx'), path.join(own, 'node_modules/clsx'), {
-      recursive: true,
-    });
+    cpSync(appCopy, path.join(own, 'node_modules/linkifyjs'), { recursive: true });
     writeFileSync(
       path.join(own, 'index.js'),
-      "import { clsx } from 'clsx';\nexport default { messageRenderers: [], clsx };\n"
+      "import { find } from 'linkifyjs';\nexport default { messageRenderers: [], find };\n"
     );
     const bundle = (pluginDirs: string[]) =>
       build({
@@ -167,17 +169,17 @@ describe('clientPlugins', () => {
         build: {
           write: false,
           rollupOptions: {
-            // The plugin's entries and the app's own clsx.
+            // The plugin's entries and the app's own linkifyjs.
             input: [
               path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
-              path.join(ROOT, 'node_modules/clsx/dist/clsx.mjs'),
+              path.join(appCopy, entry),
             ],
             preserveEntrySignatures: 'strict',
           },
         },
       });
-    // Two copies of clsx 2.1.1 are bundled; the plugin's own counts as the plugin's.
+    // Two copies of one linkifyjs version are bundled; the plugin's own counts as the plugin's.
     await expect(bundle([own])).resolves.toBeDefined();
-    await expect(bundle([])).rejects.toThrow(/clsx@2\.1\.1/);
+    await expect(bundle([])).rejects.toThrow(`linkifyjs@${version}`);
   });
 });
