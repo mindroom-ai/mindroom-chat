@@ -69,6 +69,29 @@ const expectBannersOnTop = async (page: Page) => {
   expect(covered).toEqual([]);
 };
 
+// Plays an iPhone keyboard as Safari shows it: the sign-in page's server field has focus and only
+// the visual viewport shrinks, so the app's keyboard hook sets --app-height and keeps it through
+// later viewport events. A hand-set --app-height raced the hook's sync after `pageshow`, which
+// clears it while no text field has focus. `undefined` closes the keyboard.
+const setKeyboardViewport = async (page: Page, height: number | undefined) => {
+  if (height !== undefined) await page.getByLabel('Server', { exact: true }).focus();
+  await page.evaluate((visibleHeight) => {
+    const viewport = window.visualViewport!;
+    if (visibleHeight === undefined) {
+      Reflect.deleteProperty(viewport, 'height');
+      (document.activeElement as HTMLElement | null)?.blur();
+    } else {
+      Object.defineProperty(viewport, 'height', { configurable: true, get: () => visibleHeight });
+    }
+    viewport.dispatchEvent(new Event('resize'));
+  }, height);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.style.getPropertyValue('--app-height'))
+    )
+    .toBe(height === undefined ? '' : `${height}px`);
+};
+
 // Chromium and the WebKit project both run these; WebKit routes notices.json only without the
 // app's service worker.
 test.use(blockWebKitServiceWorkers);
@@ -116,7 +139,7 @@ for (const theme of ['light', 'dark'] as const) {
     // Expanded notices still leave the app at least half of #root.
     await status.getByRole('button', { name: 'Show more' }).click();
     await expect(status.getByRole('button', { name: 'Show less' })).toBeVisible();
-    await page.evaluate(() => document.documentElement.style.setProperty('--app-height', '320px'));
+    await setKeyboardViewport(page, 320);
     const keyboardLayout = await page.evaluate(() => {
       const root = document.getElementById('root')!.getBoundingClientRect();
       const stack = document.querySelector('[role="status"]')!.getBoundingClientRect();
@@ -138,7 +161,7 @@ for (const theme of ['light', 'dark'] as const) {
     expect(keyboardLayout.content.bottom).toBeLessThanOrEqual(keyboardLayout.root.bottom + 0.5);
     expect(keyboardLayout.stackScrolls).toBe(true);
     expect(keyboardLayout.rowsContained).toBe(true);
-    await page.evaluate(() => document.documentElement.style.removeProperty('--app-height'));
+    await setKeyboardViewport(page, undefined);
 
     // An unbroken link label wraps too.
     await serveNotices(page, [{ ...NOTICES[0], linkText: 'x'.repeat(200) }]);
