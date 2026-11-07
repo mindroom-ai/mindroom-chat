@@ -30,9 +30,10 @@ vi.mock('./clientPages', () => ({
       <Outlet />
     </>
   ),
-  // As in clientPages.tsx: on phones the section's list takes the place of its own page.
-  SectionIndex: ({ page }: { page: ReactNode }) =>
-    useScreenSizeContext() === ScreenSize.Mobile ? null : <>{page}</>,
+  // As in clientPages.tsx: phones stay at the section's address, its list out in the drawer.
+  SectionIndex: ({ page, phonePage }: { page: ReactNode; phonePage: ReactNode }) => (
+    <>{useScreenSizeContext() === ScreenSize.Mobile ? phonePage : page}</>
+  ),
   InboxNav: () => <p>Inbox list</p>,
   Invites: () => <p>Invites page</p>,
   Notifications: () => <p>Notifications page</p>,
@@ -87,9 +88,9 @@ describe('the Inbox routes', () => {
     }
   );
 
-  it('keep phones on the Inbox list there, where the Back of its pages leads', async () => {
-    expect(await open('/inbox/', ScreenSize.Mobile, 'Inbox list')).toBe('/inbox/');
-    expect(screen.queryByText('Invites page')).toBeNull();
+  it('keep phones there, with the Inbox list over Invites, where the Back of its pages leads', async () => {
+    expect(await open('/inbox/', ScreenSize.Mobile, 'Invites page')).toBe('/inbox/');
+    expect(screen.getByText('Inbox list')).toBeTruthy();
   });
 
   it.each([ScreenSize.Desktop, ScreenSize.Mobile])(

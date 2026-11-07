@@ -412,6 +412,21 @@ describe('VoiceAudioContent', () => {
     renderer.unmount();
   });
 
+  it('shows an audio filename with its direction controls as code points', () => {
+    renderer = create(
+      renderVoiceAudio(createStore(), {
+        filename: 'Interview\u202e3pm.exe',
+        label: 'audio',
+        isVoiceMessage: false,
+      })
+    );
+    const text = JSON.stringify(renderer.toJSON());
+    expect(text).toContain('Interview<U+202E>3pm.exe');
+    expect(renderer.root.findAllByProps({ title: 'Interview<U+202E>3pm.exe' })).not.toHaveLength(0);
+    expect(text).not.toMatch(/\u202e/);
+    renderer.unmount();
+  });
+
   it('explains source loading failures and allows another play attempt', () => {
     mocks.srcState = { status: AsyncStatus.Error };
     renderer = create(renderVoiceAudio());

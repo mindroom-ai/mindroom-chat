@@ -16,7 +16,7 @@ import { isJumboEmojiBody } from './jumboEmoji';
 import { getBodyUrls } from './bodyUrls';
 import * as fileCss from './FileRow.css';
 import { useGlassHighlight } from '../../ui/glass/liquid/useLiquidGlass';
-import { textDirection } from '../../ui/directional';
+import { revealDirectionControls, textDirection } from '../../ui/directional';
 import {
   IAudioInfo,
   IEncryptedFile,
@@ -136,13 +136,16 @@ function TextMessage({
   );
 }
 
+/**
+ * A text message, or a notice (`m.notice`), which reads at a lower opacity. Both are one
+ * component: an agent reply streams as a notice and ends as text, and keeps the state inside it,
+ * such as an open tool-call list, when it does.
+ */
 export function MText(props: TextMessageProps) {
-  return <TextMessage {...props} />;
+  return <TextMessage {...props} notice={props.content.msgtype === 'm.notice'} />;
 }
 
-export function MNotice(props: TextMessageProps) {
-  return <TextMessage {...props} notice />;
-}
+export const MNotice = MText;
 
 /** `/me` messages read as "* Name does something". */
 export function MEmote({ displayName, ...props }: TextMessageProps & { displayName: string }) {
@@ -275,7 +278,10 @@ export function MVideo({ content, outlined, renderAsFile, renderVideoContent }: 
   const fileName =
     readFileName(content) ?? t('mindroomUi.message-search.searchResultPreview.video');
   return (
-    <Box style={{ ...mediaBoxStyle(info), ...outlineStyle(outlined, toRem(12)) }} title={fileName}>
+    <Box
+      style={{ ...mediaBoxStyle(info), ...outlineStyle(outlined, toRem(12)) }}
+      title={revealDirectionControls(fileName)}
+    >
       {renderVideoContent({
         body: fileName,
         info,
@@ -374,6 +380,8 @@ export function MFile(props: MFileProps) {
   const info = readInfo<IFileInfo>(content);
   const mimeType = readMimeType(info);
   const fileName = readFileName(content) ?? t('sharedUi.msgTypeRenderers.unnamedFile');
+  // The name shows its direction controls, so `report<U+202E>fdp.exe` cannot pass for a PDF.
+  const shownName = revealDirectionControls(fileName);
   const extension = getFileNameExt(fileName).slice(0, 4).toUpperCase();
   const detail =
     typeof info.size === 'number'
@@ -389,8 +397,8 @@ export function MFile(props: MFileProps) {
         {extension || <Icon size="100" src={Icons.File} />}
       </div>
       <div className={fileCss.FileInfo}>
-        <Text as="span" size="T300" className={fileCss.FileName} truncate title={fileName}>
-          {fileName}
+        <Text as="span" size="T300" className={fileCss.FileName} truncate title={shownName}>
+          {shownName}
         </Text>
         <Text as="span" size="T200" priority="300" truncate>
           {detail}

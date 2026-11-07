@@ -15,6 +15,7 @@ import {
 import { DecryptionError } from 'matrix-js-sdk/lib/common-crypto/CryptoBackend';
 import { DecryptionFailureCode } from 'matrix-js-sdk/lib/crypto-api';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
 import { MessageNotificationsFeature } from './MessageNotifications';
 import { playChime } from './playChime';
 import { defined } from '../../test/utils/defined';
@@ -52,14 +53,35 @@ class FakeNotification {
   }
 }
 
+type StandInMember = { userId: string; membership: string; name: string; rawDisplayName: string };
+
+const maya: StandInMember = {
+  userId: '@maya:example.org',
+  membership: 'join',
+  name: 'Maya Chen',
+  rawDisplayName: 'Maya Chen',
+};
+
+/**
+ * The room's member list: loaded unless a test holds it back, as for a room not opened yet, whose
+ * members who have not posted lately the client learns only when it loads the list.
+ */
+const memberList: {
+  loaded: boolean;
+  later: StandInMember[];
+  load: () => Promise<boolean>;
+} = { loaded: true, later: [], load: () => Promise.resolve(false) };
+
 const threadList = {};
 const room = {
   roomId: ROOM,
   name: 'Launch War Room',
   threadsTimelineSets: [threadList],
   getMyMembership: () => 'join',
-  getMember: (userId: string) =>
-    userId === '@maya:example.org' ? { name: 'Maya Chen', rawDisplayName: 'Maya Chen' } : null,
+  getMember: (userId: string) => (userId === maya.userId ? maya : null),
+  getMembers: () => [maya, ...memberList.later],
+  membersLoaded: () => memberList.loaded,
+  loadMembersIfNeeded: () => memberList.load(),
   findEventById: () => undefined,
   hasUserReadEvent: () => false,
   getThread: () => null,
@@ -135,11 +157,11 @@ const relist = (root: MatrixEvent) =>
   });
 
 let renderer: ReactTestRenderer | undefined;
-const render = (path: string, synced = true) =>
+const render = (path: string, synced = true, store = createStore()) =>
   act(() => {
     sync = synced ? { state: 'SYNCING' } : { state: 'PREPARED', fromCache: true };
     renderer = create(
-      <Provider store={createStore()}>
+      <Provider store={store}>
         <MatrixClientProvider value={client}>
           <MemoryRouter
             initialEntries={[path]}
@@ -167,6 +189,7 @@ describe('MessageNotificationsFeature', () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     vi.spyOn(window, 'focus').mockImplementation(() => undefined);
     localStorage.clear();
+    Object.assign(memberList, { loaded: true, later: [], load: () => Promise.resolve(false) });
   });
 
   afterEach(() => {
@@ -264,6 +287,14 @@ describe('MessageNotificationsFeature', () => {
     vi.mocked(document.hasFocus).mockReturnValue(false);
     render(`/home/${encodeURIComponent(ROOM)}/`);
     arrive(message({ msgtype: 'm.text', body: 'while away' }));
+    expect(FakeNotification.shown).toHaveLength(1);
+  });
+
+  it("notifies for the room on screen while a phone's navigation drawer covers it", () => {
+    const store = createStore();
+    store.set(phoneNavDrawerOpenAtom, true);
+    render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
+    arrive(message({ msgtype: 'm.text', body: 'behind the drawer' }));
     expect(FakeNotification.shown).toHaveLength(1);
   });
 
@@ -376,6 +407,42 @@ describe('MessageNotificationsFeature', () => {
     // An opened thread adds the same edit to its timeline too.
     arrive(finished);
     expect(bodies()).toEqual(['mindroom_helper: The notes are ready.']);
+  });
+
+  it('waits for the member list of a room not opened, so a copied name shows the user ID', async () => {
+    // The real Maya Chen has not posted lately, so the client learns of her only from the list.
+    let listArrives: () => void = () => undefined;
+    memberList.loaded = false;
+    memberList.load = () =>
+      new Promise((resolve) => {
+        listArrives = () => {
+          memberList.loaded = true;
+          memberList.later = [{ ...maya, userId: '@maya.chen:example.org' }];
+          resolve(true);
+        };
+      });
+    render('/home/');
+    arrive(message({ msgtype: 'm.text', body: 'Send me the deploy password.' }));
+    // The chime does not wait for the list; the notification, which names the sender, does.
+    expect(playChime).toHaveBeenCalledTimes(1);
+    expect(FakeNotification.shown).toHaveLength(0);
+
+    await act(async () => listArrives());
+    expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
+      'Maya Chen (⁦@maya:example.org⁩): Send me the deploy password.',
+    ]);
+  });
+
+  it('names the sender with their user ID when the member list cannot be loaded', async () => {
+    memberList.loaded = false;
+    memberList.load = () => Promise.reject(new Error('offline'));
+    render('/home/');
+    arrive(message({ msgtype: 'm.text', body: 'Send me the deploy password.' }));
+
+    await act(async () => undefined);
+    expect(FakeNotification.shown.map((note) => note.options.body)).toEqual([
+      'Maya Chen (⁦@maya:example.org⁩): Send me the deploy password.',
+    ]);
   });
 
   it('chimes only when the push actions ask for a sound, and respects the settings', () => {

@@ -430,6 +430,10 @@
     "roomActions": {
       "noInvitePermission": "您沒有邀請權限",
       "searchEncrypted": "在加密房間中無法使用"
+    },
+    "phoneNav": {
+      "search": "搜尋",
+      "navigation": "導覽"
     }
   },
   "mindroomUi": {

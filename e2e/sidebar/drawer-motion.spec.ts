@@ -27,8 +27,10 @@ const ROOM_COUNT = 30;
 const NAV = '[data-testid="resizable-page-nav"]';
 /** The panel's width when nothing was saved. */
 const WIDTH = 256;
-/** The icon rail beside a phone's full-width list. */
+/** The icon rail beside a phone's list in its navigation drawer. */
 const RAIL = 66;
+/** The strip of the page the drawer leaves uncovered beside it. */
+const DRAWER_GAP = 56;
 const DESKTOP: BrowserContextOptions = { viewport: { width: 1280, height: 900 } };
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
@@ -473,13 +475,13 @@ test('the page navigation opens in the same motion in WebKit', async ({ baseURL 
   }
 });
 
-/** On a phone the list is a page of its own, full width beside the rail, and does not move. */
+/** On a phone the list stays out in the navigation drawer beside the rail, and does not move. */
 const checkPhone = async (page: Page, { username, spaces }: Account) => {
   await signIn(page, username);
   for (const space of spaces.slice(0, 3)) {
     const motion = await stepMotion(page, () => spaceButton(page, space).tap());
     expect(motion.moved).toBe(false);
-    expect(motion.frames).toEqual([PHONE.viewport!.width - RAIL]);
+    expect(motion.frames).toEqual([PHONE.viewport!.width - DRAWER_GAP - RAIL]);
     await expect(page).toHaveURL(new RegExp(encodeURIComponent(space)));
   }
 };
