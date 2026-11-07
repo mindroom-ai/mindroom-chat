@@ -78,7 +78,8 @@ jobs:
       - name: Install dependencies
         if: steps.modules.outputs.cache-hit != 'true'
         run: npm ci
-      # The `just hs-up` homeserver on 127.0.0.1:28008; e2e/global-setup.ts registers the accounts.
+      # The `just hs-up` homeserver on 127.0.0.1:28008, the Tuwunel image e2e/docker-compose.yaml pins;
+      # e2e/global-setup.ts registers the accounts.
       - name: Start the test homeserver
         run: docker compose -f e2e/docker-compose.yaml up -d --wait
       # Playwright's own Chromium: no CHROMIUM_PATH is set here, so the config falls back to it.

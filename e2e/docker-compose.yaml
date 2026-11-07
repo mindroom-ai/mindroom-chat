@@ -9,7 +9,10 @@ name: mindroom-client-e2e
 
 services:
   tuwunel:
-    image: ghcr.io/mindroom-ai/mindroom-tuwunel:latest
+    # The one Tuwunel every end-to-end run uses: CI, `just hs-up`, scripts/e2e-slot.sh, the
+    # imported scripts/e2e-matrix-up.sh and the remote test runners all start the image pinned
+    # here, by release tag and digest. Bump it as docs/development.md ("Test homeserver") describes.
+    image: ghcr.io/mindroom-ai/mindroom-tuwunel:v1.9.4-mindroom.30@sha256:1bb58c527ed2e67a21d41f3758f047ab6d34ac1ceb02b1bb72dc2b457acb1373
     # Host networking: starting and stopping a slot creates no Docker bridge or veth interface, which
     # would otherwise make Chromium abort in-flight requests with ERR_NETWORK_CHANGED.
     network_mode: host
