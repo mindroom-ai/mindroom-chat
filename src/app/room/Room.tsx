@@ -84,7 +84,7 @@ function CallPanelUnavailable({
   );
 }
 
-// Calls load on first use, so rooms without one never load them.
+// The call parts load on first use, the call panel already when the room's call button is reached.
 const CallPanel = lazyPart(
   () => loadCallPanel().then((module) => ({ default: module.CallPanel })),
   CallPanelUnavailable

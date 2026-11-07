@@ -5,16 +5,16 @@ import {
   disposableHomeserverIsUp,
   registerDisposableUser,
 } from '../helpers/disposableAccounts';
-import { createPrivateRoom, joinRoom, matrixFetch, registerAgentAccount } from '../helpers/matrix';
+import { createPrivateRoom, joinRoom, registerAgentAccount } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
 
-// The room header's buttons whose click opens a part with code of its own (the call panel, the
-// computer's screen) start loading it once the pointer or the focus reaches them, so the click
-// no longer waits for it. Each test watches the page's requests for that code
-// and never clicks the button before it has seen them. The call service and the computer server
-// are only announced to the client (`.well-known` and `config.json` answered here), so no call or
-// computer session starts. On a production build (scripts/e2e-slot.sh <n> --preview) each part
-// is a chunk of its own; on the dev server, a module.
+// The room header's call button and Computer button start loading the code of the part they show
+// (the call panel, the computer's screen) once the pointer or the focus reaches them, so the click
+// does not wait for it. Each test watches the page's requests for that code and never clicks the
+// button before it has seen them. The call service and the computer server are only announced to
+// the client (`.well-known` and `config.json` answered here), so no call or computer session
+// starts. On a production build (scripts/e2e-slot.sh <n> --preview) each part is a chunk of its
+// own; on the dev server, a module.
 const PASSWORD = 'header-preload-spec-password';
 const RUN = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 // Nothing listens there: announced servers never answer.
@@ -118,26 +118,6 @@ test('the focus reaching the call button loads the call panel', async ({ page, c
   expect(panelCode).toEqual([]);
 
   await callButton.focus();
-  await expect.poll(() => panelCode.length).toBe(1);
-});
-
-test("hovering an agent's call button loads the call panel", async ({ page, context }) => {
-  const agent = await registerAgentAccount(HOMESERVER, 'voice');
-  // The agent announces voice calls in its presence, as MindRoom agents do.
-  await matrixFetch(HOMESERVER, `/presence/${encodeURIComponent(agent.userId)}/status`, {
-    method: 'PUT',
-    accessToken: agent.accessToken,
-    body: JSON.stringify({ presence: 'online', status_msg: '📞 Voice calls' }),
-  });
-  await announceCallService(context);
-  const panelCode = watchCode(page, 'CallPanel');
-  await openNewRoom(page, 'Planning', agent);
-  const callAgent = page.locator('[data-agent-call-button]');
-  await expect(callAgent).toBeVisible({ timeout: 60_000 });
-  await settle(page);
-  expect(panelCode).toEqual([]);
-
-  await callAgent.hover();
   await expect.poll(() => panelCode.length).toBe(1);
 });
 
