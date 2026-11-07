@@ -21,7 +21,7 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // the root until the reply is known. The thread pages are held for 8 s, as a slow network would;
 // every preview the cards show meanwhile is recorded. Checked on an iPad and an iPhone in WebKit
 // (when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) and on a desktop in Chromium.
-// Set CARD_TITLE_SHOTS=<directory> to save the cards.
+// Set CARD_TITLE_SHOTS=<directory> to save the cards while the pages are held and after.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'card-preview-title-notice-spec-password';
 const RUN = Date.now().toString(36);
@@ -201,9 +201,16 @@ const run = async (
     await setRoomCompact(page, true);
     const cards = page.locator('button[data-thread-root-id]');
     await expect(cards.first()).toBeVisible({ timeout: 60_000 });
+    if (SHOTS) {
+      // While the pages are held: the cards that know only the title notice.
+      await page.waitForTimeout(2_000);
+      mkdirSync(SHOTS, { recursive: true });
+      await page.screenshot({
+        path: path.join(SHOTS, `card-previews-${engine}-${deviceName}-held.png`),
+      });
+    }
     await page.waitForTimeout(HOLD_MS + 4_000);
     if (SHOTS) {
-      mkdirSync(SHOTS, { recursive: true });
       await page.screenshot({
         path: path.join(SHOTS, `card-previews-${engine}-${deviceName}.png`),
       });
