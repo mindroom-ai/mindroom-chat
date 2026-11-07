@@ -82,7 +82,8 @@ it('keeps the cached final reply when only the newer title notice is loaded', ()
 
 it('lets a cached final reply replace a title notice previewed after it', () => {
   // The card's thread holds only the title, sent after the reply finished, and nothing is cached
-  // yet: the card previews the title. The cache then commits the finished reply and the title.
+  // yet: a title notice is never a reply preview, so the card has none. The cache then commits the
+  // finished reply and the title.
   const mx = new MatrixClient({ baseUrl: 'https://example.org', userId: '@reader:example.org' });
   const room = new Room('!room:example.org', mx, '@reader:example.org');
   const thread = { 'm.relates_to': { rel_type: 'm.thread', event_id: '$root' } };
@@ -122,7 +123,7 @@ it('lets a cached final reply replace a title notice previewed after it', () => 
     threadRootId: '$root',
     thread: { events: [loadedTitle], timeline: [loadedTitle] },
   });
-  expect(presentation.latestReplyPreviewText).toBe('Release notes item 1');
+  expect(presentation.latestReplyPreviewText).toBeUndefined();
   const update = resolveCachedOverviewUpdate({
     rootId: '$root',
     room,
