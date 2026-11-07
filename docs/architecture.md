@@ -58,6 +58,8 @@ src/
                          timeline/ (timeline model), sdk/ (the only adapters of matrix-js-sdk internals)
     models/              agent model picker, provider icons, model controller, agent device trust check
     ui-actions/          agent-driven UI actions (button, provider, controller)
+    plugins/             client plugins the build lists: the registry, their config.json sections, message
+                         renderers (see "Client plugins" below)
     computer/            the worker computer panel, screen, touchpad, clipboard, API, settings, agent servers
     emoji/               emoji data, recent emoji, skin tone; board/, custom/ packs, packs/ editor, server/, settings/
     editor/              the Slate editor of the composer and of message editing; autocomplete/
@@ -145,7 +147,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 1 | `config`, `i18n`, `preferences`, `routes`, `shortcuts`, `src/sw` |
 | 2 | `diagnostics`, `native`, `ui` |
 | 3 | `matrix`, `theme` |
-| 4 | `avatars`, `models`, `navigation`, `rich-text`, `ui-actions` |
+| 4 | `avatars`, `models`, `navigation`, `plugins`, `rich-text`, `ui-actions` |
 | 5 | `computer`, `emoji`, `event-store` |
 | 6 | `approvals`, `bug-reports`, `calls`, `connections`, `editor` |
 | 7 | `background-jobs`, `members`, `messages` |
