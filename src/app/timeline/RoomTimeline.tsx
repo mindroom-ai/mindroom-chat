@@ -305,7 +305,6 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { scrollRef, scrollElement, attachScroll, getScrollElement } = useTimelineScrollElement();
   // As tall as the footer inset: a growing composer moves the newest row up with it.
   const footerProbeRef = useRef<HTMLDivElement>(null);
-  useFooterBottomPin(scrollElement, footerProbeRef);
   // Jump to Unread gives way while the "New messages" line it jumps to is in view.
   const [unreadMarker, setUnreadMarker] = useState<HTMLDivElement | null>(null);
   const unreadMarkerShown = useShownInScrollArea(unreadMarker, scrollElement);
@@ -455,6 +454,13 @@ export function RoomTimeline(props: RoomTimelineProps) {
     sortBy === 'lastReply' &&
     sortDirection === 'desc';
   const latestAtTopRef = useLatestRef(latestAtTop);
+  // Rows that wrap anew at another width still end at the bottom, as after a send.
+  const followLatestRows = useCallback(() => {
+    if (latestAtTopRef.current) return;
+    const { count } = scrollToBottomRef.current;
+    scrollToBottomRef.current = { count: count + 1, smooth: false };
+  }, [latestAtTopRef]);
+  useFooterBottomPin(scrollElement, footerProbeRef, followLatestRows);
   useThreadSortFreezeController({
     activeLiveOverviewThreadRootIds: threadIndex.activeLiveOverviewThreadRootIds,
     setThreadSortFreezeState: setThreadSortFreezeState ?? ignoreSortFreezeUpdate,
