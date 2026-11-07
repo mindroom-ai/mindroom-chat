@@ -13,7 +13,8 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
 
 /**
  * The client SDK version this client provides (`src/client-sdk/`); each plugin declares, as its
- * `apiVersion`, the one it needs. Version 1 had no SDK, and an SDK export added later raises it.
+ * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
+ * or a contribution kind in `ClientPlugin`) raises it.
  */
 const CLIENT_PLUGIN_API_VERSION = 2;
 
