@@ -59,6 +59,14 @@ const edit = (body: string, ts: number, status = 'streaming', sender = agentId):
     },
     sender
   );
+/** The thread's title notice, sent after its reply finished: the thread's newest event. */
+const title = (ts: number): IEvent =>
+  message(`$title-${ts}`, ts, {
+    msgtype: 'm.notice',
+    body: 'Build status',
+    'io.mindroom.thread_summary': { version: 1, summary: 'Build status', message_count: 2 },
+    'm.relates_to': { rel_type: 'm.thread', event_id: rootId },
+  });
 /** An edit as an encrypted room delivers it: only its relation is in the clear. */
 const encryptedEdit = (ts: number): IEvent =>
   ({
@@ -181,8 +189,14 @@ const fixture = (serverThread: () => IEvent[]) => {
   const room = (): Room => mx.getRoom(roomId)!;
   const thread = (): Thread => room().getThread(rootId)!;
   /** What the thread's Compact card shows: its latest reply's preview and whether it streams. */
-  const card = () => {
-    const record = buildThreadRecord({ room: room(), threadRootId: rootId });
+  const card = (cached?: { text: string; ts: number }) => {
+    const record = buildThreadRecord({
+      room: room(),
+      threadRootId: rootId,
+      // What the overview's cache read last: a saved copy of the reply, at its revision's time.
+      fallbackLatestReplyPreviewText: cached?.text,
+      fallbackLatestReplyTs: cached?.ts,
+    });
     return {
       preview: record.presentation.latestReplyPreviewText,
       streaming: record.status.isStreaming,
@@ -258,6 +272,52 @@ describe('edits of unopened threads', () => {
       streaming: false,
     });
     expect(f.loadedThread()).toBe(false);
+  });
+
+  it('shows a streamed edit over an older cached copy of the reply', async () => {
+    const f = fixture(() => [reply()]);
+    await f.start();
+    await f.deliver([withSummary(reply())]);
+    await f.deliver([edit('The build', 150)]);
+    // The cache saved the reply before its first edit.
+    expect(f.card({ text: 'Thinking about it', ts: 100 })).toEqual({
+      preview: 'The build',
+      streaming: true,
+    });
+  });
+
+  it('keeps the finished reply on the card when a title notice follows it', async () => {
+    const f = fixture(() => [reply()]);
+    await f.start();
+    await f.deliver([withSummary(reply())]);
+    await f.deliver([edit('The build', 150)]);
+    // The last edit and the title come in one /sync answer: the title is now the thread's newest
+    // event, and the SDK's summary no longer names the reply.
+    await f.deliver([edit('The build passed.', 151, 'completed'), title(160)]);
+    const finished = { preview: 'The build passed.', streaming: false };
+    expect(f.card()).toEqual(finished);
+    expect(f.card({ text: 'Thinking about it', ts: 100 })).toEqual(finished);
+    expect(f.loadedThread()).toBe(false);
+  });
+
+  it('keeps the finished reply on the card when a title notice comes in a later answer', async () => {
+    const f = fixture(() => [reply()]);
+    await f.start();
+    await f.deliver([withSummary(reply())]);
+    await f.deliver([edit('The build passed.', 151, 'completed')]);
+    await f.deliver([title(160)]);
+    const finished = { preview: 'The build passed.', streaming: false };
+    expect(f.card()).toEqual(finished);
+    expect(f.card({ text: 'Thinking about it', ts: 100 })).toEqual(finished);
+  });
+
+  it('keeps a newer cached copy over the reply the device holds', async () => {
+    const f = fixture(() => [reply()]);
+    await f.start();
+    await f.deliver([withSummary(reply())]);
+    await f.deliver([edit('The build', 150), title(160)]);
+    // Another session saved the finished reply after this device's last edit.
+    expect(f.card({ text: 'The build passed.', ts: 155 }).preview).toBe('The build passed.');
   });
 
   it('is what moves the card past the first revision', async () => {

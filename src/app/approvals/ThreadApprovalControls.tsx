@@ -46,6 +46,7 @@ import {
 } from './ApprovalSection';
 import * as css from './ThreadApprovals.css';
 import { LoneTouchTarget } from '../ui/styles/TouchTarget.css';
+import { IsolatedText } from '../ui/directional';
 
 export function ApprovalDialog({
   title,
@@ -64,6 +65,7 @@ export function ApprovalDialog({
 }) {
   const { t } = useTranslation();
   const context = useThreadApprovals();
+  const titleId = useId();
   return (
     <Overlay open backdrop={<OverlayBackdrop />}>
       <OverlayCenter>
@@ -83,7 +85,7 @@ export function ApprovalDialog({
             role="dialog"
             aria-modal="true"
             style={{ width: '40rem', maxWidth: 'calc(100vw - 24px)' }}
-            aria-label={title}
+            aria-labelledby={titleId}
           >
             <PageScroll
               className={css.DialogScroll}
@@ -96,10 +98,12 @@ export function ApprovalDialog({
                   <Box grow="Yes" alignItems="Center" gap="300">
                     {leading}
                     <Box direction="Column" className={css.DialogHeading}>
-                      <Text size={subtitle ? 'H5' : 'H4'}>{title}</Text>
+                      <Text id={titleId} size={subtitle ? 'H5' : 'H4'}>
+                        <IsolatedText text={title} />
+                      </Text>
                       {subtitle && (
                         <Text size="T200" priority="300">
-                          {subtitle}
+                          <IsolatedText text={subtitle} />
                         </Text>
                       )}
                     </Box>
@@ -507,7 +511,9 @@ export function ThreadApprovalQueue() {
             ) : (
               pendingCount > 0 && !awaitingOnly && <Icon src={Icons.Pause} size="50" aria-hidden />
             )}
-            <span className={classNames(waiting && css.BarTitle)}>{statusText}</span>
+            <span className={classNames(waiting && css.BarTitle)}>
+              <IsolatedText text={statusText} />
+            </span>
             {waitingTools && <span className={css.BarDetail}>{` · ${waitingTools}`}</span>}
           </small>
           {pendingCount > 0 && (

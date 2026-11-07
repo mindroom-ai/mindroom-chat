@@ -114,5 +114,56 @@ describe('useLongPress', () => {
       vi.advanceTimersByTime(LONG_PRESS_MS);
     });
     expect(onLongPress).not.toHaveBeenCalled();
+    expect(document.documentElement.style.getPropertyValue('user-select')).toBe('');
+  });
+
+  it('holds the page unselectable from the touch to the lift, also for nested presses', () => {
+    const pageSelect = () => document.documentElement.style.getPropertyValue('user-select');
+    const onLongPress = vi.fn();
+    function Nested() {
+      const outer = useLongPress(onLongPress, () => true);
+      const inner = useLongPress(onLongPress, () => true);
+      return (
+        <div {...outer}>
+          <span {...inner}>text</span>
+        </div>
+      );
+    }
+    const view = render(<Nested />);
+    const inner = view.container.querySelector('span') as HTMLElement;
+    fireEvent.touchStart(inner, { touches: [finger(40, 60)] });
+    expect(pageSelect()).toBe('none');
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(pageSelect()).toBe('none');
+    fireEvent.touchEnd(inner, { touches: [] });
+    expect(pageSelect()).toBe('');
+
+    // A short tap releases it too.
+    fireEvent.touchStart(inner, { touches: [finger(40, 60)] });
+    fireEvent.touchEnd(inner, { touches: [] });
+    expect(pageSelect()).toBe('');
+  });
+
+  it('clears selected text when the press fires, but keeps a caret', () => {
+    const { row } = setup();
+    window.getSelection()?.selectAllChildren(row);
+    fireEvent.touchStart(row, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(window.getSelection()?.toString()).toBe('');
+    fireEvent.touchEnd(row, { touches: [] });
+
+    const text = row.firstChild as Text;
+    window.getSelection()?.collapse(text, 2);
+    fireEvent.touchStart(row, { touches: [finger(40, 60)] });
+    act(() => {
+      vi.advanceTimersByTime(LONG_PRESS_MS);
+    });
+    expect(window.getSelection()?.rangeCount).toBe(1);
+    expect(window.getSelection()?.anchorOffset).toBe(2);
+    fireEvent.touchEnd(row, { touches: [] });
   });
 });

@@ -552,6 +552,9 @@
       "descriptions": {
         "reply_mode": "Mostra o cambia se gli agenti hanno bisogno di una menzione per avviare una conversazione qui (impostare/reimpostare richiede un amministratore della stanza)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} attività in background ({{shown}} mostrate)"
     }
   },
   "composer": {

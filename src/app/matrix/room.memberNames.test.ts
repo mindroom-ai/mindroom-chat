@@ -186,4 +186,52 @@ describe('getMemberDisplayName', () => {
     expect(getMemberDisplayName(room, FOURTH)).toBeUndefined();
     expect(getMemberDisplayName(room, '@nobody:example.org')).toBeUndefined();
   });
+
+  describe('a member who is gone without a name', () => {
+    const DANA = '@dana:example.org';
+    const membership = (
+      sender: string,
+      content: Record<string, unknown>,
+      prevContent: Record<string, unknown>
+    ) => {
+      eventCount += 1;
+      return new MatrixEvent({
+        type: 'm.room.member',
+        state_key: DANA,
+        sender,
+        room_id: ROOM_ID,
+        event_id: `$membership${eventCount}`,
+        origin_server_ts: eventCount,
+        content,
+        unsigned: { prev_content: prevContent },
+      });
+    };
+
+    /** Dana joins as "Dana", then Sam kicks, bans and unbans her: none of those carry a name. */
+    const removedRoom = async (): Promise<Room> => {
+      const room = roomWith([SAM, 'Sam']);
+      await room.addLiveEvents(
+        [
+          membership(DANA, { membership: 'join', displayname: 'Dana' }, { membership: 'invite' }),
+          membership(SAM, { membership: 'leave' }, { membership: 'join', displayname: 'Dana' }),
+          membership(SAM, { membership: 'ban' }, { membership: 'leave' }),
+          membership(SAM, { membership: 'leave' }, { membership: 'ban' }),
+        ],
+        { addToState: true }
+      );
+      return room;
+    };
+
+    it('keeps the name she last had, after a kick, a ban and its lift', async () => {
+      const room = await removedRoom();
+      expect(room.getMember(DANA)?.membership).toBe('leave');
+      expect(getMemberDisplayName(room, DANA)).toBe('Dana');
+    });
+
+    it('adds her user ID once a member of the room shows that name', async () => {
+      const room = await removedRoom();
+      rename(room, EVE, 'Dana');
+      expect(getMemberDisplayName(room, DANA)).toBe(withId('Dana', DANA));
+    });
+  });
 });

@@ -1,6 +1,7 @@
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { useThreadApprovals } from './ThreadApprovalProvider';
+import { isolateInSentence } from '../ui/directional';
 
 type ApprovalMember = { userId: string; name?: string; getMxcAvatarUrl?: () => string | undefined };
 
@@ -39,9 +40,10 @@ export const agentMember = (
 export const agentDisplayName = (
   room: ApprovalMemberRoom | null | undefined,
   agentName: string
-): string => agentMember(room, agentName)?.name || agentName;
+): string => isolateInSentence(agentMember(room, agentName)?.name || agentName);
 
 export const userDisplayName = (
   room: ApprovalMemberRoom | null | undefined,
   userId: string
-): string => room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId;
+): string =>
+  isolateInSentence(room?.getMember(userId)?.name || getMxIdLocalPart(userId) || userId);

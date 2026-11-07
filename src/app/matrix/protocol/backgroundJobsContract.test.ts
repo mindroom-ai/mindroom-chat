@@ -20,9 +20,16 @@ const job = (jobId: string, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const jobsEvent = (jobs: unknown, { sender = AGENT, stateKey = sender } = {}) =>
+const jobsEvent = (
+  jobs: unknown,
+  {
+    sender = AGENT,
+    stateKey = sender,
+    total,
+  }: { sender?: string; stateKey?: string; total?: unknown } = {}
+) =>
   new MatrixEvent({
-    content: { jobs },
+    content: total === undefined ? { jobs } : { jobs, total },
     event_id: `$${stateKey}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
@@ -66,7 +73,7 @@ describe('selectBackgroundJobs', () => {
         job('job_1', { started_at: '2026-10-11T00:00:00+00:00' }),
       ]),
     ];
-    expect(selectBackgroundJobs(events).map((item) => item.jobId)).toEqual(['job_1', 'job_2']);
+    expect(selectBackgroundJobs(events).jobs.map((item) => item.jobId)).toEqual(['job_1', 'job_2']);
   });
 
   it('shows a thread only its own jobs, and the main timeline every job of the room', () => {
@@ -74,9 +81,27 @@ describe('selectBackgroundJobs', () => {
       jobsEvent([job('job_1'), job('job_2', { thread_id: '$other' })]),
       jobsEvent([job('job_3', { thread_id: null })], { sender: '@mindroom_research:example.org' }),
     ];
-    const jobs = selectBackgroundJobs(events);
+    const { jobs } = selectBackgroundJobs(events);
     const ids = (threadId: string | null) => jobsInView(jobs, threadId).map((item) => item.jobId);
     expect(ids('$thread')).toEqual(['job_1']);
     expect(ids(null)).toEqual(['job_1', 'job_2', 'job_3']);
+  });
+
+  it('counts each agent by its stated total, or its listed jobs when it states none', () => {
+    const events = [
+      jobsEvent([job('job_1'), job('job_2')], { total: 90 }),
+      jobsEvent([job('job_3')], { sender: '@mindroom_research:example.org' }),
+    ];
+    expect(selectBackgroundJobs(events)).toMatchObject({ total: 91 });
+    expect(selectBackgroundJobs(events).jobs).toHaveLength(3);
+  });
+
+  it('ignores a total that is no whole number or below the listed jobs', () => {
+    [-1, 1, 2.5, '90', null, Number.MAX_VALUE].forEach((total) => {
+      const events = [jobsEvent([job('job_1'), job('job_2')], { total })];
+      expect(selectBackgroundJobs(events).total, String(total)).toBe(2);
+    });
+    const exact = [jobsEvent([job('job_1'), job('job_2')], { total: 2 })];
+    expect(selectBackgroundJobs(exact).total).toBe(2);
   });
 });

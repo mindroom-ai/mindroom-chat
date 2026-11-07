@@ -9,6 +9,8 @@ import {
 } from 'matrix-js-sdk';
 import { isRecord } from '../../lib/isRecord';
 import { matchesEnum } from '../../lib/matchesEnum';
+import { stripRedactedRelationsFromRawEvent } from '../eventRevision';
+import { withoutRedactedThreadPreviews } from '../threadSummaryPreviews';
 
 // The SDK saves its sync store after the first sync of a session and then at most every five
 // minutes. A reload or an offline start in between replays the saved sync, so what changed since
@@ -28,7 +30,8 @@ import { matchesEnum } from '../../lib/matchesEnum';
 //
 // The saved sync keeps each event as the server sent it, so a deleted message kept its text there,
 // with its edits, for as long as the saved timeline held it. Before each save, the text of every
-// message a redaction in the saved timeline removes is dropped (`dropRedactedContent`).
+// message a redaction in the saved timeline removes is dropped (`dropRedactedContent`), also from
+// the copies that thread roots carry beside their summary (`threadSummaryPreviews.ts`).
 
 /** The least time between the end of one save and the start of the next, for a redaction. */
 export const REDACTION_SAVE_GAP_MS = 2_000;
@@ -115,9 +118,10 @@ const withLatestReplyWithoutText = (event: SavedEvent, redacted: Set<string>): S
 
 /**
  * Drops the text of every message that a redaction in the saved timeline removes: its content
- * but its relation, the edit the server bundled with it (also as a thread's latest reply), and
- * its edits. The redaction itself is kept and is replayed as before. State events are left
- * alone. Events are replaced rather than changed: the SDK's own events may share their objects.
+ * but its relation, the edit the server bundled with it (also as a thread's latest reply), its
+ * copies beside a thread's summary, and its edits. The redaction itself is kept and is replayed as
+ * before. State events are left alone. Events are replaced rather than changed: the SDK's own
+ * events may share their objects.
  */
 export const dropRedactedContent = (sync: SavedSync): void => {
   Object.values(sync.joinRooms ?? {}).forEach((room) => {
@@ -140,7 +144,11 @@ export const dropRedactedContent = (sync: SavedSync): void => {
         return [];
       }
       const isRedacted = redacted.has(event.event_id ?? '') && event.state_key === undefined;
-      const kept = withLatestReplyWithoutText(isRedacted ? withoutText(event) : event, redacted);
+      const kept = withoutRedactedThreadPreviews(
+        withLatestReplyWithoutText(isRedacted ? withoutText(event) : event, redacted),
+        redacted,
+        stripRedactedRelationsFromRawEvent
+      );
       const next = kept === event && !token ? entry : { event: kept, token: entry.token ?? token };
       token = null;
       return [next];

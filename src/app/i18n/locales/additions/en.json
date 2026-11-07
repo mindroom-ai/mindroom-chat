@@ -542,6 +542,9 @@
       "descriptions": {
         "reply_mode": "Show or switch whether agents need a mention to start a conversation here (set/reset require a room admin)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} background jobs (showing {{shown}})"
     }
   },
   "composer": {

@@ -532,6 +532,9 @@
       "descriptions": {
         "reply_mode": "ここでエージェントが会話を始めるのにメンションが必要かどうかを表示または切り替えます (設定とリセットはルーム管理者のみ)。"
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "バックグラウンドジョブ {{count}} 件（{{shown}} 件を表示）"
     }
   },
   "composer": {

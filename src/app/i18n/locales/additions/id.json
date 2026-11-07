@@ -532,6 +532,9 @@
       "descriptions": {
         "reply_mode": "Tampilkan atau ganti apakah agen perlu disebut untuk memulai percakapan di sini (atur/setel ulang khusus admin ruang)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} tugas latar belakang (menampilkan {{shown}})"
     }
   },
   "composer": {

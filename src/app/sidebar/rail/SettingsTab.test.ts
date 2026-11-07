@@ -13,7 +13,6 @@ import {
 import { settingsModalAtom } from '../../navigation/settingsModal';
 import { withAddAccountSearch } from '../../navigation/addAccount';
 import { useUserProfile } from '../../members/useUserProfile';
-import { removeStoredSession } from '../../account/lifecycle/initMatrix';
 
 const navigate = vi.fn();
 const mediaAuthState = vi.hoisted(() => ({ value: false }));
@@ -32,6 +31,11 @@ vi.mock('folds', async () => {
     Icons: {
       Plus: 'Plus',
     },
+    Overlay: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
+    OverlayBackdrop: () => null,
+    OverlayCenter: ({ children }: { children: React.ReactNode }) =>
+      reactModule.createElement('div', null, children),
     Text: ({ children, ...props }: { children: React.ReactNode; role?: string }) =>
       reactModule.createElement('span', props, children),
   };
@@ -128,8 +132,17 @@ vi.mock('../../matrix/session/sessions', () => ({
   updateSessionProfile: vi.fn(),
 }));
 
-vi.mock('../../account/lifecycle/initMatrix', () => ({
-  removeStoredSession: vi.fn().mockResolvedValue(undefined),
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
+
+vi.mock('../../account/LogoutDialog', () => ({
+  LogoutDialog: ({ session, handleClose }: { session?: StoredSession; handleClose: () => void }) =>
+    React.createElement(
+      'div',
+      { 'data-testid': 'logout-dialog', 'data-user-id': session?.userId },
+      React.createElement('button', { 'data-testid': 'cancel-logout', onClick: handleClose })
+    ),
 }));
 
 vi.mock('../../account/switcher/AccountMenu', () => ({
@@ -336,24 +349,27 @@ describe('SettingsTab', () => {
     );
   });
 
-  it('reports a failed inactive-account removal without closing the switcher', async () => {
-    vi.mocked(removeStoredSession).mockRejectedValueOnce(new Error('blocked write'));
+  it('asks to log an inactive account out before removing it, and keeps it on cancel', async () => {
     const { renderer } = renderSettingsTab();
     openAccountMenu(renderer);
     await act(async () => {
       findButtonByAriaLabel(renderer, 'Manage accounts').props.onClick();
     });
+    const dialogs = () =>
+      renderer.root.findAll(
+        (node) => node.type === 'div' && node.props['data-testid'] === 'logout-dialog'
+      );
 
     await act(async () => {
       renderer.root.findByProps({ 'data-testid': 'remove-account' }).props.onClick();
-      await Promise.resolve();
-      await Promise.resolve();
     });
 
-    expect(vi.mocked(removeStoredSession)).toHaveBeenCalledWith(inactiveSession);
-    expect(renderer.root.findByProps({ role: 'alert' }).children.join('')).toBe(
-      'Could not update this account. Please try again.'
-    );
+    expect(dialogs()).toHaveLength(1);
+    expect(dialogs()[0]?.props['data-user-id']).toBe(inactiveSession.userId);
+    await act(async () => {
+      renderer.root.findByProps({ 'data-testid': 'cancel-logout' }).props.onClick();
+    });
+    expect(dialogs()).toHaveLength(0);
     expect(
       renderer.root.findAll((node) => node.props['data-testid'] === 'account-switcher')
     ).toHaveLength(1);

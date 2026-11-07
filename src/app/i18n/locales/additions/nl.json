@@ -542,6 +542,9 @@
       "descriptions": {
         "reply_mode": "Toon of wijzig of agents hier een vermelding nodig hebben om een gesprek te beginnen (instellen/herstellen alleen kamerbeheerders)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} achtergrondtaken ({{shown}} getoond)"
     }
   },
   "composer": {
