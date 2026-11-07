@@ -131,7 +131,9 @@ describe('thread previews of math', () => {
     expect(preview('Press Ctrl+` for a terminal.\n\nThen run `cp "${A}/a" "${B}/b"`.')).toBe(
       'Press Ctrl+` for a terminal. Then run cp "${A}/a" "${B}/b".'
     );
-    expect(preview('<CODE>$\\frac{a}{b}$</CODE> and $x$')).toBe('<CODE>$\\frac{a}{b}$</CODE> and $x$');
+    expect(preview('<CODE>$\\frac{a}{b}$</CODE> and $x$')).toBe(
+      '<CODE>$\\frac{a}{b}$</CODE> and $x$'
+    );
     expect(preview('\uE0000\uE001 and $x^2$')).toBe('\uE0000\uE001 and $x^2$');
   });
 });
