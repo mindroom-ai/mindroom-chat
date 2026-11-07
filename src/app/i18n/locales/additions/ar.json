@@ -580,8 +580,8 @@
     },
     "plugins": {
       "sidePanel": {
-        "resize": "تغيير حجم {{label}}",
-        "close": "إغلاق {{label}}",
+        "resize": "تغيير حجم ⁨{{label}}⁩",
+        "close": "إغلاق ⁨{{label}}⁩",
         "failed": "توقفت هذه اللوحة عن العمل."
       }
     },

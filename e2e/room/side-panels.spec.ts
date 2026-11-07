@@ -15,6 +15,10 @@ import {
 // open behind the call, and show again once it closes.
 
 test.use({ viewport: { width: 1600, height: 1000 }, video: 'off' });
+// The page's live sync may still be in a route when the test ends.
+test.afterEach(async ({ context }) => {
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+});
 
 test('each core side panel takes the place of every other', async ({ context, page }) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');

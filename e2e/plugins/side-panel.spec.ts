@@ -101,6 +101,8 @@ test("the example plugin's side panel opens, yields and closes as the core panel
     await menuEntry(page).click();
     await expect(panelLocator(page, 'plugin')).toHaveCount(0);
   } finally {
+    // The page's live sync may still be in a route.
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
     await server.close();
   }

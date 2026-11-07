@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
 import * as membersDrawer from '../members/useMembersDrawer';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
 
@@ -25,6 +26,7 @@ const { mx, room, state } = vi.hoisted(() => {
       members,
       config: {} as ClientConfig,
       view: undefined as RoomViewProps | undefined,
+      roomId: '!room:example.org',
     },
     mx: {
       getSafeUserId: () => '@alice:example.org',
@@ -55,7 +57,7 @@ vi.mock('react-router-dom', () => ({
 vi.mock('./RoomView', () => ({
   RoomView: (props: RoomViewProps) => {
     state.view = props;
-    return null;
+    return <div data-testid="room-view" />;
   },
 }));
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
@@ -74,7 +76,10 @@ vi.mock('../canvas/canvasIndex', async (importOriginal) => ({
   useConversationCanvases: () => [],
   useComputerShown: () => false,
 }));
-vi.mock('../matrix/hooks/useRoom', () => ({ useRoom: () => room }));
+// The room the route shows: `room`, or the same room under another id.
+vi.mock('../matrix/hooks/useRoom', () => ({
+  useRoom: () => (state.roomId === room.roomId ? room : { ...room, roomId: state.roomId }),
+}));
 vi.mock('../matrix/hooks/useMatrixClient', () => ({ useMatrixClient: () => mx }));
 vi.mock('../matrix/hooks/useRoomMembers', () => ({ useRoomMembers: () => state.members }));
 vi.mock('../matrix/hooks/usePowerLevels', () => ({
@@ -194,11 +199,19 @@ const isOpen = (panel: CorePanel): boolean => {
 
 const shown = () => PANELS.filter((panel) => screen.queryByTestId(TEST_IDS[panel]));
 
-const renderRoom = async () => {
+const renderRoom = async (size: ScreenSize = ScreenSize.Desktop) => {
   const { Room } = await import('./Room');
+  let rerender: ReturnType<typeof render>['rerender'] | undefined;
   await act(async () => {
-    render(<Room />);
+    ({ rerender } = render(<Room />, {
+      wrapper: ({ children }) => <ScreenSizeProvider value={size}>{children}</ScreenSizeProvider>,
+    }));
   });
+  /** Shows another room in the same place, as a link from one room to another does. */
+  return async (roomId: string) => {
+    state.roomId = roomId;
+    await act(async () => rerender?.(<Room />));
+  };
 };
 
 describe('the side panels of a room', () => {
@@ -225,6 +238,7 @@ describe('the side panels of a room', () => {
     store.set(callPanelRoomAtom, undefined);
     store.set(membersOpenAtom, false);
     state.view = undefined;
+    state.roomId = room.roomId;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -251,6 +265,18 @@ describe('the side panels of a room', () => {
       expect(isOpen(first)).toBe(false);
     }
   });
+
+  it.each(['canvas', 'call', 'members'] as const)(
+    "an agent's request for the computer takes the side panel from %s",
+    async (first) => {
+      await renderRoom();
+      await open(first);
+      await agentRequest('show_computer');
+      expect(isOpen('computer')).toBe(true);
+      expect(shown()).toEqual(['computer']);
+      expect(isOpen(first)).toBe(false);
+    }
+  );
 
   it('toggles the members from the header by the same rule, even behind the call', async () => {
     await renderRoom();
@@ -305,6 +331,25 @@ describe('the side panels of a room', () => {
     expect(notes()).not.toBeNull();
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
     expect(notes()).toBeNull();
+  });
+
+  it("keeps a plugin's panel with the room it was opened in", async () => {
+    const showRoom = await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    await showRoom('!other:example.org');
+    expect(notes()).toBeNull();
+    expect(state.view?.shownPanel).toBeUndefined();
+    await showRoom(room.roomId);
+    expect(notes()).not.toBeNull();
+  });
+
+  it("covers the conversation with a plugin's panel on phones", async () => {
+    await renderRoom(ScreenSize.Mobile);
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(notes()).not.toBeNull();
+    expect(screen.queryByTestId('room-view')).toBeNull();
+    await act(async () => screen.getByRole('button', { name: 'Close Notes' }).click());
+    expect(screen.queryByTestId('room-view')).not.toBeNull();
   });
 
   it('lists no panel of a plugin that config.json turns off', async () => {
