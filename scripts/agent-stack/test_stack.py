@@ -329,7 +329,14 @@ class OptionTests(unittest.TestCase):
 
     def test_a_running_stack_is_reused_only_with_the_options_it_started_with(self) -> None:
         sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
-        state = {"model": "stub", "calls": None, "sha": sha, "homeserver": homeserver, "approvalExpirySeconds": 26}
+        state = {
+            "model": "stub",
+            "calls": None,
+            "sha": sha,
+            "homeserver": homeserver,
+            "approvalExpiryDays": 0.0003,
+            "approvalExpirySeconds": 26,
+        }
         sessions = {**state, "clientSessions": True, "computers": False}
         # A stack that the script started before these options is one without them.
         self.assertTrue(stack.started_with(state, up_args(), sha, homeserver))
@@ -343,6 +350,9 @@ class OptionTests(unittest.TestCase):
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True), sha, "http://127.0.0.1:28143"))
         longer_expiry = up_args(client_sessions=True, approval_expiry_days=0.001)
         self.assertFalse(stack.started_with(sessions, longer_expiry, sha, homeserver))
+        # 0.000301 days is 26 s too, rounded, but the backend's config would differ.
+        nearly_the_same = up_args(client_sessions=True, approval_expiry_days=0.000301)
+        self.assertFalse(stack.started_with(sessions, nearly_the_same, sha, homeserver))
 
 
 # Stands in for the docker CLI: logs each call, keeps the build context, and builds once unless told to fail.
