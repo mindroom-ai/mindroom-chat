@@ -437,8 +437,22 @@ const instrument = () => {
     loaf: [] as { duration: number; blocking: number; scripts: string[] }[],
     layoutShifts: [] as { value: number; sources: string[] }[],
     writes: [] as { kind: string; value: number; from: number; t: number; stack: string }[],
-    shiftFrames: 0,
-    shifts: [] as { t: number; key: string; shift: number; dScroll: number }[],
+    lastInput: 0,
+    quietMs: 400,
+    writeDelta: 0,
+    moveFrames: 0,
+    layoutFrames: 0,
+    quietFrames: 0,
+    moves: [] as {
+      t: number;
+      kind: string;
+      px: number;
+      median: number;
+      dScroll: number;
+      appDelta: number;
+      inputAge: number;
+      rows: string[];
+    }[],
     heightChanges: [] as {
       t: number;
       key: string;
@@ -448,8 +462,8 @@ const instrument = () => {
       after: string;
     }[],
     textChanges: [] as { t: number; key: string; before: string; after: string }[],
-    maxShift: 0,
-    totalShift: 0,
+    maxMove: 0,
+    totalMove: 0,
     scrolled: 0,
     prev: new Map<string, Row>(),
     prevTop: 0,
@@ -544,6 +558,7 @@ const instrument = () => {
   // The app's own writes of the scroll offset.
   const record = (kind: string, element: unknown, value: number) => {
     if (!state.recording || element !== state.scroller || !state.scroller) return;
+    state.writeDelta += value - state.scroller.scrollTop;
     state.writes.push({
       kind,
       value: Math.round(value),
@@ -579,6 +594,16 @@ const instrument = () => {
   });
 
   const text = (element: Element) => (element.textContent ?? '').replace(/\s+/g, ' ').slice(0, 160);
+  // Input the reader gave: wheel, touch and keys. Rows may move only while it scrolls them.
+  ['wheel', 'touchstart', 'touchmove', 'touchend', 'keydown'].forEach((type) =>
+    window.addEventListener(
+      type,
+      () => {
+        state.lastInput = performance.now();
+      },
+      { capture: true, passive: true }
+    )
+  );
   const tick = (now: number) => {
     if (state.recording && state.scroller) {
       if (state.last) state.frames.push(now - state.last);
@@ -586,10 +611,12 @@ const instrument = () => {
       const scroller = state.scroller;
       const top = scroller.scrollTop;
       const dScroll = top - state.prevTop;
+      const appDelta = state.writeDelta;
+      state.writeDelta = 0;
       state.scrolled += Math.abs(dScroll);
       const view = scroller.getBoundingClientRect();
       const current = new Map<string, Row>();
-      let frameMax = 0;
+      const moved: { key: string; d: number }[] = [];
       scroller.querySelectorAll(state.rowSelector).forEach((element) => {
         const rect = element.getBoundingClientRect();
         if (rect.bottom <= view.top || rect.top >= view.bottom || rect.height === 0) return;
@@ -599,20 +626,10 @@ const instrument = () => {
         current.set(key, row);
         const before = state.prev.get(key);
         if (!before) return;
-        // A row on screen moves with the scroll and nothing else.
-        const shift = row.top - before.top + dScroll;
-        // Only the part of the row that was on screen in both frames counts.
+        // Only rows on screen in both frames, by more than a sliver, count.
         const shown = Math.min(rect.bottom, view.bottom) - Math.max(rect.top, view.top);
-        if (Math.abs(shift) >= 2 && shown > 8) {
-          frameMax = Math.max(frameMax, Math.abs(shift));
-          if (state.shifts.length < 300) {
-            state.shifts.push({
-              t: Math.round(now),
-              key: key.slice(0, 14),
-              shift: Math.round(shift),
-              dScroll: Math.round(dScroll),
-            });
-          }
+        if (shown > 8 && before.top < view.bottom - 8 && before.top + before.h > view.top + 8) {
+          moved.push({ key, d: row.top - before.top });
         }
         if (Math.abs(row.h - before.h) >= 1 && state.heightChanges.length < 300) {
           state.heightChanges.push({
@@ -633,9 +650,39 @@ const instrument = () => {
           });
         }
       });
-      if (frameMax > 0) state.shiftFrames += 1;
-      state.maxShift = Math.max(state.maxShift, frameMax);
-      state.totalShift += frameMax;
+      if (moved.length > 0) {
+        const ds = moved.map((row) => row.d).sort((x, y) => x - y);
+        const median = ds[Math.floor(ds.length / 2)] ?? 0;
+        // Rows that moved apart: something on screen changed its size or was put between them.
+        const spread = Math.max(...ds.map((d) => Math.abs(d - median)));
+        // Rows that moved together while the reader gave no input for a while.
+        const inputAge = now - state.lastInput;
+        const quiet = inputAge > state.quietMs;
+        const quietMove = quiet ? Math.abs(median) : 0;
+        const px = Math.max(spread, quietMove);
+        if (px >= 2) {
+          state.moveFrames += 1;
+          if (spread >= 2) state.layoutFrames += 1;
+          if (quietMove >= 2) state.quietFrames += 1;
+          state.maxMove = Math.max(state.maxMove, px);
+          state.totalMove += px;
+          if (state.moves.length < 400) {
+            state.moves.push({
+              t: Math.round(now),
+              kind: spread >= 2 ? 'layout' : 'quiet',
+              px: Math.round(px),
+              median: Math.round(median),
+              dScroll: Math.round(dScroll),
+              appDelta: Math.round(appDelta),
+              inputAge: Math.round(inputAge),
+              rows: moved
+                .filter((row) => Math.abs(row.d - (quiet ? 0 : median)) >= 2)
+                .slice(0, 4)
+                .map((row) => `${row.key.slice(0, 12)}:${Math.round(row.d)}`),
+            });
+          }
+        }
+      }
       state.prev = current;
       state.prevTop = top;
     }
@@ -651,8 +698,19 @@ type JitterState = {
   loaf: { duration: number; blocking: number; scripts: string[] }[];
   layoutShifts: { value: number; sources: string[] }[];
   writes: { kind: string; value: number; from: number; t: number; stack: string }[];
-  shiftFrames: number;
-  shifts: { t: number; key: string; shift: number; dScroll: number }[];
+  moveFrames: number;
+  layoutFrames: number;
+  quietFrames: number;
+  moves: {
+    t: number;
+    kind: string;
+    px: number;
+    median: number;
+    dScroll: number;
+    appDelta: number;
+    inputAge: number;
+    rows: string[];
+  }[];
   heightChanges: {
     t: number;
     key: string;
@@ -662,66 +720,73 @@ type JitterState = {
     after: string;
   }[];
   textChanges: { t: number; key: string; before: string; after: string }[];
-  maxShift: number;
-  totalShift: number;
+  maxMove: number;
+  totalMove: number;
   scrolled: number;
 };
 
-const startRecording = (page: Page, view: View) =>
-  page.evaluate((compact) => {
-    const state = (
-      window as unknown as { __jitter: Record<string, unknown> & { prev: Map<string, unknown> } }
-    ).__jitter;
-    let scroller: HTMLElement | null = null;
-    if (compact) {
-      scroller = document.querySelector<HTMLElement>('[data-compact-room-view="true"]');
-    } else {
-      let element = document.querySelector('[data-message-item]')?.parentElement ?? null;
-      while (element) {
-        const { overflowY } = getComputedStyle(element);
-        if (
-          (overflowY === 'auto' || overflowY === 'scroll') &&
-          element.scrollHeight > element.clientHeight
-        ) {
-          scroller = element;
-          break;
+const startRecording = (page: Page, view: View, touchInput: boolean) =>
+  page.evaluate(
+    ({ compact, touchInput }) => {
+      const state = (
+        window as unknown as { __jitter: Record<string, unknown> & { prev: Map<string, unknown> } }
+      ).__jitter;
+      let scroller: HTMLElement | null = null;
+      if (compact) {
+        scroller = document.querySelector<HTMLElement>('[data-compact-room-view="true"]');
+      } else {
+        let element = document.querySelector('[data-message-item]')?.parentElement ?? null;
+        while (element) {
+          const { overflowY } = getComputedStyle(element);
+          if (
+            (overflowY === 'auto' || overflowY === 'scroll') &&
+            element.scrollHeight > element.clientHeight
+          ) {
+            scroller = element;
+            break;
+          }
+          element = element.parentElement;
         }
-        element = element.parentElement;
       }
-    }
-    if (!scroller) throw new Error('no scroller');
-    Object.assign(state, {
-      scroller,
-      rowSelector: compact ? '[data-scroll-anchor]' : '[data-message-item]',
-      keyAttribute: compact ? 'data-scroll-anchor' : 'data-message-id',
-      frames: [],
-      commits: 0,
-      longTasks: [],
-      loaf: [],
-      layoutShifts: [],
-      writes: [],
-      shiftFrames: 0,
-      shifts: [],
-      heightChanges: [],
-      textChanges: [],
-      maxShift: 0,
-      totalShift: 0,
-      scrolled: 0,
-      prev: new Map(),
-      prevTop: scroller.scrollTop,
-      last: 0,
-      recording: true,
-    });
-    const box = scroller.getBoundingClientRect();
-    const max = scroller.scrollHeight - scroller.clientHeight;
-    return {
-      x: box.x + box.width / 2,
-      y: box.y + box.height / 2,
-      // Newest-first lists open at their top and scroll down into history; Classic opens at its end.
-      direction: scroller.scrollTop < max / 2 ? 1 : -1,
-      scrollHeight: scroller.scrollHeight,
-    };
-  }, view === 'compact');
+      if (!scroller) throw new Error('no scroller');
+      Object.assign(state, {
+        scroller,
+        rowSelector: compact ? '[data-scroll-anchor]' : '[data-message-item]',
+        keyAttribute: compact ? 'data-scroll-anchor' : 'data-message-id',
+        frames: [],
+        commits: 0,
+        longTasks: [],
+        loaf: [],
+        layoutShifts: [],
+        writes: [],
+        moveFrames: 0,
+        layoutFrames: 0,
+        quietFrames: 0,
+        moves: [],
+        writeDelta: 0,
+        quietMs: touchInput ? 1500 : 400,
+        heightChanges: [],
+        textChanges: [],
+        maxMove: 0,
+        totalMove: 0,
+        scrolled: 0,
+        prev: new Map(),
+        prevTop: scroller.scrollTop,
+        last: 0,
+        recording: true,
+      });
+      const box = scroller.getBoundingClientRect();
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      return {
+        x: box.x + box.width / 2,
+        y: box.y + box.height / 2,
+        // Newest-first lists open at their top and scroll down into history; Classic opens at its end.
+        direction: scroller.scrollTop < max / 2 ? 1 : -1,
+        scrollHeight: scroller.scrollHeight,
+      };
+    },
+    { compact: view === 'compact', touchInput }
+  );
 
 const stopRecording = (page: Page): Promise<JitterState> =>
   page.evaluate(() => {
@@ -943,9 +1008,10 @@ test.describe('thread scroll jitter', () => {
                       everyNthFrame: 1,
                     });
                   }
-                  const at = await startRecording(page, view);
+                  const touchInput = viewport === 'phone' && engine === 'chromium';
+                  const at = await startRecording(page, view, touchInput);
                   const started = Date.now();
-                  await scrollRoom(page, cdp, viewport === 'phone' && engine === 'chromium', at);
+                  await scrollRoom(page, cdp, touchInput, at);
                   const elapsed = Date.now() - started;
                   const state = await stopRecording(page);
                   if (cdp && FRAMES) {
@@ -992,9 +1058,11 @@ test.describe('thread scroll jitter', () => {
                     commits: state.commits,
                     commitsPerFrame:
                       Math.round((state.commits / Math.max(1, state.frames.length)) * 100) / 100,
-                    shiftFrames: state.shiftFrames,
-                    maxShiftPx: Math.round(state.maxShift),
-                    totalShiftPx: Math.round(state.totalShift),
+                    moveFrames: state.moveFrames,
+                    layoutFrames: state.layoutFrames,
+                    quietFrames: state.quietFrames,
+                    maxMovePx: Math.round(state.maxMove),
+                    totalMovePx: Math.round(state.totalMove),
                     heightChanges: state.heightChanges.length,
                     textChanges: state.textChanges.length,
                     scrollWrites: state.writes.length,
@@ -1024,7 +1092,7 @@ test.describe('thread scroll jitter', () => {
     writeFileSync(`${OUT_DIR}/scroll-jitter.json`, JSON.stringify(results, null, 1));
     if (ASSERT) {
       for (const result of results) {
-        expect(result.maxShiftPx, `${String(result.name)} rows moved on screen`).toBe(0);
+        expect(result.maxMovePx, `${String(result.name)} rows moved on screen`).toBe(0);
       }
     }
   });
