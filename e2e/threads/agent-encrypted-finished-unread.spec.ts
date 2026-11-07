@@ -2,10 +2,12 @@ import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import {
   composer,
+  createAgentRoom,
   createEncryptedAgentRoom,
   expect,
   mentionHelper,
   openNewSession,
+  sendFromComposer,
   serverUnreadCounts,
   test,
   type AgentStack,
@@ -363,5 +365,156 @@ test('a reply that comes while the reader is away counts once, also after a relo
   } finally {
     if (roomId) log.push(await describeRoom(stack, roomId));
     writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
+  }
+});
+
+// Regression (P2-e2ee-F001): a reply the reader watched to its end left an encrypted room unread
+// for good (badge 1, the server 0) whenever no title notice followed it: a stopped reply, and a
+// follow-up reply in a thread that has its title already. The client's receipt names the reply's
+// terminal edit, and the client did not take a receipt on an edit as reading it; after a reload
+// the edit decrypted again and counted again. An unencrypted room, where the client takes the
+// server's counts, never showed it.
+
+/** Moves the loaded client to Home, where the sidebar (or the phone's list) shows the room. */
+const goHome = async (page: Page, roomId: string): Promise<void> => {
+  await page.evaluate(() => {
+    window.history.pushState(null, '', '/home/');
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  });
+  await expect(page.locator(`[data-room-id="${roomId}"]`).first()).toBeVisible({
+    timeout: 30_000,
+  });
+};
+
+/** Waits until the room shows no badge and the server counts nothing, for five polls in a row. */
+const expectRoomRead = async (
+  page: Page,
+  stack: AgentStack,
+  roomId: string,
+  log: string[],
+  who: string
+): Promise<void> => {
+  let held = 0;
+  await expect
+    .poll(
+      async () => {
+        const server = await serverUnreadCounts(stack, roomId);
+        const shown = await badgeCount(page, roomId);
+        log.push(`${who}: badge ${shown}, server ${JSON.stringify(server)}`);
+        held = shown === 0 && total(server) === 0 ? held + 1 : 0;
+        return held >= 5;
+      },
+      { timeout: 45_000, intervals: [1000], message: `${who}: the room is read, as on the server` }
+    )
+    .toBe(true);
+  if (SHOTS) {
+    const engine = page.context().browser()?.browserType().name() ?? 'browser';
+    await page.screenshot({
+      path: `${SHOTS}/watched-read-${who.replace(/ /g, '-')}-${engine}.png`,
+    });
+  }
+};
+
+const stopButton = (page: Page) => page.getByRole('button', { name: 'Stop', exact: true });
+
+/** Waits for a reply to start streaming and then to finish: its Stop button comes and goes. */
+const watchReplyToItsEnd = async (page: Page): Promise<void> => {
+  await expect(stopButton(page)).toBeVisible({ timeout: 90_000 });
+  await expect(stopButton(page)).toBeHidden({ timeout: 120_000 });
+};
+
+type Ending = 'stop' | 'follow-up';
+
+/**
+ * The reader asks the helper in a new room and watches the reply: stops it after a few words, or
+ * reads it to its end and then a follow-up reply in the same thread. The thread's title notice
+ * follows the first reply only. Then the reader goes Home.
+ */
+const watchThenGoHome = async (
+  page: Page,
+  stack: AgentStack,
+  encrypted: boolean,
+  ending: Ending
+): Promise<string> => {
+  const roomId = await createAgentRoom(stack, `Watched ${ending}`, encrypted);
+  await readRouterWelcome(stack, roomId);
+  await page.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
+  await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+  if (ending === 'stop') {
+    // 400 words, one every quarter second; the client follows the reply's thread.
+    await mentionHelper(page, stack, '#stopme watch it and stop it');
+    await expect(page.getByText(/\bword5\b/).first()).toBeVisible({ timeout: 90_000 });
+    await stopButton(page).click();
+    await expect(page.getByText('[Response cancelled by user]').first()).toBeVisible({
+      timeout: 60_000,
+    });
+  } else {
+    // 30 words, one every quarter second, and the thread's title after them.
+    await mentionHelper(page, stack, '#slow first question');
+    await watchReplyToItsEnd(page);
+    await expect(page.getByText(/\bword30\b/).first()).toBeVisible({ timeout: 30_000 });
+    await page.waitForTimeout(5_000);
+    await sendFromComposer(page, '#slow follow up in thread');
+    await watchReplyToItsEnd(page);
+  }
+  // The reader keeps watching a moment, as a person does.
+  await page.waitForTimeout(6_000);
+  await goHome(page, roomId);
+  return roomId;
+};
+
+const watchedLeavesRoomRead = async (
+  page: Page,
+  stack: AgentStack,
+  encrypted: boolean,
+  ending: Ending
+): Promise<void> => {
+  const log: string[] = [];
+  let roomId: string | undefined;
+  try {
+    roomId = await watchThenGoHome(page, stack, encrypted, ending);
+    const kind = `${encrypted ? 'encrypted' : 'plain'} ${ending}`;
+    await expectRoomRead(page, stack, roomId, log, `${kind} live`);
+    await page.reload();
+    await goHome(page, roomId);
+    await expectRoomRead(page, stack, roomId, log, `${kind} reload`);
+  } finally {
+    if (roomId) log.push(await describeRoom(stack, roomId));
+    writeFileSync(test.info().outputPath('counts.log'), `${log.join('\n')}\n`);
+  }
+};
+
+for (const ending of ['stop', 'follow-up'] as const) {
+  const reply = ending === 'stop' ? 'stopped' : 'follow-up';
+  test(`a ${reply} reply the reader watched leaves an encrypted room read`, async ({
+    page,
+    stack,
+  }) => {
+    await watchedLeavesRoomRead(page, stack, true, ending);
+  });
+
+  test(`a ${reply} reply the reader watched leaves an unencrypted room read`, async ({
+    page,
+    stack,
+  }) => {
+    await watchedLeavesRoomRead(page, stack, false, ending);
+  });
+}
+
+test('a follow-up reply the reader watched leaves an encrypted room read (WebKit phone)', async ({
+  stack,
+  baseURL,
+}) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'PLAYWRIGHT_WEBKIT_EXECUTABLE names no WebKit');
+  const webkit = await launchWebKit();
+  try {
+    const page = await openNewSession(webkit, stack, {
+      baseURL,
+      viewport: { width: 390, height: 844 },
+      hasTouch: true,
+    });
+    await watchedLeavesRoomRead(page, stack, true, 'follow-up');
+  } finally {
+    await webkit.close();
   }
 });
