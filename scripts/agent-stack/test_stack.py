@@ -384,6 +384,51 @@ class CommandLineTests(unittest.TestCase):
                 self.assertEqual(list(target.iterdir()), [])
 
 
+class PrivateDirTests(unittest.TestCase):
+    """scripts/private-dir.sh, which checks the e2e scripts' roots as stack_root() checks this script's."""
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        # A umask that lets the group write, as many systems give their users.
+        self.addCleanup(os.umask, os.umask(0o002))
+
+    def private_dir(self, path: str) -> subprocess.CompletedProcess:
+        helper = Path(__file__).resolve().parents[1] / "private-dir.sh"
+        command = 'set -euo pipefail; . "$1"; private_dir "$2"'
+        return subprocess.run(["bash", "-c", command, "test", helper, path], capture_output=True, text=True)
+
+    def test_a_missing_root_is_made_the_owners_only_whatever_the_umask(self) -> None:
+        root = self.root / "new" / "e2e"
+        self.assertEqual(self.private_dir(f"{root}/").returncode, 0)
+        self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+
+    def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:
+        target = self.root / "target"
+        target.mkdir(mode=0o700)
+        (self.root / "link").symlink_to(target)
+        (self.root / "file").touch(mode=0o600)
+        roots = {
+            "a symlink": (f"{self.root}/link", 0o700),
+            "a symlink with a trailing slash": (f"{self.root}/link//", 0o700),
+            "a file": (f"{self.root}/file", 0o700),
+            "writable by its group": (str(target), 0o770),
+            "writable by others": (str(target), 0o707),
+        }
+        if os.geteuid() != 0:
+            roots["another user's"] = ("/usr", 0o700)
+        for name, (root, mode) in roots.items():
+            target.chmod(mode)
+            with self.subTest(name):
+                result = self.private_dir(root)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(root.rstrip("/"), result.stderr)
+                self.assertEqual(list(target.iterdir()), [])
+        target.chmod(0o755)
+        self.assertEqual(self.private_dir(str(target)).returncode, 0, "a directory others may only read")
+
+
 class SlotTests(unittest.TestCase):
     def test_no_two_slots_up_to_99_share_a_port(self) -> None:
         self.assertEqual(stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742})
