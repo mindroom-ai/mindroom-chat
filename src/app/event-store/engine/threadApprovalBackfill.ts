@@ -1,4 +1,4 @@
-import { Direction, MatrixClient, MatrixEvent, RelationType } from 'matrix-js-sdk';
+import { ConnectionError, Direction, MatrixClient, MatrixEvent, RelationType } from 'matrix-js-sdk';
 import {
   MINDROOM_TOOL_APPROVAL_EVENT,
   isUndecryptedApprovalCandidate,
@@ -104,7 +104,10 @@ export const enqueueThreadApprovalBackfill = (
           repairedEventIds,
           ...(decryptionFailed ? { error: 'undecryptable' as const } : {}),
         };
-      } catch {
+      } catch (error) {
+        // Without a connection the history is not loaded yet rather than unloadable: the caller
+        // asks again once the connection returns.
+        if (error instanceof ConnectionError) throw error;
         return {
           events: collected,
           repairedEventIds,

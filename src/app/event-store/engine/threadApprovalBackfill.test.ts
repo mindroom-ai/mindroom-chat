@@ -1,4 +1,4 @@
-import { createClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { ConnectionError, createClient, MatrixEvent, Room } from 'matrix-js-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { createBackfillScheduler } from './backfillScheduler';
 import { enqueueThreadApprovalBackfill } from './threadApprovalBackfill';
@@ -97,6 +97,14 @@ it('does not infer deletions or refresh omissions when discovery fails partway',
   ]);
   expect(result.error).toBeTruthy();
   expect(fetch).not.toHaveBeenCalled();
+});
+
+it('rejects without a connection, which is no history error but a wait for the connection', async () => {
+  const { mx, scheduler } = setup();
+  vi.spyOn(mx, 'fetchRelations').mockRejectedValue(new ConnectionError('fetch failed'));
+  await expect(
+    enqueueThreadApprovalBackfill(mx, scheduler, roomId, threadId)
+  ).rejects.toBeInstanceOf(ConnectionError);
 });
 
 describe('thread approval backfill', () => {
