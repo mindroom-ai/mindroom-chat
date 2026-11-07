@@ -3395,3 +3395,38 @@ index 19a2f43..d7c247c 100644
      }
  
      /**
+diff --git a/node_modules/matrix-js-sdk/lib/event-mapper.js b/node_modules/matrix-js-sdk/lib/event-mapper.js
+index b0db891..4a98359 100644
+--- a/node_modules/matrix-js-sdk/lib/event-mapper.js
++++ b/node_modules/matrix-js-sdk/lib/event-mapper.js
+@@ -20,9 +20,11 @@ limitations under the License.
+ import { MatrixEvent, MatrixEventEvent } from "./models/event.js";
+ import { RelationType } from "./@types/event.js";
+ export function eventMapperFor(client, options) {
+-  var preventReEmit = Boolean(options.preventReEmit);
+   var decrypt = options.decrypt !== false;
+   function mapper(plainOldJsObject) {
++    // MindRoom: decided per event. A mapper maps a whole /sync batch, so a flag shared by its
++    // calls stopped re-emitting every new event after the first one the room already held.
++    var preventReEmit = Boolean(options.preventReEmit);
+     var room = client.getRoom(plainOldJsObject.room_id);
+     var event;
+     // If the event is already known to the room, let's re-use the model rather than duplicating.
+diff --git a/node_modules/matrix-js-sdk/src/event-mapper.ts b/node_modules/matrix-js-sdk/src/event-mapper.ts
+index 49c5a4d..d5012ae 100644
+--- a/node_modules/matrix-js-sdk/src/event-mapper.ts
++++ b/node_modules/matrix-js-sdk/src/event-mapper.ts
+@@ -28,10 +28,12 @@ export interface MapperOpts {
+ }
+ 
+ export function eventMapperFor(client: MatrixClient, options: MapperOpts): EventMapper {
+-    let preventReEmit = Boolean(options.preventReEmit);
+     const decrypt = options.decrypt !== false;
+ 
+     function mapper(plainOldJsObject: Partial<IEvent>): MatrixEvent {
++        // MindRoom: decided per event. A mapper maps a whole /sync batch, so a flag shared by its
++        // calls stopped re-emitting every new event after the first one the room already held.
++        let preventReEmit = Boolean(options.preventReEmit);
+         const room = client.getRoom(plainOldJsObject.room_id);
+ 
+         let event: MatrixEvent | undefined;
