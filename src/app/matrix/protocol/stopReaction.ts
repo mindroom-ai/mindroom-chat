@@ -4,6 +4,7 @@ import { hasTerminalStreamMetadata, isAiRunStreaming } from './aiRun';
 import { type AnnotationEntry, getActiveAnnotationsByKey } from './reactionAnnotations';
 import { getReadableContent } from '../room';
 import { isUnreadableYet } from '../decryptionWaits';
+import { isStreamingByServer } from '../client/syncedEdits';
 
 /**
  * Stop-button reaction keys the MindRoom backend attaches to streaming
@@ -28,9 +29,10 @@ export const isStaleStopReactionKey = (
 ): boolean =>
   STOP_REACTION_KEYS.has(key) &&
   !!targetEvent &&
-  // A reply not decrypted yet may have finished; its Stop button shows once it decrypts.
-  (isUnreadableYet(targetEvent) ||
-    hasTerminalStreamMetadata((getReadableContent(targetEvent) as Record<string, unknown>) ?? {}));
+  // A reply this device cannot read (yet) is stale unless the server says it streams.
+  (isUnreadableYet(targetEvent)
+    ? isStreamingByServer(targetEvent) !== true
+    : hasTerminalStreamMetadata((getReadableContent(targetEvent) as Record<string, unknown>) ?? {}));
 
 export const getRenderableAnnotationsByKey = (
   relations: Relations | undefined,
@@ -50,5 +52,7 @@ export const isAgentStopButton = (
 ): boolean =>
   key === '🛑' &&
   !!targetEvent &&
-  isAiRunStreaming((getReadableContent(targetEvent) as Record<string, unknown>) ?? {}) &&
+  (isUnreadableYet(targetEvent)
+    ? isStreamingByServer(targetEvent) === true
+    : isAiRunStreaming((getReadableContent(targetEvent) as Record<string, unknown>) ?? {})) &&
   events.some((event) => event.getSender() === targetEvent.getSender());
