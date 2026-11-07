@@ -78,6 +78,10 @@ main() {
     done
   done
 
+  # The same default as scripts/e2e-slot.sh, whatever $TMPDIR says.
+  snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
+  . "$repo/scripts/private-dir.sh"
+  private_dir "$snapshots"
   if [ -n "$resume" ]; then
     [ -f "$resume/manifest.tsv" ] || {
       echo "e2e-suite: $resume is not a suite run directory" >&2
@@ -99,10 +103,6 @@ main() {
   fi
   mapfile -t dev_specs < <(git grep -l "'/src/" "$sha" -- e2e | sed "s/^$sha://")
   mapfile -t rtc_specs < <(git grep -l 'scripts/e2e-rtc\.sh' "$sha" -- e2e | sed "s/^$sha://")
-  # The same default as scripts/e2e-slot.sh, whatever $TMPDIR says.
-  snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
-  . "$repo/scripts/private-dir.sh"
-  private_dir "$snapshots"
   # Traces, videos and reports of runs untouched for two days go; their logs and results.tsv stay.
   find "$snapshots" -mindepth 1 -maxdepth 1 -type d -name 'suite-*' -mmin +2880 -print0 |
     while IFS= read -r -d '' old; do
