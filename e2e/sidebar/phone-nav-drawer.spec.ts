@@ -488,6 +488,57 @@ for (const engine of ENGINES) {
   });
 }
 
+for (const engine of ENGINES) {
+  test(`${engine}: a fresh load at Home shows the drawer out without sliding it in`, async ({
+    browser,
+  }) => {
+    test.skip(engine === 'webkit' && !WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE');
+    test.setTimeout(240_000);
+    const own = engine === 'webkit' ? await launchWebKit() : browser;
+    try {
+      const { context, page } = await signIn(own, await seed(engine, 'launch'));
+      try {
+        // Every transform transition the drawer starts, from the first script of the page on.
+        await context.addInitScript(() => {
+          const runs: string[] = [];
+          Object.assign(window, { drawerSlides: runs });
+          document.addEventListener(
+            'transitionrun',
+            (event) => {
+              const { target } = event;
+              if (target instanceof Element && target.id === 'phone-nav-drawer') {
+                runs.push(`${event.propertyName} at ${Math.round(performance.now())} ms`);
+              }
+            },
+            true
+          );
+        });
+        const slides = () =>
+          page.evaluate(() => (window as unknown as { drawerSlides: string[] }).drawerSlides);
+
+        await page.reload();
+        await expect(roomList(page).getByRole('link', { name: 'Harbor Plans' })).toBeVisible({
+          timeout: 60_000,
+        });
+        await expectDrawer(page, true, 'Home opens with the drawer out');
+        await expect(page.getByTestId('client-sync-status')).toHaveCount(0, { timeout: 60_000 });
+        // Long enough for a slide that started late to show itself.
+        await page.waitForTimeout(1_000);
+        expect(await slides(), 'the drawer is out from the first frame it shows').toEqual([]);
+
+        // Once the app shows, the menu button still slides it.
+        await menuButton(page).tap();
+        await expectDrawer(page, false, 'the menu button puts the drawer away');
+        await expect.poll(slides).toContainEqual(expect.stringMatching(/^transform /));
+      } finally {
+        await context.close();
+      }
+    } finally {
+      if (engine === 'webkit') await own.close();
+    }
+  });
+}
+
 test('chromium: the drawer slides, except with reduced motion, and mirrors right to left', async ({
   browser,
 }) => {
