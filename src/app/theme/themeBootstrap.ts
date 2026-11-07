@@ -85,7 +85,8 @@ const isThemeId = (themeId: string | undefined): themeId is ThemeId =>
 const resolveThemeId = (themeId: string | undefined, fallbackThemeId: ThemeId): ThemeId =>
   isThemeId(themeId) ? themeId : fallbackThemeId;
 
-// ISSUE-087: keep in sync with the inline bootstrap in index.html.
+// ISSUE-087: resolveInitialTheme() checks the route with this, for the startup theme that
+// src/index.tsx applies through applyAppTheme() before the app first renders.
 const stripSearchAndHash = (raw: string | undefined): string => {
   if (typeof raw !== 'string') return '';
 
@@ -110,7 +111,8 @@ const prefersDarkMode = (): boolean =>
   typeof window.matchMedia === 'function' &&
   window.matchMedia('(prefers-color-scheme: dark)').matches;
 
-// ISSUE-087: keep in sync with the inline bootstrap in index.html.
+// ISSUE-087: resolveInitialTheme() checks for an active stored session with this, for the
+// startup theme that src/index.tsx applies through applyAppTheme() before the app first renders.
 const hasActiveStoredSession = (): boolean => {
   try {
     if (

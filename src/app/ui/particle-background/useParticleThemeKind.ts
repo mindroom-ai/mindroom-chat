@@ -19,10 +19,9 @@ export const resolveParticleThemeKind = (): ParticleThemeKind => {
 };
 
 /**
- * The particle background renders both inside and outside ThemeContextProvider
- * (auth pages, config/feature-check splash screens), so the active theme kind is
- * read from the theme id class that the bootstrap script and applyThemeToDom()
- * maintain on <html>.
+ * The active theme kind, read from the theme id class on <html> that the particle
+ * CSS variables follow too. applyAppTheme() sets it: src/index.tsx applies the
+ * startup theme with it before the app first renders, and AppTheme every later theme.
  */
 export const useParticleThemeKind = (): ParticleThemeKind => {
   const [themeKind, setThemeKind] = useState<ParticleThemeKind>(resolveParticleThemeKind);
