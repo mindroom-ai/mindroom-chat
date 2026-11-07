@@ -84,14 +84,14 @@ const shot = async (page: Page, name: string) => {
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };
 
-/** Opens the thread and returns the agent's reply, once the plugin renders it. */
-const openReply = async (page: Page) => {
+/** Opens the thread and, once the plugin renders the agent's reply, returns its "Seen before". */
+const openSeenMark = async (page: Page) => {
   await page.goto(threadPath);
   const reply = page.locator(`[data-message-id="${replyId}"]`);
   await expect(reply.locator('[data-example-plugin]')).toHaveText(`Example plugin: ${GREETING}`, {
     timeout: 60_000,
   });
-  return reply;
+  return reply.locator('[data-example-plugin-seen]');
 };
 
 /** The localStorage keys of the plugin values kept for `userId`. */
@@ -110,13 +110,11 @@ test("signing out deletes the account's plugin storage and the plugin forgets th
   const page = await context.newPage();
   try {
     await loginWithPassword(page, { homeserver: HOMESERVER, ...alice });
-    let reply = await openReply(page);
-    await expect(reply.locator('[data-example-plugin-seen]')).toHaveCount(0);
+    await expect(await openSeenMark(page)).toHaveCount(0);
     await expect.poll(() => pluginKeysOf(page, alice.userId)).toHaveLength(1);
 
     // The plugin keeps what it stored for Alice across page loads.
-    reply = await openReply(page);
-    await expect(reply.locator('[data-example-plugin-seen]')).toHaveText('Seen before');
+    await expect(await openSeenMark(page)).toHaveText('Seen before');
     await shot(page, 'alice-seen-before');
 
     // The last logout deletes the account's local data, then reloads the app.
@@ -129,15 +127,13 @@ test("signing out deletes the account's plugin storage and the plugin forgets th
     );
 
     await loginWithPassword(page, { homeserver: HOMESERVER, ...bob });
-    reply = await openReply(page);
-    await expect(reply.locator('[data-example-plugin-seen]')).toHaveCount(0);
+    await expect(await openSeenMark(page)).toHaveCount(0);
     await shot(page, 'bob-after-alice');
 
     // Alice, back in the same browser, starts over too.
     await chooseFromAccountMenu(page, 'Add Account');
     await loginWithPassword(page, { homeserver: HOMESERVER, ...alice, addAccount: true });
-    reply = await openReply(page);
-    await expect(reply.locator('[data-example-plugin-seen]')).toHaveCount(0);
+    await expect(await openSeenMark(page)).toHaveCount(0);
     await shot(page, 'alice-again');
   } finally {
     await context.close();
