@@ -17,8 +17,8 @@ const PACKAGE_DIR = /^(.*\/node_modules\/(?:@[^/]+\/)?[^/]+)\//;
  * service worker build that runs once the app's bundle closes would hide a later error behind its
  * own. The packages a client plugin installed in its own directory (`pluginDirs`, from
  * MINDROOM_CLIENT_PLUGINS) are left out, as the plugin's, except a copy of a package the app shares
- * with plugins (scripts/client-plugins.mjs), such as one an npm alias installed under another name:
- * that fails the build too, naming the plugin.
+ * with plugins (scripts/client-plugins.mjs) in the plugin's node_modules, such as one an npm alias
+ * installed under another name: that fails the build too, naming the plugin.
  * @param {string[]} [pluginDirs]
  * @returns {import('vite').Plugin}
  */
@@ -44,12 +44,15 @@ export const onePackageCopyPerVersion = (pluginDirs = []) => ({
     for (const dir of dirs) {
       const { name, version } = JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8'));
       const where = path.relative(process.cwd(), dir);
-      const plugin = plugins.find(({ root }) => dir.startsWith(root))?.dir;
+      const plugin = plugins.find(({ root }) => dir.startsWith(root));
       if (!plugin) {
         const key = `${name}@${version}`;
         copies.set(key, [...(copies.get(key) ?? []), where]);
-      } else if (SHARED_PACKAGES.includes(name))
-        shared.push(`  ${name}: ${where} (client plugin ${plugin})`);
+        continue;
+      }
+      // Only what the plugin installed: its directory may also hold the app, as a submodule.
+      if (dir.startsWith(`${plugin.root}node_modules/`) && SHARED_PACKAGES.includes(name))
+        shared.push(`  ${name}: ${where} (client plugin ${plugin.dir})`);
     }
     if (shared.length > 0)
       this.error(
