@@ -48,7 +48,6 @@ import { createEngineGapTracker, type EngineGapTracker } from './engineGapTracke
 import { createEnginePersistFacade, type EnginePersistFacade } from './enginePersistFacade';
 import { createBackfillScheduler, type BackfillScheduler } from './backfillScheduler';
 import { createGapFillExecutor } from './gapFillExecutor';
-import { createUnopenedThreadEditSaver } from './unopenedThreadEditSaves';
 import {
   DEFAULT_PREFETCH_SCOPE,
   resolveRoomPrefetchTier,
@@ -223,11 +222,6 @@ export const createSyncEngine = ({
         effectiveGapTracker.scheduler
       );
 
-  // Edits that wait in unopened threads reach no timeline; the saver takes them from the client.
-  const unopenedThreadEdits = createUnopenedThreadEditSaver((room, thread, edit) =>
-    effectivePersist.persistThreadEventCache(room, thread.id, [edit], thread.rootEvent)
-  );
-
   let started = false;
   let liveMode = false;
   let unsubscribePrefetchConfig: (() => void) | undefined;
@@ -240,7 +234,6 @@ export const createSyncEngine = ({
     // compaction scheduler in, this is where the trailing debounce
     // gets drained before the page freezes.
     effectiveWriteThrough.flush();
-    unopenedThreadEdits.flush();
   };
 
   const handlePageHide = () => flushForVisibility();
@@ -322,16 +315,9 @@ export const createSyncEngine = ({
     });
   };
 
-  const handleEvent: ClientEventHandlerMap[ClientEvent.Event] = (event) => {
-    const roomId = event.getRoomId();
-    const room = liveMode && roomId ? mx.getRoom(roomId) : undefined;
-    if (room) unopenedThreadEdits.handle(event, room);
-  };
-
   const handleDecrypted = (event: MatrixEvent) => {
     const roomId = event.getRoomId();
     const room = roomId ? mx.getRoom(roomId) : undefined;
-    if (room && started && liveMode) unopenedThreadEdits.handle(event, room);
     if (!room || !started || !canPersistDecryptedEvent(event, sessionId)) return;
     effectiveWriteThrough.handleLiveEvent(event, room, {
       kind: 'timeline',
@@ -425,7 +411,6 @@ export const createSyncEngine = ({
     mx.on(RoomEvent.TimelineReset, handleTimelineReset);
     mx.on(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
     mx.on(MatrixEventEvent.Decrypted, handleDecrypted);
-    mx.on(ClientEvent.Event, handleEvent);
 
     bindableWindow?.addEventListener('pagehide', handlePageHide);
     bindableDocument?.addEventListener('visibilitychange', handleVisibilityChange);
@@ -443,7 +428,6 @@ export const createSyncEngine = ({
     try {
       // Flush first so any trailing writes make it out before cancellation.
       effectiveWriteThrough.flush();
-      unopenedThreadEdits.flush();
     } finally {
       // Structural teardown must finish even if the best-effort flush fails;
       // destructive account cleanup may delete these stores immediately.
@@ -454,7 +438,6 @@ export const createSyncEngine = ({
       mx.removeListener(RoomEvent.TimelineReset, handleTimelineReset);
       mx.removeListener(RoomEvent.LocalEchoUpdated, handleLocalEchoUpdated);
       mx.removeListener(MatrixEventEvent.Decrypted, handleDecrypted);
-      mx.removeListener(ClientEvent.Event, handleEvent);
       offline.stop();
       revokeCacheStoreWrites(sessionId);
       forgetEncryptedRoomCheck?.();
