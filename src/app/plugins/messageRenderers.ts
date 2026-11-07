@@ -5,7 +5,7 @@ import { isMindroomAgentUserIdForViewer } from '../matrix/protocol/agentIdentity
 import { isPluginEnabled } from './pluginConfig';
 import { registeredPlugins } from './registry';
 
-/** A message as a renderer sees it: its content as the app shows it (latest edit included). */
+/** A message as a renderer sees it: the content the app renders it from (latest edit included). */
 export type PluginEvent = {
   eventId?: string;
   roomId?: string;
