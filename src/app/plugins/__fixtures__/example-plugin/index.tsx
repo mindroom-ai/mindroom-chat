@@ -3,8 +3,8 @@
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
 // A side panel, "Example panel", names the room it is open in.
 // Under the room header it shows "Example banner in <room name>".
-// A header action, "Wave" ("Winken" in German), shows in the room header's row where there is
-// room, else in its room menu, and says where it ran in an alert.
+// A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
+// where it goes in the room menu, and says where it ran in an alert.
 import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import type { ClientPlugin } from '../../registry';

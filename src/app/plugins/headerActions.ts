@@ -20,8 +20,8 @@ export type HeaderAction = {
   /** Its icon, as folds draws one, such as `Icons.Star`. */
   icon: IconSrc;
   /**
-   * Where it shows: `auto` in the header's row where there is room, which a phone's header has
-   * not, else in the room menu; `menu`, the default, always in the room menu.
+   * Where it shows: `auto` in the header's row, except on phones, where it goes in the room menu;
+   * `menu`, the default, always in the room menu.
    */
   placement?: 'auto' | 'menu';
   /** Runs it in the open room. */

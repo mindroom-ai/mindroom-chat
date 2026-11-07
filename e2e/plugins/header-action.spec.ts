@@ -10,7 +10,7 @@ import { serveBuild } from '../helpers/staticBuildServer';
 
 // A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
 // served as a deployment serves it, against the disposable homeserver. The plugin's header action,
-// "Wave", goes in the row where there is room (placement `auto`): a button in a wide room header,
+// "Wave", goes in the row except on phones (placement `auto`): a button in a wide room header,
 // in the thread open there, and an entry of the room menu on a phone, where the row keeps only Back
 // and the menu's button. Either runs it in the open room. Once the app's language is German it is
 // "Winken" in both.
