@@ -8,10 +8,11 @@ import { type RefObject, useEffect } from 'react';
  * that the list does not mount still hold the room that render gave them, their size in `rows`
  * (virtual-core's rows, one per index). The offset ledger places the rows its margin moves the list
  * away from, so the list ends that margin past its newest row, and rows it moves keep their places.
- * The part of the margin that thread rows folded above the reader brought with their own height
+ * The part of the margin that rows folded above the reader brought with their own height
  * (`rowFoldPx`, the ledger's) moved the list's end with them: it is no room the list will give up.
  * Counted, a page of older replies above a reader at the newest one read as that page's height of
- * shrink, and the end clamp threw the reader to the top.
+ * shrink, and the end clamp threw the reader to the top; so did a page of newer threads above a
+ * reader near the end of a newest-first Threads view.
  */
 export const listShrinkNotRendered = (
   inner: HTMLElement | null,
