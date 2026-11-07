@@ -19,9 +19,12 @@ const mocks = vi.hoisted(() => ({
   settingsAtom: Symbol('settingsAtom'),
   roomToParents: new Map<string, Set<string>>(),
   mDirects: new Set<string>(),
+  spaces: new Set<string>(),
   developerTools: false,
   selectedSpace: undefined as string | undefined,
-  mx: {},
+  mx: {
+    getRoom: (roomId: string) => ({ isSpaceRoom: () => mocks.spaces.has(roomId) }),
+  },
   historyState: { idx: 1, key: 'room-entry' },
   location: { pathname: '/home/!room:example.org', search: '', hash: '' },
 }));
@@ -135,6 +138,7 @@ describe('useRoomNavigate', () => {
     mocks.navigate.mockReset();
     mocks.roomToParents.clear();
     mocks.mDirects.clear();
+    mocks.spaces.clear();
     mocks.developerTools = false;
     mocks.selectedSpace = undefined;
     mocks.historyState = { idx: 1, key: 'room-entry' };
@@ -323,6 +327,7 @@ describe('useRoomNavigate', () => {
     const spaceId = '!space:example.org';
     const threadId = '$thread';
     mocks.roomToParents.set(roomId, new Set([spaceId]));
+    mocks.spaces.add(spaceId);
     const { getSnapshot, renderer } = renderHookHarness();
 
     act(() => {
@@ -334,6 +339,35 @@ describe('useRoomNavigate', () => {
       undefined
     );
 
+    renderer.unmount();
+  });
+
+  it('opens a sub-room of a room outside spaces on Home', () => {
+    mocks.roomToParents.set('!sub:example.org', new Set(['!room:example.org']));
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoom('!sub:example.org');
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith(getHomeRoomPath('!sub:example.org'), undefined);
+    renderer.unmount();
+  });
+
+  it("opens a sub-room of a space's room in that space", () => {
+    mocks.roomToParents.set('!sub:example.org', new Set(['!room:example.org']));
+    mocks.roomToParents.set('!room:example.org', new Set(['!space:example.org']));
+    mocks.spaces.add('!space:example.org');
+    const { getSnapshot, renderer } = renderHookHarness();
+
+    act(() => {
+      getSnapshot().navigateRoom('!sub:example.org');
+    });
+
+    expect(mocks.navigate).toHaveBeenCalledWith(
+      getSpaceRoomPath('!space:example.org', '!sub:example.org'),
+      undefined
+    );
     renderer.unmount();
   });
 

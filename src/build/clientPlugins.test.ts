@@ -84,7 +84,8 @@ describe('readClientPlugins', () => {
   });
 
   it('reads the id, version and entry of each listed directory, in order', () => {
-    // The other was written for client SDK 1, which this client still builds.
+    // The example needs a later client SDK; the other was written for 1, which this client still
+    // builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
       { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
@@ -112,8 +113,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 9 })),
-      /plugin "some-plugin" needs client SDK apiVersion 9; this client provides 8/,
+      () => pluginDir(declaring({ apiVersion: 10 })),
+      /plugin "some-plugin" needs client SDK apiVersion 10; this client provides 9/,
     ],
     [
       'an apiVersion that is not a number',
@@ -174,7 +175,7 @@ describe('clientPlugins', () => {
   });
 
   it('resolves the client SDK for a plugin outside this repository', async () => {
-    const dir = pluginDir(declaring({ apiVersion: 8 }), { entry: false });
+    const dir = pluginDir(declaring({ apiVersion: 9 }), { entry: false });
     writeFileSync(
       path.join(dir, 'index.js'),
       "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +

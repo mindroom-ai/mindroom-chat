@@ -442,6 +442,12 @@
     "phoneNav": {
       "search": "Suchen",
       "navigation": "Navigation"
+    },
+    "subRooms": {
+      "newSubRoom": "Neuer Unterraum",
+      "description": "Mitglieder von {{name}} können ihm beitreten, und die Agenten in {{name}} treten ihm von selbst bei.",
+      "noPermission": "Du kannst die unter {{name}} aufgeführten Räume nicht ändern",
+      "takeOff": "Aus {{name}} entfernen"
     }
   },
   "mindroomUi": {

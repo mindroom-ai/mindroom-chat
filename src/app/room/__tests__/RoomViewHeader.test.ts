@@ -157,6 +157,7 @@ vi.mock('../../matrix/hooks/useMatrixClient', () => ({
 vi.mock('../../matrix/hooks/useRoom', () => ({
   useRoom: () => ({
     roomId: '!room:example.org',
+    name: 'Room',
     getJoinRule: () => undefined,
     isSpaceRoom: () => false,
   }),
@@ -315,6 +316,7 @@ vi.mock('../../matrix/hooks/useRoomPermissions', () => ({
   useRoomPermissions: () => ({
     action: (action: string) =>
       action === 'invite' ? permissionState.canInvite : permissionState.canKick,
+    stateEvent: () => false,
   }),
 }));
 
