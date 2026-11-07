@@ -58,8 +58,10 @@ test.describe('on a phone', () => {
         await page.screenshot({
           path: `${SHOTS}/stop-phone-toolbar-${test.info().project.name}.png`,
         });
+      // Counted by the reaction button only a message toolbar has: the phone room header's menu
+      // button is also named More Options.
       await expect(
-        page.getByRole('button', { name: 'More Options', exact: true }).filter({ visible: true }),
+        page.getByRole('button', { name: 'Add Reaction', exact: true }).filter({ visible: true }),
         'message toolbars after the tap on Stop'
       ).toHaveCount(0);
     }
