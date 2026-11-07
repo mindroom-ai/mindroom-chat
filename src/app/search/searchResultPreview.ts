@@ -65,7 +65,7 @@ const getSerializedReplacementContent = (
     return replacementNewContent as IEventWithRoomId['content'];
   }
 
-  return replacement.content as IEventWithRoomId['content'];
+  return replacement.content;
 };
 
 export const getSearchResultEffectiveContent = (

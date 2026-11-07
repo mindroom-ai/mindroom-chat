@@ -8,13 +8,7 @@ import {
 import { useThreadEventRefresh } from './useThreadEventRefresh';
 import { isAiRunStreaming } from '../../matrix/protocol/aiRun';
 import { getSameSenderBundledEdit } from '../../matrix/editEvent';
-
-type BundledThreadLatestEvent = {
-  origin_server_ts?: unknown;
-  type?: unknown;
-  sender?: unknown;
-  unsigned?: unknown;
-};
+import { isRecord } from '../../lib/isRecord';
 
 const getEventActivityTs = (mEvent: MatrixEvent | null | undefined): number | undefined => {
   if (!mEvent) return undefined;
@@ -36,11 +30,10 @@ const getPositiveTs = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : undefined;
 
 const getBundledThreadLatestEventTs = (rootEvent: MatrixEvent | undefined): number | undefined => {
-  const latestEvent = rootEvent?.getUnsigned()?.['m.relations']?.['m.thread']?.latest_event as
-    | BundledThreadLatestEvent
-    | undefined;
+  const latestEvent: unknown =
+    rootEvent?.getUnsigned()?.['m.relations']?.['m.thread']?.latest_event;
 
-  if (!latestEvent || typeof latestEvent !== 'object') return undefined;
+  if (!isRecord(latestEvent)) return undefined;
   if (!isVisibleThreadReplyEventType(typeof latestEvent.type === 'string' ? latestEvent.type : undefined)) {
     return undefined;
   }

@@ -114,7 +114,7 @@ export const dropEditedAwayResults = (results: ISearchResult[], term: string): I
   return results.filter((result) => {
     const edit = getSameSenderBundledEdit(result.result);
     if (!edit || editTarget(result) !== undefined) return true;
-    const editContent = edit.content as Record<string, unknown> | undefined;
+    const editContent = edit.content;
     const latest = bodyOf(editContent?.['m.new_content'] ?? editContent);
     return !has(bodyOf(result.result.content)) || has(latest);
   });

@@ -287,14 +287,10 @@ describe('streaming replies restored from the saved sync', () => {
   });
 
   it('does not take another sender’s bundled edit as the end of a reply', () => {
-    const othersDone = {
-      ...placeholder,
-      unsigned: {
-        'm.relations': {
-          [RelationType.Replace]: { ...editOf('$reply', 'Done', 'completed', 6), sender: USER_ID },
-        },
-      },
-    };
+    const othersDone = withBundledEdit(placeholder, {
+      ...editOf('$reply', 'Done', 'completed', 6),
+      sender: USER_ID,
+    });
 
     expect(
       findSavedStreamingReplies({
