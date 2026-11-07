@@ -7,5 +7,11 @@
 export type { ClientPlugin } from '../app/plugins/registry';
 export type { MessageRenderer, PluginEvent } from '../app/plugins/messageRenderers';
 export { usePluginConfig } from '../app/plugins/pluginConfig';
+export {
+  pluginRoutePath,
+  usePluginRouteHref,
+  type PluginPage,
+  type PluginPageProps,
+} from '../app/plugins/pluginPages';
 export { usePluginStorage, type PluginStorage } from '../app/plugins/pluginStorage';
 export { usePluginTranslation } from '../app/plugins/pluginTranslations';

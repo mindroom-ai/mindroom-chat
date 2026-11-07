@@ -9,9 +9,11 @@ import { defined } from '../../src/test/utils/defined';
 // room whose admin lets members call, with a shared screen; leftover memberships withdrawn at
 // start; a second tab of the same session, which answers busy (on Join, on two Joins at the same
 // moment, and on a ring's Answer); a call to a MindRoom agent, which runs in the agent call room
-// with the conversation as its origin; and a call whose panel could not load, ended from that
-// panel's failure view. Needs the slot's LiveKit server and authorization service
-// (scripts/e2e-rtc.sh), which --rtc starts before the slot's homeserver and stops afterwards:
+// with the conversation as its origin; an encrypted agent call whose agent hears the caller
+// although the session's own send of the caller's key fails, and again when called again; and a
+// call whose panel could not load, ended from that panel's failure view. Needs the slot's LiveKit
+// server and authorization service (scripts/e2e-rtc.sh), which --rtc starts before the slot's
+// homeserver and stops afterwards:
 //   scripts/e2e-slot.sh <slot> --rtc npx playwright test e2e/calls/calls.spec.ts
 // scripts/e2e-suite.sh gives --rtc to every spec that names scripts/e2e-rtc.sh, as this one does.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -708,6 +710,104 @@ test.describe('calls', () => {
     await callPanel(firstTab).getByRole('button', { name: 'End' }).click();
   });
 
+  test("an agent hears the caller although the session's own send of the caller's key fails, and again when called again", async ({
+    browser,
+  }) => {
+    const alice = await register(`alicek${RUN}`, 'Alice Again');
+    const agent = await register(`mindroom_again${RUN}`, 'Again');
+    await matrix(`/presence/${encodeURIComponent(agent.userId)}/status`, {
+      token: agent.token,
+      method: 'PUT',
+      body: { presence: 'online', status_msg: '📞 Voice calls' },
+    });
+    // An encrypted conversation, so the call room and its media are encrypted too.
+    const { room_id: roomId } = await matrix<{ room_id: string }>('/createRoom', {
+      token: alice.token,
+      body: {
+        name: 'Encrypted planning',
+        preset: 'private_chat',
+        invite: [agent.userId],
+        initial_state: [
+          {
+            type: 'm.room.encryption',
+            state_key: '',
+            content: { algorithm: 'm.megolm.v1.aes-sha2' },
+          },
+        ],
+      },
+    });
+    await matrix(`/join/${encodeURIComponent(roomId)}`, { token: agent.token, body: {} });
+    const alicePage = await signIn(browser, `alicek${RUN}`);
+    const agentPage = await signIn(browser, `mindroom_again${RUN}`);
+    // Alice's device cannot claim one-time keys, so it cannot start an Olm session with the agent:
+    // the session's send of her media key fails, and it counts the key as shared all the same.
+    // The agent's key reaching her starts a session the other way, and her key goes again.
+    await alicePage.route('**/keys/claim', (route) =>
+      route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ errcode: 'M_UNKNOWN', error: 'refused by the test' }),
+      })
+    );
+    await openRoom(alicePage, roomId);
+    const callAgent = alicePage.getByRole('button', { name: 'Call Again' });
+    await expect(callAgent).toBeVisible({ timeout: 60_000 });
+
+    // The agent's stand-in joins the call room's call, as the agent does once Alice is in it.
+    const agentJoins = async () => {
+      const join = callPanel(agentPage).getByRole('button', { name: 'Join', exact: true });
+      if (!(await join.isVisible())) await agentPage.locator('[data-room-call-button]').click();
+      await join.click();
+      await expect(tileOf(alicePage, agent.userId)).toHaveAttribute('data-connected', 'true', {
+        timeout: 60_000,
+      });
+    };
+    const bothHear = async () => {
+      await expect
+        .poll(() => remoteSoundLevel(agentPage), { timeout: 60_000 })
+        .toBeGreaterThan(0.05);
+      await expect
+        .poll(() => remoteSoundLevel(alicePage), { timeout: 60_000 })
+        .toBeGreaterThan(0.05);
+    };
+    const bothEnd = async () => {
+      await callPanel(alicePage).getByRole('button', { name: 'End' }).click();
+      await callPanel(agentPage).getByRole('button', { name: 'End' }).click();
+      await expect(alicePage.locator('[data-call-tab]')).toHaveCount(0);
+    };
+
+    await callAgent.click();
+    let callRoomId = '';
+    await expect
+      .poll(
+        async () => {
+          const { rooms } = await matrix<{ rooms: { invite?: Record<string, unknown> } }>(
+            '/sync?timeout=0',
+            { token: agent.token }
+          );
+          callRoomId = Object.keys(rooms.invite ?? {})[0] ?? '';
+          return callRoomId;
+        },
+        { timeout: 60_000 }
+      )
+      .not.toBe('');
+    await matrix(`/join/${encodeURIComponent(callRoomId)}`, { token: agent.token, body: {} });
+    await agentPage.goto(`/home/${encodeURIComponent(callRoomId)}/`);
+    await expect(agentPage.locator('[data-room-call-button]')).toBeVisible({ timeout: 60_000 });
+    await agentJoins();
+    await bothHear();
+    await bothEnd();
+
+    // Called again, the agent's device, in the call before, gets Alice's new key and hears her.
+    await callAgent.click();
+    await expect(tileOf(alicePage, alice.userId)).toHaveAttribute('data-connected', 'true', {
+      timeout: 60_000,
+    });
+    await agentJoins();
+    await bothHear();
+    await bothEnd();
+  });
+
   test('calling an agent uses its call room with the conversation as origin', async ({
     browser,
   }) => {
@@ -735,7 +835,9 @@ test.describe('calls', () => {
     await expect(tileOf(alicePage, alice.userId)).toHaveAttribute('data-connected', 'true', {
       timeout: 60_000,
     });
-    await expect(tileOf(alicePage, agent.userId)).toHaveCount(0);
+    // The agent shows from the start, waiting until it joins.
+    await expect(tileOf(alicePage, agent.userId)).toHaveAttribute('data-connected', 'false');
+    await expect(tileOf(alicePage, agent.userId)).toContainText('Waiting for Helper');
 
     // The agent was invited to the call room, which names Alice's conversation as the origin.
     const { rooms } = await matrix<{ rooms: { invite: Record<string, unknown> } }>(

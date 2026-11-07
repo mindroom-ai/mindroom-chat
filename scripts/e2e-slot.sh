@@ -94,6 +94,8 @@ main() {
   # Not under $TMPDIR: `nix develop` gives each shell its own, and the run cap and the shared builds
   # must span every shell on the machine.
   snapshots="${E2E_SNAPSHOT_ROOT:-/tmp/mindroom-client-e2e}"
+  . "$repo/scripts/private-dir.sh"
+  private_dir "$snapshots"
   take_run_token "$@"
 
   if [ -n "$snapshot_rev" ]; then

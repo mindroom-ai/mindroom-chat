@@ -8,11 +8,14 @@
 // where it goes in the room menu, and says where it ran in an alert.
 // Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
 // greeting the account saw in an earlier page load also shows "Seen before".
+// Its page at /p/example/ keeps the app's rail and links to its page at /p/example/window, which
+// fills the window and links back.
 import { useEffect } from 'react';
 import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import {
   usePluginConfig,
+  usePluginRouteHref,
   usePluginStorage,
   usePluginTranslation,
   type ClientPlugin,
@@ -67,12 +70,34 @@ function RoomBanner({ room }: { room: Room }) {
   );
 }
 
+function ExamplePage() {
+  return (
+    <div data-example-page>
+      <h1>Example page</h1>
+      <a href={usePluginRouteHref('example', 'window')}>Fill the window</a>
+    </div>
+  );
+}
+
+function WindowPage() {
+  return (
+    <div data-example-window-page>
+      <h1>Example window page</h1>
+      <a href={usePluginRouteHref('example')}>Back to the rail</a>
+    </div>
+  );
+}
+
 function ExamplePanel({ roomId }: { roomId: string }) {
   return <p>Example panel of {roomId}</p>;
 }
 
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  pages: [
+    { path: '', Component: ExamplePage },
+    { path: 'window', Component: WindowPage, fillsWindow: true },
+  ],
   // It keeps nothing outside its storage, which the app deletes itself; for the tests, it notes the
   // account it was asked to forget in this tab.
   forgetAccount: (userId) => {
