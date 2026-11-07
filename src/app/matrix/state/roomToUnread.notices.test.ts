@@ -1,0 +1,110 @@
+// @vitest-environment jsdom
+import { MatrixEvent } from 'matrix-js-sdk';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { putSession } from '../session/sessions';
+import { getRoomUnreadAction } from './roomToUnread';
+
+// A room is unread only for what its thread lists show. A notice in the main timeline shows there
+// once its thread has replies, or before that when a MindRoom agent on the active account's
+// homeserver marked it as a conversation (`io.mindroom.conversation: true`); any other notice
+// leaves the room read.
+const ROOM_ID = '!room:example.org';
+const READER = '@reader:example.org';
+const AGENT = '@mindroom_reporter:example.org';
+const FOREIGN_AGENT = '@mindroom_reporter:elsewhere.example';
+const PERSON = '@bob:example.org';
+
+beforeEach(() => {
+  localStorage.clear();
+  putSession(
+    { baseUrl: 'https://matrix.example', userId: READER, deviceId: 'DEVICE', accessToken: 'token' },
+    { setActive: true }
+  );
+});
+
+const message = ({
+  sender,
+  msgtype = 'm.notice',
+  marked = false,
+  replies = false,
+}: {
+  sender: string;
+  msgtype?: string;
+  marked?: boolean;
+  /** The server bundles the thread's summary with a root whose thread has replies. */
+  replies?: boolean;
+}): MatrixEvent =>
+  new MatrixEvent({
+    content: {
+      msgtype,
+      body: 'Indexing finished',
+      ...(marked ? { 'io.mindroom.conversation': true } : {}),
+    },
+    event_id: '$message',
+    origin_server_ts: 1000,
+    room_id: ROOM_ID,
+    sender,
+    type: 'm.room.message',
+    ...(replies
+      ? {
+          unsigned: {
+            'm.relations': {
+              'm.thread': {
+                latest_event: { event_id: '$reply', sender, type: 'm.room.message', content: {} },
+                count: 1,
+                current_user_participated: false,
+              },
+            },
+          },
+        }
+      : {}),
+  });
+
+/** A room the reader last read before `event`; the server counts `count` unread messages. */
+const room = (event: MatrixEvent, count = 0) => ({
+  roomId: ROOM_ID,
+  findEventById: () => undefined,
+  getEventReadUpTo: () => null,
+  getLiveTimeline: () => ({ getEvents: () => [event] }),
+  getMyMembership: () => 'join',
+  getThread: () => null,
+  getUnreadNotificationCount: () => count,
+  getRoomUnreadNotificationCount: () => count,
+  isSpaceRoom: () => false,
+});
+
+const client = (notifies = false) => ({
+  getAccountData: () => undefined,
+  getPushActionsForEvent: () => ({ notify: notifies, tweaks: {} }),
+  getRoomPushRule: () => undefined,
+  getUserId: () => READER,
+});
+
+const isUnread = (event: MatrixEvent, count = 0, notifies = false): boolean =>
+  getRoomUnreadAction(client(notifies) as never, room(event, count) as never).type === 'PUT';
+
+describe('getRoomUnreadAction for notices', () => {
+  it.each([
+    { what: "an agent's unmarked notice", event: { sender: AGENT }, unread: false },
+    { what: "an agent's marked notice", event: { sender: AGENT, marked: true }, unread: true },
+    {
+      what: "an agent's unmarked notice whose thread has replies",
+      event: { sender: AGENT, replies: true },
+      unread: true,
+    },
+    { what: "a person's marked notice", event: { sender: PERSON, marked: true }, unread: false },
+    {
+      what: "a marked notice of another homeserver's agent",
+      event: { sender: FOREIGN_AGENT, marked: true },
+      unread: false,
+    },
+    { what: "an agent's message", event: { sender: AGENT, msgtype: 'm.text' }, unread: true },
+  ])('$what makes the room unread: $unread', ({ event, unread }) => {
+    expect(isUnread(message(event))).toBe(unread);
+  });
+
+  it('leaves the room read when the push rules notify for a notice no thread list shows', () => {
+    expect(isUnread(message({ sender: AGENT }), 1, true)).toBe(false);
+    expect(isUnread(message({ sender: AGENT, marked: true }), 1, true)).toBe(true);
+  });
+});
