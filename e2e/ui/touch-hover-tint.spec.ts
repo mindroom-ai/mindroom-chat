@@ -25,7 +25,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // after the finger lifted, and read as selected. On a phone and a tablet with touch, in Chromium
 // and (when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit) WebKit, a row and a card under
 // the pointer keep the fill of their untouched neighbours; a desktop mouse still tints both. A
-// card's "..." button that opened and closed its menu with two taps keeps its neighbours' fill too.
+// card's "..." button that opened and closed its menu with two taps keeps its neighbours' fill
+// too, and so does its card.
 // Set HOVER_TINT_SHOTS=<directory> to save the row and the card under the pointer.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'touch-hover-tint-spec-password';
@@ -212,6 +213,10 @@ const check = async (
       }
       expect(button.tapped, `${engine} ${device}: a tapped options button keeps its fill`).toBe(
         button.rest
+      );
+      // The menu hands focus back to the button, which is no reason to tint its card on touch.
+      expect(await fill(cards.nth(1)), `${engine} ${device}: its card keeps its fill`).toBe(
+        await fill(cards.nth(2))
       );
     }
   } finally {
