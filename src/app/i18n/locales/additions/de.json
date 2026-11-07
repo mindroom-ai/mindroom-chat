@@ -438,6 +438,10 @@
     "roomActions": {
       "noInvitePermission": "Du hast keine Berechtigung zum Einladen",
       "searchEncrypted": "In verschlüsselten Räumen nicht verfügbar"
+    },
+    "phoneNav": {
+      "search": "Suchen",
+      "navigation": "Navigation"
     }
   },
   "mindroomUi": {

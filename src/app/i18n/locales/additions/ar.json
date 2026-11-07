@@ -470,6 +470,10 @@
     "roomActions": {
       "noInvitePermission": "ليس لديك إذن بالدعوة",
       "searchEncrypted": "غير متاح في الغرف المشفرة"
+    },
+    "phoneNav": {
+      "search": "بحث",
+      "navigation": "التنقل"
     }
   },
   "mindroomUi": {

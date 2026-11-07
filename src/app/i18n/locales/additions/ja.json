@@ -430,6 +430,10 @@
     "roomActions": {
       "noInvitePermission": "招待する権限がありません",
       "searchEncrypted": "暗号化されたルームでは使用できません"
+    },
+    "phoneNav": {
+      "search": "検索",
+      "navigation": "ナビゲーション"
     }
   },
   "mindroomUi": {

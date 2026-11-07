@@ -430,6 +430,10 @@
     "roomActions": {
       "noInvitePermission": "Anda tidak punya izin untuk mengundang",
       "searchEncrypted": "Tidak tersedia di ruang terenkripsi"
+    },
+    "phoneNav": {
+      "search": "Cari",
+      "navigation": "Navigasi"
     }
   },
   "mindroomUi": {
