@@ -38,8 +38,6 @@ const tempDir = (prefix: string): string => {
   return dir;
 };
 
-const writeJson = (file: string, value: unknown) => writeFileSync(file, JSON.stringify(value));
-
 /**
  * A plugin directory with this id, entry code, files besides (relative path to contents) and
  * package.json fields.
@@ -51,12 +49,15 @@ const plugin = (
   manifest: Record<string, unknown> = {}
 ): string => {
   const dir = tempDir(`mindroom-plugin-${id}-`);
-  writeJson(join(dir, 'package.json'), {
-    name: `${id}-plugin`,
-    version: '1.0.0',
-    mindroomClientPlugin: { id, apiVersion: 1, entry: './index.js' },
-    ...manifest,
-  });
+  writeFileSync(
+    join(dir, 'package.json'),
+    JSON.stringify({
+      name: `${id}-plugin`,
+      version: '1.0.0',
+      mindroomClientPlugin: { id, apiVersion: 1, entry: './index.js' },
+      ...manifest,
+    })
+  );
   writeFileSync(join(dir, 'index.js'), entry);
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true });
@@ -65,10 +66,10 @@ const plugin = (
   return dir;
 };
 
-/** Runs the production build with these plugins into `outDir`. */
-const buildWith = (plugins: string[], outDir: string) =>
+/** Runs the production build, with source maps, with the plugin in `dir` into `outDir`. */
+const buildWith = (dir: string, outDir: string) =>
   spawnSync('npx', ['vite', 'build', '--outDir', outDir, '--emptyOutDir', '--sourcemap'], {
-    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: plugins.join(',') },
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: dir },
     encoding: 'utf8',
     timeout: 9 * 60_000,
   });
@@ -119,7 +120,7 @@ let seeded: { person: DisposableUser; roomId: string; rootId: string; replyId: s
 
 test.beforeAll(async () => {
   test.setTimeout(10 * 60_000);
-  const shared = plugin('shared', sharedEntry, {
+  sharedPlugin = plugin('shared', sharedEntry, {
     'node_modules/plugin-own-dep/package.json': JSON.stringify({
       name: 'plugin-own-dep',
       version: '1.0.0',
@@ -144,9 +145,8 @@ test.beforeAll(async () => {
       },
     }),
   });
-  sharedPlugin = shared;
   build = tempDir('mindroom-shared-packages-build-');
-  const result = buildWith([shared], build);
+  const result = buildWith(sharedPlugin, build);
   if (result.status !== 0) {
     throw new Error(
       `the build with the plugin failed:\n${(result.stderr || result.stdout).slice(-3000)}`
@@ -234,7 +234,7 @@ test('a plugin that lists a shared package under dependencies fails the build, n
     { dependencies: { jotai: '^2.0.0' } }
   );
   cpSync(resolve('node_modules/jotai'), join(ownCopy, 'node_modules/jotai'), { recursive: true });
-  const result = buildWith([ownCopy], tempDir('mindroom-own-copy-build-'));
+  const result = buildWith(ownCopy, tempDir('mindroom-own-copy-build-'));
   expect(result.status).not.toBe(0);
   expect(`${result.stdout}\n${result.stderr}`).toContain(
     `MINDROOM_CLIENT_PLUGINS: ${ownCopy}: plugin "own-jotai" lists jotai under dependencies, but every plugin gets the app's jotai: list it under peerDependencies instead`

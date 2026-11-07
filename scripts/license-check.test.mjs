@@ -46,7 +46,7 @@ test('rejects GPL, LGPL, and unlicensed packages but accepts MIT and a dual lice
   assert.equal(status, 1);
   assert.match(output, /pkg-gpl@2\.0\.0 GPL-3\.0-only/);
   assert.match(output, /pkg-lgpl@4\.0\.0 LGPL-2\.1/);
-  assert.match(output, /pkg-none@5\.0\.0/);
+  assert.match(output, /pkg-none@5\.0\.0 \(no license\)/);
   assert.doesNotMatch(output, /pkg-mit@/);
   assert.doesNotMatch(output, /pkg-dual@/);
 });
@@ -147,8 +147,7 @@ test('checks the packages each client plugin in MINDROOM_CLIENT_PLUGINS installe
     })
   );
   // A second plugin that installed nothing.
-  const bare = mkdtempSync(path.join(tmpdir(), 'license-check-'));
-  roots.push(bare);
+  const bare = path.dirname(makeTree({}));
   for (const [dir, id] of [
     [plugin, 'some-plugin'],
     [bare, 'bare-plugin'],

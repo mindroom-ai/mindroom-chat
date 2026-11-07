@@ -18,6 +18,27 @@ import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const EXAMPLE = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
+const ENTRIES = path.join(ROOT, 'src/app/plugins/pluginEntries.ts');
+
+/** The chunks of an in-memory build of the entries module and `inputs`, with these build variables. */
+const buildEntries = async (
+  env: Record<string, string | undefined>,
+  { inputs = [], external }: { inputs?: string[]; external?: (id: string) => boolean } = {}
+) => {
+  const output = (await build({
+    configFile: false,
+    root: ROOT,
+    publicDir: false,
+    logLevel: 'silent',
+    plugins: [clientPlugins(env)],
+    build: {
+      write: false,
+      minify: false,
+      rollupOptions: { input: [ENTRIES, ...inputs], preserveEntrySignatures: 'strict', external },
+    },
+  })) as Rollup.RollupOutput;
+  return output.output.flatMap((file) => (file.type === 'chunk' ? [file] : []));
+};
 
 const madeDirs: string[] = [];
 afterAll(() => madeDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
@@ -117,24 +138,10 @@ describe('readClientPlugins', () => {
 describe('clientPlugins', () => {
   /** The code a build makes of src/app/plugins/pluginEntries.ts with these build variables. */
   const bundleEntries = async (env: Record<string, string | undefined>): Promise<string> => {
-    const output = (await build({
-      configFile: false,
-      root: ROOT,
-      publicDir: false,
-      logLevel: 'silent',
-      plugins: [clientPlugins(env)],
-      build: {
-        write: false,
-        minify: false,
-        rollupOptions: {
-          input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
-          preserveEntrySignatures: 'strict',
-          // Packages stay out: the entries module and the plugins' own files are what is checked.
-          external: (id) => !id.startsWith('.') && !path.isAbsolute(id) && !id.startsWith('\0'),
-        },
-      },
-    })) as Rollup.RollupOutput;
-    return output.output.map((file) => (file.type === 'chunk' ? file.code : '')).join('\n');
+    // Packages stay out: the entries module and the plugins' own files are what is checked.
+    const external = (id: string) =>
+      !id.startsWith('.') && !path.isAbsolute(id) && !id.startsWith('\0');
+    return (await buildEntries(env, { external })).map((chunk) => chunk.code).join('\n');
   };
 
   it('builds each listed plugin into the entries module', async () => {
@@ -184,7 +191,7 @@ describe('clientPlugins', () => {
           write: false,
           rollupOptions: {
             // The plugin's entries and the app's own linkifyjs.
-            input: [path.join(ROOT, 'src/app/plugins/pluginEntries.ts'), path.join(appCopy, entry)],
+            input: [ENTRIES, path.join(appCopy, entry)],
             preserveEntrySignatures: 'strict',
           },
         },
@@ -196,27 +203,11 @@ describe('clientPlugins', () => {
 });
 
 describe('packages the app shares with plugins', () => {
-  /** Builds the entries module of the plugin in `dir` and `inputs`, with what they import bundled. */
-  const bundlePlugin = async (dir: string, inputs: string[] = []) => {
-    const output = (await build({
-      configFile: false,
-      root: ROOT,
-      publicDir: false,
-      logLevel: 'silent',
-      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      build: {
-        write: false,
-        minify: false,
-        rollupOptions: {
-          input: [path.join(ROOT, 'src/app/plugins/pluginEntries.ts'), ...inputs],
-          preserveEntrySignatures: 'strict',
-        },
-      },
-    })) as Rollup.RollupOutput;
-    return output.output.flatMap((file) =>
-      file.type === 'chunk' ? Object.keys(file.modules) : []
+  /** The modules a build of the plugin in `dir` and `inputs` bundles. */
+  const bundlePlugin = async (dir: string, inputs: string[] = []) =>
+    (await buildEntries({ MINDROOM_CLIENT_PLUGINS: dir }, { inputs })).flatMap((chunk) =>
+      Object.keys(chunk.modules)
     );
-  };
 
   /** Writes index.js in `dir`, importing each of `sources`. */
   const importing = (dir: string, sources: string[]) =>
@@ -229,8 +220,9 @@ describe('packages the app shares with plugins', () => {
         .join(', ')} };\n`
     );
 
-  /** Installs a package named `name` (a stand-in, not the real one) under `dir`. */
-  const installStandIn = (dir: string, name: string, code = 'export const own = true;\n') => {
+  /** Installs a package named `name` (a stand-in, not the real one) in `base`'s node_modules. */
+  const installStandIn = (base: string, name: string, code = 'export const own = true;\n') => {
+    const dir = path.join(base, 'node_modules', name);
     mkdirSync(dir, { recursive: true });
     writeFileSync(
       path.join(dir, 'package.json'),
@@ -253,16 +245,9 @@ describe('packages the app shares with plugins', () => {
     const dir = pluginDir(declaring(), { entry: false });
     importing(dir, ['jotai', 'helper']);
     // jotai installed for the plugin's own tests, and a package with its own TanStack Query.
-    installStandIn(path.join(dir, 'node_modules/jotai'), 'jotai');
-    installStandIn(
-      path.join(dir, 'node_modules/helper'),
-      'helper',
-      "export * as query from '@tanstack/react-query';\n"
-    );
-    installStandIn(
-      path.join(dir, 'node_modules/helper/node_modules/@tanstack/react-query'),
-      '@tanstack/react-query'
-    );
+    installStandIn(dir, 'jotai');
+    installStandIn(dir, 'helper', "export * as query from '@tanstack/react-query';\n");
+    installStandIn(path.join(dir, 'node_modules/helper'), '@tanstack/react-query');
     // Listed by a link to its directory: module ids are real paths.
     const link = path.join(emptyDir(), 'plugin');
     symlinkSync(dir, link);
@@ -278,7 +263,7 @@ describe('packages the app shares with plugins', () => {
   it("fails the build for an import the app's copy cannot resolve, naming the plugin and the import", async () => {
     const dir = pluginDir(declaring(), { entry: false });
     importing(dir, ['dayjs/esm/only-in-the-plugin.js']);
-    installStandIn(path.join(dir, 'node_modules/dayjs'), 'dayjs');
+    installStandIn(dir, 'dayjs');
     mkdirSync(path.join(dir, 'node_modules/dayjs/esm'));
     writeFileSync(path.join(dir, 'node_modules/dayjs/esm/only-in-the-plugin.js'), 'export {};\n');
     await expect(bundlePlugin(dir)).rejects.toThrow(
@@ -289,7 +274,7 @@ describe('packages the app shares with plugins', () => {
   it('leaves the imports of files outside the plugins as they were', async () => {
     const plugin = pluginDir(declaring());
     const outside = realpathSync(emptyDir());
-    installStandIn(path.join(outside, 'node_modules/jotai'), 'jotai');
+    installStandIn(outside, 'jotai');
     importing(outside, ['jotai']);
     const modules = await bundlePlugin(plugin, [path.join(outside, 'index.js')]);
     expect(modules).toContain(path.join(outside, 'node_modules/jotai/index.js'));

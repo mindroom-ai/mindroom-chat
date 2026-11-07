@@ -147,8 +147,8 @@ test('fails for a client plugin that installed packages without a package-lock.j
 });
 
 test('fails for a lockfile without its packages, naming it', () => {
-  install('old-lock-plugin/node_modules/own-dep', { license: 'MIT' });
   const plugin = join(root, 'old-lock-plugin');
+  mkdirSync(plugin);
   writeFileSync(join(plugin, 'package-lock.json'), JSON.stringify({ lockfileVersion: 1 }));
   assert.throws(
     () => thirdPartyNotices(root, [plugin]),

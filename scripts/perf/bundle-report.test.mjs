@@ -27,12 +27,13 @@ const fakeDist = () => {
   return dist;
 };
 
-// No client plugins unless a test lists them (MINDROOM_CLIENT_PLUGINS adds their sizes).
-const run = (...args) =>
+// The report of a run with these client plugins (MINDROOM_CLIENT_PLUGINS adds their sizes).
+const runListing = (plugins, ...args) =>
   spawnSync(process.execPath, [script, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: '' },
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: plugins },
   });
+const run = (...args) => runListing('', ...args);
 
 test('the initial load is the entry with its static imports and the style sheet', () => {
   const dist = fakeDist();
@@ -46,6 +47,7 @@ test('the initial load is the entry with its static imports and the style sheet'
   );
   assert.equal(summary.entry, 'assets/index-AAAAAAAA.js');
   assert.equal(summary.initialFiles, 4);
+  assert.equal(summary.allJs.files, 4);
 });
 
 test('with a manifest, every chunk is listed by its source or chunk name, with its style sheets', () => {
@@ -133,12 +135,7 @@ test("with MINDROOM_CLIENT_PLUGINS, each plugin's minified and gzip size from th
   // Listed by a link to its directory, as a build may list it: source maps name real paths.
   const link = path.join(mkdtempSync(path.join(tmpdir(), 'bundle-report-link-')), 'plugin');
   symlinkSync(plugin, link);
-  const env = { ...process.env, MINDROOM_CLIENT_PLUGINS: link };
-  const report = () =>
-    spawnSync(process.execPath, [script, dist, '--json', path.join(dist, 'report.json')], {
-      encoding: 'utf8',
-      env,
-    });
+  const report = () => runListing(link, dist, '--json', path.join(dist, 'report.json'));
   assert.match(report().stdout, /build with `npx vite build --sourcemap`/);
 
   // The lazy chunk: the app's code around the plugin's, then a package the plugin installed.
