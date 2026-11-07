@@ -63,7 +63,9 @@ export const Card = style([
   },
 ]);
 
-globalStyle(`${CardShell}:focus-within ${Card}`, {
+// The keyboard's focus on the card or its buttons tints it; a menu that hands focus back to its
+// button after a tap or a click does not.
+globalStyle(`${CardShell}:has(:focus-visible) ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
 });
 
