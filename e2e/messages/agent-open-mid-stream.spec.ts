@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs';
 import type { Page } from '@playwright/test';
 import {
   bodyOf,
@@ -61,6 +62,37 @@ const openMidStream = async (page: Page, stack: AgentStack, rootId: string) => {
     });
   }, editedEvent.event_id);
 
+  const diag: unknown[] = [];
+  await page.addInitScript(() => localStorage.setItem('mindroom.debug.timeline', '1'));
+  await page.addInitScript((replyId) => {
+    const rows: unknown[] = [];
+    (window as unknown as { rowLog: unknown[] }).rowLog = rows;
+    let last = '';
+    const rec = () => {
+      const row = document.querySelector(`[data-message-id="${replyId}"]`);
+      const text = row ? (row.textContent ?? '').slice(0, 90) : '<none>';
+      if (text !== last) {
+        last = text;
+        rows.push({ t: Date.now(), text });
+      }
+    };
+    new MutationObserver(rec).observe(document, { childList: true, subtree: true, characterData: true });
+  }, editedEvent.event_id);
+  page.on('console', (msg) => {
+    const text = msg.text();
+    if (!text.includes('timeline-debug')) return;
+    void Promise.all(msg.args().map((a) => a.jsonValue().catch(() => '?'))).then((args) =>
+      diag.push({ t: Date.now(), kind: 'console', args })
+    );
+  });
+  const pick = /relations|\/threads|\/event\/|\/context\/|\/sync|\/messages/;
+  page.on('request', (r) => {
+    if (pick.test(r.url())) diag.push({ t: Date.now(), kind: 'req', url: r.url().replace(/^.*\/_matrix\/client/, '') });
+  });
+  page.on('requestfinished', (r) => {
+    if (pick.test(r.url())) diag.push({ t: Date.now(), kind: 'done', url: r.url().replace(/^.*\/_matrix\/client/, '') });
+  });
+  diag.push({ t: Date.now(), kind: 'goto', replyId: editedEvent.event_id, rootId });
   await page.goto(threadUrl(stack, rootId), { timeout: 180_000 });
   const reply = messageRow(page, editedEvent.event_id);
   await expect(reply).toBeVisible({ timeout: 90_000 });
@@ -70,6 +102,8 @@ const openMidStream = async (page: Page, stack: AgentStack, rootId: string) => {
   const samples = await page.evaluate(
     () => (window as unknown as { replySamples: Sample[] }).replySamples
   );
+  const rowLog = await page.evaluate(() => (window as unknown as { rowLog: unknown[] }).rowLog);
+  writeFileSync(test.info().outputPath('diag.json'), JSON.stringify({ diag, rowLog, samples }, null, 1));
   // The row's first paint already has the reply's text: no placeholder, no empty row.
   expect(
     samples.filter(({ words, thinking }) => thinking || words === 0),
