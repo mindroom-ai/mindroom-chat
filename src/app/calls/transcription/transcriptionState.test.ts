@@ -66,6 +66,12 @@ describe('applyLiveUpdate', () => {
     }
   });
 
+  it('keeps the lines as they were for a read without new ones', () => {
+    const shown = live();
+    const read = { call: CALL, lines: [], names: {} };
+    expect(applyLiveUpdate(shown, ROOM_ID, { type: 'live', live: read })?.lines).toBe(shown.lines);
+  });
+
   it('takes a read of another call, of none, or in another room as the whole live call', () => {
     const next = { call: { ...CALL, id: 'call-2' }, lines: [], names: {} };
     expect(applyLiveUpdate(live(), ROOM_ID, { type: 'live', live: next })).toEqual({

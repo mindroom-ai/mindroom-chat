@@ -43,6 +43,7 @@ export const liveTranscriptAtom = atom<LiveTranscript | undefined>(undefined);
  * after the lines said at the same time; one sort for the whole batch.
  */
 const withLines = (lines: TranscriptLine[], added: TranscriptLine[]): TranscriptLine[] => {
+  if (added.length === 0) return lines;
   const ids = new Set(added.map(({ id }) => id));
   return [...lines.filter(({ id }) => !ids.has(id)), ...added]
     .map((line) => ({ line, said: Date.parse(line.saidAt) }))
