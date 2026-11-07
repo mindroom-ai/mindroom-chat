@@ -81,8 +81,12 @@ export const moveMenuFocus = (event: NavigationKey, menu: HTMLElement): void => 
   items[next]?.focus();
 };
 
-/** The last press anywhere in the page, and whether its click has come yet. */
-let lastPress: { target: Element; at: number; clicked: boolean } | undefined;
+/**
+ * The last press anywhere in the page, whether its click has come yet, and the surface it opened.
+ */
+let lastPress:
+  | { target: Element; at: number; clicked: boolean; opened?: { current: HTMLElement | null } }
+  | undefined;
 const PRESS_MS = 1_000;
 const BUTTON_SELECTOR = 'button, [role="button"], a[href]';
 
@@ -112,16 +116,22 @@ if (typeof window !== 'undefined') {
  * the button, which would open it again. That one click is dropped, so each press decides once.
  * The click tells, not where the press began: on a touch screen the press lands on a layer over
  * the button, even past the button's box, where a finger still reaches the button (its 44 px
- * touch area).
+ * touch area). A press opens one surface, the first that shows after it: a surface that shows
+ * later for another reason, as a message's hover toolbar does, was not opened by that button, and
+ * its closing during the button's next press must not drop that press's click.
  */
 const useButtonPressCloses = (element: { current: HTMLElement | null }) => {
   useEffect(() => {
     const opened = performance.now();
     const press = lastPress;
     const fromPress =
-      press && opened - press.at < PRESS_MS && !element.current?.contains(press.target);
+      press &&
+      (!press.opened || press.opened === element) &&
+      opened - press.at < PRESS_MS &&
+      !element.current?.contains(press.target);
     const button = fromPress ? press.target.closest(BUTTON_SELECTOR) : null;
-    if (!button) return undefined;
+    if (!press || !button) return undefined;
+    press.opened = element;
     return () => {
       const closing = lastPress;
       if (!closing || closing.at <= opened || closing.clicked) return;
