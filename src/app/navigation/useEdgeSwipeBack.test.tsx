@@ -3,7 +3,7 @@ import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { imageViewerOpenAtom } from './imageViewerState';
-import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
+import { phoneNavDrawerOpenAtom, phoneSheetOpenAtom } from './phoneNavDrawer';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
 import { useEdgeSwipeBack } from './useEdgeSwipeBack';
 
@@ -135,6 +135,29 @@ describe('useEdgeSwipeBack', () => {
     const onBack = vi.fn();
     const store = createStore();
     store.set(phoneNavDrawerOpenAtom, true);
+
+    act(() => {
+      renderer = create(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(HookHarness, {
+            onBack,
+          })
+        )
+      );
+    });
+
+    const preventDefault = swipeFromLeftEdge();
+
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it('does not call onBack while the phone members sheet is out', () => {
+    const onBack = vi.fn();
+    const store = createStore();
+    store.set(phoneSheetOpenAtom, true);
 
     act(() => {
       renderer = create(

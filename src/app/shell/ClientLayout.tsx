@@ -14,7 +14,7 @@ import {
 import { RUNTIME_NAVIGATION_PATHS } from '../../boot/serviceWorkerNavigation';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useInert } from '../lib/hooks/useInert';
-import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
 import * as css from './ClientLayout.css';
 
 type ClientLayoutProps = {
@@ -60,9 +60,9 @@ export function ClientLayout({
   const navigate = useNavigate();
   const sessionId = activeSession?.sessionId;
   const phone = useScreenSizeContext() === ScreenSize.Mobile;
-  const drawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
+  const layerOpen = useAtomValue(phoneLayerOpenAtom);
   const pageRef = useRef<HTMLDivElement>(null);
-  useInert(pageRef, phone && drawerOpen);
+  useInert(pageRef, phone && layerOpen);
 
   const hasAlias = pathnameContainsAliasRoute(pathname);
   const [resolvedAliasPath, setResolvedAliasPath] = useState<string>();
