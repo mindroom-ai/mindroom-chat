@@ -5,6 +5,7 @@ import FocusTrap from 'focus-trap-react';
 import { Box, Icon, IconButton, Icons, Spinner, Text, Tooltip, toRem, type RectCords } from 'folds';
 import { PopOut, TooltipProvider } from '../../ui/directional';
 import { Menu, MenuItem } from '../../ui/glass/GlassPrimitives';
+import { preloadOnIntent } from '../../lib/preloadOnIntent';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoom } from '../../matrix/hooks/useRoom';
 import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
@@ -16,6 +17,7 @@ import {
 } from './agentCallCandidates';
 import { usePresenceStatuses } from './agentPresence';
 import { useAgentCaller } from './agentCaller';
+import { loadCallEngine, loadCallPanel } from '../callStore';
 
 type AgentCallHeaderButtonProps = {
   /** The open thread; the call is offered to the agents that took part in it. */
@@ -143,6 +145,8 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
             aria-busy={pending}
             disabled={pending}
             data-agent-call-button=""
+            // The click starts the call at once: the engine, then the panel it shows in.
+            {...preloadOnIntent(loadCallEngine, loadCallPanel)}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
               if (single) {
                 start(single);

@@ -53,7 +53,7 @@ import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import { useThreadRootEvent } from '../threads/useThreadRootEvent';
 import { useInitializeOpenThread } from '../threads/useInitializeOpenThread';
 import { RoomMessageAnnouncer } from '../timeline/RoomMessageAnnouncer';
-import { useCallPanel, useInCall } from '../calls/callStore';
+import { loadCallPanel, useCallPanel, useInCall } from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
@@ -85,7 +85,7 @@ function CallPanelUnavailable({
 
 // Calls load on first use, so rooms without one never load them.
 const CallPanel = lazyPart(
-  () => import('../calls/CallPanel').then((module) => ({ default: module.CallPanel })),
+  () => loadCallPanel().then((module) => ({ default: module.CallPanel })),
   CallPanelUnavailable
 );
 const HeaderCallButtons = lazyPart(() =>

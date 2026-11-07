@@ -20,9 +20,10 @@ import { IconTooltip } from '../ui/IconTooltip';
 import { ExpandIcon, ShrinkIcon } from '../ui/panels/panelIcons';
 import { lazyPart } from '../lib/lazyPart';
 import { ComputerScreenUnavailable } from './ComputerScreenUnavailable';
+import { loadComputerScreen } from './loadComputerScreen';
 import * as css from './ComputerPanel.css';
 
-const LazyComputerScreen = lazyPart(() => import('./ComputerScreen'), ComputerScreenUnavailable);
+const LazyComputerScreen = lazyPart(loadComputerScreen, ComputerScreenUnavailable);
 
 // Soft, outlined actions read as controls without a bright solid fill in dark themes.
 const actionButtonProps = { size: '300', fill: 'Soft', outlined: true, radii: '300' } as const;

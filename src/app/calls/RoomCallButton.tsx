@@ -2,8 +2,15 @@ import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Badge, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
 import { TooltipProvider } from '../ui/directional';
+import { preloadOnIntent } from '../lib/preloadOnIntent';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { isActiveCallShownIn, useActiveCall, useCallPanel, useRoomCallMembers } from './callStore';
+import {
+  isActiveCallShownIn,
+  loadCallPanel,
+  useActiveCall,
+  useCallPanel,
+  useRoomCallMembers,
+} from './callStore';
 import { callUserIds } from './callMemberships';
 
 // On the button's top end corner, like the Members button's join requests.
@@ -55,6 +62,7 @@ export function RoomCallButton({ room }: { room: Room }) {
           aria-expanded={open}
           data-room-call-button=""
           onClick={() => setOpen(!open)}
+          {...preloadOnIntent(loadCallPanel)}
           style={{ position: 'relative' }}
         >
           <Icon size="400" src={Icons.Phone} filled={inCall} />
