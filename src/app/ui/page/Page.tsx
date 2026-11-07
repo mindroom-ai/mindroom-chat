@@ -110,6 +110,8 @@ type PageNavContentProps = {
   scrollRef?: RefObject<HTMLDivElement>;
   /** The column's title (a `PageNavHeader`), which the list scrolls beneath. */
   header?: ReactNode;
+  /** Adds to the list's own padding, such as the settings menu's even inset. */
+  className?: string;
   children: ReactNode;
 };
 
@@ -118,12 +120,12 @@ type PageNavContentProps = {
  * the inset scrollbar runs from below the title to the bottom and shows while scrolling or hovered.
  * Short content (an empty list's message) fills the column under the title.
  */
-export function PageNavContent({ scrollRef, header, children }: PageNavContentProps) {
+export function PageNavContent({ scrollRef, header, className, children }: PageNavContentProps) {
   return (
     <PageScroll
       header={header}
       scrollRef={scrollRef}
-      contentClassName={css.PageNavContent}
+      contentClassName={classNames(css.PageNavContent, className)}
       scrollbarClassName={css.PageNavTrack}
     >
       {children}
