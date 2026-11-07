@@ -17,7 +17,6 @@ import {
 } from './agentCallCandidates';
 import { usePresenceStatuses } from './agentPresence';
 import { useAgentCaller } from './agentCaller';
-import { loadCallEngine } from '../callStore';
 import { loadCallPanel } from '../loadCallPanel';
 
 type AgentCallHeaderButtonProps = {
@@ -146,8 +145,7 @@ export function AgentCallHeaderButton({ threadId, candidates }: AgentCallHeaderB
             aria-busy={pending}
             disabled={pending}
             data-agent-call-button=""
-            // The click starts the call at once: the engine, then the panel it shows in.
-            {...preloadOnIntent(loadCallEngine, loadCallPanel)}
+            {...preloadOnIntent(loadCallPanel)}
             onClick={(event: MouseEvent<HTMLButtonElement>) => {
               if (single) {
                 start(single);

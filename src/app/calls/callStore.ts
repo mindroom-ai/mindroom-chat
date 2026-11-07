@@ -152,12 +152,6 @@ export const useCallPanel = (roomId: string) => {
   return [open, setOpen] as const;
 };
 
-/**
- * The call engine with LiveKit: a chunk of its own, loaded when a call starts or an agent's call
- * button is reached.
- */
-export const loadCallEngine = () => import('./RoomCall');
-
 /** The devices in a room's call, oldest first, following membership changes. */
 export const useRoomCallMembers = (mx: MatrixClient, room: Room): CallMember[] => {
   const [members, setMembers] = useState<CallMember[]>(() =>
@@ -238,7 +232,7 @@ export const useCallActions = (mx: MatrixClient) => {
     }: StartCallOptions): Promise<RoomCall | Exclude<StartCallResult, 'started'>> => {
       // The engine is a chunk of its own; after a deploy the server may no longer have the one
       // this page asks for.
-      const engine = await loadCallEngine().catch(() => undefined);
+      const engine = await import('./RoomCall').catch(() => undefined);
       if (!engine) return 'failed';
       // Another tab of this session shares the device: joining here would withdraw and replace
       // that tab's membership, and the two would keep replacing each other. The check and the

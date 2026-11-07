@@ -7,16 +7,15 @@ afterEach(() => {
 });
 
 describe('preloadOnIntent', () => {
-  it('starts every load when the pointer reaches the control, and when the focus does', () => {
-    const panel = vi.fn(() => Promise.resolve('panel'));
-    const engine = vi.fn(() => Promise.resolve('engine'));
-    const intent = preloadOnIntent(panel, engine);
-    expect(panel).not.toHaveBeenCalled();
+  it('starts the load when the pointer reaches the control, and when the focus does', () => {
+    const load = vi.fn(() => Promise.resolve('panel'));
+    const intent = preloadOnIntent(load);
+    expect(load).not.toHaveBeenCalled();
 
     intent.onPointerEnter?.();
-    expect([panel.mock.calls.length, engine.mock.calls.length]).toEqual([1, 1]);
+    expect(load).toHaveBeenCalledTimes(1);
     intent.onFocus?.();
-    expect([panel.mock.calls.length, engine.mock.calls.length]).toEqual([2, 2]);
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   it('keeps a load that fails to itself: the part reports it when it loads', async () => {

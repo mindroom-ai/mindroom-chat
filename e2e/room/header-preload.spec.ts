@@ -8,9 +8,9 @@ import {
 import { createPrivateRoom, joinRoom, matrixFetch, registerAgentAccount } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
 
-// The room header's buttons whose click needs code of its own (the call panel, the call engine
-// with LiveKit, the computer's screen) start loading it once the pointer or the focus reaches
-// them, so the click no longer waits for it. Each test watches the page's requests for that code
+// The room header's buttons whose click opens a part with code of its own (the call panel, the
+// computer's screen) start loading it once the pointer or the focus reaches them, so the click
+// no longer waits for it. Each test watches the page's requests for that code
 // and never clicks the button before it has seen them. The call service and the computer server
 // are only announced to the client (`.well-known` and `config.json` answered here), so no call or
 // computer session starts. On a production build (scripts/e2e-slot.sh <n> --preview) each part
@@ -121,10 +121,7 @@ test('the focus reaching the call button loads the call panel', async ({ page, c
   await expect.poll(() => panelCode.length).toBe(1);
 });
 
-test("hovering an agent's call button loads the call engine and the call panel", async ({
-  page,
-  context,
-}) => {
+test("hovering an agent's call button loads the call panel", async ({ page, context }) => {
   const agent = await registerAgentAccount(HOMESERVER, 'voice');
   // The agent announces voice calls in its presence, as MindRoom agents do.
   await matrixFetch(HOMESERVER, `/presence/${encodeURIComponent(agent.userId)}/status`, {
@@ -133,16 +130,15 @@ test("hovering an agent's call button loads the call engine and the call panel",
     body: JSON.stringify({ presence: 'online', status_msg: '📞 Voice calls' }),
   });
   await announceCallService(context);
-  const engineCode = watchCode(page, 'RoomCall');
   const panelCode = watchCode(page, 'CallPanel');
   await openNewRoom(page, 'Planning', agent);
   const callAgent = page.locator('[data-agent-call-button]');
   await expect(callAgent).toBeVisible({ timeout: 60_000 });
   await settle(page);
-  expect([engineCode, panelCode]).toEqual([[], []]);
+  expect(panelCode).toEqual([]);
 
   await callAgent.hover();
-  await expect.poll(() => [engineCode.length, panelCode.length]).toEqual([1, 1]);
+  await expect.poll(() => panelCode.length).toBe(1);
 });
 
 test('hovering the Computer button loads the computer screen', async ({ page, context }) => {
