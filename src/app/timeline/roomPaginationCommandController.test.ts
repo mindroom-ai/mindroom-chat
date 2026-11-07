@@ -536,6 +536,70 @@ describe('useRoomPaginationCommandController', () => {
     expect(addEventsToTimeline).not.toHaveBeenCalled();
     expect(handleTimelinePagination).toHaveBeenCalledWith(true);
   });
+
+  it('pages from the server when a cached page holds only events the room has loaded', async () => {
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@alice:example.org' });
+    vi.spyOn(mx, 'supportsThreads').mockReturnValue(true);
+    const room = new Room('!room:example.org', mx, '@alice:example.org');
+    // Cached pages run in (sent time, event ID) order. A membership sent in the same millisecond
+    // as the room's creation, with a lower ID, comes back "before" the creation the room shows
+    // first, though the room's timeline holds it already.
+    const membership = {
+      event_id: '$A-membership',
+      room_id: room.roomId,
+      sender: '@alice:example.org',
+      type: 'm.room.member',
+      state_key: '@alice:example.org',
+      origin_server_ts: 5,
+      content: { membership: 'join' },
+    };
+    await room.addLiveEvents([new MatrixEvent(membership)], { addToState: false });
+    const addEventsToTimeline = vi
+      .spyOn(room, 'addEventsToTimeline')
+      .mockImplementation(() => undefined);
+    loadRoomCachedPaginationSnapshotMock.mockResolvedValue({
+      status: 'cache-hit',
+      events: [new MatrixEvent(membership)],
+      beforeToken: 'token-before-the-membership',
+      hasMoreCachedBack: false,
+    });
+    const handleTimelinePagination = vi.fn(async () => undefined);
+    const timeline = makeTimeline([makeRoomEvent('$z-creation')]);
+    let callback!: (backwards: boolean) => Promise<void>;
+    let renderer!: ReactTestRenderer;
+    function Harness() {
+      callback = useRoomPaginationCommandController({
+        alive: () => true,
+        handleTimelinePagination,
+        mx,
+        beginRoomCacheWrite: () => vi.fn(),
+        recalibrateFilterOptsRef: { current: undefined },
+        room,
+        roomIdRef: { current: room.roomId },
+        roomPaginatingBackRef: { current: false },
+        prefetchDepthRef: { current: 50 },
+        sessionId: 'session',
+        setRoomHasMoreCachedBack: vi.fn(),
+        setTimeline: vi.fn(),
+        threadId: undefined,
+        threadIdRef: { current: undefined },
+        timeline: { linkedTimelines: [timeline], range: { start: 0, end: 1 } },
+      });
+      return null;
+    }
+    await act(async () => {
+      renderer = create(React.createElement(Harness));
+    });
+
+    await act(async () => {
+      await callback(true);
+    });
+    act(() => renderer.unmount());
+
+    // The page adds no row, so the pager would stop at the top with older history unread.
+    expect(addEventsToTimeline).not.toHaveBeenCalled();
+    expect(handleTimelinePagination).toHaveBeenCalledWith(true);
+  });
 });
 
 // ISSUE-207 P3.3 review (PR #69): the explicit persist point for network
