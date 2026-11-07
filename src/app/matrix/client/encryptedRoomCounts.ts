@@ -95,7 +95,8 @@ const stillStreams = (event: MatrixEvent): boolean => {
 /**
  * Whether the user's receipts read `event`, as the server takes them: a receipt in its thread (or
  * the main timeline) on it or on a later event, or an unthreaded one sent after it. A receipt can
- * name an edit, which no timeline holds; it was sent when the edit was read.
+ * name an edit, which no timeline holds; it was sent when the edit was read. The SDK then prefers
+ * the receipt it makes up for the user's own last message, which can be older: both count.
  */
 const readByOwnReceipts = (
   room: Room,
@@ -106,8 +107,12 @@ const readByOwnReceipts = (
   const unthreadedTs = room.getLastUnthreadedReceiptFor(userId)?.ts;
   if (unthreadedTs !== undefined && unthreadedTs >= event.getTs()) return true;
   const context = threadId ? room.getThread(threadId) : room;
-  return [ReceiptType.Read, ReceiptType.ReadPrivate].some((receiptType) => {
-    const receipt = context?.getReadReceiptForUserId(userId, false, receiptType);
+  const receipts = [ReceiptType.Read, ReceiptType.ReadPrivate].flatMap((receiptType) =>
+    [true, false].map((realOnly) =>
+      context?.getReadReceiptForUserId(userId, realOnly, receiptType)
+    )
+  );
+  return receipts.some((receipt) => {
     if (!receipt) return false;
     if (receipt.eventId === event.getId()) return true;
     const readTs =
