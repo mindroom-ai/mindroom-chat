@@ -20,9 +20,11 @@ import { serveBuild } from '../helpers/staticBuildServer';
 // carries the plugin's content key renders through the plugin, with the label from the plugin's
 // config.json section; a person's message with the same key renders as the app renders it.
 // `?plugins=off`, on the page itself or on the sign-in page the session started from, and
-// `plugins.example.enabled: false` show the app's own rendering of the reply instead. A second
-// plugin installed its own copy of a package the app bundles too, which the build accepts as the
-// plugin's. Set PLUGIN_SHOTS=<directory> to save screenshots.
+// `plugins.example.enabled: false` show the app's own rendering of the reply instead. The plugin's
+// pages open from their links, one with the app's rail and one filling the window; an unknown
+// plugin's page, and the example's with `?plugins=off` or `enabled: false`, say "Page not found"
+// where they are. A second plugin installed its own copy of a package the app bundles too, which
+// the build accepts as the plugin's. Set PLUGIN_SHOTS=<directory> to save screenshots.
 const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
 const PASSWORD = 'client-plugin-password';
 const RUN = Date.now().toString(36);
@@ -208,3 +210,48 @@ test('plugins.example.enabled: false shows the reply as the app renders it', ({ 
     await page.goto(threadPath(data));
     await expectCoreRendering(page, data, 'plugin-disabled');
   }));
+
+const rail = (page: Page) => page.getByRole('navigation', { name: 'Main', exact: true });
+const examplePage = (page: Page) => page.locator('[data-example-page]');
+const windowPage = (page: Page) => page.locator('[data-example-window-page]');
+
+test("the plugin's pages open from their links, with the rail and filling the window", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await signIn(page, data);
+    await page.goto('/p/example/');
+    await expect(examplePage(page)).toBeVisible({ timeout: 30_000 });
+    await expect(rail(page)).toBeVisible();
+    await shot(page, 'plugin-page');
+    const toWindow = page.getByRole('link', { name: 'Fill the window' });
+    await expect(toWindow).toHaveAttribute('href', '/p/example/window');
+    await toWindow.click();
+    await expect(windowPage(page)).toBeVisible({ timeout: 30_000 });
+    await expect(page).toHaveURL(/\/p\/example\/window$/);
+    await expect(rail(page)).toHaveCount(0);
+    await shot(page, 'plugin-page-window');
+    await page.getByRole('link', { name: 'Back to the rail' }).click();
+    await expect(examplePage(page)).toBeVisible({ timeout: 30_000 });
+    await expect(rail(page)).toBeVisible();
+  }));
+
+for (const [name, plugins, path] of [
+  ['an unknown plugin', {}, '/p/unknown/'],
+  ['?plugins=off', {}, '/p/example/?plugins=off'],
+  ['plugins.example.enabled: false', { example: { enabled: false } }, '/p/example/'],
+] as const) {
+  test(`a plugin page says "Page not found" for ${name}`, ({ browser }) =>
+    onBuild(browser, plugins, async (page, data) => {
+      await signIn(page, data);
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(rail(page)).toBeVisible();
+      await expect(examplePage(page)).toHaveCount(0);
+      // It stays at the address: no redirect, and no space named "p".
+      expect(new URL(page.url()).pathname).toBe(new URL(path, page.url()).pathname);
+      await shot(page, `plugin-page-not-found-${name.replace(/\W+/g, '-')}`);
+    }));
+}
