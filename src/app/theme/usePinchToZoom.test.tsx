@@ -123,6 +123,30 @@ describe('usePinchToZoom', () => {
     expect(setPageZoom).toHaveBeenCalledWith(90);
   });
 
+  it('does not compound when iOS sends both the touches and the gesture of one pinch', () => {
+    const { setPageZoom } = mount(100);
+
+    touch('touchstart', [
+      [0, 0],
+      [0, 100],
+    ]);
+    gesture('gesturestart', 1);
+    touch('touchmove', [
+      [0, 0],
+      [0, 130],
+    ]);
+    gesture('gesturechange', 1.3);
+    flushFrames();
+    touch('touchmove', [
+      [0, 0],
+      [0, 150],
+    ]);
+    gesture('gesturechange', 1.5);
+    flushFrames();
+
+    expect(setPageZoom.mock.calls).toEqual([[130], [150]]);
+  });
+
   it('steps the page zoom with ctrl and the wheel, as a trackpad pinch sends it', () => {
     const { setPageZoom } = mount(100);
 

@@ -8,5 +8,7 @@ describe('Capacitor web view zoom', () => {
   // (theme/usePinchToZoom.ts), so the layout reflows at the new size.
   it("keeps the iOS web view's own pinch magnification off", () => {
     expect(capacitorConfig.ios?.zoomEnabled).not.toBe(true);
+    // Capacitor also reads the top-level key.
+    expect(capacitorConfig.zoomEnabled).not.toBe(true);
   });
 });

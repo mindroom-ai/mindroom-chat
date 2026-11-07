@@ -214,7 +214,7 @@ describe('CompactCardSwipe', () => {
   it('keeps the scroller out of a touch only once it is a sideways swipe', () => {
     const { pointer } = render();
     const touchMove = (cancelable = true) => {
-      const event = { cancelable, preventDefault: vi.fn() };
+      const event = { cancelable, preventDefault: vi.fn(), touches: [{}] };
       track.touchMoveListener!(event);
       return event.preventDefault;
     };
@@ -299,6 +299,24 @@ describe('CompactCardSwipe', () => {
     expect(onSwipe).not.toHaveBeenCalled();
     expect(track.style.transform).toBe('');
     expect(actionStrip()[0].props['data-armed']).toBeUndefined();
+  });
+
+  it('lets go of a swipe without its action once a second finger makes it a pinch', () => {
+    // The pinch changes the page zoom (theme/usePinchToZoom.ts); a finger moving sideways in it is
+    // no swipe. The touch lists every finger, also one that landed outside the card.
+    const { onSwipe, pointer } = render();
+
+    pointer('onPointerDown', 300);
+    pointer('onPointerMove', 290);
+    pointer('onPointerMove', 150);
+    act(() =>
+      track.touchMoveListener!({ cancelable: true, preventDefault: vi.fn(), touches: [{}, {}] })
+    );
+    pointer('onPointerMove', 140);
+    pointer('onPointerUp', 140);
+
+    expect(onSwipe).not.toHaveBeenCalled();
+    expect(track.style.transform).toBe('');
   });
 
   it('snaps back without the action when the browser cancels the touch', () => {
