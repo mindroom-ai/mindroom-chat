@@ -85,7 +85,7 @@ describe('netlify.toml', () => {
 
   /**
    * The rule Netlify applies to a request: the first one whose `from` matches, where a rule that
-   * is not forced never applies to a path that has a file (docs.netlify.com, "Shadowing").
+   * is not forced never applies to a path that has a file ("Shadowing" in Netlify's documentation).
    */
   const ruleFor = (path: string, { fileExists }: { fileExists: boolean }) =>
     redirects.find(

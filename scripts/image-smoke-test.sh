@@ -60,6 +60,7 @@ expect "$asset Cache-Control" "$(header "$asset" Cache-Control)" 'public, max-ag
 expect "$asset X-Frame-Options" "$(header "$asset" X-Frame-Options)" 'SAMEORIGIN'
 expect 'a missing build file' "$(status /assets/missing-0000.js)" '404'
 expect '/public/licenses/LICENSE' "$(status /public/licenses/LICENSE)" '200'
+expect '/public/licenses/LICENSE X-Frame-Options' "$(header /public/licenses/LICENSE X-Frame-Options)" 'SAMEORIGIN'
 expect 'a missing file under /public/' "$(status /public/missing.html)" '404'
 
 expect '/config.json' "$(status /config.json)" '200'
