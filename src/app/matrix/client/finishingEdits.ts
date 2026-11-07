@@ -26,11 +26,13 @@ const editsByClient = new WeakMap<MatrixClient, Map<string, MatrixEvent>>();
 
 /** Whether `edit` ends its reply's stream, by the status in the clear or the decrypted content. */
 const isFinishingEdit = (edit: MatrixEvent): boolean => {
+  // Optional calls: thread tests pass edit stand-ins without wire content or decryption state.
+  const readable = !edit.isDecryptionFailure?.();
   const status =
-    getStreamStatusFromContent(edit.getWireContent()) ??
-    (edit.isDecryptionFailure() ? undefined : getStreamStatusFromContent(edit.getContent()));
+    getStreamStatusFromContent(edit.getWireContent?.() ?? {}) ??
+    (readable ? getStreamStatusFromContent(edit.getContent()) : undefined);
   if (status) return TERMINAL_STREAM_STATUSES.has(status);
-  return !edit.isDecryptionFailure() && hasTerminalStreamMetadata(edit.getContent());
+  return readable && hasTerminalStreamMetadata(edit.getContent());
 };
 
 /** The edit of `reply` by its sender that finished its stream, if the client has one. */
