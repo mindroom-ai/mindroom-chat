@@ -187,12 +187,13 @@ describe('pluginDirectoryServer', () => {
       expect(await (await fetch(`${directory}/page.ts`)).text()).toContain('plugin-page-marker');
     }, 30_000);
 
-    it('serves nothing outside the plugin directories', async () => {
+    it('serves nothing outside the plugin directories, nor to a host Vite refuses', async () => {
       writeFileSync(path.join(outside, 'outside.html'), '<p>outside the plugin</p>');
       // A raw path: a URL would resolve the dot segments before the request goes out.
-      const raw = (requestPath: string) =>
+      const raw = (requestPath: string, headers: Record<string, string> = {}) =>
         new Promise<string>((resolve, reject) => {
-          get({ host: '127.0.0.1', port: new URL(origin).port, path: requestPath }, (response) => {
+          const { port } = new URL(origin);
+          get({ host: '127.0.0.1', port, path: requestPath, headers }, (response) => {
             let body = '';
             response.on('data', (part: Buffer) => {
               body += part.toString();
@@ -205,6 +206,9 @@ describe('pluginDirectoryServer', () => {
       );
       // A file that is not there is left to the app.
       expect(await raw('/e2e-plugins/my-plugin/missing.html')).toContain('/src/index.tsx');
+      // A page that another site's name points at this server (DNS rebinding) does not get.
+      const page = '/e2e-plugins/my-plugin/e2e/fixtures/page.html';
+      expect(await raw(page, { host: 'attacker.example' })).toContain('Blocked request');
     }, 30_000);
   });
 });

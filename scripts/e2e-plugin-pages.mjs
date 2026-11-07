@@ -113,29 +113,45 @@ export const pluginDirectoryServer = (directories) => {
       return null;
     },
     configureServer(server) {
-      server.middlewares.use((req, res, next) => {
-        const [url = '', ...query] = (req.url ?? '').split('?');
+      /**
+       * The path, query and plugin directory file of a request URL.
+       * @param {string} [requestUrl]
+       */
+      const requestOf = (requestUrl = '') => {
+        const [url = '', ...query] = requestUrl.split('?');
         let file;
         try {
           file = fileOf(decodeURI(url));
         } catch {
           // A malformed escape names no file.
         }
-        if (file === undefined) {
-          next();
-          return;
-        }
-        if (!file.endsWith('.html')) {
+        return { url, query, file };
+      };
+      // A directory's other files, modules and assets alike, are served from where they are.
+      server.middlewares.use((req, _res, next) => {
+        const { query, file } = requestOf(req.url);
+        if (file !== undefined && !file.endsWith('.html')) {
           req.url = [`/@fs${encodeURI(file)}`, ...query].join('?');
-          next();
-          return;
         }
-        // Vite answers a page outside the root with the app, so the page is transformed here, at its URL.
-        server.transformIndexHtml(url, readFileSync(file, 'utf8'), req.originalUrl).then((html) => {
-          res.setHeader('Content-Type', 'text/html');
-          res.end(html);
-        }, next);
+        next();
       });
+      // Its pages are transformed here, at their URL, after Vite has checked the request and before it would
+      // answer a page outside the root with the app.
+      return () => {
+        server.middlewares.use((req, res, next) => {
+          const { url, file } = requestOf(req.originalUrl);
+          if (!file?.endsWith('.html')) {
+            next();
+            return;
+          }
+          server
+            .transformIndexHtml(url, readFileSync(file, 'utf8'), req.originalUrl)
+            .then((html) => {
+              res.setHeader('Content-Type', 'text/html');
+              res.end(html);
+            }, next);
+        });
+      };
     },
   };
 };
