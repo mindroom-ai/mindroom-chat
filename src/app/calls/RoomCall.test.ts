@@ -3,9 +3,10 @@ import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { MatrixRTCSessionEvent } from 'matrix-js-sdk/lib/matrixrtc';
-import { RoomCall } from './RoomCall';
+import { RoomCall, type RoomCallOptions } from './RoomCall';
 import { getLivekitServiceUrl, requestSfuGrant } from './rtcFocus';
 import { withdrawOwnMemberships } from './callResume';
+import { sendCallKey } from './callKeyProvider';
 import { defined } from '../../test/utils/defined';
 
 /** What the fake LiveKit modules and the device lock record, shared with the module mocks. */
@@ -19,6 +20,8 @@ const fakes = vi.hoisted(() => ({
   encryption: undefined as undefined | (() => Promise<void>),
   releases: [] as Array<() => void>,
   serviceUrl: 'https://rtc.calls.test',
+  /** Every key set on a media key provider: index and media identity. */
+  keys: [] as Array<{ keyIndex: number; identity: string; key: Uint8Array }>,
 }));
 
 vi.mock('livekit-client', async () => {
@@ -90,8 +93,11 @@ vi.mock('livekit-client/e2ee-worker?worker', async () => {
 
 vi.mock('./callKeyProvider', () => ({
   MatrixRtcKeyProvider: class {
-    setParticipantKey = async () => undefined;
+    setParticipantKey = async (key: Uint8Array, keyIndex: number, identity: string) => {
+      fakes.keys.push({ key, keyIndex, identity });
+    };
   },
+  sendCallKey: vi.fn(async () => undefined),
 }));
 
 vi.mock('./rtcFocus', async (importOriginal) => {
@@ -139,7 +145,7 @@ class FakeSession extends EventEmitter {
 
   isJoined = () => this.joined;
 
-  joinRTCSession = vi.fn(() => {
+  joinRTCSession = vi.fn((_identity: unknown, ..._rest: unknown[]) => {
     this.joined = true;
   });
 
@@ -182,7 +188,10 @@ const pending = <T = void>() => {
 /** Lets every queued promise step run. */
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-const setup = ({ encrypted = false }: { encrypted?: boolean } = {}) => {
+const setup = ({
+  encrypted = false,
+  grant,
+}: { encrypted?: boolean; grant?: RoomCallOptions['grant'] } = {}) => {
   const session = new FakeSession();
   const mx = {
     matrixRTC: { getRoomSession: () => session },
@@ -203,7 +212,7 @@ const setup = ({ encrypted = false }: { encrypted?: boolean } = {}) => {
   // The device lock `startCall` took before making the call.
   const releaseDeviceLock = vi.fn();
   fakes.releases.push(releaseDeviceLock);
-  const call = new RoomCall({ mx, room, releaseDeviceLock });
+  const call = new RoomCall({ mx, room, releaseDeviceLock, grant });
   return { call, session, mx, room };
 };
 
@@ -214,9 +223,12 @@ beforeEach(() => {
   fakes.browserSupported = true;
   fakes.connect = undefined;
   fakes.encryption = undefined;
+  fakes.keys.length = 0;
   vi.mocked(getLivekitServiceUrl).mockClear();
   vi.mocked(requestSfuGrant).mockClear();
   vi.mocked(withdrawOwnMemberships).mockClear();
+  vi.mocked(sendCallKey).mockReset();
+  vi.mocked(sendCallKey).mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -315,13 +327,21 @@ const onlyMediaRoom = () => {
 };
 
 describe('RoomCall join', () => {
-  it('connects the media first, then announces the membership, then opens the microphone', async () => {
+  it('announces the membership once the call is granted, connects the media meanwhile, then opens the microphone', async () => {
+    const connected = pending();
+    fakes.connect = () => connected.promise;
     const { call, session } = setup();
 
-    await call.join();
-
+    const joining = call.join();
+    await vi.waitFor(() => expect(session.joinRTCSession).toHaveBeenCalledTimes(1));
+    // The others hear of the call while the media still connects.
     const media = onlyMediaRoom();
     expect(media.connect).toHaveBeenCalledWith('wss://sfu.calls.test', 'jwt');
+    expect(call.getState().phase).toBe('connecting');
+    expect(media.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+    connected.resolve();
+    await joining;
+
     expect(session.joinRTCSession).toHaveBeenCalledWith(
       { userId: ME, deviceId: DEVICE, memberId: `${ME}:${DEVICE}` },
       [{ type: 'livekit', livekit_service_url: fakes.serviceUrl, livekit_alias: ROOM_ID }],
@@ -404,7 +424,7 @@ describe('RoomCall join', () => {
     });
   });
 
-  it('fails with the connection problem when the media drops while connecting', async () => {
+  it('fails with the connection problem, and withdraws the membership, when the media drops while connecting', async () => {
     fakes.connect = async (room) => {
       (room as FakeMediaRoom).emit('Disconnected');
       throw new Error('Client initiated disconnect');
@@ -412,14 +432,15 @@ describe('RoomCall join', () => {
     const { call, session } = setup();
 
     await call.join();
+    await settle();
 
     // The connect that fails with it does not turn the problem into a refused service.
     expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
-    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(session.leaveRoomSession).toHaveBeenCalledTimes(1);
     expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
   });
 
-  it('announces nothing when the media dropped although its connect went through', async () => {
+  it('withdraws the membership when the media dropped although its connect went through', async () => {
     fakes.connect = async (room) => {
       (room as FakeMediaRoom).emit('Disconnected');
     };
@@ -427,27 +448,29 @@ describe('RoomCall join', () => {
 
     await call.join();
 
-    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(session.leaveRoomSession).toHaveBeenCalledTimes(1);
     expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'connection' });
     expect(onlyMediaRoom().disconnect).toHaveBeenCalled();
   });
 
-  it('fails with the service problem, and lets everything go, when the membership cannot be made', async () => {
-    const { call, session } = setup();
+  it('fails with the service problem, and opens no media connection, when the membership cannot be made', async () => {
+    const { call, session } = setup({ encrypted: true });
     session.joinRTCSession.mockImplementationOnce(() => {
       throw new Error('no such slot');
     });
 
     await expect(call.join()).resolves.toBeUndefined();
+    await settle();
 
     expect(call.getState()).toMatchObject({ phase: 'failed', problem: 'service' });
-    expect(onlyMediaRoom().disconnect).toHaveBeenCalledTimes(1);
+    expect(mediaRooms()).toHaveLength(0);
+    expect(fakes.workers).toHaveLength(0);
     expect(fakes.releases[0]).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('RoomCall join, left while connecting', () => {
-  it('ends without a membership when left during the connect', async () => {
+  it('withdraws its membership when left during the connect', async () => {
     const connected = pending();
     fakes.connect = () => connected.promise;
     const { call, session } = setup();
@@ -460,7 +483,7 @@ describe('RoomCall join, left while connecting', () => {
     await leaving;
 
     expect(onlyMediaRoom().disconnect).toHaveBeenCalled();
-    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    expect(session.leaveRoomSession).toHaveBeenCalledTimes(1);
     expect(call.getState().phase).toBe('ended');
     expect(call.getState().problem).toBeUndefined();
   });
@@ -535,5 +558,187 @@ describe('RoomCall after joining', () => {
 
     expect(call.getState().phase).toBe('ended');
     expect(call.getState().problem).toBeUndefined();
+  });
+});
+
+describe('RoomCall join, grant asked for ahead', () => {
+  it('joins with the grant asked for while the call was prepared, without asking again', async () => {
+    const early = pending<
+      { serviceUrl: string; grant: { url: string; jwt: string } } | undefined
+    >();
+    const { call, session, mx } = setup({ grant: early.promise });
+
+    const joining = call.join();
+    await settle();
+    // The join waits for that grant rather than asking for one of its own.
+    expect(session.joinRTCSession).not.toHaveBeenCalled();
+    early.resolve({
+      serviceUrl: fakes.serviceUrl,
+      grant: { url: 'wss://early.test', jwt: 'early' },
+    });
+    await joining;
+
+    expect(mx.getOpenIdToken).not.toHaveBeenCalled();
+    expect(requestSfuGrant).not.toHaveBeenCalled();
+    expect(onlyMediaRoom().connect).toHaveBeenCalledWith('wss://early.test', 'early');
+    expect(call.getState().phase).toBe('connected');
+  });
+
+  it('asks again when the early grant could not be had', async () => {
+    const { call } = setup({ grant: Promise.resolve(undefined) });
+
+    await call.join();
+
+    expect(requestSfuGrant).toHaveBeenCalledTimes(1);
+    expect(onlyMediaRoom().connect).toHaveBeenCalledWith('wss://sfu.calls.test', 'jwt');
+  });
+
+  it('asks again when the early grant is for another service', async () => {
+    const { call } = setup({
+      grant: Promise.resolve({
+        serviceUrl: 'https://rtc.elsewhere.test',
+        grant: { url: 'wss://elsewhere.test', jwt: 'elsewhere' },
+      }),
+    });
+
+    await call.join();
+
+    expect(requestSfuGrant).toHaveBeenCalledWith(fakes.serviceUrl, expect.anything());
+    expect(onlyMediaRoom().connect).toHaveBeenCalledWith('wss://sfu.calls.test', 'jwt');
+  });
+});
+
+const OTHER = '@agent:calls.test';
+const OTHER_DEVICE = 'AGENTDEVICE';
+const OTHER_IDENTITY = `${OTHER}:${OTHER_DEVICE}`;
+const OWN_IDENTITY = `${ME}:${DEVICE}`;
+
+/** The identity this call's join handed the session, which its own keys come back with. */
+const joinedAs = (session: FakeSession) =>
+  defined(session.joinRTCSession.mock.calls[0], 'a join')[0];
+
+const emitKey = (
+  session: FakeSession,
+  key: number,
+  keyIndex: number,
+  membership: unknown,
+  identity: string
+) =>
+  session.emit(
+    MatrixRTCSessionEvent.EncryptionKeyChanged,
+    new Uint8Array([key]),
+    keyIndex,
+    membership,
+    identity
+  );
+
+describe('RoomCall media keys', () => {
+  it("uses only this call's own keys, not those an earlier call's key manager still makes", async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    fakes.keys.length = 0;
+
+    // The key manager of a call this device left stays with the room's session and keeps
+    // rotating its key for the identity it joined with then.
+    emitKey(session, 9, 3, { userId: ME, deviceId: DEVICE, memberId: OWN_IDENTITY }, OWN_IDENTITY);
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+    await settle();
+
+    expect(fakes.keys.map(({ keyIndex, identity }) => [keyIndex, identity])).toEqual([
+      [0, OWN_IDENTITY],
+    ]);
+  });
+
+  it('sets its own key again once the media connected', async () => {
+    const connected = pending();
+    fakes.connect = () => connected.promise;
+    const { call, session } = setup({ encrypted: true });
+    const joining = call.join();
+    await vi.waitFor(() => expect(session.joinRTCSession).toHaveBeenCalled());
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+    emitKey(session, 5, 2, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+    await settle();
+    fakes.keys.length = 0;
+
+    connected.resolve();
+    await joining;
+    await settle();
+
+    expect(fakes.keys.map(({ keyIndex, identity }) => [keyIndex, identity])).toEqual([
+      [0, OWN_IDENTITY],
+    ]);
+  });
+
+  it('sends its own key once more to a device whose key arrived, once per membership and key', async () => {
+    const { call, session, mx } = setup({ encrypted: true });
+    await call.join();
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE, 7)]);
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+    // Nothing goes before a key of theirs shows their Olm session works.
+    expect(sendCallKey).not.toHaveBeenCalled();
+
+    emitKey(session, 5, 0, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+    emitKey(session, 6, 1, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE, 7)]);
+
+    expect(sendCallKey).toHaveBeenCalledTimes(1);
+    expect(sendCallKey).toHaveBeenCalledWith(mx, {
+      roomId: ROOM_ID,
+      key: new Uint8Array([1]),
+      keyIndex: 0,
+      memberId: OWN_IDENTITY,
+      to: expect.objectContaining({ userId: OTHER, deviceId: OTHER_DEVICE }),
+    });
+
+    // A new own key, and the same device joining again, each get it once more.
+    emitKey(session, 2, 1, joinedAs(session), OWN_IDENTITY);
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE, 9)]);
+    expect(vi.mocked(sendCallKey).mock.calls.map(([, sent]) => [sent.keyIndex])).toEqual([
+      [0],
+      [1],
+      [1],
+    ]);
+  });
+
+  it('sends its own key to a device whose media joined, waiting for its membership', async () => {
+    const { call, session } = setup({ encrypted: true });
+    await call.join();
+    emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+
+    onlyMediaRoom().emit('ParticipantConnected', { identity: OTHER_IDENTITY });
+    expect(sendCallKey).not.toHaveBeenCalled();
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+
+    expect(sendCallKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('tries a failed send twice more, and sends nothing after the call is left', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(sendCallKey).mockRejectedValue(new Error('no Olm session'));
+      const { call, session } = setup({ encrypted: true });
+      await call.join();
+      session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+      emitKey(session, 1, 0, joinedAs(session), OWN_IDENTITY);
+      emitKey(session, 5, 0, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(sendCallKey).toHaveBeenCalledTimes(3);
+
+      await call.leave();
+      emitKey(session, 7, 1, { userId: OTHER, deviceId: OTHER_DEVICE }, OTHER_IDENTITY);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(sendCallKey).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sends nothing in a call without encryption', async () => {
+    const { call, session } = setup();
+    await call.join();
+    session.setMemberships([membership(ME, DEVICE), membership(OTHER, OTHER_DEVICE)]);
+    onlyMediaRoom().emit('ParticipantConnected', { identity: OTHER_IDENTITY });
+
+    expect(sendCallKey).not.toHaveBeenCalled();
   });
 });
