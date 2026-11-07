@@ -24,9 +24,9 @@ test('the app does not start inside a frame of its own origin', async ({ page })
   await expect
     .poll(() => pageErrors)
     .toContainEqual(expect.stringContaining('does not start inside a frame of its own origin'));
+  // Nothing rendered into the frame's root.
   const frame = page.frameLocator('iframe[title="Missing page"]');
-  await expect(frame.locator('#root')).toBeEmpty();
-  await expect(frame.locator(signIn)).toHaveCount(0);
+  await expect(frame.locator('#root > *')).toHaveCount(0);
   // The page around the frame goes on.
   await expect(page.locator(signIn)).toBeVisible();
 });

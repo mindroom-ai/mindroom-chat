@@ -208,7 +208,8 @@ const startServiceWorker = (): void => {
 
 // A server answers a path it has no file for with this page, so a frame of this origin whose page
 // is gone (the PDF viewer's frame page, say) would start a second copy of the app, on the same
-// account and storage as the page around it. Nothing starts there.
+// account and storage as the page around it. There it stops before any startup step: only its
+// modules have loaded.
 if (window.frameElement !== null) {
   throw new Error('MindRoom does not start inside a frame of its own origin');
 }
