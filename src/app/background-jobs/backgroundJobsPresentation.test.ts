@@ -1,6 +1,6 @@
 import { createInstance, type TFunction } from 'i18next';
 import { beforeAll, describe, expect, it } from 'vitest';
-import en from '../i18n/locales/en.json';
+import en from '../i18n/englishResources';
 import type { BackgroundJob } from '../matrix/protocol/backgroundJobsContract';
 import { presentBackgroundJobs } from './backgroundJobsPresentation';
 
@@ -71,6 +71,15 @@ describe('presentBackgroundJobs', () => {
     );
     expect(presented?.title).toBe('2 background jobs');
     expect(presented?.items.map((item) => item.name)).toEqual(['run_tests', 'download']);
+  });
+
+  it('counts the live jobs the agents did not list, and how many it shows', () => {
+    const jobs = [job('job_1'), job('job_2')];
+    expect(presentBackgroundJobs(jobs, none, t, 90)?.title).toBe(
+      '90 background jobs (showing 2)'
+    );
+    expect(presentBackgroundJobs(jobs, none, t, 90)?.items).toHaveLength(2);
+    expect(presentBackgroundJobs(jobs, none, t, 2)?.title).toBe('2 background jobs');
   });
 
   it('marks a job waiting for approval among several', () => {
