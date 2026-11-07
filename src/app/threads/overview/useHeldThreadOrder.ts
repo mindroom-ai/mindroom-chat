@@ -45,12 +45,21 @@ const ANCHOR_CANDIDATES = 8;
 /** The topmost cards in view (cards carry `data-scroll-anchor`). */
 const cardsInView = (view: HTMLElement, order: readonly string[]): CardsInView | undefined => {
   const viewTop = view.getBoundingClientRect().top;
+  const elements = view.querySelectorAll<HTMLElement>('[data-scroll-anchor]');
+  // The cards stack in one column: find the first one in view by halving, so a reader far down a
+  // long list costs a few layout reads rather than one per card above the view.
+  let low = 0;
+  let high = elements.length;
+  while (low < high) {
+    const middle = Math.floor((low + high) / 2);
+    if ((elements[middle]?.getBoundingClientRect().bottom ?? Infinity) > viewTop) high = middle;
+    else low = middle + 1;
+  }
   const cards: CardsInView['cards'] = [];
-  for (const card of view.querySelectorAll<HTMLElement>('[data-scroll-anchor]')) {
-    const { top, bottom } = card.getBoundingClientRect();
-    const rootId = card.getAttribute('data-scroll-anchor');
-    if (bottom > viewTop && rootId) cards.push({ rootId, top });
-    if (cards.length === ANCHOR_CANDIDATES) break;
+  for (let index = low; index < elements.length && cards.length < ANCHOR_CANDIDATES; index += 1) {
+    const card = elements[index];
+    const rootId = card?.getAttribute('data-scroll-anchor');
+    if (card && rootId) cards.push({ rootId, top: card.getBoundingClientRect().top });
   }
   return cards.length > 0 ? { cards, scrollTop: view.scrollTop, order } : undefined;
 };
