@@ -321,6 +321,41 @@ describe('CallTranscription', () => {
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
   });
 
+  it('keeps listening paused while any Pause or Resume pressed here is unanswered', async () => {
+    const { store, set } = mount();
+    set({ phase: 'connected', microphoneTrack: MIC_A });
+    await loaded();
+    const transcriber = only();
+    const pauseAnswer = pending();
+    const resumeAnswer = pending();
+    transcriber.pause
+      .mockImplementationOnce(() => pauseAnswer.promise)
+      .mockImplementationOnce(() => resumeAnswer.promise);
+
+    // Pause, then Resume before MindRoom answered either.
+    act(() => store.set(pauseRequestAtom, true));
+    act(() => store.set(pauseRequestAtom, false));
+    expect(transcriber.pause.mock.calls).toEqual([[true], [false]]);
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+
+    await act(async () => {
+      transcriber.options.onUpdate({
+        type: 'call',
+        call: { ...CALL, pausedBy: '@ann:example.org' },
+      });
+      pauseAnswer.resolve();
+    });
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+
+    // Both answered: MindRoom's state counts.
+    await act(async () => {
+      transcriber.options.onUpdate({ type: 'call', call: CALL });
+      resumeAnswer.resolve();
+    });
+    expect(store.get(pauseRequestAtom)).toBeUndefined();
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+  });
+
   it('shows the state MindRoom reports after a refused Pause, which resumes listening', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });

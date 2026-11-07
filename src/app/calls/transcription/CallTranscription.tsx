@@ -26,11 +26,13 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   const { discovered } = server;
   // A muted microphone sends nothing.
   const track = state.microphone ? state.microphoneTrack : undefined;
-  // Paused as MindRoom says, and at once when Pause is pressed here; Resume waits for MindRoom's
-  // answer, so nothing said before it resumed is sent.
+  // Paused as MindRoom says, and at once when Pause or Resume is pressed here, until MindRoom
+  // answered every request: nothing said before it resumed is sent.
   const request = useAtomValue(pauseRequestAtom);
   const live = useAtomValue(liveTranscriptAtom);
-  const paused = request === true || !!pausedByIn(live, roomId);
+  const paused = request !== undefined || !!pausedByIn(live, roomId);
+  /** Pause and Resume requests MindRoom has not answered yet. */
+  const unanswered = useRef(0);
 
   const transcriberRef = useRef<CallTranscriber>();
   const latest = useRef({ track, paused });
@@ -87,11 +89,14 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
     transcriberRef.current?.setPaused(paused);
   }, [paused]);
 
-  // Pause pressed here goes to MindRoom; its answer, or a refusal, ends the request.
+  // Pause pressed here goes to MindRoom; once it answered (or refused) every request, the request
+  // ends.
   useEffect(() => {
     if (request === undefined) return;
+    unanswered.current += 1;
     void (transcriberRef.current?.pause(request) ?? Promise.resolve()).finally(() => {
-      if (store.get(pauseRequestAtom) === request) store.set(pauseRequestAtom, undefined);
+      unanswered.current -= 1;
+      if (unanswered.current === 0) store.set(pauseRequestAtom, undefined);
     });
   }, [request, store]);
 
