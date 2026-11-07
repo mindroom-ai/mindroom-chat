@@ -21,14 +21,11 @@ type OpenPanel = { id: string; request?: unknown };
 const rememberedKey = (userId: string, roomId: string): string =>
   `${accountPrefix(userId)}:side-panel/${encodeURIComponent(roomId)}`;
 
-const readRemembered = (userId: string, roomId: string): OpenPanel | undefined => {
+/** What `rememberedKey` holds, `{ id, request }` when this app wrote it. */
+const readRemembered = (userId: string, roomId: string): unknown => {
   const stored = getStorageItemSafe(getSafeLocalStorage(), rememberedKey(userId, roomId));
-  if (stored === null) return undefined;
   try {
-    const value: unknown = JSON.parse(stored);
-    return isRecord(value) && typeof value.id === 'string'
-      ? { id: value.id, request: value.request }
-      : undefined;
+    return stored === null ? undefined : JSON.parse(stored);
   } catch {
     return undefined;
   }
@@ -36,9 +33,9 @@ const readRemembered = (userId: string, roomId: string): OpenPanel | undefined =
 
 /**
  * The plugin panel open in the room `roomId` of the page, from `panels`: `show` opens one there, and
- * `close` closes the one open, in whichever room. One that `remember`s stays open in its room for
- * `userId` until it closes there: it opens again when its room shows, unless another of the room's
- * panels is open then (`othersOpen`).
+ * `close` closes the one open, in whichever room, and forgets the one this room remembers. One that
+ * `remember`s stays open in its room for `userId` until it closes there: it opens again when its
+ * room shows, unless another of the room's panels is open then (`othersOpen`).
  */
 export const usePluginPanel = (
   userId: string,
@@ -52,8 +49,11 @@ export const usePluginPanel = (
     // Before the room's first render, so the panel shows with it.
     setLookedUpIn(roomId);
     const remembered = othersOpen ? undefined : readRemembered(userId, roomId);
-    if (remembered && panels.some((panel) => panel.id === remembered.id && panel.remember)) {
-      setOpen({ roomId, ...remembered });
+    if (isRecord(remembered)) {
+      const panel = panels.find(
+        (candidate) => candidate.id === remembered.id && candidate.remember
+      );
+      if (panel) setOpen({ roomId, id: panel.id, request: remembered.request });
     }
   }
 
