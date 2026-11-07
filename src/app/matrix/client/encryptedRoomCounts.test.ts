@@ -366,6 +366,38 @@ describe('unread counts of an encrypted room', () => {
     expect(f.threadCount()).toBe(1);
   });
 
+  it('count no follow-up reply whose terminal edit the reader has a receipt on', async () => {
+    const f = await fixture(true);
+    // The SDK makes up a receipt on the reader's own follow-up and prefers it to the server's
+    // receipt on an edit, which no timeline holds.
+    await f.deliver(
+      [
+        encrypted(ROOT, ME, 1),
+        encrypted(REPLY, AGENT, 2, inThread),
+        encrypted('$follow-up', ME, 7, inThread),
+        encrypted('$reply-2', AGENT, 8, inThread),
+        encrypted('$edit-2-done', AGENT, 9, { rel_type: 'm.replace', event_id: '$reply-2' }),
+      ],
+      [
+        {
+          type: 'm.receipt',
+          content: {
+            '$edit-2-done': { 'm.read': { [ME]: { ts: 10, thread_id: ROOT } } },
+            $elsewhere: { 'm.read': { [ME]: { ts: 1, thread_id: '$other' } } },
+          },
+        },
+      ]
+    );
+    for (const id of [ROOT, REPLY, '$follow-up', '$reply-2']) {
+      await f.decrypt(f.find(id), id === ROOT || id === '$follow-up' ? clear[ROOT] : clear[REPLY]);
+    }
+    await f.decrypt(f.find('$edit-2-done'), {
+      ...editContent('completed'),
+      'm.relates_to': { rel_type: 'm.replace', event_id: '$reply-2' },
+    });
+    expect(f.threadCount()).toBe(0);
+  });
+
   it('count nothing a new session cannot decrypt before the receipt on a terminal edit', async () => {
     const f = await fixture(true);
     await f.deliver(
