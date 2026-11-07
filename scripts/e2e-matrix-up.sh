@@ -6,6 +6,8 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE_FILE="${E2E_MATRIX_COMPOSE_FILE:-${ROOT_DIR}/e2e/docker-compose.matrix.yaml}"
 MATRIX_PORT="${E2E_MATRIX_PORT:-28008}"
 HOMESERVER_URL="${E2E_HOMESERVER:-http://127.0.0.1:${MATRIX_PORT}}"
+# The Tuwunel image e2e/docker-compose.yaml pins for every end-to-end run, unless MINDROOM_TUWUNEL_IMAGE names another.
+export MINDROOM_TUWUNEL_IMAGE="${MINDROOM_TUWUNEL_IMAGE:-$(docker compose -f "${ROOT_DIR}/e2e/docker-compose.yaml" config --images)}"
 
 docker compose -f "${COMPOSE_FILE}" up -d
 
