@@ -16,6 +16,16 @@ const belowTopBar = {
   insetInlineStart: 0,
 } as const;
 
+/**
+ * The layer a sheet from the end edge (a room's members, `PhoneMembersSheet`) slides in: the page's
+ * area below the top bar, under the drawer. Taps pass through it wherever the sheet is not.
+ */
+export const SheetSlot = style([
+  DefaultReset,
+  belowTopBar,
+  { insetInlineEnd: 0, zIndex: 1, pointerEvents: 'none' },
+]);
+
 /** Dims the page while the drawer is out; a tap on it puts the drawer away. */
 export const Scrim = style([
   DefaultReset,

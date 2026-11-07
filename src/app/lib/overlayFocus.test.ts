@@ -1,6 +1,11 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { installOverlayFocus, layerOf } from './overlayFocus';
+import {
+  LAYER_HOST_ATTRIBUTE,
+  installOverlayFocus,
+  layerOf,
+  observeLayerHost,
+} from './overlayFocus';
 
 const flush = async () => {
   // Mutation observers run as microtasks; the manager then waits one timeout.
@@ -83,6 +88,29 @@ describe('overlay focus', () => {
     document.body.append(layer);
     await flush();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it('wraps Shift+Tab to the last control of a dialog that takes the focus', async () => {
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const first = button('First');
+    const last = button('Last');
+    // A scroll region the browser does not focus, though it looks tabbable.
+    const region = document.createElement('div');
+    region.tabIndex = 0;
+    region.focus = () => undefined;
+    dialog.append(first, last, region);
+    trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    document.body.append(dialog);
+    await flush();
+    first.focus();
+    // Shift+Tab from the first control left the dialog.
+    first.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true })
+    );
+    (document.activeElement as HTMLElement | null)?.blur();
+    await flush();
+    expect(document.activeElement).toBe(last);
   });
 
   it('gives focus back to the opener when Escape closes the menu', async () => {
@@ -187,6 +215,36 @@ describe('overlay focus', () => {
       expect(document.activeElement).toBe(trigger);
     }
   );
+
+  it('treats a dialog in a layer host inside the app as one portaled into the body', async () => {
+    // A phone's members sheet: a layer below the top bar, in the app's own tree.
+    const host = document.createElement('div');
+    document.getElementById('root')!.append(host);
+    observeLayerHost(host);
+    expect(host.hasAttribute(LAYER_HOST_ATTRIBUTE)).toBe(true);
+
+    // Tapped open from a menu entry; the menu goes as the dialog comes.
+    trigger.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    const menu = menuLayer();
+    document.body.append(menu.layer);
+    await flush();
+    menu.first.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    menu.layer.remove();
+    const layer = document.createElement('div');
+    const dialog = document.createElement('div');
+    dialog.setAttribute('role', 'dialog');
+    const close = button('Close');
+    dialog.append(close);
+    layer.append(dialog);
+    host.append(layer);
+    await flush();
+    expect(layerOf(document, close)).toBe(layer);
+    expect(document.activeElement).toBe(close);
+
+    layer.remove();
+    await flush();
+    expect(document.activeElement).toBe(trigger);
+  });
 
   it('never takes a control of a popover for the opener of the dialog it opened from', async () => {
     // A dialog whose opener is gone, with a "+ tag" button that opens a picker popover.

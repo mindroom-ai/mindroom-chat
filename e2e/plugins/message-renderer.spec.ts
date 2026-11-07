@@ -71,6 +71,17 @@ test.beforeAll(async () => {
       mindroomClientPlugin: { id: 'own-packages', apiVersion: 1, entry: './index.js' },
     })
   );
+  // The third-party notices read a plugin's installed packages from its lockfile.
+  const { version: linkifyVersion } = JSON.parse(
+    readFileSync(resolve('node_modules/linkifyjs/package.json'), 'utf8')
+  ) as { version: string };
+  writeFileSync(
+    join(ownPackages, 'package-lock.json'),
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: { '': {}, 'node_modules/linkifyjs': { version: linkifyVersion } },
+    })
+  );
   writeFileSync(
     join(ownPackages, 'index.js'),
     "import { find } from 'linkifyjs';\nexport default { messageRenderers: [], find };\n"
