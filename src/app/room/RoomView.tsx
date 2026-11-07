@@ -37,6 +37,7 @@ import type { ThreadSummaryInfo } from '../matrix/protocol/threadSummary';
 import type { ScrollAnchorMemory } from '../ui/scrollAnchorMemory';
 import { RoomTimeline, type RoomTimelineProps } from '../timeline/RoomTimeline';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
+import { RoomHeaderSlot } from './RoomHeaderSlot';
 import * as overlay from '../ui/styles/RoomOverlay.css';
 import * as css from './RoomView.css';
 import { ThreadContextBanner } from '../threads/ThreadContextBanner';
@@ -317,6 +318,7 @@ export function RoomView({
             threadFilterState={threadState.threadFilterState}
             {...headerProps}
           />
+          <RoomHeaderSlot room={room} />
         </div>
         <ThreadApprovalProvider
           room={room}
