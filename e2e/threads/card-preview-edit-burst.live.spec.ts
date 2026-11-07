@@ -154,14 +154,26 @@ const check = async (page: Page, world: World, engine: string) => {
   }
 
   // The load lane read the cards 2, 10, 30 and 60 seconds after the burst; stale ones stayed.
-  const stale: string[] = [];
-  for (const thread of world.threads) {
-    const card = threadCard(page, thread.rootId);
-    try {
-      await expect(card).toContainText(replyText(thread.index, REVISIONS), { timeout: 15_000 });
-    } catch {
-      stale.push(`${thread.index}: ${((await card.textContent()) ?? '').slice(0, 80)}`);
-    }
+  const readStale = () =>
+    page.evaluate(
+      ({ threads, finals }) =>
+        threads.flatMap(({ index, rootId }, position) => {
+          const text =
+            document.querySelector(
+              `[data-compact-room-view] [data-thread-root-id="${CSS.escape(rootId)}"]`
+            )?.textContent ?? '';
+          const final = finals[position] ?? '';
+          return text.includes(final) ? [] : [`${index}: ${text.slice(-90)}`];
+        }),
+      {
+        threads: world.threads.map(({ index, rootId }) => ({ index, rootId })),
+        finals: world.threads.map((thread) => replyText(thread.index, REVISIONS)),
+      }
+    );
+  let stale = await readStale();
+  for (let waited = 0; stale.length > 0 && waited < 15_000; waited += 500) {
+    await page.waitForTimeout(500);
+    stale = await readStale();
   }
   // eslint-disable-next-line no-console
   console.log(`card preview edit burst: ${engine}: ${stale.length} stale of ${THREADS}`);
