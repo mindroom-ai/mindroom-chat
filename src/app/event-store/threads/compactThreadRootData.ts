@@ -10,7 +10,7 @@ import {
   isPendingLocalEchoThreadRootEvent,
 } from './threadRouteUtils';
 import { getThreadMessagePreviewText } from './threadMessagePreview';
-import { isConversationNotice } from './conversationNotice';
+import { isConversationNotice } from '../../matrix/protocol/conversationNotice';
 import {
   findThreadRootEvent,
   getPreferredVisibleThreadReplyEvents,

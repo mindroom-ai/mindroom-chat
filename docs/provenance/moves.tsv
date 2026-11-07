@@ -2846,3 +2846,4 @@ src/app/room/RoomHeaderMenu.css.ts	src/app/room/RoomActionsMenu.css.ts	room-menu
 src/app/messages/useLongPress.ts	src/app/lib/hooks/useLongPress.ts	phone-row-menu
 src/app/messages/useLongPress.test.tsx	src/app/lib/hooks/useLongPress.test.tsx	phone-row-menu
 src/app/messages/useMatrixEventRenderer.ts		plugin-followups
+src/app/event-store/threads/conversationNotice.ts	src/app/matrix/protocol/conversationNotice.ts	unread-ignores-hidden-notices

@@ -1,6 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk';
-import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
-import { getActiveSession } from '../../matrix/session/sessions';
+import { isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { getActiveSession } from '../session/sessions';
 
 /**
  * Whether an agent marked the event as the start of a conversation: its content says
