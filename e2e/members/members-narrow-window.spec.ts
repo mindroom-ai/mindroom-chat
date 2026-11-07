@@ -42,8 +42,12 @@ const homeserverIsUp = async (): Promise<boolean> => {
   }
 };
 
+let accounts = 0;
+
 const register = async (name: string) => {
-  const username = `mnw_${name}_${RUN}`;
+  // Numbered, so that --repeat-each runs register new accounts.
+  accounts += 1;
+  const username = `mnw_${name}${accounts}_${RUN}`;
   const response = await fetch(`${HOMESERVER}/_matrix/client/v3/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
