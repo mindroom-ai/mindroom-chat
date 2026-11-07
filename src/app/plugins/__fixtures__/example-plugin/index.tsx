@@ -1,8 +1,10 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// A side panel, "Example panel", names the room it is open in. Like a plugin outside this
+// A side panel, "Example panel", names the room it is open in.
+// Under the room header it shows "Example banner in <room name>". Like a plugin outside this
 // repository, it imports the app only through the client SDK.
+import type { Room } from 'matrix-js-sdk';
 import {
   usePluginConfig,
   usePluginTranslation,
@@ -33,12 +35,21 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
+function RoomBanner({ room }: { room: Room }) {
+  return (
+    <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
+      Example banner in {room.name}
+    </div>
+  );
+}
+
 function ExamplePanel({ roomId }: { roomId: string }) {
   return <p>Example panel of {roomId}</p>;
 }
 
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
+  roomHeaderSlot: [RoomBanner],
   sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
   translations: {
     en: { label: 'Example plugin' },

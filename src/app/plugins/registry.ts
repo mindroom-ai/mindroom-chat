@@ -1,12 +1,18 @@
+import type { ComponentType } from 'react';
+import type { Room } from 'matrix-js-sdk';
 import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
 import { registerPluginTranslations, type PluginTranslations } from './pluginTranslations';
 
+/** A component shown under the room header, given the open room; it renders there or nothing. */
+export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
+
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
+  roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
   sidePanels?: readonly SidePanel[];
   translations?: PluginTranslations;
 };
@@ -16,11 +22,13 @@ export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
+  const headerSlot = isRecord(plugin) ? plugin.roomHeaderSlot : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
@@ -32,6 +40,8 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
         : []
     ),
+    // Its slot renders each entry in a boundary, so one that is no component only fails there.
+    roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
   });
 };
@@ -39,7 +49,8 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
 /** Whether the address of this page load turns every plugin off. */
 const pluginsOff = (): boolean =>
   typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('plugins') === 'off';
+  // A test's stand-in window may have no location.
+  new URLSearchParams(window.location?.search).get('plugins') === 'off';
 
 /**
  * The plugins of this build, in the order MINDROOM_CLIENT_PLUGINS lists them, built and frozen when
