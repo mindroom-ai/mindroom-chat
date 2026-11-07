@@ -81,8 +81,8 @@ select {
 /* iOS Safari zooms the page into a text field that writes smaller than 16 px when the field takes
    the focus, and leaves the page zoomed; the app's fields write at 15 px. On a touch screen they
    write at the root size, as the composer does: 16 px at the default Page Zoom, and scaled with it
-   (usePageZoom), so a smaller zoom does not leave them larger than the text around them. A desktop
-   keeps their own size. */
+   (usePageZoom), so a smaller zoom does not leave them larger than the text around them. Below
+   100 % iOS zooms into them again, as into the composer. A desktop keeps their own size. */
 @media (hover: none) and (pointer: coarse) {
   input:not(
       [type='button'],
