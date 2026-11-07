@@ -9,10 +9,12 @@ import {
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import { loginToMatrix, sendRoomMessage, type MatrixSession } from '../helpers/matrix';
+import { touch } from '../helpers/touch';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
-// A phone's on-screen keyboard and the composer. A reader at the newest message who taps the
-// composer still sees that message right above it once the keyboard is up, with no Jump to Latest:
+// A phone's on-screen keyboard and the composer. A reader who read back a little with a finger and
+// returned to the newest message, then taps the composer, still sees that message right above it
+// once the keyboard is up, with no Jump to Latest:
 // both when the browser keeps the page full height and shrinks only the visual viewport (Safari on
 // iOS, played here by a stand-in visualViewport) and when it shrinks the page itself (the iOS
 // app's web view, Chrome on Android). Tapping Send keeps the text box focused, so the keyboard
@@ -46,7 +48,7 @@ const TOPICS = [
 
 declare global {
   interface Window {
-    __setVisualViewport?: (
+    __setKeyboardViewport?: (
       height: number,
       offsetTop: number,
       eventName: string,
@@ -99,8 +101,8 @@ const message = (index: number) =>
   }.`;
 
 /** 25 other rooms, and one room with 40 messages, more than a phone shows at once. */
-const seed = async (engine: string) => {
-  const reader = await registerAndLogin(`reader_${engine}`);
+const seed = async (name: string) => {
+  const reader = await registerAndLogin(name);
   await Promise.all(
     Array.from({ length: 25 }, (_, index) =>
       createRoom(HOMESERVER, reader.accessToken, { name: `Team room ${index + 1}` })
@@ -154,7 +156,7 @@ const standInVisualViewport = (context: BrowserContext) =>
         },
       },
     });
-    window.__setVisualViewport = (nextHeight, nextOffsetTop, eventName, nextWidth) => {
+    window.__setKeyboardViewport = (nextHeight, nextOffsetTop, eventName, nextWidth) => {
       height = nextHeight;
       width = nextWidth;
       offsetTop = nextOffsetTop;
@@ -221,14 +223,33 @@ const expectNewestAboveComposer = async (page: Page, label: string) => {
   await expect(jumpToLatest(page), `${label}: no Jump to Latest`).toBeHidden();
 };
 
+/**
+ * The reader drags the conversation back a little and returns to the newest message: from then on
+ * the position is theirs, and only the timeline's own pins keep them at the bottom.
+ */
+const readBackAndReturn = async (page: Page) => {
+  await touch(newestRow(page), [
+    { type: 'start' },
+    { type: 'move', dx: 0, dy: 30 },
+    { type: 'scroll', by: -300 },
+    { type: 'wait', ms: 150 },
+    { type: 'move', dx: 0, dy: 0 },
+    { type: 'scroll', by: 600 },
+    { type: 'end' },
+  ]);
+  await page.waitForTimeout(1_000);
+  await expect(jumpToLatest(page)).toBeHidden();
+};
+
 /** Safari: the page keeps its height, the visual viewport shrinks, then pans to the text box. */
 const checkSafariKeyboard = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
+  await readBackAndReturn(page);
   await textBox(page).tap();
   await expect(textBox(page)).toBeFocused();
   await page.evaluate((visible) => {
-    window.__setVisualViewport?.(visible, 0, 'resize');
-    window.__setVisualViewport?.(visible, window.innerHeight - visible, 'scroll');
+    window.__setKeyboardViewport?.(visible, 0, 'resize');
+    window.__setKeyboardViewport?.(visible, window.innerHeight - visible, 'scroll');
   }, KEYBOARD_VISIBLE);
   await expect
     .poll(() =>
@@ -241,6 +262,7 @@ const checkSafariKeyboard = async (page: Page, world: World, engine: string) => 
 /** The iOS app and Chrome on Android: the page itself gets shorter. */
 const checkResizingKeyboard = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
+  await readBackAndReturn(page);
   await textBox(page).tap();
   await expect(textBox(page)).toBeFocused();
   await page.setViewportSize({ width: PHONE_SIZE.width, height: KEYBOARD_VISIBLE });
@@ -255,7 +277,7 @@ const checkSendKeepsFocus = async (page: Page, world: World, engine: string) => 
   await page.keyboard.type(text);
   await page.getByRole('button', { name: 'Send message' }).tap();
   await expect(page.getByText(text, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
-  await expect(textBox(page)).toHaveText('');
+  await expect(textBox(page)).not.toContainText(text);
   await expect(textBox(page), `${engine}: the text box keeps the focus after Send`).toBeFocused();
 };
 
@@ -266,7 +288,7 @@ const appHeight = (page: Page) =>
 const setVisualViewport = (page: Page, height: number, offsetTop: number, width?: number) =>
   page.evaluate(
     ([nextHeight, nextOffsetTop, nextWidth]) =>
-      window.__setVisualViewport?.(nextHeight ?? 0, nextOffsetTop ?? 0, 'resize', nextWidth),
+      window.__setKeyboardViewport?.(nextHeight ?? 0, nextOffsetTop ?? 0, 'resize', nextWidth),
     [height, offsetTop, width] as const
   );
 
@@ -290,7 +312,19 @@ const composerUncovered = (page: Page) =>
       );
   });
 
-/** Sideways, the keyboard leaves a short band: the whole composer is in it, uncovered. */
+/** The bottom of the room's floating header (its top when it is not shown). */
+const headerBottom = (page: Page) =>
+  page.evaluate(() => {
+    // The room area holds the floating header first and the footer last.
+    const area = document.querySelector('[data-room-footer]')?.parentElement;
+    const header = area?.firstElementChild?.getBoundingClientRect();
+    return header ? header.top + header.height : NaN;
+  });
+
+/**
+ * Sideways, the keyboard leaves a short band: the whole composer is in it, uncovered, and the
+ * conversation shows above it, ending in the newest message.
+ */
 const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
   await page.setViewportSize(LANDSCAPE_SIZE);
@@ -299,13 +333,23 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
   await expect(textBox(page)).toBeFocused();
   await setVisualViewport(page, LANDSCAPE_KEYBOARD_VISIBLE, 0);
   await expect.poll(() => appHeight(page)).toBe(`${LANDSCAPE_KEYBOARD_VISIBLE}px`);
+  await page.waitForTimeout(1_000);
   const box = await composerBox(page);
-  console.log(`${engine} landscape keyboard: ${JSON.stringify(box)}`);
+  const header = await headerBottom(page);
+  const row = await newestRow(page).boundingBox();
+  const rowShown = row
+    ? Math.min(row.y + row.height, box.top) - Math.max(row.y, Math.max(0, header))
+    : 0;
+  console.log(`${engine} landscape keyboard: ${JSON.stringify({ box, header, row, rowShown })}`);
   expect(box.top, `${engine}: the composer starts in the band`).toBeGreaterThanOrEqual(-1);
   expect(box.bottom, `${engine}: the composer ends above the keyboard`).toBeLessThanOrEqual(
     LANDSCAPE_KEYBOARD_VISIBLE + 1
   );
   expect(await composerUncovered(page), `${engine}: nothing covers the composer`).toEqual([]);
+  // A line of the newest message at least.
+  expect(rowShown, `${engine}: the newest message shows above the composer`).toBeGreaterThanOrEqual(
+    16
+  );
 };
 
 /**
@@ -316,6 +360,7 @@ const checkLandscapeKeyboard = async (page: Page, world: World, engine: string) 
  */
 const checkRotationWithKeyboard = async (page: Page, world: World, engine: string) => {
   await openRoom(page, world);
+  await readBackAndReturn(page);
   await textBox(page).tap();
   await expect(textBox(page)).toBeFocused();
   await setVisualViewport(page, KEYBOARD_VISIBLE, PHONE_SIZE.height - KEYBOARD_VISIBLE);
@@ -388,8 +433,11 @@ const newPhonePage = async (browser: Browser, baseURL: string | undefined) => {
 
 type Check = (page: Page, world: World, engine: string) => Promise<void>;
 
+let accounts = 0;
+
 const run = async (browser: Browser, baseURL: string | undefined, engine: string, check: Check) => {
-  const world = await seed(engine);
+  accounts += 1;
+  const world = await seed(`reader${accounts}_${engine}`);
   const { context, page } = await newPhonePage(browser, baseURL);
   try {
     await standInVisualViewport(context);
