@@ -52,12 +52,17 @@ describe('nestSubRooms', () => {
     const anyDepth = ['!own', '!own-sub', '!subspace-room', '!subspace-room-sub'];
 
     expect(
-      nest(own, anyDepth, {
-        '!own': ['!space'],
-        '!own-sub': ['!own'],
-        '!subspace-room': ['!subspace'],
-        '!subspace-room-sub': ['!subspace-room'],
-      })
+      nest(
+        own,
+        anyDepth,
+        {
+          '!own': ['!space'],
+          '!own-sub': ['!own'],
+          '!subspace-room': ['!subspace'],
+          '!subspace-room-sub': ['!subspace-room'],
+        },
+        ['!own', '!subspace-room']
+      )
     ).toEqual({ top: ['!own'], children: { '!own': ['!own-sub'] } });
   });
 

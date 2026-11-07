@@ -7,6 +7,7 @@ import { Space } from './Space';
 import { allRoomsAtom } from '../../matrix/state/roomList';
 import { mDirectAtom } from '../../matrix/state/mDirectList';
 import { roomToParentsAtom } from '../../matrix/state/roomToParents';
+import { getSpaceRoomPath } from '../../routes/pathUtils';
 
 // The space's navigation lists the rooms the user is in. The client also holds rooms the user
 // is only invited to or has left; those are not rows of the list.
@@ -88,7 +89,15 @@ vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
 }));
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
-  SortableRoomRow: ({ room }: { room: { roomId: string } }) => <div data-row-room={room.roomId} />,
+  SortableRoomRow: ({
+    room,
+    linkPath,
+    spaceId,
+  }: {
+    room: { roomId: string };
+    linkPath: string;
+    spaceId: string;
+  }) => <div data-row-room={room.roomId} data-link={linkPath} data-space={spaceId} />,
 }));
 vi.mock('../../rooms/join/JoinBeforeNavigate', () => ({
   JoinBeforeNavigate: () => null,
@@ -154,9 +163,12 @@ describe('Space navigation', () => {
       );
     });
 
-    const listed = renderer!.root
-      .findAll((node) => typeof node.type === 'string' && 'data-row-room' in node.props)
-      .map((node) => node.props['data-row-room'] as string);
-    expect(listed).toEqual([joined]);
+    const rows = renderer!.root.findAll(
+      (node) => typeof node.type === 'string' && 'data-row-room' in node.props
+    );
+    expect(rows.map((node) => node.props['data-row-room'] as string)).toEqual([joined]);
+    // The row opens the room in the space, whose settings and search it stays in.
+    expect(rows[0]?.props['data-link']).toBe(getSpaceRoomPath(space, joined));
+    expect(rows[0]?.props['data-space']).toBe(space);
   });
 });

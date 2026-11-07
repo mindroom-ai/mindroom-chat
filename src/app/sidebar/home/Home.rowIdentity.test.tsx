@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Home } from './Home';
+import { getHomeRoomPath } from '../../routes/pathUtils';
 
 // A room row keeps state of its own, such as an open Leave prompt. When the list changes under
 // it, that state must stay with its room, not with the row's position.
@@ -44,9 +45,9 @@ vi.mock('../room-nav/SubRoomRows', async (importOriginal) => ({
 vi.mock('../room-nav/SortableRoomList', () => ({
   SortableRoomList: passthrough,
   // Remembers the room it first showed, as RoomNavItem remembers which prompt is open.
-  SortableRoomRow: ({ room }: { room: { roomId: string } }) => {
+  SortableRoomRow: ({ room, linkPath }: { room: { roomId: string }; linkPath: string }) => {
     const [firstRoomId] = useState(room.roomId);
-    return <div data-row-room={room.roomId} data-first-room={firstRoomId} />;
+    return <div data-row-room={room.roomId} data-first-room={firstRoomId} data-link={linkPath} />;
   },
 }));
 vi.mock('../../matrix/hooks/useMatrixClient', () => ({
@@ -112,6 +113,7 @@ const rows = (renderer: ReactTestRenderer) =>
     .map((node) => ({
       room: node.props['data-row-room'] as string,
       first: node.props['data-first-room'] as string,
+      link: node.props['data-link'] as string,
     }));
 
 describe('Home room rows', () => {
@@ -135,5 +137,6 @@ describe('Home room rows', () => {
     const shown = rows(renderer!);
     expect(shown.map((row) => row.room)).toEqual(['!apples', '!bees', '!compost']);
     shown.forEach((row) => expect(row.first).toBe(row.room));
+    shown.forEach((row) => expect(row.link).toBe(getHomeRoomPath(row.room)));
   });
 });
