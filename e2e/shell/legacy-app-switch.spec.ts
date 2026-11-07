@@ -177,7 +177,7 @@ const rollback = async (page: Page, name: string, flip: () => void) => {
     .toContain(`version=${encodeURIComponent(versionOf(CURRENT!))}`);
   flip();
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  const notice = page.locator('[data-new-version-notice]');
+  const notice = page.locator('[data-new-version-card]');
   await expect(page.getByText('A new version of MindRoom is available.')).toBeVisible({
     timeout: 30_000,
   });

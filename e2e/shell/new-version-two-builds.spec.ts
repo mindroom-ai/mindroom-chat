@@ -64,7 +64,7 @@ test.beforeEach(async () => {
   test.skip(!FIRST, 'Needs the production build of scripts/e2e-slot.sh --preview');
 });
 
-const notice = (page: Page) => page.locator('[data-new-version-notice]');
+const notice = (page: Page) => page.locator('[data-new-version-card]');
 const announcement = (page: Page) => page.getByText('A new version of MindRoom is available.');
 
 /** The build the page runs, by its entry script; empty while the page navigates. */

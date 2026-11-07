@@ -66,7 +66,11 @@ export function NewVersionNotice() {
 
   useEffect(() => {
     if (!leaving) return undefined;
-    const timer = window.setTimeout(() => setDismissed(true), LEAVE_MS);
+    const timer = window.setTimeout(() => {
+      setDismissed(true);
+      // Gone for good: let go of the place it left from.
+      setLeftFrom(undefined);
+    }, LEAVE_MS);
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
