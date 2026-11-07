@@ -1,42 +1,40 @@
 import {
+  ClientEvent,
   EventType,
   MatrixEvent,
   MatrixEventEvent,
   NotificationCountType,
   ReceiptType,
   RelationType,
+  RoomEvent,
   type MatrixClient,
   type Room,
 } from 'matrix-js-sdk';
+import type { Thread } from 'matrix-js-sdk/lib/models/thread';
 import {
-  STREAM_STATUS_KEY,
-  TERMINAL_STREAM_STATUSES,
+  getStreamStatusFromContent,
   hasTerminalStreamMetadata,
+  TERMINAL_STREAM_STATUSES,
 } from '../protocol/aiRun';
 import { isRecord } from '../../lib/isRecord';
 
 // The server cannot read an encrypted event, so in an encrypted room the SDK takes the server's
-// unread count only when it is 0, and otherwise counts each event itself once it decrypts: an
-// unread event the push rules notify for adds one (`fixNotificationCountOnDecryption`). For
-// MindRoom two cases came out wrong (L5-F012):
-// - An agent's reply that finishes is new again: the server counts its terminal edit (Tuwunel's
-//   finished-stream rule). The SDK counts no edit, so a reply the reader left half-way and that
-//   finished meanwhile left the room read.
-// - Push rules see an event the SDK cannot decrypt without its relation, as a plain message. A
-//   new session counted every streaming edit it had no key for: 23 for one reply.
-// - MindRoom starts a reply with a message whose stream status ("pending", then "streaming") it
-//   keeps in the clear, and Tuwunel counts no event that still streams. The SDK counted that first
-//   message by its text, and again each time it decrypted it, so a reply that finished while the
-//   reader was away showed 3 unread after a reload where the server counted 1 (and the thread's
-//   title notice, which the client rightly leaves out).
-// - A receipt on an event no timeline holds, such as the terminal edit of a reply the reader
-//   watched to its end, means nothing to the SDK (P2-e2ee-F001). The server takes it as reading
-//   everything up to it. When the reply, or any event of its thread, decrypted after the server's
-//   last count (after a reload, on keys arriving late, on a new session without keys), the SDK and
-//   this module counted it as unread, and no sync took it back.
-// This module counts the finished reply and takes back the SDK's count of an edit or reaction it
-// cannot decrypt, of a message that still streams and of an event the user's receipts read. Its
-// listener runs after the SDK's own, which the client adds when it is made.
+// unread count only when it is 0 and otherwise counts each event itself as it decrypts. Counting
+// by decryption went wrong for MindRoom in several ways (L5-F012, P2-e2ee-F001, P2-lane2-F005):
+// it never counted an agent's finished reply (the server counts its terminal edit), counted
+// streaming edits and replies that still stream (the server counts neither), took no receipt on
+// an edit as reading it, skipped events that decrypted before their thread existed, and kept what
+// it had counted once: two devices of one account showed different counts, and a room read on
+// another device came back unread after a reload.
+//
+// So the client counts an encrypted room again from what it holds whenever that changes, by the
+// server's rules (mindroom-tuwunel): a context (the main timeline or a thread) counts the events
+// after the user last read it that the push rules notify for. Reading is a receipt in the context
+// at the time the server took it, an unthreaded receipt (it reads every context), or a message of
+// the user's own (the server takes it as an unthreaded receipt). A reply that streams counts as
+// one message once its terminal edit arrives, at that edit's time; the reply's first event, its
+// other edits and reactions count as nothing. The thread's title notice counts on the server,
+// whose push rules cannot read it, but not here, where they can (design decision #17).
 
 /** Relations that never count as unread messages of their own. */
 const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
@@ -44,8 +42,10 @@ const UNCOUNTED_RELATIONS: ReadonlySet<string> = new Set([
   RelationType.Annotation,
 ]);
 
-/** Edits counted already; another copy of one may decrypt again. */
-const COUNTED_EDITS_LIMIT = 5000;
+/** Terminal edits remembered per reply; the oldest are forgotten first. */
+const FINISHING_EDITS_LIMIT = 5000;
+
+type Counts = { total: number; highlight: number };
 
 const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => {
   // Relations stay unencrypted, so the wire content has them before decryption too.
@@ -53,137 +53,175 @@ const relationOf = (event: MatrixEvent): Record<string, unknown> | undefined => 
   return isRecord(relation) ? relation : undefined;
 };
 
-/** The thread whose count an event changes, as the SDK picks it; undefined for the room's own. */
-const countedThreadOf = (event: MatrixEvent): string | undefined =>
-  event.threadRootId && !event.isThreadRoot ? event.threadRootId : undefined;
+/** The stream status MindRoom keeps in the clear, else the one in the decrypted content. */
+const streamStatusOf = (event: MatrixEvent): string | undefined =>
+  getStreamStatusFromContent(event.getWireContent()) ??
+  (event.isDecryptionFailure() ? undefined : getStreamStatusFromContent(event.getContent()));
 
-const changeCount = (
-  room: Room,
-  threadId: string | undefined,
-  type: NotificationCountType,
-  change: number
-): void => {
-  const count =
-    (threadId
-      ? room.getThreadUnreadNotificationCount(threadId, type)
-      : room.getRoomUnreadNotificationCount(type)) ?? 0;
-  const next = Math.max(0, count + change);
-  if (threadId) room.setThreadUnreadNotificationCount(threadId, type, next);
-  else room.setUnreadNotificationCount(type, next);
+/** A reply's first event while MindRoom streams it; the server counts only its terminal edit. */
+const isStreamedReply = (event: MatrixEvent): boolean => {
+  const wire = getStreamStatusFromContent(event.getWireContent());
+  const status =
+    wire ??
+    (event.isDecryptionFailure()
+      ? undefined
+      : getStreamStatusFromContent(event.getOriginalContent()));
+  return !!status && !TERMINAL_STREAM_STATUSES.has(status);
 };
 
-const changeCounts = (
-  room: Room,
-  threadId: string | undefined,
-  actions: ReturnType<MatrixClient['getPushActionsForEvent']>,
-  change: 1 | -1
-): void => {
-  if (actions?.tweaks?.highlight)
-    changeCount(room, threadId, NotificationCountType.Highlight, change);
-  if (actions?.notify) changeCount(room, threadId, NotificationCountType.Total, change);
+const isFinishingEdit = (edit: MatrixEvent): boolean => {
+  const status = streamStatusOf(edit);
+  if (status) return TERMINAL_STREAM_STATUSES.has(status);
+  return !edit.isDecryptionFailure() && hasTerminalStreamMetadata(edit.getContent());
 };
 
-/**
- * Whether the event still streams, by the status MindRoom keeps in the clear. Tuwunel counts no
- * such event, only the finished reply's terminal edit.
- */
-const stillStreams = (event: MatrixEvent): boolean => {
-  const status: unknown = event.getWireContent()[STREAM_STATUS_KEY];
-  return typeof status === 'string' && !TERMINAL_STREAM_STATUSES.has(status.toLowerCase());
-};
-
-/**
- * Whether the user's receipts read `event`, as the server takes them: a receipt in its thread (or
- * the main timeline) on it or on a later event, or an unthreaded one sent after it. A receipt can
- * name an edit, which no timeline holds; it was sent when the edit was read. The SDK then prefers
- * the receipt it makes up for the user's own last message, which can be older: both count.
- */
-const readByOwnReceipts = (
-  room: Room,
-  threadId: string | undefined,
-  userId: string,
-  event: MatrixEvent
-): boolean => {
-  const unthreadedTs = room.getLastUnthreadedReceiptFor(userId)?.ts;
-  if (unthreadedTs !== undefined && unthreadedTs >= event.getTs()) return true;
-  const context = threadId ? room.getThread(threadId) : room;
-  const receipts = [ReceiptType.Read, ReceiptType.ReadPrivate].flatMap((receiptType) =>
-    [true, false].map((realOnly) => context?.getReadReceiptForUserId(userId, realOnly, receiptType))
-  );
-  return receipts.some((receipt) => {
-    if (!receipt) return false;
-    if (receipt.eventId === event.getId()) return true;
-    const readTs =
-      (context?.findEventById(receipt.eventId) ?? room.findEventById(receipt.eventId))?.getTs() ??
-      receipt.data.ts;
-    return readTs >= event.getTs();
-  });
-};
-
-/** Whether the server counts no such event: an edit, a reaction or a message that still streams. */
-const uncountedByServer = (event: MatrixEvent): boolean => {
+/** Whether the server counts `event` as a message of its own. */
+const isCountedEvent = (event: MatrixEvent, userId: string): boolean => {
+  if (event.getSender() === userId || event.isRedacted() || event.isState()) return false;
   const relationType = relationOf(event)?.rel_type;
-  return (
-    (typeof relationType === 'string' && UNCOUNTED_RELATIONS.has(relationType)) ||
-    stillStreams(event)
-  );
+  return !(typeof relationType === 'string' && UNCOUNTED_RELATIONS.has(relationType));
 };
 
-/**
- * Takes back what the SDK counted for a decrypted event, under the same conditions it counts (the
- * event is in the room, unread to the SDK, and its push actions notify), when the server counts no
- * such event or the user's receipts read it.
- */
-const takeBackSdkCount = (mx: MatrixClient, room: Room, event: MatrixEvent): void => {
-  const userId = mx.getUserId();
-  const eventId = event.getId();
-  if (!userId || !eventId || !room.findEventById(eventId)) return;
-  const threadId = countedThreadOf(event);
-  if (threadId) {
-    const thread = room.getThread(threadId);
-    if (!thread || thread.hasUserReadEvent(userId, eventId)) return;
-  } else if (room.hasUserReadEvent(userId, eventId)) return;
-  if (!uncountedByServer(event) && !readByOwnReceipts(room, threadId, userId, event)) return;
-  changeCounts(room, threadId, mx.getPushActionsForEvent(event), -1);
+const add = (counts: Counts, actions: ReturnType<MatrixClient['getPushActionsForEvent']>) => {
+  if (actions?.notify) counts.total += 1;
+  if (actions?.tweaks?.highlight) counts.highlight += 1;
 };
 
-/**
- * Counts the terminal edit of an agent's streamed reply as a new message, as the server does:
- * when the user has not read it, by the push rules for the reply's final content.
- */
-const countFinishedReply = (
+/** How the push rules take a finished reply: by its final content, once that is readable. */
+const finishedReplyActions = (
   mx: MatrixClient,
   room: Room,
-  edit: MatrixEvent,
-  counted: Set<string>
-): void => {
-  const relation = relationOf(edit);
-  if (relation?.rel_type !== RelationType.Replace || typeof relation.event_id !== 'string') return;
-  const userId = mx.getUserId();
-  const editId = edit.getId();
-  if (!userId || !editId || edit.getSender() === userId || counted.has(editId)) return;
-  const finished: unknown = edit.getContent()['m.new_content'];
-  if (!isRecord(finished) || !hasTerminalStreamMetadata(finished)) return;
-  const reply = room.findEventById(relation.event_id);
-  if (!reply || reply.getSender() !== edit.getSender()) return;
-  const threadId = countedThreadOf(reply);
-  // As the SDK does: without the thread there are no receipts to tell, so nothing counts.
-  if (threadId && !room.getThread(threadId)) return;
-  if (readByOwnReceipts(room, threadId, userId, edit)) return;
+  reply: MatrixEvent,
+  edit: MatrixEvent
+) => {
+  const finished: unknown = edit.isDecryptionFailure()
+    ? undefined
+    : edit.getContent()['m.new_content'];
+  if (!isRecord(finished)) return mx.getPushActionsForEvent(edit);
+  const content = { ...finished };
+  delete content['m.relates_to'];
+  return mx.getPushActionsForEvent(
+    new MatrixEvent({
+      type: EventType.RoomMessage,
+      room_id: room.roomId,
+      sender: reply.getSender(),
+      event_id: edit.getId(),
+      origin_server_ts: edit.getTs(),
+      content,
+    })
+  );
+};
 
-  if (counted.size >= COUNTED_EDITS_LIMIT) counted.clear();
-  counted.add(editId);
-  const unrelated = { ...finished };
-  delete unrelated['m.relates_to'];
-  const finishedReply = new MatrixEvent({
-    type: EventType.RoomMessage,
-    room_id: room.roomId,
-    sender: reply.getSender(),
-    event_id: editId,
-    origin_server_ts: edit.getTs(),
-    content: unrelated,
+/**
+ * When the user last read `context` (the room's main timeline, or a thread), as the server takes
+ * it: the newest of its receipts there (as the server dated it, or the event it names, whichever
+ * is later), its unthreaded receipt, and its own last message in the room.
+ */
+const readUpTo = (
+  room: Room,
+  context: Room | Thread,
+  userId: string,
+  ownLastTs: number
+): number => {
+  let readTs = Math.max(ownLastTs, room.getLastUnthreadedReceiptFor(userId)?.ts ?? -Infinity);
+  [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((receiptType) => {
+    [true, false].forEach((realOnly) => {
+      const receipt = context.getReadReceiptForUserId(userId, realOnly, receiptType);
+      if (!receipt) return;
+      const named = context.findEventById(receipt.eventId) ?? room.findEventById(receipt.eventId);
+      readTs = Math.max(readTs, receipt.data?.ts ?? -Infinity, named?.getTs() ?? -Infinity);
+    });
   });
-  changeCounts(room, threadId, mx.getPushActionsForEvent(finishedReply), 1);
+  return readTs;
+};
+
+/** The unread events of one context, newest first, by the rules above. */
+const countContext = (
+  mx: MatrixClient,
+  room: Room,
+  events: readonly MatrixEvent[],
+  threadId: string | undefined,
+  readTs: number,
+  userId: string,
+  finishingEdit: (reply: MatrixEvent) => MatrixEvent | undefined
+): Counts => {
+  const counts: Counts = { total: 0, highlight: 0 };
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (!event || event.getId() === threadId) continue;
+    const streamed = isStreamedReply(event);
+    if (streamed && event.getSender() !== userId) {
+      const edit = finishingEdit(event);
+      if (edit && edit.getTs() > readTs) add(counts, finishedReplyActions(mx, room, event, edit));
+    }
+    // A reply read while it streamed can finish later; anything else read ends the count.
+    if (event.getTs() <= readTs) {
+      if (streamed) continue;
+      break;
+    }
+    if (!streamed && isCountedEvent(event, userId)) add(counts, mx.getPushActionsForEvent(event));
+  }
+  return counts;
+};
+
+const setCounts = (room: Room, threadId: string | undefined, counts: Counts): void => {
+  const changed = (type: NotificationCountType, value: number) =>
+    (threadId
+      ? room.getThreadUnreadNotificationCount(threadId, type)
+      : room.getRoomUnreadNotificationCount(type)) !== value;
+  [
+    [NotificationCountType.Total, counts.total],
+    [NotificationCountType.Highlight, counts.highlight],
+  ].forEach(([type, value]) => {
+    if (!changed(type as NotificationCountType, value as number)) return;
+    if (threadId)
+      room.setThreadUnreadNotificationCount(
+        threadId,
+        type as NotificationCountType,
+        value as number
+      );
+    else room.setUnreadNotificationCount(type as NotificationCountType, value as number);
+  });
+};
+
+/** The newest message of the user's own in the room, in any context. */
+const ownLastTsOf = (room: Room, threads: Thread[], userId: string): number => {
+  let ownLastTs = -Infinity;
+  const scan = (events: readonly MatrixEvent[]) => {
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index];
+      if (event && event.getSender() === userId && !event.isState()) {
+        ownLastTs = Math.max(ownLastTs, event.getTs());
+        return;
+      }
+    }
+  };
+  scan(room.getLiveTimeline().getEvents());
+  threads.forEach((thread) => scan(thread.events));
+  return ownLastTs;
+};
+
+const recount = (
+  mx: MatrixClient,
+  room: Room,
+  finishingEdit: (reply: MatrixEvent) => MatrixEvent | undefined
+): void => {
+  const userId = mx.getUserId();
+  if (!userId) return;
+  const threads = room.getThreads();
+  const ownLastTs = ownLastTsOf(room, threads, userId);
+  const count = (context: Room | Thread, events: readonly MatrixEvent[], threadId?: string) =>
+    countContext(
+      mx,
+      room,
+      events,
+      threadId,
+      readUpTo(room, context, userId, ownLastTs),
+      userId,
+      finishingEdit
+    );
+  setCounts(room, undefined, count(room, room.getLiveTimeline().getEvents()));
+  threads.forEach((thread) => setCounts(room, thread.id, count(thread, thread.events, thread.id)));
 };
 
 /**
@@ -191,18 +229,53 @@ const countFinishedReply = (
  * events the client can read; call it before the client starts. Returns a function that stops it.
  */
 export const keepEncryptedRoomCounts = (mx: MatrixClient): (() => void) => {
-  const counted = new Set<string>();
-  const onDecrypted = (event: MatrixEvent) => {
-    const roomId = event.getRoomId();
-    const room = roomId ? mx.getRoom(roomId) : null;
-    if (!room?.hasEncryptionStateEvent()) return;
-    takeBackSdkCount(mx, room, event);
-    if (!event.isDecryptionFailure() && !stillStreams(event)) {
-      countFinishedReply(mx, room, event, counted);
-    }
+  // The edits that finished replies, by reply: the SDK puts an edit on its reply only once it
+  // decrypted it, and not on a reply it does not hold yet.
+  const finishingEdits = new Map<string, MatrixEvent>();
+  const finishingEdit = (reply: MatrixEvent): MatrixEvent | undefined => {
+    const replyId = reply.getId();
+    const candidates = [reply.replacingEvent(), replyId ? finishingEdits.get(replyId) : undefined];
+    return candidates.reduce<MatrixEvent | undefined>((newest, edit) => {
+      if (!edit || edit.getSender() !== reply.getSender() || !isFinishingEdit(edit)) return newest;
+      return !newest || edit.getTs() > newest.getTs() ? edit : newest;
+    }, undefined);
   };
-  mx.on(MatrixEventEvent.Decrypted, onDecrypted);
+  const rememberEdit = (event: MatrixEvent) => {
+    const relation = relationOf(event);
+    if (relation?.rel_type !== RelationType.Replace || typeof relation.event_id !== 'string')
+      return;
+    if (!isFinishingEdit(event)) return;
+    if (finishingEdits.size >= FINISHING_EDITS_LIMIT) finishingEdits.clear();
+    finishingEdits.set(relation.event_id, event);
+  };
+
+  const queued = new Set<string>();
+  const schedule = (roomId: string | undefined) => {
+    if (!roomId || queued.has(roomId)) return;
+    queued.add(roomId);
+    queueMicrotask(() => {
+      queued.delete(roomId);
+      const room = mx.getRoom(roomId);
+      if (room?.hasEncryptionStateEvent()) recount(mx, room, finishingEdit);
+    });
+  };
+  const onEvent = (event: MatrixEvent) => {
+    rememberEdit(event);
+    schedule(event.getRoomId());
+  };
+  const onRoomChange = (_event: MatrixEvent, room: Room | undefined) => schedule(room?.roomId);
+
+  // An event can reach its thread after the sync announced it, so a timeline change counts too.
+  mx.on(ClientEvent.Event, onEvent);
+  mx.on(MatrixEventEvent.Decrypted, onEvent);
+  mx.on(RoomEvent.Timeline, onEvent);
+  mx.on(RoomEvent.Redaction, onRoomChange);
+  mx.on(RoomEvent.Receipt, onRoomChange);
   return () => {
-    mx.removeListener(MatrixEventEvent.Decrypted, onDecrypted);
+    mx.removeListener(ClientEvent.Event, onEvent);
+    mx.removeListener(MatrixEventEvent.Decrypted, onEvent);
+    mx.removeListener(RoomEvent.Timeline, onEvent);
+    mx.removeListener(RoomEvent.Redaction, onRoomChange);
+    mx.removeListener(RoomEvent.Receipt, onRoomChange);
   };
 };
