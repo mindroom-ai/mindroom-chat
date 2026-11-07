@@ -79,8 +79,8 @@ describe('thread previews of math', () => {
     expect(preview('$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$')).toBe(
       '$3\\frac{1}{4}$, $\\frac{1}{2$, $a}b$ and $x % note$'
     );
-    expect(preview('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${3}\\frac{1}{4}$ and $2^(n-1)$')).toBe(
-      '$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${3}\\frac{1}{4}$ and $2^(n-1)$'
+    expect(preview('$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$')).toBe(
+      '$3 \\frac{1}{4}$, $2\\,\\tfrac{3}{4}$, ${12}\\frac{1}{4}$ and $2^(n-1)$'
     );
     expect(preview('$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$')).toBe(
       '$x^$, $\\frac{a}$, $\\text{snake_case}$ and $\\textbf{v}$'

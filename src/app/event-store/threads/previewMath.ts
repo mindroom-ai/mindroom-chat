@@ -184,8 +184,8 @@ const readFormula = (tex: string): string | undefined => {
  * shows `(a/b)` rather than `$\frac{a}{b}$`. Symbols and function names read as themselves, text
  * and sizes lose their commands, `^` and `_` stay, and parentheses keep each part of a fraction,
  * root or script together. Any other formula stays as written, and so does every formula of a body
- * whose code the tokenizer may not find: it finds a span between two single backticks, so a body
- * with other code, or with an odd number of backticks, keeps its formulas as written. Formulas
+ * whose code the tokenizer may not find: it finds a span between two single backticks and reads no
+ * formula after one left open, so a body with other code keeps its formulas as written. Formulas
  * stand in as placeholders while `strip` runs, so its Markdown rules never change them. The
  * tokenizer also scans for links, several times the cost of the rest of a preview, so only text
  * that holds a formula goes through it.
@@ -194,7 +194,6 @@ export const stripPreviewMath = (text: string, strip: (text: string) => string):
   if (
     !text.includes('$') ||
     UNCLEAR_CODE.test(text) ||
-    (text.match(/`/g) ?? []).length % 2 === 1 ||
     !(findInlineLatexMatch(text) ?? findDisplayLatexBlockMatch(text))
   ) {
     return strip(text);
