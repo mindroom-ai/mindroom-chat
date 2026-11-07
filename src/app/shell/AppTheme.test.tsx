@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DarkTheme, LightTheme, MidnightTheme, SilverTheme, useTheme } from '../theme/useTheme';
 import { getSettings, settingsAtom } from '../preferences/settings';
 import { putSession, removeSession } from '../matrix/session/sessions';
-import { applyThemeToDom } from '../theme/themeBootstrap';
+import { applyAppTheme } from '../theme/appliedTheme';
 import { AppTheme } from './App';
 
 vi.mock('../theme/colors.css', () => ({
@@ -17,8 +17,8 @@ vi.mock('../theme/colors.css', () => ({
   butterTheme: 'butter-palette',
 }));
 
-vi.mock('../theme/themeBootstrap', () => ({
-  applyThemeToDom: vi.fn(),
+vi.mock('../theme/appliedTheme', () => ({
+  applyAppTheme: vi.fn(),
 }));
 
 vi.mock('./Router', () => ({
@@ -84,7 +84,7 @@ const renderTheme = (store = createStore()): ReactTestRenderer => {
 const providedTheme = (renderer: ReactTestRenderer) =>
   renderer.root.find((node) => node.props['data-theme'] !== undefined).props['data-theme'];
 
-const lastApplied = () => vi.mocked(applyThemeToDom).mock.calls.at(-1)?.[0];
+const lastApplied = () => vi.mocked(applyAppTheme).mock.calls.at(-1)?.[0];
 
 const signIn = () =>
   putSession({
@@ -97,7 +97,7 @@ const signIn = () =>
 describe('AppTheme', () => {
   beforeEach(() => {
     window.localStorage.clear();
-    vi.mocked(applyThemeToDom).mockClear();
+    vi.mocked(applyAppTheme).mockClear();
   });
 
   afterEach(() => {
