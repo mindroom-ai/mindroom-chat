@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { loginWithPassword } from '../helpers/auth';
 import { createRoom } from '../helpers/createRoom';
 import {
@@ -223,7 +223,7 @@ test('every card previews its reply’s last edit after an edit burst (Chromium,
 }) => {
   test.setTimeout(300_000);
   await run(
-    () => (browser as Browser).newContext({ viewport: { width: 1440, height: 900 }, baseURL }),
+    () => browser.newContext({ viewport: { width: 1440, height: 900 }, baseURL }),
     'chromium',
     4
   );
