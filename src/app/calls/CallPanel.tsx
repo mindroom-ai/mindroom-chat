@@ -28,6 +28,7 @@ import { allowMembersToCall, readCallAccess, type CallAccess } from './callAcces
 import { CallControl, DeviceControl } from './CallControls';
 import { CallMemberAvatar, CallTile, ScreenTile } from './CallTile';
 import * as css from './CallPanel.css';
+import { revealDirectionControls } from '../ui/directional';
 
 /** The access of a call this device is in, where it shows no access notice (agent calls). */
 const NOT_READ: CallAccess = { canJoin: true, canLetMembersIn: false };
@@ -182,7 +183,7 @@ function JoinedCall({ active, onClose }: { active: ActiveCall; onClose: () => vo
   const { call } = active;
   const state = useCallState(call);
   const phaseLabel = usePhaseLabel(state);
-  const title = useRoomName(call.room);
+  const title = revealDirectionControls(useRoomName(call.room));
   const { endCall, dismissCall } = useCallActions(mx);
   const joined = state.phase === 'connected' || state.phase === 'reconnecting';
   // Agents post a notice when they joined but cannot hear or speak ("Voice call error: ...").
@@ -327,7 +328,7 @@ function CallPrescreen({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
   const mx = useMatrixClient();
   const active = useActiveCall();
-  const title = useRoomName(room);
+  const title = revealDirectionControls(useRoomName(room));
   const members = useRoomCallMembers(mx, room);
   const people = callUserIds(members);
   const support = useCallSupport(mx);

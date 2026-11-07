@@ -5,6 +5,7 @@ import { ThreadEvent } from 'matrix-js-sdk/lib/models/thread';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRoomName } from '../../matrix/hooks/useRoomMeta';
+import { revealDirectionControls } from '../../ui/directional';
 import { useActiveSession } from '../../matrix/session/useSessionStore';
 import {
   getRecentThreadFallbackSummary,
@@ -72,8 +73,9 @@ export const buildRecentThreadViewModelFromRecord = ({
     },
     storedThreadId,
     openedAt,
-    roomName,
-    summaryText,
+    // On screen, direction controls show as code points; the text kept stays exact.
+    roomName: revealDirectionControls(roomName),
+    summaryText: revealDirectionControls(summaryText),
     persistableSummaryText,
     shouldRekey: storedThreadId !== record.threadRootId,
   };

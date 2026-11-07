@@ -107,3 +107,28 @@ describe('RoomStateSentence', () => {
     );
   });
 });
+
+describe('direction controls in a room state row', () => {
+  it('quotes a new name with its controls as code points and keeps the change exact', async () => {
+    const event = stateEvent('m.room.name', { name: 'Payroll ‮sevihcra‬' });
+    // The change itself keeps the name as the event holds it.
+    expect(describeRoomStateChange(event)?.value).toBe('Payroll ‮sevihcra‬');
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      interpolation: { escapeValue: false },
+      resources: { en: { translation: enAdditions } },
+    });
+    const change = describeRoomStateChange(event);
+    if (!change) throw new Error('no change');
+    let renderer: ReturnType<typeof create> | undefined;
+    act(() => {
+      renderer = create(
+        <I18nextProvider i18n={language}>
+          <RoomStateSentence change={change} sender="Robin" />
+        </I18nextProvider>
+      );
+    });
+    expect(renderer?.root.findByType('bdi').children).toEqual(['Payroll <U+202E>sevihcra<U+202C>']);
+  });
+});

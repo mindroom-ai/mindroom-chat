@@ -19,6 +19,7 @@ import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
 import { CallMemberAvatar } from './CallTile';
 import * as css from './IncomingCalls.css';
+import { revealDirectionControls } from '../ui/directional';
 
 /** A ring and what can be done about it. */
 type RingCardProps = {
@@ -40,7 +41,7 @@ export const useRingLine = (room: Room, ring: IncomingRing): string => {
   const { t } = useTranslation();
   useLoadedRoomMembers(useMatrixClient(), [room.roomId]);
   const name = getSenderName(room, ring.sender);
-  const roomName = useRoomName(room);
+  const roomName = revealDirectionControls(useRoomName(room));
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   return direct
     ? t('featureUi.calls.incoming.calling', { name })
