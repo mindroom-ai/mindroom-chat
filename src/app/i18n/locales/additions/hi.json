@@ -206,6 +206,9 @@
       "messageIn": "{{room}} में संदेश",
       "threadIn": "{{room}} में थ्रेड",
       "messageElsewhere": "किसी दूसरे रूम में संदेश"
+    },
+    "deviceVerification": {
+      "acceptStalled": "दूसरे सत्र ने जवाब नहीं दिया। इसे बंद करें और सत्यापन फिर से शुरू करें।"
     }
   },
   "featureUi": {

@@ -222,6 +222,9 @@
       "messageIn": "رسالة في ⁨{{room}}⁩",
       "threadIn": "سلسلة محادثة في ⁨{{room}}⁩",
       "messageElsewhere": "رسالة في غرفة أخرى"
+    },
+    "deviceVerification": {
+      "acceptStalled": "لم تستجب الجلسة الأخرى. أغلق هذه النافذة وابدأ التحقق مرة أخرى."
     }
   },
   "featureUi": {

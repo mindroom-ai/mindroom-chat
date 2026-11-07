@@ -11,7 +11,11 @@ import {
   type VerificationRequest,
   type Verifier,
 } from 'matrix-js-sdk/lib/crypto-api';
-import { VerificationRequestDialog, cancelPendingVerification } from './VerificationRequestDialog';
+import {
+  ACCEPT_STALL_MS,
+  VerificationRequestDialog,
+  cancelPendingVerification,
+} from './VerificationRequestDialog';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -111,6 +115,30 @@ describe('VerificationRequestDialog', () => {
     expect(container.textContent).toContain('Click accept to start the verification process.');
     await act(async () => button('Accept')?.click());
     expect(request.accept).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression (P2-e2ee-F010): Accept spun for good when the request never became ready.
+  it('says so and offers to close when Accept gets no answer', async () => {
+    vi.useFakeTimers();
+    try {
+      const request = fakeRequest({});
+      request.accept = vi.fn(() => new Promise<void>(() => undefined));
+      const onClose = await render(request);
+      await act(async () => button('Accept')?.click());
+      expect(request.accept).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        vi.advanceTimersByTime(ACCEPT_STALL_MS - 1);
+      });
+      expect(container.textContent).not.toContain('did not answer');
+      await act(async () => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(container.textContent).toContain('did not answer');
+      await act(async () => button('Close')?.click());
+      expect(onClose).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('waits for the other session on a request it sent', async () => {
