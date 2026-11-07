@@ -20,6 +20,8 @@ const kick = vi.fn();
 const leave = vi.fn();
 const forget = vi.fn();
 const sendStateEvent = vi.fn();
+const invite = vi.fn();
+const getStateEvent = vi.fn();
 let rooms: ReturnType<typeof fakeRoom>[] = [];
 
 const mx = {
@@ -32,6 +34,8 @@ const mx = {
   leave,
   forget,
   sendStateEvent,
+  invite,
+  getStateEvent,
 } as any;
 
 const ephemeralRoom = (creatorUserId = ALICE, eventSender = ALICE) =>
@@ -268,6 +272,48 @@ describe('MindRoom agent calls', () => {
     land();
     await preparing;
     expect(prepared).toBe(true);
+  });
+
+  it('invites an agent that is not in the call room before stamping the call', async () => {
+    invite.mockResolvedValue({});
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'leave' });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(invite).toHaveBeenCalledWith('!call:mindroom.test', HELPER);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.MindroomAgentCall,
+      expect.objectContaining({ origin }),
+      ''
+    );
+  });
+
+  it('goes on when the server refuses the invite of an agent that joined before the members synced', async () => {
+    // A call room made a moment ago: the agent took its invite before this device synced it.
+    invite.mockRejectedValue(new Error('cannot invite user that is joined or banned'));
+    getStateEvent.mockResolvedValue({ membership: 'join' });
+    const room = fakeRoom({ call: agentCallState() });
+    await prepareAgentCallRoom(mx, room, HELPER, origin);
+    expect(getStateEvent).toHaveBeenCalledWith('!call:mindroom.test', 'm.room.member', HELPER);
+    expect(sendStateEvent).toHaveBeenCalledWith(
+      '!call:mindroom.test',
+      StateEvent.MindroomAgentCall,
+      expect.objectContaining({ origin }),
+      ''
+    );
+  });
+
+  it('fails when the agent cannot be invited and is not in the room', async () => {
+    const refused = new Error('not allowed to invite');
+    invite.mockRejectedValue(refused);
+    getStateEvent.mockResolvedValue({ membership: 'leave' });
+    const room = fakeRoom({ call: agentCallState(), agentMembership: 'leave' });
+    await expect(prepareAgentCallRoom(mx, room, HELPER, origin)).rejects.toBe(refused);
+    expect(sendStateEvent).not.toHaveBeenCalledWith(
+      expect.anything(),
+      StateEvent.MindroomAgentCall,
+      expect.anything(),
+      expect.anything()
+    );
   });
 
   it('leaves the power levels of a call room that already allows it alone', async () => {
