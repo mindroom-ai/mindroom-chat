@@ -6,7 +6,7 @@
 private_dir() {
   # Without its trailing slashes: with them, find would look through a symlink.
   set -- "${1%"${1##*[!/]}"}"
-  [ -L "$1" ] || (umask 077 && mkdir -p "$1") || exit 1
+  [ -L "$1" ] || (umask 077 && mkdir -p -m 700 "$1") || exit 1
   # One find, so that one lstat answers every test: a directory (not a symlink) of this user that
   # neither its group nor others may write to.
   if [ -z "$(find "$1" -maxdepth 0 -type d -user "$(id -u)" ! -perm -020 ! -perm -002)" ]; then

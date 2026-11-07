@@ -221,6 +221,12 @@ class PrePushTests(Fixture):
                                     self.repo)
         return status, out.getvalue()
 
+    def run_checker(self, tip: str, corpus: Path | None = None, **env: str) -> subprocess.CompletedProcess[str]:
+        """check.py --pre-push in a process of its own, as the hook runs it."""
+        return run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(corpus or self.corpus),
+                   "--pre-push", str(self.remote), input=f"refs/heads/work {tip} refs/heads/work {ZERO}\n",
+                   check=False, env={**os.environ, **env})
+
     def test_a_commit_with_three_upstream_lines_is_reported_by_commit_file_and_lines(self) -> None:
         bad = commit(self.repo, {"src/app/copy.ts": COPIED + CLEAN}, "copy")
         status, out = self.push(bad)
@@ -270,16 +276,12 @@ class PrePushTests(Fixture):
     def test_the_pushing_repository_s_git_variables_do_not_redirect_the_corpus(self) -> None:
         # Git exports GIT_DIR to a hook run from a linked worktree; `git -C <corpus>` would then read this repository.
         tip = commit(self.repo, {"src/app/own.ts": OWN_CODE}, "clean")
-        result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.corpus),
-                     "--pre-push", str(self.remote), input=f"refs/heads/work {tip} refs/heads/work {ZERO}\n",
-                     check=False, env={**os.environ, "GIT_DIR": str(self.repo / ".git")})
+        result = self.run_checker(tip, GIT_DIR=str(self.repo / ".git"))
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_a_missing_corpus_fails_and_says_why(self) -> None:
         tip = commit(self.repo, {"src/app/own.ts": CLEAN}, "clean")
-        result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.tmp / "nowhere"),
-                     "--pre-push", str(self.remote), input=f"refs/heads/work {tip} refs/heads/work {ZERO}\n",
-                     check=False)
+        result = self.run_checker(tip, self.tmp / "nowhere")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("is not a git clone of the upstream client", result.stderr)
 
@@ -293,9 +295,7 @@ class PrePushTests(Fixture):
         marker.touch()
         with mock.patch.object(check, "CACHE", marker.parents[1]):
             self.assertEqual(self.push(bad)[0], 0, "the planted marker is one the checker reads from its cache")
-        result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.corpus),
-                     "--pre-push", str(self.remote), input=f"refs/heads/work {bad} refs/heads/work {ZERO}\n",
-                     check=False, env={**os.environ, "TMPDIR": str(temporary)})
+        result = self.run_checker(bad, TMPDIR=str(temporary))
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn(f"{bad}\tsrc/app/copy.ts\t1-3\tline-run", result.stdout)
         self.assertEqual((self.tmp / "user-cache" / "upstream-overlap").stat().st_mode & 0o777, 0o700)

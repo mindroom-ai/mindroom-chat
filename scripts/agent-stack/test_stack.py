@@ -1,4 +1,5 @@
-"""Tests of scripts/agent-stack/stack.py and stub_model.py that need no backend."""
+"""Tests of scripts/agent-stack/stack.py and stub_model.py that need no backend, and of the e2e scripts' private
+directories (scripts/private-dir.sh) and slot teardown (scripts/e2e-slot.sh)."""
 
 from __future__ import annotations
 
@@ -8,6 +9,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import signal
 import sqlite3
 import subprocess
@@ -407,6 +409,15 @@ class PrivateDirTests(unittest.TestCase):
         self.assertEqual(root.parent.stat().st_mode & 0o777, 0o700)
         self.assertEqual(self.root.stat().st_mode & 0o777, 0o755, "a parent that was there stays as it was")
 
+    def test_a_missing_root_under_a_default_acl_is_still_the_owners_only(self) -> None:
+        # A default ACL replaces the umask for what is created under it.
+        setfacl = ["setfacl", "-d", "-m", "g::rwx,o::rwx", str(self.root)]
+        if not shutil.which("setfacl") or subprocess.run(setfacl, capture_output=True, check=False).returncode:
+            self.skipTest("needs setfacl and a file system with ACLs")
+        root = self.root / "e2e"
+        self.assertEqual(self.private_dir(str(root)).returncode, 0)
+        self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+
     def test_a_root_that_is_a_symlink_another_users_or_writable_by_others_is_refused_untouched(self) -> None:
         target = self.root / "target"
         target.mkdir(mode=0o700)
@@ -452,8 +463,8 @@ class SlotTeardownTests(unittest.TestCase):
                 "E2E_AGENT_STACK_ROOT": str(tmp / "agents"),
                 "E2E_MAX_CONCURRENT": "0",
             }
-            slot = Path(__file__).resolve().parents[1] / "e2e-slot.sh"
-            result = subprocess.run(["bash", str(slot), "99", "--fresh", "true"], capture_output=True, text=True, env=env)
+            script = Path(__file__).resolve().parents[1] / "e2e-slot.sh"
+            result = subprocess.run(["bash", str(script), "99", "--fresh", "true"], capture_output=True, text=True, env=env)
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn(f"agent-stack: refusing {tmp / 'agents'}:", result.stderr)
 
