@@ -26,7 +26,9 @@ export const presentBackgroundJobs = (
   jobs: BackgroundJob[],
   // Whether this client sent a cancel for the job.
   cancelSent: (jobId: string) => boolean,
-  t: TFunction
+  t: TFunction,
+  // The view's live jobs, listed or not; more than listed when the agents list only their newest.
+  total = jobs.length
 ): BackgroundJobsBarModel | null => {
   const [first] = jobs;
   if (!first) return null;
@@ -37,8 +39,13 @@ export const presentBackgroundJobs = (
     waiting: several && awaitingApproval(job),
     stopping: job.status === 'cancel_requested' || cancelSent(job.jobId),
   }));
-  if (several)
-    return { title: t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length }), items };
+  if (several) {
+    const title =
+      total > jobs.length
+        ? t('mindroomUi.backgroundJobs.jobCountShowing', { count: total, shown: jobs.length })
+        : t('mindroomUi.backgroundJobs.jobCount', { count: jobs.length });
+    return { title, items };
+  }
   const tool = items[0].name;
   if (items[0].stopping)
     return { title: t('mindroomUi.backgroundJobs.stoppingJob', { tool }), items };

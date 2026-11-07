@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCallDuration } from './time';
+import { formatCallDuration, formatCallOffset } from './time';
 
 describe('formatCallDuration', () => {
   it('counts seconds under a minute, then whole minutes, then hours and minutes', () => {
@@ -17,5 +17,23 @@ describe('formatCallDuration', () => {
     expect(formatCallDuration(125, 'de')).toBe('2 Min.');
     expect(formatCallDuration(125, 'ar')).toMatch(/[2٢].*د/);
     expect(formatCallDuration(125, 'ja')).toContain('分');
+  });
+});
+
+describe('formatCallOffset', () => {
+  it('writes m:ss under an hour and h:mm:ss from an hour on', () => {
+    expect(formatCallOffset(0)).toBe('0:00');
+    expect(formatCallOffset(7)).toBe('0:07');
+    expect(formatCallOffset(65)).toBe('1:05');
+    expect(formatCallOffset(10 * 60)).toBe('10:00');
+    expect(formatCallOffset(3599)).toBe('59:59');
+    expect(formatCallOffset(3600)).toBe('1:00:00');
+    expect(formatCallOffset(3600 + 2 * 60 + 5)).toBe('1:02:05');
+    expect(formatCallOffset(11 * 3600 + 59)).toBe('11:00:59');
+  });
+
+  it('rounds fractions down, as a clock does', () => {
+    expect(formatCallOffset(59.9)).toBe('0:59');
+    expect(formatCallOffset(3599.99)).toBe('59:59');
   });
 });
