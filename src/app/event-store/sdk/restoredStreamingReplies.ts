@@ -32,6 +32,7 @@ type SavedReply = { roomId: string; eventId: string; threadId?: string };
 
 type SavedCopy = { roomId: string; raw: Partial<IEvent> };
 
+const w = (raw: Partial<IEvent> | undefined) => JSON.stringify(raw ?? {}).match(/"m.new_content":\{[^}]*"body":"([^"]*)/)?.[1]?.split(' ').length ?? 0;
 const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
   (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
 
@@ -91,6 +92,8 @@ export const findSavedStreamingReplies = (sync: SavedSync | undefined): SavedRep
 export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promise<void> => {
   try {
     const replies = findSavedStreamingReplies(savedSyncOf(mx));
+    // eslint-disable-next-line no-console
+    console.info(`[restore-diag] candidates ${JSON.stringify(replies)}`);
     if (replies.length === 0) return;
     const sessionId = createSessionId(mx.getHomeserverUrl(), mx.getSafeUserId());
     // A reply's copy can be in its thread's scope, in the room's, or in both; the merge below keeps
@@ -102,7 +105,11 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
       ];
       return scopes.map((read) =>
         read.then(
-          (raw): SavedCopy | undefined => (raw ? { roomId, raw } : undefined),
+          (raw): SavedCopy | undefined => {
+            // eslint-disable-next-line no-console
+            console.info(`[restore-diag] read ${eventId} thread=${threadId ?? '-'} words=${w(raw)}`);
+            return raw ? { roomId, raw } : undefined;
+          },
           () => undefined
         )
       );
@@ -115,10 +122,16 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
     mx.once(ClientEvent.Sync, () => {
       copies.forEach(({ roomId, raw }) => {
         const room = mx.getRoom(roomId);
-        if (!room || !raw.event_id || !room.findEventById(raw.event_id)) return;
+        if (!room || !raw.event_id || !room.findEventById(raw.event_id)) {
+          // eslint-disable-next-line no-console
+          console.info(`[restore-diag] not live ${raw.event_id} room=${!!room}`);
+          return;
+        }
         try {
           // The same merge a thread's cache read makes: the newer revision wins, never an older.
-          createPreferLiveEventMapper(room, mx.getEventMapper())({ ...raw, room_id: roomId });
+          const merged = createPreferLiveEventMapper(room, mx.getEventMapper())({ ...raw, room_id: roomId });
+          // eslint-disable-next-line no-console
+          console.info(`[restore-diag] applied ${raw.event_id} body=${String(merged.getContent().body ?? '').split(' ').length}`);
         } catch {
           // A copy that cannot be merged leaves the reply as the saved sync had it.
         }
