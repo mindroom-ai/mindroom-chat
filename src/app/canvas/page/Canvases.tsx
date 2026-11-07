@@ -27,6 +27,7 @@ import {
 import { cancelCanvasOpen, requestCanvasOpen } from '../useCanvasOpenRequest';
 import { useRecentThreadViewModel } from '../../event-store/threads/recentThreadViewModel';
 import * as css from './Canvases.css';
+import { ownDirectionLine } from '../../ui/directional';
 
 type CanvasList = { entries?: CanvasListEntry[]; savedIds: Set<string> };
 
@@ -207,7 +208,7 @@ export function Canvases() {
                               onClick={() => open(entry, 'canvas')}
                             >
                               <Text size="T300" as="span">
-                                <b>{entry.title}</b>
+                                <b {...ownDirectionLine}>{entry.title}</b>
                               </Text>
                             </button>
                             {(entry.shared || savedIds.has(entry.canvasId)) && (
