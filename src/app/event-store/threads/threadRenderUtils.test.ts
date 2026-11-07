@@ -1,5 +1,5 @@
 import { MatrixEvent } from 'matrix-js-sdk';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { inSameDay } from '../../lib/time';
 import { getCacheProbeSnapshot, resetCacheProbe } from '../cache/cacheProbe';
 import {
@@ -194,10 +194,11 @@ describe('pickPreferredThreadRenderEvent', () => {
     // Foreign-sender raw replacement: the effective-replacement block
     // yields nothing for either side (sender-mismatch filter), so the
     // decision falls through the local-echo branch and the effective
-    // block to the asymmetric raw-presence rule.
+    // block to the asymmetric raw-presence rule. The patched SDK
+    // applies no foreign-sender edit, so the replacement is stubbed in.
     const foreignEdit = makeEditEvent('$target', '$edit-2', 2);
     foreignEdit.event.sender = '@mallory:example.org';
-    repairedHydrated.makeReplaced(foreignEdit);
+    vi.spyOn(repairedHydrated, 'replacingEvent').mockReturnValue(foreignEdit);
     const syncInstance = makeMessageEvent('$target');
 
     expect(repairedHydrated.isSending()).toBe(false);

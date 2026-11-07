@@ -5,6 +5,7 @@ import { color } from 'folds';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { reportBoundaryError } from '../bug-reports/error-reporting/errorReporting';
 import { isPluginEnabled } from '../plugins/pluginConfig';
+import { pluginFailure } from '../plugins/pluginFailure';
 import { registeredPlugins } from '../plugins/registry';
 
 // The conversation scrolls under the header, and under the slot with it.
@@ -13,24 +14,10 @@ const SLOT_STYLE: CSSProperties = {
   color: color.Surface.OnContainer,
 };
 
-/** A thrown value as text; String() fails on some objects, such as one without a prototype. */
-const textOf = (thrown: unknown): string => {
-  try {
-    return String(thrown);
-  } catch {
-    return Object.prototype.toString.call(thrown);
-  }
-};
-
 const reportFailure = (tag: string, thrown: unknown, componentStack?: string | null) => {
   // eslint-disable-next-line no-console
   console.error(`[plugin ${tag}] failed to render under the room header`, thrown);
-  // A plugin may throw anything, not only an Error.
-  const error = thrown instanceof Error ? thrown : new Error(textOf(thrown));
-  reportBoundaryError(
-    { name: error.name, message: `[plugin ${tag}] ${error.message}`, stack: error.stack },
-    componentStack
-  );
+  reportBoundaryError(pluginFailure(tag, thrown), componentStack);
 };
 
 /**
