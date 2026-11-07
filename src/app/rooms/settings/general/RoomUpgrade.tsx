@@ -18,6 +18,7 @@ import { roomToParentsAtom } from '../../../matrix/state/roomToParents';
 import { moveSpaceLinks } from './moveSpaceLinks';
 import { describeError } from '../../../lib/describeError';
 import { ErrorDetail } from '../../../ui/ErrorDetail';
+import { revealDirectionControls } from '../../../ui/directional';
 
 const KEY = 'featureUi.commonSettings.general.roomUpgrade';
 
@@ -44,11 +45,13 @@ type RoomUpgradeProps = {
 
 /**
  * Advanced Options: the room's version and an upgrade to another version the server offers,
- * after a warning that it cannot be undone; the room's spaces then list the new room. A replaced
- * room links to its successor instead, and a room that replaced an older one links back to it.
+ * after a warning that it cannot be undone; the room's spaces then list the new room, and the new
+ * room lists the old one's rooms. The new room opens, unless some of those rooms did not come
+ * along: the settings then name them. A replaced room links to its successor instead, and a room
+ * that replaced an older one links back to it.
  */
 export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const client = useMatrixClient();
   const alive = useAlive();
   const { navigateRoom } = useRoomNavigate();
@@ -64,13 +67,15 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<{ error: unknown }>();
+  /** The new room, when rooms the old one listed did not come along (`moveSpaceLinks`). */
+  const [unmoved, setUnmoved] = useState<{ roomId: string; rooms: string[] }>();
 
   const open = (roomId: string) => {
     onOpened();
     navigateRoom(roomId);
   };
 
-  const replacement = tombstone?.getContent().replacement_room;
+  const replacement = tombstone?.getContent().replacement_room ?? unmoved?.roomId;
   const predecessor = predecessorOf(create?.getContent());
   const noun = space ? 'Space' : 'Room';
 
@@ -80,8 +85,10 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
     client
       .upgradeRoom(room.roomId, target)
       .then(async ({ replacement_room: next }) => {
-        await moveSpaceLinks(client, room.roomId, next, parents ?? []);
-        if (alive()) open(next);
+        const rooms = await moveSpaceLinks(client, room.roomId, next, parents ?? []);
+        if (!alive()) return;
+        if (rooms.length > 0) setUnmoved({ roomId: next, rooms });
+        else open(next);
       })
       .catch((error: unknown) => {
         if (!alive()) return;
@@ -119,6 +126,15 @@ export function RoomUpgrade({ room, space, onOpened }: RoomUpgradeProps) {
             </Button>
           }
         />
+        {unmoved && (
+          <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
+            {t(`${KEY}.notMoved`, {
+              rooms: new Intl.ListFormat(i18n.language, { type: 'conjunction' }).format(
+                unmoved.rooms.map((id) => revealDirectionControls(client.getRoom(id)?.name ?? id))
+              ),
+            })}
+          </Text>
+        )}
         {oldRoom}
       </>
     );

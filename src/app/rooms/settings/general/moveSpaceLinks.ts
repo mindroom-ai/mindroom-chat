@@ -1,5 +1,6 @@
 import { EventTimeline, type MatrixClient, type Room } from 'matrix-js-sdk';
 import { StateEvent } from '../../../matrix/types/room';
+import { isJoined } from '../../../matrix/state/roomList';
 
 const stateOf = (room: Room | null, type: string, stateKey: string) =>
   room?.getLiveTimeline().getState(EventTimeline.FORWARDS)?.getStateEvents(type, stateKey);
@@ -8,42 +9,61 @@ const hasVia = (content: Record<string, unknown> | undefined): boolean =>
   Array.isArray(content?.via) && content.via.length > 0;
 
 /**
- * After an upgrade, points the spaces that listed `oldRoomId` at the replacement instead
- * (`m.space.child`), and gives the replacement the old room's `m.space.parent` links; servers
- * copy neither (Matrix spec, "Room Upgrades"). Each link is best effort: a space this account
- * may not change keeps its old child, which the tombstone then leads on from.
+ * After an upgrade, carries the `m.space.*` links of `oldRoomId` over to the replacement; servers
+ * copy none of them (Matrix spec, "Room Upgrades"). The spaces that listed the old room list the
+ * replacement instead (`m.space.child`), and the replacement gets the old room's `m.space.parent`
+ * links; each is best effort, since a space this account may not change keeps its old child, which
+ * the tombstone then leads on from. The replacement also lists the old room's children, and each
+ * child that names the old room as its parent names the replacement too, so a sub-room stays
+ * under its room. Resolves to the children that did not come along: one the replacement could not
+ * list, one that refused the new parent, or one this account has not joined and cannot change.
  */
 export const moveSpaceLinks = async (
   client: MatrixClient,
   oldRoomId: string,
   newRoomId: string,
   spaceIds: Iterable<string>
-): Promise<void> => {
+): Promise<string[]> => {
   const oldRoom = client.getRoom(oldRoomId);
-  const writes: Array<Promise<unknown>> = [];
   const send = (roomId: string, type: string, content: object, stateKey: string) =>
-    writes.push(
-      client
-        .sendStateEvent(roomId, type as never, content as never, stateKey)
-        .catch(() => undefined)
-    );
+    client.sendStateEvent(roomId, type as never, content as never, stateKey);
+  const writes: Array<Promise<unknown>> = [];
+  const tryToSend = (...args: Parameters<typeof send>) =>
+    writes.push(send(...args).catch(() => undefined));
 
   [...spaceIds].forEach((spaceId) => {
     const child = stateOf(client.getRoom(spaceId), StateEvent.SpaceChild, oldRoomId)?.getContent();
     if (!hasVia(child)) return;
-    send(spaceId, StateEvent.SpaceChild, child as object, newRoomId);
-    send(spaceId, StateEvent.SpaceChild, {}, oldRoomId);
+    tryToSend(spaceId, StateEvent.SpaceChild, child as object, newRoomId);
+    tryToSend(spaceId, StateEvent.SpaceChild, {}, oldRoomId);
   });
 
-  oldRoom
-    ?.getLiveTimeline()
-    .getState(EventTimeline.FORWARDS)
-    ?.getStateEvents(StateEvent.SpaceParent)
-    .forEach((parent) => {
-      const content = parent.getContent();
-      const spaceId = parent.getStateKey();
-      if (spaceId && hasVia(content)) send(newRoomId, StateEvent.SpaceParent, content, spaceId);
-    });
+  const oldState = oldRoom?.getLiveTimeline().getState(EventTimeline.FORWARDS);
+  oldState?.getStateEvents(StateEvent.SpaceParent).forEach((parent) => {
+    const content = parent.getContent();
+    const spaceId = parent.getStateKey();
+    if (spaceId && hasVia(content)) tryToSend(newRoomId, StateEvent.SpaceParent, content, spaceId);
+  });
 
-  await Promise.all(writes);
+  const moved = (oldState?.getStateEvents(StateEvent.SpaceChild) ?? []).map(async (event) => {
+    const childId = event.getStateKey();
+    if (!childId || !hasVia(event.getContent())) return undefined;
+    const child = client.getRoom(childId);
+    const joined = !!child && isJoined(child);
+    const parent = joined
+      ? stateOf(child, StateEvent.SpaceParent, oldRoomId)?.getContent()
+      : undefined;
+    try {
+      await Promise.all([
+        send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId),
+        hasVia(parent) && send(childId, StateEvent.SpaceParent, parent as object, newRoomId),
+      ]);
+    } catch {
+      return childId;
+    }
+    return joined ? undefined : childId;
+  });
+
+  const [unmoved] = await Promise.all([Promise.all(moved), Promise.all(writes)]);
+  return unmoved.filter((childId): childId is string => childId !== undefined);
 };
