@@ -1,14 +1,20 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// Its storage notes each greeting the signed-in account saw, when it shows and when it goes, and a
-// greeting the account saw in an earlier page load also shows "Seen before".
+// A side panel, "Example panel", names the room it is open in.
+// Under the room header it shows "Example banner in <room name>". Its storage notes each greeting
+// the signed-in account saw, when it shows and when it goes, and a greeting the account saw in an
+// earlier page load also shows "Seen before". Like a plugin outside this repository, it imports the
+// app only through the client SDK.
 import { useEffect } from 'react';
-import type { ClientPlugin } from '../../registry';
-import type { PluginEvent } from '../../messageRenderers';
-import { usePluginConfig } from '../../pluginConfig';
-import { usePluginStorage } from '../../pluginStorage';
-import { usePluginTranslation } from '../../pluginTranslations';
+import type { Room } from 'matrix-js-sdk';
+import {
+  usePluginConfig,
+  usePluginStorage,
+  usePluginTranslation,
+  type ClientPlugin,
+  type PluginEvent,
+} from '@mindroom/client-sdk/core';
 
 /** This page load; what the plugin stored in it does not count as seen before. */
 const pageLoad = `${Date.now()}-${Math.random()}`;
@@ -50,6 +56,18 @@ function Greeting({ event }: { event: PluginEvent }) {
   );
 }
 
+function RoomBanner({ room }: { room: Room }) {
+  return (
+    <div data-example-plugin-banner style={{ paddingBlock: 8, paddingInline: 16 }}>
+      Example banner in {room.name}
+    </div>
+  );
+}
+
+function ExamplePanel({ roomId }: { roomId: string }) {
+  return <p>Example panel of {roomId}</p>;
+}
+
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
   // It keeps nothing outside its storage, which the app deletes itself; for the tests, it notes the
@@ -57,6 +75,8 @@ const plugin: ClientPlugin = {
   forgetAccount: (userId) => {
     sessionStorage.setItem('example-plugin.forgot', userId);
   },
+  roomHeaderSlot: [RoomBanner],
+  sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
   translations: {
     en: { label: 'Example plugin' },
     load: async (language) =>

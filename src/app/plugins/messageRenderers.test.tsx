@@ -16,6 +16,8 @@ const plugin = (id: string, ...messageRenderers: MessageRenderer[]): RegisteredP
   id,
   tag: `${id}@1.0.0`,
   messageRenderers,
+  roomHeaderSlot: [],
+  sidePanels: [],
 });
 
 const renderer = (overrides: Partial<MessageRenderer> = {}): MessageRenderer => ({

@@ -101,6 +101,26 @@ export function usePanelSlot(
   );
 }
 
+/**
+ * The form a panel shows in, such as beside the content or over it, given the form the layout
+ * asks for now. A closing panel keeps the form it had while it was open: when the layout changes
+ * as it closes (a window narrowed to a phone, where the panel would lie over the content), it does
+ * not move out in the new form, which would open over the content (and take the focus) only to
+ * close, but goes at once.
+ */
+export function usePanelForm<Form>(form: Form): Form {
+  const presence = usePanelPresence();
+  const closing = presence?.phase === 'exit';
+  const [openForm, setOpenForm] = useState(form);
+  if (!closing && !Object.is(openForm, form)) setOpenForm(form);
+  const changed = closing && !Object.is(openForm, form);
+  const done = presence?.done;
+  useLayoutEffect(() => {
+    if (changed) done?.();
+  }, [changed, done]);
+  return closing ? openForm : form;
+}
+
 /** A panel's width and the gap it adds beside itself, both in pixels. */
 export type PanelSize = { width: number; gap: number };
 
