@@ -428,6 +428,113 @@ describe('unread counts of an encrypted room', () => {
     expect(f.threadCount()).toBe(0);
   });
 
+  // Regression (P2-lane2-F005): two devices of one account showed different counts for the same
+  // encrypted room (4 and 3, the server 7 with two title notices), and after a read on another
+  // device a reload brought a count back (2, the server 0). The client counted events as they
+  // decrypted, so the order they decrypted in and whether their thread existed yet decided it.
+  const OTHER = '@colleague:example.org';
+  const plain = (eventId: string, sender: string, ts: number, relation?: Record<string, unknown>) =>
+    ({
+      type: 'm.room.message',
+      event_id: eventId,
+      room_id: ROOM,
+      sender,
+      origin_server_ts: ts,
+      unsigned: {},
+      content: {
+        msgtype: 'm.text',
+        body: `message ${eventId}`,
+        ...(relation ? { 'm.relates_to': relation } : {}),
+      },
+    } as IEvent);
+  const streamedReply = (eventId: string, ts: number) => {
+    const reply = encrypted(eventId, AGENT, ts, inThread);
+    reply.content['io.mindroom.stream_status'] = 'pending';
+    return reply;
+  };
+  const finishingEdit = (eventId: string, replyId: string, ts: number) => {
+    const edit = encrypted(eventId, AGENT, ts, { rel_type: 'm.replace', event_id: replyId });
+    edit.content['io.mindroom.stream_status'] = 'completed';
+    return edit;
+  };
+  const finishedContent = (replyId: string) => ({
+    ...editContent('completed'),
+    'm.relates_to': { rel_type: 'm.replace', event_id: replyId },
+  });
+  const otherThreadReceipt = {
+    type: 'm.receipt',
+    content: { $elsewhere: { 'm.read': { [ME]: { ts: 1, thread_id: '$other' } } } },
+  };
+  /** A colleague asks the agent; the agent's reply streams, finishes and gets its title. */
+  const answeredQuestion = (offset = 0): IEvent[] => [
+    plain(ROOT, OTHER, 10 + offset),
+    streamedReply(REPLY, 11 + offset),
+    finishingEdit('$done', REPLY, 15 + offset),
+    encrypted('$title', AGENT, 16 + offset, inThread),
+  ];
+  const titleNotice = {
+    msgtype: 'm.notice',
+    body: 'Build status',
+    'm.relates_to': inThread,
+  };
+
+  it('count the same whatever order the events decrypt in', async () => {
+    const results: number[][] = [];
+    for (const order of [
+      [REPLY, '$done', '$title'],
+      ['$done', '$title', REPLY],
+    ]) {
+      const f = await fixture(true);
+      await f.deliver(answeredQuestion(), [otherThreadReceipt]);
+      const contents: Record<string, Record<string, unknown>> = {
+        [REPLY]: clear[REPLY]!,
+        $done: finishedContent(REPLY),
+        $title: titleNotice,
+      };
+      for (const id of order) await f.decrypt(f.find(id), contents[id]);
+      results.push([f.room().getRoomUnreadNotificationCount(), f.threadCount()]);
+      clients.splice(0).forEach((mx) => mx.stopClient());
+    }
+    // The colleague's question in the main timeline and the finished reply; not the title.
+    expect(results).toEqual([
+      [1, 1],
+      [1, 1],
+    ]);
+  });
+
+  it('count nothing a read on another device read, also after a reload', async () => {
+    const readElsewhere = {
+      type: 'm.receipt',
+      content: { $title: { 'm.read': { [ME]: { ts: 20 } } } },
+    };
+    const f = await fixture(true);
+    await f.deliver(answeredQuestion(), [otherThreadReceipt]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$done'), finishedContent(REPLY));
+    expect(f.totalCount()).toBe(2);
+    await f.deliver([], [readElsewhere]);
+    expect(f.totalCount()).toBe(0);
+
+    // A reload: the saved sync brings the events and the receipt at once, and they decrypt again.
+    const reloaded = await fixture(true);
+    await reloaded.deliver(answeredQuestion(), [otherThreadReceipt, readElsewhere]);
+    for (const id of ['$done', REPLY, '$title']) {
+      await reloaded.decrypt(
+        reloaded.find(id),
+        id === REPLY ? clear[REPLY] : id === '$done' ? finishedContent(REPLY) : titleNotice
+      );
+    }
+    expect(reloaded.totalCount()).toBe(0);
+  });
+
+  it('take a message of the reader as reading everything before it, in every thread', async () => {
+    const f = await fixture(true);
+    await f.deliver([...answeredQuestion(), plain('$later', ME, 30)], [otherThreadReceipt]);
+    await f.decrypt(f.find(REPLY), clear[REPLY]);
+    await f.decrypt(f.find('$done'), finishedContent(REPLY));
+    expect(f.totalCount()).toBe(0);
+  });
+
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
     // A reply in the room's main timeline (a room in room mode), read at its start.
