@@ -100,7 +100,7 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
             ? loadCachedThreadEvent(sessionId, roomId, threadId, eventId)
             : loadCachedRoomEvent(sessionId, roomId, eventId)
           ).then(
-            (raw) => (raw ? { roomId, raw } : undefined),
+            (raw): SavedCopy | undefined => (raw ? { roomId, raw } : undefined),
             () => undefined
           )
         )
