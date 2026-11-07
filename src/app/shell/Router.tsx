@@ -34,7 +34,7 @@ import {
   INBOX_NOTIFICATIONS_PATH,
   INBOX_PATH,
   LOGIN_PATH,
-  PLUGIN_PAGE_PATH,
+  PLUGIN_ROOT_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -246,8 +246,12 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route path={EXPLORE_FEATURED_PATH} element={<FeaturedRooms />} />
           <Route path={EXPLORE_SERVER_PATH} element={<PublicRooms />} />
         </Route>
-        {/* A plugin's pages; its own static root keeps them from opening as a space. */}
-        <Route path={PLUGIN_PAGE_PATH} element={<PluginPageRoute />} />
+        {/* A plugin's pages, never a space's. Its root is an index route, which outranks a
+            space's `search/` and `lobby/` pages for a plugin with that id. */}
+        <Route path={PLUGIN_ROOT_PATH}>
+          <Route index element={<PluginPageRoute />} />
+          <Route path="*" element={<PluginPageRoute />} />
+        </Route>
         <Route path={INBOX_PATH} element={<SectionPage nav={<InboxNav />} />}>
           {/* The Inbox opens on Invites; phones stay here, its list out over Invites. */}
           <Route

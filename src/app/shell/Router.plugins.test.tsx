@@ -46,17 +46,23 @@ afterEach(() => {
 });
 
 describe('plugin page addresses', () => {
-  it.each(['/p/example/', '/p/example', '/p/example/items/42/', '/p/gone/a/b/c/d'])(
-    'open the plugin page route at %s and stay there',
-    async (url) => {
-      window.history.replaceState(null, '', url);
-      const router = createRouter({});
-      render(<RouterProvider router={router} />);
-      await screen.findByText('Plugin page');
-      await act(async () => undefined);
-      expect(router.state.location.pathname).toBe(url);
-      expect(screen.queryByText('Space page')).toBeNull();
-      router.dispose();
-    }
-  );
+  // `search` and `lobby` are also the fixed segments of a space's own pages.
+  it.each([
+    '/p/example/',
+    '/p/example',
+    '/p/example/window',
+    '/p/example/items/42/',
+    '/p/gone/a/b/c/d',
+    '/p/search',
+    '/p/lobby/',
+  ])('open the plugin page route at %s and stay there', async (url) => {
+    window.history.replaceState(null, '', url);
+    const router = createRouter({});
+    render(<RouterProvider router={router} />);
+    await screen.findByText('Plugin page');
+    await act(async () => undefined);
+    expect(router.state.location.pathname).toBe(url);
+    expect(screen.queryByText('Space page')).toBeNull();
+    router.dispose();
+  });
 });
