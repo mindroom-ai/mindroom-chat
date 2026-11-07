@@ -29,6 +29,17 @@ describe('selectableTextNear', () => {
     expect(selectableTextNear(target, 155, 65, 10)).toBe(true);
   });
 
+  it('finds the text of formatted markup under the touched element', () => {
+    layOutLines();
+    // A finger between two formatted words, or on the strip above bold glyphs, touches the block.
+    expect(
+      selectableTextNear(paragraph('<p><strong>Hello</strong> <em>world</em></p>'), 60, 50, 10)
+    ).toBe(true);
+    expect(selectableTextNear(paragraph('<li>Run <code>npm ci</code></li>'), 60, 50, 10)).toBe(
+      true
+    );
+  });
+
   it('finds none in the empty space beside the text', () => {
     layOutLines();
     const target = paragraph('<p>Release notes</p>');
@@ -36,7 +47,7 @@ describe('selectableTextNear', () => {
     expect(selectableTextNear(target, 60, 75, 10)).toBe(false);
   });
 
-  it('ignores blank text, button labels and text styled unselectable', () => {
+  it('ignores blank text, button labels, hidden spoilers and text styled unselectable', () => {
     layOutLines();
     expect(selectableTextNear(paragraph('<div>  <img alt=""> </div>'), 60, 50, 10)).toBe(false);
     expect(
@@ -50,5 +61,17 @@ describe('selectableTextNear', () => {
     expect(
       selectableTextNear(paragraph('<p style="user-select: none">Badge</p>'), 60, 50, 10)
     ).toBe(false);
+    // A hidden spoiler is a button until revealed; selecting it would show its text.
+    expect(
+      selectableTextNear(paragraph('<p><span role="button">secret</span></p>'), 60, 50, 10)
+    ).toBe(false);
+    expect(
+      selectableTextNear(
+        paragraph('<div><p><span>Name</span></p><button>Reply</button></div>'),
+        60,
+        50,
+        10
+      )
+    ).toBe(true);
   });
 });

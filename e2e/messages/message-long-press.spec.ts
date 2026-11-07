@@ -51,6 +51,8 @@ const TOPICS = [
   'Support asked whether the export keeps attachments; it does, as links that expire in a week.',
 ];
 const LAST = 'Final check: the release notes mention the new search filters and the faster sync.';
+/** A message with formatted words, sent before the last one. */
+const FORMATTED = 'Summary of the launch: the sync is faster.';
 
 test.use({
   launchOptions: {
@@ -104,6 +106,12 @@ const seed = async (engine: string) => {
       body: `${index + 1}. ${TOPICS[index % TOPICS.length]}`,
     });
   }
+  await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: FORMATTED,
+    format: 'org.matrix.custom.html',
+    formatted_body: '<strong>Summary</strong> <em>of the launch</em>: the sync is faster.',
+  });
   await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, { msgtype: 'm.text', body: LAST });
   return { reader, roomId };
 };
@@ -123,25 +131,31 @@ type Step =
 type Probe = { pageSelect: string; textSelect: string; selected: string };
 
 /**
- * One finger on `target`, driven through `steps`: on its middle, or 8 px inside its start edge
- * halfway down. Answers where the finger rested, whether the lift's default was prevented and how
- * the events were built.
+ * One finger on `target`, driven through `steps`: on its middle, 8 px inside its start edge
+ * halfway down, or 2 px above its middle. The events go to the element under the finger, as a
+ * real touch's do. Answers where the finger rested and on what, whether the lift's default was
+ * prevented and how the events were built.
  */
-const touch = async (target: Locator, steps: Step[], spot: 'middle' | 'start' = 'middle') => {
+const touch = async (
+  target: Locator,
+  steps: Step[],
+  spot: 'middle' | 'start' | 'above' = 'middle'
+) => {
   const box = await target.boundingBox();
   if (!box) throw new Error('nothing to touch');
   const x = spot === 'start' ? box.x + 8 : box.x + box.width / 2;
-  const y = box.y + box.height / 2;
+  const y = spot === 'above' ? box.y - 2 : box.y + box.height / 2;
   const result = await target.evaluate(
     async (element, { x, y, plan }) => {
       let real = true;
+      const hit = document.elementFromPoint(x, y) ?? element;
       const fire = (type: string, dx: number, dy: number, lifted: boolean) => {
         const point = { clientX: x + dx, clientY: y + dy };
         let event: Event;
         try {
           const finger = new Touch({
             identifier: 1,
-            target: element,
+            target: hit,
             ...point,
             pageX: point.clientX + window.scrollX,
             pageY: point.clientY + window.scrollY,
@@ -160,14 +174,14 @@ const touch = async (target: Locator, steps: Step[], spot: 'middle' | 'start' = 
           // An engine that cannot build a Touch gets an event that carries the same fields.
           real = false;
           event = new Event(type, { bubbles: true, cancelable: true, composed: true });
-          const list = lifted ? [] : [{ identifier: 1, target: element, ...point }];
+          const list = lifted ? [] : [{ identifier: 1, target: hit, ...point }];
           Object.defineProperties(event, {
             touches: { value: list },
             targetTouches: { value: list },
-            changedTouches: { value: [{ identifier: 1, target: element, ...point }] },
+            changedTouches: { value: [{ identifier: 1, target: hit, ...point }] },
           });
         }
-        return element.dispatchEvent(event);
+        return hit.dispatchEvent(event);
       };
       let liftAllowed = true;
       let at = { dx: 0, dy: 0 };
@@ -207,7 +221,7 @@ const touch = async (target: Locator, steps: Step[], spot: 'middle' | 'start' = 
           liftAllowed = fire('touchend', at.dx, at.dy, true);
         }
       }
-      return { liftAllowed, real, probes };
+      return { liftAllowed, real, probes, on: hit.tagName };
     },
     { x, y, plan: steps }
   );
@@ -265,6 +279,18 @@ const checkPhone = async (page: Page, world: World, engine: string, device: stri
     expect(probe.pageSelect, `${engine}: the page stays selectable`).not.toBe('none');
     expect(probe.textSelect, `${engine}: the text stays selectable`).not.toBe('none');
   }
+
+  // On formatted text a finger just above the bold word may touch the paragraph or the row around
+  // it; the word is still the text under the finger.
+  const formatted = message(page, FORMATTED);
+  const onBold = await touch(
+    formatted.locator('strong'),
+    [{ type: 'start' }, { type: 'wait', ms: 650 }, { type: 'end' }],
+    'above'
+  );
+  console.log(`${engine} long press above bold text: ${JSON.stringify(onBold)}`);
+  expect(onBold.liftAllowed, `${engine}: the lift after a press by bold text may click`).toBe(true);
+  await expectNoMenu(page, formatted, `${engine} after a long press by bold text`);
 
   // Off the text, at the row's empty start, a short tap opens no menu, and its lift may click.
   const tap = await touch(
