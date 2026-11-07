@@ -370,8 +370,46 @@ const checkInbox = async (page: Page, tag: string) => {
     [INBOX_PERSON_COPY, copy.userId],
     [INBOX_AGENT_COPY, agentCopy.userId],
   ] as const) {
+    const diagnose = (when: string) =>
+      inboxRow(page, text)
+        .evaluate((row, id) => {
+          const walker = row.ownerDocument.createTreeWalker(row, NodeFilter.SHOW_TEXT);
+          let idRects: number[][] = [];
+          for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+            const start = node.textContent?.indexOf(id) ?? -1;
+            if (start < 0) continue;
+            const range = row.ownerDocument.createRange();
+            range.setStart(node, start);
+            range.setEnd(node, start + id.length);
+            idRects = Array.from(range.getClientRects()).map((r) => [
+              Math.round(r.left),
+              Math.round(r.top),
+              Math.round(r.right),
+              Math.round(r.bottom),
+            ]);
+          }
+          const box = row.getBoundingClientRect();
+          return {
+            vh: window.innerHeight,
+            row: [Math.round(box.top), Math.round(box.bottom)],
+            idRects,
+            heights: Array.from(document.querySelectorAll('[data-notification-highlight]')).map(
+              (other) => Math.round(other.getBoundingClientRect().height)
+            ),
+          };
+        }, userId)
+        .then((state) => console.log(`DIAG ${tag} ${when} ${userId.slice(0, 22)} ${JSON.stringify(state)}`));
+    await diagnose('before-scroll');
     await inboxRow(page, text).scrollIntoViewIfNeeded();
-    await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
+    await diagnose('after-scroll');
+    await page.waitForTimeout(1500);
+    await diagnose('after-1500ms');
+    try {
+      await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
+    } catch (error) {
+      await diagnose('poll-failed');
+      throw error;
+    }
     // The name stays bold.
     const weight = await rowSender(page, text).evaluate((name) =>
       Number(getComputedStyle(name.firstElementChild ?? name).fontWeight)
