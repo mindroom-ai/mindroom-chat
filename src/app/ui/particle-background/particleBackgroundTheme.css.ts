@@ -8,9 +8,9 @@ export const particleCardTextVar = createVar();
 export const particleCardHighlightVar = createVar();
 export const particleCardBorderVar = createVar();
 
-// The theme id class is set on <html> by the index.html bootstrap script before
-// first paint and kept in sync by applyThemeToDom(), so these variables are
-// correct from the very first frame of the splash screen.
+// applyAppTheme() sets the theme id class on <html>: src/index.tsx applies the
+// startup theme with it before the app first renders, and AppTheme every later
+// theme, so these variables are correct from the first frame of the splash screen.
 globalStyle(':root', {
   vars: {
     [particleBackgroundColorVar]: DARK_PARTICLE_THEME.backgroundColor,
