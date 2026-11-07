@@ -84,6 +84,32 @@ describe('usePinchToZoom', () => {
     expect(setPageZoom).toHaveBeenCalledWith(150);
   });
 
+  it('keeps a zoom the fingers reach while the last one is being stored', () => {
+    const setPageZoom = vi.fn<(zoom: number) => void>();
+    const { rerender } = renderHook(({ zoom }) => usePinchToZoom(zoom, setPageZoom), {
+      initialProps: { zoom: 100 },
+    });
+
+    touch('touchstart', [
+      [0, 0],
+      [0, 100],
+    ]);
+    touch('touchmove', [
+      [0, 0],
+      [0, 140],
+    ]);
+    flushFrames();
+    // The fingers move on before the stored 140 comes back as the page zoom.
+    touch('touchmove', [
+      [0, 0],
+      [0, 150],
+    ]);
+    rerender({ zoom: 140 });
+    flushFrames();
+
+    expect(setPageZoom.mock.calls).toEqual([[140], [150]]);
+  });
+
   it('keeps a pinch inside the page zoom range', () => {
     const { setPageZoom } = mount(100);
 
