@@ -92,6 +92,52 @@ describe('membership rows name the member the client knows', () => {
     act(() => renderer!.unmount());
   });
 
+  it('names a member who joined with a name another member has with their user ID', async () => {
+    const language = createInstance();
+    await language.init({
+      lng: 'en',
+      interpolation: { escapeValue: false },
+      resources: {
+        en: {
+          translation: { sharedUi: { memberEvents: { joined: '<b>{{userName}}</b> joined' } } },
+        },
+      },
+    });
+    const roomId = '!room:example.org';
+    const mx = createClient({ baseUrl: 'https://example.org', userId: '@me:example.org' });
+    const room = new Room(roomId, mx, '@me:example.org');
+    const joined = (userId: string, displayname: string) =>
+      new MatrixEvent({
+        event_id: `$join-${userId}`,
+        type: 'm.room.member',
+        room_id: roomId,
+        sender: userId,
+        state_key: userId,
+        content: { membership: 'join', displayname },
+      });
+    const copyJoin = joined('@copy:example.org', 'Morgan Lee');
+    room.currentState.setStateEvents([joined('@guest:example.org', 'Guest Person'), copyJoin]);
+    // The real Morgan Lee is loaded later, as in a room with lazy-loaded members.
+    room.currentState.markOutOfBandMembersStarted();
+    room.currentState.setOutOfBandMembers([joined('@morgan:example.org', 'Morgan Lee')]);
+
+    const rowName = (event: MatrixEvent) => {
+      let renderer!: ReturnType<typeof create>;
+      act(() => {
+        renderer = create(
+          <I18nextProvider i18n={language}>
+            <MembershipMessage event={event} room={room} />
+          </I18nextProvider>
+        );
+      });
+      const name = renderer.root.findAllByType('b')[0]?.children;
+      act(() => renderer.unmount());
+      return name;
+    };
+    expect(rowName(copyJoin)).toEqual(['Morgan Lee (\u2066@copy:example.org\u2069)']);
+    expect(rowName(joined('@guest:example.org', 'Guest Person'))).toEqual(['Guest Person']);
+  });
+
   it("names a moderator who took an agent's name with their user ID", async () => {
     const language = createInstance();
     await language.init({
