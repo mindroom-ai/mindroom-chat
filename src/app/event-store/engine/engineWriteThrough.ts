@@ -14,8 +14,7 @@
  *   - scheduleReplaceCompaction: arm-time cross-sender direct persist,
  *     D12-latest pending map (isEventOrderedAfter), fire-time
  *     target-miss standalone fallback with editCompactionTargetMisses
- *     probe, fire-time [target, replace] pair emit (the serializer
- *     compacts a same-sender pair into the target's record),
+ *     probe, fire-time cross-sender [target, replace] pair emit,
  *     thread attribution captured at schedule time.
  *   - Redaction lifecycle: planRedactionCacheCleanup +
  *     removeAggregatedReactionByEventId over both timelineSets, with
@@ -45,10 +44,7 @@ import {
   persistRoomEventCacheSnapshot,
   persistThreadEventCacheSnapshot,
 } from '../cache/eventRepository';
-import {
-  THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
-  THREAD_EDIT_COMPACTION_MAX_WAIT_MS,
-} from '../cache/preloadSettings';
+import { THREAD_EDIT_COMPACTION_DEBOUNCE_MS } from '../cache/preloadSettings';
 import { forgetRedactedThreadSummaries } from '../threads/threadSummaryState';
 import {
   createEditCompactionScheduler,
@@ -173,11 +169,7 @@ export const createEngineWriteThrough = (
     else persistThreadEvents(session, room, threadId, events, tailLoaded);
   };
   const scheduler =
-    options.scheduler ??
-    createEditCompactionScheduler(
-      THREAD_EDIT_COMPACTION_DEBOUNCE_MS,
-      THREAD_EDIT_COMPACTION_MAX_WAIT_MS
-    );
+    options.scheduler ?? createEditCompactionScheduler(THREAD_EDIT_COMPACTION_DEBOUNCE_MS);
   const pendingCompactionReplace = new Map<string, MatrixEvent>();
 
   /**
@@ -220,11 +212,11 @@ export const createEngineWriteThrough = (
         persistEvents([pendingReplace]);
         return;
       }
-      // The serializer bundles a same-sender edit onto its target's record and keeps another
-      // sender's beside it. The target alone carries only an edit the SDK applied, and the SDK
-      // applies none in a thread it has not fetched (it buffers them), so a reply that streamed
-      // there was saved as its placeholder.
-      persistEvents([targetEvent, pendingReplace]);
+      if (targetEvent.getSender() !== pendingReplace.getSender()) {
+        persistEvents([targetEvent, pendingReplace]);
+        return;
+      }
+      persistEvents([targetEvent]);
     });
     return true;
   };

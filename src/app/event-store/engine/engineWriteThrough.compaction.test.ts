@@ -8,9 +8,7 @@
  *
  * Behaviors covered (each corresponds to a test in the old suite):
  *   1. Standalone m.replace does not persist; target upserts after
- *      the coalesce window (thread path), with the newest edit beside
- *      it for the serializer to bundle (the SDK applies no edit in a
- *      thread it has not fetched).
+ *      the coalesce window (thread path).
  *   2. N rapid edits coalesce to one target upsert.
  *   3. flush() drains pending upserts (moved from the DOM-driven
  *      visibilitychange test — the engine flushes via the same
@@ -161,35 +159,10 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
     expect(persistThreadEventCacheSnapshot.mock.calls[0][0].threadId).toBe(threadId);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
     expect(getCacheProbeSnapshot().editCompactionTargetMisses).toBe(0);
-  });
-
-  it('persists the newest edit with its target, which the SDK leaves unedited in a thread nobody opened', async () => {
-    // The SDK buffers the edits of a thread it has not fetched and applies none of them, so the
-    // target alone would be saved as its first version (the streaming placeholder).
-    const threadId = '$thread-root';
-    const target = makeEvent('$target', { threadRootId: threadId });
-    const room = makeRoom((id) => (id === '$target' ? target : undefined));
-    const writer = createEngineWriteThrough({ sessionId: 'session' });
-    const edits = [1, 2, 3].map((i) =>
-      makeEvent(`$edit-${i}`, {
-        threadRootId: threadId,
-        ts: i,
-        relation: { rel_type: RelationType.Replace, event_id: '$target' },
-      })
-    );
-    edits.forEach((edit) =>
-      writer.handleLiveEvent(edit as unknown as MatrixEvent, room, timelineMeta())
-    );
-
-    advance(2000);
-    await waitForDebounce();
-
-    expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edits[2]]);
   });
 
   it('coalesces N rapid edits into one target upsert', async () => {
@@ -215,10 +188,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([
-      target,
-      expect.objectContaining({ __id: '$edit-25' }),
-    ]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
   });
 
@@ -237,7 +207,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
 
     writer.flush();
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
   });
 
   it('persists non-replace thread events immediately, bypassing the debounce', () => {
@@ -402,7 +372,7 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([target, edit]);
+    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([target]);
     expect(getCacheProbeSnapshot().editCompactions).toBe(1);
   });
 
@@ -437,9 +407,9 @@ describe('engineWriteThrough compaction (ISSUE-207 P3.1 / D5)', () => {
     await waitForDebounce();
 
     expect(persistThreadEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget, threadEdit]);
+    expect(persistThreadEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget]);
     expect(persistRoomEventCacheSnapshot).toHaveBeenCalledTimes(1);
-    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget, roomEdit]);
+    expect(persistRoomEventCacheSnapshot.mock.calls[0][0].events).toEqual([roomTarget]);
   });
 
   it('flush() on engine teardown drains pending upserts (equivalent of the old unmount flush)', () => {

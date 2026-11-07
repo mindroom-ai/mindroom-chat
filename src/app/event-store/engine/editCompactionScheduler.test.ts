@@ -50,26 +50,6 @@ describe('editCompactionScheduler (ISSUE-207 P1.4)', () => {
     expect(scheduler.pendingCount()).toBe(0);
   });
 
-  it('saves a target that keeps being edited at least once per max wait', () => {
-    // A long reply streams an edit every quarter second, so the trailing debounce alone would
-    // never fire before the stream ends, and a reload mid-stream found the reply's first version.
-    const scheduler = createEditCompactionScheduler(1000, 2000);
-    const upserts = Array.from({ length: 20 }, () => vi.fn());
-
-    upserts.forEach((upsert) => {
-      scheduler.scheduleTargetUpsert('key', upsert);
-      vi.advanceTimersByTime(250);
-    });
-
-    // 5 s of edits: the newest closure ran at 2 s and at 4 s.
-    expect(upserts.map((upsert) => upsert.mock.calls.length)).toEqual(
-      upserts.map((_upsert, index) => (index === 7 || index === 15 ? 1 : 0))
-    );
-    vi.advanceTimersByTime(1000);
-    expect(upserts[19]).toHaveBeenCalledTimes(1);
-    expect(scheduler.pendingCount()).toBe(0);
-  });
-
   it('flushAll fires every pending upsert synchronously (visibility-loss / unmount path)', () => {
     const scheduler = createEditCompactionScheduler(1000);
     const upsertA = vi.fn();
