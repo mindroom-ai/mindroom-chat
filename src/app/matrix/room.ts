@@ -176,10 +176,10 @@ const departedNames = new WeakMap<MatrixEvent, string>();
  */
 const departedMemberName = (room: Room, userId: string): string | undefined => {
   const gone = room.getMember(userId);
-  const ended = gone?.events.member;
-  if (!gone || !ended || !DEPARTED.some((state) => matchesEnum(gone.membership, state))) {
-    return undefined;
-  }
+  if (!gone || !DEPARTED.some((state) => matchesEnum(gone.membership, state))) return undefined;
+  // Stand-in members of tests may come without their events.
+  const ended = gone.events?.member;
+  if (!ended) return undefined;
   const lastName =
     departedNames.get(ended) ??
     memberEventName(ended) ??
