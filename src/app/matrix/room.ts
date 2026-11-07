@@ -25,6 +25,7 @@ import { matchesEnum } from '../lib/matchesEnum';
 import { getMainTimelineReadTs, isMainTimelineMessageUnread } from './mainTimelineRead';
 import { countSeenThreadRootsAfter } from './seenThreadRoots';
 import { isUnreadableYet } from './decryptionWaits';
+import { getStreamStatusFromContent, TERMINAL_STREAM_STATUSES } from './protocol/aiRun';
 
 /** A room's current state event of `eventType` (and `stateKey`), if the client has it. */
 export const getStateEvent = (room: Room, type: string, stateKey = ''): MatrixEvent | undefined => {
@@ -339,6 +340,21 @@ export const hasUndecryptedNewerEdit = (
     (candidate) =>
       isUndecryptable(candidate) && (!shownEdit || isEventOrderedAfter(candidate, shownEdit))
   );
+
+/**
+ * Whether the newest edit of `mEvent` by its sender ends the reply's stream, by the status
+ * MindRoom keeps outside the encrypted payload: a device without the room's keys still knows that
+ * a reply finished or was stopped (P2-e2ee-F002).
+ */
+export const hasTerminalEditInTheClear = (
+  eventId: string,
+  mEvent: MatrixEvent,
+  timelineSet: Pick<EventTimelineSet, 'relations'> | undefined
+): boolean => {
+  const newest = getLatestEdit(mEvent, getEditCandidates(eventId, mEvent, timelineSet));
+  const status = newest && getStreamStatusFromContent(newest.getWireContent());
+  return !!status && TERMINAL_STREAM_STATUSES.has(status);
+};
 
 /**
  * The edits of `mEvent` by its sender still waiting to decrypt. Its row repaints once each one
