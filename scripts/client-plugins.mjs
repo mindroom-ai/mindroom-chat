@@ -161,15 +161,14 @@ export const clientPlugins = (env = process.env) => {
     // A plugin's file that imports a shared package fails the build when it would find its own copy.
     resolveId(source, importer) {
       const name = source.split('/', source.startsWith('@') ? 2 : 1).join('/');
-      const file = importer?.split('?')[0];
-      if (!file || !SHARED_PACKAGES.includes(name)) return null;
+      if (!importer || !SHARED_PACKAGES.includes(name)) return null;
       for (const { plugin, root } of roots) {
-        const copy = file.startsWith(root) ? ownCopy(file, name, root) : undefined;
+        const copy = importer.startsWith(root) ? ownCopy(importer, name, root) : undefined;
         if (!copy) continue;
         this.error(
           [
             `MINDROOM_CLIENT_PLUGINS: ${plugin.dir} (plugin "${plugin.id}"):`,
-            `${path.relative(root, file)} imports ${name} from the plugin's own copy`,
+            `${path.relative(root, importer)} imports ${name} from the plugin's own copy`,
             `(${path.relative(root, copy)}).`,
             `The app shares ${name} with every plugin: list it under`,
             'peerDependencies rather than dependencies, and install the plugin with',

@@ -146,17 +146,25 @@ test('checks the packages each client plugin in MINDROOM_CLIENT_PLUGINS installe
       'plugin-gpl': { name: 'plugin-gpl', version: '2.0.0', license: 'GPL-3.0-only' },
     })
   );
-  writeFileSync(
-    path.join(plugin, 'package.json'),
-    JSON.stringify({
-      name: 'some-plugin',
-      version: '1.0.0',
-      mindroomClientPlugin: { id: 'some-plugin', apiVersion: 1, entry: './index.js' },
-    })
-  );
-  writeFileSync(path.join(plugin, 'index.js'), 'export default {};\n');
+  // A second plugin that installed nothing.
+  const bare = mkdtempSync(path.join(tmpdir(), 'license-check-'));
+  roots.push(bare);
+  for (const [dir, id] of [
+    [plugin, 'some-plugin'],
+    [bare, 'bare-plugin'],
+  ]) {
+    writeFileSync(
+      path.join(dir, 'package.json'),
+      JSON.stringify({
+        name: id,
+        version: '1.0.0',
+        mindroomClientPlugin: { id, apiVersion: 1, entry: './index.js' },
+      })
+    );
+    writeFileSync(path.join(dir, 'index.js'), 'export default {};\n');
+  }
   assert.equal(run(nodeModules).status, 0);
-  const { status, output } = run(nodeModules, { MINDROOM_CLIENT_PLUGINS: plugin });
+  const { status, output } = run(nodeModules, { MINDROOM_CLIENT_PLUGINS: `${plugin},${bare}` });
   assert.equal(status, 1);
   assert.match(output, /^plugin-gpl@2\.0\.0 GPL-3\.0-only \(client plugin some-plugin\)$/m);
   assert.doesNotMatch(output, /plugin-ok@/);

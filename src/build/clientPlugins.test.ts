@@ -5,6 +5,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -240,24 +241,43 @@ describe('packages the app shares with plugins', () => {
     expect(modules.some((id) => id.startsWith(appCopy))).toBe(true);
   });
 
+  it("leaves the app's node_modules above a plugin inside the app's directory to the app", async () => {
+    // The example plugin's JSX imports react/jsx-runtime, which Node finds in the app's node_modules.
+    const modules = await bundlePlugin(EXAMPLE);
+    const appReact = `${realpathSync(path.join(ROOT, 'node_modules/react'))}/`;
+    expect(modules.some((id) => id.startsWith(appReact))).toBe(true);
+  });
+
   it('fails the build, naming the plugin and the package, when a plugin imports its own copy', async () => {
     const dir = importing('jotai');
     installStandIn(path.join(dir, 'node_modules/jotai'), 'jotai');
-    await expect(bundlePlugin(dir)).rejects.toThrow(
-      `MINDROOM_CLIENT_PLUGINS: ${dir} (plugin "some-plugin"): index.js imports jotai from the plugin's own copy`
+    // Listed by a link to its directory: module ids are real paths.
+    const link = path.join(emptyDir(), 'plugin');
+    symlinkSync(dir, link);
+    await expect(bundlePlugin(link)).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${link} (plugin "some-plugin"): index.js imports jotai from the plugin's own copy (node_modules/jotai).`
     );
   });
 
-  it("fails the build when a package the plugin installed imports the plugin's own copy", async () => {
-    const dir = importing('helper');
-    installStandIn(
-      path.join(dir, 'node_modules/helper'),
-      'helper',
-      "export * as query from '@tanstack/react-query';\n"
-    );
-    installStandIn(path.join(dir, 'node_modules/@tanstack/react-query'), '@tanstack/react-query');
-    await expect(bundlePlugin(dir)).rejects.toThrow(
-      "node_modules/helper/index.js imports @tanstack/react-query from the plugin's own copy"
-    );
-  });
+  it.each([
+    ['at the top of its node_modules', 'node_modules/@tanstack/react-query'],
+    [
+      "inside that package's own node_modules",
+      'node_modules/helper/node_modules/@tanstack/react-query',
+    ],
+  ])(
+    "fails the build when a package the plugin installed imports the plugin's own copy %s",
+    async (_case, copy) => {
+      const dir = importing('helper');
+      installStandIn(
+        path.join(dir, 'node_modules/helper'),
+        'helper',
+        "export * as query from '@tanstack/react-query';\n"
+      );
+      installStandIn(path.join(dir, copy), '@tanstack/react-query');
+      await expect(bundlePlugin(dir)).rejects.toThrow(
+        `node_modules/helper/index.js imports @tanstack/react-query from the plugin's own copy (${copy}).`
+      );
+    }
+  );
 });
