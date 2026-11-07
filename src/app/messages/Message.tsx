@@ -216,6 +216,9 @@ function MessageActionDialog({
 const isCoarsePointer = (): boolean =>
   globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
 
+/** Whether the primary pointer hovers. A touch screen's emulated mouse after a tap does not. */
+const canHover = (): boolean => globalThis.matchMedia?.('(hover: hover)').matches ?? true;
+
 /**
  * "Copy Text": the message body, without the tool call markers MindRoom adds. A reply with tool
  * calls also offers its text with each call written out, as an icon beside the item, or as a
@@ -614,10 +617,14 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
     // The hover toolbar shows while the pointer or the focus is inside the row. A mouse click
     // also focuses the row, but that focus does not keep the toolbar once the pointer leaves;
-    // a tap does, since touch screens have no hover.
+    // a tap does, since touch screens have no hover. Where the pointer cannot hover, the row
+    // takes no hover at all: WebKit hovers the row that lands under the finger after a tap with
+    // its emulated mouse, and never ends that hover, so the toolbar stayed there.
     const [pointerInside, setPointerInside] = useState(false);
     const [focusInside, setFocusInside] = useState(false);
-    const { hoverProps } = useHover({ onHoverChange: setPointerInside });
+    const { hoverProps } = useHover({
+      onHoverChange: (hovered: boolean) => setPointerInside(hovered && canHover()),
+    });
     const { focusWithinProps } = useFocusWithin({
       onFocusWithinChange: (inside: boolean) => {
         if (!inside) setFocusInside(false);
