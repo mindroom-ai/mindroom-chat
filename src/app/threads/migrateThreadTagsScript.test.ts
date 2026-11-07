@@ -50,4 +50,50 @@ describe('migrate-thread-tags script helpers', () => {
       Array.from(collectedState.merged.entries())
     );
   });
+
+  // The client names a tag's sender unless the sender is the person the tag names or a MindRoom
+  // agent on the viewer's homeserver, and the migration's writes come from the account running it,
+  // so the migration may write only what that account's view of the room keeps unchanged.
+  describe('whose writes keep the tags a room shows', () => {
+    const ALICE = '@alice:example.org';
+    const OPERATOR = '@operator:example.org';
+    const legacyResolved = (sender: string, setBy: string) => ({
+      type: MINDROOM_THREAD_TAGS_EVENT,
+      state_key: '$root',
+      sender,
+      content: { tags: { resolved: { set_by: setBy, set_at: '2026-04-07T00:00:01.000Z' } } },
+    });
+    const resolvers = (events: ReturnType<typeof legacyResolved>[], runAs: string) => {
+      const collected = collectRoomState(events, runAs);
+      const predicted = predictMergedStateAfterMigration(collected, buildMigrationPlans(collected));
+      return [collected.merged, predicted].map(
+        (merged) => merged.get('$root')?.tags.resolved?.set_by
+      );
+    };
+
+    it("would name the account running it on another person's tag", () => {
+      expect(resolvers([legacyResolved(ALICE, ALICE)], OPERATOR)).toEqual([ALICE, OPERATOR]);
+    });
+
+    it('keeps the person when a MindRoom agent of the homeserver runs it', () => {
+      expect(resolvers([legacyResolved(ALICE, ALICE)], '@mindroom_router:example.org')).toEqual([
+        ALICE,
+        ALICE,
+      ]);
+    });
+
+    it('keeps the tags when every write names the account running it', () => {
+      expect(resolvers([legacyResolved(OPERATOR, OPERATOR)], OPERATOR)).toEqual([
+        OPERATOR,
+        OPERATOR,
+      ]);
+    });
+
+    it('would name the person a tag claims, where the room shows its sender, even run by an agent', () => {
+      expect(resolvers([legacyResolved(OPERATOR, ALICE)], '@mindroom_router:example.org')).toEqual([
+        OPERATOR,
+        ALICE,
+      ]);
+    });
+  });
 });
