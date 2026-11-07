@@ -110,6 +110,8 @@ export const stripRedactedRelationsFromRawEvent = (
     nextThread.latest_event = nextLatestEvent;
   } else {
     delete nextThread.latest_event;
+    // The summary counted its latest reply, which is redacted now.
+    if (typeof thread.count === 'number' && thread.count > 0) nextThread.count = thread.count - 1;
   }
   const nextRelations = { ...relations, [RelationType.Thread]: nextThread };
   nextEvent = {
