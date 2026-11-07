@@ -39,7 +39,8 @@ const watchList = (page: Page, eventId: string) =>
     const watch: ListWatch = { closed: [] };
     (window as unknown as { listWatch: ListWatch }).listWatch = watch;
     const started = performance.now();
-    const isToolLine = (button: Element) => /\d+ tool calls?\b/.test(button.textContent ?? '');
+    // The line's text runs its title into its detail ("Ran 3 tool callsrun_shell_command").
+    const isToolLine = (button: Element) => /\d+ tool calls?/.test(button.textContent ?? '');
     const find = () =>
       [
         ...document.querySelectorAll(

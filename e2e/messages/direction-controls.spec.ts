@@ -197,9 +197,17 @@ const check = async (page: Page, world: World, label: string, canRead: boolean) 
   await page.keyboard.press('Escape');
   await expect(viewer).toBeHidden();
 
-  // View Source of the plain message.
-  await row(page, world.plainId).getByText(/^Rename the report/).click({ button: 'right' });
-  await page.getByRole('menuitem', { name: 'View Source' }).click();
+  // View Source of the plain message. The menu opens on the row's contextmenu event: a real right
+  // click in WebKit first selects the word under the pointer, and the row then leaves the click to
+  // the browser's own menu.
+  const text = row(page, world.plainId).getByText(/^Rename the report/);
+  const box = await text.boundingBox();
+  await text.dispatchEvent('contextmenu', {
+    button: 2,
+    clientX: (box?.x ?? 0) + 8,
+    clientY: (box?.y ?? 0) + 8,
+  });
+  await page.getByRole('menuitem', { name: 'View Source' }).click({ timeout: 30_000 });
   const source = page.locator('pre.language-json');
   await expect(source).toBeVisible({ timeout: 30_000 });
   await expectShown(source, `"body": "${PLAIN_SHOWN}"`);
