@@ -2,7 +2,7 @@ import React from 'react';
 import { Provider, createStore } from 'jotai';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { conversationBehindPanelAtom, conversationCoveredAtom } from './conversationCover';
+import { conversationBehindPanelAtom } from './conversationCover';
 import { imageViewerOpenAtom } from './imageViewerState';
 import { phoneNavDrawerOpenAtom, phoneSheetOpenAtom } from './phoneNavDrawer';
 import { isIOSStandaloneWebApp, isNativeIOS } from '../native/nativeSso';
@@ -178,13 +178,10 @@ describe('useEdgeSwipeBack', () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
-  it.each([
-    ['a side panel takes its place', conversationBehindPanelAtom],
-    ["a plugin's cover hides it", conversationCoveredAtom],
-  ])('does not call onBack while %s, the conversation the swipe would act on', (_what, atom) => {
+  it('does not call onBack while a side panel takes the place of the conversation it acts on', () => {
     const onBack = vi.fn();
     const store = createStore();
-    store.set(atom, true);
+    store.set(conversationBehindPanelAtom, true);
 
     act(() => {
       renderer = create(

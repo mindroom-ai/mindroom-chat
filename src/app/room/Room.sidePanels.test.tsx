@@ -74,7 +74,11 @@ vi.mock('./RoomView', async () => {
       state.view = props;
       // Which mount of the conversation this is: one that stays keeps its draft and recording.
       const [mount] = useState(() => (state.mounts += 1));
-      return <div data-testid="room-view" data-mount={mount} />;
+      return (
+        <div data-testid="room-view" data-mount={mount}>
+          <input aria-label="Message" />
+        </div>
+      );
     },
   };
 });
@@ -477,6 +481,16 @@ describe('the side panels of a room', () => {
       expect(frameButton(fill)).not.toBeNull();
     }
   );
+
+  it('takes the focus out of the conversation as a panel fills the room', async () => {
+    await renderRoom();
+    await open('computer');
+    screen.getByRole('textbox', { name: 'Message' }).focus();
+    // As a browser that keeps the focus on a pressed button (Safari) leaves it in the composer.
+    await act(async () => state.computer?.onToggleExpanded?.());
+    expect(hidden()).toBe(true);
+    expect(document.activeElement).toBe(document.body);
+  });
 
   it('fills the room with the computer from its own Expand, as from its Fill', async () => {
     await renderRoom();

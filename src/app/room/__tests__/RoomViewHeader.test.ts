@@ -3,6 +3,8 @@ import { Provider, createStore } from 'jotai';
 import { act, create, type ReactTestInstance } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CanvasListEntry } from '../../canvas/canvasIndexStore';
+import { conversationBehindPanelAtom } from '../../navigation/conversationCover';
+import { runShortcut } from '../../shortcuts/useShortcut';
 import { importBeforeTests } from '../../../test/utils/importBeforeTests';
 
 const { encryptionState, navigateSpy, permissionState, screenSizeState, membersState } = vi.hoisted(
@@ -466,6 +468,25 @@ describe('RoomViewHeader', () => {
       act(() => renderer.unmount());
     }
   );
+
+  it('toggles Members from its shortcut, but not while a side panel hides the conversation', async () => {
+    const onPanelToggle = vi.fn();
+    let rendered: Awaited<ReturnType<typeof renderHeader>> | undefined;
+    await act(async () => {
+      rendered = await renderHeader(0, { onPanelToggle });
+    });
+    const { renderer, store } = rendered!;
+    const press = () => runShortcut('members', {} as KeyboardEvent);
+
+    act(() => store.set(conversationBehindPanelAtom, true));
+    expect(press()).toBe(false);
+    expect(onPanelToggle).not.toHaveBeenCalled();
+
+    act(() => store.set(conversationBehindPanelAtom, false));
+    expect(press()).toBe(true);
+    expect(onPanelToggle).toHaveBeenCalledWith('members');
+    act(() => renderer.unmount());
+  });
 
   it.each(
     ['Desktop', 'Tablet'].flatMap((screen) =>
