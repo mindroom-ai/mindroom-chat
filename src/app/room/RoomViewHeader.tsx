@@ -42,6 +42,7 @@ import type { PluginHeaderAction } from '../plugins/headerActions';
 import { useShortcut } from '../shortcuts/useShortcut';
 import { useRoomViewMode } from '../navigation/useRoomViewMode';
 import type { RoomViewMode } from '../navigation/roomViewMode';
+import { isConfirmedMatrixEventId } from '../event-store/threads/threadRouteUtils';
 import {
   hasActiveThreadFilters,
   type ThreadFilterState,
@@ -408,7 +409,12 @@ export function RoomViewHeader({
         label,
         icon,
         placement,
-        run: () => run({ roomId: room.roomId, threadId }),
+        // A thread whose root the server has not confirmed yet has no id a plugin could use.
+        run: () =>
+          run({
+            roomId: room.roomId,
+            threadId: isConfirmedMatrixEventId(threadId) ? threadId : undefined,
+          }),
       })
     ),
     // The room menu's call entries, for what a phone's row leaves out of the call buttons.

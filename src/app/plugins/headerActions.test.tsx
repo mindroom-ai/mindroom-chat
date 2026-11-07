@@ -47,7 +47,7 @@ describe('usePluginHeaderActions', () => {
     vi.restoreAllMocks();
   });
 
-  it("lists the actions of the plugins config.json leaves on, each named <plugin>/<id>, in the menu by default, and logs a failing run with the plugin's tag", async () => {
+  it("lists the actions of the plugins config.json leaves on, each named <plugin>/<id>, in the menu by default, and logs a run that throws or rejects with the plugin's tag", async () => {
     headerActions = await import('./headerActions');
     const failure = new Error('no');
     const thrown = action({
@@ -57,21 +57,32 @@ describe('usePluginHeaderActions', () => {
         throw failure;
       },
     });
+    const rejected = action({ id: 'reject', run: () => Promise.reject(failure) });
     const config = { plugins: { off: { enabled: false } } } as unknown as ClientConfig;
     const { result } = renderHook(() =>
       headerActions.usePluginHeaderActions(
-        [plugin('off', [action()]), plugin('demo', [action(), thrown]), plugin('none', [])],
+        [
+          plugin('off', [action()]),
+          plugin('demo', [action(), thrown, rejected]),
+          plugin('none', []),
+        ],
         config
       )
     );
     expect(result.current.map(({ id, placement }) => [id, placement])).toEqual([
       ['demo/wave', 'menu'],
       ['demo/throw', 'auto'],
+      ['demo/reject', 'menu'],
     ]);
 
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     result.current[1]?.run({ roomId: '!room:example.org' });
     expect(logged).toHaveBeenCalledWith('[plugin demo@1.0.0] its header action failed', failure);
+    logged.mockClear();
+    result.current[2]?.run({ roomId: '!room:example.org' });
+    await vi.waitFor(() =>
+      expect(logged).toHaveBeenCalledWith('[plugin demo@1.0.0] its header action failed', failure)
+    );
   });
 
   it("names the actions in the app's language, also with strings that arrive later", async () => {

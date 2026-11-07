@@ -8,11 +8,11 @@ const entries = vi.hoisted(() => {
   const icon = () => null;
   const run = () => undefined;
   const action = { id: 'wave', label: 'wave', icon, run };
-  const rowAction = { id: 'row', label: 'row', icon, run, placement: 'row' };
+  const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
   return {
     renderer,
     panel,
-    actions: [action, rowAction],
+    actions: [action, autoAction],
     list: [
       {
         id: 'alpha',
@@ -43,7 +43,9 @@ const entries = vi.hoisted(() => {
             { id: 'plain', label: 'plain', icon: 'Smile', run },
             { id: 'idle', label: 'idle', icon },
             { id: 'top', label: 'top', icon, run, placement: 'top' },
-            rowAction,
+            // A phone's header keeps its row to Back, the name and the room menu.
+            { id: 'row', label: 'row', icon, run, placement: 'row' },
+            autoAction,
           ],
         },
       },
@@ -73,7 +75,7 @@ describe('registeredPlugins', () => {
     // A side panel needs an id, a label and a component.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
-    // A header action needs an id, a label, an icon, a run, and no placement or a known one.
+    // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
     expect(plugins[0]?.headerActions).toEqual([]);
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
   });

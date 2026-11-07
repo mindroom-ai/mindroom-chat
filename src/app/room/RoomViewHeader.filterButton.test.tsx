@@ -452,26 +452,31 @@ describe("the room header's actions", () => {
 
   it("places the plugins' actions by their placement and runs them in the open room", () => {
     const run = vi.fn();
-    const pluginActions = (['row', 'auto', 'menu'] as const).map((placement) => ({
+    const pluginActions = (['auto', 'menu'] as const).map((placement) => ({
       id: `demo/${placement}`,
       label: `Demo ${placement}`,
       icon: Icons.Smile,
       placement,
       run,
     }));
+    const runFromRow = () =>
+      act(() => {
+        buttons((node) => node.props['aria-label'] === 'Demo auto')[0]?.props.onClick();
+      });
     renderHeader({ pluginActions, threadId: '$thread' });
-    expect(rowLabels().slice(-3)).toEqual(['Demo row', 'Demo auto', 'More Options']);
-    act(() => {
-      buttons((node) => node.props['aria-label'] === 'Demo auto')[0]?.props.onClick();
-    });
+    expect(rowLabels().slice(-2)).toEqual(['Demo auto', 'More Options']);
+    runFromRow();
     expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: '$thread' });
     openMenu();
     expect(roomEntries()).toEqual(['Demo menu']);
+    // A thread whose root the server has not confirmed yet is left out.
+    renderHeader({ pluginActions, threadId: '~local' });
+    runFromRow();
+    expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: undefined });
 
     screen.size = 'Mobile';
     renderHeader({ pluginActions });
-    // `row` keeps its button even on a phone.
-    expect(rowLabels()).toEqual(['Back', 'Demo row', 'More Options']);
+    expect(rowLabels()).toEqual(['Back', 'More Options']);
     openMenu();
     expect(roomEntries().slice(-3)).toEqual(['Show Members', 'Demo auto', 'Demo menu']);
     run.mockClear();

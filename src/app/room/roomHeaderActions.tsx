@@ -4,8 +4,13 @@ import { TooltipProvider } from '../ui/directional';
 import { MenuEntry } from '../ui/MenuEntry';
 import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../shortcuts/shortcuts';
-import type { HeaderActionPlacement } from '../plugins/headerActions';
 import { HeaderActionButton as headerActionButton } from './RoomViewHeader.css';
+
+/**
+ * Where an action of the room header shows: in the header's row of buttons, in its room menu, or
+ * in the row when there is room for it, which a phone's header has not (`auto`).
+ */
+export type HeaderActionPlacement = 'row' | 'menu' | 'auto';
 
 /**
  * The room header's one overflow rule: an action shows in the header's row when its placement is

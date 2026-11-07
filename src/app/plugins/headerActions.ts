@@ -6,13 +6,7 @@ import { isPluginEnabled } from './pluginConfig';
 import { getPluginTranslation, pluginNamespace } from './pluginTranslations';
 import type { RegisteredPlugin } from './registry';
 
-/**
- * Where an action of the room header shows: in the header's row of buttons, in its room menu, or
- * in the row when there is room for it, which a phone's header has not (`auto`).
- */
-export type HeaderActionPlacement = 'row' | 'menu' | 'auto';
-
-const PLACEMENTS: readonly unknown[] = ['row', 'menu', 'auto'] satisfies HeaderActionPlacement[];
+const PLACEMENTS: readonly unknown[] = ['auto', 'menu'];
 
 /** The open room, and the thread open in it, that an action runs in. */
 export type HeaderActionRoom = { roomId: string; threadId?: string };
@@ -25,10 +19,13 @@ export type HeaderAction = {
   label: string;
   /** Its icon, as folds draws one, such as `Icons.Star`. */
   icon: IconSrc;
-  /** Where it shows; in the room menu when left out. */
-  placement?: HeaderActionPlacement;
+  /**
+   * Where it shows: `auto` in the header's row where there is room, which a phone's header has
+   * not, else in the room menu; `menu`, the default, always in the room menu.
+   */
+  placement?: 'auto' | 'menu';
   /** Runs it in the open room. */
-  run: (room: HeaderActionRoom) => void;
+  run: (room: HeaderActionRoom) => void | Promise<void>;
 };
 
 /** Whether a plugin's contribution is a header action; the build does not type-check plugins. */
@@ -42,12 +39,15 @@ export const isHeaderAction = (value: unknown): value is HeaderAction =>
   (value.placement === undefined || PLACEMENTS.includes(value.placement));
 
 /** A plugin's header action: `id` is `<plugin id>/<action id>`, `label` is in the app's language. */
-export type PluginHeaderAction = Required<HeaderAction>;
+export type PluginHeaderAction = Omit<Required<HeaderAction>, 'run'> & {
+  run: (room: HeaderActionRoom) => void;
+};
 
 /**
  * The header actions of the plugins config.json leaves on, in build order, with their labels in
  * the app's language: it renders again when the language changes and once a plugin's strings
- * arrive. An action whose `run` throws is logged with its plugin's tag.
+ * arrive. An action whose `run` throws, or returns a promise that rejects, is logged with its
+ * plugin's tag.
  */
 export const usePluginHeaderActions = (
   plugins: readonly RegisteredPlugin[],
@@ -65,11 +65,14 @@ export const usePluginHeaderActions = (
       icon: action.icon,
       placement: action.placement ?? 'menu',
       run: (room: HeaderActionRoom) => {
-        try {
-          action.run(room);
-        } catch (error) {
+        const fail = (error: unknown) => {
           // eslint-disable-next-line no-console
           console.error(`[plugin ${tag}] its header action failed`, error);
+        };
+        try {
+          Promise.resolve(action.run(room)).catch(fail);
+        } catch (error) {
+          fail(error);
         }
       },
     }));
