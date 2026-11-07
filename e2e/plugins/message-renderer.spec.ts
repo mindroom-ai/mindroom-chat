@@ -283,7 +283,7 @@ test("a reply that renders while the plugin's German strings load shows them whe
       const label = (await agentReply(page, data)).locator('[data-example-plugin]');
       await expect(page.locator('html')).toHaveAttribute('lang', 'de');
       await expect(label).toHaveText(`Example plugin: ${GREETING}`);
-      expect(held).toBe(true);
+      await expect.poll(() => held).toBe(true);
 
       release();
       await expect(label).toHaveText(`${GERMAN_LABEL}: ${GREETING}`);
