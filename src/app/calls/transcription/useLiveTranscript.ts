@@ -57,7 +57,7 @@ const usePageShown = () =>
   useSyncExternalStore(onVisibilityChange, () => document.visibilityState !== 'hidden');
 
 /**
- * The room's live call, read every `everyMs` while `reading` and the page shows, and at once when
+ * The room's live call, read every `everyMs` while `wanted` and the page shows, and at once when
  * it shows again.
  */
 const useLiveCallReads = (room: Room, everyMs: number, wanted: boolean): ReadView => {
