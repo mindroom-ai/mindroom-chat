@@ -514,7 +514,7 @@ describe('the side panels of a room', () => {
       localStorage.setItem(key, stored);
       // eslint-disable-next-line no-await-in-loop
       await renderRoom();
-      expect(board()).toBeNull();
+      expect(state.view?.shownPanel).toBeUndefined();
       expect(screen.getByTestId('room-view')).toBeTruthy();
       cleanup();
     }
