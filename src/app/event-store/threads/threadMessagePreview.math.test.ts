@@ -47,6 +47,9 @@ describe('thread previews of math', () => {
     expect(preview('$\\sqrt{x}^2 + x^{2}2^{x} + \\frac{1}{n}\\sum x$')).toBe(
       '√(x)^2 + x^(2)2^x + (1/n)∑ x'
     );
+    expect(preview('$x_1x_2 + 2^n{x} + a_{1,2} + \\left(x^2\\right)$')).toBe(
+      'x_(1)x_2 + 2^(n)x + a_(1,2) + (x^2)'
+    );
   });
 
   it('read sizing, spacing, escaped characters and unbalanced braces', () => {
@@ -64,6 +67,7 @@ describe('thread previews of math', () => {
     expect(preview('$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$')).toBe(
       '$\\sqrt [3]{8} = 2$, $\\vec F$, $a \\\\ b$ and ${}$'
     );
+    expect(preview('$\\operatorname*{arg\\,max}_x f$')).toBe('$\\operatorname*{arg\\,max}_x f$');
     expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
       '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
     );
@@ -84,6 +88,9 @@ describe('thread previews of math', () => {
   it('keep every formula of a body with code the tokenizer cannot find as written', () => {
     expect(preview('See ``$\\frac{a}{b}$`` and $x^2$.')).toBe('See `$\\frac{a}{b}$` and $x^2$.');
     expect(preview('~~~\n$\\frac{a}{b}$\n~~~\nand $x^2$')).toBe('$\\frac{a}{b}$ and $x^2$');
+    expect(preview('````\n```\n$\\frac{a}{b}$\n```\n````\nand $x^2$')).toBe(
+      '``` $\\frac{a}{b}$ ``` and $x^2$'
+    );
     expect(preview('Example:\n\n    $\\frac{a}{b}$\n\nand $x^2$')).toBe(
       'Example: $\\frac{a}{b}$ and $x^2$'
     );
