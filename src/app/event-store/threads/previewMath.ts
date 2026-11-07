@@ -32,11 +32,13 @@ const PLAIN_COMMAND = /^(?:text|textrm|mathrm|mathit|boxed)$/;
 const SILENT_COMMAND = /^(?:left|right|[bB]igg?[lr]?|displaystyle|limits|nolimits|!)$/;
 const SPACE_COMMAND = /^(?:[,:;> ]|quad|qquad)$/;
 // Code that the renderer's tokenizer may not find the way Markdown does: a run of two or more
-// backticks, a backtick after a backslash, a tilde fence or an indented line (in a block quote
-// too), or HTML code; and the characters the formulas stand in as.
-const UNCLEAR_CODE = /``|\\`|^[ >]*(?:~~~| {4}|\t)|<(?:code|pre)\b|[\uE000\uE001]/im;
-// A number before a fraction, past spaces, spacing and braces: a mixed number (`3\frac{1}{4}`).
-const MIXED_NUMBER = /\d(?:\s|~|[{}]|\\(?:[,:;!> ]|q?quad))*\\[dt]?frac/;
+// backticks, a backtick after a backslash, a tilde fence, an indented line (in a block quote too),
+// or HTML code; and the characters the formulas stand in as.
+const UNCLEAR_CODE = /``|\\`|~~~|^[ >]*(?: {4}|\t)|<(?:code|pre)\b|[\uE000\uE001]/im;
+// A number before a fraction, past spaces, spacing, sizes and braces: a mixed number
+// (`3\frac{1}{4}`).
+const MIXED_NUMBER =
+  /\d(?:\s|~|[{}]|\\(?:[,:;!> ]|q?quad|displaystyle|left|right|[bB]igg?[lr]?))*\\[dt]?frac/;
 
 /** A command, a space, one character, or the nodes of a braced group. */
 type TexNode = string | TexNode[];
@@ -104,10 +106,10 @@ const readFormula = (tex: string): string | undefined => {
       if (!text.trim()) exact = false;
       return text;
     };
-    // The next node past sizing commands.
+    // The next node past sizing commands and the spaces they swallow.
     const next = (): TexNode | undefined => {
       let at = index;
-      while (isCommand(nodes[at], SILENT_COMMAND)) at += 1;
+      while (isCommand(nodes[at], SILENT_COMMAND)) at += nodes[at + 1] === ' ' ? 2 : 1;
       return nodes[at];
     };
     // Whether a script may end before the next node: at the end, a space, a sign or a bracket.
