@@ -21,8 +21,9 @@ import { WEBKIT_EXECUTABLE, launchWebKit } from '../helpers/webkit';
  * answered by agents the way MindRoom's backend streams (a stop reaction, edits, the stop reaction
  * redacted). The reader opens it in the Compact view while agents stream new answers, reloads,
  * opens a thread while an agent streams into it, and goes back. No warning "Event is not a
- * relation or a thread root, but still has a threadRootId!" may appear, and no emitter may report
- * a listener leak.
+ * relation or a thread root, but still has a threadRootId!" may appear, no event may be refused
+ * by a timeline ("cannot be added to any timeline", live-test pass 2, P2-lane9-F003), and no
+ * emitter may report a listener leak.
  *
  * Each engine (Chromium, and WebKit when PLAYWRIGHT_WEBKIT_EXECUTABLE names it) runs the session
  * in its own browser. The warnings' call sites go to test-results/console-hygiene/.
@@ -33,6 +34,7 @@ const HISTORY_THREADS = 60;
 /** Other rooms of the reader's, so the sidebar holds as many rows as an active account's. */
 const SIDE_ROOMS = 25;
 const THREAD_ROOT_WARNING = 'still has a threadRootId';
+const NO_TIMELINE_WARNING = /cannot be added to any timeline|that does not belong in timeline/;
 const LISTENER_LEAK_WARNING = /memory leak detected|MaxListenersExceeded/;
 
 const send = async (
@@ -116,7 +118,7 @@ const streamAgentReply = async (
   await redact(homeserver, agent, roomId, stopId);
 };
 
-/** Installed before the app: keeps one stack per call site of the two warnings. */
+/** Installed before the app: keeps one stack per call site of the warnings. */
 const recordWarningSites = () => {
   const sites: Record<string, number> = {};
   (window as unknown as { __warningSites: typeof sites }).__warningSites = sites;
@@ -125,7 +127,10 @@ const recordWarningSites = () => {
     const text = args
       .map((arg) => (arg instanceof Error ? `${arg.name}: ${arg.message}` : String(arg)))
       .join(' ');
-    if (text.includes('still has a threadRootId') || /memory leak detected/.test(text)) {
+    if (
+      text.includes('still has a threadRootId') ||
+      /memory leak detected|cannot be added to any timeline|does not belong in timeline/.test(text)
+    ) {
       const limit = Error.stackTraceLimit;
       Error.stackTraceLimit = 40;
       const stack = (new Error().stack ?? '').split('\n').slice(2).join('\n');
@@ -220,7 +225,7 @@ test.describe('console hygiene', () => {
     const engines = ['chromium', ...(WEBKIT_EXECUTABLE ? ['webkit'] : [])];
     const results: Record<
       string,
-      Record<string, { threadRootId: number; listenerLeak: number }>
+      Record<string, { threadRootId: number; noTimeline: number; listenerLeak: number }>
     > = {};
 
     for (const engine of engines) {
@@ -237,13 +242,17 @@ test.describe('console hygiene', () => {
         });
         await context.addInitScript(recordWarningSites);
         const page = await context.newPage();
-        const counts = { threadRootId: 0, listenerLeak: 0 };
+        const counts = { threadRootId: 0, noTimeline: 0, listenerLeak: 0 };
         page.on('console', (message) => {
           const text = message.text();
           if (text.includes(THREAD_ROOT_WARNING)) counts.threadRootId += 1;
+          else if (NO_TIMELINE_WARNING.test(text)) counts.noTimeline += 1;
           else if (LISTENER_LEAK_WARNING.test(text)) counts.listenerLeak += 1;
         });
-        const phases: Record<string, { threadRootId: number; listenerLeak: number }> = {};
+        const phases: Record<
+          string,
+          { threadRootId: number; noTimeline: number; listenerLeak: number }
+        > = {};
         // The page's call sites, kept before it navigates away.
         const keepSites = async (phase: string) => {
           const sites = await page.evaluate(
@@ -327,6 +336,7 @@ test.describe('console hygiene', () => {
     Object.entries(results).forEach(([engine, phases]) => {
       expect(phases.back, `${engine}: warnings over the session`).toEqual({
         threadRootId: 0,
+        noTimeline: 0,
         listenerLeak: 0,
       });
     });

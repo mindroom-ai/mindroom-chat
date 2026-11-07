@@ -85,9 +85,12 @@ export const Username = as<'span', { tone?: UsernameTone }>(
   )
 );
 
-/** The emphasized part of a sender name. */
+/**
+ * The emphasized part of a sender name. It reads in its own direction, as the members panel shows
+ * it, so an Arabic name that ends in a Latin letter keeps one order on the whole screen.
+ */
 export const UsernameBold = as<'b'>(({ as: AsBold = 'b', className, ...props }, ref) => (
-  <AsBold {...props} ref={ref} className={classNames(css.UsernameName, className)} />
+  <AsBold dir="auto" {...props} ref={ref} className={classNames(css.UsernameName, className)} />
 ));
 
 type MessageTextBodyProps = {

@@ -75,6 +75,17 @@ globalStyle('[data-message-fold="text"]:not(:has(> * > [data-message-disclosure]
   alignItems: 'flex-start',
 });
 
+// A text message that reads the other way from the interface sits at its own start, as one that
+// fills the column does: a short Arabic message at the right in an English interface, a short
+// English one at the left in an Arabic interface.
+globalStyle(
+  [
+    'html[dir="ltr"] [data-message-fold="text"] > :has([data-body-direction="rtl"])',
+    'html[dir="rtl"] [data-message-fold="text"] > :has([data-body-direction="ltr"])',
+  ].join(', '),
+  { alignSelf: 'flex-end' }
+);
+
 const bubbleColors = color.SurfaceVariant;
 
 // A bubble only as wide as its content, up to the content column or a readable 40rem, whichever

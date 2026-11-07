@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import {
   getThreadSummaryInfosFromEventSources,
   type ThreadSummaryInfo,
@@ -11,7 +11,11 @@ import {
   getCompactCachedThreadRootPreviewInfo,
   getCompactThreadRootPreviewInfo,
 } from '../../event-store/threads/compactThreadRootData';
-import { type CachedThreadEventPage, loadLatestCachedThreadEventsBatch } from '../../event-store/cache/eventRepository';
+import {
+  type CachedThreadEventPage,
+  createPreferLiveEventMapper,
+  loadLatestCachedThreadEventsBatch,
+} from '../../event-store/cache/eventRepository';
 import { hasLikelyIncompleteStreamingBody } from '../../event-store/threads/threadEditBackfill';
 import { resolveThreadPresentationSnapshot } from '../../event-store/threads/threadPresentation';
 import { buildThreadCacheCoverage } from '../../event-store/cache/threadCacheCoverage';
@@ -228,7 +232,17 @@ export const resolveCachedOverviewUpdate = ({
   compactThreadRootBodyMap,
 }: ResolveCachedOverviewUpdateOptions): CachedOverviewUpdate | null => {
   // The cached events are only read here; attached to their threads they would stay for good.
-  const mapper = readOnlyEventMapper(room, sdkMapper);
+  // An event the room holds keeps its newer revision and thread summary: the SDK mapper alone
+  // overwrote them with the cached copy's.
+  const mapper = readOnlyEventMapper(
+    room,
+    createPreferLiveEventMapper(room, (rawEvent) => sdkMapper(rawEvent as IEvent))
+  );
+  // The root's cached preview is weighed against its live one below, so it reads the cached copy
+  // as it is, without touching the room's own.
+  const cachedCopyMapper = readOnlyEventMapper(room, (rawEvent) =>
+    room.findEventById(rawEvent.event_id) ? new MatrixEvent(rawEvent) : sdkMapper(rawEvent)
+  );
   // Capture the SDK revision before the cache mapper gets a chance to reuse
   // and update the same MatrixEvent instance.
   const livePreview = compactThreadRootBodyMap.get(rootId);
@@ -288,7 +302,7 @@ export const resolveCachedOverviewUpdate = ({
     const cachedPreviewInfo = getCompactCachedThreadRootPreviewInfo({
       threadId: rootId,
       cachedPage,
-      mapper,
+      mapper: cachedCopyMapper,
     });
     const shouldUseCachedPreview =
       !!cachedPreviewInfo &&
