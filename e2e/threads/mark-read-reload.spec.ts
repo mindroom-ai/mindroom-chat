@@ -49,38 +49,59 @@ const THREADS = [
   ],
 ] as const;
 
-/** The newest `sync` record the SDK saved, as the next start replays it. */
-const savedSyncBatch = (page: Page): Promise<string | null> =>
-  page.evaluate(async () => {
-    const names = (await indexedDB.databases())
-      .map((database) => database.name ?? '')
-      .filter((name) => name.startsWith('matrix-js-sdk:web-sync-store'));
-    const batches = await Promise.all(
-      names.map(
-        (name) =>
-          new Promise<string | null>((resolve) => {
-            const open = indexedDB.open(name);
-            open.onerror = () => resolve(null);
-            open.onsuccess = () => {
-              const db = open.result;
-              if (!db.objectStoreNames.contains('sync')) {
-                db.close();
-                resolve(null);
-                return;
-              }
-              const read = db.transaction('sync').objectStore('sync').getAll();
-              read.onerror = () => resolve(null);
-              read.onsuccess = () => {
-                db.close();
-                const records = read.result as Array<{ nextBatch?: string }>;
-                resolve(records[0]?.nextBatch ?? null);
+/**
+ * The event of `userId`'s unthreaded read receipt in `roomId` as the client's saved sync holds
+ * it, which the next start replays; null without one.
+ */
+const savedUnthreadedReceipt = (
+  page: Page,
+  roomId: string,
+  userId: string
+): Promise<string | null> =>
+  page.evaluate(
+    async ([room, user]) => {
+      type Receipts = Record<string, Record<string, Record<string, { thread_id?: string }>>>;
+      type Saved = {
+        roomsData?: {
+          join?: Record<string, { ephemeral?: { events?: { type: string; content: Receipts }[] } }>;
+        };
+      };
+      const names = (await indexedDB.databases())
+        .map((database) => database.name ?? '')
+        .filter((name) => name.startsWith('matrix-js-sdk:web-sync-store'));
+      const records = await Promise.all(
+        names.map(
+          (name) =>
+            new Promise<Saved[]>((resolve) => {
+              const open = indexedDB.open(name);
+              open.onerror = () => resolve([]);
+              open.onsuccess = () => {
+                const db = open.result;
+                if (!db.objectStoreNames.contains('sync')) {
+                  db.close();
+                  resolve([]);
+                  return;
+                }
+                const read = db.transaction('sync').objectStore('sync').getAll();
+                read.onerror = () => resolve([]);
+                read.onsuccess = () => {
+                  db.close();
+                  resolve(read.result as Saved[]);
+                };
               };
-            };
-          })
-      )
-    );
-    return batches.find((batch) => batch !== null) ?? null;
-  });
+            })
+        )
+      );
+      const events = records.flat()[0]?.roomsData?.join?.[room]?.ephemeral?.events ?? [];
+      const receipts = events.find((event) => event.type === 'm.receipt')?.content ?? {};
+      const read = Object.entries(receipts).find(([, byType]) => {
+        const receipt = byType['m.read']?.[user];
+        return !!receipt && receipt.thread_id === undefined;
+      });
+      return read?.[0] ?? null;
+    },
+    [roomId, userId]
+  );
 
 type RoomCounts = { total: number; threads: number };
 
@@ -185,13 +206,15 @@ const threadsStayReadThroughReloads = async (page: Page, browserName: string) =>
       threads: 0,
     });
 
-  // The first start after a reload saves what it synced; the second replays that save.
-  const batchBefore = await savedSyncBatch(page);
+  // The client saves its sync once the receipt comes back from the server, or the first start
+  // after a reload saves it with what it synced; the second reload replays that save.
   await page.reload();
   await expect(page.locator(`[data-thread-root-id="${rootIds[0]}"]`)).toBeVisible({
     timeout: 60_000,
   });
-  await expect.poll(() => savedSyncBatch(page), { timeout: 30_000 }).not.toBe(batchBefore);
+  await expect
+    .poll(() => savedUnthreadedReceipt(page, roomId, reader.userId), { timeout: 30_000 })
+    .toBe(newestReply);
   await expect(unreadCards).toHaveCount(0);
 
   await page.reload();
