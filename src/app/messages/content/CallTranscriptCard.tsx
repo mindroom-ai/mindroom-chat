@@ -1,6 +1,6 @@
-import { type ReactNode, useId, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useId, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { Room } from 'matrix-js-sdk';
+import { EventType, type MatrixClient, type Room, type RoomMember } from 'matrix-js-sdk';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
 import { Avatar, Icon, Icons, Text } from 'folds';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -9,6 +9,10 @@ import { useRoomMembers } from '../../matrix/hooks/useRoomMembers';
 import { useMediaAuthentication } from '../../matrix/hooks/useMediaAuthentication';
 import { getMemberAvatarMxc, getMemberDisplayName } from '../../matrix/room';
 import { getMxIdLocalPart } from '../../matrix/matrix';
+import {
+  isMindroomAgentUserId,
+  isMindroomAgentUserIdForViewer,
+} from '../../matrix/protocol/agentIdentity';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import {
   callTranscriptSpeakersTrusted,
@@ -41,6 +45,50 @@ type CallTranscriptCardProps = {
   /** A search's matches: they are marked, and a transcript with one starts open. */
   highlightRegex?: RegExp;
   linkifyOpts: LinkifyOpts;
+};
+
+const NOBODY: ReadonlySet<string> = new Set();
+
+/**
+ * Speakers of a call between people whom the room's members leave out (lazy loading skips who
+ * left), as the room's state on the server has them: those who were in the room, and joined, left
+ * or were banned since. Asked only for a transcript MindRoom's agent posted.
+ */
+const useSpeakersFromServer = (
+  client: MatrixClient,
+  transcript: CallTranscript,
+  sender: string | undefined,
+  roomId: string | undefined,
+  members: RoomMember[]
+): ReadonlySet<string> => {
+  const [found, setFound] = useState(NOBODY);
+  const unlisted = useMemo(() => {
+    const posted = isMindroomAgentUserIdForViewer(sender, client.getUserId() ?? undefined);
+    if (transcript.callId === undefined || !posted) return '';
+    const listed = new Set(members.map((member) => member.userId));
+    const speakers = new Set(transcript.turns.map((turn) => turn.sender));
+    return [...speakers]
+      .filter((userId) => !listed.has(userId) && !isMindroomAgentUserId(userId))
+      .join(' ');
+  }, [client, members, sender, transcript]);
+  useEffect(() => {
+    if (!roomId || !unlisted) return undefined;
+    let current = true;
+    const counted = speakerMemberships(transcript);
+    const asked = unlisted.split(' ').map((userId) =>
+      client.getStateEvent(roomId, EventType.RoomMember, userId).then(
+        (content) => (counted.has(String(content.membership)) ? [userId] : []),
+        () => []
+      )
+    );
+    void Promise.all(asked).then((answers) => {
+      if (current) setFound(new Set(answers.flat()));
+    });
+    return () => {
+      current = false;
+    };
+  }, [client, roomId, transcript, unlisted]);
+  return found;
 };
 
 const matchesAny = (regex: RegExp, texts: readonly string[]): boolean => {
@@ -214,6 +262,7 @@ export function CallTranscriptCard({
   const room = roomId ? client.getRoom(roomId) : null;
   // The room's members load in the background; a speaker who joins them later is trusted then.
   const members = useRoomMembers(client, roomId ?? '');
+  const fromServer = useSpeakersFromServer(client, transcript, sender, roomId, members);
   const trusted = useMemo(() => {
     const counted = speakerMemberships(transcript);
     const speakers = new Set(
@@ -225,9 +274,9 @@ export function CallTranscriptCard({
       transcript,
       sender,
       client.getUserId() ?? undefined,
-      (userId) => speakers.has(userId)
+      (userId) => speakers.has(userId) || fromServer.has(userId)
     );
-  }, [client, members, sender, transcript]);
+  }, [client, fromServer, members, sender, transcript]);
   if (!trusted) return <>{fallback}</>;
 
   return (

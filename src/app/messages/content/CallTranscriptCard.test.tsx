@@ -25,6 +25,13 @@ const INVITED = '@invited:example.org';
 const OTHER_AGENT = '@mindroom_research:example.org';
 const PERSON = '@person:example.org';
 const ROOM_ID = '!room:example.org';
+// Members the loaded list leaves out (lazy loading skips who left), as the server has them.
+const GONE = '@gone:example.org';
+const ONLY_INVITED = '@only_invited:example.org';
+const SERVER_MEMBERS: Record<string, { membership: string }> = {
+  [GONE]: { membership: 'leave' },
+  [ONLY_INVITED]: { membership: 'invite' },
+};
 
 const BODY = '📞 Voice call · 2 min\n\nTranscript\n\nRobin: Can you hear me?';
 const FORMATTED =
@@ -128,6 +135,12 @@ describe('a voice call transcript message', () => {
     const mx = {
       getUserId: () => VIEWER,
       getRoom: (roomId: string) => (roomId === ROOM_ID ? room : null),
+      getStateEvent: async (roomId: string, type: string, userId: string) => {
+        const state = SERVER_MEMBERS[userId];
+        if (roomId !== ROOM_ID || type !== 'm.room.member' || !state)
+          throw new Error('M_NOT_FOUND');
+        return state;
+      },
       on: () => undefined,
       removeListener: () => undefined,
     } as unknown as MatrixClient;
@@ -430,6 +443,27 @@ describe('a voice call transcript message', () => {
       expect(
         groups().map((group) => group.querySelector('[data-call-transcript-name]')?.textContent)
       ).toEqual(['Robin Tester', 'Former Member', 'Banned Member']);
+    });
+
+    it('keeps the transcript of a speaker who left, whom the loaded members leave out', async () => {
+      const said = (speaker: string) =>
+        notesContent({
+          duration_seconds: 60,
+          turns: [
+            { sender: CALLER, text: 'Ship it?' },
+            { sender: speaker, text: 'Ship it.' },
+          ],
+        });
+      render(said(GONE), ROUTER);
+      await act(async () => {});
+      act(() => toggle()?.click());
+      expect(groups()).toHaveLength(2);
+
+      // Not one who was only invited.
+      render(said(ONLY_INVITED), ROUTER);
+      await act(async () => {});
+      expect(card()).toBeNull();
+      expect(container.textContent).toContain(NOTES);
     });
 
     it.each([
