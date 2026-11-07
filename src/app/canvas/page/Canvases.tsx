@@ -9,7 +9,7 @@ import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { getMxIdLocalPart } from '../../matrix/matrix';
-import { getMemberDisplayName } from '../../matrix/room';
+import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
 import {
   canvasSessionId,
   loadCanvasEvent,
@@ -89,6 +89,12 @@ const usePinnedCanvases = () => {
 /** The thread's name as the sidebar's Threads list shows it: its summary, or its first message. */
 function ThreadName({ room, threadId }: { room: Room; threadId: string }) {
   return <>{useRecentThreadViewModel(room, threadId, 0).summaryText}</>;
+}
+
+/** The agent's name as the rest of the app shows it, also before this start loaded the members. */
+function AgentName({ room, userId }: { room: Room | null; userId: string }) {
+  const mx = useMatrixClient();
+  return <>{useMemberDisplayName(mx, room, userId) ?? getMxIdLocalPart(userId) ?? userId}</>;
 }
 
 export function Canvases() {
@@ -176,10 +182,6 @@ export function Canvases() {
                   {rows.map((entry) => {
                     const room = mx.getRoom(entry.roomId);
                     const pinned = pins.some((pin) => pin.canvasId === entry.canvasId);
-                    const agent =
-                      (room && getMemberDisplayName(room, entry.agentUserId)) ??
-                      getMxIdLocalPart(entry.agentUserId) ??
-                      entry.agentUserId;
                     return (
                       <tr key={entry.canvasId}>
                         <td>
@@ -249,7 +251,9 @@ export function Canvases() {
                           </button>
                         </td>
                         <td data-label={t('mindroomUi.canvases.agent')}>
-                          <Text size="T300">{agent}</Text>
+                          <Text size="T300">
+                            <AgentName room={room} userId={entry.agentUserId} />
+                          </Text>
                         </td>
                         <td data-label={t('mindroomUi.canvases.updated')}>
                           <Text size="T300">{date.format(entry.updatedTs)}</Text>

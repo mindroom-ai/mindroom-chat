@@ -6,7 +6,6 @@ import React, {
   ReactNode,
   SyntheticEvent,
   useEffect,
-  useReducer,
   useRef,
   useState,
 } from 'react';
@@ -15,14 +14,7 @@ import { useTranslation } from 'react-i18next';
 import { HTMLReactParserOptions, attributesToProps, domToReact } from 'html-react-parser';
 import { isTag, isText } from 'domhandler';
 import type { ChildNode, Element } from 'domhandler';
-import {
-  RoomStateEvent,
-  type MatrixClient,
-  type MatrixEvent,
-  type Room,
-  type RoomMember,
-  type RoomState,
-} from 'matrix-js-sdk';
+import type { MatrixClient, Room } from 'matrix-js-sdk';
 import type { IntermediateRepresentation, Opts as LinkifyOpts } from 'linkifyjs';
 import { Text } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
@@ -49,7 +41,7 @@ import { copyToClipboard } from '../../lib/dom';
 import { getCanonicalAliasRoomId } from '../../matrix/matrix';
 import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { EMOJI_PATTERN, createInsideUrlTest } from '../../lib/regex';
-import { getMemberDisplayName } from '../../matrix/room';
+import { useMemberDisplayName } from '../../matrix/hooks/useMemberDisplayName';
 import { PrismCode } from '../../rich-text/code/ReactPrism';
 import { WithKatex } from '../../rich-text/lazyKatex';
 import {
@@ -170,27 +162,7 @@ function UserMentionName({
   room: Room | null;
   userId: string;
 }) {
-  const [, refresh] = useReducer((count: number) => count + 1, 0);
-  const name = room ? getMemberDisplayName(room, userId) : undefined;
-  const known = name !== undefined;
-  useEffect(() => {
-    if (!room || known) return undefined;
-    let active = true;
-    const onMember = (_event: MatrixEvent, state: RoomState, member: RoomMember) => {
-      if (state.roomId === room.roomId && member.userId === userId) refresh();
-    };
-    client.on(RoomStateEvent.Members, onMember);
-    room
-      .loadMembersIfNeeded()
-      .then(() => {
-        if (active) refresh();
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-      client.removeListener(RoomStateEvent.Members, onMember);
-    };
-  }, [client, room, userId, known]);
+  const name = useMemberDisplayName(client, room, userId);
   return <>{name ? `@${name}` : userId}</>;
 }
 
