@@ -136,13 +136,16 @@ function TextMessage({
   );
 }
 
+/**
+ * A text message, or a notice (`m.notice`), which reads at a lower opacity. Both are one
+ * component: an agent reply streams as a notice and ends as text, and keeps the state inside it,
+ * such as an open tool-call list, when it does.
+ */
 export function MText(props: TextMessageProps) {
-  return <TextMessage {...props} />;
+  return <TextMessage {...props} notice={props.content.msgtype === 'm.notice'} />;
 }
 
-export function MNotice(props: TextMessageProps) {
-  return <TextMessage {...props} notice />;
-}
+export const MNotice = MText;
 
 /** `/me` messages read as "* Name does something". */
 export function MEmote({ displayName, ...props }: TextMessageProps & { displayName: string }) {
