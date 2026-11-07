@@ -1,7 +1,7 @@
 import { useAtomValue } from 'jotai';
 import { useEffect, useRef } from 'react';
 import { imageViewerOpenAtom } from './imageViewerState';
-import { phoneNavDrawerOpenAtom } from './phoneNavDrawer';
+import { phoneLayerOpenAtom } from './phoneNavDrawer';
 import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
 import { isIOSStandaloneWebApp } from '../native/nativeSso';
 
@@ -29,7 +29,7 @@ export const useEdgeSwipe = ({
 }): void => {
   const onSwipeRef = useRef(onSwipe);
   const imageViewerOpen = useAtomValue(imageViewerOpenAtom);
-  const navDrawerOpen = useAtomValue(phoneNavDrawerOpenAtom);
+  const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const standaloneBlocked = blockStandaloneWebApp && isIOSStandaloneWebApp();
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export const useEdgeSwipe = ({
   }, [onSwipe]);
 
   useEffect(() => {
-    if (!enabled || standaloneBlocked || imageViewerOpen || navDrawerOpen) return;
+    if (!enabled || standaloneBlocked || imageViewerOpen || phoneLayerOpen) return;
     if (typeof window === 'undefined') return;
 
     let tracking = false;
@@ -113,5 +113,5 @@ export const useEdgeSwipe = ({
       window.removeEventListener('touchend', handleTouchEnd);
       window.removeEventListener('touchcancel', reset);
     };
-  }, [direction, enabled, imageViewerOpen, navDrawerOpen, standaloneBlocked]);
+  }, [direction, enabled, imageViewerOpen, phoneLayerOpen, standaloneBlocked]);
 };

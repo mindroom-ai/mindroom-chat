@@ -87,7 +87,6 @@ HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[1]
 DEFAULT_CHECKOUT = "/home/basnijholt/Work/dev/mindroom"
 SERVER_NAME = "matrix.localhost"
-TESTER_PASSWORD = "agent-stack-password"
 EXIT_NO_CHECKOUT = 3
 EXIT_NO_HOMESERVER = 4
 EXIT_NO_KEYS = 5
@@ -938,12 +937,11 @@ def start(
     real = args.model == "real"
     agents = AGENTS[args.model]
     slot_dir.mkdir(parents=True)
-    if keys:
-        slot_dir.chmod(0o700)
     namespace = "t" + secrets.token_hex(4)
     tester = f"tester_{namespace}"
+    password = secrets.token_hex(16)
     try:
-        account = register(homeserver, tester, TESTER_PASSWORD)
+        account = register(homeserver, tester, password)
     except RuntimeError as error:
         raise StackError(f"registering {tester} failed: {error}") from error
     tester_id = account["user_id"]
@@ -1147,7 +1145,7 @@ def start(
             "tester": {
                 "userId": tester_id,
                 "username": tester,
-                "password": TESTER_PASSWORD,
+                "password": password,
                 "accessToken": tester_token,
             },
             "routerToken": accounts["agent_router"]["access_token"],
@@ -1227,10 +1225,15 @@ def main() -> int:
         parser.error("slot must be 0-99")
     # Chat opens a computer through the same origin settings as a client session.
     args.client_sessions = args.client_sessions or args.computers
+    # A slot holds the stack's tokens and keys, so what this script and the stack's processes write is the owner's only.
+    os.umask(0o077)
     slot_dir = stack_root() / f"slot-{args.slot}"
     signal.signal(signal.SIGTERM, exit_on_sigterm)
     try:
         with locked(stack_root() / f"slot-{args.slot}.lock"):
+            # Also a slot that an earlier version of this script left readable to others.
+            if slot_dir.is_dir():
+                slot_dir.chmod(0o700)
             if args.command == "down":
                 stop(slot_dir)
                 return 0

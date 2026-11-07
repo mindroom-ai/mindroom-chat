@@ -9,6 +9,26 @@ export const phoneNavDrawerOpenAtom = atom(false);
 export const phoneNavSlotAtom = atom<HTMLElement | null>(null);
 
 /**
+ * The layer below a phone's top bar, under the drawer, where a sheet from the end edge (a room's
+ * members) slides in; there while the phone layout is.
+ */
+export const phoneSheetSlotAtom = atom<HTMLElement | null>(null);
+
+/** Whether a sheet is out in that layer (not while it slides away). */
+export const phoneSheetOpenAtom = atom(false);
+
+/** Whether the drawer or a sheet covers a phone's page: edge swipes rest meanwhile. */
+export const phoneLayerOpenAtom = atom(
+  (get) => get(phoneNavDrawerOpenAtom) || get(phoneSheetOpenAtom)
+);
+
+/**
+ * How long the drawer or a sheet keeps its content after it was put away: until it has slid out
+ * (the Slower motion token, and a frame to spare).
+ */
+export const PHONE_SLIDE_OUT_MS = 320;
+
+/**
  * The history entry (location key) whose page is a section's own page (Home, Direct Messages, a
  * space, the Inbox, Explore), set by that page while it is shown. A page matched at a section's
  * address that shows something else (a short room link's redirect, a room to join) never sets it.

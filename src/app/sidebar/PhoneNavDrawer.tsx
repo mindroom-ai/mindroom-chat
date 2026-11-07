@@ -1,38 +1,21 @@
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAtom, useAtomValue, useSetAtom, useStore } from 'jotai';
 import { NavigationType, useLocation, useNavigationType } from 'react-router-dom';
 import {
+  PHONE_SLIDE_OUT_MS,
   nextPhoneNavDrawerOpen,
   phoneNavDrawerOpenAtom,
   phoneNavSectionRootAtom,
   phoneNavSlotAtom,
+  phoneSheetSlotAtom,
 } from '../navigation/phoneNavDrawer';
-import { hasBlockingPortalOverlay } from '../lib/portalOverlay';
+import { useSwipeAway } from '../navigation/useSwipeAway';
+import { hasOpenOverlay } from '../lib/openOverlay';
+import { observeLayerHost } from '../lib/overlayFocus';
 import { pathnameContainsAliasRoute } from '../navigation/clientRouteRestore';
 import { useInert } from '../lib/hooks/useInert';
 import { PHONE_NAV_DRAWER_ID, PHONE_NAV_MENU_BUTTON_ID } from './PhoneTopBar';
 import * as css from './PhoneNavDrawer.css';
-
-/** How long the drawer keeps its content after it was put away: until it has slid out. */
-const SLIDE_OUT_MS = 320;
-/** How far a finger moves the drawer toward its edge to put it away. */
-const CLOSE_SWIPE_DISTANCE = 56;
-
-const isRightToLeft = (element: Element): boolean => getComputedStyle(element).direction === 'rtl';
-
-/**
- * Whether a menu, listbox or dialog is open over the drawer: Escape is theirs then. Broader than
- * `hasBlockingPortalOverlay`, which sees only the portal container: folds menus portal into
- * `body`, and the drawer, which closes on Escape before the page sees it, must leave every one.
- * One left open in the inert page below (a popover the drawer came out over) does not count.
- */
-const overlayOpen = (): boolean =>
-  hasBlockingPortalOverlay() ||
-  Array.from(
-    document.querySelectorAll(
-      '[role="menu"], [role="listbox"], [role="dialog"], [role="alertdialog"]'
-    )
-  ).some((overlay) => !overlay.closest('[inert]'));
 
 /** The drawer follows navigation: out at a section's own page, away on any other. */
 const useDrawerFollowsNavigation = (setOpen: (update: (open: boolean) => boolean) => void) => {
@@ -71,6 +54,16 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   const [open, setOpen] = useAtom(phoneNavDrawerOpenAtom);
   // The section's list portals itself into the slot (`MobileFriendlyPageNav`).
   const slotRef = useSetAtom(phoneNavSlotAtom);
+  // A sheet from the end edge (a room's members) portals itself into the layer under the drawer,
+  // where focus treats it as a dialog in the body (`overlayFocus`).
+  const setSheetSlot = useSetAtom(phoneSheetSlotAtom);
+  const sheetSlotRef = useCallback(
+    (slot: HTMLDivElement | null) => {
+      if (slot) observeLayerHost(slot);
+      setSheetSlot(slot);
+    },
+    [setSheetSlot]
+  );
   const panelRef = useRef<HTMLDivElement>(null);
   // Motion only after the first frame, so a page that opens with the drawer out does not slide it.
   const [animate, setAnimate] = useState(false);
@@ -93,7 +86,7 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
       setSliding(true);
       return undefined;
     }
-    const timer = window.setTimeout(() => setSliding(false), SLIDE_OUT_MS);
+    const timer = window.setTimeout(() => setSliding(false), PHONE_SLIDE_OUT_MS);
     return () => window.clearTimeout(timer);
   }, [open]);
   const filled = open || sliding;
@@ -120,11 +113,11 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
 
   // While out, Escape puts it away, before the page's own Escape handling (focusing the composer,
   // marking the room read) sees it, unless a menu or dialog is open over it: that one closes.
-  // (Edge swipes rest meanwhile: `useEdgeSwipe` reads the same atom.)
+  // (Edge swipes rest meanwhile: `useEdgeSwipe` reads `phoneLayerOpenAtom`.)
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || overlayOpen()) return;
+      if (event.key !== 'Escape' || hasOpenOverlay()) return;
       event.preventDefault();
       event.stopPropagation();
       setOpen(false);
@@ -136,60 +129,24 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
   // The section's list is portaled in, so React's events from it bubble through the page, not
   // the drawer: the drawer listens on its own element. Following a link puts it away, also a link
   // to the page already shown; a swipe toward the edge does too.
+  const close = useCallback(() => setOpen(false), [setOpen]);
+  useSwipeAway(panelRef, 'start', close);
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return undefined;
-    let start: { x: number; y: number } | undefined;
-    let last: { x: number; y: number } | undefined;
     const closeOnLink = (event: MouseEvent) => {
       // Not a click that goes nowhere (a drag's end) or opens elsewhere (a modifier, a middle button).
       if (event.defaultPrevented || event.button !== 0) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      if (event.target instanceof Element && event.target.closest('a[href]')) setOpen(false);
-    };
-    const pointOf = (event: globalThis.TouchEvent) => {
-      const touch = event.touches[0];
-      return event.touches.length === 1 && touch
-        ? { x: touch.clientX, y: touch.clientY }
-        : undefined;
-    };
-    const startSwipe = (event: globalThis.TouchEvent) => {
-      start = pointOf(event);
-      last = start;
-    };
-    const moveSwipe = (event: globalThis.TouchEvent) => {
-      last = pointOf(event);
-    };
-    // Decided from the last move, so a lift the browser reports as a cancel counts too.
-    const endSwipe = () => {
-      const from = start;
-      const to = last;
-      start = undefined;
-      last = undefined;
-      if (!from || !to) return;
-      const towardEdge = (from.x - to.x) * (isRightToLeft(panel) ? -1 : 1);
-      if (towardEdge >= CLOSE_SWIPE_DISTANCE && towardEdge > Math.abs(to.y - from.y)) {
-        setOpen(false);
-      }
+      if (event.target instanceof Element && event.target.closest('a[href]')) close();
     };
     panel.addEventListener('click', closeOnLink, true);
-    // In the capture phase: the list's rows take touches for their own gestures first.
-    const early = { capture: true, passive: true };
-    panel.addEventListener('touchstart', startSwipe, early);
-    panel.addEventListener('touchmove', moveSwipe, early);
-    panel.addEventListener('touchend', endSwipe, early);
-    panel.addEventListener('touchcancel', endSwipe, early);
-    return () => {
-      panel.removeEventListener('click', closeOnLink, true);
-      panel.removeEventListener('touchstart', startSwipe, true);
-      panel.removeEventListener('touchmove', moveSwipe, true);
-      panel.removeEventListener('touchend', endSwipe, true);
-      panel.removeEventListener('touchcancel', endSwipe, true);
-    };
-  }, [setOpen]);
+    return () => panel.removeEventListener('click', closeOnLink, true);
+  }, [close]);
 
   return (
     <>
+      <div ref={sheetSlotRef} className={css.SheetSlot} />
       <div
         className={css.Scrim}
         data-open={open || undefined}

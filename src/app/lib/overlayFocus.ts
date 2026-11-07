@@ -54,8 +54,26 @@ const isTextEntry = (element: HTMLElement): boolean =>
 
 type Doc = Document & { defaultView: (Window & typeof globalThis) | null };
 
+/**
+ * Marks an element in the app's own tree whose children are layers as those in `<body>` are (a
+ * phone's members sheet, below the top bar); `observeLayerHost` sets it.
+ */
+export const LAYER_HOST_ATTRIBUTE = 'data-layer-host';
+
 const isLayerParent = (doc: Document, parent: Element | null): boolean =>
-  !!parent && (parent === doc.body || parent.id === PORTAL_CONTAINER_ID);
+  !!parent &&
+  (parent === doc.body ||
+    parent.id === PORTAL_CONTAINER_ID ||
+    parent.hasAttribute(LAYER_HOST_ATTRIBUTE));
+
+/** The installed managers' observers, which a layer host joins while it is there. */
+const observers = new Set<MutationObserver>();
+
+/** Makes `host` a layer host, watched for layers coming and going. */
+export const observeLayerHost = (host: Element): void => {
+  host.setAttribute(LAYER_HOST_ATTRIBUTE, '');
+  observers.forEach((observer) => observer.observe(host, { childList: true }));
+};
 
 /** The portaled layer that holds `node`, or undefined for the app itself. */
 export const layerOf = (doc: Document, node: Node | null | undefined): Element | undefined => {
@@ -184,8 +202,14 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
       const tabbables = dialog
         ? Array.from(dialog.querySelectorAll<HTMLElement>(TABBABLE_SELECTOR)).filter(canTakeFocus)
         : [];
-      const target = event.shiftKey ? tabbables[tabbables.length - 1] : tabbables[0];
-      (target ?? dialog)?.focus({ preventScroll: true });
+      // From the end Tab went past, the first control that takes the focus: a browser may refuse
+      // one that looks tabbable (WebKit, a scroll region).
+      const fromEdge = event.shiftKey ? tabbables.reverse() : tabbables;
+      const landed = fromEdge.some((control) => {
+        control.focus({ preventScroll: true });
+        return doc.activeElement === control;
+      });
+      if (!landed) dialog?.focus({ preventScroll: true });
     }, 0);
   };
 
@@ -299,6 +323,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   };
 
   const observer = new win.MutationObserver(onMutations);
+  observers.add(observer);
   observer.observe(doc.body, { childList: true });
   const portalContainer = doc.getElementById(PORTAL_CONTAINER_ID);
   if (portalContainer) observer.observe(portalContainer, { childList: true });
@@ -309,6 +334,7 @@ export const installOverlayFocus = (doc: Document = document): (() => void) => {
   doc.addEventListener('mousedown', onPointerDown, true);
 
   return () => {
+    observers.delete(observer);
     observer.disconnect();
     doc.removeEventListener('focusin', onFocusIn, true);
     doc.removeEventListener('keydown', onKeyDown, true);
