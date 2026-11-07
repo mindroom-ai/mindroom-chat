@@ -268,6 +268,7 @@ describe('unread counts of an encrypted room', () => {
 
     // Another copy of the same edit decrypting again counts nothing more.
     f.mx.emit(MatrixEventEvent.Decrypted, f.find('$edit-2'));
+    await settle();
     expect(f.totalCount()).toBe(1);
   });
 
@@ -294,6 +295,7 @@ describe('unread counts of an encrypted room', () => {
     expect(f.threadCount()).toBe(0);
     // Decrypting it again (after a reload, say) counts nothing either.
     f.mx.emit(MatrixEventEvent.Decrypted, f.find('$pending'));
+    await settle();
     expect(f.threadCount()).toBe(0);
 
     // The finished reply counts once.
@@ -511,6 +513,7 @@ describe('unread counts of an encrypted room', () => {
     await f.deliver(answeredQuestion(), [otherThreadReceipt]);
     await f.decrypt(f.find(REPLY), clear[REPLY]);
     await f.decrypt(f.find('$done'), finishedContent(REPLY));
+    await f.decrypt(f.find('$title'), titleNotice);
     expect(f.totalCount()).toBe(2);
     await f.deliver([], [readElsewhere]);
     expect(f.totalCount()).toBe(0);
