@@ -41,7 +41,7 @@ const sampleDir = (process.env.E2E_PLUGIN_DIRS ?? '')
     );
   });
 
-test('a plugin directory brings its tool, its stub scenario and its fixture page', async ({
+test("a plugin directory's scenario drives the stub to its plugin's tool", async ({
   page,
   stack,
 }) => {
@@ -61,7 +61,12 @@ test('a plugin directory brings its tool, its stub scenario and its fixture page
     body.includes('Hello Ada, from the sample plugin')
   );
   await expect(messageRow(page, reply.event_id)).toContainText('Hello Ada, from the sample plugin');
+});
 
+// Its own test, so the page opens in a browser that has not loaded the app: in a production build the
+// app's service worker answers later navigations with the app, as it does for e2e/fixtures/ pages.
+test("a plugin directory's fixture page is served", async ({ page }) => {
+  test.skip(!sampleDir, 'E2E_PLUGIN_DIRS names no copy of e2e/fixtures/sample-plugin');
   await page.goto(`/e2e/plugins/${basename(sampleDir ?? '')}/page.html`);
   await expect(page.getByText("Rendered by the sample plugin's page")).toBeVisible();
 });
