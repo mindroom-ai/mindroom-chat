@@ -23,7 +23,8 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // A member who renames themselves to an agent's display name must not pass for the agent: their
 // messages show their user ID after the name, and so do the agent's while the two names clash. A
-// name nobody else has stays as it is. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
+// member without a display name shows as their user ID's localpart; someone who takes that
+// localpart as their name shows their user ID after it. A name nobody else has stays as it is. Runs in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE
 // names Playwright's WebKit, in WebKit, on a desktop and a phone, against the disposable
 // homeserver of `just hs-up` or of a slot of scripts/e2e-slot.sh.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
@@ -70,6 +71,12 @@ const registerPerson = async (localpart: string, displayName: string) => {
   return { ...session, username };
 };
 
+const clearDisplayName = (session: MatrixSession) =>
+  matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(session.userId)}/displayname`, {
+    method: 'DELETE',
+    accessToken: session.accessToken,
+  });
+
 const roomMemberName = async (session: MatrixSession, roomId: string, userId: string) => {
   const member = await matrixFetch<{ displayname?: string }>(
     HOMESERVER,
@@ -99,6 +106,25 @@ const releaseRoom = async (tag: string) => {
   });
   await joinRoom(HOMESERVER, agent.accessToken, roomId);
   await joinRoom(HOMESERVER, writer.accessToken, roomId);
+  // A member without a display name, and one who takes their localpart as a name.
+  const quiet = await registerPerson(`sender_quiet_${tag}`, 'Quiet');
+  const echo = await registerPerson(`sender_echo_${tag}`, 'Echo');
+  for (const member of [quiet, echo]) {
+    await matrixFetch(HOMESERVER, `/rooms/${encodeURIComponent(roomId)}/invite`, {
+      method: 'POST',
+      accessToken: reader.accessToken,
+      body: JSON.stringify({ user_id: member.userId }),
+    });
+    await joinRoom(HOMESERVER, member.accessToken, roomId);
+  }
+  await clearDisplayName(quiet);
+  await expect
+    .poll(() => roomMemberName(reader, roomId, quiet.userId), { timeout: 20_000 })
+    .toBeUndefined();
+  await setDisplayName(echo, quiet.username);
+  await expect
+    .poll(() => roomMemberName(reader, roomId, echo.userId), { timeout: 20_000 })
+    .toBe(quiet.username);
 
   const question = await sendRoomMessage(HOMESERVER, reader.accessToken, roomId, {
     msgtype: 'm.text',
@@ -112,11 +138,31 @@ const releaseRoom = async (tag: string) => {
   await expect
     .poll(() => roomMemberName(reader, roomId, writer.userId), { timeout: 20_000 })
     .toBe('Helper');
+  const quietNote = await sendRoomMessage(HOMESERVER, quiet.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'I can take the screenshots for the release notes tomorrow morning.',
+  });
+  const echoNote = await sendRoomMessage(HOMESERVER, echo.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: 'Never mind the screenshots, they are already in the shared folder.',
+  });
   const copy = await sendRoomMessage(HOMESERVER, writer.accessToken, roomId, {
     msgtype: 'm.text',
     body: 'The rollback steps are fixed now, so the release notes are ready to publish. Go ahead whenever you like.',
   });
-  return { reader, writer, agent, roomId, question, answer, copy };
+  return {
+    reader,
+    writer,
+    agent,
+    quiet,
+    echo,
+    roomId,
+    question,
+    answer,
+    quietNote,
+    echoNote,
+    copy,
+  };
 };
 
 /** The bold sender name in the header of message `eventId`. */
@@ -124,7 +170,19 @@ const senderName = (page: Page, eventId: string, userId: string) =>
   page.locator(`[data-message-id="${eventId}"] button[data-user-id="${userId}"] b`);
 
 const checkSenderNames = async (page: Page, tag: string) => {
-  const { reader, writer, agent, roomId, question, answer, copy } = await releaseRoom(tag);
+  const {
+    reader,
+    writer,
+    agent,
+    quiet,
+    echo,
+    roomId,
+    question,
+    answer,
+    quietNote,
+    echoNote,
+    copy,
+  } = await releaseRoom(tag);
   await loginWithPassword(page, {
     homeserver: HOMESERVER,
     username: reader.username,
@@ -160,6 +218,12 @@ const checkSenderNames = async (page: Page, tag: string) => {
   await expect(answerName).toContainText('Helper');
   await expect(answerName).toContainText(agent.userId);
   await expect(questionName).toHaveText('Robin Reader');
+  // The member without a name shows as their localpart; the one who took it shows their ID.
+  const quietName = senderName(page, quietNote, quiet.userId);
+  const echoName = senderName(page, echoNote, echo.userId);
+  await expect(quietName).toHaveText(quiet.username);
+  await expect(echoName).toContainText(quiet.username);
+  await expect(echoName).toContainText(echo.userId);
 };
 
 test.beforeEach(async () => {

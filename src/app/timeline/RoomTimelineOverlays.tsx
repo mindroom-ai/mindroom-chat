@@ -67,7 +67,9 @@ export function FloatingAction({
       radii="Pill"
       before={<Icon src={icon} size="50" />}
     >
-      <Text size="L400">{label}</Text>
+      <Text size="L400" style={{ textWrap: 'balance' }}>
+        {label}
+      </Text>
     </Chip>
   );
 }

@@ -1,9 +1,12 @@
 import { ReactNode, useEffect, useId, useState } from 'react';
-import { Box, Button, Icon, Icons, Text } from 'folds';
+import { Box, Button, Icon, Icons, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { getSettingDefinition } from '../../preferences/settingsRegistry';
 import { useSettingsTarget } from '../../preferences/settingsTarget';
 import { LoneTouchTarget } from '../styles/TouchTarget.css';
+
+// The button's own 8 px and these 8 px make the 16 px of the section headings.
+const FOLD_ROW_STYLE = { paddingInlineStart: config.space.S200 };
 
 type AdvancedFoldProps = {
   children: ReactNode;
@@ -27,7 +30,8 @@ export function AdvancedFold({ children }: AdvancedFoldProps) {
 
   return (
     <Box direction="Column" gap="300">
-      <Box>
+      {/* The chevron starts where the section headings and the cards' rows do. */}
+      <Box style={FOLD_ROW_STYLE}>
         <Button
           variant="Secondary"
           fill="None"

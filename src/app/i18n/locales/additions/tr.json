@@ -130,7 +130,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "Odayı unut"
+      "forget": "Odayı unut",
+      "banned": "Bu odadan yasaklandınız."
     },
     "userRoomProfile": {
       "editProfile": "Profili düzenle"

@@ -1,9 +1,12 @@
 import { type ReactNode, useCallback, useEffect, useState } from 'react';
 import { Avatar, Box, Button, Icon, Icons, Spinner, Text, color, config } from 'folds';
 import { Trans, useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import {
   ClientEvent,
+  EventType,
   JoinRule,
+  Method,
   type Room,
   RoomEvent,
   RoomType,
@@ -11,10 +14,12 @@ import {
   SyncState,
 } from 'matrix-js-sdk';
 import { Page, PageHeader } from '../../ui/page/Page';
+import { PhoneBackButton } from '../../ui/page/PhoneBackButton';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { RoomSummaryLoader, type RoomSummaryState } from '../RoomSummaryLoader';
 import { useLocalRoomSummary } from '../useLocalRoomSummary';
 import { RoomAccessControl } from '../RoomAccessControl';
+import { JoinFailure } from '../JoinFailure';
 import * as roomCardCss from '../RoomCard.css';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSyncState } from '../../matrix/hooks/useSyncState';
@@ -25,10 +30,15 @@ import { mxcUrlToHttp } from '../../matrix/mediaUrl';
 import { nameInitials } from '../../lib/common';
 import { Membership } from '../../matrix/types/room';
 import { getMemberDisplayName } from '../../matrix/room';
-import { getHomePath } from '../../routes/pathUtils';
-import { isRoomAlias } from '../../matrix/matrix';
+import { getDirectPath, getHomePath, getSpacePath } from '../../routes/pathUtils';
+import { previousHistoryOrigin, showsRoom } from '../../routes/historyStack';
+import { useDirectSelected } from '../../routes/useDirectSelected';
+import { useSelectedSpace } from '../../navigation/useSelectedSpace';
+import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize';
+import { getCanonicalAliasOrRoomId, isRoomAlias } from '../../matrix/matrix';
 import { declineInvite } from '../../notifications/inbox/declineInvite';
 import { useAlive } from '../../lib/hooks/useAlive';
+import { isRecord } from '../../lib/isRecord';
 
 type JoinBeforeNavigateProps = {
   roomIdOrAlias: string;
@@ -177,28 +187,112 @@ function KnownRoomActions({ roomId }: { roomId: string }) {
   );
 }
 
+/** Who removed this account from the room (`name`) and why, when the removal says. */
+function RemovalLines({
+  by,
+  name,
+  reason,
+}: {
+  by: 'bannedBy' | 'kickedBy';
+  name?: string;
+  reason: unknown;
+}) {
+  const bold = { b: <b /> };
+  const hasReason = typeof reason === 'string' && reason.trim() !== '';
+  if (!name && !hasReason) return null;
+  return (
+    <Box direction="Column" gap="100">
+      {name && (
+        <Text size="T200">
+          <Trans
+            i18nKey={`sharedUi.userModeration.${by}` as const}
+            values={{ name }}
+            components={bold}
+          />
+        </Text>
+      )}
+      {hasReason && (
+        <Text size="T200">
+          <Trans i18nKey="sharedUi.userModeration.reason" values={{ reason }} components={bold} />
+        </Text>
+      )}
+    </Box>
+  );
+}
+
 /** Who removed this account from the room, and why, from its own member event. */
 function RemovalNote({ room }: { room: Room }) {
   const own = room.getMember(room.myUserId);
   const event = own?.events.member;
   const sender = event?.getSender();
   if (!own || !event || !sender || sender === own.userId) return null;
-  const reason = event.getContent().reason;
-  const by = own.membership === Membership.Ban ? 'bannedBy' : 'kickedBy';
-  const bold = { b: <b /> };
   return (
-    <Box direction="Column" gap="100">
-      <Text size="T200">
-        <Trans
-          i18nKey={`sharedUi.userModeration.${by}` as const}
-          values={{ name: getMemberDisplayName(room, sender) ?? sender }}
-          components={bold}
-        />
+    <RemovalLines
+      by={own.membership === Membership.Ban ? 'bannedBy' : 'kickedBy'}
+      name={getMemberDisplayName(room, sender) ?? sender}
+      reason={event.getContent().reason}
+    />
+  );
+}
+
+/** A ban as the account's own member event in the room tells it: who banned it, and why. */
+type Ban = { sender?: string; reason?: unknown };
+
+/**
+ * The account's member event in a room it is banned from, as the server keeps it: a banned former
+ * member may read the room's state as of its ban. The full event names who banned it (servers
+ * that ignore `format=event` answer the content alone). Undefined while it loads or when the
+ * server will not say.
+ */
+const useServerBan = (roomId: string, skip: boolean): Ban | undefined => {
+  const client = useMatrixClient();
+  const [ban, setBan] = useState<Ban>();
+  useEffect(() => {
+    if (skip) return undefined;
+    let current = true;
+    const path = `/rooms/${encodeURIComponent(roomId)}/state/${encodeURIComponent(
+      EventType.RoomMember
+    )}/${encodeURIComponent(client.getSafeUserId())}`;
+    client.http
+      .authedRequest<unknown>(Method.Get, path, { format: 'event' })
+      .then((answer) => {
+        if (!current || !isRecord(answer)) return;
+        const content = isRecord(answer.content) ? answer.content : answer;
+        if (content.membership !== Membership.Ban) return;
+        setBan({
+          sender: typeof answer.sender === 'string' ? answer.sender : undefined,
+          reason: content.reason,
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      current = false;
+    };
+  }, [client, roomId, skip]);
+  return ban;
+};
+
+/**
+ * Why there is no way in for an account banned from the room: it says so, and who banned it and
+ * why, from the room this device kept, else from the server.
+ */
+function BanNote({ roomId }: { roomId: string }) {
+  const { t } = useTranslation();
+  const client = useMatrixClient();
+  const { room } = useMyMembership(roomId);
+  const kept = room?.getMember(client.getSafeUserId())?.membership === Membership.Ban;
+  const fromServer = useServerBan(roomId, kept);
+  return (
+    <Box direction="Column" gap="200">
+      <Text size="T300" style={{ color: color.Critical.Main }}>
+        {t('sharedUi.roomCard.banned')}
       </Text>
-      {typeof reason === 'string' && reason.trim() && (
-        <Text size="T200">
-          <Trans i18nKey="sharedUi.userModeration.reason" values={{ reason }} components={bold} />
-        </Text>
+      {room && kept ? (
+        <RemovalNote room={room} />
+      ) : (
+        fromServer && (
+          <RemovalLines by="bannedBy" name={fromServer.sender} reason={fromServer.reason} />
+        )
       )}
     </Box>
   );
@@ -276,6 +370,8 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
     !invited && (joinRule === JoinRule.Knock || joinRule === ('knock_restricted' as JoinRule));
   // A space reads as one: its initials on a rounded square and "Space" beside the member count.
   const isSpace = summary.room_type === RoomType.Space;
+  const { membership: keptMembership } = useMyMembership(roomId);
+  const banned = summary.membership === Membership.Ban || keptMembership === Membership.Ban;
 
   return (
     <Box
@@ -323,7 +419,9 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
         </Text>
       )}
       <InvitedBy roomId={roomId} />
-      {blocked ? (
+      {banned ? (
+        <BanNote roomId={roomId} />
+      ) : blocked ? (
         <Text size="T300" style={{ color: color.Critical.Main }}>
           {t('sharedUi.roomCard.accessUnavailable')}
         </Text>
@@ -363,6 +461,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
                     : t('sharedUi.roomCard.join')}
                 </Text>
               </Button>
+              {access.joinError !== undefined && <JoinFailure error={access.joinError} />}
             </>
           )}
         </RoomAccessControl>
@@ -386,12 +485,42 @@ const headerTarget = (roomIdOrAlias: string, summary?: SummaryData, knownName?: 
   knownName ||
   roomIdOrAlias;
 
-/** The page header: a link icon and how the room is named (`headerTarget`). */
-function LinkHeader({ target }: { target: string }) {
+/**
+ * A phone's way off the page, where it fills the screen: back to the page it was opened from,
+ * passing over the room's own entries; opened from outside the app, to the list its route sits in
+ * (the space's, Direct's or Home's), which takes the page's place in history.
+ */
+function PageBack({ addresses }: { addresses: string[] }) {
+  const mx = useMatrixClient();
+  const navigate = useNavigate();
+  const space = useSelectedSpace();
+  const direct = useDirectSelected();
+  const leave = () => {
+    const origin = previousHistoryOrigin((page) => !showsRoom(page, addresses));
+    if (origin) {
+      navigate(-origin.steps);
+      return;
+    }
+    let list = getHomePath();
+    // The page of a space that is not joined sits at the space's own path.
+    if (space && !addresses.includes(space)) {
+      list = getSpacePath(getCanonicalAliasOrRoomId(mx, space));
+    } else if (direct) list = getDirectPath();
+    navigate(list, { replace: true });
+  };
+  return <PhoneBackButton onBack={leave} />;
+}
+
+/**
+ * The page header: a link icon (a back button on phones) and how the room is named
+ * (`headerTarget`).
+ */
+function LinkHeader({ target, addresses }: { target: string; addresses: string[] }) {
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
   return (
     <PageHeader balance>
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
-        <Icon size="200" src={Icons.Link} />
+        {phone ? <PageBack addresses={addresses} /> : <Icon size="200" src={Icons.Link} />}
         <Text as="h1" size="H4" truncate>
           {target}
         </Text>
@@ -470,7 +599,12 @@ function JoinPage({ state, retry, roomId, ...props }: JoinPageProps) {
 
   return (
     <Page>
-      <LinkHeader target={headerTarget(roomIdOrAlias, summary, knownRoomName(room))} />
+      <LinkHeader
+        target={headerTarget(roomIdOrAlias, summary, knownRoomName(room))}
+        addresses={[roomIdOrAlias, summary?.room_id ?? roomId ?? room?.roomId].filter(
+          (address): address is string => !!address
+        )}
+      />
       <Box
         grow="Yes"
         direction="Column"

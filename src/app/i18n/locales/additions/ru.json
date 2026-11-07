@@ -136,7 +136,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "Забыть комнату"
+      "forget": "Забыть комнату",
+      "banned": "Вы забанены в этой комнате."
     },
     "userRoomProfile": {
       "editProfile": "Изменить профиль"

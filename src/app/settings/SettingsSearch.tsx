@@ -23,6 +23,7 @@ import {
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { SettingsSearchResult } from './settingsSearchIndex';
 import {
+  SettingsMenuList,
   SettingsMenuRow,
   SettingsSearchHeader,
   SettingsSearchKey,
@@ -203,5 +204,9 @@ export function SettingsSearch({
       {field}
     </>
   );
-  return <PageNavContent header={pinned}>{list}</PageNavContent>;
+  return (
+    <PageNavContent header={pinned} className={SettingsMenuList}>
+      {list}
+    </PageNavContent>
+  );
 }

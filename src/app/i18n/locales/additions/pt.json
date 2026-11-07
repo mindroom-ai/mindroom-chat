@@ -133,7 +133,8 @@
       "newMessage": "{{sender}}: {{body}}"
     },
     "roomCard": {
-      "forget": "Esquecer sala"
+      "forget": "Esquecer sala",
+      "banned": "Você foi banido desta sala."
     },
     "userRoomProfile": {
       "editProfile": "Editar perfil"

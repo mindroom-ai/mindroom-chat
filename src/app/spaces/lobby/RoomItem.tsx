@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Avatar, Badge, Box, Button, Icon, Icons, Text, color } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { Room } from 'matrix-js-sdk';
@@ -16,6 +16,7 @@ import { ScreenSize, useScreenSizeContext } from '../../lib/hooks/useScreenSize'
 import { pressCardAction } from '../../lib/cardAction';
 import { resolveLobbyItemAccess } from './access';
 import { LobbyAccessButton } from './LobbyAccessButton';
+import { JoinFailure } from '../../rooms/JoinFailure';
 import { useDraggableItem } from './DnD';
 import * as css from './RoomItem.css';
 import * as styleCss from './style.css';
@@ -65,6 +66,7 @@ export function RoomItemCard({
   const authenticated = useMediaAuthentication();
   const client = useMatrixClient();
   const { t } = useTranslation();
+  const [joinFailure, setJoinFailure] = useState<unknown>();
   useDraggableItem(item, cardRef, canReorder ? onDragging : undefined);
 
   const { roomId } = item;
@@ -169,6 +171,7 @@ export function RoomItemCard({
             </Badge>
           )}
         </Box>
+        {!joined && joinFailure !== undefined && <JoinFailure error={joinFailure} />}
       </Box>
       {!loading && (
         <Box shrink="No" gap="200" alignItems="Center">
@@ -192,6 +195,7 @@ export function RoomItemCard({
               access={access}
               membership={membership}
               viaServers={item.content.via}
+              onJoinFailure={setJoinFailure}
             />
           )}
           {options}
