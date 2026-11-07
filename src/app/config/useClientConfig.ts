@@ -55,8 +55,14 @@ type BrandingConfig = {
   title?: string;
   /** An https or same-origin image; `srcDark` in dark themes. */
   logo?: { src?: string; srcDark?: string; alt?: string };
-  /** Plain text and http, https or mailto links under the sign-in card. */
-  footer?: { text?: string; links?: { label: string; url: string }[] };
+  /**
+   * Plain text and http, https or mailto links under the sign-in card. `text` may be a list of
+   * texts and links, shown as one line.
+   */
+  footer?: {
+    text?: string | (string | { label: string; url: string })[];
+    links?: { label: string; url: string }[];
+  };
 };
 
 /** The Explore page's Featured section, and whether the Explore tab opens it first. */
