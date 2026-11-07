@@ -28,7 +28,7 @@ describe('PhoneNavDrawer', () => {
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(false);
   });
 
-  it('opens on a shown section page and goes away when that page gives way on the spot', () => {
+  it('opens on a shown section page and goes away when that page gives way on the spot', async () => {
     const store = createStore();
     const router = createMemoryRouter([{ path: '*', element: <PhoneNavDrawer nav={null} /> }], {
       initialEntries: ['/!space:example.org/!room:example.org/'],
@@ -42,9 +42,10 @@ describe('PhoneNavDrawer', () => {
       );
     });
     // A room's back chevron replaces the room with its space's own page.
-    act(() => {
-      void router.navigate('/!space:example.org/', { replace: true });
+    await act(async () => {
+      await router.navigate('/!space:example.org/', { replace: true });
     });
+    expect(router.state.historyAction).toBe('REPLACE');
     act(() => store.set(phoneNavSectionRootAtom, router.state.location.key));
     expect(store.get(phoneNavDrawerOpenAtom)).toBe(true);
     // The space was left: its join page takes the place of its own page, with no navigation.
