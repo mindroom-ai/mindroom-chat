@@ -7,6 +7,7 @@ import {
   type AccountSettings,
 } from '../preferences/accountSettings';
 import { SidebarNav } from './SidebarNav';
+import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 
 const state = vi.hoisted(() => ({ settings: {} as Partial<AccountSettings> }));
 
@@ -85,11 +86,13 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 
 const CANVASES: ClientConfig = { mindroom: { canvas: { enabled: true } } };
 
-const renderedTabs = (config: ClientConfig = CANVASES) => {
+const renderedTabs = (config: ClientConfig = CANVASES, screenSize = ScreenSize.Desktop) => {
   const renderer = create(
-    <ClientConfigProvider value={config}>
-      <SidebarNav />
-    </ClientConfigProvider>
+    <ScreenSizeProvider value={screenSize}>
+      <ClientConfigProvider value={config}>
+        <SidebarNav />
+      </ClientConfigProvider>
+    </ScreenSizeProvider>
   );
   const tabs = renderer.root
     .findAll((node) => typeof node.props['data-tab'] === 'string')
@@ -181,5 +184,13 @@ describe('SidebarNav buttons a person can hide', () => {
     expect(tabs).not.toContain('createSpace');
     expect(renderedTabs({}).tabs).not.toContain('canvases');
     expect(renderedTabs({ sidebar: { showMindRoom: false } }).tabs).not.toContain('localMindroom');
+  });
+
+  it('leaves the command palette and the account to the top bar on phones', () => {
+    state.settings = ALL_ON;
+    const { tabs } = renderedTabs(CANVASES, ScreenSize.Mobile);
+    expect(tabs).not.toContain('search');
+    expect(tabs).not.toContain('settings');
+    expect(tabs).toContain('inbox');
   });
 });
