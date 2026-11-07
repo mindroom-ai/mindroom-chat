@@ -2,6 +2,7 @@ import { style } from '@vanilla-extract/css';
 import { DefaultReset, color } from 'folds';
 import { phoneTopBarHeight } from './PhoneTopBar.css';
 import { motion } from '../ui/styles/Motion.css';
+import { cardRadius } from '../ui/page/floatingCards.css';
 
 // How long the drawer takes to slide in or out, and the scrim to fade with it; reduced motion
 // collapses it app-wide (src/index.css).
@@ -48,8 +49,10 @@ export const Scrim = style([
 
 /**
  * The drawer: the rail and the section's list side by side, as wide as the screen leaves room for
- * beside a strip of the scrim, or as wide as the rail when the page has no list. Off screen past
- * the start edge while closed, and hidden once it got there.
+ * beside a strip of the scrim, or as wide as the rail when the page has no list. A sheet over the
+ * page, it rounds its one free corner as the page's card does where it floats: the top one meets the
+ * bar and the others the screen's edge. Off screen past the start edge while closed, and hidden
+ * once it got there.
  */
 export const Panel = style([
   DefaultReset,
@@ -60,6 +63,9 @@ export const Panel = style([
     inlineSize: 'min(calc(100% - 56px), 420px)',
     backgroundColor: color.Background.Container,
     boxShadow: `0 0 24px ${color.Other.Shadow}`,
+    borderEndEndRadius: cardRadius,
+    // The list's last row and the rail's last button stay inside the round corner.
+    overflow: 'clip',
     // Vertical drags scroll the list and pinches zoom; sideways ones push the drawer back.
     touchAction: 'pan-y pinch-zoom',
     transform: 'translateX(-100%)',

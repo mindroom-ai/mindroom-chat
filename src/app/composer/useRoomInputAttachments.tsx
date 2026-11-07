@@ -42,6 +42,7 @@ import {
 } from '../matrix/protocol/pasteAttachmentMarker';
 import { shouldConvertPasteToAttachment } from './pasteAttachment';
 import type { AttachmentSnapshot, RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 import {
   createRoomInputPasteMarkerElement,
   getRoomInputPasteMarkerFileNames,
@@ -523,10 +524,18 @@ export const useRoomInputAttachments = ({
     useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles]),
     true
   );
-  const dropZoneVisible = useFileDropZone(
+  // A plugin's cover over the conversation takes no files for the composer under it.
+  const covered = useAtomValue(conversationCoveredAtom);
+  const dropZoneActive = useFileDropZone(
     fileDropContainerRef,
-    useCallback((files: File[]) => void stageFiles(files).catch(() => undefined), [stageFiles])
+    useCallback(
+      (files: File[]) => {
+        if (!store.get(conversationCoveredAtom)) void stageFiles(files).catch(() => undefined);
+      },
+      [stageFiles, store]
+    )
   );
+  const dropZoneVisible = dropZoneActive && !covered;
 
   // Rendering reads the owner map, so a staged list change re-renders through `roomItems`.
   const visibleItems = roomItems.filter(ownedByCurrent);

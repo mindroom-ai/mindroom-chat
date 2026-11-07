@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Provider, createStore } from 'jotai';
 import { useRoomEscapeReadReceipts } from './useRoomEscapeReadReceipts';
 import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { conversationCoveredAtom } from '../navigation/conversationCover';
 
 const {
   keyHotkeyMock,
@@ -88,11 +89,14 @@ describe('useRoomEscapeReadReceipts', () => {
     expect(markThreadAsReadMock).not.toHaveBeenCalled();
   });
 
-  it("marks nothing read while a phone's navigation drawer covers the conversation", () => {
+  it.each([
+    ["a phone's navigation drawer covers", phoneNavDrawerOpenAtom],
+    ["a plugin's cover hides", conversationCoveredAtom],
+  ])('marks nothing read while %s the conversation', (_what, atom) => {
     keyHotkeyMock.mockReturnValue(true);
     // Its own store: other cases' harnesses stay mounted on the default one.
     const store = createStore();
-    store.set(phoneNavDrawerOpenAtom, true);
+    store.set(atom, true);
     const renderer = create(
       React.createElement(
         Provider,
