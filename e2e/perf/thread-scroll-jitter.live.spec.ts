@@ -439,6 +439,7 @@ const instrument = () => {
     layoutShifts: [] as { value: number; sources: string[] }[],
     writes: [] as { kind: string; value: number; from: number; t: number; stack: string }[],
     lastInput: 0,
+    driving: false,
     quietMs: 400,
     writeDelta: 0,
     moveFrames: 0,
@@ -562,7 +563,7 @@ const instrument = () => {
 
   // The app's own writes of the scroll offset.
   const record = (kind: string, element: unknown, value: number) => {
-    if (!state.recording || element !== state.scroller || !state.scroller) return;
+    if (!state.recording || state.driving || element !== state.scroller || !state.scroller) return;
     state.writeDelta += value - state.scroller.scrollTop;
     state.writes.push({
       kind,
@@ -823,59 +824,79 @@ const percentile = (values: number[], p: number): number => {
 };
 
 /** Wheel or touch input that scrolls `distance` px in bursts, then a reading pace with pauses. */
+type Input = 'wheel' | 'touch' | 'drag';
+
+/**
+ * Scrolls the list the way a reader does: fast flicks through it, then a reading pace with pauses,
+ * then back. `wheel` turns the mouse wheel; `touch` sends Chromium touch flings; `drag` (WebKit on a
+ * phone, which has neither) moves the list by a finger's speed each frame from inside the page.
+ */
 const scrollRoom = async (
   page: Page,
   cdp: CDPSession | undefined,
-  touchInput: boolean,
+  input: Input,
   at: { x: number; y: number; direction: number }
 ) => {
-  await page.mouse.move(at.x, at.y);
-  const flick = async (distance: number, slow: boolean) => {
-    if (touchInput && cdp) {
+  if (input !== 'drag') await page.mouse.move(at.x, at.y);
+  const flick = async (direction: number, distance: number, slow: boolean) => {
+    if (input === 'touch' && cdp) {
       await cdp.send('Input.synthesizeScrollGesture', {
         x: Math.round(at.x),
         y: Math.round(at.y),
-        yDistance: -at.direction * distance,
+        yDistance: -direction * distance,
         speed: slow ? 600 : 2400,
         gestureSourceType: 'touch',
         preventFling: slow,
       });
       return;
     }
+    if (input === 'drag') {
+      await page.evaluate(
+        ({ by, pxPerMs }) =>
+          new Promise<void>((resolve) => {
+            const state = (
+              window as unknown as {
+                __jitter: { scroller: HTMLElement; driving: boolean; lastInput: number };
+              }
+            ).__jitter;
+            let left = Math.abs(by);
+            let last = performance.now();
+            const step = (now: number) => {
+              const move = Math.min(left, Math.max(1, (now - last) * pxPerMs));
+              last = now;
+              left -= move;
+              state.driving = true;
+              state.scroller.scrollTop += Math.sign(by) * move;
+              state.driving = false;
+              state.lastInput = now;
+              if (left > 0) requestAnimationFrame(step);
+              else resolve();
+            };
+            requestAnimationFrame(step);
+          }),
+        { by: direction * distance, pxPerMs: slow ? 0.6 : 2.4 }
+      );
+      return;
+    }
     const notches = Math.max(1, Math.round(distance / 100));
     for (let notch = 0; notch < notches; notch += 1) {
-      await page.mouse.wheel(0, at.direction * 100);
+      await page.mouse.wheel(0, direction * 100);
       await page.waitForTimeout(slow ? 40 : 16);
     }
   };
   // Fast: skimming through the list.
   for (let burst = 0; burst < 8; burst += 1) {
-    await flick(1200, false);
+    await flick(at.direction, 1200, false);
     await page.waitForTimeout(250);
   }
   // Reading: a little at a time, long enough on screen for each card to load its thread.
   for (let step = 0; step < 16; step += 1) {
-    await flick(300, true);
+    await flick(at.direction, 300, true);
     await page.waitForTimeout(800);
   }
   // Back the other way.
-  const back = { ...at, direction: -at.direction };
   for (let burst = 0; burst < 4; burst += 1) {
-    if (touchInput && cdp) {
-      await cdp.send('Input.synthesizeScrollGesture', {
-        x: Math.round(back.x),
-        y: Math.round(back.y),
-        yDistance: -back.direction * 1200,
-        speed: 2400,
-        gestureSourceType: 'touch',
-        preventFling: false,
-      });
-    } else {
-      for (let notch = 0; notch < 12; notch += 1) {
-        await page.mouse.wheel(0, back.direction * 100);
-        await page.waitForTimeout(16);
-      }
-    }
+    await flick(-at.direction, 1200, false);
     await page.waitForTimeout(250);
   }
   await page.waitForTimeout(1_000);
@@ -1023,15 +1044,16 @@ test.describe('thread scroll jitter', () => {
                       everyNthFrame: 1,
                     });
                   }
-                  const touchInput = viewport === 'phone' && engine === 'chromium';
+                  const input: Input =
+                    viewport !== 'phone' ? 'wheel' : engine === 'chromium' ? 'touch' : 'drag';
                   if (cdp && PROFILE) {
                     await cdp.send('Profiler.enable');
                     await cdp.send('Profiler.setSamplingInterval', { interval: 250 });
                     await cdp.send('Profiler.start');
                   }
-                  const at = await startRecording(page, view, touchInput);
+                  const at = await startRecording(page, view, input === 'touch');
                   const started = Date.now();
-                  await scrollRoom(page, cdp, touchInput, at);
+                  await scrollRoom(page, cdp, input, at);
                   const elapsed = Date.now() - started;
                   const state = await stopRecording(page);
                   if (cdp && FRAMES) {
