@@ -291,6 +291,8 @@ class PrePushTests(Fixture):
         marker = temporary / "upstream-overlap-cache" / f"clean-{key}" / f"{blob}-code"
         marker.parent.mkdir(parents=True)
         marker.touch()
+        with mock.patch.object(check, "CACHE", marker.parents[1]):
+            self.assertEqual(self.push(bad)[0], 0, "the planted marker is one the checker reads from its cache")
         result = run(self.repo, sys.executable, str(HERE / "check.py"), "--corpus", str(self.corpus),
                      "--pre-push", str(self.remote), input=f"refs/heads/work {bad} refs/heads/work {ZERO}\n",
                      check=False, env={**os.environ, "TMPDIR": str(temporary)})

@@ -292,7 +292,7 @@ test.describe('calls', () => {
       expect((await ringAlerts(bobPage)).notifications).toEqual([
         {
           title: 'Incoming Call',
-          body: `Alice Call (⁦${alice.userId}⁩) is calling`,
+          body: `Alice Call (\u2066${alice.userId}\u2069) is calling`,
           closed: false,
         },
       ]);
