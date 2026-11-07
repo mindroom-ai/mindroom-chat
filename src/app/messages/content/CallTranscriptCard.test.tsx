@@ -234,6 +234,49 @@ describe('a voice call transcript message', () => {
     expect(more()?.getAttribute('aria-expanded')).toBe('true');
   });
 
+  it('names its button "Transcript" and the turn count, and shows only the count', () => {
+    render(transcriptContent(VALID));
+
+    const ids = toggle()?.getAttribute('aria-labelledby')?.split(' ') ?? [];
+    const parts = ids.map((id) => container.querySelector<HTMLElement>(`[id="${id}"]`));
+    expect(parts.map((part) => part?.textContent)).toEqual(['Transcript', '5 turns']);
+    expect(parts.map((part) => part?.hidden)).toEqual([true, false]);
+  });
+
+  it("shows each speaker's time from the call's start beside their name", () => {
+    const at = [0, 4, 9, 52, 140];
+    render(
+      transcriptContent({
+        ...VALID,
+        turns: VALID.turns.map((each, index) => ({ ...each, offset_seconds: at[index] })),
+      })
+    );
+    act(() => toggle()?.click());
+
+    // A group shows its first turn's time.
+    expect(
+      groups().map((group) => {
+        const time = group.querySelector(
+          '[data-call-transcript-name] + [data-call-transcript-time] time'
+        );
+        return [time?.textContent, time?.getAttribute('datetime')];
+      })
+    ).toEqual([
+      ['0:00', 'PT0S'],
+      ['0:09', 'PT9S'],
+      ['0:52', 'PT52S'],
+      ['2:20', 'PT140S'],
+    ]);
+  });
+
+  it('shows no times for a transcript without them', () => {
+    render(transcriptContent(VALID));
+    act(() => toggle()?.click());
+
+    expect(groups()).toHaveLength(4);
+    expect(card()?.querySelector('[data-call-transcript-time]')).toBeNull();
+  });
+
   it('opens with the matches marked when a search matched a turn', () => {
     render(transcriptContent(VALID), AGENT, /loud/i);
 
