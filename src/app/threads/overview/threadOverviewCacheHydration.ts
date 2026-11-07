@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { IEvent, MatrixClient, MatrixEvent, Room } from 'matrix-js-sdk';
+import { MatrixEvent, type IEvent, type MatrixClient, type Room } from 'matrix-js-sdk';
 import {
   getThreadSummaryInfosFromEventSources,
   type ThreadSummaryInfo,
@@ -238,6 +238,11 @@ export const resolveCachedOverviewUpdate = ({
     room,
     createPreferLiveEventMapper(room, (rawEvent) => sdkMapper(rawEvent as IEvent))
   );
+  // The root's cached preview is weighed against its live one below, so it reads the cached copy
+  // as it is, without touching the room's own.
+  const cachedCopyMapper = readOnlyEventMapper(room, (rawEvent) =>
+    room.findEventById(rawEvent.event_id) ? new MatrixEvent(rawEvent) : sdkMapper(rawEvent)
+  );
   // Capture the SDK revision before the cache mapper gets a chance to reuse
   // and update the same MatrixEvent instance.
   const livePreview = compactThreadRootBodyMap.get(rootId);
@@ -297,7 +302,7 @@ export const resolveCachedOverviewUpdate = ({
     const cachedPreviewInfo = getCompactCachedThreadRootPreviewInfo({
       threadId: rootId,
       cachedPage,
-      mapper,
+      mapper: cachedCopyMapper,
     });
     const shouldUseCachedPreview =
       !!cachedPreviewInfo &&
