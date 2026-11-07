@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import type { Room } from 'matrix-js-sdk';
 import { Box, Icon, IconButton, Icons, Text, Tooltip } from 'folds';
-import { TooltipProvider, ownDirectionLine } from '../../ui/directional';
+import { TooltipProvider, ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { NavButton, NavItem, NavItemContent } from '../../ui/nav/NavItem';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { useSyncEngineOptional } from '../../event-store/engine/engineContext';
@@ -164,7 +164,7 @@ function ThreadNavItemRow({
           {t('threadNav.room')}
         </Text>
         <Text as="span" size="T200">
-          {entry.roomName}
+          {revealDirectionControls(entry.roomName)}
         </Text>
         {agentNames.length > 0 && (
           <>
@@ -223,7 +223,7 @@ function ThreadNavItemRow({
             aria-label={[
               t('thread.aria.openThread', { title }),
               streaming && t('thread.aria.agentStreaming'),
-              entry.roomName,
+              revealDirectionControls(entry.roomName),
               relativeTime && `${t('threadNav.lastActivity')} ${relativeTime}`,
             ]
               .filter(Boolean)

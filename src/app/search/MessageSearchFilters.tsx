@@ -10,6 +10,7 @@ import { isEmojiRoom } from '../matrix/room';
 import { compareNames } from '../lib/nameOrder';
 import * as css from './MessageSearch.css';
 import { matchesEnum } from '../lib/matchesEnum';
+import { revealDirectionControls } from '../ui/directional';
 
 /**
  * The rooms a search can be narrowed to, sorted by name: every joined room that holds messages
@@ -136,7 +137,7 @@ export function SearchRoomPicker({
                 onClick={() => flip(room.roomId)}
               >
                 <Text as="span" size="T300" truncate className={css.RoomPickerName}>
-                  {room.name}
+                  {revealDirectionControls(room.name)}
                 </Text>
               </MenuItem>
             );
