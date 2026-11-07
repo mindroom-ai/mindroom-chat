@@ -55,6 +55,7 @@ import {
 } from './roomInputDrafts';
 import type { TUploadItem } from '../matrix/state/upload';
 import { roomToParentsAtom } from '../matrix/state/roomToParents';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
 import { settingsAtom } from '../preferences/settings';
 import { mobileOrTablet } from '../lib/user-agent';
 import { withPasteAttachmentMetadata } from '../matrix/protocol/pasteAttachmentMarker';
@@ -287,6 +288,9 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const [submitPending, setSubmitPending] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
+    // The board closes as the conversation hides, under a plugin's cover or behind a side panel.
+    const conversationHidden = useAtomValue(conversationHiddenAtom);
+    if (conversationHidden && emojiAnchor) setEmojiAnchor(undefined);
     const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
     const [formattingOpen, setFormattingOpen] = useState(false);
     // A phone row keeps voice and Send beside the text; Attach, Formatting and Emoji move into a

@@ -107,7 +107,11 @@ function CoverLayer({ entry: { cover }, room, conversationRef, onFailure }: Cove
   const tabbingRef = useRef<{ backwards: boolean }>();
   const controlAt = (backwards: boolean): HTMLElement | undefined => {
     const controls = layerRef.current ? tabbablesOf(layerRef.current) : [];
-    const inOrder = controls.filter((control) => control.tabIndex >= 0);
+    // Tab skips a control whose tabindex is negative. A text editor with none, whose `tabIndex`
+    // reads -1 all the same, it reaches.
+    const inOrder = controls.filter(
+      (control) => !control.hasAttribute('tabindex') || control.tabIndex >= 0
+    );
     return backwards ? inOrder[inOrder.length - 1] : inOrder[0];
   };
   const keepTabInside = (event: KeyboardEvent) => {
