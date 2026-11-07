@@ -321,6 +321,7 @@ describe('useRoomPaginationCommandController', () => {
     const room = {
       roomId: '!room:server',
       eventShouldLiveIn: () => ({ shouldLiveInRoom: true, shouldLiveInThread: false }),
+      findEventById: () => undefined,
       partitionThreadedEvents: vi.fn((events) => [events, [], []]),
       addEventsToTimeline: vi.fn((events) => {
         timelineEvents.unshift(...events);
@@ -406,6 +407,7 @@ describe('useRoomPaginationCommandController', () => {
     const room = {
       roomId: '!room:server',
       eventShouldLiveIn: () => ({ shouldLiveInRoom: true, shouldLiveInThread: false }),
+      findEventById: () => undefined,
       partitionThreadedEvents: vi.fn(() => [[olderRoot], [], [olderReply]]),
       addEventsToTimeline: vi.fn((events) => {
         timelineEvents.unshift(...events);
