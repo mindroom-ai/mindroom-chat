@@ -2,7 +2,7 @@ import { createVar, style } from '@vanilla-extract/css';
 import { recipe } from '@vanilla-extract/recipes';
 import { DefaultReset, color, config, toRem } from 'folds';
 import { motion } from '../styles/Motion.css';
-import { shortRail } from './SidebarContent.css';
+import { shortViewport } from '../styles/shortViewport';
 
 // Measured from docs/design/reference/home.png (1440x900 at 1x): the rail is 66 px wide and
 // holds 42 px avatars (folds Avatar size 400 is 2.625rem) at 12 px from the edge (S300), 12 px
@@ -27,8 +27,9 @@ export const Sidebar = style([
     inlineSize: toRem(66),
     blockSize: '100%',
     '@media': {
-      // No scrollbar, as the rail's own scrollers show none: it would take the rail's width.
-      [shortRail]: { overflowX: 'hidden', overflowY: 'auto', scrollbarWidth: 'none' },
+      // A phone in landscape scrolls the whole rail (SidebarScrollPart). No scrollbar, as the
+      // rail's own scrollers show none: it would take the rail's width.
+      [shortViewport]: { overflowX: 'hidden', overflowY: 'auto', scrollbarWidth: 'none' },
     },
     selectors: { '&::-webkit-scrollbar': { display: 'none' } },
   },
