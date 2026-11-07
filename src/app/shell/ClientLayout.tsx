@@ -3,7 +3,8 @@ import { Box } from 'folds';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useActiveSession } from '../matrix/session/useSessionStore';
-import { updateSessionLastPath } from '../matrix/session/sessions';
+import { getActiveSession, updateSessionLastPath } from '../matrix/session/sessions';
+import { resolveSessionRestorePath } from '../routes/sessionRouteRestore';
 import {
   canonicalizeSessionPathname,
   pathnameContainsAliasRoute,
@@ -23,7 +24,8 @@ type ClientLayoutProps = {
  * The account that was active when the current history entry was opened, by the entry's key.
  * When the active account changes without a navigation (the active one logged out or was removed,
  * another tab switched accounts), the next one shows a route it never opened; that route is not
- * its last one.
+ * its last one, and the tab opens the next account's last route instead, as a switch in this tab
+ * does.
  */
 let routeOpener: { key: string; sessionId: string } | undefined;
 
@@ -49,11 +51,14 @@ export function ClientLayout({ nav, className, children }: ClientLayoutProps) {
 
   useEffect(() => {
     if (!sessionId || isRuntimeHandOffPath(pathname)) return;
-    if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) return;
+    if (routeOpener && routeOpener.key === key && routeOpener.sessionId !== sessionId) {
+      navigate(resolveSessionRestorePath(getActiveSession()?.lastKnownPath), { replace: true });
+      return;
+    }
     routeOpener = { key, sessionId };
     const storedPathname = canonicalizeSessionPathname(mx, pathname);
     updateSessionLastPath(sessionId, `${storedPathname}${search}${hash}`);
-  }, [mx, sessionId, pathname, search, hash, key]);
+  }, [mx, sessionId, pathname, search, hash, key, navigate]);
 
   useEffect(() => {
     if (!sessionId || !hasAlias) return undefined;

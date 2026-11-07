@@ -87,6 +87,10 @@ export const removeInactiveStoredUsername = async (page: Page, username: string)
 
   await expect(page.getByText(session.userId, { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Remove from Device' }).click();
+  // Removing an account logs it out, after the same confirmation as Logout.
+  const confirmation = page.getByRole('dialog', { name: 'Logout' });
+  await expect(confirmation.getByText('You’re about to log out. Are you sure?')).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Logout', exact: true }).click();
   await expect(page.getByText(session.userId, { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Close' }).click();
 };
