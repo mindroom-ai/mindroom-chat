@@ -484,6 +484,10 @@ describe('the side panels of a room', () => {
     await act(async () => boardThen?.open());
     expect(notes()).not.toBeNull();
     expect(controls.panel?.isOpen).toBe(true);
+    // Nor a late close from there the same panel shown here.
+    await act(async () => controls.board?.open());
+    await act(async () => boardThen?.close());
+    expect(board()).not.toBeNull();
   });
 
   it("gives a plugin's code no panels outside a room's page", async () => {
