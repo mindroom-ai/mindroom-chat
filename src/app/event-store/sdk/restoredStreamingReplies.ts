@@ -1,4 +1,4 @@
-import { ClientEvent, RelationType, type IEvent, type MatrixClient } from 'matrix-js-sdk';
+import { ClientEvent, MatrixEventEvent, RelationType, RoomEvent, type IEvent, type MatrixClient, type MatrixEvent } from 'matrix-js-sdk';
 import {
   ACTIVE_STREAM_STATUSES,
   getStreamStatusFromContent,
@@ -33,6 +33,8 @@ type SavedReply = { roomId: string; eventId: string; threadId?: string };
 type SavedCopy = { roomId: string; raw: Partial<IEvent> };
 
 const w = (raw: Partial<IEvent> | undefined) => JSON.stringify(raw ?? {}).match(/"m.new_content":\{[^}]*"body":"([^"]*)/)?.[1]?.split(' ').length ?? 0;
+const ew = (e: MatrixEvent | undefined) => String(e?.getContent()?.body ?? '').split(' ').length;
+const st = () => (new Error().stack ?? '').split('\n').slice(2, 7).map((l) => l.trim().slice(0, 60)).join(' < ');
 const savedSyncOf = (mx: MatrixClient): SavedSync | undefined =>
   (mx.store as unknown as { backend?: { syncAccumulator?: SavedSync } }).backend?.syncAccumulator;
 
@@ -123,15 +125,30 @@ export const restoreStreamingRepliesFromCache = async (mx: MatrixClient): Promis
       copies.forEach(({ roomId, raw }) => {
         const room = mx.getRoom(roomId);
         if (!room || !raw.event_id || !room.findEventById(raw.event_id)) {
+          const id = raw.event_id;
+          const tid = (raw.content?.['m.relates_to'] as { event_id?: string } | undefined)?.event_id;
+          const th = tid ? room?.getThread(tid) : undefined;
           // eslint-disable-next-line no-console
-          console.info(`[restore-diag] not live ${raw.event_id} room=${!!room}`);
+          console.info(`[restore-diag] not live ${id} room=${!!room} thread=${!!th} threadEvents=${th?.events.length ?? -1} root=${!!th?.rootEvent} summary=${th?.replyToEvent?.getId() === id ? ew(th?.replyToEvent ?? undefined) : 'no'} t=${Math.round(performance.now())}`);
+          const onTl = (ev: MatrixEvent) => {
+            if (ev.getId() !== id) return;
+            // eslint-disable-next-line no-console
+            console.info(`[restore-diag] later live ${id} words=${ew(ev)} t=${Math.round(performance.now())} ${st()}`);
+            mx.removeListener(RoomEvent.Timeline, onTl);
+          };
+          mx.on(RoomEvent.Timeline, onTl);
           return;
         }
+        const live = room.findEventById(raw.event_id)!;
+        live.on(MatrixEventEvent.Replaced, () => {
+          // eslint-disable-next-line no-console
+          console.info(`[restore-diag] replaced ${raw.event_id} words=${ew(live)} t=${Math.round(performance.now())} ${st()}`);
+        });
         try {
           // The same merge a thread's cache read makes: the newer revision wins, never an older.
           const merged = createPreferLiveEventMapper(room, mx.getEventMapper())({ ...raw, room_id: roomId });
           // eslint-disable-next-line no-console
-          console.info(`[restore-diag] applied ${raw.event_id} body=${String(merged.getContent().body ?? '').split(' ').length}`);
+          console.info(`[restore-diag] applied ${raw.event_id} body=${String(merged.getContent().body ?? '').split(' ').length} same=${merged === live} t=${Math.round(performance.now())}`);
         } catch {
           // A copy that cannot be merged leaves the reply as the saved sync had it.
         }
