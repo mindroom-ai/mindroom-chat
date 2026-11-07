@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { useAtomValue } from 'jotai';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
@@ -47,9 +47,22 @@ const sharedClient = (mx: MatrixClient, apiUrl: string, discovered: boolean) => 
   return client;
 };
 
-/** The room's live call, read every `everyMs` while `reading`. */
-const useLiveCallReads = (room: Room, everyMs: number, reading: boolean): ReadView => {
+const onVisibilityChange = (onChange: () => void) => {
+  document.addEventListener('visibilitychange', onChange);
+  return () => document.removeEventListener('visibilitychange', onChange);
+};
+
+/** Whether the page shows: a hidden tab reads nothing. */
+const usePageShown = () =>
+  useSyncExternalStore(onVisibilityChange, () => document.visibilityState !== 'hidden');
+
+/**
+ * The room's live call, read every `everyMs` while `reading` and the page shows, and at once when
+ * it shows again.
+ */
+const useLiveCallReads = (room: Room, everyMs: number, wanted: boolean): ReadView => {
   const mx = useMatrixClient();
+  const reading = usePageShown() && wanted;
   const { roomId } = room;
   const { apiUrl, discovered } = useTranscriptionServer(mx, room);
   const client = useMemo(

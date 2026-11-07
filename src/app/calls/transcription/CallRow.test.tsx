@@ -215,6 +215,30 @@ describe('CallRow', () => {
     expect(state.polls[1]?.client).toBe(state.polls[0]?.client);
   });
 
+  it('stops reading while the page is hidden, and reads at once when it shows again', () => {
+    let visibility: DocumentVisibilityState = 'visible';
+    const shown = vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    const turn = (next: DocumentVisibilityState) =>
+      act(() => {
+        visibility = next;
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+    try {
+      render(LIVE);
+      inView(true);
+      expect(state.polls).toHaveLength(1);
+
+      turn('hidden');
+      expect(state.polls[0]?.signal.aborted).toBe(true);
+      expect(state.polls).toHaveLength(1);
+      turn('visible');
+      expect(state.polls).toHaveLength(2);
+      expect(state.polls[1]?.signal.aborted).toBe(false);
+    } finally {
+      shown.mockRestore();
+    }
+  });
+
   it('shows who is in the call this device is in as its transcriber reads it', () => {
     const store = createStore();
     store.set(activeCallAtom, {
