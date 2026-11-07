@@ -291,17 +291,12 @@ describe('MessageNotificationsFeature', () => {
     expect(FakeNotification.shown).toHaveLength(1);
   });
 
-  it("notifies for the room on screen while a phone's navigation drawer covers it", () => {
+  it.each([
+    ["a phone's navigation drawer covers it", phoneNavDrawerOpenAtom],
+    ["a plugin's cover hides its conversation", conversationCoveredAtom],
+  ])('notifies, with the chime, for the room on screen while %s', (_what, atom) => {
     const store = createStore();
-    store.set(phoneNavDrawerOpenAtom, true);
-    render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
-    arrive(message({ msgtype: 'm.text', body: 'behind the drawer' }));
-    expect(FakeNotification.shown).toHaveLength(1);
-  });
-
-  it("notifies, with the chime, for the room on screen while a plugin's cover hides its conversation", () => {
-    const store = createStore();
-    store.set(conversationCoveredAtom, true);
+    store.set(atom, true);
     render(`/home/${encodeURIComponent(ROOM)}/`, true, store);
     arrive(message({ msgtype: 'm.text', body: 'under the cover' }));
     expect(FakeNotification.shown).toHaveLength(1);

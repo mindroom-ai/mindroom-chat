@@ -468,14 +468,17 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
       expect(markThreadAsRead).not.toHaveBeenCalled();
     });
 
-    it('leaves a reply unread while a phone navigation drawer covers it, then reads it', () => {
+    it.each([
+      ['a phone navigation drawer covers', phoneNavDrawerOpenAtom],
+      ["a plugin's cover hides", conversationCoveredAtom],
+    ])('leaves a reply unread while %s it, then reads it', (_what, atom) => {
       const store = getDefaultStore();
       const rows = [
         { getId: () => '$thread' },
         { getId: () => '$reply-1' },
       ] as unknown as MatrixEvent[];
       const options = optionsWith({ ...openThread, threadEvents: rows });
-      act(() => store.set(phoneNavDrawerOpenAtom, true));
+      act(() => store.set(atom, true));
       try {
         mount(options);
         runFrames();
@@ -484,35 +487,11 @@ describe('useTimelineReadReceiptController bottom detection and receipts', () =>
         runFrames();
         expect(markThreadAsRead).not.toHaveBeenCalled();
 
-        act(() => store.set(phoneNavDrawerOpenAtom, false));
+        act(() => store.set(atom, false));
         runFrames();
         expect(markThreadAsRead).toHaveBeenCalledTimes(1);
       } finally {
-        act(() => store.set(phoneNavDrawerOpenAtom, false));
-      }
-    });
-
-    it("leaves a reply unread while a plugin's cover hides it, then reads it", () => {
-      const store = getDefaultStore();
-      const rows = [
-        { getId: () => '$thread' },
-        { getId: () => '$reply-1' },
-      ] as unknown as MatrixEvent[];
-      const options = optionsWith({ ...openThread, threadEvents: rows });
-      act(() => store.set(conversationCoveredAtom, true));
-      try {
-        mount(options);
-        runFrames();
-        const moreRows = [...rows, { getId: () => '$reply-2' } as unknown as MatrixEvent];
-        rerender({ ...options, threadEventsLength: 3, threadEvents: moreRows });
-        runFrames();
-        expect(markThreadAsRead).not.toHaveBeenCalled();
-
-        act(() => store.set(conversationCoveredAtom, false));
-        runFrames();
-        expect(markThreadAsRead).toHaveBeenCalledTimes(1);
-      } finally {
-        act(() => store.set(conversationCoveredAtom, false));
+        act(() => store.set(atom, false));
       }
     });
 
