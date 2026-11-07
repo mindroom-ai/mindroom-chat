@@ -190,7 +190,9 @@ const checkTimeline = async (page: Page, tag: string, desktop: boolean) => {
     if ((await showMembers.count()) > 0) await showMembers.click();
     await expect(memberRow(page, real.userId)).toContainText(real.userId);
     await expect(memberRow(page, copy.userId)).toContainText(copy.userId);
-    await expect(memberRow(page, reader.userId)).toHaveText(/^Robin Reader/);
+    // A name nobody else has stays as it is (the row also holds the avatar's initial).
+    await expect(memberRow(page, reader.userId)).toContainText('Robin Reader');
+    await expect(memberRow(page, reader.userId)).not.toContainText(reader.userId);
   }
   await shoot(page, `timeline-${tag}`);
 
