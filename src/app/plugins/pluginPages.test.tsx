@@ -93,6 +93,25 @@ describe('usePluginPage', () => {
     expect(pageAt('/p/example')).toEqual({ page: home, params: {} });
     expect(pageAt('/p/example/items/a%20b/')).toEqual({ page: item, params: { itemId: 'a b' } });
     expect(pageAt('/p/example/items/a%2Fb')).toEqual({ page: item, params: { itemId: 'a/b' } });
+    expect(pageAt('/p/example/items/100%2525')).toEqual({
+      page: item,
+      params: { itemId: '100%25' },
+    });
+  });
+
+  it('matches page paths as React Router matches routes: ranked, optional segments included', () => {
+    const files = page('files/*');
+    const report = page('reports/view?/:reportId');
+    const newReport = page('reports/new');
+    registry.push(plugin('example', files, report, newReport));
+    // A fixed segment outranks a parameter, wherever the plugin lists the page.
+    expect(pageAt('/p/example/reports/new')).toEqual({ page: newReport, params: {} });
+    expect(pageAt('/p/example/files/a/b.txt')).toEqual({ page: files, params: { '*': 'a/b.txt' } });
+    expect(pageAt('/p/example/reports/7')).toEqual({ page: report, params: { reportId: '7' } });
+    expect(pageAt('/p/example/reports/view/7')).toEqual({
+      page: report,
+      params: { reportId: '7' },
+    });
   });
 
   it('finds none for an unknown plugin or path, or outside the plugin root', () => {

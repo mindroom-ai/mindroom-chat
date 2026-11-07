@@ -1,7 +1,7 @@
 import type { ComponentType } from 'react';
 import { Icon, Icons } from 'folds';
 import { useTranslation } from 'react-i18next';
-import { generatePath, matchPath, useHref, useMatch } from 'react-router-dom';
+import { generatePath, matchPath, matchRoutes, useHref, useLocation } from 'react-router-dom';
 import { useOptionalClientConfig } from '../config/useClientConfig';
 import { PLUGIN_PAGE_PATH } from '../routes/paths';
 import { Page, PageHero, PageHeroSection, PageMain } from '../ui/page/Page';
@@ -38,22 +38,19 @@ export const usePluginRouteHref = (pluginId: string, path?: string): string =>
   useHref(pluginRoutePath(pluginId, path));
 
 /**
- * The page the address shows when it is under `/p/<plugin id>/`: the first page of that plugin
- * whose path matches the rest, unless config.json turns the plugin off.
+ * The page the address shows when it is under `/p/<plugin id>/`: the page of that plugin whose path
+ * matches the rest as React Router matches routes (best ranked first), unless config.json turns the
+ * plugin off.
  */
 export const usePluginPage = (): MatchedPluginPage | undefined => {
   const config = useOptionalClientConfig();
-  const match = useMatch(PLUGIN_PAGE_PATH);
-  const plugin = match && registeredPlugins.find(({ id }) => id === match.params.pluginId);
+  const { pathname } = useLocation();
+  const root = matchPath(PLUGIN_PAGE_PATH, pathname);
+  const plugin = root && registeredPlugins.find(({ id }) => id === root.params.pluginId);
   if (!plugin || !isPluginEnabled(config, plugin.id)) return undefined;
-  // The rest of the address as React Router has it, with `%2F` inside a segment kept, as in the
-  // splat param it is not.
-  const rest = match.pathname.slice(match.pathnameBase.length) || '/';
-  for (const page of plugin.pages) {
-    const found = matchPath(page.path, rest);
-    if (found) return { page, params: found.params };
-  }
-  return undefined;
+  // The rest still encoded: matchRoutes decodes it once, as for the app's own routes.
+  const [found] = matchRoutes([...plugin.pages], pathname.slice(root.pathnameBase.length)) ?? [];
+  return found && { page: found.route, params: found.params };
 };
 
 /**
