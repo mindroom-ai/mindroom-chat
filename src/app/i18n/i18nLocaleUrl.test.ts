@@ -16,7 +16,7 @@ describe('language catalog URL', () => {
     vi.stubGlobal('__MINDROOM_BUILD_VERSION__', 'build 7+a');
     const fetchMock = vi.fn(
       async () =>
-        new Response(JSON.stringify({ common: { greeting: 'Hallo' } }), {
+        new Response(JSON.stringify({ nav: { home: 'Startseite' } }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })
@@ -35,6 +35,6 @@ describe('language catalog URL', () => {
       '/public/locales/de.json?v=build%207%2Ba',
       expect.objectContaining({ method: 'GET' })
     );
-    expect(i18n.t('common.greeting')).toBe('Hallo');
+    expect(i18n.t('nav.home')).toBe('Startseite');
   });
 });
