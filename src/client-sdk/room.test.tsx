@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { MatrixClient } from 'matrix-js-sdk';
+import type { ReactNode } from 'react';
 import {
+  MemoryRouter,
   RouterProvider,
   createBrowserRouter,
   createHashRouter,
-  createMemoryRouter,
+  useLocation,
 } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
@@ -18,20 +20,9 @@ const client = { getRoom: () => null } as unknown as MatrixClient;
 
 afterEach(cleanup);
 
-/** Renders `element` in a router `createRouter` makes, signed in to `client`. */
-const renderIn = (
-  createRouter: typeof createBrowserRouter,
-  element: JSX.Element,
-  options: Parameters<typeof createBrowserRouter>[1] = {}
-) => {
-  const router = createRouter([{ path: '*', element }], options);
-  render(
-    <MatrixClientProvider value={client}>
-      <RouterProvider router={router} />
-    </MatrixClientProvider>
-  );
-  return router;
-};
+/** Renders `ui` signed in to `client`. */
+const renderSignedIn = (ui: ReactNode) =>
+  render(<MatrixClientProvider value={client}>{ui}</MatrixClientProvider>);
 
 describe('useRoomHref', () => {
   function Links() {
@@ -43,7 +34,8 @@ describe('useRoomHref', () => {
     );
   }
   const hrefs = (createRouter: typeof createBrowserRouter, basename: string) => {
-    const router = renderIn(createRouter, <Links />, { basename });
+    const router = createRouter([{ path: '*', element: <Links /> }], { basename });
+    renderSignedIn(<RouterProvider router={router} />);
     const href = (name: string) => screen.getByRole('link', { name }).getAttribute('href');
     const found = [href('Room'), href('Thread')];
     cleanup();
@@ -82,14 +74,22 @@ describe('useRoomNavigate', () => {
       </>
     );
   }
+  function Address() {
+    const { pathname, search } = useLocation();
+    return <output>{`${pathname}${search}`}</output>;
+  }
 
   it('opens a room, and a thread in it', () => {
-    const router = renderIn(createMemoryRouter, <Buttons />, { initialEntries: ['/p/example/'] });
-    const at = () => `${router.state.location.pathname}${router.state.location.search}`;
-    act(() => screen.getByRole('button', { name: 'Room' }).click());
-    expect(at()).toBe('/home/!lobby%3Aexample.org');
-    act(() => screen.getByRole('button', { name: 'Thread' }).click());
-    expect(at()).toBe('/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org');
-    router.dispose();
+    renderSignedIn(
+      <MemoryRouter initialEntries={['/p/example/']}>
+        <Buttons />
+        <Address />
+      </MemoryRouter>
+    );
+    const address = () => screen.getByRole('status').textContent;
+    fireEvent.click(screen.getByRole('button', { name: 'Room' }));
+    expect(address()).toBe('/home/!lobby%3Aexample.org');
+    fireEvent.click(screen.getByRole('button', { name: 'Thread' }));
+    expect(address()).toBe('/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org');
   });
 });
