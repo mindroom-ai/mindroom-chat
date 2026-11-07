@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { type IEventWithRoomId, MsgType, type Room } from 'matrix-js-sdk';
 import type { TFunction } from 'i18next';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { allRoomsAtom } from '../matrix/state/roomList';
 import { getMxIdLocalPart } from '../matrix/matrix';
 import { getMemberDisplayName, trimReplyFromBody } from '../matrix/room';
@@ -117,7 +118,13 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
   else if (search.isError) status = 'error';
 
   const page = status === 'done' ? search.data?.pages[0] : undefined;
+  // Senders are named from their rooms' members, loaded here for rooms the user has not opened.
+  const membersLoaded = useLoadedRoomMembers(
+    client,
+    page?.groups.map((group) => group.roomId) ?? []
+  );
   const items = useMemo<CommandPaletteMessages['items']>(() => {
+    void membersLoaded;
     if (!page) return [];
     const { highlights } = page;
     return page.groups.flatMap(({ roomId, items: hits }) => {
@@ -147,7 +154,7 @@ export const useCommandPaletteMessages: UseCommandPaletteMessages = (text, enabl
         };
       });
     });
-  }, [client, open, page, t, threadIndex.entries]);
+  }, [client, membersLoaded, open, page, t, threadIndex.entries]);
 
   const encryptedRooms = useMemo(
     () => hasEncryptedRooms(roomIds.map((roomId) => client.getRoom(roomId))),

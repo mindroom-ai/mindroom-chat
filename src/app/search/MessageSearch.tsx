@@ -31,6 +31,7 @@ import { ChoiceMenu } from '../ui/ChoiceMenu';
 import { RoomAvatar } from '../avatars/RoomAvatar';
 import { ScrollTopContainer } from '../ui/ScrollTopContainer';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
+import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
 import { useMediaAuthentication } from '../matrix/hooks/useMediaAuthentication';
 import { makeHighlightRegex } from './highlightRegex';
 import { mDirectAtom } from '../matrix/state/mDirectList';
@@ -157,6 +158,13 @@ export function MessageSearch({
       hiddenCount: loaded.reduce((sum, page) => sum + page.hidden, 0),
     };
   }, [pages]);
+
+  // Senders are named from their rooms' members, loaded here for rooms the user has not opened;
+  // rows render again as each list arrives.
+  useLoadedRoomMembers(
+    client,
+    groups.map((group) => group.roomId)
+  );
 
   const virtualizer = useVirtualizer({
     overscan: 4,
