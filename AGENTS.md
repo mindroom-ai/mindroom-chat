@@ -9,9 +9,9 @@ MindRoom Chat (`mindroom-ai/mindroom-chat`) is an Apache-2.0 web client for Mind
 - **No upstream code, in any commit:** `scripts/upstream-overlap/check.py` (`just upstream-overlap <upstream clone>`) must report 0 findings for every new commit before it is pushed (`--history` checks all of them). Only the orchestrator holds the upstream clone; other sessions may run the check on their own files when told the corpus path, and may never open the corpus. The pre-push hook enforces it in every clone it is installed in (`just install-hooks <upstream clone>`): each push checks every commit it adds, file by file as the commit has it, and is refused on any finding, a missing corpus or a checker error. A later commit that deletes the lines does not help; rewrite the commits that carry them. Never push with `--no-verify`; `UPSTREAM_OVERLAP_BYPASS='<reason>'` is the coordinator's emergency bypass, printed and logged.
 - **Lane C (clean):** everything else, including the seams (modules that Lane P files import but that were not ported; `docs/provenance/seams.tsv`, by import-time path) and the app shell.
 
-A file keeps its lane when it moves: the lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch) maps each moved file to its current path; a later move appends its rows the same way (`docs/provenance.md` "Moves"). `node scripts/provenance-paths.cjs lane <path>` prints a file's lane.
+The lists keep import-time paths, and `docs/provenance/moves.tsv` (old path, new path, batch) maps the files moved during the rewrite to their paths then (`docs/provenance.md` "Moves"); `node scripts/provenance-paths.cjs lane <path>` prints a file's lane. These records describe the rewrite as it was done and are no longer kept up to date: a move, rename or deletion adds no rows.
 
-`docs/provenance.md` describes both lanes, and every session that works in this repository adds a row to its session log (the appendix at its end).
+`docs/provenance.md` describes both lanes and the sessions of the clean-room rewrite. The rewrite is done, so the provenance records are history: sessions add no rows to the session log, and pull requests leave `docs/provenance.md` and `docs/provenance/` unchanged.
 
 ### Lane C rules
 
@@ -23,11 +23,11 @@ A file keeps its lane when it moves: the lists keep import-time paths, and `docs
 
 - **Placement and layers.** A file goes where `docs/architecture.md` "Placement and naming" puts it: one folder per domain under `src/app/`, tests beside their subject, no barrel files. A domain imports only domains in a lower layer (`docs/architecture.md` "Layers"); type-only and dynamic imports count, tests are exempt, and `just lint` fails on an import that climbs. A new domain needs a place in `LAYERS` in `.eslintrc.cjs`.
 
-### Lane P edit rules
+### Lane P files
 
-- **Lane P files** (listed in `docs/provenance/portable.tsv`, `portable-wave2.tsv` and `portable-wave3.tsv`) may be edited only to: fill their blanked lines (`docs/provenance/holes.tsv`, `holes-wave2.tsv`), re-point an import, adapt a call to a Lane C interface, delete code for dropped features (Simple Mode, Element Call, the filter bar's view buttons), or rename an identifier as `docs/provenance/identifier-renames.tsv` records it (`just identifier-renames` proves such a commit changes nothing else in Lane P). Never rewrite their logic.
-- Do not run Prettier or any other formatter over a Lane P file.
-- **Seams:** a seam's implementation is new code. A seam may move, be renamed, merged or deleted like any Lane C module: every Lane P import of it is re-pointed with it (an allowed Lane P edit), and the names Lane P call sites use keep types that satisfy them. A deleted or merged seam gets a `docs/provenance/seams-dropped.tsv` row.
+- **Lane P files** (listed in `docs/provenance/portable.tsv`, `portable-wave2.tsv` and `portable-wave3.tsv`) are edited like any other file now that the rewrite is done, logic included. The Lane C rules on inputs still apply to every change: never bring in code from the sources they forbid.
+- Do not run Prettier or any other formatter over a whole Lane P file; format only the lines a change touches.
+- **Seams** are ordinary modules: they move, are renamed, merged or deleted like any other, with no provenance rows.
 
 ## Licenses and product
 
