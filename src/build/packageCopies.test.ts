@@ -21,16 +21,19 @@ const install = (packages: Record<string, [name: string, version: string]>) => {
 };
 
 /** Ends a build whose module graph holds these modules (id, and whether tree-shaking kept it). */
-const endBuild = (modules: Record<string, boolean>) => {
+const endBuild = (modules: Record<string, boolean>, error?: Error) => {
   const plugin = onePackageCopyPerVersion();
   const buildEnd = plugin.buildEnd as unknown as (this: unknown, error?: Error) => void;
-  buildEnd.call({
-    getModuleIds: () => Object.keys(modules).values(),
-    getModuleInfo: (id: string) => ({ isIncluded: modules[id] }),
-    error: (message: string) => {
-      throw new Error(message);
+  buildEnd.call(
+    {
+      getModuleIds: () => Object.keys(modules).values(),
+      getModuleInfo: (id: string) => ({ isIncluded: modules[id] }),
+      error: (message: string) => {
+        throw new Error(message);
+      },
     },
-  });
+    error
+  );
 };
 
 describe('onePackageCopyPerVersion', () => {
@@ -63,5 +66,18 @@ describe('onePackageCopyPerVersion', () => {
         [`\0${at('node_modules/b/node_modules/shared/index.js')}?commonjs-proxy`]: true,
       })
     ).not.toThrow();
+  });
+
+  it('leaves a build that already failed to report its own error', () => {
+    install({
+      'node_modules/a/node_modules/shared': ['shared', '1.0.0'],
+      'node_modules/b/node_modules/shared': ['shared', '1.0.0'],
+    });
+    const modules = {
+      [at('node_modules/a/node_modules/shared/index.js')]: true,
+      [at('node_modules/b/node_modules/shared/index.js')]: true,
+    };
+    expect(() => endBuild(modules, new Error('could not parse a module'))).not.toThrow();
+    expect(() => endBuild(modules)).toThrow(/shared@1\.0\.0/);
   });
 });
