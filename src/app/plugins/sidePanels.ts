@@ -47,8 +47,8 @@ export const enabledSidePanels = (
       sidePanels.map((panel) => ({ ...panel, id: `${id}/${panel.id}`, tag }))
     );
 
-/** The side panels of the open room, as the room gives them to plugin code. */
-export type RoomSidePanels = {
+/** What the open room lets plugin code do with its plugins' panels. */
+export type PluginPanelControls = {
   /** The id of the panel the room shows. */
   shown: string | undefined;
   /** Opens a plugin's panel by its rule and hands it `request`; nothing for an unknown panel. */
@@ -58,7 +58,7 @@ export type RoomSidePanels = {
 };
 
 /** Given by the room's page (src/app/room/Room.tsx) to what it renders. */
-export const RoomSidePanelsContext = createContext<RoomSidePanels | undefined>(undefined);
+export const PluginPanelControlsContext = createContext<PluginPanelControls | undefined>(undefined);
 
 /** A plugin's side panel in the open room, for the plugin's code. */
 export type RoomSidePanelControl = {
@@ -82,15 +82,15 @@ export const useRoomSidePanel = (
   pluginId: string,
   panelId: string
 ): RoomSidePanelControl | undefined => {
-  const room = useContext(RoomSidePanelsContext);
+  const controls = useContext(PluginPanelControlsContext);
   const id = `${pluginId}/${panelId}`;
   return useMemo(
     () =>
-      room && {
-        isOpen: room.shown === id,
-        open: (request?: unknown) => room.open(id, request),
-        close: () => room.close(id),
+      controls && {
+        isOpen: controls.shown === id,
+        open: (request?: unknown) => controls.open(id, request),
+        close: () => controls.close(id),
       },
-    [room, id]
+    [controls, id]
   );
 };

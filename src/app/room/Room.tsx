@@ -33,8 +33,8 @@ import { type PanelFrame, PanelFrameProvider } from '../ui/panels/PanelFrame';
 import { type RoomPanel, useRoomPanels } from '../ui/panels/roomPanels';
 import { registeredPlugins } from '../plugins/registry';
 import {
-  type RoomSidePanels,
-  RoomSidePanelsContext,
+  type PluginPanelControls,
+  PluginPanelControlsContext,
   enabledSidePanels,
 } from '../plugins/sidePanels';
 import { usePluginHeaderActions } from '../plugins/headerActions';
@@ -296,13 +296,11 @@ function RoomContent() {
   );
   const pluginActions = usePluginHeaderActions(registeredPlugins, clientConfig);
   // A plugin's panel belongs to the room it opened in.
-  const pluginPanel = usePluginPanel(
-    ownUserId,
-    roomId,
-    pluginPanels,
-    computerOpen || !!canvas || callOpen || membersOpen
-  );
-  const closePluginPanel = pluginPanel.close;
+  const {
+    here: pluginPanel,
+    show: showPluginPanel,
+    close: closePluginPanel,
+  } = usePluginPanel(roomId, pluginPanels, computerOpen || !!canvas || callOpen || membersOpen);
 
   const closeCall = () => setCallOpen(false);
   const closeMembers = () => setMembersOpen(false);
@@ -396,9 +394,9 @@ function RoomContent() {
     ...pluginPanels.map(
       (panel): PanelEntry => ({
         id: panel.id,
-        open: pluginPanel.here?.id === panel.id,
+        open: pluginPanel?.id === panel.id,
         close: closePluginPanel,
-        show: () => pluginPanel.show(panel.id),
+        show: () => showPluginPanel(panel.id),
         label: panel.label,
         covers: mobile,
         render: () => (
@@ -417,7 +415,7 @@ function RoomContent() {
             <PluginSidePanel
               panel={panel}
               roomId={roomId}
-              request={pluginPanel.here?.request}
+              request={pluginPanel?.request}
               onClose={closePluginPanel}
             />
           </ResizablePanel>
@@ -455,8 +453,7 @@ function RoomContent() {
   const shownId = shown?.id;
   const now = useLatestRef({ roomId, shownId });
   const alive = useAlive();
-  const { show: showPluginPanel } = pluginPanel;
-  const roomSidePanels = useMemo<RoomSidePanels>(
+  const pluginPanelControls = useMemo<PluginPanelControls>(
     () => ({
       shown: shownId,
       open: (id, panelRequest) => {
@@ -638,7 +635,7 @@ function RoomContent() {
   return (
     <PowerLevelsContextProvider value={powerLevels}>
       <ChatUiActionContext.Provider value={uiActions}>
-        <RoomSidePanelsContext.Provider value={roomSidePanels}>
+        <PluginPanelControlsContext.Provider value={pluginPanelControls}>
           {!conversationHidden && (
             <Box grow="Yes" direction="Column" style={{ minWidth: 0 }}>
               <RoomMessageAnnouncer room={room} threadId={routedThreadId} myUserId={ownUserId} />
@@ -655,7 +652,7 @@ function RoomContent() {
             </Box>
           )}
           {sidePanel}
-        </RoomSidePanelsContext.Provider>
+        </PluginPanelControlsContext.Provider>
       </ChatUiActionContext.Provider>
     </PowerLevelsContextProvider>
   );
