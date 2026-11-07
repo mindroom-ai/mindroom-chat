@@ -6,6 +6,7 @@ import { clearAttachmentRepositoryMemory } from '../../event-store/cache/attachm
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
+import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
 import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/crossRoomThreadFilters';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
@@ -74,6 +75,10 @@ vi.mock('../../event-store/threads/recentThreads', () => ({
 
 vi.mock('../../preferences/recentlyOpenedPanelHeight', () => ({
   clearRecentlyOpenedPanelHeightStore: vi.fn(),
+}));
+
+vi.mock('../../calls/window/callWindowState', () => ({
+  clearCallWindowStore: vi.fn(),
 }));
 
 vi.mock('../../threads/cross-room/threadSidebarPreferences', () => ({
@@ -224,6 +229,7 @@ describe('MindRoom session cleanup', () => {
     expect(vi.mocked(clearRecentlyOpenedPanelHeightStore)).toHaveBeenCalledWith(
       '@alice:example.com'
     );
+    expect(vi.mocked(clearCallWindowStore)).toHaveBeenCalledWith('@alice:example.com');
     expect(vi.mocked(clearThreadSidebarPreferencesStore)).toHaveBeenCalledWith(
       '@alice:example.com'
     );

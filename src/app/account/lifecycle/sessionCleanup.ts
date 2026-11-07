@@ -6,6 +6,7 @@ import { clearSavedVoiceDraft } from '../../composer/voice/savedVoiceDraft';
 import { clearIOSPushState } from '../../notifications/push/iosPush';
 import { clearRecentThreadsStore } from '../../event-store/threads/recentThreads';
 import { clearRecentlyOpenedPanelHeightStore } from '../../preferences/recentlyOpenedPanelHeight';
+import { clearCallWindowStore } from '../../calls/window/callWindowState';
 import { clearThreadSidebarPreferencesStore } from '../../threads/cross-room/threadSidebarPreferences';
 import { clearCrossRoomThreadFiltersStore } from '../../threads/cross-room/crossRoomThreadFilters';
 import { clearRoomThreadFiltersStore } from '../../threads/overview/roomThreadFilterState';
@@ -92,6 +93,7 @@ export const clearUserUiState = (userId: string): void => {
   clearCrossRoomThreadFiltersStore(userId);
   clearRecentThreadsStore(userId);
   clearRecentlyOpenedPanelHeightStore(userId);
+  clearCallWindowStore(userId);
   clearThreadSidebarPreferencesStore(userId);
   clearSeenThreadRoots(userId);
   clearClosedNavCategoriesStore(userId);
