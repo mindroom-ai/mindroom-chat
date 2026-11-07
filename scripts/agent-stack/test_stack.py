@@ -261,7 +261,9 @@ class CommandLineTests(unittest.TestCase):
         self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
-        patcher = mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory.name})
+        # A real model or plugin directories that the shell running the tests sets stay out of them.
+        environment = {"E2E_AGENT_STACK_ROOT": directory.name, "E2E_AGENT_MODEL": "", "E2E_PLUGIN_DIRS": ""}
+        patcher = mock.patch.dict(os.environ, environment)
         patcher.start()
         self.addCleanup(patcher.stop)
         self.slot_dir = Path(directory.name) / "slot-7"
