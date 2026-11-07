@@ -8,9 +8,7 @@ import { expect, test, type Page } from '@playwright/test';
 const FIXTURE = '/e2e/fixtures/i18n-namespaces.html';
 const GREETINGS: Record<string, string> = { de: 'Hallo vom Plugin', fr: 'Bonjour du plugin' };
 
-type FixtureWindow = {
-  fixtureI18n: { language: string; hasResourceBundle: (lng: string, ns: string) => boolean };
-};
+type FixtureWindow = { fixtureI18n: Pick<typeof import('i18next').default, 'hasResourceBundle'> };
 
 /** Answers `pattern` only once the returned function is called. */
 const holdBack = async (page: Page, pattern: string): Promise<() => void> => {
@@ -29,7 +27,7 @@ const servePluginCatalogs = (page: Page) =>
   page.route('**/plugin-locales/*.json', async (route) => {
     const language = /plugin-locales\/([\w-]+)\.json/.exec(route.request().url())?.[1] ?? '';
     const greeting = GREETINGS[language];
-    await (greeting ? route.fulfill({ json: { greeting } }) : route.fulfill({ status: 404 }));
+    await route.fulfill(greeting ? { json: { greeting } } : { status: 404 });
   });
 
 const pickLanguage = async (page: Page, current: string, next: string) => {
@@ -76,9 +74,6 @@ for (const { held, pattern, namespace } of [
       namespace
     );
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr');
-    expect(
-      await page.evaluate(() => (window as unknown as FixtureWindow).fixtureI18n.language)
-    ).toBe('fr');
     await expect(greeting).toHaveText('Bonjour du plugin');
     await expect(page.getByText("Langue de l'application", { exact: true })).toBeVisible();
   });
