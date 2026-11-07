@@ -39,7 +39,7 @@ test('a new device titles a thread it cannot decrypt "Encrypted message"', async
   try {
     await fresh.goto(`/home/${encodeURIComponent(roomId)}`, { timeout: 180_000 });
     await setRoomCompact(fresh, true);
-    const overview = fresh.locator('[data-room-thread-overview="true"]');
+    const overview = fresh.locator('[data-compact-room-view="true"]');
     await expect(overview).toContainText('Encrypted message', { timeout: 90_000 });
     await openThreadsCategory(fresh);
     const threadsList = fresh.getByTestId('thread-nav-list');
