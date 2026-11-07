@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const entries = vi.hoisted(() => {
-  const renderer = { match: () => true, Component: () => null };
+  const renderer = { match: () => true, Component: (): null => null };
   return {
     renderer,
     list: [
@@ -10,7 +10,7 @@ const entries = vi.hoisted(() => {
       {
         id: 'beta',
         version: '2.1.0',
-        plugin: { messageRenderers: [renderer, null, { Component: () => null }] },
+        plugin: { messageRenderers: [renderer, null, { Component: (): null => null }] },
       },
     ],
   };
