@@ -99,12 +99,12 @@ const openMidStream = async (
     const record = () => {
       const row = document.querySelector(`[data-message-id="${replyId}"]`);
       if (!row) return;
-      const words = row.textContent?.match(/\bword\d+\b/g)?.length ?? 0;
+      const words = row.textContent?.match(/word\d+/g)?.length ?? 0;
       // The thinking placeholder, not the streaming dots that share its label: it has the mark.
       const thinking = !!row.querySelector('[role="status"] img');
       const last = samples[samples.length - 1];
       if (last?.words !== words || last.thinking !== thinking)
-        samples.push({ at: performance.now(), words, thinking });
+        samples.push({ at: performance.now(), words, thinking, text: (row.textContent ?? '').slice(0, 60) } as Sample);
     };
     new MutationObserver(record).observe(document, {
       childList: true,
@@ -119,10 +119,11 @@ const openMidStream = async (
   await expect
     .poll(async () => wordCount(await reply.innerText()), { timeout: 60_000 })
     .toBeGreaterThan(editedWords);
+  const afterReload = reload ? await dumpCache() : undefined;
   const samples = await page.evaluate(
     () => (window as unknown as { replySamples: Sample[] }).replySamples
   );
-  writeFileSync(test.info().outputPath('diag.json'), JSON.stringify({ beforeReload, diag, samples }, null, 1));
+  writeFileSync(test.info().outputPath('diag.json'), JSON.stringify({ beforeReload, afterReload, diag, samples }, null, 1));
   // The row's first paint already has the reply's text: no placeholder, no empty row.
   expect(
     samples.filter(({ words, thinking }) => thinking || words === 0),
