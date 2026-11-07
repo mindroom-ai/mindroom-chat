@@ -1342,24 +1342,18 @@ export function RoomTimeline(props: RoomTimelineProps) {
   // The header's filter button hides the bar; the filters keep applying while it is hidden.
   const filterBarShown =
     showRoomThreadOverviewControls && !plainConversation && !hideThreadFilterBar;
-  // A message nobody answered shows as a card but is no thread yet. The counts take the threads
-  // only: the server lists them all, so the total stays as history loads, where the unanswered
-  // messages of the history loaded so far made it 461, then 500, then 462.
-  const countThreads = (rootIds: readonly string[]) =>
-    rootIds.filter(
-      (rootId) => !!room.getThread(rootId) || (threadIndex.threadReplyCountMap.get(rootId) ?? 0) > 0
-    ).length;
   const filterBar = filterBarShown && (
     <FilterBarSlot onHeight={setFilterBarHeight}>
       <RoomThreadOverview
         hasMindroomAgents={hasMindroomAgents}
-        threadCount={countThreads(
+        threadCount={
           (compactCards ? threadIndex.compactOverviewOrdering : threadIndex.normalOverviewOrdering)
-            .displayOrderedIds
-        )}
-        totalThreadCount={countThreads(
+            .displayOrderedIds.length
+        }
+        totalThreadCount={
           (compactCards ? threadIndex.compactThreadRootData : threadIndex.visibleThreadRootData).ids
-        )}
+            .length
+        }
         statusCounts={threadIndex.statusCounts}
         tagCounts={threadIndex.tagCounts}
         state={threadFilterState}
