@@ -295,9 +295,11 @@ const rowSender = (page: Page, text: string) => inboxRow(page, text).locator('b'
 
 /**
  * Whether the row of `text` shows `userId` whole: brought into view, it holds still (its box is
- * the same in two animation frames, as Playwright judges an element stable), and the ID's
- * characters are laid out inside the row, the viewport and every element between them that clips
- * what overflows it (an ellipsis included). The Inbox lays out only rows near the viewport
+ * the same in two animation frames, as Playwright judges an element stable), the ID's characters
+ * are laid out inside the row and the viewport, and no element between them that clips what
+ * overflows it holds more than fits (an ellipsis or a cut). The overflow is checked, not only the
+ * characters' boxes, because WebKit reports a range in ellipsized text only as far as the
+ * ellipsis, so a cut-off ID can look whole there. The Inbox lays out only rows near the viewport
  * (`content-visibility: auto`); the others keep a placeholder height. Rows that come near by the
  * scroll take their real height a frame later, and WebKit keeps no scroll anchor, so a row
  * scrolled to the viewport's edge can be pushed past it. A row still moving is checked again.
@@ -325,9 +327,15 @@ const showsUserIdWhole = (page: Page, text: string, userId: string) =>
       ];
       for (let element = node.parentElement; element && element !== row; ) {
         const style = getComputedStyle(element);
-        if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
-          boxes.push(element.getBoundingClientRect());
+        const clipsX = style.overflowX !== 'visible';
+        const clipsY = style.overflowY !== 'visible';
+        if (
+          (clipsX && element.scrollWidth > element.clientWidth + 1) ||
+          (clipsY && element.scrollHeight > element.clientHeight + 1)
+        ) {
+          return false;
         }
+        if (clipsX || clipsY) boxes.push(element.getBoundingClientRect());
         element = element.parentElement;
       }
       return (
