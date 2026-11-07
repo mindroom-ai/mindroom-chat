@@ -10,16 +10,18 @@ import {
   type ThreadFilterState,
 } from '../event-store/threads/roomThreadOverviewModel';
 
-const { view, screen, navigate } = vi.hoisted(() => ({
+const { view, screen, navigate, loadComputerScreen } = vi.hoisted(() => ({
   view: {
     mode: 'compact' as RoomViewMode,
     setViewMode: (() => undefined) as (mode: string) => void,
   },
   screen: { size: 'Desktop' },
   navigate: vi.fn(),
+  loadComputerScreen: vi.fn(() => new Promise<never>(() => undefined)),
 }));
 
 vi.mock('react-router-dom', () => ({ useNavigate: () => navigate }));
+vi.mock('../computer/loadComputerScreen', () => ({ loadComputerScreen }));
 // The room menu renders in place of folds' portal while it has an anchor, without a focus trap.
 vi.mock('folds', async (importOriginal) => ({
   ...(await importOriginal<typeof import('folds')>()),
@@ -97,6 +99,7 @@ afterEach(() => {
   renderer = undefined;
   screen.size = 'Desktop';
   navigate.mockReset();
+  loadComputerScreen.mockClear();
 });
 
 const renderHeader = ({
@@ -105,12 +108,15 @@ const renderHeader = ({
   hasMindroomAgents = true,
   threadId,
   threadFilterState = createDefaultThreadFilterState(),
+  computerShown = false,
 }: {
   mode?: RoomViewMode;
   hidden?: boolean;
   hasMindroomAgents?: boolean;
   threadId?: string;
   threadFilterState?: ThreadFilterState;
+  /** The computer is available, and was shown in this conversation before. */
+  computerShown?: boolean;
 } = {}) => {
   act(() => renderer?.unmount());
   view.mode = mode;
@@ -123,6 +129,11 @@ const renderHeader = ({
           hasMindroomAgents={hasMindroomAgents}
           threadId={threadId}
           threadFilterState={threadFilterState}
+          {...(computerShown && {
+            computerAvailable: true,
+            computerShown: true,
+            onComputerToggle: () => undefined,
+          })}
         />
       </Provider>
     );
@@ -204,6 +215,27 @@ describe('the room header view switch', () => {
 
   it('goes from a stored Classic view to Compact', () => {
     expect(switchTo('classic', true)).toEqual({ pressed: false, next: 'compact' });
+  });
+});
+
+describe("the room header's Computer button", () => {
+  it('starts loading the computer screen when the pointer or the focus reaches it', () => {
+    renderHeader({ computerShown: true });
+    const [computer] =
+      renderer?.root.findAll(
+        (node) => node.type === 'button' && node.props['aria-label'] === 'Show Computer'
+      ) ?? [];
+    if (!computer) throw new Error('no Computer button');
+    expect(loadComputerScreen).not.toHaveBeenCalled();
+
+    act(() => {
+      computer.props.onPointerEnter?.();
+    });
+    expect(loadComputerScreen).toHaveBeenCalledTimes(1);
+    act(() => {
+      computer.props.onFocus?.();
+    });
+    expect(loadComputerScreen).toHaveBeenCalledTimes(2);
   });
 });
 
