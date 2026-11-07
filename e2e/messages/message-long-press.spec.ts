@@ -20,6 +20,11 @@ import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 // no long press, so the spec sends the touch events itself, as real TouchEvents where the engine
 // can build them. Checked in Chromium and, when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's
 // WebKit, in WebKit.
+// P2-macos-safari-F001: iOS also selected a word under the resting finger and showed its Copy and
+// Look Up bar over the menu, or selected the menu's first entry once it opened there. While a
+// press rests no text on the page is selectable, a selection made before it is gone once the
+// menu opens, the menu's text is never selectable, and the page is selectable again after the
+// lift. Checked on a phone and on a tablet.
 // Set LONG_PRESS_SHOTS=<directory> to save the open menu.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'message-long-press-spec-password';
@@ -28,6 +33,11 @@ const SHOTS = process.env.LONG_PRESS_SHOTS;
 
 const PHONE: BrowserContextOptions = {
   viewport: { width: 390, height: 844 },
+  hasTouch: true,
+  isMobile: true,
+};
+const TABLET: BrowserContextOptions = {
+  viewport: { width: 820, height: 1180 },
   hasTouch: true,
   isMobile: true,
 };
@@ -102,7 +112,13 @@ type Step =
   | { type: 'start' | 'end'; dx?: number; dy?: number }
   | { type: 'move'; dx: number; dy: number }
   | { type: 'wait'; ms: number }
-  | { type: 'scroll'; by: number };
+  | { type: 'scroll'; by: number }
+  // Selects the touched text, as a selection made before the press would have.
+  | { type: 'select' }
+  // Notes whether the page's text is selectable now and what is selected.
+  | { type: 'probe' };
+
+type Probe = { pageSelect: string; textSelect: string; selected: string };
 
 /**
  * One finger on the middle of `target`, driven through `steps`. Answers whether the lift's
@@ -150,8 +166,23 @@ const touch = async (target: Locator, steps: Step[]) => {
       };
       let liftAllowed = true;
       let at = { dx: 0, dy: 0 };
+      const probes: Probe[] = [];
+      const userSelect = (of: Element) => {
+        const style = getComputedStyle(of);
+        return (
+          style.getPropertyValue('-webkit-user-select') || style.getPropertyValue('user-select')
+        );
+      };
       for (const step of plan) {
-        if (step.type === 'wait') {
+        if (step.type === 'select') {
+          window.getSelection()?.selectAllChildren(element);
+        } else if (step.type === 'probe') {
+          probes.push({
+            pageSelect: userSelect(document.documentElement),
+            textSelect: userSelect(element),
+            selected: window.getSelection()?.toString() ?? '',
+          });
+        } else if (step.type === 'wait') {
           // eslint-disable-next-line no-await-in-loop
           await new Promise((resolve) => {
             setTimeout(resolve, step.ms);
@@ -171,7 +202,7 @@ const touch = async (target: Locator, steps: Step[]) => {
           liftAllowed = fire('touchend', at.dx, at.dy, true);
         }
       }
-      return { liftAllowed, real };
+      return { liftAllowed, real, probes };
     },
     { x: box.x + box.width / 2, y: box.y + box.height / 2, plan: steps }
   );
@@ -197,7 +228,7 @@ const expectNoMenu = async (page: Page, row: Locator, where: string) => {
   await expect(page.locator('[aria-label="More Options"][aria-pressed="true"]')).toHaveCount(0);
 };
 
-const checkPhone = async (page: Page, world: World, engine: string) => {
+const checkPhone = async (page: Page, world: World, engine: string, device: string) => {
   await expect
     .poll(() => page.evaluate(() => matchMedia('(hover: none) and (pointer: coarse)').matches), {
       message: `${engine}: the phone reports a finger`,
@@ -240,20 +271,54 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   await page.evaluate(() => new Promise(requestAnimationFrame));
   await expect(row).toBeVisible();
 
-  // A long press opens the menu where the finger rests; small jitter is allowed.
+  // A long press opens the menu where the finger rests; small jitter is allowed. Some text was
+  // selected before it.
   const box = await text.boundingBox();
   const press = await touch(text, [
+    { type: 'select' },
+    { type: 'probe' },
     { type: 'start' },
     { type: 'wait', ms: 200 },
     { type: 'move', dx: 3, dy: -2 },
+    { type: 'probe' },
     { type: 'wait', ms: 450 },
+    { type: 'probe' },
     { type: 'end' },
+    { type: 'probe' },
   ]);
   console.log(`${engine} long press: ${JSON.stringify(press)}`);
   const { more, entry } = menuOf(page, row);
   await expect(entry, `${engine}: a long press opens the message menu`).toBeVisible();
   await expect(more).toHaveAttribute('aria-pressed', 'true');
   expect(press.liftAllowed, `${engine}: the lift after the menu opens does not click`).toBe(false);
+  const [before, resting, opened, lifted] = press.probes;
+  expect(before.selected, `${engine}: the text was selected before the press`).toContain('Final');
+  expect(before.pageSelect, `${engine}: the page is selectable before the press`).not.toBe('none');
+  // The platform's own long-press selection finds nothing to select while the finger rests.
+  expect(resting.pageSelect, `${engine}: no text is selectable during the press`).toBe('none');
+  expect(resting.textSelect, `${engine}: the message is not selectable during the press`).toBe(
+    'none'
+  );
+  expect(opened.selected, `${engine}: the menu opens with nothing selected`).toBe('');
+  expect(lifted.pageSelect, `${engine}: the page is selectable again after the lift`).not.toBe(
+    'none'
+  );
+  expect(lifted.selected, `${engine}: nothing is selected after the lift`).toBe('');
+  // Nor does the menu that opens under the finger offer its entries' text for selection.
+  const menuText = await entry.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      select:
+        style.getPropertyValue('-webkit-user-select') || style.getPropertyValue('user-select'),
+      callout: CSS.supports('-webkit-touch-callout', 'none')
+        ? style.getPropertyValue('-webkit-touch-callout')
+        : 'none',
+    };
+  });
+  expect(menuText, `${engine}: the menu's text is not selectable`).toEqual({
+    select: 'none',
+    callout: 'none',
+  });
   // The menu opens at the finger, as a right click opens it at the pointer: a corner of it touches
   // the finger's point, give or take the pop-out's offset and the menu's padding.
   const menu = await entry.evaluate((element) => {
@@ -279,7 +344,7 @@ const checkPhone = async (page: Page, world: World, engine: string) => {
   ).toBeLessThan(16);
   if (SHOTS) {
     mkdirSync(SHOTS, { recursive: true });
-    await page.screenshot({ path: path.join(SHOTS, `long-press-menu-${engine}-phone.png`) });
+    await page.screenshot({ path: path.join(SHOTS, `long-press-menu-${engine}-${device}.png`) });
   }
   // The menu stays open after the lift.
   await page.waitForTimeout(300);
@@ -307,16 +372,24 @@ const newPage = async (browser: Browser, options: BrowserContextOptions) => {
   return { context, page: await context.newPage() };
 };
 
-const run = async (browser: Browser, baseURL: string | undefined, engine: string) => {
-  const world = await seed(engine);
-  const { context, page } = await newPage(browser, { ...PHONE, baseURL });
+const run = async (
+  browser: Browser,
+  baseURL: string | undefined,
+  engine: string,
+  device: 'phone' | 'tablet' = 'phone'
+) => {
+  const world = await seed(`${engine}_${device}`);
+  const { context, page } = await newPage(browser, {
+    ...(device === 'phone' ? PHONE : TABLET),
+    baseURL,
+  });
   try {
     await loginWithPassword(page, {
       homeserver: HOMESERVER,
       username: world.reader.username,
       password: PASSWORD,
     });
-    await checkPhone(page, world, engine);
+    await checkPhone(page, world, engine, device);
   } finally {
     await context.close();
   }
@@ -337,6 +410,22 @@ test('a long press opens the message menu on a phone (WebKit)', async ({ baseURL
   const browser = await launchWebKit();
   try {
     await run(browser, baseURL, 'webkit');
+  } finally {
+    await browser.close();
+  }
+});
+
+test('a long press opens the message menu on a tablet (Chromium)', async ({ browser, baseURL }) => {
+  test.setTimeout(300_000);
+  await run(browser, baseURL, 'chromium', 'tablet');
+});
+
+test('a long press opens the message menu on a tablet (WebKit)', async ({ baseURL }) => {
+  test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(300_000);
+  const browser = await launchWebKit();
+  try {
+    await run(browser, baseURL, 'webkit', 'tablet');
   } finally {
     await browser.close();
   }
