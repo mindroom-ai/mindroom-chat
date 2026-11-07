@@ -68,9 +68,12 @@ const expectAtTopLevel = async (page: Page, subId: string) => {
   await expect(page.locator(`[data-sub-rooms-of] [data-room-id="${subId}"]`)).toHaveCount(0);
 };
 
-/** Keeps a screenshot of `page` with the test's results, as evidence of what each member saw. */
-const shot = async (page: Page, name: string) =>
-  test.info().attach(name, { body: await page.screenshot(), contentType: 'image/png' });
+// Set SUB_ROOM_SHOTS=<directory> to save what the creator and the member see at each step.
+const SHOTS = process.env.SUB_ROOM_SHOTS;
+
+const shot = async (page: Page, name: string) => {
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` });
+};
 
 const signInMember = async (browser: Browser, stack: AgentStack, username: string) => {
   const context = await browser.newContext({ storageState: undefined });
@@ -110,7 +113,7 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   const [subId] = await listedRooms(stack, parentId);
   await goHome(page);
   await expectUnderParent(page, parentId, subName);
-  await shot(page, 'creator: the sub-room under its room');
+  await shot(page, '1-creator-under-room');
 
   // The agents in the room join it on their own.
   await expect
@@ -121,13 +124,13 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   const memberPage = await signInMember(browser, stack, member.username);
   const toJoin = memberPage.locator(`[data-sub-room-to-join="${subId}"]`);
   await expect(toJoin).toContainText(subName, { timeout: 60_000 });
-  await shot(memberPage, 'member: the sub-room to join under its room');
+  await shot(memberPage, '2-member-to-join');
   await toJoin.getByRole('link').click();
   await memberPage.getByRole('button', { name: 'Join', exact: true }).click();
   await goHome(memberPage);
   await expectUnderParent(memberPage, parentId, subName);
   await expect(toJoin).toHaveCount(0);
-  await shot(memberPage, 'member: joined, under its room');
+  await shot(memberPage, '3-member-joined');
 
   // Someone outside the room cannot join it.
   await expect(joinRoom(stack.homeserver, outsider.accessToken, subId!)).rejects.toThrow(/403/);
@@ -140,8 +143,8 @@ test('a sub-room shows under its room, opens to its members and brings its agent
   await goHome(page);
   await expectAtTopLevel(page, subId!);
   await expectAtTopLevel(memberPage, subId!);
-  await shot(page, 'creator: removed, at top level');
-  await shot(memberPage, 'member: removed, at top level');
+  await shot(page, '4-creator-removed');
+  await shot(memberPage, '5-member-removed');
   await expect
     .poll(() => joinedMembers(stack, subId!), AGENT_WAIT)
     .not.toEqual(expect.arrayContaining([stack.agents.helper]));
