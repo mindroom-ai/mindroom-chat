@@ -5,11 +5,9 @@ import {
   TranscriptionClient,
   isNotTranscribed,
   isUnavailable,
-  type CallEvent,
   type TranscriptCall,
   type TranscriptLine,
 } from './api';
-import { defined } from '../../../test/utils/defined';
 
 const API_URL = 'https://mindroom.example.org';
 const ROOM_ID = '!room:example.org';
@@ -29,8 +27,7 @@ const CALL: TranscriptCall = {
   startedAt: '2026-11-07T09:29:00Z',
   endedAt: null,
   members: ['@ann:example.org'],
-  holds: [],
-  transcribedBy: ['@ann:example.org'],
+  pausedBy: null,
 };
 
 const LINE: TranscriptLine = {
@@ -244,31 +241,35 @@ describe('TranscriptionClient routes', () => {
     expect(audio.size).toBe(44);
   });
 
-  it('holds and lets go of Pause, and reads the live call', async () => {
+  it('pauses and resumes the call, and reads the live call after a line', async () => {
     const server = fakeServer();
     const live = { call: CALL, lines: [LINE], names: { '@ann:example.org': 'Ann' } };
     server.route.mockImplementation((url) =>
-      url.endsWith('calls.live')
+      url.includes('calls.live')
         ? json(live)
-        : json({ call: { ...CALL, holds: ['@ann:example.org'] } })
+        : json({ call: { ...CALL, pausedBy: '@ann:example.org' } })
     );
     const { api } = client(server);
 
     await expect(api.pause('call-1', true)).resolves.toMatchObject({
-      holds: ['@ann:example.org'],
+      pausedBy: '@ann:example.org',
     });
+    await api.pause('call-1', false);
     await expect(api.live(ROOM_ID)).resolves.toEqual(live);
+    await api.live(ROOM_ID, 'line 1');
 
-    const [pause, read] = server.calls();
+    const [pause, resume, read, readAfter] = server.calls();
     expect(pause?.url).toBe(`${API_URL}/api/call-transcripts/v1/calls/call-1/pause`);
-    expect(JSON.parse(String(pause?.init.body))).toEqual({ holding: true });
+    expect(pause?.init.method).toBe('POST');
+    expect(JSON.parse(String(pause?.init.body))).toEqual({ paused: true });
+    expect(JSON.parse(String(resume?.init.body))).toEqual({ paused: false });
     expect(new Headers(pause?.init.headers).get('Content-Type')).toBe('application/json');
-    // Sent to outlast the page: a hold let go of as the page goes away still reaches MindRoom.
-    expect(pause?.init.keepalive).toBe(true);
     expect(read?.init.method).toBe('GET');
-    expect(read?.init.keepalive).toBeUndefined();
     expect(read?.url).toBe(
       `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live`
+    );
+    expect(readAfter?.url).toBe(
+      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live?after=line%201`
     );
   });
 });
@@ -331,119 +332,5 @@ describe('TranscriptionClient refusals', () => {
       unavailable: false,
       notTranscribed: true,
     });
-  });
-});
-
-/** A server-sent-events body the test writes into, which ends with the request's signal. */
-const eventStream = (signal: AbortSignal | null | undefined) => {
-  const encoder = new TextEncoder();
-  let controller!: ReadableStreamDefaultController<Uint8Array>;
-  const body = new ReadableStream<Uint8Array>({
-    start(streamController) {
-      controller = streamController;
-    },
-  });
-  signal?.addEventListener('abort', () => {
-    try {
-      controller.error(new DOMException('The request was aborted.', 'AbortError'));
-    } catch {
-      // Already closed.
-    }
-  });
-  return {
-    response: new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }),
-    write: (text: string) => controller.enqueue(encoder.encode(text)),
-    close: () => controller.close(),
-  };
-};
-
-describe('TranscriptionClient events', () => {
-  it('reads the stream with the bearer token and hands on each event', async () => {
-    const server = fakeServer();
-    let stream: ReturnType<typeof eventStream> | undefined;
-    server.route.mockImplementation((_url, init) => {
-      stream = eventStream(init.signal);
-      return stream.response;
-    });
-    const { api } = client(server);
-    const events: CallEvent[] = [];
-
-    const reading = api.events(
-      ROOM_ID,
-      (event) => events.push(event),
-      new AbortController().signal,
-      45_000
-    );
-    await vi.advanceTimersByTimeAsync(0);
-    const ready = { call: CALL, lines: [], names: { '@ann:example.org': 'Ann' } };
-    stream?.write(`: hello\n\nevent: ready\ndata: ${JSON.stringify(ready)}\n\n`);
-    // An event split over chunks, with CRLF line ends split between them.
-    const line = JSON.stringify(LINE);
-    stream?.write(`event: line\r\ndata: ${line.slice(0, 20)}`);
-    stream?.write(`${line.slice(20)}\r`);
-    stream?.write('\n\r\n');
-    stream?.write(
-      `event: call\ndata: ${JSON.stringify({ ...CALL, holds: ['@bob:example.org'] })}\n\n`
-    );
-    // Data over several lines is joined with line breaks; unknown events and bad data are skipped.
-    stream?.write('event: something\ndata: {}\n\n');
-    stream?.write('event: call\ndata: {not json\n\n');
-    // `ended` names the call as {"callId"}; any other shape is skipped.
-    stream?.write('event: ended\ndata: "call-0"\n\n');
-    stream?.write('event: ended\ndata: {"callId": 7}\n\n');
-    stream?.write('event: ended\ndata: {"callId": "call-1"}\n\n');
-    stream?.close();
-    await reading;
-
-    const [request] = server.calls();
-    expect(request?.url).toBe(
-      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.events`
-    );
-    expect(request?.init.method).toBe('GET');
-    expect(bearer(defined(request, 'the stream request'))).toBe('Bearer session-1');
-    expect(new Headers(request?.init.headers).get('Accept')).toBe('text/event-stream');
-    expect(events).toEqual([
-      { type: 'ready', live: ready },
-      { type: 'line', line: LINE },
-      { type: 'call', call: { ...CALL, holds: ['@bob:example.org'] } },
-      { type: 'ended', callId: 'call-1' },
-    ]);
-  });
-
-  it('fails as unavailable when the stream stays quiet too long, comments included', async () => {
-    const server = fakeServer();
-    let stream: ReturnType<typeof eventStream> | undefined;
-    server.route.mockImplementation((_url, init) => {
-      stream = eventStream(init.signal);
-      return stream.response;
-    });
-    const { api } = client(server);
-    let failure: unknown;
-    const reading = api
-      .events(ROOM_ID, () => undefined, new AbortController().signal, 45_000)
-      .catch((error: unknown) => {
-        failure = error;
-      });
-    await vi.advanceTimersByTimeAsync(40_000);
-    stream?.write(': keep-alive\n\n');
-    await vi.advanceTimersByTimeAsync(40_000);
-    expect(failure).toBeUndefined();
-
-    await vi.advanceTimersByTimeAsync(5_000);
-    await reading;
-    expect(isUnavailable(failure)).toBe(true);
-  });
-
-  it('ends when its signal aborts', async () => {
-    const server = fakeServer();
-    server.route.mockImplementation((_url, init) => eventStream(init.signal).response);
-    const { api } = client(server);
-    const stop = new AbortController();
-
-    const reading = api.events(ROOM_ID, () => undefined, stop.signal, 45_000);
-    await vi.advanceTimersByTimeAsync(0);
-    stop.abort();
-
-    await expect(reading).rejects.toBeInstanceOf(TranscriptionApiError);
   });
 });

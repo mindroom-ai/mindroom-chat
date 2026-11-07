@@ -205,7 +205,7 @@ export const ControlsStatus = style({
   selectors: { '&:not(:empty)': { marginBlockEnd: space.S200 } },
 });
 
-// "Paused by Ann", in the colors of the panel's warnings, like Pause while held.
+// "Paused by Ann", in the colors of the panel's warnings, like Pause while the call is paused.
 export const ControlsPaused = style([
   tinted(color.Warning),
   {

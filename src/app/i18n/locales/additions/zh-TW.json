@@ -409,8 +409,7 @@
       "transcription": {
         "unavailable": "逐字稿無法使用",
         "pause": "暫停轉錄",
-        "pauseHint": "按住以暫停，或點選以暫停直到再次點選",
-        "pausedBy": "{{names}} 已暫停",
+        "pausedBy": "{{name}} 已暫停",
         "liveTranscript": "即時逐字稿",
         "close": "關閉即時逐字稿",
         "resize": "調整即時逐字稿大小",

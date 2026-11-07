@@ -1,15 +1,6 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ButtonHTMLAttributes,
-  type MouseEvent,
-} from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
-import classNames from 'classnames';
 import {
   Box,
   Icon,
@@ -26,27 +17,12 @@ import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import type { CallDeviceKind, CallDevices } from './RoomCall';
 import * as css from './CallPanel.css';
 
-/** What a control held down (Pause) listens to besides clicks. */
-type HoldHandlers = Pick<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  | 'onPointerDown'
-  | 'onPointerUp'
-  | 'onPointerCancel'
-  | 'onPointerLeave'
-  | 'onKeyDown'
-  | 'onKeyUp'
-  | 'onBlur'
-  | 'onContextMenu'
->;
-
-type ControlProps = HoldHandlers & {
+type ControlProps = {
   label: string;
-  /** What its tooltip says, where that is not its name. */
-  tooltip?: string;
-  /** More about it or its state for screen readers, beside its name. */
+  /** Its state, such as who paused, in its tooltip instead of its name and to screen readers. */
   description?: string;
   icon: IconSrc;
-  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
+  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Silenced audio (a muted microphone, sound off) is tinted red so nobody talks unheard. */
   off?: boolean;
   critical?: boolean;
@@ -57,13 +33,11 @@ type ControlProps = HoldHandlers & {
   disabled?: boolean;
   /** Smaller, for a panel's header. */
   small?: boolean;
-  className?: string;
 };
 
 /** A round call control that names itself in a tooltip. */
 export function CallControl({
   label,
-  tooltip,
   description,
   icon,
   onClick,
@@ -74,8 +48,6 @@ export function CallControl({
   expanded,
   disabled,
   small,
-  className,
-  ...holdHandlers
 }: ControlProps) {
   let variant: 'Critical' | 'Warning' | 'SurfaceVariant' = 'SurfaceVariant';
   if (critical || off) variant = 'Critical';
@@ -86,7 +58,7 @@ export function CallControl({
       offset={4}
       tooltip={
         <Tooltip>
-          <Text size="T200">{tooltip ?? label}</Text>
+          <Text size="T200">{description ?? label}</Text>
         </Tooltip>
       }
     >
@@ -97,7 +69,7 @@ export function CallControl({
           radii="Pill"
           variant={variant}
           fill="Soft"
-          className={classNames(critical && css.EndControl, className)}
+          className={critical ? css.EndControl : undefined}
           aria-label={label}
           aria-description={description}
           aria-pressed={pressed}
@@ -105,7 +77,6 @@ export function CallControl({
           aria-haspopup={expanded === undefined ? undefined : 'menu'}
           disabled={disabled}
           onClick={onClick}
-          {...holdHandlers}
         >
           <Icon size={small ? '200' : '400'} src={icon} />
         </IconButton>

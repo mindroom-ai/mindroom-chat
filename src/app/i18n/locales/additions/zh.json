@@ -409,8 +409,7 @@
       "transcription": {
         "unavailable": "转录不可用",
         "pause": "暂停转录",
-        "pauseHint": "按住以暂停，或点击以暂停直到再次点击",
-        "pausedBy": "{{names}} 已暂停",
+        "pausedBy": "{{name}} 已暂停",
         "liveTranscript": "实时文字记录",
         "close": "关闭实时文字记录",
         "resize": "调整实时文字记录大小",

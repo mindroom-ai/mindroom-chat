@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAtomValue } from 'jotai';
-import type { MatrixClient, Room } from 'matrix-js-sdk';
+import type { Room } from 'matrix-js-sdk';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
 import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
 import { useActiveCall } from '../callStore';
 import { TranscriptionClient } from './api';
-import { followCallEvents } from './liveCallStream';
+import { pollLiveCall } from './liveCallPoll';
 import {
-  applyCallEvent,
+  applyLiveUpdate,
   callTranscriptionAtom,
   liveTranscriptAtom,
   type LiveTranscript,
@@ -28,52 +28,64 @@ export type LiveTranscriptView = {
   ownCall: boolean;
 };
 
-type StreamView = Omit<LiveTranscriptView, 'ownCall'>;
+type ReadView = Omit<LiveTranscriptView, 'ownCall'>;
 
-/** The room's live call, followed on its own stream while `apiUrl` is given. */
-const useOwnStream = (
-  mx: MatrixClient,
-  roomId: string,
-  apiUrl: string | undefined,
-  discovered: boolean
-): StreamView => {
-  const [view, setView] = useState<StreamView>({ state: 'loading' });
+/**
+ * The room's live call, read every `everyMs` while `reading`. One sign-in serves every read while
+ * the room's server stays the same.
+ */
+const useLiveCallReads = (room: Room, everyMs: number, reading: boolean): ReadView => {
+  const mx = useMatrixClient();
+  const { roomId } = room;
+  const { apiUrl, discovered } = useTranscriptionServer(mx, room);
+  const client = useMemo(
+    () =>
+      apiUrl
+        ? new TranscriptionClient({
+            apiUrl,
+            getOpenIdToken: () =>
+              requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
+          })
+        : undefined,
+    [apiUrl, discovered, mx]
+  );
+  const [view, setView] = useState<ReadView>({ state: 'loading' });
   useEffect(() => {
-    if (!apiUrl) return undefined;
-    setView({ state: 'loading' });
-    const client = new TranscriptionClient({
-      apiUrl,
-      getOpenIdToken: () => requestAudienceOpenIdToken(mx, apiUrl, { requireBinding: discovered }),
-    });
-    const stream = new AbortController();
-    let live: LiveTranscript | undefined;
-    void followCallEvents(
+    if (!client || !reading) return undefined;
+    // What was read of the room stays while reading pauses; another room's goes.
+    setView((shown) => (shown.live?.roomId === roomId ? shown : { state: 'loading' }));
+    const stop = new AbortController();
+    void pollLiveCall(
       client,
       roomId,
-      stream.signal,
-      (event) => {
-        live = applyCallEvent(live, roomId, event);
-        setView({ state: 'live', live });
-      },
-      () => setView({ state: 'unavailable', live })
+      everyMs,
+      stop.signal,
+      (live) =>
+        setView((shown) => ({
+          state: 'live',
+          live: applyLiveUpdate(shown.live, roomId, { type: 'live', live }),
+        })),
+      () => setView((shown) => ({ ...shown, state: 'unavailable' }))
     ).then((outcome) => {
       if (outcome === 'not-transcribed') setView({ state: 'not-transcribed' });
     });
-    return () => stream.abort();
-  }, [apiUrl, discovered, mx, roomId]);
-  return view;
+    return () => stop.abort();
+  }, [client, everyMs, reading, roomId]);
+  return client ? view : { state: 'not-transcribed' };
 };
 
 /**
- * The room's live call for its transcript panel: this device's own call as its transcriber
- * follows it, or else one followed here, for as long as the panel shows.
+ * The room's live call: this device's own call as its transcriber reads it, or else one read here
+ * every `everyMs` while `reading`.
  */
-export const useLiveTranscript = (room: Room): LiveTranscriptView => {
-  const mx = useMatrixClient();
+export const useLiveTranscript = (
+  room: Room,
+  everyMs: number,
+  reading = true
+): LiveTranscriptView => {
   const active = useActiveCall();
   const transcription = useAtomValue(callTranscriptionAtom);
   const shared = useAtomValue(liveTranscriptAtom);
-  const server = useTranscriptionServer(mx, room);
   const { roomId } = room;
   const ownStatus =
     active?.kind === 'room' &&
@@ -81,13 +93,12 @@ export const useLiveTranscript = (room: Room): LiveTranscriptView => {
     transcription?.roomId === roomId
       ? transcription.status
       : undefined;
-  const own = useOwnStream(mx, roomId, ownStatus ? undefined : server.apiUrl, server.discovered);
+  const read = useLiveCallReads(room, everyMs, reading && !ownStatus);
 
   if (ownStatus) {
     const live = shared?.roomId === roomId ? shared : undefined;
     if (ownStatus === 'unavailable') return { state: 'unavailable', live, ownCall: true };
     return { state: live ? 'live' : 'loading', live, ownCall: true };
   }
-  if (!server.apiUrl) return { state: 'not-transcribed', ownCall: false };
-  return { ...own, ownCall: false };
+  return { ...read, ownCall: false };
 };

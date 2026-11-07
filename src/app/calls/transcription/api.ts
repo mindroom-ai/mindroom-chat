@@ -8,7 +8,7 @@ const SESSION_RENEW_MARGIN_MS = 60_000;
 /** Signing in (the token and the exchange) gives up after this long; the next request tries again. */
 const SIGN_IN_TIMEOUT_MS = 15_000;
 
-/** A call as MindRoom keeps it: who is in it, who holds Pause, and whose apps transcribe. */
+/** A call as MindRoom keeps it: who is in it, and who paused it. */
 export type TranscriptCall = {
   id: string;
   roomId: string;
@@ -17,12 +17,10 @@ export type TranscriptCall = {
   startedAt: string;
   /** Null while the call is live. */
   endedAt: string | null;
-  /** User IDs in the call now. */
+  /** User IDs whose apps are in the call now. */
   members: string[];
-  /** User IDs holding Pause. */
-  holds: string[];
-  /** User IDs whose apps transcribe them. */
-  transcribedBy: string[];
+  /** Who paused transcription; null while it is not paused. */
+  pausedBy: string | null;
 };
 
 /** One line of the live transcript: what someone said, or a gap. */
@@ -40,13 +38,6 @@ export type LiveCall = {
   lines: TranscriptLine[];
   names: Record<string, string | null>;
 };
-
-/** What the room's event stream says, as it happens. */
-export type CallEvent =
-  | { type: 'ready'; live: LiveCall }
-  | { type: 'call'; call: TranscriptCall }
-  | { type: 'line'; line: TranscriptLine }
-  | { type: 'ended'; callId: string };
 
 export type RefusalCode =
   | 'forbidden'
@@ -148,57 +139,6 @@ const tokenError = (error: unknown): TranscriptionApiError => {
   );
 };
 
-/** One complete event of a `text/event-stream` body. */
-type StreamEvent = { type: string; data: string };
-
-/** Splits a `text/event-stream` body, fed in pieces, into its events; comments are skipped. */
-const eventStreamParser = (emit: (event: StreamEvent) => void) => {
-  let buffer = '';
-  let type = '';
-  let data: string[] = [];
-  const line = (text: string) => {
-    if (text === '') {
-      if (data.length > 0) emit({ type: type || 'message', data: data.join('\n') });
-      type = '';
-      data = [];
-      return;
-    }
-    if (text.startsWith(':')) return;
-    const colon = text.indexOf(':');
-    const field = colon === -1 ? text : text.slice(0, colon);
-    const value = colon === -1 ? '' : text.slice(colon + 1).replace(/^ /, '');
-    if (field === 'event') type = value;
-    else if (field === 'data') data.push(value);
-  };
-  return (chunk: string) => {
-    buffer += chunk;
-    // A CR at the end may be the first half of a CRLF still on its way.
-    const end = buffer.endsWith('\r') ? buffer.length - 1 : buffer.length;
-    const lines = buffer.slice(0, end).split(/\r\n|\r|\n/);
-    buffer = (lines.pop() ?? '') + buffer.slice(end);
-    lines.forEach(line);
-  };
-};
-
-/** One stream event as the app reads it; every event's data is JSON, and anything else is skipped. */
-const readCallEvent = ({ type, data }: StreamEvent): CallEvent | undefined => {
-  let value: unknown;
-  try {
-    value = JSON.parse(data);
-  } catch {
-    return undefined;
-  }
-  if (!value || typeof value !== 'object') return undefined;
-  if (type === 'ended') {
-    const { callId } = value as { callId?: unknown };
-    return typeof callId === 'string' ? { type, callId } : undefined;
-  }
-  if (type === 'ready') return { type, live: value as LiveCall };
-  if (type === 'call') return { type, call: value as TranscriptCall };
-  if (type === 'line') return { type, line: value as TranscriptLine };
-  return undefined;
-};
-
 type ClientSession = { token: string; expiresAt: number };
 
 export type TranscriptionClientOptions = {
@@ -293,11 +233,12 @@ export class TranscriptionClient {
     return untilAborted(this.signingIn, signal);
   }
 
-  /** Sends a call route with the session; a refused session signs in again, once. */
-  private async send(path: string, init: RequestInit, signal?: AbortSignal): Promise<Response> {
+  /** Sends a call route with the session for its JSON; a refused session signs in again, once. */
+  private async sendJson<T>(path: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
     for (let attempt = 0; ; attempt += 1) {
       const session = await this.currentSession(signal);
       const headers = new Headers(init.headers);
+      headers.set('Accept', 'application/json');
       headers.set('Authorization', `Bearer ${session.token}`);
       const response = await this.fetch(`${this.apiUrl}${API_PATH}${path}`, {
         ...init,
@@ -309,18 +250,11 @@ export class TranscriptionClient {
         continue;
       }
       if (!response.ok) throw await refusal(response);
-      return response;
-    }
-  }
-
-  private async sendJson<T>(path: string, init: RequestInit, signal?: AbortSignal): Promise<T> {
-    const headers = new Headers(init.headers);
-    headers.set('Accept', 'application/json');
-    const response = await this.send(path, { ...init, headers }, signal);
-    try {
-      return (await response.json()) as T;
-    } catch {
-      throw noAnswer('MindRoom answered with something that is not JSON.');
+      try {
+        return (await response.json()) as T;
+      } catch {
+        throw noAnswer('MindRoom answered with something that is not JSON.');
+      }
     }
   }
 
@@ -338,18 +272,14 @@ export class TranscriptionClient {
     await this.sendJson(`/calls/${encodeURIComponent(callId)}/leave`, { method: 'POST' }, signal);
   }
 
-  /**
-   * Takes or lets go of this person's hold on Pause. Sent to outlast the page, so a hold let go
-   * of as the page goes away (which sends no leave) still reaches MindRoom.
-   */
-  async pause(callId: string, holding: boolean, signal?: AbortSignal): Promise<TranscriptCall> {
+  /** Pauses or resumes transcription of the call for everyone in it. */
+  async pause(callId: string, paused: boolean, signal?: AbortSignal): Promise<TranscriptCall> {
     const { call } = await this.sendJson<{ call: TranscriptCall }>(
       `/calls/${encodeURIComponent(callId)}/pause`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ holding }),
-        keepalive: true,
+        body: JSON.stringify({ paused }),
       },
       signal
     );
@@ -376,68 +306,13 @@ export class TranscriptionClient {
     return line;
   }
 
-  live(roomId: string, signal?: AbortSignal): Promise<LiveCall> {
+  /** The room's live call, with its lines after the line `after` (all of them without it). */
+  live(roomId: string, after?: string, signal?: AbortSignal): Promise<LiveCall> {
+    const query = after === undefined ? '' : `?after=${encodeURIComponent(after)}`;
     return this.sendJson<LiveCall>(
-      `/rooms/${encodeURIComponent(roomId)}/calls.live`,
+      `/rooms/${encodeURIComponent(roomId)}/calls.live${query}`,
       { method: 'GET' },
       signal
     );
-  }
-
-  /**
-   * Reads the room's event stream, handing on each event, until the server closes it (resolves)
-   * or it fails or `signal` aborts (rejects). The server writes at least a comment every 20 s, so a
-   * stream quiet for `idleMs` is taken for lost.
-   */
-  async events(
-    roomId: string,
-    onEvent: (event: CallEvent) => void,
-    signal: AbortSignal,
-    idleMs: number
-  ): Promise<void> {
-    const connection = new AbortController();
-    const stop = () => connection.abort();
-    signal.addEventListener('abort', stop, { once: true });
-    let quiet = false;
-    let idle: ReturnType<typeof setTimeout> | undefined;
-    const heard = () => {
-      clearTimeout(idle);
-      idle = setTimeout(() => {
-        quiet = true;
-        connection.abort();
-      }, idleMs);
-    };
-    try {
-      heard();
-      const response = await this.send(
-        `/rooms/${encodeURIComponent(roomId)}/calls.events`,
-        { method: 'GET', headers: { Accept: 'text/event-stream' } },
-        connection.signal
-      );
-      const reader = response.body?.getReader();
-      if (!reader) throw noAnswer('MindRoom answered the event stream without a body.');
-      connection.signal.addEventListener('abort', () => {
-        reader.cancel().catch(() => undefined);
-      });
-      const decoder = new TextDecoder();
-      const parse = eventStreamParser((event) => {
-        const callEvent = readCallEvent(event);
-        if (callEvent) onEvent(callEvent);
-      });
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (connection.signal.aborted) throw noAnswer('The event stream stopped.');
-        if (done) return;
-        heard();
-        parse(decoder.decode(value, { stream: true }));
-      }
-    } catch (error) {
-      if (quiet) throw noAnswer('The event stream went quiet.');
-      if (error instanceof TranscriptionApiError) throw error;
-      throw noAnswer('The event stream broke off.');
-    } finally {
-      clearTimeout(idle);
-      signal.removeEventListener('abort', stop);
-    }
   }
 }

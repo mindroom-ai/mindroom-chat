@@ -8,7 +8,7 @@ import { activeCallAtom, type ActiveCall } from '../callStore';
 import type { CallState } from '../RoomCall';
 import type { CallTranscriberOptions } from './callTranscriber';
 import type { TranscriptCall } from './api';
-import { callTranscriptionAtom, liveTranscriptAtom, pauseHeldAtom } from './transcriptionState';
+import { callTranscriptionAtom, liveTranscriptAtom, pauseRequestAtom } from './transcriptionState';
 import { requestAudienceOpenIdToken } from '../../matrix/openidAudience';
 import { defined } from '../../../test/utils/defined';
 
@@ -30,8 +30,7 @@ const CALL: TranscriptCall = {
   startedAt: '2026-11-07T09:29:00Z',
   endedAt: null,
   members: ['@ann:example.org'],
-  holds: [],
-  transcribedBy: ['@ann:example.org'],
+  pausedBy: null,
 };
 
 /** The room, its agents' servers and the device's settings, as the mocked hooks report them. */
@@ -53,7 +52,7 @@ const made = vi.hoisted(
       end: ReturnType<typeof vi.fn>;
       setMicrophone: ReturnType<typeof vi.fn>;
       setPaused: ReturnType<typeof vi.fn>;
-      setHolding: ReturnType<typeof vi.fn>;
+      pause: ReturnType<typeof vi.fn>;
     }>
 );
 
@@ -67,7 +66,7 @@ vi.mock('./callTranscriber', () => ({
 
     setPaused = vi.fn();
 
-    setHolding = vi.fn();
+    pause = vi.fn(async () => undefined);
 
     constructor(options: CallTranscriberOptions) {
       made.push({
@@ -76,7 +75,7 @@ vi.mock('./callTranscriber', () => ({
         end: this.end,
         setMicrophone: this.setMicrophone,
         setPaused: this.setPaused,
-        setHolding: this.setHolding,
+        pause: this.pause,
       });
     }
   },
@@ -140,6 +139,14 @@ const mount = (kind: ActiveCall['kind'] = 'room') => {
     );
   });
   return { store, set };
+};
+
+const pending = () => {
+  let resolve!: () => void;
+  const promise = new Promise<void>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
 };
 
 /** Lets the transcriber's module load. */
@@ -244,56 +251,58 @@ describe('CallTranscription', () => {
     expect(transcriber.setMicrophone).toHaveBeenLastCalledWith(MIC_B);
   });
 
-  it('pauses listening at once while this device or anyone in the call holds Pause', async () => {
+  it('pauses listening while the call is paused, as MindRoom says', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });
     await loaded();
     const transcriber = only();
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
-
-    act(() => store.set(pauseHeldAtom, true));
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
-    act(() => store.set(pauseHeldAtom, false));
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
 
     act(() =>
-      transcriber.options.onEvent({
-        type: 'ready',
-        live: { call: { ...CALL, holds: ['@bob:example.org'] }, lines: [], names: {} },
+      transcriber.options.onUpdate({
+        type: 'live',
+        live: { call: { ...CALL, pausedBy: '@bob:example.org' }, lines: [], names: {} },
       })
     );
-    expect(store.get(liveTranscriptAtom)?.call?.holds).toEqual(['@bob:example.org']);
+    expect(store.get(liveTranscriptAtom)?.call?.pausedBy).toBe('@bob:example.org');
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
-    act(() => transcriber.options.onEvent({ type: 'call', call: CALL }));
+    act(() => transcriber.options.onUpdate({ type: 'call', call: CALL }));
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
   });
 
-  it('takes the hold as Pause is pressed, pausing listening before MindRoom answers, and lets go', async () => {
+  it('sends Pause pressed here, pausing listening before MindRoom answers', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });
     await loaded();
     const transcriber = only();
-    expect(transcriber.options.userId).toBe('@ann:example.org');
-    expect(transcriber.setHolding).not.toHaveBeenCalled();
+    const answer = pending();
+    transcriber.pause.mockImplementationOnce(() => answer.promise);
 
-    // Outside React's batching: a page going away has no next render to wait for.
-    store.set(pauseHeldAtom, true);
+    act(() => store.set(pauseRequestAtom, true));
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
-    expect(transcriber.setHolding).toHaveBeenLastCalledWith(true);
-    store.set(pauseHeldAtom, false);
-    expect(transcriber.setHolding).toHaveBeenLastCalledWith(false);
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+    expect(transcriber.pause).toHaveBeenLastCalledWith(true);
+
+    // Answered: MindRoom's state counts again.
+    await act(async () => {
+      transcriber.options.onUpdate({
+        type: 'call',
+        call: { ...CALL, pausedBy: '@ann:example.org' },
+      });
+      answer.resolve();
+    });
+    expect(store.get(pauseRequestAtom)).toBeUndefined();
+    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
   });
 
-  it('shows a refused hold as not held, which resumes listening', async () => {
+  it('shows the state MindRoom reports after a refused Pause, which resumes listening', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });
     await loaded();
     const transcriber = only();
-    act(() => store.set(pauseHeldAtom, true));
 
-    act(() => transcriber.options.onHoldRefused?.());
-    expect(store.get(pauseHeldAtom)).toBe(false);
+    // Refused: the transcriber hands on no answer.
+    await act(async () => store.set(pauseRequestAtom, true));
+    expect(store.get(pauseRequestAtom)).toBeUndefined();
     expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
   });
 
@@ -318,15 +327,15 @@ describe('CallTranscription', () => {
     const transcriber = only();
     act(() => {
       transcriber.options.onStatus('transcribing', 'call-1');
-      transcriber.options.onEvent({ type: 'ready', live: { call: CALL, lines: [], names: {} } });
-      store.set(pauseHeldAtom, true);
+      transcriber.options.onUpdate({ type: 'live', live: { call: CALL, lines: [], names: {} } });
+      store.set(pauseRequestAtom, true);
     });
 
     set({ phase: 'ended' });
     expect(transcriber.end).toHaveBeenCalledTimes(1);
     expect(store.get(callTranscriptionAtom)).toBeUndefined();
     expect(store.get(liveTranscriptAtom)).toBeUndefined();
-    expect(store.get(pauseHeldAtom)).toBe(false);
+    expect(store.get(pauseRequestAtom)).toBeUndefined();
 
     // A transcriber on its way out changes nothing more.
     act(() => transcriber.options.onStatus('unavailable', undefined));

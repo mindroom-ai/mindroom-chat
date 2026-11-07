@@ -417,8 +417,7 @@
       "transcription": {
         "unavailable": "Transkriptler kullanılamıyor",
         "pause": "Konuşma metnini duraklat",
-        "pauseHint": "Duraklatmak için basılı tutun ya da yeniden tıklayana kadar duraklatmak için tıklayın",
-        "pausedBy": "{{names}} tarafından duraklatıldı",
+        "pausedBy": "{{name}} tarafından duraklatıldı",
         "liveTranscript": "Canlı konuşma metni",
         "close": "Canlı konuşma metnini kapat",
         "resize": "Canlı konuşma metnini yeniden boyutlandır",

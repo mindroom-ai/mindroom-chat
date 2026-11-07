@@ -18,11 +18,11 @@ import {
 // where MindRoom's router is a member, each browser's microphone playing a spoken recording
 // (e2e/fixtures/agent-call-question.wav, "What is the capital of France? Please answer in one
 // short sentence."). Each app finds the speech in the microphone it publishes and uploads it to
-// MindRoom, and the live transcript shows each line under its speaker's name. One holds Pause:
-// the other's controls say who paused, what the other says meanwhile is not transcribed, and the
-// live transcript shows a gap. Both leave: the router edits the call's row to ended and posts the
-// notes and the whole transcript in the row's thread, which shows as the transcript card. All in
-// the lobby's default view.
+// MindRoom, and the live transcript shows each line under its speaker's name. One pauses: the
+// other's controls say who paused, what the other says meanwhile is not transcribed, and once
+// resumed the live transcript shows a gap. Both leave: the router edits the call's row to ended
+// and posts the notes and the whole transcript in the row's thread, which shows as the transcript
+// card. All in the lobby's default view.
 //
 // With the stack's stand-in speech-to-text (scripts/agent-stack/stub_model.py) each line says how
 // long its stretch of speech was, and the stub model writes the notes. With
@@ -217,10 +217,11 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     await page.locator('[data-room-call-button]').click({ timeout: 90_000 });
     await joinCall(page, stack.tester.userId);
 
-    // The guest finds the call on in the row, with the tester in it, and joins from the row.
+    // The guest finds the call on in the row, with the tester in it as the row reads it (every 5
+    // seconds while in view), and joins from the row.
     await openLobby(guest.page, stack);
     const guestRow = await openRowThread(guest.page);
-    await expect(guestRow.locator('[data-call-row-member]')).toHaveCount(1);
+    await expect(guestRow.locator('[data-call-row-member]')).toHaveCount(1, { timeout: 30_000 });
     await guestRow.getByRole('button', { name: 'Join', exact: true }).click();
     await joinCall(guest.page, guest.userId);
 
@@ -250,10 +251,12 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     await speak(guest.page);
     await expect(linesOf(log, GUEST_NAME)).toHaveText([spoken], { timeout: 60_000 });
 
-    // The tester holds Pause: the guest's controls say so, and what the guest says meanwhile is
-    // not transcribed. Letting go leaves one gap in the live transcript.
-    await panel.getByRole('button', { name: 'Pause transcription' }).hover();
-    await page.mouse.down();
+    // The tester pauses: the guest's controls say so (from the guest's next read of the call), and
+    // what the guest says meanwhile is not transcribed. Resuming leaves one gap in the live
+    // transcript.
+    const pause = panel.getByRole('button', { name: 'Pause transcription' });
+    await pause.click();
+    await expect(pause).toHaveAttribute('aria-pressed', 'true');
     await expect(
       callPanel(guest.page)
         .getByRole('status')
@@ -261,7 +264,8 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     ).toBeVisible({ timeout: 30_000 });
     await speak(guest.page);
     await guest.page.waitForTimeout(3_000);
-    await page.mouse.up();
+    await pause.click();
+    await expect(pause).toHaveAttribute('aria-pressed', 'false');
     await expect(log.locator('[data-live-transcript-gap]')).toHaveText(['Paused'], {
       timeout: 30_000,
     });

@@ -417,8 +417,7 @@
       "transcription": {
         "unavailable": "Transcripties zijn niet beschikbaar",
         "pause": "Transcriptie pauzeren",
-        "pauseHint": "Ingedrukt houden om te pauzeren, of klikken om te pauzeren tot je opnieuw klikt",
-        "pausedBy": "Gepauzeerd door {{names}}",
+        "pausedBy": "Gepauzeerd door {{name}}",
         "liveTranscript": "Live transcript",
         "close": "Live transcript sluiten",
         "resize": "Grootte van het live transcript wijzigen",

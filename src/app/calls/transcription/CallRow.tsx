@@ -1,27 +1,29 @@
-import { useId } from 'react';
+import { useCallback, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAtomValue, useStore } from 'jotai';
+import { useStore } from 'jotai';
 import type { MatrixEvent, Room } from 'matrix-js-sdk';
 import { Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import {
+  getIntersectionObserverEntry,
+  useIntersectionObserver,
+} from '../../lib/hooks/useIntersectionObserver';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
 import { useAppLanguageCode } from '../../i18n/useAppLanguageCode';
 import { formatCallDuration } from '../../lib/time';
 import { useRoomNavigate } from '../../navigation/useRoomNavigate';
 import { useSelectedRoom } from '../../navigation/useSelectedRoom';
-import {
-  callPanelRoomAtom,
-  isActiveCallShownIn,
-  useActiveCall,
-  useRoomCallMembers,
-} from '../callStore';
-import { callUserIds } from '../callMemberships';
+import { callPanelRoomAtom, isActiveCallShownIn, useActiveCall } from '../callStore';
 import { CallMemberAvatar } from '../CallTile';
-import { liveTranscriptAtom, nameInCall } from './transcriptionState';
+import { nameInCall } from './transcriptionState';
 import { openTranscriptPanel } from './transcriptPanel';
+import { useLiveTranscript } from './useLiveTranscript';
 import * as css from './CallRow.css';
 
 type RowProps = { room: Room; rowEvent: MatrixEvent; row: CallRowContent };
+
+/** A live call's row reads who is in the call this often while it is in view. */
+const READ_MS = 5_000;
 
 /** The row of a call that has ended: how long it lasted, and the way to its transcript message. */
 function EndedCallRow({ room, rowEvent, row }: RowProps) {
@@ -59,28 +61,34 @@ function EndedCallRow({ room, rowEvent, row }: RowProps) {
   );
 }
 
-/** The row of a call that is on: who is in it, Join and Transcript. */
+/** The row of a call that is on: who is in it, as MindRoom has it, Join and Transcript. */
 function LiveCallRow({ room, row }: RowProps) {
   const { t } = useTranslation();
   const headerId = useId();
-  const mx = useMatrixClient();
   const store = useStore();
   const selectedRoomId = useSelectedRoom();
   const navigation = useRoomNavigate();
 
-  const inCallHere = callUserIds(useRoomCallMembers(mx, room));
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  useIntersectionObserver(
+    (entries) => {
+      const entry = getIntersectionObserverEntry(rowRef.current, entries);
+      if (entry) setInView(entry.isIntersecting);
+    },
+    undefined,
+    useCallback(() => rowRef.current, [])
+  );
+  const { live } = useLiveTranscript(room, READ_MS, inView);
   const shownCall = isActiveCallShownIn(useActiveCall(), room.roomId);
-  const known = useAtomValue(liveTranscriptAtom);
-  const live = known?.roomId === room.roomId ? known : undefined;
-  // Who is in it as MindRoom has it, where this device follows the call; else the room's call.
-  const people = live?.call?.id === row.callId ? live.call.members : inCallHere;
+  const people = live?.call?.id === row.callId ? live.call.members : [];
 
   const showRoom = () => {
     if (selectedRoomId !== room.roomId) navigation.navigateRoom(room.roomId);
   };
 
   return (
-    <div className={css.Row} role="group" aria-labelledby={headerId} data-call-row="">
+    <div ref={rowRef} className={css.Row} role="group" aria-labelledby={headerId} data-call-row="">
       <div id={headerId} className={css.Header}>
         <Icon size="100" src={Icons.Phone} aria-hidden />
         <Text as="span" size="T300" className={css.Title}>

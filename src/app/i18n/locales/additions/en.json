@@ -417,8 +417,7 @@
       "transcription": {
         "unavailable": "Transcripts are unavailable",
         "pause": "Pause transcription",
-        "pauseHint": "Hold to pause, or click to pause until you click again",
-        "pausedBy": "Paused by {{names}}",
+        "pausedBy": "Paused by {{name}}",
         "liveTranscript": "Live transcript",
         "close": "Close the live transcript",
         "resize": "Resize the live transcript",

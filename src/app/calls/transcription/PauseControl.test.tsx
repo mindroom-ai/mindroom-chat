@@ -6,8 +6,7 @@ import { createStore, Provider } from 'jotai';
 import type { Room } from 'matrix-js-sdk';
 import { IconButton } from 'folds';
 import { PauseControl, usePausedBy } from './PauseControl';
-import { liveTranscriptAtom, pauseHeldAtom } from './transcriptionState';
-import * as css from './PauseControl.css';
+import { liveTranscriptAtom, pauseRequestAtom } from './transcriptionState';
 import type { TranscriptCall } from './api';
 
 vi.mock('../../ui/directional', () => ({
@@ -37,8 +36,7 @@ const CALL: TranscriptCall = {
   startedAt: '2026-11-07T09:29:00Z',
   endedAt: null,
   members: ['@ann:example.org', '@bob:example.org'],
-  holds: [],
-  transcribedBy: ['@ann:example.org', '@bob:example.org'],
+  pausedBy: null,
 };
 
 function PausedBy() {
@@ -60,12 +58,29 @@ const mount = () => {
   });
   const tree = renderer!;
   const button = () => tree.root.findByType(IconButton);
-  const fire = (handler: string, event: Record<string, unknown> = {}) =>
+  const click = () =>
     act(() => {
-      button().props[handler]({ preventDefault: vi.fn(), button: 0, ...event });
+      button().props.onClick({});
     });
   const pausedBy = () => tree.root.findByType('output').props.children as string;
-  return { store, button, fire, pausedBy, held: () => store.get(pauseHeldAtom) };
+  /** MindRoom's state of the call: paused by `userId`, or not paused. */
+  const pausedInCall = (userId: string | null, names: Record<string, string> = {}) =>
+    act(() =>
+      store.set(liveTranscriptAtom, {
+        roomId: ROOM_ID,
+        call: { ...CALL, pausedBy: userId },
+        lines: [],
+        names,
+      })
+    );
+  return {
+    store,
+    button,
+    click,
+    pausedBy,
+    pausedInCall,
+    request: () => store.get(pauseRequestAtom),
+  };
 };
 
 afterEach(() => {
@@ -75,197 +90,54 @@ afterEach(() => {
 });
 
 describe('PauseControl', () => {
-  it.each(['onPointerUp', 'onPointerCancel', 'onPointerLeave'])(
-    'holds Pause while pressed, and lets go on %s',
-    (release) => {
-      const t = mount();
-      t.fire('onPointerDown');
-      expect(t.held()).toBe(true);
-      expect(t.button().props['aria-pressed']).toBe(true);
-
-      t.fire(release);
-      expect(t.held()).toBe(false);
-      expect(t.button().props['aria-pressed']).toBe(false);
-    }
-  );
-
-  it('takes no hold for a secondary button', () => {
+  it('pauses with a click and resumes with the next, before MindRoom answers', () => {
     const t = mount();
-    t.fire('onPointerDown', { button: 2 });
-    expect(t.held()).toBe(false);
+    expect(t.button().props['aria-pressed']).toBe(false);
+
+    t.click();
+    expect(t.request()).toBe(true);
+    expect(t.button().props['aria-pressed']).toBe(true);
+    expect(t.pausedBy()).toBe('Paused by Ann');
+
+    t.click();
+    expect(t.request()).toBe(false);
+    expect(t.button().props['aria-pressed']).toBe(false);
+    expect(t.pausedBy()).toBe('');
   });
 
-  it.each([' ', 'Enter'])('holds Pause while "%s" is down, and lets go when it comes up', (key) => {
+  it('resumes a call someone else paused', () => {
     const t = mount();
-    t.fire('onKeyDown', { key });
-    expect(t.held()).toBe(true);
-    t.fire('onKeyUp', { key });
-    expect(t.held()).toBe(false);
+    t.pausedInCall('@bob:example.org');
+    expect(t.button().props['aria-pressed']).toBe(true);
 
-    // A key held down repeats: that is still one press.
-    t.fire('onKeyDown', { key, repeat: true });
-    expect(t.held()).toBe(false);
+    t.click();
+    expect(t.request()).toBe(false);
+    expect(t.button().props['aria-pressed']).toBe(false);
   });
 
-  it('lets go when the control loses focus', () => {
-    const t = mount();
-    t.fire('onKeyDown', { key: ' ' });
-    t.fire('onBlur');
-    expect(t.held()).toBe(false);
-  });
-
-  it.each([
-    ['the window loses focus', () => window.dispatchEvent(new Event('blur'))],
-    [
-      'the page is hidden',
-      () => {
-        vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
-        document.dispatchEvent(new Event('visibilitychange'));
-      },
-    ],
-    ['the page goes away', () => window.dispatchEvent(new Event('pagehide'))],
-  ])('lets go when %s', (_case, happen) => {
-    const t = mount();
-    t.fire('onPointerDown');
-    act(() => happen());
-    expect(t.held()).toBe(false);
-  });
-
-  it('lets go when it goes away', () => {
-    const t = mount();
-    t.fire('onPointerDown');
-    act(() => renderer?.unmount());
-    renderer = undefined;
-    expect(t.held()).toBe(false);
-  });
-
-  it("looks like the controls' warning while anyone holds it, naming who does", () => {
+  it("looks like the controls' warning while the call is paused, naming who paused", () => {
     const t = mount();
     expect(t.button().props.variant).toBe('SurfaceVariant');
+    expect(t.button().props['aria-description']).toBeUndefined();
     expect(t.pausedBy()).toBe('');
 
-    // Pressed here, it says so before MindRoom answers.
-    t.fire('onPointerDown');
+    t.pausedInCall('@bob:example.org');
     expect(t.button().props.variant).toBe('Warning');
-    expect(t.pausedBy()).toBe('Paused by Ann');
-    t.fire('onPointerUp');
-
-    act(() =>
-      t.store.set(liveTranscriptAtom, {
-        roomId: ROOM_ID,
-        call: { ...CALL, holds: ['@bob:example.org'] },
-        lines: [],
-        names: {},
-      })
-    );
-    expect(t.button().props.variant).toBe('Warning');
-    expect(t.button().props['aria-pressed']).toBe(false);
     // Its name stays; who paused is its description.
     expect(t.button().props['aria-label']).toBe('Pause transcription');
     expect(t.button().props['aria-description']).toBe('Paused by Bob');
     expect(t.pausedBy()).toBe('Paused by Bob');
 
-    // Pressed here as well: both, and a member the room has not loaded by MindRoom's name.
-    t.fire('onPointerDown');
-    act(() =>
-      t.store.set(liveTranscriptAtom, {
-        roomId: ROOM_ID,
-        call: { ...CALL, holds: ['@bob:example.org', '@dee:example.org'] },
-        lines: [],
-        names: { '@dee:example.org': 'Dee' },
-      })
-    );
-    expect(t.pausedBy()).toBe('Paused by Ann, Bob, and Dee');
+    // A member the room has not loaded, by MindRoom's name.
+    t.pausedInCall('@dee:example.org', { '@dee:example.org': 'Dee' });
+    expect(t.pausedBy()).toBe('Paused by Dee');
   });
 
-  it('keeps its name, and tells how it works while nobody holds it', () => {
+  it('shows the state MindRoom reports once its answer ends the request', () => {
     const t = mount();
-    expect(t.button().props['aria-label']).toBe('Pause transcription');
-    expect(t.button().props['aria-description']).toBe(
-      'Hold to pause, or click to pause until you click again'
-    );
-  });
-
-  it('neither scrolls nor opens a callout while a finger holds it', () => {
-    const t = mount();
-    expect(t.button().props.className).toContain(css.HoldControl);
-  });
-
-  it('holds Pause on a click that came without a press, until the next click', () => {
-    const t = mount();
-    // Screen readers, voice control and switch access click without pressing.
-    t.fire('onClick');
-    expect(t.held()).toBe(true);
-    expect(t.button().props['aria-pressed']).toBe(true);
-    // Moving the pointer over and off it lets nothing go.
-    t.fire('onPointerLeave');
-    expect(t.held()).toBe(true);
-
-    t.fire('onClick');
-    expect(t.held()).toBe(false);
-  });
-
-  it.each([
-    ['the control loses focus', () => undefined, 'onBlur'],
-    ['the window loses focus', () => window.dispatchEvent(new Event('blur')), undefined],
-    ['the page goes away', () => window.dispatchEvent(new Event('pagehide')), undefined],
-  ])('lets a clicked hold go when %s', (_case, happen, handler) => {
-    const t = mount();
-    t.fire('onClick');
-    if (handler) t.fire(handler);
-    act(() => {
-      happen();
-    });
-    expect(t.held()).toBe(false);
-  });
-
-  it('lets a clicked hold go when it goes away', () => {
-    const t = mount();
-    t.fire('onClick');
-    act(() => renderer?.unmount());
-    renderer = undefined;
-    expect(t.held()).toBe(false);
-  });
-
-  it.each([
-    ['a mouse', ['onPointerDown', 'onPointerUp', 'onClick']],
-    // Touch and pen: the pointer leaves the button before the click comes.
-    ['a finger', ['onPointerDown', 'onPointerUp', 'onPointerLeave', 'onClick']],
-  ])('takes the click that ends a press with %s for that press', (_case, events) => {
-    const t = mount();
-    events.forEach((handler) => {
-      t.fire(handler);
-    });
-    expect(t.held()).toBe(false);
+    t.click();
+    act(() => t.store.set(pauseRequestAtom, undefined));
     expect(t.button().props['aria-pressed']).toBe(false);
-
-    // A click on its own afterwards still holds it.
-    t.fire('onClick');
-    expect(t.held()).toBe(true);
-  });
-
-  it('takes a click long after a press that ended elsewhere as a click on its own', () => {
-    vi.useFakeTimers();
-    try {
-      const t = mount();
-      t.fire('onPointerDown');
-      t.fire('onPointerLeave');
-      vi.advanceTimersByTime(5_000);
-      t.fire('onClick');
-      expect(t.held()).toBe(true);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('shows a refused hold as not held while still pressed', () => {
-    const t = mount();
-    t.fire('onPointerDown');
-    act(() => t.store.set(pauseHeldAtom, false));
     expect(t.button().props.variant).toBe('SurfaceVariant');
-    expect(t.button().props['aria-pressed']).toBe(false);
-    // Letting go afterwards takes nothing back.
-    t.fire('onPointerUp');
-    expect(t.held()).toBe(false);
   });
 });

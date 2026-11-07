@@ -4,7 +4,7 @@ import { agentCallFailureAtom } from '../calls/agent/agentCaller';
 import {
   callTranscriptionAtom,
   liveTranscriptAtom,
-  pauseHeldAtom,
+  pauseRequestAtom,
 } from '../calls/transcription/transcriptionState';
 import { transcriptPanelAtom } from '../calls/transcription/transcriptPanel';
 import { commandPaletteOpenAtom } from '../command-palette/commandPaletteState';
@@ -87,7 +87,7 @@ const ACCOUNT_STATE: readonly Forget[] = [
   forgetCallState,
   toInitial(callTranscriptionAtom),
   toInitial(liveTranscriptAtom),
-  toInitial(pauseHeldAtom),
+  toInitial(pauseRequestAtom),
   toInitial(transcriptPanelAtom),
   toInitial(agentCallFailureAtom),
   toInitial(settingsModalAtom),

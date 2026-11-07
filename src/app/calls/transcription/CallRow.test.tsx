@@ -6,11 +6,10 @@ import { createStore, Provider } from 'jotai';
 import { MatrixEvent, type IEvent } from 'matrix-js-sdk';
 import { CallRow } from './CallRow';
 import { activeCallAtom, callPanelRoomAtom, type ActiveCall } from '../callStore';
-import type { CallMember } from '../callMemberships';
-import { liveTranscriptAtom } from './transcriptionState';
+import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
 import { transcriptPanelAtom } from './transcriptPanel';
 import type { CallRowContent } from '../../matrix/protocol/callRow';
-import type { TranscriptCall } from './api';
+import type { LiveCall, TranscriptCall } from './api';
 
 const ROOM_ID = '!room:example.org';
 const VIEWER = '@ann:example.org';
@@ -18,16 +17,29 @@ const ROUTER = '@mindroom_router:example.org';
 const BOB = '@bob:example.org';
 
 const state = vi.hoisted(() => ({
-  callMembers: [] as CallMember[],
   selectedRoom: '!room:example.org' as string | undefined,
   navigateRoom: vi.fn(),
   navigateRoomThread: vi.fn(),
+  /** Each time the row reads the live call. */
+  polls: [] as Array<{ everyMs: number; signal: AbortSignal; onLive: (live: LiveCall) => void }>,
 }));
 
-vi.mock('../callStore', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../callStore')>()),
-  useRoomCallMembers: () => state.callMembers,
+vi.mock('./useTranscriptionServer', () => ({
+  useTranscriptionServer: () => ({ apiUrl: 'https://mindroom.example.org', discovered: true }),
 }));
+vi.mock('./liveCallPoll', () => ({
+  pollLiveCall: (
+    _client: unknown,
+    _roomId: string,
+    everyMs: number,
+    signal: AbortSignal,
+    onLive: (live: LiveCall) => void
+  ) =>
+    new Promise(() => {
+      state.polls.push({ everyMs, signal, onLive });
+    }),
+}));
+vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
 vi.mock('../../navigation/useSelectedRoom', () => ({
   useSelectedRoom: () => state.selectedRoom,
 }));
@@ -73,7 +85,42 @@ const TRANSCRIBED: CallRowContent = {
   ended: { durationSeconds: 720, transcriptEventId: '$notes' },
 };
 
-const member = (userId: string): CallMember => ({ userId, deviceId: 'DEVICE', createdTs: 1 });
+const CALL: TranscriptCall = {
+  id: 'call-1',
+  roomId: ROOM_ID,
+  rowEventId: '$row',
+  startedAt: '2026-11-07T09:29:00Z',
+  endedAt: null,
+  members: [BOB, VIEWER],
+  pausedBy: null,
+};
+
+/** The browser's word on whether the row is in view. */
+let observed: { callback: IntersectionObserverCallback; target?: Element } | undefined;
+class FakeIntersectionObserver {
+  constructor(callback: IntersectionObserverCallback) {
+    observed = { callback };
+  }
+
+  observe(target: Element) {
+    if (observed) observed.target = target;
+  }
+
+  disconnect() {
+    observed = undefined;
+  }
+}
+const inView = (isIntersecting: boolean) =>
+  act(() => {
+    const { callback, target } = observed ?? {};
+    if (!callback || !target) throw new Error('nothing observed');
+    callback([{ target, isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
+  });
+
+const faces = () =>
+  [...container.querySelectorAll('[data-call-row-member]')].map((face) =>
+    face.getAttribute('aria-label')
+  );
 
 let container: HTMLDivElement;
 let root: Root;
@@ -99,7 +146,8 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  state.callMembers = [];
+  vi.stubGlobal('IntersectionObserver', FakeIntersectionObserver);
+  state.polls = [];
   state.selectedRoom = ROOM_ID;
   state.navigateRoom.mockReset();
   state.navigateRoomThread.mockReset();
@@ -108,19 +156,17 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   container.remove();
+  vi.unstubAllGlobals();
 });
 
 describe('CallRow', () => {
   it('shows who is in the call, Join and Transcript while the row is unedited', () => {
-    state.callMembers = [member(BOB), member(VIEWER)];
     const store = render(LIVE);
+    inView(true);
+    act(() => state.polls[0]?.onLive({ call: CALL, lines: [], names: {} }));
 
     expect(container.textContent).toContain('Call in progress');
-    expect(
-      [...container.querySelectorAll('[data-call-row-member]')].map((face) =>
-        face.getAttribute('aria-label')
-      )
-    ).toEqual(['Bob', 'Ann']);
+    expect(faces()).toEqual(['Bob', 'Ann']);
 
     act(() => button('Join')?.click());
     expect(store.get(callPanelRoomAtom)).toBe(ROOM_ID);
@@ -130,25 +176,45 @@ describe('CallRow', () => {
     expect(state.navigateRoom).not.toHaveBeenCalled();
   });
 
-  it("names who is in the call as MindRoom's live call has them, where this device follows it", () => {
+  it('reads who is in the call every 5 seconds while it is in view', () => {
+    render(LIVE);
+    expect(state.polls).toHaveLength(0);
+
+    inView(true);
+    expect(state.polls).toHaveLength(1);
+    expect(state.polls[0]?.everyMs).toBe(5_000);
+    act(() => state.polls[0]?.onLive({ call: CALL, lines: [], names: {} }));
+    expect(faces()).toEqual(['Bob', 'Ann']);
+
+    // Out of view it stops, and what it read stays.
+    inView(false);
+    expect(state.polls[0]?.signal.aborted).toBe(true);
+    expect(faces()).toEqual(['Bob', 'Ann']);
+    inView(true);
+    expect(state.polls).toHaveLength(2);
+
+    // Another call in the room is not this row's.
+    act(() => state.polls[1]?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }));
+    expect(faces()).toEqual([]);
+  });
+
+  it('shows who is in the call this device is in as its transcriber reads it', () => {
     const store = createStore();
-    const call: TranscriptCall = {
-      id: 'call-1',
+    store.set(activeCallAtom, {
+      kind: 'room',
+      call: { room: { roomId: ROOM_ID } },
+    } as unknown as ActiveCall);
+    store.set(callTranscriptionAtom, { roomId: ROOM_ID, status: 'transcribing' });
+    store.set(liveTranscriptAtom, {
       roomId: ROOM_ID,
-      rowEventId: '$row',
-      startedAt: '2026-11-07T09:29:00Z',
-      endedAt: null,
-      members: [BOB],
-      holds: [],
-      transcribedBy: [BOB],
-    };
-    store.set(liveTranscriptAtom, { roomId: ROOM_ID, call, lines: [], names: {} });
+      call: { ...CALL, members: [BOB] },
+      lines: [],
+      names: {},
+    });
     render(LIVE, store);
-    expect(
-      [...container.querySelectorAll('[data-call-row-member]')].map((face) =>
-        face.getAttribute('aria-label')
-      )
-    ).toEqual(['Bob']);
+    inView(true);
+    expect(faces()).toEqual(['Bob']);
+    expect(state.polls).toHaveLength(0);
   });
 
   it('opens its room for Join and Transcript from elsewhere, such as search', () => {
@@ -170,8 +236,6 @@ describe('CallRow', () => {
   });
 
   it('says how long the call lasted once the router edited it for the end', () => {
-    // People may still be in a newer call in the room: the edit decides.
-    state.callMembers = [member(BOB)];
     render(ENDED);
 
     expect(container.textContent).toContain('Call ended');

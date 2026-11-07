@@ -11,6 +11,9 @@ import { useLiveTranscript } from './useLiveTranscript';
 import * as panelCss from '../CallPanel.css';
 import * as css from './LiveTranscriptPanel.css';
 
+/** The panel reads the live call this often while it shows a call this device is not in. */
+const READ_MS = 2_000;
+
 const GAP_KEYS = {
   paused: 'featureUi.calls.transcription.gap.paused',
   'not-transcribed': 'featureUi.calls.transcription.gap.notTranscribed',
@@ -124,7 +127,7 @@ function Lines({ room, live }: { room: Room; live: LiveTranscript }) {
  */
 export function LiveTranscriptPanel({ room, onClose }: { room: Room; onClose: () => void }) {
   const { t } = useTranslation();
-  const { state, live, ownCall } = useLiveTranscript(room);
+  const { state, live, ownCall } = useLiveTranscript(room, READ_MS);
   const call = live?.call;
   const title = t('featureUi.calls.transcription.liveTranscript');
 

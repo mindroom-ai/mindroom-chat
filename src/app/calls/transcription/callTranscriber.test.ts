@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IOpenIDToken } from 'matrix-js-sdk';
 import { CallTranscriber, type TranscriberStatus } from './callTranscriber';
-import type { CallEvent, TranscriptCall, TranscriptLine } from './api';
+import type { TranscriptCall, TranscriptLine } from './api';
 import type { SpeechCapture, SpeechStretch } from './speechCapture';
+import type { LiveUpdate } from './transcriptionState';
 import { defined } from '../../../test/utils/defined';
 
 const API_URL = 'https://mindroom.example.org';
@@ -24,8 +25,7 @@ const CALL: TranscriptCall = {
   startedAt: '2026-11-07T09:29:00Z',
   endedAt: null,
   members: ['@ann:example.org'],
-  holds: [],
-  transcribedBy: ['@ann:example.org'],
+  pausedBy: null,
 };
 
 const LINE: TranscriptLine = {
@@ -72,33 +72,6 @@ const pending = <T>() => {
   return { promise, resolve };
 };
 
-/** A server-sent-events body the test writes into, which ends with the request's signal. */
-const eventStream = (signal: AbortSignal | null | undefined) => {
-  const encoder = new TextEncoder();
-  let controller!: ReadableStreamDefaultController<Uint8Array>;
-  const body = new ReadableStream<Uint8Array>({
-    start(streamController) {
-      controller = streamController;
-    },
-  });
-  const stream = {
-    aborted: false,
-    response: new Response(body, { headers: { 'Content-Type': 'text/event-stream' } }),
-    send: (event: string, data: unknown) =>
-      controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)),
-    close: () => controller.close(),
-  };
-  signal?.addEventListener('abort', () => {
-    stream.aborted = true;
-    try {
-      controller.error(new DOMException('The request was aborted.', 'AbortError'));
-    } catch {
-      // Already closed.
-    }
-  });
-  return stream;
-};
-
 type FakeCapture = SpeechCapture & {
   track: MediaStreamTrack;
   onStretch: (stretch: SpeechStretch) => void;
@@ -112,12 +85,11 @@ const transcribers: CallTranscriber[] = [];
 
 /**
  * A transcriber with a fake MindRoom server and a fake microphone capture. `log` records, in
- * order, the requests to the call routes (`calls.join`, `speech <second>`, `leave`,
- * `calls.events`) and the capture's steps (`listen <track>`, `stop <track>`).
+ * order, the requests to the call routes (`calls.join`, `speech <second>`, `pause <paused>`,
+ * `leave`, `calls.live`) and the capture's steps (`listen <track>`, `stop <track>`).
  */
 const setup = ({ roomId = ROOM_ID }: { roomId?: string } = {}) => {
   const log: string[] = [];
-  const streams: Array<ReturnType<typeof eventStream>> = [];
   const server = {
     session: vi.fn((): Response | Promise<Response> =>
       json({
@@ -130,38 +102,33 @@ const setup = ({ roomId = ROOM_ID }: { roomId?: string } = {}) => {
     speech: vi.fn((_init: RequestInit): Response | Promise<Response> => json({ line: LINE })),
     leave: vi.fn((_init: RequestInit): Response | Promise<Response> => json({})),
     pause: vi.fn((init: RequestInit): Response | Promise<Response> => {
-      const { holding } = JSON.parse(String(init.body)) as { holding: boolean };
-      return json({ call: { ...CALL, holds: holding ? ['@ann:example.org'] : [] } });
+      const { paused } = JSON.parse(String(init.body)) as { paused: boolean };
+      return json({ call: { ...CALL, pausedBy: paused ? '@ann:example.org' : null } });
     }),
-    events: vi.fn((init: RequestInit): Response | Promise<Response> => {
-      const stream = eventStream(init.signal);
-      streams.push(stream);
-      return stream.response;
-    }),
+    live: vi.fn((_url: string): Response | Promise<Response> =>
+      json({ call: CALL, lines: [], names: {} })
+    ),
   };
   const urls: string[] = [];
-  /** What each Pause request was sent with. */
-  const pauses: RequestInit[] = [];
   const request = vi.fn(async (input: RequestInfo | URL, init: RequestInit = {}) => {
     const url = String(input);
     if (url === `${API_URL}/api/client-sessions`) return server.session();
     urls.push(url);
-    const route = url.slice(url.lastIndexOf('/') + 1);
+    const route = url.slice(url.lastIndexOf('/') + 1).replace(/\?.*/, '');
     if (route === 'speech') {
       const startedAt = (init.body as FormData).get('startedAt');
       log.push(`speech ${(Date.parse(String(startedAt)) - NOW) / 1000}`);
       return server.speech(init);
     }
     if (route === 'pause') {
-      const { holding } = JSON.parse(String(init.body)) as { holding: boolean };
-      log.push(`pause ${holding}`);
-      pauses.push(init);
+      const { paused } = JSON.parse(String(init.body)) as { paused: boolean };
+      log.push(`pause ${paused}`);
       return server.pause(init);
     }
     log.push(route);
     if (route === 'calls.join') return server.join(init);
     if (route === 'leave') return server.leave(init);
-    if (route === 'calls.events') return server.events(init);
+    if (route === 'calls.live') return server.live(url);
     throw new Error(`unexpected request ${url}`);
   });
   const captures: FakeCapture[] = [];
@@ -187,43 +154,39 @@ const setup = ({ roomId = ROOM_ID }: { roomId?: string } = {}) => {
     }
   );
   const statuses: TranscriberStatus[] = [];
-  const events: CallEvent[] = [];
-  const onHoldRefused = vi.fn();
+  const updates: LiveUpdate[] = [];
   const transcriber = new CallTranscriber({
     roomId,
-    userId: '@ann:example.org',
     apiUrl: API_URL,
     getOpenIdToken: async () => TOKEN,
     request,
     startCapture,
     onStatus: (status) => statuses.push(status),
-    onEvent: (event) => events.push(event),
-    onHoldRefused,
+    onUpdate: (update) => updates.push(update),
   });
   transcribers.push(transcriber);
   const capture = (index = 0) => defined(captures[index], `capture ${index}`);
   const speeches = () => log.filter((entry) => entry.startsWith('speech'));
-  /** The log without the stream's connections, which run beside everything else. */
-  const steps = () => log.filter((entry) => entry !== 'calls.events');
+  /** The log without the reads of the live call, which run beside everything else. */
+  const steps = () => log.filter((entry) => entry !== 'calls.live');
   const joins = () => log.filter((entry) => entry === 'calls.join').length;
-  const holds = () => log.filter((entry) => entry.startsWith('pause'));
+  const reads = () => log.filter((entry) => entry === 'calls.live').length;
+  const pauses = () => log.filter((entry) => entry.startsWith('pause'));
   return {
     transcriber,
     server,
     log,
     urls,
     pauses,
-    holds,
-    onHoldRefused,
-    streams,
     captures,
     capture,
     startCapture,
     statuses,
-    events,
+    updates,
     speeches,
     steps,
     joins,
+    reads,
   };
 };
 
@@ -244,12 +207,12 @@ afterEach(async () => {
 });
 
 describe('CallTranscriber joining', () => {
-  it('joins at once, checks in every 20 seconds, and follows the live call once answered', async () => {
+  it('joins at once, checks in every 20 seconds, and reads the live call once answered', async () => {
     const t = setup();
     t.transcriber.start();
     await advance();
 
-    expect(t.log).toEqual(['calls.join', 'calls.events']);
+    expect(t.log).toEqual(['calls.join', 'calls.live']);
     expect(t.urls[0]).toBe(
       `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.join`
     );
@@ -287,7 +250,7 @@ describe('CallTranscriber joining', () => {
       expect(t.joins()).toBe(3);
       expect(t.statuses).toEqual([]);
       expect(t.startCapture).not.toHaveBeenCalled();
-      expect(t.streams).toHaveLength(0);
+      expect(t.reads()).toBe(0);
 
       await advance(20_000);
       expect(t.statuses).toEqual(['transcribing']);
@@ -298,7 +261,7 @@ describe('CallTranscriber joining', () => {
         'calls.join',
         'listen mic-a',
       ]);
-      expect(t.streams).toHaveLength(1);
+      expect(t.reads()).toBe(1);
     }
   );
 
@@ -374,22 +337,22 @@ describe('CallTranscriber in a room MindRoom does not transcribe', () => {
     await advance(20_000);
     expect(t.statuses).toEqual(['transcribing', 'off']);
     expect(t.capture().stopped).toBe(true);
-    expect(defined(t.streams[0], 'the stream').aborted).toBe(true);
+    const reads = t.reads();
     t.capture().onStretch(stretch(1));
     await advance(60_000);
     expect(t.joins()).toBe(2);
     expect(t.speeches()).toEqual([]);
-    expect(t.streams).toHaveLength(1);
+    expect(t.reads()).toBe(reads);
 
     await t.transcriber.end();
     expect(t.log).not.toContain('leave');
   });
 
-  it("stops everything when the room's stream says it is not transcribed", async () => {
+  it('stops everything when a read of the live call says the room is not transcribed', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
     t.transcriber.start();
-    t.server.events.mockImplementationOnce(() =>
+    t.server.live.mockImplementationOnce(() =>
       json({ error: 'Not here.', code: 'not-found' }, 404)
     );
     await advance(60_000);
@@ -397,7 +360,7 @@ describe('CallTranscriber in a room MindRoom does not transcribe', () => {
     expect(t.statuses).toEqual(['transcribing', 'off']);
     expect(t.capture().stopped).toBe(true);
     expect(t.joins()).toBe(1);
-    expect(t.server.events).toHaveBeenCalledTimes(1);
+    expect(t.reads()).toBe(1);
   });
 
   it('stays silent when the server refuses the sign-in', async () => {
@@ -431,7 +394,7 @@ describe('CallTranscriber uploads', () => {
     first.resolve(json({ line: LINE }));
     await advance();
     expect(t.speeches()).toEqual(['speech 1', 'speech 2']);
-    expect(t.events).toContainEqual({ type: 'line', line: LINE });
+    expect(t.updates).toContainEqual({ type: 'line', line: LINE });
   });
 
   it('hands on no line for a stretch in which MindRoom heard no words', async () => {
@@ -445,7 +408,7 @@ describe('CallTranscriber uploads', () => {
     t.capture().onStretch(stretch(2));
     await advance();
     expect(t.speeches()).toEqual(['speech 1', 'speech 2']);
-    expect(t.events.filter((event) => event.type === 'line')).toEqual([
+    expect(t.updates.filter((update) => update.type === 'line')).toEqual([
       { type: 'line', line: LINE },
     ]);
     expect(t.statuses).toEqual(['transcribing']);
@@ -629,337 +592,80 @@ describe('CallTranscriber microphone', () => {
   });
 });
 
-describe('CallTranscriber live events', () => {
-  it('hands on the live events, and reconnects with backoff while in the call', async () => {
+describe('CallTranscriber live call', () => {
+  it('hands on each read, asking for the lines after the last one read, until the call ends here', async () => {
     const t = setup();
+    const live = { call: CALL, lines: [LINE], names: { '@ann:example.org': 'Ann' } };
+    t.server.live.mockImplementationOnce(() => json(live));
     t.transcriber.start();
     await advance();
-    const ready = { call: CALL, lines: [], names: { '@ann:example.org': 'Ann' } };
-    defined(t.streams[0], 'the stream').send('ready', ready);
-    await advance();
-    expect(t.events).toEqual([{ type: 'ready', live: ready }]);
+    expect(t.updates).toEqual([{ type: 'live', live }]);
+    expect(t.urls.at(-1)).toBe(
+      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live`
+    );
 
-    // Dropped after it was ready: back after a second.
-    defined(t.streams[0], 'the stream').close();
-    await advance(999);
-    expect(t.streams).toHaveLength(1);
-    await advance(1);
-    expect(t.streams).toHaveLength(2);
-
-    // Failing without getting ready, it waits twice as long each time.
-    t.server.events.mockImplementationOnce(serverError);
-    defined(t.streams[1], 'the second stream').close();
     await advance(1_999);
-    expect(t.server.events).toHaveBeenCalledTimes(2);
+    expect(t.reads()).toBe(1);
     await advance(1);
-    expect(t.server.events).toHaveBeenCalledTimes(3);
-    await advance(3_999);
-    expect(t.server.events).toHaveBeenCalledTimes(3);
-    await advance(1);
-    expect(t.streams).toHaveLength(3);
-
-    // Ready again, it starts over at a second.
-    defined(t.streams[2], 'the third stream').send('ready', ready);
-    defined(t.streams[2], 'the third stream').close();
-    await advance(1_000);
-    expect(t.streams).toHaveLength(4);
+    expect(t.reads()).toBe(2);
+    expect(t.urls.at(-1)).toBe(
+      `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live?after=line-1`
+    );
 
     await t.transcriber.end();
-    expect(defined(t.streams[3], 'the fourth stream').aborted).toBe(true);
     await advance(60_000);
-    expect(t.server.events).toHaveBeenCalledTimes(5);
-  });
-
-  it('checks in at once when the server ends the call this device is in', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-
-    defined(t.streams[0], 'the stream').send('ended', { callId: 'call-1' });
-    await advance();
-    expect(t.joins()).toBe(2);
-
-    defined(t.streams[0], 'the stream').send('ended', { callId: 'call-0' });
-    await advance();
-    expect(t.joins()).toBe(2);
+    expect(t.reads()).toBe(2);
   });
 });
 
 describe('CallTranscriber Pause', () => {
-  const ANN = '@ann:example.org';
-  const held = { ...CALL, holds: [ANN] };
-  const refused = () => json({ error: 'You are not in this call.', code: 'not-found' }, 404);
+  const paused = { ...CALL, pausedBy: '@ann:example.org' };
 
-  it('takes and lets go of the hold on the joined call, sent to outlast the page, and hands on each answer', async () => {
+  it('pauses and resumes the joined call for everyone, and hands on each answer', async () => {
     const t = setup();
     t.transcriber.start();
     await advance();
 
-    t.transcriber.setHolding(true);
-    await advance();
-    t.transcriber.setHolding(false);
-    await advance();
-
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
+    await t.transcriber.pause(true);
+    await t.transcriber.pause(false);
+    expect(t.pauses()).toEqual(['pause true', 'pause false']);
     expect(t.urls).toContain(`${API_URL}/api/call-transcripts/v1/calls/call-1/pause`);
-    // A release on the page going away must still reach MindRoom.
-    expect(t.pauses.map((init) => init.keepalive)).toEqual([true, true]);
-    expect(t.events).toEqual([
-      { type: 'call', call: held },
+    expect(t.updates.filter((update) => update.type === 'call')).toEqual([
+      { type: 'call', call: paused },
       { type: 'call', call: CALL },
     ]);
-    expect(t.onHoldRefused).not.toHaveBeenCalled();
   });
 
-  it('never hands on the holds a check-in answers with', async () => {
-    const t = setup();
-    t.server.join.mockImplementation(() => json({ call: held }));
-    t.transcriber.start();
-    await advance(40_000);
-    expect(t.joins()).toBe(3);
-    expect(t.events).toEqual([]);
-  });
-
-  it('reports a refused hold, and sends nothing more for it', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.server.pause.mockImplementationOnce(refused);
-
-    t.transcriber.setHolding(true);
-    await advance(60_000);
-    expect(t.onHoldRefused).toHaveBeenCalledTimes(1);
-    expect(t.holds()).toEqual(['pause true']);
-    expect(t.events).toEqual([]);
-  });
-
-  it('refuses a hold at once while no join has answered', async () => {
+  it('sends nothing while no join has answered', async () => {
     const t = setup();
     t.server.join.mockImplementation(serverError);
     t.transcriber.start();
     await advance();
 
-    t.transcriber.setHolding(true);
-    await advance();
-    expect(t.onHoldRefused).toHaveBeenCalledTimes(1);
-    expect(t.holds()).toEqual([]);
+    await t.transcriber.pause(true);
+    expect(t.pauses()).toEqual([]);
   });
 
-  it('tries a refused release again until MindRoom no longer lists the hold', async () => {
+  it('hands on nothing for a refused request, nor one without an answer after 15 seconds', async () => {
     const t = setup();
     t.transcriber.start();
     await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    t.server.pause.mockImplementation(serverError);
+    t.server.pause
+      .mockImplementationOnce(() => json({ error: 'Not in the call.', code: 'not-found' }, 404))
+      .mockImplementationOnce(unanswered);
 
-    t.transcriber.setHolding(false);
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
-    await advance(1_000);
-    expect(t.holds()).toHaveLength(3);
-    await advance(2_000);
-    expect(t.holds()).toHaveLength(4);
-
-    // The stream no longer lists the hold (the server let it go after all): no more tries.
-    defined(t.streams[0], 'the stream').send('call', CALL);
-    await advance(60_000);
-    expect(t.holds()).toHaveLength(4);
-    expect(t.onHoldRefused).not.toHaveBeenCalled();
-  });
-
-  it("never lets go of a hold another of this person's devices took", async () => {
-    const phone = setup();
-    const laptop = setup();
-    phone.transcriber.start();
-    laptop.transcriber.start();
-    await advance();
-
-    phone.transcriber.setHolding(true);
-    await advance();
-    // Holds are per person: the laptop hears Ann holds Pause, which her phone took.
-    defined(laptop.streams[0], 'the stream').send('call', held);
-    await advance(60_000);
-    expect(laptop.holds()).toEqual([]);
-
-    phone.transcriber.setHolding(false);
-    await advance();
-    expect(phone.holds()).toEqual(['pause true', 'pause false']);
-  });
-
-  it('lets go again of a hold it took that MindRoom answered after the release', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    const hold = pending<Response>();
-    t.server.pause.mockImplementationOnce(() => hold.promise);
-
-    t.transcriber.setHolding(true);
-    await advance();
-    t.transcriber.setHolding(false);
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
-
-    // The hold went through after the release: it is this device's to let go of.
-    hold.resolve(json({ call: held }));
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false', 'pause false']);
-  });
-
-  it.each([
-    [
-      'never came',
-      () => {
-        throw new TypeError('Failed to fetch');
-      },
-    ],
-    ['was a server error', serverError],
-  ])('lets go of a hold whose answer %s, as MindRoom may have taken it', async (_case, failure) => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.server.pause.mockImplementationOnce(failure);
-
-    t.transcriber.setHolding(true);
-    await advance();
-    expect(t.onHoldRefused).toHaveBeenCalledTimes(1);
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
-  });
-
-  it('gives a hold without an answer up after 15 seconds, and lets go of it, as MindRoom may have taken it', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.server.pause.mockImplementationOnce(unanswered);
-
-    t.transcriber.setHolding(true);
+    await t.transcriber.pause(true);
+    let answered = false;
+    const pausing = t.transcriber.pause(true).then(() => {
+      answered = true;
+    });
     await advance(14_999);
-    expect(t.onHoldRefused).not.toHaveBeenCalled();
-    expect(t.holds()).toEqual(['pause true']);
+    expect(answered).toBe(false);
     await advance(1);
-    expect(t.onHoldRefused).toHaveBeenCalledTimes(1);
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
-  });
-
-  it('gives a release without an answer up after 15 seconds, and tries again', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    t.server.pause.mockImplementationOnce(unanswered);
-
-    t.transcriber.setHolding(false);
-    await advance(14_999);
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
-    await advance(1_001);
-    expect(t.holds()).toEqual(['pause true', 'pause false', 'pause false']);
-    expect(t.events.at(-1)).toEqual({ type: 'call', call: CALL });
-
-    // The hung release no longer holds up the next hold and its release.
-    t.transcriber.setHolding(true);
-    await advance();
-    t.transcriber.setHolding(false);
-    await advance();
-    expect(t.holds()).toEqual([
-      'pause true',
-      'pause false',
-      'pause false',
-      'pause true',
-      'pause false',
-    ]);
-  });
-
-  it('owes the release of a later hold when an earlier release answers last', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    const release = pending<Response>();
-    t.server.pause.mockImplementationOnce(() => release.promise);
-
-    t.transcriber.setHolding(false);
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    t.transcriber.setHolding(false);
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false', 'pause true']);
-
-    // The first release answers last, without the hold: the second hold is still this device's.
-    release.resolve(json({ call: CALL }));
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false', 'pause true', 'pause false']);
-  });
-
-  it('lets go of its later hold once the stream lists it, after an earlier release answered last', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    const release = pending<Response>();
-    t.server.pause.mockImplementationOnce(() => release.promise);
-    t.transcriber.setHolding(false);
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    t.transcriber.setHolding(false);
-    await advance();
-
-    // The first release answers last, without the hold, and the next one fails.
-    t.server.pause.mockImplementationOnce(serverError);
-    release.resolve(json({ call: CALL }));
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false', 'pause true', 'pause false']);
-
-    // The stream then lists the hold: still this device's to let go of.
-    defined(t.streams[0], 'the stream').send('call', held);
-    await advance();
-    expect(t.holds()).toEqual([
-      'pause true',
-      'pause false',
-      'pause true',
-      'pause false',
-      'pause false',
-    ]);
-  });
-
-  it('takes the hold again when a release answers after Pause was pressed again', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    const release = pending<Response>();
-    t.server.pause.mockImplementationOnce(() => release.promise);
-
-    t.transcriber.setHolding(false);
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    // MindRoom let go after taking the second hold: still pressed here, it is taken again.
-    release.resolve(json({ call: CALL }));
-    await advance();
-    expect(t.holds()).toEqual(['pause true', 'pause false', 'pause true', 'pause true']);
-    expect(t.onHoldRefused).not.toHaveBeenCalled();
-  });
-
-  it('stops trying to let go once the call ends here, as leaving lets go', async () => {
-    const t = setup();
-    t.transcriber.start();
-    await advance();
-    t.transcriber.setHolding(true);
-    await advance();
-    t.server.pause.mockImplementation(serverError);
-    t.transcriber.setHolding(false);
-    await advance();
-
-    await t.transcriber.end();
-    await advance(60_000);
-    expect(t.holds()).toEqual(['pause true', 'pause false']);
-    expect(t.log.at(-1)).toBe('leave');
+    await pausing;
+    expect(t.pauses()).toEqual(['pause true', 'pause true']);
+    expect(t.updates.filter((update) => update.type === 'call')).toEqual([]);
+    expect(t.statuses).toEqual(['transcribing']);
   });
 });
 
@@ -981,7 +687,6 @@ describe('CallTranscriber ending', () => {
     });
     await advance();
     expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'stop mic-a']);
-    expect(defined(t.streams[0], 'the stream').aborted).toBe(true);
     expect(ended).toBe(false);
 
     upload.resolve(json({ line: LINE }));
@@ -991,10 +696,17 @@ describe('CallTranscriber ending', () => {
     await ending;
     expect(ended).toBe(true);
 
-    // Nothing after the leave: no check-ins, no stream.
+    // Nothing after the leave: no check-ins, no reads.
     await advance(60_000);
-    expect(t.steps()).toHaveLength(6);
-    expect(t.streams).toHaveLength(1);
+    expect(t.log).toEqual([
+      'calls.join',
+      'calls.live',
+      'listen mic-a',
+      'speech 1',
+      'stop mic-a',
+      'speech 2',
+      'leave',
+    ]);
   });
 
   it('stops listening at once, before a check-in on its way answers', async () => {

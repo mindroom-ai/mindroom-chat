@@ -409,8 +409,7 @@
       "transcription": {
         "unavailable": "녹취록을 사용할 수 없습니다",
         "pause": "기록 일시 중지",
-        "pauseHint": "길게 눌러 일시 중지하거나, 클릭하면 다시 클릭할 때까지 일시 중지",
-        "pausedBy": "{{names}} 님이 일시 중지함",
+        "pausedBy": "{{name}} 님이 일시 중지함",
         "liveTranscript": "실시간 대화 기록",
         "close": "실시간 대화 기록 닫기",
         "resize": "실시간 대화 기록 크기 조정",

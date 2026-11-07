@@ -7,21 +7,22 @@ import type { Room } from 'matrix-js-sdk';
 import { LiveTranscriptPanel } from './LiveTranscriptPanel';
 import { activeCallAtom, type ActiveCall } from '../callStore';
 import { callTranscriptionAtom, liveTranscriptAtom } from './transcriptionState';
-import type { CallEvent, LiveCall, TranscriptCall, TranscriptLine } from './api';
+import type { LiveCall, TranscriptCall, TranscriptLine } from './api';
 
 const ROOM_ID = '!room:example.org';
 const ANN = '@ann:example.org';
 const BOB = '@bob:example.org';
 const CAROL = '@carol:example.org';
 
-/** The server the room's agents name, and each stream the panel follows on its own. */
+/** The server the room's agents name, and each time the panel reads the live call on its own. */
 const state = vi.hoisted(() => ({
   apiUrl: undefined as string | undefined,
-  follows: [] as Array<{
+  polls: [] as Array<{
     roomId: string;
+    everyMs: number;
     signal: AbortSignal;
-    onEvent: (event: CallEvent) => void;
-    onLost?: () => void;
+    onLive: (live: LiveCall) => void;
+    onFailure?: () => void;
     finish: (outcome: 'not-transcribed' | undefined) => void;
   }>,
 }));
@@ -29,16 +30,17 @@ const state = vi.hoisted(() => ({
 vi.mock('./useTranscriptionServer', () => ({
   useTranscriptionServer: () => ({ apiUrl: state.apiUrl, discovered: true }),
 }));
-vi.mock('./liveCallStream', () => ({
-  followCallEvents: (
+vi.mock('./liveCallPoll', () => ({
+  pollLiveCall: (
     _client: unknown,
     roomId: string,
+    everyMs: number,
     signal: AbortSignal,
-    onEvent: (event: CallEvent) => void,
-    onLost?: () => void
+    onLive: (live: LiveCall) => void,
+    onFailure?: () => void
   ) =>
     new Promise((finish) => {
-      state.follows.push({ roomId, signal, onEvent, onLost, finish });
+      state.polls.push({ roomId, everyMs, signal, onLive, onFailure, finish });
     }),
 }));
 vi.mock('../../matrix/openidAudience', () => ({ requestAudienceOpenIdToken: vi.fn() }));
@@ -70,8 +72,7 @@ const CALL: TranscriptCall = {
   startedAt: '2026-11-07T09:29:00Z',
   endedAt: null,
   members: [ANN, BOB],
-  holds: [],
-  transcribedBy: [ANN, BOB],
+  pausedBy: null,
 };
 
 const line = (
@@ -114,7 +115,7 @@ const render = (store = createStore(), onClose = vi.fn()) => {
   return { store, onClose };
 };
 
-/** This device is in the room's call, transcribed, with what MindRoom's stream said. */
+/** This device is in the room's call, transcribed, with what MindRoom said of it. */
 const inCall = (live: LiveCall = { call: CALL, lines: LINES, names: { [ANN]: 'Annie' } }) => {
   const store = createStore();
   store.set(activeCallAtom, {
@@ -135,7 +136,7 @@ beforeEach(() => {
   document.body.append(container);
   root = createRoot(container);
   state.apiUrl = undefined;
-  state.follows = [];
+  state.polls = [];
 });
 
 afterEach(() => {
@@ -166,31 +167,41 @@ describe('LiveTranscriptPanel', () => {
     expect(header?.querySelector('[aria-label="Pause transcription"]')).not.toBeNull();
   });
 
-  it("follows the room's live call itself when this device is not in it, without Pause", () => {
+  it("reads the room's live call every 2 seconds itself when this device is not in it, without Pause", () => {
     state.apiUrl = 'https://mindroom.example.org';
     render();
-    expect(state.follows).toHaveLength(1);
+    expect(state.polls).toHaveLength(1);
+    expect(state.polls[0]).toMatchObject({ roomId: ROOM_ID, everyMs: 2_000 });
     expect(container.querySelector('header [aria-label="Pause transcription"]')).toBeNull();
 
     act(() =>
-      state.follows[0]?.onEvent({
-        type: 'ready',
-        live: { call: CALL, lines: [], names: { [CAROL]: 'Carol' } },
+      state.polls[0]?.onLive({
+        call: CALL,
+        lines: [line('l8', CAROL, '2026-11-07T09:31:50Z', { text: 'Hello all.' })],
+        names: { [CAROL]: 'Carol' },
       })
     );
+    // A later read brings only the lines after the last one.
     act(() =>
-      state.follows[0]?.onEvent({
-        type: 'line',
-        line: line('l9', CAROL, '2026-11-07T09:32:00Z', { text: 'Joining late, sorry.' }),
+      state.polls[0]?.onLive({
+        call: CALL,
+        lines: [line('l9', CAROL, '2026-11-07T09:32:00Z', { text: 'Joining late, sorry.' })],
+        names: {},
       })
     );
     expect(text('[data-live-transcript-name]')).toEqual(['Carol']);
-    expect(text('[data-live-transcript-text]')).toEqual(['Joining late, sorry.']);
+    expect(text('[data-live-transcript-text]')).toEqual(['Hello all.', 'Joining late, sorry.']);
+    expect(text('[data-live-transcript-member]')).toEqual(['Ann', 'Bob']);
     // Pause is for the call this device is in.
     expect(container.querySelector('header [aria-label="Pause transcription"]')).toBeNull();
 
+    // A failed read keeps what was read, and says transcripts are unavailable.
+    act(() => state.polls[0]?.onFailure?.());
+    expect(container.textContent).toContain('Transcripts are unavailable');
+    expect(text('[data-live-transcript-text]')).toHaveLength(2);
+
     act(() => root.unmount());
-    expect(state.follows[0]?.signal.aborted).toBe(true);
+    expect(state.polls[0]?.signal.aborted).toBe(true);
     root = createRoot(container);
   });
 
@@ -216,12 +227,10 @@ describe('LiveTranscriptPanel', () => {
   it('says when no call is on, and when the room is not transcribed', async () => {
     state.apiUrl = 'https://mindroom.example.org';
     render();
-    act(() =>
-      state.follows[0]?.onEvent({ type: 'ready', live: { call: null, lines: [], names: {} } })
-    );
+    act(() => state.polls[0]?.onLive({ call: null, lines: [], names: {} }));
     expect(container.textContent).toContain('No call is on in this room.');
 
-    await act(async () => state.follows[0]?.finish('not-transcribed'));
+    await act(async () => state.polls[0]?.finish('not-transcribed'));
     expect(container.textContent).toContain('Calls in this room are not transcribed.');
   });
 

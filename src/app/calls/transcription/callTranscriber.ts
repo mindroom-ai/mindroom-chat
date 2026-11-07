@@ -1,17 +1,13 @@
 import type { IOpenIDToken } from 'matrix-js-sdk';
-import {
-  TranscriptionApiError,
-  TranscriptionClient,
-  isNotTranscribed,
-  isUnavailable,
-  type CallEvent,
-  type TranscriptCall,
-} from './api';
-import { followCallEvents, sleep } from './liveCallStream';
+import { TranscriptionApiError, TranscriptionClient, isNotTranscribed, isUnavailable } from './api';
+import { pollLiveCall, sleep } from './liveCallPoll';
 import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './speechCapture';
+import type { LiveUpdate } from './transcriptionState';
 
 /** How often this device checks in with the call; MindRoom counts it out after 60 s without. */
 const HEARTBEAT_MS = 20_000;
+/** How often this device reads the live call while it is in it. */
+const LIVE_READ_MS = 2_000;
 /** An upload gives up after this long, its retry included. */
 const UPLOAD_TIMEOUT_MS = 30_000;
 /** The longest a stretch refused as too many waits for its one retry. */
@@ -23,9 +19,6 @@ const DEFAULT_RETRY_AFTER_MS = 1_000;
  * due; a request given up on got no answer.
  */
 const REQUEST_TIMEOUT_MS = 15_000;
-/** A refused release of Pause is tried again after this long, doubling up to the most. */
-const RELEASE_RETRY_MS = 1_000;
-const RELEASE_RETRY_MAX_MS = 10_000;
 
 /**
  * `joining` until MindRoom first answers (and silently while it does not); `transcribing`;
@@ -36,20 +29,16 @@ export type TranscriberStatus = 'joining' | 'transcribing' | 'unavailable' | 'of
 
 export type CallTranscriberOptions = {
   roomId: string;
-  /** The signed-in person, whose hold on Pause this device takes and lets go of. */
-  userId: string;
   /** The room's MindRoom server. */
   apiUrl: string;
   /** A Matrix OpenID token bound to `apiUrl`. */
   getOpenIdToken: () => Promise<IOpenIDToken>;
   onStatus: (status: TranscriberStatus, callId: string | undefined) => void;
   /**
-   * The room's live events, the line MindRoom answers each upload with, and the call it answers
-   * each Pause with.
+   * Each read of the room's live call, the line MindRoom answers each upload with, and the call it
+   * answers each Pause with.
    */
-  onEvent: (event: CallEvent) => void;
-  /** MindRoom refused this device's hold on Pause: it is not held. */
-  onHoldRefused?: () => void;
+  onUpdate: (update: LiveUpdate) => void;
   request?: typeof fetch;
   startCapture?: typeof startSpeechCapture;
 };
@@ -76,9 +65,9 @@ const withTimeout = async <T>(ms: number, run: (signal: AbortSignal) => Promise<
 /**
  * Transcribes this device's own speech in one room call: joins MindRoom's call and checks in every
  * 20 seconds, finds speech in the microphone the call publishes and uploads each stretch, one at a
- * time, and follows the room's live events. MindRoom unreachable or failing: nothing is captured or
- * sent until a check-in is answered again. A room MindRoom does not transcribe (404 or 403): nothing
- * more at all.
+ * time, and reads the room's live call every 2 seconds. MindRoom unreachable or failing: nothing
+ * is captured or sent until a check-in is answered again. A room MindRoom does not transcribe (404
+ * or 403): nothing more at all.
  */
 export class CallTranscriber {
   private readonly options: CallTranscriberOptions;
@@ -114,36 +103,15 @@ export class CallTranscriber {
   /** A check-in on its way. */
   private joining?: Promise<void>;
 
-  private readonly stream = new AbortController();
+  /** Stops reading the live call. */
+  private readonly stopReading = new AbortController();
 
-  private following = false;
+  private reading = false;
 
   /** The microphone to listen to; none while muted. */
   private track?: MediaStreamTrack;
 
   private paused = false;
-
-  /** This device holds Pause (it is pressed here). */
-  private holding = false;
-
-  /** MindRoom lists this person's hold, as it last said in the stream or a Pause answer. */
-  private holdListed = false;
-
-  /**
-   * This device took a hold it has not let go of yet. Holds are per person, so MindRoom's list
-   * cannot tell this device's from another of this person's devices; only this one is released.
-   * It follows the latest Pause request this device sent: an answer to an earlier one, which may
-   * come last, does not undo it.
-   */
-  private holdOwed = false;
-
-  /** The Pause requests this device sent, counted; and whether the latest took the hold. */
-  private pauseRequests = 0;
-
-  private latestRequestHolds = false;
-
-  /** A release of Pause on its way, tried again until MindRoom no longer lists the hold. */
-  private releasing = false;
 
   private capture?: { track: MediaStreamTrack; capture: SpeechCapture };
 
@@ -183,22 +151,27 @@ export class CallTranscriber {
     this.updateCapture();
   }
 
-  /** Pauses capture at once, for this device's hold or anyone else's. */
+  /** Pauses or resumes capture at once, whoever paused. */
   setPaused(paused: boolean): void {
     this.paused = paused;
     this.capture?.capture.setPaused(paused);
   }
 
   /**
-   * Takes or lets go of this person's hold on Pause in the joined call. A refused hold is
-   * reported (`onHoldRefused`); a release is tried again until MindRoom no longer lists the hold.
-   * Each answer is handed on as the call it describes. Only a hold this device took is let go of.
+   * Pauses or resumes transcription of the joined call for everyone in it; MindRoom's answer is
+   * handed on. Refused or unanswered, the next read of the live call says how it is.
    */
-  setHolding(holding: boolean): void {
-    if (holding === this.holding) return;
-    this.holding = holding;
-    if (holding) void this.takeHold();
-    else this.letGo();
+  async pause(paused: boolean): Promise<void> {
+    const { callId } = this;
+    if (!callId || this.status !== 'transcribing' || this.ending) return;
+    try {
+      const call = await withTimeout(REQUEST_TIMEOUT_MS, (signal) =>
+        this.client.pause(callId, paused, signal)
+      );
+      if (!this.ending) this.options.onUpdate({ type: 'call', call });
+    } catch {
+      // The next read of the live call tells.
+    }
   }
 
   /**
@@ -211,7 +184,7 @@ export class CallTranscriber {
     this.ending = true;
     clearInterval(this.heartbeatTimer);
     clearTimeout(this.retryTimer);
-    this.stream.abort();
+    this.stopReading.abort();
     this.stopListening();
     const ended = (async () => {
       await this.started;
@@ -259,7 +232,7 @@ export class CallTranscriber {
       this.answered = true;
       this.callId = call.id;
       this.setStatus('transcribing');
-      this.followEvents();
+      this.readLive();
     } catch (error) {
       if (isNotTranscribed(error)) this.turnOff();
       else if (error instanceof TranscriptionApiError && error.code === 'too-many-requests') {
@@ -281,7 +254,7 @@ export class CallTranscriber {
     this.setStatus('off');
     clearInterval(this.heartbeatTimer);
     clearTimeout(this.retryTimer);
-    this.stream.abort();
+    this.stopReading.abort();
     this.updateCapture();
   }
 
@@ -349,7 +322,7 @@ export class CallTranscriber {
       for (let attempt = 0; ; attempt += 1) {
         try {
           const line = await this.client.speech(callId, stretch, timeout.signal);
-          if (line && !this.ending) this.options.onEvent({ type: 'line', line });
+          if (line && !this.ending) this.options.onUpdate({ type: 'line', line });
           return;
         } catch (error) {
           if (timeout.signal.aborted) {
@@ -383,135 +356,21 @@ export class CallTranscriber {
     this.updateCapture();
   }
 
-  // Pause
+  // The live call
 
-  /** Counts a Pause request as the latest this device sent, and answers its number. */
-  private nextPauseRequest(holding: boolean): number {
-    this.pauseRequests += 1;
-    this.latestRequestHolds = holding;
-    return this.pauseRequests;
-  }
-
-  private async takeHold(): Promise<void> {
-    const { callId } = this;
-    // Not in a call MindRoom answered for (or on the way out): there is nothing to hold.
-    if (!callId || this.status !== 'transcribing' || this.ending) {
-      this.refuseHold();
-      return;
-    }
-    const request = this.nextPauseRequest(true);
-    this.holdOwed = true;
-    let answer: TranscriptCall;
-    try {
-      answer = await withTimeout(REQUEST_TIMEOUT_MS, (signal) =>
-        this.client.pause(callId, true, signal)
-      );
-    } catch (error) {
-      // Refused: nothing was taken. A server error or no answer: it may have been, so it is owed
-      // and, as it shows as not held, let go of.
-      const refused =
-        error instanceof TranscriptionApiError && error.status < 500 && error.status > 0;
-      if (refused && request === this.pauseRequests) this.holdOwed = false;
-      if (this.holding) this.refuseHold();
-      if (!refused) this.letGo();
-      return;
-    }
-    // A hold it lists is this device's, also one taken after a release that answered first;
-    // one it does not list counts only from the latest request.
-    const listed = answer.holds.includes(this.options.userId);
-    if (listed) this.holdOwed = true;
-    else if (request === this.pauseRequests) this.holdOwed = false;
-    this.onPauseAnswer(answer);
-  }
-
-  private refuseHold(): void {
-    this.holding = false;
-    this.options.onHoldRefused?.();
-  }
-
-  /**
-   * Lets go of the hold this device took, trying again after a refusal (each time twice as long)
-   * until MindRoom no longer lists it, Pause is pressed again, or the call ends here, as leaving
-   * lets go. A hold taken and let go of again while a release was on its way is let go of next.
-   */
-  private letGo(): void {
-    if (this.releasing || !this.holdOwed) return;
-    this.releasing = true;
-    // Until MindRoom says otherwise, the hold may be there.
-    this.holdListed = true;
-    void (async () => {
-      let wait = RELEASE_RETRY_MS;
-      try {
-        while (this.holdOwed && !this.holding) {
-          const { callId } = this;
-          if (!callId || this.ending || this.status === 'off') return;
-          if (!(await this.release(callId))) {
-            if (!this.holdListed || !(await sleep(wait, this.stream.signal))) return;
-            wait = Math.min(wait * 2, RELEASE_RETRY_MAX_MS);
-          }
-        }
-      } finally {
-        this.releasing = false;
+  private readLive(): void {
+    if (this.reading || this.ending) return;
+    this.reading = true;
+    void pollLiveCall(
+      this.client,
+      this.options.roomId,
+      LIVE_READ_MS,
+      this.stopReading.signal,
+      (live) => {
+        if (!this.ending) this.options.onUpdate({ type: 'live', live });
       }
-    })();
-  }
-
-  /** Sends one release; answers whether MindRoom answered it. */
-  private async release(callId: string): Promise<boolean> {
-    const request = this.nextPauseRequest(false);
-    let answer: TranscriptCall;
-    try {
-      answer = await withTimeout(REQUEST_TIMEOUT_MS, (signal) =>
-        this.client.pause(callId, false, signal)
-      );
-    } catch {
-      // Refused or unanswered: what MindRoom last said decides.
-      return false;
-    }
-    if (request === this.pauseRequests) this.holdOwed = false;
-    this.onPauseAnswer(answer);
-    // Pressed again meanwhile and the hold is gone: it is taken again.
-    if (this.holding && !answer.holds.includes(this.options.userId)) void this.takeHold();
-    return true;
-  }
-
-  /** MindRoom's answer to Pause is the call as it is now, holds and all. */
-  private onPauseAnswer(call: TranscriptCall): void {
-    if (this.ending) return;
-    this.options.onEvent({ type: 'call', call });
-    this.noteHolds(call);
-  }
-
-  /**
-   * Whether MindRoom lists this person's hold in the joined call, as its stream or a Pause answer
-   * says (never a check-in). A hold this device took that it lists while it is not held here is
-   * let go of. One it does not list after this device last asked to let go is owed nothing more.
-   */
-  private noteHolds(call: TranscriptCall): void {
-    if (call.id !== this.callId) return;
-    this.holdListed = call.holds.includes(this.options.userId);
-    if (!this.holdListed && !this.latestRequestHolds) this.holdOwed = false;
-    if (this.holdListed && !this.holding) this.letGo();
-  }
-
-  // Live events
-
-  private followEvents(): void {
-    if (this.following) return;
-    this.following = true;
-    void followCallEvents(this.client, this.options.roomId, this.stream.signal, (event) =>
-      this.onStreamEvent(event)
     ).then((outcome) => {
       if (outcome === 'not-transcribed') this.turnOff();
     });
-  }
-
-  private onStreamEvent(event: CallEvent): void {
-    if (this.ending) return;
-    this.options.onEvent(event);
-    if (event.type === 'call') this.noteHolds(event.call);
-    if (event.type === 'ready' && event.live.call) this.noteHolds(event.live.call);
-    // The call this device is in ended without it: it checks in for the call now.
-    if (event.type === 'ended' && event.callId === this.callId) this.heartbeat();
   }
 }

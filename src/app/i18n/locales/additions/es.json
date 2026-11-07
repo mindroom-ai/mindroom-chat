@@ -425,8 +425,7 @@
       "transcription": {
         "unavailable": "Las transcripciones no están disponibles",
         "pause": "Pausar la transcripción",
-        "pauseHint": "Mantén pulsado para pausar, o haz clic para pausar hasta el siguiente clic",
-        "pausedBy": "Pausada por {{names}}",
+        "pausedBy": "Pausada por {{name}}",
         "liveTranscript": "Transcripción en directo",
         "close": "Cerrar la transcripción en directo",
         "resize": "Cambiar el tamaño de la transcripción en directo",

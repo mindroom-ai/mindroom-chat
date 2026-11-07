@@ -425,8 +425,7 @@
       "transcription": {
         "unavailable": "Le trascrizioni non sono disponibili",
         "pause": "Metti in pausa la trascrizione",
-        "pauseHint": "Tieni premuto per mettere in pausa, o fai clic per mettere in pausa fino al clic successivo",
-        "pausedBy": "Messa in pausa da {{names}}",
+        "pausedBy": "Messa in pausa da {{name}}",
         "liveTranscript": "Trascrizione in diretta",
         "close": "Chiudi la trascrizione in diretta",
         "resize": "Ridimensiona la trascrizione in diretta",

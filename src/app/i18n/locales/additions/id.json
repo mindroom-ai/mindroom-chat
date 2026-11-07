@@ -409,8 +409,7 @@
       "transcription": {
         "unavailable": "Transkrip tidak tersedia",
         "pause": "Jeda transkripsi",
-        "pauseHint": "Tahan untuk menjeda, atau klik untuk menjeda sampai Anda mengeklik lagi",
-        "pausedBy": "Dijeda oleh {{names}}",
+        "pausedBy": "Dijeda oleh {{name}}",
         "liveTranscript": "Transkrip langsung",
         "close": "Tutup transkrip langsung",
         "resize": "Ubah ukuran transkrip langsung",
