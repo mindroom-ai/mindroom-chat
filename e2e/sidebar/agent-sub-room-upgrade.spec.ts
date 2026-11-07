@@ -9,7 +9,7 @@ import {
   type AgentStack,
 } from '../helpers/agentStack';
 import { registerDisposableUser } from '../helpers/disposableAccounts';
-import { joinRoom, matrixFetch } from '../helpers/matrix';
+import { joinRoom, matrixFetch, sendStateEvent } from '../helpers/matrix';
 import { roomMoreOptions } from '../helpers/roomMenu';
 
 // A room upgrade keeps the room's sub-rooms: after the creator upgrades a chat room from its
@@ -31,13 +31,6 @@ const joinedMembers = async (stack: AgentStack, roomId: string): Promise<string[
   );
   return Object.keys(joined);
 };
-
-const putState = (stack: AgentStack, roomId: string, type: string, key: string, content: object) =>
-  matrixFetch(stack.homeserver, `${roomPath(roomId)}/state/${type}/${encodeURIComponent(key)}`, {
-    method: 'PUT',
-    accessToken: stack.tester.accessToken,
-    body: JSON.stringify(content),
-  });
 
 /** A state event's content, or null when the room has none. */
 const stateContent = (stack: AgentStack, roomId: string, type: string, key: string) =>
@@ -84,7 +77,14 @@ const createSubRoom = async (stack: AgentStack, parentId: string, name: string) 
       }),
     }
   );
-  await putState(stack, parentId, 'm.space.child', subId, { via });
+  await sendStateEvent(
+    stack.homeserver,
+    stack.tester.accessToken,
+    parentId,
+    'm.space.child',
+    subId,
+    { via }
+  );
   return subId;
 };
 
