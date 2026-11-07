@@ -1,35 +1,48 @@
 // @vitest-environment jsdom
+import type { ReactElement } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelFrameProvider, type PanelFrame } from './PanelFrame';
+import { usePanelSlot } from './panelPresence';
 import { ResizablePanel } from './ResizablePanel';
 import type { PanelLayout } from './roomPanels';
 
 // A room's side panel in its frame (ResizablePanel inside a PanelFrameProvider), in each layout.
 
+/** The panel in a frame of `layout` (none when undefined), keyed as the room keys it. */
+const framed = (layout: PanelLayout | undefined, setLayout: PanelFrame['setLayout']) => (
+  <PanelFrameProvider key="notes" value={layout && { label: 'Notes', layout, setLayout }}>
+    <ResizablePanel
+      storageKey="test.width"
+      defaultWidth={300}
+      resizeLabel="Resize"
+      collapseLabel="Close"
+      testId="panel"
+      side="end"
+      minContentWidth={0}
+    >
+      <p>content</p>
+    </ResizablePanel>
+  </PanelFrameProvider>
+);
+
+/** A row wide enough for the panel at its default width. */
+const row = () => {
+  const element = document.body.appendChild(document.createElement('div'));
+  Object.defineProperty(element, 'clientWidth', { value: 3000 });
+  return element;
+};
+
 const renderFramed = (layout: PanelLayout | undefined) => {
   const setLayout = vi.fn<PanelFrame['setLayout']>();
-  // A row wide enough for the panel at its default width.
-  const row = document.body.appendChild(document.createElement('div'));
-  Object.defineProperty(row, 'clientWidth', { value: 3000 });
-  render(
-    <PanelFrameProvider value={layout && { label: 'Notes', layout, setLayout }}>
-      <ResizablePanel
-        storageKey="test.width"
-        defaultWidth={300}
-        resizeLabel="Resize"
-        collapseLabel="Close"
-        testId="panel"
-        side="end"
-        minContentWidth={0}
-      >
-        <p>content</p>
-      </ResizablePanel>
-    </PanelFrameProvider>,
-    { container: row }
-  );
+  render(framed(layout, setLayout), { container: row() });
   return setLayout;
 };
+
+/** The room's place for its side panel, which moves a panel in and out. */
+function Slot({ panel }: { panel?: ReactElement }) {
+  return <>{usePanelSlot(panel)}</>;
+}
 
 const panel = () => screen.getByTestId('panel');
 const content = () => screen.getByText('content').parentElement!;
@@ -94,5 +107,21 @@ describe('the frame of a side panel', () => {
     expect(screen.getAllByRole('button')).toEqual([tab]);
     await act(async () => tab.click());
     expect(setLayout).toHaveBeenLastCalledWith('beside');
+  });
+
+  it('folded, closes at once instead of moving out from its width beside the conversation', () => {
+    // jsdom has no Web Animations; a panel beside the conversation would move out with them.
+    const animate = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'animate', { configurable: true, value: animate });
+    try {
+      const { rerender } = render(<Slot panel={framed('folded', vi.fn())} />, {
+        container: row(),
+      });
+      rerender(<Slot />);
+      expect(animate).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('panel')).toBeNull();
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
   });
 });

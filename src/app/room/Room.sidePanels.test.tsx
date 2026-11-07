@@ -27,6 +27,8 @@ const { mx, room, state } = vi.hoisted(() => {
       config: {} as ClientConfig,
       view: undefined as RoomViewProps | undefined,
       computer: undefined as { expanded?: boolean; onToggleExpanded?: () => void } | undefined,
+      /** Whether the room is too narrow for the members beside it (useMembersOverlay). */
+      membersOverlay: false,
       roomId: '!room:example.org',
     },
     mx: {
@@ -59,6 +61,14 @@ vi.mock('./RoomView', () => ({
   },
 }));
 vi.mock('../members/MembersDrawer', () => ({ MembersDrawer: () => <aside /> }));
+// jsdom lays nothing out, so a focus trap finds nothing to focus in the members over the room.
+vi.mock('focus-trap-react', () => ({
+  default: ({ children }: { children: React.ReactNode }) => children,
+}));
+vi.mock('../members/PanelRow', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../members/PanelRow')>()),
+  useMembersOverlay: () => state.membersOverlay,
+}));
 vi.mock('../members/useMembersDrawer', async () => {
   const { atom, useAtom } = await vi.importActual<typeof import('jotai')>('jotai');
   const membersOpenAtom = atom(false);
@@ -241,6 +251,7 @@ describe('the side panels of a room', () => {
     store.set(membersOpenAtom, false);
     state.view = undefined;
     state.computer = undefined;
+    state.membersOverlay = false;
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -410,6 +421,22 @@ describe('the side panels of a room', () => {
     await act(async () => state.computer?.onToggleExpanded?.());
     expect(conversation()).not.toBeNull();
     expect(frameButton('Fill the room with Computer')?.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('gives the members no frame while they lie over a room too narrow for them beside it', async () => {
+    const showRoom = await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    await act(async () => frameButton('Fill the room with Members')?.click());
+    expect(conversation()).toBeNull();
+    // The room narrows: the members lie over the conversation, which shows again.
+    state.membersOverlay = true;
+    await showRoom(room.roomId);
+    expect(screen.getByRole('dialog', { name: 'Members' })).toBeTruthy();
+    expect(frameButton('Fill the room with Members')).toBeNull();
+    expect(conversation()).not.toBeNull();
+    // Another panel beside the narrow room keeps its frame.
+    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
+    expect(frameButton('Fill the room with Notes')).not.toBeNull();
   });
 
   it('gives a panel no frame on phones, where it covers the conversation as before', async () => {
