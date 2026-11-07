@@ -321,9 +321,10 @@ const withholdNewEditKeys = async (context: BrowserContext) => {
 };
 
 /**
- * Regression (P2-e2ee-F006): a message edited once, then edited again with an edit the reader
- * cannot decrypt, while the reader has the room open. The row kept the readable edit but showed
- * the note on the newer one only after a reload.
+ * Regression (P2-e2ee-F006, P2-e2ee-F008): a message edited once, then edited again with an edit
+ * the reader cannot decrypt, while the reader has the room open. The row kept the readable edit
+ * but showed the note on the newer one only after a reload, and the room's pinned messages
+ * showed the message as first sent.
  */
 const watchUndecryptableEdit = async (
   readerBrowser: Browser,
@@ -382,6 +383,31 @@ const watchUndecryptableEdit = async (
     );
     await expect(row).not.toContainText(unreadable);
     if (SHOTS) await readerPage.screenshot({ path: `${SHOTS}/F006-${label}-live-note.png` });
+
+    // The reader pins the message: the pin shows what the row shows.
+    const eventId = await row.getAttribute('data-message-id');
+    const { access_token: token } = await call<{ access_token: string }>('/login', undefined, {
+      type: 'm.login.password',
+      identifier: { type: 'm.id.user', user: reader },
+      password: PASSWORD,
+    });
+    const pinned = await fetch(
+      `${HOMESERVER}/_matrix/client/v3/rooms/${encodeURIComponent(
+        roomId
+      )}/state/m.room.pinned_events/`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ pinned: [eventId] }),
+      }
+    );
+    expect(pinned.ok).toBe(true);
+    await call('/logout', token, {});
+    await readerPage.getByRole('button', { name: 'Pinned Messages', exact: true }).click();
+    const pins = readerPage.getByRole('dialog', { name: 'Pinned Messages', exact: true });
+    await expect(pins.getByText(edited)).toBeVisible({ timeout: 30_000 });
+    await expect(pins.getByText(original, { exact: true })).toHaveCount(0);
+    if (SHOTS) await readerPage.screenshot({ path: `${SHOTS}/F008-${label}-pins.png` });
   } finally {
     await readerContext.unrouteAll({ behavior: 'ignoreErrors' });
     await readerContext.close();
@@ -434,11 +460,15 @@ test.describe('an encrypted message edited while the reader watches', () => {
     test.setTimeout(360_000);
   });
 
-  test('notes an edit it cannot decrypt at once (Chromium)', async ({ browser }) => {
+  test('notes an edit it cannot decrypt at once and pins the readable text (Chromium)', async ({
+    browser,
+  }) => {
     await watchUndecryptableEdit(browser, browser, 'chromium');
   });
 
-  test('notes an edit it cannot decrypt at once (WebKit)', async ({ browser }) => {
+  test('notes an edit it cannot decrypt at once and pins the readable text (WebKit)', async ({
+    browser,
+  }) => {
     test.skip(!WEBKIT_EXECUTABLE, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
     const webkit = await launchWebKit();
     try {
