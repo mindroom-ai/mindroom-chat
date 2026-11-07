@@ -520,3 +520,64 @@ describe('buildCompactThreadCardViewModelFromRecord', () => {
     expect((model as { hasPendingSend?: boolean }).hasPendingSend).toBe(true);
   });
 });
+
+it('shows the direction controls of thread text as code points on a card, not the isolates after a name', async () => {
+  const i18n = createInstance();
+  await i18n.init({ lng: 'en', resources: {} });
+  const rootEvent = makeEvent({
+    eventId: '$root',
+    sender: '@me:server',
+    body: 'Rename invoice‮txt.exe‬ today.',
+    ts: 1000,
+  });
+  const reply = makeEvent({
+    eventId: '$reply',
+    threadRootId: '$root',
+    sender: '@avery:server',
+    content: { msgtype: 'm.file', body: 'quarterly-report‮fdp.exe', url: 'mxc://server/file' },
+    ts: 2000,
+  });
+  const thread = {
+    id: '$root',
+    rootEvent,
+    events: [reply],
+    timeline: [reply],
+    lastReply: () => reply,
+    replyToEvent: undefined,
+    getUnfilteredTimelineSet: () => ({
+      getLiveTimeline: () => ({
+        getEvents: () => [rootEvent, reply],
+        getNeighbouringTimeline: () => undefined,
+      }),
+      relations: { getChildEventsForEvent: () => undefined },
+    }),
+  } as unknown as ReturnType<Room['getThread']>;
+  // Avery's name ends in a right-to-left mark, so the card puts the isolated user ID after it.
+  const room = {
+    ...makeRoom({ rootEvent, thread }),
+    getMember: (userId: string) =>
+      userId === '@avery:server'
+        ? { userId, rawDisplayName: 'Avery Quinn‏', getMxcAvatarUrl: () => undefined }
+        : undefined,
+  } as unknown as Room;
+  const record = buildThreadRecord({
+    room,
+    threadRootId: '$root',
+    currentUserId: '@me:server',
+    threadRootEvent: rootEvent,
+  });
+
+  const model = buildCompactThreadCardViewModelFromRecord({
+    record,
+    room,
+    currentUserId: '@me:server',
+    mx: makeMx(),
+    useAuthentication: false,
+    t: i18n.getFixedT('en'),
+  });
+  expect(model.titleText).toBe('Rename invoice<U+202E>txt.exe<U+202C> today.');
+  expect(model.displayTitleText).toBe('Rename invoice<U+202E>txt.exe<U+202C> today.');
+  expect(model.previewText).toBe('Avery Quinn (⁦@avery:server⁩): quarterly-report<U+202E>fdp.exe');
+  // The text an edit of the thread's summary starts from stays as it is.
+  expect(model.primarySummaryText).toBe('Rename invoice‮txt.exe‬ today.');
+});

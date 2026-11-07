@@ -123,3 +123,40 @@ describe('describeNotice', () => {
     expect(describeNotice(room, notice(NAMELESS, 'Hello.'), false, t).body).toBe('quinn: Hello.');
   });
 });
+
+describe('describeNotice with direction controls', () => {
+  it("shows the controls of a room's name and of a message as code points, not the sender's isolates", () => {
+    const room = unopenedRoom([COPY, 'Morgan Lee'], [HOST, 'Jordan Host']);
+    room.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.name',
+        state_key: '',
+        sender: HOST,
+        room_id: ROOM_ID,
+        event_id: '$rename',
+        content: { name: 'Payroll ‮sevihcra‬' },
+      }),
+    ]);
+    room.recalculate();
+
+    expect(describeNotice(room, notice(COPY, 'Open invoice‮txt.exe‬ now.'), false, t)).toEqual({
+      title: 'Payroll <U+202E>sevihcra<U+202C>',
+      body: `${withId('Morgan Lee', COPY)}: Open invoice<U+202E>txt.exe<U+202C> now.`,
+    });
+    // A file's name, in a direct chat, where the title names the sender.
+    expect(
+      describeNotice(
+        room,
+        {
+          ...notice(HOST, ''),
+          content: { msgtype: 'm.file', body: 'quarterly-report‮fdp.exe', url: 'mxc://x/y' },
+        },
+        true,
+        t
+      )
+    ).toEqual({
+      title: withId('Jordan Host', HOST),
+      body: 'quarterly-report<U+202E>fdp.exe',
+    });
+  });
+});
