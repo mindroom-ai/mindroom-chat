@@ -4,6 +4,7 @@ import {
   expect,
   messageRow,
   openLobby,
+  showThread,
   startThread,
   streamStatus,
   test,
@@ -25,7 +26,12 @@ const wordCount = (text: string): number => text.match(/\bword\d+\b/g)?.length ?
 
 type Sample = { at: number; words: number; thinking: boolean };
 
-const openMidStream = async (page: Page, stack: AgentStack, rootId: string) => {
+const openMidStream = async (
+  page: Page,
+  stack: AgentStack,
+  rootId: string,
+  { reload = false }: { reload?: boolean } = {}
+) => {
   // The reply grows over many edits before the page loads the thread (the live test opened it at
   // 100 to 160 words).
   const editedEvent = await waitForThreadEvent(
@@ -38,6 +44,9 @@ const openMidStream = async (page: Page, stack: AgentStack, rootId: string) => {
     { description: 'the helper reply after many edits' }
   );
   const editedWords = wordCount(bodyOf(editedEvent));
+  // A page that received the edit saves it a second later (edits are coalesced before they are
+  // written); the reload comes after that, so the page has saved what it showed.
+  if (reload) await page.waitForTimeout(2_000);
 
   // Record the reply row's word count, and whether it shows the thinking placeholder, at every
   // change, from the page load on.
@@ -101,6 +110,21 @@ test(
     // the thread's address.
     await openLobby(page, stack);
     const rootId = await startThread(stack, `${uniqueWord('midreload')} #stopme`);
-    await openMidStream(page, stack, rootId);
+    await openMidStream(page, stack, rootId, { reload: true });
+  }
+);
+
+test(
+  'a reload from another thread into a thread mid-stream first paints the reply text',
+  { tag: '@webkit' },
+  async ({ page, stack }) => {
+    // The browser sits in another thread of the room while the reply starts and streams (the live
+    // test's second device did), so the client has not fetched the reply's thread, then loads that
+    // thread's address.
+    await openLobby(page, stack);
+    const otherId = await startThread(stack, `${uniqueWord('midother')} first question`);
+    await showThread(page, stack, otherId);
+    const rootId = await startThread(stack, `${uniqueWord('midreload')} #stopme`);
+    await openMidStream(page, stack, rootId, { reload: true });
   }
 );
