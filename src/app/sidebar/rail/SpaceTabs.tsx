@@ -67,6 +67,7 @@ import {
 } from '../../spaces/sidebarSpaces';
 import * as css from './SpaceTabs.css';
 import { MenuEntry } from '../../ui/MenuEntry';
+import { revealDirectionControls } from '../../ui/directional';
 
 type DropAt = 'above' | 'below' | 'child';
 const DROP_AT: Record<SidebarInstructionType, DropAt> = {
@@ -203,9 +204,12 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   };
 
   // The button's name says what the badge shows, so the badge itself stays out of the reading.
-  let label = name;
-  if (unread?.total) label = t('sharedUi.spaceTabs.nameUnread', { name, count: unread.total });
-  else if (unread) label = t('featureUi.spaceNav.subspaceUnread', { name });
+  // Direction controls in the name show as code points, so they cannot reorder it.
+  const shownName = revealDirectionControls(name);
+  let label = shownName;
+  if (unread?.total)
+    label = t('sharedUi.spaceTabs.nameUnread', { name: shownName, count: unread.total });
+  else if (unread) label = t('featureUi.spaceNav.subspaceUnread', { name: shownName });
   const unreadBadge = unread ? (
     <SidebarItemBadge aria-hidden hasCount={unread.total > 0}>
       <UnreadBadge count={unread.total} highlight={unread.highlight > 0} />
@@ -215,7 +219,7 @@ function SpaceTab({ space, selected, onSelect, drag, hint, pinned, onMove }: Spa
   return (
     <div {...sortable.props}>
       <SidebarItem active={selected}>
-        <SidebarItemTooltip tooltip={name}>
+        <SidebarItemTooltip tooltip={shownName}>
           {(triggerRef) => (
             <SidebarAvatar
               as="button"
@@ -288,7 +292,7 @@ type FolderTabProps = {
 
 /** A folder's name, or the names of its spaces when it has none. */
 const folderLabel = (folder: SidebarFolder, spaces: Room[]): string =>
-  folder.name || spaces.map((space) => space.name).join(', ');
+  revealDirectionControls(folder.name || spaces.map((space) => space.name).join(', '));
 
 /** A folder's button: closed, a grid of its spaces; open, a button that closes it again. */
 function FolderTab(props: FolderTabProps) {

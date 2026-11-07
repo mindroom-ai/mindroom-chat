@@ -34,6 +34,7 @@ import type { useRoomInputSendSessionController } from './useRoomInputSendSessio
 import type { RoomInputAttachmentAccess } from './roomInputAttachmentAccess';
 import type { useRoomInputUploadTransport } from './useRoomInputUploadTransport';
 import { ComposerIconButton } from './RoomInput.css';
+import { revealDirectionControls } from '../ui/directional';
 
 type VoiceComposerAdapter = {
   getContext: () => Pick<
@@ -110,7 +111,9 @@ export const useRoomInputVoice = ({
   const otherRoomOwnsPendingVoiceDraft = draftBelongsToCurrentSession && !ownsPendingVoiceDraft;
   const otherPendingVoiceRoomName =
     otherRoomOwnsPendingVoiceDraft && pendingVoiceSendDraft
-      ? pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
+      ? revealDirectionControls(
+          pendingVoiceSendDraft.context.room.name ?? pendingVoiceSendDraft.context.roomId
+        )
       : undefined;
   const voiceAutoSendClaimedRef = useRef(false);
   const voiceAutoSendInFlightRef = useRef(false);

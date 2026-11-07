@@ -27,7 +27,7 @@ import {
 import { cancelCanvasOpen, requestCanvasOpen } from '../useCanvasOpenRequest';
 import { useRecentThreadViewModel } from '../../event-store/threads/recentThreadViewModel';
 import * as css from './Canvases.css';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 
 type CanvasList = { entries?: CanvasListEntry[]; savedIds: Set<string> };
 
@@ -247,7 +247,7 @@ export function Canvases() {
                             onClick={() => open(entry, 'room')}
                           >
                             <Text size="T300" as="span">
-                              {room?.name ?? entry.roomId}
+                              {revealDirectionControls(room?.name ?? entry.roomId)}
                             </Text>
                           </button>
                         </td>

@@ -26,6 +26,7 @@ import * as css from './SearchResultBody.css';
 import { matchesEnum } from '../lib/matchesEnum';
 import { isTrustedAgentSender, sanitizeContent } from '../matrix/protocol/untrustedContent';
 import { readCallTranscript } from '../matrix/protocol/callTranscript';
+import { revealDirectionControls } from '../ui/directional';
 
 /** One search hit and the terms the server matched in it. */
 export type SearchResultBodyProps = {
@@ -84,7 +85,7 @@ const getStateHitText = (
 ): string | undefined => {
   const value = (field: string) => {
     const text = event.content?.[field];
-    return typeof text === 'string' ? text : '';
+    return typeof text === 'string' ? revealDirectionControls(text) : '';
   };
   if (matchesEnum(event.type, StateEvent.RoomTopic))
     return `${label('roomTopic')}: ${value('topic')}`;
