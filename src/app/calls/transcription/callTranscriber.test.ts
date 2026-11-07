@@ -864,6 +864,32 @@ describe('CallTranscriber ending', () => {
     ]);
   });
 
+  it('leaves at once as the page goes away, with the session it has, dropping the queued stretches', async () => {
+    const t = setup();
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    const upload = pending<Response>();
+    t.server.speech.mockImplementationOnce(() => upload.promise);
+    t.capture().onStretch(stretch(1));
+    t.capture().onStretch(stretch(2));
+    t.capture().inProgress = stretch(3);
+    await advance();
+
+    t.transcriber.leaveNow();
+    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
+    const init = defined(t.server.leave.mock.calls[0], 'the leave')[0];
+    expect(init.keepalive).toBe(true);
+    expect(new Headers(init.headers).get('Authorization')).toBe('Bearer session');
+    expect(t.server.session).toHaveBeenCalledTimes(1);
+
+    // Nothing more is sent, not even a second leave.
+    upload.resolve(json({ line: LINE }));
+    await t.transcriber.end();
+    await advance(60_000);
+    expect(t.steps()).toEqual(['calls.join', 'listen mic-a', 'speech 1', 'leave', 'stop mic-a']);
+  });
+
   it('stops listening at once, before a check-in on its way answers', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);

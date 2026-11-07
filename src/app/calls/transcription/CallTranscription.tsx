@@ -71,7 +71,11 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
         if (current) store.set(callTranscriptionAtom, undefined);
       }
     );
+    // A page that goes away leaves MindRoom's call at once, so nobody stays listed in it.
+    const pageHide = () => transcriber?.leaveNow();
+    window.addEventListener('pagehide', pageHide);
     return () => {
+      window.removeEventListener('pagehide', pageHide);
       current = false;
       transcriberRef.current = undefined;
       void transcriber?.end();

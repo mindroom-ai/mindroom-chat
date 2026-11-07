@@ -272,6 +272,20 @@ export class TranscriptionClient {
     await this.sendJson(`/calls/${encodeURIComponent(callId)}/leave`, { method: 'POST' }, signal);
   }
 
+  /**
+   * Leaves at once with the session already held, for a page that goes away: the request outlives
+   * the page. Without a session nothing is sent, as there is no time to sign in.
+   */
+  leaveNow(callId: string): void {
+    const { session } = this;
+    if (!session) return;
+    void this.fetch(`${this.apiUrl}${API_PATH}/calls/${encodeURIComponent(callId)}/leave`, {
+      method: 'POST',
+      keepalive: true,
+      headers: { Accept: 'application/json', Authorization: `Bearer ${session.token}` },
+    }).catch(() => undefined);
+  }
+
   /** Pauses or resumes transcription of the call for everyone in it. */
   async pause(callId: string, paused: boolean, signal?: AbortSignal): Promise<TranscriptCall> {
     const { call } = await this.sendJson<{ call: TranscriptCall }>(

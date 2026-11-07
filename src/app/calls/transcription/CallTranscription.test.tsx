@@ -53,6 +53,7 @@ const made = vi.hoisted(
       setMicrophone: ReturnType<typeof vi.fn>;
       setPaused: ReturnType<typeof vi.fn>;
       pause: ReturnType<typeof vi.fn>;
+      leaveNow: ReturnType<typeof vi.fn>;
     }>
 );
 
@@ -68,6 +69,8 @@ vi.mock('./callTranscriber', () => ({
 
     pause = vi.fn(async () => undefined);
 
+    leaveNow = vi.fn();
+
     constructor(options: CallTranscriberOptions) {
       made.push({
         options,
@@ -76,6 +79,7 @@ vi.mock('./callTranscriber', () => ({
         setMicrophone: this.setMicrophone,
         setPaused: this.setPaused,
         pause: this.pause,
+        leaveNow: this.leaveNow,
       });
     }
   },
@@ -402,6 +406,20 @@ describe('CallTranscription', () => {
     // A transcriber on its way out changes nothing more.
     act(() => transcriber.options.onStatus('unavailable', undefined));
     expect(store.get(callTranscriptionAtom)).toBeUndefined();
+  });
+
+  it('leaves at once when the page goes away, and no more once the call ended', async () => {
+    const { set } = mount();
+    set({ phase: 'connected' });
+    await loaded();
+    const transcriber = only();
+
+    window.dispatchEvent(new Event('pagehide'));
+    expect(transcriber.leaveNow).toHaveBeenCalledTimes(1);
+
+    set({ phase: 'ended' });
+    window.dispatchEvent(new Event('pagehide'));
+    expect(transcriber.leaveNow).toHaveBeenCalledTimes(1);
   });
 
   it('ends when the call goes away', async () => {

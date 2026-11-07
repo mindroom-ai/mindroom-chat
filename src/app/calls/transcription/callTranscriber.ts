@@ -220,6 +220,18 @@ export class CallTranscriber {
     return ended;
   }
 
+  /**
+   * Leaves at once as the page goes away, without the stretches still queued: nothing more is
+   * captured or sent, and ending sends no second leave.
+   */
+  leaveNow(): void {
+    const { callId } = this;
+    if (callId && this.status !== 'off') this.client.leaveNow(callId);
+    this.status = 'off';
+    this.uploadGeneration += 1;
+    void this.end();
+  }
+
   private setStatus(status: TranscriberStatus): void {
     if (this.status === status) return;
     this.status = status;
