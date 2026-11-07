@@ -51,7 +51,7 @@ const shorten = (text: string): string => {
  * The notification's title and text: the room and "sender: preview", or in a direct chat the
  * person and the preview alone.
  */
-const describeNotice = (
+export const describeNotice = (
   room: Room,
   notice: MessageNotice,
   direct: boolean,
