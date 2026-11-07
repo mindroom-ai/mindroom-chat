@@ -2,6 +2,7 @@
 // The example plugin's test, written as a plugin outside this repository writes one: it imports the
 // app only through the client SDK, `/testing` included, and runs in the app's vitest.
 import type { Room } from 'matrix-js-sdk';
+import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { usePluginStorage, type PluginEvent } from '@mindroom/client-sdk/core';
 import { renderPluginComponent } from '@mindroom/client-sdk/testing';
@@ -59,6 +60,18 @@ describe('example plugin', () => {
     }
     const view = await renderPluginComponent(<Stored />, { id: 'example', plugin });
     expect(view.getByText('true: kept')).toBeTruthy();
+  });
+
+  it("links its page to its window page under a router, which the test's ui gives", async () => {
+    const [page] = plugin.pages ?? [];
+    if (!page) throw new Error('the example plugin has no page');
+    const view = await renderPluginComponent(
+      <MemoryRouter>
+        <page.Component params={{}} />
+      </MemoryRouter>,
+      { id: 'example', plugin }
+    );
+    expect(view.getByText('Fill the window').getAttribute('href')).toBe('/p/example/window');
   });
 
   it('names the open room under the header', async () => {
