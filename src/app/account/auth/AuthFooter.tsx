@@ -90,9 +90,20 @@ export function AuthFooter() {
   return (
     <Box as="footer" className={css.AuthFooter} justifyContent="Center" gap="400" wrap="Wrap">
       {branding.footerText !== undefined && (
-        // Shown as written, in its own direction, never as markup.
+        // Shown as written, in its own direction, never as markup; its links open in a new tab.
         <Text size="T300" align="Center" dir="auto" className={ParticleTextBackdrop}>
-          {branding.footerText}
+          {branding.footerText.map((part, index) =>
+            typeof part === 'string' ? (
+              // The parts never change order, so their places are their keys.
+              // eslint-disable-next-line react/no-array-index-key
+              <Fragment key={index}>{part}</Fragment>
+            ) : (
+              // eslint-disable-next-line react/no-array-index-key
+              <a key={index} href={part.url} target="_blank" rel="noreferrer">
+                {part.label}
+              </a>
+            )
+          )}
         </Text>
       )}
       {creditLine}

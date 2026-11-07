@@ -80,9 +80,7 @@ type Checker = {
 const checkers = new WeakMap<MatrixClient, Checker>();
 
 const newestRevisionTs = (event: MatrixEvent): number => {
-  const bundled = event.getUnsigned()?.['m.relations']?.[RelationType.Replace] as
-    | Partial<IEvent>
-    | undefined;
+  const bundled = event.getServerAggregatedRelation<Partial<IEvent>>(RelationType.Replace);
   return Math.max(
     event.getTs(),
     event.replacingEvent()?.getTs() ?? 0,

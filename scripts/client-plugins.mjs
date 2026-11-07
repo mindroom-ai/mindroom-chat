@@ -5,10 +5,12 @@
 // fails on a directory it cannot use. The build replaces src/app/plugins/pluginEntries.ts with a
 // module that imports each plugin's entry; without plugins that module lists none and no plugin code
 // ships. Plugins import the app through the client SDK (`@mindroom/client-sdk/<subpath>`), which
-// the build resolves to src/client-sdk/.
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+// the build resolves to src/client-sdk/. A plugin's public/ directory, if it has one, ships as it
+// is under public/plugins/<id>/.
+import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { contentType } from 'mime-types';
 import { normalizePath, searchForWorkspaceRoot } from 'vite';
 
 /**
@@ -16,7 +18,7 @@ import { normalizePath, searchForWorkspaceRoot } from 'vite';
  * `apiVersion`, the one it needs. Version 1 had no SDK; each later addition to the SDK (an export,
  * or a contribution kind in `ClientPlugin`) raises it.
  */
-const CLIENT_PLUGIN_API_VERSION = 6;
+const CLIENT_PLUGIN_API_VERSION = 7;
 
 /** The SDK's subpaths a build resolves, which plugins import, and the modules they are. */
 export const CLIENT_SDK_ALIAS = {
@@ -33,7 +35,8 @@ const ENTRIES_MODULE = normalizePath(
  * packages it installed, resolve as the app's own imports do, so that the state each keeps is one
  * (React's hooks, the Matrix SDK's classes and module state, jotai's stores, TanStack Query's
  * client, React Router's router, the translations, folds' theme, focus-trap's stack of traps, dayjs's
- * locale). A plugin that lists one under `dependencies` fails the build.
+ * locale, react-aria's scroll lock, overlay stack and focus scopes). A plugin that lists one under
+ * `dependencies` fails the build.
  */
 export const SHARED_PACKAGES = [
   'react',
@@ -52,6 +55,7 @@ export const SHARED_PACKAGES = [
   'focus-trap',
   'focus-trap-react',
   'dayjs',
+  'react-aria',
 ];
 
 /** @typedef {{ id: string, version: string, dir: string, entry: string }} ClientPluginInfo */
@@ -120,6 +124,41 @@ export const readClientPlugins = (list) => {
     if (dir !== '') plugins.push(readPlugin(dir, plugins));
   }
   return plugins;
+};
+
+/** Where the build puts each plugin's public/ directory: public/plugins/<id>/ of the app. */
+const PUBLIC_FILES = 'public/plugins';
+
+/**
+ * The files in the public/ directory of the plugin in `dir`, as paths in that directory with `/`
+ * between their parts; none without one. A symbolic link there, which could lead out of the
+ * plugin's directory, or anything else that is neither a file nor a directory, fails the build.
+ * @param {string} dir
+ * @returns {string[]}
+ */
+const pluginPublicFiles = (dir) => {
+  const root = path.join(dir, 'public');
+  /** @returns {never} */
+  const fail = (/** @type {string} */ name, /** @type {string} */ what) => {
+    throw new Error(
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: ${name} is ${what}: a plugin ships only the files inside its public/ directory`
+    );
+  };
+  /** @type {string[]} */
+  const files = [];
+  const walk = (/** @type {string} */ relative) => {
+    for (const entry of readdirSync(path.join(root, relative), { withFileTypes: true })) {
+      const name = path.posix.join(relative, entry.name);
+      if (entry.isDirectory()) walk(name);
+      else if (entry.isFile()) files.push(name);
+      else
+        fail(`public/${name}`, 'neither a file nor a directory (symbolic links are not followed)');
+    }
+  };
+  const stats = lstatSync(root, { throwIfNoEntry: false });
+  if (stats?.isDirectory()) walk('');
+  else if (stats) fail('public', 'not a directory (symbolic links are not followed)');
+  return files;
 };
 
 // The app's own directory, which a plugin directory may hold (the app as a submodule of the plugin's
@@ -208,5 +247,47 @@ export const clientPlugins = (env = process.env) => {
       plugins.length > 0 && normalizePath(id.split('?')[0] ?? id) === ENTRIES_MODULE
         ? entriesModule(plugins)
         : undefined,
+    // Each plugin's public/ directory under public/plugins/<id>/, where every server answers as for
+    // the app's other files under public/.
+    generateBundle() {
+      for (const { id, dir } of plugins) {
+        for (const name of pluginPublicFiles(dir)) {
+          this.emitFile({
+            type: 'asset',
+            fileName: `${PUBLIC_FILES}/${id}/${name}`,
+            source: readFileSync(path.join(dir, 'public', name)),
+          });
+        }
+      }
+    },
+    // The dev server serves the same files at the same paths, as they are (Vite's own file serving
+    // would run scripts and style sheets through its transforms), and anything else under
+    // public/plugins/ as a 404.
+    configureServer: (server) => {
+      const prefix = `/${PUBLIC_FILES}/`;
+      server.middlewares.use((req, res, next) => {
+        const [pathname = ''] = (req.url ?? '').split('?');
+        if (!pathname.startsWith(prefix)) {
+          next();
+          return;
+        }
+        const [id, ...parts] = pathname.slice(prefix.length).split('/');
+        const plugin = plugins.find((other) => other.id === id);
+        let name = '';
+        try {
+          name = decodeURIComponent(parts.join('/'));
+        } catch {
+          // A malformed escape names no file.
+        }
+        if (plugin && pluginPublicFiles(plugin.dir).includes(name)) {
+          const type = contentType(path.extname(name)) || 'application/octet-stream';
+          res.setHeader('Content-Type', type);
+          res.end(readFileSync(path.join(plugin.dir, 'public', name)));
+        } else {
+          res.statusCode = 404;
+          res.end();
+        }
+      });
+    },
   };
 };

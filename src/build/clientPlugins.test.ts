@@ -8,6 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -20,8 +21,8 @@ const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const EXAMPLE = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
 const ENTRIES = path.join(ROOT, 'src/app/plugins/pluginEntries.ts');
 
-/** The chunks of an in-memory build of the entries module and `inputs`, with these build variables. */
-const buildEntries = async (
+/** The output of an in-memory build of the entries module and `inputs`, with these build variables. */
+const buildOutput = async (
   env: Record<string, string | undefined>,
   { inputs = [], external }: { inputs?: string[]; external?: (id: string) => boolean } = {}
 ) => {
@@ -37,8 +38,16 @@ const buildEntries = async (
       rollupOptions: { input: [ENTRIES, ...inputs], preserveEntrySignatures: 'strict', external },
     },
   })) as Rollup.RollupOutput;
-  return output.output.flatMap((file) => (file.type === 'chunk' ? [file] : []));
+  return output.output;
 };
+
+/** The chunks of an in-memory build of the entries module and `inputs`, with these build variables. */
+const buildEntries = async (...args: Parameters<typeof buildOutput>) =>
+  (await buildOutput(...args)).flatMap((file) => (file.type === 'chunk' ? [file] : []));
+
+/** Packages, which builds that check the entries module and the plugins' own files leave out. */
+const packages = (id: string) =>
+  !id.startsWith('.') && !path.isAbsolute(id) && !id.startsWith('\0');
 
 const madeDirs: string[] = [];
 afterAll(() => madeDirs.forEach((dir) => rmSync(dir, { recursive: true, force: true })));
@@ -75,7 +84,7 @@ describe('readClientPlugins', () => {
   });
 
   it('reads the id, version and entry of each listed directory, in order', () => {
-    // The other was written for client SDK 1, which this client still builds.
+    // The example needs client SDK 6; the other was written for 1, which this client still builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
       { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
@@ -103,8 +112,8 @@ describe('readClientPlugins', () => {
     ],
     [
       'a plugin that needs a newer client SDK',
-      () => pluginDir(declaring({ apiVersion: 7 })),
-      /plugin "some-plugin" needs client SDK apiVersion 7; this client provides 6/,
+      () => pluginDir(declaring({ apiVersion: 8 })),
+      /plugin "some-plugin" needs client SDK apiVersion 8; this client provides 7/,
     ],
     [
       'an apiVersion that is not a number',
@@ -148,12 +157,8 @@ describe('readClientPlugins', () => {
 
 describe('clientPlugins', () => {
   /** The code a build makes of src/app/plugins/pluginEntries.ts with these build variables. */
-  const bundleEntries = async (env: Record<string, string | undefined>): Promise<string> => {
-    // Packages stay out: the entries module and the plugins' own files are what is checked.
-    const external = (id: string) =>
-      !id.startsWith('.') && !path.isAbsolute(id) && !id.startsWith('\0');
-    return (await buildEntries(env, { external })).map((chunk) => chunk.code).join('\n');
-  };
+  const bundleEntries = async (env: Record<string, string | undefined>): Promise<string> =>
+    (await buildEntries(env, { external: packages })).map((chunk) => chunk.code).join('\n');
 
   it('builds each listed plugin into the entries module', async () => {
     const code = await bundleEntries({ MINDROOM_CLIENT_PLUGINS: EXAMPLE });
@@ -239,6 +244,106 @@ describe('clientPlugins', () => {
   });
 });
 
+describe("a plugin's public/ directory", () => {
+  /** Writes `files` (path in `dir` to text) into `dir`. */
+  const writeFiles = (dir: string, files: Record<string, string>) => {
+    for (const [name, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(dir, name)), { recursive: true });
+      writeFileSync(path.join(dir, name), text);
+    }
+  };
+
+  /** The files a build with these build variables writes under public/plugins/, as text. */
+  const publicFilesBuilt = async (env: Record<string, string | undefined>) =>
+    Object.fromEntries(
+      (await buildOutput(env, { external: packages })).flatMap((file) =>
+        file.type === 'asset' && file.fileName.startsWith('public/plugins/')
+          ? [[file.fileName, Buffer.from(file.source).toString()]]
+          : []
+      )
+    );
+
+  it('ships under public/plugins/<id>/ of the build, one directory per plugin', async () => {
+    const other = pluginDir(declaring());
+    writeFiles(other, { 'public/page.html': '<p>A page</p>', 'public/fonts/a.woff2': 'font' });
+    const bare = pluginDir(declaring({ id: 'bare' }));
+    expect(
+      await publicFilesBuilt({ MINDROOM_CLIENT_PLUGINS: `${EXAMPLE},${other},${bare}` })
+    ).toEqual({
+      'public/plugins/example/mark.svg': readFileSync(
+        path.join(EXAMPLE, 'public/mark.svg'),
+        'utf8'
+      ),
+      'public/plugins/some-plugin/page.html': '<p>A page</p>',
+      'public/plugins/some-plugin/fonts/a.woff2': 'font',
+    });
+    expect(await publicFilesBuilt({})).toEqual({});
+  });
+
+  it.each([
+    ['in it', 'public/outside', 'neither a file nor a directory'],
+    ['as the directory itself', 'public', 'not a directory'],
+  ])('fails the build for a symbolic link %s, naming it', async (_case, link, what) => {
+    const dir = pluginDir(declaring());
+    mkdirSync(path.join(dir, path.dirname(link)), { recursive: true });
+    symlinkSync(emptyDir(), path.join(dir, link));
+    await expect(publicFilesBuilt({ MINDROOM_CLIENT_PLUGINS: dir })).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: ${link} is ${what}`
+    );
+  });
+
+  it('is served by the dev server as it is, at the same paths, anything else there as a 404', async () => {
+    const dir = pluginDir(declaring());
+    const files = {
+      'sub/page.html': ['<p>A page</p>', 'text/html; charset=utf-8'],
+      'worker.js': [
+        "self.onmessage = () => postMessage('ok');\n",
+        'application/javascript; charset=utf-8',
+      ],
+      'C#-guide.txt': ['A guide', 'text/plain; charset=utf-8'],
+    };
+    writeFiles(dir, {
+      ...Object.fromEntries(
+        Object.entries(files).map(([name, [text]]) => [`public/${name}`, text])
+      ),
+      'secret.txt': 'secret',
+    });
+    const vite = await createServer({
+      configFile: false,
+      root: ROOT,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+      server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
+      optimizeDeps: { noDiscovery: true, include: [] },
+    });
+    await vite.listen();
+    const { port } = vite.httpServer!.address() as AddressInfo;
+    const get = (pathname: string) => fetch(`http://127.0.0.1:${port}${pathname}`);
+    try {
+      for (const [name, [text, type]] of Object.entries(files)) {
+        const response = await get(
+          `/public/plugins/some-plugin/${name.split('/').map(encodeURIComponent).join('/')}`
+        );
+        expect(response.status, name).toBe(200);
+        expect(response.headers.get('content-type'), name).toBe(type);
+        expect(await response.text(), name).toBe(text);
+      }
+      for (const missing of [
+        '/public/plugins/some-plugin/sub/missing.html',
+        '/public/plugins/some-plugin/..%2fsecret.txt',
+        '/public/plugins/some-plugin/sub/%E0.html',
+        '/public/plugins/other/sub/page.html',
+      ]) {
+        expect((await get(missing)).status, missing).toBe(404);
+      }
+      // Every other path is Vite's.
+      expect(await (await get('/index.html')).text()).toContain('<div id="root"');
+    } finally {
+      await vite.close();
+    }
+  });
+});
+
 describe('packages the app shares with plugins', () => {
   /** The modules a build of the plugin in `dir` and `inputs` bundles. */
   const bundlePlugin = async (dir: string, inputs: string[] = []) =>
@@ -295,6 +400,17 @@ describe('packages the app shares with plugins', () => {
     expect(modules.filter((id) => id.startsWith(ownCopies))).toEqual([
       `${ownCopies}helper/index.js`,
     ]);
+  });
+
+  it("resolves react-aria to the app's copy over the one the plugin installed", async () => {
+    const dir = pluginDir(declaring(), { entry: false });
+    importing(dir, ['react-aria/usePreventScroll']);
+    // A copy of its own would keep its own scroll lock, overlay stack and focus scopes.
+    installStandIn(dir, 'react-aria');
+    writeFileSync(path.join(dir, 'node_modules/react-aria/usePreventScroll.js'), 'export {};\n');
+    const modules = await bundlePlugin(dir);
+    expect(modules.some((id) => id.startsWith(appCopy('react-aria')))).toBe(true);
+    expect(modules.filter((id) => id.startsWith(`${realpathSync(dir)}/node_modules/`))).toEqual([]);
   });
 
   it("fails the build for an import the app's copy cannot resolve, naming the plugin and the import", async () => {

@@ -3395,3 +3395,43 @@ index 19a2f43..d7c247c 100644
      }
  
      /**
+diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
+index 6be66bb..7ce0ee5 100644
+--- a/node_modules/matrix-js-sdk/lib/models/relations.js
++++ b/node_modules/matrix-js-sdk/lib/models/relations.js
+@@ -357,6 +357,15 @@ export class Relations extends TypedEventEmitter {
+       if (!lastReplacement && !targetEvent.replacingEvent()) {
+         return;
+       }
++
++      // MindRoom: getLastReplacement skips the sender's live edits older than the edit the server
++      // bundled with the event, which the event shows. When it skips them all, the event keeps that
++      // edit, unless it was redacted meanwhile, instead of going back to its original content.
++      var shown = targetEvent.replacingEvent();
++      var bundled = targetEvent.getServerAggregatedRelation(RelationType.Replace);
++      if (!lastReplacement && shown && !shown.isRedacted() && shown.getId() === (bundled === null || bundled === void 0 ? void 0 : bundled.event_id)) {
++        return;
++      }
+       targetEvent.makeReplaced(lastReplacement !== null && lastReplacement !== void 0 ? lastReplacement : undefined);
+     })();
+   }
+diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
+index 77ba3b3..e5599db 100644
+--- a/node_modules/matrix-js-sdk/src/models/relations.ts
++++ b/node_modules/matrix-js-sdk/src/models/relations.ts
+@@ -374,6 +374,15 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+             return;
+         }
+ 
++        // MindRoom: getLastReplacement skips the sender's live edits older than the edit the server
++        // bundled with the event, which the event shows. When it skips them all, the event keeps that
++        // edit, unless it was redacted meanwhile, instead of going back to its original content.
++        const shown = targetEvent.replacingEvent();
++        const bundled = targetEvent.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
++        if (!lastReplacement && shown && !shown.isRedacted() && shown.getId() === bundled?.event_id) {
++            return;
++        }
++
+         targetEvent.makeReplaced(lastReplacement ?? undefined);
+     }
+ 
