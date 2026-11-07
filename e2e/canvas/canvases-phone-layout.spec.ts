@@ -248,6 +248,8 @@ const checkAgentName = async (browser: Browser, engine: string) => {
       timeout: 15_000,
     });
     await expect(row).not.toContainText('mindroom_planner_');
+    // The thread's name follows once the thread is read; the screenshot waits for it.
+    await expect(row).toContainText(LONG_TOKEN, { timeout: 30_000 });
     await shot(page, `canvases-agent-name-${engine}`);
   } finally {
     await context.close();
