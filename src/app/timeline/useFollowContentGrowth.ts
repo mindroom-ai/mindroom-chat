@@ -46,6 +46,7 @@ export const useFollowContentGrowth = (
       }
       seenScrollHeight = scrollElement.scrollHeight;
       pinned = isViewportAtBottomNow();
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'growthScroll', pinned, top: scrollElement.scrollTop, sh: scrollElement.scrollHeight }) }));
     };
     const observer = new ResizeObserver((entries) => {
       const entry = entries.find(({ target }) => target === content);
@@ -55,6 +56,7 @@ export const useFollowContentGrowth = (
       height = entry.contentRect.height;
       seenScrollHeight = scrollElement.scrollHeight;
       frames = liveReplies.frameCount(roomId);
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'growth', h: entry.contentRect.height, grew, framed, pinned, live: atLiveEndRef.current, top: scrollElement.scrollTop, sh: scrollElement.scrollHeight }) }));
       if (grew && framed && pinned && atLiveEndRef.current) {
         const end = scrollElement.scrollHeight - scrollElement.clientHeight - pendingListShrinkPx();
         scrollElement.scrollTo({ top: Math.max(0, end), behavior: 'instant' });

@@ -261,6 +261,7 @@ export const useRoomLiveRenderController = (options: LiveRenderOptions): void =>
     if (!area) return;
     const nearBottom = isNearBottomNow(area);
     const relationType = event.getRelation()?.rel_type;
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'arrival', id: event.getId(), relationType, nearBottom, atLiveEnd, top: area.scrollTop, sh: area.scrollHeight, status: (event.getContent()?.['m.new_content'] as Record<string, unknown> | undefined)?.['io.mindroom.stream_status'] }) }));
     if (
       shouldAutoScrollThreadOnLiveEvent({
         relationType,

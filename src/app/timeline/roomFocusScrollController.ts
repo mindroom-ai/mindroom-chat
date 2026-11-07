@@ -590,6 +590,8 @@ const useBottomPinRequests = ({
     const { count, smooth } = scrollToBottomRef.current;
     if (count === seenCountRef.current) return;
     seenCountRef.current = count;
+    const applies = count > 0 && shouldApplyThreadBottomPin(count);
+    ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'pinRequest', count, smooth, applies, top: scrollRef.current?.scrollTop, sh: scrollRef.current?.scrollHeight }) }));
     if (count <= 0 || !shouldApplyThreadBottomPin(count)) return;
     const scrollArea = scrollRef.current;
     if (!scrollArea) return;
