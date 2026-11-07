@@ -13,6 +13,7 @@ import {
   type ActiveCall,
 } from './callStore';
 import type { CallPhase, CallState } from './RoomCall';
+import { requestOwnSfuGrant } from './rtcFocus';
 import {
   fakeWebLocks,
   holdLockInOtherTab,
@@ -40,12 +41,25 @@ const FakeRoomCall = vi.hoisted(
 
       releaseDeviceLock?: () => void;
 
-      constructor({ room, releaseDeviceLock }: { room: Room; releaseDeviceLock?: () => void }) {
+      grant?: Promise<unknown>;
+
+      constructor({
+        room,
+        releaseDeviceLock,
+        grant,
+      }: {
+        room: Room;
+        releaseDeviceLock?: () => void;
+        grant?: Promise<unknown>;
+      }) {
         this.room = room;
         this.releaseDeviceLock = releaseDeviceLock;
+        this.grant = grant;
       }
     }
 );
+
+vi.mock('./rtcFocus', () => ({ requestOwnSfuGrant: vi.fn(async () => undefined) }));
 
 const actionsIn = (
   store: ReturnType<typeof createStore>,
@@ -156,15 +170,64 @@ describe('useCallActions startCall', () => {
   });
 
   // First in this block: a module that failed to load is loaded again on the next import.
-  it('answers failed, without an unhandled rejection, when the call engine cannot load', async () => {
+  it('answers failed, without an unhandled rejection, and undoes what it prepared, when the call engine cannot load', async () => {
     const store = createStore();
-    const { room } = slowRoom();
+    const room = {
+      roomId: '!call:calls.test',
+      loadMembersIfNeeded: async () => undefined,
+    } as unknown as Room;
+    const prepare = vi.fn(async () => undefined);
+    const onEnded = vi.fn(async () => undefined);
+
+    await expect(
+      actionsIn(store, runningClient()).startCall({ room, kind: 'agent', prepare, onEnded })
+    ).resolves.toBe('failed');
+    expect(store.get(activeCallAtom)).toBeUndefined();
+    // The engine loads while the call is prepared, so what was prepared is undone.
+    expect(onEnded).toHaveBeenCalledTimes(1);
+    engine.missing = false;
+  });
+
+  it("asks for the call service's grant while the call is prepared, and hands it to the call", async () => {
+    const store = createStore();
+    const mx = runningClient();
+    const grant = { serviceUrl: 'https://rtc.calls.test', grant: { url: 'wss://sfu', jwt: 'jwt' } };
+    vi.mocked(requestOwnSfuGrant).mockClear();
+    vi.mocked(requestOwnSfuGrant).mockResolvedValueOnce(grant);
+    let askedBeforePrepared = false;
+    const prepare = vi.fn(async () => {
+      askedBeforePrepared = vi.mocked(requestOwnSfuGrant).mock.calls.length === 1;
+    });
+    const room = {
+      roomId: '!call:calls.test',
+      loadMembersIfNeeded: async () => undefined,
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    } as unknown as Room;
+
+    await expect(actionsIn(store, mx).startCall({ room, kind: 'agent', prepare })).resolves.toBe(
+      'started'
+    );
+
+    expect(askedBeforePrepared).toBe(true);
+    expect(requestOwnSfuGrant).toHaveBeenCalledWith(mx, '!call:calls.test');
+    const call = store.get(activeCallAtom)?.call as unknown as { grant?: Promise<unknown> };
+    await expect(call.grant).resolves.toBe(grant);
+  });
+
+  it('starts the call with no early grant when asking for it failed', async () => {
+    const store = createStore();
+    vi.mocked(requestOwnSfuGrant).mockRejectedValueOnce(new Error('403'));
+    const room = {
+      roomId: '!call:calls.test',
+      loadMembersIfNeeded: async () => undefined,
+      getLiveTimeline: () => ({ getEvents: () => [] }),
+    } as unknown as Room;
 
     await expect(actionsIn(store, runningClient()).startCall({ room, kind: 'room' })).resolves.toBe(
-      'failed'
+      'started'
     );
-    expect(store.get(activeCallAtom)).toBeUndefined();
-    engine.missing = false;
+    const call = store.get(activeCallAtom)?.call as unknown as { grant?: Promise<unknown> };
+    await expect(call.grant).resolves.toBeUndefined();
   });
 
   /** A room whose members load when the test says so. */

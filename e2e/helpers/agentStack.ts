@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -143,16 +143,20 @@ export const routeClientConfig = async (
   );
 };
 
-/** Signs the test account in with its password, for a browser of a spec's own. */
-export const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
+/** Signs `account` in with its password, the test account by default, for a spec's own browser. */
+export const signIn = async (
+  page: Page,
+  stack: AgentStack,
+  account: { username: string; password: string } = stack.tester
+): Promise<void> => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('settings')) {
       localStorage.setItem('settings', JSON.stringify({ isPeopleDrawer: false }));
     }
   });
   await page.goto(`/login/${encodeURIComponent(stack.homeserver)}`, { timeout: 180_000 });
-  await page.locator('input[name="usernameInput"]').fill(stack.tester.username);
-  await page.locator('input[name="passwordInput"]').fill(stack.tester.password);
+  await page.locator('input[name="usernameInput"]').fill(account.username);
+  await page.locator('input[name="passwordInput"]').fill(account.password);
   await page.getByRole('button', { name: 'Login', exact: true }).click();
   // The first start of an account sets up its encryption, which takes long on a loaded machine.
   await expect(
@@ -162,19 +166,20 @@ export const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
 };
 
 /**
- * A page signed in to the tester's account on a device of its own: a new session that has not been
- * verified and holds no room keys, so it cannot read encrypted rooms yet.
+ * A page signed in to an account (the tester's by default) on a device of its own: for the tester, a
+ * new session that has not been verified and holds no room keys, so it cannot read encrypted rooms yet.
  */
 export const openNewSession = async (
   browser: Browser,
   stack: AgentStack,
-  options: BrowserContextOptions
+  options: BrowserContextOptions,
+  account: { username: string; password: string } = stack.tester
 ): Promise<Page> => {
   // Playwright gives a new context the project's options it does not set, the tester's saved
   // session among them; a key set to undefined counts as set.
   const page = await (await browser.newContext({ storageState: undefined, ...options })).newPage();
   await routeClientConfig(page, stack);
-  await signIn(page, stack);
+  await signIn(page, stack, account);
   return page;
 };
 
@@ -239,6 +244,11 @@ export { expect };
 /** A word unique to this test, so its thread and messages are easy to find. */
 export const uniqueWord = (prefix: string): string =>
   `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/** The router's access token, from the stack's state file; the stack keeps it out of its output. */
+export const routerToken = (stack: AgentStack): string =>
+  (JSON.parse(readFileSync(join(stack.dir, 'state.json'), 'utf8')) as { routerToken: string })
+    .routerToken;
 
 /** Posts a message to the lobby as the test account; the agents answer it in a thread rooted on it. */
 export const startThread = (stack: AgentStack, body: string): Promise<string> =>
