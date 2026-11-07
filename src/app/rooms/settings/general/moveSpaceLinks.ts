@@ -15,10 +15,10 @@ const hasVia = (content: Record<string, unknown> | undefined): boolean =>
  * links; each is best effort, since a space this account may not change keeps its old child, which
  * the tombstone then leads on from. The replacement also lists the old room's children, and each
  * child that names the old room as its parent names the replacement too, so a sub-room stays
- * under its room. Resolves to the children that did not come along: one the replacement could not
- * list, one that refused the new parent, or a chat room's child this account has not joined and so
- * cannot point at the replacement (a Space lists its rooms on its own; a chat room's sub-room
- * needs its own link too).
+ * under its room. A Space lists its rooms on its own, so their links back to it are best effort,
+ * as when a room is added to one; a chat room's sub-room needs its own link to the replacement as
+ * well. Resolves to the children that did not come along: one the replacement could not list, and
+ * for a chat room one that refused the new parent or that this account has not joined.
  */
 export const moveSpaceLinks = async (
   client: MatrixClient,
@@ -27,6 +27,7 @@ export const moveSpaceLinks = async (
   spaceIds: Iterable<string>
 ): Promise<string[]> => {
   const oldRoom = client.getRoom(oldRoomId);
+  const space = oldRoom?.isSpaceRoom();
   const send = (roomId: string, type: string, content: object, stateKey: string) =>
     client.sendStateEvent(roomId, type as never, content as never, stateKey);
   const writes: Array<Promise<unknown>> = [];
@@ -55,15 +56,18 @@ export const moveSpaceLinks = async (
     const parent = joined
       ? stateOf(child, StateEvent.SpaceParent, oldRoomId)?.getContent()
       : undefined;
+    const link = hasVia(parent)
+      ? send(childId, StateEvent.SpaceParent, parent as object, newRoomId)
+      : undefined;
     try {
       await Promise.all([
         send(newRoomId, StateEvent.SpaceChild, event.getContent(), childId),
-        hasVia(parent) && send(childId, StateEvent.SpaceParent, parent as object, newRoomId),
+        space ? link?.catch(() => undefined) : link,
       ]);
     } catch {
       return childId;
     }
-    return joined || oldRoom?.isSpaceRoom() ? undefined : childId;
+    return joined || space ? undefined : childId;
   });
 
   const [unmoved] = await Promise.all([Promise.all(moved), Promise.all(writes)]);
