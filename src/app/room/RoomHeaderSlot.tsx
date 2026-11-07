@@ -43,21 +43,17 @@ export function RoomHeaderSlot({ room }: { room: Room }) {
   const config = useOptionalClientConfig();
   const slot = registeredPlugins.flatMap(({ id, tag, roomHeaderSlot }) =>
     isPluginEnabled(config, id)
-      ? roomHeaderSlot.map((Component, index) => ({ key: `${tag}:${index}`, tag, Component }))
+      ? roomHeaderSlot.map((Component, index) => (
+          <ErrorBoundary
+            key={`${room.roomId}:${tag}:${index}`}
+            fallback={null}
+            onError={(thrown: unknown, info) => reportFailure(tag, thrown, info.componentStack)}
+          >
+            <Component room={room} />
+          </ErrorBoundary>
+        ))
       : []
   );
   if (slot.length === 0) return null;
-  return (
-    <div style={SLOT_STYLE}>
-      {slot.map(({ key, tag, Component }) => (
-        <ErrorBoundary
-          key={`${room.roomId}:${key}`}
-          fallback={null}
-          onError={(thrown: unknown, info) => reportFailure(tag, thrown, info.componentStack)}
-        >
-          <Component room={room} />
-        </ErrorBoundary>
-      ))}
-    </div>
-  );
+  return <div style={SLOT_STYLE}>{slot}</div>;
 }

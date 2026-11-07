@@ -4,11 +4,13 @@ import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 
+/** A component shown under the room header, given the open room; it renders there or nothing. */
+export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
+
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
-  /** Components shown under the room header, given the open room; each renders there or nothing. */
-  roomHeaderSlot?: readonly ComponentType<{ room: Room }>[];
+  roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -16,7 +18,7 @@ export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
-  readonly roomHeaderSlot: readonly ComponentType<{ room: Room }>[];
+  readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {

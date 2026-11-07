@@ -53,8 +53,6 @@ vi.mock('../plugins/pluginEntries', () => {
   };
 });
 
-const room = (roomId: string) => ({ roomId } as Room);
-
 describe('RoomHeaderSlot', () => {
   let renderer: ReactTestRenderer | undefined;
 
@@ -67,7 +65,7 @@ describe('RoomHeaderSlot', () => {
 
   const slot = (roomId: string, config: ClientConfig = {}) => (
     <ClientConfigProvider value={config}>
-      <RoomHeaderSlot room={room(roomId)} />
+      <RoomHeaderSlot room={{ roomId } as Room} />
     </ClientConfigProvider>
   );
 
@@ -81,8 +79,8 @@ describe('RoomHeaderSlot', () => {
   };
 
   /** What the same slot shows once the view moves to another room. */
-  const moveTo = (roomId: string, config?: ClientConfig): string => {
-    act(() => renderer!.update(slot(roomId, config)));
+  const moveTo = (roomId: string): string => {
+    act(() => renderer!.update(slot(roomId)));
     return JSON.stringify(renderer!.toJSON());
   };
 
