@@ -294,21 +294,41 @@ class CommandLineTests(unittest.TestCase):
         patches.enter_context(mock.patch.object(stack, "http_json", return_value=(200, {})))
         return patches
 
-    def test_a_new_slot_without_keys_and_its_files_are_the_owners_only(self) -> None:
+    def starting(self, **wait_until: object) -> contextlib.ExitStack:
+        """A start whose processes never run; every wait of the start does what `wait_until` says."""
+        patches = self.found_homeserver_and_checkout()
+        patches.enter_context(mock.patch.object(stack, "prepare_source", return_value=Path("/mindroom-source")))
         account = {"user_id": TESTER, "access_token": "tester-token"}
-        with (
-            self.found_homeserver_and_checkout(),
-            mock.patch.object(stack, "prepare_source", return_value=Path("/mindroom-source")),
-            mock.patch.object(stack, "register", return_value=account),
-            mock.patch.object(stack, "matrix", return_value=(200, {})),
-            mock.patch.object(stack, "start_process", return_value=0),
-            # The stub model never answers, so the start stops once it wrote its files.
-            mock.patch.object(stack, "wait_until", side_effect=stack.StackError("timed out")),
-        ):
+        self.register = patches.enter_context(mock.patch.object(stack, "register", return_value=account))
+        patches.enter_context(mock.patch.object(stack, "matrix", return_value=(200, {})))
+        patches.enter_context(mock.patch.object(stack, "start_process", return_value=0))
+        patches.enter_context(mock.patch.object(stack, "wait_until", **wait_until))
+        return patches
+
+    def test_a_new_slot_without_keys_and_its_files_are_the_owners_only(self) -> None:
+        # The stub model never answers, so the start stops once it wrote its files.
+        with self.starting(side_effect=stack.StackError("timed out")):
             self.assertEqual(self.main("7", "up"), 1)
         self.assertEqual(self.mode(self.slot_dir), 0o700)
         for name in ("state.json", ".env", "config.yaml"):
             self.assertEqual(self.mode(self.slot_dir / name), 0o600, name)
+
+    def test_each_start_signs_the_test_account_up_with_a_password_of_its_own(self) -> None:
+        accounts = {
+            f"agent_{name}": {"username": f"mindroom_{name}", "domain": "matrix.localhost", "access_token": "token"}
+            for name in ("router", "helper", "scout")
+        }
+        backend_state = {"rooms": {"lobby": {"room_id": "!lobby"}}, "space_room_id": "!space", "accounts": accounts}
+        passwords = []
+        for _ in range(2):
+            # The second start finds the first one's processes gone, so it starts again.
+            with self.starting(return_value=backend_state):
+                self.assertEqual(self.main("7", "up"), 0)
+            password = self.register.call_args.args[2]
+            self.assertEqual(stack.read_state(self.slot_dir)["tester"]["password"], password)
+            passwords.append(password)
+        self.assertGreaterEqual(len(passwords[0]), 32)
+        self.assertNotEqual(passwords[0], passwords[1])
 
     def test_a_slot_an_older_start_left_readable_becomes_the_owners_only(self) -> None:
         state = {"tester": {"accessToken": "tester-token"}, "routerToken": "router-token"}

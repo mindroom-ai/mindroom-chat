@@ -75,7 +75,6 @@ from matrix_http import http_json, register
 HERE = Path(__file__).resolve().parent
 DEFAULT_CHECKOUT = "/home/basnijholt/Work/dev/mindroom"
 SERVER_NAME = "matrix.localhost"
-TESTER_PASSWORD = "agent-stack-password"
 EXIT_NO_CHECKOUT = 3
 EXIT_NO_HOMESERVER = 4
 EXIT_NO_KEYS = 5
@@ -863,8 +862,9 @@ def start(
     slot_dir.mkdir(parents=True)
     namespace = "t" + secrets.token_hex(4)
     tester = f"tester_{namespace}"
+    password = secrets.token_hex(16)
     try:
-        account = register(homeserver, tester, TESTER_PASSWORD)
+        account = register(homeserver, tester, password)
     except RuntimeError as error:
         raise StackError(f"registering {tester} failed: {error}") from error
     tester_id = account["user_id"]
@@ -1066,7 +1066,7 @@ def start(
             "tester": {
                 "userId": tester_id,
                 "username": tester,
-                "password": TESTER_PASSWORD,
+                "password": password,
                 "accessToken": tester_token,
             },
             "routerToken": accounts["agent_router"]["access_token"],
