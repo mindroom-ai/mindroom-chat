@@ -41,7 +41,8 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
 /** Whether the address of this page load turns every plugin off. */
 const pluginsOff = (): boolean =>
   typeof window !== 'undefined' &&
-  new URLSearchParams(window.location.search).get('plugins') === 'off';
+  // A test's stand-in window may have no location.
+  new URLSearchParams(window.location?.search).get('plugins') === 'off';
 
 /**
  * The plugins of this build, in the order MINDROOM_CLIENT_PLUGINS lists them, built and frozen when

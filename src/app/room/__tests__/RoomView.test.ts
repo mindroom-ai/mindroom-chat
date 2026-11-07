@@ -119,7 +119,6 @@ vi.stubGlobal('window', {
     state: null,
   },
   localStorage,
-  location: { search: '' },
   removeEventListener: () => undefined,
   sessionStorage,
   navigator: {
