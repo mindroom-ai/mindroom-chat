@@ -28,9 +28,10 @@ LABEL org.opencontainers.image.title="MindRoom Chat" \
       org.opencontainers.image.description="The MindRoom web client, served by nginx" \
       org.opencontainers.image.source="https://github.com/mindroom-ai/mindroom-chat" \
       org.opencontainers.image.licenses="Apache-2.0"
-# The app lives in /app and /usr/share/nginx/html points there: the MindRoom Helm chart
-# (cluster/k8s/client) and `mindroom local-stack` mount a deployment's config.json at
-# /app/config.json, and the chart's nginx serves the notices from /opt/mindroom/notices.
+# The app lives in /app and /usr/share/nginx/html points there, so a deployment's config.json
+# reaches the app at either path: `mindroom local-stack` mounts it at /app/config.json, the
+# MindRoom Helm chart (cluster/k8s/client) at /usr/share/nginx/html/config.json, where the
+# chart's nginx config reads it. The chart's nginx serves the notices from /opt/mindroom/notices.
 COPY --from=build /src/dist /app
 RUN rm -rf /usr/share/nginx/html \
     && ln -s /app /usr/share/nginx/html \
