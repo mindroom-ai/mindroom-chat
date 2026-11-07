@@ -96,7 +96,7 @@ export type TimelineScrollLedgerController = {
   readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
-  /** The part of the ledger that thread rows folded above the reader brought with their own height, in px. */
+  /** The part of the ledger that rows folded above the reader brought with their own height, in px. */
   readRowFoldPx: () => number;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
@@ -211,8 +211,10 @@ export const useTimelineScrollLedgerController = ({
   // The part of the ledger that thread rows added above the reader brought with their own height,
   // until the next settle: a thread's list holds all its rows, so their fold lifts the list without
   // changing the scroll content, and it is no room the list will give up (`listShrinkNotRendered`).
-  // Room folds and the content above a thread's rows are left out: a room's page can drop rows from
-  // the window below the reader, and the content above the rows is outside the list.
+  // So do anchored room rows new to the list (`RoomLedgerFold.addedPx`): the Threads view's list
+  // holds all its rows too. Window folds and the content above a thread's rows are left out: a
+  // room's page can drop rows from the window below the reader, and the content above the rows is
+  // outside the list.
   const rowFoldPxRef = useRef(0);
   // Fold pricing must use the previous committed cache. Reading the current
   // virtualizer during render would create a TDZ and couple planning to a
@@ -254,10 +256,12 @@ export const useTimelineScrollLedgerController = ({
   const roomRowKeys = anchoringRoomRows
     ? Array.from({ length: itemCount }, (_, index) => getItemKey(index))
     : [];
-  const roomLedgerFoldPx =
+  const roomLedgerFold =
     anchoringRoomRows && !resettingLedgerView
       ? planRoomLedgerRender(roomLedgerAnchorRef.current, roomRowKeys, priceThreadRowForLedger)
-      : 0;
+      : undefined;
+  const roomLedgerFoldPx = roomLedgerFold?.foldPx ?? 0;
+  const roomLedgerAddedPx = roomLedgerFold?.addedPx ?? 0;
   // Room pagination records its exact prepend height before requesting the
   // range update. Keep that debt pending until the matching render commits;
   // abandoned concurrent renders neither lose nor double-apply it. Anchored
@@ -283,7 +287,7 @@ export const useTimelineScrollLedgerController = ({
       // Preserve measurement corrections that arrived between render and
       // this effect; only add the render plan's delta.
       scrollCompensationPxRef.current += foldPx;
-      rowFoldPxRef.current += threadLedgerRenderPlan.foldPx;
+      rowFoldPxRef.current += threadLedgerRenderPlan.foldPx + roomLedgerAddedPx;
       ledgerSettleWantedRef.current = true;
     }
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
@@ -295,6 +299,7 @@ export const useTimelineScrollLedgerController = ({
     pendingRoomFoldPxRef,
     resettingLedgerView,
     roomFoldPxAtRender,
+    roomLedgerAddedPx,
     roomLedgerFoldPx,
     threadLeadingFoldPx,
     threadLedgerRenderPlan,

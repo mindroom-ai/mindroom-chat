@@ -231,4 +231,6 @@ export const getThreadPrimarySummaryText = (
   >,
   t?: TFunction
 ): string | undefined =>
-  summaryText ?? localizeThreadPreview(rootPreviewText, rootPreviewLocalization, t);
+  summaryText !== undefined
+    ? localizeThreadPreview(summaryText, undefined, t)
+    : localizeThreadPreview(rootPreviewText, rootPreviewLocalization, t);

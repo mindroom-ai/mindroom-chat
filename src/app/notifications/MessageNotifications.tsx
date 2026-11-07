@@ -23,6 +23,7 @@ import { mDirectAtom } from '../matrix/state/mDirectList';
 import { settingsAtom } from '../preferences/settings';
 import { getSenderName } from '../matrix/room';
 import { MINDROOM_FAVICON_SRC } from '../ui/branding/branding';
+import { revealDirectionControls } from '../ui/directional';
 import { createDecryptionWaits, isAwaitingDecryption } from '../matrix/decryptionWaits';
 import { isThreadListTimeline } from '../event-store/timeline/roomLiveEventArrive';
 import {
@@ -50,7 +51,8 @@ const shorten = (text: string): string => {
 /**
  * The notification's title and text: the room and "sender: preview", or in a direct chat the
  * person and the preview alone. The sender's user ID follows their name while the room's member
- * list is not loaded, so nobody reads as a member the client has not loaded yet.
+ * list is not loaded, so nobody reads as a member the client has not loaded yet. Direction
+ * controls in the room's name and the message show as code points.
  */
 export const describeNotice = (
   room: Room,
@@ -65,7 +67,10 @@ export const describeNotice = (
     '@'
   );
   if (direct) return { title: senderName, body: shorten(preview) };
-  return { title: room.name, body: shorten(preview ? `${senderName}: ${preview}` : senderName) };
+  return {
+    title: revealDirectionControls(room.name),
+    body: shorten(preview ? `${senderName}: ${preview}` : senderName),
+  };
 };
 
 type NotifySettings = {
