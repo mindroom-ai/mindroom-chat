@@ -44,6 +44,14 @@ vi.mock('../../plugins/pluginEntries', () => {
                 throw new Error('boom');
               },
             },
+            {
+              // Throws something that is not an Error.
+              match: (event: Shown['event']) => event.content.explode === 'string',
+              Component: () => {
+                // eslint-disable-next-line @typescript-eslint/no-throw-literal
+                throw 'not an error';
+              },
+            },
           ],
         },
       },
@@ -71,12 +79,12 @@ describe('RenderMessageContent with client plugins', () => {
     mocks.reportBoundaryError.mockReset();
   });
 
-  /** What the message renders as: `content` is what the app shows, `original` the event's own. */
-  const render = (
+  /** The message's body: `content` is what the app shows, `original` the event's own. */
+  const message = (
     sender: string,
     content: IContent,
     { config = {}, original = content }: { config?: ClientConfig; original?: IContent } = {}
-  ): string => {
+  ) => {
     const mEvent = new MatrixEvent({
       type: 'm.room.message',
       room_id: '!room:example.org',
@@ -86,25 +94,36 @@ describe('RenderMessageContent with client plugins', () => {
       content: original,
     });
     const mx = { getUserId: () => VIEWER } as unknown as MatrixClient;
+    return (
+      <MatrixClientProvider value={mx}>
+        <ClientConfigProvider value={config}>
+          <RenderMessageContent
+            mEvent={mEvent}
+            displayName="Sender"
+            msgType="m.text"
+            eventType="m.room.message"
+            ts={1}
+            getContent={(() => content) as never}
+            urlPreview={false}
+            htmlReactParserOptions={{}}
+            linkifyOpts={{}}
+          />
+        </ClientConfigProvider>
+      </MatrixClientProvider>
+    );
+  };
+
+  /** What the message renders as. */
+  const render = (...args: Parameters<typeof message>): string => {
     act(() => {
-      renderer = create(
-        <MatrixClientProvider value={mx}>
-          <ClientConfigProvider value={config}>
-            <RenderMessageContent
-              mEvent={mEvent}
-              displayName="Sender"
-              msgType="m.text"
-              eventType="m.room.message"
-              ts={1}
-              getContent={(() => content) as never}
-              urlPreview={false}
-              htmlReactParserOptions={{}}
-              linkifyOpts={{}}
-            />
-          </ClientConfigProvider>
-        </MatrixClientProvider>
-      );
+      renderer = create(message(...args));
     });
+    return JSON.stringify(renderer!.toJSON());
+  };
+
+  /** What the same rendered message shows once its props change, as when it is edited. */
+  const update = (...args: Parameters<typeof message>): string => {
+    act(() => renderer!.update(message(...args)));
     return JSON.stringify(renderer!.toJSON());
   };
 
@@ -149,5 +168,22 @@ describe('RenderMessageContent with client plugins', () => {
     expect(
       logged.mock.calls.some(([first]) => String(first).includes('[plugin broken@0.1.0]'))
     ).toBe(true);
+  });
+
+  it('lets another plugin render a message an earlier plugin failed on, once it takes the message', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(render(AGENT, text({ explode: true }))).toContain('Fallback body');
+    // An edit that the failed plugin no longer matches and another plugin does.
+    const shown = update(AGENT, text({ 'com.example.greeting': 'Edited' }));
+    expect(shown).toContain('plugin:Edited');
+  });
+
+  it('falls back to core and reports under the tag when a plugin throws something not an Error', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    expect(render(AGENT, text({ explode: 'string' }))).toContain('Fallback body');
+    expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '[plugin broken@0.1.0] not an error' }),
+      expect.any(String)
+    );
   });
 });

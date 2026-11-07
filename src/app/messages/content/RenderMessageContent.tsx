@@ -354,9 +354,11 @@ function PluginMessageContent({
   return (
     <ErrorBoundary
       fallback={fallback}
-      onError={(error, info) => {
+      onError={(thrown: unknown, info) => {
         // eslint-disable-next-line no-console
-        console.error(`[plugin ${tag}] failed to render a message; core renders it`, error);
+        console.error(`[plugin ${tag}] failed to render a message; core renders it`, thrown);
+        // A plugin may throw anything, not only an Error.
+        const error = thrown instanceof Error ? thrown : new Error(String(thrown));
         reportBoundaryError(
           { name: error.name, message: `[plugin ${tag}] ${error.message}`, stack: error.stack },
           info.componentStack
@@ -387,8 +389,9 @@ export function RenderMessageContent(props: RenderMessageContentProps) {
     : undefined;
   const plugin = useMessageRenderer(event, viewerId);
   const core = <CoreMessageContent {...props} />;
+  // Keyed by plugin, so a plugin that takes the message after another failed on it starts afresh.
   return plugin && event ? (
-    <PluginMessageContent plugin={plugin} event={event} fallback={core} />
+    <PluginMessageContent key={plugin.tag} plugin={plugin} event={event} fallback={core} />
   ) : (
     core
   );
