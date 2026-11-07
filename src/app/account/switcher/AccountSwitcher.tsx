@@ -1,4 +1,4 @@
-import { Avatar, Box, Button, Icon, Icons, Spinner, Text, config } from 'folds';
+import { Avatar, Box, Button, Icon, Icons, Text, config } from 'folds';
 import { useTranslation } from 'react-i18next';
 import type { StoredSession } from '../../matrix/session/sessions';
 import { UserAvatar } from '../../avatars/UserAvatar';
@@ -13,9 +13,7 @@ type AccountSwitcherAccount = {
 
 type AccountSwitcherProps = {
   accounts: AccountSwitcherAccount[];
-  /** The session being switched to or removed, while that runs. */
-  busySessionId?: string;
-  /** Why the last switch or removal failed. */
+  /** Why the last switch failed. */
   error?: string;
   onOpenSettings: () => void;
   onSwitchAccount: (session: StoredSession) => void;
@@ -29,13 +27,11 @@ const rowActionProps = { size: '300', radii: '300' } as const;
 
 function AccountRow({
   account,
-  busy,
   onOpenSettings,
   onSwitchAccount,
   onRemoveAccount,
 }: {
   account: AccountSwitcherAccount;
-  busy: boolean;
   onOpenSettings: () => void;
   onSwitchAccount: (session: StoredSession) => void;
   onRemoveAccount: (session: StoredSession) => void;
@@ -80,20 +76,14 @@ function AccountRow({
               {...rowActionProps}
               variant="Primary"
               fill="Soft"
-              disabled={busy}
               onClick={() => onSwitchAccount(session)}
             >
-              {busy ? (
-                <Spinner size="100" />
-              ) : (
-                <Text size="B300">{t('accountSwitcher.switch')}</Text>
-              )}
+              <Text size="B300">{t('accountSwitcher.switch')}</Text>
             </Button>
             <Button
               {...rowActionProps}
               variant="Critical"
               fill="None"
-              disabled={busy}
               onClick={() => onRemoveAccount(session)}
             >
               <Text size="B300">{t('accountSwitcher.removeFromDevice')}</Text>
@@ -108,7 +98,6 @@ function AccountRow({
 /** The accounts signed in on this device: switch, remove, or add one. */
 export function AccountSwitcher({
   accounts,
-  busySessionId,
   error,
   onOpenSettings,
   onSwitchAccount,
@@ -135,7 +124,6 @@ export function AccountSwitcher({
         <AccountRow
           key={account.session.sessionId}
           account={account}
-          busy={busySessionId === account.session.sessionId}
           onOpenSettings={onOpenSettings}
           onSwitchAccount={onSwitchAccount}
           onRemoveAccount={onRemoveAccount}

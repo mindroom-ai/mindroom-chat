@@ -173,3 +173,87 @@ test('the reader’s own thread tag leaves the room’s unread messages counted 
     (page) => ownTagKeepsUnread(page, 'webkit', true)
   );
 });
+
+/**
+ * P2-lane5-F003: the reader renames themselves, then pins a message, each from another device.
+ * The rename is an own member event in every room, the pin an own state event in this one; a
+ * reload restores the saved sync that holds them, and the row keeps the server's count.
+ */
+const ownProfileAndPinKeepUnread = async (page: Page, label: string, phone: boolean) => {
+  const reader = await registerDisposableUser(`opu_reader_${label}_${RUN}`, PASSWORD);
+  const colleague = await registerDisposableUser(`opu_colleague_${label}_${RUN}`, PASSWORD);
+  const roomName = `Launch desk ${label}`;
+  const roomId = await createRoom(HOMESERVER, reader.accessToken, {
+    name: roomName,
+    invite: [colleague.userId],
+  });
+  await joinRoom(HOMESERVER, colleague.accessToken, roomId);
+  const send = (content: Record<string, unknown>) =>
+    sendRoomMessage(HOMESERVER, colleague.accessToken, roomId, content);
+  const rootId = await send({
+    msgtype: 'm.text',
+    body: 'Launch plan for the web app: who checks the pricing page before it goes live?',
+  });
+  await send(reply(rootId, 'I will read the pricing page after lunch and leave notes here.'));
+  const mainId = await send({
+    msgtype: 'm.text',
+    body: 'The analytics dashboard is back up after the maintenance window this morning.',
+  });
+  await send({
+    msgtype: 'm.text',
+    body: 'Please add your launch day availability to the shared calendar by Friday.',
+  });
+  await expect.poll(() => serverTotal(reader, roomId), { timeout: 15_000 }).toBe(4);
+
+  await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
+  if (phone) await page.goto('/home/');
+  const matchesServer = async (step: string) => {
+    const expected = await serverTotal(reader, roomId);
+    expect(expected, `server count ${step}`).toBe(4);
+    await expect
+      .poll(() => rowCount(page, roomName), { message: `room row count ${step}`, timeout: 20_000 })
+      .toBe(expected);
+    await page.waitForTimeout(2_000);
+    expect(await rowCount(page, roomName), `room row count ${step}, settled`).toBe(expected);
+  };
+  await matchesServer('after signing in');
+
+  // Another device renames the reader; the saved sync takes the member event within 10 s.
+  await matrixFetch(HOMESERVER, `/profile/${encodeURIComponent(reader.userId)}/displayname`, {
+    method: 'PUT',
+    accessToken: reader.accessToken,
+    body: JSON.stringify({ displayname: `Reader Renamed ${label}` }),
+  });
+  await matchesServer('after the rename');
+  await page.waitForTimeout(12_000);
+  await page.reload();
+  await matchesServer('after the rename and a reload');
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/own-profile-unread-${label}-reloaded.png` });
+
+  // Another device pins a message for the room: the reader's own state event in this room.
+  await sendStateEvent(HOMESERVER, reader.accessToken, roomId, 'm.room.pinned_events', '', {
+    pinned: [mainId],
+  });
+  await matchesServer('after the pin');
+  await page.waitForTimeout(12_000);
+  await page.reload();
+  await matchesServer('after the pin and a reload');
+};
+
+test('the reader’s own rename and pin leave the room’s unread messages counted after a reload (Chromium)', async ({
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await ownProfileAndPinKeepUnread(page, 'chromium', false);
+});
+
+test('the reader’s own rename and pin leave the room’s unread messages counted after a reload (WebKit phone)', async ({
+  baseURL,
+}) => {
+  test.skip(!WEBKIT, 'Set PLAYWRIGHT_WEBKIT_EXECUTABLE to Playwright’s WebKit');
+  test.setTimeout(240_000);
+  await onWebKitPage(
+    { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, baseURL },
+    (page) => ownProfileAndPinKeepUnread(page, 'webkit', true)
+  );
+});
