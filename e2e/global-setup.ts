@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
  * | `E2E_ROOM_ID`, `E2E_EXPECT_RAW_MATRIX_ID` | Room and display-name checks in single `*.live.spec.ts` specs; locally a room shared with the agent account |
  * | `E2E_DEPLOYED_BASE_URL`, `E2E_DEPLOYED_HOMESERVER`, `E2E_DEPLOYED_USERNAME`, `E2E_DEPLOYED_PASSWORD` | Specs against a deployed client |
  * | `E2E_COMPUTER_FIXTURE` | Path of the gateway fixture JSON for the worker-computer spec |
+ * | `E2E_PLUGIN_DIRS` | Plugin directories of the agent stack and the app server (`scripts/agent-stack/stack.py`); `agent-plugin-directory` needs `e2e/fixtures/sample-plugin` among them |
  * | `E2E_SCREENSHOT_VARIANT`, `SHOT_PREFIX` | App Store screenshot spec output |
  * | `PERF_*`, `REPRO_REPLY_COUNT`, `IOS_INVARIANT_REPLY_COUNT` | Sizes of the `timeline/perf-*`, thread reply chip and iOS specs |
  * | `PLAYWRIGHT_CHROMIUM_EXECUTABLE` | Browser for specs that launch their own (`just e2e` copies `CHROMIUM_PATH` into it) |
