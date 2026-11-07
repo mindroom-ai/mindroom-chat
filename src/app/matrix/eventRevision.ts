@@ -1,6 +1,7 @@
 import { MatrixEvent, RelationType, type IEvent, type Room } from 'matrix-js-sdk';
 import { getSerializedReplacementEvent, isSameSenderEditEvent } from './editEvent';
 import { getLatestEdit } from './room';
+import { threadSummaryPreviews, withoutRedactedThreadPreviews } from './threadSummaryPreviews';
 
 export type ReplacementRevision = {
   readonly eventId: string;
@@ -90,7 +91,11 @@ export const stripRedactedRelationsFromRawEvent = (
 ): Partial<IEvent> => {
   if (redactedEventIds.size === 0) return rawEvent;
 
-  let nextEvent = withoutMatchingRawReplacement(rawEvent, redactedEventIds);
+  let nextEvent = withoutRedactedThreadPreviews(
+    withoutMatchingRawReplacement(rawEvent, redactedEventIds),
+    redactedEventIds,
+    stripRedactedRelationsFromRawEvent
+  );
   const relations = nextEvent.unsigned?.['m.relations'];
   if (!isRecord(relations)) return nextEvent;
 
@@ -167,10 +172,13 @@ export const collectEmbeddedRelationEventIds = (
     const relations = rawEvent.unsigned?.['m.relations'];
     if (!isRecord(relations)) return;
     const thread = relations[RelationType.Thread];
-    if (!isRecord(thread) || !isRecord(thread.latest_event)) return;
-    const latestEvent = thread.latest_event as Partial<IEvent>;
-    if (typeof latestEvent.event_id === 'string') eventIds.add(latestEvent.event_id);
-    collect(latestEvent);
+    if (!isRecord(thread)) return;
+    [thread.latest_event, ...threadSummaryPreviews(thread)].forEach((bundled) => {
+      if (!isRecord(bundled)) return;
+      const event = bundled as Partial<IEvent>;
+      if (typeof event.event_id === 'string') eventIds.add(event.event_id);
+      collect(event);
+    });
   };
   rawEvents.forEach(collect);
   return eventIds;
