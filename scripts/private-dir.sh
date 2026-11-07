@@ -1,8 +1,8 @@
 # Sourced by the e2e scripts, which keep their snapshots, builds, logs, state and locks in fixed
 # directories outside $TMPDIR. `private_dir <dir>` creates <dir> owner-only when it is missing,
-# with any missing parents owner-only too, and stops the script, leaving <dir> untouched, when it
-# is a symlink, belongs to another user or others may write to it. scripts/agent-stack/stack.py
-# checks its root the same way.
+# and its missing parents under umask 077 (a default ACL above them takes precedence over it), and
+# stops the script, leaving <dir> untouched, when it is a symlink, belongs to another user or others
+# may write to it. scripts/agent-stack/stack.py checks its root the same way.
 private_dir() {
   # Without its trailing slashes: with them, find would look through a symlink.
   set -- "${1%"${1##*[!/]}"}"

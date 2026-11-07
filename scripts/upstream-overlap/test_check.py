@@ -208,9 +208,8 @@ class BlobSelectionTests(Fixture):
 class PrePushTests(Fixture):
     def setUp(self) -> None:
         super().setUp()
-        cache = self.tmp / "cache"
-        cache.mkdir()
-        patcher = mock.patch.object(check, "CACHE", cache)
+        # The cache a check.py process of this test would use (XDG_CACHE_HOME, set by Fixture).
+        patcher = mock.patch.object(check, "CACHE", self.tmp / "user-cache" / "upstream-overlap")
         patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -298,7 +297,7 @@ class PrePushTests(Fixture):
         result = self.run_checker(bad, TMPDIR=str(temporary))
         self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
         self.assertIn(f"{bad}\tsrc/app/copy.ts\t1-3\tline-run", result.stdout)
-        self.assertEqual((self.tmp / "user-cache" / "upstream-overlap").stat().st_mode & 0o777, 0o700)
+        self.assertEqual(check.CACHE.stat().st_mode & 0o777, 0o700)
 
 
 class HookTests(Fixture):
