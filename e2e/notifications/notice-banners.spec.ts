@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { blockWebKitServiceWorkers } from '../helpers/webkit';
 
 // The banners render above every screen, so the sign-in page shows them without a homeserver.
 const LONG_URL = `https://status.example.org/incidents/2026-10-24/${'tuwunel-migration-'.repeat(
@@ -68,8 +69,12 @@ const expectBannersOnTop = async (page: Page) => {
   expect(covered).toEqual([]);
 };
 
+// Chromium and the WebKit project both run these; WebKit routes notices.json only without the
+// app's service worker.
+test.use(blockWebKitServiceWorkers);
+
 for (const theme of ['light', 'dark'] as const) {
-  test(`notice banners at phone width in ${theme} mode`, async ({ page }, testInfo) => {
+  test(`notice banners at phone width in ${theme} mode @webkit`, async ({ page }, testInfo) => {
     await page.emulateMedia({ colorScheme: theme });
     await page.setViewportSize({ width: 390, height: 844 });
     await mockHomeserver(page);
@@ -158,7 +163,9 @@ for (const theme of ['light', 'dark'] as const) {
   });
 }
 
-test('notice banners at desktop width, with dismissal and removal', async ({ page }, testInfo) => {
+test('notice banners at desktop width, with dismissal and removal @webkit', async ({
+  page,
+}, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await mockHomeserver(page);
   await serveNotices(page, NOTICES);
