@@ -5,6 +5,7 @@ import { sendRoomMessage } from '../helpers/matrix';
 import {
   composer,
   expect,
+  messageRow,
   openLobby,
   test,
   uniqueWord,
@@ -14,12 +15,13 @@ import { setRoomCompact } from '../helpers/roomViewSwitch';
 
 // An agent can start a conversation with a notice, such as a card or a report, by putting
 // `io.mindroom.conversation: true` in its content. The thread list shows such a notice from a
-// MindRoom agent on the reader's homeserver as a conversation, and leaves out a notice the agent did
-// not mark and a marked notice from a person. Runs against the agent stack (scripts/agent-stack/
-// stack.py) with the stub model, where the router is that agent; MindRoom's agents never answer a
-// notice, so each notice stays a conversation without replies. Skips without a MindRoom checkout.
+// MindRoom agent on the reader's homeserver as a conversation, and leaves out a notice the agent
+// did not mark and a marked notice from a person. Runs against the agent stack
+// (scripts/agent-stack/stack.py) with the stub model, where the router is that agent; MindRoom's
+// agents never answer a notice, so each notice stays a conversation without replies. Skips without
+// a MindRoom checkout.
 
-/** The router's access token, from the stack's state file (the stack keeps it out of its output). */
+/** The router's access token, from the stack's state file; the stack keeps it out of its output. */
 const routerToken = (stack: AgentStack): string =>
   (JSON.parse(readFileSync(join(stack.dir, 'state.json'), 'utf8')) as { routerToken: string })
     .routerToken;
@@ -64,4 +66,10 @@ test("an agent's marked notice lists as a conversation", async ({ page, stack })
   await expect(composer(page)).toBeVisible({ timeout: 90_000 });
   await expectListed(page, notices, report);
   await page.screenshot({ path: test.info().outputPath('conversation-notice-reload.png') });
+
+  // Its card opens it as a conversation: the thread, with the notice as its root.
+  await card(page, notices.marked).click();
+  await expect(page.locator('[data-thread-context-banner]')).toBeVisible({ timeout: 60_000 });
+  await expect(messageRow(page, notices.marked)).toContainText(report, { timeout: 60_000 });
+  await page.screenshot({ path: test.info().outputPath('conversation-notice-thread.png') });
 });
