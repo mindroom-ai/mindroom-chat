@@ -33,7 +33,7 @@ describe('service worker app shell caching', () => {
     expect(navigationRoute).toBeGreaterThan(-1);
     expect(precacheRoute).toBeGreaterThan(navigationRoute);
     expect(swSource).toContain('void self.registration.unregister().catch');
-    expect(swSource).toContain('if (!self.registration.active) await self.skipWaiting()');
+    expect(swSource).toContain('if (!upgradesThisClient) await self.skipWaiting()');
     expect(swSource).not.toContain('UPDATE_MARKER_CACHE');
     expect(swSource).not.toContain('client.navigate(client.url)');
   });
