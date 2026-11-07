@@ -4,12 +4,15 @@
 // A side panel, "Example panel", names the room it is open in.
 // Under the room header it shows "Example banner in <room name>" and a button, "Show example
 // cover", that covers the room's conversation with "Example cover of <room name>" until its Close
-// button or Escape closes it.
+// button or Escape closes it. Like a plugin outside this repository, it imports the app only
+// through the client SDK.
 import type { Room } from 'matrix-js-sdk';
-import type { ClientPlugin } from '../../registry';
-import type { PluginEvent } from '../../messageRenderers';
-import { usePluginConfig } from '../../pluginConfig';
-import { usePluginTranslation } from '../../pluginTranslations';
+import {
+  usePluginConfig,
+  usePluginTranslation,
+  type ClientPlugin,
+  type PluginEvent,
+} from '@mindroom/client-sdk/core';
 
 const greetingText = (event: PluginEvent): string | undefined => {
   const greeting = event.content['com.example.greeting'];

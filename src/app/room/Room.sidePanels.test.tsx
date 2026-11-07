@@ -4,6 +4,8 @@ import { getDefaultStore, type PrimitiveAtom } from 'jotai';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
+import type { AgentServer } from '../computer/agentServer';
+import { computerServicePreferenceAtom } from '../computer/computerServiceSettings';
 import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { RoomViewProps } from './RoomView';
@@ -13,6 +15,12 @@ import { makeUiEvent } from '../ui-actions/testUtils';
 // The room's side panels (the computer, a canvas, the call, the members and a plugin's panel),
 // opened as their users open them, through the room: the header's controls, an agent's live
 // request, and the call store, which the call buttons and a call started elsewhere set.
+
+const reportBoundaryError = vi.hoisted(() => vi.fn());
+vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  reportBoundaryError,
+}));
 
 const { mx, room, state } = vi.hoisted(() => {
   const listeners = new Map<string, (...args: unknown[]) => void>();
@@ -25,6 +33,9 @@ const { mx, room, state } = vi.hoisted(() => {
       listeners,
       members,
       config: {} as ClientConfig,
+      // The servers the room's agents publish, which count when the homeserver binds tokens.
+      servers: [] as AgentServer[],
+      bindsOpenIdTokens: false,
       view: undefined as RoomViewProps | undefined,
       roomId: '!room:example.org',
     },
@@ -85,8 +96,8 @@ vi.mock('../matrix/hooks/usePowerLevels', () => ({
 }));
 vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => state.config }));
 vi.mock('../computer/useAgentServers', () => ({
-  useRoomAgentServers: () => [],
-  useBindsOpenIdTokens: () => false,
+  useRoomAgentServers: () => state.servers,
+  useBindsOpenIdTokens: () => state.bindsOpenIdTokens,
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: 'threaded', setViewMode: () => undefined }),
@@ -233,10 +244,14 @@ describe('the side panels of a room', () => {
     cleanup();
     store.set(callPanelRoomAtom, undefined);
     store.set(membersOpenAtom, false);
+    store.set(computerServicePreferenceAtom, null);
+    state.servers = [];
+    state.bindsOpenIdTokens = false;
     state.view = undefined;
     state.roomId = room.roomId;
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+    reportBoundaryError.mockClear();
   });
 
   it.each(
@@ -271,6 +286,35 @@ describe('the side panels of a room', () => {
       expect(isOpen('computer')).toBe(true);
       expect(shown()).toEqual(['computer']);
       expect(isOpen(first)).toBe(false);
+    }
+  );
+
+  it.each(['canvas', 'call', 'members'] as const)(
+    "an agent's request for its published computer leaves %s open while computers are off here",
+    async (first) => {
+      // The agent publishes its server with a computer; no deployment server is configured.
+      state.config = { mindroom: { ...state.config.mindroom, computers: {} } };
+      state.bindsOpenIdTokens = true;
+      state.servers = [
+        {
+          agentUserId: '@mindroom_helper:example.org',
+          apiUrl: 'https://helper.example.org',
+          computer: true,
+          ts: 1,
+        },
+      ];
+      await renderRoom();
+      await open(first);
+      await agentRequest('show_computer');
+      expect(shown()).toEqual(['computer']);
+      await open(first);
+
+      // Turned off in this device's settings.
+      await act(async () => store.set(computerServicePreferenceAtom, ''));
+      await agentRequest('show_computer');
+      expect(isOpen(first)).toBe(true);
+      expect(isOpen('computer')).toBe(false);
+      expect(shown()).toEqual([first]);
     }
   );
 
@@ -370,6 +414,12 @@ describe('the side panels of a room', () => {
     const panel = screen.getByRole('region', { name: 'Opaque' });
     expect(panel.textContent).toContain('This panel stopped working.');
     expect(screen.queryByTestId('room-view')).not.toBeNull();
+    expect(reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: '[plugin broken@2.0.0] a value that cannot be shown as text',
+      }),
+      expect.any(String)
+    );
   });
 
   it("keeps the room on screen while a plugin's panel waits for its code", async () => {
@@ -390,6 +440,10 @@ describe('the side panels of a room', () => {
     expect(logged).toHaveBeenCalledWith(
       '[plugin broken@2.0.0] its side panel failed',
       expect.objectContaining({ message: 'no notes today' })
+    );
+    expect(reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Error', message: '[plugin broken@2.0.0] no notes today' }),
+      expect.any(String)
     );
   });
 });

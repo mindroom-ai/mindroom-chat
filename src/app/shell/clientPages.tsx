@@ -26,6 +26,7 @@ import { useMarkPhoneSectionRoot } from '../navigation/phoneNavDrawer';
 import { Space } from '../sidebar/space/Space';
 import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
+import { MembersOverlayFollowsNavigation } from '../members/useMembersDrawer';
 
 // The signed-in pages. Router.tsx loads this module on its own, so the sign-in pages start
 // without the code of every signed-in screen; the signed-in client starts its account while
@@ -64,6 +65,7 @@ export function SignedInChrome() {
       <ClientShell>
         <NavigationProvider>
           <FloatingCardsContext.Provider value={floating}>
+            <MembersOverlayFollowsNavigation />
             <ClientLayout
               nav={nav}
               phoneTopBar={<PhoneTopBar />}

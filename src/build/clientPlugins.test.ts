@@ -45,6 +45,7 @@ describe('readClientPlugins', () => {
   });
 
   it('reads the id, version and entry of each listed directory, in order', () => {
+    // The example needs client SDK 2; the other was written for 1, which this client still builds.
     const other = pluginDir(declaring());
     expect(readClientPlugins(` ${EXAMPLE} ,${other},`)).toEqual([
       { id: 'example', version: '1.0.0', dir: EXAMPLE, entry: path.join(EXAMPLE, 'index.tsx') },
@@ -71,9 +72,19 @@ describe('readClientPlugins', () => {
       /id "Some_Plugin" is not kebab-case/,
     ],
     [
-      'another plugin API version',
-      () => pluginDir(declaring({ apiVersion: 2 })),
-      /apiVersion 2 is not 1, the plugin API this client supports/,
+      'a plugin that needs a newer client SDK',
+      () => pluginDir(declaring({ apiVersion: 3 })),
+      /plugin "some-plugin" needs client SDK apiVersion 3; this client provides 2/,
+    ],
+    [
+      'an apiVersion that is not a number',
+      () => pluginDir(declaring({ apiVersion: '2' })),
+      /apiVersion "2" is not a positive whole number/,
+    ],
+    [
+      'an apiVersion of 0',
+      () => pluginDir(declaring({ apiVersion: 0 })),
+      /apiVersion 0 is not a positive whole number/,
     ],
     [
       'an entry that does not exist',
@@ -131,11 +142,37 @@ describe('clientPlugins', () => {
 
   it('lets the dev server serve the plugin directories besides the workspace', () => {
     const config = (plugins: string | undefined) =>
-      (
-        clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig | undefined
-      )();
-    expect(config(EXAMPLE)?.server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
-    expect(config(undefined)).toBeUndefined();
+      (clientPlugins({ MINDROOM_CLIENT_PLUGINS: plugins }).config as () => UserConfig)();
+    expect(config(EXAMPLE).server?.fs?.allow).toEqual([path.resolve(ROOT), EXAMPLE]);
+    expect(config(undefined).server).toBeUndefined();
+  });
+
+  it('resolves the client SDK for a plugin outside this repository', async () => {
+    const dir = pluginDir(declaring({ apiVersion: 2 }), { entry: false });
+    writeFileSync(
+      path.join(dir, 'index.js'),
+      "import { usePluginConfig } from '@mindroom/client-sdk/core';\n" +
+        'export default { messageRenderers: [], usePluginConfig };\n'
+    );
+    const output = (await build({
+      configFile: false,
+      root: ROOT,
+      publicDir: false,
+      logLevel: 'silent',
+      plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
+      build: {
+        write: false,
+        rollupOptions: {
+          input: path.join(ROOT, 'src/app/plugins/pluginEntries.ts'),
+          preserveEntrySignatures: 'strict',
+        },
+      },
+    })) as Rollup.RollupOutput;
+    const modules = output.output.flatMap((file) =>
+      file.type === 'chunk' ? Object.keys(file.modules) : []
+    );
+    // The SDK's export is the app's own module, not a copy or a stand-in.
+    expect(modules).toContain(path.join(ROOT, 'src/app/plugins/pluginConfig.ts'));
   });
 
   it('ships no plugin code without plugins', async () => {

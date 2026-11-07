@@ -31,7 +31,8 @@ const makeThreadTagsEvent = (stateKey: string, content: Record<string, unknown>)
     event_id: `$thread-tags-${stateKey}`,
     origin_server_ts: 1,
     room_id: '!room:example.org',
-    sender: '@alice:example.org',
+    // The person a tag names sent it.
+    sender: typeof content.set_by === 'string' ? content.set_by : '@alice:example.com',
     state_key: stateKey,
     type: MINDROOM_THREAD_TAGS_EVENT,
   });

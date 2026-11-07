@@ -1,4 +1,6 @@
 import type { MatrixEvent } from 'matrix-js-sdk/lib/models/event';
+import { isMindroomAgentUserIdForViewer } from '../../matrix/protocol/agentIdentity';
+import { getActiveSession } from '../../matrix/session/sessions';
 
 /**
  * Thread tag types, parsers, and builders for `com.mindroom.thread.tags` room state.
@@ -208,6 +210,12 @@ export const buildPerTagEventContent = (
 /**
  * Merge legacy per-thread events with canonical per-tag records for one room.
  * Per-tag tombstones remove legacy tags, and per-tag records override legacy data.
+ *
+ * A tag keeps the person its `set_by` names only when the event's sender is that person or a
+ * MindRoom agent on the active account's homeserver, which tags for the person it acts for; any
+ * other sender is named instead, and an event without a sender counts for nothing. The active
+ * account changes only with a new client, whose events are new objects, so the caches keyed on
+ * the events stay right.
  */
 export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, ThreadTagsContent> => {
   const cached = aggregatedThreadTagEventsCache.get(events);
@@ -218,18 +226,26 @@ export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, Thr
   const legacyTagsByThread = new Map<string, Record<string, TagMetadata>>();
   const perTagRecordsByThread = new Map<string, Record<string, TagMetadata>>();
   const perTagTombstonesByThread = new Map<string, Set<string>>();
+  const viewerId = getActiveSession()?.userId;
 
   events.forEach((event) => {
     const stateKey = event.getStateKey();
-    if (typeof stateKey !== 'string') {
+    const sender = event.getSender();
+    if (typeof stateKey !== 'string' || !sender) {
       return;
     }
+    const fromAgent = isMindroomAgentUserIdForViewer(sender, viewerId);
+    const attribute = (tag: TagMetadata): TagMetadata =>
+      fromAgent ? tag : { ...tag, set_by: sender };
 
     const parsedStateKey = parsePerTagStateKey(stateKey);
     if (parsedStateKey === null) {
-      const legacyState = parseThreadTagsContent(event.getContent());
-      if (Object.keys(legacyState.tags).length > 0) {
-        legacyTagsByThread.set(stateKey, legacyState.tags);
+      const legacyTags = Object.entries(parseThreadTagsContent(event.getContent()).tags);
+      if (legacyTags.length > 0) {
+        legacyTagsByThread.set(
+          stateKey,
+          Object.fromEntries(legacyTags.map(([name, tag]) => [name, attribute(tag)]))
+        );
       }
       return;
     }
@@ -250,7 +266,7 @@ export const aggregateThreadTagEvents = (events: MatrixEvent[]): Map<string, Thr
     }
 
     const threadRecords = perTagRecordsByThread.get(threadRootId) ?? {};
-    threadRecords[tagName] = record;
+    threadRecords[tagName] = attribute(record);
     perTagRecordsByThread.set(threadRootId, threadRecords);
   });
 
