@@ -416,11 +416,12 @@ const FLOWS: Record<string, Flow> = {
     await roomBack(page).tap();
     await expectAt(page, HOME, 'then to the list');
 
-    // A message found in the palette's Message Search, in a thread.
+    // A message found in the palette's Message Search, in a thread. Its snippet starts a few
+    // words before the match, so the row is picked by the words around the match.
     await searchMessages(page, word);
     await palette(page)
       .locator('[role="option"][data-kind="message"]')
-      .filter({ hasText: 'seed catalogue' })
+      .filter({ hasText: `${word} beans` })
       .tap();
     await expectAt(page, inThreadOf(garden, gardenRoot), 'the found reply opens its thread');
     await threadBack(page).tap();
