@@ -65,12 +65,17 @@ export function PhoneNavDrawer({ nav }: { nav: ReactNode }) {
     [setSheetSlot]
   );
   const panelRef = useRef<HTMLDivElement>(null);
-  // Motion only after the first frame, so a page that opens with the drawer out does not slide it.
+  // Motion only from the frame after the drawer first shows the stored state, so a page that opens
+  // with the drawer out does not slide it. The page brings it out in a layout effect of the first
+  // commit, but the atom's subscription starts with the passive effects, so the drawer renders it
+  // one commit late: until then the rendered state lags the store.
+  const store = useStore();
   const [animate, setAnimate] = useState(false);
   useEffect(() => {
+    if (animate || store.get(phoneNavDrawerOpenAtom) !== open) return undefined;
     const frame = requestAnimationFrame(() => setAnimate(true));
     return () => cancelAnimationFrame(frame);
-  }, []);
+  }, [animate, open, store]);
 
   useDrawerFollowsNavigation(setOpen);
   useInert(panelRef, !open);
