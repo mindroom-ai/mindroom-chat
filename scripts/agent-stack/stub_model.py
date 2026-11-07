@@ -13,6 +13,7 @@ The person's latest message picks a scenario by hashtag:
   #error       the provider answers 500
   #shell       one shell call         #multi   three shell calls
   #approve     a shell call that needs approval (the backend's approval script looks for needs-approval)
+  #bidi        the same, its command holding a right-to-left override (U+202E ... U+202C)
   #title       set_thread_summary      #tag     tag_thread      #resolve   resolve_thread (needs approval)
   #expire      untag_thread, whose approval expires quickly
   #schedule    a reminder in 150 s     #schedulesoon   a reminder in 20 s
@@ -56,6 +57,7 @@ TOOL_SCENARIOS: dict[str, list[tuple[str, dict]]] = {
         ("run_shell_command", {"args": "echo step three"}),
     ],
     "#approve": [("run_shell_command", {"args": "echo needs-approval: deploy the stub"})],
+    "#bidi": [("run_shell_command", {"args": "echo needs-approval hello \u202e; echo pwned-by-bidi #\u202c done"})],
     "#title": [("set_thread_summary", {"summary": "Stub picked this title from a tool call"})],
     "#tag": [("tag_thread", {"tag": "stub-tag", "note": "tagged by the stub model"})],
     "#resolve": [("resolve_thread", {})],
