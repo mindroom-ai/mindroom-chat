@@ -24,7 +24,7 @@
 #   overlap   scripts/upstream-overlap/check.py --history; it reads every ref of the checkout, but
 #             only findings in blobs reachable from the commit fail the gate
 #   keys      every object base..rev adds (files and commit messages) against the values in
-#             $PUSH_GATE_KEY_FILE (default /tmp/m2-keys/llm.env); it prints key names, never values
+#             $PUSH_GATE_KEY_FILE (default ~/.config/mindroom-chat/llm.env); it prints key names, never values
 #   old-name  commit messages in base..rev that use the old name of the upstream client
 #   e2e       the smoke specs below through scripts/e2e-suite.sh: each spec file on the build with
 #             an empty homeserver of its own (in one shared run, the rooms earlier specs made pushed
@@ -290,8 +290,7 @@ check_overlap() {
     echo "${sha:0:12} is on no ref of the checkout, so --history would not read it"
     return 1
   fi
-  # check.py caches the corpus under the temporary directory, which nix develop makes per shell.
-  TMPDIR=/tmp python3 "$checkout/scripts/upstream-overlap/check.py" --corpus "$corpus" --history \
+  python3 "$checkout/scripts/upstream-overlap/check.py" --corpus "$corpus" --history \
     --out "$work/overlap.tsv" >"$logs/overlap.log" 2>&1 || rc=$?
   [ -f "$work/overlap.tsv" ] || {
     echo "check.py failed, exit $rc"
@@ -308,7 +307,7 @@ check_overlap() {
 }
 
 check_keys() {
-  local key_file="${PUSH_GATE_KEY_FILE:-/tmp/m2-keys/llm.env}"
+  local key_file="${PUSH_GATE_KEY_FILE:-$HOME/.config/mindroom-chat/llm.env}"
   [ -r "$key_file" ] || {
     echo "cannot read the key file $key_file (set PUSH_GATE_KEY_FILE)"
     return 1
