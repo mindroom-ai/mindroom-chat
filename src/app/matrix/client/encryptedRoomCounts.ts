@@ -27,8 +27,10 @@ import { getFinishingEdit } from './syncedEdits';
 // So the client counts an encrypted room again from what it holds whenever that changes, by the
 // server's rules (mindroom-tuwunel): a context (the main timeline or a thread) counts the events
 // after the user last read it that the push rules notify for. Reading is a receipt in the context
-// at the time the server took it, an unthreaded receipt (it reads every context), or a message of
-// the user's own (the server takes it as an unthreaded receipt). A reply that streams counts as
+// at the time the server took it, an unthreaded receipt (it reads every context), an event of the
+// user's own in the context (mindroom-tuwunel #139: one in a thread reads that thread, any other
+// the main timeline; a state event reads nothing), or the user's own join, which reads the whole
+// room. A reply that streams counts as
 // one message once its terminal edit arrives, at that edit's time; the reply's first event, its
 // other edits and reactions count as nothing. The thread's title notice counts on the server,
 // whose push rules cannot read it, but not here, where they can (design decision #17).
@@ -98,15 +100,15 @@ const finishedReplyActions = (
 /**
  * When the user last read `context` (the room's main timeline, or a thread), as the server takes
  * it: the newest of its receipts there (as the server dated it, or the event it names, whichever
- * is later), its unthreaded receipt, and its own last message in the room.
+ * is later), its unthreaded receipt, and `ownReadTs`, its own last event there or its join.
  */
 const readUpTo = (
   room: Room,
   context: Room | Thread,
   userId: string,
-  ownLastTs: number
+  ownReadTs: number
 ): number => {
-  let readTs = Math.max(ownLastTs, room.getLastUnthreadedReceiptFor(userId)?.ts ?? -Infinity);
+  let readTs = Math.max(ownReadTs, room.getLastUnthreadedReceiptFor(userId)?.ts ?? -Infinity);
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((receiptType) => {
     [true, false].forEach((realOnly) => {
       const receipt = context.getReadReceiptForUserId(userId, realOnly, receiptType);
@@ -161,30 +163,40 @@ const setCounts = (room: Room, threadId: string | undefined, counts: Counts): vo
   set(NotificationCountType.Highlight, counts.highlight);
 };
 
-/** The newest message of the user's own in the room, in any context. */
-const ownLastTsOf = (room: Room, threads: Thread[], userId: string): number => {
-  let ownLastTs = -Infinity;
-  const scan = (events: readonly MatrixEvent[]) => {
-    for (let index = events.length - 1; index >= 0; index -= 1) {
-      const event = events[index];
-      if (event && event.getSender() === userId && !event.isState()) {
-        ownLastTs = Math.max(ownLastTs, event.getTs());
-        return;
-      }
+/** When the user joined the room, which reads all of it; a profile change reads nothing. */
+const ownJoinTsOf = (room: Room, userId: string): number => {
+  const member = room.currentState.getStateEvents(EventType.RoomMember, userId);
+  const joined = (content: Record<string, unknown> | undefined) => content?.membership === 'join';
+  return member && joined(member.getContent()) && !joined(member.getPrevContent())
+    ? member.getTs()
+    : -Infinity;
+};
+
+/** The newest event of the user's own in a context, which reads the context; not its root. */
+const ownLastTsIn = (events: readonly MatrixEvent[], userId: string, threadId?: string): number => {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.getSender() === userId && !event.isState() && event.getId() !== threadId) {
+      return event.getTs();
     }
-  };
-  scan(room.getLiveTimeline().getEvents());
-  threads.forEach((thread) => scan(thread.events));
-  return ownLastTs;
+  }
+  return -Infinity;
 };
 
 const recount = (mx: MatrixClient, room: Room): void => {
   const userId = mx.getUserId();
   if (!userId) return;
   const threads = room.getThreads();
-  const ownLastTs = ownLastTsOf(room, threads, userId);
+  const ownJoinTs = ownJoinTsOf(room, userId);
   const count = (context: Room | Thread, events: readonly MatrixEvent[], threadId?: string) =>
-    countContext(mx, room, events, threadId, readUpTo(room, context, userId, ownLastTs), userId);
+    countContext(
+      mx,
+      room,
+      events,
+      threadId,
+      readUpTo(room, context, userId, Math.max(ownJoinTs, ownLastTsIn(events, userId, threadId))),
+      userId
+    );
   setCounts(room, undefined, count(room, room.getLiveTimeline().getEvents()));
   threads.forEach((thread) => setCounts(room, thread.id, count(thread, thread.events, thread.id)));
 };
