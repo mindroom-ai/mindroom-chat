@@ -61,13 +61,14 @@ if [ "${E2E_ENABLE_DEPLOYED_FIXTURE:-1}" = "1" ]; then
   export E2E_DEPLOYED_USERNAME="${E2E_DEPLOYED_USERNAME:-${E2E_USERNAME}}"
   export E2E_DEPLOYED_PASSWORD="${E2E_DEPLOYED_PASSWORD:-${E2E_PASSWORD}}"
 
+  PREVIEW_LOG="$(mktemp "${TMPDIR:-/tmp}/mindroom-e2e-preview.XXXXXX")"
   (
     cd "${ROOT_DIR}/dist"
     python3 ../serve.py "${DEPLOYED_PORT}"
-  ) >/tmp/mindroom-e2e-preview.log 2>&1 &
+  ) >"${PREVIEW_LOG}" 2>&1 &
   DEPLOYED_PREVIEW_PID=$!
 
-  python3 - "${E2E_DEPLOYED_BASE_URL}" <<'PY'
+  python3 - "${E2E_DEPLOYED_BASE_URL}" "${PREVIEW_LOG}" <<'PY'
 import sys
 import time
 import urllib.error
@@ -87,7 +88,7 @@ while time.time() < deadline:
         last_error = str(exc)
     time.sleep(1)
 
-raise SystemExit(f"Timed out waiting for deployed preview at {url}: {last_error}")
+raise SystemExit(f"Timed out waiting for deployed preview at {url}: {last_error} (log: {sys.argv[2]})")
 PY
 fi
 
