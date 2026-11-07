@@ -214,6 +214,9 @@
       "messageIn": "Сообщение в {{room}}",
       "threadIn": "Ветка в {{room}}",
       "messageElsewhere": "Сообщение в другой комнате"
+    },
+    "deviceVerification": {
+      "acceptStalled": "Другой сеанс не ответил. Закройте это окно и начните проверку заново."
     }
   },
   "featureUi": {

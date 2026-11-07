@@ -1,11 +1,4 @@
-import {
-  CSSProperties,
-  ReactNode,
-  useCallback,
-  useEffect,
-  useReducer,
-  useState,
-} from 'react';
+import { CSSProperties, ReactNode, useCallback, useEffect, useReducer, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Box, Button, Icon, Icons, Spinner, Text, color, config, toRem } from 'folds';
 import {
@@ -28,6 +21,13 @@ import { ErrorDetail } from '../../ui/ErrorDetail';
 const SAS_VERIFICATION = 'm.sas.v1';
 
 const KEY = 'sharedUi.deviceVerification';
+
+/**
+ * How long Accept may wait for the request to become ready. The answer is one to-device message;
+ * once it never went out (P2-e2ee-F010) the button spun for good on both devices, while closing
+ * the dialog and asking again worked.
+ */
+export const ACCEPT_STALL_MS = 15_000;
 
 // Requests whose emoji comparison this client already started, and verifiers it already runs:
 // both must happen once per request, however often the dialog mounts.
@@ -179,9 +179,17 @@ function VerificationStep({ request, onClose }: StepProps) {
   const { t } = useTranslation();
   const [failure, setFailure] = useState<{ error: unknown }>();
   const [accepting, setAccepting] = useState(false);
+  const [stalled, setStalled] = useState(false);
   const fail = useCallback((error: unknown) => setFailure({ error }), []);
   const { phase, verifier } = request;
   const sas = useShortAuthString(phase === VerificationPhase.Started ? verifier : undefined, fail);
+  const waitingToAccept = accepting && phase === VerificationPhase.Requested;
+
+  useEffect(() => {
+    if (!waitingToAccept) return undefined;
+    const timer = setTimeout(() => setStalled(true), ACCEPT_STALL_MS);
+    return () => clearTimeout(timer);
+  }, [waitingToAccept]);
 
   // The side that sent the request starts the emoji comparison once the other side is ready.
   useEffect(() => {
@@ -213,6 +221,19 @@ function VerificationStep({ request, onClose }: StepProps) {
           <Box direction="Column" gap="400">
             <Text size="T300">{t(`${KEY}.pleaseAcceptTheRequestFromOtherDevice`)}</Text>
             <Waiting>{t(`${KEY}.waitingForRequestToBeAccepted`)}</Waiting>
+          </Box>
+        );
+      }
+      if (stalled) {
+        // Closing cancels the request, so the other session can ask again.
+        return (
+          <Box direction="Column" gap="400">
+            <Text size="T300" style={{ color: color.Critical.Main }}>
+              {t(`${KEY}.acceptStalled`)}
+            </Text>
+            <Button variant="Secondary" fill="Soft" onClick={onClose}>
+              <Text size="B400">{t(`${KEY}.close`)}</Text>
+            </Button>
           </Box>
         );
       }
