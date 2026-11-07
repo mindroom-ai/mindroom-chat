@@ -1,9 +1,4 @@
 import type { IEvent } from 'matrix-js-sdk';
-import {
-  getThreadSummaryEventInfo,
-  hasThreadSummary,
-  type ThreadSummaryInfo,
-} from '../../../matrix/protocol/threadSummary';
 import { compareCachedPaginationAnchors } from '../eventCacheTokenUtils';
 
 // ISSUE-207 P2.1: pure helpers, moved verbatim from `roomEventCache.ts`
@@ -235,27 +230,6 @@ export const mergeThreadExpectedReplyCount = (
   if (nextValue === undefined) return currentValue;
   if (snapshotComplete === true) return nextValue;
   return currentValue === undefined ? nextValue : Math.max(currentValue, nextValue);
-};
-
-// --- Thread summary helpers ---
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  !!value && typeof value === 'object' && !Array.isArray(value);
-
-export const getCachedThreadSummaryInfoFromRawEvent = (
-  rawEvent: Partial<IEvent>
-): ThreadSummaryInfo | undefined => {
-  const content = rawEvent.content;
-  if (!isRecord(content) || !hasThreadSummary(content)) return undefined;
-
-  return getThreadSummaryEventInfo({
-    getContent: () => content,
-    getTs: () => rawEvent.origin_server_ts,
-    replacingEventDate: () => {
-      const timestamp = rawEvent.unsigned?.['m.relations']?.['m.replace']?.origin_server_ts;
-      return typeof timestamp === 'number' ? new Date(timestamp) : undefined;
-    },
-  });
 };
 
 export const isRawLocalEchoEventPublic = isRawLocalEchoEvent;

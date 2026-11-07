@@ -4,7 +4,9 @@ import { describe, expect, it } from 'vitest';
 // Only a message's sender can edit it (Matrix specification, "Event replacements"). The SDK's own
 // aggregation of live edits ignores another sender's edit, and our SDK patch makes
 // `MatrixEvent.makeReplaced` ignore one too, so an edit the server bundles with a message, or one
-// the client applies itself, cannot change another member's message.
+// the client applies itself, cannot change another member's message. The patch also hides another
+// sender's bundled edit from `getServerAggregatedRelation`, so it sets neither the message's edit id
+// and time nor which of the sender's live edits shows.
 
 const ROOM = '!room:example.org';
 const AUTHOR = '@author:example.org';
@@ -52,12 +54,16 @@ describe('SDK edits from another sender', () => {
 
     expect(body(event)).toBe('The forklift is charged.');
     expect(event.replacingEvent()).toBeNull();
+    expect(event.replacingEventId()).toBeUndefined();
+    expect(event.replacingEventDate()).toBeUndefined();
   });
 
   it('applies the sender’s own bundled edit', () => {
     const event = bundled(ownEdit());
 
     expect(body(event)).toBe('The forklift is at the dock.');
+    expect(event.replacingEventId()).toBe('$own-edit');
+    expect(event.replacingEventDate()?.getTime()).toBe(2);
   });
 
   it('keeps the sender’s edit when another sender’s edit is applied after it', () => {
@@ -78,16 +84,29 @@ describe('SDK edits from another sender', () => {
     expect(event.replacingEvent()).toBeNull();
   });
 
-  it('applies only the sender’s live edit', async () => {
+  const live = async (...events: MatrixEvent[]) => {
     const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
-    await room.addLiveEvents(
-      [new MatrixEvent(original()), new MatrixEvent(ownEdit()), new MatrixEvent(otherEdit())],
-      { addToState: false }
-    );
+    await room.addLiveEvents(events, { addToState: false });
     await new Promise((resolve) => setTimeout(resolve, 0));
+    return room.findEventById('$message')!;
+  };
 
-    const event = room.findEventById('$message')!;
+  it('applies only the sender’s live edit', async () => {
+    const event = await live(
+      new MatrixEvent(original()),
+      new MatrixEvent(ownEdit()),
+      new MatrixEvent(otherEdit())
+    );
+
     expect(body(event)).toBe('The forklift is at the dock.');
     expect(event.replacingEventId()).toBe('$own-edit');
+  });
+
+  it('applies the sender’s live edit older than another sender’s bundled edit', async () => {
+    const event = await live(bundled(otherEdit()), new MatrixEvent(ownEdit()));
+
+    expect(body(event)).toBe('The forklift is at the dock.');
+    expect(event.replacingEventId()).toBe('$own-edit');
+    expect(event.replacingEventDate()?.getTime()).toBe(2);
   });
 });

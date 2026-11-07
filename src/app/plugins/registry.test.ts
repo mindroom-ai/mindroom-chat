@@ -5,11 +5,16 @@ const entries = vi.hoisted(() => {
   const Component = (): null => null;
   const renderer = { match: () => true, Component };
   const panel = { id: 'notes', label: 'Notes', Component };
+  const icon = () => null;
+  const run = () => undefined;
+  const action = { id: 'wave', label: 'wave', icon, run };
+  const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
   const banner = (): null => null;
   const headerSlot = [banner];
   return {
     renderer,
     panel,
+    actions: [action, autoAction],
     banner,
     headerSlot,
     list: [
@@ -19,6 +24,7 @@ const entries = vi.hoisted(() => {
         plugin: {
           messageRenderers: 'not a list',
           sidePanels: 'not a list',
+          headerActions: 'not a list',
           roomHeaderSlot: banner,
         },
       },
@@ -33,6 +39,17 @@ const entries = vi.hoisted(() => {
             { id: '', label: 'No id', Component },
             { id: 'unnamed', label: 1, Component },
             { id: 'empty', label: 'Empty' },
+          ],
+          headerActions: [
+            action,
+            null,
+            { id: '', label: 'none', icon, run },
+            { id: 'unnamed', label: 1, icon, run },
+            { id: 'plain', label: 'plain', icon: 'Smile', run },
+            { id: 'idle', label: 'idle', icon },
+            // A phone's header keeps its row to Back, the name and the room menu.
+            { id: 'row', label: 'row', icon, run, placement: 'row' },
+            autoAction,
           ],
           roomHeaderSlot: headerSlot,
         },
@@ -63,6 +80,9 @@ describe('registeredPlugins', () => {
     // A side panel needs an id, a label and a component.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
+    // A header action needs an id, a label, an icon, a run, and no placement, `auto` or `menu`.
+    expect(plugins[0]?.headerActions).toEqual([]);
+    expect(plugins[1]?.headerActions).toEqual(entries.actions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
   });
@@ -74,6 +94,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin)).toBe(true);
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
+      expect(Object.isFrozen(plugin.headerActions)).toBe(true);
       expect(Object.isFrozen(plugin.roomHeaderSlot)).toBe(true);
     }
     // The plugin's own list stays as it was.

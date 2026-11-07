@@ -5,6 +5,9 @@
 // Under the room header it shows "Example banner in <room name>", after the mark it ships as a file
 // (public/mark.svg). Like a plugin outside this repository, it imports the app only through the
 // client SDK.
+// A header action, "Wave" ("Winken" in German), shows in the room header's row, except on phones,
+// where it goes in the room menu, and says where it ran in an alert.
+import { Icons } from 'folds';
 import type { Room } from 'matrix-js-sdk';
 import {
   pluginPublicUrl,
@@ -60,8 +63,20 @@ const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
   roomHeaderSlot: [RoomBanner],
   sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  headerActions: [
+    {
+      id: 'wave',
+      label: 'wave',
+      icon: Icons.Smile,
+      placement: 'auto',
+      run: ({ roomId, threadId }) => {
+        // eslint-disable-next-line no-alert
+        window.alert(`Example wave in ${roomId}${threadId ? ` ${threadId}` : ''}`);
+      },
+    },
+  ],
   translations: {
-    en: { label: 'Example plugin' },
+    en: { label: 'Example plugin', wave: 'Wave' },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
   },
