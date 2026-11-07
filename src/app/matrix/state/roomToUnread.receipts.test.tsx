@@ -36,6 +36,9 @@ const makeRoom = () =>
     getRoomUnreadNotificationCount: (type = 'total') => (type === 'highlight' ? 0 : 3),
     getThreadUnreadNotificationCount: (threadId: string, type = 'total') =>
       threadId === ROOT_ID && type !== 'highlight' ? 2 : 0,
+    // None of the main-timeline messages is loaded.
+    getLiveTimeline: () => ({ getEvents: () => [] }),
+    getEventReadUpTo: () => null,
   });
 
 const setUp = () => {
