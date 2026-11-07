@@ -13,11 +13,20 @@ const SLOT_STYLE: CSSProperties = {
   color: color.Surface.OnContainer,
 };
 
+/** A thrown value as text; String() fails on some objects, such as one without a prototype. */
+const textOf = (thrown: unknown): string => {
+  try {
+    return String(thrown);
+  } catch {
+    return Object.prototype.toString.call(thrown);
+  }
+};
+
 const reportFailure = (tag: string, thrown: unknown, componentStack?: string | null) => {
   // eslint-disable-next-line no-console
   console.error(`[plugin ${tag}] failed to render under the room header`, thrown);
   // A plugin may throw anything, not only an Error.
-  const error = thrown instanceof Error ? thrown : new Error(String(thrown));
+  const error = thrown instanceof Error ? thrown : new Error(textOf(thrown));
   reportBoundaryError(
     { name: error.name, message: `[plugin ${tag}] ${error.message}`, stack: error.stack },
     componentStack

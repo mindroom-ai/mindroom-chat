@@ -16,7 +16,8 @@ vi.mock('../bug-reports/error-reporting/errorReporting', async (importOriginal) 
 }));
 
 // Plugins as a build lists them: one shows two things under the header, one only messages, and one
-// fails in some rooms (throwing an Error or a string) and lists a value that is not a component.
+// fails in some rooms (throwing an Error, a string or a value without text) and lists a value that
+// is not a component.
 vi.mock('../plugins/pluginEntries', () => {
   const named =
     (label: string) =>
@@ -39,6 +40,9 @@ vi.mock('../plugins/pluginEntries', () => {
               if (room.roomId.startsWith('!broken')) throw new Error('boom');
               // eslint-disable-next-line @typescript-eslint/no-throw-literal
               if (room.roomId.startsWith('!string')) throw 'not an error';
+              // Something not even String() can turn into text.
+              // eslint-disable-next-line @typescript-eslint/no-throw-literal
+              if (room.roomId.startsWith('!bare')) throw Object.create(null);
               return `broken:${room.roomId}`;
             },
             null,
@@ -122,6 +126,14 @@ describe('RoomHeaderSlot', () => {
     expect(render('!string:example.org')).not.toContain('broken:!string');
     expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
       expect.objectContaining({ message: '[plugin broken@0.1.0] not an error' }),
+      expect.any(String)
+    );
+  });
+
+  it('keeps the others and reports under the tag a component that throws a value without text', () => {
+    expect(render('!bare:example.org')).toContain('second:!bare:example.org');
+    expect(mocks.reportBoundaryError).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringMatching(/^\[plugin broken@0\.1\.0\] /) }),
       expect.any(String)
     );
   });
