@@ -134,6 +134,12 @@ test(
     // The room is open when the reply starts, so this browser holds its placeholder, then loads
     // the thread's address.
     await openLobby(page, stack);
+    const otherId = await startThread(stack, `${uniqueWord('midother')} #stopme`);
+    await page.evaluate((url) => {
+      window.history.pushState(null, '', url);
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }, threadUrl(stack, otherId));
+    await expect(messageRow(page, otherId)).toBeVisible({ timeout: 60_000 });
     const rootId = await startThread(stack, `${uniqueWord('midreload')} #stopme`);
     await openMidStream(page, stack, rootId);
   }
