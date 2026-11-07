@@ -528,6 +528,13 @@
       "resize": "Ubah ukuran panel komputer",
       "close": "Tutup komputer"
     },
+    "plugins": {
+      "sidePanel": {
+        "resize": "Ubah ukuran {{label}}",
+        "close": "Tutup {{label}}",
+        "failed": "Panel ini berhenti berfungsi."
+      }
+    },
     "commands": {
       "descriptions": {
         "reply_mode": "Tampilkan atau ganti apakah agen perlu disebut untuk memulai percakapan di sini (atur/setel ulang khusus admin ruang)."
