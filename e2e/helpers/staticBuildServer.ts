@@ -26,10 +26,18 @@ const TYPES: Record<string, string> = {
  * cache stores a large file such as the 7.8 MB crypto wasm. `publishedVersion`, when it answers,
  * replaces the build's version.json, as a deployment of another build would. `directory` may be a
  * function, asked on every request, so a test can deploy another build in its place.
+ * `immutable` picks the paths sent with a year-long `immutable` cache header (by default the hashed
+ * files under assets/), so a test can serve a deployment that caches more than those.
  */
 export const serveBuild = async (
   directory: string | (() => string),
-  { publishedVersion }: { publishedVersion?: () => string | undefined } = {}
+  {
+    publishedVersion,
+    immutable = (path: string) => path.startsWith('/assets/'),
+  }: {
+    publishedVersion?: () => string | undefined;
+    immutable?: (path: string) => boolean;
+  } = {}
 ): Promise<{ origin: string; close: () => Promise<void> }> => {
   const servedDirectory = typeof directory === 'string' ? () => directory : directory;
   const server = createServer((request, response) => {
@@ -55,7 +63,7 @@ export const serveBuild = async (
       const body = await readFile(file);
       response.writeHead(200, {
         'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
-        'Cache-Control': asset ? 'public, max-age=31536000, immutable' : 'no-cache',
+        'Cache-Control': immutable(path) ? 'public, max-age=31536000, immutable' : 'no-cache',
       });
       response.end(body);
     };
