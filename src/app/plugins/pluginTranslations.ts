@@ -13,9 +13,13 @@ export type PluginTranslations = { en: LocaleTree; load?: NamespaceLoader };
 
 /**
  * Translates a key of a plugin's strings (`a.b` for `{ a: { b: '…' } }`) into the app's language,
- * with i18next's options (`count` for plurals, values to interpolate).
+ * with i18next's options (`count` for plurals, values to interpolate) other than those that return
+ * objects.
  */
-export type PluginT = (key: string, options?: TOptions) => string;
+export type PluginT = (
+  key: string,
+  options?: TOptions & { returnObjects?: false; returnDetails?: false }
+) => string;
 
 const namespace = (pluginId: string): string => `plugin.${pluginId}`;
 

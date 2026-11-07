@@ -6,8 +6,6 @@ import type { PluginEvent } from '../../messageRenderers';
 import { usePluginConfig } from '../../pluginConfig';
 import { usePluginTranslation } from '../../pluginTranslations';
 
-const english = { label: 'Example plugin' };
-
 const greetingText = (event: PluginEvent): string | undefined => {
   const greeting = event.content['com.example.greeting'];
   if (typeof greeting !== 'object' || greeting === null || !('text' in greeting)) return undefined;
@@ -34,7 +32,7 @@ function Greeting({ event }: { event: PluginEvent }) {
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
   translations: {
-    en: english,
+    en: { label: 'Example plugin' },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
   },

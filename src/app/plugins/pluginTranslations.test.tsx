@@ -22,7 +22,7 @@ const heldLoader = () => {
   const german = new Promise<LocaleTree>((resolve) => {
     release = () => resolve(GERMAN);
   });
-  const load = vi.fn(async (language: string) => (language === 'de' ? german : undefined));
+  const load = async (language: string) => (language === 'de' ? german : undefined);
   return { load, release };
 };
 
@@ -34,13 +34,10 @@ const stubCatalogs = ({ held = false } = {}) => {
         release = resolve;
       })
     : Promise.resolve();
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (url: string) => {
-      await released;
-      return Response.json(url.includes('/de.json') ? { nav: { home: 'Startseite' } } : {});
-    })
-  );
+  vi.stubGlobal('fetch', async (url: string) => {
+    await released;
+    return Response.json(url.includes('/de.json') ? { nav: { home: 'Startseite' } } : {});
+  });
   return { release };
 };
 
@@ -61,7 +58,8 @@ describe('plugin translations', () => {
     vi.stubGlobal('navigator', { language, languages: [language] });
     ({ default: i18n } = await import('../i18n/i18n'));
     translations = await import('./pluginTranslations');
-    return (await import('./registry')).registeredPlugins;
+    // Loading the registry registers the plugins' strings.
+    await import('./registry');
   };
 
   function Label() {
@@ -134,6 +132,8 @@ describe('plugin translations', () => {
     expect(t('label')).toBe('Example plugin');
     // The keys are the plugin's own.
     expect(t('nav.home')).toBe('nav.home');
+    // @ts-expect-error `t` gives text only.
+    t('label', { returnObjects: true });
     await i18n.changeLanguage('de');
     expect(t('greeting.hello', { name: 'Ada' })).toBe('Hallo, Ada');
   });
