@@ -46,13 +46,14 @@ const roomsLeftSince = async (
   since: string,
   roomIds: string[]
 ): Promise<Set<string>> => {
+  // The leave is the room's last timeline event; nothing else is needed.
   const filter = {
     presence: NOTHING,
     account_data: NOTHING,
     room: {
       rooms: roomIds,
       timeline: { limit: 1 },
-      state: { lazy_load_members: true },
+      state: NOTHING,
       ephemeral: NOTHING,
       account_data: NOTHING,
     },
