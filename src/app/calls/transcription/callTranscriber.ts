@@ -1,5 +1,11 @@
 import type { IOpenIDToken } from 'matrix-js-sdk';
-import { TranscriptionApiError, TranscriptionClient, isNotTranscribed, isUnavailable } from './api';
+import {
+  TranscriptionApiError,
+  TranscriptionClient,
+  isNotTranscribed,
+  isUnavailable,
+  type TranscriptCall,
+} from './api';
 import { pollLiveCall, sleep } from './liveCallPoll';
 import { startSpeechCapture, type SpeechCapture, type SpeechStretch } from './speechCapture';
 import type { LiveUpdate } from './transcriptionState';
@@ -168,7 +174,7 @@ export class CallTranscriber {
       const call = await withTimeout(REQUEST_TIMEOUT_MS, (signal) =>
         this.client.pause(callId, paused, signal)
       );
-      if (!this.ending) this.options.onUpdate({ type: 'call', call });
+      this.applyAnswer(call);
     } catch {
       // The next read of the live call tells.
     }
@@ -214,6 +220,16 @@ export class CallTranscriber {
     if (!this.ending) this.options.onStatus(status, this.callId);
   }
 
+  /**
+   * Hands on the call MindRoom answered a join or Pause with. Paused, listening pauses at once,
+   * before it starts or the controls follow.
+   */
+  private applyAnswer(call: TranscriptCall): void {
+    if (this.ending) return;
+    this.options.onUpdate({ type: 'call', call });
+    if (call.pausedBy) this.setPaused(true);
+  }
+
   private heartbeat(): void {
     if (this.joining || this.ending || this.status === 'off') return;
     if (Date.now() < this.notBefore) return;
@@ -231,6 +247,7 @@ export class CallTranscriber {
       if (this.status === 'off') return;
       this.answered = true;
       this.callId = call.id;
+      this.applyAnswer(call);
       this.setStatus('transcribing');
       this.readLive();
     } catch (error) {

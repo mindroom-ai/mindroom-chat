@@ -265,6 +265,22 @@ describe('CallTranscriber joining', () => {
     }
   );
 
+  it("hands on the join's call, and starts listening paused when it says the call is paused", async () => {
+    const t = setup();
+    const paused = {
+      ...CALL,
+      members: ['@ann:example.org', '@bob:example.org'],
+      pausedBy: '@bob:example.org',
+    };
+    t.server.join.mockImplementationOnce(() => json({ call: paused }));
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+
+    expect(t.updates[0]).toEqual({ type: 'call', call: paused });
+    expect(t.capture().paused).toBe(true);
+  });
+
   it('retries a join refused as too many after Retry-After, silently', async () => {
     const t = setup();
     const tooMany = (seconds: string) => () =>
@@ -599,7 +615,10 @@ describe('CallTranscriber live call', () => {
     t.server.live.mockImplementationOnce(() => json(live));
     t.transcriber.start();
     await advance();
-    expect(t.updates).toEqual([{ type: 'live', live }]);
+    expect(t.updates).toEqual([
+      { type: 'call', call: CALL },
+      { type: 'live', live },
+    ]);
     expect(t.urls.at(-1)).toBe(
       `${API_URL}/api/call-transcripts/v1/rooms/!room%3Aexample.org/calls.live`
     );
@@ -625,6 +644,7 @@ describe('CallTranscriber Pause', () => {
     const t = setup();
     t.transcriber.start();
     await advance();
+    t.updates.length = 0;
 
     await t.transcriber.pause(true);
     await t.transcriber.pause(false);
@@ -650,6 +670,7 @@ describe('CallTranscriber Pause', () => {
     const t = setup();
     t.transcriber.start();
     await advance();
+    t.updates.length = 0;
     t.server.pause
       .mockImplementationOnce(() => json({ error: 'Not in the call.', code: 'not-found' }, 404))
       .mockImplementationOnce(unanswered);
