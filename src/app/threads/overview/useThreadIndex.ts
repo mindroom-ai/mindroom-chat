@@ -517,6 +517,8 @@ export const useThreadIndex = ({
   const { normalThreadRecordMap, compactThreadRecordMap } = useMemo(() => {
     // External hydration can refresh mutable SDK/cache-backed sources without changing map identity.
     void overviewRefreshCounter;
+    const probe = globalThis as unknown as { __threadRecordBuilds?: number };
+    probe.__threadRecordBuilds = (probe.__threadRecordBuilds ?? 0) + 1;
     return buildThreadIndexRecordMaps({
       threadId,
       compactViewRequested,
