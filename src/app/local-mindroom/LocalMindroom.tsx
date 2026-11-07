@@ -255,7 +255,9 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
       requestClose={requestClose}
     >
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('mindroomUi.local-mindroom.localMindroom.localMindroom')}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t('mindroomUi.local-mindroom.localMindroom.localMindroom')}
+        </Text>
         <SequenceCard className={SequenceCardStyle} direction="Column" gap="400">
           <SettingTile
             focusId="pairLocalMindroom"
@@ -280,7 +282,9 @@ export function LocalMindroom({ requestClose, onNavigate }: LocalMindroomProps) 
         </SequenceCard>
       </Box>
       <Box direction="Column" gap="100">
-        <Text size="L400">{t('mindroomUi.local-mindroom.localMindroom.linkedInstallations')}</Text>
+        <Text size="L400" data-settings-heading="">
+          {t('mindroomUi.local-mindroom.localMindroom.linkedInstallations')}
+        </Text>
         <SequenceCard
           className={SequenceCardStyle}
           variant="SurfaceVariant"

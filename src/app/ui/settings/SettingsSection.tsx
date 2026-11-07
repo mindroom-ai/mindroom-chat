@@ -12,7 +12,11 @@ type SettingsSectionProps = {
 export function SettingsSection({ title, children }: SettingsSectionProps) {
   return (
     <Box direction="Column" gap="100">
-      {title && <Text size="L400">{title}</Text>}
+      {title && (
+        <Text size="L400" data-settings-heading="">
+          {title}
+        </Text>
+      )}
       <SettingsCard>{children}</SettingsCard>
     </Box>
   );

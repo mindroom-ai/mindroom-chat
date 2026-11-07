@@ -335,7 +335,9 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
               </Text>
             )}
             <Box direction="Column" gap="100">
-              <Text size="L400">{t('sharedUi.imagePackContent.pack')}</Text>
+              <Text size="L400" data-settings-heading="">
+                {t('sharedUi.imagePackContent.pack')}
+              </Text>
               <SequenceCard direction="Column" gap="400" style={CARD_STYLE}>
                 {editingMeta ? (
                   <PackMetaEditor
@@ -416,7 +418,9 @@ export function ImagePackView({ address, requestClose }: ImagePackViewProps) {
               </SequenceCard>
             </Box>
             <Box direction="Column" gap="100">
-              <Text size="L400">{t('sharedUi.imagePackContent.images')}</Text>
+              <Text size="L400" data-settings-heading="">
+                {t('sharedUi.imagePackContent.images')}
+              </Text>
               <SequenceCard direction="Column" gap="100" style={CARD_STYLE}>
                 {images.length === 0 && (
                   <Text size="T300" priority="300">
