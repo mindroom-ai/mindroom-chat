@@ -23,8 +23,8 @@ export const ListSlot = style({
   pointerEvents: 'none',
 });
 
-// The page's place stacks its notices, a sync status above the new version notice (their own
-// `order`), a gap apart.
+// The page's place stacks its notices, the new version notice above a sync status (their own
+// `order`, so the notice someone may tap never moves when the other comes or goes), a gap apart.
 export const PageSlot = recipe({
   base: {
     display: 'flex',

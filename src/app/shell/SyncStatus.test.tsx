@@ -184,6 +184,13 @@ describe('SyncStatus', () => {
     await request({ reachable: false });
     expect(pill()).toHaveLength(1);
     expect(pill()[0]?.props['aria-hidden']).toBe(true);
+    // The critical look: a critical surface, where catching up has the plain one.
+    expect(
+      renderer!.root.findAll(
+        (node) =>
+          node.props['data-testid'] === 'client-sync-status' && node.props.variant === 'Critical'
+      ).length
+    ).toBeGreaterThan(0);
     expect(pill()[0]?.props['data-leaving']).toBeUndefined();
 
     await request({ reachable: true });

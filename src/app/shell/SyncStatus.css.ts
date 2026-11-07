@@ -16,11 +16,13 @@ export const Announcement = style({
   border: 0,
 });
 
-// A one-line pill at the top of the page's notice place, above a new version notice there. It
-// says how the connection is and offers nothing, so clicks pass through it to what it covers.
+// A one-line pill in the page's notice place, under a new version notice there. It says how the
+// connection is and offers nothing, so clicks pass through it to what it covers.
 export const Pill = style({
   ...noticeMotionFromAbove,
-  order: -1,
+  // Below a new version notice in the same place: the pill, which takes no taps, is the one that
+  // moves when the other comes or goes.
+  order: 1,
   // A phone's place has no height of its own: the pill keeps the height of its text, also wrapped.
   flexShrink: 0,
   display: 'inline-flex',

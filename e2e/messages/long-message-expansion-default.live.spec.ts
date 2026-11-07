@@ -199,8 +199,8 @@ test.describe('live long-message expand-all and collapse-all', () => {
     const seeded = await seedLongThread(homeserver, session.accessToken);
 
     await installScrollWriteProbe(page);
-    // The sync status bar sits above the app and comes and goes with the sync,
-    // moving the whole app; hide it so anchor measurements compare one layout.
+    // The sync status pill floats over the top of the app and comes and goes with
+    // the sync; hide it so the measurements and pictures see one layout.
     await page.addInitScript(() => {
       document.addEventListener('DOMContentLoaded', () => {
         const style = document.createElement('style');

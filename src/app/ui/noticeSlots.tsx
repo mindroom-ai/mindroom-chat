@@ -3,8 +3,9 @@ import { atom, useSetAtom } from 'jotai';
 import { useInert } from '../lib/hooks/useInert';
 import * as css from './noticeSlots.css';
 
-// Places a floating notice (shell/NewVersionNotice.tsx) can be shown in, offered by the layout
-// while it shows them. The notice takes the room list's while there is one, else the page's.
+// Places a floating notice can be shown in, offered by the layout while it shows them. The new
+// version notice (shell/NewVersionNotice.tsx) takes the room list's while there is one, else the
+// page's; how the connection is (shell/SyncStatus.tsx) always shows in the page's.
 
 /** At the foot of the room list beside the page (ResizablePageNav); phones have none. */
 export const listNoticeSlotAtom = atom<HTMLElement | null>(null);
