@@ -7,6 +7,7 @@ import contextlib
 import io
 import json
 import os
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -242,18 +243,40 @@ def up_args(**changes: object) -> argparse.Namespace:
     return argparse.Namespace(**{**values, **changes})
 
 
-class SlotTests(unittest.TestCase):
-    def test_slots_up_to_99_are_accepted(self) -> None:
-        with tempfile.TemporaryDirectory() as directory, mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory}):
-            for slot, code in (("99", 1), ("100", 2)):
-                with mock.patch.object(sys, "argv", ["stack.py", slot, "status"]), contextlib.redirect_stderr(io.StringIO()):
-                    try:
-                        result = stack.main()
-                    except SystemExit as exit_:
-                        result = exit_.code
-                # 1: no stack runs on the slot; 2: the slot is refused.
-                self.assertEqual(result, code, f"slot {slot}")
+class CommandLineTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # main() installs its own SIGTERM handler; the tests after these get the earlier one back.
+        self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        patcher = mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
+    def main(self, *argv: str) -> object:
+        with (
+            mock.patch.object(sys, "argv", ["stack.py", *argv]),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                return stack.main()
+            except SystemExit as exit_:
+                return exit_.code
+
+    def test_slots_up_to_99_are_accepted(self) -> None:
+        # 1: no stack runs on the slot; 2: the slot is refused.
+        self.assertEqual(self.main("99", "status"), 1)
+        self.assertEqual(self.main("100", "status"), 2)
+
+    def test_computers_bring_the_client_session_settings(self) -> None:
+        started: list[argparse.Namespace] = []
+        with mock.patch.object(stack, "up", lambda _slot, args: started.append(args) or {}):
+            self.assertEqual(self.main("5", "up", "--computers"), 0)
+        self.assertTrue(started[0].client_sessions)
+
+
+class SlotTests(unittest.TestCase):
     def test_no_two_slots_up_to_99_share_a_port(self) -> None:
         self.assertEqual(stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742})
         self.assertEqual(stack.ports(0), {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700})
@@ -274,7 +297,7 @@ class OptionTests(unittest.TestCase):
         self.assertEqual(stack.option_env(42, False, None), [])
 
     def test_computers_run_docker_workers_from_the_image_and_admit_the_slot_chat(self) -> None:
-        settings = self.settings(42, False, "mindroom-client-e2e-worker:0123456789ab")
+        settings = self.settings(42, True, "mindroom-client-e2e-worker:0123456789ab")
         self.assertGreaterEqual(len(settings.pop("MINDROOM_SANDBOX_PROXY_TOKEN")), 32)
         self.assertEqual(json.loads(settings.pop("MINDROOM_COMPUTER_ALLOWED_ORIGINS")), ["http://127.0.0.1:4342"])
         self.assertEqual(
@@ -302,6 +325,8 @@ class OptionTests(unittest.TestCase):
         sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
         state = {"model": "stub", "calls": None, "sha": sha, "homeserver": homeserver}
         sessions = {**state, "clientSessions": True, "computers": False}
+        # A stack that the script started before these options is one without them.
+        self.assertTrue(stack.started_with(state, up_args(), sha, homeserver))
         self.assertTrue(stack.started_with(sessions, up_args(client_sessions=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, computers=True), sha, homeserver))
