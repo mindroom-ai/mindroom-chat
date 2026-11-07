@@ -1,6 +1,6 @@
 # Architecture
 
-MindRoom Client is a single-page React app that talks to a Matrix homeserver through `matrix-js-sdk`, and to a MindRoom backend's HTTP API for the features that need one (agent computers, Connections, Local MindRoom pairing). This page covers how it starts, where the code lives and the rules for placing it, the two kinds of code in the repository, and how it reads the event formats MindRoom agents send.
+MindRoom Chat is a single-page React app that talks to a Matrix homeserver through `matrix-js-sdk`, and to a MindRoom backend's HTTP API for the features that need one (agent computers, Connections, Local MindRoom pairing). This page covers how it starts, where the code lives and the rules for placing it, the two kinds of code in the repository, and how it reads the event formats MindRoom agents send.
 
 ## Stack
 

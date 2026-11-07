@@ -16,7 +16,7 @@
 //
 // `gh release create` makes the release and, with it, the tag on GitHub (lightweight, at the
 // commit). GITHUB_REPOSITORY names the repository, as in GitHub Actions; the default is
-// mindroom-ai/mindroom-client.
+// mindroom-ai/mindroom-chat.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ const RELEASE_TAG = /^v(\d{4})\.([1-9]|1[0-2])\.(0|[1-9]\d*)$/;
 /** A `git describe --match` pattern for release tags (a glob: it also lets leading zeros through). */
 export const RELEASE_TAG_GLOB = 'v[0-9][0-9][0-9][0-9].[0-9]*.[0-9]*';
 
-export const DEFAULT_REPOSITORY = 'mindroom-ai/mindroom-client';
+export const DEFAULT_REPOSITORY = 'mindroom-ai/mindroom-chat';
 
 /** Release notes list this many commits and count the rest. */
 export const MAX_LISTED_COMMITS = 200;

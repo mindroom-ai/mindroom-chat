@@ -2,11 +2,11 @@
 
 <img src="public/res/branding/mindroom-logo.png" alt="MindRoom logo" width="120">
 
-# MindRoom Client
+# MindRoom Chat
 
 **The chat app for [MindRoom](https://github.com/mindroom-ai/mindroom): AI agents that live in your Matrix rooms.**
 
-[![CI](https://github.com/mindroom-ai/mindroom-client/actions/workflows/ci.yml/badge.svg)](https://github.com/mindroom-ai/mindroom-client/actions/workflows/ci.yml)
+[![CI](https://github.com/mindroom-ai/mindroom-chat/actions/workflows/ci.yml/badge.svg)](https://github.com/mindroom-ai/mindroom-chat/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Built on Matrix](https://img.shields.io/badge/built%20on-Matrix-000000?logo=matrix&logoColor=white)](https://matrix.org)
 [![Platforms](https://img.shields.io/badge/platforms-web%20%7C%20iOS%20%7C%20macOS%20%7C%20Android-6f42c1)](#native-apps)
@@ -21,7 +21,7 @@
 
 [MindRoom](https://github.com/mindroom-ai/mindroom) runs AI agents as ordinary users on a [Matrix](https://matrix.org) homeserver, so people and agents share the same rooms. Any Matrix client can talk to them. This one is built for them: every conversation is a thread you can title, tag, pin and resolve; agent replies stream in live with their tool calls, model and usage; and a tool call that your MindRoom's [tool approval](https://docs.mindroom.chat/tool-approval/) rules hold back waits until you approve it.
 
-It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, macOS and Android apps built from the same code with Capacitor. In its interface the app calls itself **MindRoom Chat**.
+It is also a complete Matrix client, with rooms, direct messages, spaces, end-to-end encryption and calls. It is a web app (React, TypeScript, Vite) on [`matrix-js-sdk`](https://github.com/matrix-org/matrix-js-sdk) with its Rust crypto, served as static files, with iOS, macOS and Android apps built from the same code with Capacitor.
 
 ## Highlights
 
@@ -107,7 +107,7 @@ The iOS, iPadOS, Mac Catalyst and Android apps wrap the same build with [Capacit
 
 ### A clean-room rebuild
 
-MindRoom Client succeeds MindRoom Chat, an earlier MindRoom client that was a fork of another Matrix client under AGPL-3.0. Files whose lines Bas Nijholt wrote for MindRoom Chat were brought over, and he licenses his lines in them under Apache-2.0 for this project (third-party material keeps its own license; see [`NOTICE`](NOTICE)); everything else was written fresh, without the source of the earlier client or the one it forked. Checks keep it that way: no commit may share code with that upstream client. [`docs/provenance.md`](docs/provenance.md) records where every file came from.
+This MindRoom Chat replaces the legacy MindRoom Chat client ([`mindroom-chat-legacy`](https://github.com/mindroom-ai/mindroom-chat-legacy)), a fork of another Matrix client under AGPL-3.0. Files whose lines Bas Nijholt wrote for the legacy client were brought over, and he licenses his lines in them under Apache-2.0 for this project (third-party material keeps its own license; see [`NOTICE`](NOTICE)); everything else was written fresh, without the source of the earlier client or the one it forked. Checks keep it that way: no commit may share code with that upstream client. [`docs/provenance.md`](docs/provenance.md) records where every file came from.
 
 ## Documentation
 
