@@ -4,7 +4,9 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -447,22 +449,27 @@ function RoomContent() {
   function toggleFilled(id: string) {
     setLayout(id, layout === 'filled' ? 'beside' : 'filled');
   }
-  // What a plugin's code may do with its panels here (useRoomSidePanel).
+  // What a plugin's code may do with its panels here (useRoomSidePanel). It may call long after it
+  // got these, once a save ends, say: they act on the room and the panel shown then.
   const shownId = shown?.id;
+  const now = useRef({ roomId, shownId });
+  useLayoutEffect(() => {
+    now.current = { roomId, shownId };
+  });
   const { show: showPluginPanel } = pluginPanel;
   const roomSidePanels = useMemo<RoomSidePanels>(
     () => ({
       shown: shownId,
       open: (id, panelRequest) => {
-        if (pluginPanels.some((panel) => panel.id === id)) {
+        if (now.current.roomId === roomId && pluginPanels.some((panel) => panel.id === id)) {
           request(id, () => showPluginPanel(id, panelRequest));
         }
       },
       close: (id) => {
-        if (shownId === id) closePluginPanel();
+        if (now.current.roomId === roomId && now.current.shownId === id) closePluginPanel();
       },
     }),
-    [closePluginPanel, pluginPanels, request, showPluginPanel, shownId]
+    [closePluginPanel, pluginPanels, request, roomId, showPluginPanel, shownId]
   );
 
   const showCanvas = useCallback(
