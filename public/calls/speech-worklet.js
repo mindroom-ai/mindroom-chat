@@ -35,12 +35,16 @@ const QUIETEST_SPEECH_DB = -60;
 /** Quieter than this is digital silence (a muted microphone), which says nothing of the room. */
 const SILENCE_DB = -100;
 /**
- * The floor starts at the median level of the first 250 ms heard, and no stretch starts before
- * then: a loud room is background from the start, even behind a microphone fading in, and speech
- * heard first is kept from its first syllable, as the frames kept from before a stretch reach back
- * to the first one.
+ * The floor starts at the median level of the first 250 ms heard (digital silence aside): a loud
+ * room is background from the start, even behind a microphone fading in.
  */
 const FIRST_FLOOR_FRAMES = 25;
+/**
+ * Until then the floor is taken to be this level (dB of full scale), and it starts no higher:
+ * speech heard first, from the first frame or after digital silence, is found from its first
+ * syllable instead of being learned as the floor.
+ */
+const FIRST_FLOOR_MOST_DB = -30;
 /** The noise floor follows quieter frames within about 50 ms... */
 const FLOOR_FALL = 1 - Math.exp(-0.01 / 0.05);
 /** ...and louder ones over about 3 seconds: a steady tone becomes background, speech does not. */
@@ -236,15 +240,16 @@ class SpeechFinder extends AudioWorkletProcessor {
   /** Whether a frame at `level` (dB of full scale) is speech; the floor learns from it too. */
   isSpeech(level) {
     if (!(level > SILENCE_DB)) return false;
+    const margin = this.inStretch ? KEEP_MARGIN_DB : START_MARGIN_DB;
     if (this.floor === null) {
       this.firstLevels[this.firstLevelCount] = level;
       this.firstLevelCount += 1;
       if (this.firstLevelCount === FIRST_FLOOR_FRAMES) {
-        this.floor = this.firstLevels.sort()[Math.floor(FIRST_FLOOR_FRAMES / 2)];
+        const median = this.firstLevels.sort()[Math.floor(FIRST_FLOOR_FRAMES / 2)];
+        this.floor = Math.min(median, FIRST_FLOOR_MOST_DB);
       }
-      return false;
+      return level >= FIRST_FLOOR_MOST_DB + margin;
     }
-    const margin = this.inStretch ? KEEP_MARGIN_DB : START_MARGIN_DB;
     const speech = level >= QUIETEST_SPEECH_DB && level >= this.floor + margin;
     this.floor += (level - this.floor) * (level < this.floor ? FLOOR_FALL : FLOOR_RISE);
     return speech;

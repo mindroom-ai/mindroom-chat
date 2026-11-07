@@ -78,15 +78,17 @@ const loadWorklet = (rate: number) => {
     expect(processor.process([[block]], [[new Float32Array(block.length)]])).toBe(true);
   };
   const now = () => played / rate;
-  const feed = (seconds: number, signal: Signal) => {
+  /** Plays `seconds` of `signal` without the hiss: digital silence, as a silent source gives. */
+  const feedExact = (seconds: number, signal: Signal) => feed(seconds, signal, false);
+  function feed(seconds: number, signal: Signal, withHiss = true) {
     const samples = Math.round(seconds * rate);
     for (let i = 0; i < samples; i += 1) {
-      pending[pendingLength] = signal(i / rate) + hiss();
+      pending[pendingLength] = signal(i / rate) + (withHiss ? hiss() : 0);
       pendingLength += 1;
       played += 1;
       if (pendingLength === BLOCK) render();
     }
-  };
+  }
   /** Plays `seconds` with no input at all, as the source of a muted microphone gives. */
   const mute = (seconds: number) => {
     if (pendingLength > 0) render();
@@ -111,7 +113,7 @@ const loadWorklet = (rate: number) => {
           samples,
         };
       });
-  return { sent, feed, mute, tell, now, stretches };
+  return { sent, feed, feedExact, mute, tell, now, stretches };
 };
 
 const quiet: Signal = () => 0;
@@ -135,6 +137,8 @@ const question: Signal = (t) => {
   return (before + (after - before) * (position - index)) / 32768;
 };
 const QUESTION_SECONDS = QUESTION_SAMPLES.length / OUTPUT_RATE;
+/** Its first word starts 80 ms into the recording. */
+const FIRST_WORD = 0.08;
 
 /** The loudest sample (of 32767) among `samples` from `from` to `to` seconds into the stretch. */
 const peak = (samples: number[], from: number, to: number) =>
@@ -186,6 +190,47 @@ describe('the speech worklet', () => {
     expect(start).toBeCloseTo(2.07 - 0.3, 1);
     expect(start + seconds).toBeGreaterThan(2 + 4.3);
     expect(start + seconds).toBeLessThan(2 + 4.3 + 0.3);
+  });
+
+  it('finds speech after digital silence from 300 ms before its first word, at any rate', () => {
+    for (const rate of [16000, 44100, 48000]) {
+      const worklet = loadWorklet(rate);
+      worklet.feedExact(2, quiet);
+      worklet.feedExact(QUESTION_SECONDS, question);
+      worklet.feedExact(1, quiet);
+      const [stretch, ...others] = worklet.stretches();
+      expect(others, `at ${rate} Hz`).toEqual([]);
+      const { start, seconds } = defined(stretch, `the question at ${rate} Hz`);
+      expect(start, `at ${rate} Hz`).toBeGreaterThanOrEqual(2 + FIRST_WORD - 0.32);
+      expect(start, `at ${rate} Hz`).toBeLessThanOrEqual(2 + FIRST_WORD);
+      expect(start + seconds, `at ${rate} Hz`).toBeGreaterThan(2 + 4.3);
+    }
+  });
+
+  it('keeps a 300 ms sound said after digital silence', () => {
+    const worklet = loadWorklet(48000);
+    worklet.feedExact(2, quiet);
+    worklet.feedExact(0.3, tone(300, 0.5));
+    worklet.feedExact(1, quiet);
+    const [stretch, ...others] = worklet.stretches();
+    expect(others).toEqual([]);
+    expect(defined(stretch, 'the sound').start).toBeCloseTo(1.7, 2);
+  });
+
+  it('finds speech heard from the very first frame, its first word and all', () => {
+    for (const from of [0, FIRST_WORD]) {
+      const worklet = loadWorklet(48000);
+      worklet.feed(QUESTION_SECONDS - from, (t) => question(t + from));
+      worklet.feed(1, quiet);
+      const [stretch, ...others] = worklet.stretches();
+      expect(others, `from ${from} s`).toEqual([]);
+      const { start, samples } = defined(stretch, `the question from ${from} s`);
+      expect(start, `from ${from} s`).toBe(0);
+      // The first word, "What", is loud from 10 ms in.
+      expect(peak(samples, FIRST_WORD - from + 0.02, FIRST_WORD - from + 0.2)).toBeGreaterThan(
+        3000
+      );
+    }
   });
 
   it('takes a loud room heard from the start for background', () => {
