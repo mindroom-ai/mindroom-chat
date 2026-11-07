@@ -1,5 +1,11 @@
+import type { MatrixClient } from 'matrix-js-sdk';
 import { describe, expect, it } from 'vitest';
-import { applyLocalOrder, getShownSidebarItems, parseSidebarItems } from './sidebarSpaces';
+import {
+  applyLocalOrder,
+  getShownSidebarItems,
+  parseSidebarItems,
+  sortSpacesByAge,
+} from './sidebarSpaces';
 
 const joined = (...ids: string[]) => {
   const set = new Set(ids);
@@ -72,5 +78,33 @@ describe('getShownSidebarItems', () => {
         localOrder: [],
       })
     ).toEqual(['!a', { id: 'f', content: ['!b'] }]);
+  });
+});
+
+describe('sortSpacesByAge', () => {
+  /** A client whose rooms were made at the given times; a room without a time has no create event. */
+  const clientWith = (createdAt: Record<string, number | undefined>) =>
+    ({
+      getRoom: (roomId: string) => ({
+        getLiveTimeline: () => ({
+          getState: () => ({
+            getStateEvents: () => {
+              const ts = createdAt[roomId];
+              return ts === undefined ? null : { getTs: () => ts };
+            },
+          }),
+        }),
+      }),
+    } as unknown as MatrixClient);
+
+  it('puts the oldest space first, whatever order the client got them in', () => {
+    // The server's first sync lists rooms by room ID.
+    const client = clientWith({ '!a': 300, '!b': 100, '!c': 200 });
+    expect(sortSpacesByAge(client, ['!a', '!b', '!c'])).toEqual(['!b', '!c', '!a']);
+  });
+
+  it('puts a space without a create event last, and ties in room ID order', () => {
+    const client = clientWith({ '!x': undefined, '!b': 100, '!a': 100 });
+    expect(sortSpacesByAge(client, ['!x', '!b', '!a'])).toEqual(['!a', '!b', '!x']);
   });
 });

@@ -9,11 +9,11 @@ import {
 } from '../helpers/disposableAccounts';
 import { onWebKitPage } from '../helpers/webkit';
 
-// The spaces nobody arranged show in the order the person joined them, so a space the person
-// creates or joins goes to the end of the rail and stays there after a reload and on another
-// device. The rail showed them in the order the client first got them: by room ID from the
-// server's first sync, then in the order they came, so a new space sat last while live and
-// elsewhere on the next device or start (live-test finding P2-lane4-F006). Runs in Chromium and,
+// The spaces nobody arranged show oldest first, so a new space goes to the end of the rail and
+// stays there after a reload and on another device. The rail showed them in the order the client
+// first got them: by room ID from the server's first sync, then in the order they came, so a new
+// space sat last while live and elsewhere on the next device or start (live-test finding
+// P2-lane4-F006). Runs in Chromium and,
 // when PLAYWRIGHT_WEBKIT_EXECUTABLE names Playwright's WebKit, in WebKit, against the disposable
 // homeserver of `just hs-up` (or a slot of scripts/e2e-slot.sh). Set RAIL_ORDER_SHOTS=<directory>
 // for screenshots.
@@ -44,7 +44,7 @@ const newSpaceStaysLast = async (page: Page, label: string, newPage: () => Promi
     // eslint-disable-next-line no-await-in-loop
     spaceIds.push(await createRoom(HOMESERVER, person.accessToken, { name, space: true }));
   }
-  // The spaces nobody arranged show in the order the person joined them.
+  // The spaces nobody arranged show oldest first.
   await loginWithPassword(page, { homeserver: HOMESERVER, ...person });
   await expect.poll(() => railSpaces(page), { timeout: 30_000 }).toEqual(spaceIds);
 
