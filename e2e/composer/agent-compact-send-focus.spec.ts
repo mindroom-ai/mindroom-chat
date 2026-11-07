@@ -59,17 +59,23 @@ const diag = () => {
   requestAnimationFrame(poll);
 };
 
-for (const ua of ['iphone'] as const) {
+for (const ua of ['iphone', 'space'] as const) {
   test.describe(`phone ${ua}`, () => {
     test.use({
       viewport: { width: 390, height: 844 },
       hasTouch: true,
       isMobile: true,
-      ...(ua === 'iphone' ? { userAgent: IPHONE_SAFARI } : {}),
+      userAgent: IPHONE_SAFARI,
     });
     test(`a send from the Compact cards keeps the focus (${ua})`, { tag: '@webkit' }, async ({ page, stack }) => {
       await page.addInitScript(diag);
       await openLobby(page, stack);
+      if (ua === 'space') {
+        await page.goto(
+          `/${encodeURIComponent(stack.rooms.space)}/${encodeURIComponent(stack.rooms.lobby)}/`
+        );
+        await expect(composer(page)).toBeVisible({ timeout: 90_000 });
+      }
       await expect(page.locator('[data-compact-room-view="true"]')).toBeVisible({ timeout: 60_000 });
       await composer(page).tap();
       await expect(composer(page)).toBeFocused();
