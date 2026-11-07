@@ -164,6 +164,8 @@ const useRoomComputer = (
   const apiUrl = configuredApiUrl ?? discoveredApiUrl;
 
   const agents = useMemo<ComputerAgent[]>(() => {
+    // With no server to reach, as when the user turned computers off, no agent's computer opens.
+    if (!apiUrl) return [];
     const joinedAgents = members.filter(
       (member) =>
         member.membership === 'join' &&
@@ -180,7 +182,7 @@ const useRoomComputer = (
       if (!bindsOpenIdTokens || !published?.computer) return [];
       return [{ userId: member.userId, name, serverUrl: published.apiUrl }];
     });
-  }, [bindsOpenIdTokens, configuredApiUrl, members, myUserId, roomServers]);
+  }, [apiUrl, bindsOpenIdTokens, configuredApiUrl, members, myUserId, roomServers]);
 
   return { agents, apiUrl: agents.length > 0 ? apiUrl : undefined };
 };

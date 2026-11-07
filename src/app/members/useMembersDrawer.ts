@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
-import { atom, useAtom } from 'jotai';
+import { useCallback, useEffect, useRef } from 'react';
+import { atom, useAtom, useSetAtom } from 'jotai';
+import { NavigationType, useLocation, useNavigationType } from 'react-router-dom';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { getScreenSize, ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { useSetting } from '../preferences/useSetting';
@@ -39,3 +40,24 @@ export const useMembersDrawer = (): [boolean, (open: boolean) => void] => {
 
   return [mobile || overlay ? phoneOpen[userId] ?? false : isPeopleDrawer, setOpen];
 };
+
+/**
+ * Over the page (a phone, or a room too narrow for them beside it), the members belong to the page
+ * they were opened on: a navigation (a push or a pop) puts them away, also one to a page that
+ * mounts its own members panel. Rendered once, by the signed-in layout.
+ */
+export function MembersOverlayFollowsNavigation(): null {
+  const { key } = useLocation();
+  const action = useNavigationType();
+  const setPhoneOpen = useSetAtom(phoneDrawerOpenAtom);
+  const shownKey = useRef(key);
+  useEffect(() => {
+    if (key === shownKey.current) return;
+    shownKey.current = key;
+    // A replace is the page cleaning up its own address (a sent thread's real ID, a resolved
+    // alias), as the drawer's rule has it.
+    if (action === NavigationType.Replace) return;
+    setPhoneOpen((current) => (Object.values(current).some(Boolean) ? {} : current));
+  }, [key, action, setPhoneOpen]);
+  return null;
+}

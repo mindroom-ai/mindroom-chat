@@ -1180,19 +1180,17 @@ describe('useThreadRenderState', () => {
     });
 
     const targetSender = '@alice:example.org';
-    // Attach a foreign-sender edit event directly via makeReplaced;
-    // sink hydrate would normally apply a same-sender edit, but the
-    // helper's filter drops any replacement whose sender differs.
+    // Give the target a foreign-sender edit; sink hydrate would
+    // normally apply a same-sender edit, but the helper's filter drops
+    // any replacement whose sender differs.
     // Pre-fix, this shape lets the non-repaired incoming sibling win
     // — that is exactly the door the fix closes.
     const hydratedTarget = makeMessageEvent('$edit-target', 3, targetSender, 'edit-target v1');
     const foreignSenderEdit = makeEditEvent('$edit-foreign', 4, '$edit-target', '@bob:example.org');
-    // Bypass the sink's own hydrate (which wouldn't set a foreign-
-    // sender replacement in the first place) by populating the
-    // replacement directly. This isolates the picker's fall-through
-    // behavior from the applier's sender rules.
-    hydratedTarget.makeReplaced(foreignSenderEdit);
-    expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
+    // Neither the sink's own hydrate nor the SDK sets a foreign-sender
+    // replacement, so the replacement is stubbed in. This isolates the
+    // picker's fall-through behavior from the applier's sender rules.
+    vi.spyOn(hydratedTarget, 'replacingEvent').mockReturnValue(foreignSenderEdit);
 
     act(() => {
       // Feed the hydrated target into the sink without the edit event
@@ -1201,7 +1199,6 @@ describe('useThreadRenderState', () => {
       // is what carries into the fallback registry.
       getSnapshot().setSupplementalThreadEvents('$root', [hydratedTarget]);
     });
-    expect(hydratedTarget.replacingEvent()).toBe(foreignSenderEdit);
 
     const syncArrivalTarget = makeMessageEvent('$edit-target', 3, targetSender, 'edit-target v1');
     expect(syncArrivalTarget.replacingEvent()).toBeNull();

@@ -25,6 +25,7 @@ src/
                          serviceWorkerNavigation
   sw/                    the service worker (sw.ts) and its helpers: session, authenticated media, runtime assets,
                          language files, framing
+  client-sdk/            the client SDK, what client plugins import (see "Client plugins" below)
   types/                 ambient .d.ts files only
   test/                  Vitest setup, architecture.ts (import graph helpers for architecture tests), layering.test.ts,
                          mockPaths.test.ts (every relative vi.mock, vi.doMock and vi.importActual path names a file),
@@ -97,7 +98,8 @@ src/
 e2e/
   <domain>/              Playwright specs grouped by the same domain names; specs against the live homeserver that
                          take long end in .live.spec.ts
-  fixtures/              pages that render one component (fixtures/live/: live seeding script and minimap fixture)
+  fixtures/              pages that render one component (fixtures/live/: live seeding script and minimap fixture;
+                         fixtures/sample-plugin/: a plugin directory of the agent stack)
   helpers/               shared helpers
   rtc/                   the MatrixRTC authorization service for the call specs
   env.ts, global-setup.ts, api.d.ts, docker-compose*.yaml   environment, setup, the Tuwunel test homeserver
@@ -128,7 +130,7 @@ Where a file goes, first match wins:
 8. **Route pages:** in the domain that owns the screen (`threads/page/`, `canvas/page/`, `rooms/explore/`, `notifications/inbox/`, `account/auth/`, `room/RoomRoute.tsx`). `shell/Router.tsx` maps `routes/paths.ts` to the lazy modules of `shell/clientPages.tsx`; there is no `pages/` folder.
 9. **e2e:** `e2e/<domain>/<name>.spec.ts`, and `<name>.live.spec.ts` for long specs against the live homeserver.
 
-No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check.
+No barrel files: import a name from the module that declares it. The two `index.ts` files that stay, `event-store/engine/index.ts` and `event-store/cache/db/index.ts`, are the public surfaces of the sync engine and the cache database, which their architecture tests check. The client SDK (`src/client-sdk/`) is a third exception: its modules re-export the app for client plugins, and the app never imports them.
 
 Naming:
 
@@ -158,7 +160,7 @@ A domain imports only domains in a strictly lower layer. Runtime, type-only and 
 | 12 | `settings` |
 | 13 | `sidebar` |
 | 14 | `shell` |
-| 15 | `src/index.tsx` |
+| 15 | `src/index.tsx`, `src/client-sdk` |
 
 `just lint` enforces it: `.eslintrc.cjs` builds `import/no-restricted-paths` zones from the `LAYERS` list, and every violation names its domain and layer and points here. The resolver setting beside it lets the rule see extensionless TypeScript imports; without it the rule would skip them silently. `src/test/layering.test.ts` lints probe imports under made-up paths and fails when the zones go silent, when a folder of `src/app` has no layer, or when a zone names a folder that does not exist. A new domain needs a place in `LAYERS`.
 
@@ -175,18 +177,20 @@ A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` nam
 {
   "name": "my-plugin",
   "version": "1.0.0",
-  "mindroomClientPlugin": { "id": "my-plugin", "apiVersion": 1, "entry": "./src/index.tsx" }
+  "mindroomClientPlugin": { "id": "my-plugin", "apiVersion": 2, "entry": "./src/index.tsx" }
 }
 ```
 
-- `scripts/client-plugins.mjs` checks each declaration, failing the build on one it cannot use, and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry. Without plugins none of their code ships. A plugin's imports resolve in its own directory, React and React DOM excepted (the app's copies), so a package the plugin installed comes from its `node_modules`, even one the app bundles too; the build's check for two copies of one package version (`scripts/package-copies.mjs`) leaves those out.
+- `scripts/client-plugins.mjs` checks each declaration, failing the build on one it cannot use, and replaces `src/app/plugins/pluginEntries.ts`, which lists no plugins, with a module that imports each entry. Without plugins none of their code ships. A plugin's imports resolve in its own directory, React and React DOM (the app's copies) and the client SDK excepted, so a package the plugin installed comes from its `node_modules`, even one the app bundles too; the build's check for two copies of one package version (`scripts/package-copies.mjs`) leaves those out.
+- A plugin imports the app only through the client SDK, `@mindroom/client-sdk/<subpath>`; the build resolves each subpath that `CLIENT_SDK_ALIAS` in `scripts/client-plugins.mjs` lists to its module in `src/client-sdk/`, and `tsconfig.json` maps the same subpaths for this repository's type checks. Each subpath is a module of its own, so a plugin's entry, which loads with the app, binds only the subpaths it imports. `core` has the plugin types (`ClientPlugin`, `MessageRenderer`, `PluginEvent`), `usePluginConfig` and `usePluginTranslation`. `apiVersion` is the SDK version the plugin needs: the build refuses a plugin that needs a newer one than it provides (`CLIENT_PLUGIN_API_VERSION` in `scripts/client-plugins.mjs`, now 2; version 1 had no SDK), naming the plugin. The SDK only grows: nothing a plugin uses is changed or removed, and each addition raises that version, a new export as well as a new kind of contribution in `ClientPlugin`, so a plugin built for an older SDK still builds and one that uses a newer addition never builds into a client that would ignore it.
 - An entry's default export is a `ClientPlugin` (`src/app/plugins/registry.ts`): a list per kind of contribution, and its strings. `registeredPlugins` freezes them, in the listed order, when its module loads, and `src/index.tsx` loads it before the app routes. A plugin's module runs then, before `config.json` has loaded, so a plugin reads its settings (`plugins.<id>`) only while it renders, with `usePluginConfig(id)` (`src/app/plugins/pluginConfig.ts`).
 - Message renderers (`src/app/plugins/messageRenderers.ts`) are the first kind: `{ match, Component, trust? }`. `RenderMessageContent` asks them before its own renderers, wherever it renders a message body: timelines, pins, the inbox, and search results short enough to show whole. `match(event)` is pure and synchronous, and sees the content the app renders the message from, latest edit included; `Component` renders it. Only a MindRoom agent on the viewer's homeserver may send the messages a renderer takes, or with `trust: 'server'` anyone on that homeserver. A `match` that throws counts as no match. A `Component` that throws shows the app's own rendering instead, until the message's content changes (as a reply streams in) or another renderer takes it, and the failure is logged and reported with `[plugin <id>@<version>]`.
 - Side panels (`src/app/plugins/sidePanels.ts`) are the second kind: `{ id, label, Component }`. Each is one more of the room's side panels, beside the computer, a canvas, the call and the members, under their rule (`src/app/ui/panels/roomPanels.ts`): one shows at a time, and opening one closes the others, except that the members stay open behind the call. The room menu lists each panel by its `label` and toggles it; it opens in the room it was opened in, as wide as the call panel and resizable (over the room on phones), with the label as its title and a Close button, and `Component` gets the room's id (`roomId`). Like the computer, a canvas and the call, it has the room's frame (`src/app/ui/panels/PanelFrame.tsx`, drawn by `ResizablePanel`), with no code of its own: a strip at the start of its box whose Fill puts it across the room in the conversation's place, and whose Fold leaves only a tab with its `label` at the room's edge, beside the conversation at full width, until the tab brings it back. While the room's page shows, each room keeps the layout of each of its panels as long as the panel stays open; a panel opens beside the conversation, and one asked for again while it fills the room stays so; each canvas shown, though, opens beside the conversation, or across the room from the Canvases page. The computer's and a canvas's own Expand fill the room as Fill does. Phones show no frame, as a panel there covers the conversation already, and the members have none: their header button shows and hides them. A `Component` that throws shows "This panel stopped working." in the panel, which can still be closed, and the failure is logged and reported with `[plugin <id>@<version>]`.
 - A plugin's strings (`translations` in `src/app/plugins/pluginTranslations.ts`): `en`, its English strings, which ship with its code, and `load(language)`, which resolves to the strings of another of the app's languages, such as `(await import('./locales/de.json')).default`, or to none; `language` is the code of the app's language, such as `de` or `zh-TW` (`src/app/i18n/i18nLanguages.ts`). The registry adds them as the i18n namespace `plugin.<id>` (`registerNamespace`, `src/app/i18n/i18n.ts`); a language without strings, or whose `load` fails, shows English, and a change of language waits until `load` settles. A component translates with `usePluginTranslation(id)`, whose `t` takes the keys of those strings (`a.b` for nesting) and i18next's options, and renders again in the app's language when it changes, and once strings that were still loading arrive; code outside React uses `getPluginTranslation(id)`, whose `t` translates into the language in use when called. A plugin's module runs once, before the strings of the language in use have loaded, and the language can change later, so it translates when its text shows, never when the module loads.
+- The room header slot (`roomHeaderSlot`) is the third kind: components that get the open room (`{ room }`, matrix-js-sdk's `Room`) and render under the room header, or render nothing, such as a banner about the room's state. `src/app/room/RoomHeaderSlot.tsx` shows them in build order inside the floating header, across the conversation column: the conversation's top inset grows with them, and it scrolls under them as under the header; where a short screen hides the header, it hides them too. Each mounts afresh in every room and renders again whenever the room view does, so one that shows the room's state listens to the room's events itself. One that throws shows nothing there, and the failure is logged and reported with `[plugin <id>@<version>]`.
 - `plugins.<id>.enabled: false` in `config.json` hides a plugin's contributions, and `?plugins=off` in the address hides every plugin's for one page load.
 
-`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests, with a message renderer and a side panel.
+`src/app/plugins/__fixtures__/example-plugin/` is a small plugin for the tests, with a message renderer and a side panel, which imports the app only through the SDK.
 
 ## Two lanes of code
 
@@ -216,7 +220,8 @@ The MindRoom backend defines the formats its agents send, and the client reads t
 | Tool trace | `io.mindroom.tool_trace`: `{version, events: [{type, tool_name, args_preview?, result_preview?, truncated?}], content_truncated?}` | `matrix/protocol/toolTrace.ts`, rendered by `messages/html/HtmlBlocks.tsx` |
 | Run metadata | `io.mindroom.ai_run`: `{version, run_id, session_id, status, model, usage?}` | `matrix/protocol/aiRun.ts`, `event-store/threads/threadConversationCost.ts`; shown by `messages/MessageControls.tsx` |
 | Thread title | an `m.notice` in the thread with `io.mindroom.thread_summary: {version, summary, generated_at, model, pinned}` | `matrix/protocol/threadSummary.ts`, `event-store/threads/threadSummaryTimeline.ts` |
-| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread | `event-store/threads/threadTags.ts`, `threads/tags/useMutateThreadTags.ts`, `threads/tags/useRoomThreadTags.ts` |
+| Conversation notice | an `m.notice` outside a thread with `io.mindroom.conversation: true` in its content and in the `m.new_content` of its edits, such as a card or a report that starts a conversation; the thread lists show it before anyone replies when a MindRoom agent on the active account's homeserver sent it, while any other notice lists only once its thread has replies | `event-store/threads/conversationNotice.ts`, used by `event-store/threads/compactThreadRootData.ts` |
+| Thread tags | room state `com.mindroom.thread.tags`, state key `["<root event ID>","<tag>"]`, content `{set_by, set_at, note?, data?}`; the tag `resolved` marks a resolved thread; `set_by` counts when the sender is that person or a MindRoom agent on the active account's homeserver, and a tag from anyone else names its sender | `event-store/threads/threadTags.ts`, `threads/tags/useMutateThreadTags.ts`, `threads/tags/useRoomThreadTags.ts` |
 | Tool approval | event `io.mindroom.tool_approval` (`tool_name`, `arguments`, `status`, `approval_id`, `expires_at`, ...), answered with `io.mindroom.tool_approval_response` | `matrix/protocol/toolApproval.ts`, `approvals/approvalActions.ts`, `approvals/ToolApprovalCard.tsx` |
 | Canvas page API | pages get `window.mindroom.submit`, `saveState`, `state` and `colorScheme`, and the `--mr-*` theme variables, in a sandboxed `srcdoc` frame with its own content security policy | `messages/canvas/canvasDocument.ts` |
 | Computer | `/api/computers/*` on the MindRoom backend, a WebSocket for the screen, authorized with a Matrix OpenID token | `computer/api.ts` |
