@@ -1,7 +1,8 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
-// section (`plugins.example.label`). Its storage notes each greeting the signed-in account saw, and
-// a greeting the account saw in an earlier page load also shows "Seen before".
+// section (`plugins.example.label`). Its storage notes each greeting the signed-in account saw, when
+// it shows and when it goes, and a greeting the account saw in an earlier page load also shows
+// "Seen before".
 import { useEffect } from 'react';
 import type { ClientPlugin } from '../../registry';
 import type { PluginEvent } from '../../messageRenderers';
@@ -23,7 +24,12 @@ function Greeting({ event }: { event: PluginEvent }) {
   const seenKey = `seen:${event.eventId ?? ''}`;
   const seenIn = storage.getItem(seenKey);
   useEffect(() => {
-    if (storage.getItem(seenKey) === null) storage.setItem(seenKey, pageLoad);
+    const note = () => {
+      if (storage.getItem(seenKey) === null) storage.setItem(seenKey, pageLoad);
+    };
+    note();
+    // Notes it again as it goes, as a plugin that saves when it unmounts would.
+    return note;
   }, [storage, seenKey]);
   const label =
     typeof config === 'object' &&

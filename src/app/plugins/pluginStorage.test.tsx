@@ -47,6 +47,18 @@ describe('usePluginStorage', () => {
     storageOf('notes', ALICE).removeItem('draft');
     expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
   });
+
+  it('no longer writes for an account forgotten since, as a component unmounting at sign-out', async () => {
+    const before = storageOf('notes', ALICE);
+
+    await forgetAccountInPlugins(ALICE);
+
+    expect(before.setItem('draft', 'Saved as the page goes')).toBe(false);
+    expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
+    // The account signs in again: its components keep storing.
+    expect(storageOf('notes', ALICE).setItem('draft', 'Alice again')).toBe(true);
+    expect(storageOf('notes', ALICE).getItem('draft')).toBe('Alice again');
+  });
 });
 
 describe('forgetAccountInPlugins', () => {
