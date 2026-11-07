@@ -25,6 +25,16 @@ describe('the live transcript panel', () => {
     expect(store.get(callPanelRoomAtom)).toBe(ROOM);
   });
 
+  it('still brings the call panel back after Transcript is pressed again while it shows', () => {
+    const store = createStore();
+    store.set(callPanelRoomAtom, ROOM);
+    openTranscriptPanel(store, ROOM);
+
+    openTranscriptPanel(store, ROOM);
+    closeTranscriptPanel(store, ROOM);
+    expect(store.get(callPanelRoomAtom)).toBe(ROOM);
+  });
+
   it('opens no call panel on closing when it replaced none', () => {
     const store = createStore();
     store.set(callPanelRoomAtom, OTHER);

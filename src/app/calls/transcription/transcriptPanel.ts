@@ -12,9 +12,14 @@ export type TranscriptPanel = { roomId: string; replacedCall: boolean };
 
 export const transcriptPanelAtom = atom<TranscriptPanel | undefined>(undefined);
 
-/** Shows the room's live transcript in its side panel, in place of its call panel if that is open. */
+/**
+ * Shows the room's live transcript in its side panel, in place of its call panel if that is open.
+ * Opened again while it shows, it still brings back the call panel it replaced.
+ */
 export const openTranscriptPanel = (store: Store, roomId: string): void => {
-  const replacedCall = store.get(callPanelRoomAtom) === roomId;
+  const shown = store.get(transcriptPanelAtom);
+  const replacedCall =
+    store.get(callPanelRoomAtom) === roomId || (shown?.roomId === roomId && shown.replacedCall);
   if (replacedCall) store.set(callPanelRoomAtom, undefined);
   store.set(transcriptPanelAtom, { roomId, replacedCall });
 };
