@@ -13,6 +13,8 @@ export type RoomHeaderSlotComponent = ComponentType<{ room: Room }>;
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
+  /** Deletes what the plugin keeps for `userId` outside its storage (`pluginStorage.ts`). */
+  forgetAccount?: (userId: string) => void | Promise<void>;
   roomHeaderSlot?: readonly RoomHeaderSlotComponent[];
   sidePanels?: readonly SidePanel[];
   headerActions?: readonly HeaderAction[];
@@ -24,6 +26,7 @@ export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly forgetAccount?: ClientPlugin['forgetAccount'];
   readonly roomHeaderSlot: readonly RoomHeaderSlotComponent[];
   readonly sidePanels: readonly SidePanel[];
   readonly headerActions: readonly HeaderAction[];
@@ -44,6 +47,10 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
         : []
     ),
+    forgetAccount:
+      isRecord(plugin) && typeof plugin.forgetAccount === 'function'
+        ? (plugin.forgetAccount.bind(plugin) as ClientPlugin['forgetAccount'])
+        : undefined,
     // Its slot renders each entry in a boundary, so one that is no component only fails there.
     roomHeaderSlot: Object.freeze(Array.isArray(headerSlot) ? [...headerSlot] : []),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),

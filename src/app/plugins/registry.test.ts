@@ -11,8 +11,10 @@ const entries = vi.hoisted(() => {
   const autoAction = { id: 'auto', label: 'auto', icon, run, placement: 'auto' };
   const banner = (): null => null;
   const headerSlot = [banner];
+  const forgotten: string[] = [];
   return {
     renderer,
+    forgotten,
     panel,
     actions: [action, autoAction],
     banner,
@@ -26,6 +28,7 @@ const entries = vi.hoisted(() => {
           sidePanels: 'not a list',
           headerActions: 'not a list',
           roomHeaderSlot: banner,
+          forgetAccount: 'not a function',
         },
       },
       {
@@ -52,6 +55,11 @@ const entries = vi.hoisted(() => {
             autoAction,
           ],
           roomHeaderSlot: headerSlot,
+          forgotten,
+          // A method of the plugin object, which it calls with the plugin as `this`.
+          forgetAccount(this: { forgotten: string[] }, userId: string) {
+            this.forgotten.push(userId);
+          },
         },
       },
     ],
@@ -85,6 +93,10 @@ describe('registeredPlugins', () => {
     expect(plugins[1]?.headerActions).toEqual(entries.actions);
     expect(plugins[0]?.roomHeaderSlot).toEqual([]);
     expect(plugins[1]?.roomHeaderSlot).toEqual([entries.banner]);
+    // So does a `forgetAccount` that is not a function.
+    expect(plugins[0]?.forgetAccount).toBeUndefined();
+    await plugins[1]?.forgetAccount?.('@alice:example.org');
+    expect(entries.forgotten).toEqual(['@alice:example.org']);
   });
 
   it('is frozen when its module loads', async () => {
