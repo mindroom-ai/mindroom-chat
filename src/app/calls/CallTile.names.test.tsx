@@ -93,6 +93,17 @@ const tileNames = () =>
 
 const withId = (name: string, userId: string) => `${name} (⁦${userId}⁩)`;
 
+/**
+ * Whether the tiles show `text` in one place: the smallest element that holds all of it, as the
+ * name and the user ID after it sit in elements of their own.
+ */
+const shows = (text: string) =>
+  screen.queryAllByText(
+    (_, element) =>
+      element?.textContent === text &&
+      !Array.from(element.children).some((child) => child.textContent === text)
+  ).length > 0;
+
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -112,7 +123,7 @@ describe('call tiles in a room whose member list is not loaded', () => {
       </ul>
     );
     expect(tileNames()).toEqual([withId('Morgan Lee', COPY), withId('Jordan Host', HOST)]);
-    expect(screen.getByText(withId('Morgan Lee', COPY))).toBeTruthy();
+    expect(shows(withId('Morgan Lee', COPY))).toBe(true);
 
     await listArrives([REAL, 'Morgan Lee']);
     expect(tileNames()).toEqual([withId('Morgan Lee', COPY), 'Jordan Host']);
@@ -134,6 +145,6 @@ describe('call tiles in a room whose member list is not loaded', () => {
       `${withId('Desk Helper', AGENT_COPY)}'s screen`,
       withId('Desk Helper', AGENT_COPY),
     ]);
-    expect(screen.getByText(`Waiting for ${withId('Desk Helper', AGENT_COPY)}…`)).toBeTruthy();
+    expect(shows(`Waiting for ${withId('Desk Helper', AGENT_COPY)}…`)).toBe(true);
   });
 });
