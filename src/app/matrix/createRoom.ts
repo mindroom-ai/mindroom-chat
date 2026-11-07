@@ -164,7 +164,8 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
     visibility: isPublic ? Visibility.Public : Visibility.Private,
     initial_state: initialState,
     creation_content: createRoomCreationContent(data),
-    // Spaces hold rooms rather than calls; every other room lets its members call.
+    // Spaces hold rooms rather than calls; every other room lets its members call and its agents
+    // publish their state.
     ...(type === RoomType.Space
       ? {}
       : { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }),
@@ -210,7 +211,8 @@ export const createDirectRoom = async (
     // Spec "Creation" presets: trusted_private_chat gives the invitee the creator's power.
     preset: Preset.TrustedPrivateChat,
     visibility: Visibility.Private,
-    // Someone invited later joins its calls too, not only the two who started it.
+    // Someone invited later joins its calls too, not only the two who started it, and an agent
+    // invited later publishes its state.
     power_level_content_override: createVoiceRoomPowerLevelsOverride(version),
   });
   await addRoomIdToMDirect(client, roomId, userId);
