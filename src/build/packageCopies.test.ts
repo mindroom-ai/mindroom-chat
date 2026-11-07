@@ -113,7 +113,7 @@ describe('a client plugin', () => {
     );
   });
 
-  it('leaves the app alone when the plugin directory holds the app (a submodule of the plugin)', () => {
+  it("leaves out shared packages outside the plugin's node_modules, such as the app's in a plugin directory that holds it", () => {
     install({ 'plugins/acme/client/node_modules/jotai': ['jotai', '2.6.0'] });
     const modules = { [at('plugins/acme/client/node_modules/jotai/esm/index.mjs')]: true };
     expect(() => endBuild(modules, undefined, [at('plugins/acme')])).not.toThrow();
