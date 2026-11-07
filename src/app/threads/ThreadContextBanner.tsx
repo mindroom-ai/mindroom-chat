@@ -21,6 +21,7 @@ import { useThreadHeaderInfo } from './useThreadHeaderInfo';
 import { buildThreadHeaderViewModelFromRecord } from './threadHeaderViewModel';
 import { buildThreadRecord } from '../event-store/threads/threadRecord';
 import { useThreadRootEvent } from './useThreadRootEvent';
+import { useCachedThreadRoot } from '../event-store/sdk/cachedThreadRoots';
 import { useThreadTags } from './tags/useThreadTags';
 import { useMutateThreadTags } from './tags/useMutateThreadTags';
 import { ThreadTagPill } from './tags/ThreadTagPill';
@@ -172,8 +173,11 @@ export function ThreadContextBanner({
   const pinning = useThreadPinning(room);
   const isPinned = pinning.pinnedEventIds.includes(threadRootId);
   const mutableThreadRootId = isConfirmedMatrixEventId(rootEventId) ? rootEventId : undefined;
-  const threadRootEvent =
+  const liveThreadRootEvent =
     room.getThread(threadRootId)?.rootEvent ?? room.findEventById(threadRootId);
+  // Offline, a thread the SDK does not know takes its root from the event cache.
+  const cachedThreadRootEvent = useCachedThreadRoot(room, threadRootId, liveThreadRootEvent);
+  const threadRootEvent = liveThreadRootEvent ?? cachedThreadRootEvent;
   const headerRecord = buildThreadRecord({
     room,
     threadRootId,
