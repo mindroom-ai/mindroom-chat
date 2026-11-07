@@ -26,7 +26,7 @@ const SYMBOLS = new Map(
 // Function names, which read as themselves.
 const FUNCTION_NAME =
   /^(?:(?:arc)?(?:sin|cos|tan|cot|sec|csc)h?|log|ln|lg|exp|lim|max|min|sup|inf|det|gcd|deg|dim|arg|ker|Pr)$/;
-// Commands whose braced argument reads as written: text, upright letters, a box.
+// Commands whose argument reads as written: text, upright letters, a box.
 const PLAIN_COMMAND = /^(?:text(?:rm|it|bf)?|mathrm|mathit|boxed)$/;
 // Commands that only size or tighten what they touch.
 const SILENT_COMMAND = /^(?:left|right|[bB]igg?[lr]?|displaystyle|limits|nolimits|!)$/;
@@ -135,7 +135,7 @@ const readFormula = (tex: string): string | undefined => {
         const spaced = Array.isArray(before) || /^[\p{L}\p{N}\\]/u.test(before ?? '');
         return `${spaced ? ' ' : ''}${word}${joins() ? ' ' : ''}`;
       }
-      if (PLAIN_COMMAND.test(name) && Array.isArray(nodes[index])) return read();
+      if (PLAIN_COMMAND.test(name)) return argument();
       if (SILENT_COMMAND.test(name)) {
         // `\left.` and `\right.` set no delimiter.
         if (nodes[index] === '.') index += 1;
