@@ -47,6 +47,23 @@ describe('AuthFooter branding', () => {
     );
   });
 
+  it('shows a footer text list as one line with its links inside', () => {
+    const html = renderFooter({
+      branding: {
+        footer: {
+          text: [
+            { label: 'Example', url: 'https://example.test/source' },
+            ' by ',
+            { label: 'Example Co', url: 'https://example.test' },
+          ],
+        },
+      },
+    });
+    expect(html).toContain(
+      '<p dir="auto"><a href="https://example.test/source" target="_blank" rel="noreferrer">Example</a> by <a href="https://example.test" target="_blank" rel="noreferrer">Example Co</a></p>'
+    );
+  });
+
   it('never links a script address from the credits, policy pages or footer links', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const html = renderFooter({
@@ -54,8 +71,14 @@ describe('AuthFooter branding', () => {
         poweredBy: [{ label: 'Bad credit', url: 'javascript:alert(1)' }],
         privacyUrl: 'javascript:alert(2)',
       },
-      branding: { footer: { links: [{ label: 'Bad link', url: 'javascript:alert(3)' }] } },
+      branding: {
+        footer: {
+          text: [{ label: 'Bad text link', url: 'javascript:alert(4)' }],
+          links: [{ label: 'Bad link', url: 'javascript:alert(3)' }],
+        },
+      },
     });
+    expect(html).toContain('<p dir="auto">Bad text link</p>');
     expect(html).not.toContain('javascript:');
     expect(html).not.toContain('Bad credit');
     expect(html).not.toContain('Bad link');
