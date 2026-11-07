@@ -6,6 +6,8 @@ import { Box, Button, Icon, Icons, Text } from 'folds';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useRoomNavigate } from '../navigation/useRoomNavigate';
 import { useRoomName } from '../matrix/hooks/useRoomMeta';
+import { useLoadedRoomMembers } from '../matrix/hooks/useLoadedRoomMembers';
+import { getSenderName } from '../matrix/room';
 import { mDirectAtom } from '../matrix/state/mDirectList';
 import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
@@ -15,7 +17,7 @@ import { activeMemberships } from './callMemberships';
 import { declineRing, watchRings, type IncomingRing } from './callRings';
 import { startRingtone } from './ringtone';
 import { callPanelRoomAtom, noteCallStart, useActiveCall, useCallActions } from './callStore';
-import { CallMemberAvatar, useCallMemberProfile } from './CallTile';
+import { CallMemberAvatar } from './CallTile';
 import * as css from './IncomingCalls.css';
 
 /** A ring and what can be done about it. */
@@ -29,10 +31,15 @@ type RingCardProps = {
   onOpen: () => void;
 };
 
-/** "Maya is calling", or "Maya is calling in Planning" outside a direct chat. */
+/**
+ * "Maya is calling", or "Maya is calling in Planning" outside a direct chat. The room may be one
+ * the user never opened, whose member list is not loaded: until it is, the caller's user ID
+ * follows their name, so nobody rings as a member the client has not loaded yet.
+ */
 export const useRingLine = (room: Room, ring: IncomingRing): string => {
   const { t } = useTranslation();
-  const { name } = useCallMemberProfile(room, ring.sender);
+  useLoadedRoomMembers(useMatrixClient(), [room.roomId]);
+  const name = getSenderName(room, ring.sender);
   const roomName = useRoomName(room);
   const direct = useAtomValue(mDirectAtom).has(room.roomId);
   return direct

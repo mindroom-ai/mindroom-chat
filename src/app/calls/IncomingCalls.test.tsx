@@ -16,7 +16,7 @@ const calls = vi.hoisted(() => ({
 }));
 const client = vi.hoisted(() => ({
   clientRunning: true,
-  getRoom: (roomId: string) => ({ roomId }),
+  getRoom: (roomId: string) => ({ roomId, getMember: () => null, membersLoaded: () => true }),
   getSafeUserId: () => '@me:calls.test',
   matrixRTC: { getRoomSession: () => ({}) },
 }));
@@ -36,10 +36,7 @@ vi.mock('./callRings', () => ({
   declineRing: vi.fn(async () => undefined),
 }));
 vi.mock('./callMemberships', () => ({ activeMemberships: () => [{ userId: '@maya:calls.test' }] }));
-vi.mock('./CallTile', () => ({
-  CallMemberAvatar: () => null,
-  useCallMemberProfile: () => ({ name: 'Maya' }),
-}));
+vi.mock('./CallTile', () => ({ CallMemberAvatar: () => null }));
 vi.mock('./callStore', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./callStore')>()),
   useActiveCall: () => undefined,
