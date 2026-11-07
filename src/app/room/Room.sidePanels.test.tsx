@@ -467,6 +467,25 @@ describe('the side panels of a room', () => {
     expect(screen.queryByText(/^Notes request/)).toBeNull();
   });
 
+  it("acts on the room's panels as they are when a plugin's code calls, not when it got them", async () => {
+    withCards();
+    const showRoom = await renderRoom();
+    await act(async () => controls.panel?.open());
+    const notesThen = controls.panel;
+    await act(async () => controls.board?.open());
+    // A late close of the panel that showed before closes nothing now.
+    await act(async () => notesThen?.close());
+    expect(board()).not.toBeNull();
+
+    // Nor does a late open from a room no longer shown take the panel of the one that is.
+    const boardThen = controls.board;
+    await showRoom('!other:example.org');
+    await act(async () => controls.panel?.open());
+    await act(async () => boardThen?.open());
+    expect(notes()).not.toBeNull();
+    expect(controls.panel?.isOpen).toBe(true);
+  });
+
   it("gives a plugin's code no panels outside a room's page", async () => {
     render(<Card panel="panel" />);
     expect(controls.panel).toBeUndefined();
