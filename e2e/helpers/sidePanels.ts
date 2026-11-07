@@ -14,23 +14,23 @@ import {
   type MatrixSession,
   type ThreadFixture,
 } from './matrix';
-import { roomMoreOptions } from './roomMenu';
+import { roomHeader, roomMoreOptions } from './roomMenu';
 import { alignUiActionSync } from './uiActionSync';
 
-// A room with every core side panel (src/app/ui/panels/roomPanels.ts) on the disposable
-// homeserver: an agent that shows canvases, its computer (a service the page answers with an
+// A room with every core side panel (src/app/room/Room.tsx; their rule is
+// src/app/ui/panels/roomPanels.ts) on the disposable homeserver: an agent that shows canvases, its computer (a service the page answers with an
 // error, so the panel opens without a worker), and calls (a service the homeserver announces
 // through the page, never reached: the call panel opens without a call).
 
-export type CorePanel = 'computer' | 'canvas' | 'call' | 'members';
-export const CORE_PANELS: readonly CorePanel[] = ['computer', 'canvas', 'call', 'members'];
+export const CORE_PANELS = ['computer', 'canvas', 'call', 'members'] as const;
+type CorePanel = (typeof CORE_PANELS)[number];
 
 const COMPUTER_API = 'http://127.0.0.1:28179';
 
 export type PanelRoom = ThreadFixture & { viewer: DisposableUser; agent: MatrixSession };
 
 /** A viewer, an agent and a thread of theirs in a new room. */
-export const seedPanelRoom = async (): Promise<PanelRoom> => {
+const seedPanelRoom = async (): Promise<PanelRoom> => {
   const suffix = randomUUID().replaceAll('-', '').slice(0, 12);
   const viewer = await registerDisposableUser(`panels_${suffix}`, randomUUID());
   const agent = await registerAgentAccount(HOMESERVER, 'panels');
@@ -46,10 +46,11 @@ export const seedPanelRoom = async (): Promise<PanelRoom> => {
 };
 
 /**
- * Serves the room's computer and call services and config.json with the computer, canvases and
- * the agent's live requests on, then signs the viewer in and opens the thread.
+ * Seeds the room, serves its computer and call services and config.json with the computer,
+ * canvases and the agent's live requests on, then signs the viewer in and opens the thread.
  */
-export const openPanelRoom = async (context: BrowserContext, page: Page, room: PanelRoom) => {
+export const openPanelRoom = async (context: BrowserContext, page: Page): Promise<PanelRoom> => {
+  const room = await seedPanelRoom();
   await context.route(`${COMPUTER_API}/**`, (route) =>
     route.fulfill({ status: 400, json: { detail: 'Local fixture computer unavailable' } })
   );
@@ -95,17 +96,16 @@ export const openPanelRoom = async (context: BrowserContext, page: Page, room: P
   await liveSync;
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.hasFocus())).toBe(true);
+  return room;
 };
 
 export const panelLocator = (page: Page, panel: CorePanel | 'plugin'): Locator =>
   page.locator(`[data-testid="resizable-${panel}-panel"]`);
 
-const header = (page: Page) => page.getByRole('banner').filter({ has: page.locator('h1') });
-
 /** Opens a core panel as its users do, and waits until it shows. */
 export const openPanel = async (page: Page, room: PanelRoom, panel: CorePanel) => {
   if (panel === 'computer') {
-    const button = header(page).getByRole('button', { name: 'Show Computer', exact: true });
+    const button = roomHeader(page).getByRole('button', { name: 'Show Computer', exact: true });
     if (await button.isVisible()) {
       await button.click();
     } else {
@@ -128,9 +128,9 @@ export const openPanel = async (page: Page, room: PanelRoom, panel: CorePanel) =
       },
     });
   } else if (panel === 'call') {
-    await header(page).getByRole('button', { name: 'Start a call', exact: true }).click();
+    await roomHeader(page).getByRole('button', { name: 'Start a call', exact: true }).click();
   } else {
-    await header(page).getByRole('button', { name: 'Show Members', exact: true }).click();
+    await roomHeader(page).getByRole('button', { name: 'Show Members', exact: true }).click();
   }
   await expect(panelLocator(page, panel)).toBeVisible({ timeout: 30_000 });
 };
@@ -143,7 +143,7 @@ export const closePanel = async (page: Page, panel: CorePanel) => {
     call: 'Close call',
     members: 'Hide Members',
   };
-  const scope = panel === 'members' ? header(page) : panelLocator(page, panel);
-  await scope.getByRole('button', { name: names[panel], exact: true }).first().click();
+  const scope = panel === 'members' ? roomHeader(page) : panelLocator(page, panel);
+  await scope.getByRole('button', { name: names[panel], exact: true }).click();
   await expect(panelLocator(page, panel)).toHaveCount(0);
 };

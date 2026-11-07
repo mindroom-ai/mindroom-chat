@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { getDefaultStore, type PrimitiveAtom } from 'jotai';
-import { MatrixEvent } from 'matrix-js-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ClientConfig } from '../config/useClientConfig';
 import { callPanelRoomAtom } from '../calls/callStore';
@@ -9,6 +8,7 @@ import * as membersDrawer from '../members/useMembersDrawer';
 import { ScreenSize, ScreenSizeProvider } from '../lib/hooks/useScreenSize';
 import type { RoomViewProps } from './RoomView';
 import { importBeforeTests } from '../../test/utils/importBeforeTests';
+import { makeUiEvent } from '../ui-actions/testUtils';
 
 // The room's side panels (the computer, a canvas, the call, the members and a plugin's panel),
 // opened as their users open them, through the room: the header's controls, an agent's live
@@ -30,8 +30,6 @@ const { mx, room, state } = vi.hoisted(() => {
     },
     mx: {
       getSafeUserId: () => '@alice:example.org',
-      getHomeserverUrl: () => 'https://example.org',
-      relations: () => Promise.resolve({ originalEvent: null, events: [] }),
       isInitialSyncComplete: () => true,
       getSyncState: () => 'SYNCING',
       on: (name: string, handler: (...args: unknown[]) => void) => listeners.set(name, handler),
@@ -39,7 +37,6 @@ const { mx, room, state } = vi.hoisted(() => {
     },
     room: {
       roomId: '!room:example.org',
-      getMembers: () => members,
       getMember: (userId: string) => members.find((member) => member.userId === userId),
       getThread: () => undefined,
       findEventById: (eventId: string) =>
@@ -97,7 +94,9 @@ vi.mock('../navigation/useRoomViewMode', () => ({
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
 }));
-// Two plugins of the build: one whose panel names its room, one whose panel fails.
+const { neverLoads } = vi.hoisted(() => ({ neverLoads: new Promise<never>(() => undefined) }));
+// Two plugins of the build: one whose panel names its room, one whose panels fail or wait for
+// their code (a lazy component that never loads).
 vi.mock('../plugins/pluginEntries', () => ({
   pluginEntries: [
     {
@@ -125,6 +124,13 @@ vi.mock('../plugins/pluginEntries', () => ({
               throw new Error('no notes today');
             },
           },
+          {
+            id: 'waiting',
+            label: 'Waiting',
+            Component: () => {
+              throw neverLoads;
+            },
+          },
         ],
       },
     },
@@ -136,8 +142,8 @@ importBeforeTests(() => import('./Room'));
 const store = getDefaultStore();
 const { membersOpenAtom } = membersDrawer as unknown as { membersOpenAtom: PrimitiveAtom<boolean> };
 
-type CorePanel = 'computer' | 'canvas' | 'call' | 'members';
-const PANELS: CorePanel[] = ['computer', 'canvas', 'call', 'members'];
+const PANELS = ['computer', 'canvas', 'call', 'members'] as const;
+type CorePanel = (typeof PANELS)[number];
 const TEST_IDS: Record<CorePanel, string> = {
   computer: 'resizable-computer-panel',
   canvas: 'room-canvas-panel',
@@ -150,27 +156,10 @@ let serial = 0;
 const agentRequest = (action: string, extra: Record<string, unknown> = {}) =>
   act(async () => {
     state.listeners.get('Room.timeline')?.(
-      new MatrixEvent({
-        event_id: `$request-${(serial += 1)}`,
-        room_id: room.roomId,
-        sender: '@mindroom_helper:example.org',
-        type: 'm.room.message',
-        origin_server_ts: Date.now(),
-        content: {
-          msgtype: 'm.notice',
-          body: 'Open this view.',
-          'm.relates_to': { rel_type: 'm.thread', event_id: '$thread' },
-          'io.mindroom.ui_action': {
-            version: 1,
-            action,
-            requester_id: '@alice:example.org',
-            agent_user_id: '@mindroom_helper:example.org',
-            room_id: room.roomId,
-            thread_id: '$thread',
-            ...extra,
-          },
-        },
-      }),
+      makeUiEvent(
+        { action, ...extra },
+        { event_id: `$request-${(serial += 1)}`, origin_server_ts: Date.now() }
+      ),
       room,
       false,
       false,
@@ -201,16 +190,15 @@ const shown = () => PANELS.filter((panel) => screen.queryByTestId(TEST_IDS[panel
 
 const renderRoom = async (size: ScreenSize = ScreenSize.Desktop) => {
   const { Room } = await import('./Room');
-  let rerender: ReturnType<typeof render>['rerender'] | undefined;
-  await act(async () => {
-    ({ rerender } = render(<Room />, {
+  const { rerender } = await act(async () =>
+    render(<Room />, {
       wrapper: ({ children }) => <ScreenSizeProvider value={size}>{children}</ScreenSizeProvider>,
-    }));
-  });
+    })
+  );
   /** Shows another room in the same place, as a link from one room to another does. */
   return async (roomId: string) => {
     state.roomId = roomId;
-    await act(async () => rerender?.(<Room />));
+    await act(async () => rerender(<Room />));
   };
 };
 
@@ -303,10 +291,6 @@ describe('the side panels of a room', () => {
     "a plugin's panel takes the side panel from %s, and gives it back",
     async (core) => {
       await renderRoom();
-      expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
-        ['notes/panel', 'Notes'],
-        ['broken/panel', 'Broken'],
-      ]);
       await open(core);
       await act(async () => state.view?.onPanelToggle?.('notes/panel'));
       expect(notes()).not.toBeNull();
@@ -352,10 +336,29 @@ describe('the side panels of a room', () => {
     expect(screen.queryByTestId('room-view')).not.toBeNull();
   });
 
-  it('lists no panel of a plugin that config.json turns off', async () => {
+  it("lists the plugins' panels for the header, but none of a plugin config.json turns off", async () => {
+    await renderRoom();
+    expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
+      ['notes/panel', 'Notes'],
+      ['broken/panel', 'Broken'],
+      ['broken/waiting', 'Waiting'],
+    ]);
+    cleanup();
+
     state.config = { ...state.config, plugins: { notes: { enabled: false } } } as ClientConfig;
     await renderRoom();
-    expect(state.view?.pluginPanels?.map(({ id }) => id)).toEqual(['broken/panel']);
+    expect(state.view?.pluginPanels?.map(({ id }) => id)).toEqual([
+      'broken/panel',
+      'broken/waiting',
+    ]);
+  });
+
+  it("keeps the room on screen while a plugin's panel waits for its code", async () => {
+    await renderRoom();
+    await act(async () => state.view?.onPanelToggle?.('broken/waiting'));
+    const panel = screen.getByRole('region', { name: 'Waiting' });
+    expect(panel.textContent).not.toContain('This panel stopped working.');
+    expect(screen.queryByTestId('room-view')).not.toBeNull();
   });
 
   it("keeps the room when a plugin's panel fails, and says so in the panel", async () => {

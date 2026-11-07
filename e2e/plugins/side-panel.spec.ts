@@ -11,7 +11,6 @@ import {
   openPanel,
   openPanelRoom,
   panelLocator,
-  seedPanelRoom,
   type PanelRoom,
 } from '../helpers/sidePanels';
 import { serveBuild } from '../helpers/staticBuildServer';
@@ -74,8 +73,7 @@ test("the example plugin's side panel opens, yields and closes as the core panel
   const context = await browser.newContext({ baseURL: server.origin });
   const page = await context.newPage();
   try {
-    const room = await seedPanelRoom();
-    await openPanelRoom(context, page, room);
+    const room = await openPanelRoom(context, page);
 
     for (const core of CORE_PANELS) {
       // eslint-disable-next-line no-await-in-loop

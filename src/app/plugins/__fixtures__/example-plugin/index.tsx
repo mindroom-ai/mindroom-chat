@@ -28,7 +28,7 @@ function Greeting({ event }: { event: PluginEvent }) {
 }
 
 function ExamplePanel({ roomId }: { roomId: string }) {
-  return <p data-example-panel>Example panel of {roomId}</p>;
+  return <p>Example panel of {roomId}</p>;
 }
 
 const plugin: ClientPlugin = {

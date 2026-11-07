@@ -17,6 +17,12 @@ export type RoomPanel = {
   opensElsewhere?: boolean;
 };
 
+/** Closes every panel but `id` that does not yield to it. */
+const makeRoomFor = (panels: readonly RoomPanel[], id: string) =>
+  panels.forEach((panel) => {
+    if (panel.id !== id && !panel.yieldsTo?.includes(id)) panel.close();
+  });
+
 /**
  * The rule of a room's side panels: one shows at a time, the first open one in the order of
  * `panels`. `request(id, show)` opens one: it closes every other panel that does not yield to it,
@@ -27,18 +33,10 @@ export function useRoomPanels<Panel extends RoomPanel>(panels: readonly Panel[])
   useLayoutEffect(() => {
     latest.current = panels;
   });
-  const makeRoomFor = useCallback((id: string) => {
-    latest.current.forEach((panel) => {
-      if (panel.id !== id && !panel.yieldsTo?.includes(id)) panel.close();
-    });
+  const request = useCallback((id: string, show: () => void) => {
+    makeRoomFor(latest.current, id);
+    show();
   }, []);
-  const request = useCallback(
-    (id: string, show: () => void) => {
-      makeRoomFor(id);
-      show();
-    },
-    [makeRoomFor]
-  );
 
   const wasOpen = useRef<ReadonlySet<string>>();
   useEffect(() => {
@@ -46,7 +44,9 @@ export function useRoomPanels<Panel extends RoomPanel>(panels: readonly Panel[])
     const before = wasOpen.current ?? open;
     wasOpen.current = open;
     panels.forEach((panel) => {
-      if (panel.opensElsewhere && panel.open && !before.has(panel.id)) makeRoomFor(panel.id);
+      if (panel.opensElsewhere && panel.open && !before.has(panel.id)) {
+        makeRoomFor(panels, panel.id);
+      }
     });
   });
 

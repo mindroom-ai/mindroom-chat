@@ -15,7 +15,7 @@ const closed = (panels: RoomPanel[]) =>
 
 describe('useRoomPanels', () => {
   it('shows the first open panel in their order', () => {
-    const { result, rerender } = renderHook((panels: RoomPanel[]) => useRoomPanels(panels), {
+    const { result, rerender } = renderHook(useRoomPanels<RoomPanel>, {
       initialProps: panelsOf({ b: true, c: true }),
     });
     expect(result.current.shown?.id).toBe('b');
@@ -29,12 +29,11 @@ describe('useRoomPanels', () => {
     const show = vi.fn(() => expect(closed(panels)).toEqual(['a']));
     act(() => result.current.request('b', show));
     expect(show).toHaveBeenCalledOnce();
-    expect(closed(panels)).toEqual(['a']);
   });
 
   it('closes the others the same way when a panel opens elsewhere, and only then', () => {
     const options = { b: { opensElsewhere: true }, c: { yieldsTo: ['b'] } };
-    const { rerender } = renderHook((panels: RoomPanel[]) => useRoomPanels(panels), {
+    const { rerender } = renderHook(useRoomPanels<RoomPanel>, {
       initialProps: panelsOf({ b: true }, options),
     });
     // Open from the start: nothing to make room for.
@@ -50,7 +49,7 @@ describe('useRoomPanels', () => {
   });
 
   it('leaves the others alone when a panel opens by its own state without opensElsewhere', () => {
-    const { rerender } = renderHook((panels: RoomPanel[]) => useRoomPanels(panels), {
+    const { rerender } = renderHook(useRoomPanels<RoomPanel>, {
       initialProps: panelsOf({ a: true }),
     });
     const next = panelsOf({ a: true, b: true });

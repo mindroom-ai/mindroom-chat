@@ -6,7 +6,6 @@ import {
   openPanel,
   openPanelRoom,
   panelLocator,
-  seedPanelRoom,
 } from '../helpers/sidePanels';
 
 // One side panel at a time beside a room, against the disposable homeserver: for every pair of
@@ -23,8 +22,7 @@ test.afterEach(async ({ context }) => {
 test('each core side panel takes the place of every other', async ({ context, page }) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(10 * 60_000);
-  const room = await seedPanelRoom();
-  await openPanelRoom(context, page, room);
+  const room = await openPanelRoom(context, page);
 
   for (const first of CORE_PANELS) {
     for (const then of CORE_PANELS.filter((panel) => panel !== first)) {

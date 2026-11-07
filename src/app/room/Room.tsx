@@ -130,32 +130,15 @@ const HeaderCallMenuEntries = lazyPart(() =>
   }))
 );
 
-/** The call panel fits two tiles side by side; wider, it fits more. */
+/** The call panel fits two tiles side by side; wider, it fits more. A plugin's panel opens as wide. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
-
-/** The side-panel controls of the room header; the room owns their state. */
-type HeaderPanelControls = Pick<
-  RoomViewHeaderProps,
-  | 'computerAvailable'
-  | 'computerOpen'
-  | 'computerShown'
-  | 'onComputerToggle'
-  | 'canvases'
-  | 'openCanvasId'
-  | 'onCanvasOpen'
-  | 'onCanvasClose'
-  | 'calls'
-  | 'shownPanel'
-  | 'onPanelToggle'
-  | 'pluginPanels'
->;
 
 /** A canvas on screen and the conversation it was opened in. */
 type ShownCanvas = { event: MatrixEvent; expanded: boolean; conversation: string };
 
 /** A side panel of the room: whether it takes the conversation's place, and what it shows. */
-type SidePanel = RoomPanel & {
+type PanelEntry = RoomPanel & {
   covers: boolean;
   render: () => ReactNode;
   /** Opens it in its own state, for the header's toggle; panels opened otherwise have none. */
@@ -211,7 +194,7 @@ const useRoomRoute = () => {
 
 /**
  * A room: its view, and beside it one side panel at a time (an agent's computer, a canvas, the
- * call, or the members). The room also carries out the UI requests agents send
+ * call, the members, or a plugin's panel). The room also carries out the UI requests agents send
  * (`io.mindroom.ui_action`).
  */
 export function Room() {
@@ -297,17 +280,20 @@ function RoomContent() {
   const [callOpen, setCallOpen] = useCallPanel(roomId);
   const inCall = useInCall();
 
-  // A plugin's panel belongs to the room it opened in.
   const pluginPanels = useMemo(
     () => enabledSidePanels(registeredPlugins, clientConfig),
     [clientConfig]
   );
+  // A plugin's panel belongs to the room it opened in.
   const [pluginPanel, setPluginPanel] = useState<{ roomId: string; id: string }>();
   const closePluginPanel = useCallback(() => setPluginPanel(undefined), []);
 
+  const closeCall = () => setCallOpen(false);
+  const closeMembers = () => setMembersOpen(false);
+
   // One side panel at a time (useRoomPanels), the first open one of these. Opening one closes the
   // others, except that the members stay open behind the call and show again when it closes.
-  const panels: SidePanel[] = [
+  const panels: PanelEntry[] = [
     {
       id: 'computer',
       open: computerOpen,
@@ -369,7 +355,7 @@ function RoomContent() {
     {
       id: 'call',
       open: callOpen,
-      close: () => setCallOpen(false),
+      close: closeCall,
       // The call buttons, a ring and a call started elsewhere open it in the call store.
       opensElsewhere: true,
       covers: mobile,
@@ -383,41 +369,49 @@ function RoomContent() {
           passthrough={mobile}
           resizeLabel={t('featureUi.calls.panel.resize')}
           collapseLabel={t('featureUi.calls.panel.close')}
-          onCollapse={() => setCallOpen(false)}
+          onCollapse={closeCall}
           testId="resizable-call-panel"
         >
           <Suspense fallback={null}>
-            <CallPanel room={room} onClose={() => setCallOpen(false)} />
+            <CallPanel room={room} onClose={closeCall} />
           </Suspense>
         </ResizablePanel>
       ),
     },
     ...pluginPanels.map(
-      (panel): SidePanel => ({
+      (panel): PanelEntry => ({
         id: panel.id,
         open: pluginPanel?.roomId === roomId && pluginPanel.id === panel.id,
         close: closePluginPanel,
         show: () => setPluginPanel({ roomId, id: panel.id }),
         covers: mobile,
         render: () => (
-          <PluginSidePanel
-            panel={panel}
-            roomId={roomId}
-            mobile={mobile}
-            onClose={closePluginPanel}
-          />
+          <ResizablePanel
+            side="end"
+            storageKey={`mindroom.panel.width:${ownUserId}:${panel.id}`}
+            defaultWidth={CALL_DEFAULT_WIDTH}
+            minContentWidth={CONVERSATION_MIN_WIDTH}
+            maxPanelWidth={CALL_MAX_WIDTH}
+            passthrough={mobile}
+            resizeLabel={t('mindroomUi.plugins.sidePanel.resize', { label: panel.label })}
+            collapseLabel={t('mindroomUi.plugins.sidePanel.close', { label: panel.label })}
+            onCollapse={closePluginPanel}
+            testId="resizable-plugin-panel"
+          >
+            <PluginSidePanel panel={panel} roomId={roomId} onClose={closePluginPanel} />
+          </ResizablePanel>
         ),
       })
     ),
     {
       id: 'members',
       open: membersOpen,
-      close: () => setMembersOpen(false),
+      close: closeMembers,
       show: () => setMembersOpen(true),
       yieldsTo: ['call'],
       covers: false,
       render: () => (
-        <ResizableMembersPanel onClose={() => setMembersOpen(false)}>
+        <ResizableMembersPanel onClose={closeMembers}>
           <MembersDrawer key={roomId} room={room} members={members} />
         </ResizableMembersPanel>
       ),
@@ -545,7 +539,8 @@ function RoomContent() {
   useRoomEscapeReadReceipts({ conversationHidden, hideActivity, roomId, threadId });
 
   const powerLevels = usePowerLevels(room);
-  const headerPanels: HeaderPanelControls = {
+  // The header's side panel controls; the room owns their state.
+  const headerPanels: RoomViewHeaderProps = {
     computerAvailable: !!computerTarget.apiUrl,
     computerOpen,
     computerShown,
