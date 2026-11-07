@@ -45,6 +45,8 @@ export const Card = recipe({
       },
       page: {
         ...pageMotion,
+        // A phone's place has no height of its own: the card keeps the height of its content.
+        flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
         maxInlineSize: toRem(480),

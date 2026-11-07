@@ -6,9 +6,9 @@ import { CHROMIUM_WITH_SCROLLBARS } from '../helpers/disposableAccounts';
 import { launchWebKit, WEBKIT_EXECUTABLE } from '../helpers/webkit';
 
 // After a reload the app draws from its store and says "Catching up..." until the first syncs
-// come back. The band lies over the top of the app: the rail, the room list and the room stay
-// where they are while it shows and when it goes (it pushed them 24 px down and back up after
-// every load). Here the first two /sync responses are held for 3 s, and the room list's top is read
+// come back. Its pill floats over the top of the app: the rail, the room list and the room stay
+// where they are while it shows and when it goes (a band once pushed them 24 px down and back up
+// after every load). Here the first two /sync responses are held for 3 s, and the room list's top is read
 // on every animation frame. Set CATCHING_UP_SHOTS=<directory> to save the view with the band.
 const HOMESERVER = `http://127.0.0.1:${process.env.E2E_MATRIX_PORT ?? '28008'}`;
 const PASSWORD = 'catching-up-overlay-spec-password';

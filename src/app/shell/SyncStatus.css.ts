@@ -21,6 +21,8 @@ export const Announcement = style({
 export const Pill = style({
   ...noticeMotionFromAbove,
   order: -1,
+  // A phone's place has no height of its own: the pill keeps the height of its text, also wrapped.
+  flexShrink: 0,
   display: 'inline-flex',
   alignItems: 'center',
   gap: config.space.S200,
