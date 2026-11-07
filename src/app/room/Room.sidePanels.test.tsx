@@ -121,6 +121,7 @@ vi.mock('../plugins/pluginEntries', () => ({
             Component: ({ roomId }: { roomId: string }) => <p>Notes of {roomId}</p>,
           },
         ],
+        headerActions: [{ id: 'add', label: 'Add a note', icon: () => null, run: () => undefined }],
       },
     },
     {
@@ -388,13 +389,16 @@ describe('the side panels of a room', () => {
     expect(screen.queryByTestId('room-view')).not.toBeNull();
   });
 
-  it("lists the plugins' panels for the header, but none of a plugin config.json turns off", async () => {
+  it("lists the plugins' panels and actions for the header, but none of a plugin config.json turns off", async () => {
     await renderRoom();
     expect(state.view?.pluginPanels?.map(({ id, label }) => [id, label])).toEqual([
       ['notes/panel', 'Notes'],
       ['broken/panel', 'Broken'],
       ['broken/opaque', 'Opaque'],
       ['broken/waiting', 'Waiting'],
+    ]);
+    expect(state.view?.pluginActions?.map(({ id, label }) => [id, label])).toEqual([
+      ['notes/add', 'Add a note'],
     ]);
     cleanup();
 
@@ -405,6 +409,7 @@ describe('the side panels of a room', () => {
       'broken/opaque',
       'broken/waiting',
     ]);
+    expect(state.view?.pluginActions).toEqual([]);
   });
 
   it("keeps the room when a plugin's panel throws a value that cannot become text", async () => {
