@@ -3334,7 +3334,7 @@ index c3e4a37..8ebe7b7 100644
  
          if (backupInfo && !backupInfo.version) {
 diff --git a/node_modules/matrix-js-sdk/lib/models/event.js b/node_modules/matrix-js-sdk/lib/models/event.js
-index 41c0e07..4215320 100644
+index 41c0e07..9795154 100644
 --- a/node_modules/matrix-js-sdk/lib/models/event.js
 +++ b/node_modules/matrix-js-sdk/lib/models/event.js
 @@ -1319,6 +1319,11 @@ export class MatrixEvent extends TypedEventEmitter {
@@ -3343,14 +3343,14 @@ index 41c0e07..4215320 100644
      }
 +    // MindRoom: only a message's sender can edit it, as Relations.getLastReplacement checks for live
 +    // edits; another sender's replacement, such as one the server bundles, changes nothing.
-+    if (newEvent && (!this.getSender() || newEvent.getSender() !== this.getSender())) {
++    if (newEvent && newEvent.getSender() !== this.getSender()) {
 +      return;
 +    }
      if (this._replacingEvent !== newEvent) {
        this._replacingEvent = newEvent !== null && newEvent !== void 0 ? newEvent : null;
        this.emit(MatrixEventEvent.Replaced, this);
 diff --git a/node_modules/matrix-js-sdk/src/models/event.ts b/node_modules/matrix-js-sdk/src/models/event.ts
-index 19a2f43..3cf218a 100644
+index 19a2f43..8160107 100644
 --- a/node_modules/matrix-js-sdk/src/models/event.ts
 +++ b/node_modules/matrix-js-sdk/src/models/event.ts
 @@ -1526,6 +1526,11 @@ export class MatrixEvent extends TypedEventEmitter<MatrixEventEmittedEvents, Mat
@@ -3359,7 +3359,7 @@ index 19a2f43..3cf218a 100644
          }
 +        // MindRoom: only a message's sender can edit it, as Relations.getLastReplacement checks for live
 +        // edits; another sender's replacement, such as one the server bundles, changes nothing.
-+        if (newEvent && (!this.getSender() || newEvent.getSender() !== this.getSender())) {
++        if (newEvent && newEvent.getSender() !== this.getSender()) {
 +            return;
 +        }
          if (this._replacingEvent !== newEvent) {

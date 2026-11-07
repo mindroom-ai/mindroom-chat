@@ -67,15 +67,6 @@ describe('SDK edits from another sender', () => {
     expect(event.replacingEventId()).toBe('$own-edit');
   });
 
-  it('ignores an edit of a message without a sender', () => {
-    const event = new MatrixEvent(original({ sender: undefined }));
-    const replacement = edit('$edit', AUTHOR, 2, 'The forklift is broken.');
-    event.makeReplaced(new MatrixEvent({ ...replacement, sender: undefined }));
-
-    expect(body(event)).toBe('The forklift is charged.');
-    expect(event.replacingEvent()).toBeNull();
-  });
-
   it('still clears an applied edit', () => {
     const event = new MatrixEvent(original());
     event.makeReplaced(

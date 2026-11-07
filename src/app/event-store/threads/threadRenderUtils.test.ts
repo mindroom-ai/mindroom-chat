@@ -191,13 +191,9 @@ describe('pickPreferredThreadRenderEvent', () => {
   it('keeps a repaired confirmed instance over an unrepaired sync instance despite txn metadata', () => {
     const repairedHydrated = makeMessageEvent('$target');
     repairedHydrated.event.unsigned = { transaction_id: 'txn-repair-1' };
-    // Foreign-sender raw replacement: the effective-replacement block
-    // yields nothing for either side (sender-mismatch filter), so the
-    // decision falls through the local-echo branch and the effective
-    // block to the asymmetric raw-presence rule.
-    const foreignEdit = makeEditEvent('$target', '$edit-2', 2);
-    foreignEdit.event.sender = '@mallory:example.org';
-    repairedHydrated.makeReplaced(foreignEdit);
+    // The repaired instance carries its sender's edit: once past the
+    // local-echo branch, the effective-replacement block keeps it.
+    repairedHydrated.makeReplaced(makeEditEvent('$target', '$edit-2', 2));
     const syncInstance = makeMessageEvent('$target');
 
     expect(repairedHydrated.isSending()).toBe(false);
