@@ -24,15 +24,16 @@ test(
   { tag: '@webkit' },
   async ({ page, stack }) => {
     const rootId = await startThread(stack, `${uniqueWord('midstream')} #stopme`);
-    // The reply grows over a few edits before this browser, which has not seen the thread, opens it.
+    // The reply grows over many edits before this browser, which has not seen the thread, opens it
+    // (the live test opened it at 100 to 160 words).
     const editedEvent = await waitForThreadEvent(
       stack,
       rootId,
       (event) =>
         event.sender === stack.agents.helper &&
         streamStatus(event) === 'streaming' &&
-        wordCount(bodyOf(event)) > 40,
-      { description: 'the helper reply after a few edits' }
+        wordCount(bodyOf(event)) > 100,
+      { description: 'the helper reply after many edits' }
     );
     const editedWords = wordCount(bodyOf(editedEvent));
 
@@ -45,7 +46,8 @@ test(
         const row = document.querySelector(`[data-message-id="${replyId}"]`);
         if (!row) return;
         const words = row.textContent?.match(/\bword\d+\b/g)?.length ?? 0;
-        const thinking = !!row.querySelector('[aria-label="AI is responding"]');
+        // The thinking placeholder, not the streaming dots that share its label: it has the mark.
+        const thinking = !!row.querySelector('[role="status"] img');
         const last = samples[samples.length - 1];
         if (last?.words !== words || last.thinking !== thinking)
           samples.push({ at: performance.now(), words, thinking });
