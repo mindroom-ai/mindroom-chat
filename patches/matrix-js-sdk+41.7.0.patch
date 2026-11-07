@@ -3396,7 +3396,7 @@ index 19a2f43..d7c247c 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..5747e11 100644
+index 6be66bb..5144f37 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
 @@ -62,6 +62,8 @@ export class Relations extends TypedEventEmitter {
@@ -3417,7 +3417,7 @@ index 6be66bb..5747e11 100644
        var minTs = replaceRelation === null || replaceRelation === void 0 ? void 0 : replaceRelation.origin_server_ts;
        var lastReplacement = _this4.getRelations().reduce((last, event) => {
          if (event.getSender() !== _this4.targetEvent.getSender()) {
-@@ -357,9 +359,30 @@ export class Relations extends TypedEventEmitter {
+@@ -357,9 +359,31 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
@@ -3426,11 +3426,12 @@ index 6be66bb..5747e11 100644
 +      // MindRoom: getLastReplacement skips the sender's live edits older than the edit the server
 +      // bundled with the event, which the event shows. When it skips them all, the event shows that
 +      // edit, unless it was redacted or left meanwhile, instead of going back to its original content.
++      var _this6$getStandingBun;
 +      var shown = targetEvent.replacingEvent();
-+      var bundled = _this6.getStandingBundledEdit();
-+      if (shown && shown.getId() === (bundled === null || bundled === void 0 ? void 0 : bundled.event_id)) _this6.bundledReplacement = shown;
++      var bundledId = (_this6$getStandingBun = _this6.getStandingBundledEdit()) === null || _this6$getStandingBun === void 0 ? void 0 : _this6$getStandingBun.event_id;
++      if (shown && shown.getId() === bundledId) _this6.bundledReplacement = shown;
 +      var kept = _this6.bundledReplacement;
-+      var standing = kept && !kept.isRedacted() && kept.getId() === (bundled === null || bundled === void 0 ? void 0 : bundled.event_id) ? kept : undefined;
++      var standing = kept && !kept.isRedacted() && kept.getId() === bundledId ? kept : undefined;
 +      targetEvent.makeReplaced(lastReplacement !== null && lastReplacement !== void 0 ? lastReplacement : standing);
      })();
    }
@@ -3450,7 +3451,7 @@ index 6be66bb..5747e11 100644
      if (this.creationEmitted) {
        return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..e04b22a 100644
+index 77ba3b3..9ce9e44 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
 @@ -54,6 +54,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
@@ -3480,10 +3481,10 @@ index 77ba3b3..e04b22a 100644
 +        // bundled with the event, which the event shows. When it skips them all, the event shows that
 +        // edit, unless it was redacted or left meanwhile, instead of going back to its original content.
 +        const shown = targetEvent.replacingEvent();
-+        const bundled = this.getStandingBundledEdit();
-+        if (shown && shown.getId() === bundled?.event_id) this.bundledReplacement = shown;
++        const bundledId = this.getStandingBundledEdit()?.event_id;
++        if (shown && shown.getId() === bundledId) this.bundledReplacement = shown;
 +        const kept = this.bundledReplacement;
-+        const standing = kept && !kept.isRedacted() && kept.getId() === bundled?.event_id ? kept : undefined;
++        const standing = kept && !kept.isRedacted() && kept.getId() === bundledId ? kept : undefined;
 +        targetEvent.makeReplaced(lastReplacement ?? standing);
 +    }
 +

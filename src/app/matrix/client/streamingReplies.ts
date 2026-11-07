@@ -239,12 +239,11 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
     if (newer) target.makeReplaced(newer);
   };
 
-  /** The newest edit by the reply's sender that the server bundled with a reply, decrypted. */
+  /** A raw edit the server bundled with a reply, mapped into the room and decrypted. */
   const bundledEdit = async (
     roomId: string,
-    rawReply: Partial<IEvent>
+    rawEdit: Partial<IEvent> | undefined
   ): Promise<MatrixEvent | undefined> => {
-    const rawEdit = getSameSenderBundledEdit(rawReply);
     const edit = rawEdit && mx.getEventMapper()({ ...rawEdit, room_id: roomId });
     if (edit) await mx.decryptEventIfNeeded(edit);
     return edit;
@@ -280,7 +279,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
       announce(room, check.targets);
       return true;
     }
-    const edit = await bundledEdit(check.roomId, rawReply);
+    const edit = await bundledEdit(check.roomId, getSameSenderBundledEdit(rawReply));
     if (!stopped) answer(room, check, edit);
     return true;
   };
@@ -449,7 +448,7 @@ export const keepStreamingRepliesChecked = (mx: MatrixClient): (() => void) => {
             event?.content?.[AI_RUN_METADATA_KEY] !== undefined
         );
         if (!listedMayStream) return;
-        const edit = await bundledEdit(roomId, latest);
+        const edit = await bundledEdit(roomId, rawEdit);
         if (stopped) return;
         vouch(roomId, latestId, edit);
         const check = checks.get(latestId);
