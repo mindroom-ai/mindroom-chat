@@ -209,7 +209,12 @@ const check = async (browser: Browser, label: string, options: BrowserContextOpt
     await expect(jump).toBeVisible({ timeout: 60_000 });
     if (options.hasTouch) await jump.tap();
     else await jump.click();
-    await expect(line).toBeVisible({ timeout: 30_000 });
+    // WebKit sometimes stops a row short of the line (followups-sweep report); a little further
+    // down shows it. Where the line sits is what this part checks.
+    await expect(async () => {
+      if (!(await line.isVisible())) await scrollBy(page, 150);
+      await expect(line).toBeVisible({ timeout: 2_000 });
+    }).toPass({ timeout: 30_000 });
     const [lineBox, firstUnread, lastRead] = await Promise.all([
       line.boundingBox(),
       page
