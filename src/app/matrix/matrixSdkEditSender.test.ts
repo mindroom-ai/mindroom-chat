@@ -55,10 +55,12 @@ const bundled = (replacement: Partial<IEvent>) =>
 
 const body = (event: MatrixEvent) => event.getContent().body as unknown;
 
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 const live = async (...events: MatrixEvent[]) => {
   const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
   await room.addLiveEvents(events, { addToState: false });
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  await tick();
   return room.findEventById('$message')!;
 };
 
@@ -152,7 +154,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     mx.store.storeRoom(room);
 
     await mx.getEventTimeline(room.getUnfilteredTimelineSet(), '$message');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await tick();
 
     expect(body(room.findEventById('$message')!)).toBe('The forklift is back.');
   });
@@ -172,7 +174,7 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
     const add = async (...events: MatrixEvent[]) => {
       await room.addLiveEvents(events, { addToState: false });
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await tick();
     };
     await add(bundled(newestEdit()), new MatrixEvent(ownEdit()), new MatrixEvent(newestEdit()));
     const event = room.findEventById('$message')!;
@@ -187,63 +189,59 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     expect(body(event)).toBe('The forklift is charged.');
   });
 
-  it('shows the sender’s previous edit once the bundled pending edit is cancelled', async () => {
+  /** The message after `events` arrive live, with the sender's edit `raw` pending on it. */
+  const withPendingEdit = async (events: MatrixEvent[], raw: Partial<IEvent>) => {
     const room = new Room(ROOM, client, AUTHOR, {
       timelineSupport: true,
       pendingEventOrdering: PendingEventOrdering.Detached,
     });
-    await room.addLiveEvents([new MatrixEvent(original()), new MatrixEvent(ownEdit())], {
-      addToState: false,
-    });
+    await room.addLiveEvents(events, { addToState: false });
     const event = room.findEventById('$message')!;
-    const pending = new MatrixEvent(edit('~pending-edit', AUTHOR, 4, 'The forklift is back.'));
+    const pending = new MatrixEvent(raw);
     pending.setStatus(EventStatus.NOT_SENT);
     room.addPendingEvent(pending, 'txn');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await tick();
+    const cancel = async () => {
+      room.updatePendingEvent(pending, EventStatus.CANCELLED);
+      await tick();
+    };
+    return { event, pending, cancel };
+  };
+
+  it('shows the sender’s previous edit once the bundled pending edit is cancelled', async () => {
+    const { event, pending, cancel } = await withPendingEdit(
+      [new MatrixEvent(original()), new MatrixEvent(ownEdit())],
+      edit('~pending-edit', AUTHOR, 4, 'The forklift is back.')
+    );
     // The client keeps the edit an event shows as its bundled edit when it merges another copy.
     event.setUnsigned({ 'm.relations': { 'm.replace': pending.event } });
     expect(body(event)).toBe('The forklift is back.');
 
-    room.updatePendingEvent(pending, EventStatus.CANCELLED);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await cancel();
 
     expect(body(event)).toBe('The forklift is at the dock.');
   });
 
   it('shows the bundled edit again once a later pending edit is cancelled', async () => {
-    const room = new Room(ROOM, client, AUTHOR, {
-      timelineSupport: true,
-      pendingEventOrdering: PendingEventOrdering.Detached,
-    });
-    await room.addLiveEvents([bundled(newestEdit())], { addToState: false });
-    const event = room.findEventById('$message')!;
-    const pending = new MatrixEvent(edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.'));
-    pending.setStatus(EventStatus.NOT_SENT);
-    room.addPendingEvent(pending, 'txn');
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    const { event, cancel } = await withPendingEdit(
+      [bundled(newestEdit())],
+      edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.')
+    );
     expect(body(event)).toBe('The forklift is gone.');
 
-    room.updatePendingEvent(pending, EventStatus.CANCELLED);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await cancel();
 
     expect(body(event)).toBe('The forklift is back.');
   });
 
   it('drops a pending edit of the sender once it is cancelled', async () => {
-    const room = new Room(ROOM, client, AUTHOR, {
-      timelineSupport: true,
-      pendingEventOrdering: PendingEventOrdering.Detached,
+    const { event, cancel } = await withPendingEdit([new MatrixEvent(original())], {
+      ...ownEdit(),
+      event_id: '~pending-edit',
     });
-    await room.addLiveEvents([new MatrixEvent(original())], { addToState: false });
-    const event = room.findEventById('$message')!;
-    const pending = new MatrixEvent({ ...ownEdit(), event_id: '~pending-edit' });
-    pending.setStatus(EventStatus.NOT_SENT);
-    room.addPendingEvent(pending, 'txn');
-    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(body(event)).toBe('The forklift is at the dock.');
 
-    room.updatePendingEvent(pending, EventStatus.CANCELLED);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await cancel();
 
     expect(event.replacingEvent()).toBeNull();
   });
