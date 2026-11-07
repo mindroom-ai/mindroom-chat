@@ -185,6 +185,8 @@ test('on a phone, a side panel over the conversation keeps the recording under i
       .click();
     await expect(discard).toBeVisible();
   } finally {
+    // The page's live sync may still be in a route.
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
     await context.close();
   }
 });
