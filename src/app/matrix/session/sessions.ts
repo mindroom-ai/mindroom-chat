@@ -262,7 +262,7 @@ const EMPTY_SNAPSHOT: StoreSnapshot = {
 const resolveStorage = (storage: SessionStorage | undefined): SessionStorage | undefined =>
   storage ?? getSafeLocalStorage();
 
-const readSnapshot = (storage: SessionStorage | undefined): StoreSnapshot => {
+export const readSnapshot = (storage: SessionStorage | undefined): StoreSnapshot => {
   const target = resolveStorage(storage);
   if (!target) return EMPTY_SNAPSHOT;
 

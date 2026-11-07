@@ -7,7 +7,7 @@ import {
   setStorageItemSafe,
 } from '../lib/safeLocalStorage';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
-import { listSessions } from '../matrix/session/sessions';
+import { listSessions, readSnapshot } from '../matrix/session/sessions';
 import { registeredPlugins } from './registry';
 
 /** Strings a plugin keeps by key for the signed-in account, in this browser's localStorage. */
@@ -21,8 +21,18 @@ export type PluginStorage = {
   removeItem: (key: string) => void;
 };
 
+/** The start of the localStorage key of every plugin value. */
+const PLUGIN_KEYS = 'mindroom.plugin:';
+
 /** The start of the localStorage key of every plugin value kept for `userId`. */
-const accountPrefix = (userId: string): string => `mindroom.plugin:${encodeURIComponent(userId)}/`;
+const accountPrefix = (userId: string): string => `${PLUGIN_KEYS}${encodeURIComponent(userId)}/`;
+
+const deleteKeys = (doomed: (key: string) => boolean): void => {
+  const storage = getSafeLocalStorage();
+  getStorageKeysSafe(storage)
+    .filter(doomed)
+    .forEach((key) => removeStorageItemSafe(storage, key));
+};
 
 /**
  * The storage of plugin `pluginId` for the signed-in account. The app deletes it with the rest of
@@ -56,11 +66,8 @@ const FORGET_WAIT_MS = 5_000;
  * account stays.
  */
 export const forgetAccountInPlugins = async (userId: string): Promise<void> => {
-  const storage = getSafeLocalStorage();
   const prefix = accountPrefix(userId);
-  getStorageKeysSafe(storage)
-    .filter((key) => key.startsWith(prefix))
-    .forEach((key) => removeStorageItemSafe(storage, key));
+  deleteKeys((key) => key.startsWith(prefix));
   const forgetting = registeredPlugins.map(async ({ tag, forgetAccount }) => {
     try {
       await forgetAccount?.(userId);
@@ -75,4 +82,19 @@ export const forgetAccountInPlugins = async (userId: string): Promise<void> => {
       setTimeout(resolve, FORGET_WAIT_MS);
     }),
   ]);
+};
+
+/**
+ * Deletes the plugin storage of every account without a stored login: what a plugin wrote in
+ * another tab while the account signed out here, past that tab's check. src/index.tsx calls it as
+ * the app starts, which sign-out's reload does. While the stored account list holds anything this
+ * version cannot read (a newer version's, say), it keeps all of it.
+ */
+export const deletePluginStorageOfRemovedAccounts = (): void => {
+  const { sorted, unrecognized, writable } = readSnapshot(undefined);
+  if (!writable || unrecognized.length > 0) return;
+  const kept = sorted.map((session) => accountPrefix(session.userId));
+  deleteKeys(
+    (key) => key.startsWith(PLUGIN_KEYS) && !kept.some((prefix) => key.startsWith(prefix))
+  );
 };
