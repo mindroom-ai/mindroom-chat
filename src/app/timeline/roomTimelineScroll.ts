@@ -545,6 +545,19 @@ export const useTimelineRowJumps = ({
 };
 
 /**
+ * Whether the render asks for the newest row anew: a bottom pin (Jump to Latest, a send) came after
+ * the last commit. The rows of that render are the newest ones, which the reader asked to see, so
+ * the place recorded in the rows before them holds nothing.
+ */
+export const useLatestPinAsked = (scrollToBottomRef: MutableRefObject<ScrollToBottomState>) => {
+  const committedCountRef = useRef(scrollToBottomRef.current.count);
+  useLayoutEffect(() => {
+    committedCountRef.current = scrollToBottomRef.current.count;
+  });
+  return scrollToBottomRef.current.count !== committedCountRef.current;
+};
+
+/**
  * Counts the times the room's rows were replaced rather than added to: emptied for an event the
  * room has not loaded, then the history around it, or the newest rows again. A page of history or
  * a live row joins the chain on screen and replaces nothing. Counted during render, so the render
