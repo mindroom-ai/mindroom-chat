@@ -40,6 +40,65 @@ test.use({
   },
 });
 
+
+/** Scratch instrumentation: scroll writes and scroll events of the thread's scroller. */
+const scrollLogInit = () => {
+  const w = window as unknown as { __seLog: unknown[] };
+  w.__seLog = [];
+  const isThreadScroller = (el: Element) => !!el.querySelector?.('[data-thread-count]');
+  const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+  Object.defineProperty(Element.prototype, 'scrollTop', {
+    configurable: true,
+    get(this: Element) {
+      return desc.get!.call(this);
+    },
+    set(this: Element, value: number) {
+      const from = desc.get!.call(this);
+      desc.set!.call(this, value);
+      if (isThreadScroller(this))
+        w.__seLog.push({
+          t: performance.now(),
+          k: 'setTop',
+          from,
+          value,
+          after: desc.get!.call(this),
+          sh: this.scrollHeight,
+          stack: new Error().stack,
+        });
+    },
+  });
+  const scrollTo = Element.prototype.scrollTo;
+  Element.prototype.scrollTo = function (this: Element, ...args: unknown[]) {
+    const from = desc.get!.call(this);
+    (scrollTo as (...a: unknown[]) => void).apply(this, args);
+    if (isThreadScroller(this))
+      w.__seLog.push({
+        t: performance.now(),
+        k: 'scrollTo',
+        from,
+        args: JSON.stringify(args),
+        after: desc.get!.call(this),
+        sh: this.scrollHeight,
+        stack: new Error().stack,
+      });
+  } as typeof Element.prototype.scrollTo;
+  document.addEventListener(
+    'scroll',
+    (event) => {
+      const el = event.target as Element;
+      if (el instanceof Element && isThreadScroller(el))
+        w.__seLog.push({
+          t: performance.now(),
+          k: 'scrollEvent',
+          top: desc.get!.call(el),
+          sh: el.scrollHeight,
+          ch: el.clientHeight,
+        });
+    },
+    { capture: true, passive: true }
+  );
+};
+
 const DESKTOP = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 844 };
 // A gap under the newest row this much wider than the reader's own is a blank band (px).
@@ -328,6 +387,10 @@ const watchReplyFinish = async (
   const findings = judge(samples, baseline);
   writeFileSync(testInfo.outputPath('frames.json'), JSON.stringify({ baseline, samples }));
   writeFileSync(testInfo.outputPath('findings.json'), JSON.stringify(findings, null, 2));
+  writeFileSync(
+    testInfo.outputPath('scroll-log.json'),
+    JSON.stringify(await page.evaluate(() => (window as unknown as { __seLog: unknown[] }).__seLog))
+  );
   expect(findings.blank, 'painted frames with a blank band under the newest row').toEqual([]);
   expect(findings.barReturns, 'the jobs bar left and came back during one reply').toEqual([]);
   expect(Math.abs(findings.finalGap - baseline)).toBeLessThanOrEqual(2);
@@ -354,6 +417,7 @@ const withWebKit = async (
       baseURL,
       storageState: signedIn ? state : undefined,
     });
+    await context.addInitScript(scrollLogInit);
     const page = await context.newPage();
     await routeClientConfig(page, stack);
     if (!signedIn) {
@@ -526,6 +590,7 @@ const WATCHES: { title: string; watch: Watch }[] = [
 for (const { title, watch } of WATCHES) {
   test.describe(title, () => {
     test('Chromium, desktop', async ({ page, stack }, testInfo) => {
+      await page.addInitScript(scrollLogInit);
       await page.setViewportSize(DESKTOP);
       await watch(page, stack, testInfo);
     });

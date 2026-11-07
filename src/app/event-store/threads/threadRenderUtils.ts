@@ -281,6 +281,11 @@ export const buildMeasurementScrollCorrectionHook =
     // During latest-open fill, visible predecessors also move the retained
     // latest anchor. Its own height cannot move its start and is excluded by
     // the owner. Ordinary visible rows keep their natural reflow policy.
+    {
+      const host = instance.scrollElement as unknown as HTMLElement | null | undefined;
+      const tile = host?.querySelector?.(`[data-index="${item.index}"]`) as HTMLElement | null | undefined;
+      ((globalThis as unknown as { __seLog?: unknown[] }).__seLog?.push({ t: performance.now(), ...({ k: 'measure', index: item.index, end: item.end, delta, apply, correction, shownPx, above, fullyAbove: itemFullyAboveViewport, scrollOffset, renderedOffset, unrenderedPx, sh: instance.scrollElement?.scrollHeight, ch: instance.scrollElement?.clientHeight, tileH: tile?.offsetHeight, text: tile?.textContent?.slice(0, 40), stack: new Error().stack }) }));
+    }
     if (!apply && (itemFullyAboveViewport || automaticFillPredecessor)) {
       onDroppedCorrection(delta);
     }
