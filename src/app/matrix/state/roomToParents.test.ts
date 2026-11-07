@@ -99,8 +99,13 @@ describe('useBindRoomToParentsAtom', () => {
     expect(parentsOf('!room:example.org')).toEqual(new Set(['!subspace:example.org']));
   });
 
-  it('counts no Space among the chat rooms that list sub-rooms', () => {
-    const { store } = setup({ '!space:example.org': ['!room:example.org'] });
+  it('counts no Space among the chat rooms that list sub-rooms, also when its list changes', () => {
+    const { store, unlinkChild } = setup({
+      '!space:example.org': ['!room:example.org', '!other:example.org'],
+    });
+    expect(store.get(chatRoomParentsAtom)).toEqual(new Set());
+
+    unlinkChild('!space:example.org', '!other:example.org');
 
     expect(store.get(chatRoomParentsAtom)).toEqual(new Set());
   });
