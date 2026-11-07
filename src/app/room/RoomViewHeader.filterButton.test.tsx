@@ -6,6 +6,7 @@ import { getSettings, settingsAtom } from '../preferences/settings';
 import { RoomViewHeader, type RoomViewHeaderProps } from './RoomViewHeader';
 import type { RoomViewMode } from '../navigation/roomViewMode';
 import { createDefaultThreadFilterState } from '../event-store/threads/roomThreadOverviewModel';
+import { Icons } from 'folds';
 
 const { view, screen, navigate, pins } = vi.hoisted(() => ({
   view: {
@@ -420,7 +421,7 @@ describe("the room header's actions", () => {
     expect(roomEntries()).toEqual(['Notes']);
   });
 
-  it("folds a phone's actions into the room menu, in order", () => {
+  it("folds a phone's actions into the room menu, in the row's order", () => {
     screen.size = 'Mobile';
     renderEverything();
     expect(rowLabels()).toEqual(['Back', 'More Options']);
@@ -429,12 +430,45 @@ describe("the room header's actions", () => {
       'Compact view',
       'Thread filters',
       'Show Canvas',
+      'Show Computer',
       'Pinned Messages',
       'Show Members',
-      'Show Computer',
       'Notes',
       'Start a call',
     ]);
+  });
+
+  it("places the plugins' actions by their placement and runs them in the open room", () => {
+    const run = vi.fn();
+    const pluginActions = (['row', 'auto', 'menu'] as const).map((placement) => ({
+      id: `demo/${placement}`,
+      label: `Demo ${placement}`,
+      icon: Icons.Smile,
+      placement,
+      run,
+    }));
+    renderHeader({ pluginActions, threadId: '$thread' });
+    expect(rowLabels().slice(-3)).toEqual(['Demo row', 'Demo auto', 'More Options']);
+    act(() => {
+      buttons((node) => node.props['aria-label'] === 'Demo auto')[0]?.props.onClick();
+    });
+    expect(run).toHaveBeenLastCalledWith({ roomId: '!room:example.org', threadId: '$thread' });
+    openMenu();
+    expect(roomEntries()).toEqual(['Demo menu']);
+
+    screen.size = 'Mobile';
+    renderHeader({ pluginActions });
+    // `row` keeps its button even on a phone.
+    expect(rowLabels()).toEqual(['Back', 'Demo row', 'More Options']);
+    openMenu();
+    expect(roomEntries().slice(-3)).toEqual(['Show Members', 'Demo auto', 'Demo menu']);
+    run.mockClear();
+    act(() => {
+      buttons((node) => textOf(node) === 'Demo auto')[0]?.props.onClick();
+    });
+    expect(run).toHaveBeenCalledWith({ roomId: '!room:example.org', threadId: undefined });
+    // Choosing the entry closed the menu.
+    expect(roomEntries()).toEqual([]);
   });
 
   it('opens the pinned messages from the row and from the room menu', () => {

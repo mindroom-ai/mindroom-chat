@@ -5,14 +5,23 @@ const entries = vi.hoisted(() => {
   const Component = (): null => null;
   const renderer = { match: () => true, Component };
   const panel = { id: 'notes', label: 'Notes', Component };
+  const icon = () => null;
+  const run = () => undefined;
+  const action = { id: 'wave', label: 'wave', icon, run };
+  const rowAction = { id: 'row', label: 'row', icon, run, placement: 'row' };
   return {
     renderer,
     panel,
+    actions: [action, rowAction],
     list: [
       {
         id: 'alpha',
         version: '1.0.0',
-        plugin: { messageRenderers: 'not a list', sidePanels: 'not a list' },
+        plugin: {
+          messageRenderers: 'not a list',
+          sidePanels: 'not a list',
+          headerActions: 'not a list',
+        },
       },
       {
         id: 'beta',
@@ -25,6 +34,16 @@ const entries = vi.hoisted(() => {
             { id: '', label: 'No id', Component },
             { id: 'unnamed', label: 1, Component },
             { id: 'empty', label: 'Empty' },
+          ],
+          headerActions: [
+            action,
+            null,
+            { id: '', label: 'none', icon, run },
+            { id: 'unnamed', label: 1, icon, run },
+            { id: 'plain', label: 'plain', icon: 'Smile', run },
+            { id: 'idle', label: 'idle', icon },
+            { id: 'top', label: 'top', icon, run, placement: 'top' },
+            rowAction,
           ],
         },
       },
@@ -54,6 +73,9 @@ describe('registeredPlugins', () => {
     // A side panel needs an id, a label and a component.
     expect(plugins[0]?.sidePanels).toEqual([]);
     expect(plugins[1]?.sidePanels).toEqual([entries.panel]);
+    // A header action needs an id, a label, an icon, a run, and no placement or a known one.
+    expect(plugins[0]?.headerActions).toEqual([]);
+    expect(plugins[1]?.headerActions).toEqual(entries.actions);
   });
 
   it('is frozen when its module loads', async () => {
@@ -63,6 +85,7 @@ describe('registeredPlugins', () => {
       expect(Object.isFrozen(plugin)).toBe(true);
       expect(Object.isFrozen(plugin.messageRenderers)).toBe(true);
       expect(Object.isFrozen(plugin.sidePanels)).toBe(true);
+      expect(Object.isFrozen(plugin.headerActions)).toBe(true);
     }
   });
 

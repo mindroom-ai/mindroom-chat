@@ -1,4 +1,5 @@
 import { isRecord } from '../lib/isRecord';
+import { isHeaderAction, type HeaderAction } from './headerActions';
 import type { MessageRenderer } from './messageRenderers';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 import { isSidePanel, type SidePanel } from './sidePanels';
@@ -8,6 +9,7 @@ import { registerPluginTranslations, type PluginTranslations } from './pluginTra
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
   sidePanels?: readonly SidePanel[];
+  headerActions?: readonly HeaderAction[];
   translations?: PluginTranslations;
 };
 
@@ -17,11 +19,13 @@ export type RegisteredPlugin = {
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
   readonly sidePanels: readonly SidePanel[];
+  readonly headerActions: readonly HeaderAction[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
   const panels = isRecord(plugin) ? plugin.sidePanels : undefined;
+  const actions = isRecord(plugin) ? plugin.headerActions : undefined;
   registerPluginTranslations(id, isRecord(plugin) ? plugin.translations : undefined);
   return Object.freeze({
     id,
@@ -33,6 +37,7 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
         : []
     ),
     sidePanels: Object.freeze(Array.isArray(panels) ? panels.filter(isSidePanel) : []),
+    headerActions: Object.freeze(Array.isArray(actions) ? actions.filter(isHeaderAction) : []),
   });
 };
 

@@ -734,7 +734,13 @@ describe('RoomViewHeader', () => {
 
       expect(findButton(renderer, 'Show Computer')).toHaveLength(0);
       expect(findButton(renderer, 'Hide Computer')).toHaveLength(0);
-      expect(findMenuItem(renderer)).toHaveLength(1);
+      // The entry is named after whether the computer shows, as the button is.
+      const entry = state.open ? 'Hide Computer' : 'Show Computer';
+      expect(
+        renderer.root.findAll(
+          (node) => node.type === 'button' && !node.props['aria-label'] && textOf(node) === entry
+        )
+      ).toHaveLength(1);
       act(() => renderer.unmount());
     });
 

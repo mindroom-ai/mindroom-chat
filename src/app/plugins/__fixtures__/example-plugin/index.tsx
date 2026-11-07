@@ -1,7 +1,10 @@
 // A client plugin for the tests (docs/architecture.md "Client plugins"): a message that carries
 // `com.example.greeting: { text }` shows as "<label>: <text>", with `label` from its config.json
 // section (`plugins.example.label`), else from its strings: English here, German in locales/de.json.
-// A side panel, "Example panel", names the room it is open in.
+// A side panel, "Example panel", names the room it is open in. A header action, "Wave" ("Winken" in
+// German), shows in the room header's row where there is room, else in its room menu, and says
+// where it ran in an alert.
+import { Icons } from 'folds';
 import type { ClientPlugin } from '../../registry';
 import type { PluginEvent } from '../../messageRenderers';
 import { usePluginConfig } from '../../pluginConfig';
@@ -37,8 +40,20 @@ function ExamplePanel({ roomId }: { roomId: string }) {
 const plugin: ClientPlugin = {
   messageRenderers: [{ match: (event) => greetingText(event) !== undefined, Component: Greeting }],
   sidePanels: [{ id: 'panel', label: 'Example panel', Component: ExamplePanel }],
+  headerActions: [
+    {
+      id: 'wave',
+      label: 'wave',
+      icon: Icons.Smile,
+      placement: 'auto',
+      run: ({ roomId, threadId }) => {
+        // eslint-disable-next-line no-alert
+        window.alert(`Example wave in ${roomId}${threadId ? ` ${threadId}` : ''}`);
+      },
+    },
+  ],
   translations: {
-    en: { label: 'Example plugin' },
+    en: { label: 'Example plugin', wave: 'Wave' },
     load: async (language) =>
       language === 'de' ? (await import('./locales/de.json')).default : undefined,
   },
