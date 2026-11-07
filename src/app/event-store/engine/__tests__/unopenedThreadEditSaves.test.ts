@@ -109,7 +109,7 @@ describe('edits in a thread the app has not opened', () => {
     vi.restoreAllMocks();
   });
 
-  it("reach the thread's cache, each once, while the thread stays unopened", async () => {
+  it("reach the thread's cache, the newest of each reply, while the thread stays unopened", async () => {
     const { client, room } = roomWithListedThread();
     await loadRoomThreads(room);
     await settle();
@@ -140,13 +140,13 @@ describe('edits in a thread the app has not opened', () => {
     );
     await settle();
 
+    // The stream's edits are saved once they pause, the newest of each reply, or when the engine
+    // stops.
+    expect(persistThreadEventCache).not.toHaveBeenCalled();
+    engine.stop();
     const saved = persistThreadEventCache.mock.calls.flatMap(([savedRoom, threadId, events]) =>
       (events as MatrixEvent[]).map((event) => [savedRoom === room, threadId, event.getId()])
     );
-    expect(saved).toEqual([
-      [true, rootId, '$step'],
-      [true, rootId, '$final'],
-    ]);
-    engine.stop();
+    expect(saved).toEqual([[true, rootId, '$final']]);
   });
 });
