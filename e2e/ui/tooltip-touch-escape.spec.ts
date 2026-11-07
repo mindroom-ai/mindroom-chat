@@ -53,7 +53,7 @@ const check = async (page: Page, username: string, roomId: string) => {
   const button = page.getByRole('button', { name: 'More Options', exact: true });
   await expect(button).toBeVisible({ timeout: 30_000 });
   await button.tap();
-  const menu = page.getByRole('button', { name: 'Invite', exact: true });
+  const menu = page.getByRole('menuitem', { name: 'Invite', exact: true });
   await expect(menu).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(menu).toBeHidden();
