@@ -2,7 +2,7 @@ import React from 'react';
 import { RoomEvent, ThreadEvent } from 'matrix-js-sdk';
 import type { Room } from 'matrix-js-sdk';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useThreadOverviewRefreshCounter } from './threadOverviewRefreshCounter';
 
 type Listener = (...args: unknown[]) => void;
@@ -44,6 +44,31 @@ const fakeEvent = (eventId: string, threadRootId?: string) => ({
   getRelation: () => null,
 });
 
+// Animation frames run only when a test says so.
+let frames = new Map<number, FrameRequestCallback>();
+let lastFrame = 0;
+const runFrame = () => {
+  const due = [...frames.values()];
+  frames = new Map();
+  due.forEach((callback) => callback(0));
+};
+
+beforeEach(() => {
+  frames = new Map();
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    lastFrame += 1;
+    frames.set(lastFrame, callback);
+    return lastFrame;
+  });
+  vi.stubGlobal('cancelAnimationFrame', (frame: number) => {
+    frames.delete(frame);
+  });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 type CounterState = ReturnType<typeof useThreadOverviewRefreshCounter>;
 
 function Probe({
@@ -78,9 +103,11 @@ const renderCounter = async (room: FakeRoom, threadId?: string) => {
       act(async () => {
         renderer?.update(element(nextRoom, nextThreadId));
       }),
+    // One event, then the next animation frame.
     emit: (target: FakeRoom, name: string, ...args: unknown[]) =>
       act(async () => {
         target.emit(name, ...args);
+        runFrame();
       }),
     unmount: () =>
       act(async () => {
@@ -126,7 +153,7 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
     await view.unmount();
   });
 
-  it('counts each new thread, new reply and deleted thread, also within one task', async () => {
+  it('counts each new thread, new reply and deleted thread', async () => {
     const room = fakeRoom('!room:example.org');
     const view = await renderCounter(room);
 
@@ -137,14 +164,35 @@ describe('useThreadOverviewRefreshCounter subscriptions', () => {
     await view.emit(room, ThreadEvent.Delete);
     expect(view.counter()).toBe(3);
 
+    await view.unmount();
+  });
+
+  it('goes up once per animation frame, however many events come before it', async () => {
+    const room = fakeRoom('!room:example.org');
+    const view = await renderCounter(room);
+
+    // A thread that loads: its events come again through the room, with receipts, in several tasks.
     await act(async () => {
-      room.emit(ThreadEvent.New);
+      room.emit(RoomEvent.Timeline, fakeEvent('$reply', '$root'), room, false, false, {});
+      room.emit(RoomEvent.Receipt, {}, room);
       room.emit(ThreadEvent.Update);
+    });
+    await act(async () => {
       room.emit(ThreadEvent.NewReply);
     });
-    expect(view.counter()).toBe(6);
+    expect(view.counter()).toBe(0);
 
+    await act(async () => runFrame());
+    expect(view.counter()).toBe(1);
+    await act(async () => runFrame());
+    expect(view.counter()).toBe(1);
+
+    // A frame still to come when the view goes away never runs.
+    await act(async () => {
+      room.emit(ThreadEvent.New);
+    });
     await view.unmount();
+    expect(frames.size).toBe(0);
   });
 
   it('stops listening inside a thread and resumes from the same count after it', async () => {
