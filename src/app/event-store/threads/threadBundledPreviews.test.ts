@@ -285,7 +285,7 @@ describe('fresh-device bundled thread presentation', () => {
   });
 
   it('reads titles and replies as the server sorts them, whoever sent the title', () => {
-    // Any member's m.notice with an object marker is a title; every other thread event is a reply.
+    // Any member's m.notice with a truthy marker is a title; every other thread event is a reply.
     const shape = summaryShape();
     const titler = '@reviewer:example.org';
     shape['io.mindroom.title'] = {
@@ -340,7 +340,11 @@ describe('fresh-device bundled thread presentation', () => {
     const titled = (marker: unknown) => {
       const shape = summaryShape();
       const title = reply('$title', 'Older style title', 3000);
-      title.content = { ...title.content, msgtype: 'm.notice', 'io.mindroom.thread_summary': marker };
+      title.content = {
+        ...title.content,
+        msgtype: 'm.notice',
+        'io.mindroom.thread_summary': marker,
+      };
       shape['io.mindroom.title'] = title;
       const { room, root } = fixture(shape);
       return presentation(room, root).summaryText;
