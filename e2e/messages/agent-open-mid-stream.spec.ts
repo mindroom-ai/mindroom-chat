@@ -90,7 +90,7 @@ const openMidStream = async (
     // A reload paints what the page saved, which may trail the server's last edit; from there the
     // reply only grows.
     expect(
-      shown.filter((words, index) => index > 0 && words < shown[index - 1]),
+      shown.filter((words, index) => index > 0 && words < (shown[index - 1] ?? 0)),
       `word counts after the load: ${shown.join(' ')}`
     ).toEqual([]);
     return;
