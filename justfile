@@ -54,7 +54,7 @@ release *args:
     git fetch --quiet https://github.com/mindroom-ai/mindroom-chat.git main
     node scripts/calver.mjs release --main FETCH_HEAD {{args}}
 
-# What a first visit downloads before the app runs, the largest chunks, and the size budget (scripts/perf/bundle-budget.json) of a build (default dist/). `--sources` attributes the initial bytes to packages; build with `npx vite build --sourcemap` for it.
+# What a first visit downloads before the app runs, the largest chunks, and the size budget (scripts/perf/bundle-budget.json) of a build (default dist/). A build made with `npx vite build --manifest` also lists every chunk with its style sheets by source module, sorted by name, so that list diffs line by line between two builds. `--sources` attributes the initial bytes to packages; build with `npx vite build --sourcemap` for it.
 bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 

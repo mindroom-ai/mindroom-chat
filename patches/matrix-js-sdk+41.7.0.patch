@@ -3307,3 +3307,29 @@ index f8afdc4..54cfdfd 100644
              return;
          }
  
+diff --git a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
+index fecb644..712ee65 100644
+--- a/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
++++ b/node_modules/matrix-js-sdk/lib/rust-crypto/backup.js
+@@ -284,6 +284,8 @@ export class RustBackupManager extends TypedEventEmitter {
+         _this9.serverBackupInfo = undefined;
+         return null;
+       }
++      // A client stopped while the server answered has closed its OlmMachine: the check ends here.
++      if (_this9.stopped) return null;
+       _this9.checkedForBackup = true;
+       if (backupInfo && !backupInfo.version) {
+         _this9.logger.warn("active backup lacks a useful 'version'; ignoring it");
+diff --git a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
+index c3e4a37..8ebe7b7 100644
+--- a/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
++++ b/node_modules/matrix-js-sdk/src/rust-crypto/backup.ts
+@@ -313,6 +313,8 @@ export class RustBackupManager extends TypedEventEmitter<RustBackupCryptoEvents,
+             this.serverBackupInfo = undefined;
+             return null;
+         }
++        // A client stopped while the server answered has closed its OlmMachine: the check ends here.
++        if (this.stopped) return null;
+         this.checkedForBackup = true;
+ 
+         if (backupInfo && !backupInfo.version) {

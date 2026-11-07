@@ -65,6 +65,22 @@ describe('PdfViewer sources', () => {
     expect(saveFile).toHaveBeenCalledWith('blob:https://chat.example.org/1234', 'report.pdf');
   });
 
+  it('names the file with its direction controls as code points and saves it as it is', async () => {
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = create(
+        <PdfViewer name={'report\u202etxt.pdf'} src="blob:https://chat.example.org/1" requestClose={vi.fn()} />
+      );
+    });
+    expect(renderer.root.findAllByType('span').map((span) => span.children.join(''))).toContain(
+      'report<U+202E>txt.pdf'
+    );
+    await act(async () => {
+      downloadChip(renderer)?.props.onClick();
+    });
+    expect(saveFile).toHaveBeenCalledWith('blob:https://chat.example.org/1', 'report\u202etxt.pdf');
+  });
+
   it.each(['https://matrix.example.org/_matrix/media/v3/download/x/y', 'javascript:alert(1)'])(
     'neither frames nor saves %s',
     async (src) => {

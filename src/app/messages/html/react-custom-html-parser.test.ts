@@ -1444,4 +1444,25 @@ describe('direction controls in tool calls and code', () => {
     expect(markup).toContain('&lt;U+202C&gt;');
     expect(markup).not.toMatch(CONTROL);
   });
+
+  it('shows message text with every control as a code point', () => {
+    const text =
+      'invoice\u202etxt.exe\u202c, \u2066a\u2069 \u2067b\u2069 \u2068c\u2069 \u202ad\u202b\u202d \u200e\u200f\u061c';
+    const shown =
+      'invoice<U+202E>txt.exe<U+202C>, <U+2066>a<U+2069> <U+2067>b<U+2069> <U+2068>c<U+2069> ' +
+      '<U+202A>d<U+202B><U+202D> <U+200E><U+200F><U+061C>';
+    const plain = renderLatexTextMarkup(text);
+    expect(plain).toContain(shown.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+    expect(plain).not.toMatch(CONTROL);
+    // Math and links keep working beside the code points.
+    expect(renderLatexTextMarkup('see https://example.org \u202e$x^2$')).toContain(
+      'href="https://example.org"'
+    );
+
+    const formatted = renderCustomHtmlMarkup(`<p>Rename <b>${text}</b> first</p>`);
+    expect(formatted).toContain(
+      `<b>${shown.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</b>`
+    );
+    expect(formatted).not.toMatch(CONTROL);
+  });
 });
