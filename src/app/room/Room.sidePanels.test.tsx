@@ -491,12 +491,21 @@ describe('the side panels of a room', () => {
     expect(board()).not.toBeNull();
   });
 
-  /** A plugin's code that opens its panel as soon as it shows. */
+  /** A plugin's code that opens its panel as soon as it shows in a room. */
   function OpensAtOnce() {
-    const panel = useRoomSidePanel('notes', 'panel');
-    useLayoutEffect(() => panel?.open('at once'), [panel]);
+    const open = useRoomSidePanel('notes', 'panel')?.open;
+    useLayoutEffect(() => open?.('at once'), [open]);
     return null;
   }
+
+  it("lets the room's other panels open over a panel a plugin opened as it showed", async () => {
+    state.inView = <OpensAtOnce />;
+    await renderRoom();
+    expect(notes()).not.toBeNull();
+    await act(async () => state.view?.onPanelToggle?.('members'));
+    expect(shown()).toEqual(['members']);
+    expect(notes()).toBeNull();
+  });
 
   it("opens a plugin's panel from the plugin's layout effect, as the room first shows and after a switch", async () => {
     state.inView = <OpensAtOnce />;
