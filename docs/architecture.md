@@ -95,7 +95,8 @@ src/
 e2e/
   <domain>/              Playwright specs grouped by the same domain names; specs against the live homeserver that
                          take long end in .live.spec.ts
-  fixtures/              pages that render one component (fixtures/live/: live seeding script and minimap fixture)
+  fixtures/              pages that render one component (fixtures/live/: live seeding script and minimap fixture;
+                         fixtures/sample-plugin/: a plugin directory of the agent stack)
   helpers/               shared helpers
   rtc/                   the MatrixRTC authorization service for the call specs
   env.ts, global-setup.ts, api.d.ts, docker-compose*.yaml   environment, setup, the Tuwunel test homeserver
