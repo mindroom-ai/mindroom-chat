@@ -1,0 +1,199 @@
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { expect, test, type Browser, type Locator, type Page } from '@playwright/test';
+import { loginWithPassword } from '../helpers/auth';
+import {
+  DISPOSABLE_HOMESERVER as HOMESERVER,
+  disposableHomeserverIsUp,
+  registerDisposableUser,
+  type DisposableUser,
+} from '../helpers/disposableAccounts';
+import { createRoom } from '../helpers/createRoom';
+import { sendRoomMessage } from '../helpers/matrix';
+import { serveBuild } from '../helpers/staticBuildServer';
+
+// A production build with the example client plugin (src/app/plugins/__fixtures__/example-plugin),
+// whose room header slot shows "Example banner in <room name>", and a plugin whose slot component
+// throws, served as a deployment serves it, against the disposable homeserver. The banner shows
+// under the room header, across the conversation column and above the conversation; the broken
+// component shows nothing and the room keeps working; `?plugins=off` and
+// `plugins.example.enabled: false` leave the banner out. Set PLUGIN_SHOTS=<directory> to save
+// screenshots.
+const PLUGIN = resolve('src/app/plugins/__fixtures__/example-plugin');
+const PASSWORD = 'room-header-slot-password';
+const RUN = Date.now().toString(36);
+const ROOM_NAME = 'Slot room';
+const BANNER = `Example banner in ${ROOM_NAME}`;
+const SEEDED = 'The first message of the slot room';
+
+test.use({ viewport: { width: 1280, height: 800 } });
+test.describe.configure({ mode: 'serial' });
+
+type Seed = { person: DisposableUser; roomId: string };
+
+let build: string | undefined;
+let broken: string | undefined;
+let shippedConfig: Record<string, unknown> = {};
+let seeded: Seed | undefined;
+
+test.beforeAll(async () => {
+  if (!(await disposableHomeserverIsUp())) return;
+  test.setTimeout(10 * 60_000);
+  build = mkdtempSync(join(tmpdir(), 'mindroom-slot-build-'));
+  broken = mkdtempSync(join(tmpdir(), 'mindroom-slot-broken-'));
+  writeFileSync(
+    join(broken, 'package.json'),
+    JSON.stringify({
+      name: 'broken-slot-plugin',
+      version: '1.0.0',
+      mindroomClientPlugin: { id: 'broken', apiVersion: 1, entry: './index.js' },
+    })
+  );
+  writeFileSync(
+    join(broken, 'index.js'),
+    "export default { roomHeaderSlot: [() => { throw new Error('broken slot'); }] };\n"
+  );
+  const result = spawnSync('npx', ['vite', 'build', '--outDir', build, '--emptyOutDir'], {
+    env: { ...process.env, MINDROOM_CLIENT_PLUGINS: `${PLUGIN},${broken}` },
+    encoding: 'utf8',
+    timeout: 9 * 60_000,
+  });
+  if (result.status !== 0) {
+    throw new Error(
+      `the build with the plugins failed:\n${(result.stderr || result.stdout).slice(-3000)}`
+    );
+  }
+  shippedConfig = JSON.parse(readFileSync(join(build, 'config.json'), 'utf8'));
+
+  const person = await registerDisposableUser(`slot_person_${RUN}`, PASSWORD);
+  const roomId = await createRoom(HOMESERVER, person.accessToken, { name: ROOM_NAME });
+  await sendRoomMessage(HOMESERVER, person.accessToken, roomId, {
+    msgtype: 'm.text',
+    body: SEEDED,
+  });
+  seeded = { person, roomId };
+});
+
+test.afterAll(() => {
+  for (const dir of [build, broken]) if (dir) rmSync(dir, { recursive: true, force: true });
+});
+
+test.beforeEach(async () => {
+  test.skip(!(await disposableHomeserverIsUp()), `No homeserver at ${HOMESERVER}`);
+});
+
+/**
+ * Serves the build, with `plugins` as config.json's plugin sections, on a new origin, signs in in a
+ * page of a new browser context there, and runs `check` with the console errors the page logs.
+ */
+const onBuild = async (
+  browser: Browser,
+  plugins: Record<string, unknown>,
+  check: (page: Page, data: Seed, errors: string[]) => Promise<void>
+) => {
+  writeFileSync(join(build!, 'config.json'), JSON.stringify({ ...shippedConfig, plugins }));
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push(message.text());
+  });
+  try {
+    await loginWithPassword(page, { homeserver: HOMESERVER, ...seeded!.person });
+    await check(page, seeded!, errors);
+  } finally {
+    await context.close();
+    await server.close();
+  }
+};
+
+const roomPath = ({ roomId }: Seed, query = '') => `/home/${encodeURIComponent(roomId)}${query}`;
+
+const shot = async (page: Page, name: string) => {
+  const directory = process.env.PLUGIN_SHOTS;
+  if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
+};
+
+const roomHeader = (page: Page) => page.getByRole('banner').filter({ has: page.locator('h1') });
+const banner = (page: Page) => page.locator('[data-example-plugin-banner]');
+
+/** Waits for the open room: its header and its first message. */
+const roomShown = async (page: Page) => {
+  await expect(roomHeader(page)).toContainText(ROOM_NAME, { timeout: 60_000 });
+  await expect(page.getByText(SEEDED)).toBeVisible({ timeout: 60_000 });
+};
+
+/**
+ * Where the room timeline's content starts when scrolled to the top: below the inset its scroll
+ * area keeps clear of what floats over it.
+ */
+const conversationTop = (page: Page) =>
+  page.evaluate(() => {
+    const content = document.querySelector('[data-testid="room-virtual-inner"]')?.parentElement;
+    const scroller = content?.parentElement;
+    if (!content || !scroller) throw new Error('Room timeline missing');
+    return scroller.getBoundingClientRect().top + parseFloat(getComputedStyle(content).paddingTop);
+  });
+
+const box = async (locator: Locator) => {
+  const found = await locator.boundingBox();
+  expect(found).not.toBeNull();
+  return found!;
+};
+
+test("shows the plugin's banner under the room header, across the conversation, above it", ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await expect(banner(page)).toHaveText(BANNER);
+    const header = await box(roomHeader(page));
+    const shown = await box(banner(page));
+    expect(shown.y).toBeGreaterThanOrEqual(header.y + header.height - 1);
+    expect(shown.x).toBeCloseTo(header.x, 0);
+    expect(shown.width).toBeCloseTo(header.width, 0);
+    await expect
+      .poll(() => conversationTop(page))
+      .toBeGreaterThanOrEqual(shown.y + shown.height - 1);
+    await shot(page, 'room-header-slot');
+  }));
+
+test('a slot component that throws shows nothing, is reported, and leaves the room working', ({
+  browser,
+}) =>
+  onBuild(browser, {}, async (page, data, errors) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await expect(banner(page)).toHaveText(BANNER);
+    await expect
+      .poll(() => errors.some((text) => text.includes('[plugin broken@1.0.0]')))
+      .toBe(true);
+    const sent = `Sent past the broken plugin ${RUN}`;
+    const composer = page.getByRole('textbox', { name: 'Send a message...' });
+    await composer.click();
+    await page.keyboard.type(sent);
+    await page.keyboard.press('Enter');
+    await expect(page.getByText(sent)).toBeVisible({ timeout: 60_000 });
+    await shot(page, 'room-header-slot-broken');
+  }));
+
+test('?plugins=off leaves the banner out', ({ browser }) =>
+  onBuild(browser, {}, async (page, data, errors) => {
+    await page.goto(roomPath(data, '?plugins=off'));
+    await roomShown(page);
+    await expect(banner(page)).toHaveCount(0);
+    expect(errors.filter((text) => text.includes('[plugin '))).toEqual([]);
+    await shot(page, 'room-header-slot-plugins-off');
+  }));
+
+test('plugins.example.enabled: false leaves the banner out', ({ browser }) =>
+  onBuild(browser, { example: { enabled: false } }, async (page, data) => {
+    await page.goto(roomPath(data));
+    await roomShown(page);
+    await expect(banner(page)).toHaveCount(0);
+    await shot(page, 'room-header-slot-disabled');
+  }));
