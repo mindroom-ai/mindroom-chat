@@ -54,9 +54,7 @@ import {
 } from '../schedules/RoomSchedulesButton';
 import { CanvasHeaderButton, CanvasMenu } from '../canvas/CanvasHeaderButton';
 import { MenuEntry } from '../ui/MenuEntry';
-import { useCallPanel } from '../calls/callStore';
 import type { CanvasListEntry } from '../canvas/canvasIndexStore';
-import { useMembersDrawer } from '../members/useMembersDrawer';
 import { ShortcutLabel, shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import type { ShortcutId } from '../shortcuts/shortcuts';
 import { useShortcut } from '../shortcuts/useShortcut';
@@ -83,13 +81,18 @@ export type RoomViewHeaderProps = {
   /** Whether an agent or the user showed the computer in this conversation before. */
   computerShown?: boolean;
   onComputerToggle?: () => void;
-  canvasOpen?: boolean;
   canvases?: CanvasListEntry[];
   openCanvasId?: string;
   onCanvasOpen?: (canvasId: string) => void;
   onCanvasClose?: () => void;
   /** The call controls, which the room provides (`HeaderCallButtons`) for where they go. */
   calls?: (placement: HeaderCallPlacement) => ReactNode;
+  /** The side panel beside the room, by id (src/app/ui/panels/roomPanels.ts). */
+  shownPanel?: string;
+  /** Opens the members or a plugin's panel by the room's rule, or closes it while it shows. */
+  onPanelToggle?: (id: string) => void;
+  /** The plugins' side panels, which the room menu offers. */
+  pluginPanels?: readonly { id: string; label: string }[];
 };
 
 /**
@@ -227,12 +230,14 @@ export function RoomViewHeader({
   computerOpen,
   computerShown,
   onComputerToggle,
-  canvasOpen,
   canvases,
   openCanvasId,
   onCanvasOpen,
   onCanvasClose,
   calls,
+  shownPanel,
+  onPanelToggle,
+  pluginPanels = [],
 }: RoomViewHeaderProps) {
   const room = useRoom();
   const { t } = useTranslation();
@@ -247,7 +252,6 @@ export function RoomViewHeader({
   const hiddenFiltersActive =
     filterBarHidden && !!threadFilterState && hasActiveThreadFilters(threadFilterState);
   const navigate = useNavigate();
-  const [membersOpen, setMembersOpen] = useMembersDrawer();
   const { navigateRoomThread } = useRoomNavigate();
   const pinnedCount = useRoomPinnedEvents(room).length;
   const authenticatedMedia = useMediaAuthentication();
@@ -295,21 +299,8 @@ export function RoomViewHeader({
   const topic = roomTopic && revealDirectionControls(roomTopic);
   const [topicOpen, setTopicOpen] = useState(false);
 
-  // Canvas, computer and call take the side panel's place, so the members panel is hidden
-  // behind them.
-  const [callOpen, setCallOpen] = useCallPanel(room.roomId);
-  const sidePanelTaken = !!computerOpen || !!canvasOpen || callOpen;
-  const membersVisible = membersOpen && !sidePanelTaken;
-  const toggleMembers = () => {
-    if (membersVisible) {
-      setMembersOpen(false);
-      return;
-    }
-    if (computerOpen) onComputerToggle?.();
-    if (canvasOpen) onCanvasClose?.();
-    if (callOpen) setCallOpen(false);
-    setMembersOpen(true);
-  };
+  const membersVisible = shownPanel === 'members';
+  const toggleMembers = () => onPanelToggle?.('members');
   useShortcut('members', () => {
     toggleMembers();
     return true;
@@ -368,7 +359,19 @@ export function RoomViewHeader({
       })}
     />
   );
-  // What only works in the open room: on phones all the header leaves out, else the computer.
+  const pluginEntries = pluginPanels.map(({ id, label }) => (
+    <MenuEntry
+      key={id}
+      role="menuitemcheckbox"
+      aria-checked={shownPanel === id}
+      icon={Icons.Bulb}
+      after={shownPanel === id ? checkMark : undefined}
+      label={label}
+      onSelect={fromMenu(() => onPanelToggle?.(id))}
+    />
+  ));
+  // What only works in the open room: on phones all the header leaves out, else the computer and
+  // the plugins' panels.
   const roomEntries = mobile ? (
     <>
       {viewSwitch && !threadId && (
@@ -425,10 +428,16 @@ export function RoomViewHeader({
       )}
       <MenuEntry icon={Icons.User} label={membersEntryLabel} onSelect={fromMenu(toggleMembers)} />
       {computerEntry}
+      {pluginEntries}
       {calls?.({ at: 'menu', requestClose: closeMenu })}
     </>
   ) : (
-    computerEntry || undefined
+    (computerEntry || pluginEntries.length > 0) && (
+      <>
+        {computerEntry}
+        {pluginEntries}
+      </>
+    )
   );
 
   return (

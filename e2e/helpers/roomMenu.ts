@@ -7,12 +7,13 @@ const PHONE_MAX_WIDTH = 750;
 export const isPhoneLayout = (page: Page): boolean =>
   (page.viewportSize()?.width ?? Infinity) <= PHONE_MAX_WIDTH;
 
+/** The open room's header, the banner with the room's name. */
+export const roomHeader = (page: Page): Locator =>
+  page.getByRole('banner').filter({ has: page.locator('h1') });
+
 /** The room header's More Options button, which opens the room menu. */
 export const roomMoreOptions = (page: Page): Locator =>
-  page
-    .getByRole('banner')
-    .filter({ has: page.locator('h1') })
-    .getByRole('button', { name: 'More Options', exact: true });
+  roomHeader(page).getByRole('button', { name: 'More Options', exact: true });
 
 /**
  * Opens the room's pinned messages: the header's Pinned Messages button, or on a phone the room
