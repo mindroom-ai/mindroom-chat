@@ -30,6 +30,8 @@ import { alignUiActionSync } from './uiActionSync';
 // through the page, never reached: the call panel opens without a call).
 
 export const CORE_PANELS = ['computer', 'canvas', 'call', 'members'] as const;
+/** The name of the room the viewer opens the panels in. */
+const PANEL_ROOM = 'Side panels';
 type CorePanel = (typeof CORE_PANELS)[number];
 
 const COMPUTER_API = 'http://127.0.0.1:28179';
@@ -42,7 +44,7 @@ const seedPanelRoom = async (): Promise<PanelRoom> => {
   const viewer = await registerDisposableUser(`panels_${suffix}`, randomUUID());
   const agent = await registerAgentAccount(HOMESERVER, 'panels');
   const fixture = await createThreadFixture(HOMESERVER, viewer.accessToken, {
-    name: 'Side panels',
+    name: PANEL_ROOM,
     topic: 'One side panel at a time',
     rootBody: 'Show me around',
     replyBody: 'The panels of this conversation',
@@ -229,7 +231,7 @@ export const checkPanelFrame = async (
   // Another room shows without it; back in its room it is still folded.
   await showRoom(page, otherRoom);
   await expect(panel).toHaveCount(0);
-  await showRoom(page, 'Side panels');
+  await showRoom(page, PANEL_ROOM);
   await expect(tab).toBeVisible();
   expect(await widthOf(panel)).toBe(tabWidth);
 

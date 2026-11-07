@@ -391,11 +391,13 @@ describe('the side panels of a room', () => {
     expect(notes()).not.toBeNull();
   });
 
-  it("covers the conversation with a plugin's panel on phones", async () => {
+  it("covers the conversation with a plugin's panel on phones, which has no frame", async () => {
     await renderRoom(ScreenSize.Mobile);
     await act(async () => state.view?.onPanelToggle?.('notes/panel'));
     expect(notes()).not.toBeNull();
     expect(screen.queryByTestId('room-view')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fill the room with Notes' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Fold Notes to the edge' })).toBeNull();
     await act(async () => screen.getByRole('button', { name: 'Close Notes' }).click());
     expect(screen.queryByTestId('room-view')).not.toBeNull();
   });
@@ -490,14 +492,6 @@ describe('the side panels of a room', () => {
     expect(shown()).toEqual(['members']);
     expect(screen.queryByRole('button', { name: /^Fill the room with/ })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Fold .* to the edge$/ })).toBeNull();
-  });
-
-  it('gives a panel no frame on phones, where it covers the conversation as before', async () => {
-    await renderRoom(ScreenSize.Mobile);
-    await act(async () => state.view?.onPanelToggle?.('notes/panel'));
-    expect(notes()).not.toBeNull();
-    expect(frameButton('Fill the room with Notes')).toBeNull();
-    expect(frameButton('Fold Notes to the edge')).toBeNull();
   });
 
   it("lists the plugins' panels for the header, but none of a plugin config.json turns off", async () => {

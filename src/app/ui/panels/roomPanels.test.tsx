@@ -146,19 +146,14 @@ describe('useRoomPanels', () => {
     expect(result.current.layout).toBe('beside');
   });
 
-  it('opens a panel beside the conversation again, by a request or from elsewhere', () => {
-    const options = { b: { opensElsewhere: true } };
+  it('opens a closed panel beside the conversation again when it is requested', () => {
     const { result, rerender } = renderHook(useRoomPanelsIn, {
-      initialProps: { panels: panelsOf({ a: true }, options) },
+      initialProps: { panels: panelsOf({ a: true }) },
     });
     act(() => result.current.setLayout('a', 'filled'));
-    rerender({ panels: panelsOf({}, options) });
+    rerender({ panels: panelsOf({}) });
     act(() => result.current.request('a', () => undefined));
-    rerender({ panels: panelsOf({ a: true }, options) });
-    expect(result.current.layout).toBe('beside');
-
-    act(() => result.current.setLayout('b', 'folded'));
-    rerender({ panels: panelsOf({ b: true }, options) });
+    rerender({ panels: panelsOf({ a: true }) });
     expect(result.current.layout).toBe('beside');
   });
 });

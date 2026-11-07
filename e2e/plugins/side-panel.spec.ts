@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { disposableHomeserverIsUp } from '../helpers/disposableAccounts';
 import { roomMoreOptions } from '../helpers/roomMenu';
 import {
@@ -65,17 +65,30 @@ const closeExamplePanel = async (page: Page) => {
   await expect(panelLocator(page, 'plugin')).toHaveCount(0);
 };
 
+/** Serves the build, opens the panel room in a page of its own, runs `check`, and cleans up. */
+const withPanelRoom = async (
+  browser: Browser,
+  check: (page: Page, room: PanelRoom) => Promise<void>
+) => {
+  const server = await serveBuild(build!);
+  const context = await browser.newContext({ baseURL: server.origin });
+  const page = await context.newPage();
+  try {
+    await check(page, await openPanelRoom(context, page));
+  } finally {
+    // The page's live sync may still be in a route.
+    await context.unrouteAll({ behavior: 'ignoreErrors' });
+    await context.close();
+    await server.close();
+  }
+};
+
 test("the example plugin's side panel opens, yields and closes as the core panels do", async ({
   browser,
 }) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(10 * 60_000);
-  const server = await serveBuild(build!);
-  const context = await browser.newContext({ baseURL: server.origin });
-  const page = await context.newPage();
-  try {
-    const room = await openPanelRoom(context, page);
-
+  await withPanelRoom(browser, async (page, room) => {
     for (const core of CORE_PANELS) {
       // eslint-disable-next-line no-await-in-loop
       await test.step(`the plugin's panel and the ${core}`, async () => {
@@ -99,12 +112,7 @@ test("the example plugin's side panel opens, yields and closes as the core panel
     await expect(menuEntry(page)).toHaveAttribute('aria-checked', 'true');
     await menuEntry(page).click();
     await expect(panelLocator(page, 'plugin')).toHaveCount(0);
-  } finally {
-    // The page's live sync may still be in a route.
-    await context.unrouteAll({ behavior: 'ignoreErrors' });
-    await context.close();
-    await server.close();
-  }
+  });
 });
 
 test("the example plugin's side panel fills the room and folds to a tab, per room", async ({
@@ -112,21 +120,12 @@ test("the example plugin's side panel fills the room and folds to a tab, per roo
 }, testInfo) => {
   test.skip(!(await disposableHomeserverIsUp()), 'Needs the disposable homeserver.');
   test.setTimeout(5 * 60_000);
-  const server = await serveBuild(build!);
-  const context = await browser.newContext({ baseURL: server.origin });
-  const page = await context.newPage();
-  try {
-    const room = await openPanelRoom(context, page);
+  await withPanelRoom(browser, async (page, room) => {
     await openExamplePanel(page, room);
     await checkPanelFrame(page, testInfo, room, {
       panel: panelLocator(page, 'plugin'),
       label: 'Example panel',
     });
     await expect(page.getByText(`Example panel of ${room.roomId}`)).toBeVisible();
-  } finally {
-    // The page's live sync may still be in a route.
-    await context.unrouteAll({ behavior: 'ignoreErrors' });
-    await context.close();
-    await server.close();
-  }
+  });
 });
