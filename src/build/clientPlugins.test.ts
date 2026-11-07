@@ -8,27 +8,21 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { createServer as createHttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build, createServer, type Rollup, type UserConfig } from 'vite';
 import { afterAll, describe, expect, it } from 'vitest';
-import {
-  clientPlugins,
-  pluginOwner,
-  pluginPublicFiles,
-  readClientPlugins,
-} from '../../scripts/client-plugins.mjs';
+import { clientPlugins, pluginOwner, readClientPlugins } from '../../scripts/client-plugins.mjs';
 import { onePackageCopyPerVersion } from '../../scripts/package-copies.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const EXAMPLE = path.join(ROOT, 'src/app/plugins/__fixtures__/example-plugin');
 const ENTRIES = path.join(ROOT, 'src/app/plugins/pluginEntries.ts');
 
-/** The chunks of an in-memory build of the entries module and `inputs`, with these build variables. */
-const buildEntries = async (
+/** The output of an in-memory build of the entries module and `inputs`, with these build variables. */
+const buildOutput = async (
   env: Record<string, string | undefined>,
   { inputs = [], external }: { inputs?: string[]; external?: (id: string) => boolean } = {}
 ) => {
@@ -44,8 +38,12 @@ const buildEntries = async (
       rollupOptions: { input: [ENTRIES, ...inputs], preserveEntrySignatures: 'strict', external },
     },
   })) as Rollup.RollupOutput;
-  return output.output.flatMap((file) => (file.type === 'chunk' ? [file] : []));
+  return output.output;
 };
+
+/** The chunks of an in-memory build of the entries module and `inputs`, with these build variables. */
+const buildEntries = async (...args: Parameters<typeof buildOutput>) =>
+  (await buildOutput(...args)).flatMap((file) => (file.type === 'chunk' ? [file] : []));
 
 /** Packages, which builds that check the entries module and the plugins' own files leave out. */
 const packages = (id: string) =>
@@ -256,26 +254,14 @@ describe("a plugin's public/ directory", () => {
   };
 
   /** The files a build with these build variables writes under public/plugins/, as text. */
-  const publicFilesBuilt = async (env: Record<string, string | undefined>) => {
-    const output = (await build({
-      configFile: false,
-      root: ROOT,
-      publicDir: false,
-      logLevel: 'silent',
-      plugins: [clientPlugins(env)],
-      build: {
-        write: false,
-        rollupOptions: { input: ENTRIES, external: packages },
-      },
-    })) as Rollup.RollupOutput;
-    return Object.fromEntries(
-      output.output.flatMap((file) =>
+  const publicFilesBuilt = async (env: Record<string, string | undefined>) =>
+    Object.fromEntries(
+      (await buildOutput(env, { external: packages })).flatMap((file) =>
         file.type === 'asset' && file.fileName.startsWith('public/plugins/')
           ? [[file.fileName, Buffer.from(file.source).toString()]]
           : []
       )
     );
-  };
 
   it('ships under public/plugins/<id>/ of the build, one directory per plugin', async () => {
     const other = pluginDir(declaring());
@@ -299,14 +285,11 @@ describe("a plugin's public/ directory", () => {
     ['as the directory itself', 'public', 'not a directory'],
   ])('fails the build for a symbolic link %s, naming it', async (_case, link, what) => {
     const dir = pluginDir(declaring());
-    writeFiles(dir, { 'public/kept.txt': 'kept' });
-    const outside = emptyDir();
-    writeFileSync(path.join(outside, 'secret.txt'), 'secret');
-    if (link === 'public') rmSync(path.join(dir, 'public'), { recursive: true });
-    symlinkSync(outside, path.join(dir, link));
-    const reason = `MINDROOM_CLIENT_PLUGINS: ${dir}: ${link} is ${what}`;
-    expect(() => pluginPublicFiles(dir)).toThrow(reason);
-    await expect(publicFilesBuilt({ MINDROOM_CLIENT_PLUGINS: dir })).rejects.toThrow(reason);
+    mkdirSync(path.join(dir, path.dirname(link)), { recursive: true });
+    symlinkSync(emptyDir(), path.join(dir, link));
+    await expect(publicFilesBuilt({ MINDROOM_CLIENT_PLUGINS: dir })).rejects.toThrow(
+      `MINDROOM_CLIENT_PLUGINS: ${dir}: ${link} is ${what}`
+    );
   });
 
   it('is served by the dev server at the same paths, anything else there as a 404', async () => {
@@ -317,14 +300,11 @@ describe("a plugin's public/ directory", () => {
       root: ROOT,
       logLevel: 'silent',
       plugins: [clientPlugins({ MINDROOM_CLIENT_PLUGINS: dir })],
-      server: { middlewareMode: true, hmr: false, watch: null },
+      server: { host: '127.0.0.1', port: 0, hmr: false, watch: null },
       optimizeDeps: { noDiscovery: true, include: [] },
     });
-    const server = createHttpServer(vite.middlewares);
-    await new Promise<void>((resolve) => {
-      server.listen(0, '127.0.0.1', resolve);
-    });
-    const { port } = server.address() as AddressInfo;
+    await vite.listen();
+    const { port } = vite.httpServer!.address() as AddressInfo;
     const get = (pathname: string) => fetch(`http://127.0.0.1:${port}${pathname}`);
     try {
       const page = await get('/public/plugins/some-plugin/sub/page.html');
@@ -334,12 +314,12 @@ describe("a plugin's public/ directory", () => {
       for (const missing of [
         '/public/plugins/some-plugin/sub/missing.html',
         '/public/plugins/some-plugin/..%2fsecret.txt',
+        '/public/plugins/some-plugin/sub/%E0.html',
         '/public/plugins/other/sub/page.html',
       ]) {
         expect((await get(missing)).status, missing).toBe(404);
       }
     } finally {
-      server.close();
       await vite.close();
     }
   });

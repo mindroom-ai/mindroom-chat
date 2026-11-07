@@ -133,7 +133,7 @@ const PUBLIC_FILES = 'public/plugins';
  * @param {string} dir
  * @returns {string[]}
  */
-export const pluginPublicFiles = (dir) => {
+const pluginPublicFiles = (dir) => {
   const root = path.join(dir, 'public');
   /** @returns {never} */
   const fail = (/** @type {string} */ name, /** @type {string} */ what) => {
@@ -257,25 +257,30 @@ export const clientPlugins = (env = process.env) => {
         }
       }
     },
-    // The dev server serves the same files at the same paths, as it serves any file (scripts and
-    // style sheets through its transforms), and anything else under public/plugins/ as a 404.
+    // The dev server serves the same files at the same paths, as it serves any file (scripts, style
+    // sheets and files without an extension through its transforms), and anything else under
+    // public/plugins/ as a 404.
     configureServer: (server) => {
+      const prefix = `/${PUBLIC_FILES}/`;
       server.middlewares.use((req, res, next) => {
         const [pathname = ''] = (req.url ?? '').split('?');
-        if (!pathname.startsWith(`/${PUBLIC_FILES}/`)) {
-          next();
-          return;
-        }
-        const [id, ...parts] = pathname.slice(PUBLIC_FILES.length + 2).split('/');
-        const plugin = plugins.find((other) => other.id === id);
-        const name = decodeURIComponent(parts.join('/'));
-        if (plugin && pluginPublicFiles(plugin.dir).includes(name)) {
+        if (pathname.startsWith(prefix)) {
+          const [id, ...parts] = pathname.slice(prefix.length).split('/');
+          const plugin = plugins.find((other) => other.id === id);
+          let name = '';
+          try {
+            name = decodeURIComponent(parts.join('/'));
+          } catch {
+            // A malformed escape names no file.
+          }
+          if (!plugin || !pluginPublicFiles(plugin.dir).includes(name)) {
+            res.statusCode = 404;
+            res.end();
+            return;
+          }
           req.url = `/@fs${encodeURI(normalizePath(path.join(plugin.dir, 'public', name)))}`;
-          next();
-          return;
         }
-        res.statusCode = 404;
-        res.end();
+        next();
       });
     },
   };
