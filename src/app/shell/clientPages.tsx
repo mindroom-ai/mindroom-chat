@@ -26,6 +26,7 @@ import { useMarkPhoneSectionRoot } from '../navigation/phoneNavDrawer';
 import { Space } from '../sidebar/space/Space';
 import { PhoneTopBar } from '../sidebar/PhoneTopBar';
 import { PhoneNavDrawer } from '../sidebar/PhoneNavDrawer';
+import { usePluginPage } from '../plugins/pluginPages';
 
 // The signed-in pages. Router.tsx loads this module on its own, so the sign-in pages start
 // without the code of every signed-in screen; the signed-in client starts its account while
@@ -49,14 +50,17 @@ export { Invites } from '../notifications/inbox/Invites';
 export { InboxNav } from '../notifications/inbox/InboxNav';
 export { ExploreNav } from '../rooms/explore/ExploreNav';
 export { Notifications } from '../notifications/inbox/Notifications';
+export { PluginPageRoute } from '../plugins/pluginPages';
 
 /**
  * The signed-in frame around every page: account atoms, dialogs, the rail and the page. Wider
  * than a phone, the page and the side panels beside a room float as cards on the app background;
- * phones, also held sideways, stay full-bleed.
+ * phones, also held sideways, stay full-bleed. A plugin page that fills the window has no rail,
+ * and on phones no top bar or drawer.
  */
 export function SignedInChrome() {
   const floating = useFloatingCardsLayout();
+  const rail = !usePluginPage()?.page.fillsWindow;
   // Beside the page on wider screens; on phones in the drawer below the top bar.
   const nav = <CollapsibleSidebarNav />;
   return (
@@ -65,9 +69,9 @@ export function SignedInChrome() {
         <NavigationProvider>
           <FloatingCardsContext.Provider value={floating}>
             <ClientLayout
-              nav={nav}
-              phoneTopBar={<PhoneTopBar />}
-              phoneNavDrawer={<PhoneNavDrawer nav={nav} />}
+              nav={rail && nav}
+              phoneTopBar={rail && <PhoneTopBar />}
+              phoneNavDrawer={rail && <PhoneNavDrawer nav={nav} />}
               className={floating ? FloatingShell : undefined}
             >
               {/* A page whose code is still loading leaves the rail and dialogs in place. */}

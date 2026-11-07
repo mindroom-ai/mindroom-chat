@@ -1,10 +1,12 @@
 import { isRecord } from '../lib/isRecord';
 import type { MessageRenderer } from './messageRenderers';
+import type { PluginPage } from './pluginPages';
 import { pluginEntries, type PluginEntry } from './pluginEntries';
 
 /** What the entry module of a client plugin exports by default: its contributions, by kind. */
 export type ClientPlugin = {
   messageRenderers?: readonly MessageRenderer[];
+  pages?: readonly PluginPage[];
 };
 
 /** A plugin of this build; `tag` (`<id>@<version>`) names it in logs and error reports. */
@@ -12,10 +14,12 @@ export type RegisteredPlugin = {
   readonly id: string;
   readonly tag: string;
   readonly messageRenderers: readonly MessageRenderer[];
+  readonly pages: readonly PluginPage[];
 };
 
 const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
   const renderers = isRecord(plugin) ? plugin.messageRenderers : undefined;
+  const pages = isRecord(plugin) ? plugin.pages : undefined;
   return Object.freeze({
     id,
     tag: `${id}@${version}`,
@@ -23,6 +27,13 @@ const register = ({ id, version, plugin }: PluginEntry): RegisteredPlugin => {
     messageRenderers: Object.freeze(
       Array.isArray(renderers)
         ? renderers.filter((renderer) => isRecord(renderer) && typeof renderer.match === 'function')
+        : []
+    ),
+    pages: Object.freeze(
+      Array.isArray(pages)
+        ? pages.filter(
+            (page) => isRecord(page) && typeof page.path === 'string' && !!page.Component
+          )
         : []
     ),
   });

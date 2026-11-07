@@ -32,5 +32,6 @@ test('covers every route pattern of the app', async () => {
   const routes = routeExamples(patterns);
   assert.ok(routes.every((route) => route.startsWith('/') && !route.includes(':')));
   assert.ok(routes.includes('/explore/mindroom.chat'));
+  assert.ok(routes.includes('/p/example'));
   assert.ok(routes.includes('/%23space%3Amatrix.org/!room%3Amindroom.chat/%24event%3Amatrix.org'));
 });

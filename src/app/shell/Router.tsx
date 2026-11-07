@@ -34,6 +34,7 @@ import {
   INBOX_NOTIFICATIONS_PATH,
   INBOX_PATH,
   LOGIN_PATH,
+  PLUGIN_PAGE_PATH,
   REGISTER_PATH,
   RESET_PASSWORD_PATH,
   ROOT_PATH,
@@ -125,6 +126,7 @@ const Invites = fromPages((pages) => pages.Invites);
 const InboxNav = fromPages((pages) => pages.InboxNav);
 const ExploreNav = fromPages((pages) => pages.ExploreNav);
 const Notifications = fromPages((pages) => pages.Notifications);
+const PluginPageRoute = fromPages((pages) => pages.PluginPageRoute);
 const Room = fromModule(
   () => roomModule,
   loadRoom,
@@ -244,6 +246,8 @@ export const createRouter = (clientConfig: ClientConfig) => {
           <Route path={EXPLORE_FEATURED_PATH} element={<FeaturedRooms />} />
           <Route path={EXPLORE_SERVER_PATH} element={<PublicRooms />} />
         </Route>
+        {/* A plugin's pages; its own static root keeps them from opening as a space. */}
+        <Route path={PLUGIN_PAGE_PATH} element={<PluginPageRoute />} />
         <Route path={INBOX_PATH} element={<SectionPage nav={<InboxNav />} />}>
           {/* The Inbox opens on Invites; phones stay here, its list out over Invites. */}
           <Route
