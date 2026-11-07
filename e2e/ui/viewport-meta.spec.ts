@@ -50,7 +50,10 @@ test('WebKit loads the app without a viewport console error', async ({ baseURL }
   }
 });
 
-test('Chromium keeps resizing the page for the on-screen keyboard', async ({ browser, baseURL }) => {
+test('Chromium keeps resizing the page for the on-screen keyboard', async ({
+  browser,
+  baseURL,
+}) => {
   const page = await (await browser.newContext({ ...DEVICES.phone, baseURL })).newPage();
   await page.goto('/');
   await expect(page.locator('#root')).not.toBeEmpty({ timeout: 30_000 });
