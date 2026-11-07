@@ -9,6 +9,8 @@ export type NewRoom = {
   space?: boolean;
   /** The local part of the room's address, which becomes its canonical alias. */
   alias?: string;
+  /** Turns on end-to-end encryption (`m.room.encryption`) from the start. */
+  encrypted?: boolean;
 };
 
 /** Creates a room without a topic, private unless `preset` says otherwise; answers its ID. */
@@ -26,6 +28,15 @@ export const createRoom = async (
       invite: room.invite,
       creation_content: room.space ? { type: 'm.space' } : undefined,
       room_alias_name: room.alias,
+      initial_state: room.encrypted
+        ? [
+            {
+              type: 'm.room.encryption',
+              state_key: '',
+              content: { algorithm: 'm.megolm.v1.aes-sha2' },
+            },
+          ]
+        : undefined,
     }),
   });
   return created.room_id;
