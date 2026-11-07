@@ -564,6 +564,33 @@ describe('CallTranscriber when MindRoom is unavailable', () => {
     }
   );
 
+  it.each([
+    ['answers with an error', serverError, 0],
+    ['gets no answer', unanswered, 15_000],
+  ])(
+    'turns unavailable when a Pause request %s, and the first answered check-in resumes',
+    async (_case, failure, wait) => {
+      const t = setup();
+      t.transcriber.setMicrophone(MIC_A);
+      t.transcriber.start();
+      await advance();
+      t.server.pause.mockImplementationOnce(failure);
+
+      const pausing = t.transcriber.pause(true);
+      await advance(wait);
+      await pausing;
+      expect(t.statuses).toEqual(['transcribing', 'unavailable']);
+      expect(t.capture().stopped).toBe(true);
+      t.capture().onStretch(stretch(1));
+      await advance();
+      expect(t.speeches()).toEqual([]);
+
+      await advance(20_000 - wait);
+      expect(t.statuses).toEqual(['transcribing', 'unavailable', 'transcribing']);
+      expect(t.capture(1).track).toBe(MIC_A);
+    }
+  );
+
   it('goes on with the later uploads and the leave when a callback throws during an upload', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
@@ -770,16 +797,20 @@ describe('CallTranscriber Pause', () => {
     expect(t.pauses()).toEqual([]);
   });
 
-  it('hands on nothing for a refused request, nor one without an answer after 15 seconds', async () => {
+  it('hands on nothing for a refused request, which checks in, nor one without an answer after 15 seconds', async () => {
     const t = setup();
     t.transcriber.start();
     await advance();
-    t.updates.length = 0;
     t.server.pause
       .mockImplementationOnce(() => json({ error: 'Not in the call.', code: 'not-found' }, 404))
       .mockImplementationOnce(unanswered);
 
     await t.transcriber.pause(true);
+    await advance();
+    // Not (or no longer) in the call: the check-in finds out.
+    expect(t.joins()).toBe(2);
+    expect(t.statuses).toEqual(['transcribing']);
+    t.updates.length = 0;
     let answered = false;
     const pausing = t.transcriber.pause(true).then(() => {
       answered = true;
@@ -790,7 +821,6 @@ describe('CallTranscriber Pause', () => {
     await pausing;
     expect(t.pauses()).toEqual(['pause true', 'pause true']);
     expect(t.updates.filter((update) => update.type === 'call')).toEqual([]);
-    expect(t.statuses).toEqual(['transcribing']);
   });
 });
 

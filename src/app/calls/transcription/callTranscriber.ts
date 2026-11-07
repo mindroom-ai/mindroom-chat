@@ -171,7 +171,7 @@ export class CallTranscriber {
 
   /**
    * Pauses or resumes transcription of the joined call for everyone in it; MindRoom's answer is
-   * handed on. Refused or unanswered, the next read of the live call says how it is.
+   * handed on. Refused, the next read of the live call says how it is.
    */
   async pause(paused: boolean): Promise<void> {
     const { callId } = this;
@@ -181,8 +181,8 @@ export class CallTranscriber {
         this.client.pause(callId, paused, signal)
       );
       this.applyAnswer(call);
-    } catch {
-      // The next read of the live call tells.
+    } catch (error) {
+      this.routeFailed(error);
     }
   }
 
@@ -366,9 +366,7 @@ export class CallTranscriber {
             if (!(await sleep(wait, timeout.signal))) return;
             continue;
           }
-          // Not (or no longer) in the call, or the call is over: the check-in finds out.
-          if (isNotTranscribed(error)) this.heartbeat();
-          else if (isUnavailable(error)) this.becomeUnavailable();
+          this.routeFailed(error);
           return;
         }
       }
@@ -380,6 +378,15 @@ export class CallTranscriber {
   private becomeUnavailable(): void {
     this.setStatus('unavailable');
     this.updateCapture();
+  }
+
+  /**
+   * A call route that failed: not (or no longer) in the call, or the call is over, the check-in
+   * finds out; MindRoom unreachable or failing, nothing is sent until a check-in is answered.
+   */
+  private routeFailed(error: unknown): void {
+    if (isNotTranscribed(error)) this.heartbeat();
+    else if (isUnavailable(error)) this.becomeUnavailable();
   }
 
   // The live call
