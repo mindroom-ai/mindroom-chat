@@ -99,7 +99,8 @@ main() {
   [ -d "$modules" ] || die "$checkout has no node_modules"
 
   local root="${PUSH_GATE_ROOT:-/tmp/mindroom-client-push-gate}"
-  mkdir -p "$root"
+  . "$(dirname "$script")/private-dir.sh"
+  private_dir "$root"
   # Logs of gates nobody looked at for two days go.
   find "$root" -mindepth 1 -maxdepth 1 -type d -mtime +2 -exec rm -rf {} +
   work="$root/${sha:0:12}-$(date +%Y%m%dT%H%M%S)"
