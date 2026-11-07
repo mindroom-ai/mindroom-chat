@@ -143,16 +143,20 @@ export const routeClientConfig = async (
   );
 };
 
-/** Signs the test account in with its password, for a browser of a spec's own. */
-export const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
+/** Signs `account` in with its password, the test account by default, for a spec's own browser. */
+export const signIn = async (
+  page: Page,
+  stack: AgentStack,
+  account: { username: string; password: string } = stack.tester
+): Promise<void> => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('settings')) {
       localStorage.setItem('settings', JSON.stringify({ isPeopleDrawer: false }));
     }
   });
   await page.goto(`/login/${encodeURIComponent(stack.homeserver)}`, { timeout: 180_000 });
-  await page.locator('input[name="usernameInput"]').fill(stack.tester.username);
-  await page.locator('input[name="passwordInput"]').fill(stack.tester.password);
+  await page.locator('input[name="usernameInput"]').fill(account.username);
+  await page.locator('input[name="passwordInput"]').fill(account.password);
   await page.getByRole('button', { name: 'Login', exact: true }).click();
   // The first start of an account sets up its encryption, which takes long on a loaded machine.
   await expect(
