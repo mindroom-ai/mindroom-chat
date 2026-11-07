@@ -31,6 +31,7 @@ import { createStoredSessionTokenRefresh } from '../../matrix/client/sessionToke
 import { cryptoCallbacks } from '../../matrix/client/secretStorageKeys';
 import { renewExpiredCloudflareAccess } from '../../native/cloudflareAccess';
 import { keepEveryReceiptInSavedSync } from '../../matrix/client/savedSyncReceipts';
+import { restoreStreamingRepliesFromCache } from '../../event-store/sdk/restoredStreamingReplies';
 
 // Account removal, logout and cache clearing live in sessionLifecycle.ts. The three below end an
 // account's session and also drop the avatars that account fetched (avatarMedia keeps them per
@@ -318,9 +319,10 @@ export const initClient = async (session: ClientBootstrapSession): Promise<Matri
   raiseSyncArchiveTimelineLimit(store);
 
   // Both open IndexedDB databases; run them together, and on failure wait for the other to
-  // settle before tearing the half-started runtime down.
+  // settle before tearing the half-started runtime down. Streaming replies the saved sync holds
+  // are read from the event cache meanwhile, so the rooms first show their newest saved text.
   const results = await Promise.allSettled([
-    store.startup(),
+    store.startup().then(() => restoreStreamingRepliesFromCache(mx)),
     mx.initRustCrypto({ cryptoDatabasePrefix: getSessionRustCryptoStorePrefix(session) }),
   ]);
   const failure = results.find(
