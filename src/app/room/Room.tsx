@@ -4,9 +4,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -75,6 +73,8 @@ import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
 import { PluginSidePanel } from './PluginSidePanel';
 import { usePluginPanel } from './usePluginPanel';
+import { useLatestRef } from '../lib/hooks/useLatestRef';
+import { useAlive } from '../lib/hooks/useAlive';
 
 /** The computer opens wide enough for a desktop screen beside the conversation. */
 const COMPUTER_DEFAULT_WIDTH = 672;
@@ -453,27 +453,28 @@ function RoomContent() {
   // got these, once a save ends, say: they act on the room and the panel shown then, and not at all
   // once this page has gone.
   const shownId = shown?.id;
-  const now = useRef<{ roomId: string; shownId?: string }>();
-  useLayoutEffect(() => {
-    now.current = { roomId, shownId };
-    return () => {
-      now.current = undefined;
-    };
-  });
+  const now = useLatestRef({ roomId, shownId });
+  const alive = useAlive();
   const { show: showPluginPanel } = pluginPanel;
   const roomSidePanels = useMemo<RoomSidePanels>(
     () => ({
       shown: shownId,
       open: (id, panelRequest) => {
-        if (now.current?.roomId === roomId && pluginPanels.some((panel) => panel.id === id)) {
+        if (
+          alive() &&
+          now.current.roomId === roomId &&
+          pluginPanels.some((panel) => panel.id === id)
+        ) {
           request(id, () => showPluginPanel(id, panelRequest));
         }
       },
       close: (id) => {
-        if (now.current?.roomId === roomId && now.current.shownId === id) closePluginPanel();
+        if (alive() && now.current.roomId === roomId && now.current.shownId === id) {
+          closePluginPanel();
+        }
       },
     }),
-    [closePluginPanel, pluginPanels, request, roomId, showPluginPanel, shownId]
+    [alive, closePluginPanel, now, pluginPanels, request, roomId, showPluginPanel, shownId]
   );
 
   const showCanvas = useCallback(
