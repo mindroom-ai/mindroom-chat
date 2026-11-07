@@ -24,29 +24,25 @@ export const ListSlot = style({
 });
 
 export const PageSlot = recipe({
+  base: { pointerEvents: 'none' },
   variants: {
     phone: {
-      // Over the top of the page, centred: placed against the signed-in layout (or, signed out,
-      // against the top of the app), so whatever sits above it moves it along.
+      // Over the top of the page, its notice centred in a grid cell as wide as the page less
+      // S300 each side: placed against the signed-in layout (or, signed out, against the top of
+      // the app), so whatever sits above it moves it along.
       false: {
         position: 'absolute',
         // Above the pages, below folds' dialogs, menus and tooltips in their own layer.
         zIndex: 1000,
         insetBlockStart: config.space.S300,
         insetInline: config.space.S300,
-        display: 'flex',
-        justifyContent: 'center',
-        pointerEvents: 'none',
+        display: 'grid',
+        justifyItems: 'center',
       },
       // A line of no height between the top bar and the page, which its notice hangs from. At
       // z-index 1 it paints over the page (an isolated layer, painted as z-index 0), and the
       // drawer and a room's members sheet, at z-index 1 later in the page, slide in over it.
-      true: {
-        position: 'relative',
-        zIndex: 1,
-        flexShrink: 0,
-        blockSize: 0,
-      },
+      true: { position: 'relative', zIndex: 1, blockSize: 0 },
     },
   },
 });
