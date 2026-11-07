@@ -559,6 +559,37 @@ describe('unread counts of an encrypted room', () => {
     expect(inItsThread.room().getRoomUnreadNotificationCount()).toBe(1);
   });
 
+  // The server (mindroom-tuwunel #140, v1.9.4-mindroom.31) reads a context up to the event a
+  // receipt names, not up to when it took the receipt: a reader who stopped at the thread's first
+  // reply still has the replies after it unread on the server, while the client counted them read.
+  it('leave unread the events after the event an older receipt names', async () => {
+    const reply = (eventId: string, ts: number) =>
+      plain(eventId, OTHER, ts, { rel_type: 'm.thread', event_id: ROOT });
+    const f = await fixture(true);
+    await f.deliver(
+      [
+        plain(ROOT, OTHER, 10),
+        reply('$first', 11),
+        reply('$second', 12),
+        reply('$third', 13),
+        plain('$later', OTHER, 14),
+        plain('$latest', OTHER, 15),
+      ],
+      [otherThreadReceipt]
+    );
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([3, 3]);
+
+    // Taken after every event, on the thread's first reply.
+    const readFirst = { $first: { 'm.read': { [ME]: { ts: 20, thread_id: ROOT } } } };
+    await f.deliver([], [{ type: 'm.receipt', content: readFirst }]);
+    expect(f.threadCount()).toBe(2);
+
+    // An unthreaded receipt reads every context, up to its event: the main timeline's root here.
+    const readRoot = { [ROOT]: { 'm.read': { [ME]: { ts: 21 } } } };
+    await f.deliver([], [{ type: 'm.receipt', content: readRoot }]);
+    expect([f.room().getRoomUnreadNotificationCount(), f.threadCount()]).toEqual([2, 2]);
+  });
+
   it('do not count streaming edits a new session cannot decrypt', async () => {
     const f = await fixture(true);
     // A reply in the room's main timeline (a room in room mode), read at its start.

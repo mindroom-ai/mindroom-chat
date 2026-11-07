@@ -27,10 +27,11 @@ import { getFinishingEdit } from './syncedEdits';
 // So the client counts an encrypted room again from what it holds whenever that changes, by the
 // server's rules (mindroom-tuwunel): a context (the main timeline or a thread) counts the events
 // after the user last read it that the push rules notify for. Reading is a receipt in the context
-// at the time the server took it, an unthreaded receipt (it reads every context), an event of the
-// user's own in the context (mindroom-tuwunel #139: one in a thread reads that thread, any other
-// the main timeline; a state event reads nothing), or the user's own join, which reads the whole
-// room. A reply that streams counts as
+// up to the event it names (mindroom-tuwunel #140: an older receipt leaves the events after its
+// event unread), an unthreaded receipt (it reads every context), an event of the user's own in the
+// context (mindroom-tuwunel #139: one in a thread reads that thread, any other the main timeline;
+// a state event reads nothing), or the user's own join, which reads the whole room. A reply that
+// streams counts as
 // one message once its terminal edit arrives, at that edit's time; the reply's first event, its
 // other edits and reactions count as nothing. The thread's title notice counts on the server,
 // whose push rules cannot read it, but not here, where they can (design decision #17).
@@ -97,10 +98,41 @@ const finishedReplyActions = (
   );
 };
 
+// The event each of the user's unthreaded receipts names, by the receipt the SDK keeps; the SDK
+// keeps only when the server took an unthreaded receipt.
+const unthreadedReceiptEvents = new WeakMap<object, string>();
+
+const rememberUnthreadedReceipts = (receiptEvent: MatrixEvent, userId: string | null): void => {
+  Object.entries(receiptEvent.getContent()).forEach(([eventId, byType]) => {
+    if (!isRecord(byType)) return;
+    Object.values(byType).forEach((byUser) => {
+      const receipt = isRecord(byUser) && userId ? byUser[userId] : undefined;
+      if (isRecord(receipt) && receipt.thread_id === undefined) {
+        unthreadedReceiptEvents.set(receipt, eventId);
+      }
+    });
+  });
+};
+
+/**
+ * How far a receipt reads, as the server takes it: up to the event it names. A receipt on an
+ * event the client does not hold (often a reply's terminal edit, which no timeline keeps) reads
+ * up to when the server took it.
+ */
+const receiptReadTs = (
+  room: Room,
+  context: Room | Thread,
+  eventId: string | undefined,
+  takenTs: number
+): number => {
+  const named = eventId ? context.findEventById(eventId) ?? room.findEventById(eventId) : undefined;
+  return named?.getTs() ?? takenTs;
+};
+
 /**
  * When the user last read `context` (the room's main timeline, or a thread), as the server takes
- * it: the newest of its receipts there (as the server dated it, or the event it names, whichever
- * is later), its unthreaded receipt, and `ownReadTs`, its own last event there or its join.
+ * it: the newest of its receipts there and its unthreaded receipt, each up to the event it names,
+ * and `ownReadTs`, its own last event there or its join.
  */
 const readUpTo = (
   room: Room,
@@ -108,13 +140,18 @@ const readUpTo = (
   userId: string,
   ownReadTs: number
 ): number => {
-  let readTs = Math.max(ownReadTs, room.getLastUnthreadedReceiptFor(userId)?.ts ?? -Infinity);
+  const unthreaded = room.getLastUnthreadedReceiptFor(userId);
+  let readTs = Math.max(
+    ownReadTs,
+    unthreaded
+      ? receiptReadTs(room, context, unthreadedReceiptEvents.get(unthreaded), unthreaded.ts)
+      : -Infinity
+  );
   [ReceiptType.Read, ReceiptType.ReadPrivate].forEach((receiptType) => {
     [true, false].forEach((realOnly) => {
       const receipt = context.getReadReceiptForUserId(userId, realOnly, receiptType);
       if (!receipt) return;
-      const named = context.findEventById(receipt.eventId) ?? room.findEventById(receipt.eventId);
-      readTs = Math.max(readTs, receipt.data.ts, named?.getTs() ?? -Infinity);
+      readTs = Math.max(readTs, receiptReadTs(room, context, receipt.eventId, receipt.data.ts));
     });
   });
   return readTs;
@@ -218,18 +255,22 @@ export const keepEncryptedRoomCounts = (mx: MatrixClient): (() => void) => {
   };
   const onEvent = (event: MatrixEvent) => schedule(event.getRoomId());
   const onRoomChange = (_event: MatrixEvent, room: Room | undefined) => schedule(room?.roomId);
+  const onReceipt = (event: MatrixEvent, room: Room) => {
+    rememberUnthreadedReceipts(event, mx.getUserId());
+    schedule(room.roomId);
+  };
 
   // An event can reach its thread after the sync announced it, so a timeline change counts too.
   mx.on(ClientEvent.Event, onEvent);
   mx.on(MatrixEventEvent.Decrypted, onEvent);
   mx.on(RoomEvent.Timeline, onEvent);
   mx.on(RoomEvent.Redaction, onRoomChange);
-  mx.on(RoomEvent.Receipt, onRoomChange);
+  mx.on(RoomEvent.Receipt, onReceipt);
   return () => {
     mx.removeListener(ClientEvent.Event, onEvent);
     mx.removeListener(MatrixEventEvent.Decrypted, onEvent);
     mx.removeListener(RoomEvent.Timeline, onEvent);
     mx.removeListener(RoomEvent.Redaction, onRoomChange);
-    mx.removeListener(RoomEvent.Receipt, onRoomChange);
+    mx.removeListener(RoomEvent.Receipt, onReceipt);
   };
 };
