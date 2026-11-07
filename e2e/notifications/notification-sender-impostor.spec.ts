@@ -372,6 +372,11 @@ const checkInbox = async (page: Page, tag: string) => {
   ] as const) {
     await inboxRow(page, text).scrollIntoViewIfNeeded();
     await expect.poll(() => showsUserIdWhole(page, text, userId), { message: userId }).toBe(true);
+    // The name stays bold.
+    const weight = await rowSender(page, text).evaluate((name) =>
+      Number(getComputedStyle(name.firstElementChild ?? name).fontWeight)
+    );
+    expect(weight).toBeGreaterThanOrEqual(600);
   }
   await inboxRow(page, INBOX_HOST).scrollIntoViewIfNeeded();
   await shoot(page, `inbox-${tag}`);
