@@ -5,6 +5,7 @@ import {
   RoomStateEvent,
   type MatrixEvent,
   type Room,
+  type RoomEventHandlerMap,
   type RoomStateEventHandlerMap,
 } from 'matrix-js-sdk';
 
@@ -39,12 +40,16 @@ export const useStateEvents = (room: Room, eventType: string): MatrixEvent[] => 
       if (event.getRoomId() !== room.roomId || event.getType() !== eventType) return;
       refresh();
     };
+    // A limited sync replaces the live timeline and with it the current state. The room also passes
+    // on each thread's timeline resets, which happen as threads load and leave its state alone.
+    const handleReset: RoomEventHandlerMap[RoomEvent.TimelineReset] = (_room, timelineSet) => {
+      if (!timelineSet.thread) refresh();
+    };
     room.on(RoomStateEvent.Events, handleStateEvent);
-    // A limited sync replaces the live timeline and with it the current state.
-    room.on(RoomEvent.TimelineReset, refresh);
+    room.on(RoomEvent.TimelineReset, handleReset);
     return () => {
       room.removeListener(RoomStateEvent.Events, handleStateEvent);
-      room.removeListener(RoomEvent.TimelineReset, refresh);
+      room.removeListener(RoomEvent.TimelineReset, handleReset);
     };
   }, [room, eventType]);
 

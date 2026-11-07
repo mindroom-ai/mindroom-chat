@@ -1,4 +1,5 @@
 import { createVar, style } from '@vanilla-extract/css';
+import { shortViewport } from '../../ui/styles/shortViewport';
 
 // The rail's part above its foot group (SidebarContent's `scrollable`). Pinned, the top group
 // stays put and only the part below it scrolls; unpinned, the whole part scrolls as one column.
@@ -43,6 +44,15 @@ export const RailScrollArea = style({
     '&:not([data-pinned])::-webkit-scrollbar': { display: 'none' },
     '&[data-pinned]': { overflow: 'hidden' },
   },
+  '@media': {
+    // A phone in landscape scrolls the whole rail (SidebarScrollPart): this part takes its full
+    // height and does not scroll or fade on its own.
+    [shortViewport]: {
+      selectors: {
+        '&&&': { flex: 'none', overflow: 'visible', maskImage: 'none', WebkitMaskImage: 'none' },
+      },
+    },
+  },
 });
 
 /** The top group: Home, Direct Messages, Threads and Canvases. */
@@ -54,5 +64,17 @@ export const RailScrollRest = style({
   selectors: {
     [`${RailScrollArea}[data-pinned] > &`]: { ...scroller, flex: '1 1 0', minBlockSize: 0 },
     [`${RailScrollArea}[data-pinned] > &::-webkit-scrollbar`]: { display: 'none' },
+  },
+  '@media': {
+    [shortViewport]: {
+      selectors: {
+        [`${RailScrollArea}[data-pinned] > &&`]: {
+          flex: 'none',
+          overflow: 'visible',
+          maskImage: 'none',
+          WebkitMaskImage: 'none',
+        },
+      },
+    },
   },
 });

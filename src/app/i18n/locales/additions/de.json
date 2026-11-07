@@ -410,8 +410,8 @@
       "transcript": {
         "title": "Sprachanruf",
         "transcript": "Transkript",
-        "turns_one": "{{count}} Redebeitrag",
-        "turns_other": "{{count}} Redebeiträge"
+        "turns_one": "{{count}} Beitrag",
+        "turns_other": "{{count}} Beiträge"
       }
     },
     "room": {
@@ -538,6 +538,9 @@
       "descriptions": {
         "reply_mode": "Zeige oder wechsle, ob Agenten hier eine Erwähnung brauchen, um ein Gespräch zu beginnen (Setzen/Zurücksetzen nur Raumadministratoren)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} Hintergrundaufgaben ({{shown}} angezeigt)"
     }
   },
   "composer": {

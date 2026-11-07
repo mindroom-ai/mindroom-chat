@@ -14,10 +14,17 @@
          script-src stays open: canvases run agent scripts inline in srcdoc frames, which inherit
          this policy. Who may frame the app is a header (scripts/frame-headers.mjs). -->
     <meta http-equiv="Content-Security-Policy" content="object-src 'none'; base-uri 'self'" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!-- Chromium and Firefox resize the page for the on-screen keyboard with interactive-widget.
+         WebKit (every iOS browser, and Safari) does not know the key and logs it as a console
+         error on each load, so it gets the key only outside WebKit; iOS keyboard handling is
+         useMobileKeyboardViewportFix's. -->
+    <script>
+      if (!/AppleWebKit/.test(navigator.userAgent) || /Chrome\//.test(navigator.userAgent)) {
+        document.querySelector('meta[name="viewport"]').content +=
+          ', interactive-widget=resizes-content';
+      }
+    </script>
     <title>MindRoom</title>
     <link rel="manifest" href="/manifest.json" crossorigin="use-credentials" />
     <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
