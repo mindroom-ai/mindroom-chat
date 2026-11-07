@@ -412,7 +412,7 @@ describe('VoiceAudioContent', () => {
     renderer.unmount();
   });
 
-  it('shows an audio filename with its direction controls as code points and saves it as it is', () => {
+  it('shows an audio filename with its direction controls as code points', () => {
     renderer = create(
       renderVoiceAudio(createStore(), {
         filename: 'Interview\u202e3pm.exe',
@@ -423,9 +423,7 @@ describe('VoiceAudioContent', () => {
     const text = JSON.stringify(renderer.toJSON());
     expect(text).toContain('Interview<U+202E>3pm.exe');
     expect(renderer.root.findAllByProps({ title: 'Interview<U+202E>3pm.exe' })).not.toHaveLength(0);
-    expect(
-      renderer.root.findByProps({ 'data-download-filename': 'Interview\u202e3pm.exe' })
-    ).toBeTruthy();
+    expect(text).not.toMatch(/\u202e/);
     renderer.unmount();
   });
 

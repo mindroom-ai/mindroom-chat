@@ -72,7 +72,9 @@ describe('PdfViewer sources', () => {
         <PdfViewer name={'report\u202etxt.pdf'} src="blob:https://chat.example.org/1" requestClose={vi.fn()} />
       );
     });
-    expect(JSON.stringify(renderer.toJSON())).toContain('report<U+202E>txt.pdf');
+    expect(renderer.root.findAllByType('span').map((span) => span.children.join(''))).toContain(
+      'report<U+202E>txt.pdf'
+    );
     await act(async () => {
       downloadChip(renderer)?.props.onClick();
     });
