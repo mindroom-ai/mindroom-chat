@@ -276,6 +276,9 @@ export const useTimelineScrollLedgerController = ({
       scrollCompensationPxRef.current += foldPx;
       ledgerSettleWantedRef.current = true;
     }
+    if (anchoringRoomRows && (roomLedgerFoldPx !== 0 || roomRowKeys[0] !== roomLedgerAnchorRef.current?.keys[0]))
+      // eslint-disable-next-line no-console
+      console.log('[room-ledger]', JSON.stringify({ fold: roomLedgerFoldPx, anchor: roomLedgerAnchorRef.current?.index ?? null, key: String(roomLedgerAnchorRef.current?.key ?? '').slice(0, 10), was: roomLedgerAnchorRef.current?.keys.length ?? null, now: roomRowKeys.length, first: String(roomRowKeys[0]).slice(0, 10), st: getScrollElement()?.scrollTop, t: Math.round(performance.now()) }));
     if (anchoringRoomRows) pendingRoomFoldPxRef.current = 0;
     else pendingRoomFoldPxRef.current -= roomFoldPxAtRender;
     if (threadLedgerRenderPlan.probe) countCacheProbe(threadLedgerRenderPlan.probe);
@@ -391,6 +394,8 @@ export const useTimelineScrollLedgerController = ({
   const anchorRoomLedgerAt = useCallback((scrollTop: number) => {
     const view = roomLedgerViewRef.current;
     if (!view || !anchorRoomRowsRef.current?.()) {
+      // eslint-disable-next-line no-console
+      if (roomLedgerAnchorRef.current) console.log('[room-ledger] anchor off', scrollTop);
       roomLedgerAnchorRef.current = undefined;
       return;
     }

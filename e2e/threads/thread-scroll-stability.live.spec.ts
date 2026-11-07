@@ -80,6 +80,9 @@ test.describe('scrolling a room with many agent threads', () => {
         });
         await context.addInitScript(instrumentScrolling);
         const page = await context.newPage();
+        page.on('console', (message) => {
+          if (message.text().startsWith('[room-ledger]')) console.log(engine, viewport, message.text());
+        });
         const cdp = engine === 'chromium' ? await context.newCDPSession(page) : undefined;
         // Chromium's synthetic touch gestures do not scroll the list at a reading pace, so a phone
         // moves it by a finger's speed from inside the page, in both engines.
@@ -154,6 +157,7 @@ test.describe('scrolling a room with many agent threads', () => {
         // A row that lands at the top moved every row on screen by its height (82 to 323 px). Rows
         // still move by 22 to 31 px when an unmounted row above changes its estimated height as
         // its reply streams in (a thread badge, a sender's name): known, not fixed here.
+        console.log('MOVES', engine, viewport, JSON.stringify(threads.moves));
         const largest = Math.max(0, ...threads.moves.map((move) => move.px));
         expect(largest, 'largest move of the rows while the reader rested (px)').toBeLessThan(40);
         await context.close();
