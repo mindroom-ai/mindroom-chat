@@ -835,7 +835,9 @@ test.describe('calls', () => {
     await expect(tileOf(alicePage, alice.userId)).toHaveAttribute('data-connected', 'true', {
       timeout: 60_000,
     });
-    await expect(tileOf(alicePage, agent.userId)).toHaveCount(0);
+    // The agent shows from the start, waiting until it joins.
+    await expect(tileOf(alicePage, agent.userId)).toHaveAttribute('data-connected', 'false');
+    await expect(tileOf(alicePage, agent.userId)).toContainText('Waiting for Helper');
 
     // The agent was invited to the call room, which names Alice's conversation as the origin.
     const { rooms } = await matrix<{ rooms: { invite: Record<string, unknown> } }>(
