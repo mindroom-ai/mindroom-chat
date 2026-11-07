@@ -74,7 +74,7 @@ const exercise = async (page: Page) => {
     .getByRole('navigation', { name: 'Settings' })
     .getByRole('button', { name: 'Privacy & security', exact: true })
     .click();
-  await expect(dialog.getByText('Blocked users', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Blocked Users', { exact: true })).toBeVisible();
 
   // The loading card is the only card straight in the page's column.
   const column = page.locator('[data-settings-page] > *');
@@ -89,7 +89,7 @@ const exercise = async (page: Page) => {
   // The page's headings keep the heading style.
   const heading = (name: string) =>
     lookOf(dialog.locator('[data-settings-page]').getByText(name, { exact: true }).first());
-  for (const name of ['Privacy', 'Blocked users']) {
+  for (const name of ['Privacy', 'Blocked Users']) {
     expect((await heading(name))[0], name).toMatchObject(HEADING);
   }
 
