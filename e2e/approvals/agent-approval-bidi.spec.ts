@@ -31,7 +31,10 @@ const arabic = JSON.parse(
 const arabicText = (path: string): string => {
   const text = path
     .split('.')
-    .reduce<string | Catalog>((node, key) => (node as Catalog)[key], arabic);
+    .reduce<string | Catalog | undefined>(
+      (node, key) => (typeof node === 'object' ? node[key] : undefined),
+      arabic
+    );
   if (typeof text !== 'string') throw new Error(`No Arabic text at ${path}`);
   return text;
 };
@@ -91,7 +94,7 @@ test(
     });
     const review = arabicText('mindroomUi.messages.threadApprovalControls.reviewCount');
     await arabicBar
-      .getByRole('button', { name: new RegExp(`^${review.split('\u2068')[0].trim()}`) })
+      .getByRole('button', { name: new RegExp(`^${(review.split('\u2068')[0] ?? review).trim()}`) })
       .click({ timeout: 90_000 });
     dialog = page.getByRole('dialog');
     await expectShownInOrder(dialog.locator('dl').first());
