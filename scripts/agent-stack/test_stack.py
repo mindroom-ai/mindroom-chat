@@ -305,7 +305,11 @@ class OptionTests(unittest.TestCase):
         self.assertTrue(stack.started_with(sessions, up_args(client_sessions=True), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(), sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, computers=True), sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, model="real"), sha, homeserver))
+        calls = up_args(client_sessions=True, calls="http://127.0.0.1:29542")
+        self.assertFalse(stack.started_with(sessions, calls, sha, homeserver))
         self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True), "b" * 40, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True), sha, "http://127.0.0.1:28143"))
 
 
 # Stands in for the docker CLI: logs each call, keeps the build context, and builds once unless told to fail.
