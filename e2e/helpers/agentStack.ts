@@ -398,10 +398,11 @@ export const waitForAgentReply = (
     }
   );
 
-/** A new encrypted room of the tester with the helper and the router, once both joined it. */
-export const createEncryptedAgentRoom = async (
+/** A new room of the tester with the helper and the router, once both joined it. */
+export const createAgentRoom = async (
   stack: AgentStack,
-  name: string
+  name: string,
+  encrypted: boolean
 ): Promise<string> => {
   const { room_id: roomId } = await matrixFetch<{ room_id: string }>(
     stack.homeserver,
@@ -413,13 +414,15 @@ export const createEncryptedAgentRoom = async (
         name,
         preset: 'private_chat',
         invite: [stack.agents.helper, stack.agents.router],
-        initial_state: [
-          {
-            type: 'm.room.encryption',
-            state_key: '',
-            content: { algorithm: 'm.megolm.v1.aes-sha2' },
-          },
-        ],
+        initial_state: encrypted
+          ? [
+              {
+                type: 'm.room.encryption',
+                state_key: '',
+                content: { algorithm: 'm.megolm.v1.aes-sha2' },
+              },
+            ]
+          : [],
       }),
     }
   );
@@ -433,11 +436,15 @@ export const createEncryptedAgentRoom = async (
         );
         return !!joined[stack.agents.helper] && !!joined[stack.agents.router];
       },
-      { timeout: 90_000, intervals: [500, 1000], message: 'the agents join the encrypted room' }
+      { timeout: 90_000, intervals: [500, 1000], message: 'the agents join the room' }
     )
     .toBe(true);
   return roomId;
 };
+
+/** A new encrypted room of the tester with the helper and the router, once both joined it. */
+export const createEncryptedAgentRoom = (stack: AgentStack, name: string): Promise<string> =>
+  createAgentRoom(stack, name, true);
 
 /** Sends "@Helper <text>" from the composer, with the mention Tab takes from its suggestions. */
 export const mentionHelper = async (page: Page, stack: AgentStack, text: string): Promise<void> => {
