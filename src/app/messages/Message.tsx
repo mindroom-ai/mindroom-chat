@@ -768,7 +768,7 @@ export const Message = forwardRef<HTMLDivElement, MessageProps>(
             },
           }}
         >
-          <Menu className={css.MessageMenu}>
+          <Menu>
             <Box direction="Column" gap="100" className={css.MessageMenuGroup}>
               {canSendReaction && confirmed && onReactionToggle && (
                 <MessageQuickReactions
