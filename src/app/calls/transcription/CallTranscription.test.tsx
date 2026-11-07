@@ -33,7 +33,7 @@ const CALL: TranscriptCall = {
   pausedBy: null,
 };
 
-/** The room, its agents' servers and the device's settings, as the mocked hooks report them. */
+/** The room, its agents' servers and the deployment's server, as the mocked hooks report them. */
 const room = vi.hoisted(() => ({
   members: [] as Array<{ userId: string; membership: string }>,
   servers: [] as Array<{ agentUserId: string; apiUrl: string; computer: boolean; ts: number }>,
@@ -86,8 +86,8 @@ vi.mock('../../computer/useAgentServers', () => ({
   useBindsOpenIdTokens: () => room.bindsTokens,
   useRoomAgentServers: () => room.servers,
 }));
-vi.mock('../../computer/useComputerApiUrl', () => ({
-  useComputerApiUrl: (discovered?: string) => room.configured ?? discovered,
+vi.mock('../../config/useClientConfig', () => ({
+  useClientConfig: () => ({ mindroom: { computers: { apiUrl: room.configured } } }),
 }));
 vi.mock('../../matrix/openidAudience', () => ({
   requestAudienceOpenIdToken: vi.fn(async () => TOKEN),
@@ -200,8 +200,9 @@ describe('CallTranscription', () => {
     expect(transcriber.end).not.toHaveBeenCalled();
   });
 
-  it('uses the MindRoom server this device or the deployment names', async () => {
+  it("uses the deployment's MindRoom server when the room's agents published none", async () => {
     room.configured = CONFIGURED;
+    room.servers = [];
     const { set } = mount();
     set({ phase: 'connected' });
     await loaded();
