@@ -30,7 +30,26 @@ export const listShrinkNotRendered = (
     .reduce((room, row) => (mounted.has(row.index) ? room : room + row.size), 0);
   const ledgerMargin = parseFloat(inner.style.marginTop) || 0;
   const reach = inner.getBoundingClientRect().bottom - newest.getBoundingClientRect().bottom;
-  return Math.max(0, reach - ledgerMargin - unmountedAfter);
+  const result = Math.max(0, reach - ledgerMargin - unmountedAfter);
+  if (result > 30) {
+    const w = window as unknown as { __ltfpLog?: unknown[] };
+    (w.__ltfpLog ??= []).push({
+      t: Math.round(performance.now()),
+      k: 'shrink',
+      result,
+      reach: Math.round(reach),
+      ledgerMargin,
+      unmountedAfter,
+      newestIdx: indexOf(newest),
+      newestTop: newest.style.transform || newest.style.top,
+      tiles: tiles.map(indexOf).join(','),
+      rowsLen: rows.length,
+      innerH: inner.offsetHeight,
+      innerStyleH: inner.style.height,
+      lastRows: rows.slice(-3).map((row) => `${row.index}:${row.size}`).join(','),
+    });
+  }
+  return result;
 };
 
 /**
