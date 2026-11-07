@@ -195,6 +195,35 @@ const longThreadOpensAtItsNewestReplies = async (page: Page, browserName: string
     newestId = await send(index % 3 === 0 ? agent : colleague, roomId, replyContent(index, rootId));
   }
 
+  await page.addInitScript(() => {
+    const w = window as unknown as { __ltfpLog?: unknown[] };
+    const log = (entry: Record<string, unknown>) =>
+      (w.__ltfpLog ??= []).push({ t: Math.round(performance.now()), ...entry });
+    const scroller = (el: Element) => !!el.querySelector?.(':scope > [data-thread-count], :scope [data-thread-count]');
+    const desc = Object.getOwnPropertyDescriptor(Element.prototype, 'scrollTop')!;
+    Object.defineProperty(Element.prototype, 'scrollTop', {
+      configurable: true,
+      get() {
+        return desc.get!.call(this);
+      },
+      set(value: number) {
+        if (scroller(this)) {
+          const before = desc.get!.call(this) as number;
+          desc.set!.call(this, value);
+          log({ k: 'write', from: before, to: value, now: desc.get!.call(this), stack: new Error().stack?.split('\n').slice(2, 9).join(' | ') });
+          return;
+        }
+        desc.set!.call(this, value);
+      },
+    });
+    for (const name of ['scrollTo', 'scrollBy', 'scrollIntoView'] as const) {
+      const original = Element.prototype[name] as (...args: unknown[]) => void;
+      (Element.prototype as unknown as Record<string, unknown>)[name] = function wrapped(this: Element, ...args: unknown[]) {
+        log({ k: name, args: JSON.stringify(args), stack: new Error().stack?.split('\n').slice(2, 9).join(' | ') });
+        return original.apply(this, args);
+      };
+    }
+  });
   await page.addInitScript(installFrameSampler, {
     newest: NEWEST_KEY,
     root: ROOT_KEY,
