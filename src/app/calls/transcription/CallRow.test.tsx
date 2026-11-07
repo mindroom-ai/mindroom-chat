@@ -340,6 +340,19 @@ describe('CallRow', () => {
     expect(button('Transcript')).toBeUndefined();
   });
 
+  it('reads no more once a read showed the row ended', () => {
+    render(LIVE);
+    inView(true);
+    act(() => state.polls[0]?.onLive({ call: null, lines: [], names: {} }));
+    expect(container.textContent).toContain('Call ended');
+    expect(state.polls[0]?.signal.aborted).toBe(true);
+
+    inView(false);
+    inView(true);
+    expect(state.polls).toHaveLength(1);
+    expect(container.textContent).toContain('Call ended');
+  });
+
   it('stays live, as posted, on a device that knows no MindRoom server for the room', () => {
     state.apiUrl = undefined;
     render(LIVE);
