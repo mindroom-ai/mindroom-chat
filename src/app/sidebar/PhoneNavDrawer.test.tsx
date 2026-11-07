@@ -5,9 +5,13 @@ import { RouterProvider, createMemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import { phoneNavDrawerOpenAtom, phoneNavSectionRootAtom } from '../navigation/phoneNavDrawer';
 import { PhoneNavDrawer } from './PhoneNavDrawer';
+import { followRouterSignalsInNode } from '../../test/utils/nodeSignalRequests';
 
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
 vi.mock('./PhoneNavDrawer.css', () => ({ Scrim: 'scrim', Panel: 'panel', Slot: 'slot' }));
+
+// The data router builds a Request per navigation; under jsdom its signal needs this.
+followRouterSignalsInNode();
 
 describe('PhoneNavDrawer', () => {
   it('puts the drawer away when it unmounts, as a phone turned sideways does', () => {
