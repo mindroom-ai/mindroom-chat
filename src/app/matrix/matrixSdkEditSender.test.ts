@@ -6,7 +6,8 @@ import {
   Room,
   type IEvent,
 } from 'matrix-js-sdk';
-import { describe, expect, it } from 'vitest';
+import { FeatureSupport, Thread } from 'matrix-js-sdk/lib/models/thread';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getEditedEvent, getLatestMessageContent } from './room';
 
 // Only a message's sender can edit it (Matrix specification, "Event replacements"). The SDK's own
@@ -31,7 +32,13 @@ const original = (): Partial<IEvent> => ({
   content: { msgtype: 'm.text', body: 'The forklift is charged.' },
 });
 
-const edit = (id: string, sender: string, ts: number, body: string): Partial<IEvent> => ({
+const edit = (
+  id: string,
+  sender: string,
+  ts: number,
+  body: string,
+  target = '$message'
+): Partial<IEvent> => ({
   event_id: id,
   room_id: ROOM,
   sender,
@@ -41,7 +48,7 @@ const edit = (id: string, sender: string, ts: number, body: string): Partial<IEv
     msgtype: 'm.text',
     body: `* ${body}`,
     'm.new_content': { msgtype: 'm.text', body },
-    'm.relates_to': { rel_type: 'm.replace', event_id: '$message' },
+    'm.relates_to': { rel_type: 'm.replace', event_id: target },
   },
 });
 
@@ -62,6 +69,17 @@ const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 const rendered = (room: Room, event: MatrixEvent) =>
   getLatestMessageContent(event, getEditedEvent('$message', event, room.getUnfilteredTimelineSet()))
     .body as unknown;
+
+const redaction = (id: string, redacts: string, ts: number, sender = AUTHOR) =>
+  new MatrixEvent({
+    event_id: id,
+    room_id: ROOM,
+    sender,
+    origin_server_ts: ts,
+    type: 'm.room.redaction',
+    redacts,
+    content: { redacts },
+  });
 
 const live = async (...events: MatrixEvent[]) => {
   const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
@@ -129,9 +147,9 @@ describe('SDK edits from another sender', () => {
 // The SDK skips a sender's live edits older than the edit the server bundled with the message,
 // which it shows. Those edits still arrive after the bundle: the edits that follow a message opened
 // at its position (a search result, a link), or the sync catching up after a reload.
-describe('SDK edits older than the sender’s bundled edit', () => {
-  const newestEdit = () => edit('$newest-edit', AUTHOR, 4, 'The forklift is back.');
+const newestEdit = () => edit('$newest-edit', AUTHOR, 4, 'The forklift is back.');
 
+describe('SDK edits older than the sender’s bundled edit', () => {
   it('keeps the bundled edit when an older live edit of the sender arrives after it', async () => {
     const event = await live(bundled(newestEdit()), new MatrixEvent(ownEdit()));
 
@@ -164,17 +182,6 @@ describe('SDK edits older than the sender’s bundled edit', () => {
 
     expect(body(room.findEventById('$message')!)).toBe('The forklift is back.');
   });
-
-  const redaction = (id: string, redacts: string, ts: number) =>
-    new MatrixEvent({
-      event_id: id,
-      room_id: ROOM,
-      sender: AUTHOR,
-      origin_server_ts: ts,
-      type: 'm.room.redaction',
-      redacts,
-      content: { redacts },
-    });
 
   it('shows the sender’s previous edit once the bundled edit is redacted', async () => {
     const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
@@ -271,5 +278,182 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     await cancel();
 
     expect(event.replacingEvent()).toBeNull();
+  });
+});
+
+// A message's newest edit can reach the client only bundled with the message, after a reload or a
+// gap, so the client holds no event for a redaction of that edit to apply to. The SDK patch drops
+// the bundled edit from the message once someone allowed to redact it does.
+describe('SDK redactions of an edit the client knows only from its bundle', () => {
+  const MODERATOR = '@moderator:example.org';
+
+  const state = (type: string, stateKey: string, content: Record<string, unknown>) =>
+    new MatrixEvent({
+      type,
+      state_key: stateKey,
+      sender: AUTHOR,
+      room_id: ROOM,
+      event_id: `$${type}-${stateKey}`,
+      content,
+    });
+
+  /** A room where the moderator alone may redact other members' events. */
+  const moderatedRoom = () => {
+    const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
+    room.currentState.setStateEvents([
+      state('m.room.create', '', { creator: AUTHOR, room_version: '10' }),
+      ...[AUTHOR, OTHER, MODERATOR].map((userId) =>
+        state('m.room.member', userId, { membership: 'join' })
+      ),
+      state('m.room.power_levels', '', { users: { [MODERATOR]: 50 }, redact: 50 }),
+    ]);
+    const add = async (...added: MatrixEvent[]) => {
+      await room.addLiveEvents(added, { addToState: false });
+      await tick();
+    };
+    return { room, add };
+  };
+
+  const message = async (...events: MatrixEvent[]) => {
+    const { room, add } = moderatedRoom();
+    await add(...events);
+    return { room, add, event: room.findEventById('$message')! };
+  };
+
+  it.each([
+    ['the edit’s sender', AUTHOR],
+    ['a moderator', MODERATOR],
+  ])('shows the original text once %s redacts the bundled edit', async (_, sender) => {
+    const { room, add, event } = await message(bundled(newestEdit()));
+    expect(body(event)).toBe('The forklift is back.');
+
+    await add(redaction('$redaction', '$newest-edit', 5, sender));
+
+    expect(body(event)).toBe('The forklift is charged.');
+    expect(rendered(room, event)).toBe('The forklift is charged.');
+    expect(event.replacingEvent()).toBeNull();
+    expect(event.replacingEventId()).toBeUndefined();
+  });
+
+  it('shows the sender’s previous edit once the bundled edit is redacted', async () => {
+    const { room, add, event } = await message(bundled(newestEdit()), new MatrixEvent(ownEdit()));
+    expect(body(event)).toBe('The forklift is back.');
+
+    await add(redaction('$redaction', '$newest-edit', 5));
+
+    expect(body(event)).toBe('The forklift is at the dock.');
+    expect(rendered(room, event)).toBe('The forklift is at the dock.');
+  });
+
+  it('ignores a redaction of the bundled edit by a member who may not redact it', async () => {
+    const { room, add, event } = await message(bundled(newestEdit()));
+
+    await add(redaction('$redaction', '$newest-edit', 5, OTHER));
+
+    expect(body(event)).toBe('The forklift is back.');
+    expect(rendered(room, event)).toBe('The forklift is back.');
+  });
+
+  it('keeps the bundled edit when the sender redacts another of their edits', async () => {
+    const { room, add, event } = await message(bundled(newestEdit()));
+
+    await add(redaction('$redaction', '$own-edit', 5));
+
+    expect(body(event)).toBe('The forklift is back.');
+    expect(rendered(room, event)).toBe('The forklift is back.');
+    expect(event.getServerAggregatedRelation<{ event_id: string }>('m.replace')?.event_id).toBe(
+      '$newest-edit'
+    );
+  });
+
+  describe('in threads', () => {
+    let support: FeatureSupport;
+    beforeEach(() => {
+      support = Thread.hasServerSideSupport;
+      vi.spyOn(client, 'supportsThreads').mockReturnValue(true);
+    });
+    afterEach(() => {
+      Thread.hasServerSideSupport = support;
+      vi.restoreAllMocks();
+    });
+
+    /** A reply in the message's thread, with the sender's edit `$reply-edit` bundled. */
+    const reply = (): Partial<IEvent> => ({
+      ...original(),
+      event_id: '$reply',
+      origin_server_ts: 2,
+      content: {
+        msgtype: 'm.text',
+        body: 'Is the forklift for sale?',
+        'm.relates_to': { rel_type: 'm.thread', event_id: '$message' },
+      },
+      unsigned: {
+        'm.relations': { 'm.replace': edit('$reply-edit', AUTHOR, 3, 'Sold.', '$reply') },
+      },
+    });
+
+    it('shows the original text of a reply in an opened thread', async () => {
+      Thread.hasServerSideSupport = FeatureSupport.None;
+      const { room, add } = moderatedRoom();
+      const root = new MatrixEvent(original());
+      await add(root);
+      const later = new MatrixEvent({ ...reply(), event_id: '$later-reply', unsigned: {} });
+      const thread = room.createThread(
+        '$message',
+        root,
+        [client.getEventMapper()(reply()), later],
+        false
+      );
+      const shown = thread.findEventById('$reply')!;
+      expect(body(shown)).toBe('Sold.');
+
+      await add(redaction('$redaction', '$reply-edit', 5));
+
+      expect(body(shown)).toBe('Is the forklift for sale?');
+    });
+
+    /** The message's thread as the thread list brings it, before it is opened. */
+    const listedThread = async () => {
+      Thread.hasServerSideSupport = FeatureSupport.Stable;
+      const { room, add } = moderatedRoom();
+      const root = client.getEventMapper()({
+        ...original(),
+        unsigned: {
+          'm.relations': {
+            'm.replace': newestEdit(),
+            'm.thread': { count: 1, current_user_participated: false, latest_event: reply() },
+          },
+        },
+      });
+      room.processThreadRoots([root], false);
+      await tick();
+      return { add, root, thread: room.getThread('$message')! };
+    };
+
+    it('shows the original text of a root and latest reply known from the thread list', async () => {
+      const { add, root, thread } = await listedThread();
+      expect(body(root)).toBe('The forklift is back.');
+      expect(body(thread.replyToEvent!)).toBe('Sold.');
+
+      await add(
+        redaction('$redaction', '$newest-edit', 5),
+        redaction('$second-redaction', '$reply-edit', 6)
+      );
+
+      expect(body(root)).toBe('The forklift is charged.');
+      expect(body(thread.replyToEvent!)).toBe('Is the forklift for sale?');
+    });
+
+    it('keeps a later edit that the latest reply of an unopened thread shows', async () => {
+      const { add, thread } = await listedThread();
+      // The app shows the edits that reach an unopened thread's latest reply (unopenedThreadEdits.ts).
+      thread.replyToEvent!.makeReplaced(
+        new MatrixEvent(edit('$later-edit', AUTHOR, 7, 'Sold to Sam.', '$reply'))
+      );
+
+      await add(redaction('$redaction', '$reply-edit', 8));
+
+      expect(body(thread.replyToEvent!)).toBe('Sold to Sam.');
+    });
   });
 });
