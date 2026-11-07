@@ -79,9 +79,6 @@ export type NamespaceLoader = (language: string) => Promise<LocaleTree | undefin
 
 const namespaceLoaders = new Map<string, NamespaceLoader>();
 
-const toError = (error: unknown): Error =>
-  error instanceof Error ? error : new Error(String(error));
-
 /**
  * Fetches non-English catalogs from the deployed `public/locales/` directory on demand, with the
  * language's overlay of Lane C keys (locales/additions/<code>.json) merged in. A namespace added
@@ -91,14 +88,13 @@ const httpBackend: BackendModule = {
   type: 'backend',
   init: () => undefined,
   read: (language: string, namespace: string, callback: ReadCallback) => {
+    const fail = (error: unknown): void =>
+      callback(error instanceof Error ? error : new Error(String(error)), false);
     if (namespace !== 'translation') {
       // A language without strings keeps an empty bundle, so its loader is not asked again.
-      Promise.resolve(language)
-        .then((code) => namespaceLoaders.get(namespace)?.(code))
-        .then(
-          (strings) => callback(null, strings ?? {}),
-          (error: unknown) => callback(toError(error), false)
-        );
+      Promise.resolve()
+        .then(() => namespaceLoaders.get(namespace)?.(language))
+        .then((strings) => callback(null, strings ?? {}), fail);
       return;
     }
     const additions = loadLocaleAdditions(language);
@@ -109,16 +105,14 @@ const httpBackend: BackendModule = {
     })
       .then(async (response) => {
         if (!response.ok) {
-          callback(new Error(`Failed to load locale ${language}: HTTP ${response.status}`), false);
+          fail(new Error(`Failed to load locale ${language}: HTTP ${response.status}`));
           return;
         }
         const catalog = (await response.json()) as LocaleTree;
         const overlay = await additions;
         callback(null, (overlay ? mergeLocaleTrees(catalog, overlay) : catalog) as ResourceKey);
       })
-      .catch((error: unknown) => {
-        callback(toError(error), false);
-      });
+      .catch(fail);
   },
 };
 
