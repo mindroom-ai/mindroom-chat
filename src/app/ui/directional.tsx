@@ -82,6 +82,33 @@ export const revealDirectionControls = (text: string): string =>
     (control) => `<U+${control.charCodeAt(0).toString(16).toUpperCase().padStart(4, '0')}>`
   );
 
+/**
+ * A name for a sentence, between a first-strong isolate and its end (U+2068, U+2069): it reads in
+ * its own direction and keeps the sentence's words out of its own, so an Arabic name that ends in
+ * a Latin letter shows the same order in "Requested by ..." as on its own line. Direction
+ * controls in the name go, so none can end the isolate early. {@link IsolatedText} shows it.
+ */
+export const isolateInSentence = (name: string): string =>
+  `⁨${name.replace(DIRECTION_CONTROLS, '')}⁩`;
+
+const ISOLATE = /⁨([^⁨⁩]*)⁩/;
+
+/**
+ * Text whose isolated parts ({@link isolateInSentence}, or a translation's own U+2068 and U+2069)
+ * show as `<bdi>` elements: they read as before, and what a reader copies or a test reads holds
+ * no invisible characters.
+ */
+export function IsolatedText({ text }: { text: string }) {
+  const parts = text.split(ISOLATE);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {/* split puts each isolated part at an odd index; the parts never move. */}
+      {parts.map((part, index) => (index % 2 === 1 ? <bdi key={index}>{part}</bdi> : part))}
+    </>
+  );
+}
+
 /** Whether the document reads right to left; i18n.ts sets `dir` with the language. */
 export const documentIsRightToLeft = (): boolean =>
   // Some tests stand in a partial document, without an element or one without methods.
