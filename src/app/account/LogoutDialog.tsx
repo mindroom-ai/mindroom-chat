@@ -5,7 +5,12 @@ import type { MatrixClient } from 'matrix-js-sdk';
 import { Dialog, Header, IconButton } from '../ui/glass/GlassPrimitives';
 import { useMatrixClient } from '../matrix/hooks/useMatrixClient';
 import { useAlive } from '../lib/hooks/useAlive';
-import { logoutClient } from './lifecycle/initMatrix';
+import {
+  createSessionRequestClient,
+  logoutClient,
+  logoutStoredSession,
+} from './lifecycle/initMatrix';
+import type { StoredSession } from '../matrix/session/sessions';
 import { ContainerColor } from '../ui/styles/ContainerColor.css';
 import { describeKnownError } from '../lib/describeError';
 import { ErrorDetail } from '../ui/ErrorDetail';
@@ -26,7 +31,29 @@ const getEncryptionRisk = async (client: MatrixClient): Promise<EncryptionRisk> 
   return status?.crossSigningVerified ? 'none' : 'unverified-device';
 };
 
-type LogoutDialogProps = { handleClose: () => void };
+/**
+ * The same for an account that is not active, whose crypto store stays closed: from the keys the
+ * homeserver holds for it. Its device counts as verified when the account's self-signing key
+ * signed it. Without an answer, the warning stays.
+ */
+const getStoredSessionEncryptionRisk = async (session: StoredSession): Promise<EncryptionRisk> => {
+  const { userId, deviceId } = session;
+  try {
+    const keys = await createSessionRequestClient(session).downloadKeysForUsers([userId]);
+    const selfSigningKeyIds = Object.keys(keys.self_signing_keys?.[userId]?.keys ?? {});
+    if (selfSigningKeyIds.length === 0) return 'no-verification';
+    const signatures = keys.device_keys[userId]?.[deviceId]?.signatures?.[userId] ?? {};
+    return selfSigningKeyIds.some((keyId) => keyId in signatures) ? 'none' : 'unverified-device';
+  } catch {
+    return 'no-verification';
+  }
+};
+
+type LogoutDialogProps = {
+  handleClose: () => void;
+  /** An account other than the active one, to log out instead of the active one. */
+  session?: StoredSession;
+};
 
 const RISK_PANEL_SHAPE: CSSProperties = {
   borderRadius: config.radii.R400,
@@ -38,7 +65,7 @@ const RISK_PANEL_SHAPE: CSSProperties = {
  * The ref reaches the dialog element, so a focus trap around it knows what counts as inside.
  */
 export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(function LogoutDialog(
-  { handleClose },
+  { handleClose, session },
   ref
 ) {
   const { t } = useTranslation();
@@ -50,7 +77,7 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
 
   useEffect(() => {
     let current = true;
-    getEncryptionRisk(client).then(
+    (session ? getStoredSessionEncryptionRisk(session) : getEncryptionRisk(client)).then(
       (next) => {
         if (current) setRisk(next);
       },
@@ -59,14 +86,19 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
     return () => {
       current = false;
     };
-  }, [client]);
+  }, [client, session]);
 
   const handleLogout = async () => {
     if (loggingOut) return;
     setLoggingOut(true);
     setError(undefined);
     try {
-      await logoutClient(client);
+      if (session) {
+        await logoutStoredSession(session);
+        if (alive()) handleClose();
+      } else {
+        await logoutClient(client);
+      }
     } catch (logoutError) {
       if (!alive()) return;
       setError({ logoutError });
@@ -121,7 +153,14 @@ export const LogoutDialog = forwardRef<HTMLDivElement, LogoutDialogProps>(functi
             </Text>
           </Box>
         )}
-        <Text priority="400">{t('sharedUi.logoutDialog.youReAboutToLogOutAreYouSure')}</Text>
+        <Box direction="Column" gap="100">
+          <Text priority="400">{t('sharedUi.logoutDialog.youReAboutToLogOutAreYouSure')}</Text>
+          {session && (
+            <Text size="T300" priority="300" style={{ overflowWrap: 'anywhere' }}>
+              {session.userId}
+            </Text>
+          )}
+        </Box>
         {error && (
           <Text size="T200" role="alert" style={{ color: color.Critical.Main }}>
             <b>
