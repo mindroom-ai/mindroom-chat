@@ -25,6 +25,9 @@ const SHOTS = process.env.JUMP_LATEST_SHOTS;
 const FIRST_NOTE = 'First entry in the release log';
 /** More than the client loads ahead (one sync and one page of 200), as in a long room. */
 const NOTES = 240;
+const THREADS = 12;
+/** The newest message of the main timeline. */
+const NEWEST = `Release thread ${THREADS - 1}: what blocks the rollout to the next ring?`;
 
 test.use({ viewport: { width: 1440, height: 900 }, launchOptions: CHROMIUM_WITH_SCROLLBARS });
 
@@ -40,23 +43,50 @@ const note = (index: number) =>
 const firstJumpReachesLatest = async (page: Page, label: string, phone: boolean) => {
   const reader = await registerDisposableUser(`jtl_reader_${label}_${RUN}`, PASSWORD);
   const colleague = await registerDisposableUser(`jtl_colleague_${label}_${RUN}`, PASSWORD);
+  // An agent in the room: it opens in Compact, as the rooms of the finding did.
+  const agent = await registerDisposableUser(`mindroom_helper_${label}_${RUN}`, PASSWORD);
   const roomId = await createRoom(HOMESERVER, reader.accessToken, {
     name: `Release log ${label}`,
-    invite: [colleague.userId],
+    invite: [colleague.userId, agent.userId],
   });
   await joinRoom(HOMESERVER, colleague.accessToken, roomId);
-  const send = (body: string) =>
-    sendRoomMessage(HOMESERVER, colleague.accessToken, roomId, { msgtype: 'm.text', body });
+  await joinRoom(HOMESERVER, agent.accessToken, roomId);
+  const send = (body: string, rootId?: string) =>
+    sendRoomMessage(HOMESERVER, colleague.accessToken, roomId, {
+      msgtype: 'm.text',
+      body,
+      ...(rootId
+        ? {
+            'm.relates_to': {
+              rel_type: 'm.thread',
+              event_id: rootId,
+              is_falling_back: true,
+              'm.in_reply_to': { event_id: rootId },
+            },
+          }
+        : {}),
+    });
   await send(FIRST_NOTE);
   for (let index = 0; index < NOTES; index += 1) {
     // eslint-disable-next-line no-await-in-loop
     await send(note(index));
   }
+  // The newest events are threads with replies, which the Classic view shows among the rows.
+  for (let thread = 0; thread < THREADS; thread += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const rootId = await send(
+      `Release thread ${thread}: what blocks the rollout to the next ring?`
+    );
+    for (let reply = 0; reply < 3; reply += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await send(`Thread ${thread} reply ${reply}: the canary metrics look fine so far.`, rootId);
+    }
+  }
 
   await loginWithPassword(page, { homeserver: HOMESERVER, ...reader });
   await page.goto(`/home/${encodeURIComponent(roomId)}/`);
-  const newest = page.getByText(note(NOTES - 1), { exact: true });
-  await expect(newest).toBeVisible({ timeout: 60_000 });
+  await expectRoomCompact(page, true);
+  await expect(page.getByText(NEWEST, { exact: true }).first()).toBeVisible({ timeout: 60_000 });
 
   const header = page.getByRole('banner').filter({ has: page.locator('h1') });
   await header.getByRole('button', { name: 'More Options' }).click();
@@ -70,6 +100,7 @@ const firstJumpReachesLatest = async (page: Page, label: string, phone: boolean)
   // The reader looks at the beginning for a moment, as people do.
   await page.waitForTimeout(3_500);
 
+  const newest = page.getByText(NEWEST, { exact: true }).last();
   const jump = page.getByText('Jump to Latest', { exact: true });
   await expect(jump).toBeVisible();
   await jump.click();
