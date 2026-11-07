@@ -50,6 +50,8 @@ test('with a manifest, every chunk is listed by its source or chunk name, with i
     path.join(dist, 'assets', 'lazy-FFFFFFFF.css'),
     `/* ${randomBytes(3000).toString('hex')} */`
   );
+  // A `?worker` bundle, which the manifest does not record.
+  writeFileSync(path.join(dist, 'assets', 'some.worker-WWWWWWWW.js'), 'onmessage=()=>{};');
   mkdirSync(path.join(dist, '.vite'));
   writeFileSync(
     path.join(dist, '.vite', 'manifest.json'),
@@ -81,7 +83,13 @@ test('with a manifest, every chunk is listed by its source or chunk name, with i
     .map((line) => line.split(/\s{2,}/));
   assert.deepEqual(
     listed.map(([name]) => name),
-    ['index.html (initial)', 'leaf (initial)', 'node_modules/some-pkg/index.js', 'shared (initial)']
+    [
+      'index.html (initial)',
+      'leaf (initial)',
+      'node_modules/some-pkg/index.js',
+      'shared (initial)',
+      'some.worker',
+    ]
   );
   // The lazy chunk's sizes are those of its script and its style sheet together.
   const files = JSON.parse(readFileSync(out, 'utf8')).rows.filter((row) =>
