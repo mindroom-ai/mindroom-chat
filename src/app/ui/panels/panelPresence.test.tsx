@@ -1,7 +1,7 @@
-import { type ReactElement, useLayoutEffect } from 'react';
+import { createContext, type ReactElement, useContext, useLayoutEffect } from 'react';
 import { act, create, type ReactTestRenderer } from 'react-test-renderer';
 import { describe, expect, it } from 'vitest';
-import { type PanelPresence, usePanelPresence, usePanelSlot } from './panelPresence';
+import { type PanelPresence, usePanelForm, usePanelPresence, usePanelSlot } from './panelPresence';
 
 let presence: PanelPresence | undefined;
 
@@ -68,5 +68,77 @@ describe('usePanelSlot', () => {
     const { renderer, update } = renderSlot(<span key="plain" data-panel="plain" />);
     update(undefined);
     expect(shown(renderer)).toEqual([]);
+  });
+});
+
+/** The form the layout asks panels for: beside the content or over it. */
+const LayoutForm = createContext<'beside' | 'over'>('beside');
+
+/** Every form a FormedMover was committed in, in order. */
+let committedForms: string[] = [];
+
+/** A moving panel that shows in the form the layout asks for, and reports the form it took. */
+function FormedMover({ name }: { name: string }) {
+  presence = usePanelPresence();
+  const form = usePanelForm(useContext(LayoutForm));
+  const register = presence?.register;
+  useLayoutEffect(() => register?.(), [register]);
+  useLayoutEffect(() => {
+    committedForms.push(form);
+  });
+  return <span data-panel={name} data-form={form} />;
+}
+
+const forms = (renderer: ReactTestRenderer) =>
+  renderer.root.findAll((node) => node.type === 'span').map((node) => node.props['data-form']);
+
+const renderFormedSlot = (form: 'beside' | 'over', open: boolean) => {
+  const tree = (nextForm: 'beside' | 'over', nextOpen: boolean) => (
+    <LayoutForm.Provider value={nextForm}>
+      <Slot panel={nextOpen ? <FormedMover key="members" name="members" /> : undefined} />
+    </LayoutForm.Provider>
+  );
+  committedForms = [];
+  let renderer: ReactTestRenderer;
+  act(() => {
+    renderer = create(tree(form, open));
+  });
+  const update = (nextForm: 'beside' | 'over', nextOpen: boolean) =>
+    act(() => renderer.update(tree(nextForm, nextOpen)));
+  return { renderer: renderer!, update };
+};
+
+describe('usePanelForm', () => {
+  it('follows the layout while the panel is open', () => {
+    const { renderer, update } = renderFormedSlot('beside', true);
+    expect(forms(renderer)).toEqual(['beside']);
+    update('over', true);
+    expect(forms(renderer)).toEqual(['over']);
+  });
+
+  it('lets a closing panel move out in the form it had', () => {
+    const { renderer, update } = renderFormedSlot('over', true);
+    update('over', false);
+    expect(presence?.phase).toBe('exit');
+    expect(forms(renderer)).toEqual(['over']);
+    act(() => presence?.done());
+    expect(forms(renderer)).toEqual([]);
+  });
+
+  it('removes a closing panel at once, in the form it had, when the layout changes', () => {
+    const { renderer, update } = renderFormedSlot('beside', true);
+    // The window narrows: the layout asks for the over form and closes the panel together.
+    update('over', false);
+    expect(forms(renderer)).toEqual([]);
+    expect(committedForms).not.toContain('over');
+  });
+
+  it('removes a panel at once when the layout changes while it closes', () => {
+    const { renderer, update } = renderFormedSlot('beside', true);
+    update('beside', false);
+    expect(forms(renderer)).toEqual(['beside']);
+    update('over', false);
+    expect(forms(renderer)).toEqual([]);
+    expect(committedForms).not.toContain('over');
   });
 });
