@@ -77,10 +77,10 @@ function App() {
           {/* One particle renderer for the sign-in pages and every splash in turn: a new one per
               screen would start black each time and restart its animation. */}
           <PersistentParticleBackgroundProvider>
-            {/* After a deployment, above every screen: a new version is available. */}
-            <NewVersionNotice />
             {/* Operator notices sit above every screen, sign-in and config loading included. */}
             <NoticeLayout>
+              {/* After a deployment, over every screen: a new version is available. */}
+              <NewVersionNotice />
               {/* A screen that fails to render shows what happened and Reload, never a blank page. */}
               <AppErrorBoundary>
                 <ClientConfigLoader

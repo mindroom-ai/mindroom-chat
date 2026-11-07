@@ -28,32 +28,40 @@ test.beforeEach(async () => {
 
 const deployment = { version: undefined as string | undefined };
 
+type Box = { x: number; y: number; width: number; height: number };
+
 /** Saves a screenshot as `<name>.png` when CONNECTION_STATE_SHOTS names a directory. */
 const shot = async (page: Page, name: string) => {
   const directory = process.env.CONNECTION_STATE_SHOTS;
   if (directory) await page.screenshot({ path: `${directory}/${name}.png` });
 };
 
+/** What the notice is placed against: the room list on a desktop, the top bar on a phone. */
+const anchorOf = (page: Page) =>
+  (page.viewportSize()?.width ?? 0) <= 750
+    ? page.locator('[data-phone-top-bar]')
+    : page.getByTestId('resizable-page-nav');
+
 /**
- * The notice is a card floating over the page, which it leaves where it was: past the rail at the
- * bottom on a desktop, below the top bar on a phone, with nothing painted over it.
+ * The notice is a card floating over the page, which stays where it was: inside the room list at
+ * its foot on a desktop, right below the top bar on a phone, with nothing painted over it.
  */
-const floatsInItsCorner = async (page: Page) => {
-  const region = page.locator('[data-new-version-notice]');
-  const card = region.locator(':scope > *');
-  await expect(card).toBeVisible();
-  expect(await region.evaluate((element) => element.getBoundingClientRect().height)).toBe(0);
+const floatsInItsPlace = async (page: Page, anchorBefore: Box) => {
+  const phone = (page.viewportSize()?.width ?? 0) <= 750;
+  const card = page.locator('[data-new-version-card]');
+  await expect(card).toHaveAttribute('data-new-version-card', phone ? 'page' : 'list');
+  const anchor = await anchorOf(page).boundingBox();
   const box = await card.boundingBox();
-  const viewport = page.viewportSize();
-  if (!box || !viewport) throw new Error('the notice card or the viewport has no size');
-  if (viewport.width <= 750) {
-    // Below the phone's 52 px top bar.
-    expect(box.y).toBeGreaterThanOrEqual(52);
-    expect(box.y).toBeLessThan(76);
+  if (!anchor || !box) throw new Error('the notice card or what it is placed against has no size');
+  expect(anchor).toEqual(anchorBefore);
+  if (phone) {
+    expect(box.y).toBeGreaterThanOrEqual(anchor.y + anchor.height);
+    expect(box.y).toBeLessThan(anchor.y + anchor.height + 24);
   } else {
-    // Past the 66 px rail, at the foot of the room list.
-    expect(box.x).toBeGreaterThanOrEqual(66);
-    expect(viewport.height - (box.y + box.height)).toBeLessThan(32);
+    expect(box.x).toBeGreaterThanOrEqual(anchor.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(anchor.x + anchor.width);
+    expect(box.y + box.height).toBeLessThanOrEqual(anchor.y + anchor.height);
+    expect(anchor.y + anchor.height - (box.y + box.height)).toBeLessThan(32);
   }
   expect(
     await card.evaluate((element) => {
@@ -73,12 +81,22 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   await page.waitForTimeout(2_000);
   await expect(notice).toHaveCount(0);
 
+  const anchorBefore = await anchorOf(page).boundingBox();
+  if (!anchorBefore) throw new Error('no room list or top bar to place the notice against');
+
   deployment.version = `deployment-${browserName}-${RUN}`;
   // The person comes back to the tab.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  const region = page.locator('[data-new-version-notice]');
+  if ((await region.getAttribute('data-phone-layer-open')) !== null) {
+    // A phone's drawer, out on a section's own page, covers the page: the notice waits under it.
+    await expect(page.locator('[data-new-version-card]')).toBeAttached({ timeout: 15_000 });
+    await expect(notice).toBeHidden();
+    await page.keyboard.press('Escape');
+  }
   await expect(notice).toBeVisible({ timeout: 15_000 });
   await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible();
-  await floatsInItsCorner(page);
+  await floatsInItsPlace(page, anchorBefore);
   await shot(page, `new-version-${browserName}`);
 };
 

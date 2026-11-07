@@ -50,6 +50,7 @@ export function ResizablePanel({
   resizeLabel,
   collapseLabel,
   testId,
+  overlay,
 }: {
   children: ReactNode;
   onCollapse?: () => void;
@@ -65,6 +66,8 @@ export function ResizablePanel({
   resizeLabel: string;
   collapseLabel: string;
   testId: string;
+  /** Rendered over the panel after its content, for a child placed against the panel's box. */
+  overlay?: ReactNode;
 }) {
   const widthAtom = useMemo(
     () =>
@@ -294,6 +297,7 @@ export function ResizablePanel({
         />
       )}
       {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+      {overlay}
     </div>
   );
 }

@@ -1,6 +1,9 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { getDefaultStore } from 'jotai';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { phoneNavDrawerOpenAtom } from '../navigation/phoneNavDrawer';
+import { pageNavNoticeSlotAtom } from '../sidebar/pageNavNoticeSlot';
 import { NewVersionNotice } from './NewVersionNotice';
 
 const update = vi.hoisted(() => {
@@ -34,6 +37,9 @@ describe('NewVersionNotice', () => {
     cleanup();
     update.state.version = undefined;
     update.reloadForNewVersion.mockClear();
+    getDefaultStore().set(pageNavNoticeSlotAtom, null);
+    getDefaultStore().set(phoneNavDrawerOpenAtom, false);
+    document.body.innerHTML = '';
   });
 
   it('stays empty until a new version is known, in a live region that is already there', () => {
@@ -47,7 +53,8 @@ describe('NewVersionNotice', () => {
     act(() => update.publish('build-2'));
 
     expect(region.textContent).toContain('A new version of MindRoom is available.');
-    expect(region.querySelector('[data-new-version-card]')).toBeTruthy();
+    // No room list beside the page: the card floats over the page.
+    expect(region.querySelector('[data-new-version-card="page"]')).toBeTruthy();
   });
 
   it('reloads for the new version from its Reload action, once', () => {
@@ -69,5 +76,29 @@ describe('NewVersionNotice', () => {
 
     act(() => update.publish('build-3'));
     expect(liveRegion(container).textContent).toBe('');
+  });
+
+  it('shows at the foot of the room list while the list offers its place, and over the page again once it goes', () => {
+    update.state.version = 'build-2';
+    const slot = document.body.appendChild(document.createElement('div'));
+    const store = getDefaultStore();
+    act(() => store.set(pageNavNoticeSlotAtom, slot));
+    const { container } = render(<NewVersionNotice />);
+
+    expect(slot.querySelector('[data-new-version-card="list"]')).toBeTruthy();
+    expect(liveRegion(container).textContent).toBe('');
+
+    act(() => store.set(pageNavNoticeSlotAtom, null));
+    expect(slot.textContent).toBe('');
+    expect(liveRegion(container).querySelector('[data-new-version-card="page"]')).toBeTruthy();
+  });
+
+  it('marks the region while a phone drawer covers the page, so the card waits under it', () => {
+    update.state.version = 'build-2';
+    const { container } = render(<NewVersionNotice />);
+    expect(liveRegion(container).hasAttribute('data-phone-layer-open')).toBe(false);
+
+    act(() => getDefaultStore().set(phoneNavDrawerOpenAtom, true));
+    expect(liveRegion(container).hasAttribute('data-phone-layer-open')).toBe(true);
   });
 });
