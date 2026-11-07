@@ -2,8 +2,9 @@
 import { renderHook } from '@testing-library/react';
 import type { MatrixClient } from 'matrix-js-sdk';
 import type { ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../matrix/hooks/useMatrixClient';
+import { putSession, removeSession } from '../matrix/session/sessions';
 import { forgetAccountInPlugins, usePluginStorage } from './pluginStorage';
 
 // Two plugins whose `forgetAccount` the tests set.
@@ -18,6 +19,16 @@ vi.mock('./pluginEntries', () => ({
 
 const ALICE = '@alice:example.org';
 const BOB = '@bob:example.org';
+// A user ID that starts with Alice's names another account.
+const LOOKALIKE = `${ALICE}.other`;
+
+const signIn = (userId: string) =>
+  putSession({
+    baseUrl: 'https://matrix.example.org',
+    userId,
+    deviceId: 'DEVICE',
+    accessToken: 'token',
+  });
 
 /** `pluginId`'s storage, as a component of it sees it while `userId` is signed in. */
 const storageOf = (pluginId: string, userId: string) => {
@@ -28,6 +39,10 @@ const storageOf = (pluginId: string, userId: string) => {
     ),
   }).result.current;
 };
+
+beforeEach(() => {
+  [ALICE, BOB, LOOKALIKE].forEach(signIn);
+});
 
 afterEach(() => {
   localStorage.clear();
@@ -48,27 +63,28 @@ describe('usePluginStorage', () => {
     expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
   });
 
-  it('no longer writes for an account forgotten since, as a component unmounting at sign-out', async () => {
-    const before = storageOf('notes', ALICE);
+  it('stores nothing once no login of the account is left, removed in this tab or another', () => {
+    const notes = storageOf('notes', ALICE);
 
-    await forgetAccountInPlugins(ALICE);
+    // As sign-out does, in whichever tab, before it deletes the storage; a component that saves as
+    // it unmounts then must not put the value back.
+    removeSession(signIn(ALICE).sessionId);
 
-    expect(before.setItem('draft', 'Saved as the page goes')).toBe(false);
-    expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
-    // The account signs in again: its components keep storing.
-    expect(storageOf('notes', ALICE).setItem('draft', 'Alice again')).toBe(true);
-    expect(storageOf('notes', ALICE).getItem('draft')).toBe('Alice again');
+    expect(notes.setItem('draft', 'Saved as the page goes')).toBe(false);
+    expect(notes.getItem('draft')).toBeNull();
+    // The account signs in again: it stores again.
+    signIn(ALICE);
+    expect(notes.setItem('draft', 'Alice again')).toBe(true);
+    expect(notes.getItem('draft')).toBe('Alice again');
   });
 });
 
 describe('forgetAccountInPlugins', () => {
   it("deletes every plugin's values for the account and keeps everyone else's", async () => {
-    // A user ID that starts with Alice's names another account.
-    const lookalike = `${ALICE}.other`;
     storageOf('notes', ALICE).setItem('draft', 'Alice writes');
     storageOf('drafts', ALICE).setItem('draft', 'Alice again');
     storageOf('notes', BOB).setItem('draft', 'Bob writes');
-    storageOf('notes', lookalike).setItem('draft', 'Someone else');
+    storageOf('notes', LOOKALIKE).setItem('draft', 'Someone else');
     localStorage.setItem('unrelated', 'kept');
 
     await forgetAccountInPlugins(ALICE);
@@ -76,7 +92,7 @@ describe('forgetAccountInPlugins', () => {
     expect(storageOf('notes', ALICE).getItem('draft')).toBeNull();
     expect(storageOf('drafts', ALICE).getItem('draft')).toBeNull();
     expect(storageOf('notes', BOB).getItem('draft')).toBe('Bob writes');
-    expect(storageOf('notes', lookalike).getItem('draft')).toBe('Someone else');
+    expect(storageOf('notes', LOOKALIKE).getItem('draft')).toBe('Someone else');
     expect(localStorage.getItem('unrelated')).toBe('kept');
     expect(forget.mock.calls).toEqual([
       ['notes', ALICE],
