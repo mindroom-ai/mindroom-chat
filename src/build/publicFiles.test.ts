@@ -1,67 +1,31 @@
-import { spawn } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { withServePy } from './test-utils/servePy';
 
 // The build's files under /public/ (language catalogs, license texts) are only ever files, so a
 // server answers a missing one with 404, never with the app shell: a page or frame that asks for
 // such a file must not start another copy of the app. scripts/image-smoke-test.sh checks the same
 // on the image's nginx (docker/default.conf).
 
-const repoFile = (path: string) => fileURLToPath(new URL(`../../${path}`, import.meta.url));
-
 const SHELL = '<!doctype html><title>app</title>';
 const CATALOG = '{"nav":{"home":"Startseite"}}';
 
-const freePort = () =>
-  new Promise<number>((resolve) => {
-    const probe = createServer().listen(0, '127.0.0.1', () => {
-      const address = probe.address();
-      probe.close(() => resolve(typeof address === 'object' && address ? address.port : 0));
-    });
-  });
-
 describe('serve.py', () => {
-  // Starts Python and serve.py: well under a second, but over 5 s on a loaded machine.
+  // Starts Python and serve.py (test-utils/servePy.ts), so this test gets 30 s.
   it('answers a missing file under /public/ with 404, and the files there and app routes as before', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'serve-py-public-'));
-    writeFileSync(join(root, 'index.html'), SHELL);
-    mkdirSync(join(root, 'public/locales'), { recursive: true });
-    writeFileSync(join(root, 'public/locales/de.json'), CATALOG);
-    const port = await freePort();
-    const server = spawn('python3', [repoFile('serve.py'), String(port)], {
-      cwd: root,
-      stdio: 'ignore',
-    });
-    try {
-      /** Status and body of a request, asked again until the server listens. */
-      const answer = async (path: string, method = 'GET') => {
-        for (let attempt = 0; ; attempt += 1) {
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            const response = await fetch(`http://127.0.0.1:${port}${path}`, { method });
-            // eslint-disable-next-line no-await-in-loop
-            return { status: response.status, body: await response.text() };
-          } catch (error) {
-            if (attempt > 100) throw error;
-            // eslint-disable-next-line no-await-in-loop
-            await new Promise((resolve) => {
-              setTimeout(resolve, 100);
-            });
-          }
-        }
-      };
-      expect((await answer('/public/missing.html')).status).toBe(404);
-      expect(await answer('/public/missing.html', 'HEAD')).toEqual({ status: 404, body: '' });
-      expect(await answer('/public/locales/de.json')).toEqual({ status: 200, body: CATALOG });
-      expect(await answer('/home/')).toEqual({ status: 200, body: SHELL });
-    } finally {
-      server.kill();
-      rmSync(root, { recursive: true, force: true });
-    }
+    await withServePy(
+      { 'index.html': SHELL, 'public/locales/de.json': CATALOG },
+      async (request) => {
+        const answer = async (path: string, method = 'GET') => {
+          const response = await request(path, { method });
+          return { status: response.status, body: await response.text() };
+        };
+        expect((await answer('/public/missing.html')).status).toBe(404);
+        expect(await answer('/public/missing.html', 'HEAD')).toEqual({ status: 404, body: '' });
+        expect(await answer('/public/locales/de.json')).toEqual({ status: 200, body: CATALOG });
+        expect(await answer('/home/')).toEqual({ status: 200, body: SHELL });
+      }
+    );
   }, 30_000);
 });
 
@@ -70,7 +34,7 @@ describe('netlify.toml', () => {
 
   /** The [[redirects]] rules, in their order. */
   const redirects: Redirect[] = [
-    ...readFileSync(repoFile('netlify.toml'), 'utf8').matchAll(
+    ...readFileSync(new URL('../../netlify.toml', import.meta.url), 'utf8').matchAll(
       /^\[\[redirects\]\]\n((?:[ \t]+\S.*\n)+)/gm
     ),
   ].map(([, rule = '']) => {
