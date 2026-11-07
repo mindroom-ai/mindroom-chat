@@ -188,7 +188,7 @@ const directChatNamedAfterHost = async (page: Page, browserName: string) => {
   await page.reload();
   await expectHostKnown(page, people, body);
   await expect(page.getByText(people.host.userId, { exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: new RegExp(HOST_NAME) }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: HOST_NAME, level: 1 })).toBeVisible();
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/direct-accept-${browserName}.png` });
 };
 
