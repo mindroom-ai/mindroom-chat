@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import type { ReactElement } from 'react';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PanelFrameProvider, type PanelFrame } from './PanelFrame';
 import { usePanelSlot } from './panelPresence';
@@ -107,6 +107,43 @@ describe('the frame of a side panel', () => {
     expect(screen.getAllByRole('button')).toEqual([tab]);
     await act(async () => tab.click());
     expect(setLayout).toHaveBeenLastCalledWith('beside');
+  });
+
+  it('drops a drag that filling the room cut short, so the splitter drags again once back', () => {
+    const pointer = { button: 0, isPrimary: true, clientX: 500 };
+    // jsdom has no pointer events or pointer capture.
+    class TestPointerEvent extends MouseEvent {
+      readonly pointerId: number;
+
+      readonly isPrimary: boolean;
+
+      constructor(type: string, init: PointerEventInit = {}) {
+        super(type, init);
+        this.pointerId = init.pointerId ?? 0;
+        this.isPrimary = init.isPrimary ?? false;
+      }
+    }
+    vi.stubGlobal('PointerEvent', TestPointerEvent);
+    Object.assign(HTMLElement.prototype, {
+      setPointerCapture: () => undefined,
+      hasPointerCapture: () => false,
+      releasePointerCapture: () => undefined,
+    });
+    try {
+      const container = row();
+      const { rerender } = render(framed('beside', vi.fn()), { container });
+      fireEvent.pointerDown(separator()!, { ...pointer, pointerId: 1 });
+      // Filled, the splitter goes away with the drag still on it; back beside, a new drag works.
+      rerender(framed('filled', vi.fn()));
+      rerender(framed('beside', vi.fn()));
+      fireEvent.pointerDown(separator()!, { ...pointer, pointerId: 2 });
+      fireEvent.pointerMove(separator()!, { ...pointer, pointerId: 2, clientX: 450 });
+      expect(separator()?.getAttribute('aria-valuenow')).toBe('350');
+    } finally {
+      for (const name of ['setPointerCapture', 'hasPointerCapture', 'releasePointerCapture']) {
+        Reflect.deleteProperty(HTMLElement.prototype, name);
+      }
+    }
   });
 
   it('folded, closes at once instead of moving out from its width beside the conversation', () => {

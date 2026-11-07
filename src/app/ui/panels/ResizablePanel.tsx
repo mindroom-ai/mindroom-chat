@@ -169,7 +169,7 @@ export function ResizablePanel({
   }, [lastWidth, register]);
 
   useLayoutEffect(() => {
-    if (fullWidth || passthrough) {
+    if (full || passthrough) {
       dragRef.current = undefined;
       setPreviewWidth(undefined);
       return undefined;
@@ -189,7 +189,7 @@ export function ResizablePanel({
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [fullWidth, passthrough, maxPanelWidth, minContentWidth]);
+  }, [full, passthrough, maxPanelWidth, minContentWidth]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
