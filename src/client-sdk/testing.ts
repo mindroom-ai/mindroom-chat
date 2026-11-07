@@ -15,9 +15,12 @@ import type { ClientPlugin } from '../app/plugins/registry';
 // The app's vitest has no globals, so React Testing Library does not unmount after each test itself.
 afterEach(cleanup);
 
-/** The account a plugin's components see signed in; `usePluginStorage` keeps values for it. */
+/**
+ * The account a plugin's components see signed in; `usePluginStorage` keeps values for it. Its
+ * client knows no room, so the `room` subpath's paths name rooms by their ID.
+ */
 const USER_ID = '@plugin-tester:example.org';
-const client = { getSafeUserId: () => USER_ID } as MatrixClient;
+const client = { getSafeUserId: () => USER_ID, getRoom: () => null } as MatrixClient;
 
 /**
  * Renders `ui`, made of the components of the plugin `id`, into the document with what the SDK's

@@ -9,9 +9,22 @@ import {
   createHashRouter,
   useLocation,
 } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MatrixClientProvider } from '../app/matrix/hooks/useMatrixClient';
-import { useRoomHref, useRoomNavigate } from './room';
+import { reloadForNewVersion, useRoomHref, useRoomNavigate } from './room';
+
+// The page's version check, which the test finishes, and its reloads.
+const update = vi.hoisted(() => ({ finishCheck: () => {}, reloads: 0 }));
+vi.mock('../app/config/appUpdate', () => ({
+  checkForNewVersion: () =>
+    new Promise<void>((resolve) => {
+      update.finishCheck = resolve;
+    }),
+  reloadForNewVersion: () => {
+    update.reloads += 1;
+    return Promise.resolve();
+  },
+}));
 
 const ROOM = '!lobby:example.org';
 const THREAD = '$root:example.org';
@@ -78,6 +91,14 @@ describe('useRoomNavigate', () => {
     const { pathname, search } = useLocation();
     return <output>{`${pathname}${search}`}</output>;
   }
+  /** A room picker that tells its callback more than the room. */
+  function Picker({ onPick }: { onPick: (roomId: string, how: string) => void }) {
+    return (
+      <button type="button" onClick={() => onPick(ROOM, 'clicked')}>
+        Pick
+      </button>
+    );
+  }
 
   it('opens a room, and a thread in it', () => {
     renderSignedIn(
@@ -91,5 +112,30 @@ describe('useRoomNavigate', () => {
     expect(address()).toBe('/home/!lobby%3Aexample.org');
     fireEvent.click(screen.getByRole('button', { name: 'Thread' }));
     expect(address()).toBe('/home/!lobby%3Aexample.org?threadId=%24root%3Aexample.org');
+  });
+
+  it('opens the room itself when it is a callback that gets more arguments', () => {
+    function PickRoom() {
+      return <Picker onPick={useRoomNavigate().navigateRoom} />;
+    }
+    renderSignedIn(
+      <MemoryRouter initialEntries={['/p/example/']}>
+        <PickRoom />
+        <Address />
+      </MemoryRouter>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Pick' }));
+    expect(screen.getByRole('status').textContent).toBe('/home/!lobby%3Aexample.org');
+  });
+});
+
+describe('reloadForNewVersion', () => {
+  it('reloads once the page asked the server for its version', async () => {
+    const reloading = reloadForNewVersion();
+    await Promise.resolve();
+    expect(update.reloads).toBe(0);
+    update.finishCheck();
+    await reloading;
+    expect(update.reloads).toBe(1);
   });
 });

@@ -2,8 +2,12 @@
 // (docs/architecture.md "Client plugins"): it opens them, links to them, and reloads the page into
 // a newly deployed version. Like `/core` it only grows, and each addition raises
 // CLIENT_PLUGIN_API_VERSION in scripts/client-plugins.mjs.
+import { useMemo } from 'react';
 import { useHref } from 'react-router-dom';
-import { reloadForNewVersion as reloadAppForNewVersion } from '../app/config/appUpdate';
+import {
+  checkForNewVersion,
+  reloadForNewVersion as reloadAppForNewVersion,
+} from '../app/config/appUpdate';
 import { useRoomNavigate as useAppRoomNavigate } from '../app/navigation/useRoomNavigate';
 import { withSearchParam } from '../app/routes/pathUtils';
 
@@ -16,7 +20,17 @@ export type RoomNavigate = {
 };
 
 /** Opens rooms and threads, as the app's own room list and thread links do. */
-export const useRoomNavigate = (): RoomNavigate => useAppRoomNavigate();
+export const useRoomNavigate = (): RoomNavigate => {
+  const { navigateRoom, navigateRoomThread } = useAppRoomNavigate();
+  // Each passes on only its own arguments, also when it is a callback that gets called with more.
+  return useMemo(
+    () => ({
+      navigateRoom: (roomId) => navigateRoom(roomId),
+      navigateRoomThread: (roomId, threadId) => navigateRoomThread(roomId, threadId),
+    }),
+    [navigateRoom, navigateRoomThread]
+  );
+};
 
 /**
  * The `href` of the room `roomId`, or of its thread `threadId`, where `useRoomNavigate` opens it,
@@ -26,6 +40,11 @@ export const useRoomHref = (roomId: string, threadId?: string): string =>
   useHref(withSearchParam(useAppRoomNavigate().roomPath(roomId), { threadId }));
 
 /**
- * Reloads the page into the newest version the server has, as the app's own update notice does.
+ * Reloads the page into the newest version the server has, as the app's own update notice does,
+ * also when the page has not noticed that version yet.
  */
-export const reloadForNewVersion = (): Promise<void> => reloadAppForNewVersion();
+export const reloadForNewVersion = async (): Promise<void> => {
+  // A version the page has not noticed stages no new worker, and the old one would answer the reload.
+  await checkForNewVersion();
+  await reloadAppForNewVersion();
+};
