@@ -20,8 +20,7 @@ export const resolveParticleThemeKind = (): ParticleThemeKind => {
 
 /**
  * The active theme kind, read from the theme id class on <html> that the particle
- * CSS variables follow too. applyAppTheme() sets it: src/index.tsx applies the
- * startup theme with it before the app first renders, and AppTheme every later theme.
+ * CSS variables follow too.
  */
 export const useParticleThemeKind = (): ParticleThemeKind => {
   const [themeKind, setThemeKind] = useState<ParticleThemeKind>(resolveParticleThemeKind);
