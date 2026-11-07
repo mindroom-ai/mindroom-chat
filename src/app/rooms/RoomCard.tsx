@@ -24,6 +24,7 @@ import { isRoomId } from '../matrix/matrix';
 import { stopPropagation } from '../lib/keyboard';
 import { cardActionProps, pressCardAction } from '../lib/cardAction';
 import * as css from './RoomCard.css';
+import { revealDirectionControls } from '../ui/directional';
 
 export const RoomCardGrid = as<'div'>(({ className, ...props }, ref) => (
   <div {...props} className={classNames(css.CardGrid, className)} ref={ref} />
@@ -93,7 +94,9 @@ export const RoomCard = as<'div', RoomCardProps>(
     const verifiedRoomId = roomId ?? (isRoomId(roomIdOrAlias) ? roomIdOrAlias : undefined);
     const joined = verifiedRoomId !== undefined && allRooms.includes(verifiedRoomId);
     const space = roomType === 'm.space';
-    const roomName = name || roomIdOrAlias;
+    // Direction controls in the name and topic show as code points, so they cannot reorder them.
+    const roomName = revealDirectionControls(name || roomIdOrAlias);
+    const shownTopic = topic && revealDirectionControls(topic);
 
     // Only a summary that answered gives a rule (none in it means public). While it loads, or
     // after it failed, any rule passed in is unconfirmed, so access waits for a retry unless
@@ -160,10 +163,10 @@ export const RoomCard = as<'div', RoomCardProps>(
               className={css.RoomCardTopic}
               onClick={() => setTopicOpen(true)}
             >
-              {topic}
+              {shownTopic}
             </Text>
           )}
-          {topic && topicOpen && (
+          {shownTopic && topicOpen && (
             <Overlay open backdrop={<OverlayBackdrop />}>
               <OverlayCenter>
                 <FocusTrap
@@ -174,7 +177,7 @@ export const RoomCard = as<'div', RoomCardProps>(
                     initialFocus: false,
                   }}
                 >
-                  {renderTopicViewer(roomName, topic, () => setTopicOpen(false))}
+                  {renderTopicViewer(roomName, shownTopic, () => setTopicOpen(false))}
                 </FocusTrap>
               </OverlayCenter>
             </Overlay>

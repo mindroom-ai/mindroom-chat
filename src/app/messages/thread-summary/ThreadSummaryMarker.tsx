@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { Text, Tooltip, type RectCords } from 'folds';
-import { PopOut } from '../../ui/directional';
+import { PopOut, revealDirectionControls } from '../../ui/directional';
 import { IconSparkles } from '@tabler/icons-react';
 import type { ThreadSummaryInfo } from '../../matrix/protocol/threadSummary';
 import type { ThreadSummaryMarkerPlan } from '../../event-store/threads/threadSummaryTimeline';
@@ -73,7 +73,7 @@ export function ThreadSummaryMarker({
       shouldUnescape
       tOptions={{ interpolation: { escapeValue: true } }}
       i18nKey="mindroomUi.messages.mindroomThreadSummaryMarker.previous"
-      values={{ summary: plan.previousSummaryText }}
+      values={{ summary: revealDirectionControls(plan.previousSummaryText) }}
       components={{ old: <s /> }}
     />
   );
@@ -101,7 +101,7 @@ export function ThreadSummaryMarker({
         </Text>
       </button>
       <span id={descriptionId} hidden>
-        {summaryInfo.summaryText} {previous}
+        {revealDirectionControls(summaryInfo.summaryText)} {previous}
       </span>
       {/* folds' PopOut layer covers the screen; as a tooltip it must let the
           pointer through to the marker and the timeline. The tooltip inside,
@@ -119,7 +119,7 @@ export function ThreadSummaryMarker({
               <Text size="T200" priority="300">
                 {provenance}
               </Text>
-              <Text size="T300">{summaryInfo.summaryText}</Text>
+              <Text size="T300">{revealDirectionControls(summaryInfo.summaryText)}</Text>
               {previous && (
                 <Text size="T200" priority="300">
                   {previous}

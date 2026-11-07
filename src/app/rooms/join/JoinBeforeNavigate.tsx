@@ -39,6 +39,7 @@ import { getCanonicalAliasOrRoomId, isRoomAlias } from '../../matrix/matrix';
 import { declineInvite } from '../../notifications/inbox/declineInvite';
 import { useAlive } from '../../lib/hooks/useAlive';
 import { isRecord } from '../../lib/isRecord';
+import { revealDirectionControls } from '../../ui/directional';
 
 type JoinBeforeNavigateProps = {
   roomIdOrAlias: string;
@@ -335,7 +336,7 @@ function UnreachableRoom({ roomIdOrAlias, retry }: { roomIdOrAlias: string; retr
           />
         </Avatar>
         <Text size="H4" truncate>
-          {room.name}
+          {revealDirectionControls(room.name)}
         </Text>
       </Box>
       <RemovalNote room={room} />
@@ -352,7 +353,8 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
   const client = useMatrixClient();
   const useAuthentication = useMediaAuthentication();
   const roomId = summary.room_id;
-  const name = summary.name || summary.canonical_alias || roomIdOrAlias;
+  // Direction controls in the name and topic show as code points, so they cannot reorder them.
+  const name = revealDirectionControls(summary.name || summary.canonical_alias || roomIdOrAlias);
   let avatarUrl: string | undefined;
   try {
     avatarUrl = summary.avatar_url
@@ -415,7 +417,7 @@ function SummaryCard({ summary, roomIdOrAlias, viaServers, eventId, threadId }: 
       </Box>
       {summary.topic && (
         <Text className={roomCardCss.RoomCardTopic} size="T300">
-          {summary.topic}
+          {revealDirectionControls(summary.topic)}
         </Text>
       )}
       <InvitedBy roomId={roomId} />
@@ -522,7 +524,7 @@ function LinkHeader({ target, addresses }: { target: string; addresses: string[]
       <Box grow="Yes" alignItems="Center" gap="200" style={{ minWidth: 0 }}>
         {phone ? <PageBack addresses={addresses} /> : <Icon size="200" src={Icons.Link} />}
         <Text as="h1" size="H4" truncate>
-          {target}
+          {revealDirectionControls(target)}
         </Text>
       </Box>
     </PageHeader>

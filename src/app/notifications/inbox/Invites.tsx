@@ -19,7 +19,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import dayjs from 'dayjs';
 import type { MatrixClient, Room } from 'matrix-js-sdk';
 import { SequenceCard } from '../../ui/SequenceCard';
-import { ownDirectionLine } from '../../ui/directional';
+import { ownDirectionLine, revealDirectionControls } from '../../ui/directional';
 import { RoomAvatar } from '../../avatars/RoomAvatar';
 import { Page, PageContent, PageContentCenter, PageHeader } from '../../ui/page/Page';
 import { PageScroll } from '../../ui/page/PageScroll';
@@ -297,11 +297,11 @@ export function InviteCard({
                 style={NAME_STYLE}
                 {...ownDirectionLine}
               >
-                {roomName}
+                {revealDirectionControls(roomName)}
               </Text>
               {roomTopic ? (
                 <Text size="T200" priority="300" truncate {...ownDirectionLine}>
-                  {roomTopic}
+                  {revealDirectionControls(roomTopic)}
                 </Text>
               ) : null}
             </Box>
