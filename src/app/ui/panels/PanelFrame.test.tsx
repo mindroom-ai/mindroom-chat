@@ -10,7 +10,11 @@ import type { PanelLayout } from './roomPanels';
 // A room's side panel in its frame (ResizablePanel inside a PanelFrameProvider), in each layout.
 
 /** The panel in a frame of `layout` (none when undefined), keyed as the room keys it. */
-const framed = (layout: PanelLayout | undefined, setLayout: PanelFrame['setLayout']) => (
+const framed = (
+  layout: PanelLayout | undefined,
+  setLayout: PanelFrame['setLayout'],
+  minContentWidth = 0
+) => (
   <PanelFrameProvider key="notes" value={layout && { label: 'Notes', layout, setLayout }}>
     <ResizablePanel
       storageKey="test.width"
@@ -19,17 +23,17 @@ const framed = (layout: PanelLayout | undefined, setLayout: PanelFrame['setLayou
       collapseLabel="Close"
       testId="panel"
       side="end"
-      minContentWidth={0}
+      minContentWidth={minContentWidth}
     >
       <p>content</p>
     </ResizablePanel>
   </PanelFrameProvider>
 );
 
-/** A row wide enough for the panel at its default width. */
-const row = () => {
+/** A row wide enough for the panel at its default width, unless `width` says otherwise. */
+const row = (width = 3000) => {
   const element = document.body.appendChild(document.createElement('div'));
-  Object.defineProperty(element, 'clientWidth', { value: 3000 });
+  Object.defineProperty(element, 'clientWidth', { value: width });
   return element;
 };
 
@@ -85,6 +89,21 @@ describe('the frame of a side panel', () => {
     expect(setLayout).toHaveBeenLastCalledWith('filled');
     await act(async () => screen.getByRole('button', { name: 'Fold Notes to the edge' }).click());
     expect(setLayout).toHaveBeenLastCalledWith('folded');
+  });
+
+  it('keeps the content as wide as an unframed panel allows at its narrowest', () => {
+    localStorage.setItem('test.width', JSON.stringify(100));
+    renderFramed('beside');
+    // The strip adds its width to the smallest panel, so the content keeps its own smallest width.
+    expect(panel().style.width).toBe('240px');
+    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('200px');
+    expect(separator()?.getAttribute('aria-valuemin')).toBe('240');
+  });
+
+  it('keeps that smallest width in a room too narrow for the panel and the conversation', () => {
+    render(framed('beside', vi.fn(), 360), { container: row(500) });
+    expect(panel().style.width).toBe('240px');
+    expect(content().style.getPropertyValue('--mr-panel-content-width')).toBe('200px');
   });
 
   it('filling the room, takes its full width with no splitter, and Fill brings it back', async () => {

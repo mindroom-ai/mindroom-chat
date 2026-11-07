@@ -22,8 +22,8 @@ const MAX_WIDTH = 600;
 const COLLAPSE_WIDTH = MIN_WIDTH - 40;
 /** The conversation column keeps at least this much room beside a resizable side panel. */
 export const CONVERSATION_MIN_WIDTH = 360;
-const clamp = (width: number, max: number) =>
-  Math.min(Math.max(Math.min(MIN_WIDTH, max), width), max);
+const clamp = (width: number, max: number, min = MIN_WIDTH) =>
+  Math.min(Math.max(Math.min(min, max), width), max);
 const readWidth = (key: string, max: number): number | undefined => {
   const value = getLocalStorageItem<unknown>(key, undefined);
   return typeof value === 'number' && Number.isFinite(value) && value > 0
@@ -88,6 +88,9 @@ export function ResizablePanel({
   const folded = frame?.layout === 'folded';
   /** Beside the content, at a width of its own: the splitter resizes it. */
   const resizable = !full && !folded && !passthrough;
+  // The frame's strip takes its width from the content's, and adds it to the panel's smallest.
+  const strip = frame ? STRIP_WIDTH : 0;
+  const smallest = MIN_WIDTH + strip;
   // Beside the content a panel opens and closes by moving its width; phones, full-width and
   // folded panels switch at once.
   const moves = resizable && !mobile;
@@ -97,11 +100,11 @@ export function ResizablePanel({
   const releasedAt = useRef<number>();
   const movesRef = useRef(moves);
   const maxWidth = Math.max(
-    Math.min(MIN_WIDTH, availableWidth),
+    Math.min(smallest, availableWidth),
     Math.min(maxPanelWidth, availableWidth - minContentWidth)
   );
-  const minWidth = Math.min(MIN_WIDTH, maxWidth);
-  const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth);
+  const minWidth = Math.min(smallest, maxWidth);
+  const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth, smallest);
   const width =
     previewWidth === undefined || full ? settledWidth : Math.min(previewWidth, maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
@@ -268,8 +271,6 @@ export function ResizablePanel({
 
   let contentStyle: CSSProperties = { display: 'contents' };
   if (!passthrough) {
-    // The frame's strip takes its width from the content's.
-    const strip = frame ? STRIP_WIDTH : 0;
     const own = full ? `calc(100% - ${strip}px)` : `${contentWidth - strip}px`;
     contentStyle = { ['--mr-panel-content-width' as string]: own };
   }
