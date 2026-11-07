@@ -110,6 +110,34 @@ describe('getMemberDisplayName', () => {
     expect(getMemberDisplayName(room, SAM)).toBe('Sam 👩\u200D💻');
   });
 
+  it('adds the user ID to a name that is the user ID of a member without a name of their own', () => {
+    // Without a display name Sam shows as "sam", the start of their user ID.
+    const room = roomWith([SAM], [EVE, 'Eve']);
+    rename(room, EVE, 'sam');
+    expect(getMemberDisplayName(room, EVE)).toBe(withId('sam', EVE));
+    expect(getMemberDisplayName(room, SAM)).toBeUndefined();
+
+    // Once Sam has a name of their own, "sam" is Eve's alone.
+    rename(room, SAM, 'Sam Writer');
+    expect(getMemberDisplayName(room, EVE)).toBe('sam');
+  });
+
+  it('keeps a name that is the user ID of someone no longer in the room', () => {
+    const room = roomWith([SAM], [EVE, 'sam']);
+    room.currentState.setStateEvents([
+      new MatrixEvent({
+        type: 'm.room.member',
+        state_key: SAM,
+        sender: SAM,
+        room_id: ROOM_ID,
+        event_id: '$samLeft',
+        origin_server_ts: 1_000,
+        content: { membership: 'leave' },
+      }),
+    ]);
+    expect(getMemberDisplayName(room, EVE)).toBe('sam');
+  });
+
   it('gives no name for a member without one, or with one that shows nothing', () => {
     const room = roomWith([EVE], [SAM, '\u3164'], [OTHER_SAM, OTHER_SAM], [FOURTH, '\u00AD']);
     expect(getMemberDisplayName(room, EVE)).toBeUndefined();
