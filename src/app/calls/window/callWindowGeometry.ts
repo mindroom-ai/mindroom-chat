@@ -133,9 +133,15 @@ export function keyStep(
   const horizontal = key === 'ArrowLeft' || key === 'ArrowRight';
   const sign = key === 'ArrowLeft' || key === 'ArrowUp' ? -KEY_STEP : KEY_STEP;
   if (resize) {
-    return horizontal
-      ? resizeRect(rect, 'e', sign, 0, viewport)
-      : resizeRect(rect, 's', 0, sign, viewport);
+    if (horizontal) return resizeRect(rect, 'e', sign, 0, viewport);
+    // A 16 px step cannot cross the bar threshold, so a height step at the bar or at the minimum jumps to the other state.
+    if (sign > 0 && isBar(rect)) {
+      const space = viewport.height - WINDOW_MARGIN - rect.y;
+      return { ...rect, height: Math.min(MIN_HEIGHT, Math.max(space, BAR_HEIGHT)) };
+    }
+    if (sign < 0 && rect.height <= MIN_HEIGHT && !isBar(rect))
+      return { ...rect, height: BAR_HEIGHT };
+    return resizeRect(rect, 's', 0, sign, viewport);
   }
   // Keyboard moves are plain steps: edge sticking would swallow a 16 px step near the margin.
   return clampToViewport(

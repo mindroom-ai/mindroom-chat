@@ -80,6 +80,11 @@ describe('callWindowGeometry', () => {
     expect(isBar(R)).toBe(false);
   });
 
+  it('switches to the bar exactly at 120 px tall', () => {
+    expect(resizeRect(R, 's', 0, -361, VP).height).toBe(56);
+    expect(resizeRect(R, 's', 0, -360, VP).height).toBe(220);
+  });
+
   it('keeps the bottom edge when the bar is resized from the top', () => {
     const next = resizeRect(R, 'n', 0, 400, VP);
     expect(next.height).toBe(56);
@@ -148,6 +153,7 @@ describe('callWindowGeometry', () => {
     expect(keyStep(R, 'ArrowDown', true, VP)).toEqual({ ...R, height: 496 });
     expect(keyStep(R, 'ArrowUp', true, VP)).toEqual({ ...R, height: 464 });
     expect(keyStep({ ...R, width: 340 }, 'ArrowLeft', true, VP).width).toBe(340);
-    expect(keyStep({ ...R, height: 220 }, 'ArrowUp', true, VP).height).toBe(220);
+    expect(keyStep({ ...R, height: 56 }, 'ArrowDown', true, VP)).toEqual({ ...R, height: 220 });
+    expect(keyStep({ ...R, height: 220 }, 'ArrowUp', true, VP)).toEqual({ ...R, height: 56 });
   });
 });
