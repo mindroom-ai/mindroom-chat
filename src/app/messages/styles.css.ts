@@ -134,13 +134,12 @@ export const MessageQuickReaction = style({
 });
 
 /** A column of entries inside the message menu. */
-export const MessageMenuGroup = style({ padding: config.space.S100 });
-
 /**
- * The message menu often opens under the finger of a long press, where iOS would select its first
- * entry's text and show its Copy bar; its text is never selectable.
+ * The message menu's entries. The menu often opens under the finger of a long press, where iOS
+ * would select the first entry's text and show its Copy bar; their text is never selectable.
  */
-export const MessageMenu = style({
+export const MessageMenuGroup = style({
+  padding: config.space.S100,
   userSelect: 'none',
   WebkitUserSelect: 'none',
   WebkitTouchCallout: 'none',
