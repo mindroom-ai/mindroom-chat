@@ -17,15 +17,10 @@ const { mx, room } = vi.hoisted(() => {
     mx: {
       getSafeUserId: () => '@alice:example.org',
       getHomeserverUrl: () => 'https://example.org',
-      relations: () => [],
       ...listeners,
     },
     room: {
       roomId: '!room:example.org',
-      getMembers: () => [],
-      getMember: () => null,
-      getThread: () => undefined,
-      findEventById: () => undefined,
       ...listeners,
     },
   };
@@ -50,17 +45,12 @@ vi.mock('../config/useClientConfig', () => ({ useClientConfig: () => ({ mindroom
 vi.mock('../computer/useAgentServers', () => ({
   useRoomAgentServers: () => [],
   useBindsOpenIdTokens: () => false,
-  useAgentServerUrls: () => [],
 }));
 vi.mock('../navigation/useRoomViewMode', () => ({
   useRoomViewMode: () => ({ viewMode: 'threaded', setViewMode: () => undefined }),
 }));
 vi.mock('../navigation/useRoomNavigate', () => ({
   useRoomNavigate: () => ({ navigateRoom: () => undefined, navigateRoomThread: () => undefined }),
-}));
-vi.mock('../notifications/readReceipts', () => ({
-  markRoomAndThreadsAsRead: () => undefined,
-  markThreadAsRead: () => undefined,
 }));
 
 importBeforeTests(() => import('./Room'));

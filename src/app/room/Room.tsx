@@ -68,8 +68,9 @@ import { PartUnavailable } from '../ui/PartUnavailable';
 const COMPUTER_DEFAULT_WIDTH = 672;
 const COMPUTER_MAX_WIDTH = 1600;
 /**
- * Without its chunk (offline before any call here) the call panel says so and offers Retry. A call
- * already on here gets End too, as the panel's own End did not load and Retry may not reload.
+ * Without its chunk (offline when the panel is first needed) the call panel says so and offers
+ * Retry. A call already on in this room gets End too, as the panel's own End did not load and Retry
+ * may not reload.
  */
 function CallPanelUnavailable({
   room,
