@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { listShrinkNotRendered } from './useListEndClamp';
+import { listShrinkAfterResize, listShrinkNotRendered } from './useListEndClamp';
 
 // A thread's newest reply finished and shrank by 62 px; the list keeps its rendered height until
 // React renders it again. Rows after the reply (hidden events, edits) take no height.
@@ -74,5 +74,29 @@ describe('listShrinkNotRendered', () => {
     const inner = list(622, [{ index: 2, top: 376, height: 246 }]);
     inner.style.marginTop = '-169.5px';
     expect(listShrinkNotRendered(inner, rows([68, 3626, 246]), 0)).toBe(169.5);
+  });
+});
+
+describe('listShrinkAfterResize', () => {
+  // The reply (index 2) shrank to 246 px; the list still holds its old 308 px.
+  const shrunk = (listBottom = 684) =>
+    list(listBottom, [
+      { index: 1, top: -3414, height: 3626 },
+      { index: 2, top: 376, height: 246 },
+      { index: 3, top: 684, height: 0 },
+    ]);
+
+  it('reads the shrink the rendered rows show for the newest row and a mounted row after it', () => {
+    expect(listShrinkAfterResize(shrunk(), rows([68, 3626, 308, 0]), 0, 2, -62)).toBe(62);
+    expect(listShrinkAfterResize(shrunk(), rows([68, 3626, 308, 30]), 0, 3, -30)).toBe(62);
+  });
+
+  it('adds the shrink of a row after the newest one that is not mounted', () => {
+    // The list also holds the 40 px of index 4, which it does not mount.
+    expect(listShrinkAfterResize(shrunk(724), rows([68, 3626, 308, 0, 40]), 0, 4, -40)).toBe(102);
+  });
+
+  it('cannot tell for a row above the newest one, whose rows below have not moved yet', () => {
+    expect(listShrinkAfterResize(shrunk(), rows([68, 3626, 308, 0]), 0, 1, -30)).toBeUndefined();
   });
 });
