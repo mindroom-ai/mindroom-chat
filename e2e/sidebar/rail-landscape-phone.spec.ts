@@ -71,7 +71,7 @@ const seed = async (prefix: string) => {
       })
     )
   );
-  const spaces = [
+  const spaces: [string, string] = [
     await createPrivateSpace(HOMESERVER, accessToken, { name: 'Projects', topic: '' }),
     await createPrivateSpace(HOMESERVER, accessToken, { name: 'Operations', topic: '' }),
   ];
