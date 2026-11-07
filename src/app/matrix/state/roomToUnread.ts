@@ -2,7 +2,8 @@
  * Unread state per room, and per Space the sum over the rooms it contains (at any depth).
  * A room is listed while it has notification counts or an unread message by someone else in
  * its main timeline (shown as a dot without a count, unless the room is muted); thread activity
- * alone does not list it.
+ * alone does not list it, and neither do main-timeline counts for roots the user answered in
+ * their threads or opened on this device (`isMainUnreadCountRead`).
  */
 import { useEffect } from 'react';
 import { atom, type WritableAtom, useSetAtom } from 'jotai';
@@ -18,7 +19,7 @@ import {
 } from 'matrix-js-sdk';
 import { MAIN_ROOM_TIMELINE } from 'matrix-js-sdk/lib/@types/read_receipts';
 import type { RoomToUnread, Unread, UnreadInfo } from '../types/room';
-import { getUnreadInfo, roomHaveUnread } from '../room';
+import { getUnreadInfo, isMainUnreadCountRead, roomHaveUnread } from '../room';
 import { isRecord } from '../../lib/isRecord';
 import { roomToParentsAtom } from './roomToParents';
 import { matchesEnum } from '../../lib/matchesEnum';
@@ -86,24 +87,6 @@ export const roomToUnreadAtom: RoomToUnreadAtom = atom<RoomToUnread, [RoomToUnre
 const isUnreadTracked = (room: Room): boolean =>
   matchesEnum(room.getMyMembership(), KnownMembership.Join) && !room.isSpaceRoom();
 
-const toUnreadAction = (
-  mx: MatrixClient,
-  room: Room,
-  unreadInfo: UnreadInfo
-): RoomToUnreadAction => {
-  if (!isUnreadTracked(room)) return { type: 'DELETE', roomId: room.roomId };
-  if (unreadInfo.total > 0 || unreadInfo.highlight > 0) return { type: 'PUT', unreadInfo };
-  // A muted room pulls no attention: only its counts, which a mute keeps at zero, would show.
-  if (!isRoomMuted(mx.pushRules, room.roomId) && roomHaveUnread(mx, room)) {
-    return { type: 'PUT', unreadInfo };
-  }
-  return { type: 'DELETE', roomId: room.roomId };
-};
-
-/** The unread entry a room should have now. */
-export const getRoomUnreadAction = (mx: MatrixClient, room: Room): RoomToUnreadAction =>
-  toUnreadAction(mx, room, getUnreadInfo(room));
-
 /** A read receipt of the user: for one thread (`threadId`, `main` for the room) or unthreaded. */
 type OwnReadReceipt = {
   threadId?: string;
@@ -138,6 +121,46 @@ export const getOptimisticReceiptUnreadInfo = (
 
   return { roomId: room.roomId, highlight: Math.max(0, highlight), total: Math.max(0, total) };
 };
+
+/**
+ * The counts without the main timeline's when everything it counts is read by the client's rule
+ * (`isMainUnreadCountRead`), as a main receipt would leave them. The smaller of each count stays,
+ * so counts a receipt of this client lowered already are not lowered twice.
+ */
+const withoutReadMainCounts = (
+  mx: MatrixClient,
+  room: Room,
+  unreadInfo: UnreadInfo
+): UnreadInfo => {
+  if (!isMainUnreadCountRead(mx, room)) return unreadInfo;
+  const threadsOnly = getOptimisticReceiptUnreadInfo(room, [
+    { threadId: MAIN_ROOM_TIMELINE, unthreaded: false },
+  ]);
+  return {
+    roomId: room.roomId,
+    total: Math.min(unreadInfo.total, threadsOnly.total),
+    highlight: Math.min(unreadInfo.highlight, threadsOnly.highlight),
+  };
+};
+
+const toUnreadAction = (
+  mx: MatrixClient,
+  room: Room,
+  roomUnreadInfo: UnreadInfo
+): RoomToUnreadAction => {
+  if (!isUnreadTracked(room)) return { type: 'DELETE', roomId: room.roomId };
+  const unreadInfo = withoutReadMainCounts(mx, room, roomUnreadInfo);
+  if (unreadInfo.total > 0 || unreadInfo.highlight > 0) return { type: 'PUT', unreadInfo };
+  // A muted room pulls no attention: only its counts, which a mute keeps at zero, would show.
+  if (!isRoomMuted(mx.pushRules, room.roomId) && roomHaveUnread(mx, room)) {
+    return { type: 'PUT', unreadInfo };
+  }
+  return { type: 'DELETE', roomId: room.roomId };
+};
+
+/** The unread entry a room should have now. */
+export const getRoomUnreadAction = (mx: MatrixClient, room: Room): RoomToUnreadAction =>
+  toUnreadAction(mx, room, getUnreadInfo(room));
 
 /** Set while this client sends a read receipt; see `sendOwnReceipt`. */
 let sendingOwnReceipt = false;
