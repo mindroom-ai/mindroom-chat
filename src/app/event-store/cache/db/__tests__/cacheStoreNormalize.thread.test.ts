@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest';
 // through the barrel.
 import {
   filterPageableCachedThreadEvents,
-  getCachedThreadSummaryInfoFromRawEvent,
   getThreadCursorAnchor,
   loadCachedThreadEventsBefore,
   mergeThreadCacheFlag,
@@ -218,59 +217,6 @@ describe('getThreadCursorAnchor', () => {
       eventId: '$reply',
       ts: 0,
     });
-  });
-});
-
-describe('getCachedThreadSummaryInfoFromRawEvent', () => {
-  it.each([
-    { editor: undefined, eventTs: 1000 },
-    { editor: '@mindroom_agent:example.org', eventTs: 2000 },
-    { editor: '@other:example.org', eventTs: 1000 },
-  ])(
-    'preserves server chronology from cached events (edited by $editor)',
-    ({ editor, eventTs }) => {
-      expect(
-        getCachedThreadSummaryInfoFromRawEvent({
-          sender: '@mindroom_agent:example.org',
-          origin_server_ts: 1000,
-          ...(editor
-            ? {
-                unsigned: {
-                  'm.relations': { 'm.replace': { sender: editor, origin_server_ts: 2000 } },
-                },
-              }
-            : {}),
-          content: {
-            body: 'Saved summary',
-            msgtype: 'm.notice',
-            'io.mindroom.thread_summary': true,
-          },
-        })
-      ).toEqual({ summaryText: 'Saved summary', eventTs });
-    }
-  );
-
-  it('extracts summary info from cached summary events', () => {
-    expect(
-      getCachedThreadSummaryInfoFromRawEvent({
-        content: {
-          body: 'Latest summary',
-          msgtype: 'm.notice',
-          'io.mindroom.thread_summary': true,
-        },
-      })
-    ).toEqual({ summaryText: 'Latest summary' });
-  });
-
-  it('returns undefined for non-summary cached events', () => {
-    expect(
-      getCachedThreadSummaryInfoFromRawEvent({
-        content: {
-          body: 'Regular message',
-          msgtype: 'm.text',
-        },
-      })
-    ).toBeUndefined();
   });
 });
 
