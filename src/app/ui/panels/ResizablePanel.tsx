@@ -101,12 +101,12 @@ export function ResizablePanel({
   const minWidth = Math.min(MIN_WIDTH, maxWidth);
   const settledWidth = clamp(preferredWidth ?? defaultWidth, maxWidth);
   const width =
-    previewWidth === undefined || full ? settledWidth : Math.min(previewWidth, maxWidth);
+    previewWidth === undefined || fullWidth ? settledWidth : Math.min(previewWidth, maxWidth);
   // Narrower than its smallest width (a drag on its way to closing it), the panel clips its
   // content instead of squeezing it.
   const contentWidth = Math.max(width, minWidth);
   const collapseOnRelease =
-    !full && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
+    !fullWidth && !!onCollapse && previewWidth !== undefined && width <= COLLAPSE_WIDTH;
   const resizeDirection = () => {
     const inlineDirection =
       panelRef.current && getComputedStyle(panelRef.current).direction === 'rtl' ? -1 : 1;
@@ -169,7 +169,7 @@ export function ResizablePanel({
   }, [lastWidth, register]);
 
   useLayoutEffect(() => {
-    if (full || passthrough) {
+    if (fullWidth || passthrough) {
       dragRef.current = undefined;
       setPreviewWidth(undefined);
       return undefined;
@@ -189,7 +189,7 @@ export function ResizablePanel({
     const observer = new ResizeObserver(measure);
     observer.observe(parent);
     return () => observer.disconnect();
-  }, [full, passthrough, maxPanelWidth, minContentWidth]);
+  }, [fullWidth, passthrough, maxPanelWidth, minContentWidth]);
 
   const startResize = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0 || !event.isPrimary || dragRef.current || phase === 'exit') return;
