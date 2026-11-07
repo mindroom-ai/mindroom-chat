@@ -120,7 +120,9 @@ const renderStyledText = (text: string, highlightRegex?: RegExp): StyledText => 
 
 /**
  * Message text with its `$math$` and `$$math$$` rendered, emoji scaled, search matches marked and
- * URLs linked (unless `linkify` is false). Text in backticks stays as written.
+ * URLs linked (unless `linkify` is false). Text in backticks stays as written. Bidirectional
+ * controls show as code points (`<U+202E>`), so the text reads in the order it holds; Copy Text
+ * copies the message as it is.
  */
 export const renderTextWithLatex = (
   text: string,
@@ -131,9 +133,10 @@ export const renderTextWithLatex = (
     keyPrefix?: string;
   }
 ): ReactNode => {
-  const render = () => renderTextWithMatrixMath(text, { ...params, renderStyledText });
+  const shown = revealDirectionControls(text);
+  const render = () => renderTextWithMatrixMath(shown, { ...params, renderStyledText });
   // Only text with a dollar sign can hold math, which typesets once KaTeX has loaded.
-  return text.includes('$') ? <WithKatex render={render} /> : render();
+  return shown.includes('$') ? <WithKatex render={render} /> : render();
 };
 
 /** Props for a mention link: it opens in a new tab unless the click handler handles it. */
@@ -146,7 +149,7 @@ const roomName = (mx: MatrixClient, roomIdOrAlias: string): string => {
     ? getCanonicalAliasRoomId(mx, roomIdOrAlias)
     : roomIdOrAlias;
   const room = roomId ? mx.getRoom(roomId) : undefined;
-  return room?.name ? `#${room.name}` : roomIdOrAlias;
+  return room?.name ? `#${revealDirectionControls(room.name)}` : roomIdOrAlias;
 };
 
 /**
@@ -185,7 +188,11 @@ function MessageLinkLabel({
   const isAlias = roomIdOrAlias.startsWith('#');
   const roomId = isAlias ? getCanonicalAliasRoomId(client, roomIdOrAlias) : roomIdOrAlias;
   const room = roomId ? client.getRoom(roomId) : null;
-  const place = room?.name ? `#${room.name}` : isAlias ? roomIdOrAlias : undefined;
+  const place = room?.name
+    ? `#${revealDirectionControls(room.name)}`
+    : isAlias
+    ? roomIdOrAlias
+    : undefined;
   if (!place) return <>{t('sharedUi.messageLink.messageElsewhere')}</>;
   const inThread = !!room?.getThread(eventId) || !!room?.findEventById(eventId)?.threadRootId;
   return (

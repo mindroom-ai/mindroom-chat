@@ -54,7 +54,7 @@ release *args:
     git fetch --quiet https://github.com/mindroom-ai/mindroom-chat.git main
     node scripts/calver.mjs release --main FETCH_HEAD {{args}}
 
-# What a first visit downloads before the app runs, the largest chunks, and the size budget (scripts/perf/bundle-budget.json) of a build (default dist/). `--sources` attributes the initial bytes to packages; build with `npx vite build --sourcemap` for it.
+# What a first visit downloads before the app runs, the largest chunks, and the size budget (scripts/perf/bundle-budget.json) of a build (default dist/). A build made with `npx vite build --manifest` also lists every chunk with its style sheets by source module, sorted by name, so that list diffs line by line between two builds. `--sources` attributes the initial bytes to packages; build with `npx vite build --sourcemap` for it.
 bundle-report dist="dist" *args:
     node scripts/perf/bundle-report.mjs {{dist}} --budget scripts/perf/bundle-budget.json {{args}}
 
@@ -118,7 +118,7 @@ e2e *args:
 e2e-slot slot *args:
     bash scripts/e2e-slot.sh {{slot}} {{args}}
 
-# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's MindRoom backend for the e2e/<domain>/agent-*.spec.ts specs, which start it themselves. Options: --model stub|real (default $E2E_AGENT_MODEL, else stub; real runs Claude Haiku 5.5 and GPT-6 Luna with the provider keys of the environment), --calls <MatrixRTC service URL> [--calls-profile realtime|live] (the helper answers voice calls with gpt-realtime-2.1-mini or gpt-live-1; needs OPENAI_API_KEY), --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
+# Start (`up`, which prints its state as JSON), stop (`down`), show (`status`) or count the model calls and tokens of (`usage`) slot N's (0-99) MindRoom backend for the e2e/<domain>/agent-*.spec.ts specs, which start it themselves. Options: --model stub|real (default $E2E_AGENT_MODEL, else stub; real runs Claude Haiku 5.5 and GPT-6 Luna with the provider keys of the environment), --calls <MatrixRTC service URL> [--calls-profile realtime|live] (the helper answers voice calls with gpt-realtime-2.1-mini or gpt-live-1; needs OPENAI_API_KEY), --client-sessions (the slot's Chat may sign in to the backend's plugin routes; needs a homeserver that binds OpenID tokens), --computers (the helper gets a Worker Computer, in Docker workers built from the same commit), --checkout <MindRoom checkout> (default $E2E_MINDROOM_CHECKOUT, else /home/basnijholt/Work/dev/mindroom; only read), --ref <commit> (default $E2E_MINDROOM_REF, else its origin/main). Example: `just agent-stack 16 up`.
 agent-stack slot *args:
     python3 scripts/agent-stack/stack.py {{slot}} {{args}}
 

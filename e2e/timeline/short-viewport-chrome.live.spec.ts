@@ -13,6 +13,12 @@ const ROOM_NAME = 'Study notes';
 const ROOM_TOPIC = 'Private room for questions and study notes';
 const SUMMARY = 'Explaining eigenvalue problems across modal analysis and numerical methods';
 
+/** Where the room's chrome starts: below a phone's top bar, or at the top without one. */
+const chromeTop = (page: Page) =>
+  page.evaluate(
+    () => document.querySelector('[data-phone-top-bar]')?.getBoundingClientRect().bottom ?? 0
+  );
+
 const openRoute = (page: Page, url: string) =>
   page.evaluate((path) => {
     window.history.pushState(null, '', path);
@@ -136,7 +142,8 @@ for (const viewport of [
         if (viewport.compact) {
           await expect(roomHeader).toBeAttached();
           await expect(roomHeader, 'the thread banner replaces the room header').toBeHidden();
-          expect(bannerBox.y).toBeLessThan(12);
+          // Right below the app's top bar where a phone has one (667 wide), else at the top.
+          expect(bannerBox.y - (await chromeTop(page))).toBeLessThan(12);
           expect(bannerBox.height, 'the thread banner is a single row').toBeLessThanOrEqual(48);
           // A titled thread has no eyebrow on any screen.
           await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
@@ -182,7 +189,9 @@ for (const viewport of [
             .toBeGreaterThanOrEqual(0);
           await page.setViewportSize({ width: viewport.width, height: viewport.height });
           await expect(roomHeader).toBeHidden();
-          await expect.poll(async () => (await banner.boundingBox())!.y).toBeLessThan(12);
+          await expect
+            .poll(async () => (await banner.boundingBox())!.y - (await chromeTop(page)))
+            .toBeLessThan(12);
 
           // Leaving the thread brings the room header back.
           await banner.locator('button').first().click();

@@ -7,8 +7,10 @@ import { vanillaExtractPlugin } from '@vanilla-extract/vite-plugin';
 import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import { clientPlugins, readClientPlugins } from './scripts/client-plugins.mjs';
 import { e2eClientConfig } from './scripts/e2e-client-config.mjs';
 import { frameHeaders } from './scripts/frame-headers.mjs';
+import { onePackageCopyPerVersion } from './scripts/package-copies.mjs';
 import { startupPrecache } from './scripts/precache-plan.mjs';
 import { thirdPartyNoticesPlugin } from './scripts/third-party-notices.mjs';
 import { mindroomBuildAssets } from './scripts/vite-build-assets.mjs';
@@ -83,8 +85,9 @@ const serviceWorkerPlugin = VitePWA({
     globPatterns: ['**/*.{js,css,html,wasm,woff2,png,svg,webp,avif,jpg,jpeg,gif,ico}'],
     globIgnores: precacheGlobIgnores,
     manifestTransforms: [startup.manifestTransform],
-    // Writes the build inventory into the worker (scripts/precache-plan.mjs).
-    buildPlugins: { vite: [startup.workerPlugin] },
+    // Writes the build inventory into the worker (scripts/precache-plan.mjs), and fails on two
+    // copies of one package version there too.
+    buildPlugins: { vite: [startup.workerPlugin, onePackageCopyPerVersion()] },
   },
   srcDir: path.dirname(SW_ENTRY),
   filename: path.basename(SW_ENTRY),
@@ -92,6 +95,12 @@ const serviceWorkerPlugin = VitePWA({
   injectRegister: false,
   manifest: false,
 });
+
+// The client plugins MINDROOM_CLIENT_PLUGINS lists: the packages each installed in its own directory
+// are its own, which the one-copy check leaves out until plugins share the app's.
+const clientPluginDirs = readClientPlugins(process.env.MINDROOM_CLIENT_PLUGINS).map(
+  ({ dir }) => dir
+);
 
 // The app's own sources: JSX through the React plugin, `.css.ts` files through vanilla-extract.
 const sourcePlugins = [react(), vanillaExtractPlugin()];
@@ -133,9 +142,15 @@ export default defineConfig({
     e2eClientConfig(process.env.MINDROOM_E2E_PROVISIONING_URL),
     // runtime-config.js, authentication-recovery.js, version.json and the build version constants.
     mindroomBuildAssets(),
+    // The client plugins MINDROOM_CLIENT_PLUGINS lists (docs/architecture.md "Client plugins").
+    clientPlugins(),
     // `vite preview` says who may frame the app (frame-ancestors works only as a header).
     frameHeaders(),
     ...sourcePlugins,
+    // The build fails when the app's chunks hold two copies of one package version
+    // (scripts/package-copies.mjs). `?worker` bundles take only `worker.plugins`; the app's one,
+    // livekit-client's encryption worker, is a single prebuilt module.
+    onePackageCopyPerVersion(clientPluginDirs),
     ...(fixturePagesOnly
       ? []
       : [

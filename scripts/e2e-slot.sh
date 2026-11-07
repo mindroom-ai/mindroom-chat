@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a command against an isolated end-to-end environment, so several runs can share a machine.
 #
-# Usage: scripts/e2e-slot.sh <slot 1-50> [--snapshot[=<rev>]] [--preview] [--fresh] [--rtc] <command...>
+# Usage: scripts/e2e-slot.sh <slot 0-99> [--snapshot[=<rev>]] [--preview] [--fresh] [--rtc] <command...>
 #   scripts/e2e-slot.sh 3 just e2e e2e/account/password-login.spec.ts
 #   scripts/e2e-slot.sh 3 --preview npx playwright test e2e/threads/pinned-threads.live.spec.ts
 #   scripts/e2e-slot.sh 3 --rtc --preview npx playwright test e2e/calls/calls.spec.ts

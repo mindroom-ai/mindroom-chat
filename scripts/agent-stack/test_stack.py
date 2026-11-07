@@ -1,12 +1,17 @@
-"""Tests of scripts/agent-stack/stack.py that need no backend: its configs, provider keys, usage summary and joins."""
+"""Tests of scripts/agent-stack/stack.py that need no backend."""
 
 from __future__ import annotations
 
+import argparse
 import contextlib
+import io
 import json
 import os
+import signal
 import sqlite3
+import subprocess
 import sys
+import tarfile
 import tempfile
 import unittest
 import urllib.parse
@@ -230,6 +235,180 @@ class CallsTests(unittest.TestCase):
                 },
             ],
         )
+
+
+def up_args(**changes: object) -> argparse.Namespace:
+    """The arguments of `stack.py <slot> up` without options, with `changes` applied."""
+    values = {
+        "model": "stub",
+        "calls": None,
+        "calls_profile": "realtime",
+        "client_sessions": False,
+        "computers": False,
+        "approval_expiry_days": 0.0003,
+    }
+    return argparse.Namespace(**{**values, **changes})
+
+
+class CommandLineTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # main() installs its own SIGTERM handler; the tests after these get the earlier one back.
+        self.addCleanup(signal.signal, signal.SIGTERM, signal.getsignal(signal.SIGTERM))
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        patcher = mock.patch.dict(os.environ, {"E2E_AGENT_STACK_ROOT": directory.name})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def main(self, *argv: str) -> object:
+        with (
+            mock.patch.object(sys, "argv", ["stack.py", *argv]),
+            contextlib.redirect_stdout(io.StringIO()),
+            contextlib.redirect_stderr(io.StringIO()),
+        ):
+            try:
+                return stack.main()
+            except SystemExit as exit_:
+                return exit_.code
+
+    def test_slots_up_to_99_are_accepted(self) -> None:
+        # 1: no stack runs on the slot; 2: the slot is refused.
+        self.assertEqual(self.main("99", "status"), 1)
+        self.assertEqual(self.main("100", "status"), 2)
+
+    def test_computers_bring_the_client_session_settings(self) -> None:
+        with mock.patch.object(stack, "up", return_value={}) as up:
+            self.assertEqual(self.main("5", "up", "--computers"), 0)
+        self.assertTrue(up.call_args.args[1].client_sessions)
+
+
+class SlotTests(unittest.TestCase):
+    def test_no_two_slots_up_to_99_share_a_port(self) -> None:
+        self.assertEqual(stack.ports(42), {"matrix": 28142, "app": 4342, "api": 29642, "stub": 29742})
+        self.assertEqual(stack.ports(0), {"matrix": 28008, "app": 4200, "api": 29600, "stub": 29700})
+        taken = [port for slot in range(100) for port in stack.ports(slot).values()]
+        self.assertEqual(len(taken), len(set(taken)))
+
+
+class OptionTests(unittest.TestCase):
+    def settings(self, slot: int, client_sessions: bool, image: str | None = None) -> dict[str, str]:
+        return dict(line.split("=", 1) for line in stack.option_env(slot, client_sessions, image))
+
+    def test_client_sessions_admit_the_slot_chat_and_bind_tokens_to_the_api_url(self) -> None:
+        settings = self.settings(42, True)
+        self.assertEqual(settings.pop("MINDROOM_PUBLIC_URL"), "http://127.0.0.1:29642")
+        self.assertEqual(json.loads(settings.pop("MINDROOM_COMPUTER_ALLOWED_ORIGINS")), ["http://127.0.0.1:4342"])
+        self.assertEqual(settings, {})
+        self.assertEqual(json.loads(self.settings(0, True)["MINDROOM_COMPUTER_ALLOWED_ORIGINS"]), ["http://127.0.0.1:4200"])
+        self.assertEqual(stack.option_env(42, False, None), [])
+
+    def test_computers_run_docker_workers_from_the_image_and_admit_the_slot_chat(self) -> None:
+        settings = self.settings(42, True, "mindroom-client-e2e-worker:0123456789ab")
+        self.assertGreaterEqual(len(settings.pop("MINDROOM_SANDBOX_PROXY_TOKEN")), 32)
+        self.assertEqual(json.loads(settings.pop("MINDROOM_COMPUTER_ALLOWED_ORIGINS")), ["http://127.0.0.1:4342"])
+        self.assertEqual(
+            settings,
+            {
+                "MINDROOM_PUBLIC_URL": "http://127.0.0.1:29642",
+                "MINDROOM_WORKER_BACKEND": "docker",
+                "MINDROOM_DOCKER_WORKER_IMAGE": "mindroom-client-e2e-worker:0123456789ab",
+                "MINDROOM_DOCKER_WORKER_SECURITY_POLICY": "computer",
+                "MINDROOM_WORKER_COMPUTER_ENABLED": "true",
+            },
+        )
+
+    def test_computers_give_the_helper_a_worker_browser_and_keep_other_tools_on_the_backend(self) -> None:
+        config = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003, computers=True)
+        helper, scout = config.split("  helper:\n", 1)[1].split("  scout:\n", 1)
+        self.assertIn("      - browser_mcp\n", helper)
+        self.assertIn("    tools: [shell]\n", scout)
+        self.assertIn("defaults:\n  markdown: true\n  worker_tools: [browser_mcp]\n  worker_scope: user_agent\n", config)
+        plain = stack.config_yaml("stub", TESTER, STUB_URL, 0.0003)
+        self.assertNotIn("browser_mcp", plain)
+        self.assertNotIn("worker_", plain)
+
+    def test_a_running_stack_is_reused_only_with_the_options_it_started_with(self) -> None:
+        sha, homeserver = "a" * 40, "http://127.0.0.1:28142"
+        state = {
+            "model": "stub",
+            "calls": None,
+            "sha": sha,
+            "homeserver": homeserver,
+            "approvalExpiryDays": 0.0003,
+        }
+        sessions = {**state, "clientSessions": True, "computers": False}
+        # A stack that the script started before these options is one without them.
+        self.assertTrue(stack.started_with(state, up_args(), sha, homeserver))
+        self.assertTrue(stack.started_with(sessions, up_args(client_sessions=True), sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(), sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, computers=True), sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True, model="real"), sha, homeserver))
+        calls = up_args(client_sessions=True, calls="http://127.0.0.1:29542")
+        self.assertFalse(stack.started_with(sessions, calls, sha, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True), "b" * 40, homeserver))
+        self.assertFalse(stack.started_with(sessions, up_args(client_sessions=True), sha, "http://127.0.0.1:28143"))
+        longer_expiry = up_args(client_sessions=True, approval_expiry_days=0.001)
+        self.assertFalse(stack.started_with(sessions, longer_expiry, sha, homeserver))
+        # 0.000301 days is 26 s too, rounded, but the backend's config would differ.
+        nearly_the_same = up_args(client_sessions=True, approval_expiry_days=0.000301)
+        self.assertFalse(stack.started_with(sessions, nearly_the_same, sha, homeserver))
+
+
+# Stands in for the docker CLI: logs each call, keeps the build context, and builds once unless told to fail.
+FAKE_DOCKER = """#!/bin/sh
+echo "$*" >> "$FAKE_DOCKER_DIR/docker.log"
+case "$1" in
+  image) test -e "$FAKE_DOCKER_DIR/built" ;;
+  build)
+    cat > "$FAKE_DOCKER_DIR/context.tar"
+    if [ -n "$FAKE_DOCKER_FAIL" ]; then echo "$FAKE_DOCKER_FAIL" >&2; exit 1; fi
+    touch "$FAKE_DOCKER_DIR/built" ;;
+esac
+"""
+
+
+class WorkerImageTests(unittest.TestCase):
+    DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
+
+    def setUp(self) -> None:
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.root = Path(directory.name)
+        self.checkout = self.root / "mindroom"
+        (self.checkout / self.DOCKERFILE).parent.mkdir(parents=True)
+        (self.checkout / self.DOCKERFILE).write_text("FROM scratch\n")
+        git = ["git", "-C", str(self.checkout), "-c", "user.name=Test", "-c", "user.email=test@example.org"]
+        for command in (["init", "-q"], ["add", "."], ["-c", "commit.gpgsign=false", "commit", "-qm", "worker"]):
+            subprocess.run([*git, *command], check=True)
+        self.sha = stack.git(self.checkout, "rev-parse", "HEAD")
+        (self.root / "bin").mkdir()
+        (self.root / "bin" / "docker").write_text(FAKE_DOCKER)
+        (self.root / "bin" / "docker").chmod(0o755)
+        environment = {
+            "PATH": f"{self.root / 'bin'}:{os.environ['PATH']}",
+            "E2E_AGENT_STACK_ROOT": str(self.root / "stacks"),
+            "FAKE_DOCKER_DIR": str(self.root),
+        }
+        for patcher in (mock.patch.dict(os.environ, environment), mock.patch.object(stack, "log")):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def test_the_image_of_a_commit_is_built_once_from_its_archive(self) -> None:
+        tag = f"mindroom-client-e2e-worker:{self.sha[:12]}"
+        self.assertEqual(stack.worker_image(self.checkout, self.sha), tag)
+        self.assertEqual(stack.worker_image(self.checkout, self.sha), tag)
+        self.assertEqual(
+            (self.root / "docker.log").read_text().splitlines(),
+            [f"image inspect {tag}", f"build --quiet --tag {tag} --file {self.DOCKERFILE} -", f"image inspect {tag}"],
+        )
+        with tarfile.open(self.root / "context.tar") as context:
+            self.assertIn(self.DOCKERFILE, context.getnames())
+
+    def test_a_failed_build_stops_the_start_with_its_error(self) -> None:
+        with mock.patch.dict(os.environ, {"FAKE_DOCKER_FAIL": "no space left on device"}):
+            with self.assertRaises(stack.StackError) as raised:
+                stack.worker_image(self.checkout, self.sha)
+        self.assertIn("no space left on device", str(raised.exception))
 
 
 if __name__ == "__main__":

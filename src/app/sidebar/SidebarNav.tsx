@@ -17,6 +17,7 @@ import { CreateTab } from './rail/CreateTab';
 import { RailScrollArea } from './rail/RailScrollArea';
 import { useRailButtons } from '../settings/railButtons';
 import { CallTab } from '../calls/CallTab';
+import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 
 type SidebarNavProps = {
   /** Shown under a rule below the account controls, such as the panel collapse toggle. */
@@ -36,11 +37,12 @@ type SidebarNavProps = {
  * in, the command palette, device and Local MindRoom notices when they apply, the Inbox, the
  * account, and the footer. Threads, Canvases, Explore, Create Space, the command palette and
  * Local MindRoom show where the deployment offers them and the person has not hidden them in
- * Settings (`useRailButtons`).
+ * Settings (`useRailButtons`). On phones the top bar holds the command palette and the account.
  */
 export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
   const { t } = useTranslation();
   const shown = useRailButtons();
+  const phone = useScreenSizeContext() === ScreenSize.Mobile;
 
   return (
     <Sidebar aria-label={t('sharedUi.a11y.mainNavigation')}>
@@ -73,11 +75,11 @@ export function SidebarNav({ footer, onPageNavSelect }: SidebarNavProps) {
             <SidebarStackSeparator />
             <SidebarStack>
               <CallTab />
-              {shown.search && <SearchTab />}
+              {shown.search && !phone && <SearchTab />}
               <UnverifiedTab />
               {shown.localMindroom && <LocalMindroomTab />}
               <InboxTab />
-              <SettingsTab />
+              {!phone && <SettingsTab />}
             </SidebarStack>
             {footer && (
               <>

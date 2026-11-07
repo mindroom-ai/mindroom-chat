@@ -10,7 +10,7 @@ import { ThemeContextProvider, useSystemDefaultTheme, useTheme } from '../theme/
 import { usePageZoom } from '../theme/usePageZoom';
 import { useMobileKeyboardViewportFix } from '../native/useMobileKeyboardViewportFix';
 import { appJotaiStore, setImperativeJotaiStore } from '../lib/state/jotaiStore';
-import { applyThemeToDom } from '../theme/themeBootstrap';
+import { applyAppTheme } from '../theme/appliedTheme';
 import { NoticeLayout } from '../notifications/notices/NoticeBanners';
 import { NewVersionNotice } from './NewVersionNotice';
 import { AppErrorBoundary } from './AppErrorBoundary';
@@ -38,7 +38,7 @@ export function AppTheme({ children }: { children: ReactNode }) {
   usePageZoom();
 
   useEffect(() => {
-    applyThemeToDom(theme);
+    applyAppTheme(theme);
   }, [theme]);
 
   return <ThemeContextProvider value={theme}>{children}</ThemeContextProvider>;

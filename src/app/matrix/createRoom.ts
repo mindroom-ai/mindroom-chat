@@ -13,6 +13,9 @@ import type { MDirectContent } from './types/accountData';
 import { getViaServers } from './via-servers';
 import { addRoomIdToMDirect, creatorsSupported } from './matrix';
 import { CreateRoomAccess } from './createRoomTypes';
+import { MINDROOM_AUTO_APPROVE_EVENT } from './protocol/autoApproveContract';
+import { MINDROOM_BACKGROUND_JOBS_EVENT } from './protocol/backgroundJobsContract';
+import { ROOM_THREAD_MODE_EVENT } from './protocol/roomThreadMode';
 
 const MEGOLM_ALGORITHM = 'm.megolm.v1.aes-sha2';
 const GROUP_CALL_STATE_EVENT = 'org.matrix.msc3401.call';
@@ -34,13 +37,14 @@ export const createRoomCallState = (): ICreateRoomStateEvent => ({
 const PINNED_STATE_LEVEL = 100;
 
 /**
- * Lets every member publish call membership, so anyone in the room can start or join its call;
- * the presets alone keep call membership at the state default (50), for moderators. The override
- * replaces the whole `events` map (Client-Server API, `m.room.power_levels`), so it repeats the
- * levels servers pin by default. Where creators are privileged (room version 12, MSC4289),
- * servers raise the upgrade (`m.room.tombstone`) level above every assignable level, to 150.
+ * Lets every member publish call membership, so anyone in the room can start or join its call,
+ * and the state MindRoom's agents publish; the presets alone keep both at the state default (50),
+ * for moderators. The override replaces the whole `events` map (Client-Server API,
+ * `m.room.power_levels`), so it repeats the levels servers pin by default. Where creators are
+ * privileged (room version 12, MSC4289), servers raise the upgrade (`m.room.tombstone`) level
+ * above every assignable level, to 150.
  */
-export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
+export const createRoomPowerLevelsOverride = (version?: string) => {
   const events: Record<string, number> = {
     [StateEvent.RoomEncryption]: PINNED_STATE_LEVEL,
     [StateEvent.RoomHistoryVisibility]: PINNED_STATE_LEVEL,
@@ -49,6 +53,16 @@ export const createVoiceRoomPowerLevelsOverride = (version?: string) => {
     [StateEvent.RoomTombstone]: creatorsSupported(version) ? 150 : PINNED_STATE_LEVEL,
     // MSC3401 call membership: any member may join the call.
     [StateEvent.GroupCallMemberPrefix]: 0,
+    // State MindRoom's agents and router publish; they join with no power. The client reads
+    // server, jobs and auto-approve state only from an agent under its own user ID, a state key
+    // Matrix accepts only from that user; any member may write thread tags and the thread mode.
+    // The rooms MindRoom creates open the same types but the thread mode, which their router
+    // writes as an admin; the router of a room made here is not known when it is made.
+    'io.mindroom.server': 0,
+    [MINDROOM_BACKGROUND_JOBS_EVENT]: 0,
+    [MINDROOM_AUTO_APPROVE_EVENT]: 0,
+    'com.mindroom.thread.tags': 0,
+    [ROOM_THREAD_MODE_EVENT]: 0,
   };
   return { events };
 };
@@ -150,10 +164,11 @@ export const createRoom = async (client: MatrixClient, data: CreateRoomData): Pr
     visibility: isPublic ? Visibility.Public : Visibility.Private,
     initial_state: initialState,
     creation_content: createRoomCreationContent(data),
-    // Spaces hold rooms rather than calls; every other room lets its members call.
+    // Spaces hold rooms rather than calls; every other room lets its members call and its agents
+    // publish their state.
     ...(type === RoomType.Space
       ? {}
-      : { power_level_content_override: createVoiceRoomPowerLevelsOverride(version) }),
+      : { power_level_content_override: createRoomPowerLevelsOverride(version) }),
   };
 
   const result = await client.createRoom(options);
@@ -196,8 +211,9 @@ export const createDirectRoom = async (
     // Spec "Creation" presets: trusted_private_chat gives the invitee the creator's power.
     preset: Preset.TrustedPrivateChat,
     visibility: Visibility.Private,
-    // Someone invited later joins its calls too, not only the two who started it.
-    power_level_content_override: createVoiceRoomPowerLevelsOverride(version),
+    // Someone invited later joins its calls too, not only the two who started it, and an agent
+    // invited later publishes its state.
+    power_level_content_override: createRoomPowerLevelsOverride(version),
   });
   await addRoomIdToMDirect(client, roomId, userId);
   return roomId;

@@ -129,6 +129,7 @@ import {
   heldListHeight,
   isNearLatestEnd,
   useGestureBottomPins,
+  useLatestPinAsked,
   useLatestRowPin,
   useRowsGeneration,
   useTimelineRowJumps,
@@ -783,16 +784,19 @@ export function RoomTimeline(props: RoomTimelineProps) {
     !!threadId && threadEvents.length === 0 && threadInitialRenderMode === 'loading';
   // Replaced room rows (not added ones) start the ledger over, as another room does.
   const rowsGeneration = useRowsGeneration(timeline.linkedTimelines);
-  // The Threads view, newest first, keeps a reader who scrolled down where they are while threads
-  // land at its top; a reader at the top sees them arrive. Only in the window that holds the live
-  // end: a message link's window takes no live rows, and Jump to Latest replaces it.
+  // The Threads view, newest first, keeps a reader who scrolled down where they are while rows land
+  // above them: threads that arrive at its top, and in a message link's window (where leaving a
+  // thread opened from a link comes back) pages of newer history. A reader at the top sees them
+  // arrive. The render that asks for the newest rows (Jump to Latest, a send) keeps nothing: the
+  // reader's row recorded before it can sit far below the rows that replace a link's window.
   const anchorBelowLatestEnd = useCallback(() => {
     const scrollArea = getScrollElement();
-    return atLiveEndRef.current && !!scrollArea && !isNearLatestEnd(scrollArea, true);
-  }, [atLiveEndRef, getScrollElement]);
+    return !!scrollArea && !isNearLatestEnd(scrollArea, true);
+  }, [getScrollElement]);
+  const latestPinAsked = useLatestPinAsked(scrollToBottomRef);
   const ledger = useTimelineScrollLedgerController({
     alive,
-    anchorRoomRows: latestAtTop ? anchorBelowLatestEnd : undefined,
+    anchorRoomRows: latestAtTop && !latestPinAsked ? anchorBelowLatestEnd : undefined,
     estimateSize,
     getItemKey,
     getScrollElement,
@@ -820,10 +824,15 @@ export function RoomTimeline(props: RoomTimelineProps) {
   const { virtualizer } = ledger;
   const virtualizerRef = useLatestRef(virtualizer);
   // How far the list still reaches below its newest row (`listShrinkNotRendered`).
-  const { virtualInnerRef } = ledger;
+  const { virtualInnerRef, readRowFoldPx } = ledger;
   const pendingListShrinkPx = useCallback(
-    () => listShrinkNotRendered(virtualInnerRef.current, virtualizerRef.current.measurementsCache),
-    [virtualInnerRef, virtualizerRef]
+    () =>
+      listShrinkNotRendered(
+        virtualInnerRef.current,
+        virtualizerRef.current.measurementsCache,
+        readRowFoldPx()
+      ),
+    [readRowFoldPx, virtualInnerRef, virtualizerRef]
   );
   // virtual-core corrects the scroll position in its ResizeObserver callback, and the ledger renders
   // the moved rows before the paint, inside the browser's ResizeObserver loop. That render keeps the

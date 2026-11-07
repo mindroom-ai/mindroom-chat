@@ -4,7 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { useNavToActivePathAtom } from './useNavToActivePath';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 
-/** A section's own page (`/home/`, `/<space>/`): the room list on phones. */
+/** A section's own page (`/home/`, `/<space>/`), where a phone's drawer holds the room list out. */
 const isSectionRoot = (pathname: string): boolean =>
   pathname.split('/').filter((segment) => segment.length > 0).length <= 1;
 
@@ -15,7 +15,7 @@ const isSectionRoot = (pathname: string): boolean =>
  */
 export const useNavToActivePathMapper = (navId: string, preserveMobileContent = false): void => {
   const location = useLocation();
-  // On a phone a section's root page is its room list.
+  // On a phone a section's root page is where its room list comes out.
   const onPhone = useScreenSizeContext() === ScreenSize.Mobile;
   const setNavToActivePath = useSetAtom(useNavToActivePathAtom());
 
