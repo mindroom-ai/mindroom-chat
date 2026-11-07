@@ -193,15 +193,15 @@ A build can add code from outside this repository: `MINDROOM_CLIENT_PLUGINS` nam
 
 Every file belongs to one of two lanes. [`docs/provenance.md`](provenance.md) records how each came to be, and [`AGENTS.md`](../AGENTS.md) holds the rules for editing them.
 
-- **Lane P (ported).** Files written by Bas Nijholt for the earlier MindRoom client and licensed under Apache-2.0 for this project. They are listed at the paths they were imported at in `docs/provenance/portable.tsv` (code), `portable-wave2.tsv` (other text files: native shells, locales, scripts) and `portable-wave3.tsv` (binary assets); `dropped.tsv` lists the ones deleted since. Lane P files change only in the ways `AGENTS.md` allows (fill blanked lines, re-point an import, adapt to a Lane C interface, delete dead code or dropped features), and never run through a formatter.
+- **Lane P (ported).** Files written by Bas Nijholt for the earlier MindRoom client and licensed under Apache-2.0 for this project. They are listed at the paths they were imported at in `docs/provenance/portable.tsv` (code), `portable-wave2.tsv` (other text files: native shells, locales, scripts) and `portable-wave3.tsv` (binary assets); `dropped.tsv` lists the ones deleted during the rewrite. Lane P files are edited like any other file, but never run through a formatter.
 - **Lane C (clean).** Everything else, written new for this repository: the app shell, client setup and sync, room list, timeline, composer editor, settings, sign-in pages, and the seams. Lane C must pass `just strict` and the type-aware ESLint rules of `just lint`.
-- **Seams.** Modules that Lane P files import but that were not ported, with an implementation of their own. `docs/provenance/seams.tsv` lists each one's import-time path and the names Lane P imported from it, and `seams-dropped.tsv` the ones deleted or merged since. A seam may move, be renamed or be merged like other Lane C code; the Lane P imports of it are re-pointed with it. When a Lane P test and a seam disagree, the seam changes.
+- **Seams.** Modules that Lane P files import but that were not ported, with an implementation of their own. `docs/provenance/seams.tsv` lists each one's import-time path and the names Lane P imported from it, and `seams-dropped.tsv` the ones deleted or merged during the rewrite. A seam may move, be renamed or be merged like other Lane C code; the Lane P imports of it are re-pointed with it. When a Lane P test and a seam disagree, the seam changes.
 
-A file keeps its lane when it moves. `docs/provenance/moves.tsv` (old path, new path, batch) maps each moved file to where it is now, and `scripts/provenance-paths.cjs` folds it for the tools that sort files by lane (`strict-check.mjs`, the ESLint config, `similarity-audit.sh`, `check_holes.py`). To see which lane a file is in:
+`docs/provenance/moves.tsv` (old path, new path, batch) maps the files moved during the rewrite to their paths then, and `scripts/provenance-paths.cjs` folds it for the tools that sort files by lane (`strict-check.mjs`, the ESLint config, `similarity-audit.sh`, `check_holes.py`). These records are no longer kept up to date, so a Lane P file moved after the rewrite is Lane C to these tools: `just strict` and `just lint` hold it to Lane C's rules. To see which lane the tools give a file:
 
 ```bash
 node scripts/provenance-paths.cjs lane src/app/matrix/protocol/toolTrace.ts src/app/config/useClientConfig.ts
-node scripts/provenance-paths.cjs lane-p        # every Lane P file where it is now
+node scripts/provenance-paths.cjs lane-p        # every Lane P file, at its path after the rewrite
 ```
 
 `just check` enforces the split: `check-holes` proves each Lane P file differed from its import only in its blanked lines at the commit that filled them, `verify-ported` recomputes the import from a source checkout, and the overlap check described in `docs/provenance.md` runs over new code.
