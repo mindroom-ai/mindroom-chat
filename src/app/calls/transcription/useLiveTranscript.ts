@@ -26,7 +26,7 @@ export type LiveTranscriptView = {
   live?: LiveTranscript;
   /** It is the call this device is in, transcribed here. */
   ownCall: boolean;
-  /** This device knows the room's MindRoom server, so `not-transcribed` is MindRoom's answer. */
+  /** This device knows the room's MindRoom server, so it can read the live call. */
   serverKnown: boolean;
 };
 

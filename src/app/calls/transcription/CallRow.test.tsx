@@ -319,26 +319,35 @@ describe('CallRow', () => {
   });
 
   it.each([
-    ['names no live call', () => state.polls[0]?.onLive({ call: null, lines: [], names: {} })],
+    ['names no live call', () => state.polls.at(-1)?.onLive({ call: null, lines: [], names: {} })],
     [
       'names another call',
-      () => state.polls[0]?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }),
+      () => state.polls.at(-1)?.onLive({ call: { ...CALL, id: 'call-2' }, lines: [], names: {} }),
     ],
-    ['says the room is not transcribed', () => state.polls[0]?.finish('not-transcribed')],
-  ])('shows an unedited row as ended when the read %s', async (_case, answer) => {
-    render(LIVE);
-    inView(true);
-    act(() => state.polls[0]?.onLive({ call: CALL, lines: [], names: {} }));
-    expect(container.textContent).toContain('Call in progress');
+    ['says the room is not transcribed', () => state.polls.at(-1)?.finish('not-transcribed')],
+  ])(
+    'stays live, without who is in the call, when the read %s, also once reading starts again',
+    async (_case, answer) => {
+      const live = () => {
+        expect(container.textContent).toContain('Call in progress');
+        expect(faces()).toEqual([]);
+        expect(button('Join')).toBeDefined();
+        expect(button('Transcript')).toBeDefined();
+      };
+      render(LIVE);
+      inView(true);
+      act(() => state.polls[0]?.onLive({ call: CALL, lines: [], names: {} }));
+      expect(faces()).toEqual(['Bob', 'Ann']);
 
-    await act(async () => answer());
-    expect(container.textContent).toContain('Call ended');
-    expect(container.textContent).not.toContain('Call in progress');
-    expect(container.textContent).not.toContain('min');
-    expect(faces()).toEqual([]);
-    expect(button('Join')).toBeUndefined();
-    expect(button('Transcript')).toBeUndefined();
-  });
+      await act(async () => answer());
+      live();
+      inView(false);
+      inView(true);
+      live();
+      await act(async () => answer());
+      live();
+    }
+  );
 
   it.each([
     ['names no live call', () => state.polls[0]?.onLive({ call: null, lines: [], names: {} })],
@@ -350,7 +359,7 @@ describe('CallRow', () => {
       const store = render(LIVE);
       inView(true);
       await act(async () => answer());
-      expect(container.textContent).toContain('Call ended');
+      expect(container.textContent).toContain('Call in progress');
 
       // What another server said goes with it; reads start over on the room's own.
       state.apiUrl = 'https://published.example.org';

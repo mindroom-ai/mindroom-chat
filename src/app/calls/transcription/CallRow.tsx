@@ -62,11 +62,8 @@ function EndedCallRow({ room, rowEvent, row }: RowProps) {
 }
 
 /**
- * The row of a call that is on: who is in it, as MindRoom has it, Join and Transcript. The router
- * never edits the row of a call MindRoom no longer has (transcripts turned off, MindRoom down for
- * more than a day, the router gone): a read that says the room is not transcribed, or names no
- * live call or another one, shows the row as ended, without how long it lasted. A device that knows
- * no MindRoom server for the room reads nothing: the row stays as posted, without Transcript.
+ * The row of a call that is on: who is in it, as MindRoom has it, Join and Transcript. A device
+ * that knows no MindRoom server for the room reads nothing, and offers no Transcript.
  */
 function LiveCallRow({ room, row }: RowProps) {
   const { t } = useTranslation();
@@ -85,11 +82,9 @@ function LiveCallRow({ room, row }: RowProps) {
     undefined,
     useCallback(() => rowRef.current, [])
   );
-  const { state, live, serverKnown } = useLiveTranscript(room, READ_MS, inView);
+  const { live, serverKnown } = useLiveTranscript(room, READ_MS, inView);
   const shownCall = isActiveCallShownIn(useActiveCall(), room.roomId);
   const people = live?.call?.id === row.callId ? live.call.members : [];
-  const ended =
-    (state === 'not-transcribed' && serverKnown) || (!!live && live.call?.id !== row.callId);
 
   const showRoom = () => {
     if (selectedRoomId !== room.roomId) navigation.navigateRoom(room.roomId);
@@ -100,7 +95,7 @@ function LiveCallRow({ room, row }: RowProps) {
       <div id={headerId} className={css.Header}>
         <Icon size="100" src={Icons.Phone} aria-hidden />
         <Text as="span" size="T300" className={css.Title}>
-          {t(ended ? 'featureUi.calls.row.ended' : 'featureUi.calls.row.live')}
+          {t('featureUi.calls.row.live')}
         </Text>
       </div>
       {people.length > 0 && (
@@ -120,48 +115,46 @@ function LiveCallRow({ room, row }: RowProps) {
           </Text>
         </div>
       )}
-      {!ended && (
-        <div className={css.Actions}>
-          {!shownCall && (
-            <Button
-              size="300"
-              radii="Pill"
-              variant="Success"
-              fill="Solid"
-              before={<Icon size="100" src={Icons.Phone} />}
-              onClick={() => {
-                showRoom();
-                store.set(callPanelRoomAtom, room.roomId);
-              }}
-            >
-              <Text size="B300">{t('featureUi.call.prescreenControls.join')}</Text>
-            </Button>
-          )}
-          {serverKnown && (
-            <Button
-              size="300"
-              radii="Pill"
-              variant="Secondary"
-              fill="Soft"
-              onClick={() => {
-                showRoom();
-                openTranscriptPanel(store, room.roomId);
-              }}
-            >
-              <Text size="B300">{t('featureUi.calls.transcript.transcript')}</Text>
-            </Button>
-          )}
-        </div>
-      )}
+      <div className={css.Actions}>
+        {!shownCall && (
+          <Button
+            size="300"
+            radii="Pill"
+            variant="Success"
+            fill="Solid"
+            before={<Icon size="100" src={Icons.Phone} />}
+            onClick={() => {
+              showRoom();
+              store.set(callPanelRoomAtom, room.roomId);
+            }}
+          >
+            <Text size="B300">{t('featureUi.call.prescreenControls.join')}</Text>
+          </Button>
+        )}
+        {serverKnown && (
+          <Button
+            size="300"
+            radii="Pill"
+            variant="Secondary"
+            fill="Soft"
+            onClick={() => {
+              showRoom();
+              openTranscriptPanel(store, room.roomId);
+            }}
+          >
+            <Text size="B300">{t('featureUi.calls.transcript.transcript')}</Text>
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
 
 /**
  * The row MindRoom's router posts when a call between people starts (`io.mindroom.call`), as its
- * latest edit has it. Unedited, the call is on: who is in it, Join and Transcript, until a read
- * says MindRoom no longer has it. Edited for the end: how long it lasted and, once the router
- * names it, the way to the transcript message in the row's thread.
+ * latest edit has it. Unedited, the call is on: who is in it, Join and Transcript. Edited for the
+ * end: how long it lasted and, once the router names it, the way to the transcript message in the
+ * row's thread.
  */
 export function CallRow({ mEvent, row }: { mEvent: MatrixEvent; row: CallRowContent }) {
   const room = useMatrixClient().getRoom(mEvent.getRoomId());
