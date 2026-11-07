@@ -8,7 +8,8 @@ import { joinRoom, matrixFetch, seedRoomOverviewState, sendRoomMessage } from '.
 // without agents or approvals. Its root lies outside the saved sync, as in a busy room. Offline,
 // the approval history cannot load, which is no failure to report: no "Some approval history
 // could not be loaded." notice, offline or after the connection returns, and the history loads
-// once it does. Runs in Chromium and WebKit.
+// once it does. The banner names the thread by its root, as online, not "Thread View". Runs in
+// Chromium and WebKit.
 const PASSWORD = 'offline-thread-open-password';
 
 // OFFLINE_THREAD_SHOTS=<directory> also saves screenshots of the checked states.
@@ -221,4 +222,30 @@ test('an offline thread shows no approval history error, and loads it after reco
   await shot(offline, 'online-again-thread', browserName);
   await expect(offline.getByText(/approval history/i)).toHaveCount(0);
   await expect(offline.getByRole('button', { name: 'Retry history' })).toHaveCount(0);
+});
+
+test('an offline thread banner names the thread by its cached root @webkit', async ({
+  page,
+  context,
+  baseURL,
+  browserName,
+}) => {
+  test.setTimeout(180_000);
+  const setup = await createThreadRoom();
+  await visitThreadOnline(page, setup);
+
+  await goOffline(context, baseURL!, browserName);
+  const offline = await context.newPage();
+  await offline.goto(setup.threadPath);
+  expect(await offline.evaluate(() => navigator.onLine)).toBe(false);
+  await expect(offline.getByText(setup.replyText, { exact: true })).toBeVisible({
+    timeout: 15_000,
+  });
+  const banner = offline.locator('[data-thread-context-banner]');
+  // The root shows under the banner from the cache; the banner names the thread by it as online.
+  await expect(banner.locator('[data-thread-context-root-title]')).toHaveText(setup.rootTitle, {
+    timeout: 10_000,
+  });
+  await expect(banner.getByText('Thread View', { exact: true })).toHaveCount(0);
+  await shot(offline, 'offline-thread-banner', browserName);
 });
