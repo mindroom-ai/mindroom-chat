@@ -545,6 +545,9 @@
       "descriptions": {
         "reply_mode": "Mostrar ou mudar se os agentes precisam de uma menção para iniciar uma conversa aqui (definir/repor requer um administrador da sala)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} tarefas em segundo plano (mostrando {{shown}})"
     }
   },
   "composer": {

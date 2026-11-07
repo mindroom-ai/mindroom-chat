@@ -545,6 +545,9 @@
       "descriptions": {
         "reply_mode": "Mostrar o cambiar si los agentes necesitan una mención para iniciar una conversación aquí (establecer/restablecer requiere un administrador de la sala)."
       }
+    },
+    "backgroundJobs": {
+      "jobCountShowing": "{{count}} tareas en segundo plano (se muestran {{shown}})"
     }
   },
   "composer": {
