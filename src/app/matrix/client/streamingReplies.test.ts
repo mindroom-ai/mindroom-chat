@@ -388,6 +388,111 @@ describe('streaming replies on thread cards', () => {
     expect(f.card().streaming).toBe(true);
   });
 
+  describe('edits by another sender than the reply’s', () => {
+    const othersEdit = (body: string, ts: number, status: string): IEvent => ({
+      ...edit(body, ts, status),
+      sender: readerId,
+    });
+    /** An older summary of the thread comes again, with a fresh copy of the reply's placeholder. */
+    const resummarize = async (f: ReturnType<typeof fixture>, now: number) => {
+      const thread = defined(f.room().getThread(rootId), 'the thread');
+      thread.refreshListedRoot(
+        f.mx.getEventMapper()(withSummary(root(now - 60_000), reply(now - 50_000)))
+      );
+      await settle();
+    };
+
+    it('vouches for a reply on its sender’s live edit, but not on another sender’s', async () => {
+      const now = Date.now();
+      const f = fixture();
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      await f.start();
+      // The reply's sender's edit vouches for the reply the thread's summary holds.
+      await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
+      await f.deliver([edit('The notes list', now - 40_000, 'streaming')]);
+      expect(f.card()).toEqual({ preview: 'The notes list', streaming: true });
+      expect(f.replyRequests()).toBe(0);
+
+      // After a gap, another sender's edit vouches for nothing: the server is asked.
+      await f.deliver([chat('$chat-1', now - 15_000)], true);
+      await f.deliver([othersEdit('The notes list more', now - 10_000, 'streaming')]);
+      f.card();
+      await afterCheckDelay();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+      expect(f.replyRequests()).toBe(1);
+    });
+
+    it('keeps the finishing edit it learned when another sender’s live edit follows', async () => {
+      const now = Date.now();
+      const f = fixture();
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      await f.start();
+      await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
+      expect(f.card().streaming).toBe(false);
+      await afterCheckDelay();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+
+      await f.deliver([othersEdit('Still thinking', now - 10_000, 'streaming')]);
+      await resummarize(f, now);
+      expect(f.card().streaming).toBe(false);
+      await settle();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+      expect(f.replyRequests()).toBe(1);
+    });
+
+    it('takes no edit of another sender that the server bundles with the reply', async () => {
+      const now = Date.now();
+      const f = fixture();
+      f.setServerReply(
+        withEdit(reply(now - 50_000), othersEdit('Still thinking', now - 10_000, 'streaming'))
+      );
+      await f.start();
+      await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
+      expect(f.card().streaming).toBe(false);
+      await afterCheckDelay();
+      expect(f.replyRequests()).toBe(1);
+
+      // The room's thread list then names the reply with its sender's finishing edit.
+      f.holdThreadList([
+        withSummary(
+          root(now - 60_000),
+          withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed'))
+        ),
+      ])();
+      await loadRoomThreads(f.room());
+      await settle();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+
+      await resummarize(f, now);
+      expect(f.card().streaming).toBe(false);
+      await settle();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+    });
+
+    it('takes no edit of another sender that the thread list bundles with the reply', async () => {
+      const now = Date.now();
+      const f = fixture();
+      f.setServerReply(withEdit(reply(now - 50_000), edit(finished, now - 20_000, 'completed')));
+      await f.start();
+      await f.deliver([withSummary(root(now - 60_000), reply(now - 50_000))]);
+      expect(f.card().streaming).toBe(false);
+      await afterCheckDelay();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+
+      f.holdThreadList([
+        withSummary(
+          root(now - 60_000),
+          withEdit(reply(now - 50_000), othersEdit('Still thinking', now - 10_000, 'streaming'))
+        ),
+      ])();
+      await loadRoomThreads(f.room());
+      expect(f.card().streaming).toBe(false);
+      await settle();
+      expect(f.card()).toEqual({ preview: finished, streaming: false });
+      expect(f.replyRequests()).toBe(1);
+    });
+  });
+
   describe('while the room’s thread list is read', () => {
     /** A reload: the cache restores the thread with the summary a mid-stream list read saved. */
     const reload = async (now: number) => {

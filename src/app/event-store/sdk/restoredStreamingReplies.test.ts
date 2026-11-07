@@ -298,4 +298,17 @@ describe('streaming replies restored from the saved sync', () => {
       })
     ).toEqual([{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }]);
   });
+
+  it('takes no edit of another sender in the saved timeline as a reply’s state', () => {
+    const othersDone = { ...editOf('$reply', 'Done', 'completed', 6), sender: USER_ID };
+    const quiet = event('$quiet', { body: 'Hello' }, { ts: 7 });
+    const othersStreaming = { ...editOf('$quiet', 'Hello again', 'streaming', 8), sender: USER_ID };
+    const timeline = [root, placeholder, othersDone, quiet, othersStreaming];
+
+    expect(
+      findSavedStreamingReplies({
+        joinRooms: { [ROOM_ID]: { _timeline: timeline.map((item) => ({ event: item })) } },
+      })
+    ).toEqual([{ roomId: ROOM_ID, eventId: '$reply', threadId: '$root' }]);
+  });
 });

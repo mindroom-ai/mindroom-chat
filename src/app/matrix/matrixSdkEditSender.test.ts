@@ -157,7 +157,18 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     expect(body(room.findEventById('$message')!)).toBe('The forklift is back.');
   });
 
-  it('drops the bundled edit once it is redacted', async () => {
+  const redaction = (id: string, redacts: string, ts: number) =>
+    new MatrixEvent({
+      event_id: id,
+      room_id: ROOM,
+      sender: AUTHOR,
+      origin_server_ts: ts,
+      type: 'm.room.redaction',
+      redacts,
+      content: { redacts },
+    });
+
+  it('shows the sender’s previous edit once the bundled edit is redacted', async () => {
     const room = new Room(ROOM, client, AUTHOR, { timelineSupport: true });
     const add = async (...events: MatrixEvent[]) => {
       await room.addLiveEvents(events, { addToState: false });
@@ -167,19 +178,55 @@ describe('SDK edits older than the sender’s bundled edit', () => {
     const event = room.findEventById('$message')!;
     expect(body(event)).toBe('The forklift is back.');
 
-    await add(
-      new MatrixEvent({
-        event_id: '$redaction',
-        room_id: ROOM,
-        sender: AUTHOR,
-        origin_server_ts: 5,
-        type: 'm.room.redaction',
-        redacts: '$newest-edit',
-        content: { redacts: '$newest-edit' },
-      })
-    );
+    await add(redaction('$redaction', '$newest-edit', 5));
+    expect(body(event)).toBe('The forklift is at the dock.');
+    expect(event.replacingEvent()?.getId()).toBe('$own-edit');
 
+    await add(redaction('$second-redaction', '$own-edit', 6));
     expect(event.replacingEvent()).toBeNull();
+    expect(body(event)).toBe('The forklift is charged.');
+  });
+
+  it('shows the sender’s previous edit once the bundled pending edit is cancelled', async () => {
+    const room = new Room(ROOM, client, AUTHOR, {
+      timelineSupport: true,
+      pendingEventOrdering: PendingEventOrdering.Detached,
+    });
+    await room.addLiveEvents([new MatrixEvent(original()), new MatrixEvent(ownEdit())], {
+      addToState: false,
+    });
+    const event = room.findEventById('$message')!;
+    const pending = new MatrixEvent(edit('~pending-edit', AUTHOR, 4, 'The forklift is back.'));
+    pending.setStatus(EventStatus.NOT_SENT);
+    room.addPendingEvent(pending, 'txn');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // The client keeps the edit an event shows as its bundled edit when it merges another copy.
+    event.setUnsigned({ 'm.relations': { 'm.replace': pending.event } });
+    expect(body(event)).toBe('The forklift is back.');
+
+    room.updatePendingEvent(pending, EventStatus.CANCELLED);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(body(event)).toBe('The forklift is at the dock.');
+  });
+
+  it('shows the bundled edit again once a later pending edit is cancelled', async () => {
+    const room = new Room(ROOM, client, AUTHOR, {
+      timelineSupport: true,
+      pendingEventOrdering: PendingEventOrdering.Detached,
+    });
+    await room.addLiveEvents([bundled(newestEdit())], { addToState: false });
+    const event = room.findEventById('$message')!;
+    const pending = new MatrixEvent(edit('~pending-edit', AUTHOR, 6, 'The forklift is gone.'));
+    pending.setStatus(EventStatus.NOT_SENT);
+    room.addPendingEvent(pending, 'txn');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(body(event)).toBe('The forklift is gone.');
+
+    room.updatePendingEvent(pending, EventStatus.CANCELLED);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(body(event)).toBe('The forklift is back.');
   });
 
   it('drops a pending edit of the sender once it is cancelled', async () => {

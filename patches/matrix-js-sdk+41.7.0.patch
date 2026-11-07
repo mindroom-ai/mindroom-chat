@@ -3396,42 +3396,106 @@ index 19a2f43..d7c247c 100644
  
      /**
 diff --git a/node_modules/matrix-js-sdk/lib/models/relations.js b/node_modules/matrix-js-sdk/lib/models/relations.js
-index 6be66bb..7ce0ee5 100644
+index 6be66bb..5747e11 100644
 --- a/node_modules/matrix-js-sdk/lib/models/relations.js
 +++ b/node_modules/matrix-js-sdk/lib/models/relations.js
-@@ -357,6 +357,15 @@ export class Relations extends TypedEventEmitter {
+@@ -62,6 +62,8 @@ export class Relations extends TypedEventEmitter {
+     _defineProperty(this, "targetEvent", null);
+     _defineProperty(this, "creationEmitted", false);
+     _defineProperty(this, "replacementUpdateId", 0);
++    // MindRoom: the edit object the target showed for the edit the server bundled with it.
++    _defineProperty(this, "bundledReplacement", null);
+     _defineProperty(this, "client", void 0);
+     /**
+      * Listens for event status changes to remove cancelled events.
+@@ -290,7 +292,7 @@ export class Relations extends TypedEventEmitter {
+ 
+       // the all-knowning server tells us that the event at some point had
+       // this timestamp for its replacement, so any following replacement should definitely not be less
+-      var replaceRelation = _this4.targetEvent.getServerAggregatedRelation(RelationType.Replace);
++      var replaceRelation = _this4.getStandingBundledEdit();
+       var minTs = replaceRelation === null || replaceRelation === void 0 ? void 0 : replaceRelation.origin_server_ts;
+       var lastReplacement = _this4.getRelations().reduce((last, event) => {
+         if (event.getSender() !== _this4.targetEvent.getSender()) {
+@@ -357,9 +359,30 @@ export class Relations extends TypedEventEmitter {
        if (!lastReplacement && !targetEvent.replacingEvent()) {
          return;
        }
+-      targetEvent.makeReplaced(lastReplacement !== null && lastReplacement !== void 0 ? lastReplacement : undefined);
 +
 +      // MindRoom: getLastReplacement skips the sender's live edits older than the edit the server
-+      // bundled with the event, which the event shows. When it skips them all, the event keeps that
-+      // edit, unless it was redacted meanwhile, instead of going back to its original content.
++      // bundled with the event, which the event shows. When it skips them all, the event shows that
++      // edit, unless it was redacted or left meanwhile, instead of going back to its original content.
 +      var shown = targetEvent.replacingEvent();
-+      var bundled = targetEvent.getServerAggregatedRelation(RelationType.Replace);
-+      if (!lastReplacement && shown && !shown.isRedacted() && shown.getId() === (bundled === null || bundled === void 0 ? void 0 : bundled.event_id)) {
-+        return;
-+      }
-       targetEvent.makeReplaced(lastReplacement !== null && lastReplacement !== void 0 ? lastReplacement : undefined);
++      var bundled = _this6.getStandingBundledEdit();
++      if (shown && shown.getId() === (bundled === null || bundled === void 0 ? void 0 : bundled.event_id)) _this6.bundledReplacement = shown;
++      var kept = _this6.bundledReplacement;
++      var standing = kept && !kept.isRedacted() && kept.getId() === (bundled === null || bundled === void 0 ? void 0 : bundled.event_id) ? kept : undefined;
++      targetEvent.makeReplaced(lastReplacement !== null && lastReplacement !== void 0 ? lastReplacement : standing);
      })();
    }
++
++  /**
++   * MindRoom: the edit the server bundled with the target event, until it leaves these relations
++   * (redacted, or a pending edit cancelled); its time then no longer hides the sender's older edits.
++   */
++  getStandingBundledEdit() {
++    var _this$targetEvent;
++    var bundled = (_this$targetEvent = this.targetEvent) === null || _this$targetEvent === void 0 ? void 0 : _this$targetEvent.getServerAggregatedRelation(RelationType.Replace);
++    var id = bundled === null || bundled === void 0 ? void 0 : bundled.event_id;
++    var left = !!id && this.relationEventIds.has(id) && !this.getRelations().some(event => event.getId() === id);
++    return left ? undefined : bundled;
++  }
+   maybeEmitCreated() {
+     if (this.creationEmitted) {
+       return;
 diff --git a/node_modules/matrix-js-sdk/src/models/relations.ts b/node_modules/matrix-js-sdk/src/models/relations.ts
-index 77ba3b3..e5599db 100644
+index 77ba3b3..e04b22a 100644
 --- a/node_modules/matrix-js-sdk/src/models/relations.ts
 +++ b/node_modules/matrix-js-sdk/src/models/relations.ts
-@@ -374,6 +374,15 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+@@ -54,6 +54,8 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+     private targetEvent: MatrixEvent | null = null;
+     private creationEmitted = false;
+     private replacementUpdateId = 0;
++    // MindRoom: the edit object the target showed for the edit the server bundled with it.
++    private bundledReplacement: MatrixEvent | null = null;
+     private readonly client: MatrixClient;
+ 
+     /**
+@@ -306,7 +308,7 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
+ 
+         // the all-knowning server tells us that the event at some point had
+         // this timestamp for its replacement, so any following replacement should definitely not be less
+-        const replaceRelation = this.targetEvent.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
++        const replaceRelation = this.getStandingBundledEdit();
+         const minTs = replaceRelation?.origin_server_ts;
+ 
+         const lastReplacement = this.getRelations().reduce<MatrixEvent | null>((last, event) => {
+@@ -374,7 +376,26 @@ export class Relations extends TypedEventEmitter<RelationsEvent, EventHandlerMap
              return;
          }
  
+-        targetEvent.makeReplaced(lastReplacement ?? undefined);
 +        // MindRoom: getLastReplacement skips the sender's live edits older than the edit the server
-+        // bundled with the event, which the event shows. When it skips them all, the event keeps that
-+        // edit, unless it was redacted meanwhile, instead of going back to its original content.
++        // bundled with the event, which the event shows. When it skips them all, the event shows that
++        // edit, unless it was redacted or left meanwhile, instead of going back to its original content.
 +        const shown = targetEvent.replacingEvent();
-+        const bundled = targetEvent.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
-+        if (!lastReplacement && shown && !shown.isRedacted() && shown.getId() === bundled?.event_id) {
-+            return;
-+        }
++        const bundled = this.getStandingBundledEdit();
++        if (shown && shown.getId() === bundled?.event_id) this.bundledReplacement = shown;
++        const kept = this.bundledReplacement;
++        const standing = kept && !kept.isRedacted() && kept.getId() === bundled?.event_id ? kept : undefined;
++        targetEvent.makeReplaced(lastReplacement ?? standing);
++    }
 +
-         targetEvent.makeReplaced(lastReplacement ?? undefined);
++    /**
++     * MindRoom: the edit the server bundled with the target event, until it leaves these relations
++     * (redacted, or a pending edit cancelled); its time then no longer hides the sender's older edits.
++     */
++    private getStandingBundledEdit(): IAggregatedRelation | undefined {
++        const bundled = this.targetEvent?.getServerAggregatedRelation<IAggregatedRelation>(RelationType.Replace);
++        const id = bundled?.event_id;
++        const left = !!id && this.relationEventIds.has(id) && !this.getRelations().some((event) => event.getId() === id);
++        return left ? undefined : bundled;
      }
  
+     private maybeEmitCreated(): void {
