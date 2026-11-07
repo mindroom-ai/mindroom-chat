@@ -347,13 +347,23 @@ const NotificationRow = memo(function NotificationRow({
           )}
           {/* An ellipsis may cut the display name short, never the user ID after it, which tells a
               copied name apart: on a narrow row the ID wraps onto the next line, and a very long
-              one breaks across lines. */}
+              one breaks across lines. Both parts take the bold weight from around them. */}
           <b style={{ display: 'contents' }}>
-            <Text as="span" size="T300" truncate {...ownDirectionLine}>
+            <Text
+              as="span"
+              size="T300"
+              truncate
+              {...ownDirectionLine}
+              style={{ fontWeight: 'inherit' }}
+            >
               {shownName}
             </Text>
             {userIdSuffix && (
-              <Text as="span" size="T300" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+              <Text
+                as="span"
+                size="T300"
+                style={{ minWidth: 0, overflowWrap: 'anywhere', fontWeight: 'inherit' }}
+              >
                 {userIdSuffix}
               </Text>
             )}
