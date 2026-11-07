@@ -782,11 +782,6 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
     }
 
 
-def approval_expiry_seconds(args: argparse.Namespace) -> int:
-    """What --approval-expiry-days asks for, as the state records it."""
-    return round(args.approval_expiry_days * 86400)
-
-
 def started_with(state: dict, args: argparse.Namespace, sha: str, homeserver: str) -> bool:
     """Whether a stack's state comes from a start with this model, calls, client sessions, computers and approval
     expiry, of this commit, on this homeserver; a state without clientSessions or computers counts as one started
@@ -796,7 +791,7 @@ def started_with(state: dict, args: argparse.Namespace, sha: str, homeserver: st
         and state.get("calls") == calls_setting(args)
         and state.get("clientSessions", False) == args.client_sessions
         and state.get("computers", False) == args.computers
-        and state.get("approvalExpirySeconds") == approval_expiry_seconds(args)
+        and state.get("approvalExpiryDays") == args.approval_expiry_days
         and state.get("sha") == sha
         and state.get("homeserver") == homeserver
     )
@@ -925,6 +920,8 @@ def start(
         "calls": calls,
         "clientSessions": args.client_sessions,
         "computers": args.computers,
+        # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
+        "approvalExpiryDays": args.approval_expiry_days,
         "sha": sha,
         "checkout": str(checkout),
         "namespace": namespace,
@@ -1078,7 +1075,7 @@ def start(
             "agents": agent_ids,
             "agentNames": {"router": "MindRoom", **agents},
             "rooms": {"lobby": lobby, "space": space},
-            "approvalExpirySeconds": approval_expiry_seconds(args),
+            "approvalExpirySeconds": round(args.approval_expiry_days * 86400),
             # Only a start that got here is reused; any other state file is restarted.
             "ready": True,
         }

@@ -335,7 +335,6 @@ class OptionTests(unittest.TestCase):
             "sha": sha,
             "homeserver": homeserver,
             "approvalExpiryDays": 0.0003,
-            "approvalExpirySeconds": 26,
         }
         sessions = {**state, "clientSessions": True, "computers": False}
         # A stack that the script started before these options is one without them.
