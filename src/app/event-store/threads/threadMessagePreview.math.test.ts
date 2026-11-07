@@ -55,9 +55,9 @@ describe('thread previews of math', () => {
     expect(preview('$\\sqrt[3]{8} = 2$, $a \\\\ b$ and ${}$')).toBe(
       '$\\sqrt[3]{8} = 2$, $a \\\\ b$ and ${}$'
     );
-    expect(
-      preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')
-    ).toBe('$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$');
+    expect(preview('$$\n\\begin{vmatrix}\n1 & 2 \\\\\n3 & 4\n\\end{vmatrix} = -2\n$$')).toBe(
+      '$$ \\begin{vmatrix} 1 & 2 \\\\ 3 & 4 \\end{vmatrix} = -2 $$'
+    );
   });
 
   it('keep Markdown rules away from a formula', () => {
