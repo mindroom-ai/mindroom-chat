@@ -1,7 +1,7 @@
 import { isRecord } from '../../lib/isRecord';
 import { isUserId } from '../matrix';
 import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentIdentity';
-import { readCallNotes } from './callRow';
+import { MAX_CALL_SECONDS, readCallNotes } from './callRow';
 
 /**
  * The structured transcript MindRoom adds to the message it posts after a voice call, beside the
@@ -22,8 +22,6 @@ export const CALL_TRANSCRIPT_MAX_TURNS = 2000;
 export const CALL_TRANSCRIPT_MAX_TOTAL_LENGTH = 500_000;
 /** How much of a long turn shows until the reader asks for the rest. */
 export const CALL_TRANSCRIPT_TURN_PREVIEW_LENGTH = 1000;
-/** Longest call the card shows, in seconds: a week. */
-const MAX_DURATION_SECONDS = 7 * 24 * 3600;
 
 export type CallTranscriptTurn = {
   sender: string;
@@ -101,7 +99,7 @@ export const readCallTranscript = (
     typeof duration !== 'number' ||
     !Number.isFinite(duration) ||
     duration < 0 ||
-    duration > MAX_DURATION_SECONDS
+    duration > MAX_CALL_SECONDS
   ) {
     return undefined;
   }

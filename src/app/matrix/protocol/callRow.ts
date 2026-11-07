@@ -29,8 +29,8 @@ export type CallRowContent = {
   };
 };
 
-/** Longest call a row shows, in seconds: a week. */
-const MAX_DURATION_SECONDS = 7 * 24 * 3600;
+/** Longest call a row or a transcript shows, in seconds: a week. */
+export const MAX_CALL_SECONDS = 7 * 24 * 3600;
 
 const readCallId = (value: Record<string, unknown>): string | undefined => {
   const { call_id: callId } = value;
@@ -56,7 +56,7 @@ export const readCallRow = (content: Record<string, unknown>): CallRowContent | 
     typeof duration === 'number' &&
     Number.isFinite(duration) &&
     duration >= 0 &&
-    duration <= MAX_DURATION_SECONDS
+    duration <= MAX_CALL_SECONDS
   ) {
     ended.durationSeconds = Math.round(duration);
   }
