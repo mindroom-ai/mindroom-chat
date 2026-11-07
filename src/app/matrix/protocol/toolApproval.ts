@@ -1,5 +1,6 @@
 import { MatrixEvent, RelationType } from 'matrix-js-sdk';
 import { IEncryptedFile } from '../types/common';
+import { STREAM_STATUS_KEY } from './aiRun';
 
 export type ToolApprovalScope = {
   id: string;
@@ -582,5 +583,9 @@ export function parseToolApproval(event: MatrixEvent): ToolApprovalData | null {
 }
 
 // Failed SDK decryption presents as m.room.message / m.bad.encrypted until keys arrive.
+// A streamed reply or its edit keeps its stream status in the clear; no approval has one, so an
+// unreadable reply is no unreadable approval history (P2-e2ee-F003).
 export const isUndecryptedApprovalCandidate = (event: MatrixEvent): boolean =>
-  !event.isRedacted() && (event.getType() === 'm.room.encrypted' || event.isDecryptionFailure());
+  !event.isRedacted() &&
+  (event.getType() === 'm.room.encrypted' || event.isDecryptionFailure()) &&
+  event.getWireContent?.()?.[STREAM_STATUS_KEY] === undefined;
