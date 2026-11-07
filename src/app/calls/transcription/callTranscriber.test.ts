@@ -273,6 +273,7 @@ describe('CallTranscriber joining', () => {
       pausedBy: '@bob:example.org',
     };
     t.server.join.mockImplementationOnce(() => json({ call: paused }));
+    t.server.live.mockImplementation(() => json({ call: paused, lines: [], names: {} }));
     t.transcriber.setMicrophone(MIC_A);
     t.transcriber.start();
     await advance();
@@ -691,21 +692,41 @@ describe('CallTranscriber microphone', () => {
     expect(t.capture(2).track).toBe(MIC_B);
   });
 
-  it('pauses listening at once, and a capture that starts later starts paused', async () => {
+  it('pauses listening at once for a request pressed here, and a capture that starts later starts paused', async () => {
     const t = setup();
     t.transcriber.setMicrophone(MIC_A);
     t.transcriber.start();
     await advance();
 
-    t.transcriber.setPaused(true);
+    t.transcriber.setRequestPending(true);
     expect(t.capture().paused).toBe(true);
 
     t.transcriber.setMicrophone(MIC_B);
     await advance();
     expect(t.capture(1).paused).toBe(true);
 
-    t.transcriber.setPaused(false);
+    t.transcriber.setRequestPending(false);
     expect(t.capture(1).paused).toBe(false);
+  });
+
+  it('pauses listening while MindRoom says the call is paused, and resumes when it says so', async () => {
+    const t = setup();
+    const paused = { ...CALL, pausedBy: '@bob:example.org' };
+    t.server.join.mockImplementationOnce(() => json({ call: paused }));
+    t.server.live.mockImplementationOnce(() => json({ call: paused, lines: [], names: {} }));
+    t.transcriber.setMicrophone(MIC_A);
+    t.transcriber.start();
+    await advance();
+    expect(t.capture().paused).toBe(true);
+
+    // The next read says the call resumed.
+    await advance(2_000);
+    expect(t.capture().paused).toBe(false);
+
+    // A request pressed here keeps it paused until it is answered.
+    t.transcriber.setRequestPending(true);
+    await advance(2_000);
+    expect(t.capture().paused).toBe(true);
   });
 
   it('tries again with the next microphone when listening could not start', async () => {

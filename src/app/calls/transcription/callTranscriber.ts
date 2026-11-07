@@ -123,7 +123,11 @@ export class CallTranscriber {
   /** The microphone to listen to; none while muted. */
   private track?: MediaStreamTrack;
 
-  private paused = false;
+  /** A Pause or Resume pressed on this device has no answer yet. */
+  private requestPending = false;
+
+  /** The call is paused, as the last answer or read that counts says. */
+  private serverPaused = false;
 
   private capture?: { track: MediaStreamTrack; capture: SpeechCapture };
 
@@ -163,10 +167,20 @@ export class CallTranscriber {
     this.updateCapture();
   }
 
-  /** Pauses or resumes capture at once, whoever paused. */
-  setPaused(paused: boolean): void {
-    this.paused = paused;
-    this.capture?.capture.setPaused(paused);
+  /** Whether a Pause or Resume pressed here has no answer yet: capture pauses meanwhile. */
+  setRequestPending(pending: boolean): void {
+    this.requestPending = pending;
+    this.applyPaused();
+  }
+
+  /** Capture pauses while a request pressed here has no answer, or while the call is paused. */
+  private get paused(): boolean {
+    return this.requestPending || this.serverPaused;
+  }
+
+  /** Tells capture whether it is paused; nothing else does. */
+  private applyPaused(): void {
+    this.capture?.capture.setPaused(this.paused);
   }
 
   /**
@@ -247,15 +261,16 @@ export class CallTranscriber {
   }
 
   /**
-   * Hands on the call MindRoom answered a join or Pause with. Paused, listening pauses at once,
-   * before it starts or the controls follow.
+   * Hands on the call MindRoom answered a join or Pause with. Listening follows its paused state
+   * at once, before it starts or the controls follow.
    */
   private applyAnswer(call: TranscriptCall): void {
     if (this.disposed) return;
     this.answers += 1;
     this.lastAnswer = call;
+    this.serverPaused = !!call.pausedBy;
+    this.applyPaused();
     this.options.onUpdate({ type: 'call', call });
-    if (call.pausedBy) this.setPaused(true);
   }
 
   private heartbeat(): void {
@@ -433,7 +448,10 @@ export class CallTranscriber {
         // answer's call stays, and the read adds only its lines of that call.
         const answer = answersAtRead === this.answers ? undefined : this.lastAnswer;
         if (answer && live.call?.id !== answer.id) return;
-        this.options.onUpdate({ type: 'live', live: answer ? { ...live, call: answer } : live });
+        const shown = answer ? { ...live, call: answer } : live;
+        this.serverPaused = !!shown.call?.pausedBy;
+        this.applyPaused();
+        this.options.onUpdate({ type: 'live', live: shown });
       },
       (error) => {
         // A read that fails counts as a failing route: nothing is sent until a check-in is answered.

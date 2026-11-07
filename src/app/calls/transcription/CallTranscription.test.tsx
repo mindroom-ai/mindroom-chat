@@ -51,7 +51,7 @@ const made = vi.hoisted(
       start: ReturnType<typeof vi.fn>;
       end: ReturnType<typeof vi.fn>;
       setMicrophone: ReturnType<typeof vi.fn>;
-      setPaused: ReturnType<typeof vi.fn>;
+      setRequestPending: ReturnType<typeof vi.fn>;
       pause: ReturnType<typeof vi.fn>;
       leaveNow: ReturnType<typeof vi.fn>;
     }>
@@ -65,7 +65,7 @@ vi.mock('./callTranscriber', () => ({
 
     setMicrophone = vi.fn();
 
-    setPaused = vi.fn();
+    setRequestPending = vi.fn();
 
     pause = vi.fn(async () => undefined);
 
@@ -77,7 +77,7 @@ vi.mock('./callTranscriber', () => ({
         start: this.start,
         end: this.end,
         setMicrophone: this.setMicrophone,
-        setPaused: this.setPaused,
+        setRequestPending: this.setRequestPending,
         pause: this.pause,
         leaveNow: this.leaveNow,
       });
@@ -256,13 +256,14 @@ describe('CallTranscription', () => {
     expect(transcriber.setMicrophone).toHaveBeenLastCalledWith(MIC_B);
   });
 
-  it('pauses listening while the call is paused, as MindRoom says', async () => {
+  it('tells the transcriber only whether a request pressed here is unanswered', async () => {
     const { store, set } = mount();
     set({ phase: 'connected', microphoneTrack: MIC_A });
     await loaded();
     const transcriber = only();
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(false);
 
+    // What MindRoom says is the transcriber's own to follow.
     act(() =>
       transcriber.options.onUpdate({
         type: 'live',
@@ -270,9 +271,7 @@ describe('CallTranscription', () => {
       })
     );
     expect(store.get(liveTranscriptAtom)?.call?.pausedBy).toBe('@bob:example.org');
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
-    act(() => transcriber.options.onUpdate({ type: 'call', call: CALL }));
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+    expect(transcriber.setRequestPending).toHaveBeenCalledTimes(1);
   });
 
   it('sends Pause pressed here, pausing listening before MindRoom answers', async () => {
@@ -284,7 +283,7 @@ describe('CallTranscription', () => {
     transcriber.pause.mockImplementationOnce(() => answer.promise);
 
     act(() => store.set(pauseRequestAtom, true));
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(true);
     expect(transcriber.pause).toHaveBeenLastCalledWith(true);
 
     // Answered: MindRoom's state counts again.
@@ -296,7 +295,7 @@ describe('CallTranscription', () => {
       answer.resolve();
     });
     expect(store.get(pauseRequestAtom)).toBeUndefined();
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(false);
   });
 
   it('keeps listening paused after Resume pressed here until MindRoom answers it', async () => {
@@ -310,19 +309,18 @@ describe('CallTranscription', () => {
         call: { ...CALL, pausedBy: '@bob:example.org' },
       })
     );
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
     const answer = pending();
     transcriber.pause.mockImplementationOnce(() => answer.promise);
 
     act(() => store.set(pauseRequestAtom, false));
     expect(transcriber.pause).toHaveBeenLastCalledWith(false);
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(true);
 
     await act(async () => {
       transcriber.options.onUpdate({ type: 'call', call: CALL });
       answer.resolve();
     });
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(false);
   });
 
   it('keeps listening paused while any Pause or Resume pressed here is unanswered', async () => {
@@ -340,7 +338,7 @@ describe('CallTranscription', () => {
     act(() => store.set(pauseRequestAtom, true));
     act(() => store.set(pauseRequestAtom, false));
     expect(transcriber.pause.mock.calls).toEqual([[true], [false]]);
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(true);
 
     await act(async () => {
       transcriber.options.onUpdate({
@@ -349,7 +347,7 @@ describe('CallTranscription', () => {
       });
       pauseAnswer.resolve();
     });
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(true);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(true);
 
     // Both answered: MindRoom's state counts.
     await act(async () => {
@@ -357,7 +355,7 @@ describe('CallTranscription', () => {
       resumeAnswer.resolve();
     });
     expect(store.get(pauseRequestAtom)).toBeUndefined();
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(false);
   });
 
   it("keeps a call's Pause pressed here when an earlier call's request is answered", async () => {
@@ -384,7 +382,7 @@ describe('CallTranscription', () => {
 
     await act(async () => firstAnswer.resolve());
     expect(store.get(pauseRequestAtom)).toBe(true);
-    expect(second.setPaused).toHaveBeenLastCalledWith(true);
+    expect(second.setRequestPending).toHaveBeenLastCalledWith(true);
   });
 
   it('shows the state MindRoom reports after a refused Pause, which resumes listening', async () => {
@@ -396,7 +394,7 @@ describe('CallTranscription', () => {
     // Refused: the transcriber hands on no answer.
     await act(async () => store.set(pauseRequestAtom, true));
     expect(store.get(pauseRequestAtom)).toBeUndefined();
-    expect(transcriber.setPaused).toHaveBeenLastCalledWith(false);
+    expect(transcriber.setRequestPending).toHaveBeenLastCalledWith(false);
   });
 
   it('shows how transcription goes, and nothing for a room MindRoom does not transcribe', async () => {

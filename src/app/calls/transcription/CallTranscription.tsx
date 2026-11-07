@@ -9,7 +9,6 @@ import {
   applyLiveUpdate,
   callTranscriptionAtom,
   liveTranscriptAtom,
-  pausedByIn,
   pauseRequestAtom,
 } from './transcriptionState';
 import { useTranscriptionServer } from './useTranscriptionServer';
@@ -26,15 +25,13 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   const { discovered } = server;
   // A muted microphone sends nothing.
   const track = state.microphone ? state.microphoneTrack : undefined;
-  // Paused as MindRoom says, and at once when Pause or Resume is pressed here, until MindRoom
-  // answered every request: nothing said before it resumed is sent.
-  const request = useAtomValue(pauseRequestAtom);
-  const live = useAtomValue(liveTranscriptAtom);
-  const paused = request !== undefined || !!pausedByIn(live, roomId);
+  // Pause or Resume pressed here pauses capture at once, until MindRoom answered every request:
+  // nothing said before it resumed is sent. The transcriber pauses it while MindRoom says so.
+  const requestPending = useAtomValue(pauseRequestAtom) !== undefined;
 
   const transcriberRef = useRef<CallTranscriber>();
-  const latest = useRef({ track, paused });
-  latest.current = { track, paused };
+  const latest = useRef({ track, requestPending });
+  latest.current = { track, requestPending };
 
   useEffect(() => {
     if (!apiUrl) return undefined;
@@ -63,7 +60,7 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
         });
         transcriberRef.current = transcriber;
         transcriber.setMicrophone(latest.current.track);
-        transcriber.setPaused(latest.current.paused);
+        transcriber.setRequestPending(latest.current.requestPending);
         transcriber.start();
       },
       () => {
@@ -102,8 +99,8 @@ function RoomCallTranscription({ call }: { call: RoomCall }) {
   }, [track]);
 
   useEffect(() => {
-    transcriberRef.current?.setPaused(paused);
-  }, [paused]);
+    transcriberRef.current?.setRequestPending(requestPending);
+  }, [requestPending]);
 
   return null;
 }
