@@ -1,10 +1,16 @@
+import { useEffect, useState } from 'react';
 import { ThreadEvent, type MatrixClient, type MatrixEvent, type Room } from 'matrix-js-sdk';
+import { useMatrixClient } from '../../matrix/hooks/useMatrixClient';
+import { useActiveSession } from '../../matrix/session/useSessionStore';
 import { hydrateCachedEvents } from '../cache/eventCacheEditUtils';
 import {
   createPreferLiveEventMapper,
+  loadCachedThreadEvent,
   loadCachedThreadRootsForRoom,
 } from '../cache/eventRepository';
+import { hydrateLoadedEvent } from '../cache/useRoomEvent';
 import type { EnginePersistFacade } from '../engine/enginePersistFacade';
+import { isConfirmedMatrixEventId } from '../threads/threadRouteUtils';
 
 // Roots this page took from the event cache; saving them back would only repeat what is there.
 const adoptedRoots = new WeakSet<MatrixEvent>();
@@ -83,4 +89,37 @@ export const saveThreadRoot = (
   }
   savedRoots.add(rootEvent);
   persist.persistThreadEventCache(room, threadId, [], rootEvent);
+};
+
+/**
+ * The root of thread `threadId` from the event cache while the SDK holds none (`liveRoot`): an
+ * offline start whose saved sync names neither the root nor a reply has no SDK thread to adopt a
+ * cached root. Read from the cache only, never the server, which gives the SDK the root online.
+ */
+export const useCachedThreadRoot = (
+  room: Room,
+  threadId: string,
+  liveRoot: MatrixEvent | null | undefined
+): MatrixEvent | undefined => {
+  const mx = useMatrixClient();
+  const sessionId = useActiveSession()?.sessionId;
+  const [cached, setCached] = useState<{ room: Room; threadId: string; root: MatrixEvent }>();
+  const wanted = !liveRoot && !!sessionId && isConfirmedMatrixEventId(threadId);
+  useEffect(() => {
+    if (!wanted || !sessionId) return undefined;
+    let active = true;
+    loadCachedThreadEvent(sessionId, room.roomId, threadId, threadId)
+      .then(async (raw) => {
+        if (!raw) return;
+        const root = await hydrateLoadedEvent(mx, { room_id: room.roomId, ...raw });
+        if (active) setCached({ room, threadId, root });
+      })
+      .catch(() => {
+        // A cache that cannot be read leaves the thread unnamed until the server names it.
+      });
+    return () => {
+      active = false;
+    };
+  }, [mx, room, sessionId, threadId, wanted]);
+  return wanted && cached?.room === room && cached.threadId === threadId ? cached.root : undefined;
 };
