@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, type ReactNode } from 'react';
 import { Avatar, Box, Icon, Icons, Text } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
@@ -17,13 +17,18 @@ import { OverflowChip } from '../ThreadContextBanner.css';
 export type CompactThreadCardProps = {
   viewModel: CompactThreadCardViewModel;
   onClick: (threadRootId: string, summaryText?: string) => void;
+  /**
+   * Shown in the card under the thread's summary, with controls of its own, such as a call's row:
+   * the card then holds the button that opens the thread, beside it.
+   */
+  attachment?: ReactNode;
 };
 
 // As many whole tags as the thread banner shows, then a count of the rest.
 const DESKTOP_MAX_TAGS = 3;
 const MOBILE_MAX_TAGS = 2;
 
-function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
+function CompactThreadCardBase({ viewModel, onClick, attachment }: CompactThreadCardProps) {
   const { t } = useTranslation();
   const maxTags =
     useScreenSizeContext() === ScreenSize.Mobile ? MOBILE_MAX_TAGS : DESKTOP_MAX_TAGS;
@@ -84,9 +89,9 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
     .filter(Boolean)
     .join(' ');
 
-  return (
+  const card = (
     <button
-      className={cardClassName}
+      className={attachment ? css.CardButton : cardClassName}
       type="button"
       onClick={() => onClick(id.threadRootId, primarySummaryText)}
       data-thread-root-id={id.threadRootId}
@@ -216,6 +221,13 @@ function CompactThreadCardBase({ viewModel, onClick }: CompactThreadCardProps) {
         </span>
       </Box>
     </button>
+  );
+  if (!attachment) return card;
+  return (
+    <div className={cardClassName}>
+      {card}
+      {attachment}
+    </div>
   );
 }
 

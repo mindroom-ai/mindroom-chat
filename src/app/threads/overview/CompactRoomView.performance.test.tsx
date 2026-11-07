@@ -123,7 +123,12 @@ const makeViewModel = (
 });
 
 const makeProps = (): CompactRoomViewProps => ({
-  room: { roomId: '!room:server' } as Room,
+  // Its thread roots are not loaded: no card holds a call's row.
+  room: {
+    roomId: '!room:server',
+    getUnfilteredTimelineSet: () => ({ findEventById: () => undefined }),
+    getThread: () => null,
+  } as unknown as Room,
   threadRootIds: state.models.map((model) => model.id.threadRootId),
   threadRecordMap: new Map(),
   onThreadClick: vi.fn(),

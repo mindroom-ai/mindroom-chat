@@ -154,15 +154,9 @@ const callPanel = (page: Page) => page.getByTestId('call-panel');
 const openLobby = (page: Page, stack: AgentStack) =>
   page.goto(`/home/${encodeURIComponent(stack.rooms.lobby)}`, { timeout: 180_000 });
 
-/**
- * The default view (Compact) lists the router's row as a plain thread card: showing the row itself
- * in the list waits on a decision about the list's card for it. The row's thread shows the row.
- */
-const openRowThread = async (page: Page) => {
-  await page
-    .getByRole('button', { name: /^Open thread: Call started\./ })
-    .click({ timeout: 60_000 });
-  const row = page.locator('[data-call-row]');
+/** The router's row in the default view's list (Compact): its card shows the row itself. */
+const listedRow = async (page: Page) => {
+  const row = page.locator('[data-scroll-anchor] [data-call-row]');
   await expect(row).toContainText('Call in progress', { timeout: 60_000 });
   return row;
 };
@@ -220,19 +214,18 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     // The guest finds the call on in the row, with the tester in it as the row reads it (every 5
     // seconds while in view), and joins from the row.
     await openLobby(guest.page, stack);
-    const guestRow = await openRowThread(guest.page);
+    const guestRow = await listedRow(guest.page);
     await expect(guestRow.locator('[data-call-row-member]')).toHaveCount(1, { timeout: 30_000 });
     await guestRow.getByRole('button', { name: 'Join', exact: true }).click();
     await joinCall(guest.page, guest.userId);
 
     // For the tester the row has both in the call and no Join for the call this device is in; its
     // Transcript opens the live transcript in the call panel's place.
-    const row = await openRowThread(page);
+    const row = await listedRow(page);
     const rowId = await page
-      .locator('[data-message-id]')
+      .locator('[data-scroll-anchor]')
       .filter({ has: row })
-      .first()
-      .getAttribute('data-message-id');
+      .getAttribute('data-scroll-anchor');
     await expect(row.locator('[data-call-row-member]')).toHaveCount(2, { timeout: 30_000 });
     await expect(row.getByRole('button', { name: 'Join', exact: true })).toHaveCount(0);
     await row.getByRole('button', { name: 'Transcript', exact: true }).click();
@@ -315,7 +308,8 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     await expect(card.locator('[data-call-transcript-name]')).toHaveText([TESTER_NAME, GUEST_NAME]);
     await expect(card.locator('[data-call-transcript-text]')).toHaveText([spoken, spoken]);
 
-    // Back in the lobby's list, the row's card says the call ended and holds the message.
+    // Back in the lobby's list, the row's card says the call ended and holds the message, and the
+    // row in it links to the message too.
     await page
       .locator('[data-thread-context-banner]')
       .getByRole('button', { name: 'Back', exact: true })
@@ -323,6 +317,8 @@ test("two people in a call are transcribed under their names, Pause leaves a gap
     const rowCard = page.locator(`[data-thread-root-id="${rowId}"]`);
     await expect(rowCard).toContainText(/Call ended · \d+ min/, { timeout: 30_000 });
     await expect(rowCard.locator('[data-compact-card-reply-count]')).toHaveText('1');
+    await expect(row).toContainText('Call ended');
+    await expect(row.getByRole('button', { name: 'Notes and transcript' })).toBeVisible();
   } finally {
     await guest.page.context().close();
   }

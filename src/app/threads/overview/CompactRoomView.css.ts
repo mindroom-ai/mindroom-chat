@@ -63,6 +63,27 @@ export const Card = style([
   },
 ]);
 
+// A card that holds controls of its own besides opening its thread (a call's row): the button
+// that opens the thread fills the card's place for the summary.
+export const CardButton = style([
+  DefaultReset,
+  {
+    display: 'flex',
+    flexDirection: 'column',
+    rowGap: config.space.S100,
+    inlineSize: '100%',
+    minInlineSize: 0,
+    color: 'inherit',
+    textAlign: 'start',
+    cursor: 'pointer',
+    borderRadius: config.radii.R300,
+    ':focus-visible': {
+      outline: `${config.borderWidth.B300} solid ${color.Primary.Main}`,
+      outlineOffset: '1px',
+    },
+  },
+]);
+
 globalStyle(`${CardShell}:focus-within ${Card}`, {
   backgroundColor: color.SurfaceVariant.ContainerHover,
 });

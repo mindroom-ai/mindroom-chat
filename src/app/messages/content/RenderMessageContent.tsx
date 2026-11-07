@@ -1,8 +1,8 @@
-import { ReactElement, ReactNode, Suspense, useMemo } from 'react';
+import { ReactElement, ReactNode, useMemo } from 'react';
 import { MatrixEvent, MsgType } from 'matrix-js-sdk';
 import type { HTMLReactParserOptions } from 'html-react-parser';
 import type { Opts as LinkifyOpts } from 'linkifyjs';
-import { Box, Text } from 'folds';
+import { Box } from 'folds';
 import { ErrorBoundary } from 'react-error-boundary';
 import {
   MAudio,
@@ -41,8 +41,8 @@ import { MessageEvent } from '../../matrix/types/room';
 import { MEDIA_SPOILER_PROPERTY } from '../../matrix/send/msgContent';
 import { ToolCallMessageContext } from '../agent-run/toolCallStatus';
 import { readCallTranscript } from '../../matrix/protocol/callTranscript';
-import { readCallRow, type CallRowContent } from '../../matrix/protocol/callRow';
-import { lazyPart } from '../../lib/lazyPart';
+import { readCallRow } from '../../matrix/protocol/callRow';
+import { LazyCallRow } from '../../calls/transcription/LazyCallRow';
 import { CallTranscriptCard } from './CallTranscriptCard';
 import {
   useMessageRenderer,
@@ -53,19 +53,6 @@ import { pluginFailure } from '../../plugins/pluginFailure';
 import { reportBoundaryError } from '../../bug-reports/error-reporting/errorReporting';
 
 const MSG_TYPES: ReadonlySet<string> = new Set(Object.values(MsgType));
-
-type CallRowProps = { mEvent: MatrixEvent; row: CallRowContent };
-
-/** A call row's own text ("Call started"), while its card loads or where it cannot. */
-function CallRowText({ body }: { body: unknown }) {
-  return <Text size="T400">{typeof body === 'string' ? body : ''}</Text>;
-}
-
-// Calls load on first use: a room without a call row never loads them.
-const CallRow = lazyPart<CallRowProps>(
-  () => import('../../calls/transcription/CallRow').then((module) => ({ default: module.CallRow })),
-  ({ mEvent }) => <CallRowText body={mEvent.getContent().body} />
-);
 
 /** Whether `value`, an event's `msgtype`, is one the SDK names. */
 const isMsgType = (value: string): value is MsgType => MSG_TYPES.has(value);
@@ -166,13 +153,7 @@ function CoreMessageContent({
   // A call between people starts with the router's row, shown as its latest edit has it: who is
   // in the call, Join and Transcript while live; how long it lasted once over.
   const callRow = fromMindroomAgent ? readCallRow(content) : undefined;
-  if (callRow && mEvent) {
-    return (
-      <Suspense fallback={<CallRowText body={content.body} />}>
-        <CallRow mEvent={mEvent} row={callRow} />
-      </Suspense>
-    );
-  }
+  if (callRow && mEvent) return <LazyCallRow mEvent={mEvent} row={callRow} body={content.body} />;
 
   const renderUrlsPreview = urlPreview
     ? (urls: string[]) => <UrlPreviewList urls={urls} sentAt={ts} />
