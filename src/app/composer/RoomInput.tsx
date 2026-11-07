@@ -288,9 +288,11 @@ export const RoomInput = forwardRef<HTMLDivElement, RoomInputProps>(
     );
     const [submitPending, setSubmitPending] = useState(false);
     const [emojiAnchor, setEmojiAnchor] = useState<RectCords>();
-    // The board closes as the conversation hides, under a plugin's cover or behind a side panel.
+    // The board and the autocomplete menu, whose Tab the window takes, close as the conversation
+    // hides, under a plugin's cover or behind a side panel.
     const conversationHidden = useAtomValue(conversationHiddenAtom);
     if (conversationHidden && emojiAnchor) setEmojiAnchor(undefined);
+    if (conversationHidden && autocompleteQuery) setAutocompleteQuery(undefined);
     const [boardTab, setBoardTab] = useState<EmojiBoardTab>('Emoji');
     const [formattingOpen, setFormattingOpen] = useState(false);
     // A phone row keeps voice and Send beside the text; Attach, Formatting and Emoji move into a

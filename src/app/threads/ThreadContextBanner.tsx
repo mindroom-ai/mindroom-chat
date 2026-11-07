@@ -10,6 +10,7 @@ import React, {
   useState,
 } from 'react';
 import classNames from 'classnames';
+import { useAtomValue } from 'jotai';
 import { Box, Icon, IconButton, Icons, Text, type RectCords } from 'folds';
 import { useTranslation } from 'react-i18next';
 import { IconCalendarEvent } from '@tabler/icons-react';
@@ -39,6 +40,7 @@ import { useSetting } from '../preferences/useSetting';
 import { settingsAtom } from '../preferences/settings';
 import { shortcutAttributes } from '../shortcuts/ShortcutKeys';
 import { useShortcut } from '../shortcuts/useShortcut';
+import { conversationHiddenAtom } from '../navigation/conversationCover';
 import { PhoneBackButton } from '../ui/page/PhoneBackButton';
 import { ScreenSize, useScreenSizeContext } from '../lib/hooks/useScreenSize';
 import { ownDirectionLine, revealDirectionControls } from '../ui/directional';
@@ -256,8 +258,10 @@ export function ThreadContextBanner({
     setResolved(mutableThreadRootId, !headerModel.isResolved);
   }, [mutableThreadRootId, headerModel.isResolved, setResolved, isPinned]);
   const resolveDisabled = !headerModel.canEdit || headerModel.pickerDisabled || pinning.updating;
+  // Not a thread hidden under a plugin's cover or behind a side panel.
+  const conversationHidden = useAtomValue(conversationHiddenAtom);
   useShortcut('resolveThread', () => {
-    if (resolveDisabled || !mutableThreadRootId || isPinned) return false;
+    if (conversationHidden || resolveDisabled || !mutableThreadRootId || isPinned) return false;
     handleToggleResolve();
     return true;
   });
