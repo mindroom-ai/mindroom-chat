@@ -92,11 +92,17 @@ const announcesTheNewVersion = async (page: Page, browserName: string) => {
   if (!anchorBefore) throw new Error('no room list or top bar to place the notice against');
 
   deployment.version = `deployment-${browserName}-${RUN}`;
+  const published = page.waitForResponse(
+    (response) => new URL(response.url()).pathname === '/version.json'
+  );
   // The person comes back to the tab.
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  await published;
   if ((page.viewportSize()?.width ?? 0) <= 750) {
-    // A phone's drawer, out on a section's own page, covers the page: the notice comes in once
-    // it has gone.
+    // A phone's drawer, out on a section's own page, covers the page: the notice found meanwhile
+    // waits, and comes in once the drawer has gone.
+    await page.waitForTimeout(1_000);
+    await expect(page.locator('[data-new-version-card]')).toHaveCount(0);
     await page.keyboard.press('Escape');
   }
   await expect(notice).toBeVisible({ timeout: 15_000 });

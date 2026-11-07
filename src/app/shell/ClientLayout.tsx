@@ -112,15 +112,15 @@ export function ClientLayout({
       className={className}
       style={{ height: '100%', minHeight: 0, position: 'relative' }}
     >
+      {/* Where a notice floats without a room list beside the page: wider than a phone, over the
+          top of the layout, first in reading order; on a phone, under the top bar. */}
+      {!phone && <NoticeSlot place="page" />}
       {phone ? phoneTopBar : nav}
-      {/* Where a notice floats without a room list beside the page: under a phone's top bar. */}
       {phone && <NoticeSlot place="page" phone covered={layerOpen} />}
       <div ref={pageRef} className={phone ? css.PhonePage : css.PassThrough}>
         {waitingForAlias && sessionId ? null : children}
       </div>
       {phone && phoneNavDrawer}
-      {/* Wider than a phone, over the top of the layout. */}
-      {!phone && <NoticeSlot place="page" />}
     </Box>
   );
 }

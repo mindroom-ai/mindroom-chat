@@ -10,6 +10,8 @@ import { PageSlot } from '../ui/noticeSlots.css';
 import { Surface } from '../ui/glass/GlassPrimitives';
 import * as css from './NewVersionNotice.css';
 
+type Placement = 'list' | 'page';
+
 /** How long a dismissed card takes to leave: the Normal motion token, and a frame to spare. */
 export const LEAVE_MS = 180;
 
@@ -33,10 +35,12 @@ export function NewVersionNotice() {
   const pageSlot = useAtomValue(pageNoticeSlotAtom);
   const phoneLayerOpen = useAtomValue(phoneLayerOpenAtom);
   const [dismissed, setDismissed] = useState(false);
-  const [leaving, setLeaving] = useState(false);
+  // Dismissed, the card leaves from where it was, even if the list closes meanwhile.
+  const [leftFrom, setLeftFrom] = useState<{ slot: HTMLElement | null; placement: Placement }>();
   const [reloading, setReloading] = useState(false);
-  const slot = listSlot ?? pageSlot;
-  const placement = listSlot ? 'list' : 'page';
+  const leaving = leftFrom !== undefined;
+  const slot = leftFrom ? leftFrom.slot : listSlot ?? pageSlot;
+  const placement: Placement = leftFrom?.placement ?? (listSlot ? 'list' : 'page');
   // A phone's drawer or members sheet covers the page's place and makes it inert, where an
   // assistive technology would not read the card out. Found meanwhile, the card waits until they
   // have slid away, so the place is a live region again before the card is added to it, and then
@@ -102,7 +106,7 @@ export function NewVersionNotice() {
         size="300"
         radii="300"
         aria-label={t('sharedUi.appUpdate.dismiss')}
-        onClick={() => setLeaving(true)}
+        onClick={() => setLeftFrom({ slot, placement })}
       >
         <Icon src={Icons.Cross} size="100" />
       </IconButton>

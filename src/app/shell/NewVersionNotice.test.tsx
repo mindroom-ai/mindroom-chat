@@ -133,4 +133,28 @@ describe('NewVersionNotice', () => {
     act(() => store.set(phoneNavDrawerOpenAtom, true));
     expect(page.querySelector('[data-new-version-card="page"]')).toBeTruthy();
   });
+
+  it('leaves from where it was dismissed, even if the list closes meanwhile', () => {
+    vi.useFakeTimers();
+    update.state.version = 'build-2';
+    const list = document.body.appendChild(document.createElement('div'));
+    const page = document.body.appendChild(document.createElement('div'));
+    const store = getDefaultStore();
+    act(() => {
+      store.set(listNoticeSlotAtom, list);
+      store.set(pageNoticeSlotAtom, page);
+    });
+    render(<NewVersionNotice />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+    act(() => store.set(listNoticeSlotAtom, null));
+    expect(list.querySelector('[data-new-version-card="list"][data-leaving]')).toBeTruthy();
+    expect(page.textContent).toBe('');
+
+    act(() => {
+      vi.advanceTimersByTime(LEAVE_MS);
+    });
+    expect(list.textContent).toBe('');
+    expect(page.textContent).toBe('');
+  });
 });
