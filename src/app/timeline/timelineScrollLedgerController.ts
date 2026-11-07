@@ -96,6 +96,8 @@ export type TimelineScrollLedgerController = {
   readMeasurementCorrectionPx: () => number;
   /** Whether a row changed size in place and the rows after it are not rendered at their new places yet. */
   unrenderedRowMove: () => boolean;
+  /** The part of the ledger that its planned folds brought with their own height, in px. */
+  readRowFoldPx: () => number;
   virtualInnerRef: RefObject<HTMLDivElement>;
   virtualizer: ReactVirtualizer<HTMLDivElement, Element>;
 };
