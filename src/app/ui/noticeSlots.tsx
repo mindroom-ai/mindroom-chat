@@ -14,6 +14,9 @@ export const pageNoticeSlotAtom = atom<HTMLElement | null>(null);
 
 const slotAtoms = { list: listNoticeSlotAtom, page: pageNoticeSlotAtom };
 
+/** How long a notice takes to leave: the Normal motion token (ui/noticeMotion.css.ts) and a frame. */
+export const NOTICE_LEAVE_MS = 180;
+
 type NoticeSlotProps = {
   place: 'list' | 'page';
   /** Whether the page has the phone layout, which a notice shown here follows. */

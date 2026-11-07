@@ -157,7 +157,7 @@ const captureScene = async (
       });
     })
     .catch(() => undefined);
-  await expect(page.getByText('Catching up...', { exact: true })).toBeHidden({ timeout: 10_000 });
+  await expect(page.getByTestId('client-sync-status')).toBeHidden({ timeout: 10_000 });
   await expect(page.getByText('Loading...', { exact: true }).first()).toBeHidden({
     timeout: 10_000,
   });

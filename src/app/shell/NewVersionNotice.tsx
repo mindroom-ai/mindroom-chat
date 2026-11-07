@@ -5,15 +5,12 @@ import { useAtomValue } from 'jotai';
 import { Button, Icon, IconButton, Icons, Text } from 'folds';
 import { getNewVersion, reloadForNewVersion, subscribeToNewVersion } from '../config/appUpdate';
 import { PHONE_SLIDE_OUT_MS, phoneLayerOpenAtom } from '../navigation/phoneNavDrawer';
-import { listNoticeSlotAtom, pageNoticeSlotAtom } from '../ui/noticeSlots';
+import { listNoticeSlotAtom, NOTICE_LEAVE_MS, pageNoticeSlotAtom } from '../ui/noticeSlots';
 import { PageSlot } from '../ui/noticeSlots.css';
 import { Surface } from '../ui/glass/GlassPrimitives';
 import * as css from './NewVersionNotice.css';
 
 type Placement = 'list' | 'page';
-
-/** How long a dismissed card takes to leave: the Normal motion token, and a frame to spare. */
-export const LEAVE_MS = 180;
 
 /** The new version the server publishes, if the page found one (src/app/config/appUpdate.ts). */
 export const useNewVersion = (): string | undefined =>
@@ -72,7 +69,7 @@ export function NewVersionNotice() {
       setDismissed(true);
       // Gone for good: let go of the place it left from.
       setLeftFrom(undefined);
-    }, LEAVE_MS);
+    }, NOTICE_LEAVE_MS);
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
