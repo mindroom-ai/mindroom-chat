@@ -19,6 +19,8 @@ import {
 
 type Deferred = { resolve: () => void };
 
+const ME = '@me:example.org';
+
 /** A client whose store saves only when asked to and reports whether it would save itself. */
 const makeClient = ({ sdkWantsSave = false } = {}) => {
   const pending: Deferred[] = [];
@@ -32,7 +34,7 @@ const makeClient = ({ sdkWantsSave = false } = {}) => {
     ),
   };
   const emitter = new EventEmitter();
-  const mx = Object.assign(emitter, { store }) as unknown as MatrixClient;
+  const mx = Object.assign(emitter, { store, getUserId: () => ME }) as unknown as MatrixClient;
   const finishSaves = async () => {
     pending.splice(0).forEach(({ resolve }) => resolve());
     // Let the save's settle handlers run.
@@ -248,6 +250,29 @@ describe('keepRedactionsInSavedSync', () => {
     batch(emitter, []);
     await vi.advanceTimersByTimeAsync(CHANGE_SAVE_GAP_MS);
     expect(store.save).toHaveBeenCalledTimes(2);
+  });
+
+  // A reload replays the saved sync: a room read on another device came back unread until the
+  // server answered (P2-lane2-F001). The server sends the account's own receipts back to each of
+  // its devices, so this covers reads on this device too.
+  it("saves a batch with the account's own read receipt, not one with other people's", () => {
+    const { mx, emitter, store } = makeClient();
+    keepRedactionsInSavedSync(mx);
+    const receipt = (userId: string, type: string, threadId?: string) =>
+      new MatrixEvent({
+        type: 'm.receipt',
+        room_id: '!room:example.org',
+        content: {
+          $newest: {
+            [type]: { [userId]: { ts: 1, ...(threadId ? { thread_id: threadId } : {}) } },
+          },
+        },
+      });
+
+    batch(emitter, [receipt('@alice:example.org', 'm.read')]);
+    expect(store.save).not.toHaveBeenCalled();
+    batch(emitter, [receipt(ME, 'm.read.private', '$root')]);
+    expect(store.save).toHaveBeenCalledTimes(1);
   });
 
   it('lets a redaction cut short the wait of other changes', async () => {
