@@ -222,14 +222,23 @@ describe('getThreadCursorAnchor', () => {
 });
 
 describe('getCachedThreadSummaryInfoFromRawEvent', () => {
-  it.each([false, true])(
-    'preserves server chronology from cached events (edited: %s)',
-    (edited) => {
+  it.each([
+    { editor: undefined, eventTs: 1000 },
+    { editor: '@mindroom_agent:example.org', eventTs: 2000 },
+    { editor: '@other:example.org', eventTs: 1000 },
+  ])(
+    'preserves server chronology from cached events (edited by $editor)',
+    ({ editor, eventTs }) => {
       expect(
         getCachedThreadSummaryInfoFromRawEvent({
+          sender: '@mindroom_agent:example.org',
           origin_server_ts: 1000,
-          ...(edited
-            ? { unsigned: { 'm.relations': { 'm.replace': { origin_server_ts: 2000 } } } }
+          ...(editor
+            ? {
+                unsigned: {
+                  'm.relations': { 'm.replace': { sender: editor, origin_server_ts: 2000 } },
+                },
+              }
             : {}),
           content: {
             body: 'Saved summary',
@@ -237,7 +246,7 @@ describe('getCachedThreadSummaryInfoFromRawEvent', () => {
             'io.mindroom.thread_summary': true,
           },
         })
-      ).toEqual({ summaryText: 'Saved summary', eventTs: edited ? 2000 : 1000 });
+      ).toEqual({ summaryText: 'Saved summary', eventTs });
     }
   );
 

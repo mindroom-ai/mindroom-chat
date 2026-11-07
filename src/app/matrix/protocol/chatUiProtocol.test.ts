@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { readCanvasNoticeTitle, readChatUiAction } from './chatUiProtocol';
-import { agentId, makeUiEvent, makeUiRoom, viewerId } from '../../ui-actions/testUtils';
+import { agentId, makeUiEvent, makeUiRoom, roomId, viewerId } from '../../ui-actions/testUtils';
 
 describe('readChatUiAction', () => {
   it('binds a computer request to its event, actual sender, and canonical thread', () => {
@@ -83,6 +83,37 @@ describe('readChatUiAction', () => {
     [edit, edited, redacted, text, makeUiEvent({}, { event_id: undefined })].forEach((event) => {
       expect(readChatUiAction(event, viewerId, room)).toBeUndefined();
     });
+  });
+
+  it('keeps a request whose bundled edit is another member’s, not the agent’s', () => {
+    const { mx, room } = makeUiRoom();
+    const withBundledEdit = (sender: string) =>
+      mx.getEventMapper()({
+        ...makeUiEvent().event,
+        unsigned: {
+          'm.relations': {
+            'm.replace': {
+              event_id: '$edit',
+              room_id: roomId,
+              sender,
+              type: 'm.room.message',
+              origin_server_ts: 100_001,
+              content: {
+                msgtype: 'm.notice',
+                body: '* Never mind.',
+                'm.new_content': { msgtype: 'm.notice', body: 'Never mind.' },
+                'm.relates_to': { rel_type: 'm.replace', event_id: '$request' },
+              },
+            },
+          },
+        },
+      });
+
+    expect(readChatUiAction(withBundledEdit(viewerId), viewerId, room)).toMatchObject({
+      eventId: '$request',
+      action: 'show_computer',
+    });
+    expect(readChatUiAction(withBundledEdit(agentId), viewerId, room)).toBeUndefined();
   });
 
   describe('show_canvas', () => {
