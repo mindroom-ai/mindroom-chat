@@ -4,10 +4,12 @@ import {
   useEffect,
   useRef,
   useState,
+  type ButtonHTMLAttributes,
   type MouseEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import FocusTrap from 'focus-trap-react';
+import classNames from 'classnames';
 import {
   Box,
   Icon,
@@ -24,56 +26,88 @@ import { Menu, MenuItem } from '../ui/glass/GlassPrimitives';
 import type { CallDeviceKind, CallDevices } from './RoomCall';
 import * as css from './CallPanel.css';
 
-type ControlProps = {
+/** What a control held down (Pause) listens to besides clicks. */
+type HoldHandlers = Pick<
+  ButtonHTMLAttributes<HTMLButtonElement>,
+  | 'onPointerDown'
+  | 'onPointerUp'
+  | 'onPointerCancel'
+  | 'onPointerLeave'
+  | 'onKeyDown'
+  | 'onKeyUp'
+  | 'onBlur'
+  | 'onContextMenu'
+>;
+
+type ControlProps = HoldHandlers & {
   label: string;
+  /** What its tooltip says, where that is not its name. */
+  tooltip?: string;
+  /** More about it or its state for screen readers, beside its name. */
+  description?: string;
   icon: IconSrc;
-  onClick: (event: MouseEvent<HTMLButtonElement>) => void;
+  onClick?: (event: MouseEvent<HTMLButtonElement>) => void;
   /** Silenced audio (a muted microphone, sound off) is tinted red so nobody talks unheard. */
   off?: boolean;
   critical?: boolean;
+  /** Something everyone in the call should know of, such as the transcript paused. */
+  warning?: boolean;
   pressed?: boolean;
   expanded?: boolean;
   disabled?: boolean;
+  /** Smaller, for a panel's header. */
+  small?: boolean;
+  className?: string;
 };
 
 /** A round call control that names itself in a tooltip. */
 export function CallControl({
   label,
+  tooltip,
+  description,
   icon,
   onClick,
   off,
   critical,
+  warning,
   pressed,
   expanded,
   disabled,
+  small,
+  className,
+  ...holdHandlers
 }: ControlProps) {
-  const variant = critical || off ? 'Critical' : 'SurfaceVariant';
+  let variant: 'Critical' | 'Warning' | 'SurfaceVariant' = 'SurfaceVariant';
+  if (critical || off) variant = 'Critical';
+  else if (warning) variant = 'Warning';
   return (
     <TooltipProvider
       position="Top"
       offset={4}
       tooltip={
         <Tooltip>
-          <Text size="T200">{label}</Text>
+          <Text size="T200">{tooltip ?? label}</Text>
         </Tooltip>
       }
     >
       {(anchorRef) => (
         <IconButton
           ref={anchorRef}
-          size="500"
+          size={small ? '300' : '500'}
           radii="Pill"
           variant={variant}
           fill="Soft"
-          className={critical ? css.EndControl : undefined}
+          className={classNames(critical && css.EndControl, className)}
           aria-label={label}
+          aria-description={description}
           aria-pressed={pressed}
           aria-expanded={expanded}
           aria-haspopup={expanded === undefined ? undefined : 'menu'}
           disabled={disabled}
           onClick={onClick}
+          {...holdHandlers}
         >
-          <Icon size="400" src={icon} />
+          <Icon size={small ? '200' : '400'} src={icon} />
         </IconButton>
       )}
     </TooltipProvider>

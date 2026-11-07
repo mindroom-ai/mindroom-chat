@@ -411,7 +411,32 @@
         "title": "Spraakoproep",
         "transcript": "Transcript",
         "turns_one": "{{count}} beurt",
-        "turns_other": "{{count}} beurten"
+        "turns_other": "{{count}} beurten",
+        "callTitle": "Oproep"
+      },
+      "transcription": {
+        "unavailable": "Transcripties zijn niet beschikbaar",
+        "pause": "Transcriptie pauzeren",
+        "pauseHint": "Ingedrukt houden om te pauzeren, of klikken om te pauzeren tot je opnieuw klikt",
+        "pausedBy": "Gepauzeerd door {{names}}",
+        "liveTranscript": "Live transcript",
+        "close": "Live transcript sluiten",
+        "resize": "Grootte van het live transcript wijzigen",
+        "transcribed": "Deze oproep wordt getranscribeerd.",
+        "inCall": "In de oproep",
+        "lines": "Transcript tot nu toe",
+        "noCall": "Er is geen oproep bezig in deze ruimte.",
+        "notTranscribed": "Oproepen in deze ruimte worden niet getranscribeerd.",
+        "nothingYet": "Er is nog niets gezegd.",
+        "gap": {
+          "paused": "Gepauzeerd",
+          "notTranscribed": "Niet getranscribeerd"
+        }
+      },
+      "row": {
+        "live": "Oproep bezig",
+        "ended": "Oproep beëindigd",
+        "notes": "Notities en transcript"
       }
     },
     "room": {

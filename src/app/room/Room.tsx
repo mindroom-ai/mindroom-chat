@@ -5,7 +5,6 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
@@ -57,10 +56,10 @@ import {
   isActiveCallShownIn,
   useActiveCall,
   useCallActions,
-  useCallPanel,
   useInCall,
 } from '../calls/callStore';
 import type { CallPanel as CallPanelComponent } from '../calls/CallPanel';
+import { useRoomCallPanels } from '../calls/useRoomCallPanels';
 import { type PartLoadRetry, lazyPart } from '../lib/lazyPart';
 import { PartUnavailable } from '../ui/PartUnavailable';
 
@@ -117,6 +116,13 @@ const CallPanel = lazyPart(
   () => import('../calls/CallPanel').then((module) => ({ default: module.CallPanel })),
   CallPanelUnavailable
 );
+const LiveTranscriptPanel = lazyPart(
+  () =>
+    import('../calls/transcription/LiveTranscriptPanel').then((module) => ({
+      default: module.LiveTranscriptPanel,
+    })),
+  CallPanelUnavailable
+);
 const HeaderCallButtons = lazyPart(() =>
   import('../calls/HeaderCallButtons').then((module) => ({ default: module.HeaderCallButtons }))
 );
@@ -129,6 +135,8 @@ const HeaderCallMenuEntries = lazyPart(() =>
 /** The call panel fits two tiles side by side; wider, it fits more. */
 const CALL_DEFAULT_WIDTH = 400;
 const CALL_MAX_WIDTH = 1200;
+/** The live transcript is read like a conversation, no wider than a readable line or two. */
+const TRANSCRIPT_MAX_WIDTH = 800;
 
 /** The side-panel controls of the room header; the room owns their state. */
 type HeaderPanelControls = Pick<
@@ -295,24 +303,17 @@ function RoomContent() {
     toggleComputer();
   }, [closeCanvas, computer.open, setMembersOpen, toggleComputer]);
 
-  // The call panel is one more side panel: opening it closes a canvas or the computer, and opening
-  // the computer closes it. A canvas does not open while this device is in a call (PANEL-09). The
-  // members panel only steps aside while the call shows.
-  const [callOpen, setCallOpen] = useCallPanel(roomId);
+  // The call panel and its live transcript are side panels too (`useRoomCallPanels`). A canvas
+  // does not open while this device is in a call (PANEL-09). The members panel only steps aside
+  // while the call or its transcript shows.
   const inCall = useInCall();
   const mediaPanelOpen = computerOpen || !!canvas;
-  const lastPanels = useRef({ callOpen, mediaPanelOpen });
-  useEffect(() => {
-    const last = lastPanels.current;
-    lastPanels.current = { callOpen, mediaPanelOpen };
-    if (callOpen && !last.callOpen) {
-      closeCanvas();
-      closeComputer();
-    } else if (mediaPanelOpen && !last.mediaPanelOpen && callOpen) {
-      setCallOpen(false);
-    }
-  }, [callOpen, closeCanvas, closeComputer, mediaPanelOpen, setCallOpen]);
-  const callShown = callOpen && !mediaPanelOpen;
+  const closeMedia = useCallback(() => {
+    closeCanvas();
+    closeComputer();
+  }, [closeCanvas, closeComputer]);
+  const { setCallOpen, callShown, transcriptShown, closeTranscript, dismissTranscript } =
+    useRoomCallPanels(roomId, mediaPanelOpen, closeMedia);
 
   // While the person controls a computer, agents may not take the view away from it.
   const controlling = computerOpen && computer.interaction.locked;
@@ -351,6 +352,7 @@ function RoomContent() {
           closeCanvas();
           closeComputer();
           setCallOpen(false);
+          dismissTranscript();
           setMembersOpen(true);
           break;
         case 'open_settings':
@@ -366,6 +368,7 @@ function RoomContent() {
     [
       closeCanvas,
       closeComputer,
+      dismissTranscript,
       setCallOpen,
       setMembersOpen,
       setSettingsModal,
@@ -422,10 +425,10 @@ function RoomContent() {
   // On phones a panel covers the conversation; expanded, it takes the conversation's column.
   const computerCoversConversation = computerOpen && (mobile || computerExpanded);
   const canvasCoversConversation = !!canvas && (mobile || canvas.expanded);
-  const callCoversConversation = callShown && mobile;
+  const callCoversConversation = (callShown || transcriptShown) && mobile;
   const conversationHidden =
     computerCoversConversation || canvasCoversConversation || callCoversConversation;
-  const membersShown = membersOpen && !computerOpen && !canvas && !callShown;
+  const membersShown = membersOpen && !computerOpen && !canvas && !callShown && !transcriptShown;
 
   const onThreadLoadError = useRoomThreadRouteGuards({
     eventId,
@@ -523,6 +526,26 @@ function RoomContent() {
       >
         <Suspense fallback={null}>
           <CallPanel room={room} onClose={() => setCallOpen(false)} />
+        </Suspense>
+      </ResizablePanel>
+    );
+  } else if (transcriptShown) {
+    requestedPanel = (
+      <ResizablePanel
+        key="transcript"
+        side="end"
+        storageKey={`mindroom.callTranscript.width:${ownUserId}`}
+        defaultWidth={CALL_DEFAULT_WIDTH}
+        minContentWidth={CONVERSATION_MIN_WIDTH}
+        maxPanelWidth={TRANSCRIPT_MAX_WIDTH}
+        passthrough={mobile}
+        resizeLabel={t('featureUi.calls.transcription.resize')}
+        collapseLabel={t('featureUi.calls.transcription.close')}
+        onCollapse={closeTranscript}
+        testId="resizable-transcript-panel"
+      >
+        <Suspense fallback={null}>
+          <LiveTranscriptPanel room={room} onClose={closeTranscript} />
         </Suspense>
       </ResizablePanel>
     );

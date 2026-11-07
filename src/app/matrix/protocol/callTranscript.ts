@@ -1,6 +1,7 @@
 import { isRecord } from '../../lib/isRecord';
 import { isUserId } from '../matrix';
 import { isMindroomAgentUserId, isMindroomAgentUserIdForViewer } from './agentIdentity';
+import { readCallNotes } from './callRow';
 
 /**
  * The structured transcript MindRoom adds to the message it posts after a voice call, beside the
@@ -35,7 +36,25 @@ export type CallTranscript = {
   /** Whole seconds from the start of the call to its end. */
   durationSeconds: number;
   turns: CallTranscriptTurn[];
+  /**
+   * The call between people the message tells of (`io.mindroom.call_notes`); its body is then
+   * the call's notes. None for a call with an agent, whose body is the transcript again.
+   */
+  callId?: string;
+  /** A call between people whose body is only the one-line summary ("Call · 12 min"): no notes. */
+  summaryOnly?: boolean;
 };
+
+/** The body the router writes for a call between people when no model writes notes. */
+const SUMMARY_ONLY_BODY = /^Call · \d+ min$/;
+
+/** The memberships a speaker of a voice call with an agent may have: joined. */
+const JOINED: ReadonlySet<string> = new Set(['join']);
+/**
+ * The memberships a speaker of a call between people may have: in the room then, so joined, or
+ * left or banned since; the transcript stays whole when one of them leaves.
+ */
+const WAS_IN_ROOM: ReadonlySet<string> = new Set(['join', 'leave', 'ban']);
 
 /**
  * A run of turns by one speaker; `index` is its first turn's place in the transcript and
@@ -92,6 +111,8 @@ export const readCallTranscript = (
   if (!turns.every(isTurn)) return undefined;
   const length = turns.reduce((sum, { text }) => sum + text.length, 0);
   if (length > CALL_TRANSCRIPT_MAX_TOTAL_LENGTH) return undefined;
+  const callId = readCallNotes(content);
+  const { body } = content;
   return {
     durationSeconds: Math.round(duration),
     turns: turns.map(({ sender, text, offset_seconds: offset }) => ({
@@ -99,24 +120,38 @@ export const readCallTranscript = (
       text,
       offsetSeconds: readOffset(offset, duration),
     })),
+    ...(callId === undefined
+      ? {}
+      : {
+          callId,
+          summaryOnly: typeof body === 'string' && SUMMARY_ONLY_BODY.test(body.trim()),
+        }),
   };
 };
+
+/**
+ * The memberships that count a member as the transcript's speaker: joined, and for a call between
+ * people (`io.mindroom.call_notes`) also left or banned since the call.
+ */
+export const speakerMemberships = (transcript: CallTranscript): ReadonlySet<string> =>
+  transcript.callId === undefined ? JOINED : WAS_IN_ROOM;
 
 /**
  * Whether the card may name the transcript's speakers. Any account can write the key with any user
  * ID as a turn's sender, and the card shows that member's name and avatar beside the words, so:
  * the poster is an agent of the viewer's homeserver, every turn by an agent account (of any
- * homeserver) is the poster's own, and every other turn is a joined member of the room.
+ * homeserver) is the poster's own, and every other turn is a member of the room
+ * (`speakerMemberships`).
  */
 export const callTranscriptSpeakersTrusted = (
   transcript: CallTranscript,
   poster: string | undefined,
   viewer: string | undefined,
-  isJoinedMember: (userId: string) => boolean
+  isMember: (userId: string) => boolean
 ): boolean =>
   isMindroomAgentUserIdForViewer(poster, viewer) &&
   transcript.turns.every(({ sender }) =>
-    isMindroomAgentUserId(sender) ? sender === poster : isJoinedMember(sender)
+    isMindroomAgentUserId(sender) ? sender === poster : isMember(sender)
   );
 
 /**

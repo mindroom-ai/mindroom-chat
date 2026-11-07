@@ -14,6 +14,7 @@ import {
   callTranscriptSpeakersTrusted,
   clipTurnText,
   groupCallTranscriptTurns,
+  speakerMemberships,
   type CallTranscript,
   type CallTranscriptGroup,
 } from '../../matrix/protocol/callTranscript';
@@ -33,7 +34,8 @@ type CallTranscriptCardProps = {
   roomId?: string;
   /**
    * The message as it renders without the card, shown while the transcript names a speaker the
-   * card may not (`callTranscriptSpeakersTrusted`).
+   * card may not (`callTranscriptSpeakersTrusted`). For a call between people it is the call's
+   * notes, which the card shows as its text.
    */
   fallback: ReactNode;
   /** A search's matches: they are marked, and a transcript with one starts open. */
@@ -177,7 +179,8 @@ function TranscriptGroup({ group, room, highlightRegex, linkifyOpts }: GroupProp
  * A finished voice call (`io.mindroom.call_transcript`) on one row: the phone icon, "Voice call"
  * and how long it lasted, then at the row's end the transcript's button, which says how many
  * turns it holds. Open, the transcript reads like a chat below the row: each run of turns by one
- * speaker under their avatar and name.
+ * speaker under their avatar and name. A call between people says "Call", with its notes (the
+ * message's body) between the row and the transcript.
  */
 export function CallTranscriptCard({
   transcript,
@@ -194,7 +197,11 @@ export function CallTranscriptCard({
   const turnsId = useId();
   const toggleLabelId = useId();
   const toggleCountId = useId();
-  const { durationSeconds, turns } = transcript;
+  const { durationSeconds, turns, callId, summaryOnly } = transcript;
+  // A call between people: the message's body is its notes, not the transcript again; without a
+  // notes model it is only the summary the row already gives.
+  const peopleCall = callId !== undefined;
+  const withNotes = peopleCall && !summaryOnly;
   const [open, setOpen] = useState(
     () =>
       !!highlightRegex &&
@@ -208,14 +215,17 @@ export function CallTranscriptCard({
   // The room's members load in the background; a speaker who joins them later is trusted then.
   const members = useRoomMembers(client, roomId ?? '');
   const trusted = useMemo(() => {
-    const joined = new Set(
-      members.filter((member) => member.membership === 'join').map((member) => member.userId)
+    const counted = speakerMemberships(transcript);
+    const speakers = new Set(
+      members
+        .filter(({ membership }) => membership !== undefined && counted.has(membership))
+        .map((member) => member.userId)
     );
     return callTranscriptSpeakersTrusted(
       transcript,
       sender,
       client.getUserId() ?? undefined,
-      (userId) => joined.has(userId)
+      (userId) => speakers.has(userId)
     );
   }, [client, members, sender, transcript]);
   if (!trusted) return <>{fallback}</>;
@@ -236,7 +246,9 @@ export function CallTranscriptCard({
             <Icon size="100" src={Icons.Phone} aria-hidden />
           </span>
           <Text as="span" size="T300" className={`${css.Label} ${css.Title}`}>
-            {t('featureUi.calls.transcript.title')}
+            {peopleCall
+              ? t('featureUi.calls.transcript.callTitle')
+              : t('featureUi.calls.transcript.title')}
           </Text>
           <Text as="span" size="T300" priority="300" className={css.Label}>
             {formatCallDuration(durationSeconds, language)}
@@ -262,6 +274,11 @@ export function CallTranscriptCard({
           </span>
         </button>
       </div>
+      {withNotes && (
+        <div className={css.Notes} data-call-transcript-notes="">
+          {fallback}
+        </div>
+      )}
       {open && (
         <ol id={turnsId} className={css.Turns}>
           {groups.map((group) => (

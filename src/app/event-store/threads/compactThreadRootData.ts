@@ -1,5 +1,6 @@
 import { Direction, IEvent, MatrixEvent, Room, Thread } from 'matrix-js-sdk';
 import { getEditedEvent, getLatestEdit, getLatestMessageContent } from '../../matrix/room';
+import { isCallRowEvent } from '../../matrix/protocol/callRow';
 import type { CachedThreadEventPage } from '../cache/eventRepository';
 import { applySerializedCachedReplaceRelations } from '../cache/eventCacheEditUtils';
 import { getLinkedTimelines } from '../timeline/linkedTimelines';
@@ -82,7 +83,7 @@ export const isZeroReplyStandaloneThreadRootEvent = (
   const eventId = event?.getId();
   if (!event || !eventId) return false;
   if (!isVisibleThreadTextMessageEventType(event.getType())) return false;
-  if (isNoticeMessage(event)) return false;
+  if (isNoticeMessage(event) && !isCallRowEvent(event)) return false;
   if (typeof event.isRedacted === 'function' && event.isRedacted()) return false;
   if (event.threadRootId && event.threadRootId !== eventId) return false;
   if (isNestedThreadReplyEvent(event) || isEditRelationEvent(event)) return false;

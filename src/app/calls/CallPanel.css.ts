@@ -1,9 +1,6 @@
 import { keyframes, style, type StyleRule } from '@vanilla-extract/css';
 import { color, config, toRem } from 'folds';
-import {
-  Header as SidePanelHeader,
-  Panel as SidePanelPanel,
-} from '../ui/panels/SidePanel.css';
+import { Header as SidePanelHeader, Panel as SidePanelPanel } from '../ui/panels/SidePanel.css';
 
 const { space, radii, borderWidth } = config;
 
@@ -183,17 +180,41 @@ export const NoticeText = style({
 
 export const NoticeAction = style({ flexShrink: 0, marginInlineStart: 'auto' });
 
-// The control bar under the tiles, centred, wrapping on a narrow panel.
-export const Controls = style(
-  lined('row', space.S200, {
+// The control bar under the tiles: a line about the transcript over the controls.
+export const ControlBar = style(
+  lined('column', '0', {
     flex: 'none',
-    flexWrap: 'wrap',
-    placeContent: 'center',
     alignItems: 'center',
     padding: space.S300,
     borderBlockStart: hairline,
   })
 );
+
+// The controls, centred, wrapping on a narrow panel.
+export const Controls = style(
+  lined('row', space.S200, {
+    flexWrap: 'wrap',
+    placeContent: 'center',
+    alignItems: 'center',
+  })
+);
+
+// Empty, it takes no room; it stays in place so screen readers hear what it says next.
+export const ControlsStatus = style({
+  textAlign: 'center',
+  selectors: { '&:not(:empty)': { marginBlockEnd: space.S200 } },
+});
+
+// "Paused by Ann", in the colors of the panel's warnings, like Pause while held.
+export const ControlsPaused = style([
+  tinted(color.Warning),
+  {
+    display: 'inline-block',
+    paddingBlock: toRem(2),
+    paddingInline: space.S200,
+    borderRadius: radii.R300,
+  },
+]);
 
 export const DeviceMenu = style({
   minWidth: toRem(240),

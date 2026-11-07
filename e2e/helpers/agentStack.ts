@@ -49,6 +49,12 @@ export type AgentStack = {
   approvalExpirySeconds: number;
   /** The helper's voice calls (`--calls`), or null. */
   calls?: { serviceUrl: string; profile: 'realtime' | 'live'; model: string } | null;
+  /**
+   * Call transcripts (`calls.transcripts`): `stub` speech-to-text is a stand-in that answers from
+   * each recording's length, `real` is OpenAI's (`--transcription real`); and the model that writes
+   * the notes. Null for a MindRoom without them.
+   */
+  transcription?: { stt: 'stub' | 'real'; notesModel: string } | null;
 };
 
 export type MatrixEvent = {
@@ -135,16 +141,20 @@ export const routeClientConfig = async (
   );
 };
 
-/** Signs the test account in with its password, for a browser of a spec's own. */
-export const signIn = async (page: Page, stack: AgentStack): Promise<void> => {
+/** Signs the test account (or another account) in with its password, for a browser of a spec's own. */
+export const signIn = async (
+  page: Page,
+  stack: AgentStack,
+  account: { username: string; password: string } = stack.tester
+): Promise<void> => {
   await page.addInitScript(() => {
     if (!localStorage.getItem('settings')) {
       localStorage.setItem('settings', JSON.stringify({ isPeopleDrawer: false }));
     }
   });
   await page.goto(`/login/${encodeURIComponent(stack.homeserver)}`, { timeout: 180_000 });
-  await page.locator('input[name="usernameInput"]').fill(stack.tester.username);
-  await page.locator('input[name="passwordInput"]').fill(stack.tester.password);
+  await page.locator('input[name="usernameInput"]').fill(account.username);
+  await page.locator('input[name="passwordInput"]').fill(account.password);
   await page.getByRole('button', { name: 'Login', exact: true }).click();
   // The first start of an account sets up its encryption, which takes long on a loaded machine.
   await expect(

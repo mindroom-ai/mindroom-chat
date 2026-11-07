@@ -63,6 +63,9 @@ export const Label = style({ whiteSpace: 'nowrap' });
 
 export const Title = style({ fontWeight: 500 });
 
+/** A call's notes, as the message's body renders them, between the row and the transcript. */
+export const Notes = style({ minWidth: 0 });
+
 /** The transcript's open and close button: the turn count and a chevron, at the row's end. */
 export const Toggle = style({
   marginInlineStart: 'auto',

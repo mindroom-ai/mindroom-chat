@@ -419,7 +419,32 @@
         "transcript": "Trascrizione",
         "turns_one": "{{count}} intervento",
         "turns_many": "{{count}} di interventi",
-        "turns_other": "{{count}} interventi"
+        "turns_other": "{{count}} interventi",
+        "callTitle": "Chiamata"
+      },
+      "transcription": {
+        "unavailable": "Le trascrizioni non sono disponibili",
+        "pause": "Metti in pausa la trascrizione",
+        "pauseHint": "Tieni premuto per mettere in pausa, o fai clic per mettere in pausa fino al clic successivo",
+        "pausedBy": "Messa in pausa da {{names}}",
+        "liveTranscript": "Trascrizione in diretta",
+        "close": "Chiudi la trascrizione in diretta",
+        "resize": "Ridimensiona la trascrizione in diretta",
+        "transcribed": "Questa chiamata viene trascritta.",
+        "inCall": "Nella chiamata",
+        "lines": "Trascrizione finora",
+        "noCall": "Nessuna chiamata in corso in questa stanza.",
+        "notTranscribed": "Le chiamate di questa stanza non vengono trascritte.",
+        "nothingYet": "Non è ancora stato detto nulla.",
+        "gap": {
+          "paused": "In pausa",
+          "notTranscribed": "Non trascritto"
+        }
+      },
+      "row": {
+        "live": "Chiamata in corso",
+        "ended": "Chiamata terminata",
+        "notes": "Note e trascrizione"
       }
     },
     "room": {

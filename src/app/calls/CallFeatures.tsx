@@ -15,6 +15,7 @@ import {
 } from './callResume';
 import { AgentCallFailureNotice } from './agent/AgentCallFailureNotice';
 import { IncomingCalls } from './IncomingCalls';
+import { CallTranscription } from './transcription/CallTranscription';
 import * as css from './IncomingCalls.css';
 
 /**
@@ -116,13 +117,14 @@ function CallResume() {
 
 /**
  * Account-wide call features: incoming rings, why an agent call did not start, resuming after a
- * reload, and the call's lifetime.
+ * reload, the call's lifetime, and transcribing this device's speech in it.
  */
 export function CallFeatures() {
   return (
     <>
       <CallLifetime />
       <CallResume />
+      <CallTranscription />
       <div className={css.Host}>
         <IncomingCalls />
         <AgentCallFailureNotice />

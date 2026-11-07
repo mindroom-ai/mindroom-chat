@@ -2,8 +2,8 @@
 """Run a real MindRoom backend, driven by a stub model or a real one, against one end-to-end slot's homeserver.
 
 Usage: python3 scripts/agent-stack/stack.py <slot 0-99> up|down|status|usage [--model stub|real]
-       [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions] [--computers] [--checkout DIR]
-       [--ref REV]
+       [--transcription stub|real] [--calls SERVICE_URL [--calls-profile realtime|live]] [--client-sessions]
+       [--computers] [--checkout DIR] [--ref REV]
 
   up      start the stack, or reuse the one already running for this slot, and print its state as JSON
   down    stop the slot's stack and delete its storage (a real-model stack first saves its usage, see below)
@@ -21,7 +21,7 @@ scripts/agent-stack/stub_model.py, an OpenAI-compatible server that never calls 
 
 Ports for slot N: homeserver 28100+N (slot 0: 28008, as scripts/e2e-slot.sh), MindRoom API 29600+N, stub
 model 29700+N; each range holds 100 ports, so slots 0-99 never share one. Exit codes: 3 no MindRoom checkout,
-4 no homeserver, 5 no provider keys for --model real, 1 anything else.
+4 no homeserver, 5 no provider keys for --model real, --transcription real or --calls, 1 anything else.
 
 --model real (or $E2E_AGENT_MODEL=real) runs the helper on Claude Haiku 5.5, with GPT-6 Luna as the thread's other
 model, the router's and the thread summaries' model. The helper's instructions turn the stub's hashtags into a script
@@ -48,6 +48,14 @@ e2e/docker-compose.yaml starts it for every slot; on any other, POST /api/client
 workers with the computer security policy from mindroom-client-e2e-worker:<commit>, an image the first start builds
 from the commit (a few minutes), and only the helper's browser_mcp runs in a worker. It needs Docker and implies
 --client-sessions, since Chat opens a computer through the same origin settings.
+
+A MindRoom commit with call transcripts (src/mindroom/call_transcripts) runs with `calls.transcripts` on; the slot's
+Chat calls their client routes with --client-sessions. Its speech-to-text is a stand-in in stub_model.py that answers
+from each WAV's header, and the stub model writes the notes. --transcription real (or $E2E_AGENT_TRANSCRIPTION=real,
+and always with --model real) transcribes with OpenAI's speech-to-text and has GPT-6 Luna write the notes instead (a
+`notes` model entry beside the stub models, or the real models' own `luna`), with OPENAI_API_KEY from the
+environment. `usage` and `down` count the notes model's tokens but not speech-to-text's cost: it has no `LLM usage`
+line in the backend log.
 """
 
 from __future__ import annotations
@@ -114,6 +122,13 @@ CALLS_EXTRA = "matrix_calls"
 # from the commit with this Dockerfile (docs/tools/worker-computer.md).
 DOCKER_EXTRA = "docker"
 WORKER_DOCKERFILE = "local/instances/deploy/Dockerfile.mindroom"
+TRANSCRIPTION_MODES = ("stub", "real")
+# The model that writes a call's notes when a stub-model stack transcribes with OpenAI. With the stand-in the stub
+# model writes them, and a real-model stack has its own GPT-6 Luna write them.
+NOTES_MODEL = {"key": "notes", "id": "gpt-6-luna", "displayName": "GPT-6 Luna"}
+NOTES_PRICING = REAL_PRICING["luna"]
+# The stand-in speech-to-text model of stub_model.py.
+STUB_STT_MODEL = "stub-transcribe"
 
 
 class StackError(Exception):
@@ -233,6 +248,14 @@ def resolve_commit(checkout: Path, ref: str | None) -> str:
         return git(checkout, "rev-parse", "--verify", f"{ref}^{{commit}}")
     except subprocess.CalledProcessError as error:
         raise StackError(f"{ref} is not a commit in {checkout}") from error
+
+
+def has_call_transcripts(checkout: Path, sha: str) -> bool:
+    """Whether the commit transcribes calls between people (`calls.transcripts`)."""
+    found = subprocess.run(
+        ["git", "-C", str(checkout), "cat-file", "-e", f"{sha}:src/mindroom/call_transcripts"], capture_output=True
+    )
+    return found.returncode == 0
 
 
 def package_version(checkout: Path, sha: str) -> str:
@@ -425,6 +448,17 @@ def real_models_yaml() -> str:
 """
 
 
+def notes_model_yaml() -> str:
+    """The models entry of the notes model that real speech-to-text comes with."""
+    return f"""  {NOTES_MODEL["key"]}:
+    provider: openai
+    id: {NOTES_MODEL["id"]}
+    display_name: {NOTES_MODEL["displayName"]}
+    context_window: 1050000
+    pricing: {json.dumps(NOTES_PRICING)}
+"""
+
+
 # The stub's scenarios (stub_model.py) as a script for a real model; the specs send the same hashtags in both modes.
 # Replies that the stub streams word by word are longer here, so a fast model still streams for a few seconds.
 REAL_INSTRUCTIONS = [
@@ -480,14 +514,15 @@ REAL_INSTRUCTIONS = [
 ]
 
 
-def calls_yaml(calls: dict | None) -> str:
-    """The calls section: the helper answers voice calls on the slot's MatrixRTC service with the chosen profile."""
-    if not calls:
+def calls_yaml(calls: dict | None, transcription: dict | None = None) -> str:
+    """The calls section: the helper answers voice calls on the slot's MatrixRTC service with the chosen profile, and
+    calls between people are transcribed."""
+    if not calls and not transcription:
         return ""
-    profile = CALL_PROFILES[calls["profile"]]
-    return f"""
-calls:
-  enabled: true
+    section = "\ncalls:\n"
+    if calls:
+        profile = CALL_PROFILES[calls["profile"]]
+        section += f"""  enabled: true
   livekit_service_url: {calls["serviceUrl"]}
   profiles:
     voice:
@@ -498,6 +533,33 @@ calls:
   agents:
     helper: voice
 """
+    if transcription:
+        section += f"""  transcripts:
+    enabled: true
+    notes_model: {transcription["notesModel"]}
+    languages: [en]
+"""
+    return section
+
+
+def voice_yaml(transcription: dict | None, stub_url: str) -> str:
+    """The speech-to-text that call transcripts use: OpenAI's, or the stand-in of stub_model.py."""
+    if not transcription:
+        return ""
+    if transcription["stt"] == "real":
+        return """
+voice:
+  stt:
+    provider: openai
+    credentials_service: openai
+"""
+    return f"""
+voice:
+  stt:
+    provider: openai_compatible
+    host: {stub_url}
+    model: {STUB_STT_MODEL}
+"""
 
 
 def config_yaml(
@@ -507,6 +569,7 @@ def config_yaml(
     approval_expiry_days: float,
     calls: dict | None = None,
     computers: bool = False,
+    transcription: dict | None = None,
 ) -> str:
     agent_tools = """      - shell
       - scheduler
@@ -557,6 +620,8 @@ def config_yaml(
         router_model = "default"
         summary_model = ""
         header = "# Written by scripts/agent-stack/stack.py; the stub model picks a scenario from hashtags in the message."
+    if transcription and transcription["notesModel"] == NOTES_MODEL["key"]:
+        models += notes_model_yaml()
     return f"""{header}
 {models}
 agents:
@@ -589,7 +654,7 @@ room_defaults:
 
 timezone: UTC
 memory: none
-{calls_yaml(calls)}"""
+{calls_yaml(calls, transcription)}{voice_yaml(transcription, stub_url)}"""
 
 
 SHELL_REVIEW = '''import json
@@ -682,8 +747,11 @@ def usage_summary(state: dict, slot_dir: Path) -> dict:
             with contextlib.suppress(TypeError, ValueError):
                 entry[field] += int(record.get(field) or 0)
     total_usd = 0.0
+    real_notes = (state.get("transcription") or {}).get("stt") == "real"
     for name, entry in models.items():
         price = REAL_PRICING.get(name) if state.get("model") == "real" else None
+        if name == NOTES_MODEL["key"] and real_notes:
+            price = NOTES_PRICING
         if not price:
             continue
         # Cache writes are part of the uncached input and have their own price.
@@ -756,10 +824,17 @@ def voice_usage(slot_dir: Path) -> list[dict]:
     return calls
 
 
+def paid(state: dict) -> bool:
+    """Whether the stack calls paid models: a real model, voice calls or real call transcripts."""
+    return bool(
+        state.get("model") == "real" or state.get("calls") or (state.get("transcription") or {}).get("stt") == "real"
+    )
+
+
 def save_usage(slot_dir: Path) -> None:
-    """Keeps a real-model or calls stack's usage after `down` deletes its directory."""
+    """Keeps a paid stack's usage after `down` deletes its directory."""
     state = read_state(slot_dir)
-    if not state or not (state.get("model") == "real" or state.get("calls")) or not (slot_dir / "backend.log").exists():
+    if not state or not paid(state) or not (slot_dir / "backend.log").exists():
         return
     summary = usage_summary(state, slot_dir)
     folder = stack_root() / "usage"
@@ -782,13 +857,27 @@ def calls_setting(args: argparse.Namespace) -> dict | None:
     }
 
 
-def started_with(state: dict, args: argparse.Namespace, sha: str, homeserver: str) -> bool:
-    """Whether a stack's state comes from a start with this model, calls, client sessions, computers and approval
-    expiry, of this commit, on this homeserver; a state without clientSessions or computers counts as one started
-    without them."""
+def transcription_setting(args: argparse.Namespace, checkout: Path, sha: str) -> dict | None:
+    """How the stack transcribes calls between people, as the state records it; None for a commit without them."""
+    if not has_call_transcripts(checkout, sha):
+        return None
+    if args.model == "real":
+        # Its own Luna writes the notes: a second entry of the same model would list it twice in the model picker.
+        return {"stt": "real", "notesModel": MODELS["real"]["second"]["key"]}
+    notes = NOTES_MODEL["key"] if args.transcription == "real" else MODELS["stub"]["first"]["key"]
+    return {"stt": args.transcription, "notesModel": notes}
+
+
+def started_with(
+    state: dict, args: argparse.Namespace, sha: str, homeserver: str, transcription: dict | None = None
+) -> bool:
+    """Whether a stack's state comes from a start with this model, calls, call transcripts, client sessions, computers
+    and approval expiry, of this commit, on this homeserver; a state without clientSessions or computers counts as one
+    started without them."""
     return (
         state.get("model", "stub") == args.model
         and state.get("calls") == calls_setting(args)
+        and state.get("transcription") == transcription
         and state.get("clientSessions", False) == args.client_sessions
         and state.get("computers", False) == args.computers
         and state.get("approvalExpiryDays") == args.approval_expiry_days
@@ -807,11 +896,12 @@ def up(slot: int, args: argparse.Namespace) -> dict:
         )
     sha = resolve_commit(checkout, args.ref)
     calls = calls_setting(args)
+    transcription = transcription_setting(args, checkout, sha)
     slot_dir = stack_root() / f"slot-{slot}"
     state = read_state(slot_dir)
     if (
         running(state, slot_dir)
-        and started_with(state, args, sha, homeserver)
+        and started_with(state, args, sha, homeserver, transcription)
         and token_is_valid(homeserver, (state.get("tester") or {}).get("accessToken"))
         and token_is_valid(homeserver, state.get("routerToken"))
     ):
@@ -823,19 +913,21 @@ def up(slot: int, args: argparse.Namespace) -> dict:
             "restarting it"
         )
     real = args.model == "real"
-    keys = provider_keys() if real or calls else {}
-    # A voice call speaks through OpenAI's realtime models.
-    required = (*(REQUIRED_REAL_KEYS if real else ()), *(("OPENAI_API_KEY",) if calls else ()))
+    real_transcription = bool(transcription and transcription["stt"] == "real")
+    keys = provider_keys() if real or calls or real_transcription else {}
+    # A voice call speaks through OpenAI's realtime models; real call transcripts go to OpenAI's speech-to-text.
+    required = (*(REQUIRED_REAL_KEYS if real else ()), *(("OPENAI_API_KEY",) if calls or real_transcription else ()))
     missing = [name for name in dict.fromkeys(required) if name not in keys]
     if missing:
-        needs = " and ".join(option for option, on in (("--model real", real), ("--calls", calls)) if on)
+        options = {"--model real": real, "--transcription real": real_transcription and not real, "--calls": calls}
+        needs = " and ".join(option for option, on in options.items() if on)
         raise StackError(
             f"{needs} needs {' and '.join(missing)} in the environment; source the key file into the command",
             EXIT_NO_KEYS,
         )
     stop(slot_dir)
     try:
-        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys)
+        return start(slot, args, checkout, sha, homeserver, port, slot_dir, keys, transcription)
     except BaseException:
         # Whatever this start launched stops; its logs stay in the slot directory until the next start.
         stop_processes(slot_dir)
@@ -851,8 +943,9 @@ def start(
     port: dict[str, int],
     slot_dir: Path,
     keys: dict[str, str],
+    transcription: dict | None,
 ) -> dict:
-    """Starts the stack; `keys` (real model or calls only) go to the backend's process environment and nowhere else."""
+    """Starts the stack; `keys` (paid models only) go to the backend's process environment and nowhere else."""
     calls = calls_setting(args)
     extras = (*((CALLS_EXTRA,) if calls else ()), *((DOCKER_EXTRA,) if args.computers else ()))
     source = prepare_source(checkout, sha, extras)
@@ -880,7 +973,9 @@ def start(
     stub_url = f"http://127.0.0.1:{port['stub']}/v1"
     config_path = slot_dir / "config.yaml"
     config_path.write_text(
-        config_yaml(args.model, tester_id, stub_url, args.approval_expiry_days, calls, args.computers)
+        config_yaml(
+            args.model, tester_id, stub_url, args.approval_expiry_days, calls, args.computers, transcription
+        )
     )
     api_url = f"http://127.0.0.1:{port['api']}"
     (slot_dir / ".env").write_text(
@@ -918,6 +1013,7 @@ def start(
         "model": args.model,
         "models": MODELS[args.model],
         "calls": calls,
+        "transcription": transcription,
         "clientSessions": args.client_sessions,
         "computers": args.computers,
         # The config's timeout_days, exactly: approvalExpirySeconds below is rounded.
@@ -1106,6 +1202,14 @@ def main() -> int:
         "environment",
     )
     parser.add_argument(
+        "--transcription",
+        choices=TRANSCRIPTION_MODES,
+        default=os.environ.get("E2E_AGENT_TRANSCRIPTION") or "stub",
+        help="call transcripts of a MindRoom that has them: stub (default, or $E2E_AGENT_TRANSCRIPTION), a stand-in "
+        "speech-to-text and the stub model's notes, or real, OpenAI's speech-to-text and GPT-6 Luna's notes with "
+        "OPENAI_API_KEY from the environment (--model real always transcribes for real)",
+    )
+    parser.add_argument(
         "--calls",
         metavar="SERVICE_URL",
         help="the helper answers voice calls on this MatrixRTC authorization service (scripts/e2e-rtc.sh env's "
@@ -1144,6 +1248,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.model not in MODES:
         parser.error(f"--model must be one of {', '.join(MODES)}")
+    if args.transcription not in TRANSCRIPTION_MODES:
+        parser.error(f"--transcription must be one of {', '.join(TRANSCRIPTION_MODES)}")
     if not 0 <= args.slot <= 99:
         parser.error("slot must be 0-99")
     # Chat opens a computer through the same origin settings as a client session.
