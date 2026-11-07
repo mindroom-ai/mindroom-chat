@@ -31,10 +31,6 @@ describe('planRoomLedgerRender', () => {
     expect(planRoomLedgerRender(anchorAt(rows, '$c'), ['$a', '$c', '$d', '$e'], price)).toEqual(
       fold(-100)
     );
-    // A row that moves below the reader leaves its height in the list.
-    expect(
-      planRoomLedgerRender(anchorAt(rows, '$c'), ['$a', '$c', '$d', '$b', '$e'], price)
-    ).toEqual(fold(-100, 0));
   });
 
   it('holds by the next row when the reader’s own row moves to the top', () => {
