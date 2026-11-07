@@ -114,14 +114,15 @@ test(
 
     const receipt = page.getByRole('button', { name: /^You denied run_shell_command/ });
     await expectShownInOrder(receipt);
-    // The reply's last edit can land after the click and draw the call list closed again.
+    // The reply's later edits can draw the call list closed again, so open it and read it at once.
     const toolCall = page.getByRole('button', { name: /^Denied 1 tool call/ });
     const row = page.locator('[data-tool-index="1"]').first();
     await expect(async () => {
       if ((await toolCall.getAttribute('aria-expanded')) !== 'true') await toolCall.click();
-      await expect(row).toContainText(SHOWN, { timeout: 2_000 });
+      const text = await row.textContent({ timeout: 2_000 });
+      expect(text).toContain(SHOWN);
+      expect(text).not.toMatch(CONTROL);
     }).toPass({ timeout: 60_000 });
-    await expectShownInOrder(row);
     await shot(page, testInfo, 'denied-en');
   }
 );
