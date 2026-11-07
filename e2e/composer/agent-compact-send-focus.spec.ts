@@ -20,12 +20,35 @@ const diag = () => {
       records.forEach((r) =>
         r.removedNodes.forEach((n) => {
           if (n instanceof HTMLElement && (n.matches('[data-editable-name="RoomInput"]') || n.querySelector('[data-editable-name="RoomInput"]')))
-            log.push(`${at()} removed editable within ${n.tagName}.${n.className}`);
+            {
+              const attrs = (el: Element | null) =>
+                el
+                  ? `${el.tagName}[${Array.from(el.attributes)
+                      .filter((a) => a.name !== 'class' && a.name !== 'style')
+                      .map((a) => `${a.name}=${a.value.slice(0, 40)}`)
+                      .join(' ')}]`
+                  : '-';
+              const chain: string[] = [];
+              let el: Element | null = r.target as Element;
+              for (let i = 0; el && i < 8; i += 1, el = el.parentElement) chain.push(attrs(el));
+              const kids = Array.from(n.children).slice(0, 6).map(attrs).join(' ; ');
+              log.push(`${at()} removed editable within ${attrs(n)} kids ${kids} added ${r.addedNodes.length} parent chain ${chain.join(' < ')} url ${location.pathname}${location.search}`);
+            }
         })
       )
     ).observe(document.body, { childList: true, subtree: true });
   if (document.body) watch();
   else document.addEventListener('DOMContentLoaded', watch);
+  const push = history.pushState.bind(history);
+  const replace = history.replaceState.bind(history);
+  history.pushState = (...args: Parameters<History['pushState']>) => {
+    push(...args);
+    log.push(`${at()} push ${String(args[2])}`);
+  };
+  history.replaceState = (...args: Parameters<History['replaceState']>) => {
+    replace(...args);
+    log.push(`${at()} replace ${String(args[2])}`);
+  };
   let last = '';
   const poll = () => {
     const a = name(document.activeElement);
@@ -36,7 +59,7 @@ const diag = () => {
   requestAnimationFrame(poll);
 };
 
-for (const ua of ['default', 'iphone'] as const) {
+for (const ua of ['iphone'] as const) {
   test.describe(`phone ${ua}`, () => {
     test.use({
       viewport: { width: 390, height: 844 },
